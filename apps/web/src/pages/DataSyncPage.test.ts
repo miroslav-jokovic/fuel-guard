@@ -22,6 +22,11 @@ const coverageFetched = { value: null as Record<string, unknown> | null, ok: tru
 // shape and took the whole page down — four assertions failed for a reason none of them was about.
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (url: string) => {
+    // S5's card. Without this branch it receives the webhook payload — the exact defect the note
+    // above records, one card later.
+    if (url.includes("feed-freshness")) {
+      return { ok: true, data: { feeds: [], alerting: [], error: null } };
+    }
     if (url.includes("telematics-coverage")) {
       return coverageFetched.ok
         ? { ok: true, data: coverageFetched.value }

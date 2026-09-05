@@ -261,7 +261,7 @@ costs downstream). Establish reality with `git log --oneline -15`, `pnpm verify:
 | S2 | **verified** | Feed endpoint returns 200 with a cursor on this token. |
 | S3 | **verified** | `skipRecon` semantics read; the 77% measured; no tier exists in `samsaraScheduler.ts`. |
 | S4 | **verified possible** | History available back to 2026-01 across 8 vehicles. **Full-fleet volume and runtime are NOT measured** — S4 opens with that measurement. |
-| S5 | **verified as shape** | The staleness inputs exist (`jobs` ledger, `samsara_recon_status`, `updated_at`). The per-feed targets are Q-SAM1 and are the owner's to set. |
+| S5 | **MERGE 1 of 2 SHIPPED 2026-09-05** | Q-SAM1 answered. The number and its surface are built; the alarm and the dependent-surface strips are merge 2. |
 | S6 | **assumption — deliberately** | That backfilled telematics materially moves the 2.9% precision is **expected, not proven**. S6 measures before and after and is allowed to conclude it did not. |
 
 ---
@@ -683,7 +683,7 @@ help**, and if so that is the finding, recorded here, not a reason to run it aga
 
 | Id | Question | Owner | Fallback until answered |
 |---|---|---|---|
-| **Q-SAM1** | **What staleness is acceptable, per feed?** Fuel-theft detection tolerates an hour; a dispatcher looking at a live map does not. A single global target over-polls most feeds and under-serves one. Proposal to react to: stats/telematics **1 h**, identity **24 h**, driver-scores **12 h**, IFTA **48 h**. | Miki | S5 ships the mechanism with those numbers marked provisional in the code comment. No alert fires on a guessed threshold. |
+| **Q-SAM1** | ~~**What staleness is acceptable, per feed?**~~ **ANSWERED 2026-09-05 (owner ruling): adopt the proposal.** stats/telematics **1 h**, identity **24 h**, driver-scores **12 h**, IFTA **48 h** — real bounds, not provisional ones, so a breach of any of the four may alert. ⚠ **The ruling names four feeds and the collector runs eight.** Odometer, HOS and idle take a bound DERIVED from the cadence they already promise (`FEED_LATE_AFTER_PASSES`, the answer this repo already gave for the EFS pollers), are shown so nothing is unmonitored, and **never alert** — which is this row's own fallback sentence kept rather than discarded. `targetSource` carries the difference onto the wire and onto the screen. | Miki | ~~open~~ Answered. |
 | **Q-SAM2** | **Do we handle the five `RouteStop*` events or unsubscribe them?** They imply a dispatch/ETA feature nobody has asked for. Handling them is real work; leaving them is a permanent 404 generator against our own endpoint. | Miki | Unsubscribe. An event type with no handler is not a feature. |
 | **Q-SAM3** | **What is the `Fleetpal Webhook` on this account, and is it ours to touch?** It receives `VehicleCreated`/`VehicleUpdated`/`DvirSubmitted` at a third-party URL. `ARCHITECTURE.md` names a future `fleetpal` collector, so this may be a live integration outside this codebase. | Miki | Left strictly alone. Nothing in this plan modifies a webhook we did not create. |
 | **Q-SAM4** | **Is the webhook pointed at the right Railway service?** It targets `fleetguardweb-production`, while `railway.json` names `fleetguardapi` as the WEX-whitelisted service that runs the pollers. Both serve the API, so the path fix may be sufficient — but which service should own inbound webhooks is a deployment decision. | Miki | S1 fixes the path on the service already configured and changes no deployment topology. |
@@ -704,3 +704,95 @@ help**, and if so that is the finding, recorded here, not a reason to run it aga
   always supposed to have; S6 measures whether that was enough.
 - **It does not modify a webhook it did not create.** Q-SAM3.
 - **It does not pin migration numbers.** Next-numbered at execution.
+
+#### — S5 MERGE 1 of 2 SHIPPED 2026-09-05 (`claude/samsara-s5-feed-freshness`). S5 stays OPEN for the alarm.
+
+S5 has four bullets and they split cleanly along one seam: the first three sentences of the Done-when
+are *"is our data fresh?" is answerable by looking*, and the last is *a stalled feed pages somebody*.
+Merge 1 is the first. Nothing in it needs a migration; merge 2 does, and the reason is below.
+
+**Q-SAM1 was answered as ruled, and the ruling covers half the collector.** stats/telematics 1 h,
+identity 24 h, driver-scores 12 h, IFTA 48 h. The collector runs **eight** feeds, not four — odometer,
+HOS and idle are real tiers with real consumers and the ruling does not name them. Inventing numbers
+for them would be exactly what this row's own fallback forbids, so they take a bound derived from the
+cadence they already promise, reusing `FEED_LATE_AFTER_PASSES` — the answer this repo already gave to
+this question for the EFS pollers, where the argument is written out. **A derived bound is shown and
+never alerts.** `targetSource` is `ruling` or `cadence`, it travels to the browser, and the card says
+which the reader is looking at.
+
+Worth writing down rather than leaving as a coincidence: **the ruled numbers and the derived rule
+agree.** Identity, driver-scores and IFTA are each exactly 2× their configured interval and stats is
+3×, which is the band `FEED_LATE_AFTER_PASSES` produces. They are still kept apart, because one is a
+decision somebody made and the other is arithmetic, and only the first may wake a person.
+
+**⚠ A ruled bound is ABSOLUTE and a cadence is an environment variable, so they can contradict.** Raise
+`SAMSARA_STATS_SYNC_MINUTES` past 60 and the ruled 1-hour bound is breached the moment it is met — a
+feed working exactly as configured, permanently red, which is how an alert becomes wallpaper.
+`targetUnreachable` is computed and surfaced, and suppresses the alert. It does **not** silently move
+the owner's number: the bound stays what was ruled and the product says the two settings disagree.
+
+**Three stamps, and each one could have reported a dead feed as healthy.**
+
+1. `runOrgTier` records `NoSamsaraTokenError` as **done** with `stats = { skipped: "no token" }` — right
+   for the ledger, fatal for this. An org with no token would show every feed as freshly delivered
+   forever: the `*_last_polled_at` trap `fuelSpend/feedFreshness.ts` documents, in a second ledger. A
+   skipped run is excluded from the success stamp and still counts as an attempt, which is what
+   separates *never configured* from *configured and delivering nothing*.
+2. The error is taken from the **most recent run**, not the most recent failure. A tier that failed on
+   Tuesday and has succeeded hourly since is not failing — and, measured below, that is the normal
+   state of three of these feeds. It is also read only when that run's status is `failed`: the worker
+   records an attempt's error and leaves the row queued for a retry, so reading the column alone
+   reports a tier that is mid-retry, with a fresh delivery behind it, as broken.
+3. **The per-fill tier is not measured by its job rows.** The recon tier dispatches the `backfill`
+   kind, which `startRebuildOnBoot` and manual rebuilds also use, so a `backfill` row proves nothing
+   about telematics. `fuel_transactions.samsara_recon_checked_at` is the stamp the recon path itself
+   writes — the same predicate S4's coverage card judges attempts by, so the two surfaces cannot
+   disagree about whether we asked.
+
+**Measured on production, 2026-09-05 20:27 UTC.** All eight feeds healthy: latest run `done` or
+`running` for every kind, no error on any, and the newest `samsara_recon_checked_at` three minutes old.
+So the card's first reading is 8/8, which is true.
+
+**But the history says something the card does not, and that is a deliberate limit.** Over all runs
+this org holds: `sync_idle` **268 failed against 486 done (36%)**, `sync_ifta` **181 against 400
+(31%)**, `sync_vehicles` 56 against 865, `sync_hos` 74 against 760, `sync_stats` 21 against 8,472.
+A feed that fails a third of its runs and succeeds on the retry is *fresh* by this card's definition
+and by the plan's — freshness is a bound on staleness, and it is being met. **A failure RATE is a
+different question and this card does not answer it.** Naming it here rather than widening S5 on the
+spot: it is a candidate step, not a defect in this one.
+
+**What merge 2 holds, and why it needs a migration.** The alarm cannot be stateless. A stale feed is
+stale on every tick, so alerting from the scheduler would email the carrier hourly until somebody
+fixed it — which is how a warning becomes wallpaper, the same failure `targetUnreachable` exists to
+prevent one level down. It needs a per-org, per-feed record of what was last notified and when, so a
+breach pages once on transition and recovers quietly. That is a table. Merge 2 also carries the
+one-line strips on the surfaces that depend on a feed (`worstSamsaraFeed` is built and exported for
+exactly that, and is unused today), and D-SAM7's all-time denominator on the Dashboard tile.
+
+**Verified by.** `feedHealth` (18, `packages/shared`) — including `does not let a bare attempt stand in
+for a delivery`, `never alerts on a cadence-derived one, however far past it`, `is reported as
+unreachable rather than paging every hour forever`, and `does not silently move the owner's number —
+the bound stays what was ruled`. `readSamsaraFeedHealth` (13, `apps/api`) — including `does not count a
+run that skipped for want of a token as a delivery`, `judges the per-fill tier by the stamp the recon
+path writes, not by a job row`, `does not call a feed failing while a retry is still queued`, and
+`scopes every query it makes to one organization` (`expectOrgScoped`). `FeedFreshnessCard` (8,
+`apps/web`).
+
+**Proved able to fail by fifteen mutations**, each breaking exactly one assertion. ⚠ **Three initially
+passed and the fixtures were wrong, not the code** — the same lesson as S4's status-vs-stamp case, and
+it is now three for three across two steps:
+- *the attempt stamp standing in for the success stamp* — every fixture had a success, so the fallback
+  never ran. It also exposed an overclaim: a tier that has run and delivered nothing with **no error
+  recorded** was being described as "refused by Samsara", which is a claim about the vendor that only
+  the error text supports, and would send somebody to check a token that is fine.
+- *absorbing a refused read* — one fixture failed BOTH job queries, so the second guard hid a missing
+  first one. The fixture now fails each read independently.
+- *the recon-batch guard* — a malformed mutation, re-run properly.
+
+**⚠ One CI failure this step earned, and the reason is worth keeping.** `apps/api/src/testing/envCasts.test.ts`
+bans `as unknown as Env` in fixtures — a cast hands the code under test an object missing every key it
+did not mention, a shape `loadEnv` can never return. The fixture here did exactly that and `pnpm test`
+passed locally anyway, because **that gate enumerates its inputs with `git ls-files`** and the new test
+file was still untracked. A full green suite before `git add` is not a full green suite. The fixture is
+now `testEnv()`, which parses the schema as the process does — so the cadence assertions test the
+deployment's real defaults rather than a fixture's opinion of them.

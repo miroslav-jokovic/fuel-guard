@@ -10,6 +10,7 @@ import { SecretBoxError } from "../../../lib/secretBox.js";
 import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";
 import { runSamsaraDiagnostics } from "../samsaraDiagnostics.js";
 import { readSamsaraWebhookStatus } from "../fuelEventsWebhook.js";
+import { readSamsaraFeedHealth } from "../samsaraFeedHealth.js";
 import { readTelematicsCoverage } from "../telematicsCoverage.js";
 
 /** Samsara integration admin routes — token set/rotate/clear, the manual sync buttons, and the
@@ -248,6 +249,26 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       res.json(await readTelematicsCoverage(admin, req.auth!.orgId!));
+    }),
+  );
+
+  /**
+   * How stale is each Samsara feed, against its stated bound? (SAM-S5, D-SAM6)
+   *
+   * The plan's §1.1 answer to "is our data fresh?" in one route: a per-feed staleness figure with a
+   * per-feed target, rather than a global adjective nobody can act on. `alerting` is the subset a
+   * breach of which is allowed to page somebody — a RULED bound (Q-SAM1) that is actually meetable.
+   *
+   * Same derived gate as its neighbour: `rolesThatCanView("settings")`, never a hand-listed set.
+   */
+  router.get(
+    "/samsara/feed-freshness",
+    requireOrg,
+    requireSection("settings", "view"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      res.json(await readSamsaraFeedHealth(admin, env, req.auth!.orgId!));
     }),
   );
 
