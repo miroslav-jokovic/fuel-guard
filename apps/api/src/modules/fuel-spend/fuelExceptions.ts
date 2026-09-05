@@ -22,6 +22,25 @@ export interface ExceptionFilters {
   status?: FuelExceptionStatus[] | null;
   kind?: FuelExceptionKind[] | null;
   assignedTo?: string | null;
+  /**
+   * The trucks, as UNIT NUMBERS (FUEL-P3, D-FUI17).
+   *
+   * ⚠ Unit numbers and not vehicle ids, and that is a measurement rather than a preference.
+   * `fuel_exceptions` HAS a `vehicle_id` column — 0250 declared it — and **nothing has ever written
+   * it**: the producer (`sync_fuel_exceptions`, 0250/0253) inserts `unit_number` from the statement
+   * line's `unit` and no vehicle at all, and production carries 0 rows with a `vehicle_id` (measured
+   * 2026-09-04). A filter on that column would return nothing, always, and look like a fleet with no
+   * findings.
+   *
+   * So the ledger's truck fact is the unit EFS printed, exactly as it is on the two raw feeds, and the
+   * caller resolves its vehicle ids against the fleet's own unit numbers before calling — the same
+   * match `useEfsRowCoverage` makes for the same reason. Giving the producer a `vehicle_id` is C6's
+   * work, not a filter's.
+   *
+   * An EMPTY array means "the trucks named are not in this fleet" and matches nothing; `null` or
+   * absent means every truck.
+   */
+  unitNumbers?: string[] | null;
   from?: string | null;
   to?: string | null;
   limit?: number;
@@ -42,6 +61,9 @@ export async function listExceptions(
   if (f.status?.length) q = q.in("status", f.status);
   if (f.kind?.length) q = q.in("kind", f.kind);
   if (f.assignedTo) q = q.eq("assigned_to", f.assignedTo);
+  // FUEL-P3 / A3. `?trucks=` was accepted by the page, preserved in the URL and ignored by everything
+  // underneath it — the shape of defect this step closes at both ends.
+  if (f.unitNumbers) q = q.in("unit_number", f.unitNumbers);
   if (f.from) q = q.gte("occurred_on", f.from);
   if (f.to) q = q.lte("occurred_on", f.to);
 
@@ -83,11 +105,23 @@ export async function readException(
 export async function exceptionTotals(
   admin: SupabaseClient,
   orgId: string,
-  window: { from?: string | null; to?: string | null } = {},
+  /**
+   * ⚠ The SAME scope the list takes, not just a window (FUEL-P3).
+   *
+   * These four figures sit directly above the table. Scoping the list to two trucks while the tiles
+   * kept answering for the fleet would put "Identified $41,000" above eleven rows worth $600 — the
+   * disagreement FUEL-T3a spent a migration removing on the Fuel Log, arriving here through a filter.
+   * `status` and `kind` are deliberately NOT taken: identified/claimed/recovered are defined ACROSS the
+   * statuses (claimed is disputed+credited), so narrowing by status would make each tile a different
+   * question rather than a smaller one.
+   */
+  window: { from?: string | null; to?: string | null; unitNumbers?: string[] | null; assignedTo?: string | null } = {},
 ): Promise<Record<string, unknown>> {
   let q = admin.from("fuel_exceptions").select("status, amount_kind, amount, credited_amount").eq("org_id", orgId);
   if (window.from) q = q.gte("occurred_on", window.from);
   if (window.to) q = q.lte("occurred_on", window.to);
+  if (window.unitNumbers) q = q.in("unit_number", window.unitNumbers);
+  if (window.assignedTo) q = q.eq("assigned_to", window.assignedTo);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
 

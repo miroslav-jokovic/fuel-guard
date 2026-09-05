@@ -66,6 +66,18 @@ export interface ExceptionTotals {
 export interface ExceptionQuery {
   status: FuelExceptionStatus[];
   kind: FuelExceptionKind[];
+  /**
+   * The trucks, as VEHICLE IDS — `useSpendFilters`' `?trucks=`, one vocabulary for "which trucks"
+   * across the section (FUEL-P3, A3, D-FUI17).
+   *
+   * ⚠ This page has carried that parameter since the ledger shipped: the filter bar wrote it, the URL
+   * preserved it, and nothing underneath read it. The API resolves these ids to the UNIT NUMBERS the
+   * findings actually carry — `fuel_exceptions.vehicle_id` exists and has never been written by
+   * anything.
+   */
+  vehicleIds: string[];
+  /** One person's queue. The API has always accepted this; nothing ever sent it. */
+  assignedTo: string | null;
   from: string;
   to: string;
   page: number;
@@ -76,8 +88,23 @@ const qs = (q: ExceptionQuery): string => {
   const p = new URLSearchParams({ from: q.from, to: q.to, limit: String(q.pageSize), offset: String((q.page - 1) * q.pageSize) });
   if (q.status.length) p.set("status", q.status.join(","));
   if (q.kind.length) p.set("kind", q.kind.join(","));
+  if (q.vehicleIds.length) p.set("vehicles", q.vehicleIds.join(","));
+  if (q.assignedTo) p.set("assignedTo", q.assignedTo);
   return p.toString();
 };
+
+/**
+ * Everything the export needs to reproduce this view, as query-string pairs.
+ *
+ * Deliberately the SAME builder as the list, minus paging: an export is the whole filtered set, and a
+ * second assembly of these parameters is how a file ends up covering a different set than the screen
+ * it was taken from. `useSpendFilters.asQuery` makes the same argument for the spend report.
+ */
+export const exceptionExportQuery = (q: ExceptionQuery): string =>
+  qs({ ...q, page: 1, pageSize: 1 })
+    .split("&")
+    .filter((pair) => !pair.startsWith("limit=") && !pair.startsWith("offset="))
+    .join("&");
 
 export function useExceptionsQuery(query: Ref<ExceptionQuery>) {
   return useQuery({
@@ -94,13 +121,26 @@ export function useExceptionsQuery(query: Ref<ExceptionQuery>) {
   });
 }
 
-export function useExceptionTotalsQuery(window: Ref<{ from: string; to: string }>) {
+/**
+ * The four tiles, over the SAME scope as the list beneath them (FUEL-P3).
+ *
+ * They used to take a window only, so scoping the list to two trucks left "Identified $41,000" sitting
+ * above eleven rows worth $600 — the disagreement FUEL-T3a spent a migration removing on the Fuel Log,
+ * arriving here through a filter. `status` and `kind` stay out on purpose: identified/claimed/recovered
+ * are defined ACROSS the statuses, so narrowing by one would make each tile a different question rather
+ * than a smaller one.
+ */
+export function useExceptionTotalsQuery(
+  window: Ref<{ from: string; to: string; vehicleIds: string[]; assignedTo: string | null }>,
+) {
   return useQuery({
     queryKey: ["fuel_exception_totals", window],
     placeholderData: keepPreviousData,
     staleTime: 15_000,
     queryFn: async (): Promise<ExceptionTotals | null> => {
       const p = new URLSearchParams({ from: window.value.from, to: window.value.to });
+      if (window.value.vehicleIds.length) p.set("vehicles", window.value.vehicleIds.join(","));
+      if (window.value.assignedTo) p.set("assignedTo", window.value.assignedTo);
       const res = await apiFetch<{ ok: boolean; totals: ExceptionTotals }>(`/api/fueling/exceptions/totals?${p}`);
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the totals");
       return res.data.totals;
