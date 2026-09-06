@@ -24,6 +24,7 @@ import type { ChartConfiguration } from "chart.js";
 import { useDashboard } from "@/features/dashboard/useDashboard";
 import { useFuelRangeTotals, type FuelFilters } from "@/features/fuel/useFuelLog";
 import { useFleetMpgSeries } from "@/features/fuel/useFleetMpg";
+import { fuelTileDestinations } from "@/features/fuel/dashboardFuelLinks";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
@@ -92,12 +93,16 @@ const fmtInt = (nn: number) => Math.round(nn).toLocaleString("en-US");
 const fuelingStats = computed(() => {
   const t = fuelTotals.value; // fill count + robust miles (not carried on the dashboard summary)
   const d = s.value;          // spend / gallons / MPG — same source as the hero tiles, so they always agree
+  // Destinations and the window they carry live in `dashboardFuelLinks` — pure, and total over the
+  // strip's labels, so a tile added here without a destination is a compiler error. See its header
+  // for why each tile goes where it does, and why NOT /odometer.
+  const to = fuelTileDestinations(range.value);
   return [
-    { label: "Fill-ups", value: t ? fmtInt(t.fillUps) : "—", sub: "in selected range", icon: InvoiceIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
-    { label: "Gallons", value: d ? fmtInt(d.totalGallons) : "—", sub: "total fuel", icon: GallonsIcon, tone: "text-info-600 bg-info-50", to: "/fuel-log" },
-    { label: "Miles driven", value: t ? fmtInt(t.totalMiles) : "—", sub: "odometer span in range", icon: RoadIcon, tone: "text-success-600 bg-success-50", to: "/fuel-log" },
-    { label: "Fuel spend", value: d ? `$${fmtCompact(d.totalSpend)}` : "—", valueTitle: d ? fmtMoney(d.totalSpend) : undefined, sub: "total cost", icon: CurrencyDollarIcon, tone: "text-success-600 bg-success-50", to: "/fuel-log" },
-    { label: "Avg MPG", value: mpgTotal.value?.mpg != null ? mpgTotal.value.mpg.toFixed(1) : "—", valueTitle: mpgTitle.value, sub: mpgSub.value, icon: GaugeIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
+    { label: "Fill-ups", value: t ? fmtInt(t.fillUps) : "—", sub: "in selected range", icon: InvoiceIcon, tone: "text-brand-600 bg-brand-50", to: to["Fill-ups"] },
+    { label: "Gallons", value: d ? fmtInt(d.totalGallons) : "—", sub: "total fuel", icon: GallonsIcon, tone: "text-info-600 bg-info-50", to: to.Gallons },
+    { label: "Miles driven", value: t ? fmtInt(t.totalMiles) : "—", sub: "odometer span in range", icon: RoadIcon, tone: "text-success-600 bg-success-50", to: to["Miles driven"] },
+    { label: "Fuel spend", value: d ? `$${fmtCompact(d.totalSpend)}` : "—", valueTitle: d ? fmtMoney(d.totalSpend) : undefined, sub: "total cost", icon: CurrencyDollarIcon, tone: "text-success-600 bg-success-50", to: to["Fuel spend"] },
+    { label: "Avg MPG", value: mpgTotal.value?.mpg != null ? mpgTotal.value.mpg.toFixed(1) : "—", valueTitle: mpgTitle.value, sub: mpgSub.value, icon: GaugeIcon, tone: "text-brand-600 bg-brand-50", to: to["Avg MPG"] },
   ];
 });
 
