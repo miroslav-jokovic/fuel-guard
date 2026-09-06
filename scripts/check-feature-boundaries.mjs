@@ -136,6 +136,11 @@ const API_ALLOW = new Set([
   // instruction, and the same arrow `efs`, `fuel`, `roster` and `samsara` already draw for org's
   // job bookkeeping.
   "fuel-spend -> org",
+  // C7b: the Findings inbox assigns findings across both case tables, and `anomalies` belongs to the
+  // anomalies module — `lint:table-writers` refused the direct update, so the assignment goes through
+  // `assignAnomalies`. The inbox keeps the per-kind PERMISSION question, which is its own; the module
+  // keeps the write to its table.
+  "fuel-spend -> anomalies",
   // The weekly digest PDF prints the fleet's MPG, and there is now exactly one place that computes
   // it (M4, D-MPG1). insights asks fuel-spend's `getFleetMpg` rather than aggregating the fills it
   // already holds — which is what four surfaces did, and is why the Dashboard and the Spend trend

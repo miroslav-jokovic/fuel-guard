@@ -46,6 +46,24 @@ vi.mock("@/features/reconcile/useExceptions", () => ({
     return p.toString();
   },
 }));
+/**
+ * The assignment surface. Stubbed like every other composable here — the REFUSALS it exists for live
+ * in `findingsAssign.test.ts` against the service, because they are the server's contract and a page
+ * test that re-asserted them would be checking a stub. What is only testable here is which control
+ * the page offers for a given selection.
+ */
+const assigned = { calls: [] as unknown[] };
+vi.mock("@/features/reconcile/useFindingAssignment", async (orig) => ({
+  ...(await orig<typeof import("@/features/reconcile/useFindingAssignment")>()),
+  useAssigneesQuery: () => asQuery(() => [
+    { id: "u-1", name: "Ana Ruiz", role: "admin" },
+    { id: "u-2", name: null, role: "admin" },
+  ]),
+  useAssignFindings: () => ({
+    mutateAsync: async (v: unknown) => { assigned.calls.push(v); return { assigned: 1 }; },
+    isPending: ref(false),
+  }),
+}));
 // The truck menu is the fleet. Stubbed rather than answered with a query client: this suite is about
 // what the ledger asks for, and a live roster query would make it depend on a network stub instead.
 vi.mock("@/composables/useVehicles", () => ({
@@ -79,6 +97,7 @@ beforeEach(() => {
   listed.value = [row()];
   listed.total = 1;
   truncated.value = false;
+  assigned.calls = [];
   seen.listQuery = null;
   seen.totalsWindow = null;
   Object.defineProperty(window, "matchMedia", {
@@ -310,5 +329,79 @@ describe("the Findings inbox", () => {
     const { w } = await mountPage();
     const packet = w.findAll("button").find((b) => b.text().includes("Dispute packet"));
     expect(packet?.attributes("disabled")).toBeDefined();
+  });
+
+  /* ── C7b merge 3 · assignment ────────────────────────────────────────────────────────────── */
+
+  const pick = async (w: ReturnType<typeof mount>, n = 0) => {
+    await w.findAll("tbody tr")[n]!.findAll("input[type=checkbox]")[0]!.setValue(true);
+    await flushPromises();
+  };
+
+  // Asserted on the picker rather than on the word "selected": DataTable's own header checkbox
+  // carries select-all labelling, so the looser assertion passes whether the bar renders or not.
+  it("offers no bulk control until something is selected", async () => {
+    const { w } = await mountPage();
+    expect(w.text()).not.toContain("Assign to");
+    expect(w.text()).not.toContain("1 selected");
+  });
+
+  it("offers the people who could close it once a selection is made", async () => {
+    const { w } = await mountPage();
+    await pick(w);
+    expect(w.text()).toContain("1 selected");
+    expect(w.text()).toContain("Assign to");
+  });
+
+  /**
+   * ⚠ A mixed selection offers NO picker. The two sections have different people who can close them,
+   * and the API refuses an assignee who cannot close every finding in the batch — so a name offered
+   * here would be a control that exists to produce an error message.
+   */
+  it("refuses to offer a picker for a selection spanning both sections", async () => {
+    listed.value = [row(), theftRow()];
+    listed.total = 2;
+    const { w } = await mountPage();
+    await pick(w, 0);
+    await pick(w, 1);
+    expect(w.text()).toContain("2 selected");
+    expect(w.text()).not.toContain("Assign to");
+    expect(w.text()).toContain("Narrow it to one kind");
+  });
+
+  /**
+   * ⚠ A THEFT row on purpose. With only a money finding on screen the assertion passes against a page
+   * that hard-codes `source: "exception"` — measured by mutating it and watching the test stay green.
+   * The source is what tells the server which table to read a kind from, and getting it wrong is a
+   * 404 rather than a wrong write, so it is worth a fixture that can tell the difference.
+   */
+  it("sends the source with every id, so the server need not guess which table it is", async () => {
+    listed.value = [theftRow()];
+    listed.total = 1;
+    const { w } = await mountPage();
+    await pick(w);
+    const bar = w.findAllComponents({ name: "FilterSelect" }).at(-1)!;
+    bar.vm.$emit("update:modelValue", "u-1");
+    await flushPromises();
+    expect(assigned.calls[0]).toEqual({ assignee: "u-1", findings: [{ source: "anomaly", id: "a1" }] });
+  });
+
+  // A selection that survived a narrowing would act on rows nobody can see any more.
+  it("clears the selection when the filter changes", async () => {
+    const { w, router } = await mountPage();
+    await pick(w);
+    expect(w.text()).toContain("1 selected");
+    await router.push("/findings?state=closed");
+    await flushPromises();
+    expect(w.text()).not.toContain("1 selected");
+  });
+
+  // Assignment is the only bulk act. Bulk-closing a queue whose precision nobody has measured would
+  // manufacture ground truth for the accuracy programme out of one careless click.
+  it("offers no bulk close, dismiss or disposition", async () => {
+    const { w } = await mountPage();
+    await pick(w);
+    const t = w.text();
+    for (const word of ["Dismiss", "Close selected", "Mark as"]) expect(t).not.toContain(word);
   });
 });
