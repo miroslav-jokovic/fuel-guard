@@ -2,10 +2,12 @@
 import { computed, ref, watch } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
-  FUEL_EXCEPTION_KIND_LABELS, FUEL_EXCEPTION_KINDS,
-  FUEL_EXCEPTION_STATUS_LABELS, FUEL_EXCEPTION_STATUSES,
-  type FuelExceptionKind, type FuelExceptionStatus,
+  FINDING_KINDS, FINDING_KIND_LABELS,
+  FINDING_QUEUE_STATES, FINDING_QUEUE_STATE_LABELS,
+  findingAgeDays, exceptionStatusesIn, CASE_RULE_ID,
+  type FindingKind, type FindingQueueState, type FuelExceptionKind,
 } from "@silvicom/shared";
+import { useRouter } from "vue-router";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -14,9 +16,10 @@ import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ExceptionSlideOver from "@/features/reconcile/ExceptionSlideOver.vue";
-import { BADGE_BASE, toneClass, fuelExceptionStatusBadge, fuelExceptionAmountTone } from "@/lib/badges";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
-import { useExceptionsQuery, useExceptionTotalsQuery, exceptionExportQuery, type ExceptionQuery } from "@/features/reconcile/useExceptions";
+import { useExceptionTotalsQuery, exceptionExportQuery, type ExceptionQuery } from "@/features/reconcile/useExceptions";
+import { useFindingsQuery, type FindingsQuery } from "@/features/reconcile/useFindings";
 import { usd } from "@/features/reconcile/format";
 import { apiDownload } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
@@ -61,20 +64,33 @@ const { param } = useQueryState();
  * `?status=open,investigating,disputed`, so a link that says nothing means the queue and a link that
  * says something means exactly what it says.
  */
-const DEFAULT_STATUSES: FuelExceptionStatus[] = ["open", "investigating", "disputed"];
-const statusParam = param("status");
+/**
+ * ── THE STATUS FILTER IS NOW THE QUEUE AXIS (C7b, D-FUI7) ───────────────────────────────────────
+ * It listed the ledger's six statuses, which cannot describe a theft case: an anomaly is never
+ * `disputed` and an exception is never `superseded`. The four shared states can describe both, and
+ * `anomalyStatusesIn` / `exceptionStatusesIn` translate each back into its own vocabulary server-side
+ * — so nothing here restates a mapping, which is what C7a exists for.
+ *
+ * ⚠ Old links keep working by accident of vocabulary rather than by design: `?status=open` named a
+ * ledger status and `?state=open` names a queue state, so a forwarded link from last week simply
+ * falls back to the default queue rather than landing on nothing. The parameter is RENAMED and not
+ * reused, because `?status=disputed` and `?state=working` are different questions and quietly
+ * reinterpreting one as the other is how a sent link stops meaning what its sender saw.
+ */
+const DEFAULT_STATES: FindingQueueState[] = ["open", "investigating", "working"];
+const stateParam = param("state");
 const kindParam = param("kind");
-const statuses = computed<FuelExceptionStatus[]>({
+const states = computed<FindingQueueState[]>({
   get: () => {
-    const named = statusParam.value.split(",").filter((v): v is FuelExceptionStatus =>
-      (FUEL_EXCEPTION_STATUSES as readonly string[]).includes(v));
-    return named.length ? named : DEFAULT_STATUSES;
+    const named = stateParam.value.split(",").filter((v): v is FindingQueueState =>
+      (FINDING_QUEUE_STATES as readonly string[]).includes(v));
+    return named.length ? named : DEFAULT_STATES;
   },
-  set: (v) => (statusParam.value = v.length ? v.join(",") : ""),
+  set: (v) => (stateParam.value = v.length ? v.join(",") : ""),
 });
-const kinds = computed<FuelExceptionKind[]>({
-  get: () => kindParam.value.split(",").filter((v): v is FuelExceptionKind =>
-    (FUEL_EXCEPTION_KINDS as readonly string[]).includes(v)),
+const kinds = computed<FindingKind[]>({
+  get: () => kindParam.value.split(",").filter((v): v is FindingKind =>
+    (FINDING_KINDS as readonly string[]).includes(v)),
   set: (v) => (kindParam.value = v.length ? v.join(",") : ""),
 });
 
@@ -94,25 +110,31 @@ const assignedTo = computed(() => (mine.value === "me" ? (session.userId ?? null
 const page = ref(1);
 const PAGE_SIZE = 25;
 
-const statusOptions = FUEL_EXCEPTION_STATUSES.map((v) => ({ value: v, label: FUEL_EXCEPTION_STATUS_LABELS[v] }));
-const kindOptions = FUEL_EXCEPTION_KINDS.map((v) => ({ value: v, label: FUEL_EXCEPTION_KIND_LABELS[v] }));
+/** One tone per queue state. Closed is quiet; the vendor-dispute state is the one with a clock on it. */
+const findingStateTone = (state: string): string =>
+  state === "closed" ? "neutral" : state === "working" ? "warning" : state === "investigating" ? "info" : "danger";
 
-const query = computed<ExceptionQuery>(() => ({
-  status: statuses.value, kind: kinds.value,
+const stateOptions = FINDING_QUEUE_STATES.map((v) => ({ value: v, label: FINDING_QUEUE_STATE_LABELS[v] }));
+const kindOptions = FINDING_KINDS.map((v) => ({ value: v, label: FINDING_KIND_LABELS[v] }));
+
+const query = computed<FindingsQuery>(() => ({
+  states: states.value, kinds: kinds.value,
   vehicleIds: f.vehicleIds.value, assignedTo: assignedTo.value,
   from: f.from.value, to: f.to.value,
   page: page.value, pageSize: PAGE_SIZE,
 }));
 // Narrowing while on page nine of the old result set lands on an empty page that looks like an error.
 watch(
-  [statuses, kinds, () => f.from.value, () => f.to.value, () => f.vehicleIds.value, assignedTo],
+  [states, kinds, () => f.from.value, () => f.to.value, () => f.vehicleIds.value, assignedTo],
   () => { page.value = 1; },
   { deep: true },
 );
 
-const { data, isLoading, isError, error } = useExceptionsQuery(query);
+const { data, isLoading, isError, error } = useFindingsQuery(query);
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
+/** A source hit the server's read cap. Said out loud — a queue missing rows silently is the worse bug. */
+const truncated = computed(() => data.value?.truncated === true);
 
 const window = computed(() => ({
   from: f.from.value, to: f.to.value,
@@ -120,38 +142,72 @@ const window = computed(() => ({
 }));
 const { data: totals } = useExceptionTotalsQuery(window);
 
+/**
+ * ⚠ THESE FOUR TILES COUNT MONEY FINDINGS ONLY, AND NOW SAY SO.
+ *
+ * They read `exceptionTotals`, which reads `fuel_exceptions` — and that is CORRECT and must stay
+ * correct: D-FUI7's whole point is that an anomaly closes with a disposition and never with money, so
+ * a theft case has no amount to add and a confirmed one is a true finding that recovered nothing.
+ *
+ * What changed is the context. Before C7b the list beneath these tiles was the same population they
+ * counted; now it holds theft cases too, and "Identified $11,368 · 77 findings" sitting above a list
+ * of 158 rows reads as a total of what is on screen. It is not one. The sub-labels carry the scope so
+ * the arithmetic a reader does in their head is the arithmetic the tiles actually did.
+ */
 const tiles = computed(() => {
   const t = totals.value;
   return [
-    { label: "Identified", value: usd(t?.identified ?? 0), sub: `${t?.lines ?? 0} findings` },
+    { label: "Identified", value: usd(t?.identified ?? 0), sub: `${t?.lines ?? 0} money findings` },
     { label: "Claimed", value: usd(t?.claimed ?? 0), sub: "taken to the vendor" },
     { label: "Recovered", value: usd(t?.recovered ?? 0), sub: "credited back", tone: "text-success-700" },
-    { label: "Still open", value: String(t?.openLines ?? 0), sub: "need somebody" },
+    { label: "Still open", value: String(t?.openLines ?? 0), sub: "money findings only" },
   ];
 });
 
 const selected = ref<string | null>(null);
 
+const now = new Date();
 const tableRows = computed(() =>
   rows.value.map((r) => ({
     id: r.id,
-    date: r.occurred_on ?? "—",
-    kind: FUEL_EXCEPTION_KIND_LABELS[r.kind],
-    unit: r.unit_number ?? "—",
-    site: [r.site_number, r.city, r.state].filter(Boolean).join(" ") || "—",
-    amount: usd(Number(r.amount)),
-    amountTone: fuelExceptionAmountTone(r.amount_kind),
-    status: r.status,
+    source: r.source,
+    date: r.occurredOn ?? "—",
+    kind: FINDING_KIND_LABELS[r.kind],
+    summary: r.summary,
+    unit: r.unitNumber ?? "—",
+    // ⚠ An em dash and not $0.00. A theft case has no amount, and a zero in a money column is a
+    // figure — one somebody would reasonably add to the column above it.
+    amount: r.amountUsd == null ? "—" : usd(r.amountUsd),
+    amountTone: r.amountUsd == null ? "text-ink-tertiary" : "text-ink",
+    age: findingAgeDays(r, now),
+    state: r.queueState,
   })),
 );
 const columns: DataTableColumn[] = [
   { key: "date", label: "Date", width: "sm", cellClass: "text-ink-secondary" },
-  { key: "kind", label: "Finding", width: "lg" },
+  { key: "kind", label: "Finding", width: "sm" },
+  { key: "summary", label: "What happened", width: "lg", cellClass: "text-ink-secondary" },
   { key: "unit", label: "Unit", width: "xs", cellClass: "text-ink-secondary" },
-  { key: "site", label: "Site", width: "lg", cellClass: "text-ink-secondary" },
   { key: "amount", label: "Amount", numeric: true, width: "sm" },
-  { key: "status", label: "Status", width: "sm" },
+  // Aging is what makes an unclaimed finding visible, which is the whole accountability story the
+  // Q-FUI4 ruling chose instead of a default assignee.
+  { key: "age", label: "Age", numeric: true, width: "xs" },
+  { key: "state", label: "Status", width: "sm" },
 ];
+
+/**
+ * Opening a finding, which is per SOURCE because the two have different detail surfaces.
+ *
+ * D-FUI7 unifies the queue axis and leaves each source its own close affordance; this is that, one
+ * layer up. A money finding opens the ledger drawer it always had. A theft case has no detail ROUTE
+ * to open — `/anomalies` is a list and there is no `/anomalies/:id` — so it hands the reader to the
+ * page that can work it rather than opening an empty drawer or, worse, the wrong one.
+ */
+const router = useRouter();
+function openFinding(row: Record<string, unknown>): void {
+  if (row.source === "exception") { selected.value = String(row.id); return; }
+  void router.push({ path: "/anomalies", query: { case: String(row.id) } });
+}
 
 /**
  * FUEL-P2/P3 — the file, rendered on the server over the WHOLE filtered set.
@@ -161,10 +217,38 @@ const columns: DataTableColumn[] = [
  * above it reported the whole window's money. A smaller export is one thing; an export that disagrees
  * with the tiles above the button it came from is another.
  */
+/**
+ * The file, and what it can honestly contain.
+ *
+ * ⚠ `exceptions/export.csv` renders on the server from `fuel_exceptions` — the MONEY findings. Since
+ * C7b the list above it also holds theft cases, so an export button that said nothing would produce a
+ * file narrower than the list it sits under, which is the failure this page's own header calls "the
+ * one that looks like a working download". Two things follow: the query is translated into the
+ * ledger's own vocabulary so the file is exactly the money subset of what is on screen, and the scope
+ * line says so in words.
+ *
+ * A theft case has no row in a dispute packet either — it is an accusation about a person, not a line
+ * to bill back — so the same scoping covers the packet below.
+ */
+const ledgerQuery = computed<ExceptionQuery>(() => ({
+  // Translated through C7a rather than restated: the axis maps back into each source's vocabulary.
+  status: [...new Set(states.value.flatMap((st) => exceptionStatusesIn(st)))],
+  kind: kinds.value.filter((k): k is FuelExceptionKind => k !== CASE_RULE_ID),
+  vehicleIds: f.vehicleIds.value,
+  assignedTo: assignedTo.value,
+  from: f.from.value,
+  to: f.to.value,
+  page: 1,
+  pageSize: PAGE_SIZE,
+}));
+
+/** The money findings currently on screen — what the export and the packet actually cover. */
+const moneyRows = computed(() => rows.value.filter((r) => r.source === "exception"));
+
 const exportTarget = computed(() => ({
-  href: `/api/fueling/exceptions/export.csv?${exceptionExportQuery(query.value)}`,
+  href: `/api/fueling/exceptions/export.csv?${exceptionExportQuery(ledgerQuery.value)}`,
   filename: `fuel-findings-${f.from.value}-to-${f.to.value}.csv`,
-  scope: `${f.from.value} → ${f.to.value} · ${f.vehicleIds.value.length === 0 ? "all trucks" : `${f.vehicleIds.value.length} truck${f.vehicleIds.value.length === 1 ? "" : "s"}`}`,
+  scope: `${f.from.value} → ${f.to.value} · ${f.vehicleIds.value.length === 0 ? "all trucks" : `${f.vehicleIds.value.length} truck${f.vehicleIds.value.length === 1 ? "" : "s"}`} · money findings only`,
 }));
 
 /** The fleet, for the truck filter. Unit numbers on the menu, vehicle ids in the URL — this section's
@@ -183,10 +267,10 @@ const packetBusy = ref(false);
  * same records the finding was written from.
  */
 async function downloadPacket() {
-  if (packetBusy.value || rows.value.length === 0) return;
+  if (packetBusy.value || moneyRows.value.length === 0) return;
   packetBusy.value = true;
   try {
-    const ids = rows.value.map((r) => r.id).join(",");
+    const ids = moneyRows.value.map((r) => r.id).join(",");
     await apiDownload(`/api/fueling/exceptions/packet.pdf?ids=${ids}`, `fuel-dispute-packet-${f.from.value}.pdf`);
   } catch (e) {
     toast.error("Could not build the packet", e instanceof Error ? e.message : undefined);
@@ -198,7 +282,7 @@ async function downloadPacket() {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every finding the fuel checks made, what it is worth, and what anybody did about it." />
+    <PageHeader description="Every finding the fuel and safety checks made, how old it is, and what anybody did about it." />
 
     <!-- Identified, claimed and recovered are three different claims. The gap between the first and
          the last is the only measure of whether this product is worth its subscription. -->
@@ -209,7 +293,7 @@ async function downloadPacket() {
     <FilterBar :count="total" count-label="findings">
       <template #filters>
         <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
-        <FilterSelect v-model="statuses" :options="statusOptions" label="Status" multiple />
+        <FilterSelect v-model="states" :options="stateOptions" label="Status" multiple />
         <FilterSelect v-model="kinds" :options="kindOptions" label="Finding" multiple />
         <FilterSelect v-model="f.vehicleIds.value" :options="truckOptions" label="Unit" multiple />
         <FilterSelect
@@ -226,13 +310,19 @@ async function downloadPacket() {
           :href="exportTarget.href"
           :filename="exportTarget.filename"
           :scope="exportTarget.scope"
-          :disabled="!rows.length"
+          :disabled="!moneyRows.length"
         />
-        <BaseButton variant="secondary" :disabled="!rows.length || packetBusy" @click="downloadPacket">
+        <BaseButton variant="secondary" :disabled="!moneyRows.length || packetBusy" @click="downloadPacket">
           {{ packetBusy ? "Building…" : "Dispute packet" }}
         </BaseButton>
       </template>
     </FilterBar>
+
+    <!-- A queue that is missing rows and does not say so is worse than one that refuses to load. -->
+    <p v-if="truncated" class="rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-700 ring-1 ring-warning-100">
+      There are more findings than this page can hold at once. Narrow the window or the trucks to be sure you are
+      seeing all of them.
+    </p>
 
     <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
       Couldn't load the ledger: {{ error instanceof Error ? error.message : "unknown error" }}
@@ -244,15 +334,20 @@ async function downloadPacket() {
         :rows="tableRows"
         row-key="id"
         :loading="isLoading"
-        empty-text="Nothing outstanding in this window. Reconcile a report to look again."
-        @row-click="selected = String($event.id)"
+        empty-text="Nothing outstanding in this window."
+        @row-click="openFinding($event)"
       >
+        <template #cell-age="{ row }">
+          <span class="tabular-nums" :class="Number(row.age) >= 30 ? 'text-warning-600' : 'text-ink-secondary'">
+            {{ row.age === null ? "—" : `${row.age}d` }}
+          </span>
+        </template>
         <template #cell-amount="{ row }">
           <span class="tabular-nums font-medium" :class="String(row.amountTone)">{{ row.amount }}</span>
         </template>
-        <template #cell-status="{ row }">
-          <span :class="[BADGE_BASE, toneClass(fuelExceptionStatusBadge(String(row.status)).tone)]">
-            {{ fuelExceptionStatusBadge(String(row.status)).label }}
+        <template #cell-state="{ row }">
+          <span :class="[BADGE_BASE, toneClass(findingStateTone(String(row.state)))]">
+            {{ FINDING_QUEUE_STATE_LABELS[row.state as FindingQueueState] }}
           </span>
         </template>
         <template #footer>

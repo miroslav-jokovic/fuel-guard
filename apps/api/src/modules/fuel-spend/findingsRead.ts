@@ -9,9 +9,12 @@ import {
   findingFromException,
   type AppSection,
   type FindingQueueState,
+  type FindingKind,
   type FindingRow,
+  type FuelExceptionKind,
   type UserRole,
 } from "@silvicom/shared";
+import { CASE_RULE_ID } from "@silvicom/shared";
 
 /**
  * One inbox over two case tables (C7b).
@@ -35,6 +38,15 @@ const READ_CAP = 500;
 export interface FindingsFilters {
   /** Queue states to include. Empty means every state. */
   states?: FindingQueueState[];
+  /**
+   * Finding kinds to include. Empty means every kind the caller may see.
+   *
+   * Applied per source rather than as one `in` clause, because the two tables spell a kind
+   * differently: the ledger stores it in a `kind` column, and the anomaly feed has exactly one kind
+   * and expresses it by being the anomaly feed. So a kind filter naming no anomaly kind skips that
+   * table entirely rather than filtering it on a column it does not have.
+   */
+  kinds?: FindingKind[];
   /**
    * Vehicle IDS, which is what every other fuel surface sends (`useSpendFilters`). Resolved ONCE
    * here into the unit numbers the ledger stores and the ids the anomaly feed stores, because those
@@ -90,12 +102,16 @@ export async function readFindings(
    */
   const fleet = f.vehicleIds?.length ? await fleetScope(admin, orgId, f.vehicleIds) : null;
 
+  const wantsAnomalies = !f.kinds?.length || f.kinds.includes(CASE_RULE_ID as FindingKind);
+  const exceptionKinds = (f.kinds ?? []).filter((k): k is FuelExceptionKind => k !== CASE_RULE_ID);
+  const wantsExceptions = !f.kinds?.length || exceptionKinds.length > 0;
+
   const [anomalies, exceptions] = await Promise.all([
-    sections.has("safety") && anomalyStatuses.length
+    wantsAnomalies && sections.has("safety") && anomalyStatuses.length
       ? readAnomalies(admin, orgId, anomalyStatuses, f, fleet)
       : Promise.resolve([]),
-    sections.has("fuel") && exceptionStatuses.length
-      ? readExceptions(admin, orgId, exceptionStatuses, f, fleet)
+    wantsExceptions && sections.has("fuel") && exceptionStatuses.length
+      ? readExceptions(admin, orgId, exceptionStatuses, f, fleet, exceptionKinds)
       : Promise.resolve([]),
   ]);
 
@@ -165,6 +181,7 @@ async function readExceptions(
   statuses: string[],
   f: FindingsFilters,
   fleet: { units: string[] } | null,
+  kinds: FuelExceptionKind[],
 ): Promise<FindingRow[]> {
   // Same rule as the anomaly side: a truck filter matching no vehicle returns nothing, not everything.
   if (fleet && fleet.units.length === 0) return [];
@@ -175,6 +192,7 @@ async function readExceptions(
     .in("status", statuses);
   if (f.assignedTo) q = q.eq("assigned_to", f.assignedTo);
   if (fleet) q = q.in("unit_number", fleet.units);
+  if (kinds.length) q = q.in("kind", kinds);
   if (f.from) q = q.gte("occurred_on", f.from);
   if (f.to) q = q.lte("occurred_on", f.to);
   const { data } = await q.order("occurred_on", { ascending: false }).limit(READ_CAP);

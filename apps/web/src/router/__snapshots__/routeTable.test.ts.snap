@@ -229,7 +229,12 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/fuel-spend",
   },
   {
-    "name": "fuel-exceptions",
+    "name": "findings",
+    "params": {},
+    "url": "/findings",
+  },
+  {
+    "name": "",
     "params": {},
     "url": "/fuel-spend/exceptions",
   },
@@ -598,6 +603,15 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
+      "title": "Findings",
+    },
+    "name": "findings",
+    "path": "/findings",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
       "title": "Fleet report",
     },
     "name": "fleet-report",
@@ -669,14 +683,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "parent": "/fuel-spend",
-      "requiresAuth": true,
-      "title": "Fuel Exceptions",
-    },
-    "name": "fuel-exceptions",
+    "meta": {},
+    "name": "",
     "path": "/fuel-spend/exceptions",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {},
