@@ -94,6 +94,30 @@ export function isStopMessage(body: string | null | undefined): boolean {
   return SMS_STOP_KEYWORDS.some((k) => new RegExp(`\\b${k}\\b`).test(text));
 }
 
+/**
+ * The answer to `HELP`, which US carriers require every A2P sender to give.
+ *
+ * ── WHY IT NAMES NO CARRIER ───────────────────────────────────────────────────────────────────
+ * `STOP` resolves an org FROM the inbound number, because a revocation must land on the right
+ * tenant's rows. `HELP` cannot do the same and must not try: somebody may text HELP with no consent
+ * row at all — a wrong number, a forwarded message, a driver who applied months ago — and there is
+ * then no org to name. Answering "we cannot identify you" to a mandated keyword is worse than
+ * answering generically, and looking a stranger's number up across tenants to personalise a reply
+ * would be the tenant leak every other unauthenticated surface in this product refuses.
+ *
+ * ── AND WHY IT IS SENT WHERE EVERY OTHER MESSAGE IS REFUSED ───────────────────────────────────
+ * `sendApplicationSms` refuses without a live consent, outside civil hours, and while the wording is
+ * draft. None of those apply here. A HELP reply is not a message we chose to send — it is the
+ * required answer to a message somebody sent US, it carries no solicitation, and withholding it is
+ * itself the carrier violation. So it goes out through the transport directly, and this comment is
+ * the record of that being deliberate rather than an oversight.
+ *
+ * Kept under the 160-character GSM-7 limit so it is one message part and one charge.
+ */
+export const SMS_HELP_REPLY =
+  "Silvicom 360: texts about a driver job application you started. Msg & data rates may apply. "
+  + "Reply STOP to stop.";
+
 /** `HELP` is required to be answered by the same carrier rules that require `STOP`. */
 export function isHelpMessage(body: string | null | undefined): boolean {
   const text = (body ?? "").trim().toLowerCase();

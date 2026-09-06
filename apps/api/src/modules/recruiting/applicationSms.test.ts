@@ -102,7 +102,7 @@ describe("sending", () => {
 describe("the opt-out", () => {
   it("revokes every live consent on the number that texted STOP", async () => {
     const rec = withConsent([{ org_id: ORG }]);
-    const result = await handleInboundSms(rec.client, "(708) 236-5732", "STOP");
+    const result = await handleInboundSms(rec.client, env(), "(708) 236-5732", "STOP");
     expect(result.revoked).toBe(1);
     const call = rec.rpcs().find((r) => r.fn === "revoke_sms_consent");
     // Normalised on the way in — a stored E.164 and a typed number must match, or the STOP does
@@ -114,19 +114,84 @@ describe("the opt-out", () => {
 
   it("records what was actually texted, so the file shows why consent ended", async () => {
     const rec = withConsent([{ org_id: ORG }]);
-    await handleInboundSms(rec.client, "+17082365732", "please stop");
+    await handleInboundSms(rec.client, env(), "+17082365732", "please stop");
     const call = rec.rpcs().find((r) => r.fn === "revoke_sms_consent");
     expect(String((call?.args as Record<string, unknown>).p_reason)).toContain("please stop");
   });
 
   it("does nothing for a message that is not an opt-out", async () => {
     const rec = withConsent([{ org_id: ORG }]);
-    expect(await handleInboundSms(rec.client, "+17082365732", "yes still interested")).toEqual({ revoked: 0 });
+    expect(await handleInboundSms(rec.client, env(), "+17082365732", "yes still interested")).toEqual({
+      revoked: 0,
+      helped: false,
+    });
     expect(rec.rpcs()).toEqual([]);
   });
 
   it("does nothing for a number it cannot normalise", async () => {
     const rec = withConsent([{ org_id: ORG }]);
-    expect(await handleInboundSms(rec.client, "garbage", "STOP")).toEqual({ revoked: 0 });
+    expect(await handleInboundSms(rec.client, env(), "garbage", "STOP")).toEqual({ revoked: 0, helped: false });
+  });
+});
+
+/**
+ * HELP, which US carriers require every A2P sender to answer and which this product had written,
+ * tested in `smsConsentContract.test.ts`, and never wired to anything — `isHelpMessage` had no
+ * caller until 2026-09-06. An unanswered HELP is a carrier violation on its own and is one of the
+ * things a toll-free verification submission is asked about directly, so it fails the submission
+ * before it ever costs a complaint.
+ */
+describe("the HELP keyword", () => {
+  it("answers HELP even though the sender has no consent, no civil hour and draft wording", async () => {
+    // Every gate `sendApplicationSms` enforces is shut here: no consent row at all.
+    const rec = createSupabaseRecorder({ tables: { sms_consents: [] } });
+    sms.fn.mockReset().mockResolvedValue({ ok: true, provider: "telnyx", messageId: "m-1" });
+
+    const result = await handleInboundSms(rec.client, env(), "+17082365732", "HELP");
+
+    expect(result).toEqual({ revoked: 0, helped: true });
+    expect(sms.fn).toHaveBeenCalledOnce();
+    const sent = sms.fn.mock.calls[0]![1] as { to: string; body: string };
+    expect(sent.to).toBe("+17082365732");
+    // The three things a carrier requires the answer to carry: who we are, that rates may apply,
+    // and how to stop. Asserted as content rather than as an exact string, so the wording can be
+    // improved without the test becoming a copy of it.
+    expect(sent.body).toContain("Silvicom");
+    expect(sent.body.toLowerCase()).toContain("rates may apply");
+    expect(sent.body).toContain("STOP");
+    // One message part, one charge.
+    expect(sent.body.length).toBeLessThanOrEqual(160);
+  });
+
+  it("does not revoke anything — HELP is a question, not an opt-out", async () => {
+    const rec = withConsent([{ org_id: ORG }]);
+    sms.fn.mockReset().mockResolvedValue({ ok: true, provider: "telnyx" });
+
+    await handleInboundSms(rec.client, env(), "+17082365732", "help");
+
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("reports a failed HELP reply rather than claiming it answered", async () => {
+    const rec = createSupabaseRecorder({ tables: { sms_consents: [] } });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    sms.fn.mockReset().mockResolvedValue({ ok: false, provider: "none", detail: "No SMS provider configured" });
+
+    const result = await handleInboundSms(rec.client, env(), "+17082365732", "HELP");
+
+    expect(result.helped).toBe(false);
+    spy.mockRestore();
+  });
+
+  // The line between the two keywords, which `isStopMessage`'s word-boundary match makes worth
+  // pinning: "help me stop these texts" contains STOP and must revoke, not answer HELP.
+  it("treats a message that asks to stop as an opt-out even when it says help", async () => {
+    const rec = withConsent([{ org_id: ORG }]);
+    sms.fn.mockReset();
+
+    const result = await handleInboundSms(rec.client, env(), "+17082365732", "help me stop these texts");
+
+    expect(result.revoked).toBe(1);
+    expect(sms.fn).not.toHaveBeenCalled();
   });
 });
