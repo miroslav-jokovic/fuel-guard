@@ -83,9 +83,10 @@ export function webhooksRouter(): Router {
       }
 
       const admin = getSupabaseAdmin(env);
-      const { revoked } = await handleInboundSms(admin, from, text);
+      const { revoked, helped } = await handleInboundSms(admin, env, from, text);
       res.json({ ok: true });
       void revoked;
+      void helped;
     }),
   );
 

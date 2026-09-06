@@ -4,7 +4,9 @@ import {
   canSendSmsAt,
   composeSmsConsent,
   isDraftSmsConsent,
+  isHelpMessage,
   isStopMessage,
+  SMS_HELP_REPLY,
   normalisePhone,
   type SmsHoldReason,
 } from "@silvicom/shared";
@@ -159,11 +161,23 @@ export async function recordSmsConsent(
  */
 export async function handleInboundSms(
   admin: SupabaseClient,
+  env: Env,
   from: string,
   body: string,
-): Promise<{ revoked: number }> {
+): Promise<{ revoked: number; helped: boolean }> {
   const phone = normalisePhone(from);
-  if (!phone || !isStopMessage(body)) return { revoked: 0 };
+  if (!phone) return { revoked: 0, helped: false };
+
+  // HELP is answered before anything else and independently of consent — see `SMS_HELP_REPLY` for
+  // why it bypasses every gate `sendApplicationSms` enforces. Checked ahead of STOP only because the
+  // two are mutually exclusive by construction; neither keyword matches the other's text.
+  if (isHelpMessage(body)) {
+    const result = await sendSms(env, { to: phone, body: SMS_HELP_REPLY });
+    if (!result.ok) console.error("[application-sms] HELP reply failed", { to: redactNumber(phone), detail: result.detail });
+    return { revoked: 0, helped: result.ok };
+  }
+
+  if (!isStopMessage(body)) return { revoked: 0, helped: false };
 
   const { data } = await admin
     .from("sms_consents")
@@ -182,5 +196,5 @@ export async function handleInboundSms(
     revoked += Number(count ?? 0);
   }
   if (revoked > 0) console.log("[application-sms] opt-out honoured", { to: redactNumber(phone), revoked });
-  return { revoked };
+  return { revoked, helped: false };
 }
