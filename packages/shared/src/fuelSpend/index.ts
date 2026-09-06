@@ -5,6 +5,7 @@ export * from "./discountCapture.js";
 export * from "./contractCapture.js";
 export * from "./policyExceptions.js";
 export * from "./policyFindings.js";
+export * from "./policyTargets.js";
 export * from "./policyLabels.js";
 export * from "./exceptions.js";
 export * from "./carriedFuel.js";

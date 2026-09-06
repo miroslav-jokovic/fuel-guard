@@ -3,7 +3,8 @@ import { computed, ref } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
   analyzeCarriedFuel, rankStatesByFuelCost, policyDivergence, listStates, STATE_NAMES,
-  type CarriedFuelFill, type FuelPolicy,
+  gradePolicyTargets, NO_FUEL_TARGETS, AVOIDED_STATE_TARGET_PERIOD,
+  type CarriedFuelFill, type FuelPolicy, type SpendLine, type TargetVariance,
 } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -29,14 +30,95 @@ import { usd, usd3, gal, pct1 } from "./format";
  * against the measurement where both exist. A total mixing them is a floor. Calling it "the cost"
  * would be the same overreach as a partial numerator over a full denominator (B3, L14).
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   /** Every fill the window needs INCLUDING the 14-day lookback — see `useBuyFills`. */
   fills: CarriedFuelFill[];
   policy: FuelPolicy;
+  /**
+   * The feed's lines for the window — the SAME rows Spend & trend reads. The fill sequence above
+   * carries no brand, and the on-network share is a question about brands, so the two figures on
+   * this tab come from two sources and each names its own. See the targets section below.
+   */
+  lines: SpendLine[];
+  /** The page's window, inclusive `YYYY-MM-DD` — the months to grade are enumerated from it. */
+  window: { from: string; to: string };
+  /**
+   * False while a truck filter is active. A target is a FLEET commitment — "at most 4,000 gallons a
+   * month in California" is about the carrier, not about the three trucks somebody picked — so with
+   * trucks selected the figures still render and the grade does not. Grading a subset against a
+   * fleet ceiling would call any small enough selection compliant.
+   */
+  fleetWide?: boolean;
   loading?: boolean;
-}>();
+}>(), { fleetWide: true, loading: false });
 
 const report = computed(() => analyzeCarriedFuel(props.fills));
+
+/**
+ * ── THE TARGETS, GRADED (C8, D-FUI10) ────────────────────────────────────────────────────────────
+ * Settings → Planned Fueling has held three targets since 0325 and nothing in the section rendered a
+ * figure for them to grade — C8's Done-when is "no policy figure renders as a bare count", and until
+ * this section the on-network share was not rendered at all. This is the policy-adherence tab, so the
+ * figures the policy is held to live here, beside the state ranking the avoid-list is measured on.
+ *
+ * On-network is a RATIO and is graded once over the window; avoided-state gallons is a COUNT against a
+ * per-`AVOIDED_STATE_TARGET_PERIOD` ceiling and is graded per calendar month, with a month the window
+ * only partly covers marked as a floor. `gradePolicyTargets` owns that arithmetic and its tests.
+ *
+ * With a truck filter on, the targets are stripped before grading rather than the section hidden: the
+ * selection's own share is still a fact worth reading, it just has no fleet standard to be held to.
+ */
+const grades = computed(() =>
+  gradePolicyTargets(
+    props.lines,
+    props.fleetWide ? props.policy : { ...props.policy, targets: NO_FUEL_TARGETS },
+    props.window,
+  ),
+);
+const anyTargetSet = computed(() => Object.values(props.policy.targets).some((t) => t != null));
+
+const pct = (n: number | null) => (n == null ? "—" : `${n.toFixed(1)}%`);
+const points = (v: TargetVariance) => {
+  const n = Math.abs(v.delta).toFixed(1);
+  return v.met ? `${n} points to spare` : `${n} points short`;
+};
+const toneOf = (v: TargetVariance | null) => (v == null ? undefined : v.met ? "text-success-700" : "text-danger-700");
+
+const onNetworkSub = computed(() => {
+  const v = grades.value.onNetwork.variance;
+  if (v) return `target at least ${v.target}% · ${points(v)}`;
+  if (grades.value.onNetwork.actualPct == null) return "no tractor fuel in this window";
+  if (!props.fleetWide) return "fleet target not applied to a truck selection";
+  return props.policy.targets.onNetworkPct == null ? "no target set" : "";
+});
+
+/** `2026-08` → `Aug 2026`. Built from parts, so no timezone can move it to July. */
+const monthLabel = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number) as [number, number];
+  return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "short", year: "numeric" });
+};
+const monthRows = computed(() =>
+  [...grades.value.avoidedStateByMonth].reverse().map((m) => ({
+    id: m.month,
+    month: monthLabel(m.month),
+    gallons: gal(m.gallons),
+    target: m.variance ? `at most ${gal(m.variance.target)}` : "—",
+    against: m.variance
+      ? (m.variance.met ? `${gal(m.variance.delta)} under` : `${gal(-m.variance.delta)} over`)
+      : "—",
+    // A partial month under the ceiling proves nothing — the rest of the month is not here. Over it
+    // is already conclusive: more gallons could only make it worse.
+    coverage: m.partial ? (m.variance && !m.variance.met ? "part of the month — already over" : "part of the month — a floor") : "whole month",
+    tone: m.partial && m.variance?.met ? undefined : toneOf(m.variance),
+  })),
+);
+const monthCols: DataTableColumn[] = [
+  { key: "month", label: "Month", width: "sm", cellClass: "text-ink-secondary" },
+  { key: "gallons", label: "Gallons in avoided states", numeric: true, width: "sm" },
+  { key: "target", label: `Ceiling / ${AVOIDED_STATE_TARGET_PERIOD}`, numeric: true, width: "sm", cellClass: "text-ink-tertiary" },
+  { key: "against", label: "Against it", numeric: true, width: "sm" },
+  { key: "coverage", label: "Window covers", width: "md", cellClass: "text-ink-tertiary" },
+];
 
 /**
  * Why the pairs that produced nothing produced nothing.
@@ -213,6 +295,64 @@ function exportRows() {
       state and {{ coverage.towardDearer.toLocaleString() }} ran from cheaper fuel toward dearer — the way round
       the policy asks for, so neither is a finding. Only {{ coverage.blind }} could not be judged at all.
     </p>
+
+    <!-- ── the targets, graded (C8) ─────────────────────────────────────────────────────────────
+         The two figures the policy is held to, each against the standard the carrier set for it, or
+         reported without a standard beside it when none is set. No target is ever assumed on the carrier's
+         behalf — that is 0325's ruling and the settings form says the same. -->
+    <div>
+      <h4 class="mb-2 text-sm font-semibold text-ink">Against your targets</h4>
+      <p v-if="!fleetWide" class="mb-2 text-xs text-caution-800">
+        Targets are set for the whole fleet. With trucks selected, the figures below are the selection's
+        own and are shown without a grade.
+      </p>
+      <p v-else-if="!anyTargetSet" class="mb-2 text-xs text-ink-tertiary">
+        No target is set. Set one in Fuel Planning Settings and each figure here is graded against it;
+        until then it is reported without a standard beside it.
+      </p>
+
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <StatCard
+          label="On the preferred network"
+          :value="pct(grades.onNetwork.actualPct)"
+          :sub="onNetworkSub"
+          :sub-tone="toneOf(grades.onNetwork.variance)"
+          :muted="grades.onNetwork.actualPct == null"
+        />
+      </div>
+      <!-- The rule counts an unmatched station as off-network, so the share is a floor by that much
+           and a margin narrower than the unresolved share is inside the measurement, not outside it. -->
+      <p v-if="grades.onNetwork.unresolvedPct" class="mt-1 text-xs text-ink-tertiary">
+        {{ pct(grades.onNetwork.unresolvedPct) }} of these gallons could not be matched to a station and count
+        as off-network, so the true share is between {{ pct(grades.onNetwork.actualPct) }} and
+        {{ pct(Math.min(100, (grades.onNetwork.actualPct ?? 0) + grades.onNetwork.unresolvedPct)) }}.
+      </p>
+
+      <template v-if="props.policy.avoidStates.length">
+        <BaseCard padding="none" class="mt-3">
+          <DataTable :columns="monthCols" :rows="monthRows" row-key="id" empty-text="The window covers no calendar month.">
+            <template #cell-against="{ row }">
+              <span :class="row.tone">{{ row.against }}</span>
+            </template>
+          </DataTable>
+        </BaseCard>
+        <p class="mt-1 text-xs text-ink-tertiary">
+          Gallons bought in {{ listStates(props.policy.avoidStates) }}, by the fill's business date. The ceiling
+          is stated per {{ AVOIDED_STATE_TARGET_PERIOD }}, so each month is held to it on its own; a month this
+          window only partly covers is a floor and is not called met.
+        </p>
+      </template>
+      <p v-else class="mt-3 text-xs text-ink-tertiary">
+        No state is avoided in your policy, so there is no gallons ceiling to hold a month to.
+      </p>
+
+      <!-- The third target has nowhere to land, and saying so beats a made-up figure. The posted price
+           only ever arrives on the vendor's statement (Q-FUI7), and none has been uploaded. -->
+      <p v-if="grades.discountCaptureTargetPct != null" class="mt-2 text-xs text-caution-800">
+        Discount capture is targeted at least {{ grades.discountCaptureTargetPct }}% and cannot be measured yet:
+        the posted price only arrives on the vendor's statement, and none is on file for this window.
+      </p>
+    </div>
 
     <div v-if="stateRows.length">
       <h4 class="mb-2 text-sm font-semibold text-ink">What fuel costs, by state, with the tax taken out</h4>

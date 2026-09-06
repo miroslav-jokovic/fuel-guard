@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { analyzeCarriedFuel, DEFAULT_FUEL_POLICY, type CarriedFuelFill, type FuelPolicy } from "@silvicom/shared";
+import { analyzeCarriedFuel, DEFAULT_FUEL_POLICY, NO_FUEL_TARGETS, type CarriedFuelFill, type FuelPolicy, type SpendLine } from "@silvicom/shared";
 import BuyDisciplineTab from "./BuyDisciplineTab.vue";
 
 /**
@@ -45,8 +45,28 @@ const legs = (): CarriedFuelFill[] => [
 ];
 
 const policy = (over: Partial<FuelPolicy> = {}): FuelPolicy => ({ ...DEFAULT_FUEL_POLICY, ...over });
-const mountTab = (fills = legs(), p = policy()) => mount(BuyDisciplineTab, { props: { fills, policy: p } });
-const render = (fills = legs(), p = policy()) => mountTab(fills, p).text();
+const targets = (t: Partial<FuelPolicy["targets"]>): FuelPolicy => policy({ targets: { ...NO_FUEL_TARGETS, ...t } });
+
+/** The feed's view of the same window: what the on-network share and the monthly ceiling are read from. */
+const line = (o: Partial<SpendLine> & { tranDate: string; gallons: number }): SpendLine => ({
+  brand: "pilot", state: "TX", site: "1", city: null, unit: "701", driver: null,
+  product: "diesel", tank: "tractor", netAmount: o.gallons * 4.5, retailAmount: null, ...o,
+});
+/** 1,000 tractor gallons, 900 on the preferred network; 300 of them in California, all in August. */
+const FEED: SpendLine[] = [
+  line({ tranDate: "2026-07-20", gallons: 400 }),
+  line({ tranDate: "2026-08-03", gallons: 300, state: "CA" }),
+  line({ tranDate: "2026-08-15", gallons: 200, brand: "flying_j" }),
+  line({ tranDate: "2026-08-28", gallons: 100, brand: null }),
+];
+const WINDOW = { from: "2026-07-01", to: "2026-08-31" };
+
+const mountTab = (fills = legs(), p = policy(), extra: { lines?: SpendLine[]; window?: { from: string; to: string }; fleetWide?: boolean } = {}) =>
+  mount(BuyDisciplineTab, { props: { fills, policy: p, lines: extra.lines ?? [], window: extra.window ?? WINDOW, fleetWide: extra.fleetWide } });
+const render = (fills = legs(), p = policy(), extra: Parameters<typeof mountTab>[2] = {}) => mountTab(fills, p, extra).text();
+/** The on-network tile's own sub-line — the headline above it wears `text-danger-700` on its own account. */
+const onNetworkSub = (w: ReturnType<typeof mountTab>) =>
+  w.findAll("p").find((el) => /target at least|no target set|fleet target not applied|no tractor fuel/.test(el.text()));
 const usd0 = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 describe("BuyDisciplineTab", () => {
@@ -149,6 +169,103 @@ describe("BuyDisciplineTab", () => {
     const t = render([]);
     expect(t).toContain("No fuel was carried out of a dearer state in this window.");
     expect(t).not.toContain("NaN");
+  });
+
+  // ── the targets, graded (C8) ──────────────────────────────────────────────────────────────────
+  // `gradePolicyTargets` owns the arithmetic and is proved in shared. What is only testable here is that
+  // the figures REACH the screen with their grade — the Done-when is about a rendered figure, and a
+  // share computed and never rendered is exactly the state C8 was in before this section.
+  describe("against your targets", () => {
+    it("renders the on-network share graded against the floor, and says how far it is from it", () => {
+      // 90% against a 95% floor: short by five points, in the danger tone.
+      const w = mountTab(legs(), targets({ onNetworkPct: 95 }), { lines: FEED });
+      const t = w.text();
+      expect(t).toContain("Against your targets");
+      expect(t).toContain("On the preferred network");
+      expect(t).toContain("90.0%");
+      expect(t).toContain("target at least 95% · 5.0 points short");
+      expect(onNetworkSub(w)?.classes()).toContain("text-danger-700");
+    });
+
+    it("reads as met, in the success tone, when the share clears the floor", () => {
+      const w = mountTab(legs(), targets({ onNetworkPct: 85 }), { lines: FEED });
+      expect(w.text()).toContain("target at least 85% · 5.0 points to spare");
+      expect(onNetworkSub(w)?.classes()).toContain("text-success-700");
+    });
+
+    it("states the unresolved share as the margin of error on the figure", () => {
+      const t = render(legs(), targets({ onNetworkPct: 95 }), { lines: FEED });
+      expect(t).toContain("10.0% of these gallons could not be matched to a station");
+      expect(t).toContain("the true share is between 90.0% and 100.0%");
+    });
+
+    it("grades the avoided-state gallons per month, each against the ceiling on its own", () => {
+      // July: nothing in California, 250 under. August: 300 against 250, 50 over. Two rows, two verdicts.
+      const t = render(legs(), targets({ avoidedStateGal: 250 }), { lines: FEED });
+      expect(t).toContain("Gallons in avoided states");
+      expect(t).toContain("Ceiling / month");
+      expect(t).toContain("at most 250");
+      expect(t).toContain("250 under");
+      expect(t).toContain("50 over");
+      expect(t).toContain("Jul 2026");
+      expect(t).toContain("Aug 2026");
+    });
+
+    it("calls a partly covered month a floor and does not call it met", () => {
+      // The window stops on the 20th, so August's 300 is a floor. July is whole.
+      const t = render(legs(), targets({ avoidedStateGal: 5000 }), { lines: FEED, window: { from: "2026-07-01", to: "2026-08-20" } });
+      expect(t).toContain("whole month");
+      expect(t).toContain("part of the month — a floor");
+      expect(t).not.toContain("already over");
+    });
+
+    it("calls a partly covered month over the ceiling conclusive, because more gallons could only make it worse", () => {
+      const t = render(legs(), targets({ avoidedStateGal: 250 }), { lines: FEED, window: { from: "2026-07-01", to: "2026-08-20" } });
+      expect(t).toContain("part of the month — already over");
+    });
+
+    it("reports the figures without a grade when no target is set, and says where to set one", () => {
+      const w = mountTab(legs(), policy(), { lines: FEED });
+      const t = w.text();
+      expect(t).toContain("No target is set.");
+      expect(t).toContain("90.0%");
+      expect(t).toContain("no target set");
+      expect(t).not.toContain("points");
+      const sub = onNetworkSub(w)!;
+      expect(sub.classes()).not.toContain("text-success-700");
+      expect(sub.classes()).not.toContain("text-danger-700");
+    });
+
+    it("strips the grade under a truck filter, because a target is a fleet commitment", () => {
+      // The same fixture that is 5 points SHORT fleet-wide shows the share and no verdict when the
+      // reader has picked trucks: three trucks cannot be held to a 4,000-gallon fleet ceiling.
+      const w = mountTab(legs(), targets({ onNetworkPct: 95, avoidedStateGal: 250 }), { lines: FEED, fleetWide: false });
+      const t = w.text();
+      expect(t).toContain("Targets are set for the whole fleet.");
+      expect(t).toContain("90.0%");
+      expect(t).toContain("fleet target not applied to a truck selection");
+      expect(t).not.toContain("points short");
+      expect(t).not.toContain("50 over");
+    });
+
+    it("says the discount-capture target cannot be measured rather than inventing a figure", () => {
+      const t = render(legs(), targets({ discountCapturePct: 80 }), { lines: FEED });
+      expect(t).toContain("Discount capture is targeted at least 80% and cannot be measured yet");
+    });
+
+    it("has no ceiling to hold a month to when the policy avoids no state", () => {
+      const t = render(legs(), targets({ avoidedStateGal: 250 }), { ...{ lines: FEED } });
+      expect(t).not.toContain("No state is avoided");
+      const none = render(legs(), { ...targets({ avoidedStateGal: 250 }), avoidStates: [] }, { lines: FEED });
+      expect(none).toContain("No state is avoided in your policy");
+      expect(none).not.toContain("Gallons in avoided states");
+    });
+
+    it("renders with no feed lines at all rather than dividing by nothing", () => {
+      const t = render(legs(), targets({ onNetworkPct: 95, avoidedStateGal: 250 }), { lines: [] });
+      expect(t).not.toContain("NaN");
+      expect(t).toContain("no tractor fuel in this window");
+    });
   });
 
   it("renders when every fill is unpriceable rather than dividing by nothing", () => {
