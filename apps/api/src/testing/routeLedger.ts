@@ -52,6 +52,10 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
 export const OPEN_ROUTES = new Map<string, string>([
   // ── Gated inside the handler, because the section is a PARAMETER. ─────────────────────────────
   [
+    "POST /api/fueling/findings/assign",
+    "giving findings an owner (C7b). A WRITE with no static section gate, which needs the stronger argument of the two: the gate is the FINDING's own section, and a route serving both the ledger and the anomaly feed cannot name one of them at the mount without taking the other's queue away from the person who works it (Q-FUI4). `assignFindings` reads every id back org-scoped, takes each kind from the ROW rather than from the request, and refuses the WHOLE batch unless `rolesThatManageFinding` admits the caller for every one — plus it refuses an assignee who could not then close what they are given. Pinned by \"refuses the whole batch when one finding is outside the caller's sections\" in modules/fuel-spend/findingsAssign.test.ts",
+  ],
+  [
     "GET /api/fueling/findings",
     "the Findings inbox over BOTH case tables (C7b). It IS section-gated, per ROW rather than per route: Q-FUI1 ruled that each finding kind carries its own section, so `visibleSections` derives the caller's sections from the matrix and a `safety` row is never read for somebody without `safety` — the anomaly table is not queried at all for them. A static `requireSection` could only name ONE section for a route that serves two, and naming `fuel` would take the theft queue from the safety manager, which is the narrowing Q-FUI4 refused. A caller who may see neither gets an empty page rather than a 403, because \"no findings you may see\" is a true answer to this question",
   ],

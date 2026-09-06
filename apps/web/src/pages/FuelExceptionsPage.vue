@@ -20,6 +20,9 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
 import { useExceptionTotalsQuery, exceptionExportQuery, type ExceptionQuery } from "@/features/reconcile/useExceptions";
 import { useFindingsQuery, type FindingsQuery } from "@/features/reconcile/useFindings";
+import {
+  useAssigneesQuery, useAssignFindings, assigneeLabel, sectionsOf,
+} from "@/features/reconcile/useFindingAssignment";
 import { usd } from "@/features/reconcile/format";
 import { apiDownload } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
@@ -165,6 +168,46 @@ const tiles = computed(() => {
 });
 
 const selected = ref<string | null>(null);
+
+/**
+ * Bulk selection, for the one bulk act this inbox offers (C7b merge 3).
+ *
+ * ⚠ Assignment and NOT closing, and that is a decision rather than a scope cut. Bulk-closing a queue
+ * whose post-ruling precision nobody has measured would manufacture ground truth for the accuracy
+ * programme out of one careless click — 82 cases dispositioned in a gesture, feeding the very figure
+ * C7 is gated on. Assigning forty findings to somebody is reversible and decides nothing.
+ */
+const picked = ref<Set<string>>(new Set());
+const pickedRows = computed(() => rows.value.filter((r) => picked.value.has(r.id)));
+/** Clearing on any filter change: a selection that survives a narrowing acts on rows nobody can see. */
+watch([states, kinds, () => f.from.value, () => f.to.value, () => f.vehicleIds.value, page], () => {
+  picked.value = new Set();
+});
+
+/**
+ * Which candidate list to offer. A selection spanning both sections needs somebody who can close
+ * BOTH — the API enforces that, and asking for one section's list here would offer names it refuses.
+ */
+const pickedSections = computed(() => sectionsOf(pickedRows.value));
+const assigneeSection = computed(() => (pickedSections.value.length === 1 ? pickedSections.value[0]! : null));
+const { data: assignees } = useAssigneesQuery(assigneeSection);
+const assignMutation = useAssignFindings();
+
+const assigneeOptions = computed(() => (assignees.value ?? []).map((a) => ({ value: a.id, label: assigneeLabel(a) })));
+
+async function assignPicked(assignee: string | null): Promise<void> {
+  const findings = pickedRows.value.map((r) => ({ source: r.source, id: r.id }));
+  if (findings.length === 0) return;
+  try {
+    const r = await assignMutation.mutateAsync({ assignee, findings });
+    toast.success(`${r?.assigned ?? findings.length} finding(s) assigned`);
+    picked.value = new Set();
+  } catch (e) {
+    // The API refuses the WHOLE batch and says why — surfaced verbatim, because "narrow the selection
+    // to the ones you work" is an instruction and paraphrasing it would lose the instruction.
+    toast.error("Could not assign", e instanceof Error ? e.message : undefined);
+  }
+}
 
 const now = new Date();
 const tableRows = computed(() =>
@@ -324,6 +367,35 @@ async function downloadPacket() {
       seeing all of them.
     </p>
 
+    <!--
+      The bulk bar appears only with a selection, and says what it can act on. A mixed selection
+      offers no picker: the two sections have different people who can close them, and the API refuses
+      an assignee who cannot close every finding in the batch — so offering a name it would reject is
+      a control that exists to produce an error message.
+    -->
+    <div
+      v-if="picked.size"
+      class="flex flex-wrap items-center gap-3 rounded-surface bg-surface-muted px-4 py-3 ring-1 ring-edge"
+    >
+      <span class="text-sm font-medium text-ink">{{ picked.size }} selected</span>
+      <template v-if="assigneeSection">
+        <FilterSelect
+          :model-value="''"
+          :options="assigneeOptions"
+          label="Assign to"
+          @update:model-value="assignPicked(String($event) || null)"
+        />
+        <BaseButton variant="secondary" :disabled="assignMutation.isPending.value" @click="assignPicked(null)">
+          Unassign
+        </BaseButton>
+      </template>
+      <span v-else class="text-sm text-ink-muted">
+        This selection spans money findings and theft cases, which different people close. Narrow it to one kind to
+        assign it.
+      </span>
+      <BaseButton variant="ghost" @click="picked = new Set()">Clear</BaseButton>
+    </div>
+
     <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
       Couldn't load the ledger: {{ error instanceof Error ? error.message : "unknown error" }}
     </p>
@@ -333,8 +405,11 @@ async function downloadPacket() {
         :columns="columns"
         :rows="tableRows"
         row-key="id"
+        selectable
+        :selected="picked"
         :loading="isLoading"
         empty-text="Nothing outstanding in this window."
+        @update:selected="picked = $event"
         @row-click="openFinding($event)"
       >
         <template #cell-age="{ row }">

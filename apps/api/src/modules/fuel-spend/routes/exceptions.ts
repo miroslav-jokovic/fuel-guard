@@ -24,6 +24,7 @@ import {
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
 import { readFindings } from "../findingsRead.js";
+import { assignFindings, type FindingRef } from "../findingsAssign.js";
 import { exportExceptions } from "../fuelExceptionExport.js";
 import { renderDisputePacket } from "../fuelDisputePacket.js";
 import { ExportTooLargeError, MAX_EXPORT_ROWS } from "../../../lib/csvExport.js";
@@ -116,6 +117,70 @@ export function registerExceptionRoutes(router: Router): void {
    * from the matrix per caller, and a caller who can see neither section gets an empty page rather
    * than a 403, because "no findings you may see" is a true answer to this question.
    */
+  /**
+   * Give findings an owner (C7b merge 3). The one act both case tables share — see
+   * `findingsAssign.ts` for why closing is not, and why this is the only BULK act offered.
+   *
+   * `requireOrg` and no `requireSection` for the same reason the read above has none: the gate is the
+   * FINDING's own section and a static one could only name a single section for a route that serves
+   * two. It is enforced per row in the service, against kinds read from the rows themselves rather
+   * than from the request.
+   */
+  router.post(
+    "/findings/assign",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const body = req.body as { assignee?: unknown; findings?: unknown };
+
+      const assignee =
+        body?.assignee == null ? null : typeof body.assignee === "string" && UUID.test(body.assignee) ? body.assignee : undefined;
+      if (assignee === undefined) {
+        res.status(400).json(apiError("bad_request", "That is not somebody we can assign a finding to."));
+        return;
+      }
+      const refs = Array.isArray(body?.findings)
+        ? body.findings.filter(
+            (r): r is FindingRef =>
+              !!r && typeof r === "object" && UUID.test(String((r as FindingRef).id)) &&
+              ((r as FindingRef).source === "anomaly" || (r as FindingRef).source === "exception"),
+          )
+        : [];
+
+      const result = await assignFindings(admin, req.auth!.orgId!, req.auth!.userId, req.auth!.role as UserRole, assignee, refs);
+      if (!result.ok) {
+        res.status(result.code === "forbidden" ? 403 : result.code === "not_found" ? 404 : 400).json(
+          apiError(result.code, result.message),
+        );
+        return;
+      }
+
+      /*
+       * ONE audit row per finding, not one per request.
+       *
+       * `audit_logs.entity_id` is a uuid and a bulk act has no single entity, so the tempting shape —
+       * a joined list of ids — is a value `writeAudit` would move to `meta.entityIdRejected` and
+       * leave `entity_id` NULL, which `auditEntityId.test.ts` refuses statically and is right to:
+       * the question this trail has to answer is "who assigned THIS finding", and a row that names no
+       * entity cannot answer it. Bounded by `MAX_ASSIGN_BATCH`, and written concurrently because 200
+       * sequential inserts would make a bulk assign feel like a mistake.
+       */
+      await Promise.all(
+        refs.map((r) =>
+          writeAudit(admin, {
+            orgId: req.auth!.orgId!,
+            actorId: req.auth!.userId,
+            action: "fuel.finding_assigned",
+            entity: r.source === "anomaly" ? "anomalies" : "fuel_exceptions",
+            entityId: r.id,
+            meta: { assignee, batch: result.assigned },
+          }),
+        ),
+      );
+      res.json({ ok: true, assigned: result.assigned });
+    }),
+  );
+
   router.get(
     "/findings",
     requireOrg,
