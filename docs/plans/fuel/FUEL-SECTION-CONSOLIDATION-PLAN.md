@@ -2139,6 +2139,43 @@ wrong are unrepresentable; plus a test that every `ANOMALY_DISPOSITIONS` value s
 contract intact. C7b: page tests per role from `SECTION_ACCESS`, `lint:section-policies`, both
 snapshots.
 
+#### — C7a DONE 2026-09-06 (`claude/fuel-c7a-findings-axis`). **C7b remains, and is still gated on the queue being worth working.**
+
+`packages/shared/src/findingQueue.ts`. The axis is `open → investigating → working → closed`, and
+`working` is the union of what the two models need rather than the intersection: a fuel exception can
+be `disputed` — a claim is with the vendor and the clock that matters is theirs — and the anomaly
+model has no equivalent, so it lands there never. **A state one source cannot reach is empty rather
+than wrong**, which is the shape that lets one axis carry two models without either being bent.
+
+**The two forbidden mappings are unrepresentable rather than merely unwritten, and the mechanism is
+the point.** There is **no function in the module from one source's status to the other's** — each
+maps ONTO the axis and back to its own vocabulary, never across — and `closeOfAnomaly` returns a type
+that cannot express a money outcome while `closeOfException` returns one that cannot express a
+disposition. `resolved → credited` fails to compile before it fails a test. A future reader who wants
+`anomalyStatusToExceptionStatus` has to add it, and finds the argument when they try.
+
+**D-FUI7's one clean correspondence got its own arm.** `superseded` and `resolved_by_reingest` are
+the same idea in two vocabularies — a later run no longer found it, and nobody decided anything — so
+`FindingClose` has a third `reingest` arm that both sources share. Giving it an arm is what stops it
+being smuggled in as a disposition, or as a money outcome of zero, which was the second-most tempting
+wrong answer after the two the decision already named.
+
+**Two smaller rulings inside the contract, each of which could have gone the other way.** A `resolved`
+anomaly nobody labelled reads as **`inconclusive`** — the value `ANOMALY_DISPOSITIONS` already defines
+as "couldn't be determined, EXCLUDED from precision" — rather than as a fourth state, because a
+fourth state would put a row with no ground truth into the precision denominator. And a `dismissed`
+exception carries **no amount at all**: its face value is not money, and counting it would be exactly
+E3's complaint that identified, claimed and recovered are three numbers and never one.
+
+**Verified by** 13 assertions over the full cross-product, each proved able to fail by mutating its
+subject — including writing `resolved → credited` out literally as D-FUI7 feared it, flattening
+`reingest` into a money outcome of zero, and letting a dismissed finding carry its face value.
+
+⚠ **This ships no screen and is useless to a reader, which the step's own text says is fine.** C7b is
+still gated on Q-FUI11's aftermath: the queue is 84 live cases of which **74 have never been
+reviewed**, so the post-ruling precision is unknown and C7's own standard — *the reward for a queue
+worth working, not the remedy for one that is not* — cannot yet be tested.
+
 ---
 
 ### C8 · Targets beside the policy
