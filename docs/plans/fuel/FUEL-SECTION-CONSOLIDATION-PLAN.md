@@ -2698,3 +2698,44 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   **Proved able to fail by three mutations of the partition** — emptying the unscored list (3 cases),
   letting the weightless rules into `signals` (5), and duplicating the scored list into the unscored
   one (1).
+
+- 2026-09-06 · **C6 shipped on 2026-09-05 and had not run once. The producer was correct; the clock
+  was not.** Audited on request, and the ledger still held the single `recon_missing_on_report` row
+  §0.3 measured — zero policy findings, against a configured policy
+  (`route_fuel_settings.avoid_states = {CA}`, three enabled brands) and ~14,800 EFS fills to scan.
+  Nothing anywhere reported a problem, which is the part worth keeping.
+
+  **The cause was not in the scan.** `fuelSpendRollupScheduler` was `setInterval(run, 24h)` with a
+  deliberate *"NOT run on boot"*, and that comment's reasoning was sound in isolation: a fortnight
+  across every org is heavy, and a deploy loop would run it on every restart. What it did not survive
+  is how often this service deploys — `main` took between **8 and 42 merges a day** over the preceding
+  ten days, every merge restarts the API, and a 24-hour timer on a process that rarely lives 24 hours
+  fires approximately never. Three measurements agreed: zero policy rows, `fuel_spend_days`' newest
+  derivation at **2026-09-04** (before C6 merged), and `runFuelPolicyScanForWindow` with exactly one
+  caller and therefore no manual path either.
+
+  **⚠ The `jobs` ledger could not be used to detect this, and that is why it went unnoticed.** The
+  scheduler writes no job row by design — its header says so — so an empty `jobs` table was not
+  evidence of anything. The check that works is `max(fuel_spend_days.updated_at)` per org.
+
+  **Fixed as 0324 in two merges (#595 the column, #596 the reader):** check often (6 h), work rarely
+  (due after 20 h), deduped on a persisted per-org `organizations.last_fuel_sweep_at`, first check
+  ~2 min after boot. The old objection is answered rather than dismissed — a restart now costs one
+  cheap read per org instead of a rebuild — and the failure the old design could not see in the other
+  direction, a gap *longer* than a day, is now noticed. The 20-vs-6 gap is deliberate: a 24-hour
+  window checked every 6 would sweep every 24–30 hours and lose most of a day a week. NULL means
+  never swept and is due, which is the condition that makes the first run happen at all.
+
+  **Measured 15:54 UTC, ~2 minutes after the deploy booted — the ledger's first real content:**
+
+  | kind | findings | amount | trucks |
+  |---|---|---|---|
+  | `avoided_state_premium` | 45 | $9,227.58 | 43 |
+  | `off_network_premium` | 23 | $1,218.74 | 21 |
+  | `avoided_brand_premium` | 8 | $660.61 | 7 |
+  | **total policy** | **76** | **$11,106.93** | |
+
+  C6's Done-when is met and **C8 and C9 now have something to render**, which they did not two hours
+  ago. ⚠ Nobody has reviewed a single one of these 76 — they are all `open`, and the first person to
+  read them is the test of whether the grouping Q-FUI3 ruled on is the unit of work it was argued to
+  be.
