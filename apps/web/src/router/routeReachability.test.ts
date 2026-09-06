@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { NAV_SURFACES } from "@silvicom/shared";
 
 /**
  * Fitness function — every page a person can reach is a page something LINKS to (R8).
@@ -27,6 +28,21 @@ import path from "node:path";
  *
  * Parameterised routes are exempt: `/drivers/:id` is reached by constructing the id, and that
  * construction is what the page it came from is for.
+ *
+ * ── AND THE SIDEBAR IS A LINK, EVEN THOUGH ITS PATHS ARE NOT IN THIS APP (2026-09-03) ───────────
+ * ⚠ The same lesson a second time, and it is why this paragraph is here rather than a shrug. When
+ * this file was written the sidebar was built from a literal list in `lib/nav.ts`, so scanning
+ * `src` saw every nav path. The surface-entitlements programme then made
+ * `packages/shared/src/surfaces.ts` the one home for "which permission does this screen need"
+ * (D-SURF3), and `nav.ts` now renders `NAV_SURFACES.map(s => ({ to: s.path }))` — the path literal
+ * never appears in this app at all.
+ *
+ * Merging this branch against main five days later, the detector reported SEVEN orphans — `/ask`,
+ * `/shop`, `/shop/inspectors`, `/fuel-planning`, `/fuel-spend/exceptions`, `/fuel-cards`,
+ * `/hazmat/calculator` — and every one of them is in the sidebar. So the catalogue is read as a
+ * corpus of its own: it is the thing the navigation is built from, which makes membership in it the
+ * most direct evidence of reachability there is. `lint:surfaces` already holds the other direction,
+ * that every catalogued path is a real route.
  */
 const WEB_SRC = path.join(process.cwd(), "src");
 
@@ -97,6 +113,9 @@ const corpus = sourceFiles(WEB_SRC)
 const quoted = (needle: string) =>
   corpus.includes(`"${needle}"`) || corpus.includes(`'${needle}'`) || corpus.includes(`\`${needle}\``);
 
+/** Paths the sidebar renders. Read from the catalogue `lib/nav.ts` reads, never a copy of it. */
+const navPaths = new Set(NAV_SURFACES.map((s) => s.path));
+
 describe("every page is reachable from somewhere", () => {
   const declared = declaredRoutes();
 
@@ -113,6 +132,7 @@ describe("every page is reachable from somewhere", () => {
       .filter((r) => !r.redirect)
       .filter((r) => !r.path.includes(":") && r.path !== "/" && !r.path.includes("*"))
       .filter((r) => !ARRIVED_AT_FROM_OUTSIDE.has(r.path))
+      .filter((r) => !navPaths.has(r.path))
       .filter((r) => !quoted(r.path) && !(r.name && quoted(r.name)))
       .map((r) => r.path);
 

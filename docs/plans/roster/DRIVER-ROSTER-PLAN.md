@@ -1308,3 +1308,27 @@ removing the Settings entry it had just earned.
 
 **Verified by:** `pnpm test` (all suites and matrices), `typecheck`, `lint`, `lint:capabilities`, and
 the full gate list.
+
+⚠ **AND THE SAME LESSON A THIRD TIME, ON MERGE — 2026-09-05.** This branch sat open for five days.
+Merged against main it reported **seven** orphans — `/ask`, `/shop`, `/shop/inspectors`,
+`/fuel-planning`, `/fuel-spend/exceptions`, `/fuel-cards`, `/hazmat/calculator` — and every one of
+them is in the sidebar.
+
+Nothing regressed; the detector went stale under a change that landed after it. When this file was
+written the sidebar was a literal list in `lib/nav.ts`, so scanning `apps/web/src` saw every nav path.
+The surface-entitlements programme (S1–S7, #496/#498, 2026-09-03) then made
+`packages/shared/src/surfaces.ts` the one home for "which permission does this screen need" (D-SURF3),
+and `nav.ts` now renders `NAV_SURFACES.map(s => ({ to: s.path }))` — **the path literal no longer
+appears in this app at all.**
+
+So the catalogue is now read as a corpus of its own: it is the thing the navigation is BUILT from,
+which makes membership in it the most direct evidence of reachability there is, and `lint:surfaces`
+already holds the other direction. The exemption is narrow rather than blanket, and that is asserted
+rather than asserted-about — removing the Settings entry this step earned still makes the detector
+fire, because `/settings/driver-performance` is not a catalogued nav surface.
+
+The recurring shape is worth naming, since this is the third instance in one file's life: **a
+reachability detector is only as current as its idea of what a link is.** Each time the answer
+changed — paths only → paths or names → paths, names, or the catalogue the nav is generated from —
+the detector reported a pile of orphans that were its own blind spot. Verify a detector against the
+codebase before trusting a number it produces.
