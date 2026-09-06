@@ -684,10 +684,10 @@ help**, and if so that is the finding, recorded here, not a reason to run it aga
 | Id | Question | Owner | Fallback until answered |
 |---|---|---|---|
 | **Q-SAM1** | ~~**What staleness is acceptable, per feed?**~~ **ANSWERED 2026-09-05 (owner ruling): adopt the proposal.** stats/telematics **1 h**, identity **24 h**, driver-scores **12 h**, IFTA **48 h** — real bounds, not provisional ones, so a breach of any of the four may alert. ⚠ **The ruling names four feeds and the collector runs eight.** Odometer, HOS and idle take a bound DERIVED from the cadence they already promise (`FEED_LATE_AFTER_PASSES`, the answer this repo already gave for the EFS pollers), are shown so nothing is unmonitored, and **never alert** — which is this row's own fallback sentence kept rather than discarded. `targetSource` carries the difference onto the wire and onto the screen. | Miki | ~~open~~ Answered. |
-| **Q-SAM2** | **Do we handle the five `RouteStop*` events or unsubscribe them?** They imply a dispatch/ETA feature nobody has asked for. Handling them is real work; leaving them is a permanent 404 generator against our own endpoint. | Miki | Unsubscribe. An event type with no handler is not a feature. |
-| **Q-SAM3** | **What is the `Fleetpal Webhook` on this account, and is it ours to touch?** It receives `VehicleCreated`/`VehicleUpdated`/`DvirSubmitted` at a third-party URL. `ARCHITECTURE.md` names a future `fleetpal` collector, so this may be a live integration outside this codebase. | Miki | Left strictly alone. Nothing in this plan modifies a webhook we did not create. |
-| **Q-SAM4** | **Is the webhook pointed at the right Railway service?** It targets `fleetguardweb-production`, while `railway.json` names `fleetguardapi` as the WEX-whitelisted service that runs the pollers. Both serve the API, so the path fix may be sufficient — but which service should own inbound webhooks is a deployment decision. | Miki | S1 fixes the path on the service already configured and changes no deployment topology. |
-| **Q-SAM6** | **NEW, 2026-09-02, raised by S4's opening measurement.** **How much of the Samsara backfill lane may the recon tier spend?** One tick costs 112–120 s for 250 fills — **3.2% of its hour** — so the 43-hour drain is a `SAMSARA_RECON_BATCH` choice, not a runtime limit. **1,000** costs ~8 min/tick (13% duty) and drains in ~11 h; **2,500** costs ~19 min (32%) and drains in ~4 h. What it trades against is the live lane: the backfill priority gets `1 − SAMSARA_LIVE_RPS_FRACTION` of `SAMSARA_MAX_RPS`, and the measured 2.2 fills/s is well inside it, so the ceiling is a policy about vendor load and shared pacing rather than a technical one. **Recommendation: 1,000.** It clears the hole inside a working day, keeps the tier under one sixth of its window so a slow tick cannot overrun the next, and leaves the live lane the majority share it was given on purpose. | Miki | Stays at 250. The hole still closes — in ~43 hours rather than ~11 — and nothing is at risk, so this is a speed decision and not a correctness one. |
+| **Q-SAM2** | **Do we handle the five `RouteStop*` events or unsubscribe them?** They imply a dispatch/ETA feature nobody has asked for. Handling them is real work; leaving them is a permanent 404 generator against our own endpoint. | Miki | ~~open~~ **ANSWERED 2026-09-06: unsubscribe, by replacement.** The five become `AlertIncident` in the same `PATCH` — not a separate call. See the S1 re-measurement below. |
+| **Q-SAM3** | **What is the `Fleetpal Webhook` on this account, and is it ours to touch?** It receives `VehicleCreated`/`VehicleUpdated`/`DvirSubmitted` at a third-party URL. `ARCHITECTURE.md` names a future `fleetpal` collector, so this may be a live integration outside this codebase. | Miki | ~~open~~ **ANSWERED 2026-09-06 by measurement, and the premise was false.** It posts to `https://qqq` — a stub, not a third party. Still left strictly alone, for the fallback's reason rather than its assumption. |
+| **Q-SAM4** | **Is the webhook pointed at the right Railway service?** It targets `fleetguardweb-production`, while `railway.json` names `fleetguardapi` as the WEX-whitelisted service that runs the pollers. Both serve the API, so the path fix may be sufficient — but which service should own inbound webhooks is a deployment decision. | Miki | ~~open~~ **ANSWERED 2026-09-06: `fleetguardapi`.** Both hosts work and neither is broken; `api` is the WEX-whitelisted service that owns every other Samsara path, and moving it means `web` stops needing a signing secret for a surface it does not own. One extra field on a `PATCH` already being made. |
+| **Q-SAM6** | **NEW, 2026-09-02, raised by S4's opening measurement.** **How much of the Samsara backfill lane may the recon tier spend?** One tick costs 112–120 s for 250 fills — **3.2% of its hour** — so the 43-hour drain is a `SAMSARA_RECON_BATCH` choice, not a runtime limit. **1,000** costs ~8 min/tick (13% duty) and drains in ~11 h; **2,500** costs ~19 min (32%) and drains in ~4 h. What it trades against is the live lane: the backfill priority gets `1 − SAMSARA_LIVE_RPS_FRACTION` of `SAMSARA_MAX_RPS`, and the measured 2.2 fills/s is well inside it, so the ceiling is a policy about vendor load and shared pacing rather than a technical one. **Recommendation: 1,000.** It clears the hole inside a working day, keeps the tier under one sixth of its window so a slow tick cannot overrun the next, and leaves the live lane the majority share it was given on purpose. | Miki | ~~open~~ **ANSWERED: stays at 250.** The hole still closes — in ~43 hours rather than ~11 — and nothing is at risk, so this is a speed decision and not a correctness one. **Moot since 2026-09-06:** the drain has finished in practice. |
 | **Q-SAM5** | **NEW, 2026-09-01, raised by S2 merge 1.** **Where does an intermediate sample go?** S2's Done-when asks that "a value that changes twice between two polls produces two records rather than one", but the stats tier's only sink is `vehicles.current_odometer` / `samsara_fuel_percent` — one current value per truck, last-sample-wins. **The feed's completeness is real and lands nowhere.** Three candidates: **(a)** file the intermediate *fuel-level drops* into `fuel_events`, whose `fuel_pct_before` / `fuel_pct_after` columns have sat unused since 0021 and were plainly designed for exactly this, gated on the learned-reliable sensor the way `ruleEligible` already gates `tank_fill_short`, and sized against `resolveCapacity` rather than a new blanket threshold; **(b)** a general per-vehicle telematics sample store — honest but expensive, ~195 vehicles at telematics ping rates, and it duplicates what `stats/history` already serves S4; **(c)** accept that the cursor buys *guaranteed delivery of the latest value* and nothing more, and strike the Done-when. **Recommendation: (a).** It is the only one that makes the Done-when literally true, it reuses two learners the product already paid for instead of inventing a threshold, and it is D-SAM2's own words — the cursor feed sitting *underneath* the webhook as the reconciler that makes completeness a property rather than a hope. ⚠ Note `fuel_events` is operator-facing: it renders on `/fuel-events` and is counted as "Siphoning" in the weekly digest, so (a) must **not** reuse the webhook's `notifyFuelDrop` path, and its suppressed-by-gate count must be reported into the `jobs` ledger so S6 can measure what the gate cost. | Miki | ~~open~~ **ANSWERED 2026-09-01: (a).** Merge 2 ships the cursor, the endpoint swap, and the feed-derived `fuel_events` sink under the reliability gate. |
 | **Q-SAM7** | **NEW, 2026-09-05, raised by S5 merge 2.** **The surfaces S5 wants to annotate are ungated; the data it would annotate them with is `settings`-gated.** S5's third and fourth bullets are a one-line freshness strip on the surfaces that depend on a feed, and D-SAM7's all-time denominator on the Dashboard coverage tile. Both are blocked by the same fact, measured rather than assumed: `/` (Dashboard) and `/coverage` carry `meta: { requiresAuth: true }` and **no section gate at all** — any authenticated org member, a `driver` included — while `GET /api/integrations/samsara/feed-freshness` and `/telematics-coverage` are `requireSection("settings", "view")`. The Dashboard also reads Supabase DIRECTLY under RLS and computes `coveragePct` in `aggregateDashboard`; it calls no API for this at all, so adding one introduces a gate where there is none. Candidates: **(a)** a narrow `requireOrg` freshness read carrying only each feed's id, label, state, age and bound — **no `lastError`** (a vendor error string can carry account identifiers) and no job internals — with the full card staying `settings: view` (**recommended**: it is the shape this repo already chose for Q-FUI15, where refusing a list while printing its contents protected nothing, and collector health is operational metadata rather than money or PII); **(b)** widen `/telematics-coverage` and `/feed-freshness` to the Dashboard's audience wholesale, which also exposes vendor error text; **(c)** compute the all-time coverage in the browser from two `count` queries — **rejected**: S4 spent real effort getting the three-state predicate right (*attempted* is the STAMP, not the status, and 124 production rows disagree), and a second implementation of it is a second source of truth with a delay fuse. | Miki | ~~open~~ **ANSWERED 2026-09-05: (a), for the freshness half.** The strips ship on all six surfaces behind `GET /api/integrations/samsara/feed-pulse` — `requireOrg`, matching the audience of the pages themselves, with `samsaraFeedPulse` withholding `lastError` and every job internal. ⚠ **D-SAM7 is NOT unblocked by this**, and not because of a permission: see **Q-SAM8**. |
 
@@ -1104,3 +1104,82 @@ collection. It does not. The 2.9% precision has three named causes (§0.3a) and 
 none of them: capacity is an entered-data problem, `card_multi_vehicle` was an attribution problem and
 is now auto-explaining 80% of its own fires, and the odometer cluster was a rule defect fixed in #584.
 **Collection was never the constraint.**
+
+---
+
+#### — S1 RE-MEASURED 2026-09-06. **Two of its three owner actions were already done; the third was never a subscription change, and the webhook could not have worked no matter how long anyone waited.**
+
+S1's remaining-work list has said the same three things since 2026-09-01. Measured today against the
+live Samsara account (`GET /me` → `SILVICOM INC`, org 6308) and Railway production:
+
+1. **The URL is already correct.** `GET /webhooks` returns the `Fleetguardweb` webhook pointed at
+   `https://fleetguardweb-production.up.railway.app/api/webhooks/samsara` — the path
+   `SAMSARA_WEBHOOK_PATH` publishes, character for character. Done, undated, by somebody.
+2. **The secret is already set** — `SAMSARA_WEBHOOK_SECRET` is present on BOTH Railway services, and
+   an unsigned `POST` to either host answers **401**, which is the receiver working as designed.
+3. **The fuel-drop alert does not exist.** The account carries **16 alert configurations and not one
+   uses trigger `5035` (`suddenFuelLevelDrop`)**. The only fuel alert is `1005 fuelLevel < 8%` —
+   "Critically Low Fuel Level", a threshold, not a drop. Nor does any alert on the account carry a
+   webhook action pointing at ours.
+
+**So item 2 was never "subscribe it to the alert"; there is no alert to subscribe to.** The webhook
+has been correctly configured, correctly secured, correctly routed, and pointed at a source that has
+never existed. `fuel_events` reading 0 was not a mystery and was never going to resolve itself. Two
+status lines had been true for days and the one that mattered was never checked, which is the same
+failure S1 diagnosed — *a 404 from a webhook receiver looks exactly like a vendor with nothing to
+say* — displaced one layer up, from the path to the trigger.
+
+**Q-SAM3 is answered by measurement, and its premise was false.** The `Fleetpal Webhook` posts to
+`https://qqq`. That is not a URL, not a third party, and not a live integration — it is a stub
+somebody left. It is still left strictly alone, for the reason the fallback gave rather than the one
+it assumed. (Noted while there: the `Harsh Event` alert routes to webhook id `1964860816422226`,
+which `GET /webhooks` does not return — a dangling reference. Also not ours, also untouched.)
+
+**Q-SAM4 is answered: `fleetguardapi`.** Both hosts are Online, both route the path, both 401 an
+unsigned delivery, both hold the secret, and `@fleetguard/web` has carried
+`RUN_SCHEDULERS_IN_PROCESS=false` since 2026-09-05 — so the fallback was correct and nothing was
+broken. The ruling moves it anyway, because `api` is the WEX-whitelisted service that owns every
+other Samsara path, and consolidating means `web` stops needing a signing secret for a surface it
+does not own. It costs one extra field on a `PATCH` already being made.
+
+**Q-SAM2 is answered: unsubscribe, by replacement.** The five `RouteStop*` types are replaced by
+`AlertIncident` — the type the account's alerts emit, and the one `fuelEventsWebhook.test.ts` has
+been fixturing since S1. Not a separate call.
+
+**The trigger threshold is 10% (owner ruling, 2026-09-06).** Samsara allows 5–100 for
+`minFuelLevelChangeInPercents`. 10% is ~15 gal on a 150-gal tank: above jitter on a sensor the
+product has certified reliable, and low enough to catch a partial draw. Sensitivity is cheap here
+*because* of the gate below — the alert reaches 12 trucks, not 195 — and the figure can be raised
+from the settings card's own count once there is one to read.
+
+**⚠ And a defect that had to close first, which is why the vendor calls did not go out today.**
+`processSamsaraWebhook` wrote `fuel_events` and emailed the org for ANY mapped vehicle.
+`fileDropsFor` gates the feed-derived drop on `tank_sensor_reliable`, true for 12 of 195 trucks — so
+the same table, reached two ways, held 94% of its rows to no standard at all. Creating the alert
+before fixing that would have put 183 trucks' untrusted readings onto an operator surface and emailed
+the carrier about them. Scoping the *Samsara alert* to the 12 instead was refused as the workaround
+it is: a second source of truth for sensor reliability, living in a vendor console, drifting the
+moment the learner updates. The gate belongs in code and shipped as
+`claude/samsara-webhook-reliability-gate` (PR #591) — including why a suppressed drop is STORED
+rather than discarded, which is that `readSamsaraWebhookStatus` counts `fuel_events` to answer "has
+this receiver ever received anything", so a discarding gate would have re-created S1's own false
+reading from the inside.
+
+**What remains for S1, and it is now two API calls rather than three console errands.** Once #591 is
+merged and served: `PATCH /webhooks/8527900292547501` (eventTypes → `["AlertIncident"]`, url →
+`fleetguardapi`), then `POST /alerts/configurations` for trigger 5035 at 10% with a single
+`actionTypeId: 4` action naming that webhook and **no human recipients** — the carrier is not paged;
+our own `notifyFuelDrop` is the notification path, and it now only fires for a trusted sensor.
+
+**Q-SAM9 — NEW, raised while measuring the above. Where does a `fuel_event` actually render?**
+`/fuel-events` **redirects to `/fuel-log`**, which reads `fuel_transactions`. Nothing displays
+`fuel_events` to an operator at all, and the "⚠ Possible fuel theft" email links to that redirect —
+so the one surface the alert points a carrier at does not contain the event it is about. Q-SAM5's
+warning that "`fuel_events` is operator-facing: it renders on `/fuel-events`" has been stale since
+the pages merged. Its three real readers are counts: the weekly digest's "Siphoning" list,
+Ask-Data's count, and the settings card. Candidates: **(a)** a `fuel_events` section on `/fuel-log`
+beside the transactions, since a drop with no purchase is exactly the absence that page is about
+(**recommended**); **(b)** its own page, which re-splits what was deliberately merged; **(c)** point
+the email at `/anomalies` and accept the event is only ever a count. Owner: Miki. **Fallback until
+answered: the email keeps its link and the event stays a count** — nothing is lost that was not
+already lost, and this is not S1's blocker.
