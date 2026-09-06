@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
   varianceToTarget,
   fuelPolicyFromSettings,
   DEFAULT_FUEL_POLICY,
   NO_FUEL_TARGETS,
+  AVOIDED_STATE_TARGET_PERIOD,
 } from "./policyExceptions.js";
 
 /**
@@ -89,17 +89,15 @@ describe("reading targets off the settings row", () => {
    *
    * The two percentages are RATIOS and mean the same thing over any window. A gallons ceiling does
    * not: "4,000" is a different instruction over a week, a month and a year, and a target nobody can
-   * date is a target nobody can miss. Production has 4,000 set against months measured at 3,380 to
-   * 5,369 — read as a year it would be absurd, read as a week it would never be met.
+   * date is a target nobody can miss. Production holds 4,000 against months measured at 3,380 to
+   * 5,369 — read as a year it would be absurd, read as a week it could never be met.
    *
-   * There is nothing in the VALUE to assert, so this pins the only thing that can carry the period:
-   * that the contract says so where somebody reading the field will find it.
+   * Asserted as a VALUE because that is what stops the form's label and the contract drifting: the
+   * label is built from this constant, so there is one place to change and no second copy to forget.
+   * A doc comment could not be asserted at all without reading the source file, and this package has
+   * no Node types on purpose — it builds for React Native.
    */
-  it("says which period the gallons ceiling covers, because a ratio needs none and a count does", () => {
-    const src = readFileSync(new URL("./policyExceptions.ts", import.meta.url), "utf8");
-    const field = src.slice(src.indexOf("avoidedStateGal"), src.indexOf("avoidedStateGal") + 40);
-    const doc = src.slice(Math.max(0, src.indexOf("avoidedStateGal") - 900), src.indexOf("avoidedStateGal"));
-    expect(field).toContain("avoidedStateGal");
-    expect(doc).toMatch(/PER MONTH/);
+  it("states the period the gallons ceiling covers, as a value the label is built from", () => {
+    expect(AVOIDED_STATE_TARGET_PERIOD).toBe("month");
   });
 });
