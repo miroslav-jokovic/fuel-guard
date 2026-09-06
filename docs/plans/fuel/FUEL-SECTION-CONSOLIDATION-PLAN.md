@@ -2490,3 +2490,70 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   `/fuel-spend/exceptions` already lists `fuel_exceptions` and will show them, but C7's inbox, C8's
   targets and C9's dashboard links are still ahead — and C7 remains gated on Q-FUI11 rather than on
   Q-FUI1, which was answered today.
+
+- 2026-09-05 · **`expected_odometer_band` assumed the tank starts empty, and that is the odometer
+  cluster's live defect.** The step was queued as "a small-fill guard": 46 fills under 5 gallons are
+  structurally guaranteed to fire, because `spanGallons * baseline * 2` on a 0.03-gallon purchase is a
+  ceiling of 0.37 miles and any movement clears it. **Measuring it first showed that framing was the
+  symptom, not the cause**, and the fix that shipped is a different one.
+
+  **The rule's own condition, restated on its own persisted inputs across 14,498 production fills.**
+  `computed_mpg` IS `miles_since_last / spanGallons`, so `miles > spanGallons * baseline * 2` is
+  exactly `computed_mpg > baseline * 2` — this is the rule, not a proxy for it:
+
+  | fill size | fills | condition true | |
+  |---|---|---|---|
+  | < 5 gal | 38 | 33 | **86.8%** |
+  | 5 – 20 gal | 51 | 42 | **82.4%** |
+  | 20 – 50 gal | 308 | 96 | 31.2% |
+  | 50+ gal | 14,101 | 259 | **1.8%** |
+
+  A truck that buys a tankful trips it once in fifty-six times; a truck that buys a splash trips it six
+  times in seven. **The rule was reporting how partial the fill was.** Its mirror image next door
+  already says why, from the other side — `implausible_topoff`'s header: *"If a truck ran a tank low
+  then filled both, dispensing more than it burned is NORMAL — the extra fuel filled pre-existing
+  space."* The converse is this defect exactly: driving further than you bought is normal, because the
+  miles came out of fuel already in the tank.
+
+  **A 5-gallon floor was measured and rejected.** It is the guard `implausible_topoff` carries, so it
+  was the obvious candidate. It removes 33 of 430 fires and leaves the 5–20 gal band firing at 82% —
+  it treats the symptom where it is loudest and misses the cause. What shipped is
+  `cumulative_overfuel`'s own allowance applied to the miles side: `expectedMiles = (spanGallons +
+  one full tank) * baseline`, with the rule suppressing itself on a truck with no capacity source for
+  the reason that rule already gives — *"treating an unknown tank as 0 gal"* is the defect, not a
+  conservative fallback. Once the tank is allowed for, **the gallons floor removes nothing at all**:
+  the small-fill class is entirely contained in it.
+
+  **430 fires → 22.** The `* 2` stays, deliberately: it absorbs baseline error, which the tank
+  allowance does not address, and keeping it makes the change a **strict narrowing** — `cap >= 0`, so
+  the new ceiling is never lower than the old one and nothing that was silent starts firing. A rule
+  change that can only remove accusations is the safest shape available, and `never accuses a fill the
+  old, tank-blind ceiling would have cleared` pins it.
+
+  **Both live open cases go silent, and both should.** Unit 714 on 2026-05-25: 1,188.9 miles on a
+  72.44-gallon purchase, 200-gallon tank, 6.01 MPG baseline — on the fuel it could have been carrying
+  that is 5.35 MPG, an ordinary week. Unit 634 on 2026-05-28: 31.2 miles on 0.03 gallons. What survives
+  sits 1.19x to 83x over a ceiling that already grants a full tank — 801,772 miles between two fills,
+  an implied 1,974 MPG. That is the data error the rule exists to name. Suppressing on an absent
+  capacity costs exactly ONE of today's 430 fires; 51 of 14,498 fills sit on a truck with no entered
+  capacity.
+
+  **`SCORING_VERSION` 1 → 2, and that is what carries the correction to the fills already judged.**
+  Without it the nightly's trailing window reaches a fortnight of them and the rest of history keeps
+  the old verdict. The sweep takes 2,000 a night and its `or(scoring_version.is.null, …)` predicate
+  already covers the 6,311 rows that were never stamped, so all 16,251 canonical fills converge in
+  about eight nights. **This is also the "re-score the stale queue" item** from the odometer cluster:
+  the 29 false positives that the 17-day EFS hole produced supersede themselves as the sweep reaches
+  them.
+
+  **Verified by** `hardening — expected odometer band (padding)` (7 cases, `packages/shared`) —
+  including `stays silent when the miles are covered by fuel the truck was already carrying`,
+  `suppresses itself on a truck with no capacity source rather than judging it against an empty tank`,
+  `grants the sensor-learned tank, not the entered one, when the two disagree`, and `never accuses a
+  fill the old, tank-blind ceiling would have cleared`.
+
+  **Proved able to fail by six mutations.** ⚠ One survived the first pass: swapping
+  `resolveCapacity(vehicle).gallons` for `vehicle.tankCapacityGal` passed every case, because every
+  fixture in the file carries an entered capacity and no sensor value, so the two are the same number.
+  That distinction is the point — 101 of 145 trucks disagreed with their sensor-learned capacity when
+  §0.3a measured it — so a divergent-capacity fixture was added and the mutation now fails.

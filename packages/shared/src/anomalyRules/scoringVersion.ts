@@ -20,4 +20,14 @@
  * The cost of bumping is one sweep of history at the nightly batch size; the cost of forgetting is a
  * fleet still judged by the old rules, which is the failure this replaces. When in doubt, bump.
  */
-export const SCORING_VERSION = 1;
+/**
+ * ── HISTORY ──────────────────────────────────────────────────────────────────────────────────────
+ * **2 (2026-09-05)** — `expected_odometer_band` stopped assuming the tank starts empty. Its ceiling
+ * gained the one-full-tank allowance `cumulative_overfuel` already grants, and it now suppresses
+ * itself on a truck with no capacity source. Measured across 14,498 production fills, that is 430
+ * fires down to 22 — every one of the 408 an accusation the old ceiling made because the truck had
+ * bought less than it drove, which is what a partial fill looks like. The bump is what carries the
+ * correction to the fills already judged; without it the nightly's trailing window would reach two
+ * weeks of them and the rest of history would keep the old verdict.
+ */
+export const SCORING_VERSION = 2;
