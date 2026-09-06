@@ -15,6 +15,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import {
   FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_STATUSES,
   FINDING_ASSIGNABLE_SECTIONS,
+  FINDING_KINDS,
   FINDING_QUEUE_STATES,
   canViewSection,
   rolesAssignableIn,
@@ -122,6 +123,7 @@ export function registerExceptionRoutes(router: Router): void {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const page = await readFindings(admin, req.auth!.orgId!, req.auth!.role as UserRole, {
         states: closedSet(req.query.state, FINDING_QUEUE_STATES) ?? undefined,
+        kinds: closedSet(req.query.kind, FINDING_KINDS) ?? undefined,
         // `?vehicles=` with ids, the same parameter every other fuel surface sends.
         vehicleIds: idsFrom(req.query.vehicles),
         assignedTo:

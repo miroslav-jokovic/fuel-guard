@@ -136,7 +136,21 @@ export const SURFACES: readonly Surface[] = [
   // The ledger is a READ surface for anyone who can see fuel — a controller checking what was
   // recovered does not need the permission to upload a statement. Moving a finding is gated at the
   // route, not here.
-  { key: "fuel.exceptions", label: "Exceptions", path: "/fuel-spend/exceptions", group: "fuel", gate: section("fuel") },
+  /**
+   * The Findings inbox (C7b). ⚠ THE KEY STAYS `fuel.exceptions` AND THAT IS NOT AN OVERSIGHT.
+   *
+   * A surface key is an IDENTITY and it is persisted: `user_surface_access` and
+   * `org_role_surface_access` store it, and production holds a real per-user grant on this one.
+   * Renaming it to `fuel.findings` would not migrate that grant, it would orphan it — somebody's
+   * explicit access would silently stop applying, which is the quietest possible permissions bug.
+   * The label and the path are what a reader sees; the key is what the database remembers.
+   *
+   * The gate stays `section("fuel")` because Q-FUI1 ruled the inbox LIVES in Fuel. The safety half is
+   * added per ROW by the API rather than by widening this gate: every role that holds `safety` also
+   * holds `fuel: "view"`, so nobody is hidden from a queue they can work, and a caller without
+   * `safety` simply has no theft cases in their list rather than being refused the page.
+   */
+  { key: "fuel.exceptions", label: "Findings", path: "/findings", group: "fuel", gate: section("fuel") },
   { key: "fuel.ifta", label: "IFTA", path: "/ifta", group: "fuel", gate: section("fuel") },
 
   // ── dispatch ──────────────────────────────────────────────────────────────────────────────────

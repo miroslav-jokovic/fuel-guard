@@ -53,7 +53,9 @@ const PROBES = [
   // segments must keep beating the param, or the inquiry queue starts rendering an applicant record
   // for a driver whose id is the word "inquiries".
   "/recruitment", "/recruitment/screening", "/recruitment/inquiries", "/recruitment/ap_1",
-  "/driver-performance", "/fuel-log", "/fuel-spend", "/fuel-spend/exceptions", "/ifta",
+  // C7b renamed the ledger to /findings and left the old address as a redirect, so both are probed
+  // for the same reason /cpm's predecessors are below: a link somebody sent last week must still open.
+  "/driver-performance", "/fuel-log", "/fuel-spend", "/findings", "/fuel-spend/exceptions", "/ifta",
   // G7 deleted /accounting, /cost-schedule and /books-check and renamed /cpm; the old address
   // stays as a redirect, so it is probed here too.
   "/fleet-report", "/cpm", "/billing", "/shop",

@@ -1,7 +1,7 @@
 import { type AppSection, rolesThatManage } from "./auth.js";
 import type { UserRole } from "./constants.js";
 import { CASE_RULE_ID } from "./anomalyRules/cases.js";
-import { FUEL_EXCEPTION_KINDS, type FuelExceptionKind } from "./fuelSpend/exceptions.js";
+import { FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKind } from "./fuelSpend/exceptions.js";
 
 /**
  * Who may close a finding, and who may be assigned one (Q-FUI4 and Q-FUI15, both ruled 2026-09-06).
@@ -56,6 +56,21 @@ export const FINDING_SECTIONS: Record<FindingKind, AppSection> = {
 };
 
 export const sectionOfFinding = (kind: FindingKind): AppSection => FINDING_SECTIONS[kind];
+
+/**
+ * The words a reader sees for each kind, spanning both vocabularies (C7b).
+ *
+ * The ledger's eight come from `FUEL_EXCEPTION_KIND_LABELS` rather than being retyped — one home for
+ * a label, so a wording change on the ledger page cannot leave the inbox saying something else. The
+ * ninth is the anomaly feed's single case type, and it is named "Possible theft" rather than the
+ * catalogue's "Theft Risk" because this list sits beside eight billing findings: a reader scanning a
+ * mixed queue needs the word that separates an accusation about a PERSON from a discrepancy about
+ * money, and "risk" reads as a score.
+ */
+export const FINDING_KIND_LABELS: Record<FindingKind, string> = {
+  ...FUEL_EXCEPTION_KIND_LABELS,
+  [CASE_RULE_ID]: "Possible theft",
+};
 
 /**
  * The sections the inbox actually holds findings for, DERIVED from the map above rather than listed.
