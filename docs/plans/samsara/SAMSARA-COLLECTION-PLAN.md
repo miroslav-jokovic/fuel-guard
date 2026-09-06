@@ -262,7 +262,7 @@ costs downstream). Establish reality with `git log --oneline -15`, `pnpm verify:
 | S3 | **verified** | `skipRecon` semantics read; the 77% measured; no tier exists in `samsaraScheduler.ts`. |
 | S4 | **verified possible** | History available back to 2026-01 across 8 vehicles. **Full-fleet volume and runtime are NOT measured** — S4 opens with that measurement. |
 | S5 | **MERGE 1 of 2 SHIPPED 2026-09-05** | Q-SAM1 answered. The number and its surface are built; the alarm and the dependent-surface strips are merge 2. |
-| S6 | **assumption — deliberately** | That backfilled telematics materially moves the 2.9% precision is **expected, not proven**. S6 measures before and after and is allowed to conclude it did not. |
+| S6 | **MEASURED 2026-09-06 — the assumption did NOT hold** | Backfilled telematics took per-fill corroboration from 17.6% to 89.0% and moved precision not at all (3/105, 2.9%, unchanged). The sensor-reliability learner got 5x the evidence and grew LESS confident, 12 trucks to 10. S6 stays open for one re-read of `cumulative_overfuel` once the SCORING_VERSION 2 sweep converges. |
 
 ---
 
@@ -1031,3 +1031,76 @@ The org scope is asserted on the RPC ARGUMENT instead.
 
 **Both tile states verified in the built app** (`vite preview`, dev-bypass, routed mocks): `22.5% all
 time` with data, and the pre-0322 subtitle when the histogram is empty.
+
+#### — S6 MEASURED 2026-09-06. **The backfill did not move the needle, and that is the finding.**
+
+S6's Done-when is that the before/after is written down, and it says in as many words that the step
+**is allowed to conclude the backfill did not help**. It did not. The numbers are below, the one
+metric that is not yet clean is named as such, and nothing here is a reason to run the backfill again.
+
+**No job was needed for the "re-run the learners and re-score" half.** `runBackfill` learns every
+vehicle's gating values ONCE up front before scoring — the same pre-pass the stale-scoring sweep uses
+— so the `SCORING_VERSION` 1→2 bump merged in #584 is already driving it, nightly, per vehicle. 30
+anomalies were superseded in the last 24 hours.
+
+**Before** is §0.3a, measured 2026-09-01. **Now** is 2026-09-06.
+
+| Measured | 2026-09-01 | 2026-09-06 | |
+|---|---|---|---|
+| Non-retired vehicles | 195 | 198 | |
+| Tractor fills carrying **both** `samsara_fuel_pct_before` and `_after` | 2,413 / 13,696 — **17.6%** | 13,422 / 15,086 — **89.0%** | **+71.4 pp** |
+| Vehicles with a sensor-**learned** capacity | 145 | **177** | +32 |
+| …whose entered capacity disagrees by >15% | 101 — **70%** of them | 121 — **68%** of them | rate unchanged |
+| `tank_sensor_reliable` | **12 (6.2%)** | **10 (5.1%)** | **−2** |
+| `cumulative_overfuel` fires (live) | 89 | 67 | ⚠ confounded, below |
+| …on divergent-capacity trucks | 48 (54%) | 23 (34%) | |
+| …on sensor-unreliable trucks | 85 (96%) | 62 (93%) | |
+| Confirmed / human-reviewed | 3 / 106 — **2.8%** | 3 / 105 — **2.9%** | **unchanged** |
+
+**1. The collection worked. Spectacularly, and on exactly the input it was built to fix.** Per-fill
+corroboration went from 17.6% of tractor fills to **89.0%**. S4's Done-when is met on the evidence
+rather than on the plan's projection.
+
+**2. And the learner, given five times the evidence, became LESS confident — not more.**
+`tank_sensor_reliable` fell from 12 trucks to 10. This is the assumption S6 was written to test,
+stated in the step's own prerequisites row as *"expected, not proven"*, and the answer is that it does
+not hold. Two trucks the smaller sample had trusted did not survive contact with their own history.
+That is the learner behaving correctly and it means **the sensor-gated rules did not widen** — the
+`tankSensor` gate still covers 5% of the fleet, so `tank_fill_short` and `tank_space_exceeded` are
+evaluated for no more trucks than before.
+
+**3. More measurements of a problem the collector cannot fix.** Sensor-learned capacity now exists for
+177 trucks rather than 145 — but the share contradicting the entered value is **unchanged at ~70%**.
+The backfill did not reduce the disagreement; it found more of it. The defect is in the ENTERED data
+and no amount of collecting reaches it. The owner's capacity correction is still owed, and §0.3a's
+recommendation stands: read the disagreements off the learner and confirm them, rather than retyping
+195 rows.
+
+**4. Precision did not move: 3 confirmed against 105 human-reviewed cases, 2.9%.** Not one new
+confirmation. The false-positive count is **95 — byte-identical to 2026-09-01** — and so is the
+confirmed count.
+
+⚠ **A number on this page appears to have got worse and has not.** Counted over every live case,
+precision reads 3 / 204 = 1.5%. The denominator grew by **99 SYSTEM auto-clears**, not by review: 93
+carry *"Auto-cleared: the same driver is attributed to every fill on this card in the window"* and 6
+carry the Samsara-assignment variant. Those are Q-FUI16's fallback and 0317's lease, both landing
+after the runs that had stranded since 2026-08-09 could complete. `card_multi_vehicle` went from 48
+fires with 25 false positives to 132 fires of which **105 are auto-explained**. Reporting 2.8% → 1.5%
+as a regression would be reporting a fix as a failure.
+
+**⚠ The one metric that is NOT yet clean, named rather than quietly used.** `cumulative_overfuel`'s
+89 → 67 cannot be attributed to the backfill, because the `robustWindowMiles` correction and the
+`expected_odometer_band` tank allowance (#584) are re-scoring the same fills at the same time. The
+sweep is **5,803 of 16,256 canonical fills at `SCORING_VERSION` 2 — 36% converged**, about five more
+nights at 2,000 a night. Every other row in the table above is a learner output or a human
+disposition and is unaffected by the re-score, which is why they are reported now.
+
+**S6 stays OPEN for one re-read**, not for more collection: when the sweep reaches 100%, re-take the
+`cumulative_overfuel` row and append it here. If it lands near 67 the backfill contributed nothing to
+it either; if it falls further, the rule fixes did that and the attribution belongs to them.
+
+**What this means for the programme.** S6 was the step that would have justified spending more on
+collection. It does not. The 2.9% precision has three named causes (§0.3a) and the backfill addressed
+none of them: capacity is an entered-data problem, `card_multi_vehicle` was an attribution problem and
+is now auto-explaining 80% of its own fires, and the odometer cluster was a rule defect fixed in #584.
+**Collection was never the constraint.**
