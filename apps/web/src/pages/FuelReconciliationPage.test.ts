@@ -3,7 +3,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, type Ref } from "vue";
-import type { SpendLine } from "@silvicom/shared";
+import { NO_FUEL_TARGETS, type FuelPolicy, type SpendLine } from "@silvicom/shared";
 
 /**
  * The fuel-spend page, mounted.
@@ -90,8 +90,11 @@ vi.mock("@/features/reconcile/useStatements", () => ({
 }));
 // The org's policy, swappable per test — F3 made the two compliance tabs read `route_fuel_settings`
 // instead of a constant, so what the page is even ABLE to show now depends on this.
-const policy = ref<{ avoidStates: string[]; avoidBrands: string[]; preferredBrands: string[]; alwaysFillFull: boolean }>({
+// Typed as the contract rather than as a hand-written subset of it: the subset omitted `targets` once
+// C8 added them, and the tab that reads them took the whole page down with a fixture no compiler saw.
+const policy = ref<FuelPolicy>({
   avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true,
+  targets: NO_FUEL_TARGETS,
 });
 vi.mock("@/composables/useRouteFuelSettings", () => ({
   useFuelPolicy: () => computed(() => policy.value),
@@ -151,7 +154,7 @@ beforeEach(() => {
   seen.spendLineFilters = null;
   seen.statementWindow = null;
   seen.buyWindow = null;
-  policy.value = { avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true };
+  policy.value = { avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true, targets: NO_FUEL_TARGETS };
   // DataTable branches on matchMedia; jsdom has none.
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
@@ -236,7 +239,7 @@ describe("FuelReconciliationPage", () => {
     // `route_fuel_settings` named a brand or a state. Those reports are not gone — see
     // `policyReports.test.ts`, which owns every assertion about what they SAY — but the tab strip is
     // fixed now, because every carrier has a fuel bill, a fill sequence and a vendor.
-    policy.value = { avoidStates: ["OR", "WA"], avoidBrands: ["pride"], preferredBrands: ["loves"], alwaysFillFull: true };
+    policy.value = { avoidStates: ["OR", "WA"], avoidBrands: ["pride"], preferredBrands: ["loves"], alwaysFillFull: true, targets: NO_FUEL_TARGETS };
     const labels = (await mountPage()).w.findAll('[role="tab"]').map((b) => b.text().trim());
     expect(labels).toEqual(["Spend & trend", "Buy discipline", "Statements"]);
   });

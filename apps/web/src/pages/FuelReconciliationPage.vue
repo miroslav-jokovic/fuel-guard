@@ -290,7 +290,18 @@ const coverageLine = computed(() => {
       >
         Couldn't load the fill sequence for this window.
       </p>
-      <BuyDisciplineTab v-else :fills="buyFills" :policy="policy" :loading="buyLoading" />
+      <!-- C8: the tab also takes the FEED lines, because the on-network share is a question about
+           brands and `fuel_buy_fills` carries none. Same window, same truck filter as Spend & trend —
+           and a truck filter strips the grade, since a target is a fleet commitment. -->
+      <BuyDisciplineTab
+        v-else
+        :fills="buyFills"
+        :lines="feedLines"
+        :window="f.range.value"
+        :fleet-wide="f.vehicleIds.value.length === 0"
+        :policy="policy"
+        :loading="buyLoading"
+      />
     </template>
 
     <!-- ── statement-fed views ──────────────────────────────────────────────────────────────── -->

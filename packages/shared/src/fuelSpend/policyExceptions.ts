@@ -339,29 +339,47 @@ export interface PolicyExceptions {
   avoidedStateFillSize: { inside: number | null; outside: number | null };
 }
 
+/**
+ * The three rules as predicates over a line — THE definition of "broke the policy", in one place.
+ *
+ * Exported so that anything else grading the same fills against the same policy (C8's target grading
+ * in `policyTargets.ts`) reads the rule from here rather than restating it. Two copies of "what counts
+ * as off-network" would agree today and drift the first time one of them learns something: the
+ * unresolved-brand ruling below is exactly the kind of clause a second copy forgets.
+ *
+ * An unresolved brand counts as off-network: it is certainly not a preferred site, and treating "we
+ * could not identify it" as compliant is how off-network spend stayed invisible.
+ */
+export function policyPredicates(policy: FuelPolicy): {
+  isAvoidedBrand: (l: SpendLine) => boolean;
+  isAvoidedState: (l: SpendLine) => boolean;
+  isOffNetwork: (l: SpendLine) => boolean;
+} {
+  const avoidBrand = new Set(policy.avoidBrands);
+  const avoidState = new Set(policy.avoidStates);
+  const preferred = new Set(policy.preferredBrands);
+  return {
+    isAvoidedBrand: (l) => l.brand != null && avoidBrand.has(l.brand),
+    isAvoidedState: (l) => l.state != null && avoidState.has(l.state),
+    isOffNetwork: (l) => l.brand == null || !preferred.has(l.brand),
+  };
+}
+
 export function analyzePolicyExceptions(
   lines: readonly SpendLine[],
   policy: FuelPolicy = DEFAULT_FUEL_POLICY,
 ): PolicyExceptions {
-  const avoidBrand = new Set(policy.avoidBrands);
-  const avoidState = new Set(policy.avoidStates);
-  const preferred = new Set(policy.preferredBrands);
+  const { isAvoidedBrand, isAvoidedState, isOffNetwork } = policyPredicates(policy);
 
   const fuel = lines.filter(isTractorFuel);
-  const inside = fuel.filter((l) => l.state != null && avoidState.has(l.state));
-  const outside = fuel.filter((l) => l.state == null || !avoidState.has(l.state));
+  const inside = fuel.filter(isAvoidedState);
+  const outside = fuel.filter((l) => !isAvoidedState(l));
   const avgFill = (ls: SpendLine[]) => (ls.length ? totalsOf(ls).gallons / ls.length : null);
-
-  const isAvoidedBrand = (l: SpendLine) => l.brand != null && avoidBrand.has(l.brand);
-  const isAvoidedState = (l: SpendLine) => l.state != null && avoidState.has(l.state);
-  const isOffNetwork = (l: SpendLine) => l.brand == null || !preferred.has(l.brand);
 
   return {
     avoidedBrands: exceptionReport(lines, isAvoidedBrand),
     avoidedStates: exceptionReport(lines, isAvoidedState),
     offPolicy: exceptionReport(lines, (l) => isAvoidedBrand(l) || isAvoidedState(l) || isOffNetwork(l)),
-    // An unresolved brand counts as off-network: it is certainly not a preferred site, and treating
-    // "we could not identify it" as compliant is how off-network spend stayed invisible.
     offNetwork: exceptionReport(lines, isOffNetwork),
     avoidedStateFillSize: { inside: avgFill(inside), outside: avgFill(outside) },
   };

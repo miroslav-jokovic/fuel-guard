@@ -2916,3 +2916,56 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   · **C8's Done-when is met the day a policy figure is rendered against its target.** The targets are
   set and readable and `varianceToTarget` exists; what has no home yet is a rendered on-network or
   discount-capture SHARE for it to grade. That is a real remaining piece of UI, and it is small.
+
+- 2026-09-06 · **C8's Done-when is met: the policy figures render against their targets, on Buy
+  discipline.** The entry above closed the plan with one piece of UI still owed — the targets were set
+  and readable and `varianceToTarget` had zero callers. It has callers now, through
+  `packages/shared/src/fuelSpend/policyTargets.ts` (`gradePolicyTargets`), rendered in a section of
+  `BuyDisciplineTab.vue` headed *Against your targets*. One merge; no schema.
+
+  **Two kinds of target, two kinds of window, and the difference is the whole module.** On-network
+  share is a RATIO and is graded once over the reader's window. Avoided-state gallons is a COUNT
+  against a per-`AVOIDED_STATE_TARGET_PERIOD` ceiling and is graded **per calendar month**, one row per
+  month the window touches — including the months with no avoided-state fill at all, which are the
+  months that met the ceiling with the most room and which bucketing-by-fills would have dropped. The
+  months come from the window and their bounds from C6's `monthBounds`, so the period a target is
+  stated over is the period a finding covers (Q-FUI3).
+
+  **A partial month is a floor and is not called met.** The window rarely lands on month boundaries.
+  A month half covered has half its gallons here, so "under the ceiling" proves nothing for it, while
+  "over" is already conclusive — more gallons could only make it worse. The row says which of the two
+  it is looking at rather than grading a fortnight as a month.
+
+  **Three rulings inside the rendering, each of which could have gone the other way:**
+
+  · **A truck filter strips the grade rather than the section.** A target is a fleet commitment; three
+  selected trucks cannot be held to a 4,000-gallon fleet ceiling, and grading them would call any
+  small enough selection compliant. The selection's own share still renders — it is a fact — with the
+  grade withheld and the reason stated. Implemented by handing the grader the policy with
+  `NO_FUEL_TARGETS`, so there is one code path and not a second rendering.
+
+  · **The unresolved share is printed as the margin of error.** `policyPredicates` counts an unmatched
+  station as off-network — inherited from `analyzePolicyExceptions` rather than restated, which is
+  why the predicates were lifted into an exported factory in this merge — so the true share lies
+  between the figure and the figure plus the unresolved share. Production's 96.5% against a 95% floor
+  has a ±2.1% unresolved share, and a reader is entitled to know the margin is inside the measurement.
+
+  · **Discount capture gets a sentence, not a number.** The target carries through and nothing grades
+  it: the posted price only arrives on the vendor's statement, `fuel_statements` has 0 rows, and there
+  is no shared definition of a capture SHARE. Inventing one from the feed's partial retail coverage
+  would grade a figure nobody agreed means that. The section says what is missing (Q-FUI7).
+
+  **Verified by** `policyTargets.test.ts` (11 cases; six mutations of the module each caught — floor
+  read as ceiling, every state counted, partial ignoring the window's end, months from fills only,
+  unresolved treated as on-network, reefer counted) and `buyDisciplineTab.test.ts` (11 new cases; five
+  mutations of the template each caught — tone inverted, truck filter still graded, partial month
+  unmarked, sub-tone dropped, a ceiling miss reading as "under"). ⚠ One fixture defect found on the
+  way: `FuelReconciliationPage.test.ts` typed the policy mock as a hand-written subset of `FuelPolicy`
+  that predated `targets`, so the tab's first read of it took the page down in a way no compiler saw.
+  It is typed as the contract now — §3.1 of the 2026-09-06 handoff, the fact stated twice, in a test.
+
+  **What this does NOT do.** It renders nothing on the Dashboard or the Findings inbox — the plan's
+  Done-when names "the section", and the policy-adherence tab is where the policy is measured. And it
+  does not grade a truck selection against a per-truck share of the fleet target; whether a target
+  has a per-truck reading is Q-FUI10's audience question in a smaller box, recorded rather than
+  guessed at.
