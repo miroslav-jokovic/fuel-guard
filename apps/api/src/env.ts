@@ -165,19 +165,28 @@ const EnvSchema = z.object({
   // its own switch. Default ON: a recapture feature nobody turns on does not exist, and the real
   // safeguards are structural (one nudge per invitation ever, nothing before 48 h, nothing without a
   // mail provider). False stops the driver email and leaves the office alert.
-  // The API's own public origin, e.g. https://fleetguardapi-production.up.railway.app. Needed only to
-  // rebuild the exact URL Twilio signed (A11b): a proxy rewrites what Express sees, and a signature
-  // over the wrong URL fails — which is the safe direction, so this being unset refuses inbound SMS
-  // rather than trusting it.
+  // The API's own public origin, e.g. https://fleetguardapi-production.up.railway.app. It is what the
+  // Samsara settings card prints for an operator to paste; unset, the card prints a bare path and the
+  // operator reconstructs the URL, which is exactly how it once became `/api/webhooks`.
+  //
+  // ⚠ It used to be load-bearing for inbound SMS too, because Twilio signs the full request URL and a
+  // proxy rewrites what Express sees. Telnyx signs `timestamp|body` and never the URL, so since the
+  // 2026-09-06 provider swap nothing about SMS depends on this being right.
   PUBLIC_API_URL: z.string().url().optional(),
 
-  // A11b's SMS transport. `none` until 10DLC registration completes (owner + Twilio, multi-week);
-  // every send is a no-op until then. Consent, quiet hours and opt-out live in `applicationSms.ts`,
-  // so flipping this cannot bypass them.
-  SMS_PROVIDER: z.enum(["twilio", "none"]).default("none"),
-  TWILIO_ACCOUNT_SID: z.string().optional(),
-  TWILIO_AUTH_TOKEN: z.string().optional(),
-  TWILIO_FROM: z.string().optional(),
+  // A11b's SMS transport (Telnyx since 2026-09-06 — Twilio was never used, and its half-configured
+  // branch was removed rather than left as a second way to do this). `none` until the account has a
+  // number and 10DLC registration completes, and every send is a no-op until then. Consent, quiet
+  // hours and opt-out live in `applicationSms.ts`, so flipping this cannot bypass them.
+  SMS_PROVIDER: z.enum(["telnyx", "none"]).default("none"),
+  TELNYX_API_KEY: z.string().optional(),
+  // Ed25519 public key from the Telnyx portal, base64, 32 bytes decoded. Verifies inbound webhooks.
+  // Unset means nothing can be verified, so nothing is accepted — never a development bypass.
+  TELNYX_PUBLIC_KEY: z.string().optional(),
+  // The sending number in E.164. Telnyx also accepts a messaging profile id, which picks a number
+  // from a pool; either identifies the sender, and one of them must be set for a send to happen.
+  TELNYX_FROM: z.string().optional(),
+  TELNYX_MESSAGING_PROFILE_ID: z.string().optional(),
 
   APPLICATION_NUDGE_ENABLED: z
     .string()

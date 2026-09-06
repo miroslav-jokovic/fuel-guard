@@ -121,3 +121,6 @@ state.json
 # Playwright MCP scratch (snapshots, console logs, screenshots) — written into whatever directory the
 # server is started from, which is the repository root.
 .playwright-mcp/
+
+# SMS provider keys pasted for setup — same reason as docs/psp-docs/ above.
+docs/sms/

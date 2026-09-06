@@ -158,12 +158,14 @@ function mountBodyParsers(app: Express): void {
   // which the 1 MB default below rejects. Same exception, same reason, as the import report above.
   app.use("/api/fueling/statements", express.json({ limit: "25mb" }));
 
-  // ⚠ Twilio posts `application/x-www-form-urlencoded`, which the JSON parser below leaves as an
-  // EMPTY body — and an empty body signs to a different digest than the one Twilio sent, so the
-  // inbound opt-out would 401 every time and a driver's STOP would silently never land (A11b).
-  app.use("/api/webhooks/sms", express.urlencoded({ extended: false, limit: "64kb" }));
+  // ⚠ The `express.urlencoded` mount that used to sit here was for Twilio, which posts
+  // `application/x-www-form-urlencoded`. Telnyx posts JSON and signs the RAW BYTES, so the parser
+  // below is now the only one inbound SMS needs — and the urlencoded mount had to go rather than be
+  // left harmless, because it would have consumed the stream ahead of the `verify` hook and left
+  // `rawBody` undefined for a form-encoded request, which the route reads as unverifiable (A11b).
 
-  // Capture the exact raw body so provider webhooks (Samsara) can be HMAC-verified byte-for-byte.
+  // Capture the exact raw body so provider webhooks (Samsara HMAC, Telnyx Ed25519) can be verified
+  // byte-for-byte against what was actually sent.
   app.use(
     express.json({
       limit: "1mb",

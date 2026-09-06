@@ -27,7 +27,7 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   ["/api/version", "deploy/migration probe — public deliberately; a version endpoint needing a token is one nobody checks"],
   ["/api/public/hazmat", "the public M7 calculator — anonymous by product design; stateless, no tenant data"],
   ["/api/public/invites", "redeeming an emailed invitation — the person has no account yet, so the 256-bit link token in the POST body is the credential; it resolves to exactly one invitation's org and email server-side, refuses every dead link with one answer, and is rate-limited in app.ts (2026-09-04)"],
-  ["/api/webhooks", "provider-signed (Samsara HMAC, Twilio signature) — authenticated, just not by a user role"],
+  ["/api/webhooks", "provider-signed (Samsara HMAC, Telnyx Ed25519) — authenticated, just not by a user role"],
   ["/api/tms", "the on-prem agent — authenticated by the org ingest token (hash-matched), a machine credential with no role to check"],
   // R3c-2. Deliberate, and the argument is that there is no capability here to gate. A saved view is
   // a NAME plus a query string belonging to the caller: it grants nothing, reveals nothing, and

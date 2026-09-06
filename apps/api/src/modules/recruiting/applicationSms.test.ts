@@ -49,12 +49,12 @@ describe("sending", () => {
 
     it("sends when there is a live consent and it is a civil hour", async () => {
       const spy = await publish();
-      sms.fn.mockReset().mockResolvedValue({ ok: true, provider: "twilio", messageId: "SM1" });
+      sms.fn.mockReset().mockResolvedValue({ ok: true, provider: "telnyx", messageId: "msg-1" });
       const rec = withConsent();
       const result = await sendApplicationSms(rec.client, env(), ORG, DRIVER, "hello", CIVIL);
       spy.mockRestore();
 
-      expect(result).toEqual({ sent: true, messageId: "SM1" });
+      expect(result).toEqual({ sent: true, messageId: "msg-1" });
       expect(sms.fn.mock.calls[0]![1]).toMatchObject({ to: "+17082365732", body: "hello" });
       expectOrgScoped(rec, ORG);
     });
