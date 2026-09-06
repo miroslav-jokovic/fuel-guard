@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { inspectorQualificationBasisSchema, rolesThatCanView, rolesThatManage } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { inspectorQualificationBasisSchema } from "@silvicom/shared";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
+import { requireSurface } from "../../../middleware/requireSurface.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -46,10 +47,17 @@ export function inspectorsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
+  /**
+   * ⚠ SECTION-gated only, and deliberately WITHOUT `requireSurface("maintenance.inspectors")`.
+   * `NewInspectionDrawer.vue:76` — on the Annual Inspections page, not this one — reads this list to
+   * fill its inspector picker, and `inspections.ts` refuses a submission without a qualified
+   * inspector. An org that hides the register from a technician must still let them start an
+   * inspection, so this endpoint belongs to the SECTION and not to either screen (D-SURF5).
+   */
   router.get(
     "/",
     requireOrg,
-    requireRole(...rolesThatCanView("maintenance")),
+    requireSection("maintenance", "view"),
     asyncHandler(async (req, res) => {
       const parsed = listSchema.safeParse(req.query);
       if (!parsed.success) {
@@ -72,7 +80,10 @@ export function inspectorsRouter(): Router {
   router.post(
     "/",
     requireOrg,
-    requireRole(...rolesThatManage("maintenance")),
+    requireSection("maintenance"),
+    // Reached from the register and nowhere else, so it carries the screen's own gate BESIDE the
+    // section's — never instead of it, since a surface may only narrow within its section (D-SURF2).
+    requireSurface("maintenance.inspectors"),
     validateBody(createSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -113,7 +124,10 @@ export function inspectorsRouter(): Router {
   router.patch(
     "/:id",
     requireOrg,
-    requireRole(...rolesThatManage("maintenance")),
+    requireSection("maintenance"),
+    // Reached from the register and nowhere else, so it carries the screen's own gate BESIDE the
+    // section's — never instead of it, since a surface may only narrow within its section (D-SURF2).
+    requireSurface("maintenance.inspectors"),
     validateBody(periodSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -146,7 +160,10 @@ export function inspectorsRouter(): Router {
   router.delete(
     "/:id",
     requireOrg,
-    requireRole(...rolesThatManage("maintenance")),
+    requireSection("maintenance"),
+    // Reached from the register and nowhere else, so it carries the screen's own gate BESIDE the
+    // section's — never instead of it, since a surface may only narrow within its section (D-SURF2).
+    requireSurface("maintenance.inspectors"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;

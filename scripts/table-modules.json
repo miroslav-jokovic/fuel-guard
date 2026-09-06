@@ -173,6 +173,10 @@
       "module": "financial",
       "layer": "core"
     },
+    "finance_month_closes": {
+      "module": "financial",
+      "layer": "core"
+    },
     "fuel_cards": {
       "module": "fuel",
       "layer": "core"
@@ -357,6 +361,10 @@
       "module": "mcleod",
       "layer": "raw"
     },
+    "mcleod_gl_days": {
+      "module": "mcleod",
+      "layer": "raw"
+    },
     "mcleod_gl_totals": {
       "module": "mcleod",
       "layer": "raw"
@@ -413,6 +421,14 @@
       "module": "org",
       "layer": "core"
     },
+    "org_role_surface_access": {
+      "module": "org",
+      "layer": "core"
+    },
+    "org_section_access": {
+      "module": "org",
+      "layer": "core"
+    },
     "org_usage_month": {
       "module": "org",
       "layer": "derived"
@@ -449,11 +465,23 @@
       "module": "routing",
       "layer": "infra"
     },
+    "samsara_feed_alerts": {
+      "module": "samsara",
+      "layer": "infra"
+    },
+    "samsara_feed_cursors": {
+      "module": "samsara",
+      "layer": "infra"
+    },
     "samsara_ifta_fetches": {
       "module": "samsara",
       "layer": "raw"
     },
     "samsara_ifta_jurisdiction_miles": {
+      "module": "samsara",
+      "layer": "raw"
+    },
+    "samsara_odometer_readings": {
       "module": "samsara",
       "layer": "raw"
     },
@@ -493,8 +521,16 @@
       "module": "roster",
       "layer": "core"
     },
-    "truck_cost_schedules": {
-      "module": "financial",
+    "user_profiles": {
+      "module": "org",
+      "layer": "core"
+    },
+    "user_section_access": {
+      "module": "org",
+      "layer": "core"
+    },
+    "user_surface_access": {
+      "module": "org",
       "layer": "core"
     },
     "vehicle_engine_days": {

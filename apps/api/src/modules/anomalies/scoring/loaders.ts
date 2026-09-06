@@ -299,6 +299,36 @@ export interface BackfillOpts extends ScoreOpts {
   onlyUnreconciled?: boolean;
   /** Only fills within the last N days — bounds auto rebuilds so they don't re-score the whole history. */
   sinceDays?: number;
+  /**
+   * The RE-SCORE TIER's claim (0318): the oldest fills whose `scoring_version` is below this number,
+   * i.e. judged by rules that have since changed. Paired with `limit` so one nightly pass takes a bite
+   * it can finish, and the backlog drains over several nights rather than in one three-hour sweep.
+   */
+  staleScoringVersion?: number;
+  /** Cap on how many fills one pass claims. Without it a stale-stamp sweep is the full-history sweep. */
+  limit?: number;
+  /**
+   * The COLLECTOR TIER's claim (SAM-S3): the oldest `limit` fills that still have no stored telematics
+   * and have not been attempted within `retryAfterHours`.
+   *
+   * ── WHY IT IS TWO CONDITIONS AND NOT ONE ─────────────────────────────────────────────────────────
+   * "Needs data" is `samsara_recon_at is null` — 10,644 of 13,711 tractor fills, measured 2026-09-01.
+   * On its own that predicate NEVER CLEARS for a fill Samsara has no history for: 32 rows come back
+   * `no_data`, keep a null `samsara_recon_at`, and would therefore be re-claimed on every single tick.
+   * Oldest-first would then wedge the tier on the same 32 rows forever and the other 10,612 would never
+   * be reached — a scheduler that runs every hour and makes no progress, which is worse than none
+   * because it looks busy.
+   *
+   * "Not attempted recently" is the cooldown, read from `samsara_recon_checked_at`, which
+   * `resolveReconciliation` stamps on EVERY attempt including a failed or empty one. That is what lets
+   * an attempt clear the claim while still allowing a genuine retry later — the Done-when's "a fill
+   * that missed its chance is retried rather than abandoned".
+   *
+   * ⚠ Claiming on `samsara_recon_checked_at is null` ALONE would be wrong in the other direction:
+   * 1,087 fills carry stored telematics from before that column existed, so they would be re-fetched
+   * for data we already hold. Both halves are load-bearing.
+   */
+  reconClaim?: { limit: number; retryAfterHours: number };
 }
 
 /** How far back the AUTOMATIC (nightly / on-boot) rules-rebuild reaches. Manual /rebuild is unbounded. */
@@ -312,7 +342,7 @@ export const RECENT_REBUILD_DAYS = 180;
 export async function collectTxnIds(
   admin: SupabaseClient,
   orgId: string,
-  opts: { onlyUnreconciled?: boolean; sinceDays?: number } = {},
+  opts: { onlyUnreconciled?: boolean; sinceDays?: number; staleScoringVersion?: number; limit?: number } = {},
 ): Promise<string[]> {
   const PAGE = 1000;
   const ids: string[] = [];
@@ -321,14 +351,27 @@ export async function collectTxnIds(
     if (opts.onlyUnreconciled) q = q.is("samsara_recon_at", null);
     if (opts.sinceDays != null)
       q = q.gte("fueled_at", new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString());
-    const { data } = await q
-      .order("vehicle_id", { ascending: true })
-      .order("fueled_at", { ascending: true })
-      .order("created_at", { ascending: true })
-      .range(offset, offset + PAGE - 1);
+    // The stale-stamp claim (0318). `or` rather than `lt` because a fill scored before the column
+    // existed carries NULL, and NULL fails every comparison — `lt` alone would silently skip exactly
+    // the rows with the MOST catching up to do, which is the whole backlog on the first sweep.
+    if (opts.staleScoringVersion != null)
+      q = q.or(`scoring_version.is.null,scoring_version.lt.${opts.staleScoringVersion}`);
+    // Oldest stamp first so a bounded nightly batch drains the backlog in a stable order instead of
+    // re-touching whatever happens to sort first. `nulls first` matches idx_fuel_transactions_scoring_version.
+    const ordered = opts.staleScoringVersion != null
+      ? q.order("scoring_version", { ascending: true, nullsFirst: true }).order("fueled_at", { ascending: true })
+      : q.order("vehicle_id", { ascending: true }).order("fueled_at", { ascending: true }).order("created_at", { ascending: true });
+    const want = opts.limit != null ? Math.min(PAGE, opts.limit - ids.length) : PAGE;
+    if (want <= 0) break;
+    const { data } = await ordered.range(offset, offset + want - 1);
     const batch = ((data ?? []) as { id: string }[]).map((x) => x.id);
-    ids.push(...batch);
-    if (batch.length < PAGE) break;
+    // Truncate locally rather than trusting the row count to match what `range` asked for. The cap is
+    // the whole promise of this claim — a stale-stamp pass that overshoots it is the full-history sweep
+    // it exists to replace — so the invariant is enforced where it is stated, not one layer away.
+    const room = opts.limit != null ? opts.limit - ids.length : batch.length;
+    ids.push(...batch.slice(0, room));
+    if (batch.length < want) break;
+    if (opts.limit != null && ids.length >= opts.limit) break;
   }
   return ids;
 }

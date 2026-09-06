@@ -43,8 +43,8 @@ export const FUEL_EXCEPTION_KINDS = [
   /** Billed above the price Pilot quoted for that station that day. */
   "contract_variance",
   /**
-   * The three policy premiums. Present in the vocabulary from the start so the schema does not have to
-   * change to admit them, and deliberately NOT produced yet — see `policyFindingsNote` below.
+   * The three policy premiums. Present in the vocabulary from the start so the schema did not have to
+   * change to admit them, and produced since C6 by `policyFindings` — see `policyFindingsNote` below.
    */
   "off_network_premium",
   "avoided_state_premium",
@@ -299,17 +299,17 @@ export function contractFindings(capture: ContractCapture): FuelExceptionFinding
 }
 
 /**
- * ── WHY THE POLICY PREMIUMS ARE NOT PRODUCED YET ─────────────────────────────────────────────────
- * `off_network_premium` and its two siblings are in the vocabulary so the schema does not need to
- * change to admit them, and no producer emits them. The reason is materiality, not effort: measured on
- * production, the default window holds **201 off-network fills**. Two hundred and one rows on a work
- * queue is not two hundred and one actions, and a ledger that opens with them buries the nineteen
- * fills actually billed over contract.
+ * ── THE POLICY PREMIUMS ARE PRODUCED, AND THE GROUPING IS WHY ────────────────────────────────────
+ * `off_network_premium` and its two siblings sat in the vocabulary with no producer from 0250 until
+ * C6, for a reason that was materiality rather than effort: measured on production, the default window
+ * holds **201 off-network fills**, and two hundred and one rows on a work queue is not two hundred and
+ * one actions. What they needed was an aggregation, and which one was a product decision this file
+ * refused to guess at.
  *
- * They need either a threshold or an aggregation — per site, per month — and picking one is a product
- * decision that belongs with the surface (F6b) rather than guessed at here. Until then the exception
- * tabs price them fill by fill, which is the right shape for reading and the wrong shape for a queue.
+ * Q-FUI3 answered it on 2026-09-05 — **per truck × kind × month** — and `policyFindings.ts` is that
+ * producer. The 201 fills become a handful of truck-months somebody can open, judge and close; the
+ * exception tabs still price them fill by fill, which remains the right shape for reading.
  */
 export const policyFindingsNote =
-  "Policy premiums are reported on their tabs, not filed as exceptions — 201 off-network fills in a " +
-  "90-day window is not 201 actions. F6b decides the threshold or the grouping.";
+  "Policy premiums are filed per truck × kind × month by `policyFindings` (C6, Q-FUI3, 2026-09-05). " +
+  "The tabs still price them fill by fill for reading; the ledger holds the truck-month.";

@@ -312,5 +312,6 @@ ok(
     && (await count(`select count(*)::int as n from driver_authorizations where driver_id = $1`, [CANON])) === 1,
 );
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

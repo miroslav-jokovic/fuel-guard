@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   APP_SECTIONS,
+  EDITABLE_ROLES,
+  EDITABLE_SECTIONS,
+  UNEDITABLE_ROLES,
+  effectiveSectionAccess,
   emailDomain,
   isEmailDomainAllowed,
   canResolveAnomalies,
@@ -255,7 +259,19 @@ describe("claimsToContext", () => {
   it("maps a fully-claimed JWT", () => {
     expect(
       claimsToContext({ sub: "u1", email: "a@b.com", org_id: "o1", user_role: "fleet_manager", iat: 1_700_000_000 }),
-    ).toEqual({ userId: "u1", email: "a@b.com", orgId: "o1", role: "fleet_manager", issuedAt: 1_700_000_000 });
+    ).toEqual({
+      userId: "u1",
+      email: "a@b.com",
+      orgId: "o1",
+      role: "fleet_manager",
+      sections: null,
+      issuedAt: 1_700_000_000,
+    });
+  });
+  it("carries the org's overrides through from the same verified token (D-PERM2)", () => {
+    expect(
+      claimsToContext({ sub: "u1", org_id: "o1", user_role: "dispatcher", sections: { safety: "view" } }).sections,
+    ).toEqual({ safety: "view" });
   });
   it("nulls org/role when the user has no membership (audit B3)", () => {
     expect(claimsToContext({ sub: "u1" })).toEqual({
@@ -263,6 +279,13 @@ describe("claimsToContext", () => {
       email: null,
       orgId: null,
       role: null,
+      /**
+       * Null, and read as "no overrides" — the OPPOSITE of `issuedAt` below, deliberately. Every
+       * token minted before migration 0292 is in this state, so failing closed here would refuse
+       * the whole product for one token lifetime, while failing closed on freshness is the entire
+       * point of that gate.
+       */
+      sections: null,
       // A token with no `iat` yields null, and every step-up gate reads null as "not fresh". Failing
       // closed on an absent claim is the property, not an accident — see middleware/requireFreshAuth.ts.
       issuedAt: null,
@@ -373,5 +396,69 @@ describe("restricted qualification records (Phase G)", () => {
     ]);
     expect(filterRestrictedRows(rows, "safety_manager")).toHaveLength(3);
     expect(filterRestrictedRows(rows, "admin")).toHaveLength(3);
+  });
+});
+
+// ── Per-org overrides (D-PERM1/4/7/8, EDITABLE-PERMISSIONS-PLAN.md P1) ────────
+describe("the editable surface", () => {
+  it("is seven roles by eleven sections — every role but admin and driver, every section but admin", () => {
+    expect(EDITABLE_ROLES).toEqual([
+      "fleet_manager", "auditor", "dispatcher", "safety_manager", "recruiter", "accountant", "technician",
+    ]);
+    expect(EDITABLE_SECTIONS).not.toContain("admin");
+    expect(EDITABLE_SECTIONS.length).toBe(APP_SECTIONS.length - 1);
+  });
+
+  it("derives by subtraction, so a role added to the product is editable unless excluded on purpose", () => {
+    for (const r of USER_ROLES) {
+      expect(EDITABLE_ROLES.includes(r) || (UNEDITABLE_ROLES as readonly string[]).includes(r)).toBe(true);
+    }
+  });
+});
+
+describe("effectiveSectionAccess", () => {
+  it("returns the shipped default when the org has overridden nothing", () => {
+    expect(effectiveSectionAccess("dispatcher", "safety", null)).toBe("none");
+    expect(effectiveSectionAccess("dispatcher", "safety", {})).toBe("none");
+  });
+
+  /**
+   * The sparseness is the design (D-PERM4). An ABSENT pair must read as "unchanged", never as
+   * "denied" — if absence meant denial, the first org to override one cell would lose every other.
+   */
+  it("leaves untouched pairs at their default when one cell is overridden", () => {
+    const overrides = { dispatcher: { safety: "view" as const } };
+    expect(effectiveSectionAccess("dispatcher", "safety", overrides)).toBe("view");
+    expect(effectiveSectionAccess("dispatcher", "dispatch", overrides)).toBe("manage");
+    expect(effectiveSectionAccess("dispatcher", "recruitment", overrides)).toBe("none");
+  });
+
+  it("widens and narrows, because the ruling was 'fully editable' (D-PERM7)", () => {
+    expect(sectionAccess("recruiter", "equipment")).toBe("none");
+    expect(effectiveSectionAccess("recruiter", "equipment", { recruiter: { equipment: "view" } })).toBe("view");
+    expect(effectiveSectionAccess("fleet_manager", "fuel", { fleet_manager: { fuel: "none" } })).toBe("none");
+  });
+
+  /**
+   * The locks have to hold in the RESOLVER too, not only at the write path. A row for admin or for
+   * the admin section cannot be written — 0291's CHECK constraints refuse it and the endpoint
+   * refuses it first — so reaching this branch means a row exists that should not, and honouring it
+   * would turn a bad row into a privilege escalation.
+   */
+  it("ignores an override for the admin role, however it got there", () => {
+    expect(effectiveSectionAccess("admin", "fuel", { admin: { fuel: "none" } })).toBe("manage");
+  });
+
+  it("ignores an override for the driver role", () => {
+    expect(effectiveSectionAccess("driver", "fuel", { driver: { fuel: "manage" } })).toBe("none");
+  });
+
+  it("ignores an override granting the admin section, which is the escalation path", () => {
+    expect(effectiveSectionAccess("fleet_manager", "admin", { fleet_manager: { admin: "manage" } })).toBe("none");
+    expect(effectiveSectionAccess("auditor", "admin", { auditor: { admin: "view" } })).toBe("none");
+  });
+
+  it("still answers 'none' for no role at all", () => {
+    expect(effectiveSectionAccess(null, "fuel", { admin: { fuel: "manage" } })).toBe("none");
   });
 });

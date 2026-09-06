@@ -3,12 +3,10 @@ import {
   DISCLOSURES,
   authorizationGrantSchema,
   authorizationRevokeSchema,
-  rolesThatCanView,
-  rolesThatManage,
   type AuthorizationGrant,
   type AuthorizationRevoke,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -29,8 +27,8 @@ export function recruitmentAuthorizationsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("recruitment"));
-  const canManage = requireRole(...rolesThatManage("recruitment"));
+  const canView = requireSection("recruitment", "view");
+  const canManage = requireSection("recruitment");
 
   //
   // The legal basis for every screening pull. Nothing here is a checkbox: one row is one document,

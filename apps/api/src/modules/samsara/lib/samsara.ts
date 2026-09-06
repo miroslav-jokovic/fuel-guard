@@ -1,3 +1,4 @@
+import type { StatsFeedPage } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { samsaraFetch } from "./samsaraHttp.js";
 import { listAllPages } from "./samsaraPaging.js";
@@ -52,6 +53,31 @@ export function makeSamsaraOdometerFetcher(env: Env, token: string): SamsaraOdom
       types: "obdOdometerMeters,gpsOdometerMeters,fuelPercents",
     });
     return { data };
+  };
+}
+
+/**
+ * ONE page of the vehicle-stats DELTA FEED, resumed from a caller-supplied cursor (SAM-S2, D-SAM4).
+ *
+ * Deliberately not `listAllPages`: that helper walks `pagination.endCursor` in a LOCAL variable and
+ * returns the merged rows, which is intra-request paging and is exactly the thing the plan identifies
+ * as why nothing in this product has ever resumed anything (§0.2). Here the cursor belongs to the
+ * caller — it is persisted in `samsara_feed_cursors` between runs — so the fetcher hands back one page
+ * plus its cursor and lets the caller decide when to advance it.
+ *
+ * ⚠ The caller must NOT loop on `pagination.hasNextPage`. Measured on the live feed 2026-09-01 it is
+ * `true` on every page, forever; `feedPageHasData` is the termination test. See `statsFeed.ts`.
+ */
+export type SamsaraStatsFeedFetcher = (after?: string) => Promise<StatsFeedPage>;
+
+export function makeSamsaraStatsFeedFetcher(env: Env, token: string): SamsaraStatsFeedFetcher {
+  return async (after?: string) => {
+    const url = new URL("/fleet/vehicles/stats/feed", env.SAMSARA_API_URL);
+    url.searchParams.set("types", "obdOdometerMeters,gpsOdometerMeters,fuelPercents");
+    if (after) url.searchParams.set("after", after);
+    const res = await samsaraFetch(env, token, url);
+    if (!res.ok) throw new Error(`Samsara API ${res.status}`);
+    return (await res.json()) as StatsFeedPage;
   };
 }
 

@@ -52,7 +52,16 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: {
     method?: string;
-    body?: unknown;
+    /**
+     * The body as an OBJECT — this function serialises it. Typed `object` rather than `unknown`
+     * because `unknown` accepted an already-stringified body, and a double-encoded body is not a
+     * type error, it is a 500: `express.json()` runs in strict mode, rejects a top-level JSON
+     * string, and the resulting body-parser error surfaces as "Unexpected server error" with the
+     * request never reaching its handler. That shipped twice — the annual-inspection delete
+     * (2026-09-01) and `useDispositions` before it — and neither was visible to typecheck while
+     * this said `unknown`.
+     */
+    body?: object | null;
     /**
      * Extra request headers. Used for `Idempotency-Key` on card-control writes, where a replayed
      * request must be recognised as the same one rather than performed twice.

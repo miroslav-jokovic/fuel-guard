@@ -369,68 +369,25 @@ function pickUnitNumber(sv: SamsaraVehicle): string {
   return sv.name?.trim() || sv.vin || `SAMSARA-${sv.samsaraId}`;
 }
 
-export interface VehicleStatsSyncResult {
-  updated: number; // vehicles whose current odometer / fuel level was refreshed
-}
-
 /**
- * LIVE STATS ONLY — refresh current odometer + fuel level for already-mapped vehicles. This is the
- * cheap tier (one paginated `/fleet/vehicles/stats` call), safe to run every few minutes. It never
- * touches identity, creates rows, or resolves assignments — those are the slow-changing identity tier.
+ * The ONE place this module writes a truck's live telematics columns.
+ *
+ * WHY IT IS A FUNCTION AND NOT AN INLINE `.update()` WHERE IT IS USED. `vehicles` is owned by
+ * `roster`, not by this module (scripts/table-modules.json), and `lint:table-modules` grandfathers
+ * exactly one out-of-owner write site for it here — a list that is allowed to SHRINK and not to grow.
+ * When SAM-S2 moved the live-stats tier into `samsaraStatsFeed.ts`, writing `vehicles` from that new
+ * file would have been a second pinned site for the same violation: the same debt, relocated, counted
+ * twice, and a ratchet quietly stepped backwards. So the collector reads and diffs where its logic
+ * lives, and the write stays where it was already accounted for.
+ *
+ * The real fix is a roster-owned interface for "a collector observed this truck", and it is not this
+ * step's to build. Until it exists this function is the seam it will replace.
  */
-export async function syncVehicleStatsFromSamsara(
+export async function writeVehicleTelematics(
   admin: SupabaseClient,
-  env: Env,
   orgId: string,
-  odometerOverride?: SamsaraOdometerFetcher,
-): Promise<VehicleStatsSyncResult> {
-  const token = odometerOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
-  if (!token) throw new NoSamsaraTokenError();
-
-  const fetcher = odometerOverride ?? makeSamsaraOdometerFetcher(env, token);
-  const stats = (await fetcher()) as Parameters<typeof parseVehicleStatsOdometer>[0];
-  const odometerMiles = parseVehicleStatsOdometer(stats);
-  const fuelByVehicle = parseVehicleFuelPercents(stats);
-  if (odometerMiles.size === 0 && fuelByVehicle.size === 0) return { updated: 0 };
-
-  // DIFF-BEFORE-WRITE (perf finding, 2026-08): this ran every few minutes and blindly stamped EVERY
-  // mapped truck — 862k+ vehicle updates in pg_stat_statements, most writing identical values (a parked
-  // truck's odometer and fuel level don't move). Reading the current values costs one select; skipping
-  // unchanged trucks eliminates the bulk of the write churn + WAL/autovacuum pressure. Same pattern as
-  // hosSync's diff (which existed for exactly this reason).
-  const { data: rows } = await admin
-    .from("vehicles")
-    .select("id, samsara_vehicle_id, current_odometer, samsara_fuel_percent, samsara_fuel_at")
-    .eq("org_id", orgId)
-    .not("samsara_vehicle_id", "is", null);
-
-  let updated = 0;
-  for (const r of (rows ?? []) as {
-    id: string;
-    samsara_vehicle_id: string;
-    current_odometer: number | string | null;
-    samsara_fuel_percent: number | string | null;
-    samsara_fuel_at: string | null;
-  }[]) {
-    const odo = odometerMiles.get(r.samsara_vehicle_id);
-    const fuel = fuelByVehicle.get(r.samsara_vehicle_id);
-    if (odo == null && !fuel) continue; // Samsara reported nothing for this truck → leave it be
-    const patch: {
-      current_odometer?: number;
-      samsara_fuel_percent?: number;
-      samsara_fuel_at?: string | null;
-    } = {};
-    if (odo != null && Number(r.current_odometer) !== odo) patch.current_odometer = odo;
-    if (
-      fuel &&
-      (Number(r.samsara_fuel_percent) !== fuel.percent || r.samsara_fuel_at !== fuel.time)
-    ) {
-      patch.samsara_fuel_percent = fuel.percent;
-      patch.samsara_fuel_at = fuel.time;
-    }
-    if (Object.keys(patch).length === 0) continue; // nothing moved → no write
-    await admin.from("vehicles").update(patch).eq("id", r.id).eq("org_id", orgId);
-    updated++;
-  }
-  return { updated };
+  vehicleId: string,
+  patch: { current_odometer?: number; samsara_fuel_percent?: number; samsara_fuel_at?: string | null },
+): Promise<void> {
+  await admin.from("vehicles").update(patch).eq("id", vehicleId).eq("org_id", orgId);
 }

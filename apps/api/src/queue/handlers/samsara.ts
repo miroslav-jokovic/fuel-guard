@@ -14,6 +14,7 @@ import { stampIntegrationSynced } from "../../modules/org/index.js";
 import { writeAudit } from "../../lib/audit.js";
 import type { JobHandler } from "../types.js";
 import { monthsToSync, syncIftaMilesForMonth } from "../../modules/samsara/index.js";
+import { syncVehicleOdometerReadings } from "../../modules/samsara/index.js";
 
 /**
  * Samsara / telematics sync + nightly-reconcile handlers (WQ1c). Each reconstructs entirely from
@@ -238,6 +239,44 @@ export const syncIftaHandler: JobHandler = async (ctx, job) => {
   // and the job green, which is the pair of facts that hides an outage.
   if (failed.length === months.length) throw new Error(`Every IFTA month failed — ${failed.join("; ")}`);
   return { months: done, rows, unmappedVehicles: unmapped, failed };
+};
+
+/**
+ * Samsara cumulative odometer readings — the fleet's only MEASURED distance (W3b, D-FLEET9).
+ *
+ * `payload.sinceDays` widens the rolling window, which is how history is backfilled: the same code
+ * path, a longer window, no second collector. Nothing here derives a distance — the readings are
+ * staged verbatim and `distanceByVehicle` subtracts.
+ */
+export const syncOdometerHandler: JobHandler = async (ctx, job) => {
+  const { admin, env } = ctx;
+  const orgId = job.org_id;
+  const actorId = asStr(job.payload.actorId);
+  const sinceDays = asNum(job.payload.sinceDays) ?? undefined;
+  try {
+    const r = await syncVehicleOdometerReadings(admin, env, orgId, { sinceDays });
+    if (r.vehiclesWithoutData > 0) {
+      // Trucks that reported no counter at all are the coverage story behind every per-mile figure:
+      // a denominator missing part of the fleet reads low on miles and high on cost, and looks
+      // entirely plausible (the reason G10 exists). Loud here, counted in the ledger stats.
+      console.warn(
+        `[samsara] odometer: ${r.vehiclesWithoutData}/${r.vehicles} truck(s) reported no counter over ${r.windowDays}d`,
+      );
+    }
+    if (actorId) {
+      await writeAudit(admin, {
+        orgId,
+        actorId,
+        action: "integration.samsara.odometer_synced",
+        entity: "samsara_odometer_readings",
+        meta: { ...r },
+      });
+    }
+    return { ...r };
+  } catch (e) {
+    if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
+    throw e;
+  }
 };
 
 /** Idling events + complete per-truck idle-capability foundation refresh. */

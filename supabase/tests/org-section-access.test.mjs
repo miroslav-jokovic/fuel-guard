@@ -1,0 +1,991 @@
+// Silvicom 360 — org_section_access: the per-org permission overrides (0291).
+//
+// D-PERM1/4/7/8, docs/plans/permissions/EDITABLE-PERMISSIONS-PLAN.md step P1; owner rulings
+// 2026-09-02. The plan carries the argument; this matrix carries the part only the database can
+// answer.
+//
+// Three things are load-bearing here, and each one is a rule that would be cheap to lose:
+//
+//  1. **No client may WRITE this table.** There is no write policy at all, on purpose: changing what
+//     a role may do must carry an audit row, and only the API writes one. A matrix that proved
+//     cross-ORG isolation alone would pass just as happily on a table an org admin could edit
+//     through PostgREST, which is precisely the hole this is guarding.
+//  2. **The two locks are CHECK constraints, not endpoint manners.** D-PERM7 forbids granting the
+//     `admin` section to anybody and D-PERM8 forbids editing the `driver` role. Stated in SQL, they
+//     survive a second writer that has never read the plan — which is the whole reason they are here
+//     rather than only in the route handler.
+//  3. **Absence is not denial.** The table is a sparse delta (D-PERM4): a role x section with no row
+//     is UNCHANGED, and its answer is the shipped default. Nothing in SQL can assert a meaning, so
+//     what is asserted instead is the shape that makes the meaning possible — the primary key allows
+//     exactly one row per (org, role, section), and rows for other orgs are invisible.
+//
+// ⚠ The JWT subject must exist in auth.users, for the reason saved-views.test.mjs records: a
+// synthetic `sub` with no matching row fails writes on an FK, which looks exactly like an RLS
+// refusal and lets a matrix "prove" a policy it never exercised.
+//
+// Run:  node supabase/tests/org-section-access.test.mjs
+//
+import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
+import { readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SUPA = join(HERE, "..");
+const read = (rel) => readFileSync(join(SUPA, rel), "utf8");
+const MIGRATIONS = readdirSync(join(SUPA, "migrations"))
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
+
+const db = new PGlite({ extensions: { pg_trgm } });
+let pass = 0,
+  fail = 0;
+const ok = (name, cond, extra = "") => {
+  if (cond) {
+    pass++;
+    console.log(`  PASS  ${name}`);
+  } else {
+    fail++;
+    console.log(`  FAIL  ${name} ${extra}`);
+  }
+};
+const one = async (q, p = []) => (await db.query(q, p)).rows[0];
+
+// Supabase-managed schemas, shimmed identically to rls.test.mjs.
+await db.exec(`
+  create schema if not exists auth;
+  create table auth.users (id uuid primary key default gen_random_uuid(), email text);
+  create schema if not exists storage;
+  create table storage.buckets (
+    id text primary key,
+    name text,
+    public boolean default false,
+    file_size_limit bigint,
+    allowed_mime_types text[],
+    owner uuid,
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
+  );
+  create table storage.objects (
+    id uuid primary key default gen_random_uuid(),
+    bucket_id text, name text, owner uuid, created_at timestamptz default now()
+  );
+  alter table storage.objects enable row level security;
+  create or replace function storage.foldername(name text)
+  returns text[]
+  language sql
+  immutable
+  as $fn$
+    select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1];
+  $fn$;
+  create schema supabase_migrations;
+  create table supabase_migrations.schema_migrations (
+    version text primary key,
+    name text,
+    statements text[]
+  );
+  create role supabase_auth_admin nologin;
+  create role authenticated nologin;
+  create role anon nologin;
+  create role service_role nologin bypassrls;
+`);
+// Supabase's real default privileges, installed BEFORE the migrations run — full DML granted so that
+// RLS is provably the only gate. Without this block a passing test proves nothing: the write would be
+// refused by a missing GRANT rather than by the policy under test.
+await db.exec(
+  "grant usage on schema public, storage to anon, authenticated, service_role;" +
+    "alter default privileges in schema public grant all on tables to anon, authenticated, service_role;" +
+    "alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;" +
+    "alter default privileges in schema storage grant all on tables to anon, authenticated, service_role;",
+);
+for (const f of MIGRATIONS)
+  await db.exec(read(join("migrations", f)).replace(/create extension if not exists pgcrypto;?/gi, ""));
+
+// The JWT subject must exist in auth.users. `drivers` and `vehicles` carry audit triggers whose
+// audit_logs.actor_id is a real FK, so a synthetic `sub` with no matching row makes every write to
+// those two tables fail on the FK — which looks exactly like an RLS refusal and would have let this
+// matrix "prove" a revocation that had not happened. (`trailers` has no such trigger, which is how
+// the discrepancy surfaced: it was the only table passing.) Modelling the user makes the policy the
+// only thing under test, the same reason the default-privileges block above exists.
+const ACTOR = "00000000-0000-4000-8000-000000000001";
+await db.query(`insert into auth.users (id, email) values ($1, 'tester@example.com')`, [ACTOR]);
+
+const ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'T') returning id`)).id;
+const OTHER_ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'U') returning id`)).id;
+
+// A second person in the SAME org, and a person in another org entirely.
+const COLLEAGUE = "00000000-0000-4000-8000-000000000002";
+const OUTSIDER = "00000000-0000-4000-8000-000000000003";
+await db.query(`insert into auth.users (id, email) values ($1,'colleague@example.com'), ($2,'outsider@example.com')`, [
+  COLLEAGUE,
+  OUTSIDER,
+]);
+
+/** Run one statement as `user` in `org`, holding `role`. */
+async function asUser(user, org, role, sql, params = []) {
+  await db.exec("begin");
+  try {
+    await db.exec("set local role authenticated");
+    await db.query("select set_config('request.jwt.claims', $1, true)", [
+      JSON.stringify({ sub: user, org_id: org, user_role: role, role: "authenticated" }),
+    ]);
+    const res = await db.query(sql, params);
+    await db.exec("rollback");
+    return res;
+  } catch (e) {
+    await db.exec("rollback");
+    return { error: e.message };
+  }
+}
+
+
+// ── Seeded with the service role, standing in for the API's own writes ──────────
+const SET = `insert into org_section_access (org_id, role, section, access, updated_by)
+             values ($1,$2,$3,$4,$5)`;
+await db.query(SET, [ORG, "dispatcher", "safety", "view", ACTOR]);
+await db.query(SET, [OTHER_ORG, "dispatcher", "safety", "manage", ACTOR]);
+
+const countAs = async (user, org, role) => {
+  const res = await asUser(user, org, role, "select count(*)::int as n from org_section_access");
+  return res.error ? `ERROR: ${res.error}` : Number(res.rows[0].n);
+};
+const affected = async (user, org, role, sql, params) => {
+  const res = await asUser(user, org, role, sql, params);
+  return res.error ? `ERROR: ${res.error}` : (res.affectedRows ?? 0);
+};
+/** Refused for a CLIENT: an insert with no INSERT policy RAISES rather than affecting zero rows,
+ *  so asserting `affected === 0` would quietly pass on an error of any other kind too. */
+const refusedAs = async (user, org, role, sql, params = []) => {
+  const res = await asUser(user, org, role, sql, params);
+  return typeof res.error === "string" && /row-level security/i.test(res.error);
+};
+const refused = async (sql, params = []) => {
+  try {
+    await db.query(sql, params);
+    return false;
+  } catch {
+    return true;
+  }
+};
+
+// ── Reads are org-wide, and stop at the org boundary ────────────────────────────
+// Org-wide on purpose: the shipped matrix is already compiled into the web bundle every member
+// downloads, so the overrides are not a secret from them, and the permissions page shows a member
+// what their own access is.
+ok("an admin sees their own org's overrides", (await countAs(ACTOR, ORG, "admin")) === 1);
+ok(
+  "a non-admin member sees them too — a member may know their own access",
+  (await countAs(COLLEAGUE, ORG, "dispatcher")) === 1,
+);
+ok(
+  "another org's overrides are invisible, so one tenant cannot read another's policy",
+  (await countAs(OUTSIDER, OTHER_ORG, "admin")) === 1,
+);
+
+// ── Nobody writes through PostgREST. Not even an admin. ─────────────────────────
+// This is the assertion the file exists for. Read + no write policy = deny-all writes, which is the
+// only arrangement under which every change to this table is guaranteed to carry its audit row.
+ok(
+  "an admin cannot INSERT an override directly — writes go through the API, which audits",
+  await refusedAs(ACTOR, ORG, "admin", SET, [ORG, "recruiter", "fuel", "view", ACTOR]),
+);
+ok(
+  "an admin cannot UPDATE an override directly",
+  (await affected(ACTOR, ORG, "admin", `update org_section_access set access = 'manage'`)) === 0,
+);
+ok(
+  "an admin cannot DELETE an override directly",
+  (await affected(ACTOR, ORG, "admin", `delete from org_section_access`)) === 0,
+);
+ok(
+  "a dispatcher cannot grant themselves anything",
+  await refusedAs(COLLEAGUE, ORG, "dispatcher", SET, [ORG, "dispatcher", "fuel", "manage", COLLEAGUE]),
+);
+
+// ── D-PERM7: the `admin` SECTION is not grantable to anybody ────────────────────
+// Granting the section that carries user management is a privilege-escalation path the product does
+// not have today. An org that wants a second administrator promotes a member to the `admin` ROLE.
+ok(
+  "the admin section cannot be granted to any role",
+  await refused(SET, [ORG, "fleet_manager", "admin", "manage", ACTOR]),
+);
+ok(
+  "…not even as view",
+  await refused(SET, [ORG, "auditor", "admin", "view", ACTOR]),
+);
+
+// ── D-PERM7/8: the `admin` and `driver` ROLES are not editable ──────────────────
+ok(
+  "the admin role cannot be edited, so an org always has a way back",
+  await refused(SET, [ORG, "admin", "fuel", "none", ACTOR]),
+);
+ok(
+  "the driver role cannot be edited — the web guard sends drivers to the app before any section check",
+  await refused(SET, [ORG, "driver", "fuel", "view", ACTOR]),
+);
+
+// ── The vocabularies are closed ─────────────────────────────────────────────────
+ok("an unknown role is refused", await refused(SET, [ORG, "wizard", "fuel", "view", ACTOR]));
+ok("an unknown section is refused", await refused(SET, [ORG, "dispatcher", "unicorns", "view", ACTOR]));
+ok("an unknown access level is refused", await refused(SET, [ORG, "dispatcher", "fuel", "sudo", ACTOR]));
+
+// `none` is a real, storable value and not a synonym for "no row": narrowing a role below its
+// shipped default is the common case, and absence already means "unchanged" (D-PERM4).
+ok(
+  "`none` is storable — narrowing below the default is a row, not a deletion",
+  !(await refused(SET, [ORG, "auditor", "billing", "none", ACTOR])),
+);
+
+// ── One answer per (org, role, section) ─────────────────────────────────────────
+ok(
+  "a second override for the same role and section is refused by the primary key",
+  await refused(SET, [ORG, "dispatcher", "safety", "manage", ACTOR]),
+);
+
+// ── Org immutability (0161's invariant) ─────────────────────────────────────────
+ok(
+  "an override cannot be walked into another organisation by an update",
+  await refused(`update org_section_access set org_id = $1 where org_id = $2`, [OTHER_ORG, ORG]),
+);
+
+// ── Lifecycle ───────────────────────────────────────────────────────────────────
+// Not evidence: an override is live configuration, not a §391.51 record, so it is deliberately NOT
+// in RETENTION_FORBIDDEN and goes when its org does.
+await db.query(`delete from organizations where id = $1`, [OTHER_ORG]);
+ok(
+  "deleting an org takes its overrides with it",
+  (await one(`select count(*)::int as n from org_section_access where org_id = $1`, [OTHER_ORG])).n === 0,
+);
+
+// `updated_by` is nullable and set null on delete, so losing the actor's account cannot orphan or
+// erase the override itself — the audit row beside it is the record of record.
+await db.query(`delete from auth.users where id = $1`, [COLLEAGUE]);
+ok(
+  "an override survives the deletion of the account that last changed it",
+  (await one(`select count(*)::int as n from org_section_access where org_id = $1`, [ORG])).n === 2,
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// The claim (0292, step P2) — where an override becomes authority.
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// `custom_access_token_hook` is the only thing that turns a row in this table into something a
+// policy can act on, so its behaviour is what the rest of the program rests on. Four properties
+// matter, and each would be silently wrong in a different way:
+//
+//  · the claim is SPARSE — an absent section means "unchanged", never "denied" (D-PERM4);
+//  · an org that has overridden nothing mints EXACTLY the token it does today, so applying this
+//    migration to a live project cannot change anyone's access;
+//  · the locks hold here too, because this is the last place that can decline to honour a row that
+//    should not exist, and the only one whose failure is an escalation rather than a bad row;
+//  · `auth_section()` reads what the hook wrote, or NULL — the value P4's policies branch on.
+
+const claimsFor = async (userId) =>
+  (await one(`select public.custom_access_token_hook(jsonb_build_object('user_id', $1::text, 'claims', '{}'::jsonb)) as e`, [userId]))
+    .e.claims;
+
+// Two members of ORG: a dispatcher (who has one override, seeded above) and a fleet_manager (who
+// has none). Both roles are editable, so any difference between them is the overrides and nothing
+// else.
+// ⚠ Fresh subjects, not COLLEAGUE: the lifecycle assertion above DELETES that account to prove an
+// override outlives the person who set it, so reusing it here fails on the memberships FK — which
+// reads exactly like a hook that returned nothing.
+const DISPATCHER = "00000000-0000-4000-8000-000000000004";
+const MANAGER = "00000000-0000-4000-8000-000000000005";
+const BOSS = "00000000-0000-4000-8000-000000000006";
+const HAULER = "00000000-0000-4000-8000-000000000007";
+await db.query(
+  `insert into auth.users (id, email)
+   values ($1,'dispatcher@example.com'), ($2,'manager@example.com'), ($3,'boss@example.com'), ($4,'hauler@example.com')`,
+  [DISPATCHER, MANAGER, BOSS, HAULER],
+);
+await db.query(
+  `insert into memberships (org_id, user_id, role) values ($1,$2,'dispatcher'), ($1,$3,'fleet_manager'), ($1,$4,'admin'), ($1,$5,'driver')`,
+  [ORG, DISPATCHER, MANAGER, BOSS, HAULER],
+);
+
+const dispatcherClaims = await claimsFor(DISPATCHER);
+ok(
+  "the hook still injects org_id and user_role, unchanged from 0006",
+  dispatcherClaims.org_id === ORG && dispatcherClaims.user_role === "dispatcher",
+);
+ok(
+  "an overridden role carries a SPARSE sections claim — only what the org changed",
+  JSON.stringify(dispatcherClaims.sections) === JSON.stringify({ safety: "view" }),
+);
+
+const managerClaims = await claimsFor(MANAGER);
+ok(
+  "a role with no overrides carries no sections claim at all, so its token is byte-identical to today's",
+  managerClaims.sections === undefined && managerClaims.user_role === "fleet_manager",
+);
+
+// ── The locks, applied where honouring a bad row would be an escalation ────────
+// These rows cannot be inserted through the endpoint or past 0291's CHECK constraints, so they are
+// forced in with the constraints disabled — the point is what the HOOK does if one ever exists.
+await db.exec(`alter table org_section_access drop constraint org_section_access_role_check`);
+await db.exec(`alter table org_section_access drop constraint org_section_access_section_check`);
+await db.query(SET, [ORG, "admin", "fuel", "none", ACTOR]);
+await db.query(SET, [ORG, "driver", "fuel", "manage", ACTOR]);
+await db.query(SET, [ORG, "dispatcher", "admin", "manage", ACTOR]);
+
+ok(
+  "a smuggled override for the admin role is not honoured — an org always has a way back",
+  (await claimsFor(BOSS)).sections === undefined,
+);
+ok(
+  "a smuggled override for the driver role is not honoured",
+  (await claimsFor(HAULER)).sections === undefined,
+);
+ok(
+  "a smuggled grant of the admin SECTION is dropped from the claim, and the rest survives",
+  JSON.stringify((await claimsFor(DISPATCHER)).sections) === JSON.stringify({ safety: "view" }),
+);
+
+// ── auth_section(): what a policy will actually branch on at P4 ────────────────
+const asClaims = async (claims, sql) => {
+  await db.exec("begin");
+  try {
+    await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+    const r = await db.query(sql);
+    await db.exec("rollback");
+    return r.rows[0];
+  } catch (e) {
+    await db.exec("rollback");
+    return { error: e.message };
+  }
+};
+
+const withSections = { sub: DISPATCHER, org_id: ORG, user_role: "dispatcher", sections: { safety: "view" } };
+ok(
+  "auth_section returns the override where there is one",
+  (await asClaims(withSections, `select auth_section('safety') as v`)).v === "view",
+);
+ok(
+  "auth_section returns NULL for a section the org has not touched — 'unchanged', not 'denied'",
+  (await asClaims(withSections, `select auth_section('fuel') as v`)).v === null,
+);
+ok(
+  "auth_section_view is true for an override of view",
+  (await asClaims(withSections, `select auth_section_view('safety') as v`)).v === true,
+);
+ok(
+  "auth_section_manage is FALSE for an override of view — view does not imply manage",
+  (await asClaims(withSections, `select auth_section_manage('safety') as v`)).v === false,
+);
+ok(
+  "auth_section_view is true for an override of manage — manage implies view",
+  (await asClaims({ ...withSections, sections: { safety: "manage" } }, `select auth_section_view('safety') as v`)).v === true,
+);
+
+// The property the whole rollout rests on: a token minted before any of this existed carries no
+// `sections` key, so every policy takes its default branch and no live session loses access.
+ok(
+  "a token with no sections claim answers NULL, so P4's policies fall through to their role list",
+  (await asClaims({ sub: ACTOR, org_id: ORG, user_role: "dispatcher" }, `select auth_section('safety') as v`)).v === null,
+);
+// SQL is three-valued, and this is where that bites. `null in ('view','manage')` and
+// `null = 'manage'` both evaluate to NULL, not false — and RLS reads a NULL predicate as a refusal.
+// Without the `coalesce` in 0292, a bare `using (auth_section_view('fuel'))` would have denied every
+// token minted before the migration, which is every token in existence on the day it applies.
+const noClaim = await asClaims(
+  { sub: ACTOR, org_id: ORG, user_role: "dispatcher" },
+  `select auth_section_view('safety') as a, auth_section_manage('safety') as b`,
+);
+ok("…and the view wrapper answers false, not NULL, so a policy using it does not deny", noClaim.a === false);
+ok("…and so does the manage wrapper", noClaim.b === false);
+
+// An empty claims setting is what a rolled-back `set_local` leaves behind. `auth_role()` raised
+// 22P02 on exactly this until 0213 added the nullif guard, and every policy in the product calls
+// these functions — so the guard is copied, and pinned.
+ok(
+  "an EMPTY claims setting reads as 'no override' rather than raising 22P02 (0213's bug, not repeated)",
+  (await asClaims("", `select auth_section('safety') as v`)).v === null,
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// The policies (0293, step P4 batch 1) — where an override finally reaches data.
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// 0291 stored the override, 0292 put it in the token, and until 0293 nothing in SQL read it: an
+// override changed the UI and the API while PostgREST went on enforcing the shipped matrix. A page
+// that saves a permission the database does not honour is a UI that lies about security, which is
+// why the plan puts this step BEFORE the editable page rather than after it.
+//
+// The four matrices that already cover these tables (`rls` 461, `load-lifecycle` 61, `hazmat_rls`
+// 38, `equipment-section-split` 16) are the evidence that the DEFAULT branch is unchanged. What
+// follows is the other half: that the override branch does what it says.
+
+/** Run one statement as a caller whose token carries a `sections` claim. */
+async function asUserWith(user, org, role, sections, sql, params = []) {
+  await db.exec("begin");
+  try {
+    await db.exec("set local role authenticated");
+    const claims = { sub: user, org_id: org, user_role: role, role: "authenticated" };
+    if (sections) claims.sections = sections;
+    await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+    const res = await db.query(sql, params);
+    await db.exec("rollback");
+    return res;
+  } catch (e) {
+    await db.exec("rollback");
+    return { error: e.message };
+  }
+}
+
+const wrote = async (user, org, role, sections, sql, params) => {
+  const res = await asUserWith(user, org, role, sections, sql, params);
+  return !res.error && (res.affectedRows ?? 0) > 0;
+};
+
+const VEH = `insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal) values ($1,'P4-1','diesel',100)`;
+// `loads_status_guard()` refuses a hand-set status, so the row is created the way the product
+// creates one and touched on a column the guard does not police.
+const LOAD_ID = (await one(
+  `insert into loads (org_id, ref, equipment, commodity) values ($1,'P4-REF','Dry van','General freight') returning id`,
+  [ORG],
+)).id;
+const TOUCH_LOAD = `update loads set commodity = 'General freight' where id = $1`;
+
+// ── The default branch: exactly today's answers ────────────────────────────────
+ok(
+  "with no override a dispatcher still writes loads",
+  await wrote(DISPATCHER, ORG, "dispatcher", null, TOUCH_LOAD, [LOAD_ID]),
+);
+ok(
+  "with no override a recruiter still cannot write vehicles (D-ROS12's narrowing holds)",
+  !(await wrote(DISPATCHER, ORG, "recruiter", null, VEH, [ORG])),
+);
+
+// ── Narrowing ─────────────────────────────────────────────────────────────────
+ok(
+  "an org that takes dispatch away from its dispatchers is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "none" }, TOUCH_LOAD, [LOAD_ID])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only dispatcher cannot write either",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, TOUCH_LOAD, [LOAD_ID])),
+);
+
+// ── Widening ──────────────────────────────────────────────────────────────────
+// The half a role list computed at policy-authoring time could never express.
+ok(
+  "an org that grants equipment to its recruiters is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "recruiter", { equipment: "manage" }, VEH, [ORG]),
+);
+ok(
+  "…but granting 'view' does not grant the write",
+  !(await wrote(DISPATCHER, ORG, "recruiter", { equipment: "view" }, VEH, [ORG])),
+);
+
+// ── Sparseness at the policy layer ────────────────────────────────────────────
+ok(
+  "overriding one section leaves the others at their defaults",
+  await wrote(DISPATCHER, ORG, "dispatcher", { equipment: "manage" }, TOUCH_LOAD, [LOAD_ID]),
+);
+
+// ── A view-level policy (hazmat_reviews_select is the one SELECT in this batch) ─
+const SEE_REVIEWS = `select count(*)::int as n from hazmat_reviews`;
+ok(
+  "a granted 'view' opens a read the role does not ship with",
+  !(await asUserWith(DISPATCHER, ORG, "recruiter", { hazmat: "view" }, SEE_REVIEWS)).error,
+);
+ok(
+  "a narrowed section closes a read the role does ship with",
+  (await asUserWith(DISPATCHER, ORG, "safety_manager", { hazmat: "none" }, SEE_REVIEWS)).rows[0].n === 0,
+);
+
+// ── The locks, at the layer that hands out rows ───────────────────────────────
+// 0292's hook refuses to MINT these claims and 0291's constraints refuse the rows behind them. This
+// is the last gate before data, and the only one whose failure would grant access rather than
+// merely store something wrong — so it declines to honour them on its own account.
+// ⚠ A real row to touch, seeded with the service role. An `update` matching NOTHING reports zero
+// affected rows and is indistinguishable from an RLS refusal, so a version of this assertion
+// written against an empty table would pass whatever the policy said.
+const DRIVER_ID = (await one(
+  `insert into drivers (org_id, full_name) values ($1,'P4 Tester') returning id`,
+  [ORG],
+)).id;
+const TOUCH_DRIVER = `update drivers set full_name = 'P4 Tester' where id = $1`;
+ok(
+  "the fixture is real — a plain admin can touch the seeded driver",
+  await wrote(DISPATCHER, ORG, "admin", null, TOUCH_DRIVER, [DRIVER_ID]),
+);
+ok(
+  "a claim narrowing an ADMIN is ignored, so an org can always dig itself out",
+  await wrote(DISPATCHER, ORG, "admin", { roster: "none" }, TOUCH_DRIVER, [DRIVER_ID]),
+);
+ok(
+  "…while the same narrowing DOES bind a role that is editable",
+  !(await wrote(DISPATCHER, ORG, "safety_manager", { roster: "none" }, TOUCH_DRIVER, [DRIVER_ID])),
+);
+ok(
+  "a claim granting a DRIVER is ignored — they hold none of these sections",
+  !(await wrote(DISPATCHER, ORG, "driver", { equipment: "manage" }, VEH, [ORG])),
+);
+
+// ── P4 batch 2: the fuel and safety sections (0294) ───────────────────────────
+// Same shape as the batch-1 block above, against the two sections 0294 wrapped. The 13 policies it
+// covers are all `org_id = auth_org_id() AND <section gate>` with no third conjunct, so one table
+// per section per level is enough to exercise the gate; what varies between them is the section
+// name and the level, and both are asserted here.
+//
+// ⚠ Every fixture below is a REAL row, seeded with the service role where the assertion is an
+// UPDATE/DELETE. The batch-1 block learned this the hard way: a statement matching nothing reports
+// zero affected rows and is indistinguishable from an RLS refusal, so a "cannot write" assertion
+// written against an empty table passes whatever the policy says.
+
+// ── fuel, at 'manage' (fuel_cards_write stands for the nine) ──────────────────
+// Fuel's shipped manage set is [admin, fleet_manager]; a dispatcher holds `fuel: "view"`, which is
+// what makes them the right role to test both directions against.
+const CARD = `insert into fuel_cards (org_id, card_ref) values ($1, 'P4B2-CARD')`;
+
+ok(
+  "with no override a fleet manager still writes fuel cards",
+  await wrote(DISPATCHER, ORG, "fleet_manager", null, CARD, [ORG]),
+);
+ok(
+  "with no override a dispatcher still cannot write fuel cards (they hold fuel: view)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, CARD, [ORG])),
+);
+ok(
+  "an org that takes fuel away from its fleet managers is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "fleet_manager", { fuel: "none" }, CARD, [ORG])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only fleet manager cannot write a fuel card either",
+  !(await wrote(DISPATCHER, ORG, "fleet_manager", { fuel: "view" }, CARD, [ORG])),
+);
+ok(
+  "an org that grants fuel to its dispatchers is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "manage" }, CARD, [ORG]),
+);
+ok(
+  "…but granting 'view' does not grant the write",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "view" }, CARD, [ORG])),
+);
+ok(
+  "overriding safety leaves fuel at its default — the claim is sparse across sections too",
+  await wrote(DISPATCHER, ORG, "fleet_manager", { safety: "none" }, CARD, [ORG]),
+);
+ok(
+  "a claim narrowing an ADMIN's fuel is ignored, so an org can always dig itself out",
+  await wrote(DISPATCHER, ORG, "admin", { fuel: "none" }, CARD, [ORG]),
+);
+ok(
+  "a claim granting a DRIVER fuel is ignored — D-PERM8 is not negotiable at the row layer",
+  !(await wrote(DISPATCHER, ORG, "driver", { fuel: "manage" }, CARD, [ORG])),
+);
+
+// ── safety, at 'manage' (certifications_write and qualification_records_insert) ─
+// Safety's shipped manage set is [admin, fleet_manager, safety_manager]; a dispatcher holds
+// `safety: "none"`, so they are the widening case here.
+const CERT = `insert into certifications (org_id, subject_type, subject_id, kind, effective_from)
+              values ($1, 'driver', $2, 'medical_card', current_date)`;
+
+ok(
+  "with no override a safety manager still files a certification",
+  await wrote(DISPATCHER, ORG, "safety_manager", null, CERT, [ORG, DRIVER_ID]),
+);
+ok(
+  "with no override a dispatcher still cannot (they hold safety: none)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, CERT, [ORG, DRIVER_ID])),
+);
+ok(
+  "an org that takes safety away from its safety managers is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "safety_manager", { safety: "none" }, CERT, [ORG, DRIVER_ID])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only safety manager cannot file one either",
+  !(await wrote(DISPATCHER, ORG, "safety_manager", { safety: "view" }, CERT, [ORG, DRIVER_ID])),
+);
+ok(
+  "an org that grants safety to its dispatchers is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" }, CERT, [ORG, DRIVER_ID]),
+);
+
+// The §391.51 file itself, and the half of it that matters most: a grant opens the INSERT and
+// nothing else. `qualification_records` has no UPDATE and no DELETE policy at any level (0205 and
+// 0211 gave it only a select, a driver scope, the two restricted-kind gates, and this insert), so
+// widening the section cannot produce a mutation path where there was none. This is the assertion
+// behind 0294's claim that wrapping a policy leaves an append-only table append-only — the table's
+// evidence character is the ABSENCE of those policies plus its pin in RETENTION_FORBIDDEN, and a
+// section gate on the insert does not touch either.
+const QR = `insert into qualification_records (org_id, driver_id, kind, occurred_on)
+            values ($1, $2, 'road_test', current_date)`;
+const SEEDED_QR = (await one(
+  `insert into qualification_records (org_id, driver_id, kind, occurred_on)
+   values ($1, $2, 'road_test', current_date) returning id`,
+  [ORG, DRIVER_ID],
+)).id;
+
+ok(
+  "a granted safety section opens the §391.51 insert a dispatcher does not ship with",
+  await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" }, QR, [ORG, DRIVER_ID]),
+);
+ok(
+  "the seeded qualification record is real — a plain admin can read it back",
+  (await asUserWith(DISPATCHER, ORG, "admin", null,
+    `select count(*)::int as n from qualification_records where id = $1`, [SEEDED_QR])).rows[0].n === 1,
+);
+ok(
+  "…but that same grant does NOT open a delete — the record stays append-only",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" },
+    `delete from qualification_records where id = $1`, [SEEDED_QR])),
+);
+ok(
+  "…nor does it open an update, for the same reason: there is no such policy to widen",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" },
+    `update qualification_records set kind = 'mvr' where id = $1`, [SEEDED_QR])),
+);
+
+// ── safety, at 'view' (dq_exports_select is the one SELECT in batch 2) ────────
+// Safety's view set adds the auditor to its manage set. `dq_exports` has no client write policy at
+// all — service-role writes only — so this select IS the whole of an org's editable surface on the
+// DQ export ledger, which makes it the cleanest place to show 'view' behaving independently.
+await db.query(
+  `insert into dq_exports (org_id, kind, driver_ids, as_at) values ($1, 'binder', array[$2::uuid], current_date)`,
+  [ORG, DRIVER_ID],
+);
+const SEE_EXPORTS = `select count(*)::int as n from dq_exports`;
+
+ok(
+  "with no override an auditor reads the DQ export ledger",
+  (await asUserWith(DISPATCHER, ORG, "auditor", null, SEE_EXPORTS)).rows[0].n === 1,
+);
+ok(
+  "a narrowed safety section closes a read the auditor does ship with",
+  (await asUserWith(DISPATCHER, ORG, "auditor", { safety: "none" }, SEE_EXPORTS)).rows[0].n === 0,
+);
+ok(
+  "a granted 'view' opens a read the recruiter does not ship with",
+  (await asUserWith(DISPATCHER, ORG, "recruiter", { safety: "view" }, SEE_EXPORTS)).rows[0].n === 1,
+);
+ok(
+  "…and 'manage' implies 'view', so a granted manager reads it too",
+  (await asUserWith(DISPATCHER, ORG, "recruiter", { safety: "manage" }, SEE_EXPORTS)).rows[0].n === 1,
+);
+
+// ── P4 batch 3: recruitment, maintenance, and the two tables whose section is not their module (0295) ─
+// The last batch, so this block also covers the two shapes the earlier ones did not have: a
+// RESTRICTIVE section read with a `driver` escape outside the wrapper, and a table wrapped with a
+// section other than the one its module maps to.
+
+// ── recruitment, at 'manage' ─────────────────────────────────────────────────
+// Recruitment's shipped manage set is [admin, fleet_manager, safety_manager, recruiter]; a
+// dispatcher holds `recruitment: "none"`, so they are the widening case throughout.
+const EMPLOYMENT = `insert into driver_employment_history (org_id, driver_id, employer_name, started_on)
+                    values ($1, $2, 'Prior Carrier LLC', current_date - 400)`;
+
+ok(
+  "with no override a recruiter still records previous employment",
+  await wrote(DISPATCHER, ORG, "recruiter", null, EMPLOYMENT, [ORG, DRIVER_ID]),
+);
+ok(
+  "with no override a dispatcher still cannot (they hold recruitment: none)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, EMPLOYMENT, [ORG, DRIVER_ID])),
+);
+ok(
+  "an org that takes recruitment away from its recruiters is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "recruiter", { recruitment: "none" }, EMPLOYMENT, [ORG, DRIVER_ID])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only recruiter cannot record employment either",
+  !(await wrote(DISPATCHER, ORG, "recruiter", { recruitment: "view" }, EMPLOYMENT, [ORG, DRIVER_ID])),
+);
+ok(
+  "an org that grants recruitment to its dispatchers is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "dispatcher", { recruitment: "manage" }, EMPLOYMENT, [ORG, DRIVER_ID]),
+);
+
+// ── recruitment, at 'view', through a RESTRICTIVE policy ─────────────────────
+// `driver_authorizations_section_read` and `psp_requests_section_read` are RESTRICTIVE, so they AND
+// onto the permissive org policy and can only narrow. A restrictive gate that a narrowing did not
+// close would be invisible in a permissive-only test, which is why both directions are asserted.
+await db.query(
+  `insert into driver_authorizations (org_id, driver_id, purpose, disclosure_version, disclosure_text,
+                                      method, signed_name, intent_statement)
+   values ($1, $2, 'psp', 'v1', 'Disclosure text', 'esign', 'P4 Tester', 'I agree')`,
+  [ORG, DRIVER_ID],
+);
+const SEE_AUTHS = `select count(*)::int as n from driver_authorizations`;
+
+ok(
+  "with no override an auditor reads the consent record",
+  (await asUserWith(DISPATCHER, ORG, "auditor", null, SEE_AUTHS)).rows[0].n === 1,
+);
+ok(
+  "a narrowed recruitment section closes a read the auditor does ship with",
+  (await asUserWith(DISPATCHER, ORG, "auditor", { recruitment: "none" }, SEE_AUTHS)).rows[0].n === 0,
+);
+ok(
+  "a granted 'view' opens a read the dispatcher does not ship with",
+  (await asUserWith(DISPATCHER, ORG, "dispatcher", { recruitment: "view" }, SEE_AUTHS)).rows[0].n === 1,
+);
+
+// The `driver` disjunct sits OUTSIDE the wrapper on purpose (0295's header): half of what a consent
+// record is for is the person who gave it being able to check what it bought, and no org may
+// configure that away. Narrowing recruitment to `none` must therefore leave it alone.
+//
+// ⚠ `auth_driver_id()` resolves `drivers.user_id` for an ACTIVE driver in the caller's org, and the
+// seeded row was created without one. Bind it to HAULER's login first: without this the driver sees
+// zero rows because they are nobody's driver, and the assertion would report the section gate
+// closing a read that the driver-scope policy had already closed for an unrelated reason.
+await db.query(`update drivers set user_id = $1 where id = $2`, [HAULER, DRIVER_ID]);
+ok(
+  "the driver fixture is real — the bound driver reads their own consent with no override at all",
+  (await asUserWith(HAULER, ORG, "driver", null, SEE_AUTHS)).rows[0].n === 1,
+);
+// ⚠ Measured, so the next reader does not over-read this assertion: the driver's read survives a
+// narrowing through TWO independent mechanisms — the disjunct's placement outside the wrapper, and
+// `auth_section_or_default`'s D-PERM8 branch, which short-circuits `driver` to the default. Mutating
+// either ALONE leaves this green; only removing both closes the read. So this pins the BEHAVIOUR
+// (an org cannot configure away somebody's sight of their own consent) and not the placement, and
+// the placement stays as it is on the defensive argument in 0295's header rather than because a
+// test would catch its loss.
+ok(
+  "a narrowed recruitment section does NOT close the driver's read of their own consent",
+  (await asUserWith(HAULER, ORG, "driver", { recruitment: "none" }, SEE_AUTHS)).rows[0].n === 1,
+);
+
+// ── the two tables whose section is not their module's (0295, TABLE_SECTIONS) ─
+// `psp_requests` is written by the `psp` module, whose section default is `safety`, and is gated on
+// `recruitment`. Asserting BOTH halves is the point: the recruitment override must bind it, and a
+// safety override must not — otherwise the TABLE_SECTIONS entry would be decoration.
+await db.query(
+  `insert into psp_requests (org_id, driver_id, internal_ref_id, idempotency_key, request_body)
+   values ($1, $2, 'REF-P4B3', 'KEY-P4B3', '{}'::jsonb)`,
+  [ORG, DRIVER_ID],
+);
+const SEE_PSP = `select count(*)::int as n from psp_requests`;
+
+ok(
+  "with no override an auditor reads the PSP ledger",
+  (await asUserWith(DISPATCHER, ORG, "auditor", null, SEE_PSP)).rows[0].n === 1,
+);
+ok(
+  "narrowing RECRUITMENT closes the PSP ledger — the section its role list derives from",
+  (await asUserWith(DISPATCHER, ORG, "auditor", { recruitment: "none" }, SEE_PSP)).rows[0].n === 0,
+);
+ok(
+  "…while narrowing SAFETY does not, though `psp` is the safety module — section ≠ module",
+  (await asUserWith(DISPATCHER, ORG, "auditor", { safety: "none" }, SEE_PSP)).rows[0].n === 1,
+);
+
+// `seven_day_statements` is the mirror image: written by the `recruiting` module, gated on `roster`,
+// because recording one takes the employment-lifecycle roles and that helper IS
+// canManageSection(role, "roster").
+const STATEMENT = `insert into seven_day_statements (org_id, driver_id, statement_date, days,
+                                                     last_relieved_at, signed_name, signed_on)
+                   values ($1, $2, current_date, $3::jsonb, now(), 'P4 Tester', current_date)`;
+// `seven_day_statements_days_shape` requires exactly seven entries — the statement is a record of
+// seven days, so a shorter fixture is not a smaller version of one, it is a different thing.
+const SEVEN_DAYS = JSON.stringify(Array.from({ length: 7 }, (_, i) => ({ date: `2026-08-0${i + 1}`, hours: 8 })));
+
+ok(
+  "with no override a safety manager still records a seven-day statement",
+  await wrote(DISPATCHER, ORG, "safety_manager", null, STATEMENT, [ORG, DRIVER_ID, SEVEN_DAYS]),
+);
+ok(
+  "narrowing ROSTER closes it — the section its role list derives from",
+  !(await wrote(DISPATCHER, ORG, "safety_manager", { roster: "none" }, STATEMENT, [ORG, DRIVER_ID, SEVEN_DAYS])),
+);
+ok(
+  "…while narrowing RECRUITMENT does not, though `recruiting` is its module — section ≠ module",
+  await wrote(DISPATCHER, ORG, "safety_manager", { recruitment: "none" }, STATEMENT, [ORG, DRIVER_ID, SEVEN_DAYS]),
+);
+
+// ── maintenance, at both levels ──────────────────────────────────────────────
+// Maintenance manage is [admin, fleet_manager, technician]; view adds the auditor and the
+// accountant. The technician is the role D-AVI11 added for exactly one section, so narrowing it is
+// the sharpest test of the section actually binding.
+const INSPECTOR = `insert into maintenance_inspectors (org_id, full_name, qualification_basis, effective_from)
+                   values ($1, 'A Wrench', 'training_and_experience', current_date)`;
+
+ok(
+  "with no override a technician still registers an inspector",
+  await wrote(DISPATCHER, ORG, "technician", null, INSPECTOR, [ORG]),
+);
+ok(
+  "an org that takes maintenance away from its technicians is obeyed by the database",
+  !(await wrote(DISPATCHER, ORG, "technician", { maintenance: "none" }, INSPECTOR, [ORG])),
+);
+ok(
+  "…and 'view' is not 'manage' — a read-only technician cannot register one either",
+  !(await wrote(DISPATCHER, ORG, "technician", { maintenance: "view" }, INSPECTOR, [ORG])),
+);
+ok(
+  "an org that grants maintenance to its dispatchers is obeyed by the database",
+  await wrote(DISPATCHER, ORG, "dispatcher", { maintenance: "manage" }, INSPECTOR, [ORG]),
+);
+
+await db.query(
+  `insert into maintenance_inspectors (org_id, full_name, qualification_basis, effective_from)
+   values ($1, 'Seeded Wrench', 'state_federal_program', current_date)`,
+  [ORG],
+);
+const SEE_INSPECTORS = `select count(*)::int as n from maintenance_inspectors`;
+
+ok(
+  "with no override an accountant reads the inspector register (repair spend is their ledger)",
+  (await asUserWith(DISPATCHER, ORG, "accountant", null, SEE_INSPECTORS)).rows[0].n === 1,
+);
+ok(
+  "a narrowed maintenance section closes a read the accountant does ship with",
+  (await asUserWith(DISPATCHER, ORG, "accountant", { maintenance: "none" }, SEE_INSPECTORS)).rows[0].n === 0,
+);
+ok(
+  "a granted 'view' opens a read the recruiter does not ship with",
+  (await asUserWith(DISPATCHER, ORG, "recruiter", { maintenance: "view" }, SEE_INSPECTORS)).rows[0].n === 1,
+);
+
+// ── P6 (0300): every default branch agrees with the matrix, or is a named grant ────────────────
+// Each ruling in 0300 is asserted twice: once claim-less (the default branch is now the matrix's
+// answer) and once with a `sections` claim (the override still reaches the policy, and reaches it in
+// the section the policy now names). Fixtures are seeded with the service role, and where an
+// assertion depends on a row existing, an admin touches it first — for the reason given above
+// TOUCH_DRIVER: an update matching nothing is indistinguishable from a refusal.
+const SAFETY = "00000000-0000-4000-8000-000000000008";
+await db.query(`insert into auth.users (id, email) values ($1,'safety@example.com')`, [SAFETY]);
+await db.query(`insert into memberships (org_id, user_id, role) values ($1,$2,'safety_manager')`, [ORG, SAFETY]);
+// 0103's RESTRICTIVE module gate AND-combines with every hazmat policy: without this row the org's
+// hazmat tables refuse everyone, and a section assertion would be reading the wrong refusal.
+await db.query(`insert into org_modules (org_id, module_key) values ($1, 'hazmatguard')`, [ORG]);
+
+// A. hazmat management — hazmat manage includes the safety manager, and now SQL agrees.
+const NEW_HAZMAT_LOAD = `insert into hazmat_loads (id, org_id, status, created_by) values (gen_random_uuid(), $1, 'draft', $2)`;
+ok(
+  "a claim-less safety manager creates a hazmat load — the list now equals hazmat manage (0300 A)",
+  await wrote(SAFETY, ORG, "safety_manager", null, NEW_HAZMAT_LOAD, [ORG, SAFETY]),
+);
+ok(
+  "…and an org that drops its safety managers to hazmat: view is still obeyed",
+  !(await wrote(SAFETY, ORG, "safety_manager", { hazmat: "view" }, NEW_HAZMAT_LOAD, [ORG, SAFETY])),
+);
+ok(
+  "a technician holds no hazmat and still cannot",
+  !(await wrote(SAFETY, ORG, "technician", null, NEW_HAZMAT_LOAD, [ORG, SAFETY])),
+);
+
+// A. roster — the assignment is a roster act (D-ROS12), and roster manage includes the safety manager.
+const NEW_DVA = `insert into driver_vehicle_assignments (org_id, vehicle_samsara_id, driver_samsara_id, start_at) values ($1, 'v-p6', 'd-p6', now())`;
+ok(
+  "a claim-less safety manager records a vehicle assignment (0300 A)",
+  await wrote(SAFETY, ORG, "safety_manager", null, NEW_DVA, [ORG]),
+);
+ok(
+  "…and roster: view takes it away again",
+  !(await wrote(SAFETY, ORG, "safety_manager", { roster: "view" }, NEW_DVA, [ORG])),
+);
+ok(
+  "a dispatcher (roster: view) still cannot",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_DVA, [ORG])),
+);
+
+// B. A named grant is not a section question (D-PERM10): no hazmat override widens who signs a review.
+const HZ_LOAD = (await one(
+  `insert into hazmat_loads (id, org_id, status, created_by) values (gen_random_uuid(), $1, 'draft', $2) returning id`,
+  [ORG, BOSS],
+)).id;
+const HZ_RUN = (await one(
+  `insert into hazmat_runs (org_id, load_id, engine_version, dataset_version, verdict, outcome, input_hash) values ($1,$2,'0.6.0','2026.07.1','{}','green','p6') returning id`,
+  [ORG, HZ_LOAD],
+)).id;
+const NEW_REVIEW = `insert into hazmat_reviews (org_id, load_id, run_id, reviewer_id, action) values ($1, $2, $3, $4, 'cleared')`;
+ok(
+  "a safety manager signs their own review with no claim (HAZMAT_REVIEW_ROLES)",
+  await wrote(SAFETY, ORG, "safety_manager", null, NEW_REVIEW, [ORG, HZ_LOAD, HZ_RUN, SAFETY]),
+);
+ok(
+  "a dispatcher granted hazmat: manage still cannot sign one — the grant is by NAME, not by section (D-PERM10)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { hazmat: "manage" }, NEW_REVIEW, [ORG, HZ_LOAD, HZ_RUN, DISPATCHER])),
+);
+ok(
+  "the recruiter's roster write still stands by name (0212) with no claim",
+  await wrote(DISPATCHER, ORG, "recruiter", null, TOUCH_DRIVER, [DRIVER_ID]),
+);
+ok(
+  "…and an org that takes roster from its recruiters closes it — the wrapper stays on drivers_write",
+  !(await wrote(DISPATCHER, ORG, "recruiter", { roster: "none" }, TOUCH_DRIVER, [DRIVER_ID])),
+);
+
+// C. A table belongs to the section whose page edits it (D-PERM11).
+await db.query(`insert into idle_settings (org_id) values ($1) on conflict (org_id) do nothing`, [ORG]);
+const TOUCH_IDLE = `update idle_settings set comfort_low_f = 21 where org_id = $1`;
+ok(
+  "the fixture is real — an admin touches the org's idle settings",
+  await wrote(BOSS, ORG, "admin", null, TOUCH_IDLE, [ORG]),
+);
+ok(
+  "a claim-less safety manager adopts a comfort band — idle settings are a SAFETY act (0300 C)",
+  await wrote(SAFETY, ORG, "safety_manager", null, TOUCH_IDLE, [ORG]),
+);
+ok(
+  "taking EQUIPMENT from them changes nothing here — the table is not equipment's any more",
+  await wrote(SAFETY, ORG, "safety_manager", { equipment: "none" }, TOUCH_IDLE, [ORG]),
+);
+ok(
+  "taking SAFETY manage from them closes it",
+  !(await wrote(SAFETY, ORG, "safety_manager", { safety: "view" }, TOUCH_IDLE, [ORG])),
+);
+ok(
+  "a dispatcher granted safety: manage gains it",
+  await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" }, TOUCH_IDLE, [ORG]),
+);
+
+const NEW_DISCOUNT = `insert into fuel_discount_rules (org_id, brand, cents_off) values ($1, 'p6-brand', 3)`;
+ok(
+  "a claim-less dispatcher writes a discount rule — the 0078 list, now under DISPATCH (0300 C)",
+  await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_DISCOUNT, [ORG]),
+);
+ok(
+  "taking FUEL from the dispatcher changes nothing — the planner's inputs are dispatch's",
+  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "none" }, NEW_DISCOUNT, [ORG]),
+);
+ok(
+  "taking DISPATCH manage from them closes it",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, NEW_DISCOUNT, [ORG])),
+);
+await db.query(`insert into route_fuel_settings (org_id) values ($1) on conflict (org_id) do nothing`, [ORG]);
+const TOUCH_ROUTE = `update route_fuel_settings set reserve_pct = 21 where org_id = $1`;
+ok(
+  "route fuel settings answer the same dispatch question, both ways",
+  (await wrote(DISPATCHER, ORG, "dispatcher", null, TOUCH_ROUTE, [ORG])) &&
+    !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, TOUCH_ROUTE, [ORG])),
+);
+
+// D. A role that a RESTRICTIVE policy already refuses is dead text in a permissive list (D-PERM12).
+// 0135 closed the driver's PostgREST fill-up (`fuel_tx_driver_insert`: restrictive, `auth_role() <>
+// 'driver'`), so the `driver` 0004 listed in ftxn_insert has been unreachable since; 0300 removes it
+// and the office half is the fuel section's manage set. Both halves are pinned here.
+const P6_VEHICLE = (await one(
+  `insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal) values ($1,'P6-1','diesel',100) returning id`,
+  [ORG],
+)).id;
+const NEW_FILL = `insert into fuel_transactions (org_id, vehicle_id, fueled_at, gallons, source) values ($1, $2, now(), 10, 'manual')`;
+ok(
+  "the fixture is real — an admin records a fill-up",
+  await wrote(BOSS, ORG, "admin", null, NEW_FILL, [ORG, P6_VEHICLE]),
+);
+ok(
+  "a driver cannot record a fill-up through PostgREST — 0135's closure, which made the listed role dead (D-PERM12)",
+  !(await wrote(HAULER, ORG, "driver", null, NEW_FILL, [ORG, P6_VEHICLE])),
+);
+ok(
+  "a dispatcher (fuel: view) cannot either",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_FILL, [ORG, P6_VEHICLE])),
+);
+ok(
+  "…until an org grants them fuel: manage, which now reaches this policy",
+  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "manage" }, NEW_FILL, [ORG, P6_VEHICLE]),
+);
+ok(
+  "and an org that drops its fleet managers to fuel: view is obeyed here too",
+  !(await wrote(MANAGER, ORG, "fleet_manager", { fuel: "view" }, NEW_FILL, [ORG, P6_VEHICLE])),
+);
+
+await db.close();
+
+console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
+if (fail > 0) process.exit(1);

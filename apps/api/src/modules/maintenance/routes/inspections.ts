@@ -4,12 +4,12 @@ import {
   INSPECTION_CATALOGUE_VERSION,
   inspectionCreateSchema,
   inspectionPatchSchema,
-  rolesThatCanView,
-  rolesThatManage,
   type InspectionCreateRequest,
   type InspectionPatchRequest,
+  inspectionDeleteRequestSchema,
+  type InspectionDeleteRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -25,7 +25,10 @@ import { listInspections } from "../inspections/inspectionList.js";
 import { inspectorFor } from "../inspections/inspectors.js";
 import { finalizeInspection } from "../inspections/finalize.js";
 import { buildPreviewInput, renderOverlayReport, renderStoredReport } from "../inspections/reportDelivery.js";
+import { deleteInspectionRecord } from "../inspections/deleteRecord.js";
 import { renderRegistrationSheet } from "../inspections/render/registrationSheet.js";
+import { RENDERER_VERSION } from "../inspections/render/report.js";
+import { getEquipmentIdentity } from "../../roster/index.js";
 import { getPrintProfile } from "../inspections/printProfiles.js";
 
 /**
@@ -56,8 +59,8 @@ const listSchema = z.object({
 export function inspectionsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
-  const canView = requireRole(...rolesThatCanView("maintenance"));
-  const canManage = requireRole(...rolesThatManage("maintenance"));
+  const canView = requireSection("maintenance", "view");
+  const canManage = requireSection("maintenance");
 
   router.get(
     "/",
@@ -96,7 +99,35 @@ export function inspectionsRouter(): Router {
         res.status(404).json(apiError("not_found", "Inspection not found"));
         return;
       }
-      res.json({ ok: true, inspection: result.report, items: result.items });
+      // `currentRendererVersion` is what the API would DRAW today. A final report serves its stored
+      // bytes and is never re-rendered, so a filing drawn under an older renderer is a different page
+      // from the preview beside it — which is what the office reported. Sending the current version
+      // with the report is what lets the form say so, without the client keeping its own copy of it
+      // (0284, D-AVI14).
+      /**
+       * `unit_number` is RESOLVED here, not carried on the row.
+       *
+       * `vehicle_inspections` holds `subject_id`, a uuid, and nobody reads those. The LIST route has
+       * always resolved the unit through `roster` — the detail route did not, while the web type
+       * `InspectionDetail extends InspectionSummary` declared the field anyway. That type was a
+       * lie, and the first thing to actually read it broke: the delete drawer asks somebody to type
+       * the unit back, got an empty string, and no input could ever match it (reported 2026-09-01).
+       * Pinned by "carries the unit number, because the row only has a uuid and nobody reads those".
+       */
+      const equipment = await getEquipmentIdentity(
+        admin,
+        req.auth!.orgId!,
+        result.report.subject_type,
+        String(result.report.subject_id),
+      );
+      const unitNumber = equipment && !("code" in equipment) ? equipment.unitNumber : null;
+
+      res.json({
+        ok: true,
+        inspection: { ...result.report, unit_number: unitNumber },
+        items: result.items,
+        currentRendererVersion: RENDERER_VERSION,
+      });
     }),
   );
 
@@ -183,7 +214,7 @@ export function inspectionsRouter(): Router {
         res.status(500).json(apiError("db_error", "Saved, but could not re-read the inspection."));
         return;
       }
-      res.json({ ok: true, inspection: after.report, items: after.items });
+      res.json({ ok: true, inspection: after.report, items: after.items, currentRendererVersion: RENDERER_VERSION });
     }),
   );
 
@@ -331,6 +362,41 @@ export function inspectionsRouter(): Router {
   );
 
   /**
+   * Destroy a report and everything it created (D-AVI29) — a SEPARATE verb from the discard above.
+   *
+   * ── WHY NOT A FLAG ON `DELETE /:id` ────────────────────────────────────────────────────────────
+   * "Throw away a draft nobody has certified" and "destroy a §396.21 record" are different acts with
+   * different consequences, and a `?force=true` on one route is how the second gets done by somebody
+   * who meant the first. Two routes, two role gates, and the destructive one has to be asked for by
+   * name.
+   *
+   * `requireRole("admin")` rather than `canManage`: a technician certifies inspections, they do not
+   * destroy the record of one. The reason is validated by the contract before this handler runs, and
+   * `deleteInspectionRecord` writes the audit row itself — BEFORE it deletes anything — because an
+   * audit written here would only describe the deletes that succeeded.
+   */
+  router.post(
+    "/:id/delete-record",
+    requireOrg,
+    requireRole("admin"),
+    validateBody(inspectionDeleteRequestSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const body = res.locals.body as InspectionDeleteRequest;
+      const result = await deleteInspectionRecord(admin, req.auth!.orgId!, String(req.params.id ?? ""), {
+        reason: body.reason,
+        actorId: req.auth!.userId,
+      });
+      if ("code" in result) {
+        const status = result.code === "not_found" ? 404 : result.code === "reason_required" ? 400 : 500;
+        res.status(status).json(apiError(result.code, result.error));
+        return;
+      }
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
    * The values-only page for a pre-printed pad (D-AVI8). A different artefact for a different piece
    * of paper — the filed report above is still served exactly as it was filed.
    */
@@ -366,7 +432,7 @@ export function inspectionPrintingRouter(): Router {
   router.get(
     "/registration-sheet.pdf",
     requireOrg,
-    requireRole(...rolesThatManage("maintenance")),
+    requireSection("maintenance"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const profileId = typeof req.query.profile === "string" ? req.query.profile : null;

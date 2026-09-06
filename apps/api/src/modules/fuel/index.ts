@@ -26,3 +26,4 @@ export { syncCardAssignments, lookupCardAssignment } from "./cardAssignments.js"
 export { attributeDrivers } from "./driverAttribution.js";
 export { learnStationGeocodes } from "./stationGeocodeLearning.js";
 export { registerDiscountRuleRoutes } from "./routes/discountRules.js";
+export { registerFuelExportRoutes } from "./routes/exports.js";

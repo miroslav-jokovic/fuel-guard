@@ -10,6 +10,15 @@ export interface AuthClaims {
   email?: string;
   org_id?: string;
   user_role?: UserRole;
+  /**
+   * The org's overrides of this user's role, injected by the hook since migration 0292 (D-PERM2).
+   *
+   * SPARSE and OPTIONAL, both load-bearing. A section that is absent is not denied — it is
+   * unchanged, and its answer is the shipped `SECTION_ACCESS` default. A token minted before 0292
+   * has no `sections` key at all, so every consumer falls through to the defaults and behaves
+   * exactly as it did; that is what makes the rollout free of a window in which anyone loses access.
+   */
+  sections?: Partial<Record<AppSection, SectionAccess>>;
   /** Seconds since the epoch. Standard JWT claim, verified by `jose` along with the signature. */
   iat?: number;
 }
@@ -20,6 +29,17 @@ export interface AuthContext {
   email: string | null;
   orgId: string | null;
   role: UserRole | null;
+  /**
+   * The org's overrides for this caller's role, off the same verified JWT as the rest of this
+   * context (D-PERM2).
+   *
+   * OPTIONAL, and absence means "no overrides" — the shipped defaults — never "deny everything".
+   * That is the opposite reading from `issuedAt` below, and deliberately so: an absent freshness
+   * claim must fail closed because the gate's whole job is certainty, while an absent `sections`
+   * claim is the state of EVERY token in existence on the day migration 0292 applies. Failing
+   * closed here would lock the entire product out for one token lifetime.
+   */
+  sections?: Partial<Record<AppSection, SectionAccess>> | null;
   /**
    * When this token was minted, in seconds since the epoch — the basis for step-up re-authentication
    * (`middleware/requireFreshAuth.ts`). It comes off the SAME verified JWT as the rest of this
@@ -243,6 +263,7 @@ export const claimsToContext = (c: AuthClaims): AuthContext => ({
   email: c.email ?? null,
   orgId: c.org_id ?? null,
   role: c.user_role ?? null,
+  sections: c.sections ?? null,
   // Carried through verbatim: a number here is only ever one `jose` has already verified the
   // signature over, so nothing downstream has to trust the client about when it signed in.
   issuedAt: typeof c.iat === "number" ? c.iat : null,
@@ -357,3 +378,120 @@ export function filterRestrictedRows<T extends { kind: string }>(
 ): T[] {
   return rows.filter((r) => canReadRestrictedKind(r.kind, role));
 }
+
+// ── Per-org overrides of the matrix (D-PERM1, EDITABLE-PERMISSIONS-PLAN.md) ───
+
+/**
+ * The roles an organisation may edit. Seven of the nine, and the two exclusions are RULINGS rather
+ * than oversights (D-PERM7/D-PERM8, owner 2026-09-02):
+ *
+ *  · `admin` holds `manage` everywhere, permanently. Something has to be able to restore a matrix
+ *    that has been edited into a corner, and an admin who can revoke their own access is an org
+ *    locking itself out with no support path.
+ *  · `driver` is locked at `none`. `router/index.ts` redirects `role === "driver"` to the app before
+ *    any section check runs, so a section granted to a driver would be a permission that visibly
+ *    does nothing — the worst kind, because it reads as a product that lies.
+ *
+ * Derived by SUBTRACTION from `USER_ROLES` rather than hand-listed, so a role added to the product
+ * is editable by default and its exclusion has to be an explicit decision made here.
+ */
+export const UNEDITABLE_ROLES = ["admin", "driver"] as const satisfies readonly UserRole[];
+export const EDITABLE_ROLES: UserRole[] = USER_ROLES.filter(
+  (r) => !(UNEDITABLE_ROLES as readonly string[]).includes(r),
+);
+
+/**
+ * The sections an organisation may edit — every one except `admin`.
+ *
+ * `admin` carries user management, so granting it to another role is a privilege-escalation path
+ * the product does not have today, and an editable matrix must not invent one (D-PERM7). An org that
+ * wants a second administrator promotes a member to the `admin` ROLE on the Users page, which is
+ * audited and already exists.
+ */
+export const UNEDITABLE_SECTIONS = ["admin"] as const satisfies readonly AppSection[];
+export const EDITABLE_SECTIONS: AppSection[] = APP_SECTIONS.filter(
+  (s) => !(UNEDITABLE_SECTIONS as readonly string[]).includes(s),
+);
+
+export const isEditableRole = (role: string): role is UserRole =>
+  (EDITABLE_ROLES as string[]).includes(role);
+export const isEditableSection = (section: string): section is AppSection =>
+  (EDITABLE_SECTIONS as string[]).includes(section);
+
+/**
+ * One org's overrides, keyed `role` → `section` → access. SPARSE (D-PERM4): a pair with no entry is
+ * not denied, it is UNCHANGED, and its answer is the shipped default in `SECTION_ACCESS`.
+ *
+ * The sparseness is the whole design. A complete matrix would have to be stored somewhere, which
+ * means the database needing its own copy of the defaults, which means codegen and a drift gate to
+ * keep the copy equal to this file. Every consumer already holds the defaults: the API and the web
+ * hold `SECTION_ACCESS` at compile time, and SQL holds them as the `auth_role() = ANY (ARRAY[…])`
+ * list already written into each policy — lists `lint:section-policies` has checked against this
+ * matrix since 0260.
+ */
+export type SectionOverrides = Partial<Record<UserRole, Partial<Record<AppSection, SectionAccess>>>>;
+
+/**
+ * The access a role actually has, given an org's overrides. THE function every consumer asks; the
+ * bare `sectionAccess` above answers only "what does this role ship with".
+ *
+ * An override for an uneditable role or section is IGNORED rather than honoured. It cannot be
+ * written — the CHECK constraints in 0291 refuse it and the endpoint refuses it first — so reaching
+ * this branch means a row exists that should not, and the two locks must hold anyway. A resolver
+ * that trusted its input would turn a bad row into an escalation.
+ */
+export const effectiveSectionAccess = (
+  role: UserRole | null | undefined,
+  section: AppSection,
+  overrides: SectionOverrides | null | undefined,
+): SectionAccess => {
+  const shipped = sectionAccess(role, section);
+  if (!role || !overrides) return shipped;
+  if (!isEditableRole(role) || !isEditableSection(section)) return shipped;
+  return overrides[role]?.[section] ?? shipped;
+};
+
+/** One caller's overrides, already scoped to their role — the shape the JWT `sections` claim takes. */
+export type SectionClaim = Partial<Record<AppSection, SectionAccess>>;
+
+/**
+ * The access a CALLER actually has. THE function every request-time check asks, on both sides.
+ *
+ * It differs from `effectiveSectionAccess` only in its input: that one takes the whole-org
+ * `role → section → access` map an admin edits, this one takes the already-role-scoped claim off
+ * the caller's token. Two shapes, one rule — and the rule lives here once rather than being spelled
+ * out at each of the ~130 call sites that ask it.
+ *
+ * `claim` of `null` means "this token predates migration 0292" and resolves to the shipped default,
+ * NOT to denial. Every token in existence on the day 0292 applies is in that state, so the opposite
+ * reading would lock the whole product out for one token lifetime.
+ *
+ * The two locks are re-applied rather than trusted (D-PERM7/D-PERM8): a claim naming the `admin`
+ * section, or any claim at all for `admin`/`driver`, cannot be minted — the hook drops it, the
+ * endpoint refuses it and 0291's CHECK constraints refuse the row behind it — so seeing one here
+ * means something upstream is wrong, and honouring it would be an escalation rather than a bad read.
+ */
+export const resolveSectionAccess = (
+  role: UserRole | null | undefined,
+  section: AppSection,
+  claim: SectionClaim | null | undefined,
+): SectionAccess => {
+  const shipped = sectionAccess(role, section);
+  if (!role || !claim) return shipped;
+  if (!isEditableRole(role) || !isEditableSection(section)) return shipped;
+  return claim[section] ?? shipped;
+};
+
+/** Can this caller WRITE in the section, given their org's overrides? */
+export const callerCanManage = (
+  role: UserRole | null | undefined,
+  section: AppSection,
+  claim: SectionClaim | null | undefined,
+): boolean => resolveSectionAccess(role, section, claim) === "manage";
+
+/** Can this caller READ the section at all, given their org's overrides? */
+export const callerCanView = (
+  role: UserRole | null | undefined,
+  section: AppSection,
+  claim: SectionClaim | null | undefined,
+): boolean => resolveSectionAccess(role, section, claim) !== "none";

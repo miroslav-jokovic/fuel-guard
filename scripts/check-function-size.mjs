@@ -27,7 +27,6 @@ const MAX = 200; // hard ceiling for any NEW function span (raw lines, matching 
 // stage helpers (as scoreTransaction was) and remove the entry. They MAY NOT grow past the pinned size.
 const GRANDFATHERED = {
   "apps/api/src/modules/anomalies/declinedScoring.ts#scoreDeclinedAttempt": 230,
-  "apps/api/src/modules/insights/askData.ts#runTool": 212,
   "apps/api/src/modules/routing/fuelPlanning.ts#planFuelRoute": 210,
 };
 

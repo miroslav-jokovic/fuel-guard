@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { apiDownload } from "@/lib/api";
-import { useToastStore } from "@/stores/toast";
+import { computed } from "vue";
+import ExportButton from "@/components/ExportButton.vue";
 
 /**
  * Generate the fuel-spend report for whatever the page is currently filtered to.
@@ -12,11 +10,11 @@ import { useToastStore } from "@/stores/toast";
  * produce anything — even though the report covers those sections. The document is about the whole
  * page, so the control belongs beside the filters that define it.
  *
- * ── WHY IT NAMES ITS OWN SCOPE ──────────────────────────────────────────────────────────────────
- * The filter bar already controls the period and the trucks, and the export has always followed it —
- * but nothing SAID so, so a 90-day default read as "the report is stuck on three months" rather than
- * as "the filter is set to three months". The button states the range and the truck count it will use,
- * which turns an invisible coupling into an obvious one.
+ * ── WHAT IS LEFT HERE AFTER FUEL-P2 ─────────────────────────────────────────────────────────────
+ * Only the two things that are the spend REPORT's: its address, and the fact that its scope is a
+ * window plus a truck count. The button, the busy state, the toast and the scope line moved to
+ * `components/ExportButton.vue` when P2 put an export on five more surfaces — five near-identical
+ * controls is how a section grows five that look almost but not quite alike.
  */
 const props = defineProps<{
   /** Everything the server needs, already encoded — see `useSpendFilters.asQuery`. */
@@ -29,37 +27,21 @@ const props = defineProps<{
   disabled?: boolean;
 }>();
 
-const toast = useToastStore();
-const busy = ref(false);
-
 const days = computed(() =>
   Math.round((Date.parse(`${props.to}T00:00:00Z`) - Date.parse(`${props.from}T00:00:00Z`)) / 86_400_000) + 1,
 );
 const scope = computed(
   () => `${props.from} → ${props.to} · ${days.value} days · ${props.truckCount === 0 ? "all trucks" : `${props.truckCount} truck${props.truckCount === 1 ? "" : "s"}`}`,
 );
-
-async function run() {
-  if (busy.value) return;
-  busy.value = true;
-  try {
-    await apiDownload(
-      `/api/fueling/spend-report.pdf?${props.query}`,
-      `fuelguard-fuel-spend-${props.from}-to-${props.to}.pdf`,
-    );
-  } catch (e) {
-    toast.error("Could not build the report", e instanceof Error ? e.message : undefined);
-  } finally {
-    busy.value = false;
-  }
-}
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
-    <span class="hidden text-2xs text-ink-tertiary sm:inline">{{ scope }}</span>
-    <BaseButton variant="secondary" :disabled="disabled || busy" @click="run">
-      {{ busy ? "Building…" : "Export report" }}
-    </BaseButton>
-  </div>
+  <ExportButton
+    :href="`/api/fueling/spend-report.pdf?${query}`"
+    :filename="`fuelguard-fuel-spend-${from}-to-${to}.pdf`"
+    :scope="scope"
+    label="Export report"
+    variant="secondary"
+    :disabled="disabled"
+  />
 </template>

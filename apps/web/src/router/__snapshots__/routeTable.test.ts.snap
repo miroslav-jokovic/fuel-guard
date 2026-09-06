@@ -239,19 +239,14 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/ifta",
   },
   {
-    "name": "accounting",
+    "name": "fleet-report",
     "params": {},
-    "url": "/accounting",
+    "url": "/fleet-report",
   },
   {
-    "name": "cpm",
+    "name": "",
     "params": {},
     "url": "/cpm",
-  },
-  {
-    "name": "cost-schedule",
-    "params": {},
-    "url": "/cost-schedule",
   },
   {
     "name": "billing",
@@ -291,17 +286,17 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/fuel-exceptions",
   },
   {
-    "name": "import",
+    "name": "",
     "params": {},
     "url": "/import",
   },
   {
-    "name": "transactions",
+    "name": "",
     "params": {},
     "url": "/transactions",
   },
   {
-    "name": "rejections",
+    "name": "",
     "params": {},
     "url": "/rejections",
   },
@@ -351,6 +346,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "name": "users",
     "params": {},
     "url": "/settings/users",
+  },
+  {
+    "name": "permissions",
+    "params": {},
+    "url": "/settings/permissions",
   },
   {
     "name": "thresholds",
@@ -450,19 +450,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "allowNoOrg": true,
       "layout": "auth",
-      "requiresAuth": true,
+      "public": true,
     },
     "name": "accept-invite",
     "path": "/accept-invite",
-    "redirect": null,
-  },
-  {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Money in & out",
-    },
-    "name": "accounting",
-    "path": "/accounting",
     "redirect": null,
   },
   {
@@ -506,7 +497,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Revenue & margin",
+      "title": "Invoices",
     },
     "name": "billing",
     "path": "/billing",
@@ -529,15 +520,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
-      "requiresAuth": true,
-      "title": "Truck fixed costs",
-    },
-    "name": "cost-schedule",
-    "path": "/cost-schedule",
-    "redirect": null,
-  },
-  {
-    "meta": {
       "parent": "/settings",
       "requiresAuth": true,
       "title": "Detection Coverage",
@@ -547,13 +529,12 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Cost per mile",
-    },
-    "name": "cpm",
+    "meta": {},
+    "name": "",
     "path": "/cpm",
-    "redirect": null,
+    "redirect": {
+      "name": "fleet-report",
+    },
   },
   {
     "meta": {},
@@ -617,6 +598,15 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
+      "title": "Fleet report",
+    },
+    "name": "fleet-report",
+    "path": "/fleet-report",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
       "title": "Fuel Cards",
     },
     "name": "fuel-cards",
@@ -672,7 +662,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "requiresManage": "fuel",
       "title": "Fuel Spend",
     },
     "name": "fuel-spend",
@@ -760,14 +749,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "requiresManage": "fuel",
-      "title": "Import EFS Report",
-    },
-    "name": "import",
+    "meta": {},
+    "name": "",
     "path": "/import",
-    "redirect": null,
+    "redirect": "/fuel-log",
   },
   {
     "meta": {
@@ -791,7 +776,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "requiresManage": "dispatch",
       "title": "New Load",
     },
     "name": "load-new",
@@ -915,13 +899,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Rejections",
-    },
-    "name": "rejections",
+    "meta": {},
+    "name": "",
     "path": "/rejections",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {
@@ -936,7 +917,6 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "requiresManage": "settings",
       "title": "Settings",
     },
     "name": "settings",
@@ -969,7 +949,6 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/settings",
       "requiresAuth": true,
-      "requiresManage": "settings",
       "title": "Data & Sync",
     },
     "name": "data-sync",
@@ -980,7 +959,6 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/settings",
       "requiresAuth": true,
-      "requiresManage": "roster",
       "title": "Driver App",
     },
     "name": "driver-app-settings",
@@ -1040,6 +1018,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "org-settings",
     "path": "/settings/org",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Permissions",
+    },
+    "name": "permissions",
+    "path": "/settings/permissions",
     "redirect": null,
   },
   {
@@ -1113,13 +1102,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Transactions",
-    },
-    "name": "transactions",
+    "meta": {},
+    "name": "",
     "path": "/transactions",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { INSPECTION_ITEMS } from "@silvicom/shared";
+import { INSPECTION_GROUPS, INSPECTION_ITEMS } from "@silvicom/shared";
 import {
   CHECKBOX_CELLS,
+  CHECKBOX_SIZE,
   HEADER_CELLS,
   MAPPED_ITEM_COUNT,
   OTHER_CONDITIONS_LINES,
@@ -12,6 +13,11 @@ import {
   mappedItemKeys,
   type Cell,
 } from "./layouts/keller14834Rev0122.js";
+import {
+  COLUMN_GROUP_BOUNDS,
+  GROUP_HEADINGS,
+  HEADING_SIZE,
+} from "./layouts/keller14834Rev0122Artwork.js";
 
 /**
  * The coordinate map, checked as four properties rather than looked at (plan step A5).
@@ -22,10 +28,18 @@ import {
  * §2.5 caught only by measuring. So the acceptance criteria are measurements.
  */
 
-const font = await (async () => {
+const { font, bold } = await (async () => {
   const doc = await PDFDocument.create();
-  return doc.embedFont(StandardFonts.Helvetica);
+  return {
+    font: await doc.embedFont(StandardFonts.Helvetica),
+    bold: await doc.embedFont(StandardFonts.HelveticaBold),
+  };
 })();
+
+/** Which printed column a cell is in — the three groups start at 18 / 210 / 402. */
+const COLUMN_STARTS = [18, 210, 402];
+const columnOf = (x: number) =>
+  COLUMN_STARTS.findIndex((start, i) => x >= start && x < (COLUMN_STARTS[i + 1] ?? 594));
 
 describe("1. bijection — the map and the catalogue cover each other exactly", () => {
   it("has a cell for every catalogue component", () => {
@@ -131,6 +145,101 @@ describe("2. fit — every realistic value fits the box it is printed into", () 
   });
 });
 
+describe("2b. the section bands the template export lost (D-AVI22, remeasured 2026-09-01)", () => {
+  /**
+   * The blank in `assets/` dropped all sixteen coloured heading bands and left fifteen white
+   * heading strings on white paper, so the renderer draws band and title both. What has to stay
+   * true is that there is one per section, that each band spans its own printed column group, that
+   * the title is concentric with the band it is knocked out of, and that neither lands on an item
+   * row. None of that is visible on a rendered page: a heading half a point low still reads.
+   */
+  const titleOf = (n: number) =>
+    (INSPECTION_GROUPS.find((g) => g.number === n)?.title ?? "Other").toUpperCase();
+
+  it("covers all sixteen of the form's sections exactly once", () => {
+    const numbers = GROUP_HEADINGS.map((h) => h.number);
+    expect(numbers).toEqual([...Array(16)].map((_, i) => i + 1));
+    expect(new Set(numbers).size).toBe(16);
+  });
+
+  it("names every catalogue group, and only leaves 16 to the form's own OTHER box", () => {
+    // If a group is ever added to the catalogue without a heading position, this fails rather than
+    // printing a column of items under nothing — which is the defect that started this.
+    for (const group of INSPECTION_GROUPS) {
+      expect(GROUP_HEADINGS.find((h) => h.number === group.number), group.title).toBeTruthy();
+    }
+    expect(INSPECTION_GROUPS.find((g) => g.number === 16)).toBeUndefined();
+  });
+
+  it("puts each heading inside the printed column its items are in", () => {
+    // A heading in the wrong column would read as a section that has migrated across the page.
+    for (const heading of GROUP_HEADINGS) {
+      const column = columnOf(heading.numberX);
+      expect(column, `heading ${heading.number}`).toBe(heading.column);
+      for (const item of INSPECTION_ITEMS.filter((i) => i.group === heading.number)) {
+        expect(columnOf(cellsFor(item.key)!.ok.x), `${item.key} vs heading ${heading.number}`).toBe(column);
+      }
+    }
+  });
+
+  it("spans its column group edge to edge, at the 12 pt the form's own rules measure", () => {
+    // The band runs across the OK / NEEDS REPAIR / REPAIRED DATE boxes as well as ITEM — that is
+    // what the pair of full-group-width rules per section measures, and what the office's filed
+    // report shows. A band drawn over the ITEM column alone leaves three white notches.
+    for (const heading of GROUP_HEADINGS) {
+      const [x0, x1] = COLUMN_GROUP_BOUNDS[heading.column]!;
+      expect(heading.x0, `heading ${heading.number}`).toBe(x0);
+      expect(heading.x1, `heading ${heading.number}`).toBe(x1);
+      expect(heading.height).toBe(12);
+    }
+  });
+
+  it("centres the title in its band, so the ink cannot sit off the colour", () => {
+    for (const heading of GROUP_HEADINGS) {
+      const capTop = heading.baseline - 0.717 * HEADING_SIZE;
+      expect(capTop, `heading ${heading.number} rides above its band`).toBeGreaterThan(heading.top);
+      expect(heading.baseline, `heading ${heading.number} drops below its band`).toBeLessThan(
+        heading.top + heading.height,
+      );
+      // Concentric to within a quarter point: the type's optical centre against the band's.
+      const typeCentre = (capTop + heading.baseline) / 2;
+      expect(typeCentre - (heading.top + heading.height / 2), `heading ${heading.number}`).toBeLessThan(0.25);
+    }
+  });
+
+  it("clears the first item it introduces, and the row above it", () => {
+    for (const heading of GROUP_HEADINGS) {
+      const rows = INSPECTION_ITEMS.filter((i) => i.group === heading.number).map(
+        (i) => cellsFor(i.key)!.ok.y,
+      );
+      const first = rows.sort((a, b) => a - b)[0];
+      if (first !== undefined) {
+        expect(heading.top + heading.height, `heading ${heading.number}`).toBeLessThanOrEqual(first);
+      }
+    }
+  });
+
+  it("leaves the fixed tab between a number and its title, one digit or two", () => {
+    // Keller's own operators: `1.388/1.389 0 Td` for a one-digit number, `1.735 0 Td` for two, at
+    // 8.64 pt. That is why `1.  BRAKE SYSTEM` carries a visibly wide gap and `16. OTHER` does not.
+    for (const heading of GROUP_HEADINGS) {
+      const tab = heading.titleX - heading.numberX;
+      expect(tab, `heading ${heading.number}`).toBeCloseTo(heading.number >= 10 ? 14.99 : 12.0, 1);
+      // ...and the number never runs into the title it labels.
+      const numberWidth = bold.widthOfTextAtSize(`${heading.number}.`, HEADING_SIZE);
+      expect(heading.numberX + numberWidth, `heading ${heading.number}`).toBeLessThanOrEqual(heading.titleX);
+    }
+  });
+
+  it("fits number and title inside the band, at the size Keller sets them", () => {
+    for (const heading of GROUP_HEADINGS) {
+      const end = heading.titleX + bold.widthOfTextAtSize(titleOf(heading.number), HEADING_SIZE);
+      expect(heading.numberX, `heading ${heading.number}`).toBeGreaterThanOrEqual(heading.x0);
+      expect(end, `heading ${heading.number}`).toBeLessThanOrEqual(heading.x1);
+    }
+  });
+});
+
 describe("3. no collision — nothing prints on top of anything else", () => {
   const rect = (c: Cell) => ({ x0: c.x, x1: c.x + c.maxWidth, y: c.y });
 
@@ -162,6 +271,43 @@ describe("3. no collision — nothing prints on top of anything else", () => {
     expect(L.firstY + (L.lines - 1) * L.lineHeight).toBeLessThan(PAGE_HEIGHT);
     // ...and clear of the instructions strip at the foot of the grid.
     expect(L.firstY + (L.lines - 1) * L.lineHeight).toBeLessThan(775);
+  });
+
+  /**
+   * ── THE OLD ASSERTION HERE WAS TRUE OF EVERY WRONG ANSWER ────────────────────────────────────
+   * It only checked that no two tick boxes shared a position, which three boxes 18, 21 and 5 pt off
+   * their artwork satisfied perfectly. So a plate-identified report struck out the words "LIC.", an
+   * other-identified one struck out "OTHER", and every trailer report struck out "TRAILER" — with
+   * all three printed boxes left empty. What is asserted now is the thing that was wrong: the mark
+   * lands INSIDE the rectangle Keller drew.
+   */
+  const ARTWORK_BOXES = {
+    qualifiedYes: [316.75, 652.442],
+    identificationPlate: [451.75, 638.302],
+    identificationVin: [523.75, 638.302],
+    identificationOther: [552.75, 638.302],
+    vehicleTypeTractor: [71.25, 614.302],
+    vehicleTypeTrailer: [123.25, 614.302],
+  } as const;
+
+  it("puts every tick box on the rectangle the template actually draws", () => {
+    // Read out of the blank's own content stream — these are `re` operators, not a reading of a
+    // scan, so a drift here is a coordinate that stopped matching the paper.
+    for (const [name, [x, pdfBottom]] of Object.entries(ARTWORK_BOXES)) {
+      const box = CHECKBOX_CELLS[name as keyof typeof CHECKBOX_CELLS];
+      expect(box.x, `${name} x`).toBeCloseTo(x, 2);
+      expect(box.y, `${name} y`).toBeCloseTo(PAGE_HEIGHT - pdfBottom - CHECKBOX_SIZE, 2);
+    }
+    expect(Object.keys(CHECKBOX_CELLS).sort()).toEqual(Object.keys(ARTWORK_BOXES).sort());
+  });
+
+  it("keeps the drawn X inside the 5.5 pt box, horizontally and vertically", () => {
+    // An 8 pt Helvetica cap is 5.74 pt against a 5.5 pt box, so it overhangs by 0.12 pt top and
+    // bottom by design — anything more than a quarter point is the mark sitting on the rule.
+    const glyph = font.widthOfTextAtSize("X", 8);
+    expect(glyph, "an X wider than its box would strike the neighbouring label").toBeLessThan(CHECKBOX_SIZE);
+    const overhang = (0.717 * 8 - CHECKBOX_SIZE) / 2;
+    expect(overhang).toBeLessThan(0.25);
   });
 
   it("gives every tick box its own position", () => {

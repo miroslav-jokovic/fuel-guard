@@ -122,5 +122,7 @@ ok("nor we theirs", byDay["2026-08-03"].quoted_sites === 0);
 const nobody = await all(`select * from fuel_price_coverage('2026-08-01'::date,'2026-08-07'::date, null)`);
 ok("no org means no rows — it fails closed, like fuel_spend_lines", nobody.every((r) => r.quoted_sites === 0));
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

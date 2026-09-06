@@ -13,6 +13,13 @@ import { scoreImportWithCascade } from "../../anomalies/index.js";
 import { scoreDeclinedImport } from "../../anomalies/index.js";
 import { ingestReject } from "./efsIngestReject.js";
 import {
+  guardNumeric,
+  recordImportRejects,
+  upsertRowsIsolatingFailures,
+  type NulledField,
+  type RejectedRow,
+} from "./efsIngestRejects.js";
+import {
   loc,
   emptyResult,
   existingRefs,
@@ -149,8 +156,9 @@ async function persistEfsTransactionLines(
   orgId: string,
   importId: string,
   allLines: EfsTransactionLine[],
-): Promise<void> {
-  if (!allLines.length) return;
+  nulled: NulledField[],
+): Promise<RejectedRow[]> {
+  if (!allLines.length) return [];
   const efsRows = allLines.map((l) => ({
     org_id: orgId,
     import_id: importId,
@@ -170,7 +178,9 @@ async function persistEfsTransactionLines(
     hubometer: l.hubometer,
     trip: l.trip,
     subfleet: l.subfleet,
-    odometer: l.odometer,
+    // The faithful store's column is numeric(10,1) too, so an eleven-digit keypad odometer cannot
+    // be kept "faithfully" here — it is kept on import_rows.raw instead, by guardNumeric's record.
+    odometer: guardNumeric("odometer", l.odometer, l.external_ref, nulled),
     location_name: l.location_name,
     city: l.city,
     state: l.state,
@@ -182,10 +192,9 @@ async function persistEfsTransactionLines(
     db: l.db,
     currency: l.currency,
   }));
-  const { error } = await admin
-    .from("efs_transactions")
-    .upsert(efsRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
-  if (error) throw new Error(error.message);
+  return upsertRowsIsolatingFailures(efsRows, (rows) =>
+    admin.from("efs_transactions").upsert(rows, { onConflict: "org_id,external_ref", ignoreDuplicates: true }),
+  );
 }
 
 async function persistFuelTransactionRows(
@@ -198,21 +207,29 @@ async function persistFuelTransactionRows(
   toEnrich: IdentifiableFuelLine[],
   knownIdentities: Map<string, KnownTxnIdentity>,
   contentMatches: { line: ContentIdentifiableFuelLine; existing: KnownTxnIdentity }[],
-): Promise<{ enriched: number; scoreError: string | null }> {
+  nulled: NulledField[],
+): Promise<{ enriched: number; scoreError: string | null; rejected: RejectedRow[] }> {
   const enriched =
     (await enrichExistingFills(admin, toEnrich, knownIdentities)) +
     (await enrichContentMatches(admin, contentMatches));
-  if (!toInsert.length) return { enriched, scoreError: null };
+  if (!toInsert.length) return { enriched, scoreError: null, rejected: [] };
   const fuelRows = toInsert.map((l) => ({
     org_id: input.orgId,
     vehicle_id: l.vehicle_id,
     driver_id: l.driver_id,
     fueled_at: l.fueled_at,
     fueled_at_precision: l.fueled_at_precision,
-    odometer: l.odometer,
+    // Advisory columns are guarded, the fact columns are not: gallons and dollars ARE the fill,
+    // and a value there that Postgres refuses is a reject worth reading, not a field worth nulling.
+    odometer: guardNumeric("odometer", l.odometer, l.external_ref, nulled),
     gallons: l.gallons,
     total_cost: l.total_cost,
-    price_per_gal: l.price_per_gal ?? derivePricePerGal(l.gallons, l.total_cost),
+    price_per_gal: guardNumeric(
+      "price_per_gal",
+      l.price_per_gal ?? derivePricePerGal(l.gallons, l.total_cost),
+      l.external_ref,
+      nulled,
+    ),
     location_text: loc(l.location_text, l.city, l.state),
     city: l.city,
     state: l.state,
@@ -225,15 +242,14 @@ async function persistFuelTransactionRows(
     import_id: importId,
     entered_by: input.requestedBy,
   }));
-  const { error } = await admin
-    .from("fuel_transactions")
-    .upsert(fuelRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
-  if (error) throw new Error(error.message);
+  const rejected = await upsertRowsIsolatingFailures(fuelRows, (rows) =>
+    admin.from("fuel_transactions").upsert(rows, { onConflict: "org_id,external_ref", ignoreDuplicates: true }),
+  );
   try {
     await deps.scoreImport(admin, env, input.orgId, importId);
-    return { enriched, scoreError: null };
+    return { enriched, scoreError: null, rejected };
   } catch (e) {
-    return { enriched, scoreError: e instanceof Error ? e.message : String(e) };
+    return { enriched, scoreError: e instanceof Error ? e.message : String(e), rejected };
   }
 }
 
@@ -248,9 +264,10 @@ async function persistTransactionRows(
   toEnrich: IdentifiableFuelLine[],
   knownIdentities: Map<string, KnownTxnIdentity>,
   contentMatches: { line: ContentIdentifiableFuelLine; existing: KnownTxnIdentity }[],
-): Promise<{ enriched: number; scoreError: string | null }> {
-  await persistEfsTransactionLines(admin, input.orgId, importId, allLines);
-  return persistFuelTransactionRows(
+): Promise<{ enriched: number; scoreError: string | null; rejectedRows: number }> {
+  const nulled: NulledField[] = [];
+  const rejectedLines = await persistEfsTransactionLines(admin, input.orgId, importId, allLines, nulled);
+  const { enriched, scoreError, rejected } = await persistFuelTransactionRows(
     admin,
     env,
     input,
@@ -260,7 +277,10 @@ async function persistTransactionRows(
     toEnrich,
     knownIdentities,
     contentMatches,
+    nulled,
   );
+  await recordImportRejects(admin, input.orgId, importId, [...rejectedLines, ...rejected], nulled);
+  return { enriched, scoreError, rejectedRows: rejectedLines.length + rejected.length };
 }
 
 // Re-exported so existing callers/tests keep importing from efsIngest.js (the split is internal).
@@ -392,7 +412,7 @@ async function ingestTransaction(
     throw e;
   }
 
-  const { enriched, scoreError } = await persistTransactionRows(
+  const { enriched, scoreError, rejectedRows } = await persistTransactionRows(
     admin,
     env,
     input,
@@ -434,5 +454,6 @@ async function ingestTransaction(
     reportTo: span.to,
     shortfallRows,
     scoreError,
+    rejectedRows,
   };
 }

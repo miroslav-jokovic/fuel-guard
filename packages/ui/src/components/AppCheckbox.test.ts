@@ -22,12 +22,26 @@ describe("AppCheckbox layout contract", () => {
     expect(cls).not.toContain("inline-flex");
   });
 
+  /**
+   * ⚠ This assertion previously read `mt-2.5`, and pinned a bug rather than a contract.
+   *
+   * The reasoning behind that value took where `min-h-9 items-center` had put the box — centred in
+   * the 36px ROW — and kept the offset after the switch to `items-start`. But `items-start` moves
+   * the LABEL to the top of the row too, so the box was aligned against a position the text no
+   * longer occupied, and sat 8px below its own label on every page that stacks options. A class
+   * assertion cannot see that; it was measured in the design-system lab, where the checkbox now
+   * appears for exactly this reason: first line top 1px, height 18px, centre 10px, so a 16px box
+   * starts at 2px.
+   *
+   * The number is asserted rather than the alignment because a unit test has no layout. The lab is
+   * where the claim is checked; this is what stops it silently drifting back.
+   */
   it("aligns the box to the first line, not the middle of a wrapped label", () => {
     const cls = mountBox().find("label").classes();
     expect(cls).toContain("items-start");
     expect(cls).not.toContain("items-center");
-    // …and the box keeps the vertical position `min-h-9 items-center` gave it on one line.
-    expect(mountBox().find("input").classes()).toContain("mt-2.5");
+    expect(mountBox().find("input").classes()).toContain("mt-0.5");
+    expect(mountBox().find("input").classes()).not.toContain("mt-2.5");
   });
 
   it("never lets a long label squeeze the box", () => {

@@ -15,8 +15,22 @@
  * inline inside running text.
  *
  * The box aligns to the FIRST LINE rather than to the middle of a wrapped label — `items-start`
- * plus `mt-2.5`, which reproduces exactly where `min-h-9 items-center` put it on a single line
- * (36px row, 16px box → 10px) while keeping it beside the first line when the label wraps.
+ * plus a 2px nudge.
+ *
+ * ── WHY 2px AND NOT 10px (measured 2026-09-02) ─────────────────────────────────────────────────
+ * This carried `mt-2.5` (10px) and the comment justifying it reasoned from the wrong box: it took
+ * where `min-h-9 items-center` had put the checkbox — centred in the 36px ROW — and kept that
+ * offset after switching to `items-start`. But `items-start` moves the LABEL to the top of the row
+ * too, so the box was being aligned against a position the text no longer occupies. The result was
+ * a checkbox sitting 8px below its own label on every page that stacks options.
+ *
+ * Measured in the design-system lab rather than derived: label first line top 1px, height 18px, so
+ * its centre is at 10px; a 16px box must therefore start at 2px. Confirmed 0px on all three lab
+ * variants — checked, unchecked, and a label that wraps.
+ *
+ * ⚠ `min-h-9` stays and is not dead space: it is the 36px touch target, and with `items-start` the
+ * content sits at the top of it rather than floating in the middle, which is what a wrapped label
+ * needs. Removing it shrinks every option row below the tap minimum.
  */
 defineOptions({ inheritAttrs: false });
 withDefaults(defineProps<{ modelValue?: boolean; label?: string; disabled?: boolean }>(), {
@@ -34,7 +48,7 @@ const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
       type="checkbox"
       :checked="modelValue"
       :disabled="disabled"
-      class="mt-2.5 size-4 shrink-0 rounded-detail border-edge-control accent-action-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-60"
+      class="mt-0.5 size-4 shrink-0 rounded-detail border-edge-control accent-action-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-60"
       @change="emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
     />
     <span v-if="label"

@@ -18,7 +18,14 @@
 export { tmsIngestRouter } from "./routes/tmsIngest.js";
 export { tmsRosterMasterRouter } from "./routes/tmsRosterMaster.js";
 export { isTmsRosterMaster } from "./rosterMastery.js";
-export { getTmsIntegrationStatus, enableTmsIntegration, disableTmsIntegration } from "./tmsIngest.js";
+export {
+  getTmsIntegrationStatus,
+  enableTmsIntegration,
+  disableTmsIntegration,
+  stampFinancialSynced,
+  readFinancialSyncedAt,
+  FINANCIAL_PROVIDER,
+} from "./tmsIngest.js";
 export { registerMcleodIntegrationRoutes } from "./routes/integration.js";
 export {
   readSettlementsWindow,
@@ -30,6 +37,10 @@ export {
   type StagedOfficeLine,
   type StagedDeduction,
   readLedgerTotals,
+  readLedgerTotalsRange,
+  readBilledMilesByDeliveryMonth,
+  readSweptMonths,
+  type SweptMonth,
   readGlAccounts,
   readMovementsWindow,
   type StagedMovement,

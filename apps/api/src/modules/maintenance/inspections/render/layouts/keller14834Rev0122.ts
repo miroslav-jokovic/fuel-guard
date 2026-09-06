@@ -29,6 +29,36 @@ export const PAGE_HEIGHT = 846;
 
 export const TEMPLATE_REVISION = "jjkeller-14834-rev-1-22";
 
+
+/**
+ * What the blank in `assets/` ACTUALLY CARRIES — the switch the artwork restoration hangs off.
+ *
+ * The renderer used to decide this by believing a comment. That is how a heading came to be drawn
+ * in black on a page whose original has it in white on red: the belief ("Keller knocks the headings
+ * out for its own pad") was wrong, nothing could contradict it, and the output was defensible only
+ * against the belief.
+ *
+ * So it is a declared fact instead, and `../assets.test.ts` reads the PDF and fails the build when
+ * the file and this table stop agreeing. Swap in a clean export and the test tells you which lines
+ * to flip; flip them and the renderer stops drawing what the page already has, rather than
+ * double-printing it.
+ *
+ * Every `false` below is a loss measured in the file itself, not a preference — see
+ * `keller14834Rev0122Artwork.ts` for what each one costs and where the replacement is measured.
+ */
+export const TEMPLATE_SUPPLIES = {
+  /** The sixteen coloured bands the section headings are knocked out of. */
+  headingBands: false,
+  /** The heading text itself. Fifteen survive, painted white; `1. BRAKE SYSTEM` does not exist. */
+  headingTitles: false,
+  /** The `OK` label above the first ruled column, in all three groups. */
+  okColumnHeader: false,
+  /** The ✓ inside `VEHICLE IDENTIFICATION (✓ AND COMPLETE)`. */
+  identificationTick: false,
+  /** The ✓ / X / NA marks on the INSTRUCTIONS legend. */
+  legendMarks: false,
+} as const;
+
 export interface Cell {
   /** Left edge, in PDF points from the left of the page. */
   readonly x: number;
@@ -187,32 +217,120 @@ export function mappedItemKeys(): string[] {
  * — simpler, and one fewer pdf-lib behaviour to depend on.
  */
 export const HEADER_CELLS = {
-  decalSerial: { x: 389.2, y: 125.8, maxWidth: 96 },
-  fleetUnitNumber: { x: 519.7, y: 125.8, maxWidth: 82 },
-  inspectedOn: { x: 447.2, y: 144.7, maxWidth: 100 },
+  decalSerial: { x: 385.7, y: 125.1, maxWidth: 96 },
+  fleetUnitNumber: { x: 515.5, y: 125.7, maxWidth: 82 },
+  inspectedOn: { x: 448.2, y: 146.0, maxWidth: 100 },
   inspectorName: { x: 440.7, y: 175.8, maxWidth: 160 },
   carrierName: { x: 24.3, y: 174.1, maxWidth: 300 },
   carrierAddress: { x: 24.3, y: 198.6, maxWidth: 300 },
   carrierCityStateZip: { x: 23.3, y: 222.5, maxWidth: 300 },
-  vehicleIdentificationValue: { x: 324.0, y: 221.9, maxWidth: 180 },
+  vehicleIdentificationValue: { x: 331.6, y: 222.5, maxWidth: 180 },
   inspectionAgencyLocation: { x: 447.0, y: 233.0, maxWidth: 158 },
 } as const satisfies Record<string, Cell>;
 
 /**
- * The tick boxes, each a small `X` at the box's own position from the sample.
+ * ── FOUR OF THESE MOVED 2026-08-31, AND THE REASON IS WHICH SAMPLE THEY CAME FROM ──────────────
+ * The map was measured against `654 6-26`, which the owner later found to be a damaged export. The
+ * carrier block matched the office's own filled trailer report (`535968 8-26`) to two decimal places
+ * — 24.29/174.07, 24.29/198.55, 23.29/222.53 — but four cells did not, because they had been
+ * inferred from artwork rather than read off a filled page:
+ *
+ * | cell | was | is | drift |
+ * | --- | --- | --- | --- |
+ * | decalSerial | 389.2, 125.8 | 385.7, 125.1 | 3.5 pt right, 0.7 low |
+ * | fleetUnitNumber | 519.7, 125.8 | 515.5, 125.7 | 4.2 pt right |
+ * | inspectedOn | 447.2, 144.7 | 448.2, 146.0 | 1.0 left, 1.3 high |
+ * | vehicleIdentificationValue | 324.0, 221.9 | 331.6, 222.5 | 7.6 pt left |
+ *
+ * The two files were confirmed to share a coordinate system before anything moved: the "VEHICLE
+ * COMPONENTS INSPECTED" bar renders at exactly y 252.96–264.72, x 18.00–593.76 in both at 300 dpi.
+ */
+
+/**
+ * The per-field type sizes, measured off the office's own filled report rather than chosen.
+ *
+ * Everything used to print at one size — 10 pt — which is why the top of the page read as small and
+ * thin next to the form's own artwork. What the office actually types (`535968 8-26`):
+ *
+ *   · the carrier block is **Helvetica-Bold at 12.085 pt**, read straight out of the AcroForm field's
+ *     appearance stream (`/HeBo 12.085 Tf`) — so bold is not a preference here, it is what the page
+ *     has always carried;
+ *   · the top-right block is far bigger than the rest: the decal serial and the fleet unit number
+ *     both advance 9.00 pt per digit, which for Helvetica's 0.556 em digit is **16.2 pt**, and
+ *     "GEORGE" measures 72.74 pt across six caps summing 4.39 em, which is **16.6 pt**;
+ *   · the date advances 39.01 pt over 3.614 em, which is **10.8 pt**;
+ *   · the VIN is the one value the office prints SMALL — 75.32 pt over 9.788 em, about **7.7 pt** —
+ *     because seventeen characters have to sit inside the identification box.
+ *
+ * Rounded to the nearest half point. `fit()` still shrinks anything that would overrun its cell, so
+ * these are opening sizes and not promises.
+ */
+export const HEADER_SIZES = {
+  decalSerial: 16,
+  fleetUnitNumber: 16,
+  inspectedOn: 11,
+  inspectorName: 16,
+  carrierName: 12,
+  carrierAddress: 12,
+  carrierCityStateZip: 12,
+  vehicleIdentificationValue: 9,
+  inspectionAgencyLocation: 8,
+} as const satisfies Record<keyof typeof HEADER_CELLS, number>;
+
+/**
+ * The tick boxes — each one the artwork's OWN rectangle, not a guess at where it looks like it is.
+ *
+ * ── THREE OF THESE WERE PRINTING ON TOP OF THE LABEL, 2026-09-01 ───────────────────────────────
+ * The earlier positions were inferred rather than read, and the only assertion on them — "gives
+ * every tick box its own position" in `../layout.test.ts` — checked that no two of them collided
+ * with EACH OTHER, which every wrong answer also satisfies. The page draws its nine boxes as plain
+ * `re` operators, so they can simply be read out:
+ *
+ * | box | artwork (x, y, 5.5 × 5.5) | was stamped at | drift |
+ * | --- | --- | --- | --- |
+ * | §396.19 YES | 316.75, 652.442 | 318.9 | 2.2 pt right, 1.5 low |
+ * | LIC. PLATE NO. | 451.75, 638.302 | 470.0 | **18.3 pt right — on the word "LIC."** |
+ * | VIN | 523.75, 638.302 | 524.3 | 0.6 right, 1.5 low |
+ * | OTHER | 552.75, 638.302 | 574.0 | **21.3 pt right — inside the word "OTHER"** |
+ * | TRACTOR | 71.25, 614.302 | 70.9 | 0.4 left, 1.5 low |
+ * | TRAILER | 123.25, 614.302 | 128.0 | **4.8 pt right — on the word "TRAILER"** |
+ *
+ * So a plate-identified report and an other-identified report each printed their only vehicle-ID
+ * mark across a printed label with all three boxes left empty, and EVERY trailer report struck out
+ * the word it was meant to be ticking. Rendered and read at 300 dpi before and after.
+ *
+ * Pinned now by "puts every tick box on the rectangle the template actually draws" and "keeps the
+ * drawn X inside the 5.5 pt box, horizontally and vertically", both in `../layout.test.ts`.
+ *
+ * The remaining three boxes on the same rows — TRUCK 171.25, BUS 213.25 and the (OTHER) vehicle
+ * type at 71.25, 602.442 — are recorded here rather than in code because §396.17 subjects are
+ * tractors and trailers only (D-AVI12); a fleet that grows a bus needs the catalogue changed, not
+ * a coordinate.
  *
  * `qualifiedYes` is the §396.19 assertion, and the renderer stamps it ONLY from the inspector's
- * register row rather than from an argument — see render.ts. A boolean parameter here is exactly how
- * a derived legal claim turns back into a typed one.
+ * register row rather than from an argument — see report.ts. A boolean parameter here is exactly
+ * how a derived legal claim turns back into a typed one.
  */
+export const CHECKBOX_SIZE = 5.5;
+
+export interface TickBox {
+  /** Left edge, in points from the left of the page. */
+  readonly x: number;
+  /** Top-down distance to the box's TOP edge — the box, not a baseline. */
+  readonly y: number;
+}
+
+const boxAt = (x: number, pdfBottom: number): TickBox => ({ x, y: PAGE_HEIGHT - pdfBottom - CHECKBOX_SIZE });
+
 export const CHECKBOX_CELLS = {
-  qualifiedYes: { x: 318.9, y: 194.5, maxWidth: 8 },
-  identificationPlate: { x: 470.0, y: 210.3, maxWidth: 8 },
-  identificationVin: { x: 524.3, y: 210.3, maxWidth: 8 },
-  identificationOther: { x: 574.0, y: 210.3, maxWidth: 8 },
-  vehicleTypeTractor: { x: 70.9, y: 235.0, maxWidth: 8 },
-  vehicleTypeTrailer: { x: 128.0, y: 235.0, maxWidth: 8 },
-} as const satisfies Record<string, Cell>;
+  qualifiedYes: boxAt(316.75, 652.442),
+  identificationPlate: boxAt(451.75, 638.302),
+  identificationVin: boxAt(523.75, 638.302),
+  identificationOther: boxAt(552.75, 638.302),
+  vehicleTypeTractor: boxAt(71.25, 614.302),
+  vehicleTypeTrailer: boxAt(123.25, 614.302),
+} as const satisfies Record<string, TickBox>;
+
 
 /** Which tick box a subject type lights up (D-AVI12 — one template, both kinds of equipment). */
 export const VEHICLE_TYPE_BOX: Record<InspectionSubjectType, keyof typeof CHECKBOX_CELLS> = {

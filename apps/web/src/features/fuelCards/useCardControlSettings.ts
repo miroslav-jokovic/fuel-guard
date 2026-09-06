@@ -27,6 +27,8 @@ export interface CardControlSettings {
 export interface CardApproverRow {
   userId: string;
   email: string | null;
+  /** Their display name (0301), when they have one; the list leads with it and falls back to the email. */
+  name: string | null;
   role: string | null;
   scopes: CardControlScope[];
   grantedBy: string | null;
@@ -38,6 +40,8 @@ export interface CardApproverRow {
 export interface EligibleMember {
   userId: string;
   email: string | null;
+  /** Their display name (0301), when they have one; the list leads with it and falls back to the email. */
+  name: string | null;
   role: string;
 }
 

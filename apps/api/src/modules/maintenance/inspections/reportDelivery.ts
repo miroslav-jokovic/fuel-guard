@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DOCUMENTS_BUCKET, type InspectionSubjectType } from "@silvicom/shared";
+import { DOCUMENTS_BUCKET, type InspectionSubjectType, chooseVehicleIdentification } from "@silvicom/shared";
 import { getEquipmentIdentity } from "../../roster/index.js";
 import { getPrintProfile } from "./printProfiles.js";
 import { carrierCityStateZip, getCarrierIdentity } from "../../org/index.js";
@@ -101,7 +101,21 @@ async function buildRenderInput(
   const carrierOk = !("code" in carrier);
   const equipmentOk = equipment !== null && !("code" in equipment);
   const inspectorOk = inspector !== null && !("code" in inspector);
-  const method = (report.vehicle_identification_method ?? "vin") as InspectionRenderInput["identificationMethod"];
+  /**
+   * The stored choice when the report has one, otherwise the SAME order the creator used.
+   *
+   * A report created before `chooseVehicleIdentification` existed carries `'vin'` with no value, and
+   * the page would tick VIN and print nothing. Falling back through the shared chooser means the
+   * tick and the value can never disagree — two implementations of "which box is ticked" is exactly
+   * how they did.
+   */
+  const stored = (report.vehicle_identification_value as string | null) ?? null;
+  const chosen = equipmentOk
+    ? chooseVehicleIdentification({ vin: equipment.vin, plate: equipment.plate, unitNumber: equipment.unitNumber })
+    : { method: "other" as const, value: null };
+  const method = stored
+    ? ((report.vehicle_identification_method ?? "vin") as InspectionRenderInput["identificationMethod"])
+    : chosen.method;
 
   return {
     inspectedOn: report.inspected_on,
@@ -116,9 +130,7 @@ async function buildRenderInput(
       carrierAddress: carrierOk ? carrier.addressLine1 : null,
       carrierCityStateZip: carrierOk ? carrierCityStateZip(carrier) : null,
       identificationMethod: method,
-      identificationValue:
-        (report.vehicle_identification_value as string | null) ??
-        (equipmentOk ? (method === "plate" ? equipment.plate : equipment.vin) : null),
+      identificationValue: stored ?? chosen.value,
       inspectionAgencyLocation: (report.inspection_agency_location as string | null) ?? null,
       otherConditions: (report.other_conditions as string | null) ?? null,
       items: items.map((i) => ({ key: i.key, result: i.result, repairedAt: i.repairedAt })),

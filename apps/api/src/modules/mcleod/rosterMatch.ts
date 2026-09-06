@@ -31,6 +31,11 @@ export interface Candidate {
   full_name?: string | null;
   vin?: string | null;
   unit_number?: string | null;
+  /**
+   * `dot_annual_inspection_source` — 'inspection' when a certified §396.17 report owns this row's
+   * expiry date (0286). Equipment only; undefined for a driver.
+   */
+  inspection_source?: string | null;
 }
 
 export type MatchOutcome =

@@ -2195,6 +2195,8 @@ async function main() {
     "end_duty_session",
     "emit_notification",
     "revoke_push_tokens",
+    // 0301: joins auth.users for every member's email, so it must never be a browser's to call.
+    "org_member_directory",
   ]) {
     const row = definers.rows.find((r) => r.proname === fn);
     ok(
@@ -2241,11 +2243,24 @@ async function main() {
         `insert into samsara_ifta_jurisdiction_miles ` +
         `  (org_id, vehicle_id, samsara_vehicle_id, period_year, period_month, jurisdiction) ` +
         `select '${org}', id, 'rls-ifta', 2026, 4, 'TX' from v`,
-      // 0271 constrains effective_from to the first of a month (whole-month charging is the T1
-      // rule) — the generic seeder's arbitrary date can land mid-month, so hand it an aligned one.
-      truck_cost_schedules: (org) =>
-        `insert into truck_cost_schedules (org_id, unit_number, category, label, monthly_amount, effective_from) ` +
-        `values ('${org}', 'rls-754', 'lease', 'rls test lease', 100.00, '2026-06-01')`,
+      // 0299 is 0298's twin for the DATA half, and carries the same composite membership FK — see
+      // the note below for why the generic synthesiser cannot build either of them.
+      user_section_access: (org) =>
+        `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-usec@example.com') returning id), ` +
+        `     m as (insert into memberships (org_id, user_id, role) select '${org}', id, 'dispatcher' from u returning user_id) ` +
+        `insert into user_section_access (org_id, user_id, section, access) ` +
+        `select '${org}', user_id, 'safety', 'none' from m`,
+      // 0298's override belongs to a MEMBER, not merely to an org: `foreign key (org_id, user_id)
+      // references memberships (org_id, user_id)`. The generic synthesiser reads single-column
+      // foreign keys only, so it invents a user with no membership and the insert fails on the FK —
+      // which reads as "cannot seed" for a schema that is doing exactly what it should. Handing it a
+      // real member is three lines; weakening the constraint to suit the harness would delete the
+      // guarantee that an override can never name somebody who is not in the org.
+      user_surface_access: (org) =>
+        `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-usa@example.com') returning id), ` +
+        `     m as (insert into memberships (org_id, user_id, role) select '${org}', id, 'technician' from u returning user_id) ` +
+        `insert into user_surface_access (org_id, user_id, surface_key, allowed) ` +
+        `select '${org}', user_id, 'maintenance.inspectors', false from m`,
     },
   });
   console.log(
@@ -2253,6 +2268,7 @@ async function main() {
   );
   for (const [t, why] of iso.unseedable) console.log(`   UNSEEDABLE ${t}: ${why}`);
 
+  await db.close();
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }

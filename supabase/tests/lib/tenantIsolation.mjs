@@ -29,6 +29,10 @@ const NO_ORG_COLUMN = {
     "user-keyed read markers with no org_id column at all (0089); scoped by user_id. " +
     "That it CANNOT be org-scoped even in principle is itself a finding (audit §3.8) — " +
     "if an org_id is ever added here, delete this entry and let the loop cover it.",
+  user_profiles:
+    "a PERSON's display name, keyed by user_id with no org_id at all (0301, D-MEM1): one person, one " +
+    "name, however many organisations they belong to. Service-role only — RLS on, zero policies — " +
+    "and read through org_member_directory(), which scopes by the org's own memberships.",
   fuel_prices_posted: "global posted retail prices shared across organizations (0063)",
   fuel_stations: "global station registry facts shared across organizations (0058)",
   geocode_cache: "global station geocode cache shared across organizations (0018)",

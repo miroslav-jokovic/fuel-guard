@@ -88,6 +88,23 @@ route, so driver time-off stays off unless Support gives you a supported route f
 
 The agent remembers the last successful sync time in `state.json`, so each run only pulls what changed.
 
+### The financial sweep — once a day, every day
+
+`npm run financial` sends settlements, deductions, AP vouchers, movement facts, billing, office
+payroll lines and the GL month totals. Schedule it **daily** (Task Scheduler / cron, `INTERVAL_MINUTES=0`),
+and do not skip days: Silvicom 360 raises a finding in the office inbox when no financial sweep has
+landed for 26 hours, and every Finance page prints the date of the sweep it is reading from.
+
+- Each run re-reads a trailing **75 days** (`FINANCIAL_WINDOW_DAYS`), because McLeod's manual entries
+  land about a month late and a late entry older than the window would never be seen again.
+- On the **1st, 2nd and 3rd of every month** the run automatically reaches back to the first day of
+  the month before last, so the two previous months are re-read whole — that is what lets Silvicom
+  360 call a month *hardened*. `npm run financial:harden` (or `--harden`) forces that on any day;
+  use it daily for the first two weeks after connecting to live LoadMaster.
+- Re-sending is idempotent; overlap is the normal case, not a hazard.
+
+`npm test` runs the agent's own tests (no database needed).
+
 ## Safe by design
 
 - Read-only against McLeod; only ever sends data out to FuelGuard.

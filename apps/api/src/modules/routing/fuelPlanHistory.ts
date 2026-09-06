@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { planFuelRoute, type PlanRequest } from "./fuelPlanning.js";
+import { labelOf, memberLabels } from "../../lib/memberLabels.js";
 
 /**
  * Persist one generated plan to fuel_plans for the Fuel Planning "History" tab. Only real plans (a route was
@@ -20,8 +21,9 @@ export async function saveFuelPlanHistory(
 
   let createdByLabel: string | null = null;
   if (userId) {
-    const { data } = await admin.auth.admin.getUserById(userId);
-    createdByLabel = data?.user?.email ?? null;
+    // Their name since 0301, else their email — denormalised here so the History tab stays one select.
+    const labels = await memberLabels(admin, orgId, [userId]);
+    createdByLabel = labelOf(labels.get(userId));
   }
   let unitNumber: string | null = null;
   if (req.vehicleId) {

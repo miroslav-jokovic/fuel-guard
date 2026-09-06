@@ -1113,6 +1113,265 @@ with no sticker number says so on the page, where the sticker is still to hand. 
 finalize. The question remains whether the decal always goes on before the truck moves — if it does,
 a PASS should be refused without one and this warning becomes a refusal.
 
+### B10 — the print itself: headings, ink, type and alignment — DONE 2026-08-31 (PR #TBD)
+
+Four reports from the owner against a rendered page (`183-sold.pdf`), plus one correction to a
+premise this plan has leaned on since A5: *"this original I have provided was broken from start and
+i didnt noticed."*
+
+**D-AVI22 — the section headings are Keller's knockout, and we have to draw them ourselves.**
+
+The first read was that the Illustrator round trip dropped them. It did not, and the difference
+matters. In BOTH our blank and the carrier's own untouched report, all sixteen headings are painted
+at `0 0 0 0 scn` — zero ink — over a **0.48 pt** red hairline. Measured at 300 dpi: fifteen
+hairlines, one per printed column-section, each with its heading knocked out of it.
+
+**That is a design for pre-printed stock.** The pad Keller ships already carries the coloured heading
+bands; the PDF is meant to be filled and printed ONTO it, so the ink is deliberately never laid
+down. Print it on plain paper — which is what "Plain paper — the whole form" does — and the office
+gets a table of items with nothing naming the sections. The carrier's own good report behaves
+identically, so this was never a template defect.
+
+So the renderer draws all sixteen, in black, knocked into the hairline, **only when
+`background: "template"`**. The overlay path lands on a real pad that already has them, and drawing
+them there would print every heading twice (D-AVI8). They come from `INSPECTION_GROUPS`, not from a
+list of strings, so a heading cannot go missing or disagree with the items under it.
+
+`1. BRAKE SYSTEM` *was* additionally absent from the `654` export — genuinely, not knocked out —
+which is what made the fault look like a template problem. That is now moot and is recorded in
+`assets/SOURCE.md`, along with the missing `OK` column header (cosmetic, not restored).
+
+**D-AVI23 — the header prints at the sizes and weight the office's own reports carry.** Everything
+was one regular 10 pt, which is why the top of the page read thin next to Keller's artwork. Measured
+off `535968 8-26`:
+
+| Field | Measured | Now |
+| --- | --- | --- |
+| carrier name / address / city-state-zip | `/HeBo 12.085 Tf` — **Helvetica-Bold 12**, read out of the AcroForm appearance stream | 12, bold |
+| decal serial, fleet unit number | 9.00 pt of advance per digit ÷ Helvetica's 0.556 em = **16.2 pt** | 16, bold |
+| inspector name | "GEORGE" 72.74 pt over 4.39 em = **16.6 pt** | 16, bold |
+| date | 39.01 pt over 3.614 em = **10.8 pt** | 11, bold |
+| VIN | 75.32 pt over 9.788 em = **7.7 pt** — the one value the office prints small, because seventeen characters must fit the box | 9, bold |
+
+Bold is not a preference: the carrier block's own appearance stream names Helvetica-Bold.
+
+**D-AVI24 — the draft preview stamps in black, like the filing.** It stamped
+`rgb(0.72, 0.11, 0.11)`, and the office reasonably read that as the product printing in red. It was
+a second signal nobody needed — the page already carries `DRAFT - NOT A CERTIFIED INSPECTION` across
+the middle of it, which says the thing in words. What the red cost was the preview's whole job:
+D-AVI14 exists so the office can see what will print before certifying, and a preview whose ink is a
+different colour from the filing is not showing them that. The ink is also now pure black rather
+than the 0.1 grey it was — this is a record that gets photocopied at a roadside.
+
+**Alignment: four cells moved, and the reason is which sample they came from.** The map was measured
+against the damaged `654`. The carrier block matched the office's filled report to two decimals
+(24.29/174.07, 24.29/198.55, 23.29/222.53) — but four cells had been inferred from artwork rather
+than read off a filled page:
+
+| cell | was | is | drift |
+| --- | --- | --- | --- |
+| decalSerial | 389.2, 125.8 | 385.7, 125.1 | 3.5 pt right, 0.7 low |
+| fleetUnitNumber | 519.7, 125.8 | 515.5, 125.7 | 4.2 pt right |
+| inspectedOn | 447.2, 144.7 | 448.2, 146.0 | 1.0 left, 1.3 high |
+| vehicleIdentificationValue | 324.0, 221.9 | 331.6, 222.5 | 7.6 pt left |
+
+The two files were confirmed to share a coordinate system before anything moved: the "VEHICLE
+COMPONENTS INSPECTED" bar renders at exactly y 252.96–264.72, x 18.00–593.76 in both at 300 dpi.
+
+**The item marks were measured and deliberately left alone.** Ours sit at x 18.8 / 210.6 / 402.6
+against the office's 19.2 / 211.2 / 403.7 — 0.4 to 1.1 pt — and the baselines match exactly
+(299.56 = 299.56). Ours were derived from the ruled boxes scanned at 300 dpi, which is a better
+origin than where a person happened to click in a form field. Moving them would be churn.
+
+**How this was found, since it is a lesson about the tests.** Nothing here was visible to any
+existing test: `report.test.ts` asserted the PDF was over 100 kB and deterministic, which a page of
+white-on-white headings satisfies perfectly. The new assertions read what was PAINTED — inflating
+pdf-lib's deflated content streams and decoding its hex strings — so "the heading is on the page",
+"it is not on the overlay" and "the draft ink is black" are now properties rather than intentions.
+
+### B11 — the template audit: what the export lost, and what a preview is allowed to differ from — DONE 2026-09-01
+
+Reported by the owner against a filled sample of the office's own good form: *"when we print we
+don't have this section names, also section names are not correct as on original… when i try to edit
+it in PDF it is removing this sections."*
+
+**D-AVI25 — B10's diagnosis was wrong, and the way it was wrong is the finding.**
+
+D-AVI22 said the sixteen headings are knocked out at `0 0 0 0 scn` over a 0.48 pt red hairline
+because Keller's pad is pre-printed. Read at the operator level on 2026-09-01, the blank contains:
+
+- **no `scn` operator at all**, and no CMYK — the page paints in `rg`/`RG` only, in four colours;
+- **no red rule at any heading row** — the only red strokes left are the four legend blanks;
+- fifteen heading strings painted `1 1 1 rg`: white on nothing.
+
+The 300 dpi scan that "measured fifteen hairlines" had measured the **bands' vertical centres** and
+called them hairlines. Every `rule` value in `GROUP_HEADINGS` was within 0.16 pt of a band centre —
+the numbers were right and the story around them was not.
+
+So the export **dropped artwork**. Four things, all of them ink the office's filed reports carry:
+
+| lost | what survives, and how the replacement is measured |
+| --- | --- |
+| the sixteen coloured section bands | each band's own pair of full-group-width rules, exactly **12.00 pt** apart, sixteen pairs. Independently corroborated: the surviving "VEHICLE COMPONENTS INSPECTED" bar is drawn as a **12 pt stroked line** in the same red |
+| `1. BRAKE SYSTEM`, absent from the file entirely | nothing — which is why all sixteen now come from `INSPECTION_GROUPS` rather than from the page |
+| the `OK` column heading, all three groups | ink measures **10.50 pt** wide on the filed report, which is Helvetica-**Bold** at exactly 7 pt (regular is 10.12 and does not fit), on `ITEM`'s own baseline |
+| the ✓ in `VEHICLE IDENTIFICATION (✓ AND COMPLETE)`, and the ✓ / X / NA on the INSTRUCTIONS legend | the sentence and the four red blanks. The legend marks are centred on their own rule to within 0.2 pt; the fourth blank carries no mark on the original and gets none here |
+
+Band geometry is derived rather than restated: `y = bandCentre + 3.26` reproduces all sixteen of
+Keller's own baselines to within 0.06 pt, so band and type are provably concentric. The number-to-
+title tab is Keller's own operator — `1.389 0 Td` for a one-digit number, `1.735 0 Td` for two, at
+8.64 pt — which is why `1.  BRAKE SYSTEM` carries a wide gap and `16. OTHER` does not. A band is
+also **framed**, not just filled: its two horizontal rules and the group's two boundary verticals
+survive across it on the original while the internal column rules stop at it, so the fill redraws
+that frame.
+
+**What stops the next wrong belief.** `TEMPLATE_SUPPLIES` declares what the asset carries and
+`render/assets.test.ts` reads the PDF to prove the declaration. A clean export flips five flags and
+the renderer stops drawing what the page already has, instead of double-printing it. The old
+diagnosis survived a fortnight because nothing could contradict it.
+
+**D-AVI26 — three tick boxes were printing on top of the labels they were meant to tick.**
+
+`layout.test.ts` asserted only that no two tick boxes shared a position, which every wrong answer
+also satisfies. The page draws its nine boxes as plain `re` operators, so they can simply be read:
+
+| box | artwork | was | drift |
+| --- | --- | --- | --- |
+| LIC. PLATE NO. | 451.75, 638.302 | 470.0 | **18.3 pt right — struck out "LIC."** |
+| OTHER | 552.75, 638.302 | 574.0 | **21.3 pt right — struck out "OTHER"** |
+| TRAILER | 123.25, 614.302 | 128.0 | **4.8 pt right — struck out "TRAILER"** |
+| §396.19 YES, VIN, TRACTOR | — | — | within a point, but all 1.5 pt low |
+
+So a plate- or other-identified report printed its only vehicle-ID mark across a printed label with
+all three boxes left empty, and **every trailer report** struck out the word TRAILER. All 46 trailers
+in the fleet inspect on this form (D-AVI12). The 1.5 pt drop was `baselineOf`'s descender correction,
+which is right for text cells measured with `pdftotext` and wrong for artwork read off `re` operators
+— so tick boxes no longer go through it, and the X is centred in the box's own rectangle.
+
+**D-AVI27 — a filing and a preview may differ, and the row now says which drawing made it.**
+
+This is what the owner actually met. A final report serves its **stored bytes** and is never
+re-rendered (§390.32(c), `documents.sha256`) — that rule is right and stays. What was missing is that
+nothing recorded which renderer drew them, and `RENDERER_VERSION` was not bumped when B10 changed the
+drawing. So `renderDigest` went on asserting that a report filed before the change and a preview
+drawn after it came from "the same renderer". They did not look alike.
+
+The single report filed in production (2026-09-01 04:01 UTC) predates B10's merge by thirty minutes.
+It is the page the owner printed.
+
+- `RENDERER_VERSION` → **2.0.0**, and the rule is written next to it: bump when the drawing moves.
+- Migration **0284** records `renderer_version` and `template_revision` on the report row at
+  finalize. NULL is left as NULL rather than backfilled with a guess — it means "filed before we
+  wrote this down", which is older than any version we could name.
+- The detail route answers with `currentRendererVersion`, and the form shows a caution on a report
+  whose filing predates it: the filed copy is the evidence and is served as certified; putting the
+  current form on paper means recording a correction. The version rides on the response rather than
+  being copied into the client, so there is no second source of truth to go stale.
+
+**Not done, deliberately:** the one stale filing was not re-filed. Superseding it is the office's
+call under A9's correction path, not a migration's.
+
+### B12 — a certified report has ONE page, and the preview was the second one — DONE 2026-09-01
+
+Asked by the owner, and it is the right question: *"i don't understand why preview and production
+print are not using same look and template, that is strange? Because i don't see how this is even
+possible, maybe we should set things differently."*
+
+**They do use the same template.** One renderer, one asset, one coordinate map — there has never been
+a second of any of them. What differs is not WHAT draws the page but WHEN:
+
+| | |
+|---|---|
+| **Preview** | drawn on demand, from the answers in the database, by whatever code is deployed right now |
+| **Print, on a certified report** | the exact bytes written to storage at the moment it was certified, served back unchanged |
+
+So when the drawing moves — as it did on 2026-08-31 (headings, bold header block, black ink) and
+again on 2026-09-01 (the artwork the export had lost) — a report certified before the change keeps
+its own page forever while a preview of it shows the new one. Nothing is wrong with either page.
+
+**Storing the bytes is not negotiable and is not the defect.** `documents.sha256` is a claim about
+specific bytes and §390.32(c) wants a filed document reproducible. Re-rendering on demand would mean
+every filed inspection silently changes the day the catalogue, template or renderer moves — an
+auditor pulling a 2024 report would be handed a 2026 page. A6 files the PDF for exactly this reason.
+
+**D-AVI28 — the preview is a DRAFT control, and offering it on a certified report was the mistake.**
+
+D-AVI14 built the preview so the office can see what will print *before* they certify. After
+certifying, the page exists; there is nothing left to preview. But the button stayed on the screen,
+one gap away from **Print**, so a completed report offered two versions of itself and invited the
+comparison that produced this question. The answer to that comparison is "the code moved between
+them", which is not a thing the office should ever have to know.
+
+So the preview is now shown only while `status = 'draft'`. A certified report has one page and one
+button, and the two cannot be held side by side. Pinned by "does NOT offer a preview of a report that
+is already filed" in `AnnualInspectionFormPage.test.ts`.
+
+The D-AVI27 caution stays, reworded: it is still worth saying that a filing was drawn on an earlier
+version of the form, for somebody comparing two PRINTOUTS. It is no longer explaining away two
+buttons on one screen.
+
+**The test filing was removed rather than reconciled.** The one certified report — unit `183 - SOLD`,
+a truck the fleet has already sold — was test data drawn by renderer 1.0.0. Deleting it is an
+explicit audited service-role act, which is what RETENTION_FORBIDDEN permits; the SQL and its
+reasoning are in `CLEANUP-TEST-INSPECTION-183.sql`, including why `identity_source` goes back to
+`samsara` (finalize sets `manual` per D-ARC3, and leaving it would make this the one vehicle of 198
+the Samsara sweep skips forever). No product path to delete a certified report was built, and none
+should be: that hole would be worse than the cleanup it serves.
+
+### B13 — a record can be destroyed, on purpose, by an admin, with a reason — DONE 2026-09-01
+
+Asked for directly: *"we should have hard delete option for inspections anyway, for example if truck
+is sold or any other reason we should be able to delete this."*
+
+**D-AVI29 — the hole in the evidence model, cut deliberately, by the owner.**
+
+This plan has said the opposite twice. `discardDraft` refuses a completed report by name — *"a
+completed inspection is a record and cannot be deleted. Record a correction instead"* — 0280's
+trigger freezes it, `vehicle_inspections` is pinned in `RETENTION_FORBIDDEN`, and §396.21(b) asks a
+carrier to keep the report for fourteen months. None of that reasoning has changed.
+
+What changed is that the rule has no answer for the case the owner actually has: a truck leaves the
+fleet, or a report was created against the wrong unit, and there is nothing to *correct* because
+there is nothing that should exist. The alternative to building this was raw SQL against production
+every time — which is what happened on 2026-09-01 for one test report, and which has no org scoping,
+no audit row, and no chance of getting the equipment projection right. A capability the office needs,
+routed around instead of built, is the definition this repo already uses for a workaround.
+
+So it exists, and it is built to be the safest way to do the thing rather than the easiest:
+
+| guard | why not the looser option |
+| --- | --- |
+| `requireRole("admin")` | not `rolesThatManage("maintenance")` — a technician certifies inspections, they do not destroy the record of one |
+| a required reason, min 3 chars, refused server-side and client-side by the SAME predicate | it is the only part of a deleted record that survives; a blank box is how "why did this vanish" gets answered with nothing |
+| the audit row written **first** | written after, it could only describe the deletes that succeeded — and a half-failure would leave no account at all. `audit_logs` is itself in `RETENTION_FORBIDDEN`, so it outlives everything it describes |
+| `POST /:id/delete-record`, a route of its own | a `?force=true` on the discard endpoint is how the destructive act gets done by somebody who meant the harmless one |
+| a drawer, not `window.confirm` | it has to carry the list of what goes, take a reason, and make somebody type the unit number back |
+
+**The evidence tables are deleted through their OWNER, and the gate insisted.** The first pass
+deleted from `documents` and `certifications` inside `maintenance`, and `check-table-access.mjs`
+refused it: *"outside its owner evidence — move the code, call an owner interface, or grandfather
+it."* So `evidence/retract.ts` exists — one named door for the single deletion
+`RETENTION_FORBIDDEN` has always permitted, which until now existed only as a sentence in a comment.
+It removes the storage object BEFORE the row, because a row whose object is gone is a broken link
+somebody can find and an object whose row is gone is unreachable by every reader in the system.
+
+**Giving the equipment claim back is the part that would have shipped broken.** Finalize sets
+`identity_source = 'manual'` so the McLeod sweep leaves the office's expiry alone (D-AVI9/D-ARC3).
+Undo the date and not the claim and the truck is stranded — the sweep stops maintaining its
+*identity*, not just its inspection date. Found by measuring production during the 183 cleanup: 197
+vehicles `'samsara'`, exactly one `'manual'`, and that one was the inspected truck. The value is not
+recoverable afterwards, so migration **0285** has the report record what it displaced, and the delete
+restores it — but only when no other final report still holds the claim, and only to a value that
+report actually recorded. A NULL means "filed before 0285": `identity_source` is then left alone
+rather than guessed at, because writing the column default would restate one fleet's plumbing as if
+it were a fact about that row.
+
+Deleting one report of several recomputes the expiry from the newest surviving PASS rather than
+assuming null.
+
+**0285 shipped as its own merge**, ahead of every reader — the first change to follow the rule #431
+added after two of these columns took the inspections page down.
+
 ### The vehicle-file connection, written down (D-AVI17)
 
 The owner asked that this be planned rather than left implicit. It is already **built** — what was

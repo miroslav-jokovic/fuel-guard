@@ -16,19 +16,21 @@ import { defaultWindow } from "@silvicom/shared";
  * getter fell back to its 90-day default. Nothing threw, and both halves worked in isolation, which is
  * why unit tests that set one filter at a time all passed.
  */
-async function mountFilters(): Promise<{ f: ReturnType<typeof useSpendFilters>; router: Router }> {
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: "/fuel-spend", component: { template: "<div/>" } }],
-  });
+async function mountFilters(url = "/fuel-spend"): Promise<{ f: ReturnType<typeof useSpendFilters>; router: Router }> {
   let f!: ReturnType<typeof useSpendFilters>;
+  // The one component in this file: it is both the route's view and the host of the composable, so
+  // the harness needs no second stub (`vue/one-component-per-file` counts route stubs too).
   const C = defineComponent({
     setup() {
       f = useSpendFilters();
       return () => h("div");
     },
   });
-  await router.push("/fuel-spend");
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: "/fuel-spend", component: C }],
+  });
+  await router.push(url);
   await router.isReady();
   mount(C, { global: { plugins: [router] } });
   return { f, router };
@@ -107,15 +109,7 @@ describe("useSpendFilters", () => {
   });
 
   it("normalises a hand-edited link before anything queries against it", async () => {
-    const router = createRouter({
-      history: createMemoryHistory(),
-      routes: [{ path: "/fuel-spend", component: { template: "<div/>" } }],
-    });
-    let f!: ReturnType<typeof useSpendFilters>;
-    const C = defineComponent({ setup() { f = useSpendFilters(); return () => h("div"); } });
-    await router.push("/fuel-spend?from=2031-01-01&to=not-a-date");
-    await router.isReady();
-    mount(C, { global: { plugins: [router] } });
+    const { f } = await mountFilters("/fuel-spend?from=2031-01-01&to=not-a-date");
 
     expect(f.range.value.from <= f.range.value.to).toBe(true);
     expect(f.range.value.to <= new Date().toISOString().slice(0, 10)).toBe(true);

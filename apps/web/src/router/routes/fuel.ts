@@ -32,7 +32,7 @@ export const fuelRoutes: RouteRecordRaw[] = [
     path: "/fuel-spend",
     name: "fuel-spend",
     component: () => import("@/pages/FuelReconciliationPage.vue"),
-    meta: { requiresAuth: true, requiresManage: "fuel", title: "Fuel Spend" },
+    meta: { requiresAuth: true, title: "Fuel Spend" },
   },
   {
     path: "/fuel-spend/exceptions",
@@ -58,24 +58,31 @@ export const fuelRoutes: RouteRecordRaw[] = [
   { path: "/fuel-reconciliation", redirect: "/fuel-spend" },
   { path: "/fuel-exceptions", redirect: "/fuel-spend/exceptions" },
 
-  {
-    path: "/import",
-    name: "import",
-    component: () => import("@/pages/ImportPage.vue"),
-    meta: { requiresAuth: true, requiresManage: "fuel", title: "Import EFS Report" },
-  },
-  {
-    path: "/transactions",
-    name: "transactions",
-    component: () => import("@/pages/TransactionsPage.vue"),
-    meta: { requiresAuth: true, title: "Transactions" },
-  },
-  {
-    path: "/rejections",
-    name: "rejections",
-    component: () => import("@/pages/RejectionsPage.vue"),
-    meta: { requiresAuth: true, title: "Rejections" },
-  },
+  /**
+   * FUEL-C4, D-FUI3 — `/import` is retired as a page and its three capabilities are drawers now:
+   * the EFS backfill on Fuel Log, the price and locations uploads on Truck Stops, and Repair fuel
+   * data on Settings → Data & sync. Nothing was deleted, and the section no longer has a page whose
+   * title is a verb applied to a file format.
+   *
+   * A plain string redirect, unlike the two C2 added: this path carried no filters — it was a form,
+   * not a list — so there is no query worth translating and nothing to name a tab with.
+   */
+  { path: "/import", redirect: "/fuel-log" },
+  /**
+   * FUEL-C2, D-FUI1 — Transactions and Rejections are tabs of the Fuel Log, not pages.
+   *
+   * A FUNCTION redirect rather than a string one, because these two paths carry filters. Every link
+   * to them in a ticket or an email is of the form `/transactions?unit=654`, and the whole reason the
+   * old paths are kept forever (see the note above) is that somebody is going to open one. A string
+   * redirect preserves the query and would land that link on the Fills tab, showing a different set
+   * of rows than the sender was looking at; naming the tab is what makes the redirect faithful
+   * rather than merely non-broken.
+   *
+   * `?unit=` needs no translation: it is the shared truck filter on the merged page, chosen as a unit
+   * number precisely because that is what these two feeds — and these two links — already carry.
+   */
+  { path: "/transactions", redirect: (to) => ({ path: "/fuel-log", query: { ...to.query, tab: "source" } }) },
+  { path: "/rejections", redirect: (to) => ({ path: "/fuel-log", query: { ...to.query, tab: "declines" } }) },
   {
     // Read is open to every fuel-viewing role; the write actions gate themselves from the
     // server-computed `capabilities`, which the browser cannot work out on its own.

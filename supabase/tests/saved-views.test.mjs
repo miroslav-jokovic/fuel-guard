@@ -231,5 +231,7 @@ ok(
   (await one(`select count(*)::int as n from saved_views where user_id = $1`, [COLLEAGUE])).n === 0,
 );
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

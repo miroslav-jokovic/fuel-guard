@@ -104,17 +104,26 @@ describe("the happy path writes four rows across three modules", () => {
     expect("finalized" in result && result.finalized).toBe(true);
   });
 
-  it("CLAIMS the equipment row, which is what stops the McLeod sweep reverting it (D-AVI9)", async () => {
+  it("CLAIMS the DATE, which is what stops the McLeod sweep reverting it (D-AVI9, 0286)", async () => {
     await finalizeInspection(rec.client, ORG, REPORT, USER);
     const [projection] = rec.writtenRows("vehicles");
     expect(projection).toMatchObject({
       dot_annual_inspection_expires_at: "2027-06-16",
       // Without this the column still gets its date and everything still passes — and the next
-      // McLeod sweep carrying an inspection date replaces it. `rosterIngest` skips a row whose
-      // identity_source is outside its CLAIMABLE set; 'manual' is how a row leaves that set. The
-      // 0241 trigger cannot do it for us because it exempts the service role, which is what this is.
-      identity_source: "manual",
+      // McLeod sweep carrying an inspection date replaces it. `rosterIngest` drops exactly this
+      // field from its patch for a row marked 'inspection'.
+      dot_annual_inspection_source: "inspection",
     });
+  });
+
+  it("does NOT claim the row's IDENTITY — the over-broad claim that cost a trailer its VIN", async () => {
+    // It used to write `identity_source = 'manual'`, and `rosterIngest` answers a non-CLAIMABLE row
+    // by skipping the WHOLE patch. Measured 2026-09-01: the first identity sweep filled 200 trailer
+    // VINs and reported `office-owned=1` — the single trailer with a certified inspection, which
+    // ended the sweep still carrying `vin = null`. Its own inspection locked it out of its own VIN.
+    await finalizeInspection(rec.client, ORG, REPORT, USER);
+    const [projection] = rec.writtenRows("vehicles");
+    expect(projection).not.toHaveProperty("identity_source");
   });
 
   it("files the PDF as equipment evidence — the first caller of that half of `documents`", async () => {

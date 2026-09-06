@@ -14,6 +14,13 @@
 export { projectFinancialWindow, type ProjectionResult } from "./projection.js";
 export { startFinancialProjectionScheduler } from "./projectionScheduler.js";
 export {
+  startFinancialFreshnessScheduler,
+  runFinancialFreshnessOnce,
+  planFreshnessFindings,
+  STALE_AFTER_HOURS,
+  FINANCE_JOB_KINDS,
+} from "./financialFreshness.js";
+export {
   searchEntries,
   summarizeByCategory,
   moneyByVehicle,
@@ -25,18 +32,12 @@ export {
   type AccountSpend,
 } from "./reads.js";
 export { getLedgerCoverage } from "./ledgerCoverage.js";
+export { getFuelTieOut } from "./fuelTieOut.js";
+export { getMonthCloses, runMonthClosesOnce, computeMonthClose, type MonthCloseRow } from "./monthClose.js";
 export { getGlIncomeForMonths, type GlIncomeSummary } from "./glIncome.js";
+export { getIncomeStatement, type IncomeStatementResult } from "./incomeStatement.js";
+export { getMileageCoverage, type MileageCoverageResult } from "./mileageCoverage.js";
+export { getFleetReport, type FleetReportResult } from "./fleetReport.js";
+export { getFleetTrend, type FleetTrendResult } from "./fleetTrend.js";
+export { getBillingActivity, type BillingActivityResult } from "./billingActivity.js";
 export { earningsByDispatcher, dispatcherNamesForEntries, type DispatcherEarnings } from "./dispatcherEarnings.js";
-export {
-  getGlMonthlyCosts,
-  type GlMonthlyCosts,
-  type GlMonthlyCostAccount,
-} from "./glMonthlyCosts.js";
-export { computeCpmForWindow, type CpmWindowReport } from "./cpm.js";
-export {
-  listSchedules,
-  createSchedule,
-  updateSchedule,
-  deleteSchedule,
-  readFixedCostsForMonths,
-} from "./costSchedules.js";

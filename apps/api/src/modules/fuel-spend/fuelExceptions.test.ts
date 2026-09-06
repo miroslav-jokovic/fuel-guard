@@ -123,4 +123,57 @@ describe("listExceptions", () => {
     const q = rec.forTable("fuel_exceptions")[0];
     expect(JSON.stringify(q)).toContain("199"); // range(0, 199) — the 200 cap
   });
+
+  /**
+   * FUEL-P3 / A3. The trucks arrive as UNIT NUMBERS, because `fuel_exceptions.vehicle_id` exists and
+   * has never been written by anything — the producer inserts `unit_number` from the statement line
+   * and no vehicle at all (measured on production 2026-09-04: 0 rows carry one). A filter on that
+   * column would return nothing, always, and read as a fleet with no findings.
+   */
+  it("narrows to the units named, on the column the producer actually writes", async () => {
+    const rec = createSupabaseRecorder({ tables: { fuel_exceptions: [] } });
+    await listExceptions(rec.client, ORG, { unitNumbers: ["701", "702"] });
+    expect(rec.forTable("fuel_exceptions")[0]!.filters().map((f) => [f.col, f.val])).toEqual(
+      expect.arrayContaining([["unit_number", ["701", "702"]]]),
+    );
+  });
+
+  it("returns nothing for units this fleet does not have, rather than everything", async () => {
+    const rec = createSupabaseRecorder({ tables: { fuel_exceptions: [] } });
+    await listExceptions(rec.client, ORG, { unitNumbers: [] });
+    expect(rec.forTable("fuel_exceptions")[0]!.filters().map((f) => [f.col, f.val])).toEqual(
+      expect.arrayContaining([["unit_number", []]]),
+    );
+  });
+
+  it("does not narrow at all when no truck is named", async () => {
+    const rec = createSupabaseRecorder({ tables: { fuel_exceptions: [] } });
+    await listExceptions(rec.client, ORG, {});
+    expect(rec.forTable("fuel_exceptions")[0]!.filters().some((f) => f.col === "unit_number")).toBe(false);
+  });
+});
+
+describe("the tiles take the same scope as the rows (FUEL-P3)", () => {
+  /**
+   * ⚠ Otherwise "Identified $41,000" sits above eleven rows worth $600. The four figures are the ones
+   * this product is judged on, so the set they cover has to be the set on screen.
+   */
+  it("applies the truck and owner scope to the totals as well", async () => {
+    const rec = createSupabaseRecorder({ tables: { fuel_exceptions: [] } });
+    await exceptionTotals(rec.client, ORG, { from: "2026-08-01", unitNumbers: ["701"], assignedTo: USER });
+    expect(rec.forTable("fuel_exceptions")[0]!.filters().map((f) => [f.col, f.val])).toEqual(
+      expect.arrayContaining([["org_id", ORG], ["unit_number", ["701"]], ["assigned_to", USER]]),
+    );
+  });
+
+  /**
+   * …and NOT the status or the kind. Identified, claimed and recovered are defined ACROSS the statuses
+   * — claimed is disputed plus credited — so narrowing the tiles by status would make each of them a
+   * different question rather than a smaller one.
+   */
+  it("leaves status and kind out, because the tiles are defined across them", async () => {
+    const rec = createSupabaseRecorder({ tables: { fuel_exceptions: [] } });
+    await exceptionTotals(rec.client, ORG, { from: "2026-08-01" });
+    expect(rec.forTable("fuel_exceptions")[0]!.filters().some((f) => f.col === "status" || f.col === "kind")).toBe(false);
+  });
 });

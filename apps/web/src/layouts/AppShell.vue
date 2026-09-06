@@ -11,7 +11,7 @@ import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
-import { canViewSection, moduleEnabled } from "@silvicom/shared";
+import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import { useModulesQuery } from "@/composables/useModules";
@@ -34,19 +34,30 @@ const queryClient = useQueryClient();
 const modules = useModulesQuery();
 // Pending-hazmat-review count for the nav badge (only queried when the module + view access are present).
 const hazmatVisible = computed(() =>
-  canViewSection(session.role, "hazmat") && moduleEnabled(modules.data.value ?? null, "hazmatguard"),
+  session.canView("hazmat") && moduleEnabled(modules.data.value ?? null, "hazmatguard"),
 );
 const reviewCount = useHazmatReviewCountQuery(hazmatVisible);
 // Messages unread for the nav badge (Phase 7) — same one-fetch-two-surfaces query the inbox uses.
 const messagesVisible = computed(() =>
-  canViewSection(session.role, "dispatch") && moduleEnabled(modules.data.value ?? null, "messages"),
+  session.canView("dispatch") && moduleEnabled(modules.data.value ?? null, "messages"),
 );
 const threadsQ = useThreadsQuery(messagesVisible);
 const navGroups = computed<NavGroup[]>(() =>
-  buildNavGroups(session.role, modules.data.value ?? null, {
-    hazmatReview: reviewCount.data.value ?? 0,
-    messagesUnread: threadsQ.data.value?.unread_total ?? 0,
-  }),
+  buildNavGroups(
+    session.role,
+    modules.data.value ?? null,
+    {
+      hazmatReview: reviewCount.data.value ?? 0,
+      messagesUnread: threadsQ.data.value?.unread_total ?? 0,
+    },
+    // The org's overrides (D-PERM2). Without this the sidebar would keep answering from the shipped
+    // matrix while every route guard and every API gate answered from the org's — a member granted a
+    // section would have the page but no way to reach it.
+    session.sections,
+    // …and the org's SCREEN answers (D-SURF1, S3), on the same argument one layer along: without
+    // this the sidebar would still offer a page the router guard now turns away from.
+    session.surfaces,
+  ),
 );
 
 // Pre-build a Set of explicit nav paths for O(1) lookup — used to decide whether prefix matching
@@ -189,6 +200,7 @@ async function signOut() {
                   <div class="sidebar-divider mt-4 border-t pt-3">
                     <SidebarProfileMenu
                       :email="session.email"
+                      :name="session.fullName"
                       :role="session.role"
                       :can-manage="session.can('settings')"
                       @sign-out="signOut"
@@ -294,6 +306,7 @@ async function signOut() {
           >
             <SidebarProfileMenu
               :email="session.email"
+              :name="session.fullName"
               :role="session.role"
               :collapsed="sidebarCollapsed"
               :can-manage="session.can('settings')"

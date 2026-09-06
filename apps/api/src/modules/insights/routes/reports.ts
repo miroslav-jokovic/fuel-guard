@@ -2,13 +2,14 @@ import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { toCsv, aggregateDashboard, odometerAccuracy, computeDetectionMetrics, CASE_RULE_ID, type DashboardTransaction, type DashboardAnomaly, type OdoRow, type DispositionCaseInput } from "@silvicom/shared";
 import { generateAndSendDigest } from "../../org/index.js";
-import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireAuth, requireSection, requireOrg } from "../../../middleware/auth.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scoringHealth } from "../../anomalies/index.js";
+import { getFleetMpg } from "../../fuel-spend/index.js";
 
 const qstr = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 const REPORT_PAGE = 1000;
@@ -127,7 +128,10 @@ async function loadCaseDispositions(admin: SupabaseClient, orgId: string): Promi
 
 export function reportsRouter(): Router {
   const router = Router();
-  router.use(requireAuth, requireOrg, requireRole("admin", "fleet_manager", "auditor"));
+  // The reports and detection-health screens are catalogued under `settings` (S1: admin.reports,
+  // admin.coverage, admin.recall-audit), and this list was exactly that section's read set written
+  // out by hand. Derived now, so an org that re-answers `settings` moves the API with the page.
+  router.use(requireAuth, requireOrg, requireSection("settings", "view"));
 
   // detection-accuracy (JSON) — measured precision, confidence interval, FP rate, per-signal + trend.
   router.get(
@@ -152,7 +156,7 @@ export function reportsRouter(): Router {
   // Send the weekly theft digest NOW (for testing / on-demand). Emails the org's recipients.
   router.post(
     "/digest",
-    requireRole("admin", "fleet_manager"),
+    requireSection("settings"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -299,7 +303,7 @@ export function reportsRouter(): Router {
       const { from, to } = defaultRange(qstr(req.query.from), qstr(req.query.to));
 
       const [txns, anomalies, { data: vehicles }, { data: drivers }, { data: org }] = await Promise.all([
-        fetchPaged<DashboardTransaction>((lo, hi) => admin.from("fuel_transactions").select("id, gallons, total_cost, computed_mpg, fueled_at, vehicle_id, driver_id").eq("is_canonical", true).eq("org_id", orgId).gte("fueled_at", from).lte("fueled_at", to).order("fueled_at", { ascending: true }).order("id", { ascending: true }).range(lo, hi)),
+        fetchPaged<DashboardTransaction>((lo, hi) => admin.from("fuel_transactions").select("id, gallons, total_cost, fueled_at, vehicle_id, driver_id").eq("is_canonical", true).eq("org_id", orgId).gte("fueled_at", from).lte("fueled_at", to).order("fueled_at", { ascending: true }).order("id", { ascending: true }).range(lo, hi)),
         fetchPaged<DashboardAnomaly>((lo, hi) => admin.from("anomalies").select("id, transaction_id, vehicle_id, severity, status").eq("org_id", orgId).order("id", { ascending: true }).range(lo, hi)),
         admin.from("vehicles").select("id, unit_number").eq("org_id", orgId),
         admin.from("drivers").select("id, full_name").eq("org_id", orgId),
@@ -312,6 +316,11 @@ export function reportsRouter(): Router {
         drivers ?? [],
         { tz: (org?.operating_hours as { tz?: string } | null)?.tz ?? null },
       );
+      // Fleet MPG comes from the ONE definition (M4, D-MPG1), not from the fills above. This document
+      // gets quoted back months later, so the figure in it must be the figure the app shows — and the
+      // gallon-weighted mean it used to print ran 1.31–2.41% below Samsara's own IFTA miles. The days
+      // are the ones the header already prints as this report's period.
+      const fleetMpg = await getFleetMpg(admin, orgId, from.slice(0, 10), to.slice(0, 10));
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", 'attachment; filename="fuelguard-summary.pdf"');
@@ -322,7 +331,11 @@ export function reportsRouter(): Router {
       doc.moveDown().fillColor("#000").fontSize(12);
       doc.text(`Total fuel spend:  $${summary.totalSpend.toLocaleString()}`);
       doc.text(`Total gallons:     ${summary.totalGallons.toLocaleString()}`);
-      doc.text(`Fleet avg MPG:     ${summary.fleetMpg ?? "—"}`);
+      doc.text(`Fleet avg MPG:     ${fleetMpg.mpg ?? "—"}`);
+      // A withheld figure says WHY, in the document. A bare dash in a PDF is unanswerable: the reader
+      // cannot open a tooltip, and "—" over a half-measured fleet reads as a broken report.
+      if (fleetMpg.mpg == null) doc.fontSize(9).fillColor("#666").text(`  ${fleetMpg.reason ?? ""}`).fontSize(12).fillColor("#000");
+      else if (fleetMpg.measuredShare != null) doc.fontSize(9).fillColor("#666").text(`  measured miles \u00f7 the fuel behind them; ${Math.round(fleetMpg.measuredShare * 100)}% of tractor fuel measured`).fontSize(12).fillColor("#000");
       doc.text(`Open anomalies:    ${summary.openAnomalies}`);
       doc.moveDown().fontSize(13).text("Open anomalies by severity");
       doc.fontSize(11).fillColor("#333");

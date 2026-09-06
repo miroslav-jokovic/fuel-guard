@@ -212,5 +212,7 @@ const R4 = (await one(
   [ORG, STMT])).id;
 ok("a run set at insert does carry its statement", (await one(`select statement_id from fuel_recon_runs where id=$1`, [R4])).statement_id === STMT);
 
+await db.close();
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

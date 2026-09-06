@@ -34,6 +34,22 @@ const field = async (props: Record<string, unknown> = {}) => {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("the seam between the caller and the picker", () => {
+  it("shows ONE clear control, not the library's as well", async () => {
+    // Reported 2026-09-01: two X's side by side. VueDatePicker renders its own clear button even
+    // when `#dp-input` replaces its input, so the field carried ours ("Clear date") AND its own
+    // ("Clear value"). `:clearable="false"` is what removes the second; without it this counts two.
+    const w = await field();
+    const labels = w.findAll("button").map((b) => b.attributes("aria-label") ?? "");
+    expect(labels.filter((l) => /clear/i.test(l))).toEqual(["Clear date"]);
+  });
+
+  it("still clears through OUR button", async () => {
+    const w = await field();
+    await w.findAll("button").find((b) => b.attributes("aria-label") === "Clear date")!.trigger("click");
+    // `""`, never null — the contract this component's header states.
+    expect(w.emitted("update:modelValue")?.at(-1)).toEqual([""]);
+  });
+
   it("puts the caller's id on the real input, so a FormField label still points at something", async () => {
     const w = await field({ id: "issued-on" });
     expect(w.find("input").attributes("id")).toBe("issued-on");

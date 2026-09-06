@@ -9,8 +9,6 @@ import {
   type DocumentRegisterRequest,
   qualificationRecordCreateSchema,
   type QualificationRecordCreateRequest,
-  rolesThatCanView,
-  rolesThatManage,
   qualificationSeedSchema,
   expandQualificationSeed,
   filterAgainstExisting,
@@ -22,7 +20,7 @@ import {
 } from "@silvicom/shared";
 import { randomUUID } from "node:crypto";
 import { dispatchJob } from "../../../queue/dispatch.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -56,8 +54,8 @@ export function complianceRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("roster"));
-  const canManage = requireRole(...rolesThatManage("roster"));
+  const canView = requireSection("roster", "view");
+  const canManage = requireSection("roster");
 
   // Create a certification (auto-supersedes the prior current one, §10.1). Client-generated id ⇒
   // idempotent replay. Every write is audited — these rows are the DQF a DOT auditor asks for.

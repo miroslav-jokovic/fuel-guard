@@ -5,6 +5,7 @@ import { placardSvg, PLACARD_ART_VERSION } from "@hazmat/placards";
 import type { PlacardName, Verdict } from "@hazmat/engine";
 import type { QualFinding } from "@silvicom/shared";
 import { INK, MUTED, NAVY } from "../../lib/pdfDraw.js";
+import { labelOf, memberLabels } from "../../lib/memberLabels.js";
 
 /**
  * M12.1 — the Roadside Defense Packet. One tap → a SELF-CONTAINED PDF a driver can hand to an
@@ -71,10 +72,12 @@ export async function gatherPacketData(
   const clearedReview = reviewRows.find((r) => r.action === "cleared") ?? null;
   const overrideReview = reviewRows.find((r) => r.action === "override") ?? null;
 
+  // The reviewer as the packet names them: their name since 0301, else their email (0301's directory,
+  // one call; the auth API only if they have since left the org).
   let reviewerEmail: string | null = null;
   if (clearedReview) {
-    const { data: u } = await admin.auth.admin.getUserById(clearedReview.reviewer_id).catch(() => ({ data: null }));
-    reviewerEmail = (u as { user?: { email?: string } } | null)?.user?.email ?? null;
+    const labels = await memberLabels(admin, orgId, [clearedReview.reviewer_id]);
+    reviewerEmail = labelOf(labels.get(clearedReview.reviewer_id));
   }
 
   const { data: org } = await admin.from("organizations").select("name").eq("id", orgId).single();

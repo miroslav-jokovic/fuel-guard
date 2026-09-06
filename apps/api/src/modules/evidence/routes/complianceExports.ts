@@ -6,12 +6,11 @@ import {
   documentExportRequestSchema,
   type DocumentExportRequest,
   dqExportListQuerySchema,
-  rolesThatManage,
   canReadAllRestricted,
   canReadRestrictedKind,
   DQ_ITEMS,
 } from "@silvicom/shared";
-import { requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -35,14 +34,21 @@ import { dispatchJob } from "../../../queue/dispatch.js";
 export function complianceExportsRouter(): Router {
   const router = Router();
 
-  const canManage = requireRole(...rolesThatManage("roster"));
+  const canManage = requireSection("roster");
   /**
    * Who may see the export LEDGER. Wider than who may create an export — an internal auditor's whole
    * job is reading the record of what left the building — and narrower than the fleet section's
    * canView, which includes dispatch. Dispatch has access to a driver's file when they need a
    * licence (D-BD10); a list of every driver whose records have been sent out is a different thing.
    */
-  const canSeeExports = requireRole("admin", "fleet_manager", "safety_manager", "auditor");
+  /**
+   * The §391.51 binder and its downloads — the `safety` section's read set, asked per request.
+   *
+   * It was written as a literal list of exactly those four roles, which IS `rolesThatCanView`
+   * ("safety"); the difference only appears once an org edits the matrix, when the literal stops
+   * moving with it (D-PERM3, S7).
+   */
+  const canSeeExports = requireSection("safety", "view");
   const today = (): string => new Date().toISOString().slice(0, 10);
 
   // ── exports (DQ-BINDER-PLAN) ───────────────────────────────────────────────────────

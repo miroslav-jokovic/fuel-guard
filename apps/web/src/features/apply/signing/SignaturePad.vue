@@ -43,7 +43,7 @@ function prepare(): CanvasRenderingContext2D | null {
   c.lineCap = "round";
   c.lineJoin = "round";
   // ⚠ Fixed rather than themed, and the token gate is waived on that basis — the precedent is
-  // `chartTheme.ts`, allow-listed for the same reason. These pixels do not stay in the browser: they
+  // `lib/chartTheme.ts`, allow-listed for the same reason. These pixels do not stay in the browser: they
   // are re-encoded to a PNG and drawn onto a printed white sheet by the PDF renderer, so a stroke
   // that inherited a dark theme's foreground would arrive as a near-white signature on white paper.
   c.strokeStyle = "#1a1a1a"; // token-check-disable-line: canvas ink for a printed PNG, never a themed surface

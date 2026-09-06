@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -52,7 +52,7 @@ export function jobsRouter(): Router {
   router.get(
     "/failed",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireSection("settings"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const limit = Number(req.query.limit ?? 50);
@@ -65,7 +65,7 @@ export function jobsRouter(): Router {
   router.post(
     "/cancel",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireSection("settings"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -85,7 +85,7 @@ export function jobsRouter(): Router {
   router.get(
     "/queue-metrics",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireSection("settings"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

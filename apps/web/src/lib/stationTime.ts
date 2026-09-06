@@ -110,3 +110,13 @@ export function stationLocalNote(iso: string | null | undefined, state: string |
     return null;
   }
 }
+
+/**
+ * The UTC instants that bound a range of EFS REJECT business days (FUEL-T1, D-FUI11).
+ *
+ * Re-exported rather than defined here since FUEL-P2: the declines EXPORT has to window the table
+ * exactly as this page does, so the derivation moved to `@silvicom/shared` where both layers reach it.
+ * Its own header there carries the argument for why a decline needs no stored business date while a
+ * fill does.
+ */
+export { efsRejectDayWindow } from "@silvicom/shared";

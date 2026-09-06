@@ -5,7 +5,7 @@
  * New surface: until now Silvicom 360 has only ever INFERRED card state from fill history
  * (learnCardAssignments), so "is this card locked?" had no answer. These rows come from the vendor.
  */
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type WritableComputedRef } from "vue";
 import { useRouter } from "vue-router";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -23,30 +23,40 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import { CARD_OPERATIONS, operationBlockedBy, operationLink, toOperationCard } from "@/features/fuelCards/cardOperations";
 import { allowedInfoIdsFrom } from "@/features/fuelCards/promptDrafts";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
+import { useQueryState } from "@/composables/useQueryState";
+import ExportButton from "@/components/ExportButton.vue";
+import { exportHref } from "@/lib/exportTarget";
+import { SORT_DIRECTIONS } from "@/composables/useUrlSort";
+import { EFS_CARD_STATUSES, matchesCardFilters, type EfsCardFilters } from "@silvicom/shared";
 
 const PAGE_SIZE = 20;
 
 const router = useRouter();
 
-const search = ref("");
-const status = ref("");
+/**
+ * FUEL-C3, D-FUI8 — every filter here is a URL parameter. "Which cards can currently buy outside
+ * their limits" is what an auditor opens this page for; it is `?override=active`, and it used to be
+ * a screenshot. ⚠ The vocabularies are not decoration — a `ref` could only hold what its dropdown
+ * offered and a parameter holds whatever somebody typed, so `status`, which reaches the vendor-facing
+ * route, is checked against the SHARED catalogue rather than a list retyped here (`param`'s header).
+ */
+const { param } = useQueryState();
+
+const search = param("search");
+const status = param("status", EFS_CARD_STATUSES);
 /**
  * The secondary facets. Applied CLIENT-side, deliberately: the route returns the whole inventory in
  * one response and this page already paginates in the browser, so filtering here is instant and adds
  * no vendor-adjacent API surface. Search and status stay server-side because they were already.
+ * `driver`, `unit` and `policy` carry no vocabulary: theirs comes from the data (`optionsFrom`).
  */
-const driver = ref("");
-const unit = ref("");
-const policy = ref("");
-const override = ref("");
-const linked = ref("");
-const health = ref("");
+const driver = param("driver");
+const unit = param("unit");
+const policy = param("policy");
+const override = param("override", ["active", "none"]);
+const linked = param("linked", ["linked", "unlinked"]);
+const health = param("health", ["errors", "ok"]);
 const page = ref(1);
-/**
- * `assignment` is the DEFAULT order, not a column: cards nobody is using sink to the bottom and the
- * working fleet keeps card order above them. Clicking any header replaces it with that column.
- */
-const sort = ref<{ key: string; dir: "asc" | "desc" }>({ key: "assignment", dir: "asc" });
 
 const query = useEfsCards({ search, status });
 
@@ -91,6 +101,31 @@ const syncOutcome = computed((): { tone: string; text: string; at?: string } | n
   return null;
 });
 
+const columns: DataTableColumn[] = [
+  { key: "maskedRef", label: "Card", sortable: true, width: "md", cellClass: "font-medium text-ink" },
+  { key: "status", label: "Status", sortable: true, width: "md" },
+  { key: "driverName", label: "Driver", sortable: true, width: "lg" },
+  { key: "unitPrompt", label: "Unit", sortable: true, width: "sm" },
+  { key: "driverIdPrompt", label: "Driver ID", sortable: true, width: "md" },
+  { key: "policyNumber", label: "Policy", sortable: true, numeric: true, width: "sm" },
+  { key: "overrideUses", label: "Override", sortable: true, width: "sm" },
+  { key: "actions", label: "", headerClass: "w-12", cellClass: "text-right" },
+];
+
+/**
+ * `assignment` is the DEFAULT order, not a column: cards nobody is using sink to the bottom and the
+ * working fleet keeps card order above them. Clicking any header replaces it with that column.
+ *
+ * The vocabulary is DERIVED from the columns above plus that default: a second list is a second
+ * place to add a sortable column to, and the forgotten one stops accepting links in silence.
+ */
+const SORT_KEYS = ["assignment", ...columns.filter((c) => c.sortable).map((c) => c.key)];
+const sortKey = param("sort", SORT_KEYS);
+const sortDir = param("dir", SORT_DIRECTIONS);
+const sort = computed<{ key: string; dir: "asc" | "desc" }>(
+  () => ({ key: sortKey.value || "assignment", dir: sortDir.value === "desc" ? "desc" : "asc" }),
+);
+
 watch([search, status, driver, unit, policy, override, linked, health], () => { page.value = 1; });
 
 const allRows = computed(() => query.data.value?.cards ?? []);
@@ -109,23 +144,36 @@ const driverOptions = optionsFrom((r) => r.driverName, "Any driver");
 const unitOptions = optionsFrom((r) => r.unitPrompt, "Any unit");
 const policyOptions = optionsFrom((r) => r.policyNumber, "Any policy");
 
-const rows = computed(() =>
-  allRows.value.filter((r) => {
-    if (driver.value && r.driverName !== driver.value) return false;
-    if (unit.value && r.unitPrompt !== unit.value) return false;
-    if (policy.value && String(r.policyNumber ?? "") !== policy.value) return false;
-    // An active exception is the thing an auditor scans this page for — "who can currently buy fuel
-    // outside their limits" is one click, not a sort down a 199-row list.
-    if (override.value === "active" && (r.overrideUses ?? 0) <= 0) return false;
-    if (override.value === "none" && (r.overrideUses ?? 0) > 0) return false;
-    if (linked.value === "linked" && !r.fuelCardId) return false;
-    if (linked.value === "unlinked" && r.fuelCardId) return false;
-    // 140 of this fleet's 199 cards carried a sync error at one point and nothing on screen said so.
-    if (health.value === "errors" && !r.syncError) return false;
-    if (health.value === "ok" && r.syncError) return false;
-    return true;
+/**
+ * The seven facets this page narrows on beyond status and free text, which the endpoint applies in
+ * the database.
+ *
+ * ⚠ The predicate itself is `matchesCardFilters` in `@silvicom/shared` since FUEL-P2, and it is not
+ * a tidy-up: the EXPORT has to honour the same seven, and a second statement of them in the API is
+ * the copy that goes stale — nobody looks at an export when they change a filter. One definition,
+ * applied here to the rows on screen and there to the rows in the file.
+ */
+const cardFilters = computed<EfsCardFilters>(() => ({
+  driver: driver.value, unit: unit.value, policy: policy.value,
+  override: override.value, linked: linked.value, health: health.value,
+}));
+const rows = computed(() => allRows.value.filter((r) => matchesCardFilters(r, cardFilters.value)));
+
+/**
+ * FUEL-P2 — this inventory as a file, at the parameters the address bar holds.
+ *
+ * The server re-reads the cards and applies `matchesCardFilters` to them, so the file is this list
+ * rather than this PAGE of it — and, on a fleet past a thousand cards, rather than the first thousand
+ * the endpoint can return (see the `truncated` note below). `?unit=` here is a card's pump PROMPT, not
+ * a truck, which is why the scope sentence counts CARDS and says nothing about trucks.
+ */
+const exportHrefValue = computed(() =>
+  exportHref("/api/fueling/exports/cards.csv", {
+    search: search.value, status: status.value, driver: driver.value, unit: unit.value,
+    policy: policy.value, override: override.value, linked: linked.value, health: health.value,
   }),
 );
+const exportScope = computed(() => `${rows.value.length} card${rows.value.length === 1 ? "" : "s"}`);
 
 const sorted = computed(() => {
   const { key, dir } = sort.value;
@@ -156,10 +204,12 @@ const sorted = computed(() => {
 
 const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
+/** Two states per column, never none — hence asc ⇄ desc here rather than `useUrlSort`'s three-state
+ *  cycle: this table always has an order, and `assignment` is what it falls back to. */
 function onSort(key: string): void {
-  sort.value = sort.value.key === key
-    ? { key, dir: sort.value.dir === "asc" ? "desc" : "asc" }
-    : { key, dir: "asc" };
+  const flipped = sort.value.key === key && sort.value.dir === "asc" ? "desc" : "asc";
+  sortKey.value = key;
+  sortDir.value = flipped;
 }
 
 /** True when the API had more cards than it returned — see the limit note on the read route. */
@@ -167,18 +217,22 @@ const truncated = computed(() => (query.data.value?.total ?? 0) > allRows.value.
 
 /** Oldest REACHABLE row wins — see `reachableSyncFloor` for why absent cards must not count. */
 const oldestSync = computed(() => reachableSyncFloor(rows.value));
+/**
+ * FUEL-T5 / Q-FUI14 — this page's half of "say what is measured".
+ *
+ * The ruling of 2026-09-02 is that Cards carries rows-in-window and last-feed-poll and NOT the
+ * attribution share the other three fuel lists carry: a card is issued to a driver or a truck as a
+ * matter of SETUP, not attributed per row, so there is no denominator to take a share of. Inventing a
+ * substitute — cards seen on the last sweep against cards held — would have been a different fact
+ * wearing the same sentence's clothes.
+ *
+ * The count was already in the filter bar below. This was already computed too, but only SPOKE on
+ * failure: `freshness()` returns a plain "Checked 20 minutes ago." inside the sweep cadence, and the
+ * template rendered it only when `stale`, so a page that was working correctly said nothing at all
+ * about when it had last read from EFS. It now always says, and only the stale form keeps the caution
+ * colour — the same reservation `FeedFreshnessLine` makes, for the same reason.
+ */
 const listFreshness = computed(() => freshness(oldestSync.value, new Date(), query.data.value?.staleAfterMinutes));
-
-const columns: DataTableColumn[] = [
-  { key: "maskedRef", label: "Card", sortable: true, width: "md", cellClass: "font-medium text-ink" },
-  { key: "status", label: "Status", sortable: true, width: "md" },
-  { key: "driverName", label: "Driver", sortable: true, width: "lg" },
-  { key: "unitPrompt", label: "Unit", sortable: true, width: "sm" },
-  { key: "driverIdPrompt", label: "Driver ID", sortable: true, width: "md" },
-  { key: "policyNumber", label: "Policy", sortable: true, numeric: true, width: "sm" },
-  { key: "overrideUses", label: "Override", sortable: true, width: "sm" },
-  { key: "actions", label: "", headerClass: "w-12", cellClass: "text-right" },
-];
 
 /**
  * The operations worth offering for one row (Step 6.3).
@@ -219,23 +273,19 @@ const chips = computed(() => [
   ...(health.value ? [{ key: "health", label: "Sync", value: health.value === "errors" ? "With errors" : "Clean" }] : []),
 ]);
 
-const FACETS: Record<string, { value: string }> = {
-  status: status as unknown as { value: string },
-  driver: driver as unknown as { value: string },
-  unit: unit as unknown as { value: string },
-  policy: policy as unknown as { value: string },
-  override: override as unknown as { value: string },
-  linked: linked as unknown as { value: string },
-  health: health as unknown as { value: string },
-};
+/** The chip key → the parameter it removes; the casts went with the `ref`s, `param()` is already one. */
+const FACETS: Record<string, WritableComputedRef<string>> = { status, driver, unit, policy, override, linked, health };
 
 function onRemoveChip(key: string): void {
   const facet = FACETS[key];
   if (facet) facet.value = "";
 }
 
+/** Search included, unlike `FACETS` — a chip removes one facet, this clears the screen. The sort is
+ *  kept: it is how the list is ordered, not how it is narrowed. */
 function clearAll(): void {
   for (const facet of Object.values(FACETS)) facet.value = "";
+  search.value = "";
 }
 
 
@@ -267,7 +317,8 @@ const mileageOpen = ref(false);
       <span v-if="syncOutcome.at" class="text-ink-muted">(last checked {{ syncOutcome.at }})</span>
     </p>
 
-    <p v-if="listFreshness.stale && rows.length > 0" class="text-sm text-caution-700">
+    <!-- FUEL-T5 / Q-FUI14: always says when it last checked; only the stale form is toned. -->
+    <p v-if="rows.length > 0" :class="listFreshness.stale ? 'text-sm text-caution-700' : 'text-xs text-ink-tertiary'">
       {{ listFreshness.text }}
     </p>
 
@@ -330,6 +381,14 @@ const mileageOpen = ref(false);
             { value: 'errors', label: 'Reported an error' },
             { value: 'ok', label: 'Clean' },
           ]"
+        />
+      </template>
+      <template #actions>
+        <ExportButton
+          :href="exportHrefValue"
+          :filename="`fuel-cards-${new Date().toISOString().slice(0, 10)}.csv`"
+          :scope="exportScope"
+          :disabled="rows.length === 0"
         />
       </template>
     </FilterBar>

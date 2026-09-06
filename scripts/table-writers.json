@@ -18,6 +18,9 @@
   "case_pattern_reports": [
     "apps/api/src/modules/anomalies/entityRisk.ts"
   ],
+  "certifications": [
+    "apps/api/src/modules/evidence/retract.ts"
+  ],
   "declined_transactions": [
     "apps/api/src/modules/anomalies/declinedScoring.ts",
     "apps/api/src/modules/efs/services/efsIngestReject.ts",
@@ -31,6 +34,7 @@
     "apps/api/src/modules/evidence/compliance.ts",
     "apps/api/src/modules/evidence/documentDerivatives.ts",
     "apps/api/src/modules/evidence/generatedDocuments.ts",
+    "apps/api/src/modules/evidence/retract.ts",
     "apps/api/src/modules/psp/pspOrder.ts",
     "apps/api/src/modules/recruiting/applicationPdf/file.ts"
   ],
@@ -70,7 +74,6 @@
   "drivers": [
     "apps/api/src/modules/efs/services/efsIngest.ts",
     "apps/api/src/modules/fuel/driverAttribution.ts",
-    "apps/api/src/modules/org/routes/invites.ts",
     "apps/api/src/modules/org/routes/members.ts",
     "apps/api/src/modules/roster/driverCredentials.ts",
     "apps/api/src/modules/roster/routes/archive.ts",
@@ -121,6 +124,9 @@
   "employer_inquiries": [
     "apps/api/src/modules/recruiting/employerInquiry.ts"
   ],
+  "finance_month_closes": [
+    "apps/api/src/modules/financial/monthClose.ts"
+  ],
   "financial_entries": [
     "apps/api/src/modules/financial/projection.ts"
   ],
@@ -131,7 +137,8 @@
     "apps/api/src/modules/fuel/discountRules.ts"
   ],
   "fuel_events": [
-    "apps/api/src/modules/samsara/fuelEventsWebhook.ts"
+    "apps/api/src/modules/samsara/fuelEventsWebhook.ts",
+    "apps/api/src/modules/samsara/samsaraStatsFeed.ts"
   ],
   "fuel_exception_events": [
     "apps/api/src/modules/fuel-spend/fuelExceptions.ts"
@@ -222,7 +229,11 @@
   "idle_telemetry_windows": [
     "apps/api/src/modules/idle/idleTelemetrySync.ts"
   ],
+  "import_rows": [
+    "apps/api/src/modules/efs/services/efsIngestRejects.ts"
+  ],
   "imports": [
+    "apps/api/src/modules/efs/services/efsIngestRejects.ts",
     "apps/api/src/modules/efs/services/efsIngestReject.ts",
     "apps/api/src/modules/efs/services/efsIngestShared.ts",
     "apps/api/src/modules/efs/services/efsSync.ts"
@@ -233,8 +244,8 @@
     "apps/api/src/modules/samsara/samsaraScheduler.ts"
   ],
   "invites": [
-    "apps/api/src/modules/org/routes/invites.ts",
-    "apps/api/src/modules/roster/routes/drivers.ts"
+    "apps/api/src/modules/org/inviteRedemption.ts",
+    "apps/api/src/modules/org/routes/invites.ts"
   ],
   "jobs": [
     "apps/api/src/modules/org/jobs.ts"
@@ -272,9 +283,7 @@
   "mcleod_gl_accounts": [
     "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
   ],
-  "mcleod_gl_totals": [
-    "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
-  ],
+  "mcleod_gl_totals": [],
   "mcleod_movements": [
     "apps/api/src/modules/mcleod/movementFactIngest.ts"
   ],
@@ -285,7 +294,7 @@
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
   "memberships": [
-    "apps/api/src/modules/org/routes/invites.ts",
+    "apps/api/src/modules/org/inviteRedemption.ts",
     "apps/api/src/modules/org/routes/members.ts",
     "apps/api/src/modules/roster/driverCredentials.ts"
   ],
@@ -314,6 +323,12 @@
   ],
   "org_modules": [
     "apps/admin-api/src/lib/orgs.ts"
+  ],
+  "org_role_surface_access": [
+    "apps/api/src/modules/org/routes/surfaceAccess.ts"
+  ],
+  "org_section_access": [
+    "apps/api/src/modules/org/routes/sectionAccess.ts"
   ],
   "organizations": [
     "apps/api/src/modules/org/digestScheduler.ts",
@@ -345,11 +360,20 @@
   "route_geometries": [
     "apps/api/src/modules/routing/routeGeometry.ts"
   ],
+  "samsara_feed_alerts": [
+    "apps/api/src/modules/samsara/samsaraFeedAlarm.ts"
+  ],
+  "samsara_feed_cursors": [
+    "apps/api/src/modules/samsara/samsaraStatsFeed.ts"
+  ],
   "samsara_ifta_fetches": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"
   ],
   "samsara_ifta_jurisdiction_miles": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"
+  ],
+  "samsara_odometer_readings": [
+    "apps/api/src/modules/samsara/samsaraOdometerSync.ts"
   ],
   "saved_views": [
     "apps/api/src/modules/org/routes/savedViews.ts"
@@ -381,16 +405,24 @@
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
   ],
-  "truck_cost_schedules": [
-    "apps/api/src/modules/financial/costSchedules.ts"
-  ],
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
+  ],
+  "user_profiles": [
+    "apps/api/src/modules/org/inviteRedemption.ts",
+    "apps/api/src/modules/org/routes/members.ts"
+  ],
+  "user_section_access": [
+    "apps/api/src/modules/org/routes/sectionAccess.ts"
+  ],
+  "user_surface_access": [
+    "apps/api/src/modules/org/routes/surfaceAccess.ts"
   ],
   "vehicle_inspection_items": [
     "apps/api/src/modules/maintenance/inspections/inspections.ts"
   ],
   "vehicle_inspections": [
+    "apps/api/src/modules/maintenance/inspections/deleteRecord.ts",
     "apps/api/src/modules/maintenance/inspections/finalize.ts",
     "apps/api/src/modules/maintenance/inspections/inspections.ts"
   ],

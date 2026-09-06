@@ -7,7 +7,7 @@
  * Every function here takes finished figures and draws them, so none of them can compute anything and
  * quietly disagree with the page.
  */
-import { operatingBridge, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
+import { FLEET_MILES_SOURCE_LABEL, operatingBridge, reportableMpg, type MileageAgreement, type SpendGrain, type SpendPeriod } from "@silvicom/shared";
 import { C, CONTENT_W, GEOM, T } from "./fuelSpendReportTheme.js";
 import { METRIC_STRIP_HEIGHT, metricStrip, money, waterfall, waterfallHeight, type Metric } from "./fuelSpendReportCharts.js";
 import { figureTable, tableHeadHeight, totalRow, type Column, type Row } from "./fuelSpendReportTable.js";
@@ -80,6 +80,12 @@ export function drawHeadline(
   series: readonly SpendPeriod[],
   cmp: Comparison,
   grain: SpendGrain,
+  /**
+   * The cross-source mileage check (M5). Printed only when it has something to say — silence is the
+   * pass, because a line saying "the miles agree" on every report is a line nobody reads, and this
+   * has to be noticed on the one day it changes.
+   */
+  agreement?: MileageAgreement,
 ): void {
   // Partial buckets are excluded from every trend for the same reason `comparablePeriods` excludes
   // them from the comparison: the newest bucket is normally still filling, and a one-day week plotted
@@ -94,7 +100,12 @@ export function drawHeadline(
     { label: "Gallons", value: num(overall.gallons), scope: "tractor diesel", trend: full.map((x) => x.gallons), ...change(p?.gallons, c?.gallons, true) },
     { label: "Paid / gal", value: usd3(overall.pricePerGal), scope: "weighted average", trend: full.map((x) => x.pricePerGal), ...change(p?.pricePerGal, c?.pricePerGal, true) },
     { label: "Cost / mile", value: usd2(overall.costPerMile), scope: "fuel only", trend: full.map((x) => x.costPerMile), ...change(p?.costPerMile, c?.costPerMile, true) },
-    { label: "Fleet MPG", value: overall.mpg?.toFixed(2) ?? "-", scope: "measured miles", trend: full.map((x) => x.mpg), ...change(p?.mpg, c?.mpg, false) },
+    // ⚠ `mpgUsable`, not `mpg` (M5, D-MPG1). `mpg` is the DIVISION and is reported whatever it comes
+    // to, so a page can explain a refusal; printing it unguarded is how this strip showed 85.7 MPG for
+    // June 2026's contaminated mileage while the operating bridge beside it was withholding its
+    // volume split for exactly that reason. A figure in a PDF gets quoted back months later, so it
+    // prints only when the module says it may — and the same test applies to the trend line.
+    { label: "Fleet MPG", value: reportableMpg(overall)?.toFixed(2) ?? "-", scope: FLEET_MILES_SOURCE_LABEL[overall.milesSource], trend: full.map(reportableMpg), ...change(p && reportableMpg(p), c && reportableMpg(c), false) },
   ];
   ensure(doc, METRIC_STRIP_HEIGHT + 14);
   metricStrip(doc, metrics);
@@ -107,6 +118,21 @@ export function drawHeadline(
     GEOM.margin, doc.y - 8, { width: CONTENT_W },
   );
   doc.y += 12;
+
+  // ── THE CROSS-SOURCE CHECK, DIRECTLY UNDER THE MILES IT IS ABOUT (M5, plan Q3) ─────────────────
+  // `fuel_spend_days.miles` agreed with Samsara's IFTA jurisdiction miles to within 0.08% in July
+  // 2026 and ran 3.78% ahead of them in August; the step landed in the week of 2026-07-28 and
+  // NOTHING NOTICED FOR FIVE WEEKS, because nothing in the product put the two side by side. It goes
+  // here rather than in a footnote for the same reason the freshness line went on the letterhead: a
+  // document is forwarded and quoted back, so a caveat about the miles belongs beside the miles.
+  if (agreement?.concern) {
+    ensure(doc, 26);
+    doc.fillColor(C.warn).font("Helvetica-Bold").fontSize(T.micro).text(
+      winAnsi(`Mileage cross-check: ${agreement.concern}`),
+      GEOM.margin, doc.y, { width: CONTENT_W },
+    );
+    doc.y += 8;
+  }
 }
 
 export function drawBridge(doc: PDFKit.PDFDocument, cmp: Comparison, grain: SpendGrain, n: number): void {
@@ -188,7 +214,8 @@ export function drawSeries(
       { text: usd(p.spend), value: p.spend, bold: true },
       { text: usd3(p.pricePerGal) },
       { text: num(p.miles) },
-      { text: p.mpg?.toFixed(2) ?? "-" },
+      // Same rule as the strip above: the division is reported for explaining, never for printing.
+      { text: reportableMpg(p)?.toFixed(2) ?? "-" },
       { text: usd2(p.costPerMile) },
       // The SHARE, not a cost: how much of this truck-time was stationary is a fact; what it was worth
       // in blame is not this report's to say.
@@ -204,7 +231,7 @@ export function drawSeries(
     { text: usd(overall.spend) },
     { text: usd3(overall.pricePerGal) },
     { text: num(overall.miles) },
-    { text: overall.mpg?.toFixed(2) ?? "-" },
+    { text: reportableMpg(overall)?.toFixed(2) ?? "-" },
     { text: usd2(overall.costPerMile) },
     { text: overall.idleShare == null ? "-" : `${(overall.idleShare * 100).toFixed(0)}%` },
   ]);

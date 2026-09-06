@@ -14,9 +14,8 @@ import type { TmsMovementFactsPayload } from "@silvicom/shared";
  * (`inferDeadheadLegs`) is the only consumer and reads them whole; see 0267's header for why a
  * second table was rejected.
  *
- * ⚠ Same void-lag caveat as settlements: the sweep excludes `status = 'V'` at extraction, so a
- * movement voided AFTER a sweep keeps its last-swept row until the dedicated void sweep lands
- * (named follow-up in the program plan).
+ * Voids arrive WITH their status since D-FIN5 (`external_status = 'V'`), so a movement voided after
+ * a sweep flips on the next one; the reader excludes V.
  */
 
 const CHUNK = 500;
@@ -26,6 +25,38 @@ export interface MovementFactIngestResult {
   upserted: number;
 }
 
+/**
+ * `movement.id` REPEATS across McLeod companies (measured 2026-09-03: 296,242 rows, 277,481 distinct
+ * ids, 18,761 shared between TMS/TMS2/TMS3), and this table is still keyed (org_id, external_id).
+ * Until the company-aware key ships (F8c, FINANCE-GO-LIVE-PLAN §1.8), a sweep of a second company
+ * would silently OVERWRITE the first company's trips. So the ingest refuses it: a chunk that would
+ * replace a stored row carrying a different company fails whole, naming the ids, and nothing is
+ * written. A stored row with no company yet (written before 0303) is not a conflict.
+ */
+async function refuseCrossCompanyOverwrite(
+  admin: SupabaseClient,
+  orgId: string,
+  chunk: TmsMovementFactsPayload["movements"],
+): Promise<void> {
+  const incoming = new Map(chunk.map((m) => [m.external_id, m.company_id]));
+  const { data, error } = await admin
+    .from("mcleod_movements")
+    .select("external_id, company_id")
+    .eq("org_id", orgId)
+    .in("external_id", [...incoming.keys()]);
+  if (error) throw new Error(`mcleod_movements company check failed: ${error.message}`);
+  const clashes = ((data ?? []) as { external_id: string; company_id: string | null }[]).filter(
+    (r) => r.company_id != null && r.company_id !== incoming.get(r.external_id),
+  );
+  if (clashes.length) {
+    const named = clashes.slice(0, 5).map((c) => `${c.external_id}:${c.company_id}`).join(", ");
+    throw new Error(
+      `mcleod_movements: ${clashes.length} movement id(s) already belong to another McLeod company (${named}) — ` +
+        `movement ids repeat across companies and the per-company key is F8c; refusing to overwrite`,
+    );
+  }
+}
+
 export async function ingestMovementFacts(
   admin: SupabaseClient,
   orgId: string,
@@ -33,9 +64,12 @@ export async function ingestMovementFacts(
 ): Promise<MovementFactIngestResult> {
   let upserted = 0;
   for (let i = 0; i < payload.movements.length; i += CHUNK) {
-    const rows = payload.movements.slice(i, i + CHUNK).map((m) => ({
+    const chunk = payload.movements.slice(i, i + CHUNK);
+    await refuseCrossCompanyOverwrite(admin, orgId, chunk);
+    const rows = chunk.map((m) => ({
       org_id: orgId,
       external_id: m.external_id,
+      company_id: m.company_id,
       tractor_unit: m.tractor_unit ?? null,
       trailer_unit: m.trailer_unit ?? null,
       driver_external_ids: m.driver_external_ids,

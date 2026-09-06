@@ -10,6 +10,9 @@
   "scripts": {
     "start": "node --env-file=.env agent.mjs",
     "roster": "node --env-file=.env agent.mjs --roster",
+    "financial": "node --env-file=.env agent.mjs --financial",
+    "financial:harden": "node --env-file=.env agent.mjs --financial --harden",
+    "test": "node --test \"*.test.mjs\"",
     "movements": "node --env-file=.env movements.mjs",
     "expenses": "node --env-file=.env expenses.mjs",
     "settlements": "node --env-file=.env settlements.mjs",

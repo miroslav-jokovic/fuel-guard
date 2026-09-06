@@ -147,5 +147,6 @@ await db.query(
 const md010 = await refuses(`select merge_driver_v2($1, $2, $3, $4::jsonb)`, [ORG, S2, CAN, movesJson]);
 ok("MD010 stands: signed evidence still refuses the merge", md010 !== null && /MD010|signed evidence/.test(md010.message));
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

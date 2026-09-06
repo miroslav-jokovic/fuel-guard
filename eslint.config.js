@@ -39,6 +39,10 @@ const browserGlobals = {
 export default tseslint.config(
   {
     ignores: [
+      // Parallel Claude sessions check out branches under .claude/worktrees; a repo copy there is
+      // somebody else's tree at somebody else's commit, and linting it reported 700 errors once and
+      // eight stale warnings for a week that no file in THIS tree carried.
+      ".claude/**",
       "tools/**", // standalone on-prem agent (own Node runtime; not app-linted)
       "**/dist/**",
       "**/node_modules/**",

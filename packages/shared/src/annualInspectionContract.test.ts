@@ -8,6 +8,7 @@ import {
   inspectionDateSchema,
   nextInspectionDueDate,
   type InspectionItemAnswer,
+  chooseVehicleIdentification,
 } from "./annualInspectionContract.js";
 
 const ON = "2026-06-16";
@@ -249,5 +250,64 @@ describe("inspectionExpiry — what the roster shows about a truck (D-AVI16)", (
     expect(inspectionExpiry("2027-01-01", "2026-12-02").state).toBe("expiring");
     expect(inspectionExpiry("2027-01-01", "2026-11-01").state).toBe("valid");
     expect(inspectionExpiry("2027-01-01", "2027-01-02").state).toBe("expired");
+  });
+});
+
+/**
+ * Which box the form ticks, and whether it has anything to print in it.
+ *
+ * ── THE BUG THIS EXISTS FOR (2026-09-01) ───────────────────────────────────────────────────────
+ * `vehicle_identification_method` defaulted to `'vin'` at draft creation and nothing revised it, so
+ * a trailer's report ticked **VIN** and printed nothing — a positive claim about an identifier that
+ * does not exist, which is worse than a blank box. It surfaced when the roster held 0 of 211 trailer
+ * VINs; the McLeod sweep then filled 200 of them. What remains, measured after that sweep: 11 of 211
+ * trailers and 8 of 199 vehicles carry neither a VIN nor a plate, and every row carries a unit.
+ */
+describe("chooseVehicleIdentification — the tick and the value cannot disagree", () => {
+  it("prefers the VIN, which is what the office marks when it has one", () => {
+    expect(chooseVehicleIdentification({ vin: "3AKJHHDR4MSMS9681", plate: "IL 1234", unitNumber: "587" })).toEqual({
+      method: "vin",
+      value: "3AKJHHDR4MSMS9681",
+    });
+  });
+
+  it("falls to the plate when there is no VIN", () => {
+    expect(chooseVehicleIdentification({ vin: null, plate: "IL 1234", unitNumber: "587" })).toEqual({
+      method: "plate",
+      value: "IL 1234",
+    });
+  });
+
+  it("identifies a trailer by its unit number under OTHER — the case that broke", () => {
+    // §396.21(a)(4) names the company number as an identification in its own right, and the form has
+    // an OTHER box for exactly this. Every trailer has a unit; 11 still have no VIN and no plate.
+    expect(chooseVehicleIdentification({ vin: null, plate: null, unitNumber: "530108" })).toEqual({
+      method: "other",
+      value: "530108",
+    });
+  });
+
+  it("NEVER returns a method without a value — that is the whole defect", () => {
+    for (const equipment of [
+      { vin: null, plate: null, unitNumber: null },
+      { vin: "", plate: "   ", unitNumber: "" },
+      {},
+    ]) {
+      const chosen = chooseVehicleIdentification(equipment);
+      expect(chosen.value, JSON.stringify(equipment)).toBeNull();
+      // `other` with no value leaves the row honestly blank rather than ticking VIN over nothing.
+      expect(chosen.method).toBe("other");
+    }
+  });
+
+  it("treats whitespace as absent, so a blank string cannot tick a box", () => {
+    expect(chooseVehicleIdentification({ vin: "  ", plate: "IL 1234" })).toEqual({
+      method: "plate",
+      value: "IL 1234",
+    });
+  });
+
+  it("trims what it returns, because the value is printed into a 180 pt cell", () => {
+    expect(chooseVehicleIdentification({ vin: " 3AKJ " }).value).toBe("3AKJ");
   });
 });

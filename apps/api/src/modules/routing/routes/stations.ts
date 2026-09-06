@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireOrg } from "../../../middleware/auth.js";
+import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { dbErrorResponse, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -9,9 +9,14 @@ import { resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, type Disco
  *  price planning would actually use (fresh tenant net → posted−rule → history → brand median → none) and
  *  its staleness vs the org price-freshness window. Read-only. */
 export function registerStationRoutes(router: Router): void {
+  // ⚠ S7 added the section gate. It backs the Truck Stops page and the Fuel Planning picker, both
+  // catalogued `dispatch`, and it was `requireOrg` alone — the API half of the same gap S2 closed at
+  // the router. A narrowing for a direct caller only: since S2 no role without `dispatch: view` can
+  // open either screen.
   router.get(
     "/stations",
     requireOrg,
+    requireSection("dispatch", "view"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

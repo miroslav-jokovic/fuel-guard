@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { rolesThatCanView, rolesThatManage } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -30,7 +29,7 @@ export function printProfilesRouter(): Router {
   router.get(
     "/",
     requireOrg,
-    requireRole(...rolesThatCanView("maintenance")),
+    requireSection("maintenance", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const result = await listPrintProfiles(admin, req.auth!.orgId!);
@@ -64,7 +63,7 @@ export function printProfilesRouter(): Router {
       res.status(isUpdate ? 200 : 201).json({ ok: true, id: result.id });
     });
 
-  const canManage = requireRole(...rolesThatManage("maintenance"));
+  const canManage = requireSection("maintenance");
   router.post("/", requireOrg, canManage, validateBody(profileSchema), save(false));
   router.patch("/:id", requireOrg, canManage, validateBody(profileSchema), save(true));
 

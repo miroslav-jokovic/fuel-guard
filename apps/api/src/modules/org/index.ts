@@ -11,10 +11,14 @@
  * probe, and storage backup/reconcile. The queue RUNTIME (`queue/`) deliberately stays
  * outside: it is the process fabric every module's handlers register into, not one module's own.
  */
-export { invitesRouter, deliverInvite } from "./routes/invites.js";
+export { invitesRouter } from "./routes/invites.js";
+export { publicInvitesRouter } from "./routes/publicInvites.js";
+export { deliverInvite, type InviteDelivery } from "./inviteDelivery.js";
 export { membersRouter } from "./routes/members.js";
 export { savedViewsRouter } from "./routes/savedViews.js";
 export { auditRouter } from "./routes/audit.js";
+export { sectionAccessRouter, toOverrides } from "./routes/sectionAccess.js";
+export { surfaceAccessRouter, toSurfaceOverrides, surfaceClaimFor } from "./routes/surfaceAccess.js";
 // The carrier's own identity, read by any module rendering a filing that must name it (0282).
 export { carrierCityStateZip, getCarrierIdentity } from "./carrierIdentity.js";
 export type { CarrierIdentity } from "./carrierIdentity.js";

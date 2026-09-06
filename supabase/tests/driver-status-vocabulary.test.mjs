@@ -71,5 +71,6 @@ ok(
   (await sqlstate(`insert into drivers (org_id, full_name) values ($1,'No Status Given')`, [ORG])) === null,
 );
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

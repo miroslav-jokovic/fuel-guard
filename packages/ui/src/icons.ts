@@ -156,6 +156,9 @@ export {
   // The IFTA ledger: a tax owed to a jurisdiction for miles driven inside it. The nav gate requires a
   // glyph unique across the whole menu, so this cannot borrow the scales the exception ledger has.
   TaxesIcon                   as IftaLedgerIcon,
+  // The books check: a month's figures ticked off against the ledger (D-FIN14). Its own glyph, because
+  // the nav gate requires one per menu item and the scales already belong to the exception ledger.
+  Calculator01Icon  as BooksCheckIcon,
   DeliveryTruck01Icon         as LoadsIcon,
   GasPipeIcon                 as TruckStopIcon,
   ShippingTruck01Icon         as VehicleIcon,

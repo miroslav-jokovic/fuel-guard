@@ -9,6 +9,7 @@ import {
   type SpendDay,
 } from "./operatingBridge.js";
 import { spendSeries, periodBounds, comparablePeriods } from "./spendPeriods.js";
+import { reportableMpg } from "./fleetEfficiency.js";
 
 /**
  * This bridge exists to be shown to somebody who did not build it, so its bars have to ADD UP to the
@@ -82,6 +83,36 @@ describe("periodTotals", () => {
     // never existed, and the error grows exactly as odometer coverage falls.
     expect(p.mpg).toBeCloseTo(7.708, 3);
     expect(p.mpg).not.toBeCloseTo(433541.2 / 57695.77, 3);
+  });
+
+  /**
+   * ── THE FIGURE IS ASKED FOR, NOT COMPUTED (M5, D-MPG1) ───────────────────────────────────────
+   * `periodTotalsFromSums` used to divide the miles by the gallons itself and apply the band and the
+   * coverage floor beside it — the fifth implementation, and the one `lint:mpg` names as its blind
+   * spot because routing the division through a helper leaves no operator for the gate to see. It
+   * asks `computeFleetMpg` now. The three assertions below are what a caller can still rely on, and
+   * each of them is a way that swap could have gone wrong silently.
+   */
+  it("says its miles are ALLOCATED, so nobody mistakes them for a measurement", () => {
+    // `fuel_spend_days.miles` is one fill-to-fill interval spread across the days it spans by
+    // drive-second weight. §1.4 of the MPG plan measured what that costs against Samsara's own IFTA
+    // miles: 0.08% in July 2026, 3.78% in August. A reader who cannot tell it from two odometer
+    // readings the vendor asserted cannot judge either figure.
+    expect(periodTotals(AUG17, "2026-08-17", "2026-08-23").milesSource).toBe("allocated");
+  });
+
+  it("keeps `mpg` as the DIVISION, so an implausible period can still explain itself", () => {
+    // The bridge's refusal quotes the number ("85.7 MPG, which is outside what a tractor can do").
+    // A null here would leave it with nothing to say, and `reportableMpg` is what stops the figure
+    // reaching a page.
+    const junk = periodTotals(
+      week("2026-06-01", { trucks: 133, fills: 448, gallons: 51678, spend: 233000, miles: 4427362, mpgGallons: 51678 }),
+      "2026-06-01",
+      "2026-06-07",
+    );
+    expect(junk.mpg).toBeCloseTo(85.67, 2);
+    expect(junk.mpgUsable).toBe(false);
+    expect(reportableMpg(junk)).toBeNull();
   });
 
   it("reports proven miles beside the implied miles it divides cost by", () => {

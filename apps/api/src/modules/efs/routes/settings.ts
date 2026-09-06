@@ -15,6 +15,7 @@ import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
+import { memberLabels } from "../../../lib/memberLabels.js";
 
 /**
  * Who, in this company, may change a fuel card — and the record of every time that answer moved.
@@ -133,16 +134,16 @@ export function fuelCardSettingsRouter(): Router {
     const eligible = memberships.filter((m) => (eligibleRoles() as string[]).includes(m.role));
     const roleOf = new Map(memberships.map((m) => [m.user_id, m.role]));
 
-    // Emails come from the auth admin API, exactly as routes/members.ts does it — `memberships` holds
-    // no email, and a settings screen that lists raw uuids is not one anybody can use.
-    const emails = new Map<string, string | null>();
-    await Promise.all(
-      [...new Set([...eligible.map((m) => m.user_id), ...(approverResult.data ?? []).map((a) => (a as ApproverRow).user_id)])]
-        .map(async (userId) => {
-          const { data } = await admin.auth.admin.getUserById(userId);
-          emails.set(userId, data?.user?.email ?? null);
-        }),
+    // Names and emails come from the org's directory in one call (0301), as routes/members.ts does it
+    // — `memberships` holds neither, and a settings screen that lists raw uuids is not one anybody
+    // can use. `name` is beside `email` so the screen can lead with the person.
+    const labels = await memberLabels(
+      admin,
+      orgId,
+      [...eligible.map((m) => m.user_id), ...(approverResult.data ?? []).map((a) => (a as ApproverRow).user_id)],
     );
+    const emailOf = (userId: string) => labels.get(userId)?.email ?? null;
+    const nameOf = (userId: string) => labels.get(userId)?.name ?? null;
 
     const settings = ((settingsResult.data as SettingsRow | null) ?? DEFAULT_SETTINGS);
 
@@ -161,7 +162,8 @@ export function fuelCardSettingsRouter(): Router {
       approvers: ((approverResult.data ?? []) as ApproverRow[])
         .map((row) => ({
           userId: row.user_id,
-          email: emails.get(row.user_id) ?? null,
+          email: emailOf(row.user_id),
+          name: nameOf(row.user_id),
           role: roleOf.get(row.user_id) ?? null,
           scopes: (row.scopes ?? []).filter((s): s is CardControlScope =>
             (CARD_CONTROL_SCOPES as readonly string[]).includes(s)),
@@ -174,7 +176,8 @@ export function fuelCardSettingsRouter(): Router {
         .map((a) => ({ ...a, eligible: (eligibleRoles() as string[]).includes(a.role ?? "") })),
       eligible: eligible.map((m) => ({
         userId: m.user_id,
-        email: emails.get(m.user_id) ?? null,
+        email: emailOf(m.user_id),
+        name: nameOf(m.user_id),
         role: m.role,
       })),
       scopes: CARD_CONTROL_SCOPES,

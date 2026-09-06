@@ -150,8 +150,8 @@ async function remove(i: Inspector) {
 
     <DataWorkspace>
     <FilterBar
-      embedded
       v-model:search="search"
+      embedded
       search-placeholder="Search by name…"
       :count="rows.length"
       count-label="inspectors"

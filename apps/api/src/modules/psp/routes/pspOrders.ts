@@ -2,11 +2,10 @@ import { Router } from "express";
 import {
   canReadInvestigationHistory,
   pspOrderRequestSchema,
-  rolesThatCanView,
-  rolesThatManage,
+  USER_ROLES,
   type PspOrderRequest,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireRole, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -40,9 +39,18 @@ export function recruitmentPspOrdersRouter(): Router {
   // The same intersection the import uses, for the same reason: manage the section AND be permitted
   // to read a §391.53(a)(1) record. Ordering adds a second argument for it — a fleet_manager cannot
   // read the report they would be spending the carrier's money on.
-  const canOrder = requireRole(...rolesThatManage("recruitment").filter(canReadInvestigationHistory));
-  const canViewSection = requireRole(...rolesThatCanView("recruitment"));
-  const canManageSection = requireRole(...rolesThatManage("recruitment"));
+  // The INTERSECTION, now two gates rather than one filtered role list — and it has to be two,
+  // because the halves have different owners. The first is a SECTION question an org may have
+  // re-answered on its permissions page; the second is the §391.53(a)(1) reader test, which belongs
+  // to the regulation and is not an org's to edit. Chaining middlewares gives AND. Folding them back
+  // into one derived list would make the regulatory half look editable, which is the drift the
+  // header above warns about, arriving by a new route.
+  const canOrder = [
+    requireSection("recruitment"),
+    requireRole(...USER_ROLES.filter(canReadInvestigationHistory)),
+  ];
+  const canViewSection = requireSection("recruitment", "view");
+  const canManageSection = requireSection("recruitment");
 
   /** The template to fill in offline: one row per driver, the id that makes a match unambiguous. */
   router.get(

@@ -1,12 +1,12 @@
 import type { Router } from "express";
-import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireSection, requireRole, requireOrg } from "../../../middleware/auth.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { dispatchJob, jobResponse } from "../../../queue/dispatch.js";
 import { validateBody } from "../../../lib/http.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { performanceSettingsFormSchema, rolesThatManage } from "@silvicom/shared";
+import { performanceSettingsFormSchema } from "@silvicom/shared";
 import { savePerformanceSettings } from "../performanceSettings.js";
 
 /** The settled-week snapshot trigger — performance's own admin surface, split out of
@@ -36,7 +36,7 @@ export function registerPerformanceIntegrationRoutes(router: Router): void {
   router.post(
     "/driver-performance/settings",
     requireOrg,
-    requireRole(...rolesThatManage("admin")),
+    requireSection("admin"),
     validateBody(performanceSettingsFormSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

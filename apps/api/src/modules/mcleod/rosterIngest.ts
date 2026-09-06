@@ -141,7 +141,7 @@ async function loadCandidates(
   const cols =
     entity === "drivers"
       ? `id, status, identity_source, cdl_number, full_name, ${link}`
-      : `id, status, identity_source, vin, unit_number, ${link}`;
+      : `id, status, identity_source, dot_annual_inspection_source, vin, unit_number, ${link}`;
   // Archived rows are excluded for drivers: 0235 made archiving the retirement act, and an archived
   // driver is not a candidate for a live employment record.
   let q = admin.from(entity).select(cols).eq("org_id", orgId);
@@ -157,6 +157,7 @@ async function loadCandidates(
     full_name: (r.full_name as string | null) ?? null,
     vin: (r.vin as string | null) ?? null,
     unit_number: (r.unit_number as string | null) ?? null,
+    inspection_source: (r.dot_annual_inspection_source as string | null) ?? null,
   }));
 }
 
@@ -164,6 +165,20 @@ async function loadCandidates(
 function provenanceLookup(candidates: Candidate[]): (id: string) => string | null {
   const m = new Map(candidates.map((c) => [c.id, c.identity_source]));
   return (id) => m.get(id) ?? null;
+}
+
+/**
+ * Which rows hold a certified inspection's claim on their expiry date (0286).
+ *
+ * Read from the SAME candidate rows as provenance, for the same reason: the ownership rules run per
+ * outcome and a second query per row would be a query per vehicle.
+ */
+/** A driver has no annual-inspection expiry, so the rule cannot apply to one. */
+const NEVER_INSPECTION_OWNED = (): boolean => false;
+
+function inspectionOwnedLookup(candidates: Candidate[]): (id: string) => boolean {
+  const owned = new Set(candidates.filter((c) => c.inspection_source === "inspection").map((c) => c.id));
+  return (id) => owned.has(id);
 }
 
 /** Apply one match outcome. The ONLY write this module performs. */
@@ -177,6 +192,7 @@ async function applyOutcome(
   out: RosterIngestResult,
   patch: Record<string, unknown> | null,
   candidateSource: (id: string) => string | null,
+  inspectionOwned: (id: string) => boolean,
   insert: Record<string, unknown> | null,
   write: boolean,
 ): Promise<string | null> {
@@ -209,6 +225,20 @@ async function applyOutcome(
       const body: Record<string, unknown> = already ? {} : { [link]: externalId, [company]: companyId ?? null };
       if (patch) {
         Object.assign(body, patch);
+        /**
+         * ── THE ONE FIELD A CERTIFIED INSPECTION OWNS (0286) ────────────────────────────────────
+         * McLeod carries its own `inspection_date` and `rosterFields` derives an expiry from it, so
+         * without this the sweep would overwrite a date a §396.17 report put there.
+         *
+         * It used to be prevented by the report setting `identity_source = 'manual'`, which the
+         * ownership check above answers by skipping the ENTIRE patch — so one inspection also cost
+         * that row its VIN, plate, make, model, year and registration. Measured 2026-09-01: the
+         * first identity sweep filled 200 trailer VINs and reported `office-owned=1`, the single
+         * trailer with a certified inspection, which ended the sweep still carrying `vin = null`.
+         *
+         * Now only the date stands off. Everything else about the row is still McLeod's to maintain.
+         */
+        if (inspectionOwned(outcome.id)) delete body.dot_annual_inspection_expires_at;
         // Taking over identity IS the ownership transfer, so it is recorded on the row. Nothing else
         // in the product infers provenance from the presence of a link.
         body.identity_source = "mcleod";
@@ -304,7 +334,7 @@ export async function ingestDrivers(
     // tidy. (Theoretical against this carrier: all 164 active drivers have a surname.)
     const insert =
       mode === "create" && name ? { ...patch, full_name: name, status: "active" } : null;
-    const driverId = await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert, WRITES[mode]);
+    const driverId = await applyOutcome(admin, orgId, "drivers", r.external_id, r.company_id, outcome, out, patch, sourceOf, NEVER_INSPECTION_OWNED, insert, WRITES[mode]);
 
     /**
      * The licence and the medical card also become EVIDENCE, not just columns (D-ARC3; Q2 answered
@@ -346,6 +376,7 @@ export async function ingestVehicles(
   out.received = rows.length;
   const candidates = await loadCandidates(admin, orgId, "vehicles");
   const sourceOf = provenanceLookup(candidates);
+  const inspectionOwned = inspectionOwnedLookup(candidates);
   const matcher = makeAssetMatcher(candidates, vehicleUnitKey);
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
@@ -357,7 +388,7 @@ export async function ingestVehicles(
     const insert =
       mode === "create" ? { ...patch, unit_number: unit, tank_capacity_gal: 0, status: "active" } : null;
     const before = out.created;
-    await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert, WRITES[mode]);
+    await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf, inspectionOwned, insert, WRITES[mode]);
     // Only a truck that was actually inserted needs finishing — a matched one already has its capacity.
     if (out.created > before) out.needsCompletion.push(unit);
   }
@@ -374,6 +405,7 @@ export async function ingestTrailers(
   out.received = rows.length;
   const candidates = await loadCandidates(admin, orgId, "trailers");
   const sourceOf = provenanceLookup(candidates);
+  const inspectionOwned = inspectionOwnedLookup(candidates);
   // Unit first for trailers, VIN second: Silvicom 360 holds no trailer VINs at all today, so VIN can only
   // ever be a tiebreak until McLeod has populated them.
   const matcher = makeAssetMatcher(candidates, trailerUnitMatchKey, ["unit", "vin"]);
@@ -384,7 +416,7 @@ export async function ingestTrailers(
     // rows that already exist; inventing it for a new one would be this sync deciding a naming policy.
     const insert =
       mode === "create" ? { ...patch, unit_number: r.unit_number ?? r.external_id, status: "active" } : null;
-    await applyOutcome(admin, orgId, "trailers", r.external_id, r.company_id, outcome, out, patch, sourceOf, insert, WRITES[mode]);
+    await applyOutcome(admin, orgId, "trailers", r.external_id, r.company_id, outcome, out, patch, sourceOf, inspectionOwned, insert, WRITES[mode]);
   }
   return out;
 }

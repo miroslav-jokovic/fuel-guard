@@ -11,7 +11,7 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { viz, areaFill } from "@/features/dashboard/chartTheme";
+import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const route = useRoute();

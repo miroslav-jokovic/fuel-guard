@@ -1,0 +1,159 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mount, flushPromises } from "@vue/test-utils";
+import FeedFreshnessLine from "./FeedFreshnessLine.vue";
+
+/**
+ * FUEL-T5 / A7 — a page of vendor rows says when it last heard from the vendor.
+ *
+ * Transactions and Rejections render EFS's own records, so neither can show a WRONG row — only a
+ * missing one, and a stopped poller reads exactly like a quiet week. The wording is
+ * `describeFeedFreshness`, tested in `packages/shared`; what is testable here is which feed this
+ * instance speaks for, when it draws attention to itself, and what it does when it cannot tell.
+ */
+
+const fetched = { ok: true, data: null as Record<string, unknown> | null };
+const apiFetch = vi.fn(async () =>
+  fetched.ok ? { ok: true, data: fetched.data } : { ok: false, error: { message: "nope" } },
+);
+vi.mock("@/lib/api", () => ({ apiFetch: (...a: unknown[]) => apiFetch(...(a as [])) }));
+
+const feed = (o: Record<string, unknown> = {}) => ({
+  feed: "posted", lastSuccessAt: "2026-09-02T11:56:00Z", ageMinutes: 4, cadenceMinutes: 15,
+  neverCollected: false, failing: false, late: false, needsAttention: false,
+  lead: "Completed fuel purchases last arrived 4 minutes ago.", ...o,
+});
+
+const mountFor = async (f: "posted" | "rejected") => {
+  const w = mount(FeedFreshnessLine, { props: { feed: f } });
+  await flushPromises();
+  return w;
+};
+
+beforeEach(() => {
+  apiFetch.mockClear();
+  fetched.ok = true;
+  fetched.data = {
+    posted: feed(),
+    rejected: feed({ feed: "rejected", cadenceMinutes: 5, lead: "Declined card attempts last arrived 2 minutes ago." }),
+    gaps: { gaps: [], emptyDays: 0, coveredDays: 0, lead: null },
+  };
+});
+
+describe("FeedFreshnessLine", () => {
+  it("prints the line for the feed it was asked about, not the other one", async () => {
+    expect((await mountFor("posted")).text()).toContain("Completed fuel purchases last arrived 4 minutes ago.");
+    expect((await mountFor("rejected")).text()).toContain("Declined card attempts last arrived 2 minutes ago.");
+    expect((await mountFor("rejected")).text()).not.toContain("Completed fuel purchases");
+  });
+
+  // A feed that delivered four minutes ago is metadata, not an alert. Touching every freshness line
+  // with the caution colour is how a caution colour stops meaning anything.
+  it("tones only a feed that needs attention", async () => {
+    const healthy = await mountFor("posted");
+    expect(healthy.html()).not.toContain("bg-caution-50");
+
+    fetched.data = { posted: feed({ late: true, needsAttention: true, lead: "…is missing from this list…" }), rejected: feed() };
+    const late = await mountFor("posted");
+    expect(late.html()).toContain("bg-caution-50");
+  });
+
+  it("draws attention to a refused feed and to one never collected, not only to a late one", async () => {
+    for (const s of [{ failing: true }, { neverCollected: true }]) {
+      fetched.data = { posted: feed({ ...s, needsAttention: true }), rejected: feed() };
+      expect((await mountFor("posted")).html()).toContain("bg-caution-50");
+    }
+  });
+
+  // ⚠ A TRANSPORT failure, not an HTTP one. `apiFetch` returns `{ ok: false }` for a 500 but does not
+  // wrap `fetch`, so being offline REJECTS — and in an async `onMounted` with no catch that is an
+  // unhandled rejection rather than a quiet line. It was possible from the day this shipped and only
+  // became visible when the Fuel Log mounted this component under a suite that does not stub the API.
+  //
+  // ⚠ The RENDER is identical either way — nothing is shown whether the rejection was caught or not —
+  // so asserting on the markup alone would pass with the catch deleted. What actually differs is
+  // whether the rejection escapes, so that is what this listens for. (Confirmed by mutation: with the
+  // catch removed this fails, and an assertion on `html()` alone does not.)
+  it("says nothing when the request never completes at all, and lets no rejection escape the page", async () => {
+    const escaped: unknown[] = [];
+    const onUnhandled = (reason: unknown) => escaped.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      apiFetch.mockRejectedValueOnce(new Error("fetch failed"));
+      const w = mount(FeedFreshnessLine, { props: { feed: "posted" } });
+      await flushPromises();
+      // Node surfaces an unhandled rejection after the microtask queue drains, so give it the turn.
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(escaped).toEqual([]);
+      // Nothing RENDERED, asserted as "no paragraph" rather than as exact markup: the component grew
+      // a second `v-if` for the gap sentence (2026-09-05) and an equality on the whole string would
+      // have failed for a reason that has nothing to do with what this test is about.
+      expect(w.html()).not.toContain("<p");
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
+  // The rows below are still the vendor's rows. A freshness line that cannot load says nothing, which
+  // is exactly what it said before this component existed — an error banner here would be a worse page.
+  it("says nothing at all when it cannot read the freshness, rather than erroring over the rows", async () => {
+    fetched.ok = false;
+    const w = await mountFor("posted");
+    expect(w.text()).toBe("");
+    expect(w.html()).not.toContain("bg-caution-50");
+  });
+
+  it("asks the API once, for the fuel-section route rather than the admin integration one", async () => {
+    await mountFor("posted");
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledWith("/api/fueling/feed-freshness");
+  });
+});
+
+
+/**
+ * The second sentence: a hole in the middle of the record (2026-09-05).
+ *
+ * The line above catches a poller that has stopped. It cannot catch one that stopped and started
+ * again — production carried 17 consecutive days with no fill at all while every assertion above
+ * stayed green for four months, because "last arrived 4 minutes ago" was true the whole time.
+ */
+describe("FeedFreshnessLine — the hole in the middle", () => {
+  const GAP = "No fuel arrived at all for 17 days inside this window (Apr 18 – May 4).";
+
+  it("prints the gap sentence beside the freshness one", async () => {
+    fetched.data!.gaps = { gaps: [{ from: "2026-04-18", to: "2026-05-04", days: 17 }], emptyDays: 17, coveredDays: 60, lead: GAP };
+    const w = await mountFor("posted");
+    expect(w.text()).toContain(GAP);
+    expect(w.text()).toContain("last arrived 4 minutes ago"); // both, not one instead of the other
+  });
+
+  it("always tones a gap as caution, even beside a perfectly healthy feed", async () => {
+    // A late feed may resolve itself by waiting. A hole never does, so it does not borrow the
+    // freshness line's tone.
+    fetched.data!.gaps = { gaps: [{ from: "2026-04-18", to: "2026-05-04", days: 17 }], emptyDays: 17, coveredDays: 60, lead: GAP };
+    const w = await mountFor("posted");
+    expect(w.html()).toContain("bg-caution-50");
+  });
+
+  it("says nothing when there is no hole — silence is the pass", async () => {
+    expect((await mountFor("posted")).html()).not.toContain("bg-caution-50");
+  });
+
+  it("shows it on the POSTED feed only, so the Fuel log does not say it twice", async () => {
+    // The hole is in the FILL record. Repeating it above the declines list adds no fact.
+    fetched.data!.gaps = { gaps: [{ from: "2026-04-18", to: "2026-05-04", days: 17 }], emptyDays: 17, coveredDays: 60, lead: GAP };
+    expect((await mountFor("rejected")).text()).not.toContain("No fuel arrived");
+  });
+
+  it("asks about the window the page is showing, not a default one", async () => {
+    mount(FeedFreshnessLine, { props: { feed: "posted", from: "2026-04-01", to: "2026-04-30" } });
+    await flushPromises();
+    expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining("from=2026-04-01"));
+    expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining("to=2026-04-30"));
+  });
+
+  it("asks without a window when the page has none, rather than sending empty parameters", async () => {
+    await mountFor("posted");
+    expect(apiFetch).toHaveBeenCalledWith("/api/fueling/feed-freshness");
+  });
+});

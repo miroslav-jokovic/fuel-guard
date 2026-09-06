@@ -33,6 +33,11 @@ vi.mock("../../../middleware/auth.js", () => ({
   },
   requireOrg: (_req: Request, _res: Response, next: NextFunction) => next(),
   requireRole: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+  // P3 swapped this router's gates to `requireSection`; the stubs open the door the same way
+  // `requireRole`'s always has. What each gate ADMITS is proved in middleware/requireSection.test.ts
+  // against the real implementation — stubbing it here would only prove the stub.
+  requireSection: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+  requireAnySection: () => (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 
 const { inspectionsRouter } = await import("./inspections.js");
@@ -50,6 +55,9 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
     await closeTestServer(server);
   }
 }
+
+const DOC = "55555555-5555-4555-8555-555555555555";
+const CERT = "66666666-6666-4666-8666-666666666666";
 
 const QUALIFIED_INSPECTOR = {
   id: INSPECTOR,
@@ -242,6 +250,91 @@ describe("creating a draft", () => {
     );
     expect(status).toBe(400);
     expect(rec.queries).toHaveLength(0);
+  });
+});
+
+describe("destroying the record end to end through the route (D-AVI29)", () => {
+  /**
+   * The service is unit-tested next door; this exercises the WIRING — the real schema, the real
+   * `validateBody`, the real handler, the real response shape. A 500 from here is the difference
+   * between "the logic is wrong" and "the route was never going to work", and only one of those is
+   * visible from the service tests.
+   */
+  const seedForDelete = () =>
+    createSupabaseRecorder({
+      tables: {
+        vehicle_inspections: (q) => {
+          if (q.ops.some((o) => o.method === "delete")) return { data: [], error: null };
+          const id = q.filters().find((f) => f.col === "id")?.val;
+          if (id === undefined) return { data: [], error: null };
+          return { data: [{ ...draftReport("final"), document_id: DOC, certification_id: CERT }], error: null };
+        },
+        vehicle_inspection_items: { data: [], error: null, count: 56 },
+        documents: [{ id: DOC, org_id: ORG, storage_path: `${ORG}/tractor/${VEHICLE}/${DOC}.pdf` }],
+        certifications: [{ id: CERT, org_id: ORG }],
+        vehicles: [{ id: VEHICLE, org_id: ORG, identity_source: "manual" }],
+        audit_logs: [],
+      },
+    });
+
+  it("answers 200 and says what it removed", async () => {
+    rec = seedForDelete();
+    await withServer(async (base) => {
+      const res = await post(base, { reason: "created against the wrong unit" }, `/${REPORT}/delete-record`);
+      expect(res.status, await res.clone().text()).toBe(200);
+      expect(await res.json()).toMatchObject({ ok: true, itemsDeleted: 56, documentDeleted: true });
+    });
+  });
+
+  it("refuses a blank reason with a 400 the form can show, not a 500", async () => {
+    rec = seedForDelete();
+    await withServer(async (base) => {
+      const res = await post(base, { reason: "  " }, `/${REPORT}/delete-record`);
+      expect(res.status).toBe(400);
+    });
+  });
+});
+
+describe("reading one report", () => {
+  /**
+   * ── THE FIELD THE TYPE CLAIMED AND THE SERVER DID NOT SEND ───────────────────────────────────
+   * `vehicle_inspections` holds `subject_id`, a uuid. The LIST route has always resolved that into a
+   * unit number through `roster`; this route did not, while the web's `InspectionDetail extends
+   * InspectionSummary` declared `unit_number` anyway. Nothing read it, so nothing failed — until the
+   * delete drawer asked somebody to type the unit back, got an empty string, and became impossible
+   * to satisfy (reported 2026-09-01, the day it shipped).
+   *
+   * A type that promises a field the server never sends is not caught by typecheck, by lint, or by
+   * any test that does not read it. This is that test.
+   */
+  it("carries the unit number, because the row only has a uuid and nobody reads those", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        vehicle_inspections: [draftReport("final")],
+        vehicle_inspection_items: [],
+        vehicles: [{ id: VEHICLE, unit_number: "1187", vin: "3AKJ", plate: "IL 1234" }],
+      },
+    });
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/maintenance/inspections/${REPORT}`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { inspection: { unit_number: string | null } };
+      expect(body.inspection.unit_number).toBe("1187");
+    });
+  });
+
+  it("sends null rather than failing when the equipment is gone from the roster", async () => {
+    // A report outlives the truck it was about. The drawer refuses to confirm on a null rather than
+    // offering a box nobody can satisfy, which is the other half of the same fix.
+    rec = createSupabaseRecorder({
+      tables: { vehicle_inspections: [draftReport("final")], vehicle_inspection_items: [], vehicles: [] },
+    });
+    await withServer(async (base) => {
+      const body = (await (await fetch(`${base}/api/maintenance/inspections/${REPORT}`)).json()) as {
+        inspection: { unit_number: string | null };
+      };
+      expect(body.inspection.unit_number).toBeNull();
+    });
   });
 });
 

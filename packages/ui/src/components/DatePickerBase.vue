@@ -26,6 +26,13 @@ import { CalendarIcon, XMarkIcon } from "../icons";
  *     answer: one `DateField`/`DateTimeField` supporting typing, calendar selection, Escape, arrows,
  *     focus return, min/max and clear.
  *
+ * `:input-attrs="{ clearable: false }"` is deliberate and is NOT "no clear button": VueDatePicker renders its own
+ * clear even when `#dp-input` replaces its input, so the field showed TWO X's side by side — ours
+ * (`aria-label="Clear date"`) and the library's (`aria-label="Clear value"`), reported 2026-09-01.
+ * Ours is the one that stays: it is the sibling-button shape the 2026-08-11 accessibility audit
+ * asked for, where the library's sits inside the input wrap under a label that never says what is
+ * being cleared. Pinned by "shows ONE clear control, not the library's as well".
+ *
  * ── THE INPUT IS OURS; THE CALENDAR IS THE LIBRARY'S ───────────────────────────────────────────
  * The `#dp-input` slot is used rather than VueDatePicker's own input, and the reason is the CLASS
  * STRING. `inputAttrs.id` would carry the id `AppFormField` generates, but v14 exposes no way to set
@@ -107,6 +114,7 @@ const INPUT_CLASS =
     :disabled="disabled"
     auto-apply
     teleport
+    :input-attrs="{ clearable: false }"
     @update:model-value="onChange"
   >
     <template

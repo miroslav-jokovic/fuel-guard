@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { anomalyTransitionSchema, isAnomalyTransitionAllowed, thresholdsFormSchema, rolesThatManage, type AnomalyTransition, type AnomalyStatus } from "@silvicom/shared";
-import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { anomalyTransitionSchema, isAnomalyTransitionAllowed, thresholdsFormSchema, type AnomalyTransition, type AnomalyStatus } from "@silvicom/shared";
+import { requireAuth, requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -20,7 +20,7 @@ export function anomaliesRouter(): Router {
   router.post(
     "/thresholds",
     requireOrg,
-    requireRole(...rolesThatManage("admin")),
+    requireSection("admin"),
     validateBody(thresholdsFormSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -96,11 +96,14 @@ export function anomaliesRouter(): Router {
     }),
   );
 
+  // Acting on a case is `rolesThatManage("safety")` — derived, and the same three roles the list
+  // named (FUEL-T2, D-FUI12). An anomaly is a SAFETY object even though it is about fuel; that is
+  // Q-FUI1's whole subject and this step does not pre-empt it.
   // On-demand sweep (reviewer button; also covers rebuild-created cases, which don't auto-sweep).
   router.post(
     "/:id/sweep",
     requireOrg,
-    requireRole("admin", "fleet_manager", "safety_manager"),
+    requireSection("safety"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -122,7 +125,7 @@ export function anomaliesRouter(): Router {
   router.post(
     "/:id/transition",
     requireOrg,
-    requireRole("admin", "fleet_manager", "safety_manager"),
+    requireSection("safety"),
     validateBody(anomalyTransitionSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

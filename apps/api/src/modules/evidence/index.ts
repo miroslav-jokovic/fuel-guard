@@ -29,6 +29,11 @@ export { insertCertification } from "./compliance.js";
 // D-ARC3's dual-source finding closed at the seam the McLeod sweep would otherwise have widened.
 export { recordSyncedCredentials, SYNC_NOTE } from "./syncedCredentials.js";
 export type { SyncedCredentialInput, SyncedCredentialResult } from "./syncedCredentials.js";
+// The one deletion `RETENTION_FORBIDDEN` has always permitted — an explicit, audited, service-role
+// act — behind a single door. `maintenance` uses it for D-AVI29's hard delete; the caller writes the
+// audit row first, while there is still a record to describe.
+export { filedDocumentPath, retractFiledEvidence } from "./retract.js";
+export type { Retracted, RetractInput } from "./retract.js";
 export { getComplianceOverview } from "./complianceOverview.js";
 export { deriveDocument, DERIVER_VERSION } from "./documentDerivatives.js";
 export { buildBinder } from "./dqBinder/index.js";

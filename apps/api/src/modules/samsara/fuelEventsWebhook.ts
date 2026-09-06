@@ -176,3 +176,79 @@ async function notifyFuelDrop(
   const send = makeSender(env);
   await send({ to: org.notification_emails as string[], subject, html: `<p>${text}</p>`, text });
 }
+
+/**
+ * The full path the receiver answers on, as ONE constant, because the Samsara console has to be given
+ * it character for character and getting it wrong is silent.
+ *
+ * Measured 2026-09-01 against the live Samsara account (`GET /webhooks`): our `Fleetguardweb` webhook
+ * posts to `/api/webhooks` — the mount prefix without this route — so every delivery it has ever made
+ * 404'd, and `fuel_events` holds 0 rows with no error recorded anywhere. Neither end complained: the
+ * vendor retries a 404 quietly and we never knew a delivery had been attempted
+ * (docs/plans/HANDOFF-2026-09-01.md §5; docs/plans/samsara/SAMSARA-COLLECTION-PLAN.md §0.5 check 2).
+ *
+ * So this constant is what the settings card prints for an operator to paste, and the app is asserted
+ * to actually route it — a future re-mount breaks a test instead of the integration.
+ */
+export const SAMSARA_WEBHOOK_PATH = "/api/webhooks/samsara";
+
+/**
+ * The line to log when the receiver is mounted with no secret; null when it is configured.
+ *
+ * WHY THIS EXISTS. `verifySamsaraSignature` fails closed on an unset secret, which is the right
+ * behaviour and was also completely invisible: `SAMSARA_WEBHOOK_SECRET` is `z.string().optional()`, so
+ * an unset secret is a boot with no complaint and a receiver that answers 401 to every delivery, for
+ * as long as nobody thinks to check. A silent fail-closed receiver and a wrong vendor path are
+ * independently sufficient to explain six months of zero events, which is exactly why neither was
+ * noticed — there was no symptom to notice (SAMSARA-COLLECTION-PLAN S1).
+ *
+ * Boot is the cheapest place to say it, because it is the one moment somebody is already reading.
+ */
+export function samsaraWebhookBootWarning(env: Env): string | null {
+  if (env.SAMSARA_WEBHOOK_SECRET) return null;
+  return (
+    `[samsara-webhook] SAMSARA_WEBHOOK_SECRET is not set — ${SAMSARA_WEBHOOK_PATH} is mounted and will ` +
+    "reject EVERY delivery with 401 (fail-closed). Set it from the Samsara webhook config to receive fuel-drop events."
+  );
+}
+
+/** Whether the receiver can work at all, and whether it ever has. */
+export interface SamsaraWebhookStatus {
+  /** The signing secret is set, so a correctly signed delivery can be accepted rather than 401'd. */
+  secretConfigured: boolean;
+  /** The path we listen on, and the whole URL to paste into the vendor console when we know our origin. */
+  endpointPath: string;
+  endpointUrl: string | null;
+  /** Events received and stored for this org, EVER. */
+  eventCount: number;
+  lastEventAt: string | null;
+}
+
+/**
+ * Read whether the webhook is configured and whether it has ever delivered anything.
+ *
+ * ⚠ The count is deliberately ALL-TIME rather than over a selected window (D-SAM7). A windowed zero
+ * reads as a quiet week; the thing an operator needs to be able to see here is a receiver that has
+ * never been reachable at all, and that is only visible against an all-time denominator.
+ */
+export async function readSamsaraWebhookStatus(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+): Promise<SamsaraWebhookStatus> {
+  const { data, count } = await admin
+    .from("fuel_events")
+    .select("happened_at", { count: "exact" })
+    .eq("org_id", orgId)
+    .order("happened_at", { ascending: false })
+    .limit(1);
+  const rows = (data ?? []) as Array<{ happened_at: string }>;
+  const origin = env.PUBLIC_API_URL?.replace(/\/+$/, "") ?? null;
+  return {
+    secretConfigured: Boolean(env.SAMSARA_WEBHOOK_SECRET),
+    endpointPath: SAMSARA_WEBHOOK_PATH,
+    endpointUrl: origin ? `${origin}${SAMSARA_WEBHOOK_PATH}` : null,
+    eventCount: count ?? 0,
+    lastEventAt: rows[0]?.happened_at ?? null,
+  };
+}

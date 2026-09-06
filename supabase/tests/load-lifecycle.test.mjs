@@ -343,5 +343,6 @@ ok("...and nothing is attributed after it",
 ok("a segment that ended BEFORE the shift keeps its own end",
   (await one(`select to_at from driver_equipment_timeline where segment_id = $1`, [SEG1])).to_at.toISOString().startsWith('2026-08-08T12:00'));
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

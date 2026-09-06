@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { DEADHEAD_TREATMENTS } from "@silvicom/shared";
 
 /**
  * Query parsing for the accounting surface, kept out of the router so it can be tested as the
@@ -41,12 +40,38 @@ export const windowShape = z.object({ from: isoDay, to: isoDay });
  */
 export const windowSchema = windowShape.refine(ordered, ORDER_MESSAGE);
 
-export const cpmQuerySchema = windowShape
-  .extend({
-    deadhead: z.enum(DEADHEAD_TREATMENTS).optional(),
-    includeOwnerOperators: queryFlag.optional(),
-  })
+/**
+ * What the income statement's comparative column holds (R6 of the UI plan): the fiscal year to
+ * the period's end (the printed statement's own comparative, and the default), the period of the
+ * same length immediately before, or nothing. Read strictly, like `queryFlag`: a typo'd value is a
+ * 400, not a silent fall-back to a comparison the reader did not ask for.
+ */
+export const compareSchema = z.enum(["ytd", "previous", "none"]).optional().default("ytd");
+export type StatementCompare = z.infer<typeof compareSchema>;
+
+/**
+ * A window plus the grain to bucket it at (W2). The grain vocabulary is `SpendGrain`'s, matched
+ * rather than re-invented: the fuel-spend series already offers day/week/month and starts its weeks
+ * on Monday, and a second grain vocabulary in one product is how two figures come to disagree about
+ * which days a week holds.
+ */
+export const activityQuerySchema = windowShape
+  .extend({ grain: z.enum(["day", "week", "month"]).optional() })
   .refine(ordered, ORDER_MESSAGE);
+
+/**
+ * The trend window (G9): a date, and how many whole months of history to end there.
+ *
+ * `to` alone rather than a range, because the series is a fixed count of whole months back from the
+ * period on screen — a `from` would be a second way to say the same thing and a first way for the
+ * two to disagree. The ceiling is two years: the ledger is swept from 2025-12 and a chart nobody
+ * can read the labels on is not a longer answer, it is a slower one.
+ */
+export const trendSchema = z.object({
+  to: isoDay,
+  months: z.coerce.number().int().min(2).max(24).optional(),
+});
+
 
 export const entriesSchema = z
   .object({

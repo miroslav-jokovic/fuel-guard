@@ -5,9 +5,33 @@ auto-ingest, posted-price refresh) used to run inside the single API process. Th
 `startAllSchedulers` (apps/api/src/schedulers.ts) and run either in-process (default) or in a
 dedicated worker service — controlled by the `RUN_SCHEDULERS_IN_PROCESS` env var.
 
-## Current single-service deploy — nothing to change
-`RUN_SCHEDULERS_IN_PROCESS` defaults to `true`, so one API instance keeps running the schedulers exactly
-as before. This change ships safely with no config edits.
+## The default is `true`, and production is NOT a single service
+
+`RUN_SCHEDULERS_IN_PROCESS` defaults to `true`, so a process that is never told otherwise runs the
+schedulers. That was written when this repo deployed one web-facing service. It has deployed **two
+from the same `railway.json`** — `@fleetguard/api` and `@fleetguard/web` — for longer than anyone
+noticed, and because `web` had never been given the variable it inherited the `true` default and ran
+the whole scheduler set alongside `api`. Found and corrected 2026-09-05; both services' logs for the
+same commit had been printing `[digest] weekly digest scheduler enabled` at once.
+
+So the sentence that used to be here — *"one API instance keeps running the schedulers exactly as
+before, nothing to change"* — was load-bearing and wrong. The safe default is only safe when there is
+genuinely one process.
+
+**Production ownership is recorded in `docs/DEPLOYMENT.md` §"Exactly one service runs the
+schedulers".** `@fleetguard/api` is `true` (it is the WEX-whitelisted host, so the EFS pollers can
+only run there); `@fleetguard/web` is `false`. Any new service built from `railway.json` gets
+`false` before its first deploy.
+
+Nothing in CI can catch this — a lint gate cannot see a Railway variable — so it is checked by
+reading the logs:
+
+```
+railway logs --service "<service>" --environment production | grep -i scheduler
+```
+
+Exactly one service may print `scheduler enabled`. Every other one must print
+`in-process schedulers disabled`.
 
 ## Scaling the API horizontally (do this before running 2+ API instances)
 Running schedulers in-process is only safe on ONE instance — scale the API past 1 and rebuild-on-boot

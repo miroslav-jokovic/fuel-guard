@@ -105,8 +105,8 @@ function exportLines() {
       <p class="mt-1 max-w-2xl text-sm text-ink-muted">
         No fill in this window matched a Pilot quote, so what these fills should have cost is unknown. Quotes come
         from the daily Pilot price report, which is uploaded on
-        <RouterLink to="/import" class="font-medium text-brand-700 underline">Import</RouterLink> — or narrow the
-        dates to a period that already has them.
+        <RouterLink to="/truck-stops" class="font-medium text-brand-700 underline">Truck Stops</RouterLink> — or
+        narrow the dates to a period that already has them.
       </p>
     </BaseCard>
 

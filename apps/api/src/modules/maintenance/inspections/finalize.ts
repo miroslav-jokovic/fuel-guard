@@ -7,11 +7,13 @@ import {
   type InspectionIssue,
   type InspectionOutcome,
   type InspectionSubjectType,
+  chooseVehicleIdentification,
 } from "@silvicom/shared";
 import { fileGeneratedDocument, insertCertification } from "../../evidence/index.js";
-import { getEquipmentIdentity, recordEquipmentInspectionExpiry } from "../../roster/index.js";
+import { getEquipmentIdentity, readEquipmentIdentitySource, recordEquipmentInspectionExpiry } from "../../roster/index.js";
 import { carrierCityStateZip, getCarrierIdentity } from "../../org/index.js";
-import { renderInspectionReport, type InspectionRenderInput } from "./render/report.js";
+import { RENDERER_VERSION, renderInspectionReport, type InspectionRenderInput } from "./render/report.js";
+import { TEMPLATE_REVISION } from "./render/layouts/keller14834Rev0122.js";
 import { getInspection } from "./inspections.js";
 import { inspectorFor } from "./inspectors.js";
 import type { ServiceError } from "./inspectors.js";
@@ -69,6 +71,63 @@ export interface FinalizeResult {
 
 const refuse = (code: FinalizeRefusal["code"], error: string, issues?: InspectionIssue[]): FinalizeRefusal =>
   issues ? { code, error, issues } : { code, error };
+
+
+/**
+ * The render input, assembled from four sources — extracted so `finalizeInspection` stays inside the
+ * 200-line budget (`lint:funcsize`) rather than acquiring a waiver.
+ *
+ * It is a pure mapping and does no I/O, which is the point: everything that can REFUSE has already
+ * run by the time this is called, so this cannot fail and does not need to say what it would do if
+ * it did.
+ */
+interface FinalizeRenderSources {
+  report: Record<string, unknown> & { inspected_on: string };
+  items: InspectionRenderInput["items"];
+  subjectType: InspectionSubjectType;
+  carrier: Parameters<typeof carrierCityStateZip>[0] & { name: string; addressLine1: string | null };
+  equipment: { unitNumber: string; vin: string | null; plate: string | null };
+  inspector: { full_name: string; qualified: boolean };
+  derived: { outcome: InspectionOutcome };
+}
+
+function finalizeRenderInput(src: FinalizeRenderSources): InspectionRenderInput {
+  const { report, equipment } = src;
+  /**
+   * The stored choice when the report has one, otherwise the SAME order the creator used.
+   *
+   * A report created before `chooseVehicleIdentification` existed carries `'vin'` with no value, and
+   * the page would tick VIN and print nothing. Falling back through the shared chooser means the
+   * tick and the value can never disagree — two implementations of "which box is ticked" is exactly
+   * how they did.
+   */
+  const stored = (report.vehicle_identification_value as string | null) ?? null;
+  const chosen = chooseVehicleIdentification({
+    vin: equipment.vin,
+    plate: equipment.plate,
+    unitNumber: equipment.unitNumber,
+  });
+  return {
+    subjectType: src.subjectType,
+    unitNumber: equipment.unitNumber,
+    inspectedOn: report.inspected_on,
+    decalSerial: (report.decal_serial as string | null) ?? null,
+    inspectorName: src.inspector.full_name,
+    // Read from the register, never passed in as a claim (D-AVI6).
+    inspectorQualified: src.inspector.qualified,
+    carrierName: src.carrier.name,
+    carrierAddress: src.carrier.addressLine1,
+    carrierCityStateZip: carrierCityStateZip(src.carrier),
+    identificationMethod: stored
+      ? ((report.vehicle_identification_method ?? "vin") as InspectionRenderInput["identificationMethod"])
+      : chosen.method,
+    identificationValue: stored ?? chosen.value,
+    inspectionAgencyLocation: (report.inspection_agency_location as string | null) ?? null,
+    otherConditions: (report.other_conditions as string | null) ?? null,
+    items: src.items.map((i) => ({ key: i.key, result: i.result, repairedAt: i.repairedAt })),
+    outcome: src.derived.outcome,
+  };
+}
 
 export async function finalizeInspection(
   admin: SupabaseClient,
@@ -151,27 +210,7 @@ export async function finalizeInspection(
   if (!equipment) return refuse("equipment_missing", "The vehicle this report is about is no longer on the roster.");
 
   // ── render ───────────────────────────────────────────────────────────────────────────────────
-  const identificationMethod = (report.vehicle_identification_method ?? "vin") as InspectionRenderInput["identificationMethod"];
-  const renderInput: InspectionRenderInput = {
-    subjectType,
-    unitNumber: equipment.unitNumber,
-    inspectedOn: report.inspected_on,
-    decalSerial: (report.decal_serial as string | null) ?? null,
-    inspectorName: inspector.full_name,
-    // Read from the register, never passed in as a claim (D-AVI6).
-    inspectorQualified: inspector.qualified,
-    carrierName: carrier.name,
-    carrierAddress: carrier.addressLine1,
-    carrierCityStateZip: carrierCityStateZip(carrier),
-    identificationMethod,
-    identificationValue:
-      (report.vehicle_identification_value as string | null) ??
-      (identificationMethod === "plate" ? equipment.plate : equipment.vin),
-    inspectionAgencyLocation: (report.inspection_agency_location as string | null) ?? null,
-    otherConditions: (report.other_conditions as string | null) ?? null,
-    items: items.map((i) => ({ key: i.key, result: i.result, repairedAt: i.repairedAt })),
-    outcome: derived.outcome,
-  };
+  const renderInput = finalizeRenderInput({ report, items, subjectType, carrier, equipment, inspector, derived });
   const pdf = await renderInspectionReport(renderInput);
 
   // ── write, in dependency order ───────────────────────────────────────────────────────────────
@@ -214,7 +253,16 @@ export async function finalizeInspection(
 
   // The projection, and the claim that stops the McLeod sweep replacing it (D-AVI9). Only for a
   // PASS — projecting a failed inspection's date would say the truck is good until next year.
+  //
+  // What the row was owned by is read BEFORE the claim is taken and recorded on the report (0285),
+  // so deleting the report can give it back. Read it after, and 'manual' is all there is to see.
+  let identitySourceBefore: string | null = null;
   if (derived.outcome === "pass") {
+    const before = await readEquipmentIdentitySource(admin, orgId, subjectType, report.subject_id);
+    // A failure to READ is not a reason to refuse a certification — the claim is still taken, and a
+    // null here degrades exactly like a pre-0285 report: the delete path leaves identity_source alone
+    // rather than guessing. Losing the undo is survivable; refusing the filing is not.
+    if (typeof before === "string") identitySourceBefore = before;
     const projected = await recordEquipmentInspectionExpiry(admin, orgId, subjectType, report.subject_id, nextDueOn);
     if ("code" in projected) return { error: projected.error, code: projected.code };
   }
@@ -229,6 +277,14 @@ export async function finalizeInspection(
       certification_id: certification.id,
       finalized_at: new Date().toISOString(),
       finalized_by: finalizedBy,
+      // These two ARE stamped at finalize, and the difference from `catalogue_version` below is the
+      // whole point: they describe the BYTES that were just filed, which is a fact about this moment
+      // rather than about the draft. Without them a filing and a preview of the same report can look
+      // like different documents with nothing anywhere saying why — see 0284.
+      renderer_version: RENDERER_VERSION,
+      template_revision: TEMPLATE_REVISION,
+      // What the truck was owned by before this report claimed it (0285, D-AVI29).
+      equipment_identity_source_before: identitySourceBefore,
       // `catalogue_version` is DELIBERATELY not written here. It is pinned when the draft is created
       // and describes the checklist the inspector actually worked down; stamping the current version
       // at finalize would make a report claim a checklist it was never taken under, which is the one

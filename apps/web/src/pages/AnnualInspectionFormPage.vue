@@ -12,6 +12,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import InspectionHeaderFields from "@/features/maintenance/InspectionHeaderFields.vue";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
 import PrintInspectionDrawer from "@/features/maintenance/PrintInspectionDrawer.vue";
+import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawer.vue";
 import { useToastStore } from "@/stores/toast";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useSessionStore } from "@/stores/session";
@@ -55,6 +56,43 @@ const discard = useDiscardInspection();
 const report = computed(() => data.value?.inspection ?? null);
 const items = computed(() => data.value?.items ?? []);
 const isFinal = computed(() => report.value?.status === "final");
+
+/**
+ * Whether this filing was drawn by an older version of the form.
+ *
+ * A completed report serves the BYTES IT WAS FILED WITH and is never re-rendered — that is what keeps
+ * it reproducible against its own `documents.sha256`, and it is not going to change. So once the
+ * drawing moves, a report certified before it keeps its old page forever.
+ *
+ * The screen used to offer a live preview beside that filed page, which made the two visibly
+ * disagree and read as a bug in the template; the preview is now a draft-only control and the two
+ * cannot be held side by side. This flag is what remains useful: it says so on the page, for
+ * somebody comparing two PRINTOUTS rather than two buttons.
+ *
+ * Null `renderer_version` means the report was filed before 0284 recorded one, which is older than
+ * any version we could name rather than equal to the current one.
+ */
+const filedDrawingIsStale = computed(() => {
+  if (!isFinal.value || !report.value) return false;
+  const current = data.value?.currentRendererVersion;
+  return !!current && report.value.renderer_version !== current;
+});
+
+/**
+ * Destroying the record (D-AVI29) — admin only, and separate from Discard.
+ *
+ * `session.admin` rather than `session.can("maintenance")`: a technician certifies inspections, they
+ * do not destroy the record of one. The API gates on the same role, so this hides a button the
+ * server would refuse rather than being the guard itself.
+ */
+const deleting = ref(false);
+const canDeleteRecord = computed(() => session.admin);
+
+function onDeleted() {
+  deleting.value = false;
+  toast.success("Record deleted");
+  void router.push({ name: "annual-inspections" });
+}
 
 const byKey = computed(() => new Map(items.value.map((i) => [i.key, i])));
 
@@ -234,6 +272,16 @@ async function openPdf(kind: "report" | "preview") {
         </span>
       </AppCallout>
 
+      <!-- Not a toast: this is a standing condition of the report rather than feedback on an action,
+           and it has to be readable at the moment somebody is choosing between the two buttons
+           underneath it. -->
+      <AppCallout v-if="filedDrawingIsStale" tone="caution">
+        This report was filed on an earlier version of the printed form, so it will not look like one
+        completed today. The filed copy is the evidence and prints exactly as it was certified — it is
+        never re-drawn. To put the current form on paper, record a correction, which files a new
+        report.
+      </AppCallout>
+
       <div class="flex flex-wrap items-center gap-2">
         <BaseButton v-if="isFinal && session.can('maintenance')" variant="secondary" @click="startCorrection">
           Record a correction
@@ -241,7 +289,15 @@ async function openPdf(kind: "report" | "preview") {
         <BaseButton v-if="!isFinal && session.can('maintenance')" variant="ghost" @click="discardDraft">
           Discard
         </BaseButton>
-        <BaseButton variant="secondary" @click="() => openPdf('preview')">
+        <!-- ── NOT ON A CERTIFIED REPORT, AND THAT IS THE POINT ──────────────────────────────
+             A preview is drawn NOW; a certified report serves the bytes it was FILED with and is
+             never re-rendered. Same renderer, same template, same coordinate map — different
+             moment. So the day the drawing changes, an older filing and a fresh preview of it are
+             two different-looking pages, and offering both on one screen invites a comparison
+             whose answer is "the code moved", which is not something the office should have to
+             know. Preview exists so they can see what will print BEFORE they certify (D-AVI14).
+             After that the page exists and there is exactly one of it. -->
+        <BaseButton v-if="!isFinal" variant="secondary" @click="() => openPdf('preview')">
           Preview the printed page
         </BaseButton>
         <BaseButton v-if="isFinal" variant="secondary" @click="printing = true">
@@ -249,6 +305,11 @@ async function openPdf(kind: "report" | "preview") {
         </BaseButton>
         <BaseButton v-else variant="primary" :disabled="patch.isPending.value" @click="completeInspection">
           Complete inspection
+        </BaseButton>
+        <!-- Deliberately last, and `ghost` rather than `danger`: the destructive control should be
+             findable, not the thing the eye lands on first. The drawer is where it gets loud. -->
+        <BaseButton v-if="canDeleteRecord" variant="ghost" @click="deleting = true">
+          Delete this record
         </BaseButton>
         <AppBadge v-if="patch.isPending.value" tone="info">Saving…</AppBadge>
       </div>
@@ -307,6 +368,16 @@ async function openPdf(kind: "report" | "preview") {
         :can-manage="session.can('maintenance')"
         @close="printing = false"
       />
+      <DeleteInspectionDrawer
+        :open="deleting"
+        :inspection-id="id"
+        :unit-number="report.unit_number ?? ''"
+        :subject-type="report.subject_type"
+        :status="report.status"
+        @close="deleting = false"
+        @deleted="onDeleted"
+      />
+
 
 
     </template>

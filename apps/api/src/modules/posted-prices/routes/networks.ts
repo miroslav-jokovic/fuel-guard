@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireRole, requireSection, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -37,7 +37,7 @@ export function registerNetworkRoutes(router: Router): void {
   router.post(
     "/prices",
     requireOrg,
-    requireRole("admin", "fleet_manager", "dispatcher"),
+    requireSection("dispatch"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -87,7 +87,7 @@ export function registerNetworkRoutes(router: Router): void {
   router.post(
     "/posted-prices",
     requireOrg,
-    requireRole("admin", "fleet_manager", "dispatcher"),
+    requireSection("dispatch"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

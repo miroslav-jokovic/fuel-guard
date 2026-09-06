@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireOrg } from "../../../middleware/auth.js";
+import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -55,10 +55,21 @@ export function registerMapRoutes(router: Router): void {
     }),
   );
 
-  // Address autocomplete for the dispatcher form (server-proxied geocoder — no key/rate exposure to the browser).
+  /**
+   * Address autocomplete for the dispatcher form (server-proxied geocoder — no key/rate exposure to
+   * the browser).
+   *
+   * ⚠ S7 added the section gate, and it is a NARROWING said out loud rather than slipped in: this
+   * was `requireOrg` alone, so any signed-in member could type an address into the org's geocoder
+   * quota. The two callers are Fuel Planning and Truck Stops (`useFuelPlan.ts`), both catalogued
+   * `dispatch`, and since S2's guard no role without `dispatch: view` can open either — so nothing
+   * a person can reach today stops working. `view` and not `manage` because reading a suggestion is
+   * not planning a route.
+   */
   router.get(
     "/geocode-suggest",
     requireOrg,
+    requireSection("dispatch", "view"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const q = String(req.query.q ?? "");
@@ -66,10 +77,13 @@ export function registerMapRoutes(router: Router): void {
     }),
   );
 
-  // Current GPS of the selected vehicle from Samsara, reverse-geocoded — used to prefill the plan Start.
+  // Current GPS of the selected vehicle from Samsara, reverse-geocoded — used to prefill the plan
+  // Start. Gated with the rest of the planning surface by S7; it names a truck's live position,
+  // which is the most specific thing this file returns.
   router.get(
     "/vehicle-location",
     requireOrg,
+    requireSection("dispatch", "view"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

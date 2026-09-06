@@ -33,7 +33,7 @@ export function useRecordDisposition() {
     mutationFn: async (body: ApplicantDispositionCreate): Promise<ApplicantDispositionRow> => {
       const res = await apiFetch<{ disposition: ApplicantDispositionRow }>(
         "/api/recruitment/dispositions",
-        { method: "POST", body: JSON.stringify(body) },
+        { method: "POST", body },
       );
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not record the decision.");
       return res.data.disposition;

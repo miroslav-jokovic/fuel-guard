@@ -85,13 +85,19 @@ export function findViolations(files) {
       out.push(`${path}: uses canManageFleet — deleted at R0. Ask session.can(<section>) instead.`);
     }
 
-    for (const m of code.matchAll(/requiresManage\s*:\s*([^,}\n]+)/g)) {
-      const raw = m[1].trim();
-      const named = raw.match(/^["']([a-z_]+)["']$/)?.[1];
-      // `AppSection` in a type declaration is the meta's TYPE, not a route's value.
-      if (raw === "AppSection" || raw.startsWith("AppSection")) continue;
-      if (!named || !SECTIONS.has(named)) {
-        out.push(`${path}: requiresManage: ${raw} — must NAME a section (R0/D-ROS7).`);
+    // BOTH section metas, on one rule. `requiresView` was added 2026-09-02 (Q-SURF5) and a new
+    // permission meta that the gate cannot see is worse than no meta at all — the whole point of
+    // D-ROS7 is that a route gate says which section it means, and a second one exempt from that
+    // check would be the first place the answer could go missing.
+    for (const meta of ["requiresManage", "requiresView"]) {
+      for (const m of code.matchAll(new RegExp(`${meta}\\s*:\\s*([^,}\\n]+)`, "g"))) {
+        const raw = m[1].trim();
+        const named = raw.match(/^["']([a-z_]+)["']$/)?.[1];
+        // `AppSection` in a type declaration is the meta's TYPE, not a route's value.
+        if (raw === "AppSection" || raw.startsWith("AppSection")) continue;
+        if (!named || !SECTIONS.has(named)) {
+          out.push(`${path}: ${meta}: ${raw} — must NAME a section (R0/D-ROS7).`);
+        }
       }
     }
 
@@ -113,6 +119,8 @@ function selfTest() {
     ["a.ts", "const x = canManageFleet;", /canManageFleet/],
     ["b.ts", "meta: { requiresManage: true }", /must NAME a section/],
     ["c.ts", 'meta: { requiresManage: "banana" }', /must NAME a section/],
+    ["e.ts", "meta: { requiresView: true }", /requiresView: true — must NAME a section/],
+    ["f.ts", 'meta: { requiresView: "banana" }', /requiresView: "banana" — must NAME a section/],
     ["d.vue", "const s = useUpdateDriverProfile();", /DRIVER_INLINE_EDITABLE/],
   ];
   const failures = [];
@@ -137,7 +145,7 @@ function selfTest() {
     for (const f of failures) console.error(`   ${f}`);
     process.exit(1);
   }
-  console.log("✓ capabilities self-test — all three detectors fire, and none fires on a comment.");
+  console.log("✓ capabilities self-test — all detectors fire (both section metas included), and none fires on a comment.");
 }
 
 const files = walk(WEB).map((p) => ({ path: relative(ROOT, p), src: readFileSync(p, "utf8") }));
@@ -151,6 +159,6 @@ if (violations.length) {
   process.exit(1);
 }
 console.log(
-  `✓ capabilities ok — ${files.length} web files: no canManageFleet, every requiresManage names a section, ` +
+  `✓ capabilities ok — ${files.length} web files: no canManageFleet, every requiresManage/requiresView names a section, ` +
     `${SANCTIONED_DRIVER_EDITORS.size} sanctioned driver editors.`,
 );

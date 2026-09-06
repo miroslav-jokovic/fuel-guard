@@ -78,6 +78,8 @@ export const tmsSettlementFactSchema = z.object({
   accrual_key: z.string().max(32).nullish(),
   /** The payment-side GL key (`post_key`, module `DRS`). Kept for cash-flow tracing, not for CPM. */
   post_key: z.string().max(32).nullish(),
+  /** McLeod's own void flag, swept with the row (D-FIN5). Readers exclude; the store remembers. */
+  is_void: z.boolean().default(false),
 });
 export type TmsSettlementFact = z.infer<typeof tmsSettlementFactSchema>;
 
@@ -113,6 +115,8 @@ export const tmsDeductionFactSchema = z.object({
   transacted_at: z.string().nullish(),
   amount: z.number().default(0),
   accrual_key: z.string().max(32).nullish(),
+  /** A deduction's own void state, swept with it (D-FIN5). */
+  is_void: z.boolean().default(false),
 });
 export type TmsDeductionFact = z.infer<typeof tmsDeductionFactSchema>;
 

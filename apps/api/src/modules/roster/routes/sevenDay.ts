@@ -1,12 +1,11 @@
 import { Router } from "express";
 import {
   canWriteDriverLifecycle,
-  rolesThatCanView,
   sevenDayStatementCreateSchema,
   sevenDayWindowMismatch,
   type SevenDayStatementCreate,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -37,7 +36,7 @@ export function rosterSevenDayRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canView = requireRole(...rolesThatCanView("roster"));
+  const canView = requireSection("roster", "view");
 
   router.get(
     "/:id/seven-day-statements",

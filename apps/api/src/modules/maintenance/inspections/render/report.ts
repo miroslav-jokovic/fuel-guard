@@ -14,6 +14,7 @@ import { winAnsi } from "../../../../lib/pdfDraw.js";
 import {
   CHECKBOX_CELLS,
   HEADER_CELLS,
+  HEADER_SIZES,
   IDENTIFICATION_BOX,
   OTHER_CONDITIONS_LINES,
   PAGE_HEIGHT,
@@ -23,7 +24,16 @@ import {
   baselineOf,
   cellsFor,
   type Cell,
+  type TickBox,
 } from "./layouts/keller14834Rev0122.js";
+import {
+  drawHeadingBands,
+  drawIdentificationTick,
+  drawLegendMarks,
+  drawOkColumnHeaders,
+  drawTick,
+  embedArtworkFonts,
+} from "./templateArtwork.js";
 
 /**
  * Stamping the §396.17 report onto J.J. Keller form 14834 (plan step A5, D-AVI7/D-AVI14).
@@ -51,11 +61,42 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = join(HERE, "assets", "keller-14834-rev0122.pdf");
 
-/** Bump when the drawing changes in a way that alters bytes for the same input. */
-export const RENDERER_VERSION = "1.0.0";
+/**
+ * Bump when the drawing changes in a way that alters bytes for the same input.
+ *
+ * ── 2.0.0, 2026-09-01: THE PAGE CHANGED AND 1.0.0 DID NOT SAY SO ───────────────────────────────
+ * 1.0.0 covered two materially different pages. On 2026-08-31 the renderer gained the section
+ * headings, moved the header block to bold at the sizes the office types, and changed the ink from
+ * red to black — and the version stayed at 1.0.0, so `renderDigest` went on asserting that a report
+ * filed before that change and a preview drawn after it came from "the same renderer". They did not
+ * look alike. The one report filed under the old drawing (2026-09-01 04:01 UTC, half an hour before
+ * the change landed) is exactly the divergence the office reported as "the preview has the section
+ * names and the print does not": a final report serves its STORED bytes and never re-renders, which
+ * is right, but nothing recorded that those bytes predated the drawing.
+ *
+ * So: bump when the drawing moves, and let the digest tell the two apart. Reports already filed keep
+ * their bytes; a page that needs the new drawing is superseded and re-filed through the correction
+ * path (A9), never re-rendered underneath its own hash.
+ *
+ * 2.0.0 also restores the four pieces of artwork the template export lost — see
+ * `templateArtwork.ts` — and puts three tick boxes back inside the boxes they belong to.
+ */
+export const RENDERER_VERSION = "2.0.0";
 
-const INK = rgb(0.1, 0.1, 0.1);
-const DRAFT_INK = rgb(0.72, 0.11, 0.11);
+/**
+ * Pure black, on every path including the draft preview (D-AVI22).
+ *
+ * The preview used to stamp its values in `rgb(0.72, 0.11, 0.11)`, and the office reasonably read
+ * that as the product printing in red. It was a second signal nobody needed: the page already
+ * carries "DRAFT - NOT A CERTIFIED INSPECTION" across the middle of it, which is unmissable and
+ * says the thing in words. What the red cost was the preview's whole job — D-AVI14 exists so the
+ * office can see WHAT WILL PRINT before certifying, and a preview whose ink is a different colour
+ * from the filing is not showing them that.
+ *
+ * 0 rather than the 0.1 grey it was: this is a compliance record that gets photocopied and faxed at
+ * a roadside, and the copy is where a 90% black starts costing legibility.
+ */
+const INK = rgb(0, 0, 0);
 const MARK_SIZE = 8;
 const HEADER_SIZE = 10;
 const MIN_SIZE = 5.5;
@@ -118,46 +159,63 @@ function headerDate(iso: string): string {
 }
 
 interface Stamper {
-  text(cell: Cell, value: string | null | undefined, size?: number): void;
-  mark(cell: Cell): void;
+  text(cell: Cell, value: string | null | undefined, size?: number, weight?: "regular" | "bold"): void;
+  /** A tick box is artwork, not a text cell — `drawTick` centres the X in the box's own rectangle. */
+  mark(box: TickBox): void;
 }
 
-function stamperFor(page: PDFPage, font: PDFFont, color = INK, offset = { x: 0, y: 0 }): Stamper {
+function stamperFor(
+  page: PDFPage,
+  font: PDFFont,
+  boldFont: PDFFont,
+  color = INK,
+  offset = { x: 0, y: 0 },
+): Stamper {
   /** Shrink until it fits, never past `MIN_SIZE` — below that it is illegible on paper anyway. */
-  const fit = (value: string, cell: Cell, start: number): number => {
+  const fit = (value: string, cell: Cell, start: number, face: PDFFont = font): number => {
     let size = start;
-    while (size > MIN_SIZE && font.widthOfTextAtSize(value, size) > cell.maxWidth) size -= 0.25;
+    while (size > MIN_SIZE && face.widthOfTextAtSize(value, size) > cell.maxWidth) size -= 0.25;
     return size;
   };
   return {
-    text(cell, value, size = HEADER_SIZE) {
+    text(cell, value, size = HEADER_SIZE, weight = "regular") {
       if (value === null || value === undefined || value === "") return;
       const safe = winAnsi(value);
-      const used = fit(safe, cell, size);
-      page.drawText(safe, { x: cell.x + offset.x, y: baselineOf(cell, used) + offset.y, size: used, font, color });
-    },
-    mark(cell) {
-      page.drawText("X", {
+      const face = weight === "bold" ? boldFont : font;
+      const used = fit(safe, cell, size, face);
+      page.drawText(safe, {
         x: cell.x + offset.x,
-        y: baselineOf(cell, MARK_SIZE) + offset.y,
-        size: MARK_SIZE,
-        font,
+        y: baselineOf(cell, used) + offset.y,
+        size: used,
+        font: face,
         color,
       });
+    },
+    mark(box) {
+      drawTick(page, font, box, offset);
     },
   };
 }
 
+/**
+ * The header block, at the sizes and the weight the office's own reports carry (`HEADER_SIZES`).
+ *
+ * Every value here is BOLD. That is measured rather than chosen: the carrier block on the filed
+ * trailer report is `/HeBo 12.085 Tf` — Helvetica-Bold — and the top-right block is set at roughly
+ * 16 pt beside it. The page used to print all nine at regular 10 pt, which is why the top of it
+ * read as thin and small against Keller's own artwork.
+ */
 function drawHeader(s: Stamper, input: InspectionRenderInput): void {
-  s.text(HEADER_CELLS.decalSerial, input.decalSerial);
-  s.text(HEADER_CELLS.fleetUnitNumber, input.unitNumber);
-  s.text(HEADER_CELLS.inspectedOn, headerDate(input.inspectedOn));
-  s.text(HEADER_CELLS.inspectorName, input.inspectorName);
-  s.text(HEADER_CELLS.carrierName, input.carrierName);
-  s.text(HEADER_CELLS.carrierAddress, input.carrierAddress);
-  s.text(HEADER_CELLS.carrierCityStateZip, input.carrierCityStateZip);
-  s.text(HEADER_CELLS.vehicleIdentificationValue, input.identificationValue);
-  s.text(HEADER_CELLS.inspectionAgencyLocation, input.inspectionAgencyLocation, 8);
+  const b = (cell: Cell, value: string | null | undefined, size: number) => s.text(cell, value, size, "bold");
+  b(HEADER_CELLS.decalSerial, input.decalSerial, HEADER_SIZES.decalSerial);
+  b(HEADER_CELLS.fleetUnitNumber, input.unitNumber, HEADER_SIZES.fleetUnitNumber);
+  b(HEADER_CELLS.inspectedOn, headerDate(input.inspectedOn), HEADER_SIZES.inspectedOn);
+  b(HEADER_CELLS.inspectorName, input.inspectorName, HEADER_SIZES.inspectorName);
+  b(HEADER_CELLS.carrierName, input.carrierName, HEADER_SIZES.carrierName);
+  b(HEADER_CELLS.carrierAddress, input.carrierAddress, HEADER_SIZES.carrierAddress);
+  b(HEADER_CELLS.carrierCityStateZip, input.carrierCityStateZip, HEADER_SIZES.carrierCityStateZip);
+  b(HEADER_CELLS.vehicleIdentificationValue, input.identificationValue, HEADER_SIZES.vehicleIdentificationValue);
+  b(HEADER_CELLS.inspectionAgencyLocation, input.inspectionAgencyLocation, HEADER_SIZES.inspectionAgencyLocation);
 
   // Only when the register says so (D-AVI6). An unqualified inspector leaves the box empty rather
   // than printing a claim nobody can stand behind.
@@ -251,11 +309,24 @@ export async function renderInspectionReport(
   }
 
   const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   // The offset is a property of the printer, so it moves the VALUES and never the template. On
   // `background: 'template'` the artwork and the ink are on the same page and drift together, which
   // is why calibration only ever applies to the values-only render.
   const offset = background === "none" ? (opts.offset ?? { x: 0, y: 0 }) : { x: 0, y: 0 };
-  const s = stamperFor(page, font, opts.draft ? DRAFT_INK : INK, offset);
+  const s = stamperFor(page, font, bold, INK, offset);
+
+  // The artwork our copy of the template lost, and ONLY on plain paper: the overlay goes onto a real
+  // pre-printed Keller pad that carries all of it, so drawing it there would double-print the page
+  // (D-AVI22, D-AVI8). Drawn before the values so a mark can never end up underneath a band.
+  if (background === "template") {
+    const artwork = await embedArtworkFonts(doc, bold);
+    drawHeadingBands(page, bold, offset);
+    drawOkColumnHeaders(page, bold, offset);
+    drawLegendMarks(page, artwork, offset);
+    drawIdentificationTick(page, artwork, offset);
+  }
+
   drawHeader(s, input);
   drawItems(s, input.items);
   drawOtherConditions(s, font, input.otherConditions);

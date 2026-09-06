@@ -330,5 +330,6 @@ console.log("\n-- 0200: the account's prompt vocabulary, and the two things it m
     (await set(["DRID", "UNIT"], new Date().toISOString())) === null);
 }
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
