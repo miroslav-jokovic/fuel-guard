@@ -281,7 +281,11 @@ const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", cur
  *  language, so a clear fill with a fired-but-weak signal (e.g. a lone odometer regression) is visible. */
 function weakSignals(row: FuelTransaction): CaseSignal[] {
   if (row.has_anomaly) return []; // flagged fills explain themselves on the Alerts page
-  return (row.case_signals ?? []) as CaseSignal[];
+  // Q-FUI17 (0323): the weightless rules belong HERE and nowhere else. This panel exists for exactly
+  // the fill that is clear and had something fire on it, which is the whole of what a weight-0 rule
+  // ever produces — before the column they vanished at the moment they fired, so a reviewer looking
+  // at an over-fuelled fill was told "no detection signals fired" about a rule that had.
+  return [...(row.case_signals ?? []), ...(row.case_signals_unscored ?? [])] as CaseSignal[];
 }
 function whyTitle(row: FuelTransaction): string {
   const sigs = weakSignals(row);
