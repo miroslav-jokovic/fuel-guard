@@ -4,6 +4,7 @@ import {
   fuelPolicyFromSettings,
   DEFAULT_FUEL_POLICY,
   NO_FUEL_TARGETS,
+  AVOIDED_STATE_TARGET_PERIOD,
 } from "./policyExceptions.js";
 
 /**
@@ -81,5 +82,22 @@ describe("reading targets off the settings row", () => {
     // "No gallons at all in an avoided state" is the strictest possible policy and a legal thing to
     // ask for. Falsy-checking the value would silently turn it into no target.
     expect(fuelPolicyFromSettings({ target_avoided_state_gal: 0 }).targets.avoidedStateGal).toBe(0);
+  });
+
+  /**
+   * ⚠ The period is part of the number, and it was missing when these columns shipped.
+   *
+   * The two percentages are RATIOS and mean the same thing over any window. A gallons ceiling does
+   * not: "4,000" is a different instruction over a week, a month and a year, and a target nobody can
+   * date is a target nobody can miss. Production holds 4,000 against months measured at 3,380 to
+   * 5,369 — read as a year it would be absurd, read as a week it could never be met.
+   *
+   * Asserted as a VALUE because that is what stops the form's label and the contract drifting: the
+   * label is built from this constant, so there is one place to change and no second copy to forget.
+   * A doc comment could not be asserted at all without reading the source file, and this package has
+   * no Node types on purpose — it builds for React Native.
+   */
+  it("states the period the gallons ceiling covers, as a value the label is built from", () => {
+    expect(AVOIDED_STATE_TARGET_PERIOD).toBe("month");
   });
 });

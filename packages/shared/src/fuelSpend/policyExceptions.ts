@@ -164,7 +164,7 @@ export interface FuelTargets {
   onNetworkPct: number | null;
   /** FLOOR, 0-100: at least this share of the available discount actually captured. */
   discountCapturePct: number | null;
-  /** CEILING, gallons: at most this many bought in `avoidStates`. */
+  /** CEILING, gallons per `AVOIDED_STATE_TARGET_PERIOD`: at most this many bought in `avoidStates`. */
   avoidedStateGal: number | null;
 }
 
@@ -176,6 +176,21 @@ export const NO_FUEL_TARGETS: FuelTargets = {
 };
 
 export type TargetDirection = "floor" | "ceiling";
+
+/**
+ * The period the gallons ceiling is stated over — a VALUE and not a sentence in a comment.
+ *
+ * ⚠ The two percentage targets are RATIOS and mean the same thing over any window. A gallons ceiling
+ * does not: "4,000" is a different instruction over a week, a month and a year, and a target nobody
+ * can date is a target nobody can miss. It shipped in 0325 without one, which was my omission.
+ *
+ * A month, and not an arbitrary month: `policyFindings` already groups per truck × kind × month
+ * (Q-FUI3), so the period the target is stated over is the period a finding actually covers. Stating
+ * it as an exported constant rather than in prose is what stops the form's label and the contract
+ * drifting apart — the label is built from this, so there is one place to change and no second copy
+ * to forget.
+ */
+export const AVOIDED_STATE_TARGET_PERIOD = "month" as const;
 
 export interface TargetVariance {
   target: number;
