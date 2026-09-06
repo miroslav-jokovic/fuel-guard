@@ -3,6 +3,22 @@
 import { z } from "zod";
 
 const brandList = z.array(z.string().trim().min(1)).max(30);
+
+/**
+ * A target the carrier may simply not have set (C8, 0325).
+ *
+ * ⚠ `z.coerce.number()` turns "" into **0**, and every field on this form is a text input that is
+ * empty until somebody types in it. For every other number here that does not matter, because none of
+ * them is optional. For a target it is the whole bug: 0 is a LEGAL ceiling — "no gallons at all in an
+ * avoided state" is the strictest policy a carrier can have — so a blank field coerced to 0 would
+ * silently commit them to it and then report every gallon as a miss. Empty becomes null, before the
+ * coercion ever runs.
+ */
+const optionalTarget = (max: number) =>
+  z.preprocess(
+    (v) => (v === "" || v === undefined ? null : v),
+    z.coerce.number().min(0).max(max).nullable(),
+  );
 const stateList = z.array(z.string().trim().length(2)).max(60);
 
 export const routeFuelSettingsFormSchema = z.object({
@@ -27,6 +43,11 @@ export const routeFuelSettingsFormSchema = z.object({
   enabled_brands: brandList.refine((v) => v.length >= 1, "Enable at least one truck stop network"),
   avoid_states: stateList,
   fuel_before_states: stateList,
+  // Targets (C8, D-FUI10) — nullable because the product does not invent a carrier's own standard.
+  // Two floors and a ceiling; the direction lives with each column in 0325 and in `FuelTargets`.
+  target_on_network_pct: optionalTarget(100),
+  target_discount_capture_pct: optionalTarget(100),
+  target_avoided_state_gal: optionalTarget(100000),
   // Default truck routing profile (HERE) — US customary inches / lb
   default_height_in: z.coerce.number().min(100).max(200),
   default_length_in: z.coerce.number().min(200).max(1000),
@@ -57,6 +78,11 @@ export const ROUTE_FUEL_SETTINGS_DEFAULTS: RouteFuelSettingsForm = {
   enabled_brands: ["pilot", "flying_j", "one9"],
   avoid_states: ["CA"],
   fuel_before_states: ["MA"],
+  // ⚠ Null, and not a number. See `optionalTarget` — an unset target is not a target of zero, and a
+  // carrier that has set none is measured against nothing rather than against our opinion.
+  target_on_network_pct: null,
+  target_discount_capture_pct: null,
+  target_avoided_state_gal: null,
   default_height_in: 162,
   default_length_in: 840,
   default_width_in: 102,
