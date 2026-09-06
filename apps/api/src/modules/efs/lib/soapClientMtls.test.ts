@@ -53,6 +53,11 @@ const CLIENT_PFX = Buffer.from(fixture("client.p12.b64").trim(), "base64");
 const env = testEnv({
   NODE_ENV: "test",
   EFS_SOAP_MAX_RPS: 100,
+  // ⚠ Both knobs, because they pace DIFFERENT lanes. `soapLaneRps` returns
+  // `EFS_SOAP_INTERACTIVE_RPS` for an interactive call and never consults `EFS_SOAP_MAX_RPS`, and
+  // that knob defaults to **1** — one request per second, of real wall-clock sleeping. Setting only
+  // the first read as "do not pace this suite" and silently did nothing for it.
+  EFS_SOAP_INTERACTIVE_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   // This suite performs REAL handshakes against an https server on 127.0.0.1, which the SSRF gate in
   // soapFetch (audit 2026-08-09 §3.8) blocks by design. Same escape hatch a developer running a local
