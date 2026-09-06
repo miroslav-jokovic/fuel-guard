@@ -943,9 +943,78 @@ describe("hardening — tank fill short (Samsara, advisory)", () => {
 });
 
 describe("hardening — expected odometer band (padding)", () => {
+  // The truck arrives with fuel in it. `expectedMiles` = (span + one full tank) x baseline — which is
+  // `cumulative_overfuel`'s own allowance applied to the miles side — and the rule fires past TWICE
+  // that. Fixtures below: 120 gal tank, 6.4 MPG baseline, 90 gal bought → expectedMiles 1,344, so the
+  // firing threshold is 2,688 mi.
   it("flags miles far exceeding what the fuel could cover", () => {
-    // gallons 90, baseline 6.4 → expected ~576 mi; entered 99400→101000 = 1600 mi (>2x)
-    expect(ids(ctx({ txn: txn({ odometer: 101000 }) }))).toContain("expected_odometer_band");
+    // 99,400 → 130,000 = 30,600 mi, eleven times a ceiling that already grants a full tank. This is
+    // the shape of what survives in production: 801,772 miles between two fills, an implied 1,974 MPG.
+    expect(ids(ctx({ txn: txn({ odometer: 130000 }) }))).toContain("expected_odometer_band");
+  });
+
+  // ⚠ THIS FIXTURE USED TO BE THE ONE ABOVE, and it was itself a false positive. 1,600 miles on 90
+  // gal reads as 17.8 MPG only if the tank started empty; on 90 bought plus 120 carried it is 7.6 MPG,
+  // which is an ordinary week for a tractor. The old ceiling ignored the carried fuel, so the rule
+  // accused every truck that bought less than it drove — measured at 86.8% of fills under 5 gal and
+  // 82.4% of fills under 20, against 1.8% of full-tank fills.
+  it("stays silent when the miles are covered by fuel the truck was already carrying", () => {
+    expect(ids(ctx({ txn: txn({ odometer: 101000 }) }))).not.toContain("expected_odometer_band");
+  });
+
+  // The loudest instance of the same defect, and the one that put this on the queue: unit 634 bought
+  // 0.03 gal on 2026-05-28 and moved 31 miles, so the old ceiling was 0.03 x 6.15 x 2 = 0.37 mi and
+  // ANY movement cleared it. 46 fills fleet-wide are under 5 gallons; each was a guaranteed fire.
+  it("stays silent on a splash purchase, which measures how partial the fill was and nothing else", () => {
+    const c = ctx({ txn: txn({ gallons: 0.03, odometer: 99431 }) });
+    expect(ids(c)).not.toContain("expected_odometer_band");
+  });
+
+  // `cumulative_overfuel`'s argument, verbatim: without a capacity source the rule cannot grant the
+  // legitimate one-tank reserve, and judging with a 0-gallon tank IS the defect being fixed rather
+  // than a conservative fallback. Costs one of today's 430 production fires.
+  it("suppresses itself on a truck with no capacity source rather than judging it against an empty tank", () => {
+    const noTank: VehicleView = { ...vehicle, tankCapacityGal: 0 };
+    expect(resolveCapacity(noTank).confidence).toBe("none");
+    expect(ids(ctx({ vehicle: noTank, txn: txn({ odometer: 130000 }) }))).not.toContain("expected_odometer_band");
+  });
+
+  it("shows the reviewer the allowance it granted, and which source granted it", () => {
+    // A ceiling nobody can decompose is a ceiling nobody trusts: the tank and its provenance are named
+    // beside the total rather than folded into it.
+    const fired = runAllRules(ctx({ txn: txn({ odometer: 130000 }) }))
+      .find((r) => r.ruleId === "expected_odometer_band")!;
+    expect(fired.evidence).toMatchObject({ tankGallons: 120, capacitySource: "entered", expectedMiles: 1344 });
+    expect(fired.message).toContain("plus a full 120 gal tank");
+  });
+
+  // ⚠ THE ALLOWANCE COMES FROM `resolveCapacity`, NOT FROM `vehicle.tankCapacityGal`, and without this
+  // case the two are indistinguishable — every other fixture here has only an entered capacity, so
+  // swapping the resolver for the raw field passes all of them. It matters because a truck whose
+  // ENTERED tank is wrong is exactly the truck this rule would misjudge: 101 of 145 disagreed with the
+  // sensor-learned value when §0.3a measured it. Physics wins, so the ceiling is built on 240.
+  it("grants the sensor-learned tank, not the entered one, when the two disagree", () => {
+    const learned: VehicleView = { ...vehicle, tankCapacityGal: 120, sensorCapacityGal: 240 };
+    expect(resolveCapacity(learned)).toMatchObject({ gallons: 240, source: "sensor", divergent: true });
+    // 3,000 mi on 90 gal: over the entered tank's ceiling (2,688) and under the learned one (4,224).
+    const c = ctx({ vehicle: learned, txn: txn({ odometer: 102400 }) });
+    expect(ids(c)).not.toContain("expected_odometer_band");
+    // …and the entered-capacity truck beside it, same fill, IS accused — so the assertion above is
+    // about the resolver and not about the number happening to be large.
+    expect(ids(ctx({ txn: txn({ odometer: 102400 }) }))).toContain("expected_odometer_band");
+  });
+
+  // The change may only ever REMOVE accusations. `cap >= 0`, so the new ceiling is never lower than
+  // the old one — asserted rather than asserted-in-a-comment, because a later edit that reintroduced
+  // a divisor or dropped the tank term would be invisible to every case above.
+  it("never accuses a fill the old, tank-blind ceiling would have cleared", () => {
+    for (const [gallons, odo] of [[90, 130000], [0.03, 99431], [90, 101000], [150, 104000]] as const) {
+      const c = ctx({ txn: txn({ gallons, odometer: odo }) });
+      const fires = ids(c).includes("expected_odometer_band");
+      const miles = odo - 99400;
+      const oldWouldFire = miles > gallons * 6.4 * 2;
+      expect(!fires || oldWouldFire).toBe(true);
+    }
   });
 });
 
