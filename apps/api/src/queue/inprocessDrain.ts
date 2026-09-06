@@ -42,7 +42,9 @@ function drainKinds(env: Env): JobKind[] {
   // `backfill` joins the list for the SAME reason the other two are on it: an operator queues one as a
   // ROW to run a repair that no schedule and no button covers. SAM-S6's full-history rebuild is that
   // repair — the manual route only offers `full` (a live Samsara re-fetch), and `nightlyReconcile`'s
-  // rebuild is pinned to RECENT_REBUILD_DAYS, so the uncapped re-score is reachable no other way.
+  // rebuild carries its own claim (a 180-day window then, the stale-stamp claim since 0318), so an
+  // UNCAPPED re-score of all history is reachable no other way. (The commit message that added this
+  // line said that window was 14 days. It was 180 — see the correction in handlers/scoring.ts.)
   //
   // Low-risk in practice BECAUSE of how the kind is normally used: every routine caller
   // (samsaraScheduler's collector tier, the two manual buttons) goes through `dispatchJob`, which in

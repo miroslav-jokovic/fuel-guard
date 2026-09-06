@@ -50,11 +50,21 @@ export const rebuildHandler: JobHandler = async (ctx, job, report) => {
  *  - neither — "catch up new fills", the manual button, unbounded over never-reconciled rows.
  *
  * Why `rebuild` needed a shape of its own. The rebuild path already existed and was reachable only
- * through `nightlyReconcile`, which pins it to `RECENT_REBUILD_DAYS` (14) — so every derivation change
- * since a fill left that window has never been applied to it, which is Q-FUI9's complaint and exactly
- * what SAM-S6 has to undo. Re-scoring history through `full` instead would work, but it is the wrong
+ * through `nightlyReconcile`. Re-scoring history through `full` instead would work, but it is the wrong
  * tool twice over: it re-fetches telematics S4 has already collected, and it spends the vendor rate
  * budget to recompute values that are sitting in the database.
+ *
+ * ⚠ CORRECTION (2026-09-05, same day). This comment first said `nightlyReconcile` "pins it to
+ * RECENT_REBUILD_DAYS (14) — so every derivation change since a fill left that window has never been
+ * applied to it". BOTH halves were wrong, and the commit messages of #569/#570 carry the same error.
+ * `RECENT_REBUILD_DAYS` is **180**, not 14 — 14 is `REBUILD_DAYS` in Q-FUI9, a different constant for
+ * `fuel_spend_days`. And history was not going unre-scored at all: the nightly was re-scoring ~10,400
+ * fills EVERY NIGHT, measured at 8,982–9,255 seconds on 2026-09-03/04/05.
+ *
+ * The real defect was the opposite of the one claimed — not neglect but waste, two and a half hours a
+ * night to change the verdict on almost nothing. That is what the `staleOnly` shape above replaced, and
+ * it is a better reason than the one this comment originally gave. Recorded rather than quietly edited
+ * because a wrong premise that produced a right answer is worth seeing twice.
  *
  * `sinceDays` is accepted so the same shape can be pointed at a window rather than all of history; left
  * out, it means all of it.
