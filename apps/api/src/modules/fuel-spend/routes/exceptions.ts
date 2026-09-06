@@ -23,7 +23,7 @@ import {
   type UserRole,
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
-import { readFindings } from "../findingsRead.js";
+import { readFindings, readFindingsSummary } from "../findingsRead.js";
 import { assignFindings, type FindingRef } from "../findingsAssign.js";
 import { exportExceptions } from "../fuelExceptionExport.js";
 import { renderDisputePacket } from "../fuelDisputePacket.js";
@@ -178,6 +178,28 @@ export function registerExceptionRoutes(router: Router): void {
         ),
       );
       res.json({ ok: true, assigned: result.assigned });
+    }),
+  );
+
+  /**
+   * The two figures the Dashboard's fuel strip carries (C9's ledger half).
+   *
+   * ⚠ `requireOrg` and no section gate, and here that is a RULING rather than a convenience. The
+   * Dashboard carries `meta: { requiresAuth: true }` and no section gate at all — any authenticated
+   * member, a driver included — so putting a money figure on it was the same question Q-SAM7 answered
+   * for the Samsara strips. The 2026-09-06 ruling took the inbox's own shape: the figures are gated
+   * PER ROW by `visibleSections`, so a driver is answered `null` rather than refused, an accountant
+   * is counted only money findings, and nobody is shown a number they could not open the detail of.
+   *
+   * Null and not zero for a caller who may see neither: "no findings you may see" and "no findings"
+   * are different facts, and a tile reading 0 to a driver would state the second.
+   */
+  router.get(
+    "/findings/summary",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ ok: true, ...(await readFindingsSummary(admin, req.auth!.orgId!, req.auth!.role as UserRole)) });
     }),
   );
 
