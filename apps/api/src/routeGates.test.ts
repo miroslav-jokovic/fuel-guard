@@ -145,6 +145,10 @@ const GATE_WAIVERS = new Map<string, string>([
     'gated per ROW rather than per route, like the read beside it (C7b). A static requireSection("fuel") would refuse the safety manager the assignment of a theft case they are the only person meant to work. The service reads each id back org-scoped, takes the kind from the row, and refuses the whole batch unless rolesThatManageFinding admits the caller for every one. Pinned by "refuses the whole batch when one finding is outside the caller\'s sections" in modules/fuel-spend/findingsAssign.test.ts',
   ],
   [
+    'modules/fuel-spend/routes/exceptions.ts get /findings/summary',
+    'gated per ROW like the inbox it summarises (C9). The Dashboard has no section gate at all, so a static requireSection here would refuse one strip on a page that refuses nothing else. `visibleSections` decides what is counted; a caller who may see neither section is answered null rather than 403. Pinned by "answers a driver null rather than zero, which are different facts" in modules/fuel-spend/findingsSummary.test.ts',
+  ],
+  [
     'modules/fuel-spend/routes/exceptions.ts get /findings',
     'gated per ROW rather than per route (C7b, Q-FUI1). The inbox serves two sections, so a static requireSection could only name one of them, and naming "fuel" would take the theft queue from the safety manager — the narrowing Q-FUI4 refused. `visibleSections` derives the caller\'s sections from SECTION_ACCESS and the anomaly table is not read at all without `safety`. Pinned by "never reads the anomaly table for a caller without safety" in modules/fuel-spend/findingsRead.test.ts',
   ],

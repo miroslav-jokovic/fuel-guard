@@ -25,6 +25,7 @@ import { useDashboard } from "@/features/dashboard/useDashboard";
 import { useFuelRangeTotals, type FuelFilters } from "@/features/fuel/useFuelLog";
 import { useFleetMpgSeries } from "@/features/fuel/useFleetMpg";
 import { fuelTileDestinations } from "@/features/fuel/dashboardFuelLinks";
+import { useFindingsSummaryQuery, ledgerTiles } from "@/features/fuel/useFindingsSummary";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
@@ -90,6 +91,19 @@ const mpgSub = computed(() => {
 });
 const mpgTitle = computed(() => mpgTotal.value?.reason ?? undefined);
 const fmtInt = (nn: number) => Math.round(nn).toLocaleString("en-US");
+// C9's ledger half — what the checks found and what came back. Gated PER ROW by the API and not by
+// this page (the 2026-09-06 ruling): the Dashboard has no section gate, so refusing one strip here
+// would introduce a gate on a page that refuses nothing else. `ledgerTiles` carries the reasoning,
+// including why a null hides a tile and a zero renders one.
+const { data: findings } = useFindingsSummaryQuery();
+const ledgerStats = computed(() =>
+  ledgerTiles(
+    findings.value,
+    { open: InvoiceIcon, money: CurrencyDollarIcon },
+    { int: fmtInt, compact: fmtCompact, money: fmtMoney },
+  ),
+);
+
 const fuelingStats = computed(() => {
   const t = fuelTotals.value; // fill count + robust miles (not carried on the dashboard summary)
   const d = s.value;          // spend / gallons / MPG — same source as the hero tiles, so they always agree
@@ -201,7 +215,15 @@ const trust = computed(() => [
     to: "/fuel-log?tab=declines",
   },
 ]);
-const metricStrip = computed(() => [...fuelingStats.value, ...trust.value]);
+/**
+ * The five measured figures, then what the checks made of them, then the trust line.
+ *
+ * The ledger tiles sit AFTER the five and not among them, because they answer a different kind of
+ * question: the first five are what the fleet did, and these two are what somebody still has to do
+ * about it. They are also the only tiles here that can be absent for a caller (C9's per-row gate), so
+ * keeping them at the end means the strip does not reflow around a hole for a driver.
+ */
+const metricStrip = computed(() => [...fuelingStats.value, ...ledgerStats.value, ...trust.value]);
 
 // Spend is zero-filled/org-tz-bucketed upstream. A week the endpoint withheld renders as an honest
 // GAP (spanGaps off) rather than as a zero — a fleet does not do 0 MPG.

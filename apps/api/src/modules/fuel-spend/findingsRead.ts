@@ -211,3 +211,83 @@ const unitFor = (
   vehicleId: string | null | undefined,
   fleet: { unitOf: Map<string, string> } | null,
 ): string | null => (vehicleId && fleet ? (fleet.unitOf.get(vehicleId) ?? null) : null);
+
+/**
+ * The two figures the Dashboard's fuel strip carries (C9's ledger half).
+ *
+ * ── WHY NOT `exceptionTotals`, WHICH ALREADY COMPUTES `recovered` ───────────────────────────────
+ * Because of where this renders. `exceptionTotals` fetches every matching row and sums in memory,
+ * which is right above a table somebody is already reading and wrong on the landing page every
+ * authenticated member opens — that is Q-SAM8's whole finding, which refused `readTelematicsCoverage`
+ * on this exact screen for this exact reason and replaced it with a count.
+ *
+ * So the open figure is two `head` counts, indexed, issued concurrently. The money figure DOES read
+ * rows, and the population it reads is bounded by two conditions rather than by history: credited,
+ * and within one quarter. A carrier recovering money on a hundred findings a quarter would be a
+ * carrier the product had transformed; today it is zero. If that ever stops being true the answer is
+ * a SQL sum, not a bigger fetch.
+ *
+ * ── AND WHY THE MONEY HALF ASKS NO SECTION QUESTION ─────────────────────────────────────────────
+ * `recovered` is money, and D-FUI7 gives an anomaly none — so it can only ever come from the ledger,
+ * and `fuel` is the only section that could gate it. A caller without `fuel` gets null rather than
+ * zero: they are not being told the fleet recovered nothing, they are being told nothing.
+ */
+export interface FindingsSummary {
+  /** Open, investigating or with the vendor — across the sections this caller may see. Null for none. */
+  open: number | null;
+  /** Credited back this quarter, in dollars. Null when the caller cannot see the money ledger. */
+  recoveredThisQuarter: number | null;
+  /** The first day of the quarter the figure covers, so the tile can say which one. */
+  quarterFrom: string;
+}
+
+/** First day of the calendar quarter containing `now`, in UTC — the same basis every stored date uses. */
+export function quarterStart(now: Date): string {
+  const q = Math.floor(now.getUTCMonth() / 3) * 3;
+  return `${now.getUTCFullYear()}-${String(q + 1).padStart(2, "0")}-01`;
+}
+
+export async function readFindingsSummary(
+  admin: SupabaseClient,
+  orgId: string,
+  role: UserRole | null | undefined,
+  now: Date = new Date(),
+): Promise<FindingsSummary> {
+  const sections = new Set(visibleSections(role));
+  const from = quarterStart(now);
+  // The queue states that mean "somebody still has to do something", translated per source through
+  // C7a rather than restated — the same reason `readFindings` asks it that way.
+  const openStates: FindingQueueState[] = ["open", "investigating", "working"];
+  const anomalyOpen = [...new Set(openStates.flatMap((s) => anomalyStatusesIn(s)))];
+  const exceptionOpen = [...new Set(openStates.flatMap((s) => exceptionStatusesIn(s)))];
+
+  const [anomalies, exceptions, credited] = await Promise.all([
+    sections.has("safety")
+      ? admin.from("anomalies").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", anomalyOpen)
+      : Promise.resolve({ count: null }),
+    sections.has("fuel")
+      ? admin
+          .from("fuel_exceptions")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", orgId)
+          .in("status", exceptionOpen)
+      : Promise.resolve({ count: null }),
+    sections.has("fuel")
+      ? admin
+          .from("fuel_exceptions")
+          .select("credited_amount")
+          .eq("org_id", orgId)
+          .eq("status", "credited")
+          .gte("credited_on", from)
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const counts = [anomalies.count, exceptions.count].filter((c): c is number => typeof c === "number");
+  const rows = (credited as { data: { credited_amount: number | string | null }[] | null }).data;
+  return {
+    // Null and not zero when the caller may see neither: "no findings you may see" is not "no findings".
+    open: counts.length ? counts.reduce((a, b) => a + b, 0) : null,
+    recoveredThisQuarter: rows == null ? null : rows.reduce((sum, r) => sum + (Number(r.credited_amount) || 0), 0),
+    quarterFrom: from,
+  };
+}
