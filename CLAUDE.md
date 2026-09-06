@@ -25,8 +25,12 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
 - `pnpm verify:live` — answers "why don't I see my changes?": compares git HEAD + highest migration
   against the deployed `GET /api/version`.
 - The full gate list lives in root `package.json` — every `lint:*` script is documented by its
-  sibling `"//lint:*"` comment key. CI runs 24 of them, all in the `gates` job
-  (`.github/workflows/ci.yml`).
+  sibling `"//lint:*"` comment key. CI runs 28 of them by name, all in the `gates` job
+  (`.github/workflows/ci.yml`); the rest are chained onto one of those and run without a workflow
+  edit. **A gate that is in `package.json` and in neither list is not a gate** — four of them were
+  in exactly that position until 2026-09-05, and `lint:wsdl` had been crashing on a stale path for
+  ten days without anybody being able to notice. Adding a gate means adding it here, or chaining it
+  onto a neighbour and saying so in its `"//lint:*"` comment.
 - CI is **six parallel jobs**, not one: `gates`, `typecheck-build`, `test-api`, `test-web`,
   `test-packages`, `matrices` — plus a do-nothing `build` job that aggregates them, and which must
   keep that name because main's branch protection requires a check called exactly `build`. A green

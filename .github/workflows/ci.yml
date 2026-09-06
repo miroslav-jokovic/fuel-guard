@@ -196,6 +196,37 @@ jobs:
       - name: Operator CLI stream discipline
         run: pnpm lint:cli-streams
 
+      # ── Four gates that existed in package.json and were never RUN by anything ────────────────
+      # Found 2026-09-05 by asking why `pnpm lint:wsdl` fails on a clean main. It fails because
+      # nothing has run it since 9ef029e moved the EFS surface under modules/ on 2026-08-26 — it
+      # crashed on a stale path rather than failing a check, and no workflow step would have noticed
+      # either way. Auditing the rest of the list mechanically (every lint:* in package.json against
+      # every script this workflow actually invokes, counting the ones chained onto a neighbour)
+      # found three more in the same position. All four pass; the risk was never that they were red,
+      # it was that nobody could tell.
+      - name: EFS SOAP operations match the checked-in WSDL
+        run: pnpm lint:wsdl
+
+      # D-FC1: an org-scoped RPC must be callable BY A BROWSER — `security invoker` plus
+      # `coalesce(p_org, auth_org_id())`, with p_org carrying a DEFAULT so PostgREST can resolve a
+      # call that omits it. /ifta and the Buy discipline tab were dead on arrival with every test
+      # green, because only a browser omits the argument (0258).
+      - name: Org-scoped RPCs are callable from a browser
+        run: pnpm lint:rpc-org-default
+
+      # Every colour token must name a colour an sRGB display can produce. 64 of 264 did not on
+      # 2026-08-25; Chrome keeps oklch() all the way to paint, so an out-of-gamut token is mapped
+      # against the display profile and the same dashboard comes out different on two machines.
+      - name: Colour tokens are inside the gamut
+        run: pnpm lint:token-gamut
+
+      # The McLeod recon pack is run by the CARRIER'S IT against a production database our login
+      # cannot read, so its reviewer has to trust 22 SQL statements without reading them closely:
+      # single SELECTs only, banned columns absent entirely, PII counted but never returned, and
+      # @companyId bound wherever four legal entities share a table.
+      - name: McLeod recon pack is safe to hand over
+        run: pnpm lint:mcleod-recon
+
   # ── Types and the production bundle ───────────────────────────────────────────────────────────
   # These two stay together because the third step needs the second one's output: lint:light-dark
   # reads apps/web/dist, which only exists after a build.
