@@ -79,6 +79,8 @@ export interface FuelTransaction {
   case_level?: "clear" | "review" | "alert" | null;
   case_score?: number | null;
   case_signals?: { ruleId: string; axis: string; weight: number; severity: string; message: string }[] | null;
+  /** Fired-and-weightless rules — evidence, never accusation (Q-FUI17, migration 0323). */
+  case_signals_unscored?: { ruleId: string; axis: string; weight: number; severity: string; message: string }[] | null;
   /** WP6 — why detection was LIMITED on this fill: gating inputs + rules ineligible to fire. */
   case_gates?: { tankSensor: string; odoSource: string | null; fillSize: string; ineligible: string[]; fuel_balance?: FuelBalanceEvidence | null } | null;
   ai_risk_level: AnomalySeverity | null;

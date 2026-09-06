@@ -178,21 +178,47 @@ describe("correlateSignals (multi-signal → one case)", () => {
   });
 
   /**
-   * ⚠ AND THE COST OF THE RULING, PINNED SO IT CANNOT BE FORGOTTEN (Q-FUI17).
+   * Q-FUI17, answered (a) 2026-09-06: a rule that fires and scores zero is RECORDED, not erased.
    *
-   * `correlateSignals` filters `weight > 0` before building `signals`, and `persist.ts` writes that
-   * same list to `fuel_transactions.case_signals`. So a weight-0 rule leaves NO trace anywhere — not
-   * a case, not a signal on the fill, nothing for `explainCaseOutcome` to mention. The ruling was
-   * taken on the understanding that the rule "keeps detecting and stops accusing"; the first half is
-   * true of the ENGINE and false of everything persisted from it.
-   *
-   * This asserts the behaviour that ships today rather than the behaviour that was wanted, and it is
-   * the test that should FAIL — loudly, and in the right file — the day Q-FUI17 is answered.
+   * ⚠ The case this replaces was written the previous day to fail "loudly, and in the right file, the
+   * day Q-FUI17 is answered". It did not fail. It asserted `signals` is empty for weight-0 rules —
+   * which was true before the fix, is true after it, and always will be, because `signals` is the
+   * SCORED list and the fix put the weightless ones somewhere else. **A marker for a known gap has to
+   * assert the thing that will change, not a thing that happens to be true while the gap exists.**
+   * Recorded rather than quietly replaced: the mistake is cheap to make and expensive to notice.
    */
-  it("records nothing at all for a weight-0 rule, which is Q-FUI17 and not the intent", () => {
+  it("records a weight-0 rule as evidence instead of erasing it", () => {
     const c = correlateSignals([sig("cumulative_overfuel"), sig("odometer_entry_suspect")]);
-    expect(c.signals).toEqual([]);
     expect(c.level).toBe("clear");
+    expect(c.signals).toEqual([]); // still nothing to accuse with
+    expect(c.unscoredSignals.map((s) => s.ruleId).sort()).toEqual(["cumulative_overfuel", "odometer_entry_suspect"]);
+    // The message travels with it — a reviewer needs the sentence, not just the rule name.
+    expect(c.unscoredSignals[0]!.message).toContain("fired");
+  });
+
+  it("keeps them out of the score, the axes and the level — evidence is not accusation", () => {
+    const withUnscored = correlateSignals([sig("tank_fill_short"), sig("cumulative_overfuel")]);
+    const alone = correlateSignals([sig("tank_fill_short")]);
+    expect(withUnscored.score).toBe(alone.score);
+    expect(withUnscored.axes).toEqual(alone.axes);
+    expect(withUnscored.level).toBe(alone.level);
+    expect(withUnscored.signals).toEqual(alone.signals);
+    // …and it is still carried, which is the whole point of keeping the two lists rather than one.
+    expect(withUnscored.unscoredSignals.map((s) => s.ruleId)).toEqual(["cumulative_overfuel"]);
+  });
+
+  /**
+   * ⚠ THE CORRECTNESS HALF, and the reason Q-FUI17 was not a display question.
+   *
+   * `contaminatesBaseline` tests `VOLUME_AXIS_RULE_IDS`, which contains `cumulative_overfuel`: a fill
+   * carrying that signal is excluded from the window that trains `effectiveBaseline`. When the rule
+   * went to weight 0 it fell out of `case_signals`, so over-fuelled fills silently began training the
+   * baseline they had always been kept out of — a side effect of a weight change that nobody ruled on.
+   */
+  it("still contaminates the MPG baseline, which weight 0 had silently stopped it doing", () => {
+    const c = correlateSignals([sig("cumulative_overfuel")]);
+    expect(contaminatesBaseline(c.level, c.signals)).toBe(false); // the regression, on the scored list
+    expect(contaminatesBaseline(c.level, [...c.signals, ...c.unscoredSignals])).toBe(true); // restored
   });
 
   it("two signals on the SAME axis do not over-count into an alert", () => {

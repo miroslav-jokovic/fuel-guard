@@ -63,6 +63,18 @@ export interface CaseAssessment {
   score: number;
   axes: SignalAxis[];
   signals: CaseSignal[];
+  /**
+   * Rules that FIRED and score zero (Q-FUI17). Evidence, never accusation.
+   *
+   * They are kept OUT of `signals` rather than filtered by every consumer, because `signals` is what
+   * `level`, `score` and `severity` are computed from and what `entityRisk` counts to rank a truck —
+   * folding a weightless rule in there would raise a truck up a risk list on a signal the product has
+   * decided carries nothing. They are kept out of NOTHING ELSE: before this field existed a weight-0
+   * rule vanished at the moment it fired, which made `odometer_entry_suspect` silent for its whole
+   * life and, on 2026-09-06, silently stopped `cumulative_overfuel` contaminating the MPG baseline it
+   * had always been excluded from.
+   */
+  unscoredSignals: CaseSignal[];
   summary: string;
 }
 
@@ -71,13 +83,16 @@ export interface CaseAssessment {
  * a single strong signal → review; independent corroborating signals (or one overwhelming one) → alert.
  */
 export function correlateSignals(fired: RuleResult[]): CaseAssessment {
-  const signals: CaseSignal[] = fired
+  const all: CaseSignal[] = fired
     .map((f) => ({ ruleId: f.ruleId, ...SIGNAL_META[f.ruleId], severity: f.severity, message: f.message }))
-    .filter((s) => s.weight > 0)
     .sort((a, b) => b.weight - a.weight);
+  // The SAME partition, done once, so the two lists cannot drift and nothing that fired is discarded.
+  // Every line below this reads `signals` exactly as it did before the split (Q-FUI17).
+  const signals = all.filter((s) => s.weight > 0);
+  const unscoredSignals = all.filter((s) => s.weight <= 0);
 
   if (signals.length === 0) {
-    return { level: "clear", severity: null, score: 0, axes: [], signals: [], summary: "" };
+    return { level: "clear", severity: null, score: 0, axes: [], signals: [], unscoredSignals, summary: "" };
   }
 
   // Score = sum of the STRONGEST signal per axis (don't double-count the same axis).
@@ -101,7 +116,7 @@ export function correlateSignals(fired: RuleResult[]): CaseAssessment {
     level = "review";
     severity = "medium";
   } else {
-    return { level: "clear", severity: null, score, axes, signals, summary: "" };
+    return { level: "clear", severity: null, score, axes, signals, unscoredSignals, summary: "" };
   }
 
   const lead = signals[0]!;
@@ -111,7 +126,7 @@ export function correlateSignals(fired: RuleResult[]): CaseAssessment {
       ? `Possible theft: ${axes.length} independent signal${axes.length > 1 ? "s" : ""} agree — ${lead.message}`
       : `Review: ${lead.message}${others > 0 ? ` (+${others} more)` : ""}`;
 
-  return { level, severity, score, axes, signals, summary };
+  return { level, severity, score, axes, signals, unscoredSignals, summary };
 }
 
 /**

@@ -165,7 +165,14 @@ export async function loadConsumptionContext(
     previousTxn = prevRow ? toTxnView(prevRow) : null;
     // Theft-contaminated fills must not train the MPG baseline.
     const recentRows = rows
-      .filter((x) => !odoBad(x) && !attrBad(x) && !contaminatesBaseline(x.case_level, x.case_signals))
+      // ⚠ BOTH lists. `contaminatesBaseline` tests VOLUME_AXIS_RULE_IDS, which contains
+      // `cumulative_overfuel` — and that rule went to weight 0 on 2026-09-06, which dropped it out of
+      // `case_signals` and silently let over-fuelled fills start training the very baseline they had
+      // always been excluded from. Nobody ruled on that; it was a side effect of a weight change.
+      // Reading the unscored column here restores the guard, and it is the reason Q-FUI17 is a
+      // correctness fix rather than a display one (0323).
+      .filter((x) => !odoBad(x) && !attrBad(x)
+        && !contaminatesBaseline(x.case_level, [...(x.case_signals ?? []), ...(x.case_signals_unscored ?? [])]))
       .slice(0, 6)
       .reverse();
     /**

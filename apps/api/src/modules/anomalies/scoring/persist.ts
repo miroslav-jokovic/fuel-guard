@@ -149,6 +149,10 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown>
     case_level: assessment.level,
     case_score: assessment.score,
     case_signals: assessment.signals,
+    // Q-FUI17 (0323). Kept in its OWN column rather than folded into `case_signals`: that column is
+    // counted per rule by `entityRisk` to rank trucks and drivers, and a weightless rule must not
+    // move anybody up a risk list. Here it is evidence a reviewer can see and nothing more.
+    case_signals_unscored: assessment.unscoredSignals,
     // Which generation of the rules produced the verdict above. The nightly sweep claims the lowest
     // stamps first, so a derivation change converges over several passes instead of the three-hour
     // full-history sweep it used to take (0318).
