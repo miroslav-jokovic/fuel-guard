@@ -56,3 +56,24 @@ export function startDigestScheduler(env: Env): void {
   setInterval(run, CHECK_INTERVAL_MS);
   console.log("[digest] weekly digest scheduler enabled");
 }
+
+/**
+ * Record that an org's fuel-spend sweep finished (0324).
+ *
+ * ── WHY IT LIVES HERE AND NOT IN THE SCHEDULER THAT CALLS IT ───────────────────────────────────
+ * `organizations` is owned by this module (docs/ARCHITECTURE.md §3) and had exactly two writers —
+ * `digestScheduler` above and the web settings composable. `fuelSpendRollupScheduler` stamping it
+ * directly would have been the first cross-module write to it, and `lint:table-writers` said so.
+ * Routing it through the owner is that gate's own instruction, and it costs one function.
+ *
+ * It sits in this file rather than a new one because it is the same kind of thing as
+ * `last_digest_at`: a per-org scheduler marker whose whole purpose is that a restart re-checks
+ * instead of re-running. Two markers, one place, one argument to read.
+ */
+export async function markFuelSweepComplete(
+  admin: SupabaseClient,
+  orgId: string,
+  at: Date,
+): Promise<void> {
+  await admin.from("organizations").update({ last_fuel_sweep_at: at.toISOString() }).eq("id", orgId);
+}

@@ -1,8 +1,10 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { buildFuelSpendRollup } from "./fuelSpendRollup.js";
 import { runFuelPolicyScanForWindow } from "./fuelPolicyScan.js";
 import { resolveFuelTransactionStations } from "../fuel/index.js";
+import { markFuelSweepComplete } from "../org/index.js";
 
 /**
  * Nightly rebuild of the daily fuel-spend rollup (migration 0244).
@@ -32,31 +34,70 @@ import { resolveFuelTransactionStations } from "../fuel/index.js";
  * Run in EXACTLY ONE process (see `startAllSchedulers`). This scheduler has no job-ledger guard, and
  * two processes rebuilding the same window would race each other's sweep: the loser's rows carry the
  * older timestamp and the winner deletes them.
+ *
+ * ── ⚠ AND WHY IT IS NOT A BARE 24-HOUR INTERVAL ANY MORE (0324) ─────────────────────────────────
+ * It was `setInterval(run, 24h)` with a deliberate "NOT run on boot", whose reasoning was sound in
+ * isolation: a fortnight across every org is heavy, and a deploy loop would run it on every restart.
+ * What it did not survive is how often this service deploys. Measured 2026-09-06, `main` took between
+ * 8 and 42 merges a day over the preceding ten days, and every merge restarts the API and resets the
+ * timer — so a 24-hour interval on a process that rarely lives 24 hours fired approximately never.
+ *
+ * The cost was not theoretical. C6 shipped the policy scan on 2026-09-05 and it rides this sweep;
+ * `fuel_exceptions` still held ONE row and zero policy findings, against a configured policy and
+ * ~14,800 fills to scan, and `fuel_spend_days`' newest derivation predated C6 entirely.
+ *
+ * So it now checks OFTEN and works RARELY, deduped on a persisted per-org marker: the shape
+ * `digestScheduler.ts` already uses, whose own comment says `last_digest_at` exists "so restarts
+ * don't double-send". A restart now re-CHECKS instead of re-running, and — the half the old design
+ * got wrong in the other direction — a gap longer than a day is noticed instead of being skipped.
  */
 const DAILY_MS = 24 * 60 * 60 * 1000;
 const REBUILD_DAYS = 14;
 
+/**
+ * How often to LOOK, and how stale a sweep must be before it is redone.
+ *
+ * The gap between them is what stops a daily cadence drifting later every day: at a 6-hour check, a
+ * 24-hour due window would sweep every 24–30 hours and lose most of a day a week. Twenty hours means
+ * the check that lands nearest each 24-hour mark is the one that fires.
+ */
+const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const SWEEP_DUE_AFTER_MS = 20 * 60 * 60 * 1000;
+/** Long enough that a boot storm during a deploy loop does not stampede the database. */
+const BOOT_DELAY_MS = 2 * 60 * 1000;
+
 const ymd = (d: Date): string => d.toISOString().slice(0, 10);
 
-export function startFuelSpendRollupScheduler(env: Env): void {
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
+/**
+ * Whether this org's sweep is due.
+ *
+ * ⚠ NULL means NEVER SWEPT and is therefore due — which is every org on the day 0324 ships, and is
+ * the condition that makes the first run happen at all. Reading a missing marker as "recent" would
+ * have shipped a fix that changed nothing.
+ */
+export function isFuelSweepDue(lastSweptAt: string | null | undefined, now: Date): boolean {
+  if (!lastSweptAt) return true;
+  const last = new Date(lastSweptAt).getTime();
+  // An unparseable stamp is treated as never swept rather than as a reason to stop sweeping.
+  if (!Number.isFinite(last)) return true;
+  return now.getTime() - last >= SWEEP_DUE_AFTER_MS;
+}
 
-  let inFlight = false;
-  const run = async (): Promise<void> => {
-    if (inFlight) return;
-    inFlight = true;
+/**
+ * Sweep every org whose turn it is. Exported so the due logic is testable without a timer.
+ */
+export async function runDueFuelSweeps(admin: SupabaseClient, now: Date = new Date()): Promise<void> {
+  const { data, error } = await admin.from("organizations").select("id, last_fuel_sweep_at");
+  if (error) throw new Error(error.message);
+
+  const to = ymd(now);
+  const from = ymd(new Date(now.getTime() - REBUILD_DAYS * DAILY_MS));
+
+  // Sequential and independently guarded: one carrier's bad odometer data must not stop the next
+  // carrier's spend report from being rebuilt.
+  for (const org of (data ?? []) as { id: string; last_fuel_sweep_at: string | null }[]) {
+    if (!isFuelSweepDue(org.last_fuel_sweep_at, now)) continue;
     try {
-      const admin = getSupabaseAdmin(env);
-      const { data, error } = await admin.from("organizations").select("id");
-      if (error) throw new Error(error.message);
-
-      const to = ymd(new Date());
-      const from = ymd(new Date(Date.now() - REBUILD_DAYS * DAILY_MS));
-
-      // Sequential and independently guarded: one carrier's bad odometer data must not stop the next
-      // carrier's spend report from being rebuilt.
-      for (const org of (data ?? []) as { id: string }[]) {
-        try {
           // Cheap after the first run: only fills with no station are scanned.
           const st = await resolveFuelTransactionStations(admin, org.id);
           if (st.resolved > 0) {
@@ -95,10 +136,28 @@ export function startFuelSpendRollupScheduler(env: Env): void {
               );
             }
           }
-        } catch (e) {
-          console.error(`[fuel-spend] org ${org.id} rollup failed:`, e instanceof Error ? e.message : e);
-        }
-      }
+      /*
+       * Stamped only after the org's sweep completes without throwing, so a failure retries at the
+       * next check instead of being marked done. A policy scan that reports `scan.error` does NOT
+       * throw and does not block the stamp: it is logged above, and a month that fails persistently
+       * would otherwise re-run the whole fortnight every six hours forever.
+       */
+      await markFuelSweepComplete(admin, org.id, now);
+    } catch (e) {
+      console.error(`[fuel-spend] org ${org.id} rollup failed:`, e instanceof Error ? e.message : e);
+    }
+  }
+}
+
+export function startFuelSpendRollupScheduler(env: Env): void {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
+
+  let inFlight = false;
+  const run = async (): Promise<void> => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      await runDueFuelSweeps(getSupabaseAdmin(env));
     } catch (e) {
       console.error("[fuel-spend] rollup sweep failed:", e instanceof Error ? e.message : e);
     } finally {
@@ -106,8 +165,11 @@ export function startFuelSpendRollupScheduler(env: Env): void {
     }
   };
 
-  const timer = setInterval(() => void run(), DAILY_MS);
+  // Checks on boot and every six hours; each check sweeps only the orgs whose marker is stale, so a
+  // redeploy costs one cheap read per org rather than a rebuild. This is what replaced a 24-hour
+  // interval that a redeploy reset before it ever fired.
+  const boot = setTimeout(() => void run(), BOOT_DELAY_MS);
+  boot.unref?.();
+  const timer = setInterval(() => void run(), CHECK_INTERVAL_MS);
   timer.unref?.();
-  // Deliberately NOT run on boot: a fortnight across every org is heavy, and a deploy loop would run it
-  // on every restart. The first rebuild is one interval in; a backfill is an explicit API call.
 }

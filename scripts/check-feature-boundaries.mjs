@@ -130,6 +130,12 @@ const API_ALLOW = new Set([
   // staging table (D-SEP1, D-MPG1). The alternative was fuel-spend deriving miles from fuel a second
   // time, which is the 1.31%-low numerator the MPG plan exists to retire.
   "fuel-spend -> samsara",
+  // 0324: the sweep stamps `organizations.last_fuel_sweep_at` so a redeploy re-checks instead of
+  // re-running. `organizations` is org's table and had two writers; `lint:table-writers` refused a
+  // third from outside, so the stamp goes through `markFuelSweepComplete` — the gate's own
+  // instruction, and the same arrow `efs`, `fuel`, `roster` and `samsara` already draw for org's
+  // job bookkeeping.
+  "fuel-spend -> org",
   // The weekly digest PDF prints the fleet's MPG, and there is now exactly one place that computes
   // it (M4, D-MPG1). insights asks fuel-spend's `getFleetMpg` rather than aggregating the fills it
   // already holds — which is what four surfaces did, and is why the Dashboard and the Spend trend

@@ -26,7 +26,7 @@ export { jobsRouter } from "./routes/jobs.js";
 export * from "./jobs.js";
 export { runDataRetention } from "./dataRetention.js";
 export { generateAndSendDigest } from "./digest.js";
-export { startDigestScheduler } from "./digestScheduler.js";
+export { startDigestScheduler, markFuelSweepComplete } from "./digestScheduler.js";
 export { runSchemaCheck } from "./schemaCheck.js";
 export { startStorageReconcileScheduler } from "./storageReconcileScheduler.js";
 export { stampIntegrationSynced } from "./integrationSync.js";
