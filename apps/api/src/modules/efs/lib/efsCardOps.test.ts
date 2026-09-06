@@ -14,6 +14,11 @@ import { testEnv } from "../../../testing/testEnv.js";
 
 const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
+  // ⚠ Both knobs, because they pace DIFFERENT lanes. `soapLaneRps` returns
+  // `EFS_SOAP_INTERACTIVE_RPS` for an interactive call and never consults `EFS_SOAP_MAX_RPS`, and
+  // that knob defaults to **1** — one request per second, of real wall-clock sleeping. Setting only
+  // the first read as "do not pace this suite" and silently did nothing for it.
+  EFS_SOAP_INTERACTIVE_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_BACKFILL_DAYS: 90,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
