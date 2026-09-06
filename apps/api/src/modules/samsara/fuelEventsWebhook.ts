@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
 import { makeSender } from "../../lib/mailer.js";
+import { FUEL_EVENT_DROP, FUEL_EVENT_DROP_UNVERIFIED } from "../fuel/index.js";
 
 export interface SamsaraWebhookHeaders {
   signature?: string; // X-Samsara-Signature: "v1=<hex>"
@@ -102,6 +103,10 @@ export interface WebhookResult {
  * Verify + ingest a Samsara webhook. A sudden fuel-level DROP is fuel leaving the tank with no purchase
  * — a direct siphoning signal — so we store it (idempotent on eventId) against the mapped vehicle/org and
  * email the org's recipients. Best-effort and fail-closed on signature.
+ *
+ * ⚠ Believed only when the truck's fuel sensor is learned-reliable. Everything else is stored under
+ * `FUEL_EVENT_DROP_UNVERIFIED` and nobody is emailed — see `fuel/fuelEventTypes.ts` for why it is
+ * stored at all rather than discarded the way the feed lane discards it.
  */
 export async function processSamsaraWebhook(
   admin: SupabaseClient,
@@ -124,17 +129,23 @@ export async function processSamsaraWebhook(
 
   const { data: veh } = await admin
     .from("vehicles")
-    .select("id, org_id, unit_number")
+    .select("id, org_id, unit_number, tank_sensor_reliable")
     .eq("samsara_vehicle_id", ev.samsaraVehicleId)
     .maybeSingle();
   if (!veh) return { ok: true, stored: false, reason: "unmapped_vehicle" };
+
+  // The reliability gate. Samsara's `suddenFuelLevelDrop` trigger reads the SAME tank sensor this
+  // product has separately judged trustworthy or not, so a vendor-computed drop off an untrusted
+  // sensor is no more believable than our own. `fuelEventTypes.ts` carries the whole argument,
+  // including why an untrusted drop is stored under its own type instead of dropped on the floor.
+  const trusted = veh.tank_sensor_reliable === true;
 
   const { error } = await admin.from("fuel_events").upsert(
     {
       org_id: veh.org_id,
       vehicle_id: veh.id,
       samsara_vehicle_id: ev.samsaraVehicleId,
-      event_type: "fuel_drop",
+      event_type: trusted ? FUEL_EVENT_DROP : FUEL_EVENT_DROP_UNVERIFIED,
       happened_at: ev.happenedAt,
       drop_pct: ev.dropPct,
       lat: ev.lat,
@@ -149,6 +160,9 @@ export async function processSamsaraWebhook(
     console.error("[webhook] fuel_event insert failed:", error.message);
     return { ok: false, stored: false, reason: "db_error" };
   }
+
+  // Stored, but not believed: no email, and no reader that means "siphoning" will count it.
+  if (!trusted) return { ok: true, stored: true, reason: "unreliable_sensor" };
 
   void notifyFuelDrop(admin, env, veh.org_id as string, veh.unit_number as string, ev).catch(() => {});
   return { ok: true, stored: true };
@@ -219,8 +233,17 @@ export interface SamsaraWebhookStatus {
   /** The path we listen on, and the whole URL to paste into the vendor console when we know our origin. */
   endpointPath: string;
   endpointUrl: string | null;
-  /** Events received and stored for this org, EVER. */
+  /** Believed fuel drops received and stored for this org, EVER. */
   eventCount: number;
+  /**
+   * Drops that arrived and were stored but NOT believed, because the truck's fuel sensor is not
+   * learned-reliable yet. Separated because these two answer different questions and one of them was
+   * silently answering both: `eventCount` alone means "is the integration working AND finding
+   * theft", and a fleet where the gate suppresses everything would read as a receiver nothing has
+   * ever reached. See `fuelEventTypes.ts`.
+   */
+  unverifiedCount: number;
+  /** The most recent arrival of EITHER kind — the honest answer to "is anything reaching us". */
   lastEventAt: string | null;
 }
 
@@ -236,19 +259,35 @@ export async function readSamsaraWebhookStatus(
   env: Env,
   orgId: string,
 ): Promise<SamsaraWebhookStatus> {
-  const { data, count } = await admin
-    .from("fuel_events")
-    .select("happened_at", { count: "exact" })
-    .eq("org_id", orgId)
-    .order("happened_at", { ascending: false })
-    .limit(1);
-  const rows = (data ?? []) as Array<{ happened_at: string }>;
+  // Three indexed reads issued CONCURRENTLY — one round trip of latency, which is what
+  // `readSamsaraFeedHealth` established as affordable for a card (Q-SAM8). Two `head` counts rather
+  // than one bare count, because the column they filter on had no reader at all until 2026-09-06.
+  const [verified, unverified, latest] = await Promise.all([
+    admin
+      .from("fuel_events")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .eq("event_type", FUEL_EVENT_DROP),
+    admin
+      .from("fuel_events")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .eq("event_type", FUEL_EVENT_DROP_UNVERIFIED),
+    admin
+      .from("fuel_events")
+      .select("happened_at")
+      .eq("org_id", orgId)
+      .order("happened_at", { ascending: false })
+      .limit(1),
+  ]);
+  const rows = (latest.data ?? []) as Array<{ happened_at: string }>;
   const origin = env.PUBLIC_API_URL?.replace(/\/+$/, "") ?? null;
   return {
     secretConfigured: Boolean(env.SAMSARA_WEBHOOK_SECRET),
     endpointPath: SAMSARA_WEBHOOK_PATH,
     endpointUrl: origin ? `${origin}${SAMSARA_WEBHOOK_PATH}` : null,
-    eventCount: count ?? 0,
+    eventCount: verified.count ?? 0,
+    unverifiedCount: unverified.count ?? 0,
     lastEventAt: rows[0]?.happened_at ?? null,
   };
 }
