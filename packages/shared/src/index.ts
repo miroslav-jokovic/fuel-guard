@@ -47,6 +47,7 @@ export * from "./calendarDay.js";
 export * from "./csv.js";
 export * from "./efsCards.js";
 export * from "./fuelSpend/index.js";
+export * from "./findingAssignment.js";
 export * from "./fuelTax/index.js";
 export * from "./ifta/index.js";
 export * from "./reeferCoverage.js";

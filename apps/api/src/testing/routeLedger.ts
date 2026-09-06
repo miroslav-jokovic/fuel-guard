@@ -50,6 +50,12 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
  * router with nine gated verbs and one bare one passes it.
  */
 export const OPEN_ROUTES = new Map<string, string>([
+  // ── Gated inside the handler, because the section is a PARAMETER. ─────────────────────────────
+  [
+    "GET /api/fueling/exceptions/assignees",
+    "the assignee picker for one finding section (Q-FUI15). It IS section-gated — `canViewSection(role, section)`, refused 403 — but the section arrives in the query rather than being fixed at mount, so no static `requireSection` exists for this gate to see. The section is validated against `FINDING_ASSIGNABLE_SECTIONS` first, so it cannot be used to enumerate a section the inbox holds no findings for, and the response carries id, name and role only — no email, no invitation state, no `joined_at`",
+  ],
+
   // ── The map plumbing. No tenant data passes through either. ───────────────────────────────────
   [
     "GET /api/fueling/map-config",
