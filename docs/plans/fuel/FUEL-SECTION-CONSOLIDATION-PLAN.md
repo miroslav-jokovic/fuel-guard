@@ -2836,3 +2836,83 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   **C7b merge 3 — assignment, bulk actions, per-kind write gating — is not started**, and the honest
   case for pausing before it is that it builds workflow machinery onto a queue no human has opened
   since 14 August.
+
+- 2026-09-06 · **C8 and C9 shipped, and with them every step in this plan. What is left is not
+  engineering.**
+
+  **C8 (#600 migration 0325, #601 the reader).** Three targets on `route_fuel_settings` — D-FUI10:
+  targets ship with the policy, not with the report — surfaced in the same card as the avoid-lists
+  they grade, because a target belongs to the rule it qualifies and *"at least 90% on the preferred
+  network"* is unreadable three cards away from which brands those are.
+
+  ⚠ **They are NULLABLE, breaking this table's own convention on purpose.** Every other column here is
+  NOT NULL with a default because every other column is a PLANNING input the router must have an
+  answer for; a target is a management commitment. Defaulting on-network share to 90 would measure a
+  carrier against a threshold nobody in their office chose, and *"12 points below target"* would be a
+  sentence this product made up — worse than no target rather than better. **It follows that C8's
+  Done-when cannot be reached by code**, and that is a property of the requirement rather than a gap
+  in the work.
+
+  **The targets were then set, on measurement rather than instinct** (owner ruling, 2026-09-06):
+
+  | target | set to | measured |
+  |---|---|---|
+  | on-network share | **95%** floor | 96.5% over 90 days, ±2.1% from unresolved stations |
+  | avoided-state gallons | **4,000 / month** ceiling | 3,380 · 3,538 · 4,526 · 5,369 over four months |
+  | discount capture | **left blank** | **not computable** — `fuel_statements` has 0 rows |
+
+  The third is the interesting one. The posted price only ever comes from the vendor statement, so a
+  discount-capture target would grade a figure that cannot be produced — it becomes settable the day
+  somebody uploads a statement, which is Q-FUI7's onboarding gap and not a product one.
+
+  **⚠ And a gap of mine, found by setting them (#607).** `target_avoided_state_gal` shipped with NO
+  PERIOD. The two percentages are RATIOS and mean the same thing over any window; a gallons ceiling
+  does not — 4,000 is a different instruction over a week, a month and a year, and a target nobody can
+  date is a target nobody can miss. It is a month, because `policyFindings` already groups per truck ×
+  kind × month, so the target is stated over exactly the span a finding covers. It is now
+  `AVOIDED_STATE_TARGET_PERIOD`, a VALUE the form's label is built from rather than a sentence beside
+  a field, so the label and the contract cannot drift. CI forced that improvement: the first attempt
+  proved the period by reading the source file, and `packages/shared` has no Node types on purpose —
+  it builds for React Native.
+
+  **C9 (#598 the links, #608 the ledger half).** The five fuel tiles all pointed at a bare
+  `/fuel-log`, and the worse half of that was not the sameness: they dropped the PERIOD, so clicking
+  "$41k, last 30 days" landed on a page showing its own window and a different number. Each now points
+  at the page that computes THE SAME FIGURE — a stronger rule than "the page about that topic" — and
+  carries the window. ⚠ Not `/odometer`, which was the obvious target for Miles and is wrong twice
+  over: it is a mismatch report about readings DISAGREEING, and it holds its range in local refs
+  rather than the URL, so a window sent to it is silently ignored.
+
+  **The ledger half needed the ruling C9 was waiting for**, and it is the same question Q-SAM7
+  answered for the Samsara strips: the Dashboard carries `requiresAuth` and NO section gate, so any
+  authenticated member opens it. Ruled 2026-09-06: gate PER ROW, the inbox's own derivation one screen
+  over, rather than introduce a gate on a page that gates nothing else. **The distinction it turns on
+  is null versus zero** — a caller who may see neither section is answered `null` and the tiles do not
+  render, while an org with genuinely nothing outstanding is answered `0` and the tile says so in
+  green. A tile reading 0 to a driver would claim the fleet has no findings, which this page is not
+  entitled to say to them.
+
+  It deliberately does not reuse `exceptionTotals`, which already computes `recovered`, and the reason
+  is WHERE it renders rather than what it computes: that function fetches every row and sums in
+  memory, which is right above a table and wrong on the landing page every member opens — Q-SAM8's
+  finding, applied to the second figure it was written about.
+
+  **What the tiles show on the day they shipped: 158 open (82 theft, 76 money), $0 recovered.**
+
+  ---
+
+  **THE PLAN IS COMPLETE. Phases T, P and C, T1 through C9.** What remains is not engineering and is
+  recorded here so it is not mistaken for work nobody got to:
+
+  · **Nobody has worked the queue.** A human last dispositioned a case on **2026-08-14**. The inbox now
+  has assignment, aging, bulk assignment and a picker waiting for them, and the post-Q-FUI11 precision
+  is still PREDICTED — 59 of 82 fires are physical-impossibility claims, which is a strong argument
+  and not a measurement.
+
+  · **No statement has ever been uploaded.** It blocks a discount-capture target and the four `recon_*`
+  finding kinds, which have a parser, a ledger and no producer. Q-FUI7 measured that the documents
+  exist; only the upload is missing.
+
+  · **C8's Done-when is met the day a policy figure is rendered against its target.** The targets are
+  set and readable and `varianceToTarget` exists; what has no home yet is a rendered on-network or
+  discount-capture SHARE for it to grade. That is a real remaining piece of UI, and it is small.
