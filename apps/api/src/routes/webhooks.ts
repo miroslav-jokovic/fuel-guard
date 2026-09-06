@@ -4,7 +4,8 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { processSamsaraWebhook } from "../modules/samsara/index.js";
 import { handleInboundSms } from "../modules/recruiting/index.js";
-import { verifyTwilioSignature } from "../lib/twilioSignature.js";
+import { parseTelnyxInboundSms } from "../lib/sms.js";
+import { verifyTelnyxSignature } from "../lib/telnyxSignature.js";
 
 /** Inbound integration webhooks. No user auth — authenticated by provider signature instead. */
 export function webhooksRouter(): Router {
@@ -32,7 +33,7 @@ export function webhooksRouter(): Router {
   );
 
   /**
-   * Inbound SMS — the opt-out path (A11b, D-APP13).
+   * Inbound SMS — the opt-out path (A11b, D-APP13). Telnyx since 2026-09-06.
    *
    * ⚠ An unverifiable receiver REJECTS. The recruiting plan's rule for webhooks, and it bites harder
    * here than anywhere else in the product: a forged inbound message could revoke a real driver's
@@ -40,26 +41,50 @@ export function webhooksRouter(): Router {
    * arrived when it had not would leave us texting somebody who had opted out. So a request with no
    * verifiable signature is a 401 and changes nothing.
    *
-   * Twilio retries a non-2xx, so a genuine message we choose to ignore (anything that is not an
-   * opt-out) answers 200 with an empty TwiML body — which is also what stops Twilio auto-replying.
+   * Telnyx retries a non-2xx, so a genuine message we choose to ignore — anything that is not an
+   * opt-out, and every non-`message.received` event type the messaging profile emits — answers 200.
+   * There is no TwiML equivalent to return: the carrier sends its own STOP confirmation, and Telnyx
+   * reads a 200 with any body as delivered.
    */
   router.post(
     "/sms",
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
-      const signature = req.header("X-Twilio-Signature");
-      // The full URL Twilio signed, which is what it hashed — not the path Express saw behind a proxy.
-      const url = `${env.PUBLIC_API_URL ?? ""}${req.originalUrl}`;
-      const params = (req.body ?? {}) as Record<string, string>;
-      if (!verifyTwilioSignature(env.TWILIO_AUTH_TOKEN, url, params, signature)) {
+      // The bytes Telnyx signed.
+      //
+      // ⚠ Note what this does NOT do, because the Samsara receiver twelve lines above DOES do it:
+      // `?? Buffer.from(JSON.stringify(req.body))`. That fallback is safe for an HMAC over a body we
+      // also re-encode, and unsafe here — a re-serialised object has different key order and
+      // whitespace, so it would verify by luck on simple payloads and fail on real ones, which is
+      // the worst possible failure mode for an opt-out. No signature over bytes we no longer hold.
+      //
+      // ⚠ And no test can isolate this guard, which is stated rather than hidden: whenever `rawBody`
+      // is absent the signature cannot match an empty buffer either, so the request is refused twice
+      // over. Its value is that it forbids the fallback above from ever being added back.
+      const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
+      if (
+        !rawBody ||
+        !verifyTelnyxSignature(
+          env.TELNYX_PUBLIC_KEY,
+          rawBody,
+          req.header("telnyx-signature-ed25519"),
+          req.header("telnyx-timestamp"),
+        )
+      ) {
         res.status(401).json({ ok: false });
         return;
       }
 
+      const { from, text, isInbound } = parseTelnyxInboundSms(req.body);
+      if (!isInbound) {
+        // A delivery receipt or a profile event, not a message. Accepted so it is not retried.
+        res.json({ ok: true, ignored: true });
+        return;
+      }
+
       const admin = getSupabaseAdmin(env);
-      const { revoked } = await handleInboundSms(admin, params.From ?? "", params.Body ?? "");
-      // Empty TwiML: accepted, and no auto-reply. A carrier sends its own STOP confirmation.
-      res.set("Content-Type", "text/xml").send("<Response></Response>");
+      const { revoked } = await handleInboundSms(admin, from, text);
+      res.json({ ok: true });
       void revoked;
     }),
   );
