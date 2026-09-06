@@ -14,7 +14,11 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import {
   FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_STATUSES,
+  FINDING_ASSIGNABLE_SECTIONS,
+  canViewSection,
+  rolesAssignableIn,
   type FuelExceptionStatus,
+  type UserRole,
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
 import { exportExceptions } from "../fuelExceptionExport.js";
@@ -84,6 +88,55 @@ async function unitsForVehicles(
  * claim. Deciding a finding's outcome is the PATCH below, and that stayed where it was.
  */
 export function registerExceptionRoutes(router: Router): void {
+  /**
+   * Who this finding could be assigned to (Q-FUI15, ruled 2026-09-06).
+   *
+   * ── WHY IT IS NOT A MEMBER DIRECTORY ─────────────────────────────────────────────────────────
+   * P3 shipped `?owner=me`, which needs nobody's list. A picker needs names, and `GET /api/members`
+   * is `requireRole("admin")` — so four of the six roles that can READ this ledger (dispatcher,
+   * safety_manager, auditor, accountant) would have opened an empty menu. The plan's recommended fix
+   * was a names-only org directory at `requireOrg`; the ruling took something narrower instead.
+   *
+   * This answers one question — *who could be assigned a finding in this section* — and the answer is
+   * `rolesThatManageFinding`, the SAME derivation that decides who may close it. That identity is the
+   * design and not a coincidence: offering somebody who could not then close it is a menu whose only
+   * product is a stuck finding. It also means a `driver` appears in no list without anybody writing
+   * "except drivers" anywhere — they hold `none` on every section, so the matrix excludes them.
+   *
+   * ⚠ NO EMAIL, by omission rather than by redaction — the shape Q-SAM7 chose for `feed-pulse`. A
+   * field added to `org_member_directory()` later stays out of this response until somebody adds it
+   * here on purpose. `name` is therefore nullable: a member who has never set a profile name has no
+   * label to give, and the caller says so rather than falling back to an address this route refuses
+   * to carry. Measured 2026-09-06: one of this carrier's four admins is in that position.
+   */
+  router.get(
+    "/exceptions/assignees",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const raw = typeof req.query.section === "string" ? req.query.section : "";
+      const section = FINDING_ASSIGNABLE_SECTIONS.find((s) => s === raw);
+      // A closed set taken from the finding map itself, so this cannot be used to enumerate the
+      // members of a section the inbox does not hold findings for.
+      if (!section) {
+        res.status(400).json(apiError("invalid_section", "Unknown finding section."));
+        return;
+      }
+      // The caller must be able to SEE findings in that section before being told who works them.
+      if (!canViewSection(req.auth!.role as UserRole, section)) {
+        res.status(403).json(apiError("forbidden", "You cannot view findings in that section."));
+        return;
+      }
+
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const assignable = new Set<string>(rolesAssignableIn(section));
+      const { data } = await admin.rpc("org_member_directory", { p_org_id: req.auth!.orgId! });
+      const assignees = ((data ?? []) as Array<{ user_id: string; full_name: string | null; role: string }>)
+        .filter((m) => assignable.has(m.role))
+        .map((m) => ({ id: m.user_id, name: m.full_name, role: m.role }));
+      res.json({ ok: true, assignees });
+    }),
+  );
+
   router.get(
     "/exceptions",
     requireOrg,

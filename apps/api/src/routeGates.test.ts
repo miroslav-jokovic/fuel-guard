@@ -141,6 +141,10 @@ const FILE_SECTION: Record<string, "fuel" | "safety"> = {
  */
 const GATE_WAIVERS = new Map<string, string>([
   [
+    'modules/fuel-spend/routes/exceptions.ts get /exceptions/assignees',
+    'gated INSIDE the handler because the section is a parameter, not a mount (Q-FUI15). A static requireSection("fuel") would be the wrong gate, not a missing one: this route answers for the section named in the query, and the inbox holds safety findings too — so it checks canViewSection(role, section) against a set derived from FINDING_SECTIONS and answers 403 otherwise. Pinned by "refuses a caller who cannot see findings in that section" in modules/fuel-spend/routes/exceptionAssignees.test.ts',
+  ],
+  [
     'modules/anomalies/routes/anomalies.ts post /thresholds',
     'admin-only on purpose and already derived — it mirrors the RLS write policy exactly, per the route\'s own comment (P6.1)',
   ],
