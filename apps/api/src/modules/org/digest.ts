@@ -13,6 +13,7 @@ import {
   type CapacityVehicleRow,
 } from "@silvicom/shared";
 import { getComplianceOverview } from "../evidence/index.js";
+import { FUEL_EVENT_DROP } from "../fuel/index.js";
 import type { Env } from "../../env.js";
 import { callClaudeText } from "../../lib/anthropic.js";
 import { makeSender } from "../../lib/mailer.js";
@@ -160,6 +161,9 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     .from("fuel_events")
     .select("vehicle_id, drop_pct, happened_at")
     .eq("org_id", orgId)
+    // Believed drops only. An untrusted-sensor drop is stored so the receiver stays observable
+    // (`fuel/fuelEventTypes.ts`); counting one here would report it to the carrier as siphoning.
+    .eq("event_type", FUEL_EVENT_DROP)
     .gte("happened_at", since)
     .order("happened_at", { ascending: false })
     .limit(20);

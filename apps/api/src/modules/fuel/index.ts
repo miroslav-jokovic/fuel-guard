@@ -27,3 +27,4 @@ export { attributeDrivers } from "./driverAttribution.js";
 export { learnStationGeocodes } from "./stationGeocodeLearning.js";
 export { registerDiscountRuleRoutes } from "./routes/discountRules.js";
 export { registerFuelExportRoutes } from "./routes/exports.js";
+export { FUEL_EVENT_DROP, FUEL_EVENT_DROP_UNVERIFIED } from "./fuelEventTypes.js";

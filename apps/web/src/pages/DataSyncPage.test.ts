@@ -53,6 +53,7 @@ const status = (o: Record<string, unknown> = {}) => ({
   endpointPath: "/api/webhooks/samsara",
   endpointUrl: "https://api.example.test/api/webhooks/samsara",
   eventCount: 0,
+  unverifiedCount: 0,
   lastEventAt: null,
   ...o,
 });
@@ -108,6 +109,18 @@ describe("DataSyncPage — the fuel-drop webhook card", () => {
     const t = (await mountPage()).text();
     expect(t).toContain("no event has ever arrived");
     expect(t).not.toContain("Not receiving");
+  });
+
+  // The state the sensor-reliability gate introduced (2026-09-06). Without its own branch the card
+  // says "no event has ever arrived" at a receiver that is working perfectly — the same false reading
+  // this card was built to remove, produced this time by our own gate rather than by a wrong path.
+  // A fleet where few trucks have a trusted fuel sensor lands here, and the fix is the sensor.
+  it("does not call a working receiver silent when every drop it received was held back", async () => {
+    fetched.value = status({ eventCount: 0, unverifiedCount: 3, lastEventAt: "2026-09-06T10:00:00Z" });
+    const t = (await mountPage()).text();
+    expect(t).toContain("The webhook works");
+    expect(t).toContain("3 drop(s) received");
+    expect(t).not.toContain("no event has ever arrived");
   });
 
   it("shows the last event once one has arrived, and the total received", async () => {

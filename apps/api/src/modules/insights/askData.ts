@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_MODELS, CASE_RULE_ID, computeSubjectMpg, odometerAccuracy, type OdoRow, type SubjectFill } from "@silvicom/shared";
+import { FUEL_EVENT_DROP } from "../fuel/index.js";
 import type { Env } from "../../env.js";
 import { anthropicClient } from "../../lib/anthropic.js";
 import { getFleetMpg, getFleetMpgSeries } from "../fuel-spend/index.js";
@@ -287,7 +288,13 @@ async function runTool(admin: SupabaseClient, orgId: string, name: string, input
       fetchAllPaged<FuelRow>((lo, hi) =>
         admin.from("fuel_transactions").select("gallons, total_cost").eq("org_id", orgId).gte("fueled_at", since).order("fueled_at", { ascending: true }).range(lo, hi)),
       admin.from("anomalies").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("rule_id", CASE_RULE_ID).in("severity", ["high", "critical"]).in("status", ["open", "investigating"]).gte("fueled_at", since),
-      admin.from("fuel_events").select("id", { count: "exact", head: true }).eq("org_id", orgId).gte("happened_at", since),
+      admin
+        .from("fuel_events")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", orgId)
+        // Believed drops only — see `fuel/fuelEventTypes.ts`.
+        .eq("event_type", FUEL_EVENT_DROP)
+        .gte("happened_at", since),
       admin.from("declined_transactions").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("suspicion_level", "alert").gte("declined_at", since),
     ]);
     return {

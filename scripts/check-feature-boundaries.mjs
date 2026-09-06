@@ -227,6 +227,16 @@ const API_ALLOW = new Set([
   // The daily digest reports compliance posture; a member change notifies through the fabric.
   "org -> evidence",
   "org -> messaging",
+  // The `fuel_events.event_type` vocabulary, read from its owner instead of restated (2026-09-06).
+  // `fuel` owns the table (ARCHITECTURE.md §3); `samsara` writes both members of the set through the
+  // webhook's sensor-reliability gate, and `org`'s weekly digest and `insights`' Ask-Data count are
+  // the two readers that mean "siphoning" and so must exclude the unbelieved one. Three string
+  // literals would have been cheaper and would have been a copy with a delay fuse — the exact shape
+  // CLAUDE.md's no-workarounds rule names, and the reason none of these three readers filtered the
+  // column at all until the second event type existed.
+  "samsara -> fuel",
+  "org -> fuel",
+  "insights -> fuel",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

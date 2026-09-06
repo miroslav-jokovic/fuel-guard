@@ -49,6 +49,8 @@ interface WebhookStatus {
   endpointPath: string;
   endpointUrl: string | null;
   eventCount: number;
+  /** Drops that arrived but are not believed, because the truck's fuel sensor is not trusted yet. */
+  unverifiedCount: number;
   lastEventAt: string | null;
 }
 const webhook = ref<WebhookStatus | null>(null);
@@ -126,16 +128,29 @@ const webhookState = computed(() => {
       label: "Not receiving — the signing secret is missing, so every delivery is rejected.",
       detail: "Set SAMSARA_WEBHOOK_SECRET (from the Samsara webhook config) on the API service and restart.",
     };
-  if (w.eventCount === 0)
+  if (w.eventCount === 0 && w.unverifiedCount === 0)
     return {
       warn: true,
       label: "Configured, but no event has ever arrived.",
       detail: "Check that the Samsara webhook posts to the address below and is subscribed to the sudden fuel-level drop alert.",
     };
+  // Arriving, and every one held back. Without this state the card says "no event has ever arrived"
+  // at a receiver that is working perfectly — the same false reading S1 existed to remove, produced
+  // this time by our own sensor-reliability gate rather than by a wrong path. A fleet where few
+  // trucks have a trusted fuel sensor lands here, and the fix is the sensor, not the webhook.
+  if (w.eventCount === 0)
+    return {
+      warn: true,
+      label: `Arriving, but nothing has been confirmed. Last ${formatDateTime(w.lastEventAt)}.`,
+      detail: `The webhook works — ${w.unverifiedCount} drop(s) received. None is counted as siphoning, because none of those trucks' fuel sensors has proved reliable enough to trust a reading from. That improves as more fills are checked against telematics.`,
+    };
   return {
     warn: false,
     label: `Last event ${formatDateTime(w.lastEventAt)}.`,
-    detail: `${w.eventCount} event(s) received in total.`,
+    detail:
+      w.unverifiedCount > 0
+        ? `${w.eventCount} confirmed drop(s) received in total, plus ${w.unverifiedCount} from trucks whose fuel sensor is not trusted yet — those are recorded but not counted as siphoning.`
+        : `${w.eventCount} event(s) received in total.`,
   };
 });
 
