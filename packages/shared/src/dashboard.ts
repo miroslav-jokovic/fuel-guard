@@ -53,8 +53,13 @@ export interface DashboardSummary {
   reeferSpend: number;
   /** Tractor fuel that actually moved the truck (tractor spend minus idle). Donut slice. */
   movingSpend: number;
-  /** % of fills corroborated by telematics (null when no fills in range). */
+  /** % of fills corroborated by telematics IN THE RANGE (null when the range holds no fills). */
   coveragePct: number | null;
+  /**
+   * The same share over the carrier's WHOLE history (D-SAM7). Null when nothing supplied it — the
+   * tile then shows the windowed figure alone, which is what it did before 0322, rather than a zero.
+   */
+  allTimeCoveragePct: number | null;
   declinedCount: number;
 }
 
@@ -82,6 +87,15 @@ export interface DashboardExtras {
    *  so its drivers cannot be derived from the range-scoped `transactions` argument. Without this map
    *  the risk list silently dropped every driver whose flagged fill fell outside the visible range. */
   anomalyDrivers?: Map<string, string | null>;
+  /**
+   * All-time coverage, from `telematics_coverage_buckets()` (D-SAM7, migration 0322).
+   *
+   * Beside `coveragePct`, not instead of it, because they answer different questions and the whole
+   * finding was that only one of them was being asked. Over 90 days the figure reads ~95%; measured
+   * against the carrier's whole history on 2026-09-01 it was 23%. Both were correct, and a tile
+   * showing only the first converts an unanswered question into a reassuring answer.
+   */
+  allTimeCoveragePct?: number | null;
 }
 
 /** YYYY-MM-DD of an instant in a timezone (cached Intl formatter per tz). */
@@ -213,6 +227,9 @@ export function aggregateDashboard(
     reeferSpend: reeferSpendR,
     movingSpend,
     coveragePct,
+    // `?? null` and never `?? 0`: a figure nobody supplied is unknown, and 0% corroborated is an
+    // alarming claim to make on the strength of a missing argument.
+    allTimeCoveragePct: extra.allTimeCoveragePct ?? null,
     declinedCount: extra.declinedCount ?? 0,
   };
 }

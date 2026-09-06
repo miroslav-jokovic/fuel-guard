@@ -184,6 +184,31 @@ describe("aggregateDashboard extras (idle / reefer / coverage / declines)", () =
     expect(s.coveragePct).toBe(50); // 1 of 2 fills corroborated
     expect(s.declinedCount).toBe(4);
   });
+
+  /**
+   * D-SAM7. The tile carries the windowed share and the all-time one BESIDE each other, because the
+   * whole finding was that only the first was being asked: over 90 days it read ~95% while 76.8% of
+   * the carrier's history had never had telematics fetched at all. A tile showing one of them turns
+   * an unanswered question into a reassuring answer.
+   */
+  it("carries the all-time share beside the windowed one, and does not let either stand in for the other", () => {
+    const rows = [
+      txn({ id: "x1", total_cost: 300, tank_type: "tractor", samsara_recon_at: "2026-06-01T12:00:00Z" }),
+      txn({ id: "x2", total_cost: 100, tank_type: "tractor", samsara_recon_at: "2026-06-02T12:00:00Z" }),
+    ];
+    // The shape production actually has: a healthy recent window over a thin history.
+    const s = aggregateDashboard(rows, [], vehicles, drivers, {}, { allTimeCoveragePct: 23 });
+    expect(s.coveragePct).toBe(100);
+    expect(s.allTimeCoveragePct).toBe(23);
+  });
+
+  it("reports an all-time share nobody supplied as unknown, never as 0%", () => {
+    // `?? 0` here would put "0% all time" on the Dashboard of every carrier whose read failed — an
+    // alarming claim made on the strength of a missing argument. `useDashboard` passes null on a
+    // failed RPC for the same reason, and the tile then shows what it showed before 0322.
+    const s = aggregateDashboard([txn({ id: "x1", total_cost: 300, tank_type: "tractor" })], [], vehicles, drivers, {}, {});
+    expect(s.allTimeCoveragePct).toBeNull();
+  });
 });
 
 describe("aggregateDashboard current-state alert attribution", () => {

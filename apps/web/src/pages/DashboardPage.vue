@@ -161,7 +161,16 @@ const trust = computed(() => [
   {
     label: "Telematics coverage",
     value: s.value?.coveragePct != null ? `${s.value.coveragePct}%` : "—",
-    sub: "fills corroborated",
+    // D-SAM7. The big number is the window the reader picked; the subtitle is the whole history, and
+    // the pair is the point. Over 90 days this reads ~95% and looks healthy; measured against the
+    // carrier's entire history on 2026-09-01 it was 23%, because 76.8% of fills had never had
+    // telematics fetched at all. Both figures were correct and showing only the first turned an
+    // unanswered question into a reassuring answer — which is the failure this whole plan opens with.
+    // When the all-time figure is unknown the tile says what it always said, rather than "0%".
+    sub:
+      s.value?.allTimeCoveragePct != null
+        ? `${s.value.allTimeCoveragePct}% all time`
+        : "fills corroborated",
     icon: RadarIcon,
     tone: "text-info-600 bg-info-50",
     to: "/coverage",
