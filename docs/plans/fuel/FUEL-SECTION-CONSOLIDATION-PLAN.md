@@ -2776,3 +2776,63 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   ago. ⚠ Nobody has reviewed a single one of these 76 — they are all `open`, and the first person to
   read them is the test of whether the grouping Q-FUI3 ruled on is the unit of work it was argued to
   be.
+
+- 2026-09-06 · **C7b's gate was lifted on evidence this plan could not have had, and the reason it
+  was blocked is no longer the reason to be careful.** §C7 blocked the merge because joining a
+  19-in-20-wrong queue to the money ledger would *"put the ledger's credibility inside the detector's
+  error bar"*. Three things had changed by the time it was asked again:
+
+  **The named harm became unrepresentable.** C7a's `closeOfAnomaly` returns a type that cannot express
+  a money outcome — `resolved → credited` fails to COMPILE, which was verified by writing it out as a
+  mutation. **The audiences separated**: Q-FUI1 plus the per-kind derivation mean the anomaly table is
+  not even queried for a caller without `safety`, so the accountant reading the ledger never sees a
+  theft case. And **the queue is a different animal**. Measured 2026-09-06 across the 82 fresh open
+  cases:
+
+  | rule | fires | |
+  |---|---|---|
+  | `tank_space_exceeded` | 59 | *"billed 179 gal, only 140 gal of space existed"* — a physical impossibility |
+  | `tank_fill_short` + `tank_chronic_short` | 41 | the two §0.3a measured at 19 fires and **zero** false positives |
+  | `cumulative_overfuel` | **0** | carried 64 of the old 95 false positives |
+
+  ⚠ **What did NOT change, and it is the thing to hold onto.** A human last dispositioned a case on
+  **2026-08-14**. September's 153 closes were every one of them SYSTEM auto-clears from Q-FUI16's
+  lease. So the post-ruling precision is **predicted, not measured** — and a first reading of the
+  monthly review counts as "the queue is actively worked, 153 in September" was wrong and is corrected
+  here rather than quietly dropped. The owner lifted the gate knowing this. C7's own sentence — *the
+  reward for a queue worth working* — is now resting on a composition argument rather than on a
+  number, and the number is one afternoon of somebody's time away.
+
+  **Shipped as two merges.** #602 the unified read: both tables through C7a's contract, merged in
+  memory rather than in a view, because a view would have to null-pad one row shape into the other's —
+  D-FUI7's flattening expressed in SQL instead of TypeScript. The cap is 500 per source against 159
+  rows today and a source that hits it sets `truncated`, because a queue missing rows that does not
+  say so is worse than one that refuses to load. #603 the surface: `/fuel-spend/exceptions` becomes
+  `/findings`, out from under `/fuel-spend` because a path saying *fuel-spend* would tell a safety
+  manager their queue lives inside the accountant's report.
+
+  **Three traps found while building it, each worth more than the code around it:**
+
+  · **`anomalies` has no `unit_number`** — it carries `vehicle_id`, while the ledger carries the unit
+  string because `fuel_exceptions.vehicle_id` has never been written by anything. A truck filter
+  applied to one source and not the other is exactly the defect P3 closed for the ledger: the page
+  writes it, the URL keeps it, and half the data ignores it. One roster read now resolves both.
+
+  · **The surface KEY had to stay `fuel.exceptions`** while its label and path changed.
+  `user_surface_access` holds a real per-user grant on that key in production; renaming it would not
+  migrate the grant, it would orphan it, and somebody's explicit access would silently stop applying.
+
+  · **The four money tiles were one label away from lying.** They read `fuel_exceptions` and must —
+  D-FUI7 gives an anomaly no money. But the list beneath them now holds theft cases, so
+  "Identified $11,368 · 77 findings" above 158 rows reads as a total of what is on screen. The
+  sub-labels carry the scope; the export and the dispute packet are scoped the same way and say so.
+
+  **And one test of mine was weak, caught by mutation rather than by review.** `gives a theft case a
+  dash where its amount would be` asserted `not.toContain("$0.00")` — but `usd` formats with no
+  decimals, so a zero renders `$0` and the test passed against the exact bug it named. It asserts the
+  cell contents now. The lesson is the one this plan keeps relearning: an assertion about the ABSENCE
+  of a formatted string is only as good as your memory of the formatter.
+
+  **C7b merge 3 — assignment, bulk actions, per-kind write gating — is not started**, and the honest
+  case for pausing before it is that it builds workflow machinery onto a queue no human has opened
+  since 14 August.
