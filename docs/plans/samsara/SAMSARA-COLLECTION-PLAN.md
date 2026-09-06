@@ -982,3 +982,52 @@ plain `to_char` passed everything, because PGlite runs in UTC and the fixture co
 apart. Five fills two hours into a UTC month, read back under `America/Chicago`, now separate them.
 (The other survivor was the mutation's own fault: `security invoker` appears in the header comment
 first, so the replacement never reached the clause.)
+
+#### — Q-SAM8 MERGE 2 of 2 SHIPPED 2026-09-05 (`claude/sam-s8-coverage-readers`). **D-SAM7 is BUILT. S5's Done-when is complete on all four bullets.**
+
+**Verified against production before the readers shipped**, which is the whole reason this was two
+merges: `to_regclass`-equivalent check on `pg_proc` showed `telematics_coverage_buckets(p_org uuid)`
+applied with `prosecdef = false`, and the function's roll-up was compared to a direct row count over
+the live table — `(15951, 15149, 0, 802)` from both, identical. **15,951 fills come back as 19
+cells.** Sixteen sequential round trips became one.
+
+**`readTelematicsCoverage` lost its page loop, so `/coverage` and `/data-sync` got faster too** — not
+only the Dashboard, which was the bullet that forced the work. `MAX_PAGES` and `truncated` went with
+it, and the DataSync page's *"this is a floor"* caveat was deleted rather than left standing for a
+condition that can no longer arise.
+
+**The tile now reads `22.5% all time` under its windowed figure.** ⚠ Worth recording plainly: measured
+today the all-time share is **95.0%**, not the 23% §0.3 found on 2026-09-01. S4's backfill drained in
+between. The pair is still the point — the tile says the two figures separately, so the next
+collection hole shows up as a divergence instead of being averaged away — but the illustration this
+plan opens with is no longer the live number, and quoting 23% from here on would be quoting history.
+
+**⚠ A defect the unit tests did not catch, found by rendering the page.** `pct(n, d)` returns **0**
+for an empty denominator — correct for a per-month row, and on this tile it reads as "nothing this
+carrier has ever bought has been corroborated". The first version passed `coveragePct` straight
+through, so an empty result printed **"0% all time"**. The assertions written for it covered
+`undefined` and a failed read; neither is the shape a *successful but empty* read arrives in. The
+rule is now `fills > 0`, which covers a failed read, an empty history and an RLS scope that returns
+this viewer nothing — the same answer in all three: we do not know.
+
+Two smaller things came out of the same pass, both of them assertions that could not fail:
+- An `if (res.error) return null` above that rule was **removed**, not kept. supabase-js nulls `data`
+  on a failed call, so the no-fills rule already covered it, and a branch no mutation can break is a
+  branch that is not really there.
+- The string-coercion test used ONE cell, where an untouched string cancels out — numerator and
+  denominator are the same value — and passed while proving nothing. It uses two now: `0 + "8" + "2"`
+  is `"082"`, so the total reads 82 against 8 corroborated.
+
+**Verified by.** `allTimeCoverage` (5, `apps/web`) — including `is unknown, not zero, when the read
+succeeded and returned nothing` and `reads counts that arrived as text rather than CONCATENATING
+them`. `readTelematicsCoverage` (6, `apps/api`) — including `counts in the database rather than paging
+the history to this process` and `scopes the read to one org — the service role bypasses RLS, so
+p_org is the whole boundary`. `aggregateDashboard` (2 new, `packages/shared`) — including `reports an
+all-time share nobody supplied as unknown, never as 0%`.
+
+⚠ **`expectOrgScoped` cannot see this service any more** and the test says so: the helper skips `rpc:`
+queries by construction, so calling it after the switch would have passed whatever the function did.
+The org scope is asserted on the RPC ARGUMENT instead.
+
+**Both tile states verified in the built app** (`vite preview`, dev-bypass, routed mocks): `22.5% all
+time` with data, and the pre-0322 subtitle when the histogram is empty.

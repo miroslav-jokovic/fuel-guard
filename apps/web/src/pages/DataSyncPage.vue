@@ -86,7 +86,6 @@ interface TelematicsCoverage {
   pending: number;
   coveragePct: number;
   attainablePct: number | null;
-  truncated: boolean;
   byMonth: CoverageMonth[];
 }
 const coverage = ref<TelematicsCoverage | null>(null);
@@ -352,9 +351,6 @@ const integrity = computed(() => {
           At the rate the fills already checked came back, this lands near
           <strong class="text-ink-secondary">{{ coverage.attainablePct }}%</strong> once the backlog
           clears.
-        </p>
-        <p v-if="coverage.truncated" class="mt-1 text-sm text-warning-600">
-          Only the most recent fills were read, so this is a floor rather than the whole figure.
         </p>
 
         <div v-if="coverage.byMonth.length" class="mt-4">

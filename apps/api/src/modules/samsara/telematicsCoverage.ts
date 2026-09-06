@@ -1,28 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  computeTelematicsCoverage,
-  type TelematicsCoverageInput,
+  coverageFromBuckets,
+  type TelematicsCoverageBucket,
   type TelematicsCoverageSummary,
 } from "@silvicom/shared";
-
-/**
- * Rows per round trip. PostgREST caps a response anyway, and this figure is read from a settings
- * diagnostic that a person opens occasionally — not from a hot path — so a handful of round trips
- * against the service role is the right trade for not adding a migration.
- */
-const PAGE = 1000;
-
-/**
- * Hard stop on paging, so a table that grows unexpectedly cannot turn one page view into an
- * unbounded scan. 60 pages is 60,000 fills against a carrier that holds ~14,500 after eight months —
- * years of headroom, and it terminates. Exceeding it is reported, never silently truncated.
- */
-const MAX_PAGES = 60;
-
-export interface TelematicsCoverageResult extends TelematicsCoverageSummary {
-  /** True when MAX_PAGES stopped the read — the figure is then a floor, and the surface says so. */
-  truncated: boolean;
-}
 
 /**
  * How much of this carrier's fuel history the collector has actually corroborated (SAM-S4, D-SAM7).
@@ -33,35 +14,49 @@ export interface TelematicsCoverageResult extends TelematicsCoverageSummary {
  * hides the gap converts an unanswered question into a reassuring answer, which is worse than showing
  * nothing — so this one has no window and cannot be given one.
  *
- * Reads with the SERVICE ROLE, which bypasses RLS, so the org filter is this function's own
- * responsibility and is asserted by `expectOrgScoped` in the test.
+ * ── IT USED TO PAGE THE WHOLE HISTORY, AND THAT IS WHY D-SAM7 WAS STUCK (Q-SAM8, 2026-09-05) ─────
+ * This function read `fuel_transactions` 1,000 rows at a time in a sequential loop and handed every
+ * row to `computeTelematicsCoverage`. Measured in production: **16 round trips over 15,948 rows**,
+ * growing by about one more every two weeks. Its own header called that acceptable because it served
+ * "a settings diagnostic that a person opens occasionally — not from a hot path" — which was true,
+ * and which is exactly why S5's fourth bullet could not put the figure on the Dashboard, where every
+ * authenticated member lands. The blocker was never the permission Q-SAM7 described.
+ *
+ * `telematics_coverage_buckets()` (migration 0322) counts in the database instead: one round trip,
+ * returning a histogram of RAW column states bounded by months × 2 × statuses rather than by row
+ * count — 22 cells for 2,400 fills in the matrix. `MAX_PAGES`, the page loop and `truncated` are all
+ * gone with it, because the condition `truncated` reported cannot arise any more.
+ *
+ * ── THE VERDICT DID NOT MOVE INTO SQL, AND THAT WAS THE WHOLE DIFFICULTY ─────────────────────────
+ * Q-SAM7 rejected recomputing this in the browser because a second implementation of the three-state
+ * predicate is a second source of truth with a delay fuse; expressing it in SQL would be the same
+ * mistake with a different accent. So the aggregate names no bucket, and `coverageFromBuckets` — the
+ * same function the row-based `computeTelematicsCoverage` runs — is still the only place a column
+ * state becomes pending, no-data or reconciled. The two are held together by
+ * `agrees with itself whether it counted the rows or was handed the counts` and, across the language
+ * boundary, by the `telematics-coverage-buckets` matrix.
+ *
+ * ── ORG SCOPE ───────────────────────────────────────────────────────────────────────────────────
+ * `admin` is the SERVICE ROLE, which has `bypassrls`, so the function's `security invoker` gives this
+ * caller no tenant boundary at all — `p_org` is the boundary, and passing it is this function's own
+ * responsibility exactly as the `.eq("org_id", …)` it replaces was. ⚠ `expectOrgScoped` cannot see
+ * it: that helper skips `rpc:` queries by construction, so the test asserts the ARGUMENT instead.
+ * An assertion that silently started passing for everything is worse than no assertion.
  */
+export type TelematicsCoverageResult = TelematicsCoverageSummary;
+
 export async function readTelematicsCoverage(
   admin: SupabaseClient,
   orgId: string,
 ): Promise<TelematicsCoverageResult> {
-  const rows: TelematicsCoverageInput[] = [];
-  let truncated = true;
-
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const { data, error } = await admin
-      .from("fuel_transactions")
-      .select("fueled_at, samsara_recon_status, samsara_recon_at")
-      .eq("org_id", orgId)
-      // A fill with no truck was never a candidate for per-fill telematics — it has nothing to fetch
-      // history FOR — so counting it as an uncovered fill would report a fleet-mapping problem as a
-      // collection problem, and no amount of collecting would ever move the number.
-      .not("vehicle_id", "is", null)
-      .order("fueled_at", { ascending: false })
-      .range(page * PAGE, page * PAGE + PAGE - 1);
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as unknown as TelematicsCoverageInput[];
-    rows.push(...batch);
-    if (batch.length < PAGE) {
-      truncated = false;
-      break;
-    }
-  }
-
-  return { ...computeTelematicsCoverage(rows), truncated };
+  const { data, error } = await admin.rpc("telematics_coverage_buckets", { p_org: orgId });
+  if (error) throw new Error(error.message);
+  // `fills` is `int` on the wire and arrives as a number, but it is coerced rather than trusted: a
+  // string would propagate as a silent NaN through every percentage below, and a NaN renders as "—"
+  // rather than as an error.
+  const buckets = ((data ?? []) as TelematicsCoverageBucket[]).map((b) => ({
+    ...b,
+    fills: Number(b.fills),
+  }));
+  return coverageFromBuckets(buckets);
 }

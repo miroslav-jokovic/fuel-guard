@@ -2,9 +2,11 @@ import { type Ref, toValue } from "vue";
 import { keepPreviousData, useQuery } from "@tanstack/vue-query";
 import {
   aggregateDashboard,
+  coverageFromBuckets,
   type DashboardSummary,
   type FuelTransaction,
   type Anomaly,
+  type TelematicsCoverageBucket,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { efsRejectDayWindow } from "@/lib/stationTime";
@@ -35,6 +37,32 @@ async function fetchAllPaged<T>(
  * YYYY-MM-DD bounds (the page defaults them to the last 30 days), and every window below is now a
  * window of DAYS rather than of instants (FUEL-T1, D-FUI11) — see the note on the fills query.
  */
+/**
+ * The all-time coverage share for the tile, or null when there is no evidence for one.
+ *
+ * ⚠ `coverageFromBuckets([]).coveragePct` is **0, not null** — `pct(n, d)` returns 0 for an empty
+ * denominator, which is right for a per-month row and wrong for this tile. Passing it through would
+ * print "0% all time" on the Dashboard of any carrier whose RPC failed, whose history is empty, or
+ * whose RLS returns them nothing — an alarming claim made on the strength of no answer at all.
+ * Caught by rendering the page against an empty result, not by a unit test, which is why the case is
+ * now in one.
+ *
+ * Not thrown on either: this is one figure on one tile, and the rest of the Dashboard is fine
+ * without it. Null makes the tile show its windowed figure alone — exactly what it did before 0322.
+ *
+ * The rule mirrors `coveragePct`'s own: no fills, no percentage.
+ */
+export function allTimeCoverage(res: { data: unknown; error: unknown }): number | null {
+  // ONE guard, not two. An explicit `if (res.error) return null` above this was redundant —
+  // supabase-js sets `data` to null on a failed call, so the no-fills rule already covers it — and a
+  // branch no test can make fail is a branch that is not really there. The rule below covers a failed
+  // read, an empty history and an RLS scope that returns this viewer nothing, which are the same
+  // answer: we do not know.
+  const cells = ((res.data ?? []) as TelematicsCoverageBucket[]).map((b) => ({ ...b, fills: Number(b.fills) }));
+  const summary = coverageFromBuckets(cells);
+  return summary.fills > 0 ? summary.coveragePct : null;
+}
+
 export function useDashboard(range: Ref<{ from: string; to: string }>) {
   // The SAME burn-rate + $/gal basis the Idling page uses, so the idle tile matches that page exactly.
   const costBasis = useIdleCostBasis();
@@ -48,7 +76,7 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
       const { from: fromDay, to: toDay } = toValue(range);
       // The declines window in the station-agnostic zone EFS prints rejects in (see the query below).
       const rejectWindow = efsRejectDayWindow(fromDay, toDay);
-      const [txns, anoms, vehRes, drvRes, orgRes, idleRows, declinedRes] = await Promise.all([
+      const [txns, anoms, vehRes, drvRes, orgRes, idleRows, declinedRes, coverageRes] = await Promise.all([
         // Ordered + paged so every fill in the window is aggregated (not just an arbitrary first 1000).
         fetchAllPaged<FuelTransaction>((lo, hi) =>
           supabase
@@ -104,6 +132,14 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
           .select("id", { count: "exact", head: true })
           .gte("declined_at", rejectWindow.gte)
           .lt("declined_at", rejectWindow.lt),
+        // D-SAM7: the coverage tile's all-time denominator, beside its windowed one. ⚠ Counted by
+        // `telematics_coverage_buckets()` (0322) rather than read row by row — the service that used
+        // to compute this paged the entire fill history 1,000 rows at a time, 16 sequential round
+        // trips over 15,948 production rows, which is why the figure could not live on this page at
+        // all (Q-SAM8). `p_org` is OMITTED deliberately: the function is `security invoker` and
+        // coalesces to `auth_org_id()`, so this reads exactly the fills RLS already lets this viewer
+        // see — the same scope as the windowed figure beside it, for every role including a driver.
+        supabase.rpc("telematics_coverage_buckets"),
       ]);
       // Driver attribution for the alert set: its fills can be OLDER than the visible range, so the
       // range-scoped `txns` can't resolve them — fetch driver_id for exactly the flagged fills.
@@ -136,6 +172,7 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
           idleCostUsd: idleHours * basis.idleGalPerHour * basis.fuelPricePerGal,
           declinedCount: declinedRes.count ?? 0,
           anomalyDrivers,
+          allTimeCoveragePct: allTimeCoverage(coverageRes),
         },
       );
     },
