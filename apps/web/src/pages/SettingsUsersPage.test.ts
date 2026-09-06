@@ -15,19 +15,29 @@ const calls = vi.hoisted(() => [] as Array<{ path: string; init?: { method?: str
 const state = vi.hoisted(() => ({
   members: [] as unknown[],
   invites: [] as unknown[],
+  /** A resend rotates the link; the API says so with this flag (invites.ts, 2026-09-04). */
+  rotated: false,
 }));
+/** Toasts are the ONLY place the rotation is told to the admin, so a test has to be able to read them. */
+const toasts = vi.hoisted(() => [] as Array<{ kind: string; title: string; detail?: string }>);
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {
     calls.push({ path, init });
     if (path === "/api/members" && !init?.method) return { ok: true, data: { members: state.members } };
     if (path === "/api/invites" && !init?.method) return { ok: true, data: { invites: state.invites } };
-    if (path === "/api/invites" && init?.method === "POST") return { ok: true, data: { emailSent: true, link: "https://app.example/accept-invite?token_hash=abc&type=invite" } };
+    if (path === "/api/invites" && init?.method === "POST")
+      return { ok: true, data: { emailSent: true, rotated: state.rotated, link: "https://app.example/accept-invite?token=abc" } };
     return { ok: true, data: {} };
   }),
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ userId: "u-admin" }) }));
-vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
+vi.mock("@/stores/toast", () => ({
+  useToastStore: () => ({
+    success: (title: string, detail?: string) => toasts.push({ kind: "success", title, detail }),
+    error: (title: string, detail?: string) => toasts.push({ kind: "error", title, detail }),
+  }),
+}));
 
 const stubs = { PageHeader: { template: "<div />" }, RouterLink: { template: "<a><slot /></a>" } };
 /** One member's row — a `<tr>` on a desktop, a card `<li>` on a phone; jsdom renders the cards. */
@@ -39,6 +49,8 @@ const mountPage = () =>
 beforeEach(() => {
   setActivePinia(createPinia());
   calls.length = 0;
+  toasts.length = 0;
+  state.rotated = false;
   document.body.innerHTML = "";
   state.members = [
     { userId: "u-admin", email: "boss@silvicom.test", fullName: "Miki Boss", role: "admin", joinedAt: "2026-01-01T00:00:00Z" },
@@ -80,10 +92,33 @@ describe("SettingsUsersPage — names", () => {
     await form.trigger("submit");
     await flushPromises();
     expect(w.text()).toContain("Emailed to vinnie@silvicominc.test");
-    expect(w.text()).toContain("token_hash=abc");
+    // ⚠ The link shape is OUR token since 2026-09-04, not GoTrue's `token_hash=…&type=invite`; this
+    // fixture carried the old one because the change predates that merge. `inviteDelivery.ts` builds
+    // `/accept-invite?token=<our token>`, and a fixture showing a shape the product cannot produce is
+    // the trap `testEnv` exists for one layer down.
+    expect(w.text()).toContain("token=abc");
     expect(w.findAll("button").some((b) => b.text() === "Copy")).toBe(true);
     // …and the wording is not the failure wording.
     expect(w.text()).not.toContain("didn't go out");
+    w.unmount();
+  });
+
+  // ⚠ Added while resolving this branch against main. A resend ROTATES the link (2026-09-04), and
+  // main's wording for that was reachable by no test at all — mutating it away left every case green.
+  // It is the only thing that tells an admin which of two identical-looking emails still works, which
+  // is how an invitation was lost in the first place.
+  it("says a resend rotated the link, so the admin knows the earlier one is dead", async () => {
+    state.rotated = true;
+    const w = mountPage();
+    await flushPromises();
+    const form = w.find("form");
+    await form.find('input[type="text"]').setValue("Vinnie Dispatcher");
+    await form.find('input[type="email"]').setValue("vinnie@silvicominc.test");
+    await form.trigger("submit");
+    await flushPromises();
+    const sent = toasts.filter((t) => t.kind === "success").at(-1)!;
+    expect(sent.title).toBe("New invitation emailed");
+    expect(sent.detail).toContain("the earlier link no longer works");
     w.unmount();
   });
 

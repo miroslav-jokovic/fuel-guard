@@ -223,24 +223,17 @@ export function mergeEffectiveConfig<T>(
 
 // ─── Read responses ────────────────────────────────────────────────────────────────────────────
 
-/** One row of the cards list. Never carries a PAN — `last4` and a masked ref only. */
-export const efsCardSummarySchema = z.object({
-  id: z.string().uuid(),
-  last4: z.string().length(4),
-  maskedRef: z.string(),
-  status: vendorEnum(EFS_CARD_STATUSES),
-  policyNumber: vendorInt,
-  driverIdPrompt: z.string().nullable(),
-  unitPrompt: z.string().nullable(),
-  driverName: z.string().nullable(),
-  overrideUses: z.coerce.number().int().nullable(),
-  lastUsedDate: z.string().nullable(),
-  vehicleId: z.string().uuid().nullable(),
-  driverId: z.string().uuid().nullable(),
-  syncedAt: z.string(),
-  syncError: z.string().nullable(),
-});
-export type EfsCardSummary = z.infer<typeof efsCardSummarySchema>;
+/**
+ * ⚠ `efsCardSummarySchema` was here and is GONE (FUEL-P2). It described a list row with `vehicleId`
+ * and `driverId` and without `fuelCardId`, the override scope, the linking evidence or the detail
+ * clock — a shape the API has not sent for several steps — and it had **no readers anywhere**: not the
+ * route that answers the list, not the page that renders it, not a validator. A wrong contract with
+ * nobody reading it is worse than none, because the next person to need this shape finds it and
+ * believes it.
+ *
+ * The real one is `EfsCardSummary` in `efsCards.ts`, written from what `toSummary` actually sends, and
+ * it is now the single home the API's route and the browser's `EfsCardRow` both point at.
+ */
 
 /**
  * What the client may do, decided by the SERVER. The client never infers this from a role: the answer

@@ -271,6 +271,36 @@ describe("renderFuelSpendReport — how current its figures are", () => {
   // walks every query this render makes, so the build-stamp read is covered the moment it exists. A
   // second copy would pass for the same reason and add a place for the exemption list to drift.
 
+  /**
+   * ── THE CROSS-SOURCE MILEAGE CHECK IS FLEET-WIDE (M5, plan Q3) ────────────────────────────────
+   * `fuel_spend_days.miles` agreed with Samsara's IFTA jurisdiction miles to within 0.08% in July
+   * 2026 and ran 3.78% ahead of them in August; nothing noticed for five weeks because nothing put
+   * the two side by side. The check asks whether the two SOURCES agree, so it must NOT take the
+   * reader's truck filter: a divergence that appeared and disappeared as somebody picked trucks
+   * would teach them to ignore it.
+   *
+   * ⚠ **What this cannot assert, stated rather than implied:** the document is a PDF buffer, so
+   * nothing here proves the resulting SENTENCE reaches the page — replacing the concern with null
+   * leaves these assertions green. What it does pin is that the check runs at all, fleet-wide, over
+   * the right months; deleting the call kills this test. The sentence itself is proved in
+   * `packages/shared/src/fuelSpend/mileageAgreement.test.ts`.
+   */
+  it("checks the miles against the independent source WITHOUT the reader's truck filter", async () => {
+    const rec = seed();
+    await renderFuelSpendReport(rec.client, {
+      orgId: ORG, from: "2026-07-01", to: "2026-08-31", grain: "week",
+      generatedAt: "2026-09-01T05:00:00Z", vehicleIds: ["v1", "v2"],
+    });
+    // Every OTHER read of this table carries the filter; the check's read is the one that does not.
+    const reads = rec.forTable("fuel_spend_days");
+    expect(reads.some((q) => !q.ops.some((o) => o.method === "in" && o.args[0] === "vehicle_id"))).toBe(true);
+    // And it asked the independent source for the whole months in the window, not the window itself.
+    const months = rec
+      .forTable("samsara_ifta_jurisdiction_miles")
+      .map((q) => q.ops.find((o) => o.method === "eq" && o.args[0] === "period_month")?.args[1]);
+    expect(months).toEqual([7, 8]);
+  });
+
   it("still renders when the window holds no rows — there is simply nothing to qualify", async () => {
     const rec = createSupabaseRecorder({
       tables: { fuel_spend_days: [], fuel_transactions: [], organizations: { data: { name: "Silvicom Inc" } } },

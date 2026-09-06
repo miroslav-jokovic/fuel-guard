@@ -10,6 +10,8 @@ import { SecretBoxError } from "../../../lib/secretBox.js";
 import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";
 import { runSamsaraDiagnostics } from "../samsaraDiagnostics.js";
 import { readSamsaraWebhookStatus } from "../fuelEventsWebhook.js";
+import { readSamsaraFeedHealth } from "../samsaraFeedHealth.js";
+import { samsaraFeedPulse } from "@silvicom/shared";
 import { readTelematicsCoverage } from "../telematicsCoverage.js";
 
 /** Samsara integration admin routes — token set/rotate/clear, the manual sync buttons, and the
@@ -248,6 +250,67 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       res.json(await readTelematicsCoverage(admin, req.auth!.orgId!));
+    }),
+  );
+
+  /**
+   * How stale is each Samsara feed, against its stated bound? (SAM-S5, D-SAM6)
+   *
+   * The plan's §1.1 answer to "is our data fresh?" in one route: a per-feed staleness figure with a
+   * per-feed target, rather than a global adjective nobody can act on. `alerting` is the subset a
+   * breach of which is allowed to page somebody — a RULED bound (Q-SAM1) that is actually meetable.
+   *
+   * Same derived gate as its neighbour: `rolesThatCanView("settings")`, never a hand-listed set.
+   */
+  router.get(
+    "/samsara/feed-freshness",
+    requireOrg,
+    requireSection("settings", "view"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      res.json(await readSamsaraFeedHealth(admin, env, req.auth!.orgId!));
+    }),
+  );
+
+  /**
+   * The same staleness, narrowed to what a page a driver can open may know (SAM-S5 bullet 3, Q-SAM7).
+   *
+   * ── WHY THIS IS A SECOND ROUTE AND NOT A WIDER GATE ──────────────────────────────────────────
+   * S5's third bullet puts a one-line freshness strip above the figures that depend on a feed.
+   * Measured 2026-09-05: all six of those surfaces — `/`, `/coverage`, `/idling`, `/odometer`,
+   * `/ifta`, `/driver-performance` — carry `meta: { requiresAuth: true }` and no section gate at
+   * all, while its neighbour above is `requireSection("settings", "view")`. Two ways out were
+   * rejected in writing (Q-SAM7): widening the card's route hands every member the vendor error
+   * text, and re-deriving freshness in the browser is a second source of truth about a predicate
+   * S4 spent real effort getting right.
+   *
+   * So the gate matches the audience of the pages that read it — `requireOrg`, the same bar the
+   * surfaces themselves set — and the PAYLOAD is what carries the restraint. `samsaraFeedPulse`
+   * drops `lastError` (Samsara's own sentence, which routinely carries an account id) along with
+   * every job internal, and it drops by omission: a field added to `SamsaraFeedHealth` tomorrow
+   * stays behind the settings gate until somebody adds it to the projection on purpose.
+   *
+   * ── AND WHY IT COSTS WHAT A PAGE LOAD CAN AFFORD ─────────────────────────────────────────────
+   * `readSamsaraFeedHealth` issues 15 indexed `limit 1` reads CONCURRENTLY — one round trip of
+   * latency. That is what makes it fit above a figure. Its neighbour `/telematics-coverage` does
+   * not and must not be treated the same way: it pages the whole fill history 1,000 rows at a time,
+   * sequentially, which was 16 round trips over 15,948 rows when this was measured (2026-09-05).
+   * That difference is why S5's fourth bullet — D-SAM7 on the Dashboard tile — is NOT here; the
+   * blocker is cost, not permission, and it is written up as Q-SAM8 rather than routed around.
+   *
+   * A read that fails returns an empty list, so a strip that cannot answer says nothing rather than
+   * turning a caveat into an error on a page it only annotates. The diagnosis stays on the settings
+   * card, which reports the error verbatim and is where somebody goes to act on it.
+   */
+  router.get(
+    "/samsara/feed-pulse",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const health = await readSamsaraFeedHealth(admin, env, req.auth!.orgId!);
+      res.json({ feeds: samsaraFeedPulse(health.feeds) });
     }),
   );
 

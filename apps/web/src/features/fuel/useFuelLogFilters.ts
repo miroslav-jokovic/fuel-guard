@@ -31,6 +31,19 @@ import { useQueryState } from "@/composables/useQueryState";
  * `/transactions?unit=654` is a real link in tickets, and C2's redirect lands it on this page with
  * that filter applied rather than dropping it.
  *
+ * ── AND WHY `?unit=` NOW CARRIES A LIST WITHOUT CHANGING ITS NAME (FUEL-P1) ─────────────────────
+ * "Show me 654 and 696 for August" is the ordinary shape of a conversation about a driver group, a
+ * terminal or a customer's dedicated fleet, and it was not answerable anywhere in this section. The
+ * filter is now a SET, held as `?unit=654,696`.
+ *
+ * The parameter keeps its singular name deliberately. Renaming it to `units` would be a rename with
+ * no safe window and no gate watching — every `/fuel-log?unit=654` in a ticket, an email or a
+ * bookmark would start returning the whole fleet, silently, which is the worst shape this kind of
+ * change takes. A one-element list is exactly what a single value already meant, so the old links
+ * keep working with no legacy branch to maintain, and `useQueryState.list()` is the reader for both.
+ * (`useSpendFilters` spells its own truck list `?trucks=`; the two pages disagree because their
+ * histories do, and a link that still works beats two pages agreeing about a word.)
+ *
  * ── ONE INSTANCE, PASSED DOWN ───────────────────────────────────────────────────────────────────
  * ⚠ Call this ONCE, in the page shell, and hand the result to the tabs as a prop. `useQueryState`
  * buffers the patches applied since the last navigation settled, and each call gets its OWN buffer —
@@ -90,11 +103,15 @@ export interface FuelLogSharedFilters {
   from: ComputedRef<string | undefined>;
   /** Window end, `YYYY-MM-DD`, inclusive. */
   to: ComputedRef<string | undefined>;
-  /** The truck, as a unit number (see the header). `undefined` means the whole fleet. */
-  unit: ComputedRef<string | undefined>;
+  /**
+   * The trucks, as unit numbers (see the header). **EMPTY means the whole fleet, never "no trucks"** —
+   * the same reading `useSpendFilters.vehicleIds` gives its own list, and the reason every consumer
+   * below checks `.length` rather than truthiness.
+   */
+  units: ComputedRef<string[]>;
   setFrom: (v: string | undefined) => void;
   setTo: (v: string | undefined) => void;
-  setUnit: (v: string | undefined) => void;
+  setUnits: (v: string[]) => void;
   /**
    * One of the OPEN TAB's own facets, as a `v-model`-able string (`""` ⇄ absent).
    *
@@ -108,7 +125,7 @@ export interface FuelLogSharedFilters {
 }
 
 export function useFuelLogFilters(): FuelLogSharedFilters {
-  const { q, one, set, param } = useQueryState();
+  const { q, one, list, set, param } = useQueryState();
 
   const tab = computed<FuelLogTab>({
     get: () => {
@@ -137,10 +154,12 @@ export function useFuelLogFilters(): FuelLogSharedFilters {
     tab,
     from: computed(() => one("from")),
     to: computed(() => one("to")),
-    unit: computed(() => one("unit")),
+    units: computed(() => list("unit")),
     setFrom: write("from"),
     setTo: write("to"),
-    setUnit: write("unit"),
+    // An empty selection REMOVES the parameter rather than writing `?unit=`, so "the whole fleet" has
+    // one spelling in the URL instead of two that a reader would have to know are the same.
+    setUnits: (v: string[]) => set({ unit: v.length ? v.join(",") : undefined }),
     facet: param,
     clear: () => set({ from: undefined, to: undefined, unit: undefined }),
   };

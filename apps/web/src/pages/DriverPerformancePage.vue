@@ -8,6 +8,7 @@ import { computed, ref, watch } from "vue";
 import { useDriverPerformance, type PerformanceDisplayRow } from "@/features/drivers/useDriverPerformance";
 import { useDriverPerformanceWeeksList, useDriverPerformanceWeek } from "@/features/drivers/useDriverPerformanceWeeks";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -141,6 +142,10 @@ const columns: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader description="Weekly driver grade combining Samsara safety, Samsara efficiency, and idling discipline. The top 3 each week earn rewards.">
     </PageHeader>
+
+    <!-- SAM-S5: how current the telematics behind this page is, before its numbers are believed.
+         The header names its own inputs: Samsara safety, Samsara efficiency, and idling discipline. -->
+    <SamsaraFeedLine :feeds="['driver_scores', 'idle']" />
 
     <FilterBar
       v-model:search="search"

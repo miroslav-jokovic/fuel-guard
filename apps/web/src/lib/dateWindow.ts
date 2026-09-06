@@ -1,3 +1,5 @@
+import { exclusiveEndYmd } from "@silvicom/shared";
+
 /**
  * The date-window contract between a date PICKER and the accounting API.
  *
@@ -36,18 +38,12 @@ export function ymd(d: Date): string {
 /**
  * Turn the inclusive end date a person picked into the exclusive bound the API windows on.
  *
- * Calendar arithmetic in UTC on purpose: `new Date("2026-06-30")` is parsed as UTC midnight, and
- * adding a day there cannot be knocked into the wrong date by a DST transition the way local-time
- * arithmetic can. Only the Y-M-D parts are ever read back out, so UTC is a pure counting frame
- * here, not a timezone claim.
+ * ⚠ The arithmetic moved to `@silvicom/shared` at FUEL-P2 and this is the alias its callers keep. The
+ * API needs the identical step — P2's decline export windows `declined_transactions` exactly as the
+ * Declines tab does, through `efsRejectDayWindow` — and a second implementation of "the day after
+ * this one" would be a copy of a rule. The rule this file exists to state, above, is unchanged.
  */
-export function exclusiveEnd(inclusive: string): string {
-  const day = inclusive.slice(0, 10);
-  const [y, m, d] = day.split("-").map(Number);
-  if (!y || !m || !d) return day; // malformed input is the caller's problem, not ours to invent
-  const next = new Date(Date.UTC(y, m - 1, d + 1));
-  return next.toISOString().slice(0, 10);
-}
+export const exclusiveEnd = exclusiveEndYmd;
 
 /**
  * The trailing complete calendar month, as INCLUSIVE dates.

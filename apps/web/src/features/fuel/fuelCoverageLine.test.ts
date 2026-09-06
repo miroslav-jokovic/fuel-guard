@@ -72,10 +72,10 @@ const sharedStub = (): FuelLogSharedFilters =>
     tab: ref("fills"),
     from: ref(undefined),
     to: ref(undefined),
-    unit: ref(undefined),
+    units: ref([]),
     setFrom: () => {},
     setTo: () => {},
-    setUnit: () => {},
+    setUnits: () => {},
     // Each `facet()` call gets its own ref, exactly as the real one gets its own URL parameter.
     facet: () => ref(""),
     clear: () => {},

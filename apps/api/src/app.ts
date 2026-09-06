@@ -16,7 +16,7 @@ import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
-import { invitesRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
+import { invitesRouter, publicInvitesRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
 import { savedViewsRouter } from "./modules/org/index.js";
@@ -185,6 +185,13 @@ function mountBodyParsers(app: Express): void {
  */
 function mountPublic(app: Express): void {
   app.use("/api/public/hazmat", publicHazmatRouter());
+  // The invitation link's redemption (2026-09-04): the token in the body is the credential, and a
+  // person redeeming one has no account yet. Same bucket as the application intake, for the same
+  // reason — it bounds replay of a leaked link, not guessing. ⚠ Limiter on its own line and the
+  // mount on ONE line: routeAuth.test.ts / routeGates.test.ts discover mounts from this source and
+  // cannot see a call broken across lines; both pin this prefix as public by design.
+  app.use("/api/public/invites", rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false }));
+  app.use("/api/public/invites", publicInvitesRouter());
   app.use(
     "/api/public/application",
     rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false }),

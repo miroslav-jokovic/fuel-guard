@@ -3,9 +3,12 @@ import { useQuery, keepPreviousData, useMutation, useQueryClient } from "@tansta
 import {
   derivePricePerGal,
   windowMilesFromAggregate,
+  applyFuelLogFilters,
+  fuelSearchTerm,
   MPG_PLAUSIBLE_MIN,
   MPG_PLAUSIBLE_MAX,
   type FillUpInput,
+  type FuelLogFilters,
   type FuelTransaction,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
@@ -20,51 +23,11 @@ const FUEL_COLS =
 
 export const FUEL_PAGE_SIZE = 20;
 
-export interface FuelFilters {
-  vehicleId?: string;
-  driverId?: string;
-  /**
-   * The window, as CALENDAR DAYS — both ends inclusive, both `YYYY-MM-DD`, and both meaning the
-   * STATION-LOCAL business date (D-FUI11, migration 0287). Not an instant, and deliberately not one:
-   * see the note above the filters in `useFuelTransactions`.
-   */
-  from?: string;
-  to?: string;
-  tankType?: "tractor" | "reefer"; // filter tractor vs reefer fills
-  /** Free-text smart search — matched server-side against location & card, plus vehicle/driver via the
-   *  page-resolved id lists below (so a unit number or driver name in the box narrows the log too). */
-  search?: string;
-  searchVehicleIds?: string[]; // vehicle ids whose unit matched `search` (resolved on the page)
-  searchDriverIds?: string[]; // driver ids whose name matched `search` (resolved on the page)
-  sortKey?: string; // column to order by (server-side)
-  sortDir?: "asc" | "desc";
-}
-
 /**
- * The search term, sanitised ONCE, for both the list and the tiles above it.
- *
- * `%,()` are stripped because PostgREST's `.or(...)` grammar is comma- and paren-delimited and treats
- * `%` as a wildcard — an unstripped term is a syntax error or a filter that matches the whole fleet.
- * `fuel_range_totals` does not need the strip (0289 escapes the term server-side), but it must be given
- * the SAME term anyway: the tiles sit directly above the table, and a tile counting a different set
- * than the rows beneath it is precisely the disagreement FUEL-T3a exists to end. One sanitiser, one
- * term, two callers.
+ * What narrows the fill list — defined in `@silvicom/shared` since FUEL-P2, because the EXPORT has to
+ * apply the identical set (D-FUI15). Re-exported under the name every caller here already imports.
  */
-export function searchTerm(f: FuelFilters): string | null {
-  if (!f.search) return null;
-  const t = f.search.replace(/[%,()]/g, "").trim();
-  return t || null;
-}
-
-/** Build the PostgREST `.or(...)` term for the smart search across location/card + resolved vehicle/driver. */
-function searchOr(f: FuelFilters): string | null {
-  const t = searchTerm(f);
-  if (!t) return null;
-  const ors = [`location_text.ilike.%${t}%`, `card_ref.ilike.%${t}%`];
-  if (f.searchVehicleIds?.length) ors.push(`vehicle_id.in.(${f.searchVehicleIds.join(",")})`);
-  if (f.searchDriverIds?.length) ors.push(`driver_id.in.(${f.searchDriverIds.join(",")})`);
-  return ors.join(",");
-}
+export type FuelFilters = FuelLogFilters;
 
 export interface FuelPage {
   rows: FuelTransaction[];
@@ -79,26 +42,18 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
     queryFn: async (): Promise<FuelPage> => {
       const f = toValue(filters);
       const start = (toValue(page) - 1) * FUEL_PAGE_SIZE;
-      let q = supabase
-        .from("fuel_transactions")
-        .select(FUEL_COLS, { count: "exact" })
-        .eq("is_canonical", true)
-        .order(f.sortKey ?? "fueled_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
-        .range(start, start + FUEL_PAGE_SIZE - 1);
-      if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
-      if (f.driverId) q = q.eq("driver_id", f.driverId);
-      if (f.tankType) q = q.eq("tank_type", f.tankType);
-      // FUEL-T1 / D-FUI11. This filtered `fueled_at` — a UTC INSTANT — while the table beside it
-      // rendered that same instant in the STATION's zone. Two derivations of one day, disagreeing
-      // whenever the station's local day differs from the UTC day: measured 2026-09-01, 1,833 of
-      // 14,749 fills (12.4%), of which 57 ($28,430.70) sat in the neighbouring MONTH's total. A
-      // California fill at 18:00 on 31 August displayed as "Aug 31" and fell outside an August
-      // window. `business_date` is the stored station-local day (0287, trigger-maintained), so the
-      // filter and the display now read the SAME derivation instead of agreeing by luck.
-      if (f.from) q = q.gte("business_date", f.from);
-      if (f.to) q = q.lte("business_date", f.to);
-      const or = searchOr(f);
-      if (or) q = q.or(or);
+      // `is_canonical` is stated HERE rather than in the shared filters: it is what makes a row a
+      // fill rather than a duplicate, so it belongs to the query's identity and not to the reader's
+      // narrowing. The export states it in the same breath, for the same reason.
+      const q = applyFuelLogFilters(
+        supabase
+          .from("fuel_transactions")
+          .select(FUEL_COLS, { count: "exact" })
+          .eq("is_canonical", true)
+          .order(f.sortKey ?? "fueled_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
+          .range(start, start + FUEL_PAGE_SIZE - 1),
+        f,
+      );
       const { data, error, count } = await q;
       if (error) throw new Error(error.message);
       return { rows: (data ?? []) as FuelTransaction[], total: count ?? 0 };
@@ -135,8 +90,18 @@ export interface FuelRangeTotals {
   hasCost: boolean;
   flagged: number;
   clear: number;
-  /** Gallon-weighted mean of plausible per-fill MPG across the range (matches the dashboard's fleetMpg). */
-  fleetMpg: number | null;
+  /**
+   * ⚠ **There is no `fleetMpg` here any more (M4, D-MPG1).**
+   *
+   * It was a gallon-weighted mean of per-fill `computed_mpg`, documented as "matches the dashboard's
+   * fleetMpg" — an assertion about two independent code paths rather than a derivation, and one of
+   * four copies of a definition whose numerator ran 1.31–2.41% below Samsara's own IFTA miles. The
+   * Fills tab reads `GET /api/fueling/fleet-mpg` instead, scoped by `fleetMpgScope` to the filters a
+   * truck-measured figure can honestly answer.
+   *
+   * `fuel_range_miles_inputs` (0290/0315) still returns `mpg_weighted`/`mpg_gallons` — an APPLIED
+   * migration cannot be edited and the function is harmless — but nothing reads them.
+   */
 }
 
 const n = (v: number | string | null): number | null => (v == null ? null : Number(v));
@@ -163,12 +128,14 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
       const { data: sums, error: sumErr } = await supabase.rpc("fuel_range_totals", {
         p_from: f.from ?? null,
         p_to: f.to ?? null,
-        p_vehicle: f.vehicleId ?? null,
+        // Migration 0312. A LIST, so the tiles and the rows beneath them answer for the same trucks;
+        // `null` for the whole fleet, and an empty array for "the units named are not in this fleet".
+        p_vehicles: f.vehicleIds ?? null,
         p_driver: f.driverId ?? null,
         p_tank_type: f.tankType ?? null,
-        // The SAME sanitised term the list uses — see `searchTerm`. A tile filtering on a different
+        // The SAME sanitised term the list uses — see `fuelSearchTerm`. A tile filtering on a different
         // string than the rows beneath it is the disagreement this step exists to end.
-        p_search: searchTerm(f),
+        p_search: fuelSearchTerm(f),
         p_search_vehicles: f.searchVehicleIds?.length ? f.searchVehicleIds : null,
         p_search_drivers: f.searchDriverIds?.length ? f.searchDriverIds : null,
       });
@@ -182,14 +149,17 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         fills_with_vehicle?: number | null;
       } | null;
 
-      // ── The two that are JUDGEMENT — now fed by a measurement, not by a page (FUEL-T3b, 0290) ─────
-      // "THIS SUMS. IT DOES NOT DERIVE." Fleet MPG applies a plausibility band, and `robustWindowMiles`
-      // prefers an OBD span, falls back to the entered span only when it is monotonic within ±1, and
-      // returns null rather than 0 for a non-advancing window. None of that moved into SQL, and none of
-      // it may: T3b's finding is that the database can return the MEASUREMENTS those rules judge —
-      // spans, counts, and the worst backward step — without ever knowing the thresholds. The band
-      // travels the other way, as a required argument, so there is exactly one definition of it and it
-      // lives in `@silvicom/shared`.
+      // ── The one that is JUDGEMENT — fed by a measurement, not by a page (FUEL-T3b, 0290) ─────────
+      // "THIS SUMS. IT DOES NOT DERIVE." `robustWindowMiles` prefers an OBD span, falls back to the
+      // entered span only when it is monotonic within ±1, and returns null rather than 0 for a
+      // non-advancing window. None of that moved into SQL, and none of it may: T3b's finding is that
+      // the database can return the MEASUREMENTS those rules judge — spans, counts, and the worst
+      // backward step — without ever knowing the thresholds.
+      //
+      // The band is still handed in because the function's signature takes it (0315), and it still
+      // gates which fills the function counts. It no longer feeds a fleet MPG: M4 moved that figure
+      // onto `GET /api/fueling/fleet-mpg`, whose miles come from odometer readings rather than from
+      // the fuel. There is exactly one definition of the band and it lives in `@silvicom/shared`.
       //
       // The paging loop this replaces is gone. Every tile on this page is now independent of how many
       // fills there are, which is what FUEL-T3a set out to do and could only half-finish.
@@ -198,30 +168,30 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         p_mpg_max: MPG_PLAUSIBLE_MAX,
         p_from: f.from ?? null,
         p_to: f.to ?? null,
-        p_vehicle: f.vehicleId ?? null,
+        p_vehicles: f.vehicleIds ?? null,
         p_driver: f.driverId ?? null,
         p_tank_type: f.tankType ?? null,
-        p_search: searchTerm(f),
+        p_search: fuelSearchTerm(f),
         p_search_vehicles: f.searchVehicleIds?.length ? f.searchVehicleIds : null,
         p_search_drivers: f.searchDriverIds?.length ? f.searchDriverIds : null,
       });
       if (milesErr) throw new Error(milesErr.message);
 
       let totalMiles = 0;
-      let mpgWeighted = 0;
-      let mpgGallons = 0;
       for (const v of (perVehicle ?? []) as {
         vehicle_id: string | null;
         obd_count: number; obd_min: number | string | null; obd_max: number | string | null;
         entered_count: number; entered_min: number | string | null; entered_max: number | string | null;
         entered_worst_step: number | string | null;
-        mpg_weighted: number | string; mpg_gallons: number | string;
+        // 0316, and OPTIONAL for the same reason `fills_with_vehicle` is nullable above: a function's
+        // return shape is invisible to `lint:migration-ordering`, so this reader is served for about
+        // nine minutes by a database that does not have these yet. `undefined` reaches
+        // `windowMilesFromAggregate` as "not taught the ends yet" and it answers exactly as it did
+        // before — where `false` would blank this tile for the whole window.
+        obd_covers_ends?: boolean | null;
+        entered_covers_ends?: boolean | null;
       }[]) {
-        // Fleet MPG counts every fill, INCLUDING those attributed to no truck — the loop this replaced
-        // accumulated MPG before it skipped them, and that behaviour is preserved deliberately.
-        mpgWeighted += Number(v.mpg_weighted);
-        mpgGallons += Number(v.mpg_gallons);
-        if (!v.vehicle_id) continue; // …but a fill with no truck has no odometer span to contribute
+        if (!v.vehicle_id) continue; // a fill with no truck has no odometer span to contribute
         totalMiles +=
           windowMilesFromAggregate({
             obdCount: Number(v.obd_count),
@@ -231,6 +201,11 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
             enteredMin: n(v.entered_min),
             enteredMax: n(v.entered_max),
             enteredWorstStep: n(v.entered_worst_step),
+            // ⚠ `?? undefined`, never `?? false`. A source may only answer for a window whose ends it
+            // reaches (2026-09-05); a null column is the database not having been asked, and reading
+            // that as "the ends are not covered" would withhold every truck's miles until 0316 lands.
+            obdCoversEnds: v.obd_covers_ends ?? undefined,
+            enteredCoversEnds: v.entered_covers_ends ?? undefined,
           }).miles ?? 0; // null (data-quality) → contributes 0, exactly as before
       }
 
@@ -244,7 +219,6 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         hasCost: t?.has_cost ?? false,
         flagged: Number(t?.flagged ?? 0),
         clear: Number(t?.clear ?? 0),
-        fleetMpg: mpgGallons > 0 ? mpgWeighted / mpgGallons : null,
       };
     },
   });

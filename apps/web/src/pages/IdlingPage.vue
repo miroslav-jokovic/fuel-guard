@@ -7,6 +7,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { toneClass } from "@/lib/badges";
 import { toggleSort } from "@/lib/sort";
 import { useIdlingPage } from "@/features/idle/useIdlingPage";
@@ -30,6 +31,10 @@ const {
 <template>
   <div class="space-y-6">
     <PageHeader :description="`Avoidable idling costs, driver idle scores, and truck idle-reduction capability — ${rangeLabel}.`" />
+
+    <!-- SAM-S5: how current the telematics behind this page is, before its numbers are believed.
+         Every figure below is an idle_rollup_days row, and that table is only as current as its tier. -->
+    <SamsaraFeedLine :feeds="['idle']" />
 
     <!-- Which window every card + table below reflects (the date picker lives in the tab toolbars). -->
     <div class="flex items-center gap-2 text-sm">

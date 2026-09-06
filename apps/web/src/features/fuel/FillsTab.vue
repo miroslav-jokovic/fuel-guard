@@ -12,18 +12,23 @@
  * primary action appear and disappear as a reader compares a fill with the decline beside it.
  *
  * What changed: the truck filter. It used to be a vehicle id chosen from a picker labelled with unit
- * numbers; it is now the shared unit number, resolved back to an id here (`unitFilter.ts`). The
- * control looks identical and the query is the same; what is new is that the same choice survives a
- * move to the two raw-feed tabs, which cannot express a vehicle id at all.
+ * numbers; it is now the shared unit numbers, resolved back to ids here (`unitFilter.ts`). The choice
+ * survives a move to the two raw-feed tabs, which cannot express a vehicle id at all.
+ *
+ * FUEL-P1 made it a SET, and the six tiles above the table went with it — `fuel_range_totals` and
+ * `fuel_range_miles_inputs` take the same list (migration 0312), so the tiles and the rows beneath
+ * them always describe the same trucks. A tile answering for the fleet under a two-truck filter would
+ * have been the disagreement FUEL-T3a spent a migration removing, arriving through the front door.
  */
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { fuelTxnStatus, explainCaseOutcome, formatRuleId, describeRowCoverage, type FuelTransaction, type CaseLevel, type CaseSignal } from "@silvicom/shared";
+import { fuelTxnStatus, explainCaseOutcome, formatRuleId, describeRowCoverage, fleetMpgScope, type FuelTransaction, type CaseLevel, type CaseSignal } from "@silvicom/shared";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useFuelTransactions, useFuelRangeTotals, FUEL_PAGE_SIZE, type FuelFilters } from "./useFuelLog";
+import { useFleetMpg } from "./useFleetMpg";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -34,7 +39,9 @@ import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
-import { useUnitOptions, useVehicleIdForUnit } from "./unitFilter";
+import { useUnitOptions, useVehicleIdsForUnits } from "./unitFilter";
+import ExportButton from "@/components/ExportButton.vue";
+import { fuelLogExportTarget } from "./fuelLogExport";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
@@ -65,8 +72,8 @@ const sortKey = props.shared.facet("sort", SORTABLE);
 const sortDir = props.shared.facet("dir", SORT_DIRECTIONS);
 const { sort, onSort } = useUrlSort(sortKey, sortDir);
 
-const unit = computed(() => props.shared.unit.value);
-const { vehicleId, pending: unitPending } = useVehicleIdForUnit(unit);
+const units = computed(() => props.shared.units.value);
+const { vehicleIds, pending: unitPending } = useVehicleIdsForUnits(units);
 
 /**
  * The smart search resolves the typed text against the fleet and the driver roster HERE, so the
@@ -93,7 +100,7 @@ const filters = computed<FuelFilters>(() => ({
   driverId: driverFilter.value || undefined,
   sortKey: sortKey.value || undefined,
   sortDir: sortDir.value === "desc" ? "desc" : "asc",
-  vehicleId: vehicleId.value,
+  vehicleIds: vehicleIds.value,
   from: props.shared.from.value,
   to: props.shared.to.value,
 }));
@@ -103,6 +110,34 @@ watch(filters, () => (page.value = 1), { deep: true });
 const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransactions(filters, page);
 // Range-wide totals (all matching fills, not just this page) — powers the Total miles stat.
 const { data: rangeTotals } = useFuelRangeTotals(filters);
+
+/**
+ * Avg MPG, from the ONE place that computes it (M4, D-MPG1).
+ *
+ * This tile used to be a gallon-weighted mean of per-fill `computed_mpg`, computed here and
+ * documented as "matches the dashboard's fleetMpg" — an assertion about two code paths rather than a
+ * derivation, and one of four copies whose numerator ran 1.31–2.41% below Samsara's own IFTA miles.
+ *
+ * ⚠ **It answers for TRUCKS, so it cannot answer every filter on this bar.** `fleetMpgScope` decides
+ * which — a driver, a search term or a reefer filter select FILLS, and a truck-measured figure has no
+ * honest reading of them (the rule and its reasoning are in `fuelListFilters.ts`). When it says no,
+ * the tile shows a dash and its own sentence rather than the unfiltered fleet number under a filter
+ * bar naming somebody else, which is the disagreement this whole step exists to end.
+ */
+const mpgScope = computed(() => fleetMpgScope(filters.value));
+const { data: fleetMpg } = useFleetMpg(
+  computed(() => ({
+    from: props.shared.from.value ?? "",
+    to: props.shared.to.value ?? "",
+    vehicleIds: mpgScope.value.vehicleIds,
+    // A window needs both ends before it is a window, and a filter this figure cannot answer is not
+    // a question worth asking the server.
+    enabled:
+      mpgScope.value.unanswerable == null &&
+      !!props.shared.from.value &&
+      !!props.shared.to.value,
+  })),
+);
 
 // ── Lookups for the Vehicle / Driver columns ──────────────────────────────────────────────────────
 const vehicleLabel = (id: string | null) =>
@@ -139,10 +174,10 @@ const tankTypeOptions = [
   { value: "reefer", label: "Reefer" },
 ];
 
-// The shared truck, by unit number — the query's `vehicle_id` is resolved from it above.
-const unitFilter = computed<string>({
-  get: () => props.shared.unit.value ?? "",
-  set: (v) => props.shared.setUnit(v || undefined),
+// The shared trucks, by unit number — the query's `vehicle_id` list is resolved from them above.
+const unitFilter = computed<string[]>({
+  get: () => props.shared.units.value,
+  set: (v) => props.shared.setUnits(v),
 });
 const unitOptions = useUnitOptions();
 
@@ -176,6 +211,20 @@ function clearAll() {
   props.shared.clear();
 }
 
+/**
+ * FUEL-P2. The file this screen would produce, built from the SAME parameters the address bar holds —
+ * see `fuelLogExport.ts` for why the URL is passed through rather than resolved here.
+ */
+const exportTarget = computed(() =>
+  fuelLogExportTarget({
+    dataset: "fills",
+    from: props.shared.from.value,
+    to: props.shared.to.value,
+    units: props.shared.units.value,
+    facets: { driver: driverFilter.value, tank: tankTypeFilter.value, search: searchBind.value },
+  }),
+);
+
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 const totalMiles = computed(() => rangeTotals.value?.totalMiles ?? 0);
@@ -197,7 +246,17 @@ const clearCount   = computed(() => rangeTotals.value?.clear ?? 0);
 const totalGallons = computed(() => rangeTotals.value?.totalGallons ?? 0);
 const totalCost    = computed(() => rangeTotals.value?.totalCost ?? 0);
 const hasCost      = computed(() => rangeTotals.value?.hasCost ?? false);
-const avgMpg       = computed(() => rangeTotals.value?.fleetMpg ?? null);
+const avgMpg       = computed(() => fleetMpg.value?.mpg ?? null);
+/** The line under the tile: why there is no number, or what the number stands on. */
+const avgMpgNote = computed(() => {
+  if (mpgScope.value.unanswerable) return mpgScope.value.unanswerable;
+  const m = fleetMpg.value;
+  if (m == null) return "measured miles ÷ fuel";
+  if (m.mpg == null) return m.reason ?? "not enough measured distance";
+  return m.measuredShare == null
+    ? "measured miles ÷ fuel"
+    : `${Math.round(m.measuredShare * 100)}% of fuel measured`;
+});
 /**
  * FUEL-T5 — what the tiles directly beneath this actually cover.
  *
@@ -271,7 +330,8 @@ const columns: DataTableColumn[] = [
       2026-09-02), so there is no manual-entry population whose freshness this line would fail to
       describe. If that ever stops being true the line needs a second clause, not a different column.
     -->
-    <FeedFreshnessLine feed="posted" />
+    <!-- The window travels with the line: a hole is worth naming where the reader is looking. -->
+    <FeedFreshnessLine feed="posted" :from="props.shared.from.value" :to="props.shared.to.value" />
     <RowCoverageLine :coverage="coverage" />
 
     <FilterBar
@@ -285,12 +345,20 @@ const columns: DataTableColumn[] = [
       @clear-all="clearAll"
     >
       <template #filters>
-        <FilterSelect v-model="unitFilter" label="Unit" :options="unitOptions" />
+        <FilterSelect v-model="unitFilter" label="Unit" :options="unitOptions" multiple />
         <FilterSelect v-model="tankTypeFilter" label="Fuel" :options="tankTypeOptions" />
         <DateRangeFilter :from="shared.from.value" :to="shared.to.value" @update:from="setFrom" @update:to="setTo" />
       </template>
       <template #more>
         <FilterSelect v-model="driverFilter" label="Driver" :options="driverOptions" block />
+      </template>
+      <template #actions>
+        <ExportButton
+          :href="exportTarget.href"
+          :filename="exportTarget.filename"
+          :scope="exportTarget.scope"
+          :disabled="total === 0"
+        />
       </template>
     </FilterBar>
 
@@ -327,12 +395,15 @@ const columns: DataTableColumn[] = [
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Gallons</dt>
           <dd class="mt-1 text-2xl font-bold text-ink">{{ fmtNum(totalGallons, 0) }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">in selected range</dd>
+          <!-- The total cost moved here from under Avg MPG when that tile took the coverage line it
+               needs (M4). Gallons and what they cost belong together; cost under an efficiency figure
+               never did. -->
+          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ hasCost ? fmtUsd(totalCost) + ' total cost' : 'in selected range' }}</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avg MPG</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ avgMpg != null ? avgMpg.toFixed(1) : '—' }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ hasCost ? fmtUsd(totalCost) + ' total cost' : 'gallon-weighted' }}</dd>
+          <dd class="mt-1 text-2xl font-bold text-ink" :title="avgMpgNote">{{ avgMpg != null ? avgMpg.toFixed(1) : '—' }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ avgMpgNote }}</dd>
         </div>
       </dl>
     </BaseCard>

@@ -1,6 +1,7 @@
 /** Tier 1 odometer rules. Each rule takes RuleContext and returns RuleResult. */
 import type { AnomalySeverity } from "../constants.js";
 import type { RuleContext, RuleResult } from "./types.js";
+import { resolveCapacity } from "./capacityResolve.js";
 import {
   daysBetween,
   effectiveBaseline,
@@ -197,7 +198,57 @@ function ruleOdometerEntrySuspect(ctx: RuleContext): RuleResult {
   return none("odometer_entry_suspect");
 }
 
-/** Single-source odometer plausibility vs fuel: catches odometer padding (drove far more than fuel allows). */
+/**
+ * Single-source odometer plausibility vs fuel: catches odometer padding (drove far more than fuel allows).
+ *
+ * ── THE TANK DOES NOT START EMPTY, AND THIS RULE USED TO ASSUME IT DID (2026-09-05) ──────────────
+ * The ceiling was `spanGallons * baseline * 2` — the miles the fuel bought AT THIS FILL could cover.
+ * That is only the whole story when the truck arrived running on fumes. Every other time the miles
+ * were partly paid for by fuel already in the tank, bought at the last fill, and the rule read the
+ * difference as the odometer lying.
+ *
+ * Its mirror image next door already says so, from the other side. `implausible_topoff` asks whether
+ * more was DISPENSED than could have been burned, and its header records why it needs a guard: *"If a
+ * truck ran a tank low then filled both, dispensing more than it burned is NORMAL — the extra fuel
+ * filled pre-existing space."* The converse is this rule's defect exactly: **driving further than you
+ * bought is NORMAL, because the miles came out of pre-existing fuel.**
+ *
+ * ── MEASURED, BECAUSE THE SIZE OF IT WAS NOT OBVIOUS ────────────────────────────────────────────
+ * Restating the rule's own condition on its own persisted inputs across 14,498 production fills
+ * (2026-09-05) shows it firing in inverse proportion to how much fuel was bought — which is the
+ * signature of a rule measuring the wrong thing:
+ *
+ *     fill size      fills     condition true
+ *     < 5 gal          38          86.8%
+ *     5 – 20 gal       51          82.4%
+ *     20 – 50 gal     308          31.2%
+ *     50+ gal      14,101           1.8%
+ *
+ * A truck that buys a tankful trips it once in fifty-six times; a truck that buys a splash trips it
+ * six times in seven. The rule was reporting *that the fill was partial*.
+ *
+ * ⚠ **A 5-gallon floor — the guard `implausible_topoff` carries — was measured and is NOT what
+ * shipped.** It removes 33 of 430 fires and leaves the 5–20 gal band firing at 82%: it treats the
+ * symptom where it is loudest and misses the cause. Allowing for the tank takes 430 fires to 22, and
+ * once it is applied the gallons floor removes nothing at all, because the small-fill class is
+ * entirely contained in it.
+ *
+ * ── THE ALLOWANCE IS `cumulative_overfuel`'s, NOT A NUMBER CHOSEN HERE ──────────────────────────
+ * `ceiling = burnable + idle + cap + margin` is how the capacity rule already handles this same
+ * uncertainty: one empty-to-full tank of slack, because that is what the truck could physically have
+ * been carrying. This rule takes the same allowance on the miles side, and it suppresses itself on a
+ * truck with no capacity source for the same reason that one does — treating an unknown tank as 0 gal
+ * is precisely the behaviour being fixed. That costs ONE of today's 430 fires; 51 of 14,498 fills sit
+ * on a truck with no entered capacity.
+ *
+ * The `* 2` stays. It absorbs baseline error, which the tank allowance does not address, and keeping
+ * it makes this change a STRICT NARROWING: `cap >= 0`, so the new ceiling is never lower than the old
+ * one and nothing that was silent starts firing. A rule change that can only remove accusations is
+ * the safest shape one can have.
+ *
+ * What survives sits 1.19x to 83x over a ceiling that already granted a full tank — 801,772 miles
+ * between two fills, an implied 1,974 MPG. That is the data error this rule exists to name.
+ */
 function ruleExpectedOdometerBand(ctx: RuleContext): RuleResult {
   const { txn, vehicle, previousTxn, recentTxns } = ctx;
   const miles = milesSinceLast(txn, previousTxn);
@@ -205,17 +256,27 @@ function ruleExpectedOdometerBand(ctx: RuleContext): RuleResult {
   const spanGallons = txn.gallons + (ctx.intermediateGallons ?? 0); // fuel burned across the whole span (WP4)
   if (miles == null || baseline == null || baseline <= 0 || spanGallons <= 0)
     return none("expected_odometer_band");
-  const expectedMiles = spanGallons * baseline;
+  const resolved = resolveCapacity(vehicle); // sensor-measured > entered > billed-history (WP-CAP)
+  // Without a capacity source this rule cannot grant the legitimate one-tank reserve, and judging with
+  // a 0-gallon tank is the defect above rather than a conservative fallback. Same words, same reason,
+  // as `cumulative_overfuel`.
+  if (resolved.confidence === "none" || resolved.gallons <= 0) return none("expected_odometer_band");
+  const tankGallons = resolved.gallons;
+  const expectedMiles = (spanGallons + tankGallons) * baseline;
   if (miles > expectedMiles * 2) {
     return {
       ruleId: "expected_odometer_band",
       fired: true,
       severity: "medium",
-      message: `Miles since last (${miles}) far exceed what ${r2(spanGallons)} gal could cover (~${r2(expectedMiles)} mi) — possible odometer over-reporting or a missed fill.`,
+      message: `Miles since last (${miles}) far exceed what ${r2(spanGallons)} gal plus a full ${r2(tankGallons)} gal tank could cover (~${r2(expectedMiles)} mi) — possible odometer over-reporting or a missed fill.`,
       evidence: {
         milesSinceLast: miles,
         spanGallons: r2(spanGallons),
         baselineMpg: r2(baseline),
+        // Named separately from `expectedMiles` so a reviewer can see the allowance was granted, and
+        // which capacity source granted it — a ceiling nobody can decompose is a ceiling nobody trusts.
+        tankGallons: r2(tankGallons),
+        capacitySource: resolved.source,
         expectedMiles: r2(expectedMiles),
       },
     };

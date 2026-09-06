@@ -239,5 +239,6 @@ ok(
   await refuses(`update employer_inquiries set body_sent = 'different question' where id = $1`, [A2]),
 );
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

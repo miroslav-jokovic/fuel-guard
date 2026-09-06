@@ -145,6 +145,33 @@ export const inviteAcceptSchema = z.object({
 });
 export type InviteAcceptRequest = z.infer<typeof inviteAcceptSchema>;
 
+/**
+ * The public redemption of an emailed invitation (2026-09-04). The token is the credential the
+ * link carried — ours, stored hashed on the `invites` row — and it travels in the body so it never
+ * sits in a request line. `lookup` reads; `redeem` is the one call that spends it.
+ */
+export const inviteLookupSchema = z.object({
+  token: z.string().min(20).max(200),
+});
+export type InviteLookupRequest = z.infer<typeof inviteLookupSchema>;
+
+export const inviteRedeemSchema = z.object({
+  token: z.string().min(20).max(200),
+  /** The floor is ours; the project's own password policy (GoTrue) may ask for more and says so. */
+  password: z.string().min(8).max(200),
+  fullName: fullNameSchema.optional(),
+});
+export type InviteRedeemRequest = z.infer<typeof inviteRedeemSchema>;
+
+export const invitePreviewSchema = z.object({
+  email: z.email(),
+  orgName: z.string(),
+  role: roleSchema,
+  fullName: z.string().nullable(),
+  expiresAt: z.string().nullable(),
+});
+export type InvitePreview = z.infer<typeof invitePreviewSchema>;
+
 export const inviteSchema = z.object({
   id: z.uuid(),
   org_id: z.uuid(),

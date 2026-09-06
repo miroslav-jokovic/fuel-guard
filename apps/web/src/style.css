@@ -279,6 +279,19 @@ body {
     max-height: none;
     page-break-inside: avoid;
   }
+  /* The income statement prints as the document it reproduces (R6 of the fleet report's UI
+     plan): the tools row goes, every section keeps its heading with its rows, nothing scrolls
+     inside itself, and the sticky heading that helps on screen is a plain heading on paper. */
+  .print-target .print-hide {
+    display: none !important;
+  }
+  .print-target .print-section {
+    page-break-inside: avoid;
+    box-shadow: none;
+  }
+  .print-target .print-static {
+    position: static !important;
+  }
   @page {
     margin: 12mm;
   }

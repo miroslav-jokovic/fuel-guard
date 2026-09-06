@@ -3,9 +3,10 @@
 // This function is the second implementation of something that already exists, and the only thing that
 // makes a second implementation safe is proving it agrees with the first. So this matrix does not
 // restate `aggregateWindowOdo` in JavaScript and compare the restatement — it **imports the real one**
-// from `packages/shared/dist` (CI builds it at step 48, before `pnpm test`) and asserts the SQL against
-// the actual specification. A hand-written expectation here would drift from the TypeScript the day
-// somebody edited it, which is the precise failure D-AG1 exists to prevent.
+// from `packages/shared/dist` — built by `.github/actions/setup`, which is why the matrices job runs
+// that action with `build-shared` left on — and asserts the SQL against the actual specification. A
+// hand-written expectation here would drift from the TypeScript the day somebody edited it, which is
+// the precise failure D-AG1 exists to prevent.
 //
 // What the SQL has to get right, each of which fails quietly:
 //   1. THE MEASUREMENTS, not verdicts. Nothing here may know what ±1 is. `entered_worst_step` is the
@@ -18,6 +19,9 @@
 //   4. THE BAND EXCLUDES FROM BOTH SIDES. A fill outside it contributes to neither numerator nor
 //      denominator, or the mean is diluted rather than filtered.
 //   5. ORG SCOPE, on the call a browser makes (p_org omitted).
+//   6. THE WINDOW'S ENDS (0316). A source may only answer for a window whose ends it reaches, and an
+//      extremum cannot say which fill it came from — so `obd_covers_ends`/`entered_covers_ends` are the
+//      measurements that carry it. Still not verdicts: TypeScript decides what to do with them.
 //
 // Run:  node supabase/tests/fuel-range-miles-inputs.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -171,6 +175,9 @@ for (const t of TRUCKS) {
     obdCount: Number(sql.obd_count), obdMin: num(sql.obd_min), obdMax: num(sql.obd_max),
     enteredCount: Number(sql.entered_count), enteredMin: num(sql.entered_min), enteredMax: num(sql.entered_max),
     enteredWorstStep: num(sql.entered_worst_step),
+    // 0316 — where each source sits relative to the window's ENDS. An extremum cannot say which fill
+    // it came from, so these are the only way the aggregate can carry the coverage precondition.
+    obdCoversEnds: sql.obd_covers_ends, enteredCoversEnds: sql.entered_covers_ends,
   };
   if (JSON.stringify(got) !== JSON.stringify(spec)) mismatches.push(`${t.unit}: sql=${JSON.stringify(got)} spec=${JSON.stringify(spec)}`);
 }
@@ -185,6 +192,7 @@ const milesMismatch = [];
 for (const t of TRUCKS) {
   const sql = byVehicle.get(idFor[t.unit]);
   const fromSql = windowMilesFromAggregate({
+    obdCoversEnds: sql.obd_covers_ends, enteredCoversEnds: sql.entered_covers_ends,
     obdCount: Number(sql.obd_count), obdMin: num(sql.obd_min), obdMax: num(sql.obd_max),
     enteredCount: Number(sql.entered_count), enteredMin: num(sql.entered_min), enteredMax: num(sql.entered_max),
     enteredWorstStep: num(sql.entered_worst_step),
@@ -212,6 +220,18 @@ ok("a never-decreasing sequence reports 0, not its largest climb",
 const single = byVehicle.get(idFor["SINGLE-FILL"]);
 ok("one reading has no step to measure", single.entered_worst_step === null);
 
+// ── 2b. the window's ENDS (0316) ────────────────────────────────────────────────────────────────
+// The defect these close: two OBD readings in the middle of a window measure the middle of the window.
+// On production 2026-09-05 the anomaly engine's version of this read 815 miles where the window's own
+// odometers span 1,552, and that is what its over-fuel queue was made of.
+ok("a truck whose readings all carry OBD covers both ends",
+  byVehicle.get(idFor["OBD-ADVANCES"]).obd_covers_ends === true);
+ok("a truck with no OBD reading at all covers neither end with OBD, and both with entered",
+  byVehicle.get(idFor["ENTERED-CLEAN"]).obd_covers_ends === false &&
+  byVehicle.get(idFor["ENTERED-CLEAN"]).entered_covers_ends === true);
+ok("one readable row is not a covered window — two ends that are the same row span nothing",
+  single.obd_covers_ends === false && single.entered_covers_ends === false);
+
 // ── 3. the step skips nulls rather than breaking on them ────────────────────────────────────────
 const nulls = byVehicle.get(idFor["ENTERED-WITH-NULLS"]);
 ok("a fill with no odometer neither manufactures a step nor breaks the chain across itself",
@@ -228,6 +248,38 @@ ok("fills attributed to no truck get their own row — dropping them would quiet
   orphan != null && Number(orphan.mpg_gallons) === 50 && Number(orphan.mpg_weighted) === 300);
 ok("...and that row carries no odometer measurements to mistake for a truck's",
   orphan && Number(orphan.obd_count) === 0 && Number(orphan.entered_count) === 0);
+
+// ── 5b. a SET of trucks (FUEL-P1, migration 0312) ───────────────────────────────────────────────
+// Total miles and Avg MPG sit beside four tiles that 0312 also taught to take a truck list. If this
+// function had been left behind, those two would have kept answering for the whole fleet under a
+// two-truck filter — one card of six describing a different set, which is the shape FUEL-T5 spent a
+// migration making visible.
+const scoped = async (arg) =>
+  all(`select * from fuel_range_miles_inputs(
+         p_mpg_min => $2, p_mpg_max => $3, p_from => '2026-08-01', p_to => '2026-08-31',
+         p_org => $1, p_vehicles => ${arg})`, [ORG, MPG_MIN, MPG_MAX]);
+const pair = await scoped(`array['${idFor[TRUCKS[0].unit]}','${idFor[TRUCKS[1].unit]}']::uuid[]`);
+// ⚠ The null-vehicle group is what makes this filter subtle: fleet MPG counts fills that name no
+// truck, and this function returns them as their own row for exactly that reason. An implementation
+// that kept that row "because MPG needs it" under a truck scope would report gallons from outside the
+// selected set — the tile answering for trucks the list is not showing.
+ok(
+  "a truck list returns only those trucks' rows — and the null-vehicle row is not one of them",
+  pair.length === 2 && !pair.some((r) => r.vehicle_id === null),
+  `${pair.length} rows`,
+);
+const justOne = await scoped(`array['${idFor[TRUCKS[0].unit]}']::uuid[]`);
+ok(
+  "one truck in a list is one truck's row — the same answer the scalar parameter gives",
+  justOne.length === 1 && justOne[0].vehicle_id === idFor[TRUCKS[0].unit],
+  `${justOne.length} rows`,
+);
+const noTrucks = await scoped(`'{}'::uuid[]`);
+ok(
+  "an EMPTY list returns nothing, where an omitted one returns the fleet",
+  noTrucks.length === 0 && rows.length > 0,
+  `${noTrucks.length} rows`,
+);
 
 // ── 6. org scope, including on the call a browser makes ─────────────────────────────────────────
 await db.query(
@@ -249,6 +301,8 @@ const asBrowser = (await db.query(
 await db.exec("rollback");
 ok("a signed-in user gets their own org's rows with p_org omitted — the only call PostgREST can resolve for a browser",
   asBrowser.length === rows.length, `${asBrowser.length} vs ${rows.length}`);
+
+await db.close();
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

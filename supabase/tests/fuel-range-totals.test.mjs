@@ -220,7 +220,7 @@ ok("an org whose fills name no truck reports none attributed, not none at all",
   `${zeroCost.fills_with_vehicle}/${zeroCost.fills}`);
 
 // ── 5. the filters, each one ────────────────────────────────────────────────────────────────────
-const perVehicle = await call(`, p_vehicle => '${VEH}'`);
+const perVehicle = await call(`, p_vehicles => array['${VEH}']::uuid[]`);
 ok("filtering to one truck counts only that truck's fills",
   Number(perVehicle.fills) === N / 2, `${perVehicle.fills} vs ${N / 2}`);
 // ⚠ The assertion that distinguishes "share of the rows on screen" from "share of the fleet". Scoped
@@ -232,6 +232,38 @@ ok(
   Number(perVehicle.fills_with_vehicle) === Number(perVehicle.fills),
   `${perVehicle.fills_with_vehicle} vs ${perVehicle.fills}`,
 );
+// ── 5b. a SET of trucks (FUEL-P1, migration 0312) ───────────────────────────────────────────────
+// The list below these tiles gains multi-select, and a tile that kept answering for the whole fleet
+// while the rows beneath it showed two trucks would be the disagreement FUEL-T3a spent a migration
+// removing, reintroduced by a filter.
+const bothTrucks = await call(`, p_vehicles => array['${VEH}','${VEH2}']::uuid[]`);
+ok(
+  "two trucks count both trucks' fills and still exclude the fills that name none",
+  Number(bothTrucks.fills) === N && Number(bothTrucks.fills_with_vehicle) === N,
+  `${bothTrucks.fills}/${bothTrucks.fills_with_vehicle} vs ${N}`,
+);
+// ⚠ The assertion that separates an empty list from an absent one. `p_vehicles => '{}'` is what the
+// browser sends when the trucks named in a forwarded link exist in no fleet, and the true answer is
+// nothing — not everything. A predicate written `coalesce(array_length(p_vehicles,1),0) = 0 or …`
+// would pass every other assertion in this file and fail only here.
+const noSuchTruck = await call(`, p_vehicles => '{}'::uuid[]`);
+ok(
+  "an EMPTY list matches nothing, where an omitted one matches the fleet",
+  Number(noSuchTruck.fills) === 0 && Number(total.fills) > 0,
+  `${noSuchTruck.fills}`,
+);
+// ⚠ The SCALAR `p_vehicle` is gone (migration 0315, FUEL-P1 merge 3). Calling it must now fail rather
+// than resolve to something — a defaulted argument nobody passes is a second way to ask one question,
+// and the drop is what makes "the truck filter is a list" true rather than merely usual. Asserted by
+// the error, because a function that quietly accepted the old name would pass every other line here.
+let scalarGone = false;
+try {
+  await one(`select * from fuel_range_totals(p_vehicle => '${VEH}', p_org => $1)`, [ORG]);
+} catch {
+  scalarGone = true;
+}
+ok("the scalar p_vehicle no longer exists — one way to name a truck, not two", scalarGone);
+
 // A fill ON the closing date, so "inclusive" is actually exercised. Every fixture row sits on the
 // 15th, so a `<` bound would have changed nothing and the assertion would have passed either way —
 // the vacuous shape this repo keeps finding.
@@ -294,6 +326,8 @@ ok("the attributed count reaches the browser's call, and is a strict subset once
   Number(asBrowser.fills_with_vehicle) === Number(mineBefore.fills_with_vehicle) &&
     Number(asBrowser.fills_with_vehicle) < Number(asBrowser.fills),
   `${asBrowser?.fills_with_vehicle} vs ${mineBefore.fills_with_vehicle} of ${asBrowser?.fills}`);
+
+await db.close();
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

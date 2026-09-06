@@ -1,20 +1,27 @@
 <script setup lang="ts">
-import type { TruckCpm } from "@silvicom/shared";
+import type { FleetTruck } from "./useFleetReport";
 import type { SortState } from "@/lib/sort";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import { computed } from "vue";
 
 /**
- * The per-truck table, lifted out of `CpmReportPage.vue` when the page grew tabs (2026-08-29).
- * It renders a page of rows and nothing else: filtering, sorting and paging are the page's, because
- * the fleet figures above the tabs must keep covering every truck no matter what the table shows.
+ * The per-truck table — **only the columns that are precise per truck** (G7, §2 Tab 4).
+ *
+ * It used to carry fuel, driver pay, direct cost, fixed cost, cost per mile and left per mile. Every
+ * one of those went at G7, and not because they were hard: because no per-truck COST figure at this
+ * carrier is precise. Fuel is joined by unit and misses the fills that carry no tractor; the fixed
+ * schedule was a contract's assertion re-keyed by hand; the overhead share was an apportionment of
+ * money the ledger never attributed to a truck at all. A column that looks like a measurement and is
+ * an estimate is worse than no column, and the fleet report answers the cost question honestly one
+ * level up (D-FLEET1, D-FLEET8).
+ *
+ * What is left is measured: Samsara's miles for the truck, and the revenue the GL booked against the
+ * loads it hauled. Filtering, sorting and paging stay the page's, because the fleet figures above
+ * must keep covering every truck no matter what this table shows.
  */
-const props = defineProps<{
+defineProps<{
   /** The visible slice — already filtered, sorted and paged by the page. */
-  rows: TruckCpm[];
-  /** Samsara measured the window, so there is no estimated-deadhead column to show. */
-  samsaraBasis: boolean;
+  rows: FleetTruck[];
   loading: boolean;
   error: string | null;
   retrying: boolean;
@@ -35,30 +42,18 @@ const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 // harness could not compute (no miles this window, D-FIN10) is a dash, never $0.00: the dollars in the
 // row are real, the rate is absent, and $0.00 would read as cheap.
 const NO_RATE = "—";
-const fmtCpm = (n: number | null) => (n == null ? NO_RATE : `$${(n / 100).toFixed(2)}`);
+// Dollars per mile, straight from the harness — no cents-to-dollars conversion since the per-truck
+// rows moved onto the fleet report at G7b and started arriving in the unit the page prints.
+const fmtRate = (n: number | null) => (n == null ? NO_RATE : `$${n.toFixed(2)}`);
 
-// The miles columns follow the report's basis (owner ruling: Samsara actuals are the fleet's
-// mileage truth; McLeod loaded stays as reference). The estimate columns appear only when the
-// window has no Samsara miles and the harness fell back — and said so.
-const columns = computed<DataTableColumn[]>(() => [
+const columns: DataTableColumn[] = [
   { key: "tractor_unit", label: "Truck", cellClass: "font-mono text-xs", sortable: true },
-  { key: "movements", label: "Trips", numeric: true, sortable: true },
-  { key: "loadedMiles", label: "Loaded miles", numeric: true, cellClass: "text-ink-tertiary", sortable: true },
-  ...(props.samsaraBasis
-    ? [{ key: "totalMiles", label: "Miles driven", numeric: true, sortable: true } as DataTableColumn]
-    : [
-        { key: "deadheadMilesEstimated", label: "Empty miles", numeric: true, cellClass: "text-ink-tertiary", sortable: true } as DataTableColumn,
-        { key: "totalMiles", label: "Miles driven", numeric: true, sortable: true } as DataTableColumn,
-      ]),
-  { key: "directFuel", label: "Fuel", numeric: true, sortable: true },
-  { key: "directSettlement", label: "Driver pay", numeric: true, sortable: true },
-  { key: "directTotal", label: "Direct cost", numeric: true, sortable: true },
-  { key: "fixedCost", label: "Fixed cost", numeric: true, sortable: true },
+  { key: "loads", label: "Loads", numeric: true, sortable: true },
+  { key: "miles", label: "Miles driven", numeric: true, sortable: true },
   { key: "revenue", label: "Earned", numeric: true, sortable: true },
-  { key: "totalCpm", label: "Cost / mile", numeric: true, sortable: true },
-  { key: "revenueCpm", label: "Earned / mile", numeric: true, sortable: true },
-  { key: "netCpm", label: "Left / mile", numeric: true, sortable: true },
-]);
+  { key: "revenuePerMile", label: "Earned / mile", numeric: true, sortable: true },
+];
+
 </script>
 
 <template>
@@ -90,26 +85,10 @@ const columns = computed<DataTableColumn[]>(() => [
         <p v-for="s in pendingSources" :key="s" class="text-xs text-ink-tertiary">{{ s }}</p>
       </div>
     </template>
-    <template #cell-loadedMiles="{ value }">{{ fmtMiles(value) }}</template>
-    <template #cell-deadheadMilesEstimated="{ value }">{{ fmtMiles(value) }}</template>
-    <template #cell-totalMiles="{ value }">{{ fmtMiles(value) }}</template>
-    <template #cell-directFuel="{ value }">{{ fmtUsd(value) }}</template>
-    <template #cell-directSettlement="{ value }">{{ fmtUsd(value) }}</template>
-    <template #cell-directTotal="{ value }">{{ fmtUsd(value) }}</template>
-    <template #cell-fixedCost="{ value }">{{ fmtUsd(value) }}</template>
+    <template #cell-miles="{ value }">{{ value == null ? NO_RATE : fmtMiles(value) }}</template>
     <template #cell-revenue="{ value }">{{ fmtUsd(value) }}</template>
-    <template #cell-totalCpm="{ value }">
-      <span :title="value == null ? 'No miles this window — rate not computed' : undefined">{{ fmtCpm(value) }}</span>
-    </template>
-    <template #cell-revenueCpm="{ value }">
-      <span :title="value == null ? 'No miles this window — rate not computed' : undefined">{{ fmtCpm(value) }}</span>
-    </template>
-    <template #cell-netCpm="{ value }">
-      <span
-        class="font-semibold"
-        :class="value == null ? 'text-ink-tertiary' : value >= 0 ? 'text-ink' : 'text-danger-600'"
-        :title="value == null ? 'No miles this window — rate not computed' : undefined"
-      >{{ fmtCpm(value) }}</span>
+    <template #cell-revenuePerMile="{ value }">
+      <span :title="value == null ? 'No miles this window — rate not computed' : undefined">{{ fmtRate(value) }}</span>
     </template>
     <template #footer>
       <TablePagination

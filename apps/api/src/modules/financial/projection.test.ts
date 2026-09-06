@@ -96,7 +96,7 @@ describe("projectFinancialWindow", () => {
     // D-FS4: every amount positive, direction carries the meaning
     for (const e of rows) expect(Number(e.amount)).toBeGreaterThanOrEqual(0);
 
-    expectOrgScoped(rec, ORG);
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] }); // the org row is read by its own id for the clock (D-FIN9)
   });
 
   it("is idempotent by construction: the upsert targets the 0257 source-row identity", async () => {
@@ -107,5 +107,31 @@ describe("projectFinancialWindow", () => {
     // every projected row names the org — the service role bypasses RLS, this is the wall
     const rows = rec.writtenRows("financial_entries") as Record<string, unknown>[];
     for (const e of rows) expect(e.org_id).toBe(ORG);
+  });
+});
+
+describe("projectFinancialWindow — the store's one clock (D-FIN9)", () => {
+  it("an EFS fill's instant becomes the org's local wall time, so a Chicago evening fill stays in its month", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        organizations: [{ operating_hours: { tz: "America/Chicago", start: "05:00", end: "20:00" } }],
+        vehicles: [], drivers: [],
+        mcleod_settlements: [], mcleod_ap_vouchers: [], mcleod_billing: [],
+        fuel_transactions: [
+          // 04:30Z on July 1 is 23:30 CDT on June 30 — the row the old projection put in July.
+          { id: "ft-9", external_ref: "EFS-9", fueled_at: "2026-07-01T04:30:00Z", total_cost: 250, vehicle_id: null, driver_id: null, is_canonical: true },
+        ],
+        financial_entries: [],
+      },
+    });
+    await projectFinancialWindow(rec.client, "org-1", "2026-06-01", "2026-07-01");
+    const fuel = rec.writtenRows("financial_entries").find((r) => r.category === "fuel")!;
+    expect(fuel).toBeDefined();
+    expect(fuel.occurred_at).toBe("2026-06-30T23:30:00.000Z");
+    expect(fuel.settled_at).toBe("2026-06-30T23:30:00.000Z");
+    // The fill read reached a day past the window, which is how that row was found at all.
+    const q = rec.queries.find((x) => x.table === "fuel_transactions")!;
+    expect(q.ops.find((o) => o.method === "lt")?.args).toEqual(["fueled_at", "2026-07-02"]);
+    expect(q.ops.find((o) => o.method === "gte")?.args).toEqual(["fueled_at", "2026-05-31"]);
   });
 });

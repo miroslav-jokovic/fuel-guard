@@ -156,5 +156,6 @@ ok("the function is not executable by anonymous sessions",
   (await rows(`select 1 from information_schema.role_routine_grants
                where routine_name='fuel_prices_for_planning' and grantee='anon'`)).length === 0);
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

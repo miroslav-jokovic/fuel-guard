@@ -32,6 +32,8 @@ import TablePagination from "@/components/TablePagination.vue";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { stationTime, businessDate } from "@/lib/stationTime";
 import { useUnitOptions } from "./unitFilter";
+import ExportButton from "@/components/ExportButton.vue";
+import { fuelLogExportTarget } from "./fuelLogExport";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
@@ -66,7 +68,7 @@ const filters = computed<EfsFilters>(() => ({
   driver: driver.value || undefined,
   sortKey: sortKey.value || undefined,
   sortDir: sortDir.value === "desc" ? "desc" : "asc",
-  unit: props.shared.unit.value,
+  units: props.shared.units.value,
   from: props.shared.from.value,
   to: props.shared.to.value,
 }));
@@ -87,9 +89,9 @@ const { data: facets } = useEfsFacets();
 const { data: coverage } = useEfsRowCoverage("transactions", filters);
 
 /** The shared half, proxied for the controls that write it back to the URL. */
-const unit = computed<string>({
-  get: () => props.shared.unit.value ?? "",
-  set: (v) => props.shared.setUnit(v || undefined),
+const unit = computed<string[]>({
+  get: () => props.shared.units.value,
+  set: (v) => props.shared.setUnits(v),
 });
 const setFrom = (v: string | undefined) => props.shared.setFrom(v);
 const setTo = (v: string | undefined) => props.shared.setTo(v);
@@ -129,6 +131,17 @@ function clearAll() {
   props.shared.clear();
 }
 
+/** FUEL-P2 — this screen as a file, from the parameters the address bar holds. */
+const exportTarget = computed(() =>
+  fuelLogExportTarget({
+    dataset: "source",
+    from: props.shared.from.value,
+    to: props.shared.to.value,
+    units: props.shared.units.value,
+    facets: { item: item.value, state: state.value, driver: driver.value, search: search.value },
+  }),
+);
+
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 // Consistent numeric formatting: thousands separators, "—" for null. Money shows 2 decimals.
@@ -166,7 +179,8 @@ const columns: DataTableColumn[] = [
     <!-- A7 / FUEL-T5. These rows are EFS's own, so this tab cannot show a wrong one — only a
          missing one, and a stopped poller reads exactly like a quiet week. Above the filters, where
          a reader meets it before drawing a conclusion from a short list. -->
-    <FeedFreshnessLine feed="posted" />
+    <!-- The window travels with the line: a hole is worth naming where the reader is looking. -->
+    <FeedFreshnessLine feed="posted" :from="props.shared.from.value" :to="props.shared.to.value" />
 
     <!-- FUEL-T5. Arrival, then composition: the line above says whether the list is short, this one
          says how much of what is here can be reached by a unit filter or a per-truck total. -->
@@ -185,13 +199,21 @@ const columns: DataTableColumn[] = [
       @clear-all="clearAll"
     >
       <template #filters>
-        <FilterSelect v-model="unit" label="Unit" :options="unitOptions" />
+        <FilterSelect v-model="unit" label="Unit" :options="unitOptions" multiple />
         <FilterSelect v-model="item" label="Item" :options="itemOptions" />
         <DateRangeFilter :from="shared.from.value" :to="shared.to.value" @update:from="setFrom" @update:to="setTo" />
       </template>
       <template #more>
         <FilterSelect v-model="state" label="State" :options="stateOptions" block />
         <FilterSelect v-model="driver" label="Driver" :options="driverOptions" block />
+      </template>
+      <template #actions>
+        <ExportButton
+          :href="exportTarget.href"
+          :filename="exportTarget.filename"
+          :scope="exportTarget.scope"
+          :disabled="total === 0"
+        />
       </template>
     </FilterBar>
 

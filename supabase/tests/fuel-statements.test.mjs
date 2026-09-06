@@ -244,5 +244,6 @@ ok(
   (await db.query(`select 1 from information_schema.columns where table_name='fuel_transactions' and column_name='station_id'`)).rows.length === 1,
 );
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

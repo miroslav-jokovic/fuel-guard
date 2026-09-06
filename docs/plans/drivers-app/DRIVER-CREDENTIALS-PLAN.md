@@ -103,3 +103,12 @@ Admin creates a login from the Drivers page and reads the one-time password off 
 signs into the app with username + password; reset/disable/enable/revoke all work from the row and are
 audited; a disabled driver is signed out within seconds; failed logins are throttled + audited; all
 suites/gates green; 0116 applied; this doc's decision table updated with anything learned.
+
+## Progress log
+
+- 2026-09-04 — §3's "retire `invites.driver_id` path" done: `POST /api/roster/drivers/:id/invite`
+  deleted, `driverInviteSchema` removed from the shared contract, and invite acceptance no longer
+  binds a roster driver. No web or driver-app surface called the route and no production `invites`
+  row carried a `driver_id`. Trigger was the invitation redesign (docs/EMAIL-LINK-DELIVERY.md
+  §the-short-version-2026-09-04): the redemption service is org-owned and `drivers` is roster-owned,
+  and the write should not exist rather than be grandfathered. The column stays; nothing writes it.

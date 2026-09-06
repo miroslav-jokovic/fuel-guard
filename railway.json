@@ -1,7 +1,7 @@
 {
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false && rm -rf apps/web/dist && pnpm --filter ./apps/web build",
+    "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false && rm -rf apps/web/dist && pnpm --filter ./apps/web exec vite build",
     "watchPatterns": [
       "**",
       "!**/*.md",

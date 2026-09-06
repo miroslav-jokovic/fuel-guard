@@ -6,6 +6,8 @@ import {
   type SubledgerClaim,
 } from "@silvicom/shared";
 import { readLedgerTotals, readSettlementsWindow, readBillingWindow } from "../mcleod/index.js";
+import { getFuelTieOut } from "./fuelTieOut.js";
+import type { FuelTieOut } from "@silvicom/shared";
 
 /**
  * The month's answer to "are entries missing?" — McLeod's own control totals against what our
@@ -30,7 +32,7 @@ export async function getLedgerCoverage(
   orgId: string,
   periodStart: string,
   periodEnd: string,
-): Promise<LedgerCoverageReport & { period_start: string; period_end: string; sweptMonth: boolean }> {
+): Promise<LedgerCoverageReport & { period_start: string; period_end: string; sweptMonth: boolean; fuel: FuelTieOut }> {
   const totalRows = await readLedgerTotals(admin, orgId, periodStart);
   const totals: GlModuleTotal[] = totalRows.map((r) => ({
     post_module: r.post_module,
@@ -72,10 +74,22 @@ export async function getLedgerCoverage(
     });
   }
 
+  // FUEL: EFS card lines by PRODUCT against the accounts each product posts to, owner-operator
+  // fuel against the asset account (D-FIN12). The claim is every dollar the decomposition placed;
+  // the per-account residual is the posting-lag term until McLeod's fuel_detail is staged (F12b).
+  const fuel = await getFuelTieOut(admin, orgId, periodStart, periodEnd);
+  if (fuel.totals.efsMapped + fuel.totals.efsOwnerOperator > 0) {
+    claims.push({
+      post_module: "FUEL",
+      source: "EFS card lines by product against McLeod's posting accounts (D-FIN12); owner-operator fuel to 17000000",
+      extracted: Math.round((fuel.totals.efsMapped + fuel.totals.efsOwnerOperator) * 100) / 100,
+    });
+  }
   return {
     ...buildLedgerCoverageReport(totals, claims),
     period_start: periodStart,
     period_end: periodEnd,
     sweptMonth: totals.length > 0,
+    fuel,
   };
 }

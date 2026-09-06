@@ -85,3 +85,35 @@ describe("ingestMovementFacts", () => {
     expect(reparsed.stops[1]).toMatchObject({ kind: "dropoff", lat: 33.75, lon: -84.39 });
   });
 });
+
+describe("ingestMovementFacts — company_id and the cross-company guard (D-FIN8)", () => {
+  it("writes the McLeod company onto every row", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_movements: [] } });
+    await ingestMovementFacts(rec.client, ORG, tmsMovementFactsPayloadSchema.parse({
+      movements: [movement({ company_id: "TMS2" })], window_start: "2026-06-01", window_end: "2026-07-01",
+    }));
+    expect(rec.writtenRows("mcleod_movements")[0]).toMatchObject({ external_id: "M-1", company_id: "TMS2" });
+    expectOrgScoped(rec, ORG);
+  });
+
+  // movement.id repeats across McLeod companies (18,761 of 296,242 on the sandbox); the table is
+  // still keyed (org_id, external_id), so a second company's sweep would overwrite the first's.
+  it("refuses a chunk that would overwrite another company's movement, and writes nothing", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_movements: [{ external_id: "M-1", company_id: "TMS2" }] } });
+    await expect(
+      ingestMovementFacts(rec.client, ORG, tmsMovementFactsPayloadSchema.parse({
+        movements: [movement({ company_id: "TMS" })], window_start: "2026-06-01", window_end: "2026-07-01",
+      })),
+    ).rejects.toThrow(/already belong to another McLeod company \(M-1:TMS2\)/);
+    expect(rec.writtenRows("mcleod_movements")).toHaveLength(0);
+  });
+
+  it("a stored row with no company yet (pre-0303) is not a conflict — it is replaced and labelled", async () => {
+    const rec = createSupabaseRecorder({ tables: { mcleod_movements: [{ external_id: "M-1", company_id: null }] } });
+    const r = await ingestMovementFacts(rec.client, ORG, tmsMovementFactsPayloadSchema.parse({
+      movements: [movement({ company_id: "TMS" })], window_start: "2026-06-01", window_end: "2026-07-01",
+    }));
+    expect(r.upserted).toBe(1);
+    expect(rec.writtenRows("mcleod_movements")[0]).toMatchObject({ company_id: "TMS" });
+  });
+});

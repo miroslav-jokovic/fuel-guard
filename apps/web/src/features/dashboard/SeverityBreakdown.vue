@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import ChartCard from "./ChartCard.vue";
 import DonutBreakdown from "./DonutBreakdown.vue";
-import { viz } from "./chartTheme";
+import { viz } from "@/lib/chartTheme";
 
 const props = defineProps<{
   severity: Record<"critical" | "high" | "medium" | "low", number>;

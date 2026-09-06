@@ -49,7 +49,7 @@ async function load() {
   loading.value = false;
 }
 
-interface InviteResult { emailSent: boolean; reason?: string | null; link?: string | null }
+interface InviteResult { emailSent: boolean; reason?: string | null; link?: string | null; rotated?: boolean }
 
 const REASON_TEXT: Record<string, string> = {
   mail_disabled: "Email isn't configured on the server.",
@@ -91,7 +91,13 @@ async function copyPendingLink() {
 function handleInviteResult(addr: string, data: InviteResult | undefined) {
   pendingLink.value = data?.link ? { email: addr, link: data.link, emailed: Boolean(data.emailSent) } : null;
   if (data?.emailSent) {
-    toast.success("Invitation emailed", addr);
+    // ⚠ `pendingLink.value = null` used to sit here and is deliberately gone — that is this change.
+    // A resend rotates the link (2026-09-04). Said here because two identical-looking emails with one
+    // dead link is how an invitation was lost: the admin is the one who can tell the person which.
+    toast.success(
+      data.rotated ? "New invitation emailed" : "Invitation emailed",
+      data.rotated ? `${addr} — the earlier link no longer works.` : addr,
+    );
     return;
   }
   toast.error("Invitation not emailed", data?.reason ? (REASON_TEXT[data.reason] ?? data.reason) : undefined);

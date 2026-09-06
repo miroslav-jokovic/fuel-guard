@@ -140,5 +140,6 @@ for (const t of ["vehicle_tank_learned", "vehicle_idle_learned"]) {
   ok(`  and no client policy, so a browser session reads nothing`, p.rows[0].n === 0);
 }
 
+await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

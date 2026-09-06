@@ -64,10 +64,18 @@ export interface StagedBilling {
   dispatcher_user_id: string | null;
   dispatcher_name: string | null;
   bill_date: string | null;
+  /**
+   * The day the load DELIVERED. Already the window's filter; selected since W2 because the weekly
+   * activity view buckets on it — bills are re-dated to the driving clock, never the invoicing one
+   * (§5: McLeod's mileage is on a settlement clock, median 4.3 days after delivery).
+   */
+  delivery_date: string | null;
   transfer_date: string | null;
   total_charges: number | string;
   other_charge: number | string;
   excise_tax: number | string;
+  /** McLeod's billed distance for the order (0275) — the miles the load was PRICED on. Null on ~2% of bills. */
+  distance: number | string | null;
   post_key: string | null;
   post_module: string | null;
 }
@@ -110,8 +118,13 @@ export async function readApVouchersWindow(admin: SupabaseClient, orgId: string,
       .from("mcleod_ap_vouchers")
       .select("id, external_id, vendor_id, invoice_date, distribution_date, amount, ap_glid, is_paid, check_number, post_key, post_module")
       .eq("org_id", orgId)
-      .gte("distribution_date", fromIso)
-      .lt("distribution_date", toIso)
+      // ONE economic date (D-FIN7): coalesce(distribution_date, invoice_date), the same expression the
+      // agent sweeps on and the projection stamps occurred_at with. Spelled as PostgREST can say it —
+      // a distributed voucher by its distribution date, an undistributed one by its invoice date.
+      .or(
+        `and(distribution_date.gte.${fromIso},distribution_date.lt.${toIso}),` +
+          `and(distribution_date.is.null,invoice_date.gte.${fromIso},invoice_date.lt.${toIso})`,
+      )
       .order("distribution_date", { ascending: true })
       .order("id", { ascending: true }) // same-day vouchers tie; see the settlements tiebreaker
       .range(from, to),
@@ -122,10 +135,10 @@ export async function readBillingWindow(admin: SupabaseClient, orgId: string, fr
   return paged<StagedBilling>((from, to) =>
     admin
       .from("mcleod_billing")
-      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, transfer_date, total_charges, other_charge, excise_tax, post_key, post_module")
+      .select("id, external_id, order_external_id, tractor_unit, driver_external_id, dispatcher_user_id, dispatcher_name, bill_date, delivery_date, transfer_date, total_charges, other_charge, excise_tax, distance, post_key, post_module")
       .eq("org_id", orgId)
-      .gte("bill_date", fromIso)
-      .lt("bill_date", toIso)
+      .gte("delivery_date", fromIso)
+      .lt("delivery_date", toIso)
       .order("bill_date", { ascending: true })
       .order("id", { ascending: true }) // ~80 invoices share each bill_date; see the settlements tiebreaker
       .range(from, to),
@@ -159,6 +172,73 @@ export async function readBillingDispatchers(
     }
   }
   return out;
+}
+
+/**
+ * Delivering trucks and billed miles per DELIVERY month — the comparison side of the mileage
+ * coverage rule (G10) and the billed denominator behind revenue per billed mile (G9).
+ *
+ * Windowed on `delivery_date` rather than `bill_date`, and that is the whole reason this reader
+ * exists rather than reusing `readBillingWindow`. Measured 2026-09-03: bucketing July's bills by
+ * invoice date puts 225,415 miles of "empty" in the month and February's at MINUS 8.8%, which is
+ * physically impossible — an invoice is cut days after the truck ran, so the two sides of the
+ * comparison sit on different clocks. Delivery date is the day the miles happened, which is the
+ * clock Samsara is already on.
+ *
+ * Voided and cancelled bills are excluded: a cancelled load's miles were driven, but its BILLED
+ * miles were never billed, and this reader answers the billed question.
+ */
+export async function readBilledMilesByDeliveryMonth(
+  admin: SupabaseClient,
+  orgId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<Map<string, { trucks: number; miles: number; loads: number; revenue: number }>> {
+  const rows = await paged<{
+    delivery_date: string | null;
+    tractor_unit: string | null;
+    distance: number | string | null;
+    total_charges: number | string;
+    other_charge: number | string;
+    canceled: boolean | null;
+  }>((from, to) =>
+    admin
+      .from("mcleod_billing")
+      .select("delivery_date, tractor_unit, distance, total_charges, other_charge, canceled")
+      .eq("org_id", orgId)
+      .gte("delivery_date", fromIso)
+      .lt("delivery_date", toIso)
+      .order("delivery_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+
+  const acc = new Map<string, { trucks: Set<string>; miles: number; loads: number; revenue: number }>();
+  for (const r of rows) {
+    if (r.canceled) continue;
+    if (!r.delivery_date) continue;
+    const key = String(r.delivery_date).slice(0, 7);
+    let b = acc.get(key);
+    if (!b) {
+      b = { trucks: new Set<string>(), miles: 0, loads: 0, revenue: 0 };
+      acc.set(key, b);
+    }
+    b.loads++;
+    b.revenue += Number(r.total_charges) + Number(r.other_charge ?? 0);
+    if (r.tractor_unit) b.trucks.add(r.tractor_unit);
+    if (r.distance != null) b.miles += Number(r.distance);
+  }
+  return new Map(
+    [...acc].map(([k, v]) => [
+      k,
+      {
+        trucks: v.trucks.size,
+        miles: Math.round(v.miles * 10) / 10,
+        loads: v.loads,
+        revenue: Math.round(v.revenue * 100) / 100,
+      },
+    ]),
+  );
 }
 
 export interface StagedDeduction {
@@ -247,6 +327,40 @@ export async function readLedgerTotals(
   );
 }
 
+/**
+ * GL control totals across a RANGE of months, for the income statement (G3).
+ *
+ * `readLedgerTotals` reads one month because its caller — the coverage claim — checks one month at
+ * a time. The statement's to-date column spans a fiscal year, and issuing twelve round trips to
+ * build one page is the shape that makes a report feel slow for no reason. Half-open on
+ * `period_start`, like every window in this integration.
+ *
+ * Returns `period_start` with each row so the caller can bucket by month without a second read —
+ * the same rows serve the period column and the to-date column.
+ */
+export async function readLedgerTotalsRange(
+  admin: SupabaseClient,
+  orgId: string,
+  fromPeriodStart: string,
+  toPeriodStartExclusive: string,
+): Promise<Array<StagedGlTotal & { period_start: string; period_end: string; swept_at: string }>> {
+  // `period_end` and `swept_at` ride along because a month's figures cannot be read without them:
+  // a sweep that ran before the month ended staged part of a month, and part of a month reported as
+  // a month is what made the finance page open on "$0 earned, $8,430 spent" (G11, ledgerMonths.ts).
+  return paged<StagedGlTotal & { period_start: string; period_end: string; swept_at: string }>((from, to) =>
+    admin
+      .from("mcleod_gl_totals")
+      .select("period_start, period_end, swept_at, post_module, glid, line_count, net_amount, abs_amount")
+      .eq("org_id", orgId)
+      .gte("period_start", fromPeriodStart)
+      .lt("period_start", toPeriodStartExclusive)
+      .order("period_start", { ascending: true })
+      .order("post_module", { ascending: true })
+      .order("glid", { ascending: true })
+      .range(from, to),
+  );
+}
+
 export interface StagedMovement {
   external_id: string;
   tractor_unit: string | null;
@@ -256,6 +370,8 @@ export interface StagedMovement {
   loaded_miles: number | string | null;
   fuel_miles: number | string | null;
   distance_unit: string;
+  /** McLeod's movement status; V = voided. Swept with the row since D-FIN5, excluded by the reader. */
+  external_status: string | null;
   settled_at: string | null;
   /** The ordered stop array, exactly as tmsStopFactSchema shaped it on the way in (0267). */
   stops: unknown;
@@ -271,8 +387,11 @@ export async function readMovementsWindow(
   return paged<StagedMovement>((from, to) =>
     admin
       .from("mcleod_movements")
-      .select("external_id, tractor_unit, trailer_unit, driver_external_ids, order_ids, loaded_miles, fuel_miles, distance_unit, settled_at, stops")
+      .select("external_id, tractor_unit, trailer_unit, driver_external_ids, order_ids, loaded_miles, fuel_miles, distance_unit, external_status, settled_at, stops")
       .eq("org_id", orgId)
+      // A voided trip (McLeod status V) is swept WITH its flag since D-FIN5 and excluded here: its
+      // miles were never run. `neq` alone would also drop rows whose status is null.
+      .or("external_status.is.null,external_status.neq.V")
       .gte("settled_at", fromIso)
       .lt("settled_at", toIso)
       .order("settled_at", { ascending: true })
@@ -297,4 +416,32 @@ export async function readGlAccounts(admin: SupabaseClient, orgId: string): Prom
       .order("glid", { ascending: true }) // glid is unique per org — a total order
       .range(from, to),
   );
+}
+
+/** One line per (company, month) the GL sweep has landed, with the newest stamp — what the monthly close recomputes from (D-FIN14). */
+export interface SweptMonth {
+  company_id: string | null;
+  period_start: string;
+  period_end: string;
+  swept_at: string;
+}
+
+export async function readSweptMonths(admin: SupabaseClient, orgId: string): Promise<SweptMonth[]> {
+  const rows = await paged<{ company_id: string | null; period_start: string; period_end: string; swept_at: string }>((from, to) =>
+    admin
+      .from("mcleod_gl_totals")
+      .select("company_id, period_start, period_end, swept_at")
+      .eq("org_id", orgId)
+      .order("period_start", { ascending: true })
+      .order("glid", { ascending: true }) // (period, module, glid) is the row identity — a total order
+      .order("post_module", { ascending: true })
+      .range(from, to),
+  );
+  const byKey = new Map<string, SweptMonth>();
+  for (const r of rows) {
+    const key = `${r.company_id ?? ""}|${r.period_start}`;
+    const cur = byKey.get(key);
+    if (!cur || r.swept_at > cur.swept_at) byKey.set(key, { ...r });
+  }
+  return [...byKey.values()];
 }

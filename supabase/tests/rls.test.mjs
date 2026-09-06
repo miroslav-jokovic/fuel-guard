@@ -2261,11 +2261,6 @@ async function main() {
         `     m as (insert into memberships (org_id, user_id, role) select '${org}', id, 'technician' from u returning user_id) ` +
         `insert into user_surface_access (org_id, user_id, surface_key, allowed) ` +
         `select '${org}', user_id, 'maintenance.inspectors', false from m`,
-      // 0271 constrains effective_from to the first of a month (whole-month charging is the T1
-      // rule) — the generic seeder's arbitrary date can land mid-month, so hand it an aligned one.
-      truck_cost_schedules: (org) =>
-        `insert into truck_cost_schedules (org_id, unit_number, category, label, monthly_amount, effective_from) ` +
-        `values ('${org}', 'rls-754', 'lease', 'rls test lease', 100.00, '2026-06-01')`,
     },
   });
   console.log(
@@ -2273,6 +2268,7 @@ async function main() {
   );
   for (const [t, why] of iso.unseedable) console.log(`   UNSEEDABLE ${t}: ${why}`);
 
+  await db.close();
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }

@@ -14,6 +14,7 @@ import {
   type RuleResult,
   type TxnView,
   type VehicleView,
+  SCORING_VERSION,
 } from "@silvicom/shared";
 import { getBuildInfo } from "../../../lib/buildInfo.js";
 import type { ReconResult } from "./reconcile.js";
@@ -148,6 +149,10 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown>
     case_level: assessment.level,
     case_score: assessment.score,
     case_signals: assessment.signals,
+    // Which generation of the rules produced the verdict above. The nightly sweep claims the lowest
+    // stamps first, so a derivation change converges over several passes instead of the three-hour
+    // full-history sweep it used to take (0318).
+    scoring_version: SCORING_VERSION,
     // WP6: WHY detection was limited on this fill (ineligible rules + the gating inputs).
     case_gates: {
       ...summarizeFillGates(computeFillConfidence(ruleCtx)),

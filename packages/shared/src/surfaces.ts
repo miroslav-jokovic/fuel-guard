@@ -199,10 +199,14 @@ export const SURFACES: readonly Surface[] = [
   // ── finance ───────────────────────────────────────────────────────────────────────────────────
   // The money sections (P5, D-SEP7): visible only to the roles the matrix names — the accountant,
   // the admin, the auditor. Ops roles see nothing here, by ruling.
-  { key: "finance.accounting", label: "Money in & out", path: "/accounting", group: "finance", gate: section("accounting") },
-  { key: "finance.cpm", label: "Cost per mile", path: "/cpm", group: "finance", gate: section("accounting") },
-  { key: "finance.cost-schedule", label: "Truck fixed costs", path: "/cost-schedule", group: "finance", gate: section("accounting") },
-  { key: "finance.billing", label: "Revenue & margin", path: "/billing", group: "finance", gate: section("billing") },
+  // G7 removed three of the four accounting surfaces: transaction-grain browsing (Money in & out),
+  // the per-unit fixed-cost schedule (nothing allocates any more, D-FLEET8) and the Books check
+  // page (the close still runs; only the page went). What is left is the report itself.
+  { key: "finance.fleet-report", label: "Fleet report", path: "/fleet-report", group: "finance", gate: section("accounting") },
+  // "Revenue & margin" until R7 of the fleet report's UI plan (2026-09-04): its dispatcher table
+  // moved onto the fleet report and its per-truck margin was retired (D-FLEET1). What is left is
+  // the invoice lookup, so the page is named for the one thing it does.
+  { key: "finance.billing", label: "Invoices", path: "/billing", group: "finance", gate: section("billing") },
 
   // ── maintenance ───────────────────────────────────────────────────────────────────────────────
   { key: "maintenance.repair-spend", label: "Repair spend", path: "/shop", group: "maintenance", gate: section("maintenance") },

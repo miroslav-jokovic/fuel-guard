@@ -106,3 +106,4 @@ export {
   windowMilesViaAggregate,
 } from "./windowMilesAggregate.js";
 export type { WindowOdoAggregate } from "./windowMilesAggregate.js";
+export { SCORING_VERSION } from "./scoringVersion.js";

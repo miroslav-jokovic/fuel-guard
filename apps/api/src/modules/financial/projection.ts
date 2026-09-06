@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { localWallClock } from "@silvicom/shared";
 import {
   readSettlementsWindow,
   readApVouchersWindow,
@@ -203,6 +204,17 @@ export async function projectFinancialWindow(
     driverId: mcleodDriver ? (driverByMcleod.get(mcleodDriver.trim()) ?? null) : null,
   });
 
+  // The store's one clock (D-FIN9, 0305): every occurred_at is the ORG'S LOCAL WALL TIME labelled
+  // UTC. McLeod already sends wall time; EFS instants are converted below with the org's zone.
+  const { data: orgRow } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
+  const tz = String((orgRow as { operating_hours?: { tz?: unknown } } | null)?.operating_hours?.tz ?? "UTC");
+  // A true instant a few hours either side of a local midnight belongs to the neighbouring local
+  // day, so the fill read is widened by a day on each side; the converted occurred_at decides the
+  // bucket, and the source-row upsert keeps the row single however many windows see it.
+  const dayMs = 86_400_000;
+  const fuelFrom = new Date(Date.parse(`${fromIso.slice(0, 10)}T00:00:00Z`) - dayMs).toISOString().slice(0, 10);
+  const fuelTo = new Date(Date.parse(`${toIso.slice(0, 10)}T00:00:00Z`) + dayMs).toISOString().slice(0, 10);
+
   const entries: Entry[] = [];
 
   const settlements = await readSettlementsWindow(admin, orgId, fromIso, toIso);
@@ -240,8 +252,8 @@ export async function projectFinancialWindow(
       .from("fuel_transactions")
       .select("id, external_ref, fueled_at, total_cost, vehicle_id, driver_id, is_canonical")
       .eq("org_id", orgId)
-      .gte("fueled_at", fromIso)
-      .lt("fueled_at", toIso)
+      .gte("fueled_at", fuelFrom)
+      .lt("fueled_at", fuelTo)
       .order("fueled_at", { ascending: true })
       // Two pumps stamp the same second; a tied sort pages unstably (the financialReads lesson).
       .order("id", { ascending: true })
@@ -264,8 +276,8 @@ export async function projectFinancialWindow(
         direction: "expense",
         category: "fuel",
         amount: num(f.total_cost),
-        occurred_at: f.fueled_at,
-        settled_at: f.fueled_at,
+        occurred_at: localWallClock(f.fueled_at, tz),
+        settled_at: localWallClock(f.fueled_at, tz),
         vehicle_id: f.vehicle_id,
         driver_id: f.driver_id,
         load_id: null,

@@ -92,7 +92,13 @@ vi.mock("@/features/fuel/useFuelLog", () => ({
   useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
 }));
 vi.mock("@/composables/useVehicles", () => ({
-  useVehiclesQuery: () => ({ data: ref([{ id: "v-654", unit_number: "654", status: "active" }]) }),
+  useVehiclesQuery: () => ({
+    data: ref([
+      { id: "v-654", unit_number: "654", status: "active" },
+      // A second truck, so a truck LIST is a list of two rather than one repeated (FUEL-P1).
+      { id: "v-655", unit_number: "655", status: "active" },
+    ]),
+  }),
 }));
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref([]) }) }));
 vi.mock("@/composables/useCardAssignments", () => ({
@@ -194,16 +200,42 @@ describe("FuelLogPage — the window and the truck are one thing across the thre
     // The fills query keys on `vehicle_id` and the two raw feeds key on the text `unit`. One shared
     // parameter, resolved per tab — the thing that makes "654 in August" answerable in one place.
     await mountAt("/fuel-log?unit=654&from=2026-08-01&to=2026-08-31");
-    expect(seen.fuel?.value.vehicleId).toBe("v-654");
+    expect(seen.fuel?.value.vehicleIds).toEqual(["v-654"]);
     expect(seen.fuel?.value.from).toBe("2026-08-01");
     expect(seen.fuel?.value.to).toBe("2026-08-31");
 
     await mountAt("/fuel-log?tab=declines&unit=654&from=2026-08-01&to=2026-08-31");
-    expect(seen.declined?.value.unit).toBe("654");
+    expect(seen.declined?.value.units).toEqual(["654"]);
     expect(seen.declined?.value.from).toBe("2026-08-01");
 
     await mountAt("/fuel-log?tab=source&unit=654");
-    expect(seen.txn?.value.unit).toBe("654");
+    expect(seen.txn?.value.units).toEqual(["654"]);
+  });
+
+  /**
+   * FUEL-P1. `?unit=654` was a single value and is now a one-element list, which is what lets the
+   * parameter keep its name: every `/fuel-log?unit=654` in a ticket, an email or a bookmark still
+   * means the same screen. This is the assertion that fails if somebody "tidies" it into `?units=`.
+   */
+  it("reads a comma-separated truck list, and still reads the single value old links carry", async () => {
+    await mountAt("/fuel-log?unit=654,655");
+    expect(seen.fuel?.value.vehicleIds).toEqual(["v-654", "v-655"]);
+
+    await mountAt("/fuel-log?tab=source&unit=654,655");
+    expect(seen.txn?.value.units).toEqual(["654", "655"]);
+
+    await mountAt("/fuel-log?tab=declines&unit=654,655");
+    expect(seen.declined?.value.units).toEqual(["654", "655"]);
+  });
+
+  /**
+   * ⚠ The three states of the fills filter, and the middle one is where the bug would live: no trucks
+   * named is the whole fleet (`undefined`, no predicate at all), and named-but-unresolvable is an
+   * EMPTY list, which PostgREST renders `vehicle_id=in.()` and answers with nothing.
+   */
+  it("asks for no truck filter at all when none is chosen, rather than an empty list", async () => {
+    await mountAt("/fuel-log");
+    expect(seen.fuel?.value.vehicleIds).toBeUndefined();
   });
 
   /**
@@ -213,8 +245,18 @@ describe("FuelLogPage — the window and the truck are one thing across the thre
    */
   it("shows no fills for a truck this fleet does not have, rather than all of them", async () => {
     await mountAt("/fuel-log?unit=999");
-    expect(seen.fuel?.value.vehicleId).toBeDefined();
-    expect(seen.fuel?.value.vehicleId).not.toBe("v-654");
+    expect(seen.fuel?.value.vehicleIds).toEqual([]);
+  });
+
+  /**
+   * The mixed case, which is the one a real link produces: 654 is a truck and 999 is a unit EFS
+   * printed for something the roster has no row for (696 and the three T00x units, measured in
+   * production 2026-09-04). The filter must narrow to the trucks it CAN resolve rather than dropping
+   * the whole scope or matching nothing.
+   */
+  it("resolves the trucks it knows and quietly ignores the units it does not", async () => {
+    await mountAt("/fuel-log?unit=654,999");
+    expect(seen.fuel?.value.vehicleIds).toEqual(["v-654"]);
   });
 
   it("carries the window and the truck across a tab switch", async () => {
@@ -222,7 +264,7 @@ describe("FuelLogPage — the window and the truck are one thing across the thre
     const declines = w.findAll('[role="tab"]').find((b) => b.text().trim() === "Declines");
     await declines!.trigger("click");
     await flushPromises();
-    expect(seen.declined?.value.unit).toBe("654");
+    expect(seen.declined?.value.units).toEqual(["654"]);
     expect(seen.declined?.value.from).toBe("2026-08-01");
     expect(seen.declined?.value.to).toBe("2026-08-31");
   });

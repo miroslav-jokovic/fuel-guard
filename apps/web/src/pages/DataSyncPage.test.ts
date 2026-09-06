@@ -22,6 +22,11 @@ const coverageFetched = { value: null as Record<string, unknown> | null, ok: tru
 // shape and took the whole page down — four assertions failed for a reason none of them was about.
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (url: string) => {
+    // S5's card. Without this branch it receives the webhook payload — the exact defect the note
+    // above records, one card later.
+    if (url.includes("feed-freshness")) {
+      return { ok: true, data: { feeds: [], alerting: [], error: null } };
+    }
     if (url.includes("telematics-coverage")) {
       return coverageFetched.ok
         ? { ok: true, data: coverageFetched.value }
@@ -59,7 +64,6 @@ const coverage = (o: Record<string, unknown> = {}) => ({
   pending: 30,
   coveragePct: 60,
   attainablePct: 85.7,
-  truncated: false,
   byMonth: [
     { month: "2026-08", fills: 50, reconciled: 48, noData: 2, pending: 0, coveragePct: 96 },
     { month: "2026-01", fills: 50, reconciled: 12, noData: 8, pending: 30, coveragePct: 24 },
@@ -154,10 +158,10 @@ describe("DataSyncPage — the telematics-history card", () => {
     expect(t).toContain("24%"); // January — the old end, where the vendor gap lives
   });
 
-  it("says the number is a floor when the read stopped early, rather than showing it as final", async () => {
-    coverageFetched.value = coverage({ truncated: true });
-    expect((await mountPage()).text()).toContain("this is a floor");
-  });
+  // The "this is a floor" caveat is gone, and so is the case that covered it. It warned that
+  // `MAX_PAGES` had stopped a 60-page read of the fill history early. Since 0322 the figure is one
+  // `group by` in Postgres (Q-SAM8) — there is no page, so there is no page to stop — and a caveat
+  // for a condition that cannot arise is a sentence a reader has to rule out for nothing.
 
   it("reports a failed read instead of rendering 0% coverage", async () => {
     coverageFetched.ok = false;

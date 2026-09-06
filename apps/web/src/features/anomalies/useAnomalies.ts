@@ -55,7 +55,8 @@ const SEV_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low:
 export interface AnomalyFilters {
   status?: string;
   severity?: string;
-  vehicleId?: string;
+  /** Vehicle ids to narrow to. Absent means the whole fleet; a list means those trucks (FUEL-P1). */
+  vehicleIds?: string[];
   ruleId?: string;
   reeferOnly?: boolean; // only cases whose correlated signals include a reefer axis
   from?: string; // YYYY-MM-DD (created_at ≥)
@@ -78,7 +79,7 @@ export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
         .limit(500);
       q = f.status ? q.eq("status", f.status) : q.neq("status", "superseded");
       if (f.severity) q = q.eq("severity", f.severity);
-      if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
+      if (f.vehicleIds?.length) q = q.in("vehicle_id", f.vehicleIds);
       if (f.ruleId) q = q.eq("rule_id", f.ruleId);
       // Reefer alerts live on their OWN tab: include ONLY reefer-axis cases there, and EXCLUDE them from the
       // main list (they're mostly false until the McLeod reefer-load feed lands, so they'd just be noise here).

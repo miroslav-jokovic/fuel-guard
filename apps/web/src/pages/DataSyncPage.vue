@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { apiFetch } from "@/lib/api";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
+import FeedFreshnessCard from "@/features/settings/FeedFreshnessCard.vue";
 import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -85,7 +86,6 @@ interface TelematicsCoverage {
   pending: number;
   coveragePct: number;
   attainablePct: number | null;
-  truncated: boolean;
   byMonth: CoverageMonth[];
 }
 const coverage = ref<TelematicsCoverage | null>(null);
@@ -316,6 +316,9 @@ const integrity = computed(() => {
       />
     </div>
 
+    <!-- Feed freshness: how stale each Samsara tier is against its own stated bound (S5, D-SAM6). -->
+    <FeedFreshnessCard />
+
     <!-- Telematics history: how much of the WHOLE history the collector has corroborated (S4, D-SAM7). -->
     <BaseCard>
       <div class="flex items-center justify-between">
@@ -348,9 +351,6 @@ const integrity = computed(() => {
           At the rate the fills already checked came back, this lands near
           <strong class="text-ink-secondary">{{ coverage.attainablePct }}%</strong> once the backlog
           clears.
-        </p>
-        <p v-if="coverage.truncated" class="mt-1 text-sm text-warning-600">
-          Only the most recent fills were read, so this is a floor rather than the whole figure.
         </p>
 
         <div v-if="coverage.byMonth.length" class="mt-4">

@@ -10,7 +10,7 @@ import type { Vehicle, Driver } from "./fleet.js";
 
 export interface TrendPoint {
   date: string; // YYYY-MM-DD
-  /** null = no data that day (MPG trend renders a gap; spend zero-fills instead). */
+  /** null = no data that day. Spend zero-fills instead: a no-spend day is a real $0 day. */
   value: number | null;
 }
 
@@ -21,7 +21,7 @@ export interface RiskRow {
   criticalCount: number;
 }
 
-export type DashboardTransaction = Pick<FuelTransaction, "id" | "vehicle_id" | "driver_id" | "fueled_at" | "gallons" | "total_cost" | "computed_mpg"> & {
+export type DashboardTransaction = Pick<FuelTransaction, "id" | "vehicle_id" | "driver_id" | "fueled_at" | "gallons" | "total_cost"> & {
   tank_type?: "tractor" | "reefer" | null;
   samsara_recon_at?: string | null;
 };
@@ -31,9 +31,18 @@ export type DashboardAnomaly = Pick<Anomaly, "id" | "transaction_id" | "vehicle_
 export interface DashboardSummary {
   totalSpend: number;
   totalGallons: number;
-  fleetMpg: number | null; // gallon-weighted average of computed MPG
   openAnomalies: number;
-  mpgTrend: TrendPoint[];
+  /**
+   * ⚠ **There is no `fleetMpg` or `mpgTrend` here, and that is the point of M4.**
+   *
+   * Both were computed in this file from the fills the browser happened to be holding — one of four
+   * copies of the same definition, over a numerator that ran 1.31–2.41% below Samsara's own IFTA
+   * miles. Fleet MPG now comes from `GET /api/fueling/fleet-mpg` (D-MPG1), whose numerator is the
+   * difference between two odometer readings the vendor asserted and which a browser cannot see.
+   * The trend went WEEKLY at the same time (D-MPG6): a day's fuel purchases are not that day's
+   * consumption, and the daily series this field used to feed looked reassuringly smooth only
+   * because its miles and its gallons had been spread across the same interval together.
+   */
   spendTrend: TrendPoint[];
   anomaliesBySeverity: Record<AnomalySeverity, number>;
   topVehiclesByRisk: RiskRow[];
@@ -44,20 +53,22 @@ export interface DashboardSummary {
   reeferSpend: number;
   /** Tractor fuel that actually moved the truck (tractor spend minus idle). Donut slice. */
   movingSpend: number;
-  /** % of fills corroborated by telematics (null when no fills in range). */
+  /** % of fills corroborated by telematics IN THE RANGE (null when the range holds no fills). */
   coveragePct: number | null;
+  /**
+   * The same share over the carrier's WHOLE history (D-SAM7). Null when nothing supplied it — the
+   * tile then shows the windowed figure alone, which is what it did before 0322, rather than a zero.
+   */
+  allTimeCoveragePct: number | null;
   declinedCount: number;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-// A fleet vehicle's real MPG is never below ~1 or above ~40. Values outside this band come from a
-// corrupt fill (bad/blank odometer, a missed prior fill, a top-off after barely moving) and would drag
-// the gallon-weighted daily average to a nonsense spike/dip. Exclude them from the efficiency views —
-// the underlying bad fill is still surfaced by the anomaly engine. Kept wide so real economy is untouched.
-export const MPG_PLAUSIBLE_MIN = 1;
-export const MPG_PLAUSIBLE_MAX = 40;
-const plausibleMpg = (n: number) => Number.isFinite(n) && n >= MPG_PLAUSIBLE_MIN && n <= MPG_PLAUSIBLE_MAX;
+// The per-FILL plausibility band lives in `fuelSpend/fleetEfficiency.ts` (M4, D-MPG1), beside the
+// fleet band and the coverage floor it sits next to in every argument about MPG. It is not re-exported
+// from here any more: this file no longer applies it, and re-exporting a constant a module does not
+// use is how the next reader concludes it does.
 
 /** Options for aggregateDashboard. `tz` buckets trend days in the org's timezone (UTC when absent). */
 export interface DashboardOptions {
@@ -76,6 +87,15 @@ export interface DashboardExtras {
    *  so its drivers cannot be derived from the range-scoped `transactions` argument. Without this map
    *  the risk list silently dropped every driver whose flagged fill fell outside the visible range. */
   anomalyDrivers?: Map<string, string | null>;
+  /**
+   * All-time coverage, from `telematics_coverage_buckets()` (D-SAM7, migration 0322).
+   *
+   * Beside `coveragePct`, not instead of it, because they answer different questions and the whole
+   * finding was that only one of them was being asked. Over 90 days the figure reads ~95%; measured
+   * against the carrier's whole history on 2026-09-01 it was 23%. Both were correct, and a tile
+   * showing only the first converts an unanswered question into a reassuring answer.
+   */
+  allTimeCoveragePct?: number | null;
 }
 
 /** YYYY-MM-DD of an instant in a timezone (cached Intl formatter per tz). */
@@ -128,14 +148,11 @@ export function aggregateDashboard(
 ): DashboardSummary {
   let totalSpend = 0;
   let totalGallons = 0;
-  let mpgWeighted = 0;
-  let mpgGallons = 0;
   let reeferSpend = 0;
   let coveredTxns = 0;
   let totalTxns = 0;
 
   const spendByDay = new Map<string, number>();
-  const mpgGalByDay = new Map<string, { mpgGal: number; gal: number }>();
 
   for (const t of transactions) {
     const gallons = Number(t.gallons) || 0;
@@ -148,16 +165,6 @@ export function aggregateDashboard(
 
     const d = dayInTz(t.fueled_at, opts.tz);
     spendByDay.set(d, (spendByDay.get(d) ?? 0) + cost);
-
-    if (t.computed_mpg != null && gallons > 0 && plausibleMpg(Number(t.computed_mpg))) {
-      const mpg = Number(t.computed_mpg);
-      mpgWeighted += mpg * gallons;
-      mpgGallons += gallons;
-      const cur = mpgGalByDay.get(d) ?? { mpgGal: 0, gal: 0 };
-      cur.mpgGal += mpg * gallons;
-      cur.gal += gallons;
-      mpgGalByDay.set(d, cur);
-    }
   }
 
   const seenDays = [...spendByDay.keys()].sort();
@@ -167,11 +174,6 @@ export function aggregateDashboard(
     date,
     value: round2(spendByDay.get(date) ?? 0), // zero-fill: a no-spend day is a real $0 day
   }));
-
-  const mpgTrend: TrendPoint[] = allDays.map((date) => {
-    const cur = mpgGalByDay.get(date);
-    return { date, value: cur && cur.gal > 0 ? round2(cur.mpgGal / cur.gal) : null }; // null = gap, not 0 MPG
-  });
 
   // Anomalies (active = not superseded).
   const active = anomalies.filter((a) => a.status !== "superseded");
@@ -215,9 +217,7 @@ export function aggregateDashboard(
   return {
     totalSpend: round2(totalSpend),
     totalGallons: round2(totalGallons),
-    fleetMpg: mpgGallons > 0 ? round2(mpgWeighted / mpgGallons) : null,
     openAnomalies: open.length,
-    mpgTrend,
     spendTrend,
     anomaliesBySeverity,
     topVehiclesByRisk: [...vehRisk.values()].sort(byRisk).slice(0, 5),
@@ -227,26 +227,13 @@ export function aggregateDashboard(
     reeferSpend: reeferSpendR,
     movingSpend,
     coveragePct,
+    // `?? null` and never `?? 0`: a figure nobody supplied is unknown, and 0% corroborated is an
+    // alarming claim to make on the strength of a missing argument.
+    allTimeCoveragePct: extra.allTimeCoveragePct ?? null,
     declinedCount: extra.declinedCount ?? 0,
   };
 }
 
 // ── CSV ─────────────────────────────────────────────────────────────────────
-
-/** Serialize rows to CSV given ordered columns. RFC-4180 quoting. */
-export function toCsv<T extends Record<string, unknown>>(
-  rows: T[],
-  columns: { key: keyof T; header: string }[],
-): string {
-  const esc = (v: unknown): string => {
-    let s = v == null ? "" : String(v);
-    // CSV formula-injection guard (S-1): a cell starting with = + - @ (or a leading tab/CR) is interpreted as
-    // a formula by Excel/Sheets. Untrusted EFS text (driver, station, location) is exported verbatim, so
-    // neutralize it with a leading apostrophe before quoting. RFC-4180 quoting still applies below.
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const head = columns.map((c) => esc(c.header)).join(",");
-  const body = rows.map((r) => columns.map((c) => esc(r[c.key])).join(",")).join("\n");
-  return body ? `${head}\n${body}` : head;
-}
+// `toCsv` moved to `csv.ts` at FUEL-P2, where it is one rule for every exporter rather than two that
+// had already drifted about negative numbers. Its callers import it from the package barrel, unchanged.

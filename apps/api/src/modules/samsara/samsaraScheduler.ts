@@ -12,9 +12,12 @@ import { syncIdleRollup } from "../idle/index.js";
 import { syncIdleDutyEvidence } from "../idle/index.js";
 import { runDataRetention } from "../org/index.js";
 import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "../org/index.js";
+import { runSamsaraFeedAlarm } from "./samsaraFeedAlarm.js";
+import { samsaraFeedCadences } from "./samsaraFeedHealth.js";
 import { enqueueJob } from "../../queue/enqueue.js";
 import { dispatchJob } from "../../queue/dispatch.js";
 import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
+import { syncVehicleOdometerReadings } from "./samsaraOdometerSync.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —
  *  the OLDEST org only (2026-08 incident: the fallback used to include EVERY org row, so a stray org
@@ -347,6 +350,43 @@ function startIftaTier(env: Env): void {
 }
 
 /**
+ * Tier 3c — ODOMETER READINGS (W3b, D-FLEET9). The fleet's only measured distance.
+ *
+ * Its own tier rather than a line in tier 3 for the reason 3b is: the grain is a DAY and a day is
+ * only finished once, so pacing it with a driver-score refresh that runs every six hours would spend
+ * the vendor's rate limit four times over to learn the same fact. `SAMSARA_ODOMETER_SYNC_HOURS=0`
+ * disables it outright.
+ *
+ * ⚠ THE FIRST DELAY IS FIFTEEN MINUTES, AND THAT NUMBER IS THE DEPLOY WINDOW. Railway serves a merge
+ * about three minutes in and `migrate.yml` applies its schema about twelve minutes in
+ * (docs/MIGRATION-DISCIPLINE.md §the-deploy-window), so a tier that ticked at boot on the release
+ * that ships 0311 would write to a table Postgres does not have yet. Nothing would be lost — the
+ * job fails, the next tick repairs it — but a failed job on every deploy is noise that teaches
+ * people to ignore the ledger. Fifteen minutes puts the first tick after the window closes.
+ */
+function startOdometerTier(env: Env): void {
+  startTier(env, "odometer", 900_000, env.SAMSARA_ODOMETER_SYNC_HOURS * 3_600_000, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      await runOrgTier(admin, env, orgId, "sync_odometer", async () => {
+        const r = await syncVehicleOdometerReadings(admin, env, orgId);
+        // Coverage goes in the ledger because a per-mile figure computed over part of the fleet
+        // reads low on miles and high on cost and looks entirely plausible (G10's reasoning).
+        return {
+          vehicles: r.vehicles,
+          vehiclesWithData: r.vehiclesWithData,
+          vehiclesWithoutData: r.vehiclesWithoutData,
+          readings: r.readings,
+          obdReadings: r.obdReadings,
+          gpsDistanceReadings: r.gpsDistanceReadings,
+          batches: r.batches,
+          windowDays: r.windowDays,
+        };
+      });
+    }
+  });
+}
+
+/**
  * Tier 4 — daily data retention (DB-only): enforce the per-table retention policy
  * (services/dataRetention.ts) in bounded batches, through the jobs ledger like every other tier so
  * the run + its per-table delete counts are visible on Data & Sync.
@@ -381,6 +421,47 @@ function startRetentionTier(env: Env): void {
  * hit the same wall with no headroom, which is the argument `mountApiRouters` in app.ts already had
  * to make once.
  */
+/**
+ * Tier 8 — THE FRESHNESS ALARM (SAM-S5, D-SAM6). The only tier that reads rather than collects.
+ *
+ * ── WHY IT IS NOT A `jobs` KIND LIKE THE OTHERS ──────────────────────────────────────────────────
+ * Every collecting tier runs through `runOrgTier` for the (org, kind) mutex and the failure record.
+ * This one collects nothing: it reads the ledgers the others write, decides whether to speak, and
+ * remembers what it said in `samsara_feed_alerts`. Giving it a job kind would put its own rows into
+ * the very ledger it reads and buy nothing — the duplicate-suppression it needs is the memory table,
+ * not a mutex, and `startTier`'s own re-entrancy guard covers the overlap case.
+ *
+ * ── THE INTERVAL IS DERIVED, NOT CHOSEN ──────────────────────────────────────────────────────────
+ * Checking more often than the fastest feed polls cannot find anything new, so the alarm runs on the
+ * SHORTEST configured cadence. Clamped at both ends for reasons that are about the clamp and not
+ * about a preference: below a minute is pointless for bounds measured in hours, and above an hour
+ * would delay a one-hour bound's alert by as much as the bound itself.
+ */
+function startFeedAlarmTier(env: Env): void {
+  const cadences = Object.values(samsaraFeedCadences(env)).filter((ms) => ms > 0);
+  const interval = Math.min(Math.max(Math.min(...cadences), 60_000), 3_600_000);
+  startTier(env, "feed-alarm", 300_000, interval, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      try {
+        const r = await runSamsaraFeedAlarm(admin, env, orgId);
+        if (r.error) {
+          console.error(`[samsara-sched] feed alarm failed for org ${orgId}: ${r.error}`);
+        } else if (r.sent.length > 0) {
+          console.log(
+            `[samsara-sched] org ${orgId}: feed alarm ${r.sent.map((d) => `${d.action} ${d.feed}`).join(", ")}` +
+              (r.muted ? " (muted)" : ""),
+          );
+        }
+      } catch (e) {
+        console.error(
+          `[samsara-sched] feed alarm threw for org ${orgId}:`,
+          e instanceof Error ? e.message : e,
+        );
+      }
+    }
+  });
+}
+
 export function startSamsaraScheduler(env: Env): void {
   if (env.SAMSARA_SYNC_HOURS === 0) return; // legacy kill switch → disable all Samsara scheduling
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return; // not configured (e.g. local dev)
@@ -389,8 +470,11 @@ export function startSamsaraScheduler(env: Env): void {
   startIdentityTier(env, env.SAMSARA_IDENTITY_SYNC_HOURS * 3_600_000);
   startPerformanceTier(env);
   if (env.SAMSARA_IFTA_SYNC_HOURS > 0) startIftaTier(env);
+  if (env.SAMSARA_ODOMETER_SYNC_HOURS > 0) startOdometerTier(env);
   if (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0) startReconTier(env);
   startRetentionTier(env);
+  // Reads what the seven tiers above recorded and says so when one of them has stopped delivering.
+  startFeedAlarmTier(env);
 
   console.log(
     `[samsara-sched] tiered sync enabled — stats every ${env.SAMSARA_STATS_SYNC_MINUTES}m, identity every ${env.SAMSARA_IDENTITY_SYNC_HOURS}h` +

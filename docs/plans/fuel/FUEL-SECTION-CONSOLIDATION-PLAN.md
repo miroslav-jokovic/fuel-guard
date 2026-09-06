@@ -438,16 +438,16 @@ before it is built, not during.
 | T3b | **spike — deliberately unresolved** | D-AG1 read; `robustWindowMiles` and the MPG band shown to be judgement, not addition. Whether the seam can be drawn without copying a constant is **not known** and is the spike. |
 | T4 | **verified** | `duty_equipment_segments` = 0 rows; no other time-ranged pairing in the schema. |
 | T5 | **verified** | `fuel_spend_days.updated_at` present; build dates measured; `posted_last_polled_at`/`rejected_last_polled_at` present. |
-| P1 | **verified** | `FilterSelect` supports `multiple`; `useEfsFacets` exists; 4 EFS units with no vehicle row. |
-| P2 | **partly assumption** | The `spend-report.pdf` pattern is verified as the standard. **What the report should SAY is not decided** — Q-FUI10. Row-level CSV is the fallback and is safe. |
-| P3 | **verified** | `ExceptionQuery`/`qs()`/the route all lack a vehicle field; `assignedTo` exists server-side and is unsent. |
+| P1 | **BUILT 2026-09-04** | The shape row was right about all three facts and missed the bigger one: the menus were built in the browser under `.limit(10_000)` while **the hosted PostgREST caps every response at 1,000 rows**, so nine of them were derived from a thousand of 28,638 lines and offered 133 of 190 units. D-FUI16 turned out to be the smaller half of its own finding. Three merges — add the parameter, switch the reader, drop the scalar — because a function's signature cannot change in one. |
+| P2 | **BUILT 2026-09-04** | Row-level CSV, as the fallback said, so Q-FUI10 never blocked it. What the row did not see is what "the same pure functions the screen uses" costs when it is taken literally: the list filters, the reject-day window, the unit and search resolution, the card facets and the CSV cell rule all had to move to `@silvicom/shared`, because each of them existed only inside a page. Two of them existed TWICE and had already drifted. |
+| P3 | **BUILT 2026-09-04** | All three verified facts held. The row missed the translation underneath them: the section speaks vehicle IDS and the ledger stores UNIT NUMBERS, because `fuel_exceptions.vehicle_id` was declared by 0250 and has **never been written by anything** (0 rows in production). A filter on the obvious column would have returned nothing, always. It also missed that the four tiles took a window only, so a scoped list sat under fleet-wide money. |
 | C1 | **verified** | `FuelEventsPage.vue` has zero references. |
 | C2 | **BUILT 2026-09-02** | The filter/column checklist below was enumerated in the step, as this row said to: `FuelLogTabs.test.ts` writes out all three column lists. The shape row missed one thing worth recording — **the merge crosses a permission boundary** (`/fuel-log` is `always`, the two absorbed pages were `section("fuel")`), which C3–C5 do not. |
 | C3 | **BUILT 2026-09-03** | The shape row was right that the pattern transfers. What it did not see: moving a filter into a URL is a CORRECTNESS change, not a refactor — a `ref` holds only what its dropdown offered and a parameter holds anything, and a sort key is a column name that reaches `.order()`. |
 | C4 | **BUILT 2026-09-03** | The permission finding held: the drawer carries `can("fuel")`, and the Truck Stops one carries `can("dispatch")` for the same reason. What the shape row missed is that `/import` had **three** capabilities, not two — Repair fuel data is the third, and it gained progress and freshness by landing beside the other repair actions. |
 | C5 | **BUILT 2026-09-03** | No permission question, as the shape row said. What it missed: "kept in the tree, unmounted" needed a NEW file, not just an untouched one — the reports' titles, blurbs and note lived in the tab strip, and `policyReports.ts` is where they went so C6 finds them. Also: no route-table change at all, because the tab is a query parameter. |
-| C6 | **blocked** | Q-FUI3. §0.3 shows the ledger has 0 rows, which raises its priority. Q-FUI7 is now answered, so the `recon_*` half has a reachable producer as soon as one statement is uploaded. |
-| C7 | **blocked ×2** | Q-FUI11 (the fix order for the 2.9%; Q-FUI6's cause is now measured) then Q-FUI1 (capability matrix). |
+| C6 | **BUILT 2026-09-05** | Q-FUI3 answered (truck × kind × month) and both merges shipped. §0.3 showed the ledger with 0 rows; this is the producer that fills it from the EFS feed rather than from a statement nobody has uploaded. |
+| C7 | **blocked ×1** | Q-FUI1 answered 2026-09-05 (per-kind section on the row). Q-FUI11 stands: the queue measured 2.8% precision on 2026-09-05, and C7's own text says merging the inbox is the reward for a queue worth working, not the remedy for one that is not. |
 | C8 | **verified as shape** | `route_fuel_settings` holds the policy today. Target values themselves need Q-FUI10's audience answer to be meaningful. |
 | C9 | **verified** | Dashboard tiles all point at `/fuel-log`; the ledger figures exist to point at once C6 fires. |
 
@@ -1313,6 +1313,128 @@ currently unfilterable while their rows still appear (D-FUI16).
 **Done when.** Every fuel list can be scoped to a set of trucks, and no filter list is narrower than the
 data behind it.
 
+#### — MERGE 1 of 3 SHIPPED 2026-09-04 (`claude/fuel-p1-multiselect-facets`). P1 stays OPEN until the reader.
+
+**What shipped.** Three migrations and no reader — the whole step is behind them.
+
+- **0312** gives `fuel_range_totals` and `fuel_range_miles_inputs` a `p_vehicles uuid[]` parameter, so
+  the six tiles above the Fuel Log can answer for the same SET of trucks the list is about to show.
+- **0313 `efs_transaction_facets()`** and **0314 `decline_facets()`** return the DISTINCT values behind
+  the nine filter menus, org-scoped, `security invoker`, `p_org` defaulted (D-FC1).
+
+**The measurement that turned D-FUI16 from a small fix into the step's centre, taken 2026-09-04 against
+production.** The plan says the unit menu is built from `vehicles.unit_number` and misses four EFS
+units. That is true — they are **696 (43 lines), T005 (6), T001 (5), T004 (2)**, 56 lines visible and
+unfilterable. But the menus have a second and larger hole nobody had measured: `useEfsFacets` reads its
+rows under `.limit(10_000)`, and **the hosted PostgREST caps every response at 1,000 rows** — checked
+against the live project rather than inferred (`select=id&limit=5000` on `efs_transactions` returns
+exactly 1,000). So nine menus over 28,638 transaction lines and 3,479 declines were built from the
+first thousand of each:
+
+| menu | offered | exists |
+|---|---|---|
+| units | 133 | 190 |
+| drivers | 133 | 249 |
+| items | 9 | 13 |
+| states | 42 | 47 |
+| decline error codes | 17 | 19 |
+
+A filter list narrower than the data is worse than a missing filter — the rows are on screen, the value
+that isolates them is absent from the menu, and nothing says why. It is also the same defect class as
+A4 (the browser paging loop whose correctness depended on a server constant), which is why the fix is
+0289's: **DISTINCT belongs where the rows are.**
+
+**Why three migrations rather than one.** 0312 touches `fuel` tables only; 0313 reads `efs_transactions`
+(the efs collector's raw table) and 0314 reads `declined_transactions` (fuel's). One migration over both
+would have needed a `cross-module-waiver` and would have put two collectors' consent behind one
+signature; split, each `raw-access-waiver` names exactly one owner (D-SEP1).
+
+**Why a new parameter and not a wider `p_vehicle`.** Changing the type would break the deployed reader
+for the nine minutes the deploy window is open. A defaulted parameter is invisible to a caller that
+does not pass it — the input-side twin of 0297's "an extra returned column is ignored by the old
+reader". `p_vehicle` therefore survives this merge unused and is dropped by **merge 3**: add → switch →
+drop, the shape this repository already requires of a rename.
+
+⚠ **`lint:migration-ordering` cannot see a function's signature** — it reads columns. Nothing mechanical
+holds merge 2 behind this one; the check is `pg_proc` by hand, or `GET /api/version` reporting
+`"schema":{"state":"current"}`.
+
+⚠ **0312 needed a `lint:mpg` carve-out**, and it is worth reading rather than waving through. Adding a
+parameter is a signature change, which Postgres can only express as a drop and a create — so 0290's
+whole body comes with it, including the `sum(computed_mpg * gallons)` that D-MPG1's gate exists to find.
+It is not a sixth implementation: the same measurement, byte for byte, still divided in TypeScript. The
+carve-out says so by name instead of letting the gate go quiet.
+
+**Verified by.** `supabase/tests/fuel-range-totals.test.mjs` (+4 assertions), `fuel-range-miles-inputs`
+(+3), and a new `supabase/tests/efs-facets.test.mjs` (16), whose fixture puts every distinguishing value
+in the LAST hundred of 2,400 rows — a fixture whose rare values sit early passes whether the cap is
+respected or not. Nine mutants killed across the three: the truck predicate deleted; an empty list read
+as an absent one; the list superseding the scalar; the null-vehicle group kept under a truck scope; the
+1,000-row cap reintroduced in SQL; blanks admitted as values; the org filter dropped; the error-code
+label made arrival-dependent. `pnpm test`, `typecheck`, `lint`, `lint:mpg`, `lint:table-access`,
+`lint:table-modules`, `lint:rpc-org-default`, `lint:rls`, `lint:migration-ordering`, schema snapshot.
+
+#### — MERGE 2 of 3 SHIPPED 2026-09-04 (`claude/fuel-p1-multiselect-readers`). P1 is DONE; merge 3 is the ratchet.
+
+**What shipped.** The readers, held one merge behind their schema and merged only after
+`GET /api/version` reported `"schema":{"state":"current"}`.
+
+- The shared truck filter is a SET. `?unit=` keeps its singular name and carries a comma-separated
+  list, and `/anomalies?vehicle=` does the same — **a rename would have widened every one of those
+  links in a ticket, an email or a bookmark to the whole fleet, silently**, which is the worst shape
+  this change could take. A one-element list is exactly what a single value already meant, so old links
+  keep working with no legacy branch: `useQueryState.list()` reads both.
+- `FilterSelect multiple` on all three Fuel Log tabs and on Alerts; `.eq()` → `.in()` on four queries;
+  `p_vehicles` on the two RPCs.
+- `useEfsFacets` reads 0313/0314 instead of paging rows, and `useUnitOptions` is now the **union** of
+  the fleet's units and the units the two feeds printed, with a non-fleet unit labelled
+  `696 · not in the fleet`.
+
+**The three states of the fills filter, which is where a bug would have lived.** `undefined` is the
+whole fleet (no predicate at all), a list is those trucks, and an EMPTY list is "none of them" — what a
+filter naming only units this fleet has no row for resolves to. Collapsing empty into undefined shows
+every truck's fills under a filter bar reading "696", and it is one `?? undefined` away at any time, so
+it is pinned by its own assertion in `unitOptions.test.ts` and by a mutant.
+
+**A stub that had stopped discriminating, found by mutating it.** `efsRowCoverage.test.ts` decided which
+of its two counts was the ATTRIBUTED one by "this chain has an `.in()`" — true only while the truck
+filter used `.eq()`. Under P1 both chains carry an `.in("unit", …)`, so both were handed the attributed
+count and the suite would have agreed with an implementation that dropped the filter from the
+numerator. It now discriminates on the fleet's own unit list, and its fixture deliberately selects ONE
+of two fleet units so the two `.in()`s cannot coincide. The standing "prove a test can fail by
+mutating it" rule, landing on a stub rather than on a fixture.
+
+**Verified by.** `unitOptions.test.ts` (12 new assertions over the union, the label, the three-state
+resolution and the facet mapping), plus updates to `FuelLogTabs`, `fuelLogFiltersInUrl`,
+`anomaliesFiltersInUrl`, `fuelRangeTotals`, `efsRowCoverage` and `FuelLogPage`. Seven more mutants
+killed: the union reduced to the fleet; the union reduced to the feeds; the empty list collapsed to
+undefined; the label's caveat removed; the error-code fallback removed; the Alerts parameter kept when
+empty; the Alerts filter ignoring its list. 1,305 web tests, `pnpm test`, `typecheck`, `lint`,
+`lint:tokens`, `lint:ui-adoption`, `lint:filesize`, `lint:funcsize`, `lint:boundaries`,
+`lint:capabilities`, `lint:surfaces`, `lint:comment-claims`.
+
+#### — MERGE 3 of 3 SHIPPED 2026-09-04 (`claude/fuel-p1c-drop-scalar-vehicle`). The ratchet closes.
+
+**0315 drops the scalar `p_vehicle` from both functions.** Nothing has called it since merge 2, and two
+ways to say one thing is a state to pass THROUGH, never one to stop in: a defaulted argument no caller
+uses reads to the next person as a supported way to ask the question, and the two would drift the first
+time one of them gained a clause. Add → switch → drop, finished rather than left at two.
+
+**The check was `pg_proc` by hand plus a grep**, because `lint:migration-ordering` reads columns and
+cannot see a signature in either direction.
+
+⚠ **One hazard, named rather than left to be found.** A browser tab opened before merge 2 deployed
+still holds the old bundle, and that bundle passes `p_vehicle`. From the moment this applies, such a
+tab gets "could not find the function" on the Fuel Log's tiles until it is reloaded. That is why this
+is a separate merge behind the reader rather than riding with it: the window is a stale tab's, not a
+deploy's, and it closes on the next page load.
+
+**Verified by.** `fuel-range-totals` now asserts the scalar is GONE — the call must fail rather than
+resolve, because a function that quietly accepted the old name would pass every other line in the file.
+28 assertions there, 16 in `fuel-range-miles-inputs`. 0315 takes a `lint:mpg` carve-out for the same
+reason 0312 did, and its entry says it is the last one: the parameter list is now what it should have
+been, so nothing is scheduled to re-create these functions again.
+
 ---
 
 ### P2 · A scoped export on every list page
@@ -1332,6 +1454,97 @@ Rejections, Cards and the ledger.
 filters — the property that makes an export quotable months later; `expectOrgScoped`; an audit-row
 assertion per route.
 
+#### — MERGE 1 of 2 SHIPPED 2026-09-04 (`claude/fuel-p2-scoped-exports`). P2 stays OPEN for the Cards list.
+
+**What shipped.** A scoped, server-rendered CSV on all three Fuel Log tabs —
+`GET /api/fueling/exports/{fills,declines,source-records}.csv` — gated on `fuel: view` (the read set,
+`spend-report.pdf`'s gate), audited one row per export, and taking **the page's own query string**:
+`?unit=654,696&from=…&to=…` plus that tab's facets, unrenamed, so the link a reader forwards and the
+file they attach are produced from one set of words.
+
+**Why the server renders it, in one measurement.** Every export in this section was
+`downloadCsv(rows.value)` — the rows the BROWSER was holding, which on these lists is one page of
+twenty out of a filtered set that reaches five figures. "Truck 654's August, as a file" would have
+produced twenty rows and said nothing about the rest. (The ledger's CSV still does exactly that over
+its 25-row page; P3 takes it.)
+
+**What that forced, and it is the useful part of this step.** D-FUI15's sentence — "server-rendered
+from the same pure functions the screen uses" — has exactly one honest reading, so four things moved
+to `@silvicom/shared` rather than being written a second time:
+
+- `applyEfsTxnFilters`, `applyDeclinedFilters` and a new `applyFuelLogFilters`, over a STRUCTURAL
+  PostgREST interface so the package still imports no vendor SDK;
+- `efsRejectDayWindow` and, under it, `exclusiveEndYmd` — the API windows declines on the Central day
+  exactly as the tab does, and "the day after this one" is a rule, not a line of arithmetic to copy;
+- `vehicleIdsForUnits` and `matchSearchIds`, so `?unit=` and `?search=` resolve against the fleet the
+  same way in both layers. **The export resolves them SERVER-side rather than taking pre-resolved
+  UUIDs**: a UUID list on a URL is a thing a hand-edit can point at another org's trucks.
+
+**A second source of truth found on the way, and closed.** There were TWO `toCsv`s — `dashboard.ts`'s
+and the browser's — and they had already drifted on the case that matters most to a finance reader:
+the shared one neutralised `-12.50` into text, which makes the column unsummable, while the web one
+deliberately exempts numbers. P2 would have had to pick one, so instead there is now one `csvCell`,
+and it is the one with the argument. `dashboard.test.ts`' S-1 assertion changed with it, out loud.
+
+**Three refusals worth naming.** A truncated export is the defect, not the fallback: PostgREST answers
+1,000 rows whatever is asked for, so the export PAGES with a unique tiebreaker (`… .order("id")`, the
+tied-sort instability that took down the first full projection) and, past 50,000 rows, refuses with the
+count instead of producing a file that quietly stops. An oversized selection writes **no audit row** —
+nothing left the building. And a non-date parameter is dropped rather than handed to the database.
+
+⚠ **`ReportExportButton` is now a wrapper.** Five list surfaces needed the same control, and five
+near-identical buttons is how a section grows five that look almost but not quite alike
+(`apps/web/CLAUDE.md`, "one primitive per job"). The button, the busy state, the toast and the scope
+line are `components/ExportButton.vue`; what is left in the spend page's wrapper is its address and its
+window-plus-trucks sentence.
+
+**Verified by.** `fuelListExport.test.ts` (19), `routes/exports.test.ts` (13), `fuelLogExport.test.ts`
+(9). **Thirteen mutants killed:** the org filter dropped; `is_canonical` dropped; the page tiebreaker
+dropped; paging stopped after one page; the row ceiling removed; the scope line removed; the gate
+removed; the audit row removed; the `unit` parameter ignored; an audit row written on a refusal; the
+truck list dropped from the export URL; empty facets sent as blanks; a tab forgetting the shared
+window. Two stubs were wrong in the safe direction and said so — a shallow mount stubs `FilterBar` and
+`DataWorkspace` as empty elements and swallows the button, and `Response.text()` strips a BOM, so the
+byte-order mark is asserted over the bytes.
+
+#### — MERGE 2 of 2 SHIPPED 2026-09-04 (`claude/fuel-p2b-cards-export`). **P2 is DONE for the four list pages; the ledger's export rides with P3.**
+
+**What shipped.** `GET /api/fueling/exports/cards.csv`, same gate, same audit, same scope line.
+
+**It is shaped differently from the other three, and the difference is the finding.** The Fuel Log's
+lists page in the browser, so their exports re-run the query. **The Cards page does not** — it loads
+the whole inventory and narrows it in memory, because 199 cards is a list a person scrolls. Seven of
+its facets (driver, unit, policy, exception, vehicle link, sync health) therefore existed ONLY as
+predicates inside a `computed` in the page. Restating them as SQL in the export would have been the
+copy that goes stale, because nobody looks at an export when they change a filter.
+
+So `matchesCardFilters` moved to `@silvicom/shared` and **both** the page and the export apply it — to
+the same summary rows, because the export reads the cards the way the list route does (status and free
+text in the database, where they already are) and maps them with the same `cardRowToSummary`.
+
+**Two duplications this stepped on, both closed rather than routed around.**
+
+1. The list ROW was written twice — `toSummary`'s return in the API and `EfsCardRow` in the browser —
+   the API's answer and the browser's transcription of it, kept in step by hand. The export would have
+   been the third. It is now `EfsCardSummary` in shared, with `cardRowToSummary` extracted from the
+   route so the masking has one implementation.
+2. ⚠ **A wrong contract with no readers.** `efsCardSummarySchema` in `cardControlContract.ts` described
+   a list row with `vehicleId`/`driverId` and *without* `fuelCardId`, the override scope, the linking
+   evidence or the detail clock — a shape the API has not sent for several steps — and **nothing
+   imported it anywhere**. It is deleted, with the reason left in its place. A wrong contract nobody
+   reads is worse than none, because the next person to need the shape finds it and believes it.
+
+**One place the file is deliberately more complete than the screen.** The list endpoint asks for 2,000
+cards and the hosted PostgREST answers at most 1,000, so a fleet past a thousand cards sees a truncated
+page — honestly, since the page compares the count it was given with the rows it received. The export
+PAGES, so it answers the filter rather than the first thousand rows of it.
+
+**Verified by.** `efsCards.test.ts` in shared (13 — the seven facets, and specifically what NULL means
+in each: a card that never had an exception HAS none), `efsCardExport.test.ts` (8), plus two route
+cases. **Five more mutants killed:** the predicate not applied; the org filter dropped; the
+`card_last4` tiebreaker dropped (two cards can end in the same four digits); a null exception read as
+unknown; an empty facet narrowing the list to nothing.
+
 ---
 
 ### P3 · The ledger can be scoped to a truck
@@ -1344,6 +1557,52 @@ accepts `assignedTo` that the page never sends — wire that too, since C7 needs
 
 **Done when.** `?trucks=` either scopes the ledger or is absent from its URL. Nothing is accepted,
 preserved and ignored.
+
+#### — DONE 2026-09-04 (`claude/fuel-p3-ledger-truck-scope`). **Phase P is complete.**
+
+**What shipped.** A3 closed at both ends, and the ledger's export with it.
+
+- `vehicleIds` and `assignedTo` in `ExceptionQuery`, sent by `qs()`; a validated `vehicles` parameter
+  on `/api/fueling/exceptions` **and** `/totals`; the truck control on the page.
+- The four tiles take the same truck and owner scope as the rows. They did not, and the gap is the one
+  FUEL-T3a spent a migration removing on the Fuel Log: scoping the list to two trucks left
+  "Identified $41,000" sitting above eleven rows worth $600. `status` and `kind` are deliberately NOT
+  passed to the tiles — identified/claimed/recovered are defined ACROSS the statuses, so narrowing by
+  one would make each tile a different question rather than a smaller one.
+- Status and kind moved into the URL, finishing C3 on the one page it missed. The export needed them
+  (a file that ignored the status filter is wider than the list above it) and so does anybody
+  forwarding "the open disputes for these two trucks".
+- `GET /api/fueling/exceptions/export.csv` replaces a button that serialised **the 25 rows on the
+  current page**. A controller assembling a claim got page one of a filtered ledger with nothing
+  saying so, while the tiles above the button reported the whole window's money.
+
+**⚠ The translation this step owns, and why it is not the obvious one.** The section speaks vehicle
+IDS and the ledger stores UNIT NUMBERS. `fuel_exceptions` HAS a `vehicle_id` column — 0250 declared it
+— and **nothing has ever written it**: the producer inserts `unit_number` from the statement line and
+no vehicle at all, and production carries **0 rows with a `vehicle_id`** (measured 2026-09-04, against
+the ledger's single live row: a `recon_missing_on_report` for unit 568, $261.55 unbilled). Filtering on
+that column would have returned nothing, always, and read as a fleet with no findings. So the route
+resolves ids to units against the caller's own roster — which also means a pasted id cannot name
+another org's truck. Giving the producer a `vehicle_id` is C6's work, not a filter's.
+
+**The owner filter is "Assigned to me", and the picker is a recorded blocker (Q-FUI15).** `assignedTo`
+was accepted by the API and sent by nothing — A3's sibling. A full owner picker needs a member
+directory and `/api/members` is `requireRole("admin")`, so building one would have put a control on
+this page that works for one role and reads as broken for the accountant and the dispatcher who live
+in this ledger — the "component placed where the permission check happens to pass" shape CLAUDE.md
+names. `?owner=me` needs no directory: it is the caller's own id.
+
+**A stub that could not fail, found by mutating.** Deleting the truck line from `qs()` passed every
+assertion in `FuelExceptionsPage.test.ts`, because a page test stubs that module. `useExceptions.test.ts`
+now covers the URL itself, which is the one place the page's filters become a request.
+
+**Verified by.** `useExceptions.test.ts` (5 new), `FuelExceptionsPage.test.ts` (+7),
+`fuelExceptions.test.ts` (+5), `fuelExceptionExport.test.ts` (7), `routes/exceptionsScope.test.ts` (8).
+**Eight mutants killed:** the `vehicles` parameter ignored on the list; unresolved ids falling back to
+"every truck"; the totals losing the scope; `qs()` dropping the trucks; the totals composable dropping
+them; the export re-encoding its own parameters; the export's page tiebreaker; the ledger's own filters
+missing from the export. The roster fixture is a FUNCTION, because `supabaseRecorder` records filters
+and does not apply them — a flat array would have answered every id with the whole fleet.
 
 ---
 
@@ -1908,20 +2167,22 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
 
 | Id | Question | Owner | Fallback the code takes until answered |
 |---|---|---|---|
-| **Q-FUI1** | **Where does a fuel-card theft alert belong in the capability matrix?** `/anomalies` is gated `safety`, but an `accountant` and a `dispatcher` have `fuel: view`, `safety: none`. Merging Alerts into a Fuel-section inbox either shows theft cases to the bookkeeper or hides them from the safety manager. Candidates: **(a)** the inbox lives in Fuel and each finding kind carries its own section — a `safety`-kind row is filtered out for anyone without it (**recommended**: it is the only option that does not move a capability boundary to suit a screen); **(b)** move fuel-card anomalies from `safety` to `fuel` in `SECTION_ACCESS` — defensible, since a card-misuse alert is a fuel fact, but it is a real widening and needs saying out loud; **(c)** two inboxes stay. | Miki | **C7b does not ship.** C7a ships and the two inboxes remain. No page is placed where a permission check happens to pass. |
+| **Q-FUI1** | ~~**Where does a fuel-card theft alert belong in the capability matrix?**~~ **ANSWERED 2026-09-05 (owner ruling): (a) — the inbox lives in Fuel and each finding kind carries its own section.** A `safety`-kind row is filtered out for anyone without `safety`, so the accountant and the dispatcher see policy findings and the safety manager sees theft cases, in one page. It is the only option that does not move a capability boundary to suit a screen: (b) would have widened `SECTION_ACCESS` so the bookkeeper could read theft cases, and (c) leaves the section split. ⚠ **This unblocks C7b's permission half only.** C7 as a whole is still gated on Q-FUI11 — the queue measured 2.8% precision on 2026-09-05 — and merging a 19-in-20-wrong queue into the money ledger is the thing §C7 says not to do. | Miki | ~~open~~ Answered; C7b's other gate stands. |
 | **Q-FUI2** | **Does the merged Fuel Log stay `requiresAuth`?** Fuel Log is ungated today so drivers keep it; Transactions and Rejections need `canViewSection(role,"fuel")`. Per-tab gating is the obvious answer and needs confirming, because it means a driver sees a tab strip with one tab. | Miki | Per-tab gating, driver sees Fills only. Stated in the page header comment. |
-| **Q-FUI3** | **What is the unit of work for a policy finding?** Inherited from `policyFindingsNote` via F6b, which shipped without answering it. Candidates: per truck × kind × month (**recommended** — matches how a fleet manager holds a conversation with a driver); per kind × month fleet-wide; per fill above a dollar threshold. | Miki | **C6 does not ship.** C5 ships and the policy views stay in the tree unmounted, with the gap stated. |
+| **Q-FUI3** | ~~**What is the unit of work for a policy finding?**~~ **ANSWERED 2026-09-05 (owner ruling): per truck × kind × month.** Inherited from `policyFindingsNote` via F6b, which shipped without answering it. The other two candidates were per kind × month fleet-wide — a report wearing a queue's clothes, since nobody can close "the fleet fuelled off-network in August" — and per fill above a dollar threshold, which needs a number nobody has measured and reproduces the 201 rows on a busy month anyway. Built as `packages/shared/src/fuelSpend/policyFindings.ts`; the ruling and its two rejected readings are in that file's header, so somebody arguing with the grouping argues with the reasoning rather than guessing at it. | Miki | ~~open~~ Answered and built. |
 | **Q-FUI4** | Inherits **Q-FX8** from `FUEL-SPEND-RELIABILITY-PLAN.md` §6 — who owns a finding operationally. C7b needs a default assignee; the question is now blocking rather than theoretical. | Miki | `rolesThatManage("fuel")` writes; unassigned by default. No new role invented on a guess. |
 | **Q-FUI5** | Should **Fuel Planning** and **Truck Stops** move from Dispatch into Fuel? They are fuel objects gated on `dispatch`. Moving them means either changing their gate or accepting a nav group whose items ask two different capability questions (Fleet already does this deliberately, and says so). | Miki | They stay in Dispatch. C4 puts the price upload on Truck Stops regardless — the drawer follows the page, wherever the page lives. |
 
 | **Q-FUI6** | ~~**The Alerts queue measures ~2.9% precision — is the detector wrong, or is the review wrong?**~~ **ANSWERED IN PART 2026-09-01 (owner ruling + §0.3a measurement): reading (a) — the detector over-fires on bad inputs.** Three root causes, measured: wrong entered tank capacity (101 of 145 trucks disagree with the sensor-learned value; 54% of `cumulative_overfuel` fires sit on them), odometer quality (74 fires / 34 false positives across four rules), and card→truck attribution (`card_multi_vehicle`, 50 / 25). The owner is correcting capacity within days. **The unresolved half is the fix order and the missing gate** — see Q-FUI11. Original framing kept for the record: §0.3: 218 cases, all `theft_case`; of 105 reviewed, 3 confirmed / 95 false_positive / 7 benign_explained; 78 still open and unreviewed. Three readings and they need different work: **(a)** the detector is genuinely over-firing and its threshold or gates need raising until what remains is worth a person's time (**recommended first move** — it is measurable and reversible); **(b)** reviewers are marking `false_positive` where they mean `benign_explained`, in which case the label is wrong and precision is understated; **(c)** the rule is sound and the fleet is clean, in which case the queue should be surfaced by exception rather than as a standing list. WP7 (behavioural) was withdrawn, so nothing else is scheduled to move this number. | Miki | **C7 does not ship in any form.** The two inboxes stay separate and Alerts is not promoted into the Fuel section. No owner-facing surface quotes the alert count as a finding. |
 | **Q-FUI7** | ~~**Is statement reconciliation a real workflow for this carrier?**~~ **ANSWERED 2026-09-01: YES, and the documents are already in hand.** The weekly PDF is a **Pilot Receivables LLC invoice** billed to Silvicom Inc — verified by reading `~/Downloads/db139445F.pdf`: invoice 795506105, period 2026-08-17 → 2026-08-23, with Ticket / AUTH / Odometer / Units / Fuel Cost / **Invoice Total** / **Retail Total** columns. That is exactly what `parsePilotStatement` expects and exactly the file `FUEL-SPEND-RELIABILITY-PLAN.md` **F0-bis-upload** names. Five weekly statements are on disk (`db139445F{,1,2,3,5}.pdf`, 2026-07-28 → 2026-08-24) and were parsed successfully in the F0-bis spike. **Nothing is missing but the upload.** This is an onboarding gap, not a product-fit question: C5 keeps both tabs and the ledger keeps all four `recon_*` kinds. ⚠ It is **not** a Samsara report — Samsara is telematics and issues no fuel invoice; its data already arrives through the API collector. Original framing kept for the record: Measured: `fuel_statements` 0, `fuel_recon_runs` 0 — nobody has ever uploaded one, in eight months of production. If the answer is no, then `recon_*` and `contract_variance` are four ledger kinds with no reachable producer, "Reconcile a file" and "Statements" are two of Fuel Spend's eight tabs with no data, and C5's cut should be deeper than three tabs. If the answer is yes-but-nobody-has, that is an onboarding problem, not a product one, and it should be named as such. Compounded by Q-FX3 — the contract agreement has never been received either. | Miki | C5 keeps both tabs and the ledger keeps all four kinds. Nothing is retired on an inference from an empty table. |
-| **Q-FUI11** | **In what order are the three alert root causes fixed, and does the missing capacity gate ship first?** §0.3a: `cumulative_overfuel` reads ENTERED capacity, so the `tankSensor` gate never covers it, and 96% of its fires are on trucks the learner already distrusts. Candidates: **(a)** ship the "entered capacity contradicts learned capacity → suppress the capacity-ceiling rules" gate **first** (**recommended** — a pure-function change in `anomalyRules`, no new data, no migration, and it addresses 89 of 218 cases before anybody retypes a number); **(b)** wait for the owner's capacity correction and re-score, which fixes the inputs but leaves the gate absent for the next bad row; **(c)** both, gate first then re-score. The odometer cluster (74/34) and `card_multi_vehicle` (50/25) are separate work and neither is scheduled. | Miki | (a) is not built on a guess — it waits. Until then C7 stays blocked and no owner-facing surface quotes the alert count. |
+| **Q-FUI11** | ⚠ **RE-MEASURED 2026-09-05 — THE RECOMMENDED ANSWER BELOW IS AIMED AT THE WRONG LEVER. See §8's dated entry.** The capacity gate cannot help `cumulative_overfuel`: where the sensor reads BELOW entered, `resolveCapacity` already returns the ENTERED value, which makes the over-fuel ceiling LARGER and the rule LESS likely to fire. The measured cause is a mileage defect in `robustWindowMiles`. Original question kept for the record: **In what order are the three alert root causes fixed, and does the missing capacity gate ship first?** §0.3a: `cumulative_overfuel` reads ENTERED capacity, so the `tankSensor` gate never covers it, and 96% of its fires are on trucks the learner already distrusts. Candidates: **(a)** ship the "entered capacity contradicts learned capacity → suppress the capacity-ceiling rules" gate **first** (**recommended** — a pure-function change in `anomalyRules`, no new data, no migration, and it addresses 89 of 218 cases before anybody retypes a number); **(b)** wait for the owner's capacity correction and re-score, which fixes the inputs but leaves the gate absent for the next bad row; **(c)** both, gate first then re-score. The odometer cluster (74/34) and `card_multi_vehicle` (50/25) are separate work and neither is scheduled. | Miki | (a) is not built on a guess — it waits. Until then C7 stays blocked and no owner-facing surface quotes the alert count. |
 | **Q-FUI12** | **Four fuel/anomaly reads carry no role gate at all — narrow them to the matrix, or is one of them deliberately open?** Found while building T2 (2026-09-01), pinned in `routeGates.test.ts`' waiver map so they are findable: `GET /api/anomalies/:id/risk-context`, `/:id/pattern-report` and `/:id/history` are `requireOrg` only, so **any authenticated org member — including a `driver`, who holds `safety: "none"` — can read a theft case's history**; and `GET /api/fueling/statements/:id/source` is `requireOrg` only, though it does re-check the caller's org before signing a URL. T2 did not close them because T2 is a **widening** and these are a **narrowing**: gating them removes access somebody may be relying on, which is a decision that should be taken out loud rather than in passing. Candidates: **(a)** gate all four from the matrix — `rolesThatCanView("safety")` for the three anomaly reads, `rolesThatCanView("fuel")` for the statement source (**recommended**: it is what every neighbouring route now does, and the anomaly detail is reachable only from a page already gated on `safety`); **(b)** gate the anomaly reads and leave the statement source, on its org re-check; **(c)** leave all four and record them as accepted. | Miki | They stay as they are, waived with the argument in `routeGates.test.ts` and named here. Nothing is narrowed on an inference. |
 | **Q-FUI13** | **Does the Alerts queue get its own business date, or does it stay on the instant?** T1 gave `fuel_transactions` a stored station-local `business_date` (0287) and moved every fuel surface onto it except one: `useAnomalies` filters `anomalies.fueled_at`, a column on a different table, so a case for a fill displayed as "Aug 31" can still fall outside an August window on the Alerts page. Candidates: **(a)** `anomalies.business_date`, trigger-maintained from the same helper, two merges (**recommended** if Alerts survives Q-FUI11 as a working queue — it is the same shape as 0287 and costs a migration); **(b)** leave it, and label the Alerts date control as filtering the detection instant; **(c)** wait for Q-FUI11 — a queue measured at 2.9% precision may not be worth a migration until it is worth working. | Miki | (b) — Alerts stays on the instant and nothing claims otherwise. A second table gets a derived column when somebody decides the page is worth it. |
 | **Q-FUI14** | ~~**What is the Cards page's third fact?**~~ **ANSWERED 2026-09-02: drop it.** T5 asks four pages to carry "rows in window, share attributed to a vehicle, and last feed poll". The middle one has no meaning on Cards: a card is issued to a driver or a truck as a matter of SETUP, not attributed per row, so there is no denominator to take a share of. Inventing a substitute — "cards seen on the last sync vs cards held" — would have been a different fact wearing the same sentence's clothes, which is how a consistency rule turns into noise. **Cards carries rows-in-window and last-feed-poll only, and T5's Done-when is read as satisfied for that page.** | Miki | ~~open~~ Answered. |
 | **Q-FUI8** | ~~**Trailer-at-fill: acknowledge the removal, or fund the capability?**~~ **SHIPPED ON THE FALLBACK 2026-09-02.** T4 removed the column; the premise was re-measured first (`duty_equipment_segments` still 0 rows, 157 of 211 trailers carrying a current pairing). ⚠ **This remains an acknowledgement the owner has not given, not a question they answered** — if trailer-at-fill is wanted, it is a new time-ranged pairing table plus a source that fills it (driver-app duty sessions, dispatch, or Samsara), which is its own plan. The removal is pinned by `FuelLogPage.test.ts`, so restoring it means arguing with this row rather than reversing it quietly. | Miki | ~~T4 removes the column.~~ Done. |
 | **Q-FUI9** | **Should `REBUILD_DAYS = 14` change?** §0.3: every `fuel_spend_days` row outside the trailing fortnight was derived on 2026-08-25 and has never been re-derived through F10, F13a, 0254, the station backfill or any price ingest since. T5 makes the staleness *visible*; it does not fix it. Options: widen the nightly window, add a rebuild-on-derivation-change trigger, or leave it manual and documented. | Miki | T5 ships the honest line and the rebuild policy is unchanged. Visible staleness beats invisible staleness; neither is correctness. |
+| **Q-FUI15** | **An owner filter on the ledger needs a member directory the ledger's readers may not read.** P3 wired `assignedTo` and shipped `?owner=me`, which needs nobody's list. A picker — "assigned to Sarah" — needs the org's members, and `GET /api/members` is `requireRole("admin")`: the accountant, the auditor and the dispatcher who live in this ledger would see an empty menu. Candidates: **(a)** a NAMES-ONLY directory read gated on `requireOrg` — id, display name, role, nothing else — which is what `lib/memberLabels` already assembles for the actor names printed all over the product (**recommended**: the names are already on screen; refusing the list while printing its contents is a boundary that protects nothing); **(b)** widen `/api/members` to the section-view set, which also exposes email and invitation state and is a real widening; **(c)** leave it at "mine", and let C7b decide when the inbox needs assignment. ⚠ This is Q-FUI4's operational twin: that one asks WHO owns a finding, this one asks who may be shown the list of candidates. | Miki | `?owner=me` only. No picker is built on an endpoint the page's own readers are refused. |
+| **Q-FUI16** | ~~**Should `reconcileCardMultiForOrg` fall back to the fill's own driver attribution when Samsara holds no assignment for the instant?**~~ **ANSWERED 2026-09-05 (owner ruling): (a), yes.** Measured: every one of the 50 `card_multi_vehicle` cases resolves to exactly ONE driver, but 10 of the 17 open ones resolved NO Samsara driver for any fill — `driver_vehicle_assignments` history begins 2026-04-14, so a case older than that could never clear however obviously benign. Shipped: Samsara answers first and a disagreement is NEVER resolved in the weaker source's favour; the fill's own attribution answers only where Samsara is silent; both are compared in one identity space via `drivers.samsara_driver_id` (without that map the same human is two Set entries and the case is refused forever); and a case cleared on the weaker source SAYS SO in its resolution note, so the widened auto-dismiss path stays auditable. | Miki | ~~open~~ Answered and built. |
 | **Q-FUI10** | **Who is the report for, and what does it need to say?** Every export in P2 is currently specified as "the rows on screen". A company owner is not asking for rows — the audience question decides whether the fuel report is a row dump, a per-truck summary, or a variance-to-target narrative. `finance-reader-is-a-non-native-speaker` applies: plain word leads, industry term behind the hover. | Miki | P2 ships row-level CSV plus the existing spend PDF, and no new document shape is invented on a guess. |
 
 ---
@@ -1953,3 +2214,371 @@ and add open-findings and recovered-this-quarter beside them, from the ledger. N
   already exist in both layers and T1 reuses them — including 0247's widened-window filtering shape and
   its `set search_path` constraint.
 - **It does not pin migration numbers.** Next-numbered at execution.
+
+
+## 8. Position log — appended, never edited
+
+- 2026-09-05 · **A correction, and the better reason it uncovered.** Building the SAM-S6 enablers I
+  wrote — in two code comments, in the #569 and #570 commit messages, and in their PR bodies — that
+  `nightlyReconcile` "pins the rebuild to `RECENT_REBUILD_DAYS` (14), so every derivation change since
+  a fill left that window has never been applied to it". Both halves were wrong.
+
+  `RECENT_REBUILD_DAYS` is **180**, not 14. Fourteen is `REBUILD_DAYS` in Q-FUI9, a different constant
+  governing `fuel_spend_days`; conflating the two turned a six-month window into a fortnight.
+
+  The second half was wronger, and only measuring found it. History was not going unre-scored — the
+  nightly was re-scoring **~10,400 fills every night**: 9,255s on 09-03, 9,230s on 09-04, 8,982s on
+  09-05. **Two and a half hours a night** to change the verdict on almost nothing, while the only
+  alternative offered for older rows was a manual full-history sweep measured at three hours and
+  cancelled at 14,400 of 15,972.
+
+  So the defect was the opposite of the one claimed: not neglect, waste. The `scoring_version` stamp
+  (0318, #572/#573) is the right fix either way, but for the second reason rather than the first — a
+  quiet night now costs nearly nothing and a `SCORING_VERSION` bump drains the fleet over about eight
+  nights. **Recorded rather than quietly edited**: a wrong premise that happened to produce a right
+  answer is exactly the kind of thing that should be visible twice, because next time it may not.
+
+  ⚠ The #569 and #570 COMMIT MESSAGES still carry the error and cannot be corrected in place — they are
+  merged into `main`, and rewriting them means force-pushing shared history. This entry and the
+  correction notes in `handlers/scoring.ts` and `queue/inprocessDrain.ts` are the durable record; the
+  PR bodies have been edited.
+
+- 2026-09-05 · **The seventeen missing days are back, and the cause was one row.** The entry below
+  closes with "Nothing in code can recover data the vendor was never asked for". That was wrong, and
+  the correction is worth more than the retraction: the vendor HAD been asked. A job of kind
+  `efs_window_refetch` was queued on 2026-08-28 with exactly these windows
+  (2026-04-18→05-05, 05-06→05-19, 01-01→02-04). Two of the three succeeded — which is why May and
+  January are whole and only April is not. The third failed with `numeric field overflow`, exhausted
+  its five attempts by 17:25 that day, and sat `failed` for eight days because nothing re-queues a
+  job that has spent its ladder.
+
+  **The row.** With #507's guard deployed the re-fetch was re-queued and completed on the first
+  attempt, and `import_rows` now names what the whole window died on: a single fill carrying
+  `odometer 3003400200`. A driver typed a ten-digit number into the pump keypad on 2026-05-02;
+  `fuel_transactions.odometer` is `numeric(10,1)`, which holds values under 10^9. Before #507 the
+  window was one statement, so Postgres refusing that one advisory field refused all of it. This is
+  the D-FIN2 "Done when" satisfied on real data: the fill landed, the odometer is null, and the row
+  names itself.
+
+  **Recovered.** 1,074 fills, 120,697 gallons, $573,712 across 2026-04-18 → 05-04 — within a few
+  percent of the ~1,050 / ~119,000 / ~$590,000 this plan projected from the neighbouring days. The
+  window was widened one day each side on purpose: 04-17 held 42 fills and 05-05 held 21, against a
+  ~65/day norm, so both were partial rather than absent. They now read 70 and 91. Overlap is safe by
+  file-hash and `external_ref` dedup, and cost nothing.
+
+  **What this changes about the freshness work.** `detectFeedGaps` was the right thing to ship and
+  the diagnosis behind it holds — but the gap was not un-recoverable, it was un-retried. A failed
+  repair job is as invisible as a missing day, and D-FIN3's freshness rule (a finding when an
+  `efs_window_refetch` ends `failed`) is the thing that would have caught this in August rather than
+  September.
+
+- 2026-09-05 · **The two detector rulings, measured rather than argued.** Both questions this plan
+  put to the owner — whether `cumulative_overfuel` stays on, and whether `card_multi_vehicle`
+  describes normal practice — now have measurements. They point in opposite directions.
+
+  **`cumulative_overfuel`: leave it on.** The case for switching it off rested on 64 dismissed
+  false positives, and those came from a defect that is fixed. Per 1,000 fills the rule fired 17.0 in
+  February, 9.5 in March, 5.7 in May — then 0.5 in June, 1.0 in July, 1.4 in August. The 17 recovered
+  April days, scored today under current code, produced **2 cases in 1,074 fills**. That is the
+  observation §8's earlier entry said was still only a projection, and it lands where the projection
+  said it would. Its one lifetime `confirmed` case does not survive contact either: unit 742,
+  386.01 gal against a ceiling built on a baseline of 10.71 MPG. That truck's baseline is 7.48 MPG
+  today, which puts the ceiling at ~435 gal — it would not fire now, and its resolution note is the
+  default "Resolved by reviewer". So the rule has **no substantiated true positive** — but at two to
+  three fires a month fleet-wide it costs almost nothing to keep, and a detector with zero
+  confirmations at n=6 has not been tested, only quiet. Turning it off would be trading a measured
+  cost of ~1/1,000 for an unmeasured risk.
+
+  **`card_multi_vehicle`: it is NOT describing normal practice, and the fix is a defect fix.** The
+  "normal practice" hypothesis was that 34 of 198 cards routinely serve more than one truck. True
+  over three months — and irrelevant, because the rule's window is 48 hours. Inside 48 hours the
+  condition holds for **8 of 6,226 fills since June (0.1%)**. The rule is rare and it is factually
+  right: 48 of its 50 cases still satisfy their own condition against today's corrected data.
+
+  What is wrong is that it is never cleared. Every one of the cases resolves to **exactly one
+  driver** — the "one driver moved trucks" class `reconcileCardMultiForOrg` exists to auto-dismiss.
+  Two things stop it:
+
+  1. **The auto-clear does not run.** It is the LAST statement of `scoreImportWithCascade`, and
+     processing runs strand before reaching it — `claim_efs_processing_run` and the scheduler accept
+     only `pending`/`failed`, so a run interrupted mid-scoring keeps `status='running'` forever with
+     no error. 58 such runs had accumulated since 2026-08-09. Five open cases satisfy the
+     auto-clear's own condition today and are still open. Fixed by the lease in 0317.
+  2. **It cannot explain anything before 2026-04-14**, where Samsara's `driver_vehicle_assignments`
+     history begins — 10 of the 17 open cases resolve NO driver for any fill and are blocked on that
+     alone, even though the fills' own `driver_id` already says one driver. The reconcile reads only
+     the Samsara source.
+
+  Only **2** of the 17 open cases are genuinely two different drivers, i.e. actually worth a human.
+
+  > **Open question Q-FUI16 — should `reconcileCardMultiForOrg` fall back to the fill's own driver
+  > attribution when Samsara holds no assignment for the instant?** Candidates: (a) yes, treat
+  > agreement of `fuel_transactions.driver_id` across the window as explaining the case, marked with
+  > a distinct note so the weaker source is visible on the case; (b) no, leave pre-April cases open
+  > forever and accept that the backlog never clears; (c) bulk-dismiss the pre-2026-04-14 cases once,
+  > by hand, and leave the code alone. **Recommendation: (a).** The fill's driver attribution is
+  > already trusted enough to drive `fuel_while_driver_home` and the WP-ATTR window exclusions, so
+  > refusing it here is inconsistent rather than conservative — but it widens an auto-DISMISS path,
+  > which is a ruling to make deliberately and not a detail to slip into a bug fix. Nothing is
+  > blocked on the answer; 0317's lease is what unblocks the recent cases.
+
+- 2026-09-05 · **The alert queue was re-measured against production, and Q-FUI11's recommended fix is
+  aimed at the wrong lever.** The programme's §0.3a reading was that `cumulative_overfuel` false-fires
+  because it reads an ENTERED tank capacity the sensor learner distrusts, and the recommended first
+  move was a gate suppressing the capacity-ceiling rules on divergent trucks. Re-measuring says
+  otherwise, and the argument is short enough to check: where the sensor reads BELOW entered,
+  `resolveCapacity` **already** returns the entered value, and `cumulative_overfuel` spends capacity as
+  a one-tank ALLOWANCE — `ceiling = burnable + idle + cap + 10`. A larger capacity therefore makes the
+  rule fire LESS. An over-entered capacity cannot be what produces its false positives, and the gate
+  would have suppressed `tank_space_exceeded` (3 false positives in 57 fires) while leaving
+  `cumulative_overfuel` (64 in 77) untouched.
+
+  **The queue as it actually stands, 2026-09-05.** 308 rows, 91 superseded → 217 live. 111 open, 106
+  reviewed: 95 false positive, 8 benign, **3 confirmed — 2.8% precision**, statistically unchanged
+  since 2026-09-01. Per rule, on the live set:
+
+  | rule | fires | unreviewed | false positive | confirmed |
+  |---|---|---|---|---|
+  | `cumulative_overfuel` | 77 | 12 | **64** | 1 |
+  | `tank_space_exceeded` | 57 | 52 | 3 | 1 |
+  | `card_multi_vehicle` | 48 | 16 | **25** | **0** |
+  | `tank_fill_short` | 46 | 42 | 3 | 1 |
+  | `odometer_mismatch` | 19 | 12 | 5 | 1 |
+  | `expected_odometer_band` | 17 | 5 | 12 | 0 |
+  | `odometer_daily_cap` | 12 | 1 | 11 | 0 |
+  | `odometer_regression` | 8 | 2 | 6 | 0 |
+
+  **The real cause, found by reading the evidence rather than the plan.** Every
+  `cumulative_overfuel` message carries the miles it divided by. Across the 64 dismissed cases the rule
+  used **815 miles on average where the same window's odometers span 1,552** — 53% of the distance the
+  truck covered; 59 of the 64 were understated by more than a fifth. `burnable = windowMiles ÷ MPG` is
+  then about half what it should be, the ceiling drops by ~100 gallons, and ordinary two-day fuelling
+  clears it.
+
+  The mechanism is one line of `robustWindowMiles`: it preferred the OBD span as soon as TWO rows
+  carried an OBD reading, whether or not those rows reached the window's ends. One real window,
+  reproduced locally to the decimal — 08-25 entered 217,390 with no OBD; 08-27 and 08-28 with both —
+  returns **790.5 miles**, exactly what the case recorded, for a window the truck covered **1,742**
+  miles in. This is the same trap `distanceByVehicle` documents for the odometer collector: a period's
+  ends are BOUNDING readings, and measuring between the readings that happen to sit inside it is a
+  silent undercount.
+
+  **What the fix does to the queue, measured before it was written.** Recomputing each case's ceiling
+  from the window's own ends: **2 of the 51 testable false positives still fire** (13 carry an older
+  message format with no baseline and cannot be re-tested from evidence alone), and **6 of the 12
+  unreviewed** still fire — so it clears the noise without emptying the queue. No window became
+  unmeasurable.
+
+  **The uncomfortable half, stated rather than buried.** The corrected span also clears the ONE
+  `cumulative_overfuel` case marked confirmed. Its resolution note is the default *"Resolved by
+  reviewer"* — no finding — and on the true distance (2,148 miles) its 386 gallons are ordinary against
+  307 burnable plus a 240-gallon tank. The two substantive confirmations in the whole queue came from
+  other rules and are untouched: a reefer-fuel diversion (`tank_fill_short` + `odometer_mismatch`, note
+  *"This is reefer fuel illegally fueled"*) and 165 gallons billed into 132 gallons of space
+  (`tank_space_exceeded`). So `cumulative_overfuel` has **no substantiated true positive** and 64
+  substantiated false ones. Whether it stays on at all is a product question this does not answer.
+
+  **Two things that were measured and then NOT built**, because a guard with a cost and no benefit is
+  not caution: an "entered must agree with OBD" gate (suppresses 0 cases, costs 5 of 165 trucks their
+  whole month in the Fuel log miles tile), and raising `CUMULATIVE_OVERFUEL_MARGIN_GAL` from 10 — the
+  single confirmed case sat 6.5 gallons over the ceiling, *below* 41 of the 64 false positives, so the
+  overage carries no signal and raising the margin would remove the true positive first.
+
+  **Still not fixed, and now sized.** `card_multi_vehicle`: 48 fires, 25 false positives, **0 confirmed
+  ever** — and 34 of 198 cards have served more than one vehicle since June (1,244 of 6,217 fills), so
+  the signal is describing a routine fleet practice. The odometer cluster
+  (`expected_odometer_band` / `odometer_daily_cap` / `odometer_regression`): 37 fires, 29 false
+  positives, 0 confirmed. Neither is scheduled; both are now measured rather than estimated.
+- 2026-09-05 · **Seventeen days of fuel are missing from the record, and nothing in the product could
+  have said so.** Found while re-measuring the alert queue, by putting `fuel_spend_days.miles` beside
+  Samsara's IFTA jurisdiction miles month by month — the comparison M5b had just shipped for the fleet
+  MPG plan. The monthly divergence is not the ±3% drift that plan recorded; it is this:
+
+  | month | spend-day miles | IFTA miles | |
+  |---|---|---|---|
+  | 2026-02 | 931,042 | 1,179,719 | −21.1% |
+  | 2026-03 | 1,297,310 | 1,370,444 | −5.3% |
+  | **2026-04** | **724,944** | **1,492,407** | **−51.4%** |
+  | **2026-05** | **503,714** | **1,563,003** | **−67.8%** |
+  | 2026-06 | 1,526,081 | 1,574,109 | −3.1% |
+  | 2026-07 | 1,549,942 | 1,552,337 | −0.2% |
+  | 2026-08 | 1,696,637 | 1,636,302 | +3.7% |
+
+  April and May are not drifting, they are **half empty**. Chasing it to the fills: **2026-04-18
+  through 2026-05-04 hold ZERO fuel transactions** — seventeen consecutive days. In the 215 days from
+  2026-02-01 to 2026-09-03 those are the ONLY days with no fill at all; every other day, weekends and
+  holidays included, has them, because a working fleet of ~165 tractors buys fuel every day.
+
+  **It is not a processing failure.** `efs_transactions` — the raw vendor rows, before any derivation
+  — is empty for exactly the same seventeen days. Those days were never collected, so re-running
+  `syncFuelEventsFromEfs` cannot recover them; the statements have to come from EFS again.
+
+  **What it is worth.** The fleet drove normally throughout (IFTA says 1,492,407 miles in April alone),
+  and the days either side average ~62 fills and ~7,000 gallons. So roughly **1,050 fills, ~119,000
+  gallons and ~$590,000 of fuel are absent from the system**, and every figure covering that window —
+  spend, gallons, price per gallon, cost per mile, the ledger, MPG — is short by them. It sat there for
+  four months.
+
+  **Why nothing noticed, which is the part worth fixing.** `describeFeedFreshness` answers "when did
+  anything last arrive", and it was correct every single day: purchases had arrived minutes ago. A
+  poller that stops and then STARTS AGAIN leaves a hole with a healthy line above it, and every page is
+  short by exactly the fuel that never came — short looking exactly like quiet, which is the failure
+  FUEL-T5 was written against and did not close.
+
+  So `detectFeedGaps` ships beside it and `GET /api/fueling/feed-freshness` answers both questions for
+  the window the page is showing. **The threshold is one empty day, and that is measured rather than
+  chosen**: 215 days, 17 empty, all contiguous — one empty day is already an event for this fleet. It
+  is a parameter anyway, because a fleet of nine trucks has quiet Sundays. Gaps at the EDGES of a
+  window are never reported: a window ending today, before today's fills arrive, would otherwise raise
+  a warning twice a day, which is how a warning becomes wallpaper.
+
+  **The owner action this leaves.** Re-pull the EFS statements for 2026-04-18 → 2026-05-04 and import
+  them. Nothing in code can recover data the vendor was never asked for.
+- 2026-09-05 · **C6, merge 1 of 2 — the grouping is ruled, the producer is written, and the RPC could
+  not have closed anything it filed.** Q-FUI3 was answered (per truck × kind × month) and
+  `policyFindings` built against it. Three things are worth carrying forward, because none of them was
+  in the step's own description:
+
+  **The close scope had no way to exist for this producer.** `sync_fuel_exceptions` learns the window a
+  producer just read by looking `p_run` up in `fuel_recon_runs` (0253). `reconFindings` always has such
+  a run, because a statement was uploaded to make it. The policy producer reads the EFS feed for a
+  calendar month and has none — so called with `p_run => null` it would have filed findings and then:
+  `v_from`/`v_to` stay null so the close block never runs, and a truck-month corrected by a
+  late-posting EFS row sits open on the queue for good — *the exact defect 0253 was written to fix,
+  reappearing through the other door*; and the `opened` event insert keys on `e.run_id = p_run`, where
+  `x = null` is NULL rather than true, so every policy finding would have been created with an empty
+  history. Both are silent. 0320 gives the function `p_period_start` / `p_period_end`, keeps `p_run`
+  authoritative where it is given, and re-keys the `opened` insert onto the batch's own fingerprints —
+  which is correct for both producers and independent of a run existing.
+
+  **Filing a fake `fuel_recon_runs` row was the cheaper route and is rejected in writing.** That table's
+  `source_kind` admits only `weekly_statement` and `monthly_export`, and `tol_gallons`,
+  `tol_amount_abs`, `tol_amount_pct`, `max_day_drift` and `matcher_version` are all NOT NULL. A policy
+  scan has no tolerances and no matcher, so each of those would have been a number invented to satisfy
+  a column — a second answer to "what is a run", which is this repo's own definition of a workaround.
+
+  **The month is the baseline's unit, so the producer refuses a partial one.** `exceptionReport` prices
+  a premium against what the rest of the fleet paid *over the same lines*, deliberately, because diesel
+  moved 32% across the window these reports cover. Hand it the nightly rollup's trailing fortnight and
+  August's finding is priced against two weeks of August — a different number that would silently
+  replace the first one on the next run. `policyFindings` therefore takes a month, filters its input to
+  it, and derives everything inside.
+
+  **C6's Done-when is asserted, not claimed.** "Findings totalling the same money" does not hold on its
+  own: fills with no unit number cannot be placed on a truck, and truck-months that BEAT the baseline
+  are not findings — both are real money in the tab's total. So the producer returns them beside the
+  findings and `policyFindingsReconcile` checks the identity
+  `report.excess == sum(findings) + unattributed + beneficial` per kind, over a seeded 300-fill month as
+  well as the fixture. Six mutations of the producer were run against the suite and each was caught:
+  folding unattributed fills into a group, filing beneficial truck-months, dating the finding to its
+  first fill, dropping the month filter, taking a facet's first value instead of requiring unanimity,
+  and dropping the month from the fingerprint. The matrix was run against the old function too — the
+  `opened`-event property fails on exactly the one assertion that names it.
+
+  **What merge 1 deliberately does NOT do.** Nothing calls the new parameters yet.
+  `lint:migration-ordering` cannot see a function's signature, so the hold that keeps a reader behind
+  its migration is held by hand: the API producer is merge 2, and must not merge until 0320 has been
+  applied.
+- 2026-09-05 · **C6, merge 2 of 2 — the scan runs nightly, and `fuel_exceptions` stops waiting for an
+  upload that has not come in eight months.** `runFuelPolicyScan` reads a calendar month of
+  `fuel_spend_lines`, reads the org's own `route_fuel_settings`, and files what `policyFindings`
+  produces through the period-scoped RPC 0320 shipped. Four things decided while building it:
+
+  **It rides the nightly rollup rather than getting a scheduler of its own.** `RUN_SCHEDULERS_IN_PROCESS`
+  defaults to true and this repo's rule is that every scheduler runs in exactly one process
+  fleet-wide, so the cheapest way to honour that rule is not to add another one. It also needs what
+  that sweep has just done: **station resolution runs first, and the ordering is load-bearing.** A fill
+  whose station has not been resolved carries a null brand, and `analyzePolicyExceptions` counts a null
+  brand as off-network — correctly, but prematurely. Scanning first would file an off-network finding
+  against a truck for a Pilot fill nobody had placed yet, and close it again the following night.
+
+  **The rollup's trailing fortnight is translated into the calendar months it touches.** `monthsTouched`
+  does string arithmetic on `YYYY-MM` so no clock can move a boundary, and it is capped at twelve
+  because an unbounded loop here would let a mistyped range scan a decade one month at a time. At 14
+  days that is one month, or two across a boundary.
+
+  **The current month is scanned before it is over, on purpose.** Its findings are month-to-date and
+  grow as fills post — which is what D-FX10's fingerprint exists for: same truck-month, same row,
+  evidence refreshed, a person's status and note untouched. A truck-month that turns beneficial by the
+  30th is closed as `resolved_by_reingest`, which is the honest record of what happened.
+
+  **`readSpendLines` and `readFuelPolicy` moved out of `fuelSpendReport.ts` into `fuelSpendLines.ts`.**
+  They were private to the PDF renderer, and the scan needs exactly the same month of fills and the
+  same policy row. Copying either would have given the product two answers to "what did this fleet
+  buy" that drift the first time one is fixed. The renderer drops 415 → 353 lines as a side effect.
+
+  Eleven API tests, four mutations each caught: filing against a run it does not have, widening the
+  close scope onto the reconciler's kinds, reading a partial month, and narrowing the fleet (which
+  narrows the BASELINE, so every premium changes). `expectOrgScoped` covers the tenant boundary.
+
+  **What C6 does NOT do, and it is worth stating.** Nothing renders these findings yet. The ledger at
+  `/fuel-spend/exceptions` already lists `fuel_exceptions` and will show them, but C7's inbox, C8's
+  targets and C9's dashboard links are still ahead — and C7 remains gated on Q-FUI11 rather than on
+  Q-FUI1, which was answered today.
+
+- 2026-09-05 · **`expected_odometer_band` assumed the tank starts empty, and that is the odometer
+  cluster's live defect.** The step was queued as "a small-fill guard": 46 fills under 5 gallons are
+  structurally guaranteed to fire, because `spanGallons * baseline * 2` on a 0.03-gallon purchase is a
+  ceiling of 0.37 miles and any movement clears it. **Measuring it first showed that framing was the
+  symptom, not the cause**, and the fix that shipped is a different one.
+
+  **The rule's own condition, restated on its own persisted inputs across 14,498 production fills.**
+  `computed_mpg` IS `miles_since_last / spanGallons`, so `miles > spanGallons * baseline * 2` is
+  exactly `computed_mpg > baseline * 2` — this is the rule, not a proxy for it:
+
+  | fill size | fills | condition true | |
+  |---|---|---|---|
+  | < 5 gal | 38 | 33 | **86.8%** |
+  | 5 – 20 gal | 51 | 42 | **82.4%** |
+  | 20 – 50 gal | 308 | 96 | 31.2% |
+  | 50+ gal | 14,101 | 259 | **1.8%** |
+
+  A truck that buys a tankful trips it once in fifty-six times; a truck that buys a splash trips it six
+  times in seven. **The rule was reporting how partial the fill was.** Its mirror image next door
+  already says why, from the other side — `implausible_topoff`'s header: *"If a truck ran a tank low
+  then filled both, dispensing more than it burned is NORMAL — the extra fuel filled pre-existing
+  space."* The converse is this defect exactly: driving further than you bought is normal, because the
+  miles came out of fuel already in the tank.
+
+  **A 5-gallon floor was measured and rejected.** It is the guard `implausible_topoff` carries, so it
+  was the obvious candidate. It removes 33 of 430 fires and leaves the 5–20 gal band firing at 82% —
+  it treats the symptom where it is loudest and misses the cause. What shipped is
+  `cumulative_overfuel`'s own allowance applied to the miles side: `expectedMiles = (spanGallons +
+  one full tank) * baseline`, with the rule suppressing itself on a truck with no capacity source for
+  the reason that rule already gives — *"treating an unknown tank as 0 gal"* is the defect, not a
+  conservative fallback. Once the tank is allowed for, **the gallons floor removes nothing at all**:
+  the small-fill class is entirely contained in it.
+
+  **430 fires → 22.** The `* 2` stays, deliberately: it absorbs baseline error, which the tank
+  allowance does not address, and keeping it makes the change a **strict narrowing** — `cap >= 0`, so
+  the new ceiling is never lower than the old one and nothing that was silent starts firing. A rule
+  change that can only remove accusations is the safest shape available, and `never accuses a fill the
+  old, tank-blind ceiling would have cleared` pins it.
+
+  **Both live open cases go silent, and both should.** Unit 714 on 2026-05-25: 1,188.9 miles on a
+  72.44-gallon purchase, 200-gallon tank, 6.01 MPG baseline — on the fuel it could have been carrying
+  that is 5.35 MPG, an ordinary week. Unit 634 on 2026-05-28: 31.2 miles on 0.03 gallons. What survives
+  sits 1.19x to 83x over a ceiling that already grants a full tank — 801,772 miles between two fills,
+  an implied 1,974 MPG. That is the data error the rule exists to name. Suppressing on an absent
+  capacity costs exactly ONE of today's 430 fires; 51 of 14,498 fills sit on a truck with no entered
+  capacity.
+
+  **`SCORING_VERSION` 1 → 2, and that is what carries the correction to the fills already judged.**
+  Without it the nightly's trailing window reaches a fortnight of them and the rest of history keeps
+  the old verdict. The sweep takes 2,000 a night and its `or(scoring_version.is.null, …)` predicate
+  already covers the 6,311 rows that were never stamped, so all 16,251 canonical fills converge in
+  about eight nights. **This is also the "re-score the stale queue" item** from the odometer cluster:
+  the 29 false positives that the 17-day EFS hole produced supersede themselves as the sweep reaches
+  them.
+
+  **Verified by** `hardening — expected odometer band (padding)` (7 cases, `packages/shared`) —
+  including `stays silent when the miles are covered by fuel the truck was already carrying`,
+  `suppresses itself on a truck with no capacity source rather than judging it against an empty tank`,
+  `grants the sensor-learned tank, not the entered one, when the two disagree`, and `never accuses a
+  fill the old, tank-blind ceiling would have cleared`.
+
+  **Proved able to fail by six mutations.** ⚠ One survived the first pass: swapping
+  `resolveCapacity(vehicle).gallons` for `vehicle.tankCapacityGal` passed every case, because every
+  fixture in the file carries an entered capacity and no sensor value, so the two are the same number.
+  That distinction is the point — 101 of 145 trucks disagreed with their sensor-learned capacity when
+  §0.3a measured it — so a divergent-capacity fixture was added and the mutation now fails.

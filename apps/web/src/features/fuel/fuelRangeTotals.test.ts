@@ -31,12 +31,16 @@ interface MilesRow {
   entered_count: number; entered_min: number | null; entered_max: number | null;
   entered_worst_step: number | null;
   mpg_weighted: number; mpg_gallons: number;
+  // 0316 — optional here for the same reason they are optional in the reader: the deploy window is
+  // served by a function that does not return them yet.
+  obd_covers_ends?: boolean;
+  entered_covers_ends?: boolean;
 }
 const MILES_ROWS: MilesRow[] = [
   // A truck with a clean 100-mile OBD span, and MPG sums already banded by the database.
-  { vehicle_id: "v1", obd_count: 2, obd_min: 1000, obd_max: 1100, entered_count: 2, entered_min: 1000, entered_max: 1100, entered_worst_step: 0, mpg_weighted: 140, mpg_gallons: 20 },
+  { vehicle_id: "v1", obd_count: 2, obd_min: 1000, obd_max: 1100, entered_count: 2, entered_min: 1000, entered_max: 1100, entered_worst_step: 0, mpg_weighted: 140, mpg_gallons: 20, obd_covers_ends: true, entered_covers_ends: true },
   // A fill attributed to NO truck: contributes to fleet MPG and to nothing else.
-  { vehicle_id: null, obd_count: 0, obd_min: null, obd_max: null, entered_count: 0, entered_min: null, entered_max: null, entered_worst_step: null, mpg_weighted: 0, mpg_gallons: 0 },
+  { vehicle_id: null, obd_count: 0, obd_min: null, obd_max: null, entered_count: 0, entered_min: null, entered_max: null, entered_worst_step: null, mpg_weighted: 0, mpg_gallons: 0, obd_covers_ends: false, entered_covers_ends: false },
 ];
 
 function recorder(): unknown {
@@ -128,13 +132,40 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
     expect((await totals({}))!.fillsWithVehicle).toBe(0);
   });
 
-  it("still applies the miles and MPG JUDGEMENT in TypeScript — D-AG1", async () => {
-    const t = await totals({});
-    // The database returned a span (1000→1100) and banded sums. TypeScript decided that the span is
-    // real and divided the sums; neither verdict came from SQL.
-    expect(t!.totalMiles).toBe(100);
-    expect(t!.fleetMpg).toBe(7);
+  /**
+   * ── THE WINDOW'S ENDS (migration 0316) ─────────────────────────────────────────────────────────
+   * A source may only answer for a window whose ends it reaches. The two columns that carry that are
+   * OPTIONAL on the wire, and the difference between `undefined` and `false` is the whole point: for
+   * about nine minutes after this reader deploys, the database it talks to has not got them yet.
+   */
+  it("reads an absent coverage column as 'not asked', never as 'the ends are not covered'", async () => {
+    // The deploy window. `false` here would blank the miles tile for the whole range, which is the
+    // failure `fills_with_vehicle` reporting null rather than 0 exists to prevent one field along.
+    delete (MILES_ROWS[0] as { obd_covers_ends?: boolean }).obd_covers_ends;
+    delete (MILES_ROWS[0] as { entered_covers_ends?: boolean }).entered_covers_ends;
+    expect((await totals({}))!.totalMiles).toBe(100);
   });
+
+  it("withholds a truck's miles when the database says neither source reaches both ends", async () => {
+    MILES_ROWS[0] = { ...MILES_ROWS[0]!, obd_covers_ends: false, entered_covers_ends: false };
+    expect((await totals({}))!.totalMiles).toBe(0);
+    MILES_ROWS[0] = { ...MILES_ROWS[0]!, obd_covers_ends: true, entered_covers_ends: true };
+  });
+
+  it("still applies the miles JUDGEMENT in TypeScript — D-AG1", async () => {
+    const t = await totals({});
+    // The database returned a span (1000→1100). TypeScript decided that the span is real; the verdict
+    // did not come from SQL.
+    expect(t!.totalMiles).toBe(100);
+  });
+
+  // ⚠ THERE IS NO `fleetMpg` HERE ANY MORE, and this is the note that stops it coming back (M4,
+  // D-MPG1). It was `Σ(mpg_weighted) ÷ Σ(mpg_gallons)` over this same RPC — one of four copies of a
+  // definition whose numerator ran 1.31–2.41% below Samsara's own IFTA miles, because
+  // `computed_mpg` divides by `gallons + intermediateGallons` while the weighting used `gallons`.
+  // The Fills tab reads `GET /api/fueling/fleet-mpg`, whose miles are two odometer readings the
+  // vendor asserted. `fuel_range_miles_inputs` still RETURNS those two columns — an applied
+  // migration cannot be edited — and nothing reads them.
 
   // ⚠ NOT ASSERTED HERE, and the reason is worth stating rather than leaving as a gap. A non-advancing
   // span makes `robustWindowMiles` return null rather than 0 — the guard its header calls the most
@@ -153,11 +184,12 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
     MILES_ROWS[0] = { ...MILES_ROWS[0]!, obd_count: 2, obd_min: 1000, obd_max: 1100, entered_worst_step: 0 };
   });
 
-  it("counts an unattributed fill toward fleet MPG and toward no truck's miles", async () => {
+  it("adds no distance for a fill attributed to no truck", async () => {
+    // An unattributed fill has no odometer span, so it can contribute nothing to the miles tile. Its
+    // GALLONS still count in `fuel_range_totals` — the money and the fuel were real — which is what
+    // the `fillsWithVehicle` coverage line beneath the tiles exists to explain.
     MILES_ROWS[1] = { ...MILES_ROWS[1]!, mpg_weighted: 60, mpg_gallons: 10 };
-    const t = await totals({});
-    expect(t!.fleetMpg).toBe((140 + 60) / (20 + 10)); // both fills weigh in
-    expect(t!.totalMiles).toBe(100);                   // …and it adds no distance
+    expect((await totals({}))!.totalMiles).toBe(100);
     MILES_ROWS[1] = { ...MILES_ROWS[1]!, mpg_weighted: 0, mpg_gallons: 0 };
   });
 
@@ -177,13 +209,13 @@ describe("useFuelRangeTotals — four tiles that cannot be capped, two that stil
   it("passes every filter the list uses, so the tiles and the rows describe one set", async () => {
     await totals({
       from: "2026-08-01", to: "2026-08-31",
-      vehicleId: "veh-1", driverId: "drv-1", tankType: "reefer",
+      vehicleIds: ["veh-1", "veh-2"], driverId: "drv-1", tankType: "reefer",
       search: "Pilot", searchVehicleIds: ["veh-9"], searchDriverIds: ["drv-9"],
     });
     expect(rpcCalls.find((c) => c.fn === "fuel_range_totals")!.args).toEqual({
       p_from: "2026-08-01",
       p_to: "2026-08-31",
-      p_vehicle: "veh-1",
+      p_vehicles: ["veh-1", "veh-2"],
       p_driver: "drv-1",
       p_tank_type: "reefer",
       p_search: "Pilot",

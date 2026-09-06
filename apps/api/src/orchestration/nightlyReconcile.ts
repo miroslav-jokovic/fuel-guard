@@ -7,7 +7,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "../modules/efs/index.js";
-import { backfillOrg, RECENT_REBUILD_DAYS } from "../modules/anomalies/index.js";
+import { SCORING_VERSION } from "@silvicom/shared";
+import { backfillOrg } from "../modules/anomalies/index.js";
+import { STALE_RESCORE_BATCH } from "../queue/handlers/scoring.js";
 import { syncCardAssignments } from "../modules/fuel/index.js";
 import { reconcileAnomalyFlags } from "../modules/anomalies/index.js";
 import { backfillFillWeather } from "../modules/fuel/index.js";
@@ -47,10 +49,29 @@ export function shouldRunNightly(
 export async function runNightlyReconcile(admin: SupabaseClient, env: Env, orgId: string): Promise<Record<string, unknown>> {
   const efs = await syncFuelEventsFromEfs(admin, orgId, null);
   const rescored = efs.touchedIds.length ? await scoreTouched(admin, env, orgId, efs.touchedIds) : 0;
-  // Rules-only rebuild of RECENT fills (no live Samsara calls). Bounded so the nightly self-heal doesn't
-  // re-score the entire history every night as the fleet grows; a manual Rebuild covers older rows after
-  // a detection-logic change.
-  const rebuilt = await backfillOrg(admin, env, orgId, { skipRecon: true, sinceDays: RECENT_REBUILD_DAYS });
+  // ── The nightly rules-rebuild, claimed by STAMP rather than by date (0318) ──────────────────────
+  //
+  // This used to be `{ skipRecon: true, sinceDays: RECENT_REBUILD_DAYS }` — 180 days of fills, every
+  // night, whether or not anything about them had changed. Measured on production 2026-09-05, that was
+  // **10,443 fills and 8,982 seconds — two and a half hours a night**, three nights running, to change
+  // the verdict on almost none of them. The comment it replaced said "a manual Rebuild covers older
+  // rows after a detection-logic change", and the manual rebuild was itself a three-hour full-history
+  // sweep, so the fleet had two expensive options and no cheap one.
+  //
+  // The stamp makes the claim precise: re-score the fills a rule change has actually invalidated,
+  // oldest first, capped. On a quiet night that is nearly no work; after a SCORING_VERSION bump it
+  // drains ~16,000 fills over about eight nights without any single night running long.
+  //
+  // ⚠ What this deliberately stops doing: re-scoring a fill whose INPUTS moved but whose stamp is
+  // current. That is safe because the paths which change inputs already re-score what they touch —
+  // `scoreTouched` above for the EFS store repair, the recon tier for late telematics, and
+  // `scoreImportWithCascade` for a new import. A new input path must re-score its own rows or bump
+  // SCORING_VERSION; it can no longer lean on a 180-day sweep to notice for it.
+  const rebuilt = await backfillOrg(admin, env, orgId, {
+    skipRecon: true,
+    staleScoringVersion: SCORING_VERSION,
+    limit: STALE_RESCORE_BATCH,
+  });
   // WP1 D4 — keep the card→truck assignment table current from fill history (feeds decline scoring).
   const cards = await syncCardAssignments(admin, orgId).catch(() => null); // best-effort; never blocks the reconcile
   // WP6 — real ambient temperature for recent fills (drives the MPG cold-weather derate off real cold).

@@ -130,6 +130,49 @@ export async function touchLastSynced(admin: SupabaseClient, orgId: string, prov
     .eq("provider", provider);
 }
 
+/**
+ * The financial sweep's own freshness row (D-FIN3, FINANCE-GO-LIVE-PLAN §1.3).
+ *
+ * `touchLastSynced` stamps the token's provider row (`mcleod`) from the ROSTER routes only, so
+ * until 2026-09-03 nothing could say when settlements, billing or GL totals last landed — the
+ * Integrations page could not tell "the month is complete" from "the sweep stopped three weeks
+ * ago". The financial routes stamp a SEPARATE provider row, `mcleod_financial`, because the two
+ * sweeps are two agent flags that can run apart (`--roster` nightly, `--financial` when someone
+ * remembers), and one stamp for both would have hidden exactly the outage the audit found.
+ *
+ * The row carries no token; it exists to be stamped and read. Created on first stamp with a FULL
+ * insert (never a partial upsert — `lint:upserts`), then updated. Best-effort like its sibling:
+ * a freshness stamp must never fail the ingest that earned it.
+ */
+export const FINANCIAL_PROVIDER = "mcleod_financial";
+
+export async function stampFinancialSynced(admin: SupabaseClient, orgId: string): Promise<void> {
+  const at = new Date().toISOString();
+  const { data } = await admin
+    .from("org_integrations")
+    .update({ last_synced_at: at })
+    .eq("org_id", orgId)
+    .eq("provider", FINANCIAL_PROVIDER)
+    .select("org_id");
+  if ((data ?? []).length > 0) return;
+  // No row yet: insert the whole row. A concurrent first stamp loses on the primary key, which is
+  // the right answer — the other one carries a stamp from the same minute.
+  await admin
+    .from("org_integrations")
+    .insert({ org_id: orgId, provider: FINANCIAL_PROVIDER, enabled: true, config: {}, last_synced_at: at });
+}
+
+/** When the financial sweep last landed for this org, or null if it never has. */
+export async function readFinancialSyncedAt(admin: SupabaseClient, orgId: string): Promise<string | null> {
+  const { data } = await admin
+    .from("org_integrations")
+    .select("last_synced_at")
+    .eq("org_id", orgId)
+    .eq("provider", FINANCIAL_PROVIDER)
+    .maybeSingle();
+  return ((data as { last_synced_at?: string | null } | null)?.last_synced_at) ?? null;
+}
+
 async function unitMap(
   admin: SupabaseClient,
   table: "vehicles" | "trailers",

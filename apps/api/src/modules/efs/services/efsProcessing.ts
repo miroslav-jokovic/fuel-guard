@@ -152,6 +152,46 @@ async function emitDeclinedAlerts(
   return { alerts: rows.length, notifications };
 }
 
+/**
+ * How often a working run touches its row. Must stay well under the 20-minute lease in migration
+ * 0317 — at 2 minutes a run has to miss ten consecutive heartbeats before anything reclaims it, so a
+ * transient Supabase blip cannot hand a live run to a second worker.
+ */
+const HEARTBEAT_MS = 2 * 60_000;
+
+/**
+ * Say "still working" for as long as this run is working.
+ *
+ * The lease that reclaims stranded runs (0317) tests LAST WRITE rather than start time, because
+ * there is no honest ceiling on how long a legitimate run takes: an ordinary ~260-row poll finishes
+ * in 40s, while the April 2026 historical re-fetch scored 1,074 fills at ~16 a minute and took ~64
+ * minutes. A fixed start-time ceiling is either too tight for the big run or useless for the small
+ * one; a heartbeat distinguishes the two by evidence.
+ *
+ * A timer rather than the scorer's `onProgress`: that callback fires every 50 fills and NOT AT ALL
+ * during the per-vehicle cascade or the card reconcile that follow it, so the phases most likely to
+ * run long are exactly the ones it would leave silent.
+ *
+ * The write is deliberately a no-op in content — `trg_efs_processing_runs_updated` (0154) stamps
+ * `updated_at` on every update, which is the whole signal. It is guarded on `status = 'running'` so
+ * a late heartbeat can never resurrect a run that has already finished or been reclaimed, and its
+ * failures are swallowed: a missed touch costs one heartbeat of margin, while a throw inside a timer
+ * would take down the process the run is executing in.
+ */
+function startHeartbeat(admin: SupabaseClient, processingId: string): { stop: () => void } {
+  const timer = setInterval(() => {
+    void admin
+      .from("efs_processing_runs")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", processingId)
+      .eq("status", "running")
+      .then(undefined, () => undefined);
+  }, HEARTBEAT_MS);
+  // Never hold the process open for a heartbeat.
+  (timer as unknown as { unref?: () => void }).unref?.();
+  return { stop: () => clearInterval(timer) };
+}
+
 async function claim(admin: SupabaseClient, id: string): Promise<ProcessingRow | null> {
   const { data, error } = await admin.rpc("claim_efs_processing_run", { p_id: id });
   if (error) throw new Error(error.message);
@@ -166,6 +206,7 @@ export async function processEfsProcessingRun(
 ): Promise<Record<string, unknown>> {
   const row = await claim(admin, processingId);
   if (!row) return { skipped: true };
+  const heartbeat = startHeartbeat(admin, processingId);
   try {
     if (row.feed === "posted") await scoreImportWithCascade(admin, env, row.org_id, row.import_id);
     else await scoreDeclinedImport(admin, env, row.org_id, row.import_id);
@@ -196,5 +237,7 @@ export async function processEfsProcessingRun(
       })
       .eq("id", processingId);
     throw e;
+  } finally {
+    heartbeat.stop();
   }
 }

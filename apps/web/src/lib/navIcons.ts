@@ -5,7 +5,6 @@ import {
   CurrencyDollarIcon,
   DocumentTextIcon,
   ChartAverageIcon,
-  InvoiceIcon,
   GaugeIcon,
   ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
@@ -92,9 +91,7 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "fleet.drivers": UserGroupIcon,
   "fleet.odometer": OdometerIcon,
 
-  "finance.accounting": CurrencyDollarIcon,
-  "finance.cpm": ChartAverageIcon,
-  "finance.cost-schedule": InvoiceIcon,
+  "finance.fleet-report": ChartAverageIcon,
   "finance.billing": DocumentTextIcon,
 
   "maintenance.repair-spend": GaugeIcon,

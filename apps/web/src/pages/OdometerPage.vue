@@ -10,6 +10,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -130,6 +131,11 @@ const columns: DataTableColumn[] = [
 <template>
   <div class="space-y-6">
     <PageHeader :description="`Driver-entered odometer readings that disagree with Samsara (±${tolerance} mi tolerance).`" />
+
+    <!-- SAM-S5: how current the telematics behind this page is, before its numbers are believed.
+         `samsara_odometer_at` is stamped by the per-fill recon path (scoring/persist.ts), not by the
+         daily odometer tier — this table is empty for a fill telematics has not reached. -->
+    <SamsaraFeedLine :feeds="['telematics']" />
 
     <FilterBar
       v-model:search="search"

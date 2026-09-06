@@ -5,8 +5,8 @@
  * The collector PROCESSES live here: driver/vehicle/trailer roster syncs (which defer to McLeod
  * on identity when `mcleod`'s `isTmsRosterMaster` says so — the one cross-module import, carried
  * in API_ALLOW with that reason), IFTA jurisdiction-mile fetches, the reconciliation sweep, the
- * diagnostics probe, and the scheduler that paces them. Owns `samsara_feed_cursors`, `samsara_ifta_fetches` and
- * `samsara_ifta_jurisdiction_miles`.
+ * diagnostics probe, and the scheduler that paces them. Owns `samsara_feed_cursors`, `samsara_ifta_fetches`,
+ * `samsara_ifta_jurisdiction_miles` and `samsara_odometer_readings`.
  *
  * One debt paid, one named so the next carve-outs inherit it knowingly:
  *  - the low-level vendor client lives at `./lib/samsara*` since 2026-08-27 (program step P1.3)
@@ -36,6 +36,11 @@ export {
 } from "./telematicsCoverage.js";
 export { syncTrailersFromSamsara } from "./samsaraTrailerSync.js";
 export { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
+export {
+  syncVehicleOdometerReadings,
+  ODOMETER_SOURCE_WINDOW_DAYS,
+  type OdometerSyncResult,
+} from "./samsaraOdometerSync.js";
 export { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";
 export { startSamsaraScheduler } from "./samsaraScheduler.js";
 export { runSamsaraDiagnostics } from "./samsaraDiagnostics.js";
@@ -48,4 +53,10 @@ export {
   type SamsaraWebhookStatus,
 } from "./fuelEventsWebhook.js";
 export { registerSamsaraIntegrationRoutes } from "./routes/integration.js";
-export { readVehicleMonthlyMiles } from "./samsaraIftaReads.js";
+export { readVehicleMonthlyMiles, readMonthlyMileageByMonth } from "./samsaraIftaReads.js";
+export {
+  readFleetDistance,
+  readFleetDistancePeriods,
+  ODOMETER_LOOKBACK_DAYS,
+  type FleetDistanceResult,
+} from "./samsaraOdometerReads.js";

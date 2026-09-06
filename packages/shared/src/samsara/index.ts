@@ -92,9 +92,41 @@ export type {
   StatsFeedPage,
   VehicleFeedSeries,
 } from "./statsFeed.js";
-export { computeTelematicsCoverage } from "./telematicsCoverage.js";
+export {
+  computeTelematicsCoverage,
+  coverageFromBuckets,
+  telematicsCoverageBuckets,
+} from "./telematicsCoverage.js";
 export type {
+  TelematicsCoverageBucket,
   TelematicsCoverageInput,
   TelematicsCoverageMonth,
   TelematicsCoverageSummary,
 } from "./telematicsCoverage.js";
+export { lastReadingEachDay } from "./odometerReadings.js";
+export type { OdometerStatSample, DailyOdometerReading } from "./odometerReadings.js";
+export {
+  SAMSARA_FEED_IDS,
+  SAMSARA_RULED_TARGET_HOURS,
+  samsaraFeedSpecs,
+  describeSamsaraFeed,
+  describeSamsaraFeeds,
+  worstSamsaraFeed,
+  oldestSamsaraFeed,
+  samsaraFeedPulse,
+} from "./feedHealth.js";
+export type {
+  SamsaraFeedId,
+  SamsaraFeedSpec,
+  SamsaraFeedObservation,
+  SamsaraFeedState,
+  SamsaraFeedHealth,
+  SamsaraFeedPulse,
+} from "./feedHealth.js";
+export { decideSamsaraFeedAlerts } from "./feedAlerts.js";
+export type {
+  SamsaraAlertState,
+  SamsaraFeedAlertMemory,
+  SamsaraFeedAlertDecision,
+  SamsaraFeedAlertPlan,
+} from "./feedAlerts.js";

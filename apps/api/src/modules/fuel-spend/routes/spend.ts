@@ -7,6 +7,8 @@ import { writeAudit } from "../../../lib/audit.js";
 import { buildFuelSpendRollup } from "../fuelSpendRollup.js";
 import { resolveFuelTransactionStations } from "../../fuel/index.js";
 import { renderFuelSpendReport } from "../fuelSpendReport.js";
+import { getFleetMpg, getFleetMpgSeries } from "../fleetMpg.js";
+import { getMileageAgreement } from "../mileageAgreement.js";
 import { type SpendGrain } from "@silvicom/shared";
 
 /**
@@ -74,6 +76,107 @@ export function registerSpendRoutes(router: Router): void {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="fuelguard-fuel-spend-${from}-to-${to}.pdf"`);
       res.send(pdf);
+    }),
+  );
+
+  /**
+   * Fleet MPG for a period — the ONE answer (M3, D-MPG1).
+   *
+   * A read, so it takes the `view` set: the accountant and the fleet manager both ask this question,
+   * and until now they got different answers depending on which page they asked it from.
+   *
+   * It always returns 200 with a body, including when the figure is withheld: `mpg: null` plus a
+   * `reason` a person can act on is the answer to "what is our MPG" when the fleet's fuel is only
+   * half covered. A 404 or an empty body would send the caller looking for a bug instead.
+   *
+   * ── THE THREE OPTIONAL PARAMETERS ──────────────────────────────────────────────────────────────
+   *  · `vehicles` — a comma-separated truck list, so the Fuel log's own filter (FUEL-P1) and this
+   *    figure answer for the same trucks. Validated as UUIDs before it reaches `.in()` on a
+   *    service-role query, where the org filter is the only tenant boundary.
+   *  · `grain=week|month` — returns `{ total, periods, grain }` instead of the bare period, for a
+   *    trend. **`day` is refused here**, and this is the one place that ruling can be enforced:
+   *    D-MPG6 retired the daily MPG trend because a day's purchases are not a day's consumption
+   *    (7.46 / 6.90 / 6.38 over three days covering the same distance), and the SERVICE will answer
+   *    any period it is asked for. A surface asking for a daily series is asking for the artefact the
+   *    ruling removed.
+   *  · nothing — one period, exactly as before.
+   */
+  router.get(
+    "/fleet-mpg",
+    requireOrg,
+    requireSection("fuel", "view"),
+    asyncHandler(async (req, res) => {
+      const from = typeof req.query.from === "string" ? req.query.from : "";
+      const to = typeof req.query.to === "string" ? req.query.to : "";
+      if (!YMD.test(from) || !YMD.test(to) || to < from) {
+        res.status(400).json(apiError("bad_request", "Expected from and to as YYYY-MM-DD dates, earliest first."));
+        return;
+      }
+      // A series buckets the window and differences the odometer once per bucket; the window is
+      // bounded for the same reason a rebuild's is, rather than trusted.
+      if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 > MAX_WINDOW_DAYS) {
+        res.status(400).json(apiError("bad_request", `Fleet MPG covers at most ${MAX_WINDOW_DAYS} days at a time.`));
+        return;
+      }
+      const grainParam = typeof req.query.grain === "string" ? req.query.grain : "";
+      if (grainParam !== "" && grainParam !== "week" && grainParam !== "month") {
+        res.status(400).json(
+          apiError(
+            "bad_request",
+            "Fleet MPG is reported at week grain or coarser (D-MPG6): a day's fuel purchases are not that day's consumption.",
+          ),
+        );
+        return;
+      }
+      // `undefined` is the whole fleet; an EMPTY list is "none of the units named are in this fleet",
+      // and the two must not collapse into one another — see `VehicleScope`.
+      const rawVehicles = typeof req.query.vehicles === "string" ? req.query.vehicles.trim() : "";
+      const vehicles =
+        rawVehicles === ""
+          ? null
+          : rawVehicles.split(",").map((v) => v.trim()).filter((v) => UUID.test(v));
+
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      res.json({
+        ok: true,
+        data:
+          grainParam === ""
+            ? await getFleetMpg(admin, orgId, from, to, vehicles)
+            : await getFleetMpgSeries(admin, orgId, from, to, grainParam, vehicles),
+      });
+    }),
+  );
+
+  /**
+   * Does the distance behind these figures agree with an independent source? (M5, D-MPG1 point 2.)
+   *
+   * A read, so it takes the `view` set. `fuel_spend_days.miles` agreed with Samsara's own IFTA
+   * jurisdiction miles to within 0.08% in July 2026 and ran 3.78% ahead of them in August; the step
+   * landed in the week of 2026-07-28 and nothing noticed for five weeks, because nothing in the
+   * product ever put the two side by side. This endpoint is what puts them there.
+   *
+   * **Not scoped by truck, and that is deliberate.** The question is whether the two SOURCES agree.
+   * A divergence that appeared and disappeared as a reader picked trucks would teach them to ignore
+   * it, which is worse than not checking at all.
+   */
+  router.get(
+    "/mileage-agreement",
+    requireOrg,
+    requireSection("fuel", "view"),
+    asyncHandler(async (req, res) => {
+      const from = typeof req.query.from === "string" ? req.query.from : "";
+      const to = typeof req.query.to === "string" ? req.query.to : "";
+      if (!YMD.test(from) || !YMD.test(to) || to < from) {
+        res.status(400).json(apiError("bad_request", "Expected from and to as YYYY-MM-DD dates, earliest first."));
+        return;
+      }
+      if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 > MAX_WINDOW_DAYS) {
+        res.status(400).json(apiError("bad_request", `The mileage check covers at most ${MAX_WINDOW_DAYS} days at a time.`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ ok: true, data: await getMileageAgreement(admin, req.auth!.orgId!, from, to) });
     }),
   );
 

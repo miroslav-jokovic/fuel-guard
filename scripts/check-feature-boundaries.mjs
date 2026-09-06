@@ -125,6 +125,17 @@ const API_ALLOW = new Set([
   "fuel -> idle",
   // The spend report resolves station names against the canonical station record.
   "fuel-spend -> fuel",
+  // Fleet MPG's numerator is a MEASURED distance, and the only measured distance this system has is
+  // Samsara's odometer readings — read through the collector's own `readFleetDistance`, never off its
+  // staging table (D-SEP1, D-MPG1). The alternative was fuel-spend deriving miles from fuel a second
+  // time, which is the 1.31%-low numerator the MPG plan exists to retire.
+  "fuel-spend -> samsara",
+  // The weekly digest PDF prints the fleet's MPG, and there is now exactly one place that computes
+  // it (M4, D-MPG1). insights asks fuel-spend's `getFleetMpg` rather than aggregating the fills it
+  // already holds — which is what four surfaces did, and is why the Dashboard and the Spend trend
+  // disagreed by 10.7% for the same week. A figure in a PDF gets quoted back months later, so a
+  // second implementation here would be the copy with the longest fuse of the four.
+  "insights -> fuel-spend",
   // The idle rollup finishes by deriving the price days its dollars are priced with.
   "idle -> fuel",
   // Scoring judges a fill against the truck Samsara actually saw — the tank reconciliation.
@@ -152,6 +163,9 @@ const API_ALLOW = new Set([
   // decision exercised): the harness reads monthly vehicle miles through samsara's exported
   // reader — never the raw jurisdiction table.
   "financial -> samsara",
+  // D-FIN12: the FUEL tie-out reads EFS card lines BY PRODUCT through the collector's exported
+  // reader (efsLineItems.ts) — the derived fill has already folded a fill's lines together.
+  "financial -> efs",
   // The three P5 surfaces read the money store through financial's interface — the deny-all RLS
   // posture (D-SEP7) makes these routers THE read path; none of them owns a table.
   "accounting -> financial",
@@ -178,6 +192,9 @@ const API_ALLOW = new Set([
   // growing a private notification path.
   "efs -> messaging",
   "evidence -> messaging",
+  // D-FIN3: a stale McLeod financial sweep or a failed finance job becomes a finding the office
+  // sees — the same notify() fabric, the dqAlertScheduler shape, through messaging's index.
+  "financial -> messaging",
   "fuel -> messaging",
   "recruiting -> messaging",
   "roster -> messaging",

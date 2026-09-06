@@ -34,9 +34,21 @@ const { data: drivers } = useDriversQuery();
  * queue. Both are what an ABSENT `status` means, and they are different — so "the reader chose All"
  * cannot also be absence. It is written as `status=all`, and `status` resolves the three cases below.
  */
-const { param } = useQueryState();
+const { param, list, set } = useQueryState();
 
-const vehicleId = param("vehicle");
+/**
+ * The trucks, as a LIST of vehicle ids (FUEL-P1).
+ *
+ * ⚠ The parameter keeps its singular name. `/anomalies?vehicle=<id>` is a deep link the Fuel Log
+ * writes and reviewers forward, so renaming it would break every one of those in a ticket or an inbox
+ * — silently, by widening the queue to the whole fleet rather than erroring. A one-element list is
+ * exactly what a single id already meant, so `list()` reads both spellings with no legacy branch.
+ * `useFuelLogFilters` keeps `?unit=` for the same reason and says so at more length.
+ */
+const vehicleIds = computed<string[]>({
+  get: () => list("vehicle"),
+  set: (v) => set({ vehicle: v.length ? v.join(",") : undefined }),
+});
 const severity = param("severity", ANOMALY_SEVERITIES);
 const search = param("search");
 const from = param("from");
@@ -50,8 +62,8 @@ const status = computed<string>({
   get: () => {
     if (statusParam.value === "all") return "";
     if (statusParam.value) return statusParam.value;
-    // A link that names a truck wants that truck's whole history, resolved cases included.
-    return vehicleId.value ? "" : "open";
+    // A link that names trucks wants their whole history, resolved cases included.
+    return vehicleIds.value.length ? "" : "open";
   },
   set: (v) => (statusParam.value = v || "all"),
 });
@@ -59,7 +71,7 @@ const status = computed<string>({
 const filters = computed<AnomalyFilters>(() => ({
   status: status.value || undefined,
   severity: severity.value || undefined,
-  vehicleId: vehicleId.value || undefined,
+  vehicleIds: vehicleIds.value.length ? vehicleIds.value : undefined,
   reeferOnly: reefer.value === "1" ? true : undefined,
   from: from.value || undefined,
   to: to.value || undefined,
@@ -88,16 +100,24 @@ const severityOptions = [
   { value: "", label: "All severities" },
   ...ANOMALY_SEVERITIES.map((s) => ({ value: s, label: s })),
 ];
-const unitOptions = computed(() => [
-  { value: "", label: "All units" },
-  ...[...(vehicles.value ?? [])]
-    .sort((a, b) => a.unit_number.localeCompare(b.unit_number))
+/**
+ * The fleet, by unit number.
+ *
+ * No `All units` row: `FilterSelect` renders that itself for a multi-select, and a second one in the
+ * options would look selectable while meaning the absence of a selection. And no facet union of the
+ * kind `unitFilter.ts` builds — `anomalies.vehicle_id` is a foreign key, so a case can only ever name
+ * a truck the fleet has, and offering a unit that no case can carry would be a menu wider than its
+ * data rather than narrower.
+ */
+const unitOptions = computed(() =>
+  [...(vehicles.value ?? [])]
+    .sort((a, b) => a.unit_number.localeCompare(b.unit_number, undefined, { numeric: true }))
     .map((v) => ({ value: v.id, label: v.unit_number })),
-]);
+);
 
 const activeFilterCount = computed(() => {
   const f = filters.value;
-  return [f.severity, f.vehicleId, f.from, f.to].filter(Boolean).length + (search.value.trim() ? 1 : 0);
+  return [f.severity, f.vehicleIds?.length, f.from, f.to].filter(Boolean).length + (search.value.trim() ? 1 : 0);
 });
 /**
  * Back to the work queue. Clearing `status` rather than writing `open` is what makes this correct
@@ -109,7 +129,7 @@ const activeFilterCount = computed(() => {
 function resetFilters() {
   statusParam.value = "";
   severity.value = "";
-  vehicleId.value = "";
+  vehicleIds.value = [];
   from.value = "";
   to.value = "";
   search.value = "";
@@ -292,7 +312,7 @@ const selectedRow = ref<Anomaly | null>(null);
 const fmt = (iso: string) => new Date(iso).toLocaleDateString();
   return {
     filters, search, reeferOnly, setReeferOnly,
-    status, severity, vehicleId, statusOptions, severityOptions, unitOptions,
+    status, severity, vehicleIds, statusOptions, severityOptions, unitOptions,
     setFrom, setTo, activeFilterCount, resetFilters,
     session,
     unit, pairedTrailer, driverName,

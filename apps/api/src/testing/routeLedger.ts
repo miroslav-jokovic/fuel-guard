@@ -26,6 +26,7 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   ["/api/auth", "the login exchange — public by definition; carries its own throttles + uniform errors"],
   ["/api/version", "deploy/migration probe — public deliberately; a version endpoint needing a token is one nobody checks"],
   ["/api/public/hazmat", "the public M7 calculator — anonymous by product design; stateless, no tenant data"],
+  ["/api/public/invites", "redeeming an emailed invitation — the person has no account yet, so the 256-bit link token in the POST body is the credential; it resolves to exactly one invitation's org and email server-side, refuses every dead link with one answer, and is rate-limited in app.ts (2026-09-04)"],
   ["/api/webhooks", "provider-signed (Samsara HMAC, Twilio signature) — authenticated, just not by a user role"],
   ["/api/tms", "the on-prem agent — authenticated by the org ingest token (hash-matched), a machine credential with no role to check"],
   // R3c-2. Deliberate, and the argument is that there is no capability here to gate. A saved view is
@@ -77,6 +78,12 @@ export const OPEN_ROUTES = new Map<string, string>([
   [
     "POST /api/me/notifications/token/revoke",
     "a driver's own device retiring its own push token on sign-out, keyed by the caller's user id; refusing it would leave a personal phone receiving load content after the person signed out (D14/D53)",
+  ],
+
+  // ── Q-SAM7, answered (a): the gate matches the pages, and the PAYLOAD carries the restraint. ──
+  [
+    "GET /api/integrations/samsara/feed-pulse",
+    "how stale each Samsara tier is, for the one-line strip above the figures built on it (SAM-S5). Deliberately NOT `settings: view` like the card it shares a service with: all six surfaces that mount the strip — /, /coverage, /idling, /odometer, /ifta, /driver-performance — are `requiresAuth` with no section gate, so a gated read would 403 for most of the people the line is written for, and a page cannot be asked for a permission the page itself does not ask for. The restraint is in the payload instead: `samsaraFeedPulse` drops `lastError` — Samsara's own sentence, which routinely carries an account id — along with every job internal, and it drops by omission, so a field added later stays gated until somebody adds it on purpose. What is left is a label, a state, an age and a bound: operational metadata about a collector, which is the reading Q-FUI15 took",
   ],
 
   // ── Q-FUI12, recorded rather than closed in passing. ───────────────────────────────────────────

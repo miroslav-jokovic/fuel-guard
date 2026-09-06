@@ -2,6 +2,9 @@ import { computed, type Ref, toValue } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import {
   describeRowCoverage,
+  applyEfsTxnFilters,
+  applyDeclinedFilters,
+  type EfsListFilters,
   type CoverageSurface,
   type RowCoverage,
   type EfsTransactionRow,
@@ -9,7 +12,6 @@ import {
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { efsRejectDayWindow } from "@/lib/stationTime";
 
 export const EFS_PAGE_SIZE = 20;
 
@@ -21,61 +23,12 @@ export interface Page<T> {
 const EFS_COLS =
   "id, line_number, card_num, tran_date, fueled_at, tran_time, invoice, unit, driver_name, odometer, location_name, city, state, fees, item, unit_price, qty, amt, db, currency";
 
-export interface EfsFilters {
-  unit?: string;
-  from?: string; // YYYY-MM-DD
-  to?: string;
-  search?: string; // free text (driver / location / item or error)
-  suspicion?: string; // declined only: clear | review | alert
-  item?: string; // transactions only: product (ULSD, DEF, …)
-  state?: string;
-  driver?: string; // exact driver_name
-  errorCode?: string; // declined only
-  policy?: string; // declined only: policy_name
-  sortKey?: string; // server-side column ordering
-  sortDir?: "asc" | "desc";
-}
-
-const ilikeOr = (term: string, cols: string[]) =>
-  cols.map((c) => `${c}.ilike.%${term.replace(/[%,()]/g, "")}%`).join(",");
-
 /**
- * The five builder methods the filter helpers below reach for.
- *
- * Structural rather than the real `PostgrestFilterBuilder`, because the two callers of each helper
- * select DIFFERENT columns — the list asks for twenty and the coverage count asks for none at all
- * (`head: true`) — so their builders differ in a result type these filters never touch. Naming the
- * five methods is narrower and more honest than `any`, and it fails to compile if PostgREST's
- * chaining ever stops returning a builder.
+ * What narrows these two lists — defined in `@silvicom/shared` since FUEL-P2, because the EXPORT has
+ * to apply the identical set (D-FUI15: "server-rendered from the same pure functions the screen
+ * uses"). Re-exported under the name every caller here already imports.
  */
-interface EfsFilterable {
-  eq(column: string, value: unknown): EfsFilterable;
-  gte(column: string, value: unknown): EfsFilterable;
-  lte(column: string, value: unknown): EfsFilterable;
-  lt(column: string, value: unknown): EfsFilterable;
-  or(filters: string): EfsFilterable;
-}
-
-/**
- * Every `efs_transactions` filter, applied once, for every caller.
- *
- * FUEL-T5 needs a SECOND read of this table — how many of the matching rows name a truck — and the
- * only way that figure can be wrong is by counting a different set than the list beneath it. The same
- * argument `searchTerm` makes in `useFuelLog` ("one sanitiser, one term, two callers"), one level up:
- * one filter definition, two callers, and no way for a caveat to describe rows the reader is not
- * looking at.
- */
-function applyEfsTxnFilters<Q>(query: Q, f: EfsFilters): Q {
-  let q = query as unknown as EfsFilterable;
-  if (f.unit) q = q.eq("unit", f.unit);
-  if (f.item) q = q.eq("item", f.item);
-  if (f.state) q = q.eq("state", f.state);
-  if (f.driver) q = q.eq("driver_name", f.driver);
-  if (f.from) q = q.gte("tran_date", f.from);
-  if (f.to) q = q.lte("tran_date", f.to);
-  if (f.search) q = q.or(ilikeOr(f.search, ["unit", "driver_name", "card_num", "invoice", "location_name", "item", "city"]));
-  return q as unknown as Q;
-}
+export type EfsFilters = EfsListFilters;
 
 /** Faithful EFS transaction rows, newest first, one page (20) with total count for navigation. */
 export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) {
@@ -106,41 +59,6 @@ export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) 
 const DECLINED_COLS =
   "id, import_id, declined_at, card_ref, invoice, location_id, location_text, city, state, unit, driver_ext_id, driver_name, driver_name_source, error_code, error_description, policy, policy_name, suspicion_level, suspicion_reasons";
 
-/** Every `declined_transactions` filter, applied once, for every caller. See `applyEfsTxnFilters`. */
-function applyDeclinedFilters<Q>(query: Q, f: EfsFilters): Q {
-  let q = query as unknown as EfsFilterable;
-  if (f.unit) q = q.eq("unit", f.unit);
-  if (f.suspicion) q = q.eq("suspicion_level", f.suspicion);
-  if (f.errorCode) q = q.eq("error_code", f.errorCode);
-  if (f.state) q = q.eq("state", f.state);
-  if (f.driver) q = q.eq("driver_name", f.driver);
-  if (f.policy) q = q.eq("policy_name", f.policy);
-  // FUEL-T1 / D-FUI11. `declined_at` is a correct UTC instant, and the page renders it in CENTRAL
-  // because that is the zone EFS prints rejects in whatever the station's own zone is. Filtering
-  // the raw instant against bare date strings therefore asked a UTC question of a Central answer:
-  // a decline at 19:00 CT on 31 August is 2026-09-01T00:00Z and fell outside an August window
-  // while the row above it read "Aug 31". `efsRejectDayWindow` converts the picked DAYS into the
-  // instants that bound them in Central — no column needed, because unlike a fill's station zone,
-  // this one does not vary row to row.
-  if (f.from && f.to) {
-    const w = efsRejectDayWindow(f.from, f.to);
-    q = q.gte("declined_at", w.gte).lt("declined_at", w.lt);
-  } else if (f.from) {
-    q = q.gte("declined_at", efsRejectDayWindow(f.from, f.from).gte);
-  } else if (f.to) {
-    q = q.lt("declined_at", efsRejectDayWindow(f.to, f.to).lt);
-  }
-  if (f.search) {
-    const t = f.search.replace(/[%,()]/g, "");
-    q = q.or(
-      [`unit.ilike.${t}%`, `driver_name.ilike.%${t}%`, `location_text.ilike.%${t}%`, `city.ilike.%${t}%`, `error_description.ilike.%${t}%`].join(
-        ",",
-      ),
-    );
-  }
-  return q as unknown as Q;
-}
-
 /** Faithful declined (Reject Report) rows, newest first, one page (20) with total count. */
 export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<number>) {
   return useQuery({
@@ -164,24 +82,83 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
   });
 }
 
-/* ── facet values for the filter dropdowns ──────────────────────────────────
-   Distinct values pulled once and cached; fleet-scale row counts make the
-   client-side dedupe cheap, and RLS scopes the scan to the org. */
+/* ── facet values for the filter dropdowns ──────────────────────────────────────────────────────
+   ── WHY THESE COME FROM SQL NOW, AND WHY IT IS A CORRECTNESS FIX (FUEL-P1, D-FUI16) ────────────
+   This selected rows and deduplicated them in the browser, under `.limit(10_000)`. That limit was
+   never in force: **the hosted PostgREST caps every response at 1,000 rows** — measured against the
+   live project on 2026-09-04, `select=id&limit=5000` on `efs_transactions` returns exactly 1,000. So
+   nine menus over 28,638 transaction lines and 3,479 declines were built from the first thousand of
+   each, and offered 133 of 190 units, 133 of 249 drivers, 9 of 13 items, 42 of 47 states and 17 of 19
+   error codes.
+
+   A value missing from a menu while its rows sit in the list is not a cosmetic gap: the reader can see
+   the rows and cannot isolate them, and nothing says why. It is also the same shape as the A4 finding
+   — correctness resting on a server row cap this code does not control — and it gets 0289's answer:
+   DISTINCT belongs where the rows are (migrations 0313/0314).
+
+   The two functions are called in parallel because they read two different collectors' tables
+   (D-SEP1); each is org-scoped by `auth_org_id()` and neither takes an argument from here. */
 
 export interface EfsFacets {
   txnItems: string[];
   txnStates: string[];
   txnDrivers: string[];
+  /** The units the TRANSACTION feed actually printed — not the fleet roster. See `unitFilter.ts`. */
+  txnUnits: string[];
   rejErrorCodes: { code: string; label: string }[];
   rejStates: string[];
   rejDrivers: string[];
   rejPolicies: string[];
+  /** The units the REJECT feed actually printed. */
+  rejUnits: string[];
 }
 
-const uniq = (vals: (string | null | undefined)[]): string[] =>
-  [...new Set(vals.filter((v): v is string => !!v && v.trim() !== ""))].sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true }),
-  );
+/**
+ * The readable half of a decline's description.
+ *
+ * ── MEASURED ON PRODUCTION, 2026-09-04, AFTER 0314 LANDED ───────────────────────────────────────
+ * EFS does not send a reason, it sends a pipe-delimited trace with the reason in front of it:
+ *
+ *     ITEM NOT ALLOWED|ADDITIVES IN48808|CheckItems|
+ *     NO SECUREFUEL DATA IN0037110997|No Carrier SecureFuel Event|
+ *     LIMIT EXCEEDED IN1744180676|CheckItems|ULSR |
+ *
+ * The menu truncated that at 40 characters, so the Error filter offered rows like
+ * "18 — ITEM NOT ALLOWED|ADDITIVES IN48808|C" — the internal context winning the space the reason
+ * needed. Taking the first segment and dropping the trailing `IN<digits>` transaction id gives
+ * "ITEM NOT ALLOWED", "NO SECUREFUEL DATA", "LIMIT EXCEEDED", which is what somebody scanning
+ * seventeen codes is looking for.
+ *
+ * ⚠ Only the MENU is shortened. The Description column on the table still shows the vendor's text in
+ * full, because that trace is what an operator needs when they open the row it belongs to — the rule
+ * here is about a dropdown's width, not about what a decline says.
+ */
+const readableReason = (raw: string): string => {
+  const head = raw.split("|")[0]!.replace(/\s+IN\d+$/, "").trim();
+  // A first segment that is ONLY a transaction id says nothing a person can act on. The whole
+  // description at least has words in it, so that is the honest fallback rather than an id in a menu.
+  return head === "" || /^IN\d+$/.test(head) ? raw : head;
+};
+
+/** One `(facet, value, label)` row as 0313/0314 return it. */
+interface FacetRow {
+  facet: string;
+  value: string;
+  label: string | null;
+}
+
+/**
+ * The values for one facet, ordered the way a human reads a truck number.
+ *
+ * The sort stays HERE rather than in SQL on purpose: `localeCompare(..., { numeric: true })` puts unit
+ * 9 before unit 10, and no collation available to those functions reproduces that. The functions
+ * return values; the menu decides their order.
+ */
+const valuesFor = (rows: FacetRow[], facet: string): string[] =>
+  rows
+    .filter((r) => r.facet === facet && r.value.trim() !== "")
+    .map((r) => r.value)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
 export function useEfsFacets() {
   return useQuery({
@@ -189,34 +166,33 @@ export function useEfsFacets() {
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<EfsFacets> => {
       const [t, d] = await Promise.all([
-        supabase.from("efs_transactions").select("item, state, driver_name").limit(10_000),
-        supabase
-          .from("declined_transactions")
-          .select("error_code, error_description, state, driver_name, policy_name")
-          .limit(10_000),
+        supabase.rpc("efs_transaction_facets"),
+        supabase.rpc("decline_facets"),
       ]);
       if (t.error) throw new Error(t.error.message);
       if (d.error) throw new Error(d.error.message);
-      const txn = t.data ?? [];
-      const rej = d.data ?? [];
-      // One label per error code — first non-empty description, truncated for the menu.
-      const codeLabels = new Map<string, string>();
-      for (const r of rej) {
-        if (r.error_code && !codeLabels.has(r.error_code)) {
-          const desc = (r.error_description ?? "").trim();
-          codeLabels.set(r.error_code, desc ? `${r.error_code} — ${desc.slice(0, 40)}` : r.error_code);
-        }
-      }
+      const txn = (t.data ?? []) as FacetRow[];
+      const rej = (d.data ?? []) as FacetRow[];
       return {
-        txnItems: uniq(txn.map((r) => r.item)),
-        txnStates: uniq(txn.map((r) => r.state)),
-        txnDrivers: uniq(txn.map((r) => r.driver_name)),
-        rejErrorCodes: [...codeLabels.entries()]
-          .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-          .map(([code, label]) => ({ code, label })),
-        rejStates: uniq(rej.map((r) => r.state)),
-        rejDrivers: uniq(rej.map((r) => r.driver_name)),
-        rejPolicies: uniq(rej.map((r) => r.policy_name)),
+        txnItems: valuesFor(txn, "item"),
+        txnStates: valuesFor(txn, "state"),
+        txnDrivers: valuesFor(txn, "driver"),
+        txnUnits: valuesFor(txn, "unit"),
+        // The code is the value and the description is what makes it readable — "51" means nothing in
+        // a menu and "51 — INVALID DRIVER ID" means something. Truncated here, where the menu's width
+        // lives; 0314 decides WHICH description, deterministically, which "the first row we saw" was
+        // not once the read was capped.
+        rejErrorCodes: rej
+          .filter((r) => r.facet === "error_code")
+          .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }))
+          .map((r) => ({
+            code: r.value,
+            label: r.label ? `${r.value} — ${readableReason(r.label).slice(0, 40)}` : r.value,
+          })),
+        rejStates: valuesFor(rej, "state"),
+        rejDrivers: valuesFor(rej, "driver"),
+        rejPolicies: valuesFor(rej, "policy"),
+        rejUnits: valuesFor(rej, "unit"),
       };
     },
   });
@@ -269,7 +245,9 @@ function toCoverage(surface: CoverageSurface, all: CountResult, named: CountResu
 
 export function useEfsRowCoverage(surface: CoverageSurface, filters: Ref<EfsFilters>) {
   const { data: vehicles } = useVehiclesQuery();
-  const unitNumbers = computed(() => uniq((vehicles.value ?? []).map((v) => v.unit_number)));
+  const unitNumbers = computed(() =>
+    [...new Set((vehicles.value ?? []).map((v) => v.unit_number).filter((u) => u && u.trim() !== ""))],
+  );
 
   return useQuery({
     queryKey: ["efs_row_coverage", surface, filters, unitNumbers],
