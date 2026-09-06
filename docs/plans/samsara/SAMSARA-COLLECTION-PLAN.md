@@ -261,8 +261,8 @@ costs downstream). Establish reality with `git log --oneline -15`, `pnpm verify:
 | S2 | **verified** | Feed endpoint returns 200 with a cursor on this token. |
 | S3 | **verified** | `skipRecon` semantics read; the 77% measured; no tier exists in `samsaraScheduler.ts`. |
 | S4 | **verified possible** | History available back to 2026-01 across 8 vehicles. **Full-fleet volume and runtime are NOT measured** — S4 opens with that measurement. |
-| S5 | **MERGE 1 of 2 SHIPPED 2026-09-05** | Q-SAM1 answered. The number and its surface are built; the alarm and the dependent-surface strips are merge 2. |
-| S6 | **MEASURED 2026-09-06 — the assumption did NOT hold** | Backfilled telematics took per-fill corroboration from 17.6% to 89.0% and moved precision not at all (3/105, 2.9%, unchanged). The sensor-reliability learner got 5x the evidence and grew LESS confident, 12 trucks to 10. S6 stays open for one re-read of `cumulative_overfuel` once the SCORING_VERSION 2 sweep converges. |
+| S5 | **DONE 2026-09-06 — all four bullets, across four merges** | Q-SAM1, Q-SAM7 and Q-SAM8 all answered. #578 the per-feed staleness figure and the settings card; #579 the alarm (`samsara_feed_alerts`, 0321); #580 the strips on the six surfaces that depend on a tier, behind a narrow `requireOrg` read; #582/#583 D-SAM7's all-time denominator on the Dashboard tile, counted in SQL by `telematics_coverage_buckets()` (0322) rather than paged. ⚠ This row read *"MERGE 1 of 2"* until 2026-09-06 — three merges after that stopped being true. A status table is the first thing a reader trusts and the last thing anybody updates. |
+| S6 | **MEASURED 2026-09-06 — the assumption did NOT hold** | Backfilled telematics took per-fill corroboration from 17.6% to 89.0% and moved precision not at all (3/105, 2.9%, unchanged). The sensor-reliability learner got 5x the evidence and grew LESS confident, 12 trucks to 10. S6 stays open for one re-read of `cumulative_overfuel` once the sweep converges — now `SCORING_VERSION` **3**, restarted by #587's reweight, so the re-read is about eight nights out rather than five. |
 
 ---
 
