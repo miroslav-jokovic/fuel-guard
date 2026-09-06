@@ -224,7 +224,7 @@ const truck: NumField[] = [
               <FormField v-slot="{ id }" label="Discount capture (%)" hint="At least this share of the discount available to you, actually taken." :error="fieldErr.target_discount_capture_pct">
                 <BaseInput :id="id" v-model="form.target_discount_capture_pct" type="number" min="0" max="100" step="1" placeholder="No target" />
               </FormField>
-              <FormField v-slot="{ id }" label="Avoided-state gallons" hint="At most this many gallons bought in the states above. A ceiling, not a floor." :error="fieldErr.target_avoided_state_gal">
+              <FormField v-slot="{ id }" label="Avoided-state gallons / month" hint="At most this many gallons a month bought in the states above. A ceiling, not a floor." :error="fieldErr.target_avoided_state_gal">
                 <BaseInput :id="id" v-model="form.target_avoided_state_gal" type="number" min="0" step="10" placeholder="No target" />
               </FormField>
             </div>

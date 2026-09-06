@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
   varianceToTarget,
@@ -81,5 +82,24 @@ describe("reading targets off the settings row", () => {
     // "No gallons at all in an avoided state" is the strictest possible policy and a legal thing to
     // ask for. Falsy-checking the value would silently turn it into no target.
     expect(fuelPolicyFromSettings({ target_avoided_state_gal: 0 }).targets.avoidedStateGal).toBe(0);
+  });
+
+  /**
+   * ⚠ The period is part of the number, and it was missing when these columns shipped.
+   *
+   * The two percentages are RATIOS and mean the same thing over any window. A gallons ceiling does
+   * not: "4,000" is a different instruction over a week, a month and a year, and a target nobody can
+   * date is a target nobody can miss. Production has 4,000 set against months measured at 3,380 to
+   * 5,369 — read as a year it would be absurd, read as a week it would never be met.
+   *
+   * There is nothing in the VALUE to assert, so this pins the only thing that can carry the period:
+   * that the contract says so where somebody reading the field will find it.
+   */
+  it("says which period the gallons ceiling covers, because a ratio needs none and a count does", () => {
+    const src = readFileSync(new URL("./policyExceptions.ts", import.meta.url), "utf8");
+    const field = src.slice(src.indexOf("avoidedStateGal"), src.indexOf("avoidedStateGal") + 40);
+    const doc = src.slice(Math.max(0, src.indexOf("avoidedStateGal") - 900), src.indexOf("avoidedStateGal"));
+    expect(field).toContain("avoidedStateGal");
+    expect(doc).toMatch(/PER MONTH/);
   });
 });

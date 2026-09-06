@@ -164,7 +164,16 @@ export interface FuelTargets {
   onNetworkPct: number | null;
   /** FLOOR, 0-100: at least this share of the available discount actually captured. */
   discountCapturePct: number | null;
-  /** CEILING, gallons: at most this many bought in `avoidStates`. */
+  /**
+   * CEILING, gallons **PER MONTH**: at most this many bought in `avoidStates`.
+   *
+   * ⚠ The period is part of the number and was missing when this shipped. The two percentages are
+   * RATIOS and mean the same thing over any window; a gallons ceiling does not — "4,000" is a
+   * different instruction over a week, a month and a year, and a target nobody can date is a target
+   * nobody can miss. A month, because that is the grain `policyFindings` already groups by (per truck
+   * × kind × month, Q-FUI3), so the figure a finding is measured against is the figure the finding
+   * itself covers.
+   */
   avoidedStateGal: number | null;
 }
 
