@@ -1,11 +1,25 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { computed } from "vue";
-import { fuelPolicyFromSettings, type FuelPolicy, type RouteFuelSettingsForm } from "@silvicom/shared";
+import { fuelPolicyFromSettings, routeFuelSettingsFormSchema, type FuelPolicy, type RouteFuelSettingsForm } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 
-const COLS =
-  "reserve_pct, mpg_safety_factor, emergency_fill_gallons, min_purchase_gal, corridor_miles, deviation_threshold_mi, price_ttl_hours, always_fill_full, fill_cap_pct, plan_def, preferred_brands, avoid_brands, emergency_brands, enabled_brands, avoid_states, fuel_before_states, default_height_in, default_length_in, default_width_in, default_axle_count, default_gross_weight_lb, default_equipment_type";
+/**
+ * Every column the form round-trips, DERIVED from the form's own schema rather than listed.
+ *
+ * ── THE DEFECT THIS REPLACES, WHICH WAS ONE DAY OLD AND WOULD HAVE DESTROYED DATA ───────────────
+ * C8 added three target fields to the form and to `routeFuelSettingsFormSchema`, and this list was
+ * hand-written, so it did not select them. The read therefore returned no targets, the form fell back
+ * to its defaults — `null`, correctly — and `saveRouteFuelSettings` upserts `{ org_id, ...form }`.
+ * Opening Settings → Planned Fueling and pressing Save would have written those nulls over the
+ * targets an owner had just set, silently, with the page showing blank fields that looked like the
+ * truth.
+ *
+ * A hand-written mirror of a schema is a copy with a delay fuse — the shape CLAUDE.md's no-workarounds
+ * rule names — and the fuse here was one save long. Deriving from the schema means a field added to
+ * the form is selected by the read that fills it, with nothing to remember.
+ */
+export const ROUTE_FUEL_SETTINGS_COLS = Object.keys(routeFuelSettingsFormSchema.shape).join(", ");
 
 export type RouteFuelSettings = RouteFuelSettingsForm;
 
@@ -14,7 +28,7 @@ export function useRouteFuelSettings() {
   return useQuery({
     queryKey: ["route_fuel_settings"],
     queryFn: async (): Promise<Partial<RouteFuelSettings> | null> => {
-      const { data, error } = await supabase.from("route_fuel_settings").select(COLS).maybeSingle();
+      const { data, error } = await supabase.from("route_fuel_settings").select(ROUTE_FUEL_SETTINGS_COLS).maybeSingle();
       if (error) throw new Error(error.message);
       return (data as Partial<RouteFuelSettings> | null) ?? null;
     },
