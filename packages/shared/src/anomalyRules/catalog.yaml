@@ -98,9 +98,9 @@ rules:
   - id: cumulative_overfuel
     tier: volume_capacity
     axis: consumption
-    weight: 75
+    weight: 0
     label: Cumulative Overfueling
-    note: Rolling-window gallons vs miles-burnable + a tank. WP5 DETECTION FLOOR (documented, deliberate) — the ceiling grants one full empty-to-full tank of slack + 10 gal per window, so sustained theft under ~one tank per 48h is invisible to THIS rule by design (precision over recall); per-fill tank rules + tank_fill_short carry that range where sensors allow. 2026-08 — the ceiling now also grants MEASURED idle burn (vehicle_engine_days.idle_sec × IDLE_BURN_GPH, edge days pro-rated): a parked-and-idling truck really burns fuel its odometer never shows, which was the residual false-review class after the capacity fix. No engine-time data → ceiling unchanged. WP-ATTR — the window EXCLUDES fills whose vehicle attribution the driver's ELD logbook contradicts (the driver-changed-truck false-alert class), and the rule is suppressed entirely when THIS fill is attribution-suspect; corroborated misattributions (logbook + GPS agree) are auto-re-attributed and re-scored under the correct truck.
+    note: WEIGHT 0 SINCE 2026-09-06 — owner ruling on the re-asked Q-FUI11, candidate (a). It was 75, above the 60 at which a signal raises a review UNACCOMPANIED, and that is exactly what it did: measured on production, 52 of its 67 live cases were a lone signal and 51 of those 52 were dispositioned false. It carried 64 of the 95 false positives in the whole queue (67% of the pool) and precision read 3.1% with it against 6.1% without. Corroboration did not rescue it either — where a second axis agreed, 0 of 14 were confirmed and 13 were false. Its one lifetime confirmation (unit 742) does not survive contact: its ceiling was built on a 10.71 MPG baseline for a truck that reads 7.48 today, so it would not fire now. The rule still RUNS and its body is unchanged; only its authority to accuse is gone, and restoring it is this one number. ⚠ Because correlateSignals drops weight-0 signals before persisting case_signals, it currently leaves NO trace at all rather than a data-quality one — see Q-FUI17. Rolling-window gallons vs miles-burnable + a tank.
 
   # ── Tier 3 — efficiency ──────────────────────────────────────────────────────────────────────────
   - id: mpg_deviation

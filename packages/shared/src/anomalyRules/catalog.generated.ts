@@ -98,7 +98,7 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
   exceeds_capacity_unverified: { axis: "volume", weight: 60 },
   tank_space_exceeded: { axis: "volume", weight: 90 },
   implausible_topoff: { axis: "consumption", weight: 50 },
-  cumulative_overfuel: { axis: "consumption", weight: 75 },
+  cumulative_overfuel: { axis: "consumption", weight: 0 },
   mpg_deviation: { axis: "consumption", weight: 30 },
   mpg_sustained_decline: { axis: "consumption", weight: 20 },
   rapid_repeat_fueling: { axis: "behavior", weight: 40 },
@@ -124,4 +124,4 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
  * it. Changes when the ruleset changes and NOT when an unrelated commit ships — which is what
  * makes "was this scored before or after the fix?" an answerable question.
  */
-export const RULESET_HASH = "2c3703172ebe";
+export const RULESET_HASH = "fccfacce9d80";

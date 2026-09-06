@@ -29,5 +29,16 @@
  * bought less than it drove, which is what a partial fill looks like. The bump is what carries the
  * correction to the fills already judged; without it the nightly's trailing window would reach two
  * weeks of them and the rest of history would keep the old verdict.
+ *
+ * **3 (2026-09-06)** — `cumulative_overfuel` reweighted 75 → 0 (owner ruling on the re-asked
+ * Q-FUI11). It was above the 60 at which a signal accuses unaccompanied and carried 64 of the queue's
+ * 95 false positives; 52 of its 67 cases were a lone signal and 51 of those were dispositioned false.
+ * The bump is what retires those cases: a weight change alters what scoring CONCLUDES from unchanged
+ * inputs, which is this file's own trigger, and without it 64 accusations stay on the queue wearing a
+ * verdict the product no longer makes.
+ *
+ * ⚠ It restarts the version-2 sweep, which was 36% converged. That is the cost of two derivation
+ * changes a day apart and it is accepted rather than worked around: a partially-converged fleet
+ * judged by two different rulesets is worse than one that takes another eight nights to agree.
  */
-export const SCORING_VERSION = 2;
+export const SCORING_VERSION = 3;
