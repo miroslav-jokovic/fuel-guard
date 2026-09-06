@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import type { FuelPolicy, SpendLine } from "@silvicom/shared";
+import { NO_FUEL_TARGETS } from "@silvicom/shared";
 import { policyReports } from "./policyReports";
 import ExceptionsTab from "./ExceptionsTab.vue";
 
@@ -38,6 +39,8 @@ const FEED: SpendLine[] = [
 
 const POLICY: FuelPolicy = {
   avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true,
+  // No target set — the state every carrier is in until somebody fills the form in (C8).
+  targets: NO_FUEL_TARGETS,
 };
 const withPolicy = (o: Partial<FuelPolicy>): FuelPolicy => ({ ...POLICY, ...o });
 const byKey = (policy: FuelPolicy, key: string) => policyReports(FEED, policy).find((r) => r.key === key);

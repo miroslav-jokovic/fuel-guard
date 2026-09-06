@@ -201,6 +201,34 @@ const truck: NumField[] = [
               <BaseInput :id="id" v-model="fuelBeforeStates" placeholder="MA" />
             </FormField>
           </div>
+
+          <!--
+            Targets, beside the lists they grade (C8, D-FUI10). Deliberately in this card and not in a
+            section of their own: a target belongs to the rule it qualifies, and "at least 90% on the
+            preferred network" is unreadable three cards away from which brands those are.
+
+            Every one is optional and BLANK BY DEFAULT. The product does not invent a carrier's own
+            standard — see `optionalTarget` in the settings schema for what a blank field must not
+            become, and 0325 for why these three columns break this table's not-null convention.
+          -->
+          <div class="mt-6 border-t border-edge pt-4">
+            <h4 class="text-sm font-semibold text-ink">Targets</h4>
+            <p class="mt-1 text-sm text-ink-muted">
+              What you hold the fleet to. Leave a target blank and the matching figure is reported without a
+              standard beside it, exactly as it is today — nothing here is assumed on your behalf.
+            </p>
+            <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <FormField v-slot="{ id }" label="On-network share (%)" hint="At least this share of gallons at your preferred brands." :error="fieldErr.target_on_network_pct">
+                <BaseInput :id="id" v-model="form.target_on_network_pct" type="number" min="0" max="100" step="1" placeholder="No target" />
+              </FormField>
+              <FormField v-slot="{ id }" label="Discount capture (%)" hint="At least this share of the discount available to you, actually taken." :error="fieldErr.target_discount_capture_pct">
+                <BaseInput :id="id" v-model="form.target_discount_capture_pct" type="number" min="0" max="100" step="1" placeholder="No target" />
+              </FormField>
+              <FormField v-slot="{ id }" label="Avoided-state gallons" hint="At most this many gallons bought in the states above. A ceiling, not a floor." :error="fieldErr.target_avoided_state_gal">
+                <BaseInput :id="id" v-model="form.target_avoided_state_gal" type="number" min="0" step="10" placeholder="No target" />
+              </FormField>
+            </div>
+          </div>
         </div>
       </BaseCard>
 

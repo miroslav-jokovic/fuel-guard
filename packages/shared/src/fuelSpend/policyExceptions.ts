@@ -147,6 +147,67 @@ export function exceptionReport(lines: readonly SpendLine[], selects: (l: SpendL
   };
 }
 
+/**
+ * What the carrier holds itself to (C8, D-FUI10). Every field is nullable and NEVER defaulted.
+ *
+ * ⚠ This is the one part of the policy that has no sensible fallback, and 0325 says why at length:
+ * every other setting on `route_fuel_settings` is a PLANNING input the router must have an answer for,
+ * so a default beats a failure. A target is a management commitment. Defaulting `onNetworkPct` to 90
+ * would measure a carrier against a threshold nobody in their office chose, and "12 points below
+ * target" would be a sentence this product made up — worse than no target rather than better.
+ *
+ * Two floors and a ceiling, kept apart because the direction is the thing that inverts a variance if
+ * it is guessed. `varianceToTarget` takes the direction explicitly for the same reason.
+ */
+export interface FuelTargets {
+  /** FLOOR, 0-100: at least this share of gallons at brands the policy prefers. */
+  onNetworkPct: number | null;
+  /** FLOOR, 0-100: at least this share of the available discount actually captured. */
+  discountCapturePct: number | null;
+  /** CEILING, gallons: at most this many bought in `avoidStates`. */
+  avoidedStateGal: number | null;
+}
+
+/** No target is set until somebody sets one. There is deliberately no "default target". */
+export const NO_FUEL_TARGETS: FuelTargets = {
+  onNetworkPct: null,
+  discountCapturePct: null,
+  avoidedStateGal: null,
+};
+
+export type TargetDirection = "floor" | "ceiling";
+
+export interface TargetVariance {
+  target: number;
+  actual: number;
+  /**
+   * How far the RIGHT side of the line this is — positive is met with room to spare, negative is
+   * missed by that much, in BOTH directions.
+   *
+   * One sign convention for a floor and a ceiling is the whole point: `actual - target` reads as
+   * "good" for on-network share and as "bad" for avoided-state gallons, and a reader who forgets
+   * which they are looking at gets the colour backwards. Here the sign always means the same thing.
+   */
+  delta: number;
+  met: boolean;
+}
+
+/**
+ * Grade a figure against its target, or `null` when there is no target to grade it against.
+ *
+ * Null is the ordinary case until somebody fills the settings form in, and it means "render this
+ * figure the way it rendered before C8" — not zero, and not met.
+ */
+export function varianceToTarget(
+  actual: number | null | undefined,
+  target: number | null | undefined,
+  direction: TargetDirection,
+): TargetVariance | null {
+  if (target == null || actual == null || !Number.isFinite(actual) || !Number.isFinite(target)) return null;
+  const delta = direction === "floor" ? actual - target : target - actual;
+  return { target, actual, delta, met: delta >= 0 };
+}
+
 export interface FuelPolicy {
   avoidStates: readonly string[];
   avoidBrands: readonly string[];
@@ -160,6 +221,8 @@ export interface FuelPolicy {
    * does instead is price the setting — F13's carried-fuel figure is what leaving it on costs.
    */
   alwaysFillFull: boolean;
+  /** The standards the carrier set for itself. All-null until they do. */
+  targets: FuelTargets;
 }
 
 /**
@@ -178,6 +241,9 @@ export const DEFAULT_FUEL_POLICY: FuelPolicy = {
   // default — so the two halves of the product start from the same assumption about an unconfigured
   // carrier rather than from two.
   alwaysFillFull: true,
+  // ⚠ Not a default — the ABSENCE of one. An unconfigured carrier has no target, and inventing one
+  // here would put the product's opinion behind every variance figure in the section.
+  targets: NO_FUEL_TARGETS,
 };
 
 /** The `route_fuel_settings` columns the compliance side reads, as PostgREST returns them. */
@@ -186,6 +252,9 @@ export interface FuelPolicyRow {
   avoid_brands?: string[] | null;
   preferred_brands?: string[] | null;
   always_fill_full?: boolean | null;
+  target_on_network_pct?: number | string | null;
+  target_discount_capture_pct?: number | string | null;
+  target_avoided_state_gal?: number | string | null;
 }
 
 /**
@@ -215,7 +284,23 @@ export function fuelPolicyFromSettings(row: FuelPolicyRow | null | undefined): F
     // A boolean has no empty-versus-null distinction to preserve: absent means unconfigured, and an
     // unconfigured carrier gets the planner's own default rather than a second opinion.
     alwaysFillFull: row?.always_fill_full ?? DEFAULT_FUEL_POLICY.alwaysFillFull,
+    // ⚠ NOT run through the null-means-default rule above. For the lists, null means "never
+    // configured" and the default applies; for a target, null means there ISN'T one and there is
+    // nothing to fall back to. PostgREST returns `numeric` as a string, so each is coerced once here
+    // rather than at every call site that wants to compare it to a percentage.
+    targets: {
+      onNetworkPct: num(row?.target_on_network_pct),
+      discountCapturePct: num(row?.target_discount_capture_pct),
+      avoidedStateGal: num(row?.target_avoided_state_gal),
+    },
   };
+}
+
+/** A `numeric` column as a number, or null — never NaN, which would compare false against everything. */
+function num(v: number | string | null | undefined): number | null {
+  if (v == null || v === "") return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 export interface PolicyExceptions {

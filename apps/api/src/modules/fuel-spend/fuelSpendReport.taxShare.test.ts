@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzePolicyExceptions, type SpendLine } from "@silvicom/shared";
+import { analyzePolicyExceptions, type SpendLine, NO_FUEL_TARGETS } from "@silvicom/shared";
 import { taxSharePhrase } from "./fuelSpendReportPolicy.js";
 
 /**
@@ -25,7 +25,7 @@ const california = () =>
       fill({ state: "TX", gallons: 400, netAmount: 400 * 4.4, site: "2" }),
       fill({ state: "AZ", gallons: 300, netAmount: 300 * 4.5, site: "3" }),
     ],
-    { avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true },
+    { avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true, targets: NO_FUEL_TARGETS },
   );
 
 describe("taxSharePhrase", () => {
@@ -52,7 +52,7 @@ describe("taxSharePhrase", () => {
         fill({ state: "TX", gallons: 100, netAmount: 620, brand: null, site: "x1" }),
         fill({ state: "CA", gallons: 100, netAmount: 500, site: "p1" }),
       ],
-      { avoidStates: ["CA"], avoidBrands: [], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true },
+      { avoidStates: ["CA"], avoidBrands: [], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true, targets: NO_FUEL_TARGETS },
     ).offNetwork;
     expect(taxSharePhrase([{ name: "Off the preferred network", r: offNetwork }])).toBeNull();
   });
@@ -63,7 +63,7 @@ describe("taxSharePhrase", () => {
         fill({ state: "CA", gallons: 100, netAmount: 620, tranDate: "2024-03-01" }),
         fill({ state: "TX", gallons: 400, netAmount: 1760, tranDate: "2024-03-01", site: "2" }),
       ],
-      { avoidStates: ["CA"], avoidBrands: [], preferredBrands: ["pilot"], alwaysFillFull: true },
+      { avoidStates: ["CA"], avoidBrands: [], preferredBrands: ["pilot"], alwaysFillFull: true, targets: NO_FUEL_TARGETS },
     ).avoidedStates;
     expect(taxSharePhrase([{ name: "California", r: older }])).toBeNull();
   });
