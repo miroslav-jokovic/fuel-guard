@@ -153,6 +153,48 @@ describe("correlateSignals (multi-signal → one case)", () => {
     expect(c.level).toBe("alert");
     expect(c.axes.sort()).toEqual(["location", "volume"]);
   });
+  /**
+   * Q-FUI11, answered (a) 2026-09-06: `cumulative_overfuel` is weight 0 and no longer accuses.
+   *
+   * It was 75 — above the 60 at which a signal raises a review UNACCOMPANIED — and that is what it
+   * did: 52 of its 67 production cases were a lone signal and 51 of those 52 were dispositioned
+   * false. It carried 64 of the whole queue's 95 false positives. What the ruling changes is its
+   * AUTHORITY, not its detection: the rule body is untouched and still runs, which is why the
+   * assertions below are about the case and not about whether it fires.
+   */
+  it("a lone cumulative_overfuel no longer raises a review — the ruling, in one assertion", () => {
+    expect(correlateSignals([sig("cumulative_overfuel")]).level).toBe("clear");
+  });
+
+  it("contributes nothing to a case another signal is already making", () => {
+    // Asserted as "the score is unchanged by adding it" rather than against a literal, so it keeps
+    // meaning the same thing if another weight moves. Before the ruling this pair scored 50 + 75 over
+    // two axes — 125, past the 110 alert line — and it was the overfuel signal that carried it there.
+    const alone = correlateSignals([sig("location_mismatch")]);
+    const withOverfuel = correlateSignals([sig("location_mismatch"), sig("cumulative_overfuel")]);
+    expect(withOverfuel.score).toBe(alone.score);
+    expect(withOverfuel.axes).toEqual(alone.axes);
+    expect(withOverfuel.level).toBe(alone.level);
+  });
+
+  /**
+   * ⚠ AND THE COST OF THE RULING, PINNED SO IT CANNOT BE FORGOTTEN (Q-FUI17).
+   *
+   * `correlateSignals` filters `weight > 0` before building `signals`, and `persist.ts` writes that
+   * same list to `fuel_transactions.case_signals`. So a weight-0 rule leaves NO trace anywhere — not
+   * a case, not a signal on the fill, nothing for `explainCaseOutcome` to mention. The ruling was
+   * taken on the understanding that the rule "keeps detecting and stops accusing"; the first half is
+   * true of the ENGINE and false of everything persisted from it.
+   *
+   * This asserts the behaviour that ships today rather than the behaviour that was wanted, and it is
+   * the test that should FAIL — loudly, and in the right file — the day Q-FUI17 is answered.
+   */
+  it("records nothing at all for a weight-0 rule, which is Q-FUI17 and not the intent", () => {
+    const c = correlateSignals([sig("cumulative_overfuel"), sig("odometer_entry_suspect")]);
+    expect(c.signals).toEqual([]);
+    expect(c.level).toBe("clear");
+  });
+
   it("two signals on the SAME axis do not over-count into an alert", () => {
     // both odometer axis, weights 55 + 45 → single-axis, top 55 < review → clear
     const c = correlateSignals([sig("odometer_regression"), sig("odometer_mismatch")]);
