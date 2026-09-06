@@ -1,4 +1,6 @@
 import { ANOMALY_STATUSES, type AnomalyDisposition, type AnomalyStatus } from "./constants.js";
+import type { AppSection } from "./auth.js";
+import type { FindingKind } from "./findingAssignment.js";
 import { FUEL_EXCEPTION_STATUSES, type FuelExceptionStatus } from "./fuelSpend/exceptions.js";
 
 /**
@@ -158,4 +160,51 @@ export function closeOfException(
     case "dismissed":
       return { via: "money", outcome: "dismissed", amountUsd: null };
   }
+}
+
+/**
+ * The single row shape both producers satisfy (C7a element iii, given a consumer by C7b).
+ *
+ * ── WHY `amountUsd` IS ON THE ROW AND THE OUTCOME IS NOT ────────────────────────────────────────
+ * This is the IDENTIFIED amount — what a finding is about — and it is null for an anomaly by
+ * construction, because a theft case is an accusation about a person and has no face value. What was
+ * RECOVERED lives in `close`, behind the money arm, and is reachable only for a source that can have
+ * one. A reader summing `amountUsd` across a mixed inbox therefore sums exactly the exceptions, which
+ * is the correct answer rather than a lucky one.
+ *
+ * ⚠ `occurredOn` is not the same fact on both sides, and pretending otherwise would be worse than
+ * saying so. T1 gave `fuel_transactions` a stored station-local `business_date` and every fuel surface
+ * moved onto it; `anomalies` was the one exception, and Q-FUI13 ruled (b) — Alerts stays on the
+ * detection instant and nothing claims otherwise. So an anomaly's date here is derived from
+ * `fueled_at` and can disagree with the ledger's business date by up to a day at a month boundary.
+ * That is a recorded open question, not a defect introduced here.
+ */
+export interface FindingRow {
+  id: string;
+  source: FindingSource;
+  kind: FindingKind;
+  /** Derived from the kind — the section whose `manage` set may close this. See `findingAssignment`. */
+  section: AppSection;
+  queueState: FindingQueueState;
+  /** The date the finding is ABOUT — see the warning above about what that means per source. */
+  occurredOn: string | null;
+  unitNumber: string | null;
+  /** One line a reader can act on without opening the row. */
+  summary: string;
+  /** Money IDENTIFIED. Null for an anomaly, always. */
+  amountUsd: number | null;
+  assignedTo: string | null;
+  /** When it first appeared, which is what an aging column counts from. */
+  openedAt: string | null;
+  close: FindingClose | null;
+}
+
+export type FindingSource = "anomaly" | "exception";
+
+/** How old a finding is, in whole days, or null when it never recorded when it opened. */
+export function findingAgeDays(row: Pick<FindingRow, "openedAt">, now: Date): number | null {
+  if (!row.openedAt) return null;
+  const opened = new Date(row.openedAt).getTime();
+  if (!Number.isFinite(opened)) return null;
+  return Math.max(0, Math.floor((now.getTime() - opened) / 86_400_000));
 }

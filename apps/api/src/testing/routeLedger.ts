@@ -52,6 +52,10 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
 export const OPEN_ROUTES = new Map<string, string>([
   // ── Gated inside the handler, because the section is a PARAMETER. ─────────────────────────────
   [
+    "GET /api/fueling/findings",
+    "the Findings inbox over BOTH case tables (C7b). It IS section-gated, per ROW rather than per route: Q-FUI1 ruled that each finding kind carries its own section, so `visibleSections` derives the caller's sections from the matrix and a `safety` row is never read for somebody without `safety` — the anomaly table is not queried at all for them. A static `requireSection` could only name ONE section for a route that serves two, and naming `fuel` would take the theft queue from the safety manager, which is the narrowing Q-FUI4 refused. A caller who may see neither gets an empty page rather than a 403, because \"no findings you may see\" is a true answer to this question",
+  ],
+  [
     "GET /api/fueling/exceptions/assignees",
     "the assignee picker for one finding section (Q-FUI15). It IS section-gated — `canViewSection(role, section)`, refused 403 — but the section arrives in the query rather than being fixed at mount, so no static `requireSection` exists for this gate to see. The section is validated against `FINDING_ASSIGNABLE_SECTIONS` first, so it cannot be used to enumerate a section the inbox holds no findings for, and the response carries id, name and role only — no email, no invitation state, no `joined_at`",
   ],

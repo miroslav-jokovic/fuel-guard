@@ -141,6 +141,10 @@ const FILE_SECTION: Record<string, "fuel" | "safety"> = {
  */
 const GATE_WAIVERS = new Map<string, string>([
   [
+    'modules/fuel-spend/routes/exceptions.ts get /findings',
+    'gated per ROW rather than per route (C7b, Q-FUI1). The inbox serves two sections, so a static requireSection could only name one of them, and naming "fuel" would take the theft queue from the safety manager — the narrowing Q-FUI4 refused. `visibleSections` derives the caller\'s sections from SECTION_ACCESS and the anomaly table is not read at all without `safety`. Pinned by "never reads the anomaly table for a caller without safety" in modules/fuel-spend/findingsRead.test.ts',
+  ],
+  [
     'modules/fuel-spend/routes/exceptions.ts get /exceptions/assignees',
     'gated INSIDE the handler because the section is a parameter, not a mount (Q-FUI15). A static requireSection("fuel") would be the wrong gate, not a missing one: this route answers for the section named in the query, and the inbox holds safety findings too — so it checks canViewSection(role, section) against a set derived from FINDING_SECTIONS and answers 403 otherwise. Pinned by "refuses a caller who cannot see findings in that section" in modules/fuel-spend/routes/exceptionAssignees.test.ts',
   ],

@@ -15,12 +15,14 @@ import { writeAudit } from "../../../lib/audit.js";
 import {
   FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_STATUSES,
   FINDING_ASSIGNABLE_SECTIONS,
+  FINDING_QUEUE_STATES,
   canViewSection,
   rolesAssignableIn,
   type FuelExceptionStatus,
   type UserRole,
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
+import { readFindings } from "../findingsRead.js";
 import { exportExceptions } from "../fuelExceptionExport.js";
 import { renderDisputePacket } from "../fuelDisputePacket.js";
 import { ExportTooLargeError, MAX_EXPORT_ROWS } from "../../../lib/csvExport.js";
@@ -54,6 +56,19 @@ const ymd = (raw: unknown): string | null => (typeof raw === "string" && YMD.tes
  * have must answer with no findings, never with everybody's. A UUID list is validated before it
  * reaches a service-role query, which is the only tenant boundary this code has.
  */
+/**
+ * The vehicle ids on `?vehicles=`, validated and capped — the same parsing `unitsForVehicles` does,
+ * lifted out because the findings route needs the IDS themselves rather than the unit numbers: it
+ * serves two tables that name a truck two different ways, and resolves both in one roster read.
+ */
+const idsFrom = (raw: unknown): string[] | null => {
+  const ids = (typeof raw === "string" ? raw.split(",") : [])
+    .map((s) => s.trim())
+    .filter((s) => UUID.test(s))
+    .slice(0, 500);
+  return ids.length ? ids : null;
+};
+
 async function unitsForVehicles(
   admin: ReturnType<typeof getSupabaseAdmin>,
   orgId: string,
@@ -88,6 +103,38 @@ async function unitsForVehicles(
  * claim. Deciding a finding's outcome is the PATCH below, and that stayed where it was.
  */
 export function registerExceptionRoutes(router: Router): void {
+  /**
+   * The Findings inbox, over both case tables (C7b).
+   *
+   * ── THE GATE IS PER KIND, NOT PER PAGE ──────────────────────────────────────────────────────
+   * Q-FUI1 ruled (a): the inbox lives in Fuel and each finding kind carries its OWN section, so a
+   * `safety` row is filtered out for anyone without `safety`. `requireOrg` and no `requireSection`
+   * is therefore correct rather than missing — a static gate here would have to pick ONE section for
+   * a route that serves two, and picking `fuel` would take the theft queue away from the safety
+   * manager exactly as Q-FUI4's superseded fallback would have. `visibleSections` derives the answer
+   * from the matrix per caller, and a caller who can see neither section gets an empty page rather
+   * than a 403, because "no findings you may see" is a true answer to this question.
+   */
+  router.get(
+    "/findings",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const page = await readFindings(admin, req.auth!.orgId!, req.auth!.role as UserRole, {
+        states: closedSet(req.query.state, FINDING_QUEUE_STATES) ?? undefined,
+        // `?vehicles=` with ids, the same parameter every other fuel surface sends.
+        vehicleIds: idsFrom(req.query.vehicles),
+        assignedTo:
+          typeof req.query.assignedTo === "string" && UUID.test(req.query.assignedTo) ? req.query.assignedTo : null,
+        from: ymd(req.query.from),
+        to: ymd(req.query.to),
+        limit: Number(req.query.limit) || 50,
+        offset: Number(req.query.offset) || 0,
+      });
+      res.json({ ok: true, ...page });
+    }),
+  );
+
   /**
    * Who this finding could be assigned to (Q-FUI15, ruled 2026-09-06).
    *
