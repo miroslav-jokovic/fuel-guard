@@ -34,6 +34,54 @@ describe("planStorageReconcile (§13.5)", () => {
 });
 
 /**
+ * The hazmat ORIGINAL of record (D-SCAN11, columns from 0327) is recorded at registration and
+ * uploaded when the driver reaches an unmetered connection — days later, on a phone that spends its
+ * week on cellular. Every path this planner knew about before was written before or with its row, so
+ * "a row names it and it is not there" could only mean the object was lost.
+ *
+ * Both halves are asserted because the sweep runs nightly with `apply: true` and gets BOTH wrong
+ * without this: it would flag every pending original as possible evidence loss, and — because
+ * `orphanObjects` deletes any object no row path covers — delete the original 24 hours after it
+ * finally landed. The evidence would have had a one-day life.
+ */
+describe("planStorageReconcile — a deferred upload (D-SCAN11)", () => {
+  const YEAR_AGO = "2025-08-06T12:00:00Z"; // past the 30-day pending grace
+
+  it("does not delete an original that has landed, though no storage_path names it", () => {
+    const p = planStorageReconcile(
+      [{ path: "o/l/a.original.jpg", createdAt: OLD }],
+      [],
+      NOW,
+      DAY,
+      [{ path: "o/l/a.original.jpg", since: RECENT }],
+    );
+    expect(p.orphanObjects).toEqual([]);
+  });
+
+  it("stays silent about an original that has not uploaded yet", () => {
+    const p = planStorageReconcile([], [], NOW, DAY, [{ path: "o/l/a.original.jpg", since: RECENT }]);
+    expect(p.missingObjects).toEqual([]);
+    expect(p.orphanObjects).toEqual([]);
+  });
+
+  it("reports a deferred upload that never happened, once it is past the pending grace", () => {
+    const p = planStorageReconcile([], [], NOW, DAY, [{ path: "o/l/a.original.jpg", since: YEAR_AGO }]);
+    expect(p.missingObjects).toEqual(["o/l/a.original.jpg"]);
+  });
+
+  it("still flags a missing archive immediately — deferral is not contagious", () => {
+    const p = planStorageReconcile(
+      [],
+      ["o/l/a.orig.jpg"],
+      NOW,
+      DAY,
+      [{ path: "o/l/a.original.jpg", since: RECENT }],
+    );
+    expect(p.missingObjects).toEqual(["o/l/a.orig.jpg"]);
+  });
+});
+
+/**
  * Which bucket each reconciler actually points at (DQF plan B7).
  *
  * These read like trivia until you remember the bug they exist for: `compliance-docs` shipped with
@@ -45,13 +93,19 @@ describe("planStorageReconcile (§13.5)", () => {
 interface StubCall {
   table?: string;
   bucket?: string;
+  columns?: string;
 }
 
 function stubAdmin(calls: StubCall) {
   return {
     from(table: string) {
       calls.table = table;
-      return { select: async () => ({ data: [], error: null }) };
+      return {
+        select: async (columns?: string) => {
+          calls.columns = columns;
+          return { data: [], error: null };
+        },
+      };
     },
     storage: {
       from(bucket: string) {
@@ -78,6 +132,24 @@ describe("bucket ↔ table bindings", () => {
     await reconcileHazmatStorageOrphans(stubAdmin(calls), { apply: false });
     expect(calls.bucket).toBe("hazmat");
     expect(calls.table).toBe("hazmat_documents");
+  });
+
+  /**
+   * The hazmat sweep is the only one that reads a second path column, and reading it is what stops
+   * the nightly `apply: true` pass deleting every uploaded ORIGINAL as an orphan. A column name is
+   * usually not worth an assertion; this one is the difference between evidence and a one-day file.
+   */
+  it("hazmat selects the ORIGINAL's path as well, or the sweep would delete it", async () => {
+    const calls: StubCall = {};
+    await reconcileHazmatStorageOrphans(stubAdmin(calls), { apply: false });
+    expect(calls.columns).toContain("original_storage_path");
+    expect(calls.columns).toContain("created_at"); // a deferral has to be able to expire
+  });
+
+  it("the other buckets have no deferred column and still select storage_path alone", async () => {
+    const calls: StubCall = {};
+    await reconcileLoadPhotoOrphans(stubAdmin(calls), { apply: false });
+    expect(calls.columns).toBe("storage_path");
   });
 
   it("load-photos reconciles against `load_stop_photos`", async () => {

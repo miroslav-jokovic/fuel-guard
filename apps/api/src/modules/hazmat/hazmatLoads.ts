@@ -235,11 +235,43 @@ export async function registerDocument(
     row.os_enhanced = req.capture.osEnhanced;
     row.integrity_hash = req.capture.integrityHash;
     row.ocr_evidence = req.capture.ocrEvidence ?? null;
+    if (req.capture.archiveBytes !== undefined) row.archive_bytes = req.capture.archiveBytes;
+  }
+  // ── D-SCAN11's ORIGINAL of record (columns from 0327) ────────────────────────────────────────
+  // Computed here, at registration, alongside the archive's: `hazmat_documents` is insert-only
+  // evidence, so a path that is not known at INSERT is a path that can never be recorded without an
+  // UPDATE the table has no policy for.
+  //
+  // ⚠ **Why the key is `.original.jpg` and not `.orig.jpg`, which is what the plan wrote.**
+  // §4 Step 4b of SCANNER-UPGRADE-PLAN.md names the two keys `{id}.orig.jpg` and
+  // `{id}.archive.webp`. The first is already taken — `storagePath` above has used `{id}.orig.jpg`
+  // for every `image/jpeg` registration since this function was written, where `orig` meant "the
+  // original upload" back when a capture produced exactly one artifact. Following the plan literally
+  // would put both artifacts at the same key, and the failure would be SILENT rather than loud: the
+  // `hazmat` bucket denies overwrite, so the second upload returns "already exists", and the outbox
+  // handler treats already-exists as success on purpose (it is what makes a re-drained record a
+  // no-op instead of a duplicate). The original would never upload and every layer would report that
+  // it had. Renaming the archive's key to something clearer is the tidier repair and is deliberately
+  // NOT done: every existing row's `storage_path` is that string, and rewriting a stored key is a
+  // data migration on an insert-only evidence table to fix a name that stops misleading anyone the
+  // moment this comment exists.
+  let original: { storagePath: string; uploadUrl: string; token: string } | null = null;
+  if (req.capture?.original) {
+    const originalPath = `${orgId}/${loadId}/${req.id}.original.jpg`;
+    const { data: signedOriginal, error: originalErr } = await admin.storage.from("hazmat").createSignedUploadUrl(originalPath);
+    if (originalErr || !signedOriginal) return err("sign_failed", originalErr?.message ?? "Failed to sign the original's upload URL.");
+    original = { storagePath: originalPath, uploadUrl: signedOriginal.signedUrl, token: signedOriginal.token };
+    row.original_storage_path = originalPath;
+    row.original_bytes = req.capture.original.bytes;
   }
   const { error } = await admin.from("hazmat_documents").upsert(row, { onConflict: "id", ignoreDuplicates: true });
   if (error) return err("insert_failed", error.message);
-  return { documentId: req.id, storagePath, uploadUrl: signed.signedUrl, token: signed.token };
+  return {
+    documentId: req.id, storagePath, uploadUrl: signed.signedUrl, token: signed.token,
+    ...(original ? { original: { storagePath: original.storagePath, uploadUrl: original.uploadUrl, token: original.token } } : {}),
+  };
 }
+
 
 /** BOL/securement documents for a load, each with a short-lived signed DOWNLOAD url (review evidence, H7). */
 export async function listDocuments(

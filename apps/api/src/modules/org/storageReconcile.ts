@@ -24,21 +24,66 @@ export interface StorageReconcilePlan {
   rows: number;
 }
 
-/** Pure: compare live objects against the DB row paths and split into deletable orphans + missing objects. */
+/**
+ * A path a row names but whose object may legitimately not exist yet (D-SCAN11).
+ *
+ * ── WHY THIS CATEGORY HAD TO EXIST ─────────────────────────────────────────────────────────────
+ * Every path this reconciler knew about used to be written before or with its row, so "a row names
+ * it and it is not there" could only mean the object was lost. The hazmat ORIGINAL of record breaks
+ * that: it is recorded at registration and uploaded when the driver reaches an unmetered connection,
+ * which may be days later. Without this category the nightly pass would do two wrong things at once
+ * — flag every pending original as possible evidence loss, and, because `orphanObjects` deletes any
+ * object no row path covers, delete the original 24 hours after it finally landed.
+ *
+ * `since` is the row's `created_at`, and it is what stops "pending" meaning "never flagged". A
+ * deferred upload that has not happened after `PENDING_UPLOAD_GRACE_MS` is reported like any other
+ * missing object.
+ */
+export interface DeferredPath {
+  path: string;
+  /** ISO timestamp the row was created — when the wait started. */
+  since: string;
+}
+
+/**
+ * How long a deferred upload may stay missing before it is reported.
+ *
+ * ⚠ **Thirty days is a chosen operational threshold, not a derived one**, and it is stated here
+ * rather than left to look like a measurement. It gates a log line and nothing else — never a
+ * deletion — and the only claim behind it is that a driver who has not reached an unmetered
+ * connection in a month is itself worth knowing about. The exact answer would need the row to record
+ * WHEN the upload happened, and it cannot: `hazmat_documents` is insert-only evidence with no UPDATE
+ * policy, so there is nowhere to write `original_uploaded_at` without breaking the property the
+ * table exists to have.
+ */
+const PENDING_UPLOAD_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Pure: compare live objects against the DB row paths and split into deletable orphans + missing
+ * objects. `deferred` paths protect their objects from deletion always, and are reported missing
+ * only once they are past `PENDING_UPLOAD_GRACE_MS`.
+ */
 export function planStorageReconcile(
   objects: readonly StoredObject[],
   rowPaths: readonly string[],
   nowIso: string,
   olderThanMs: number,
+  deferred: readonly DeferredPath[] = [],
 ): StorageReconcilePlan {
   const rowSet = new Set(rowPaths);
+  for (const d of deferred) rowSet.add(d.path); // a pending upload's object is NOT an orphan
   const objSet = new Set(objects.map((o) => o.path));
   const now = Date.parse(nowIso);
   const orphanObjects = objects
     .filter((o) => !rowSet.has(o.path) && now - Date.parse(o.createdAt) > olderThanMs)
     .map((o) => o.path);
-  const missingObjects = rowPaths.filter((p) => !objSet.has(p));
-  return { orphanObjects, missingObjects, scanned: objects.length, rows: rowPaths.length };
+  const missingObjects = [
+    ...rowPaths.filter((p) => !objSet.has(p)),
+    ...deferred
+      .filter((d) => !objSet.has(d.path) && now - Date.parse(d.since) > PENDING_UPLOAD_GRACE_MS)
+      .map((d) => d.path),
+  ];
+  return { orphanObjects, missingObjects, scanned: objects.length, rows: rowPaths.length + deferred.length };
 }
 
 interface RawListItem {
@@ -88,16 +133,28 @@ export interface StorageReconcileResult extends StorageReconcilePlan {
  */
 export async function reconcileBucketOrphans(
   admin: SupabaseClient,
-  source: { bucket: string; table: string; label: string },
+  source: { bucket: string; table: string; label: string; deferredColumn?: string },
   opts: { apply?: boolean; nowIso?: string } = {},
 ): Promise<StorageReconcileResult> {
-  const { data, error } = await admin.from(source.table).select("storage_path");
+  // `deferredColumn` names a SECOND path column on the same row whose object may not exist yet. It
+  // is selected alongside `created_at` because a deferral has to be able to expire — see DeferredPath.
+  const columns = source.deferredColumn ? `storage_path, created_at, ${source.deferredColumn}` : "storage_path";
+  const { data, error } = await admin.from(source.table).select(columns);
   if (error) throw new Error(error.message);
-  const rowPaths = (data ?? []).map((r) => (r as { storage_path: string }).storage_path);
+  const rows = (data ?? []) as unknown as Array<Record<string, string | null>>;
+  const rowPaths = rows.map((r) => r.storage_path as string);
+  const deferred: DeferredPath[] = source.deferredColumn
+    ? rows.flatMap((r) => {
+        const path = r[source.deferredColumn as string];
+        // Null is the ordinary case, not a fault: a manager-registered document has no original, and
+        // so does every row written before Phase 4b.
+        return path ? [{ path, since: r.created_at ?? new Date(0).toISOString() }] : [];
+      })
+    : [];
 
   const objects = await listAllObjects(admin, source.bucket);
   const nowIso = opts.nowIso ?? new Date().toISOString();
-  const plan = planStorageReconcile(objects, rowPaths, nowIso, ORPHAN_GRACE_MS);
+  const plan = planStorageReconcile(objects, rowPaths, nowIso, ORPHAN_GRACE_MS, deferred);
 
   let deleted = 0;
   if (opts.apply && plan.orphanObjects.length > 0) {
@@ -120,12 +177,26 @@ export async function reconcileBucketOrphans(
   return { ...plan, deleted };
 }
 
-/** The BOL images a hazmat verdict was based on. */
+/**
+ * The BOL images a hazmat verdict was based on.
+ *
+ * ⚠ **Two paths per row since Phase 4b**, and this sweep is why that had to be said out loud.
+ * `storage_path` is the ARCHIVE — uploaded immediately, downloaded by extraction, and required to
+ * exist. `original_storage_path` (0327) is the untouched ORIGINAL of record, which D-SCAN11 defers
+ * until the driver reaches an unmetered connection. Before this argument existed the sweep selected
+ * `storage_path` alone, which meant an original was an object no row pointed at — and this function
+ * runs nightly with `apply: true`, deleting exactly those, 24 hours after the grace window. The
+ * evidence would have had a one-day life and nothing would have reported it.
+ */
 export function reconcileHazmatStorageOrphans(
   admin: SupabaseClient,
   opts: { apply?: boolean; nowIso?: string } = {},
 ): Promise<StorageReconcileResult> {
-  return reconcileBucketOrphans(admin, { bucket: "hazmat", table: "hazmat_documents", label: "hazmat_documents" }, opts);
+  return reconcileBucketOrphans(
+    admin,
+    { bucket: "hazmat", table: "hazmat_documents", label: "hazmat_documents", deferredColumn: "original_storage_path" },
+    opts,
+  );
 }
 
 /**
