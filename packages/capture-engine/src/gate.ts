@@ -54,6 +54,21 @@ function na(name: CheckName): CheckResult {
   return { name, status: "na" };
 }
 
+/**
+ * Is this threshold live, or retired into shadow mode (D-SCAN10)?
+ *
+ * ⚠ Written as an explicit `!== null` rather than as a truthiness check, and that is not fussiness.
+ * `if (floor)` treats `0` as absent, and a genuinely derived floor of `0` — perfectly possible for
+ * `glareClippedFractionMax`, which is a fraction whose ideal value IS zero — would silently stop
+ * gating. The inverse mistake is worse and is the one the plan's Step 3.3 names: a `null` coerced to
+ * `0` makes `metric >= 0` true for every image ever taken, so the check reports PASS, counts toward
+ * the accept score, and the gate looks like it is working. `na` reports the truth, and §5's standing
+ * rule is that `na` is never a silent pass.
+ */
+function isEnforcing(threshold: number | null | undefined): threshold is number {
+  return threshold !== null && threshold !== undefined;
+}
+
 /** Evaluate the §5 gate. Deterministic; the caller shows `report.reasons` to the driver on reject. */
 export function evaluateGate(input: GateInput, config: CaptureConfig): QualityReport {
   const { metrics, ocr, platform } = input;
@@ -87,7 +102,7 @@ export function evaluateGate(input: GateInput, config: CaptureConfig): QualityRe
   }
 
   // ── blur (optional — JS fallback cannot measure it; server usabilityGate is the backstop) ──
-  if (metrics.blurVariance === undefined) checks.push(na("blur"));
+  if (metrics.blurVariance === undefined || !isEnforcing(g.blurLaplacianVarMin)) checks.push(na("blur"));
   else if (metrics.blurVariance >= g.blurLaplacianVarMin) {
     checks.push(pass("blur", 1, { blurVariance: metrics.blurVariance }));
   } else {
@@ -95,7 +110,7 @@ export function evaluateGate(input: GateInput, config: CaptureConfig): QualityRe
   }
 
   // ── glare (optional) ──
-  if (metrics.glareFraction === undefined) checks.push(na("glare"));
+  if (metrics.glareFraction === undefined || !isEnforcing(g.glareClippedFractionMax)) checks.push(na("glare"));
   else if (metrics.glareFraction <= g.glareClippedFractionMax) {
     checks.push(pass("glare", 1, { glareFraction: metrics.glareFraction }));
   } else {
@@ -103,12 +118,12 @@ export function evaluateGate(input: GateInput, config: CaptureConfig): QualityRe
   }
 
   // ── shadow (optional; v2/native) ──
-  if (metrics.shadowRange === undefined) checks.push(na("shadow"));
+  if (metrics.shadowRange === undefined || !isEnforcing(g.shadowRangeMax)) checks.push(na("shadow"));
   else if (metrics.shadowRange <= g.shadowRangeMax) checks.push(pass("shadow", 1, { shadowRange: metrics.shadowRange }));
   else reject(fail("shadow", 0, { shadowRange: metrics.shadowRange }), "SHADOW_OVER_TEXT");
 
   // ── brightness (optional) ──
-  if (metrics.brightnessMean === undefined) checks.push(na("brightness"));
+  if (metrics.brightnessMean === undefined || g.brightnessMeanRange === null) checks.push(na("brightness"));
   else if (metrics.brightnessMean >= g.brightnessMeanRange[0] && metrics.brightnessMean <= g.brightnessMeanRange[1]) {
     checks.push(pass("brightness", 1, { brightnessMean: metrics.brightnessMean }));
   } else {
@@ -116,7 +131,7 @@ export function evaluateGate(input: GateInput, config: CaptureConfig): QualityRe
   }
 
   // ── contrast (optional) ──
-  if (metrics.contrastRms === undefined) checks.push(na("contrast"));
+  if (metrics.contrastRms === undefined || !isEnforcing(g.contrastRmsMin)) checks.push(na("contrast"));
   else if (metrics.contrastRms >= g.contrastRmsMin) checks.push(pass("contrast", 1, { contrastRms: metrics.contrastRms }));
   else reject(fail("contrast", 0, { contrastRms: metrics.contrastRms }), "LOW_CONTRAST");
 
@@ -136,12 +151,18 @@ export function evaluateGate(input: GateInput, config: CaptureConfig): QualityRe
     checks.push(na("ocrLegibility"));
   } else {
     const o = config.ocrLegibility;
+    // Each criterion participates only while its floor is live. `textCoverageFractionMin` and
+    // `smallTextBandCoverageMin` are shadow thresholds because F7 replaces the quantities they
+    // measure; the other three are not, and legibility stays enforced on them. Note this makes
+    // `ocrLegibility` a check with a variable number of criteria rather than one that goes `na`
+    // wholesale — going `na` because ONE floor retired would stop the gate reading a legible page's
+    // character count, which nothing about F7 justifies.
     const geometryOk =
       ocr.recognizedChars >= o.minRecognizedChars &&
       ocr.recognizedWords >= o.minRecognizedWords &&
-      ocr.textCoverageFraction >= o.textCoverageFractionMin &&
       ocr.medianCharHeightPx >= o.minMedianCharHeightPx &&
-      ocr.smallTextBandCoverage >= o.smallTextBandCoverageMin;
+      (!isEnforcing(o.textCoverageFractionMin) || ocr.textCoverageFraction >= o.textCoverageFractionMin) &&
+      (!isEnforcing(o.smallTextBandCoverageMin) || ocr.smallTextBandCoverage >= o.smallTextBandCoverageMin);
     const platformMin =
       o.confidenceSignal.use === "secondary"
         ? o.confidenceSignal.platformOverrides[platform]?.meanMin ?? o.confidenceSignal.meanMin
@@ -160,7 +181,7 @@ export function evaluateGate(input: GateInput, config: CaptureConfig): QualityRe
       const incomplete =
         ocr.recognizedChars < o.minRecognizedChars ||
         ocr.recognizedWords < o.minRecognizedWords ||
-        ocr.textCoverageFraction < o.textCoverageFractionMin;
+        (isEnforcing(o.textCoverageFractionMin) && ocr.textCoverageFraction < o.textCoverageFractionMin);
       reject(fail("ocrLegibility", 0, detail), incomplete ? "PAGE_INCOMPLETE" : "TEXT_ILLEGIBLE");
     }
   }

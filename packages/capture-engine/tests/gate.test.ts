@@ -1,9 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { BUNDLED_DEFAULT_CONFIG } from "../src/config.js";
+import { BUNDLED_DEFAULT_CONFIG, type CaptureConfig, type CaptureConfigGates } from "../src/config.js";
 import { evaluateGate, type GateInput, type ImageMetrics } from "../src/gate.js";
 import type { OcrEvidence } from "../src/contracts.js";
 
 const cfg = BUNDLED_DEFAULT_CONFIG;
+
+/**
+ * A config whose shadow thresholds (D-SCAN10) are given live numbers, so the ENFORCING path stays
+ * pinned after Step 3.3 retired the shipped ones to `null`.
+ *
+ * ⚠ The numbers below are TEST FIXTURES and nothing else. They are the values the bundled config
+ * carried before 2026-09-07, chosen here only because the assertions were already written against
+ * them; none of them was ever calibrated, which is exactly why the shipped config no longer has
+ * them. Step 5.2 derives the real ones from a measured distribution. Do not read a threshold out of
+ * this file.
+ */
+function enforcing(over: Partial<CaptureConfigGates> = {}): CaptureConfig {
+  return {
+    ...cfg,
+    gates: {
+      ...cfg.gates,
+      blurLaplacianVarMin: 100,
+      glareClippedFractionMax: 0.06,
+      shadowRangeMax: 0.55,
+      brightnessMeanRange: [0.35, 0.85],
+      contrastRmsMin: 0.18,
+      ...over,
+    },
+  };
+}
+
+const statusOf = (r: ReturnType<typeof evaluateGate>, name: string) =>
+  r.checks.find((c) => c.name === name)?.status;
 
 function goodOcr(over: Partial<OcrEvidence> = {}): OcrEvidence {
   return {
@@ -40,13 +68,13 @@ describe("evaluateGate — image gates (the pre-upload DoD)", () => {
     expect(r.passed).toBe(false);
     expect(r.reasons).toContain("RESOLUTION_TOO_LOW");
   });
-  it("rejects a blurry page when blur is measurable", () => {
-    const r = evaluateGate(input({ blurVariance: 40 }), cfg);
+  it("rejects a blurry page when blur is measurable AND its floor is live", () => {
+    const r = evaluateGate(input({ blurVariance: 40 }), enforcing());
     expect(r.reasons).toContain("IMAGE_BLURRED");
     expect(r.passed).toBe(false);
   });
-  it("rejects glare over the threshold", () => {
-    const r = evaluateGate(input({ glareFraction: 0.2 }), cfg);
+  it("rejects glare over a live threshold", () => {
+    const r = evaluateGate(input({ glareFraction: 0.2 }), enforcing());
     expect(r.reasons).toContain("GLARE_OVER_TEXT");
   });
   it("leaves blur/glare as na (not a silent pass) when unmeasured", () => {
@@ -54,6 +82,59 @@ describe("evaluateGate — image gates (the pre-upload DoD)", () => {
     const blur = r.checks.find((c) => c.name === "blur");
     expect(blur?.status).toBe("na");
     expect(r.passed).toBe(true); // image gates that ARE measurable pass; server backstop covers blur
+  });
+});
+
+describe("evaluateGate — shadow mode (D-SCAN10): a retired threshold is `na`, never a pass", () => {
+  // The plan's Step 3.3 states the failure this whole block exists to stop: "a `null` silently
+  // coerced to `0` would pass everything". The metrics below are deliberately DISASTROUS — a page
+  // this blurry, this blown out and this dark would be refused by any floor anybody ever derives —
+  // so a check that reports `pass` here can only be reporting on a coerced zero.
+  const ruinous: Partial<ImageMetrics> = {
+    blurVariance: 0,
+    glareFraction: 1,
+    shadowRange: 1,
+    brightnessMean: 0,
+    contrastRms: 0,
+  };
+
+  it("reports na for every threshold the shipped config has retired", () => {
+    const r = evaluateGate(input(ruinous), cfg);
+    expect(statusOf(r, "blur")).toBe("na");
+    expect(statusOf(r, "glare")).toBe("na");
+    expect(statusOf(r, "shadow")).toBe("na");
+    expect(statusOf(r, "brightness")).toBe("na");
+    expect(statusOf(r, "contrast")).toBe("na");
+    expect(r.reasons).toEqual([]);
+  });
+
+  it("rejects the same page once those thresholds are live, so `na` is the config and not the code", () => {
+    // Without this, the case above passes just as well against a gate that lost the ability to
+    // reject at all — which is the shape of every reassuring test that turned out to be measuring
+    // nothing. Same metrics, same input, only the config differs.
+    const r = evaluateGate(input(ruinous), enforcing());
+    expect(r.reasons).toEqual(
+      expect.arrayContaining(["IMAGE_BLURRED", "GLARE_OVER_TEXT", "SHADOW_OVER_TEXT", "UNDER_OR_OVER_EXPOSED", "LOW_CONTRAST"]),
+    );
+  });
+
+  it("keeps enforcing a threshold that was DERIVED as zero", () => {
+    // `isEnforcing` is `!== null`, not truthiness, and this is the case that separates them. Zero is
+    // a legitimate value for `glareClippedFractionMax` — a fraction whose ideal is none at all — and
+    // `if (floor)` would retire it by accident, which is a gate switching itself off with nobody
+    // editing a config.
+    const r = evaluateGate(input({ glareFraction: 0.01 }), enforcing({ glareClippedFractionMax: 0 }));
+    expect(statusOf(r, "glare")).toBe("fail");
+    expect(r.reasons).toContain("GLARE_OVER_TEXT");
+  });
+
+  it("does not let a retired threshold inflate the accept score", () => {
+    // `na` checks are excluded from the denominator, so retiring five of them must not turn a
+    // partial pass into a whole one. Resolution fails; the score is over what remains applicable.
+    const r = evaluateGate(input({ ...ruinous, longEdgePx: 900 }), cfg);
+    expect(r.passed).toBe(false);
+    expect(r.reasons).toContain("RESOLUTION_TOO_LOW");
+    expect(r.checks.filter((c) => c.status === "pass").every((c) => c.name !== "blur")).toBe(true);
   });
 });
 

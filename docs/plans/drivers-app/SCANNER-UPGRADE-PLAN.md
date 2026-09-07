@@ -737,6 +737,45 @@ answer.
 
 Append a dated line when a step ships. Do not mark table rows.
 
+- **2026-09-07** — **Step 3.3 is being shipped in TWO merges, and the order is a safety property.**
+  3.3a (this one) retires the thresholds; 3.3b lands F7 and makes the providers produce the metrics.
+  Backwards, the second merge would turn five uncalibrated floors into live gates for the ~3 minutes
+  before the first landed — and `blurLaplacianVarMin: 100` is not merely uncalibrated, it is aimed at
+  a quantity that no longer exists: D-SCAN3's Laplacian is signed where sharp's was half-rectified,
+  and D-SCAN1 pins a scale that alone moved the same image between 4283.7 and 7299.9. Nothing has
+  ever set `blurVariance` (audit finding F6), so retiring first is completely inert today, which is
+  exactly what makes it the right order rather than a cautious one.
+
+- **2026-09-07 — Step 3.3a SHIPPED**: `null` is a threshold's way of saying no number has been
+  derived (D-SCAN10). `ShadowThreshold = number | null` in the config; `blurLaplacianVarMin`,
+  `glareClippedFractionMax`, `shadowRangeMax`, `brightnessMeanRange` and `contrastRmsMin` are now
+  `null` in the bundled default; the gate renders a retired threshold as `na`, which §5 already
+  defines as never a silent pass. Three properties are pinned by tests rather than by intention:
+  · A `null` floor with **ruinous** metrics (blur 0, glare 1, shadow 1, brightness 0, contrast 0)
+    reports `na` and rejects nothing — and the SAME input against a config with those floors live
+    produces all five rejections, so the `na` is the configuration and not a gate that has quietly
+    lost the ability to reject. That second case is the one that stops this being a reassuring test
+    which measures nothing.
+  · `isEnforcing` is `!== null`, **not** truthiness. A floor DERIVED as zero — entirely plausible for
+    `glareClippedFractionMax`, a fraction whose ideal value is none at all — keeps enforcing. `if
+    (floor)` would have retired it by accident, which is a gate switching itself off with nobody
+    editing a config.
+  · `validateConfig` accepts an explicit `null` and **rejects a missing key**, tested through a real
+    JSON round trip because that is the only place the two become distinguishable. Otherwise a signed
+    remote override could switch off five gates by shipping a `gates` object that simply omits them,
+    and the diff a reviewer saw would be a deletion — which §8's "a bad config can never WEAKEN the
+    gate" exists to prevent.
+  Not retired, and each for its own stated reason: `resolutionMinLongEdgePx` is the one image
+  threshold that is scale-free; `overallAcceptScoreMin` retiring would mean "accept on no evidence";
+  `coverageMinFraction` still enforces because nobody MEASURES coverage yet — the native provider
+  asserts 1 — and it joins the list when Step 5.3 removes that assertion. The two OCR floors are
+  typed as shadow thresholds but keep their numbers until 3.3b, which is the merge that replaces the
+  quantities underneath them; nulling them earlier would relax a live gate for no reason yet.
+  Mutation record: `isEnforcing` forced true (3 cases fail — including "accepts a good page", because
+  coercion cuts both ways: a null MIN passes everything and a null MAX fails everything);
+  `isEnforcing` by truthiness (the derived-zero case fails); `isShadowThreshold` accepting
+  `undefined` (the missing-key case fails); control clean at 28 passing.
+
 - **2026-09-07** — **Step 3.2 SHIPPED**: `measure()` on Android, and **iOS and Android are
   bit-identical**. `CaptureMetrics.kt` is the same transliteration as the Swift — same constant names,
   same values, same loop bounds in the same order, so the two ports diff against each other as well as
