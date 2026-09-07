@@ -739,6 +739,31 @@ Append a dated line when a step ships. Do not mark table rows.
 - **2026-09-07** — D-SCAN13: the owner moved the device session to the end of the programme. Step 0.1
   no longer gates Phase 1. Every native step from here owes an on-device verification, and those debts
   are collected in this log rather than in anybody's memory.
+- **2026-09-07** — **PHASE 1 COMPLETE**, merged as #618/#619/#620/#621 (main d0de05c). 1.1 the
+  rejection taxonomy stops dying at the last hop (anticipated outcomes are values, not exceptions;
+  Android's isSupported stops returning a hardcoded true; the taxonomy gains a runtime counterpart).
+  1.2 multi-page — a three-page BOL stopped uploading one page and calling it done; one outbox record
+  for the set, all-or-nothing refusal naming the page, legacy single-register records still drain.
+  1.3 the integrity hash means one thing and the server checks it, for driver captures only.
+  1.4 both OOM paths closed (iOS bounded to 2 in flight with a per-page autorelease pool; Android
+  header-sized decode + recycle), the temp-file leak closed on both the refused and accepted paths,
+  and cancel() stops being able to hang a capture.
+  Measured along the way: the Swift compiled for the first time on record (`** BUILD SUCCEEDED **`,
+  scheme CaptureNative) and surfaced a pre-existing no-op downcast, now removed; `apps/api`'s known
+  flake reproduces WITHOUT the matrices (23 suites failing together then recovering — see its memory
+  note). Runtime version 1.0.1 → 1.0.3. Two mutations during the phase broke syntax rather than
+  behaviour and ran nothing; both were caught and redone, which is the argument for reading mutation
+  output rather than trusting that a mutation ran.
+- **2026-09-07 — OWED ON DEVICE, the session agenda so far** (D-SCAN13). Nothing below is verified;
+  every one of them is a claim that currently rests on a compile and a unit test:
+  1. An Android phone with Play services disabled reaches "connect to Wi-Fi once, then retake" (#618).
+  2. An unsupported iOS device reaches its own message rather than "something went wrong" (#618).
+  3. A real three-page BOL arrives as three documents with ONE analysis (#619).
+  4. A partially blurred multi-page set names the right page (#619).
+  5. A capture through the JavaScript fallback survives the server's hash verification (#620).
+  6. A ten-page scan completes on the min-spec Android without an OOM kill (#621).
+  7. iOS memory stays flat across the same ten-page scan (#621).
+  8. A rejected capture leaves no file behind (#621).
 - **2026-09-06** — Plan written. Grounded in the scanner audit of the same date and in five
   measurements taken against this repository's installed `sharp` (§0.2, M1–M5). Nothing built yet;
   Step 0.1 is the next action and it needs the Mac and two phones.
