@@ -14,6 +14,7 @@ import {
 } from "../../modules/capture-native";
 import {
   assemblePage,
+  deviceClassFromNative,
   interpretNativeScan,
   measurementTarget,
   rejectionFromThrown,
@@ -68,6 +69,26 @@ export function createNativeSystemScannerProvider(
 ): CaptureProvider | null {
   const native = getCaptureNativeModule();
   if (!native) return null;
+
+  /**
+   * The device class, asked for once and remembered (Step 5.1b).
+   *
+   * Cached rather than probed per scan because Android's `isSupported` calls
+   * `GoogleApiAvailability.isGooglePlayServicesAvailable`, which is not free, and because the answer
+   * cannot change while the app is running — a phone does not become a different model. A failed
+   * probe caches the empty answer for the same reason: retrying a system call that just failed, once
+   * per page of a ten-page scan, buys nothing.
+   */
+  let deviceClass: { deviceModel?: string; osVersion?: string } | null = null;
+  const deviceClassOnce = async (): Promise<{ deviceModel?: string; osVersion?: string }> => {
+    if (deviceClass) return deviceClass;
+    try {
+      deviceClass = deviceClassFromNative(await native.isSupported());
+    } catch {
+      deviceClass = {};
+    }
+    return deviceClass;
+  };
   return {
     id: "capture.native.system_scanner",
     version: "0.1.0",
@@ -96,6 +117,7 @@ export function createNativeSystemScannerProvider(
         // Step 1.4 closed two out-of-memory paths in this module by bounding exactly this kind of
         // concurrency. A ten-page scan measuring ten pages at once would reopen one of them from the
         // JavaScript side, where the native module's own limit cannot see it.
+        const device = await deviceClassOnce();
         const pages: CapturedPage[] = [];
         for (const p of outcome.pages) {
           // Per page, because a ten-page scan's pages are measured one after another and an average
@@ -105,6 +127,7 @@ export function createNativeSystemScannerProvider(
           pages.push(assemblePage(p, measured, config, platform, {
             captureMs,
             processingMs: Date.now() - measureStartedAt,
+            ...device,
           }));
         }
         return { ok: true, pages };

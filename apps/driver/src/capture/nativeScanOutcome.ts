@@ -95,6 +95,24 @@ export function reasonForUnsupported(s: Pick<NativeSupport, "camera" | "docScann
   return s.scannerModule === "unavailable" ? "SCANNER_MODULE_UNAVAILABLE" : "UNSUPPORTED_DEVICE";
 }
 
+/**
+ * The device CLASS a support probe reported, for the Step 5.1 telemetry record.
+ *
+ * ⚠ Empty strings are dropped, not passed through. Both platforms build their answer from a system
+ * call that can return nothing — `utsname.machine` on a simulator, `Build.MODEL` on a stripped ROM —
+ * and `deviceModel: ""` in a column Step 5.2 groups by is a bucket that looks like a device. Absent
+ * means "not known", which is the rule everywhere else in this record.
+ *
+ * `SupportResult` deliberately does NOT carry these: it answers "can this device scan?", and the
+ * gate has no business knowing what handset it is running on.
+ */
+export function deviceClassFromNative(s: Pick<NativeSupport, "deviceModel" | "osVersion">): {
+  deviceModel?: string;
+  osVersion?: string;
+} {
+  return omitUndefinedStrings({ deviceModel: s.deviceModel, osVersion: s.osVersion });
+}
+
 /** The engine's SupportResult from a native probe, carrying WHY when it cannot scan. */
 export function supportFromNative(s: NativeSupport): SupportResult {
   const supported = s.camera && s.docScanner;
@@ -200,7 +218,7 @@ export function assemblePage(
   measured: NativeImageMetrics | null,
   config: CaptureConfig,
   platform: "ios" | "android",
-  timings: { captureMs?: number; processingMs?: number } = {},
+  extra: { captureMs?: number; processingMs?: number; deviceModel?: string; osVersion?: string } = {},
 ): CapturedPage {
   const original = toImageRef(p.original);
   const derived = toImageRef(p.derived);
@@ -252,9 +270,10 @@ export function assemblePage(
       device: platform,
       ...omitUndefined({
         analysisLongEdgePx: analysisScaleFromMeasurement(measured),
-        captureMs: timings.captureMs,
-        processingMs: timings.processingMs,
+        captureMs: extra.captureMs,
+        processingMs: extra.processingMs,
       }),
+      ...omitUndefinedStrings({ deviceModel: extra.deviceModel, osVersion: extra.osVersion }),
     },
     // The ORIGINAL's hash, which is what this field has always been documented to be — and, until
     // Phase 4b, was vacuously so, because a page had one file.
@@ -267,5 +286,12 @@ export function assemblePage(
 function omitUndefined<T extends Record<string, number | undefined>>(o: T): Partial<T> {
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(o)) if (v !== undefined) out[k] = v;
+  return out as Partial<T>;
+}
+
+/** As above, for the device class. An empty string is dropped too — it is not a model. */
+function omitUndefinedStrings<T extends Record<string, string | undefined>>(o: T): Partial<T> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== "") out[k] = v;
   return out as Partial<T>;
 }
