@@ -351,6 +351,16 @@ const config: ExpoConfig = {
       }
     : {}),
   extra: {
+    /**
+     * EAS project id, from `eas init` on 2026-09-07 (@miroslavjokovic/fuelguard-driver).
+     *
+     * Public by construction — it ships inside the app manifest and identifies the project to EAS;
+     * it grants nothing on its own. Written by hand because `eas init` cannot edit a DYNAMIC config
+     * and says so; if it ever disappears, `eas build` stops resolving the project and
+     * expo-notifications stops being able to mint a push token (plan §7 Q-PR1), which is the quiet
+     * half and the reason tests/native-config.test.ts pins it.
+     */
+    eas: { projectId: '46eadc59-d21f-4aa7-afdc-c179eac7aa85' },
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
