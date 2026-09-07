@@ -1,6 +1,8 @@
 # Driver App Direction B — "Night cab over a day sheet"
 
-> Status: **Plan approved by owner 2026-09-07; nothing built yet. B0 is next.**
+> Status: **Plan approved by owner 2026-09-07 and extended the same day with §6 (production readiness:
+> routing, source connections, App Store and Google Play). Nothing built yet. B0 and P1 are next and
+> independent.**
 >
 > Owner surface: `apps/driver`
 >
@@ -119,7 +121,7 @@
   card. Score: an eight-week trend line with a callout. Stop: a map hero with the stop pinned.
 - **D-DB8 · Not adopted from the references.** Photos or avatars of people, the ring chart, fake
   status-bar chrome, grey captions on navy below 4.5:1, gradient buttons, a filter control with no
-  filter behind it, an ETA or remaining-distance figure (no routing service exists — §6 Q-DB3).
+  filter behind it, an ETA or remaining-distance figure (no routing service exists — §7 Q-DB3).
 - **D-DB9 · Everything behavioural from Design System 2.0 holds:** 4pt quantum; 44/48/56pt targets;
   status = text + icon + tone; offline is a normal state; skeletons only without cached data; no
   native alerts; no card inside a card except a captured-document preview; Dynamic Type stacks
@@ -322,7 +324,7 @@ animation anywhere else.
    behavioural rules are restated in D-DB9.
 2. Establish reality: `git log --oneline -15`, `git status --short apps/driver` (another session
    may hold uncommitted scanner work — rule 7).
-3. Find the first §5 step not marked **DONE**. Check its prerequisites against §6; a missing answer
+3. Find the first §5 step not marked **DONE**. Check its prerequisites against §7; a missing answer
    means *run the fallback written next to it*.
 4. One step per branch (`claude/driver-b<N>-<topic>`) from `origin/main`, PR to `main`, merge
    commit after CI green. `main` is branch-protected (required check `build`).
@@ -330,7 +332,8 @@ animation anywhere else.
    conflict on rows) and mark the step heading **— DONE <date> (PR #N)**.
 6. Gates before every PR, from the repo root: `pnpm --filter @silvicom/shared build:rn`, then
    `pnpm --filter @silvicom/driver typecheck lint lint:tokens lint:design test`, then root
-   `pnpm lint:token-schema` and `pnpm lint:filesize`. Then `git diff --check`.
+   `pnpm lint:token-schema`, `pnpm lint:filesize`, `pnpm lint:tests` and `pnpm lint:comment-claims`.
+   Then `git diff --check`.
 7. **Files this plan never edits** while the scanner programme is open (`SCANNER-UPGRADE-PLAN.md`):
    `app/hazmat/capture.tsx`, `src/capture/*`, `src/features/hazmat/hazmatCaptureModel.ts`,
    `src/features/hazmat/useHazmatChecks.ts`, `tests/hazmat-capture-model.test.ts`,
@@ -370,7 +373,9 @@ without any screen being broken.
   already in the file). Wire `"gen:theme": "node scripts/gen-driver-theme-css.mjs"` in `package.json`; run it;
   `lint:theme` must pass unchanged (it is the verifier, the generator is convenience).
 - **B0.4 Type.** `tokens.ts` `typography` and `AppText` per §2.3. Delete `font-display*` families
-  and the `micro`, `cta`, `nav`, `section-title` sizes. Grep `apps/driver` for each deleted class
+  and the `micro`, `cta`, `nav`, `section-title` sizes. **Keep the `sectionTitle` variant through B0**
+  (13 / 18, `ui-sb`) because eleven screens still use it; B1.7 migrates them and B7 deletes the variant
+  with a gate rule. Grep `apps/driver` for each deleted class
   and replace at the call site with the variant that owns it (the list is short: `Button.tsx` `cta`
   and `nav`, `NotificationBell.tsx` / `MessagesButton.tsx` `micro`, `SectionLabel.tsx`,
   `classes.ts` `sectionLabel`).
@@ -402,7 +407,12 @@ additive.
   content wrapper is `bg-canvas rounded-t-2xl` with `marginTop: -layout.sheetOverlap`,
   `paddingTop: layout.sheetTopPadding`, `paddingHorizontal: layout.screenInset`. The hero scrolls
   with the content (one `ScrollView`; the sheet is not a separate gesture surface). Without `hero`:
-  unchanged behaviour, insets from `safeArea.ts`. `tests/screen-padding.test.ts` gains the hero
+  unchanged behaviour, insets from `safeArea.ts`. **Every** `Screen` renders its own
+  `<StatusBar style={hero ? 'light' : isDark ? 'light' : 'dark'} />` so a tab switch between a hero
+  screen and a sheet-only screen restores the right style; `ThemeProvider` drops its global one.
+  **Wide displays:** when `useWindowDimensions().width >= 600` (Android 16 ignores the portrait lock
+  on displays this wide for apps targeting API 36, §6 P1), the hero and sheet content are centred in a
+  560pt column; nothing stretches. `tests/screen-padding.test.ts` gains the hero
   case (`screenTopPadding(inset, false)` is reused for the hero's top).
 - **B1.2 `TabBar`**: `bg-hero rounded-t-2xl`, `paddingTop: 8`, `paddingBottom: max(insets.bottom,
   8)`, items `min-h-[52px]` → `min-h-13` (52 = 13×4; add `13: '52px'` to Tailwind `spacing` so the
@@ -455,6 +465,11 @@ additive.
   the shell, 8pt above the tab bar (or the home indicator on modal routes), for 2400 ms
   (`motion.deliberate × 10`), replacing any toast already showing. `app/_layout.tsx` wraps
   `RootNavigator` in `ToastProvider` inside `ThemeProvider`.
+- **B1.14 Large text.** At `layout.largeTextBreakpoint` (1.35): the hero card's two tiles stack;
+  paired buttons stack (Accept over Decline; primary over icon button); the up-next day tile moves
+  above the title; chart axis labels are SVG text at a fixed 11pt (decorative: the value lives in the
+  accessible label and the `AppText` callout); the tab bar grows with its labels. No component caps
+  `allowFontScaling` except the two count badges that already do.
 - **B1.13 Gallery**: sections for hero card, sheet card, chips (all tones, light/dark), rows with
   discs, buttons (all variants on sheet and on a hero swatch), tab bar, segmented chips, section
   with action.
@@ -542,9 +557,8 @@ additive.
   `isWinner`, the strip's disc shows `military_tech` in `action` and the label reads "Top score in
   your fleet". Hidden when `tab.score` is off or `homeScoreSummary` is null.
 - **B2.7 Skeletons** match the modules they replace: DutyStrip 56, hero card 332, attention row
-  64, up-next row 72, week strip 84 (measured from the built components in the gallery; the numbers
-  are written into `todayModel.ts` `SKELETON_HEIGHTS` and asserted equal to the gallery's measured
-  `onLayout` values in a dev-only console check, not a test).
+  64, up-next row 72, week strip 84 — constants in `todayModel.ts` `SKELETON_HEIGHTS`, and the gallery
+  renders each module beside its skeleton so a drift is visible at review.
 - **Tests:** `tests/today-model.test.ts` — state selection for all four states; attention ordering,
   caps, the "+n more" row, empty → no section; countdown copy at 130 min, 45 min, −5 min, after end;
   offered-before-accepted ordering in UpNext.
@@ -571,7 +585,8 @@ additive.
   (opens the existing decline reason list as a `ConfirmSheet`-style bottom sheet: **new**
   `ChoiceSheet` primitive = `ConfirmSheet` body with a `GroupedList` of `ListRow`s; lands in B3 with
   a gallery example). Two backer plates behind (`bg-surface/65` and `/35`, offset 14/28pt, no
-  content) render only when `o ≥ 2` / `≥ 3`. A dots indicator below (`action` for current). After
+  content) render only when `o ≥ 2` / `≥ 3`. Backers carry `accessibilityElementsHidden` and
+  `importantForAccessibility="no-hide-descendants"`. A dots indicator below (`action` for current). After
   accept or decline the model re-derives from the cache; the next card animates in (§2.5 deck
   advance). `offerDeckModel.ts` orders offers by first `appointment_start` ascending and exposes
   `backers(count)`.
@@ -758,7 +773,330 @@ additive.
 
 ---
 
-## 6. Prerequisites register — every unknown, its owner, and the fallback the code takes
+## 6. Production readiness — routing, source connections, App Store and Google Play
+
+The redesign (§5) makes the app look and behave like a product. This section makes it shippable
+through the two stores and honest about what it connects to. Steps P0–P8 are independent of B0–B7
+except where a step says otherwise; **P1 must merge before the first store build and P4 before the
+first store submission.** Everything below was verified on `main` 1d84cfd on 2026-09-07 or taken
+from the stores' own published requirements on that date.
+
+### 6.0 Store facts this section is bound by (dated; re-check on the day of submission)
+
+| Requirement | Source | What it means here |
+|---|---|---|
+| New apps and updates must **target Android 16 (API 36)** from 2026-08-31 (extension to 2026-11-01 on request) | Play Console help, "Target API level requirements" | RN 0.86.2's version catalog already resolves `targetSdk 36 / compileSdk 36 / minSdk 24`; P1 **pins** them with `expo-build-properties` so an RN bump cannot silently move them. |
+| Apps targeting Android 15+ must support **16 KB page sizes** (required since 2025-11-01; hard stop for updates 2027-02-01) | Android Developers blog, "Prepare your apps for 16 KB" | Every `.so` in the bundle must be 16 KB-aligned. `useLegacyPackaging=false` is already set; NDK is 27.1 (alignment became default in r28). P1 adds a mechanical check on the built artifact; nothing is assumed. |
+| App Store uploads must be built with **Xcode 26 / iOS 26 SDK** since 2026-04-28 | Apple Developer news, "App Store submissions now open…" | There is no iOS CI. P2 builds iOS on EAS's macOS image with Xcode 26; the owner's Mac needs Xcode 26 only for the manual device pass. Liquid Glass restyles native controls by default; the app's native surfaces are the image picker, the VisionKit scanner and `Modal`, all reviewed in P8. |
+| **Account deletion** must be initiable in-app for apps that support account creation (5.1.1(v)); regulated industries may complete it through a customer-service flow (5.1.1(ix)) | App Store Review Guidelines | Logins are fleet-issued and the API route is closed with 403 today. Driver qualification records are retained by law (49 CFR 391.51). P4 builds an in-app **request** that closes the login immediately and records the request for the fleet, and says what is retained and why. |
+| Play requires an **App Bundle** (AAB) and enrolment in Play App Signing; a privacy policy URL; the Data Safety form | Play Console | P2 adds the AAB lane; P3 hosts the policy and fills both stores' forms from one data matrix. |
+| Apple requires **privacy nutrition labels**, a **privacy manifest** for required-reason APIs and collected data, review **login credentials** for gated apps | App Store Connect | P1 declares the manifest; P3 writes the labels; P7 creates the review fleet and credentials. |
+
+### 6.1 Decisions (D-PR1–D-PR12)
+
+- **D-PR1 · Identifiers stay.** Bundle id and package stay `com.silvicom.fuelguard.driver`; display name
+  "Silvicom 360 Driver"; slug `fuelguard-driver`. Renaming would orphan every sideloaded install and
+  its encrypted outbox.
+- **D-PR2 · Version scheme.** `version` becomes `1.0.0` at P1 and follows semver by hand; `ios.buildNumber`
+  and `android.versionCode` are the CI run number (`IOS_BUILD_NUMBER` / `ANDROID_VERSION_CODE`), never
+  hand-edited. `runtime-version.json` stays the OTA runtime key and moves only when the native
+  fingerprint changes (existing `driver-ota.yml` rule).
+- **D-PR3 · Store builds are EAS Build, submitted with EAS Submit**, for both platforms, triggered by a
+  tag `driver-v<semver>` in a new `driver-store.yml`. Rationale: there is no macOS runner and the
+  Xcode 26 requirement makes a hand-archived iOS build a single-machine dependency. The existing
+  `driver-android.yml` APK lane stays for the tester install page until the Play **internal testing**
+  track replaces it (P8), then is deleted.
+- **D-PR4 · One signing key.** The existing Android keystore (`ANDROID_KEYSTORE_*` secrets) is uploaded
+  to EAS as the Android credentials **and** enrolled as the Play App Signing key (Play Console → App
+  integrity → "Use an existing key", `pepk`), so a phone that installed the sideloaded APK upgrades in
+  place from the store. iOS distribution certificate and profile are EAS-managed.
+- **D-PR5 · Drivers sign in with Driver ID + password only** (DC9 in `DRIVER-CREDENTIALS-PLAN.md`).
+  The in-app `accept-invite` screen and the driver call to `POST /api/invites/accept` are removed;
+  invite emails already link to the web. Therefore **no universal links or Android App Links are
+  needed for authentication**, and none are added. Notification deep links stay in-app
+  (`resolveDeepLink` over the push payload). The custom `fuelguard://` scheme stays for development.
+- **D-PR6 · Location leaves the app.** `expo-location` is removed (zero call sites); the map hero (B4.4)
+  needs no permission. The navigation programme re-adds it with a real feature (NP4).
+- **D-PR7 · Permissions shipped:** camera (`expo-image-picker`, camera only), notifications
+  (`expo-notifications` plugin, requested after sign-in when the fleet enables the feature — unchanged),
+  internet, vibrate. Everything else is blocked explicitly (P1).
+- **D-PR8 · Account deletion = close the login now, delete what the law allows within 30 days, retain
+  the DQ file and say so.** Built in P4.
+- **D-PR9 · Privacy policy, terms and support are pages on the web app** at `/privacy`, `/terms`,
+  `/support` (public routes), drafted from the data matrix in P3 and marked for counsel review; the URL
+  is what the stores require, and it exists after P3 regardless of counsel's timing (§7 Q-PR3).
+- **D-PR10 · Dev tooling never ships.** `expo-dev-client` and its plist entries are excluded from store
+  builds by `APP_VARIANT=store`; dev-only routes keep their `__DEV__` redirects.
+- **D-PR11 · Crash reporting goes native.** `@sentry/react-native/expo` plugin with source-map upload in
+  EAS builds when `SENTRY_AUTH_TOKEN` is set; without it the build still succeeds JS-only (today's
+  behaviour).
+- **D-PR12 · Sign-out is global.** `supabase.auth.signOut({ scope: 'global' })` and push revocation on
+  every sign-out path, not only Settings.
+
+### 6.2 Steps
+
+#### P0 · Retire the stale gate rows (docs, 1 PR, with this plan)
+
+- `RELEASE-GATE.md` Gate D: the "account deletion ✅ built" row is replaced with "☐ not built — see
+  DIRECTION-B-PLAN §6 P4"; the location row becomes "expo-location removed (P1)"; add rows for target
+  API 36, 16 KB, Xcode 26, AAB lane, privacy manifest, review credentials, each pointing at its P-step.
+- `DRIVER-APP-BUILD-STATUS.md` gets a dated line pointing here.
+- **Done when:** merged with this plan (this PR).
+
+#### P1 · Native configuration for the stores (`claude/driver-p1-store-config`)
+
+Touches `app.config.ts`, `package.json`, `plugins/`, `assets/`, `scripts/`, `.github/workflows/ci.yml`.
+
+- **P1.1 `app.config.ts`:**
+  ```ts
+  const storeBuild = process.env.APP_VARIANT === 'store';
+  version: '1.0.0',
+  ios: {
+    supportsTablet: false, bundleIdentifier: 'com.silvicom.fuelguard.driver',
+    buildNumber: process.env.IOS_BUILD_NUMBER ?? '1',
+    config: { usesNonExemptEncryption: false },
+    entitlements: { 'aps-environment': storeBuild ? 'production' : 'development' },
+    infoPlist: {
+      NSCameraUsageDescription: '<the existing proof-of-work string>',
+      NSFaceIDUsageDescription: 'Silvicom 360 Driver does not use Face ID. This entry exists because the secure keychain library declares it.',
+      NSMotionUsageDescription: 'Silvicom 360 Driver does not read motion data.',
+      NSLocationWhenInUseUsageDescription: undefined, // removed with expo-location
+      NSAppTransportSecurity: { NSAllowsArbitraryLoads: false, NSAllowsLocalNetworking: !storeBuild },
+    },
+    privacyManifests: {
+      NSPrivacyTracking: false,
+      NSPrivacyCollectedDataTypes: [
+        { NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeName', NSPrivacyCollectedDataTypeLinked: true, NSPrivacyCollectedDataTypeTracking: false, NSPrivacyCollectedDataTypePurposes: ['NSPrivacyCollectedDataTypePurposeAppFunctionality'] },
+        { NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeUserID', … same purposes },
+        { NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeEmailAddress', … },
+        { NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypePhotosorVideos', … },
+        { NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeDeviceID', … (push token) },
+        { NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeOtherUserContent', … (messages, stop notes) },
+        { NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeCrashData', NSPrivacyCollectedDataTypeLinked: false, … },
+      ],
+      NSPrivacyAccessedAPITypes: [ FileTimestamp C617.1, UserDefaults CA92.1, SystemBootTime 35F9.1, DiskSpace E174.1 ],
+    },
+  },
+  android: {
+    package: 'com.silvicom.fuelguard.driver', versionCode: Number(process.env.ANDROID_VERSION_CODE ?? 1),
+    edgeToEdgeEnabled: true, allowBackup: false,
+    permissions: ['android.permission.CAMERA', 'android.permission.INTERNET', 'android.permission.VIBRATE', 'android.permission.POST_NOTIFICATIONS', 'android.permission.ACCESS_NETWORK_STATE'],
+    blockedPermissions: ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE', 'android.permission.ACCESS_COARSE_LOCATION', 'android.permission.ACCESS_FINE_LOCATION', 'android.permission.RECORD_AUDIO'],
+    adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#14263F' },
+  },
+  icon: './assets/icon.png',
+  plugins: [
+    './plugins/withGradleMemory.js', './plugins/withReleaseSigning.js', './plugins/withPredictiveBack.js',
+    'expo-router', ...(storeBuild ? [] : ['expo-dev-client']), 'expo-font', 'expo-secure-store',
+    ['expo-sqlite', { useSQLCipher: true }],
+    ['expo-image-picker', { cameraPermission: '<existing string>', photosPermission: false, microphonePermission: false }],
+    '@maplibre/maplibre-react-native',
+    ['expo-notifications', { icon: './assets/notification-icon.png', color: '#F4A340', defaultChannel: 'default' }],
+    ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, backgroundColor: '#14263F', dark: { backgroundColor: '#0A1422' } }],
+    ['expo-build-properties', { android: { compileSdkVersion: 36, targetSdkVersion: 36, minSdkVersion: 24, buildToolsVersion: '36.0.0', enableMinifyInReleaseBuilds: true, enableShrinkResourcesInReleaseBuilds: true }, ios: { deploymentTarget: '16.4' } }],
+    ['@sentry/react-native/expo', { organization: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT }],
+  ],
+  ```
+  `DiskSpace E174.1` is included because `expo-file-system` reports free space; if Xcode 26's privacy
+  report at the first archive lists any other API, it is added then (that report is the verifier).
+- **P1.2 Dependencies:** add `expo-build-properties`, `expo-splash-screen`, `@sentry/react-native` is
+  present; remove `expo-location`. `pnpm --filter @silvicom/driver exec expo install --fix` pins SDK
+  57 versions.
+- **P1.3 `plugins/withPredictiveBack.js`:** a config plugin that sets
+  `android:enableOnBackInvokedCallback="true"` on `<application>`. Verified in P8 on Android 16: back
+  gesture closes `ConfirmSheet` (already handles `onRequestClose`), pops modal routes, and does not exit
+  the app from a tab.
+- **P1.4 Icons and splash:** `scripts/gen-app-icons.mjs` (devDependency `@resvg/resvg-js`) rasterises
+  `apps/web/public/SilvicomLogoS.svg` (the "S" mark, brand navy `#18274D`) into `assets/icon.png` (1024²,
+  mark in white on `#14263F`), `assets/adaptive-icon.png` (1024², mark inside the 66% safe zone,
+  transparent background), `assets/splash-icon.png` (512², white mark, transparent),
+  `assets/notification-icon.png` (96², white silhouette, transparent — Android tints it). The script
+  is idempotent and its outputs are committed.
+- **P1.5 16 KB check:** `scripts/check-16kb.mjs` takes an APK or an AAB's universal APK, extracts every
+  `lib/**/*.so`, runs `llvm-objdump -p` (from the Android NDK in `$ANDROID_HOME/ndk/<ver>/toolchains/llvm/prebuilt/*/bin`)
+  and fails if any `LOAD` segment `align` is below `2**14`. Wired into `driver-android.yml` after
+  `assembleRelease` and into `driver-store.yml` (P2) on the AAB via `bundletool build-apks --mode=universal`.
+  If a library fails, the fix is that library's version bump, recorded in §8; the check is the truth.
+- **P1.6 CI:** `ci.yml` `native-android` job additionally runs `expo prebuild --platform android` with
+  `APP_VARIANT=store` and asserts, by grepping the generated manifest, that the blocked permissions are
+  absent, `enableOnBackInvokedCallback` is `true`, and `targetSdkVersion` in the merged manifest is 36
+  (`aapt dump badging` on the debug APK of the capture module is not enough; the assertion runs on the
+  app module's merged manifest under `android/app/build/intermediates/merged_manifests/release/`
+  after `./gradlew :app:processReleaseManifest`).
+- **Done when:** gates green; `expo prebuild --clean` on both platforms produces a plist without the
+  Expo Dev Launcher strings under `APP_VARIANT=store`, an Android manifest with exactly the P1.1
+  permissions, and `check-16kb.mjs` passes on the CI APK.
+
+#### P2 · Build and submit lanes (`claude/driver-p2-lanes`)
+
+- **P2.1 `eas.json`:**
+  ```json
+  { "cli": { "version": ">= 16.0.0", "appVersionSource": "local" },
+    "build": {
+      "development": { "developmentClient": true, "distribution": "internal", "env": { "APP_VARIANT": "development" } },
+      "preview":     { "distribution": "internal", "env": { "APP_VARIANT": "preview" }, "android": { "buildType": "apk" } },
+      "production":  { "distribution": "store", "env": { "APP_VARIANT": "store", "EXPO_PUBLIC_API_URL": "<prod api url>", "EXPO_PUBLIC_SUPABASE_URL": "<prod>", "EXPO_PUBLIC_SUPABASE_ANON_KEY": "<prod anon>", "EXPO_PUBLIC_SENTRY_DSN": "<dsn>", "UPDATES_URL": "<xprem url>", "UPDATES_APP_ID": "<id>" },
+                       "android": { "buildType": "app-bundle" }, "ios": { "image": "latest" } } },
+    "submit": { "production": {
+      "android": { "serviceAccountKeyPath": "./play-service-account.json", "track": "internal", "releaseStatus": "draft" },
+      "ios": { "ascAppId": "<from App Store Connect>", "appleTeamId": "<team id>" } } } }
+  ```
+  `appVersionSource: local` because D-PR2 derives build numbers in CI, not in EAS. Public
+  `EXPO_PUBLIC_*` values are not secrets (they ship in the bundle today); they are copied from the
+  GitHub environment that `driver-android.yml` already uses. The Play service-account JSON and the
+  App Store Connect API key are EAS secrets (`eas secret:create`), never committed.
+- **P2.2 `driver-store.yml`:** on `push: tags: ['driver-v*']`: require CI green on the tagged commit
+  (`require-ci-green`), `pnpm install`, `pnpm --filter @silvicom/shared build:rn`, set
+  `IOS_BUILD_NUMBER=ANDROID_VERSION_CODE=${{ github.run_number }}`, then
+  `eas build --platform all --profile production --non-interactive --no-wait` is **not** used;
+  instead two jobs run `eas build --platform android|ios --profile production --non-interactive --wait`
+  so each produces an artifact URL in the job summary, then `check-16kb.mjs` on the Android artifact,
+  then `eas submit --platform android|ios --profile production --non-interactive --path <artifact>`.
+  Submission lands on Play **internal testing** (draft) and TestFlight; promotion to production is a
+  Play Console / App Store Connect click by the owner (P8).
+- **P2.3 Credentials (owner, one-time, recorded in §8 when done):** `eas init` (writes
+  `extra.eas.projectId` — commit it; it also unblocks push token minting, §7 Q-PR1); `eas credentials`
+  → Android → upload the existing keystore; Play Console → App integrity → enrol with that key; Apple
+  Developer → App ID `com.silvicom.fuelguard.driver` with Push Notifications capability, APNs key
+  uploaded to EAS; App Store Connect → create the app record (name "Silvicom 360 Driver", primary
+  category Business, secondary Productivity, iPhone only).
+- **P2.4 OTA for iOS:** `driver-ota.yml` publishes `--platform android,ios` (one `eoas publish` per
+  platform), so a store iOS build receives the same JS updates as Android.
+- **Done when:** a tag `driver-v1.0.0-rc.1` produces an AAB and an IPA on EAS, both submitted to the
+  internal/TestFlight tracks, both installable on a device from those tracks, and a sideloaded-APK
+  phone upgrades in place from the Play internal track without uninstalling.
+
+#### P3 · Privacy policy, terms, support page, store forms (`claude/driver-p3-privacy`)
+
+- **P3.1 The data matrix** (single source for the policy, Apple labels, Play Data Safety):
+
+  | Data | Collected? | Linked to the driver | Used for tracking | Purpose | Retention |
+  |---|---|---|---|---|---|
+  | Name, Driver ID (username), email (when set) | yes | yes | no | account, dispatch identification | duration of employment + 3 years (49 CFR 391.51) |
+  | Photos taken in the app (stop proof, bills of lading) | yes | yes | no | proof of work, compliance | 3 years (evidence tables are append-only) |
+  | Messages with dispatch, stop notes, decline reasons | yes | yes | no | app functionality | 90 days visible; retained per fleet retention rule |
+  | Push token (device identifier) | yes | yes | no | notifications | deleted on sign-out and on account closure |
+  | Duty sessions, equipment, odometer | yes | yes | no | fleet operations, HOS-adjacent records | 3 years |
+  | Performance score inputs (from the fleet's telematics, not the phone) | yes | yes | no | coaching | 8 weeks visible; per fleet rule |
+  | Crash data (Sentry, PII-scrubbed, user id only) | yes | no (id only) | no | diagnostics | 90 days (Sentry default) |
+  | Precise location | **no** | — | — | — | — |
+  | Contacts, health, financial info, browsing history | no | — | — | — | — |
+
+- **P3.2 Pages** in `apps/web` under `src/features/legal/` with routes `/privacy`, `/terms`, `/support`
+  (`meta: { public: true, layout: 'public' }`, `noindex: false`): Markdown rendered through the existing
+  public layout. `/privacy` sections: who we are, what the driver app collects (the matrix), why, who
+  sees it (the driver's fleet; Silvicom as processor; Sentry as sub-processor), retention, the deletion
+  request (P4), rights, contact. `/terms`: company-issued account, acceptable use, no warranty for
+  routing data, governing law placeholder `[STATE]`. `/support`: "Drivers: contact your dispatcher first.
+  For app problems: <SUPPORT_EMAIL>" where `SUPPORT_EMAIL` is a `VITE_SUPPORT_EMAIL` env with the
+  fallback text "your fleet manager". The app's Settings screen gains an "About" group with three
+  `ListRow`s opening these URLs via `Linking.openURL`.
+- **P3.3 Store forms** filled from the matrix: Apple privacy labels (Contact Info, User Content,
+  Identifiers, Diagnostics; none used for tracking; all linked except Diagnostics), Play Data Safety
+  (same, "data encrypted in transit: yes", "users can request deletion: yes" → P4, "committed to Play
+  Families policy: no").
+- **Done when:** the three URLs resolve on production web; the matrix is in the plan and the pages
+  match it; the App Store Connect and Play forms are saved (owner action, logged in §8).
+
+#### P4 · Account closure request (`claude/driver-p4-account-closure`; migration + API + app + web)
+
+Two merges because of the deploy window rule (a column and its first reader ship separately); a new
+table is exempt, so this is **one migration PR followed by one code PR**.
+
+- **P4.1 Migration** (next-numbered): table `driver_account_closure_requests` (`id uuid pk`,
+  `org_id uuid not null references organizations(id)`, `driver_id uuid not null references drivers(id) on delete restrict`,
+  `user_id uuid not null`, `requested_at timestamptz not null default now()`,
+  `status text not null check (status in ('open','completed','declined'))`, `resolved_by uuid`,
+  `resolved_at timestamptz`, `note text`), `enable row level security`, no client policies (API-only),
+  `merge_driver` learns the FK (`mergeDriver.ts` list — the trap named in the repo memory), PGlite
+  matrix `supabase/tests/account-closure.test.mjs` printing a `RESULT` line (driver JWT cannot read or
+  write the table; service role can).
+- **P4.2 API:** `POST /api/me/account/closure-request` (replaces the closed `POST /delete-account`, which
+  is deleted): in one transaction, insert the request (`open`), delete the driver's push tokens, call
+  `supabase.auth.admin.signOut(userId, 'global')`, then `auth.admin.updateUserById(userId, { ban_duration: '876000h' })`
+  so the login is closed immediately; audit entry `driver.account_closure_requested`; returns `{ ok: true }`.
+  `GET /api/driver-app/closure-requests` and `POST /api/driver-app/closure-requests/:id/{complete|decline}`
+  (fleet-manage), each audited; `complete` records `resolved_*` and is the fleet's attestation that
+  non-retained data was deleted per the policy. All three routes are discovered by `routeAuth.test.ts`.
+- **P4.3 App:** Settings → Account → `ListRow destructive` "Close my account" → `ConfirmSheet tone="danger"`
+  titled "Close your account?" with the message: "Your login stops working right now and your fleet is
+  asked to delete your data within 30 days. Federal rules (49 CFR 391.51) require your fleet to keep
+  your driver qualification records for three years after you leave; those are kept. You cannot undo
+  this from the app." Confirm → the request → sign out → the sign-in screen shows a `Banner info`
+  "Your account is closed. Contact your fleet if this was a mistake." for that session. Offline: the
+  request rides the outbox like any write and the sign-out happens locally at once.
+- **P4.4 Web:** Settings → Driver App gains a "Closure requests" group listing open requests (driver,
+  requested date) with Complete / Decline actions, using existing list and confirm primitives.
+- **Done when:** gates green including the new matrix; on a device the flow closes the login (a
+  retried sign-in fails with the closed-account message from `driver-login`); the web list shows and
+  resolves the request; `RELEASE-GATE.md` Gate D row flips to built.
+
+#### P5 · Routing and source connections hardening (`claude/driver-p5-connections`)
+
+- **P5.1 Remove invite acceptance from the app** (D-PR5): delete `app/(auth)/accept-invite.tsx`,
+  `src/features/auth/acceptInvite.ts`, the `useURL` import, the root guard's accept-invite exemption,
+  and the driver branch of `POST /api/invites/accept` (the web path stays). Sign-in copy already says
+  logins are issued by dispatch.
+- **P5.2 Sign-in through `apiFetch`:** `SessionProvider.signIn` calls `apiFetch('/api/auth/driver-login')`
+  (15 s timeout, mapped errors) instead of raw `fetch`; the email branch (`signInWithPassword`) stays for
+  dev.
+- **P5.3 Global sign-out:** `signOut` revokes push first (moved from Settings into the provider), then
+  `supabase.auth.signOut({ scope: 'global' })`, then clears local state; the closed-account and
+  version-gate paths call the same function.
+- **P5.4 Update gate opens the store:** `UpdateRequired` shows a `Button hero` "Open the App Store" /
+  "Open Google Play" via `Linking.openURL('itms-apps://apps.apple.com/app/id<ascAppId>')` and
+  `'market://details?id=com.silvicom.fuelguard.driver'`, with the https fallbacks; the ids live in
+  `src/lib/storeLinks.ts` and are filled in P2.3.
+- **P5.5 Environment truth in-app:** `BuildInfoCard` already shows API commit and schema state; add the
+  API base host and the update channel so a tester can prove which backend a build talks to.
+- **P5.6 Deep-link test stays total:** `tests/deep-link.test.ts` gains the P4 sign-out path (a deep link
+  while signed out lands on sign-in, then the target after sign-in — implemented by storing the pending
+  href in `SessionProvider` and replaying it once `ready`).
+- **Done when:** gates green; a fresh install signs in with a Driver ID, receives a push (after P2.3),
+  opens the deep link, and after sign-out cannot reuse the old refresh token (verified by replaying it
+  against `/api/me/driver` → 401).
+
+#### P6 · Store-facing runtime checks (`claude/driver-p6-runtime`)
+
+- Android 16 large-screen behaviour: the B1.1 560pt column rule is the fix; P6 verifies it on a
+  foldable emulator (Pixel Fold AVD, API 36) in both orientations and records screenshots.
+- Predictive back (P1.3) verified on the same AVD; iOS 26 Liquid Glass verified on the image picker,
+  the VisionKit scanner sheet and `ConfirmSheet`'s `Modal` on an iOS 26 simulator; any native control
+  that reads wrong is opted out per-surface (`UIDesignRequiresCompatibility` is **not** set app-wide,
+  since it expires in a later SDK).
+- `allowBackup=false` verified: `adb backup` returns nothing for the package.
+- **Done when:** the screenshots and the two AVD/simulator logs are attached to the PR.
+
+#### P7 · Review fleet and credentials (`claude/driver-p7-review-fleet`)
+
+- `apps/api/scripts/seed-review-fleet.mjs` (service role, idempotent by org slug `silvicom-review`):
+  one org with `hazmatguard` and all driver-app features on; one driver `review.driver` with a
+  password from `REVIEW_DRIVER_PASSWORD`; one vehicle and one trailer; one `in_transit` load with three
+  stops (Joliet → Whitestown → Columbus, real addresses, appointment windows around the time of day),
+  two `offered` loads, one `delivered` load, eight settled score weeks, one dispatch thread with a
+  message, one cleared hazmat check. Runs against production once (the review org is a real tenant
+  with no real people) and is re-runnable to reset it.
+- Reviewer notes template (stored at `docs/plans/drivers-app/STORE-REVIEW-NOTES.md`): what the app is,
+  that logins are fleet-issued, the demo credentials, the path to Close my account, that notifications
+  need the feature on (it is on for the review org), that camera is used for proof photos only.
+- **Done when:** the seed runs green against production and the notes are pasted into both consoles.
+
+#### P8 · Listing, tracks, and the release gate (`claude/driver-p8-listing`)
+
+- Screenshots: 6.9" and 6.5" iPhone, 6.7" Android phone, from the review fleet: Today (active
+  load), Loads (offer deck), Stop (map), Score, Settings. Feature graphic 1024×500 for Play from the
+  hero navy and the mark. Short description (80 chars) and full description drafted in the PR for the
+  owner to edit.
+- Play: internal testing → closed testing (12 testers, 14 days — Play's requirement for new personal
+  accounts does not apply to an organisation account, but the closed track is still the right soak) →
+  production. Apple: TestFlight internal → App Review.
+- `RELEASE-GATE.md` Gate D rows all flipped with dates; the sign-off table filled.
+- **Done when:** both apps are live on their stores and `driver-android.yml` is deleted in favour of the
+  Play internal track (the `driver-dist` page is retired in the same PR).
+
+---
+
+## 7. Prerequisites register — every unknown, its owner, and the fallback the code takes
 
 Nothing in §5 waits on an answer here; each entry names what the code does until the answer arrives.
 
@@ -779,9 +1117,35 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
 - **Q-DB6 · Deck gestures** (owner): B3.2 advances the deck on Accept/Decline only; no swipe.
   *Fallback:* none needed; a swipe is additive later.
 
+- **Q-PR1 · EAS project and credentials** (owner, one-time, P2.3): `eas init` project id, Android
+  keystore upload, Play App Signing enrolment, APNs key, App Store Connect record. *Fallback:* until
+  done, P1–P3–P4–P5 still merge and ship through the existing APK lane; push tokens are not minted
+  (the in-app notification centre and its 60 s poll work without them, as today).
+- **Q-PR2 · Xcode 26 on the owner's Mac** (owner): needed only for the manual iOS device pass in P6/P8;
+  store builds use EAS's Xcode 26 image. *Fallback:* the device pass runs on TestFlight builds.
+- **Q-PR3 · Counsel review of the privacy policy and terms** (owner + counsel): P3 publishes a draft
+  built from the data matrix and marked "v1, under review" in its footer; the stores need the URL,
+  not the sign-off. *Fallback:* the draft stays live until replaced.
+- **Q-PR4 · Support email** (owner): `VITE_SUPPORT_EMAIL`. *Fallback:* the support page says "contact
+  your fleet manager", which is true today.
+- **Q-PR5 · A native library that fails the 16 KB check** (measured by P1.5 on the first store
+  build): *Fallback:* bump that library; if no aligned version exists, replace it (the only candidates
+  with native code outside Expo/RN are MapLibre and Sentry; both publish 16 KB-aligned releases in
+  2026). The check, not this sentence, decides.
+- **Q-PR6 · App Review asks for account deletion beyond the closure request** (Apple, at review):
+  P4's flow closes the login immediately and records the request; the reviewer notes cite 5.1.1(ix)
+  and 49 CFR 391.51. *Fallback:* if rejected on this point, P4.2 `complete` gains an automatic
+  30-day job that deletes the non-retained rows (push tokens, message participation, app preferences)
+  without fleet action; the retained DQ file is the legal floor and does not move.
+
 ---
 
-## 7. Progress log (append dated lines; never edit rows above)
+## 8. Progress log (append dated lines; never edit rows above)
 
 - 2026-09-07 · Plan written from the approved canvas (page B) and the 2026-09-07 critique; facts in
   §0 verified against `main` 1d84cfd. Nothing built.
+- 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
+  560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
+  tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a
+  file-level inventory of the store configuration and the stores' published requirements; §7 gains
+  Q-PR1–6. P0 (the stale release-gate rows) ships with this document.
