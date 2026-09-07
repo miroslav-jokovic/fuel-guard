@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Redirect, useRouter } from 'expo-router';
 import {
   ActionBar,
@@ -37,6 +37,7 @@ export default function HazmatCaptureScreen() {
   const features = useFeatures();
   const [busy, setBusy] = useState(false);
   const [reasons, setReasons] = useState<string[]>([]);
+  const attemptRef = useRef(0);
 
   if (features.isLoaded && !features.enabled('hazmat.capture')) return <Redirect href="/home" />;
   if (!features.isLoaded) {
@@ -51,6 +52,11 @@ export default function HazmatCaptureScreen() {
   const onCapture = async (): Promise<void> => {
     setBusy(true);
     setReasons([]);
+    // Which attempt this is (Step 5.1). A ref, not state: it must not re-render the screen, and it
+    // must survive the re-renders that setReasons causes between attempts. It counts attempts at THIS
+    // document within one visit to this screen — a driver who backs out and returns starts again,
+    // which is the honest reading, because the second visit is a new decision to photograph the page.
+    attemptRef.current += 1;
     try {
       const result = await scanBol();
       const decision = decideCapture(result, MAX_PAGES);
@@ -63,7 +69,7 @@ export default function HazmatCaptureScreen() {
       }
       const loadId = newClientId();
       const documentIds = decision.pages.map(() => newClientId());
-      const { payload, uploads } = buildCapturePayloads({ loadId, documentIds, pages: decision.pages });
+      const { payload, uploads } = buildCapturePayloads({ loadId, documentIds, pages: decision.pages, attempt: attemptRef.current });
 
       // Every file is copied into the sandbox BEFORE anything is queued, and the record is enqueued
       // only once all of them are there. The staging rule exists so that work a driver believes is

@@ -1,4 +1,10 @@
-import type { CapturedPage, RejectionReason, ScanResult } from "@silvicom/capture-engine";
+import {
+  buildCaptureTelemetry,
+  type CaptureTelemetry,
+  type CapturedPage,
+  type RejectionReason,
+  type ScanResult,
+} from "@silvicom/capture-engine";
 
 /**
  * Pure capture view-logic (M6). No React Native imports → unit-tested and portable. The screen turns a
@@ -145,6 +151,8 @@ export interface RegisterBody {
     archiveBytes?: number;
     /** Declares that a distinct untouched ORIGINAL exists; the server signs a second upload URL. */
     original?: { bytes: number };
+    /** Shadow-mode telemetry (Step 5.1) → `hazmat_documents.capture_metrics`. */
+    metrics?: CaptureTelemetry;
   };
 }
 
@@ -226,6 +234,13 @@ export function buildCapturePayloads(args: {
   loadId: string;
   documentIds: string[];
   pages: CapturedPage[];
+  /**
+   * Which attempt at this document this scan is — 1 on the first, higher when the driver re-shot
+   * after a rejection (Step 5.1). Optional so a caller that does not track it records nothing rather
+   * than recording a confident 1, which would make the re-shoot rate — trigger (a) of the Phase 7
+   * decision — read as zero for ever.
+   */
+  attempt?: number;
 }): { payload: HazmatCapturePayload; uploads: PageUpload[] } {
   if (args.documentIds.length !== args.pages.length) {
     // A caller that generated the wrong number of ids would otherwise register page 3 under page 2's
@@ -260,6 +275,10 @@ export function buildCapturePayloads(args: {
             ocrEvidence: page.ocr,
             archiveBytes: archive.bytes,
             ...(hasDistinctOriginal(page) ? { original: { bytes: page.originalOfRecord.bytes ?? 0 } } : {}),
+            // Every measured value, including the five the gate rendered `na` and therefore threw
+            // away (Step 5.1). Built here rather than in the provider so it is the same record on
+            // every provider, and pure so a test reaches it.
+            metrics: buildCaptureTelemetry(page, { attempt: args.attempt }),
           },
         };
       }),

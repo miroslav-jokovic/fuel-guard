@@ -181,6 +181,18 @@ export const hazmatRegisterDocumentRequestSchema = z.object({
        */
       archiveBytes: z.number().int().nonnegative().optional(),
       original: z.object({ bytes: z.number().int().nonnegative() }).optional(),
+      /**
+       * Shadow-mode capture telemetry (D-SCAN10, plan Step 5.1) → `hazmat_documents.capture_metrics`.
+       *
+       * Deliberately `z.record(...)` rather than a mirrored shape, and this is the one place in this
+       * file where that is the right answer. `CaptureTelemetry` is defined in
+       * `packages/capture-engine`, which the driver, the web capture surface and the API all already
+       * depend on; restating its fields here would create a second definition of a record whose
+       * whole purpose is to be interpreted consistently months later by Step 5.2. The server does not
+       * read it — it stores it — so the value of validating each field here is a shape check, and the
+       * cost is a copy that drifts.
+       */
+      metrics: z.record(z.string(), z.unknown()).optional(),
     })
     .optional(),
 });

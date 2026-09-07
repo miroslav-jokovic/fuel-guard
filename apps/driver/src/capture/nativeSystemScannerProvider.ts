@@ -2,7 +2,6 @@ import type {
   CaptureConfig,
   CaptureProvider,
   CapturedPage,
-  ImageMetrics,
   ScanOptions,
   ScanResult,
   SupportResult,
@@ -10,11 +9,11 @@ import type {
 import {
   getCaptureNativeModule,
   type CaptureNativeModule,
+  type NativeImageMetrics,
   type NativeScannedPage,
 } from "../../modules/capture-native";
 import {
   assemblePage,
-  imageMetricsFromMeasurement,
   interpretNativeScan,
   measurementTarget,
   rejectionFromThrown,
@@ -53,13 +52,13 @@ async function measurePage(
   native: CaptureNativeModule,
   p: NativeScannedPage,
   config: CaptureConfig,
-): Promise<Partial<ImageMetrics>> {
+): Promise<NativeImageMetrics | null> {
   try {
-    return imageMetricsFromMeasurement(await native.measure(measurementTarget(p), config.analysis.longEdgePx));
+    return await native.measure(measurementTarget(p), config.analysis.longEdgePx);
   } catch {
     // What an absent measurement MEANS is decided in `nativeScanOutcome.ts`, where a unit test can
     // reach it without a device (D-SCAN13). This function keeps the I/O and the try, and nothing else.
-    return imageMetricsFromMeasurement(null);
+    return null;
   }
 }
 
@@ -76,6 +75,11 @@ export function createNativeSystemScannerProvider(
       return supportFromNative(await native.isSupported());
     },
     async scan(options?: ScanOptions): Promise<ScanResult> {
+      // Timed around the OS scanner alone: `captureMs` is the driver's own shooting time and says
+      // nothing about our code, while `processingMs` below is entirely ours to answer for. Recording
+      // one number for both would make a slow phone and a slow measurement indistinguishable, which
+      // is the question Step 5.2 will be asking.
+      const startedAt = Date.now();
       try {
         const res = await native.scan({
           maxPages: options?.maxPages ?? 10,
@@ -85,6 +89,7 @@ export function createNativeSystemScannerProvider(
         });
         // Every decision about what this result MEANS lives in `nativeScanOutcome.ts`, where it can be
         // unit-tested without a device (D-SCAN13). This function keeps the I/O and nothing else.
+        const captureMs = Date.now() - startedAt;
         const outcome = interpretNativeScan(res);
         if (outcome.kind === "rejected") return { ok: false, reason: outcome.reason, message: outcome.message };
         // Sequential rather than `Promise.all`: `measure()` decodes a multi-megapixel image, and
@@ -93,7 +98,14 @@ export function createNativeSystemScannerProvider(
         // JavaScript side, where the native module's own limit cannot see it.
         const pages: CapturedPage[] = [];
         for (const p of outcome.pages) {
-          pages.push(assemblePage(p, await measurePage(native, p, config), config, platform));
+          // Per page, because a ten-page scan's pages are measured one after another and an average
+          // would hide the one that took four seconds — which is exactly the page Step 5.2 wants.
+          const measureStartedAt = Date.now();
+          const measured = await measurePage(native, p, config);
+          pages.push(assemblePage(p, measured, config, platform, {
+            captureMs,
+            processingMs: Date.now() - measureStartedAt,
+          }));
         }
         return { ok: true, pages };
       } catch (e) {

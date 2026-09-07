@@ -236,6 +236,10 @@ export async function registerDocument(
     row.integrity_hash = req.capture.integrityHash;
     row.ocr_evidence = req.capture.ocrEvidence ?? null;
     if (req.capture.archiveBytes !== undefined) row.archive_bytes = req.capture.archiveBytes;
+    // D-SCAN10 / Step 5.1: the shadow-mode record Step 5.2 derives every threshold from. Stored, never
+    // read by the request path — a column rather than a table because it is one document's own
+    // provenance and a second RLS surface would be a second thing to get wrong (0326's header).
+    if (req.capture.metrics !== undefined) row.capture_metrics = req.capture.metrics;
   }
   // ── D-SCAN11's ORIGINAL of record (columns from 0327) ────────────────────────────────────────
   // Computed here, at registration, alongside the archive's: `hazmat_documents` is insert-only

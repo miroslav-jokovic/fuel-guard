@@ -11,26 +11,8 @@
  */
 
 import type { CaptureConfig } from "./config";
-import type { CheckName, CheckResult, OcrEvidence, QualityReport, RejectionReason } from "./contracts";
+import type { CheckName, CheckResult, ImageMetrics, OcrEvidence, QualityReport, RejectionReason } from "./contracts";
 
-/**
- * Metrics a provider measures on the page image. Every field except `longEdgePx` is optional: a
- * provider reports only what it can measure reliably, and an unmeasured check becomes `na` (never a
- * silent pass). The JS fallback provider, for instance, reliably supplies only `longEdgePx`.
- */
-export interface ImageMetrics {
-  longEdgePx: number;
-  blurVariance?: number;
-  glareFraction?: number;
-  shadowRange?: number;
-  brightnessMean?: number;
-  contrastRms?: number;
-  coverageFraction?: number;
-  documentDetected?: boolean;
-  /** v2/raw-capture only — `na` on the SystemScanner path. */
-  perspectiveSeverity?: number;
-  lensSmudge?: number;
-}
 
 export interface GateInput {
   metrics: ImageMetrics;

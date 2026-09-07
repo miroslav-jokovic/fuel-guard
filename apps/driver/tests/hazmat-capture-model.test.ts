@@ -24,6 +24,7 @@ function pageAt(passed: boolean, reasons: CapturedPage["quality"]["reasons"] = [
   return {
     originalOfRecord: img, perspectiveCorrected: img, enhancedColor: img, enhancedGray: img,
     quality: { passed, checks: [], reasons, score: passed ? 1 : 0, ocrDegraded: false },
+    metrics: { longEdgePx: 1568 },
     ocr: { engine: "test", recognizedChars: 0, recognizedWords: 0, textCoverageFraction: 0, medianCharHeightPx: 0, smallTextBandCoverage: 0, numberTokens: [], available: false },
     metadata: { providerId: "p", providerVersion: "0.1.0", configVersion: "capture-2026.08.0" },
     integrityHash: "abc123", provenance: { captureMode: "expo_camera", osEnhanced: false },
@@ -41,8 +42,14 @@ function nativePage(uri = "file:///tmp/bol"): CapturedPage {
   return {
     originalOfRecord: original, perspectiveCorrected: derived, enhancedColor: derived, enhancedGray: derived,
     quality: { passed: true, checks: [], reasons: [], score: 1, ocrDegraded: false },
+    // The five values the gate renders `na` and discards — the reason Step 5.1 exists.
+    metrics: { longEdgePx: 4032, blurVariance: 812.5, glareFraction: 0.014, shadowRange: 0.31, brightnessMean: 0.62, contrastRms: 0.22 },
     ocr: { engine: "test", recognizedChars: 0, recognizedWords: 0, textCoverageFraction: 0, medianCharHeightPx: 0, smallTextBandCoverage: 0, numberTokens: [], available: false },
-    metadata: { providerId: "p", providerVersion: "0.1.0", configVersion: "capture-2026.08.0" },
+    metadata: {
+      providerId: "capture.native.system_scanner", providerVersion: "0.1.0",
+      configVersion: "capture-2026.08.0", device: "ios",
+      analysisLongEdgePx: 1024, captureMs: 4200, processingMs: 180,
+    },
     integrityHash: "original-hash", provenance: { captureMode: "system_scanner", osEnhanced: true },
   };
 }
@@ -242,6 +249,26 @@ describe("buildCapturePayloads", () => {
     const r = decideCapture({ ok: true, pages: [{ ...nativePage("file:///tmp/x"), quality: { passed: false, checks: [], reasons: ["IMAGE_BLURRED"], score: 0, ocrDegraded: false } }] });
     expect(r.accepted).toBe(false);
     expect(r.discardUris).toEqual(["file:///tmp/x.original.jpg", "file:///tmp/x.jpg"]);
+  });
+
+  it("carries the measured values the gate threw away, and the scale they were taken at", () => {
+    // Step 5.1. The five below are `na` in `quality` — every image floor is `null` under D-SCAN10 —
+    // so if the register does not carry them here, nothing anywhere records them and Step 5.2 has an
+    // empty distribution to derive thresholds from.
+    const { payload } = buildCapturePayloads({ loadId: "L1", documentIds: ["D1"], pages: [nativePage()], attempt: 2 });
+    const metrics = payload.registers[0]!.capture.metrics!;
+    expect(metrics.metrics.blurVariance).toBe(812.5);
+    expect(metrics.metrics.glareFraction).toBe(0.014);
+    expect(metrics.analysisLongEdgePx).toBe(1024);
+    expect(metrics.timings).toEqual({ captureMs: 4200, processingMs: 180 });
+    expect(metrics.attempt).toBe(2);
+  });
+
+  it("records no attempt at all when the caller does not count them", () => {
+    // A defaulted 1 would make the re-shoot rate — trigger (a) of the Phase 7 decision — read as zero
+    // for ever, which is worse than an absent field because it looks like an answer.
+    const { payload } = buildCapturePayloads({ loadId: "L1", documentIds: ["D1"], pages: [nativePage()] });
+    expect(payload.registers[0]!.capture.metrics!.attempt).toBeUndefined();
   });
 
   it("refuses to build when ids and pages disagree in number", () => {

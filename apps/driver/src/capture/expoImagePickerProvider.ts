@@ -87,6 +87,10 @@ async function processAsset(
     enhancedColor: image,
     enhancedGray: image,
     quality,
+    // Thin, and honestly so: this provider measures the pre-downscale long edge and nothing
+    // else, so every other metric is absent and the gate reads them as `na`. Recorded anyway —
+    // Step 5.2 needs to know which captures came through the fallback.
+    metrics,
     ocr,
     metadata: { providerId: "capture.js.expo_image_picker", providerVersion: "0.1.0", configVersion: config.configVersion, device: platform },
     integrityHash,
