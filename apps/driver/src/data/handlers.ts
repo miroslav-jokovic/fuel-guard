@@ -2,6 +2,7 @@ import { File } from 'expo-file-system';
 import { apiFetch } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { registerHandler, SyncError } from './sync';
+import { queuedRegisters, type RegisterBody } from '@/features/hazmat/hazmatCaptureModel';
 
 /**
  * Handler registry. Each feature owns the delivery of its own outbox `kind`; the engine only
@@ -187,31 +188,47 @@ export function registerSyncHandlers(): void {
       const p = (record.payload ?? {}) as {
         loadId?: string;
         create?: { id: string };
-        register?: { id: string; kind: string; page: number; sha256: string; contentType: string; capture?: unknown };
+        /** Since multi-page (plan Step 1.2). One entry per page, aligned by index with fileUris. */
+        registers?: RegisterBody[];
+        /** The pre-multi-page shape. See the comment below — this is not dead code. */
+        register?: RegisterBody;
       };
-      if (!p.loadId || !p.create || !p.register) {
+      // A record queued by an older build carries `register`; one queued by this build carries
+      // `registers`. Both must drain, because the outbox survives an app update: a driver who scanned
+      // offline on Friday and updated over the weekend has a Friday-shaped record on disk, and
+      // rejecting it would throw away work that exists nowhere else — the cardinal sin this whole
+      // subsystem is built to avoid. The legacy branch can be deleted once no device can still hold
+      // one; until somebody can say that with evidence, it stays.
+      const registers = queuedRegisters(p);
+      if (!p.loadId || !p.create || registers.length === 0) {
         throw new SyncError('Queued hazmat capture is malformed', 422);
       }
 
       // 1) create the driver's own load (idempotent)
       await post('/api/me/hazmat/loads', p.create);
 
-      // 2) register the captured page (idempotent) → storage_path to upload to
-      const reg = await apiFetch<{ documentId: string; storagePath: string }>(
-        `/api/me/hazmat/loads/${p.loadId}/documents`,
-        { method: 'POST', body: p.register },
-      );
-      if (!reg.ok || !reg.data) throw new SyncError(reg.error?.message ?? 'Document register failed', reg.status);
+      // 2+3) register each page and upload its bytes BEFORE any submit, so the extraction never runs
+      //      against a partially uploaded document. Sequential rather than parallel: the server caps
+      //      pages at MAX_BOL_PAGES and counts existing rows to enforce it, so concurrent registers
+      //      would race that count.
+      for (const [index, reg] of registers.entries()) {
+        const registered = await apiFetch<{ documentId: string; storagePath: string }>(
+          `/api/me/hazmat/loads/${p.loadId}/documents`,
+          { method: 'POST', body: reg },
+        );
+        if (!registered.ok || !registered.data) {
+          throw new SyncError(registered.error?.message ?? 'Document register failed', registered.status);
+        }
 
-      // 3) upload the staged bytes (driver-scoped RLS on the `hazmat` bucket, 0092) BEFORE submit, so the
-      //    extraction has bytes at storage_path. Re-upload after a partial success → already-exists =
-      //    success (the bucket denies overwrite; the row is keyed by the same client UUID).
-      const localUri = record.fileUris[0];
-      if (localUri) {
+        // Driver-scoped RLS on the `hazmat` bucket (0092). Re-upload after a partial success →
+        // already-exists = success (the bucket denies overwrite; the row is keyed by the same client
+        // UUID), which is what makes a re-drained record a no-op rather than a duplicate.
+        const localUri = record.fileUris[index];
+        if (!localUri) continue;
         const bytes = await new File(localUri).arrayBuffer();
         const { error } = await supabase.storage
           .from('hazmat')
-          .upload(reg.data.storagePath, bytes, { contentType: p.register.contentType, upsert: false });
+          .upload(registered.data.storagePath, bytes, { contentType: reg.contentType, upsert: false });
         if (error) {
           const message = (error as { message?: string }).message ?? '';
           const statusCode = (error as { statusCode?: string }).statusCode;
@@ -221,7 +238,9 @@ export function registerSyncHandlers(): void {
         }
       }
 
-      // 4) submit → analyze (idempotent; an already-submitted load returns the latest run, not a 409)
+      // 4) submit → analyze, ONCE, after every page has landed (idempotent; an already-submitted load
+      //    returns the latest run, not a 409). Submitting per page would start the extraction against
+      //    an incomplete document and produce a confident verdict on a document nobody sent.
       await post(`/api/me/hazmat/loads/${p.loadId}/submit`, {});
     },
   });
