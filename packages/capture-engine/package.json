@@ -13,9 +13,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node fixtures/generate.mjs --check && vitest run",
+    "test": "node fixtures/generate.mjs --check && node fixtures/targets/generate-targets.mjs --check && vitest run",
     "fixtures": "node fixtures/generate.mjs",
-    "fixtures:check": "node fixtures/generate.mjs --check"
+    "fixtures:check": "node fixtures/generate.mjs --check",
+    "targets": "node fixtures/targets/generate-targets.mjs",
+    "targets:check": "node fixtures/targets/generate-targets.mjs --check"
   },
   "devDependencies": {
     "typescript": "6.0.3",

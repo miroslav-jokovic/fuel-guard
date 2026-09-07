@@ -80,6 +80,19 @@ apps/driver/modules/capture-native/android/.gradle/
 # the Kotlin — see SCANNER-UPGRADE-PLAN.md §3.4.
 apps/driver/modules/capture-native/android/build/
 
+# Photographs of REAL customer documents taken during a scanner device session.
+#
+# This repository is PUBLIC. A photograph of a genuine bill of lading carries shipper and consignee
+# names, addresses, load and seal numbers, driver signatures and sometimes UN numbers tied to a named
+# customer's cargo — the same class of material as docs/psp-docs/ and docs/McLeod-Testing/ above, and
+# the same lesson applies: untracking later does not remove anything from history.
+#
+# Photographs of our OWN printed target sheets carry no PII and ARE committed, one directory across in
+# real/sheets/ — that is what makes a re-runnable benchmark possible without ever holding a customer's
+# paperwork. This entry exists BEFORE the first photograph rather than after the first accident.
+# See packages/capture-engine/fixtures/real/README.md.
+packages/capture-engine/fixtures/real/private/
+
 # PSP vendor material: the protocol guide is CONFIDENTIAL-footered on all 80 pages and
 # apitoken.txt is a live credential. Neither may enter git history (Q-H1, 2026-08-19).
 docs/psp-docs/
