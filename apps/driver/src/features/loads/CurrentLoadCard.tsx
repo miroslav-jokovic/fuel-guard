@@ -26,12 +26,12 @@ export function CurrentLoadCard({
       <View className="flex-row items-center gap-2">
         <View className="flex-1 gap-0.5">
           <View className="flex-row flex-wrap items-center gap-2">
-            <AppText variant="caption" tone="muted" className="font-semibold uppercase tracking-wider">{load.ref}</AppText>
+            <AppText variant="caption" tone="muted" className="font-ui-sb uppercase tracking-wider">{load.ref}</AppText>
             {load.hazmat ? <Badge label="Hazmat" tone="warning" icon="warning" /> : null}
           </View>
           <View className="flex-row items-center gap-1">
             <Icon name={status.icon} size={14} className={status.text} />
-            <AppText variant="caption" className={`font-medium ${status.text}`}>{status.label}</AppText>
+            <AppText variant="caption" className={`font-ui-md ${status.text}`}>{status.label}</AppText>
           </View>
         </View>
         {onOpen ? <IconButton name="chevron_right" label="Open load details" onPress={onOpen} /> : null}

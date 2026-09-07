@@ -11,6 +11,10 @@ const SCAN = ['app', 'src'];
 const forbidden = [
   { pattern: /\b(?:Inter|Arial|Helvetica|Open Sans|Poppins|Hanken|HankenGrotesk)\b/i, message: 'Lexend through AppText only' },
   { pattern: /font-sans(?:-|\b)/, message: 'use semantic AppText variants instead of legacy font aliases' },
+  // Direction B D-DB3: weight is the FAMILY for a loaded custom face, so a Tailwind weight utility
+  // is silently inert — it looked like emphasis and rendered as none. Seventeen call sites were in
+  // exactly that state the moment Lexend replaced the platform face; use font-ui-md|sb|bold.
+  { pattern: /(?<![\w-])font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)(?![\w-])/, message: 'weight is the family: use font-ui, font-ui-md, font-ui-sb or font-ui-bold' },
   { pattern: /<Text(?:\s|>)/, message: 'use AppText instead of raw React Native Text' },
   { pattern: /\bAlert\.alert\s*\(/, message: 'use ConfirmSheet or an intentional Banner instead of native Alert' },
   { pattern: /from\s+['"]@\/theme\/ramps['"]/, message: 'screens and components must use semantic color roles, not primitive ramps' },

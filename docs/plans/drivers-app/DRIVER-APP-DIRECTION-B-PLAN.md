@@ -1167,6 +1167,13 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   numeric variants are tabular by definition rather than by a `tabular` prop each caller must
   remember. Hero/action/accent text tones were added in B0 because B1 cannot put text on the hero
   without them.
+- 2026-09-07 · B0 follow-on, found by reading the diff rather than the plan: swapping the platform
+  face for Lexend made **seventeen `font-semibold`/`font-medium` call sites silently inert** — a
+  weight utility does nothing to a loaded custom face, so the tab bar's selected label, the
+  segmented control's active option, every `Badge`, `Toast`, `Banner` action and six screen sites
+  would have rendered flat until B1. All seventeen moved to `font-ui-md|sb`, and
+  `check-driver-design.mjs` now bans the whole Tailwind weight scale so they cannot come back.
+  B1 still owns what each of those sites should *be*; this only keeps the emphasis that was there.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a

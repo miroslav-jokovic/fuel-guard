@@ -35,8 +35,8 @@ export type TextTone =
   | 'onHeroMuted';
 
 /**
- * Weight is the family in React Native: `font-semibold` does nothing to a loaded custom face, so the
- * variant names one of the four Lexend families outright (Direction B §2.3). Keeping the family and
+ * Weight is the family in React Native: a Tailwind weight utility does nothing to a loaded custom
+ * face, so the variant names one of the four Lexend families outright (Direction B §2.3). Keeping the family and
  * the size in separate maps means Bold Text swaps ONE class rather than appending a second
  * `font-*` whose precedence would depend on stylesheet order.
  */

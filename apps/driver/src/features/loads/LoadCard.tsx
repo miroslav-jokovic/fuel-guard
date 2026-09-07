@@ -67,14 +67,14 @@ export function LoadCard({ load, onPress }: { load: LoadSummary; onPress?: () =>
   return (
     <Card onPress={onPress}>
       <View className={largeText ? 'gap-2' : 'flex-row items-center gap-2'}>
-        <AppText variant="caption" tone="muted" className={`${largeText ? '' : 'flex-1'} font-semibold uppercase tracking-wider`}>
+        <AppText variant="caption" tone="muted" className={`${largeText ? '' : 'flex-1'} font-ui-sb uppercase tracking-wider`}>
           {load.ref}
         </AppText>
         <View className="flex-row flex-wrap items-center gap-2">
           {load.hazmat ? <Badge label="Hazmat" tone="warning" icon="warning" /> : null}
           <View className="flex-row items-center gap-1">
             <Icon name={status.icon} size={14} className={status.text} />
-            <AppText variant="caption" className={`font-medium ${status.text}`}>{status.label}</AppText>
+            <AppText variant="caption" className={`font-ui-md ${status.text}`}>{status.label}</AppText>
           </View>
         </View>
       </View>

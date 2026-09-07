@@ -145,7 +145,7 @@ export default function Score() {
               {view.isWinner ? (
                 <View className="flex-row items-center gap-2 border-t border-edge-subtle pt-3">
                   <Icon name="military_tech" size={18} className="text-success" />
-                  <AppText variant="supporting" tone="success" className="font-medium">Top score in your fleet this week</AppText>
+                  <AppText variant="supporting" tone="success" className="font-ui-md">Top score in your fleet this week</AppText>
                 </View>
               ) : null}
             </View>

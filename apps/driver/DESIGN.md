@@ -124,7 +124,11 @@ that Apple mandates one universal numeric grid.
 - New or redesigned text uses `AppText` semantic variants. Every variant is Lexend (D-DB3); the
   variant names the weight, because a `font-medium`-style utility does nothing to a loaded custom
   face in React Native.
-- Do not use raw React Native `Text` or legacy font utility aliases outside `AppText`.
+- Do not use raw React Native `Text` or legacy font utility aliases outside `AppText`. Tailwind
+  **weight** utilities (`font-medium`, `font-semibold`, …) are banned outright by `lint:design`: they
+  are silently inert on a loaded custom face, so they read as emphasis in the source and render as
+  none on the device. Reach for `font-ui`, `font-ui-md`, `font-ui-sb` or `font-ui-bold`, or better,
+  the variant that already carries the weight.
 - Use semantic icon names through `src/components/Icon.tsx`; do not import HugeIcons directly in screens.
 - Use the semantic type scale in `src/theme/tokens.ts`. Do not invent arbitrary text sizes for a
   one-off screen.

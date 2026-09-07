@@ -24,7 +24,7 @@ export function Progress({
     <View className="gap-2" accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: percent }}>
       {label || detail ? (
         <View className="flex-row items-center justify-between gap-3">
-          {label ? <AppText variant="supporting" tone="secondary" className="font-medium">{label}</AppText> : <View />}
+          {label ? <AppText variant="supporting" tone="secondary" className="font-ui-md">{label}</AppText> : <View />}
           {detail ? <AppText variant="caption" tone="muted">{detail}</AppText> : null}
         </View>
       ) : null}

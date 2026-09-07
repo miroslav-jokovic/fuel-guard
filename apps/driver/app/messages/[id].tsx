@@ -47,7 +47,7 @@ function MessageBubble({
   const content = (
     <>
       {!mine && message.sender_name ? (
-        <AppText variant="caption" tone="secondary" className="pb-0.5 font-semibold">{message.sender_name}</AppText>
+        <AppText variant="caption" tone="secondary" className="pb-0.5 font-ui-sb">{message.sender_name}</AppText>
       ) : null}
       <AppText
         variant="body"
