@@ -17,3 +17,39 @@ export function shiftDurationLabel(startedAtIso: string | null, now: number = Da
   const m = minutes % 60;
   return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
 }
+
+/**
+ * What the driver actually did today, for the end-of-shift summary.
+ *
+ * "Today" is the DEVICE's calendar day, not a UTC one: a driver signing off at 22:00 Central on the
+ * 7th expects to see the 7th's work, and a UTC comparison would have already rolled them into the
+ * 8th. Completion times come from the server in UTC, so the comparison has to happen after they are
+ * back in local time.
+ */
+export function completedToday<T extends { completed_at: string | null }>(
+  rows: readonly T[],
+  now: Date = new Date(),
+): T[] {
+  const today = now.toDateString();
+  return rows.filter((row) => {
+    if (!row.completed_at) return false;
+    const at = new Date(row.completed_at);
+    return !Number.isNaN(at.getTime()) && at.toDateString() === today;
+  });
+}
+
+/** Stops finished today across a set of loads — including skipped ones, which were still worked. */
+export function stopsCompletedToday(
+  loads: readonly { stops: readonly { status: string; completed_at: string | null }[] }[],
+  now: Date = new Date(),
+): number {
+  return loads.reduce(
+    (total, load) =>
+      total
+      + completedToday(
+          load.stops.filter((s) => s.status === 'completed' || s.status === 'skipped'),
+          now,
+        ).length,
+    0,
+  );
+}
