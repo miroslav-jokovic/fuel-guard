@@ -1,18 +1,11 @@
-import {
-  loadBucket,
-  nextStop,
-  stopProgress,
-  type Load,
-  type LoadStop,
-} from '@silvicom/shared';
-import type { LoadSummary, LoadStatus as CardStatus } from './LoadCard';
-import type { ActiveLoad } from './CurrentLoadCard';
+import { loadBucket, type Load, type LoadStop } from '@silvicom/shared';
 
 /**
- * Contract → view model. The `Load` shape mirrors the database; `LoadSummary`/`ActiveLoad` are what
- * the cards were designed against. Keeping the translation here means the screens never reshape data
- * inline and the card components never learn about the eight-state lifecycle — a driver only ever
- * sees five of those states anyway (D45).
+ * The shared formatters every load surface reads a stop through.
+ *
+ * This file used to be a contract → view-model translation layer, because the cards it fed were
+ * designed against a different shape (`LoadSummary`, `ActiveLoad`). Direction B's rows read the
+ * contract directly, so the translation went with the cards and only the formatting stayed.
  */
 
 /** Short, driver-readable time: "Today 06:30", "Tomorrow 08:00", "Wed 07:00", "—". */
@@ -50,48 +43,7 @@ export function placeLabel(stop: LoadStop | undefined | null): string {
   return city || stop.name;
 }
 
-function cardStatus(load: Load): CardStatus {
-  const bucket = loadBucket(load.status);
-  if (load.status === 'canceled') return 'canceled';
-  if (load.status === 'delivered') return 'delivered';
-  if (bucket === 'current') return 'in_transit';
-  return 'upcoming';
-}
-
-function ends(load: Load): { first: LoadStop | undefined; last: LoadStop | undefined } {
-  const ordered = [...load.stops].sort((a, b) => a.seq - b.seq);
-  return { first: ordered[0], last: ordered[ordered.length - 1] };
-}
-
-export function toSummary(load: Load): LoadSummary {
-  const { first, last } = ends(load);
-  return {
-    id: load.id,
-    ref: load.ref,
-    status: cardStatus(load),
-    origin: placeLabel(first),
-    originTime: stopTime(first?.appointment_start ?? null),
-    destination: placeLabel(last),
-    destTime: stopTime(last?.appointment_end ?? last?.appointment_start ?? null),
-    stops: load.stops.length,
-    miles: load.total_miles === null ? '—' : `${Math.round(load.total_miles).toLocaleString()} mi`,
-    equipment: load.equipment ?? 'Load',
-    ...(load.hazmat ? { hazmat: true } : {}),
-  };
-}
-
-export function toActive(load: Load): ActiveLoad {
-  const next = nextStop(load);
-  return {
-    ...toSummary(load),
-    progress: stopProgress(load),
-    nextStop: placeLabel(next),
-    nextAction: next?.kind === 'dropoff' ? 'Deliver' : 'Pick up',
-    appointment: appointmentLabel(next),
-  };
-}
-
-/** The three tabs, already sorted the way a driver reads them. */
+/** The three buckets the driver app groups loads into, already sorted the way a driver reads them. */
 export interface BucketedLoads {
   upcoming: Load[];
   current: Load[];
@@ -103,9 +55,13 @@ export function bucketLoads(loads: readonly Load[]): BucketedLoads {
   for (const load of loads) out[loadBucket(load.status)].push(load);
   // Soonest first for work ahead; most recent first for work behind.
   const byFirstAppt = (a: Load, b: Load) =>
-    (ends(a).first?.appointment_start ?? '').localeCompare(ends(b).first?.appointment_start ?? '');
+    (firstStop(a)?.appointment_start ?? '').localeCompare(firstStop(b)?.appointment_start ?? '');
   out.upcoming.sort(byFirstAppt);
   out.current.sort(byFirstAppt);
   out.previous.sort((a, b) => (b.completed_at ?? b.created_at).localeCompare(a.completed_at ?? a.created_at));
   return out;
+}
+
+function firstStop(load: Load): LoadStop | undefined {
+  return [...load.stops].sort((a, b) => a.seq - b.seq)[0];
 }

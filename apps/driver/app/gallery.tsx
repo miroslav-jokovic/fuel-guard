@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
+import { acceptanceCopy } from '@silvicom/shared';
 import {
   ActionBar, AppText, Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field,
-  GroupedList, Icon, IconButton, Input, ListRow, NumericField, Progress, Screen, ScreenHeader,
+  ChoiceSheet, GroupedList, Icon, IconButton, Input, ListRow, NumericField, Progress, Screen, ScreenHeader,
   Section, SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, severityTone, useToast, type Tone,
 } from '@/components';
-import { LoadCard } from '@/features/loads/LoadCard';
 import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import type { AttentionRow, TodayState } from '@/screens/today/todayModel';
-import { SAMPLE_UPCOMING } from '@/features/loads/sampleLoads';
+import { OfferDeck, declineChoices } from '@/features/loads/OfferDeck';
+import { SAMPLE_OFFERS } from '@/features/loads/sampleOffers';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
@@ -59,9 +60,9 @@ export default function Gallery() {
   const [seg, setSeg] = useState<'upcoming' | 'current' | 'previous'>('current');
   const [chip, setChip] = useState<'offered' | 'current' | 'upcoming' | 'history'>('offered');
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [declineOpen, setDeclineOpen] = useState(false);
   const toast = useToast();
   const noop = () => undefined; // gallery previews are non-interactive
-  const demoLoad = SAMPLE_UPCOMING[0];
 
   if (!__DEV__) return <Redirect href="/home" />;
 
@@ -140,8 +141,39 @@ export default function Gallery() {
         </View>
       </Section>
 
-      <Section title="Load card (the app's signature)">
-        {demoLoad ? <LoadCard load={demoLoad} onPress={noop} /> : null}
+      {/* B3 done-when: both driver types, because the labels are the ONLY thing that differs
+          between an owner-operator and a company driver, and a screenshot of one proves nothing
+          about the other. */}
+      <Section title="Offer deck — owner-operator, then company driver">
+        <View className="gap-4 rounded-xl bg-hero p-4">
+          <OfferDeck
+            offers={SAMPLE_OFFERS}
+            copy={acceptanceCopy('owner_operator')}
+            accepting={false}
+            onAccept={noop}
+            onDecline={noop}
+            onOpen={noop}
+            onHazmat={noop}
+          />
+          <OfferDeck
+            offers={SAMPLE_OFFERS.slice(0, 1)}
+            copy={acceptanceCopy('company')}
+            accepting={false}
+            onAccept={noop}
+            onDecline={noop}
+            onOpen={noop}
+            onHazmat={noop}
+          />
+        </View>
+        <Button label="Open the decline sheet" variant="secondary" onPress={() => setDeclineOpen(true)} />
+        <ChoiceSheet
+          visible={declineOpen}
+          title="Can't take this"
+          message="Dispatch sees the reason you pick."
+          choices={declineChoices(acceptanceCopy('company'))}
+          onChoose={() => setDeclineOpen(false)}
+          onCancel={() => setDeclineOpen(false)}
+        />
       </Section>
 
       <Section title="Segmented control — sliding thumb">
