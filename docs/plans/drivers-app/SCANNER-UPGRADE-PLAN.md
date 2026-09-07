@@ -728,10 +728,32 @@ Decides how much Step 1.1 is worth and is trigger (c) for Phase 7. Nothing in th
 the device population. *Until answered:* Step 1.1 ships anyway (it is cheap and it is correct
 regardless), and Phase 7 does not open on this trigger.
 
-**Q5 — Has the native provider ever run on a device?**
-Step 0.1 answers it. It is listed here because it is the one unknown that can change Phase 1's
-starting point, and because `RELEASE-GATE.md` Gate C being unsigned means nobody should assume either
-answer.
+**Q5 — Has the native provider ever run on a device? — ALL BUT ANSWERED, 2026-09-07, and the answer
+is no.**
+Step 0.1 was to answer it on a device. It did not have to be: production answers it directly.
+Measured against the linked Supabase project on 2026-09-07, while checking whether 0326's columns
+held anything:
+
+```
+loads: 0   documents: 0   runs: 0   driver_captures (capture_mode not null): 0
+```
+
+**No hazmat load, document or run has ever been recorded in production, by any provider.** So the
+question was never "native or `expo-image-picker`" — it is that *no capture has ever completed at
+all*. The one caveat, stated so the claim is not stronger than the measurement: a capture could in
+principle have been made and never drained from the outbox, or made against a different backend —
+but this repository is configured against exactly one Supabase project, which is production, so a
+dev build's capture would have landed here too.
+
+What follows from it, and it is the whole reason this is recorded rather than noted:
+
+  · **The device session is a first integration, not a confirmation.** D-SCAN13 already said to
+    budget it that way *if* the answer turned out to be no. It is no. §5 of
+    `HANDOFF-2026-09-07-SCANNER.md` is sixteen owed checks against code no user has ever exercised.
+  · **Phase 4 has no production data to regress.** The table is empty, which is why 0327 could drop
+    a column outright rather than perform a rename dance.
+  · **Gate C in `RELEASE-GATE.md` can still only be signed on a device** — this measurement says the
+    provider has not run, and cannot say it works.
 
 ---
 
@@ -1087,3 +1109,42 @@ Append a dated line when a step ships. Do not mark table rows.
     `RETENTION_RULES` entry for it while the pin stands fails the second. Read from the runner's
     output, not assumed — this programme has now had six mutations that passed for reasons unrelated
     to the code.
+
+- **2026-09-07** — **Step 4a corrected — migration `0327_hazmat_documents_original_columns.sql`,
+  still no reader.** Tracing every existing reader of `hazmat_documents` before writing 4b showed
+  0326 had put the two artifacts in the wrong columns and had missed a hash.
+  · **`archive_storage_path` is dropped; `original_storage_path` and `original_sha256` are added.**
+    The rule that decides it, and it is only visible from the readers rather than from the plan:
+    **the artifact whose upload is DEFERRED must be the one nothing depends on.** `storage_path` is
+    what `orchestrate.ts` downloads and what `verifyIntegrityHash` checks `sha256` against (Step
+    1.3); it is what `listDocuments` signs a download URL for, what `defensePacket.ts` reads, and
+    what `storageBackup` and the nightly reconcile sweep read. Put the deferred ORIGINAL there and
+    extraction downloads an object that does not exist yet (`document_unreadable`, a verdict waiting
+    for Wi-Fi) and the office sees a broken image for as long as the driver stays on cellular. So
+    `storage_path` / `sha256` / `content_type` keep meaning exactly what they always meant — the
+    image that uploads immediately and that extraction reads, which under D-SCAN11 is the ARCHIVE —
+    and the ORIGINAL is purely additive. **D-SCAN6 is satisfied either way:** it requires the
+    scanner's bytes retained untouched with the hash covering them, and says nothing about which
+    column.
+  · **The missing hash.** `sha256` describes the object at `storage_path` and cannot describe two
+    objects. A retained artifact with no hash is a file, not evidence, so `original_sha256` is the
+    second half of the pair.
+  · **`original_media_type` was considered and rejected as a constant.** Android's
+    `GmsDocumentScanner` hands back a JPEG file URI — that IS untouched there; iOS's
+    `VNDocumentCameraScan` hands back a `UIImage` and never bytes, so the closest thing is a
+    maximum-quality JPEG encode. Both are `image/jpeg`, and `{org}/{load}/{id}.orig.jpg` carries it.
+  · **Dropping a production column was free, and that is a measurement not an assumption:**
+    `hazmat_documents` holds zero rows (see §6 Q5), and no code in the tree names
+    `archive_storage_path`. A rename would also have asserted a continuity of meaning that does not
+    exist — the archive path and the original path are different facts about different objects.
+    `original_bytes`, `archive_bytes` and `capture_metrics` are unchanged and still correct.
+  · Gates: `lint:migrations`, `lint:migration-ordering` (*"2 new column(s) … none read by code in
+    the same change"*), `lint:rls`, `lint:table-writers` with the regenerated snapshot committed,
+    `lint:upserts`, typecheck, lint, full test suite.
+
+- **2026-09-07 — the measurement that reframes the rest of the programme (§6 Q5).** Production holds
+  **zero hazmat loads, zero documents and zero runs.** Q5 was "has the native provider ever run on a
+  device"; the answer is that no capture has ever completed through any provider. The device session
+  is therefore a **first integration**, exactly as D-SCAN13 said to budget for if the answer came
+  back this way, and the sixteen owed checks in `HANDOFF-2026-09-07-SCANNER.md` §5 are against code
+  no user has ever exercised. It also means Phase 4 has no production data to regress.
