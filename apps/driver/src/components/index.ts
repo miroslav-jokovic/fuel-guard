@@ -20,6 +20,7 @@ export { Field } from './Field';
 export { Progress } from './Progress';
 export { Sparkline } from './Sparkline';
 export { ConfirmSheet } from './ConfirmSheet';
+export { ChoiceSheet, type Choice } from './ChoiceSheet';
 export { SegmentedControl } from './SegmentedControl';
 export { TaskStepper, type TaskStep, type TaskStepState } from './TaskStepper';
 export { Skeleton } from './Skeleton';

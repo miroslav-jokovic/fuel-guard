@@ -572,7 +572,7 @@ additive.
   simulator the active-load state shows the duty strip, the hero card with its primary action, and
   the first attention row without scrolling (screenshot attached to the PR).
 
-### B3 · Loads
+### B3 · Loads — DONE 2026-09-07
 
 **Branch:** `claude/driver-b3-loads`. Splits `app/(tabs)/loads.tsx` into
 `src/features/loads/{OfferDeck.tsx, offerDeckModel.ts}` and restyles `LoadCard.tsx`.
@@ -1228,6 +1228,26 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   thing out of `features/`, don't allow-list the leak". Root cause is §4.6, which listed four root
   gates out of the ~28 `gates` runs and never listed this one; it now names it and says when to run
   the whole job.
+- 2026-09-07 · **B3 built.** `offerDeckModel.ts` (8 tests, four mutants killed), `OfferDeck.tsx`,
+  `loadRows.tsx`, `loadStatus.ts`, and `ChoiceSheet` as a new primitive. `loads.tsx` is a hero with
+  the count sentence, the chip rail and the deck; the sheet carries one list per chip. Deviations:
+  (1) **`LoadCard.tsx`, `CurrentLoadCard.tsx` and `sampleLoads.ts` are all deleted**, not just the
+  first — the plan names `LoadCard`, but `CurrentLoadCard` had no caller left once B2 took the hero
+  and B3 took the row, and `sampleLoads` fed only those two. `LOAD_STATUS` was promoted to
+  `loadStatus.ts` (B4's detail badge needs it) and `RouteRail` went with the cards: B4's timeline is
+  a new component, not a move.
+  (2) **`loadViewModel.ts` lost `toSummary`/`toActive`.** They existed to reshape contracts into what
+  the CARDS were designed against; the Direction B rows read the contract directly, so the file is
+  now three formatters and `bucketLoads`.
+  (3) **The decline flow moved into `ChoiceSheet`** as B3.2 asks, and that also fixes the old
+  behaviour: tapping "Can't take this" used to grow a new section BELOW the fold of the load detail,
+  so the reasons were reachable only by scrolling past the load being declined.
+  (4) **The offer deck lives in the hero, and the Offered chip is the default whenever an offer
+  exists** — ahead even of a load in transit, because an offer is the only thing on this screen with
+  dispatch waiting on the other end of it.
+  (5) `SAMPLE_OFFERS` is the gallery's only fixture (§4 rule 8) and exists so both driver types can
+  be reviewed side by side — the labels are the ONLY difference between them, so one screenshot
+  proves nothing about the other.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a
