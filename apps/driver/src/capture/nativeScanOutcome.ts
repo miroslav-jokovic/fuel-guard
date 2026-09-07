@@ -189,18 +189,30 @@ export function assemblePage(
   const original = toImageRef(p.original);
   const derived = toImageRef(p.derived);
   const ocr = toOcr(p.ocr);
-  // System scanner returns a cropped, enhanced page → coverage is effectively full (an ASSERTION,
-  // not a measurement — Step 5.3 removes it). Blur, glare, shadow, brightness and contrast are real
-  // measurements from `measure()` as of Step 3.3, and every one of their gate floors is `null`, so
-  // they are RECORDED and gated on by nobody until Step 5.2 derives thresholds from the recorded
-  // distribution (D-SCAN10). `longEdgePx` comes from the page the scanner returned rather than from
-  // the measurement, which reports the same thing — the two agreeing is a property worth keeping
-  // accidental rather than one to depend on.
+  // ── NO `coverageFraction` HERE, AND ITS ABSENCE IS THE POINT (Step 5.3, audit finding F6) ────
+  // This line used to read `coverageFraction: 1` — an ASSERTION, not a measurement, and the last
+  // invented number in the metric path. It could not be measured and still cannot: the OS document
+  // scanner reports the cropped page and never the crop's area against the frame it came from, so
+  // that ratio exists only inside VisionKit and ML Kit. Asserting 1 made the gate's coverage check
+  // report PASS on every capture ever taken, count toward the accept score, and look like it was
+  // working.
+  //
+  // Absent instead, which the gate renders as `na` — §5's standing rule that `na` is never a silent
+  // pass. It is a stated gap covered by the server's usability backstop, and it is one of the
+  // concrete signals feeding the Phase 7 v2 decision: a custom viewfinder OWNS the frame, so it is
+  // the thing that could measure this. `coverageMinFraction` is retired to `null` in the same merge,
+  // so no floor is left waiting to gate on a quantity nobody produces.
+  //
+  // Blur, glare, shadow, brightness and contrast are real measurements from `measure()` as of Step
+  // 3.3, and every one of their gate floors is `null`, so they are RECORDED and gated on by nobody
+  // until Step 5.2 derives thresholds from the recorded distribution (D-SCAN10). `longEdgePx` comes
+  // from the ORIGINAL the scanner returned rather than from the measurement, which reports the same
+  // thing — the two agreeing is a property worth keeping accidental rather than one to depend on.
   // ⚠ The resolution floor is measured on the ORIGINAL, which is the page as the scanner produced it.
   // Measuring the derivative would make this check a statement about `enhanceLongEdgePx` — a number
   // we chose — rather than about what the camera captured, and it would pass every time by
   // construction.
-  const metrics: ImageMetrics = { longEdgePx: Math.max(original.width, original.height), coverageFraction: 1, ...measured };
+  const metrics: ImageMetrics = { longEdgePx: Math.max(original.width, original.height), ...measured };
   const quality = evaluateGate({ metrics, ocr, platform }, config);
   return {
     originalOfRecord: original,

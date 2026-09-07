@@ -285,6 +285,29 @@ describe("assemblePage (Phase 4b — two artifacts per page)", () => {
     expect(resolution?.detail?.longEdgePx).toBe(4032);
   });
 
+  /**
+   * ⚠ Step 5.3 / audit finding F6. This line read `coverageFraction: 1` and was the last invented
+   * number in the metric path: an assertion, never a measurement, that made the gate's coverage check
+   * report PASS on every capture ever taken and count toward the accept score.
+   *
+   * It cannot be measured on the v1 path and this is not a deferral — the OS scanner returns the
+   * cropped page and never the crop's area against the frame it came from, so the ratio exists only
+   * inside VisionKit and ML Kit. Absent is the honest report, and the gate renders absent as `na`.
+   */
+  it("asserts no coverage fraction, because nothing on the v1 path can measure one", () => {
+    // ⚠ Measured against a config whose coverage floor is LIVE, and that is the only way this test
+    // discriminates. Written first against the shipped config, it passed with the assertion put back:
+    // a retired floor renders `na` whether or not a fraction was produced, so the check's status
+    // could not tell "nothing measured it" from "the floor is off". With an enforcing floor, an
+    // asserted 1 reports PASS and only a genuinely absent metric reports `na`.
+    const enforcing = { ...cfg, gates: { ...cfg.gates, coverageMinFraction: 0.6 } };
+    const assembled = assemblePage(page(), {}, enforcing, "ios");
+    const coverage = assembled.quality.checks.find((c) => c.name === "coverage");
+    expect(coverage?.status).toBe("na");
+    expect(coverage?.detail?.coverageFraction).toBeUndefined();
+    expect(assembled.quality.reasons).not.toContain("PAGE_INCOMPLETE");
+  });
+
   it("still refuses a page whose ORIGINAL is below the floor, though its derivative is not", () => {
     const small = page();
     small.original = { ...small.original, width: 800, height: 1000 };

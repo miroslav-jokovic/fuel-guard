@@ -1316,3 +1316,32 @@ Append a dated line when a step ships. Do not mark table rows.
   · **Owed on device, item 21:** a capture on cellular uploads the archive and leaves the original
     pending; joining Wi-Fi uploads it exactly once; and the sync screen says *"Waiting for Wi-Fi to
     upload N original pages"* rather than showing a failure.
+
+- **2026-09-07** — **Step 5.3 SHIPPED — the last invented number leaves the metric path (F6).**
+  `coverageFraction: 1` is deleted from `assemblePage`, and `coverageMinFraction` retires to `null`
+  in the same merge, so no floor is left waiting to gate on a quantity nobody produces.
+  · **It cannot be measured on the v1 path, and that is a fact rather than a deferral.** The OS
+    document scanner returns the cropped page and never the crop's area against the frame it came
+    from — that ratio exists only inside VisionKit and ML Kit. So the honest report is absent, which
+    the gate renders `na`: a stated gap covered by the server backstop, and one of the concrete
+    signals feeding the Phase 7 decision, because a custom viewfinder OWNS the frame and is the thing
+    that could finally measure it.
+  · **The floor had to retire in the same merge, in the opposite order from Step 3.3.** There the
+    floors went FIRST because a producer was about to appear; here the producer disappears, so a
+    surviving 0.6 would be an uncalibrated number lying in wait for the day something starts
+    reporting coverage. `coverageMinFraction` becomes a `ShadowThreshold`, and the validator learned
+    it — it was checked with `isNum`, so a config retiring it would have been rejected as malformed
+    and the app would have silently kept a last-known-good carrying the old 0.6.
+  · **Nothing in `packages/capture-engine` tested coverage AT ALL.** The assertion and the floor were
+    both removed and the entire suite stayed green. Four cases were added, and the pair that matters
+    is the last two: retiring the floor must not break the MECHANISM, because v2 RawCapture is what
+    could eventually use it.
+  · **⚠ And the first version of the provider-side test proved nothing.** It asserted the coverage
+    check reads `na` against the SHIPPED config — where the floor is now `null`, so `na` is reported
+    whether or not a fraction was produced. Putting `coverageFraction: 1` straight back passed it.
+    The test now measures against a config with a LIVE floor, where an asserted 1 reports `pass` and
+    only a genuinely absent metric reports `na`. **Eighth mutation in this programme to pass for a
+    reason unrelated to the code, and the second in two days caught only by running it.**
+  · Four mutations read: the assertion restored, a `null` floor coerced to `0` (the silent pass), the
+    validator rejecting a retired floor, and the validator letting the key be omitted. No native
+    change, so no prebuild and no runtime bump.

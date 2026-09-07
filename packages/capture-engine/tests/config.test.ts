@@ -65,6 +65,25 @@ describe("validateConfig", () => {
       expect(validateConfig(withoutSmallText)).toBeNull();
     });
 
+    /**
+     * Coverage joined the retired list at Step 5.3 (F6), and the validator had to be told — it was
+     * checked with `isNum`, so a config retiring it would have been REJECTED as malformed and the
+     * app would have silently kept the last-known-good one carrying the old 0.6.
+     *
+     * The omission half is asserted separately from the block above because coverage is the newest
+     * member of this list and the asymmetry is the whole reason `null` is spelled out rather than
+     * inferred.
+     */
+    it("lets coverage retire to null now that nothing measures it, but still refuses the key being dropped", () => {
+      expect(parsed({ coverageMinFraction: null })).not.toBeNull();
+      expect(parsed({ coverageMinFraction: 0.6 })).not.toBeNull();
+      expect(parsed({ coverageMinFraction: "off" })).toBeNull();
+
+      const withoutCoverage = JSON.parse(JSON.stringify(BUNDLED_DEFAULT_CONFIG));
+      delete withoutCoverage.gates.coverageMinFraction;
+      expect(validateConfig(withoutCoverage)).toBeNull();
+    });
+
     it("still rejects a non-number that is not null", () => {
       expect(parsed({ blurLaplacianVarMin: "none" })).toBeNull();
       expect(parsed({ contrastRmsMin: true })).toBeNull();
