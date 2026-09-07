@@ -65,7 +65,11 @@ export default function SignIn() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerClassName="flex-grow gap-4 px-4"
+        // `justify-center` with `flex-grow`: the form sits in the middle of the screen rather than
+        // pinned under the status bar with two-thirds of the page empty below it (owner, 2026-09-07).
+        // It still scrolls when the keyboard shrinks the viewport, because flex-grow lets the
+        // container exceed the frame rather than compressing the fields.
+        contentContainerClassName="flex-grow justify-center gap-4 px-4"
         contentContainerStyle={{ paddingTop: insets.top + layout.sectionGap, paddingBottom: insets.bottom + layout.sectionGap }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}

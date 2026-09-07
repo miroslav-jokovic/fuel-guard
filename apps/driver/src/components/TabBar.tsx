@@ -19,21 +19,45 @@ const TAB_ICON: Record<string, IconName> = {
  * above it and the shell below it read as one stacked surface rather than a white page sitting on a
  * white bar. Selection is carried by weight, colour AND a 6pt amber dot — never colour alone.
  */
+/**
+ * Is this a tab expo-router was told to hide with `href: null`?
+ *
+ * NOT by reading `options.href`, which is what this file did until 2026-09-07 and which could never
+ * work: expo-router CONSUMES `href`, and by the time options reach a custom tab bar the key is gone
+ * entirely — replaced by the `tabBarItemStyle` + `tabBarButton` pair its own bar uses to hide an
+ * item. Measured, not assumed: an enabled tab's options are `["headerShown","title"]` and a hidden
+ * one's are `["headerShown","tabBarItemStyle","tabBarButton"]`.
+ *
+ * The old test therefore matched nothing, and `loads` and `score` appeared in the bar whenever their
+ * feature flag was off — labelled with their raw lowercase route names, because a hidden tab has no
+ * `title` either. That is D-PM1 ("a feature an org turned off simply doesn't appear") failing in the
+ * one place a driver would see it. `navigate` stayed hidden only by the accident of having no icon.
+ */
+function isHiddenTab(options: object | undefined): boolean {
+  return options !== undefined && 'tabBarButton' in options;
+}
+
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const activeRoute = state.routes[state.index];
   const scoreIsHidden = activeRoute?.name === 'score'
-    && (descriptors[activeRoute.key]?.options as { href?: unknown } | undefined)?.href === null;
+    && isHiddenTab(descriptors[activeRoute.key]?.options);
 
   return (
-    <View
-      className="flex-row rounded-t-2xl bg-hero"
-      style={{ paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8) }}
-    >
+    // The OUTER view exists only to colour what shows through the 28pt corners. A custom tab bar is
+    // rendered outside the scene, so behind those corners is the navigator's own container — which
+    // is stark white by default, and cut two cream notches into the navy shell. `canvas` is the
+    // app's light ground, so the corners now read as the bar tucking under the page rather than as
+    // two chips out of it (2026-09-07, seen on a simulator for the first time).
+    <View className="bg-canvas">
+      <View
+        className="flex-row rounded-t-2xl bg-hero"
+        style={{ paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8) }}
+      >
       {state.routes.map((route, index) => {
         const icon = TAB_ICON[route.name];
         if (!icon) return null;
-        if ((descriptors[route.key]?.options as { href?: unknown } | undefined)?.href === null) return null;
+        if (isHiddenTab(descriptors[route.key]?.options)) return null;
 
         const focused = state.index === index || (route.name === 'more' && scoreIsHidden);
         const optionTitle = descriptors[route.key]?.options.title;
@@ -77,7 +101,8 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             <View className={`mt-0.5 h-1.5 w-1.5 rounded-full ${focused ? 'bg-action' : 'bg-transparent'}`} />
           </Pressable>
         );
-      })}
+        })}
+      </View>
     </View>
   );
 }
