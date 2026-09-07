@@ -1067,3 +1067,23 @@ Append a dated line when a step ships. Do not mark table rows.
     regenerated `supabase/schema.generated.sql` is committed — 140 tables, 5804 lines),
     `lint:upserts`, `pnpm typecheck`, `pnpm lint`, `pnpm test` (all suites + all matrices green).
     No driver, native or runtime-version change: this merge is SQL and a log line.
+
+- **2026-09-07** — **Q1's second half shipped: `hazmat_documents` is pinned in
+  `RETENTION_FORBIDDEN`.** Its own merge, deliberately — it is a rule about deleting ROWS and has
+  nothing to do with Phase 4's columns, so folding it into 4b would have widened a merge that is
+  already the largest in the programme.
+  · **The table was on NEITHER list.** No `RETENTION_RULES` entry reached it and nothing stopped one
+    being written, while `documents`, `certifications`, `qualification_records` and `dq_exports` had
+    all been pinned since D-BD12. 0092's RLS makes the table immutable, but immutability is a
+    different axis: the retention runner is the service role and bypasses RLS by design, so this
+    constant was the only thing that could have stood in the way, and it was not there.
+  · **Pruning the row would have deleted the BYTES on a one-day delay.**
+    `storageReconcileScheduler` sweeps the `hazmat` bucket nightly with `apply: true`, and
+    `reconcileBucketOrphans` removes any object no row points at once it is past the 24-hour grace.
+    That composition is deliberate for `application_captures`; against evidence it is a compliance
+    incident. Both facts are in the constant's comment.
+  · **Both assertions were proven to fail.** Removing `"hazmat_documents"` from the constant fails
+    the first (`expected [ 'vehicle_inspections', …(29) ] to include 'hazmat_documents'`); adding a
+    `RETENTION_RULES` entry for it while the pin stands fails the second. Read from the runner's
+    output, not assumed — this programme has now had six mutations that passed for reasons unrelated
+    to the code.

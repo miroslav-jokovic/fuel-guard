@@ -36,6 +36,26 @@ describe("retention policy (the config itself)", () => {
     for (const t of RETENTION_FORBIDDEN) expect(listed.has(t)).toBe(false);
   });
 
+  /**
+   * The hazmat evidence table, pinned 2026-09-07 (SCANNER-UPGRADE-PLAN.md §6 Q1, owner ruling).
+   *
+   * Asserted on its own rather than folded into the list above, because what makes it worth a test
+   * is the state it was found in: `hazmat_documents` was on NEITHER list — no retention rule reached
+   * it and nothing stopped one being written. Immutability (0092's RLS) is a different axis; the
+   * retention runner is the service role and bypasses RLS entirely, which is exactly why this
+   * constant is the only thing standing between an evidence row and a prune.
+   *
+   * The pairing with `hazmat_runs` is the point: a run's verdict cites the document row, and the row
+   * is the only index to the bytes in the `hazmat` bucket. Prune it and the nightly storage
+   * reconciler deletes the image 24 hours later as an orphan, so the compliance history would cite
+   * an image nobody can produce.
+   */
+  it("cannot prune the hazmat BOL images a verdict was reached from", () => {
+    const listed = new Set(RETENTION_RULES.map((r) => r.table));
+    expect(RETENTION_FORBIDDEN).toContain("hazmat_documents");
+    expect(listed.has("hazmat_documents")).toBe(false);
+  });
+
   it("keeps raw telematics at least 13 months and only prunes finished jobs", () => {
     for (const r of RETENTION_RULES) {
       if (["idle_events", "hos_duty_segments", "idle_park_sessions", "vehicle_engine_days"].includes(r.table)) {

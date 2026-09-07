@@ -330,6 +330,33 @@ export const RETENTION_FORBIDDEN = [
    * which matters for longer than the consent does.
    */
   "sms_consents",
+  /**
+   * The hazmat BOL images a §172 verdict was reached from (0092, and the original-of-record columns
+   * 0326 adds to them).
+   *
+   * ⚠ **This table was in neither list.** Measured 2026-09-07 while Phase 4a of
+   * `SCANNER-UPGRADE-PLAN.md` asked the owner where an untouched ORIGINAL goes: `hazmat_documents`
+   * appeared in no `RETENTION_RULES` entry and on no forbidden list, so it was neither pinned nor
+   * pruned — it simply grew, and nothing at all stopped the next person adding a rule to it. Root
+   * `CLAUDE.md` has called it insert-only evidence since the re-founding and 0092 has made it
+   * immutable by RLS since it shipped; both of those stop an UPDATE, and neither stops a
+   * service-role prune, because the runner here bypasses RLS by design.
+   *
+   * The reason it must not be prunable is the same one `documents` sits on this list for, one
+   * regulation over. 49 CFR §172.201(e) obliges the carrier to retain the shipping paper for 375
+   * days after the material is accepted, and the row is the only index from a `hazmat_runs` verdict
+   * to the bytes it read: prune it and the load's compliance history cites an image nobody can
+   * produce. The owner's 2026-09-07 ruling on the plan's Q1 goes further than the CFR floor — the
+   * ORIGINAL is kept as long as the ARCHIVE, with no expiry window — so there is no window here to
+   * get wrong either.
+   *
+   * ⚠ And deleting the row is what would delete the BYTES, not only the index.
+   * `storageReconcileScheduler` sweeps the `hazmat` bucket nightly with `apply: true`, and
+   * `reconcileBucketOrphans` deletes any object no row points at once it is past the 24-hour grace.
+   * So a retention rule on this table would be a storage deletion on a one-day delay — the same
+   * composition `application_captures` above relies on deliberately, running here against evidence.
+   */
+  "hazmat_documents",
 ] as const;
 
 export interface RetentionTableResult {
