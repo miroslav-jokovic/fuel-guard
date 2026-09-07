@@ -332,8 +332,13 @@ animation anywhere else.
    conflict on rows) and mark the step heading **— DONE <date> (PR #N)**.
 6. Gates before every PR, from the repo root: `pnpm --filter @silvicom/shared build:rn`, then
    `pnpm --filter @silvicom/driver typecheck lint lint:tokens lint:design test`, then root
-   `pnpm lint:token-schema`, `pnpm lint:filesize`, `pnpm lint:tests` and `pnpm lint:comment-claims`.
-   Then `git diff --check`.
+   `pnpm lint:boundaries`, `pnpm lint:token-schema`, `pnpm lint:filesize`, `pnpm lint:funcsize`,
+   `pnpm lint:tests` and `pnpm lint:comment-claims`. Then `git diff --check`.
+   **`lint:boundaries` was missing from this list until 2026-09-07 and B2 shipped nine violations
+   into CI because of it** — every new module under `src/features/<name>` is subject to it, and a
+   screen that composes several features is exactly the shape that trips it. When a step adds a
+   root-level directory or a cross-feature import, run the whole `gates` job's list from
+   `.github/workflows/ci.yml` rather than this subset.
 7. **Files this plan never edits** while the scanner programme is open (`SCANNER-UPGRADE-PLAN.md`):
    `app/hazmat/capture.tsx`, `src/capture/*`, `src/features/hazmat/hazmatCaptureModel.ts`,
    `src/features/hazmat/useHazmatChecks.ts`, `tests/hazmat-capture-model.test.ts`,
@@ -1214,6 +1219,15 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   (`SKELETON_HEIGHTS`) instead of a class and a number drifting apart.
   (6) The four states are in the gallery as fixture rows through the real `AttentionQueue`, because
   `recovery` is otherwise reachable only by breaking the network mid-session on a device.
+- 2026-09-07 · **B2 correction, caught by CI not by me.** `src/features/today/` produced **nine
+  `lint:boundaries` violations**: a feature may not import a sibling's internals, and Today imports
+  five of them. The gate is right — a module that needs duty, loads, notifications, messages and
+  score is not a feature, it is a composition. `src/features/today/` moved to **`src/screens/today/`**
+  (new layer, `src/screens/README.md` explains it: features own data and rules, screens arrange them,
+  routes stay thin). The gate's own comment already ruled out the alternative: "promote the shared
+  thing out of `features/`, don't allow-list the leak". Root cause is §4.6, which listed four root
+  gates out of the ~28 `gates` runs and never listed this one; it now names it and says when to run
+  the whole job.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a

@@ -7,8 +7,8 @@ import {
   Section, SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, severityTone, useToast, type Tone,
 } from '@/components';
 import { LoadCard } from '@/features/loads/LoadCard';
-import { AttentionQueue } from '@/features/today/AttentionQueue';
-import type { AttentionRow, TodayState } from '@/features/today/todayModel';
+import { AttentionQueue } from '@/screens/today/AttentionQueue';
+import type { AttentionRow, TodayState } from '@/screens/today/todayModel';
 import { SAMPLE_UPCOMING } from '@/features/loads/sampleLoads';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';

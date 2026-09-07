@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Load, LoadStop, MeHazmatLoadRow, NotificationEvent, Thread } from '@silvicom/shared';
-import { attentionRows, countdownLabel, todayState, upNextLoads } from '@/features/today/todayModel';
+import { attentionRows, countdownLabel, todayState, upNextLoads } from '@/screens/today/todayModel';
 
 const NOW = Date.parse('2026-09-07T12:00:00Z');
 
