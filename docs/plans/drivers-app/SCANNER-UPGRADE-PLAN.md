@@ -1345,3 +1345,49 @@ Append a dated line when a step ships. Do not mark table rows.
   · Four mutations read: the assertion restored, a `null` floor coerced to `0` (the silent pass), the
     validator rejecting a retired floor, and the validator letting the key be omitted. No native
     change, so no prebuild and no runtime bump.
+
+- **2026-09-07** — **Step 5.1a SHIPPED — and it turns out shadow mode was recording nothing.**
+  `packages/capture-engine/src/telemetry.ts` builds a `CaptureTelemetry` per page, the register
+  carries it, and `registerDocument` writes it to `capture_metrics` (the column 4a created).
+  · **⚠ The defect, which the plan did not anticipate because nobody had looked.** Phase 3 shipped
+    *"every capture measures blur, glare, shadow, brightness and contrast"*. It measured them and
+    **did not keep them**: `QualityReport`'s `na` checks carry no `detail` — correctly, since there is
+    nothing to report about a check that did not run — and under D-SCAN10 every one of those floors is
+    `null`, so every one of those checks is `na` and the five numbers were discarded one function
+    after they were computed. **Step 5.2 would have derived thresholds from a distribution nobody was
+    writing.** `CapturedPage` now carries `metrics` beside `quality`: what was measured, as opposed to
+    what the gate concluded.
+  · **The same was true of `analysisLongEdgePx`.** The native module has returned it since Phase 3 and
+    nothing carried it past the provider — it is not part of `ImageMetrics` (the gate has no use for
+    it) so there was nowhere for it to go. M2 measured the same document at 4283.7 blur variance at
+    3000 px and 7299.9 at 800 px, so a recorded number without its scale is not interpretable. It is
+    now stamped on every reading, which is what §8's own earlier entry claimed was already happening.
+  · **What is deliberately NOT in the record.** The gate verdict and the OCR evidence, because both
+    are already columns on the same row (`quality` 0092, `ocr_evidence` 0133) written from the same
+    request — repeating them would be a copy of a fact that already has a home, and on an evidence row
+    two answers to "what did the gate decide". And **auto-versus-manual capture**, which §4 asks for:
+    neither `VNDocumentCameraViewController` nor `GmsDocumentScanner` reports whether the shutter
+    fired automatically or the driver pressed it. Absent rather than guessed; it becomes available if
+    and only if Phase 7 builds our own viewfinder.
+  · **`captureMs` and `processingMs` are separate numbers on purpose.** One is the driver's own
+    shooting time inside the OS scanner, the other is ours to answer for. A single number would make a
+    slow phone and a slow measurement indistinguishable, which is precisely what Step 5.2 will be
+    asking. `processingMs` is per PAGE, because an average hides the page that took four seconds.
+  · **`attempt` is optional and is never defaulted to 1.** A defaulted 1 would make the re-shoot rate
+    — trigger (a) of the Phase 7 decision — read as zero for ever, which is worse than an absent field
+    because it looks like an answer. The screen counts attempts in a `useRef`.
+  · **Privacy is asserted as a CLOSED KEY SET, not as a search for forbidden words** — the first
+    version of that test failed on its own crudeness (`"lon"` is a substring of `longEdgePx`) and was
+    also the weaker assertion, since a substring scan would pass a field called `capturedBy`. An
+    allowlist fails the moment anybody adds a field, which is exactly when someone should have to
+    think about whether it belongs in a record that outlives the driver's employment.
+  · `ImageMetrics` moved from `gate.ts` to `contracts.ts` — `CapturedPage` needs it and the other
+    direction was a cycle. Pure relocation; `index.ts` exports `contracts` first, so every importer is
+    unaffected.
+  · **Seven mutations read**, and one of them passed first time: dropping the analysis scale, because
+    no test fed a real measurement into `assemblePage`. Two cases were added for that path and it now
+    fails. The others: telemetry dropping the metrics, `page.metrics` not carried, timings zeroed
+    instead of omitted, `attempt` defaulted, the server dropping the column, and the server writing
+    `{}` when none was sent. No native change, so no prebuild and no runtime bump.
+  · **Step 5.1b is next and is the native half:** `deviceModel` and `osVersion` from the support
+    probe. The fields are declared on `CaptureMetadata` and absent until then.

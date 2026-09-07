@@ -114,6 +114,24 @@ describe("registerDocument — the ORIGINAL of record (D-SCAN6/D-SCAN11)", () =>
     expect(row.original_storage_path).not.toBe(row.storage_path);
   });
 
+  it("stores the shadow-mode telemetry, which is the only place those numbers exist", async () => {
+    // Step 5.1 / D-SCAN10. Blur, glare, shadow, brightness and contrast are measured on every capture
+    // and rendered `na` by the gate, so `quality` does not carry them. If this column does not get
+    // them, nothing does, and Step 5.2 derives thresholds from an empty distribution.
+    const rec = recorder();
+    const metrics = { version: 1, metrics: { longEdgePx: 4032, blurVariance: 812.5 }, analysisLongEdgePx: 1024 };
+    await registerDocument(rec.client as never, ORG, USER, LOAD, req({ capture: capture({ metrics }) }));
+    expect(insertedRow(rec).capture_metrics).toEqual(metrics);
+  });
+
+  it("leaves the column NULL when a capture sent none, rather than writing an empty object", async () => {
+    // A manager-registered document, or a driver app older than Step 5.1. `{}` would be a row that
+    // claims to have been measured and was not.
+    const rec = recorder();
+    await registerDocument(rec.client as never, ORG, USER, LOAD, req({ capture: capture() }));
+    expect(insertedRow(rec).capture_metrics).toBeUndefined();
+  });
+
   it("is org-scoped on every read, because the service role bypasses RLS", async () => {
     const rec = recorder();
     await registerDocument(rec.client as never, ORG, USER, LOAD, req({ capture: capture({ original: { bytes: 1 } }) }));

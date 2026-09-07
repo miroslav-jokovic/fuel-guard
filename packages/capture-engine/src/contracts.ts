@@ -114,6 +114,25 @@ export function toRejectionReason(
   return isRejectionReason(value) ? value : fallback;
 }
 
+/**
+ * Metrics a provider measures on the page image. Every field except `longEdgePx` is optional: a
+ * provider reports only what it can measure reliably, and an unmeasured check becomes `na` (never a
+ * silent pass). The JS fallback provider, for instance, reliably supplies only `longEdgePx`.
+ */
+export interface ImageMetrics {
+  longEdgePx: number;
+  blurVariance?: number;
+  glareFraction?: number;
+  shadowRange?: number;
+  brightnessMean?: number;
+  contrastRms?: number;
+  coverageFraction?: number;
+  documentDetected?: boolean;
+  /** v2/raw-capture only — `na` on the SystemScanner path. */
+  perspectiveSeverity?: number;
+  lensSmudge?: number;
+}
+
 export interface QualityReport {
   passed: boolean;
   checks: CheckResult[];
@@ -150,9 +169,31 @@ export interface CaptureMetadata {
   providerVersion: string;
   ocrEngineId?: string;
   ocrEngineVersion?: string;
+  /** Wall time inside the OS scanner: the driver's own shooting time, not ours. Absent if untimed. */
   captureMs?: number;
+  /** Wall time we spent measuring and assembling after the scanner returned. Ours to answer for. */
   processingMs?: number;
+  /** Platform class: "ios" | "android" | "web". Not a device. */
   device?: string;
+  /**
+   * Device CLASS and OS version — populated from the native support probe at Step 5.1b, absent on
+   * every provider that cannot report them (the JS fallback, the browser).
+   *
+   * ⚠ CLASS, never identity. A model string like "iPhone14,3" answers "did the scanner get worse on
+   * this hardware?"; `Constants.deviceName` answers "whose phone is this?" ("Miki's iPhone") and is
+   * exactly the personal data this record is written to avoid.
+   */
+  deviceModel?: string;
+  osVersion?: string;
+  /**
+   * The scale the image metrics were computed at (D-SCAN1), stamped on the reading it describes.
+   *
+   * Step 5.2 derives thresholds from recorded values, and M2 measured the same document at 4283.7
+   * blur variance at 3000 px and 7299.9 at 800 px. A recorded number without its scale is not
+   * interpretable, and the native module has always returned this — it was simply dropped on the
+   * floor before Step 5.1.
+   */
+  analysisLongEdgePx?: number;
   /** The capture config version in force — stamped on every capture + run (DCE P1/§8). */
   configVersion: string;
 }
@@ -186,6 +227,17 @@ export interface CapturedPage {
   enhancedColor: ImageRef;
   enhancedGray: ImageRef;
   quality: QualityReport;
+  /**
+   * What was MEASURED, as opposed to what the gate concluded (Step 5.1).
+   *
+   * ⚠ These do not survive in `quality` and that was a real gap, not a redundancy. `QualityReport`'s
+   * `na` checks carry no `detail` — deliberately, since there is nothing to report about a check that
+   * did not run — and under D-SCAN10 every image floor is `null`, so blur, glare, shadow, brightness
+   * and contrast were all rendered `na` and their measured values discarded at the gate. Phase 3
+   * shipped "every capture measures five things" and the five numbers evaporated one function later,
+   * which would have left Step 5.2 deriving thresholds from a distribution nobody was writing.
+   */
+  metrics: ImageMetrics;
   ocr: OcrEvidence;
   metadata: CaptureMetadata;
   /**

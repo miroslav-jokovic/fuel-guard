@@ -76,6 +76,10 @@ export async function processPhoto(
       enhancedColor: image,
       enhancedGray: image,
       quality,
+      // Thin, and honestly so: the browser measures the pre-downscale long edge and nothing else, so
+      // every other metric is absent and the gate reads them as `na`. Carried anyway — a page's
+      // measured inputs belong with it wherever it was taken (Step 5.1).
+      metrics,
       ocr,
       metadata: {
         providerId: WEB_PROVIDER_ID,

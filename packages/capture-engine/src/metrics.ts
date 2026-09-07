@@ -33,7 +33,7 @@
  * cleverness that would not survive that trip does not belong here.
  */
 
-import type { ImageMetrics } from "./gate";
+import type { ImageMetrics } from "./contracts";
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════
 // Definitional constants. These are NOT tunable gate thresholds — they are part of what the metric

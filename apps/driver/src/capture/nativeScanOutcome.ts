@@ -136,6 +136,21 @@ export function imageMetricsFromMeasurement(m: NativeImageMetrics | null): Parti
   };
 }
 
+/**
+ * The scale a measurement was taken at (D-SCAN1), for the record that keeps it (Step 5.1).
+ *
+ * The native module has returned this since Phase 3 and nothing carried it past the provider. It is
+ * not part of `ImageMetrics` on purpose — the gate has no use for it, it is not a quality of the
+ * image — but Step 5.2 cannot interpret a recorded blur variance without it: M2 measured the same
+ * document at 4283.7 at 3000 px and 7299.9 at 800 px.
+ *
+ * Absent when the measurement failed, for the same reason every other field is: a failed measurement
+ * has no scale, and `0` would be a scale.
+ */
+export function analysisScaleFromMeasurement(m: NativeImageMetrics | null): number | undefined {
+  return m ? m.analysisLongEdgePx : undefined;
+}
+
 
 /**
  * ── WHY PAGE ASSEMBLY LIVES HERE AND NOT IN THE PROVIDER (moved at Phase 4b) ──────────────────
@@ -182,9 +197,10 @@ function toImageRef(n: NativeImage): ImageRef {
 
 export function assemblePage(
   p: NativeScannedPage,
-  measured: Partial<ImageMetrics>,
+  measured: NativeImageMetrics | null,
   config: CaptureConfig,
   platform: "ios" | "android",
+  timings: { captureMs?: number; processingMs?: number } = {},
 ): CapturedPage {
   const original = toImageRef(p.original);
   const derived = toImageRef(p.derived);
@@ -212,7 +228,7 @@ export function assemblePage(
   // Measuring the derivative would make this check a statement about `enhanceLongEdgePx` — a number
   // we chose — rather than about what the camera captured, and it would pass every time by
   // construction.
-  const metrics: ImageMetrics = { longEdgePx: Math.max(original.width, original.height), ...measured };
+  const metrics: ImageMetrics = { longEdgePx: Math.max(original.width, original.height), ...imageMetricsFromMeasurement(measured) };
   const quality = evaluateGate({ metrics, ocr, platform }, config);
   return {
     originalOfRecord: original,
@@ -223,6 +239,10 @@ export function assemblePage(
     enhancedColor: derived,
     enhancedGray: derived,
     quality,
+    // Kept alongside the verdict, because the verdict throws them away: every image floor is `null`
+    // under D-SCAN10, so every one of these checks renders `na`, and an `na` check carries no
+    // detail. Step 5.1's whole point.
+    metrics,
     ocr,
     metadata: {
       providerId: "capture.native.system_scanner",
@@ -230,10 +250,22 @@ export function assemblePage(
       ocrEngineId: ocr.engine,
       configVersion: config.configVersion,
       device: platform,
+      ...omitUndefined({
+        analysisLongEdgePx: analysisScaleFromMeasurement(measured),
+        captureMs: timings.captureMs,
+        processingMs: timings.processingMs,
+      }),
     },
     // The ORIGINAL's hash, which is what this field has always been documented to be — and, until
     // Phase 4b, was vacuously so, because a page had one file.
     integrityHash: p.original.sha256,
     provenance: { captureMode: "system_scanner", osEnhanced: p.osEnhanced },
   };
+}
+
+/** Drop the keys whose value is unknown. Absent means "not known"; `0` would be a measurement. */
+function omitUndefined<T extends Record<string, number | undefined>>(o: T): Partial<T> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(o)) if (v !== undefined) out[k] = v;
+  return out as Partial<T>;
 }

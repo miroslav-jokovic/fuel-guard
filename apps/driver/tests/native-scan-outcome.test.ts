@@ -254,7 +254,7 @@ describe("assemblePage (Phase 4b — two artifacts per page)", () => {
   });
 
   it("keeps the original as the evidentiary record and the derivative as what uploads", () => {
-    const assembled = assemblePage(page(), {}, cfg, "ios");
+    const assembled = assemblePage(page(), null, cfg, "ios");
     expect(assembled.originalOfRecord.uri).toBe("file:///tmp/page.original.jpg");
     expect(assembled.originalOfRecord.sha256).toBe("original-hash");
     // The three derivative fields still alias each other on the v1 path: the OS corrected perspective
@@ -269,7 +269,7 @@ describe("assemblePage (Phase 4b — two artifacts per page)", () => {
     // `integrityHash` has been documented as the original's hash since DCE §2, and was vacuously so
     // while a page had one file. Registering the derivative's hash here would record a provenance
     // claim about bytes nobody kept (0328).
-    expect(assemblePage(page(), {}, cfg, "android").integrityHash).toBe("original-hash");
+    expect(assemblePage(page(), null, cfg, "android").integrityHash).toBe("original-hash");
   });
 
   /**
@@ -280,7 +280,7 @@ describe("assemblePage (Phase 4b — two artifacts per page)", () => {
    * as a failure; it would show up as a gate that never fires.
    */
   it("gates resolution on the original's long edge, not the derivative's", () => {
-    const assembled = assemblePage(page(), {}, cfg, "ios");
+    const assembled = assemblePage(page(), null, cfg, "ios");
     const resolution = assembled.quality.checks.find((c) => c.name === "resolution");
     expect(resolution?.detail?.longEdgePx).toBe(4032);
   });
@@ -301,17 +301,53 @@ describe("assemblePage (Phase 4b — two artifacts per page)", () => {
     // could not tell "nothing measured it" from "the floor is off". With an enforcing floor, an
     // asserted 1 reports PASS and only a genuinely absent metric reports `na`.
     const enforcing = { ...cfg, gates: { ...cfg.gates, coverageMinFraction: 0.6 } };
-    const assembled = assemblePage(page(), {}, enforcing, "ios");
+    const assembled = assemblePage(page(), null, enforcing, "ios");
     const coverage = assembled.quality.checks.find((c) => c.name === "coverage");
     expect(coverage?.status).toBe("na");
     expect(coverage?.detail?.coverageFraction).toBeUndefined();
     expect(assembled.quality.reasons).not.toContain("PAGE_INCOMPLETE");
   });
 
+  /**
+   * Step 5.1. `assemblePage` is where a measurement stops being a native return value and becomes the
+   * record Step 5.2 reads, and every field below was being dropped before this merge: the five
+   * metrics because the gate renders them `na` and an `na` check carries no detail, and the analysis
+   * scale because it is not part of `ImageMetrics` and nothing carried it past the provider.
+   */
+  it("keeps the whole measurement, including the scale and the numbers the gate will render na", () => {
+    const measured = {
+      longEdgePx: 4032, blurVariance: 812.5, glareFraction: 0.014,
+      brightnessMean: 0.62, contrastRms: 0.22, shadowRange: 0.31, analysisLongEdgePx: 1024,
+    };
+    const assembled = assemblePage(page(), measured, cfg, "ios", { captureMs: 4200, processingMs: 180 });
+
+    expect(assembled.metrics.blurVariance).toBe(812.5);
+    expect(assembled.metrics.glareFraction).toBe(0.014);
+    expect(assembled.metrics.shadowRange).toBe(0.31);
+    // …and the gate really did throw them away, which is why the line above matters.
+    expect(assembled.quality.checks.find((c) => c.name === "blur")?.status).toBe("na");
+    expect(assembled.quality.checks.find((c) => c.name === "blur")?.detail).toBeUndefined();
+
+    expect(assembled.metadata.analysisLongEdgePx).toBe(1024);
+    expect(assembled.metadata.captureMs).toBe(4200);
+    expect(assembled.metadata.processingMs).toBe(180);
+  });
+
+  it("records no scale and no timings when the measurement failed, rather than zeroes", () => {
+    // Same rule as the metrics themselves: absent means "not known", and `analysisLongEdgePx: 0`
+    // would be a scale — one that makes every recorded number uninterpretable in a way that looks
+    // like data.
+    const assembled = assemblePage(page(), null, cfg, "ios");
+    expect(assembled.metadata.analysisLongEdgePx).toBeUndefined();
+    expect(assembled.metadata.captureMs).toBeUndefined();
+    expect(assembled.metadata.processingMs).toBeUndefined();
+    expect(assembled.metrics.blurVariance).toBeUndefined();
+  });
+
   it("still refuses a page whose ORIGINAL is below the floor, though its derivative is not", () => {
     const small = page();
     small.original = { ...small.original, width: 800, height: 1000 };
-    const assembled = assemblePage(small, {}, cfg, "ios");
+    const assembled = assemblePage(small, null, cfg, "ios");
     expect(assembled.quality.reasons).toContain("RESOLUTION_TOO_LOW");
   });
 });
