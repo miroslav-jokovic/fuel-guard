@@ -7,11 +7,12 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import type { ViewStyle } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
 
 // Loading placeholder that BREATHES (opacity pulse on the UI thread) — a static gray block reads
 // as "broken", a pulsing one reads as "loading". Cached-first screens use these, never spinners.
-export function Skeleton({ className = '' }: { className?: string }) {
+export function Skeleton({ className = '', style: outer }: { className?: string; style?: ViewStyle }) {
   const { reduceMotion } = useTheme();
   const opacity = useSharedValue(0.55);
 
@@ -33,7 +34,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
   return (
     <Animated.View
       className={`rounded-lg bg-surface-muted ${className}`}
-      style={style}
+      style={[style, outer]}
       accessibilityElementsHidden
     />
   );

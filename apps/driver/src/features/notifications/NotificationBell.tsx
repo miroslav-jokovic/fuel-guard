@@ -7,7 +7,7 @@ import { haptics } from '@/lib/haptics';
  * — text + position, never color alone (DESIGN.md). Caps at 9+ so the badge never widens into the
  * avatar. Screen-reader label carries the count, since the badge itself is decorative to VoiceOver.
  */
-export function NotificationBell({ unread, onPress }: { unread: number; onPress: () => void }) {
+export function NotificationBell({ unread, onPress, onHero = false }: { unread: number; onPress: () => void; onHero?: boolean }) {
   const capped = unread > 9 ? '9+' : String(unread);
   return (
     <Pressable
@@ -17,15 +17,15 @@ export function NotificationBell({ unread, onPress }: { unread: number; onPress:
         haptics.select();
         onPress();
       }}
-      className="h-11 w-11 items-center justify-center rounded-full active:bg-surface-subtle"
+      className={`h-11 w-11 items-center justify-center rounded-full ${onHero ? 'bg-on-hero/10 active:bg-on-hero/20' : 'active:bg-surface-subtle'}`}
       hitSlop={4}
     >
-      <Icon name={unread > 0 ? 'notifications_active' : 'notifications'} size={26} className="text-ink" />
+      <Icon name={unread > 0 ? 'notifications_active' : 'notifications'} size={22} className={onHero ? 'text-on-hero' : 'text-ink'} />
       {unread > 0 ? (
-        <View className="absolute right-0.5 top-0.5 min-w-[18px] items-center justify-center rounded-full bg-danger px-1 py-1">
+        <View className="absolute right-0.5 top-0.5 min-w-[18px] items-center justify-center rounded-full bg-action px-1 py-1">
           <AppText
             variant="caption"
-            tone="inverse"
+            className="text-action-fg"
             allowFontScaling={false}
             style={{ fontVariant: ['tabular-nums'] }}
           >

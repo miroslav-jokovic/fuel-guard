@@ -27,6 +27,7 @@ import {
 } from '@/components';
 import { useMarkRead, useNotifications, useUpdatePreferences } from '@/features/notifications/useNotifications';
 import { resolveDeepLink } from '@/features/notifications/deepLink';
+import { CATEGORY_ICON } from '@/features/notifications/categoryIcon';
 import { useFeatures } from '@/session/useFeatures';
 import { haptics } from '@/lib/haptics';
 
@@ -39,20 +40,6 @@ import { haptics } from '@/lib/haptics';
  */
 
 const SEVERITY_TONE: Record<string, Tone> = { info: 'info', warning: 'warning', critical: 'danger' };
-
-const CATEGORY_ICON: Record<string, string> = {
-  load_offered: 'local_shipping',
-  load_changed: 'local_shipping',
-  load_canceled: 'warning',
-  message_received: 'mail',
-  duty_auto_closed: 'schedule',
-  performance_week: 'speed',
-  training_due: 'school',
-  hazmat_review: 'local_fire_department',
-  hazmat_cleared: 'local_fire_department',
-  hazmat_rejected: 'local_fire_department',
-  system: 'info',
-};
 
 function timeLabel(iso: string): string {
   const d = new Date(iso);
@@ -159,7 +146,7 @@ export default function NotificationsCentre() {
           {rows.map((n) => (
             <ListRow
               key={n.id}
-              icon={(CATEGORY_ICON[n.category] ?? 'info') as never}
+              icon={CATEGORY_ICON[n.category] ?? 'info'}
               iconFill={n.read_at === null}
               title={n.title}
               subtitle={n.body ?? undefined}
