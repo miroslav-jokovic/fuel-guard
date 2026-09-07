@@ -75,6 +75,17 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # apps/driver carries its own stricter eslint config (type-aware rules the root config does
+      # not enable) and three design gates, and NONE of them had ever run here — `ci.yml` contained
+      # zero references to the driver package. They pass on main today, so wiring them in costs
+      # nothing now and stops the next regression rather than the last one. `lint:tokens` runs the
+      # theme-parity check too (see its script), so there is no fourth command to add.
+      - name: apps/driver eslint and design gates
+        run: |
+          pnpm --filter @silvicom/driver lint
+          pnpm --filter @silvicom/driver lint:tokens
+          pnpm --filter @silvicom/driver lint:design
+
       - name: File-size budget
         run: pnpm lint:filesize
 
@@ -316,6 +327,48 @@ jobs:
       - name: Behavioural matrices (PGlite)
         run: pnpm test:rls
 
+  # ── The native half of the driver app ─────────────────────────────────────────────────────────
+  # Until this job, CI compiled NO Swift, Kotlin, Gradle or Xcode step at all. The driver app's
+  # scanner is an Expo module written in Kotlin and Swift, and the only thing that had ever compiled
+  # the Kotlin was `driver-android.yml` — which runs on push to main, AFTER merge, gated on this
+  # workflow being green. A Kotlin compile error therefore reached main before anything noticed, and
+  # the Swift compiled nowhere but one laptop.
+  #
+  # This builds the capture module alone (`:capture-native:assembleDebug`, ~47s locally), not the
+  # signed app: the module is the code we write, the app around it is Expo's template, and a module
+  # build needs no keystore and no secrets. `withReleaseSigning.js` is inert without
+  # ANDROID_KEYSTORE_PATH, so nothing here can accidentally produce an unsigned release either.
+  #
+  # ⚠ iOS IS STILL NOT COMPILED ANYWHERE IN CI, and this job must not be read as though it were.
+  # GitHub's macOS runners are billed at ten times the Linux rate and an Xcode build of this app is
+  # minutes, not seconds; that trade has not been made. Until it is, SCANNER-UPGRADE-PLAN.md §3.4
+  # stands: an iOS build on the Mac is a required manual step of every native PR.
+  native-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      # `android/` is generated and never committed, so it has to be produced before it can be
+      # built. --no-install because the workspace is already installed; --clean because a cached
+      # half-generated project is worse than none.
+      - name: Prebuild the Android project
+        working-directory: apps/driver
+        run: pnpm exec expo prebuild --platform android --no-install --clean
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compile the capture module
+        working-directory: apps/driver/android
+        run: ./gradlew :capture-native:assembleDebug --no-daemon --console=plain
+
   # ── The required check ────────────────────────────────────────────────────────────────────────
   # main's branch protection requires a status check named `build`. Before the split that was the
   # single job; now it is this one, which does no work and exists only so that one name still means
@@ -324,7 +377,7 @@ jobs:
   # to branch protection as nothing at all rather than as a failure.
   build:
     if: always()
-    needs: [gates, typecheck-build, test-api, test-web, test-packages, matrices]
+    needs: [gates, typecheck-build, test-api, test-web, test-packages, matrices, native-android]
     runs-on: ubuntu-latest
     steps:
       - name: Require every CI job to have succeeded

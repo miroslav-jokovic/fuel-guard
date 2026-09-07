@@ -74,6 +74,11 @@ fg2.tar.gz
 
 # Gradle build state inside the local native module
 apps/driver/modules/capture-native/android/.gradle/
+# Gradle output for the same module. Absent until 2026-09-06 for a telling reason: nobody had ever
+# built the capture module on a machine with the Android SDK, so the directory had never existed to
+# be ignored. CI compiles it on every PR now (ci.yml, native-android), and so should anyone touching
+# the Kotlin — see SCANNER-UPGRADE-PLAN.md §3.4.
+apps/driver/modules/capture-native/android/build/
 
 # PSP vendor material: the protocol guide is CONFIDENTIAL-footered on all 80 pages and
 # apitoken.txt is a live credential. Neither may enter git history (Q-H1, 2026-08-19).
