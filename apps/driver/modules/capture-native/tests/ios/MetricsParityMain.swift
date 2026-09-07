@@ -189,10 +189,14 @@ enum MetricsParity {
     }
 
     print("")
-    print(String(format: "worst blur deviation:     %.5f%% relative (%@) · %.6f absolute (%@)",
-                 worst.blurRelative * 100, worst.blurFixture, worst.blurAbsolute, worst.blurAbsoluteFixture))
-    print(String(format: "worst fraction deviation: %.9f absolute (%@ on %@)",
-                 worst.fractionAbsolute, worst.fractionName, worst.fractionFixture))
+    // Printed at full Double precision, not at a readable number of places: Step 3.2's done-when is
+    // that iOS and Android agree WITH EACH OTHER, and two summaries rounded to six decimals can
+    // agree on paper while differing underneath. `CaptureMetricsParityTest` prints the same three
+    // quantities the same way, so the two runs are diffable rather than merely both green.
+    print("worst blur deviation:     \(worst.blurRelative * 100)% relative (\(worst.blurFixture)) · "
+      + "\(worst.blurAbsolute) absolute (\(worst.blurAbsoluteFixture))")
+    print("worst fraction deviation: \(worst.fractionAbsolute) absolute "
+      + "(\(worst.fractionName) on \(worst.fractionFixture))")
     print(String(format: "headroom: %.0f× on the contract tolerance, %.1f× on the exactness bound",
                  blurRelativeTolerance / max(worst.blurRelative, 1e-12),
                  blurExactBound / max(worst.blurAbsolute, 1e-12)))

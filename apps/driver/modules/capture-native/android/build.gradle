@@ -14,6 +14,29 @@ android {
   }
 }
 
+/**
+ * The parity check runs as a plain JVM unit test (plan Step 3.2, D-SCAN9).
+ *
+ * `CaptureMetrics.kt` imports nothing — no android.graphics, no Expo — so `CaptureMetricsParityTest`
+ * needs neither Robolectric nor an emulator, and `.github/workflows/ci.yml`'s `native-android` job
+ * runs it on every PR. That is more than the iOS half gets: macOS runners bill at roughly ten times
+ * Linux, so `modules/capture-native/tests/ios/run-metrics-parity.sh` is manual (plan §3.4 item 3).
+ *
+ * The fixtures live in another workspace package, so their path is computed from `projectDir` and
+ * handed to the test as a system property rather than being reached for with a relative path from
+ * whatever directory the runner happens to start in.
+ */
+tasks.withType(Test).configureEach {
+  systemProperty 'scanner.fixturesDir',
+    new File(projectDir, '../../../../../packages/capture-engine/fixtures').canonicalPath
+  testLogging {
+    // The test prints the worst deviation it saw even when it passes, because §6 Q3 asks how much
+    // headroom there is and a green tick does not answer that. Without this, Gradle swallows it.
+    showStandardStreams = true
+    exceptionFormat = 'full'
+  }
+}
+
 dependencies {
   // DCE §9: the doc-scanner module downloads on first use (needs connectivity once); scan() surfaces
   // SCANNER_MODULE_UNAVAILABLE when it is absent (de-Googled / enterprise-locked devices).
@@ -21,4 +44,11 @@ dependencies {
   implementation 'com.google.mlkit:text-recognition:16.0.1'
   implementation 'androidx.activity:activity-ktx:1.11.0'
   implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+
+  // Test-only, and therefore not in the APK. Gson rather than `org.json`, which would be the natural
+  // choice: `org.json` IS in android.jar, so the mockable android.jar shadows the real dependency and
+  // every call throws "not mocked" at runtime. A library the platform does not ship cannot be
+  // shadowed, which makes Gson the boring choice here rather than the fancy one.
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'com.google.code.gson:gson:2.11.0'
 }

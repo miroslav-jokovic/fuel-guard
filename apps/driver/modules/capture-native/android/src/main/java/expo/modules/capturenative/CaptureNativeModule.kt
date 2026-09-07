@@ -128,6 +128,43 @@ class CaptureNativeModule : Module() {
       }
     }
 
+    /**
+     * Measure one image against the metric definition of record (plan Step 3.2, D-SCAN1..5, D-SCAN8).
+     *
+     * `analysisLongEdgePx` is REQUIRED and comes from the signed capture config in JavaScript. It is
+     * part of what the metric means, not a tuning knob — D-SCAN1 fixes the analysis scale precisely
+     * so a number recorded today is comparable with one recorded next month — so Kotlin holds no
+     * default. A default here would be a second copy of a signed value, in force whenever a caller
+     * forgot, and silently disagreeing with the server the day the config moved.
+     *
+     * Failure to decode THROWS rather than resolving with a value, and that is consistent with
+     * D-SCAN7 rather than an exception to it: this URI is one we wrote ourselves moments ago during
+     * a capture we are still inside. A file we just wrote being unreadable is not an anticipated
+     * outcome about the device — it is the unforeseen, which is what PROVIDER_ERROR is for.
+     *
+     * ⚠ OWED ON DEVICE (D-SCAN13): `CaptureMetricsParityTest` proves the ARITHMETIC reproduces the
+     * reference on all 24 fixtures, in CI, on every PR — but it decodes through `ImageIO`, because a
+     * JVM unit test has no `Bitmap`. Whether `BitmapFactory` hands `CaptureImageDecode` the same
+     * pixels is untested, and so is whether this function is reachable across the bridge at all.
+     */
+    AsyncFunction("measure") Coroutine { uri: String, analysisLongEdgePx: Int ->
+      if (analysisLongEdgePx <= 0) {
+        throw CodedScannerException(
+          "PROVIDER_ERROR",
+          "measure() needs a positive analysis scale, received $analysisLongEdgePx",
+        )
+      }
+      withContext(Dispatchers.IO) {
+        val path = Uri.parse(uri).path
+          ?: throw CodedScannerException("PROVIDER_ERROR", "Could not read a path from $uri")
+        val decoded = CaptureImageDecode.decodeFile(path)
+          ?: throw CodedScannerException("PROVIDER_ERROR", "Could not decode an image at $uri")
+        CaptureMetrics.compute(decoded.argb, decoded.width, decoded.height, analysisLongEdgePx)
+          ?.asMap()
+          ?: throw CodedScannerException("PROVIDER_ERROR", "Could not measure the image at $uri")
+      }
+    }
+
     AsyncFunction("recognize") Coroutine { uri: String ->
       withContext(Dispatchers.IO) {
         val bitmap = BitmapFactory.decodeFile(Uri.parse(uri).path)

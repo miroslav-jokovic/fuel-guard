@@ -31,9 +31,13 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
   in exactly that position until 2026-09-05, and `lint:wsdl` had been crashing on a stale path for
   ten days without anybody being able to notice. Adding a gate means adding it here, or chaining it
   onto a neighbour and saying so in its `"//lint:*"` comment.
-- CI is **six parallel jobs**, not one: `gates`, `typecheck-build`, `test-api`, `test-web`,
-  `test-packages`, `matrices` — plus a do-nothing `build` job that aggregates them, and which must
-  keep that name because main's branch protection requires a check called exactly `build`. A green
+- CI is **seven parallel jobs**, not one: `gates`, `typecheck-build`, `test-api`, `test-web`,
+  `test-packages`, `matrices`, `native-android` — plus a do-nothing `build` job that aggregates them,
+  and which must keep that name because main's branch protection requires a check called exactly
+  `build`. `native-android` prebuilds the Android project, compiles the capture module's Kotlin
+  (nothing else in CI does) and runs its metric-parity unit test. **There is no iOS job** — macOS
+  runners bill at ~10× Linux — so Swift is compiled and its parity checked by hand, per
+  `docs/plans/drivers-app/SCANNER-UPGRADE-PLAN.md` §3.4. A green
   run is ~3 minutes (measured 2026-09-05; it was 15.7 before the split). Put a new gate in `gates`;
   put anything needing `apps/web/dist` in `typecheck-build`, which is the only job that builds.
 
