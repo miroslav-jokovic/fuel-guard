@@ -63,16 +63,35 @@ export default function HazmatCaptureScreen() {
       }
       const loadId = newClientId();
       const documentIds = decision.pages.map(() => newClientId());
-      const { payload, localUris } = buildCapturePayloads({ loadId, documentIds, pages: decision.pages });
+      const { payload, uploads } = buildCapturePayloads({ loadId, documentIds, pages: decision.pages });
 
-      // Every page is copied into the sandbox BEFORE anything is queued, and the record is enqueued
+      // Every file is copied into the sandbox BEFORE anything is queued, and the record is enqueued
       // only once all of them are there. The staging rule exists so that work a driver believes is
       // saved cannot evaporate (plan §13.8 / D12); a record referencing four files where only three
       // were copied would satisfy the letter of that and break its point.
+      //
+      // TWO files per page since Phase 4b on the native path — the untouched ORIGINAL and the
+      // derivative that uploads for reading — and one on the JS fallback, which has a single image.
+      // `stageFile`'s index disambiguates them within a page (0 = archive, 1 = original); the record
+      // id part of the name is the page's own document id, so nothing collides across pages.
+      // `stagedUris` is EVERY staged file, because that list is what the orphan sweep keeps and what
+      // a confirmed delivery deletes — a staged file missing from it is a file swept away while the
+      // record that needs it is still queued.
       const stagedUris: string[] = [];
-      for (const [index, uri] of localUris.entries()) {
-        stagedUris.push(await stageFile(uri, documentIds[index]!, index));
+      const stagedUploads = [];
+      for (const [index, upload] of uploads.entries()) {
+        const documentId = documentIds[index]!;
+        const archiveUri = await stageFile(upload.archiveUri, documentId, 0);
+        stagedUris.push(archiveUri);
+        if (upload.originalUri === undefined) {
+          stagedUploads.push({ archiveUri });
+          continue;
+        }
+        const originalUri = await stageFile(upload.originalUri, documentId, 1);
+        stagedUris.push(originalUri);
+        stagedUploads.push({ archiveUri, originalUri });
       }
+      payload.uploads = stagedUploads;
 
       // The record id is the FIRST page's document id rather than a fresh one: the outbox is keyed by
       // it, and reusing an id that already means something keeps a replay idempotent without a second
@@ -80,8 +99,10 @@ export default function HazmatCaptureScreen() {
       await enqueue({ id: documentIds[0]!, kind: HAZMAT_CAPTURE_KIND, payload, fileUris: stagedUris });
 
       // Only now: until the record exists, the scanner's temporaries were still the only copy of a
-      // page. After it, the staged files are what the outbox uploads and these are redundant.
-      discardScannerTempFiles(localUris);
+      // page. After it, the staged files are what the outbox uploads and these are redundant. Both
+      // artifacts are named, not just the one that uploads first — the original is the larger file of
+      // the two, and leaving it behind would be a multi-megabyte leak per page (F9).
+      discardScannerTempFiles(uploads.flatMap((u) => (u.originalUri ? [u.archiveUri, u.originalUri] : [u.archiveUri])));
 
       router.replace(`/hazmat/${loadId}` as never);
     } catch (error) {

@@ -137,10 +137,33 @@ export interface RegisterBody {
     configVersion: string;
     mode: CapturedPage["provenance"]["captureMode"];
     osEnhanced: boolean;
+    /** The ORIGINAL's hash. `sha256` above is the archive's — they differ from Phase 4b (0328). */
     integrityHash: string;
     quality: CapturedPage["quality"];
     ocrEvidence: CapturedPage["ocr"];
+    /** Size of the object being uploaded to `storagePath`, so three outputs is a measured cost. */
+    archiveBytes?: number;
+    /** Declares that a distinct untouched ORIGINAL exists; the server signs a second upload URL. */
+    original?: { bytes: number };
   };
+}
+
+/**
+ * The files one page needs uploaded, and the reason this is not just `fileUris` any more.
+ *
+ * A page was one file until Phase 4b. It is now two on the native path — the untouched ORIGINAL and
+ * the derivative that uploads immediately and that extraction reads — and one on the JS fallback,
+ * which picks a single image and has nothing to derive from it. Positional alignment between
+ * `registers` and a flat `fileUris` cannot express that: the stride is 2 for one provider and 1 for
+ * the other, and a handler that guessed would upload page 2's original as page 3's archive.
+ *
+ * `originalUri` is absent exactly when the provider produced one artifact, and that is DERIVED from
+ * the page (the two fields point at the same file) rather than declared by a provider flag — a flag
+ * would be a second source of truth for something the URIs already say.
+ */
+export interface PageUpload {
+  archiveUri: string;
+  originalUri?: string;
 }
 
 /**
@@ -159,8 +182,17 @@ export interface RegisterBody {
 export interface HazmatCapturePayload {
   loadId: string;
   create: { id: string };
-  /** One per page, in page order, page numbers 1..n. Aligned by index with the record's fileUris. */
+  /** One per page, in page order, page numbers 1..n. */
   registers: RegisterBody[];
+  /**
+   * Which STAGED files each register uploads, aligned by index with `registers`.
+   *
+   * Filled in by the caller after staging, because staging is IO and this module is pure. Absent on
+   * a record queued before Phase 4b, and the handler falls back to `fileUris[index]` for those — the
+   * outbox survives an app update, and a Friday capture that drains after a weekend update holds
+   * work that exists nowhere else (plan §13.8 / D12).
+   */
+  uploads?: PageUpload[];
 }
 
 /**
@@ -194,7 +226,7 @@ export function buildCapturePayloads(args: {
   loadId: string;
   documentIds: string[];
   pages: CapturedPage[];
-}): { payload: HazmatCapturePayload; localUris: string[] } {
+}): { payload: HazmatCapturePayload; uploads: PageUpload[] } {
   if (args.documentIds.length !== args.pages.length) {
     // A caller that generated the wrong number of ids would otherwise register page 3 under page 2's
     // id, or drop it. Loud here beats mysterious at the server.
@@ -206,22 +238,46 @@ export function buildCapturePayloads(args: {
     payload: {
       loadId: args.loadId,
       create: { id: args.loadId },
-      registers: args.pages.map((page, index) => ({
-        id: args.documentIds[index]!,
-        kind: "bol",
-        page: index + 1,
-        sha256: page.integrityHash,
-        contentType: page.originalOfRecord.mediaType ?? "image/webp",
-        capture: {
-          configVersion: page.metadata.configVersion,
-          mode: page.provenance.captureMode,
-          osEnhanced: page.provenance.osEnhanced,
-          integrityHash: page.integrityHash,
-          quality: page.quality,
-          ocrEvidence: page.ocr,
-        },
-      })),
+      registers: args.pages.map((page, index) => {
+        const archive = page.enhancedColor;
+        return {
+          id: args.documentIds[index]!,
+          kind: "bol" as const,
+          page: index + 1,
+          // ⚠ The hash of the ARCHIVE, because `sha256` describes the object at `storagePath` and the
+          // server downloads THOSE bytes and refuses a mismatch (Step 1.3). It used to be
+          // `page.integrityHash`, which was correct only while a page had one file. `?? integrityHash`
+          // is the single-artifact case, not a fallback for a missing value: when the two fields point
+          // at the same file the page-level hash IS that file's hash.
+          sha256: archive.sha256 ?? page.integrityHash,
+          contentType: archive.mediaType ?? "image/webp",
+          capture: {
+            configVersion: page.metadata.configVersion,
+            mode: page.provenance.captureMode,
+            osEnhanced: page.provenance.osEnhanced,
+            integrityHash: page.integrityHash, // the ORIGINAL's
+            quality: page.quality,
+            ocrEvidence: page.ocr,
+            archiveBytes: archive.bytes,
+            ...(hasDistinctOriginal(page) ? { original: { bytes: page.originalOfRecord.bytes ?? 0 } } : {}),
+          },
+        };
+      }),
     },
-    localUris: args.pages.map((page) => page.originalOfRecord.uri),
+    uploads: args.pages.map((page) => ({
+      archiveUri: page.enhancedColor.uri,
+      ...(hasDistinctOriginal(page) ? { originalUri: page.originalOfRecord.uri } : {}),
+    })),
   };
+}
+
+/**
+ * True when this page kept an untouched original separate from what it uploads for reading.
+ *
+ * Derived from the URIs rather than from a provider flag: the JS fallback aliases all four image
+ * fields to the one file it has, and the native path does not. A flag would be a second statement of
+ * something the page already says, which is the copy root CLAUDE.md's register warns about.
+ */
+function hasDistinctOriginal(page: CapturedPage): boolean {
+  return page.originalOfRecord.uri !== page.enhancedColor.uri;
 }

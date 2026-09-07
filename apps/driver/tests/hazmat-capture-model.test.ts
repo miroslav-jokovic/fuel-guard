@@ -13,6 +13,12 @@ import { buildCapturePayloads, decideCapture, queuedRegisters } from "@/features
  * definition of done was written for, and it had never worked.
  */
 
+/**
+ * A page from the JS fallback provider: ONE artifact, all four image fields aliasing it. That is the
+ * honest shape for a provider that picks a single image and has nothing to derive from it, and it is
+ * the default here so every pre-existing assertion keeps testing what it always tested.
+ * `nativePage` below is the two-artifact shape.
+ */
 function pageAt(passed: boolean, reasons: CapturedPage["quality"]["reasons"] = [], uri = "file:///tmp/bol.webp"): CapturedPage {
   const img = { uri, width: 1568, height: 2000, bytes: 300000, mediaType: "image/webp" as const };
   return {
@@ -21,6 +27,23 @@ function pageAt(passed: boolean, reasons: CapturedPage["quality"]["reasons"] = [
     ocr: { engine: "test", recognizedChars: 0, recognizedWords: 0, textCoverageFraction: 0, medianCharHeightPx: 0, smallTextBandCoverage: 0, numberTokens: [], available: false },
     metadata: { providerId: "p", providerVersion: "0.1.0", configVersion: "capture-2026.08.0" },
     integrityHash: "abc123", provenance: { captureMode: "expo_camera", osEnhanced: false },
+  };
+}
+
+/**
+ * A page from the native provider since Phase 4b: an untouched ORIGINAL and a separate derivative,
+ * each with the hash and size of its own bytes. Deliberately different in every field the two share,
+ * so a test that read the wrong one fails instead of passing on a coincidence.
+ */
+function nativePage(uri = "file:///tmp/bol"): CapturedPage {
+  const original = { uri: `${uri}.original.jpg`, width: 3024, height: 4032, bytes: 3_100_000, mediaType: "image/jpeg" as const, sha256: "original-hash" };
+  const derived = { uri: `${uri}.jpg`, width: 1568, height: 2000, bytes: 300_000, mediaType: "image/jpeg" as const, sha256: "derived-hash" };
+  return {
+    originalOfRecord: original, perspectiveCorrected: derived, enhancedColor: derived, enhancedGray: derived,
+    quality: { passed: true, checks: [], reasons: [], score: 1, ocrDegraded: false },
+    ocr: { engine: "test", recognizedChars: 0, recognizedWords: 0, textCoverageFraction: 0, medianCharHeightPx: 0, smallTextBandCoverage: 0, numberTokens: [], available: false },
+    metadata: { providerId: "p", providerVersion: "0.1.0", configVersion: "capture-2026.08.0" },
+    integrityHash: "original-hash", provenance: { captureMode: "system_scanner", osEnhanced: true },
   };
 }
 
@@ -141,15 +164,15 @@ describe("decideCapture — cleaning up after a refused scan", () => {
 describe("buildCapturePayloads", () => {
   it("shapes one register per page, numbered from 1, with matching local uris", () => {
     const pages = [pageAt(true, [], "file:///tmp/p1.webp"), pageAt(true, [], "file:///tmp/p2.webp"), pageAt(true, [], "file:///tmp/p3.webp")];
-    const { payload, localUris } = buildCapturePayloads({ loadId: "L1", documentIds: ["D1", "D2", "D3"], pages });
+    const { payload, uploads } = buildCapturePayloads({ loadId: "L1", documentIds: ["D1", "D2", "D3"], pages });
 
     expect(payload.create.id).toBe("L1");
     expect(payload.registers).toHaveLength(3);
     expect(payload.registers.map((r) => r.page)).toEqual([1, 2, 3]);
     expect(payload.registers.map((r) => r.id)).toEqual(["D1", "D2", "D3"]);
-    // Index alignment between registers and fileUris is what the handler relies on to pair a page
+    // Index alignment between registers and uploads is what the handler relies on to pair a page
     // with its bytes; a mismatch would upload page one's image under page three's storage path.
-    expect(localUris).toEqual(["file:///tmp/p1.webp", "file:///tmp/p2.webp", "file:///tmp/p3.webp"]);
+    expect(uploads.map((u) => u.archiveUri)).toEqual(["file:///tmp/p1.webp", "file:///tmp/p2.webp", "file:///tmp/p3.webp"]);
   });
 
   it("carries the capture provenance on every page, not only the first", () => {
@@ -164,6 +187,61 @@ describe("buildCapturePayloads", () => {
       expect(register.capture.mode).toBe("expo_camera");
       expect(register.capture.configVersion).toBe("capture-2026.08.0");
     }
+  });
+
+  /**
+   * ⚠ The assertions this merge exists for (D-SCAN6, audit finding F1).
+   *
+   * `sha256` and `capture.integrityHash` used to be the SAME value, because a page was one file and
+   * the "original of record" was a 1568 px JPEG q80 derivative. They now describe different bytes,
+   * and getting them the wrong way round is a failure that hides: the server downloads the object at
+   * `storagePath` and verifies it against `sha256` (Step 1.3), so sending the original's hash there
+   * fails every extraction with `integrity_mismatch` — and sending the derivative's hash as
+   * `integrityHash` records a provenance claim about bytes nobody kept.
+   */
+  it("registers the ARCHIVE's hash and the ORIGINAL's provenance hash, which are not the same bytes", () => {
+    const { payload } = buildCapturePayloads({ loadId: "L1", documentIds: ["D1"], pages: [nativePage()] });
+    const register = payload.registers[0]!;
+    expect(register.sha256).toBe("derived-hash");
+    expect(register.capture.integrityHash).toBe("original-hash");
+    expect(register.sha256).not.toBe(register.capture.integrityHash);
+  });
+
+  it("uploads the DERIVATIVE for reading, and keeps the original as a second artifact", () => {
+    const { payload, uploads } = buildCapturePayloads({ loadId: "L1", documentIds: ["D1"], pages: [nativePage()] });
+    expect(uploads[0]!.archiveUri).toBe("file:///tmp/bol.jpg");
+    expect(uploads[0]!.originalUri).toBe("file:///tmp/bol.original.jpg");
+    // Declared to the server, which signs a second upload URL only for a request that asks for one.
+    expect(payload.registers[0]!.capture.original).toEqual({ bytes: 3_100_000 });
+    expect(payload.registers[0]!.capture.archiveBytes).toBe(300_000);
+    // The content type follows the object being uploaded, not the original — the server records it
+    // and extraction decodes by it.
+    expect(payload.registers[0]!.contentType).toBe("image/jpeg");
+  });
+
+  /**
+   * The JS fallback picks one image and has nothing to derive from it, so its four image fields all
+   * alias that file. Declaring an original there would ask the server to sign a second upload URL for
+   * the SAME bytes, and the driver would pay for the page twice.
+   *
+   * That it is derived from the URIs rather than from a provider flag is the point: a flag would be a
+   * second statement of something the page already says, and the day the two disagreed the wrong one
+   * would win silently.
+   */
+  it("declares no original when the provider produced a single artifact", () => {
+    const { payload, uploads } = buildCapturePayloads({ loadId: "L1", documentIds: ["D1"], pages: [pageAt(true)] });
+    expect(uploads[0]!.originalUri).toBeUndefined();
+    expect(payload.registers[0]!.capture.original).toBeUndefined();
+    // And the page-level hash is still the right answer for the one file that exists.
+    expect(payload.registers[0]!.sha256).toBe("abc123");
+  });
+
+  it("keeps both artifacts of every page when a native scan is refused, so neither leaks", () => {
+    // `fileUrisOf` deduplicates, so a single-artifact page yields one URI and a two-artifact page two.
+    // Before Phase 4b every page yielded exactly one and the difference could not be observed.
+    const r = decideCapture({ ok: true, pages: [{ ...nativePage("file:///tmp/x"), quality: { passed: false, checks: [], reasons: ["IMAGE_BLURRED"], score: 0, ocrDegraded: false } }] });
+    expect(r.accepted).toBe(false);
+    expect(r.discardUris).toEqual(["file:///tmp/x.original.jpg", "file:///tmp/x.jpg"]);
   });
 
   it("refuses to build when ids and pages disagree in number", () => {

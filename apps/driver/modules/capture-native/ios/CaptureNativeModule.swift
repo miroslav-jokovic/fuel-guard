@@ -238,20 +238,52 @@ private enum ImagePipeline {
 
   // JPEG (not WebP): iOS WebP encoding is unreliable (DCE §4) — the server normalizer produces the
   // canonical WebP, so the evidentiary record stays consistent.
+  //
+  // ── TWO FILES PER PAGE SINCE PHASE 4b (D-SCAN6, audit finding F1) ────────────────────────────
+  // `original` is the page at full resolution; `derived` is the downscale the app uploads and the
+  // server reads. Each is hashed over its OWN bytes, because the server verifies a downloaded object
+  // against the hash registered for it and one hash cannot describe two files.
+  //
+  // ⚠ **`original` on iOS is an ENCODE, not the scanner's own bytes, and that is not a shortcut.**
+  // `VNDocumentCameraScan` exposes `imageOfPage(at:) -> UIImage` and nothing else — there is no API
+  // that hands over the file VisionKit produced. So the closest available original is this image at
+  // full resolution and maximum JPEG quality: no resize, no enhancement, no re-crop. Android, whose
+  // scanner DOES return a file URI, copies bytes instead. Both are recorded as the original of record
+  // and the difference is documented at every layer rather than averaged away.
+  //
+  // Ordering matters for memory: the original's Data is encoded, written and released BEFORE the
+  // resize allocates the derivative's bitmap, so the peak is one large buffer rather than two. Step
+  // 1.4 bounded this pipeline to two pages in flight; doubling the per-page peak would have undone
+  // half of that.
   private static func makePage(_ image: UIImage, longEdge: Int, quality: Int) -> [String: Any] {
+    let original: [String: Any] = autoreleasepool {
+      let data = image.jpegData(compressionQuality: 1.0) ?? Data()
+      return describe(data, width: Int(image.size.width * image.scale), height: Int(image.size.height * image.scale))
+    }
     let resized = ImageScaler.scale(image, longEdge: CGFloat(longEdge))
-    let data = resized.jpegData(compressionQuality: CGFloat(quality) / 100.0) ?? Data()
-    let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    let uri = TempFile.write(data)
+    let derivedData = resized.jpegData(compressionQuality: CGFloat(quality) / 100.0) ?? Data()
+    let derived = describe(
+      derivedData,
+      width: Int(resized.size.width * resized.scale),
+      height: Int(resized.size.height * resized.scale)
+    )
     return [
-      "uri": uri,
-      "width": Int(resized.size.width * resized.scale),
-      "height": Int(resized.size.height * resized.scale),
-      "bytes": data.count,
-      "mediaType": "image/jpeg",
-      "integrityHash": hash,
+      "original": original,
+      "derived": derived,
       "osEnhanced": true,
       "ocr": OcrEngine.recognizeSync(resized),
+    ]
+  }
+
+  /// One artifact on disk plus the hash of exactly those bytes, in the shape `NativeImage` declares.
+  private static func describe(_ data: Data, width: Int, height: Int) -> [String: Any] {
+    return [
+      "uri": TempFile.write(data),
+      "width": width,
+      "height": height,
+      "bytes": data.count,
+      "mediaType": "image/jpeg",
+      "sha256": SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(),
     ]
   }
 }

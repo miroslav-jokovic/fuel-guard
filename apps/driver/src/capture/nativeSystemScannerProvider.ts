@@ -1,25 +1,22 @@
-import {
-  evaluateGate,
-  unavailableOcr,
-  type CaptureConfig,
-  type CaptureProvider,
-  type CapturedPage,
-  type ImageMetrics,
-  type ImageRef,
-  type OcrEvidence,
-  type ScanOptions,
-  type ScanResult,
-  type SupportResult,
+import type {
+  CaptureConfig,
+  CaptureProvider,
+  CapturedPage,
+  ImageMetrics,
+  ScanOptions,
+  ScanResult,
+  SupportResult,
 } from "@silvicom/capture-engine";
 import {
   getCaptureNativeModule,
   type CaptureNativeModule,
-  type NativeOcr,
   type NativeScannedPage,
 } from "../../modules/capture-native";
 import {
+  assemblePage,
   imageMetricsFromMeasurement,
   interpretNativeScan,
+  measurementTarget,
   rejectionFromThrown,
   supportFromNative,
 } from "./nativeScanOutcome";
@@ -30,35 +27,21 @@ import {
  * gate (OUR code). Returns null when the native module isn't in the binary (caller falls back to JS).
  */
 
-function coerceMediaType(s: string): ImageRef["mediaType"] {
-  return s === "image/webp" || s === "image/jpeg" || s === "image/png" ? s : "image/webp";
-}
-
-function toOcr(n: NativeOcr | undefined): OcrEvidence {
-  if (!n) return unavailableOcr("native.none");
-  return {
-    engine: n.engine,
-    recognizedChars: n.recognizedChars,
-    recognizedWords: n.recognizedWords,
-    textCoverageFraction: n.textCoverageFraction,
-    medianCharHeightPx: n.medianCharHeightPx,
-    smallTextBandCoverage: n.smallTextBandCoverage,
-    meanConfidence: n.meanConfidence,
-    numberTokens: n.numberTokens,
-    available: true,
-  };
-}
-
 /**
  * Measure one page natively (plan Step 3.3, D-SCAN1..5, D-SCAN10).
  *
  * ── WHICH BYTES THIS MEASURES, SAID PLAINLY ───────────────────────────────────────────────────
- * D-SCAN4 says metrics are measured on the retained ORIGINAL, never on a derivative. There is no
- * retained original yet — Phase 4 creates it — so this measures `p.uri`, which is the 1568 px JPEG
- * the native side already wrote. That is a derivative, and the numbers recorded before Phase 4 lands
- * are therefore not comparable with the ones recorded after. Written here rather than implied,
- * because Step 5.2 derives thresholds from recorded values and needs to know which era each came
- * from; `analysisLongEdgePx` is stamped on every reading for the same reason.
+ * D-SCAN4 says metrics are measured on the retained ORIGINAL, never on a derivative, and since Phase
+ * 4b it is: this measures `p.original.uri`. It measured the 1568 px derivative for as long as that
+ * was the only file a page had.
+ *
+ * ⚠ **So there are two eras of recorded metrics and they are not comparable.** M2 measured the same
+ * document at 4283.7 blur variance at 3000 px and 7299.9 at 800 px — a 1.7× swing from scale alone —
+ * and although D-SCAN1 downscales every measurement to the same analysis edge, it downscales from a
+ * different starting image in each era, through a different resampler, after a different number of
+ * JPEG re-encodes. Step 5.2 derives thresholds from recorded values, and a distribution that mixes
+ * the two is a distribution of two different quantities. `analysisLongEdgePx` is stamped on every
+ * reading, and `capture_config_version` dates it.
  *
  * ── WHY A FAILURE HERE IS NOT A FAILED CAPTURE ────────────────────────────────────────────────
  * Returning `undefined` leaves every image metric absent, which the gate renders as `na` — §5's
@@ -72,48 +55,12 @@ async function measurePage(
   config: CaptureConfig,
 ): Promise<Partial<ImageMetrics>> {
   try {
-    return imageMetricsFromMeasurement(await native.measure(p.uri, config.analysis.longEdgePx));
+    return imageMetricsFromMeasurement(await native.measure(measurementTarget(p), config.analysis.longEdgePx));
   } catch {
     // What an absent measurement MEANS is decided in `nativeScanOutcome.ts`, where a unit test can
     // reach it without a device (D-SCAN13). This function keeps the I/O and the try, and nothing else.
     return imageMetricsFromMeasurement(null);
   }
-}
-
-function assemblePage(
-  p: NativeScannedPage,
-  measured: Partial<ImageMetrics>,
-  config: CaptureConfig,
-  platform: "ios" | "android",
-): CapturedPage {
-  const image: ImageRef = { uri: p.uri, width: p.width, height: p.height, bytes: p.bytes, mediaType: coerceMediaType(p.mediaType) };
-  const ocr = toOcr(p.ocr);
-  // System scanner returns a cropped, enhanced page → coverage is effectively full (an ASSERTION,
-  // not a measurement — Step 5.3 removes it). Blur, glare, shadow, brightness and contrast are real
-  // measurements from `measure()` as of Step 3.3, and every one of their gate floors is `null`, so
-  // they are RECORDED and gated on by nobody until Step 5.2 derives thresholds from the recorded
-  // distribution (D-SCAN10). `longEdgePx` comes from the page the scanner returned rather than from
-  // the measurement, which reports the same thing — the two agreeing is a property worth keeping
-  // accidental rather than one to depend on.
-  const metrics: ImageMetrics = { longEdgePx: Math.max(p.width, p.height), coverageFraction: 1, ...measured };
-  const quality = evaluateGate({ metrics, ocr, platform }, config);
-  return {
-    originalOfRecord: image,
-    perspectiveCorrected: image, // OS already corrected on the v1 SystemScanner path
-    enhancedColor: image,
-    enhancedGray: image,
-    quality,
-    ocr,
-    metadata: {
-      providerId: "capture.native.system_scanner",
-      providerVersion: "0.1.0",
-      ocrEngineId: ocr.engine,
-      configVersion: config.configVersion,
-      device: platform,
-    },
-    integrityHash: p.integrityHash,
-    provenance: { captureMode: "system_scanner", osEnhanced: p.osEnhanced },
-  };
 }
 
 export function createNativeSystemScannerProvider(

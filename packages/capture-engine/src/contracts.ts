@@ -22,6 +22,17 @@ export interface ImageRef {
   /** Encoded byte length when known — used for the "3-page BOL < 1.5 MB" DoD (PLAN §12.3). */
   bytes?: number;
   mediaType?: "image/webp" | "image/jpeg" | "image/png";
+  /**
+   * sha256 (hex) over THIS artifact's encoded bytes, when the producer computed one.
+   *
+   * Added at Phase 4b, and it exists because a page stopped being one file. `integrityHash` on the
+   * page is the ORIGINAL's hash and always was (DCE §2, migration 0133); it could not also describe
+   * a derivative, and the server verifies the bytes it downloads against the hash registered for
+   * them. Optional because a provider that produces a single artifact — the JS fallback picks one
+   * file and has nothing to derive from it — has one hash, on the page, and repeating it here would
+   * be a copy.
+   */
+  sha256?: string;
 }
 
 /**
@@ -147,10 +158,29 @@ export interface CaptureMetadata {
 }
 
 /**
- * One captured page (DCE §2). `originalOfRecord` is hashed + preserved as the evidentiary record; on the
- * v1 SystemScanner path `perspectiveCorrected` equals it (the OS already cropped/enhanced).
+ * One captured page (DCE §2).
+ *
+ * ── THE FOUR IMAGE FIELDS STOPPED ALIASING AT PHASE 4b (D-SCAN6, audit finding F1) ────────────
+ * They used to be four references to ONE object: a 1568 px JPEG q80 derivative, with `integrityHash`
+ * computed over it. So the "original of record" was a re-encode of a downscale, and the evidentiary
+ * claim the field name makes was not true of the bytes it pointed at.
+ *
+ * Now `originalOfRecord` is the untouched page the OS scanner produced, and the other three are the
+ * derivative that uploads and that extraction reads. `perspectiveCorrected`, `enhancedColor` and
+ * `enhancedGray` still alias EACH OTHER on the v1 SystemScanner path, and that is honest rather than
+ * lazy: the OS did the perspective correction and the enhancement in one step and gives us one image
+ * back (DCE §3). Step 6.1 splits ARCHIVE from MACHINE and they stop aliasing too.
+ *
+ * ⚠ **"Untouched" means something different on each platform, and pretending otherwise would be the
+ * kind of claim this field exists to stop making.** Android's `GmsDocumentScanner` hands back a JPEG
+ * file URI, so the original there is a byte copy — genuinely the scanner's own bytes. iOS's
+ * `VNDocumentCameraScan` exposes only `imageOfPage(at:) -> UIImage` and never bytes, so the closest
+ * available original is that image encoded at full resolution and maximum JPEG quality: no resize, no
+ * enhancement, no re-crop. `provenance.osEnhanced` already says the OS processed the page; this note
+ * says how faithfully we preserved what it handed us.
  */
 export interface CapturedPage {
+  /** The bytes the scanner produced (see the platform note above). Hashed as `integrityHash`. */
   originalOfRecord: ImageRef;
   perspectiveCorrected: ImageRef;
   enhancedColor: ImageRef;
@@ -158,7 +188,13 @@ export interface CapturedPage {
   quality: QualityReport;
   ocr: OcrEvidence;
   metadata: CaptureMetadata;
-  /** sha256 over originalOfRecord bytes — integrity + extraction cache-key component. */
+  /**
+   * sha256 over `originalOfRecord`'s bytes — the evidentiary hash, and never a derivative's.
+   *
+   * It has always been documented this way and, until Phase 4b, was vacuously so: one file wore all
+   * four hats. `enhancedColor.sha256` is what the server registers as `sha256` for the object it
+   * downloads and verifies; this one lands in `integrity_hash` (0133, restated by 0328).
+   */
   integrityHash: string;
   provenance: { captureMode: CaptureMode; osEnhanced: boolean };
 }
