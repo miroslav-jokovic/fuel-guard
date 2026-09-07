@@ -4,6 +4,7 @@ import { Circle, Ellipse, Line, Path, Rect, Svg, type SvgProps } from 'react-nat
 import type { IconSvgElement } from '@hugeicons/react-native';
 import { HUGE_ICONS } from '@/theme/hugeIcons';
 import { roleColors } from '@/theme/colors';
+import { resolveIconColor } from '@/theme/iconColor';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { IconName } from '@/theme/hugeIcons';
 
@@ -19,33 +20,19 @@ export interface IconProps {
   style?: StyleProp<ViewStyle>;
 }
 
-function colorFor(className: string | undefined, explicit: string | undefined, themeKey: keyof typeof roleColors): string {
-  if (explicit) return explicit;
-  const rc = roleColors[themeKey];
-  const token = className?.match(/(?:^|\s)text-([a-z-]+)/)?.[1];
-  switch (token) {
-    case 'brand': return rc.brand;
-    case 'brand-fg': return rc.inkInverse;
-    case 'danger': return rc.danger;
-    case 'warning': return rc.warning;
-    case 'caution': return rc.caution;
-    case 'success': return rc.success;
-    case 'info': return rc.info;
-    case 'operation-current': return rc.operationCurrent;
-    case 'operation-next': return rc.operationNext;
-    case 'operation-complete': return rc.operationComplete;
-    case 'operation-blocked': return rc.operationBlocked;
-    case 'sync-local': return rc.syncLocal;
-    case 'sync-pending': return rc.syncPending;
-    case 'sync-failed': return rc.syncFailed;
-    case 'ink': return rc.ink;
-    case 'ink-secondary': return rc.inkSecondary;
-    case 'ink-inverse': return rc.inkInverse;
-    case 'ink-subtle': return rc.inkSubtle;
-    case 'ink-muted': return rc.inkMuted;
-    case undefined:
-    default: return rc.ink;
-  }
+function colorFor(
+  className: string | undefined,
+  explicit: string | undefined,
+  themeKey: keyof typeof roleColors,
+): string {
+  return resolveIconColor(className, explicit, roleColors[themeKey], (token) => {
+    if (__DEV__) {
+      console.warn(
+        `[Icon] "text-${token}" names no colour role, so this icon fell back to ink. ` +
+          'That is invisible on a dark surface — see src/theme/iconColor.ts.',
+      );
+    }
+  });
 }
 
 // Resolve each HugeIcons path to a literal stroke color instead of currentColor. This avoids the

@@ -1600,3 +1600,39 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   This is exactly what §3's device gate exists for, and two of its findings arrived before a phone
   was even involved. The gate itself is still OPEN — a simulator settles layout, dark mode and
   wiring, and settles nothing about Q-DB2 (sunlight on the navy hero) or amber on navy at night.
+
+- 2026-09-07 · **Three more defects, all found by looking at the running app** (owner review on the
+  simulator). None was visible in the gallery, in a test, or in any gate.
+
+  1. **Every icon in the tab bar was invisible.** `Icon` resolved colour through a hand-written
+     `switch` covering 19 of the theme's ~50 roles; anything unlisted fell to `default: ink`,
+     silently. B1's navy tab shell passes `text-on-hero` / `text-on-hero-muted`, neither was a case,
+     so all four icons were drawn in near-black ink on a near-black navy bar. They were rendering
+     perfectly, in a colour nobody can see, and the bar looked as though it had no icons at all.
+     The switch was a copy of a list that already exists — `src/theme/iconColor.ts` now derives the
+     role key from the token by case conversion, so every role works the day it is added, and an
+     unresolvable token WARNS in development instead of quietly becoming ink. 16 tests, 7 mutants,
+     7 died.
+  2. **Disabled tabs appeared, labelled with their raw route names.** `TabBar` filtered on
+     `options.href === null`, and **expo-router consumes `href`** — by the time options reach a
+     custom bar the key is gone, replaced by `tabBarItemStyle` + `tabBarButton`. Measured rather than
+     guessed, by logging the descriptors: an enabled tab has `["headerShown","title"]`, a hidden one
+     `["headerShown","tabBarItemStyle","tabBarButton"]`. So the test matched nothing, and `loads` and
+     `score` showed as lowercase "loads" and "score" whenever their flag was off — D-PM1 ("a feature
+     an org turned off simply doesn't appear") failing in the one place a driver sees it. `navigate`
+     stayed hidden only by the accident of having no icon in `TAB_ICON`.
+  3. **The tab shell's 28pt corners cut two cream notches out of it.** A custom tab bar renders
+     outside the scene, so what shows through its rounded corners is the navigator's own container —
+     white by default. Wrapped in `bg-canvas` so the corners read as the bar tucking under the page.
+
+  Also: the sign-in form is vertically centred (`flex-grow justify-center`) rather than pinned under
+  the status bar with two thirds of the screen empty below it (owner).
+
+  **Open, for the owner's eye rather than a guess:** between the white sheet and the tab bar the
+  Today screen still shows a band of the navy root, so the light→navy→canvas-notch→navy sequence
+  reads as three stacked surfaces. That is a `Screen` composition question, not a TabBar one, and it
+  was seen on a screen with no data and an error banner, which is not representative.
+
+  **Method note.** Two of these were found only by driving the real app: the icons through a
+  screenshot, the tab filter by logging what expo-router actually passes. The audit's §3 warning —
+  "a gallery is not a phone in daylight" — was too kind to the gallery. It is not a phone at all.
