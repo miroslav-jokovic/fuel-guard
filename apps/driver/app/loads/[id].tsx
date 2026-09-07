@@ -64,7 +64,7 @@ function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; o
         {stop.status === 'completed' ? (
           <Icon name="check" size={15} className="text-operation-complete" />
         ) : (
-          <AppText variant="caption" tone={isNext ? 'brand' : 'muted'} tabular className="font-semibold">
+          <AppText variant="caption" tone={isNext ? 'brand' : 'muted'} tabular className="font-ui-sb">
             {stop.seq}
           </AppText>
         )}
@@ -74,7 +74,7 @@ function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; o
           <AppText variant="rowTitle" className="flex-1">{stop.name}</AppText>
           <View className="flex-row items-center gap-1">
             <Icon name={state.icon} size={14} className={state.text} />
-            <AppText variant="caption" className={`font-medium ${state.text}`}>{state.label}</AppText>
+            <AppText variant="caption" className={`font-ui-md ${state.text}`}>{state.label}</AppText>
           </View>
         </View>
         <AppText variant="supporting" tone="muted">{placeLabel(stop)}</AppText>

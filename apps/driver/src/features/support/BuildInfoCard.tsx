@@ -29,7 +29,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <View className="min-h-11 flex-row items-start justify-between gap-4 bg-surface px-4 py-3">
       <AppText variant="supporting" tone="secondary">{label}</AppText>
-      <AppText variant="supporting" className="flex-1 text-right font-medium" selectable>{value}</AppText>
+      <AppText variant="supporting" className="flex-1 text-right font-ui-md" selectable>{value}</AppText>
     </View>
   );
 }

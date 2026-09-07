@@ -64,7 +64,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             <AppText
               variant="caption"
               tone={focused ? 'brand' : 'muted'}
-              className={focused ? 'font-semibold' : ''}
+              className={focused ? 'font-ui-sb' : ''}
               numberOfLines={1}
             >
               {label}

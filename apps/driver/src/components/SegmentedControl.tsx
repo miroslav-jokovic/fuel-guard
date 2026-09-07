@@ -48,7 +48,7 @@ export function SegmentedControl<T extends string>({
                 }}
                 className={`min-h-12 flex-row items-center gap-3 px-4 py-2 ${active ? 'bg-surface-selected' : 'bg-surface'}`}
               >
-                <AppText variant="body" className={`flex-1 ${active ? 'font-semibold' : ''}`}>
+                <AppText variant="body" className={`flex-1 ${active ? 'font-ui-sb' : ''}`}>
                   {option.label}
                 </AppText>
                 <Icon
@@ -91,7 +91,7 @@ export function SegmentedControl<T extends string>({
               <AppText
                 variant="supporting"
                 tone={active ? 'primary' : 'muted'}
-                className={active ? 'font-semibold' : 'font-medium'}
+                className={active ? 'font-ui-sb' : 'font-ui-md'}
                 numberOfLines={1}
               >
                 {option.label}

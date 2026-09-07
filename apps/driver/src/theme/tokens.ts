@@ -10,11 +10,16 @@ export const space = {
   screen: 40,
 } as const;
 
-/** Radius communicates containment. It is not default decoration. */
+/**
+ * Radius communicates containment. It is not default decoration. Direction B D-DB4 fixes the scale
+ * at four steps: nothing in the app may use a fifth. The Tailwind aliases carry the same numbers
+ * (`rounded-md|lg|xl|2xl`), so a site that was a 12pt card is now a 24pt card without a rewrite.
+ */
 export const radius = {
-  control: 10,
-  container: 12,
-  operational: 16,
+  input: 12,
+  tile: 16,
+  card: 24,
+  sheet: 28,
   full: 999,
 } as const;
 
@@ -27,7 +32,7 @@ export const target = {
 } as const;
 
 export const layout = {
-  screenInset: 16,
+  screenInset: 20,
   compactGap: 8,
   relatedGap: 12,
   contentGap: 16,
@@ -35,27 +40,42 @@ export const layout = {
   sectionGap: 24,
   regionGap: 32,
   groupedRowMinHeight: 52,
-  cardPadding: 16,
+  /** Hero cards breathe (Direction B §2.4); cards on the light sheet stay at 16. */
+  cardPadding: 20,
+  sheetCardPadding: 16,
+  /** How far the sheet's 28pt top corners ride over the navy hero, and its first content gap. */
+  sheetOverlap: 28,
+  sheetTopPadding: 24,
   modalInset: 20,
   /** Horizontal metric and choice layouts stack before accessibility sizes begin crowding copy. */
   largeTextBreakpoint: 1.35,
 } as const;
 
 /**
- * Semantic type metrics for the AppText primitive. Operational copy uses the platform UI face;
- * Hanken Grotesk is reserved for screen identity and glanceable numeric/display moments.
+ * Semantic type metrics for the AppText primitive (Direction B §2.3). One typeface, Lexend, in four
+ * weights; the variant picks the family because a weight utility is inert on a loaded custom face.
+ *
+ * `numericInline` closes the gap the 2026-09-07 critique named as P0-3: between `rowTitle` at 16 and
+ * `numericCompact` at 24 there was nothing, so appointment windows, unit numbers, miles and
+ * durations were rendering as 12pt muted captions — the figures a driver actually reads at a glance
+ * were the smallest text on the screen.
+ *
+ * `sectionTitle` is retained through B0 only; eleven screens still use it and B1.7 migrates them to
+ * `navigationTitle` before B7 deletes the variant.
  */
 export const typography = {
   caption: { fontSize: 12, lineHeight: 16 },
+  label: { fontSize: 12, lineHeight: 16, letterSpacing: 0.96 },
   supporting: { fontSize: 14, lineHeight: 20 },
   body: { fontSize: 16, lineHeight: 22 },
-  action: { fontSize: 16, lineHeight: 20 },
-  navigationTitle: { fontSize: 17, lineHeight: 22 },
   rowTitle: { fontSize: 16, lineHeight: 22 },
+  action: { fontSize: 17, lineHeight: 22 },
+  navigationTitle: { fontSize: 18, lineHeight: 24 },
   sectionTitle: { fontSize: 13, lineHeight: 18 },
-  screenTitle: { fontSize: 28, lineHeight: 34 },
+  screenTitle: { fontSize: 28, lineHeight: 32 },
+  numericInline: { fontSize: 22, lineHeight: 28 },
   numericCompact: { fontSize: 24, lineHeight: 28 },
-  numericHero: { fontSize: 36, lineHeight: 40 },
+  numericHero: { fontSize: 40, lineHeight: 44 },
 } as const;
 
 export const motion = {

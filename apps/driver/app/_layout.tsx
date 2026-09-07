@@ -2,11 +2,11 @@ import "../global.css";
 import { useEffect } from "react";
 import { useFonts } from "expo-font";
 import {
-  HankenGrotesk_400Regular,
-  HankenGrotesk_500Medium,
-  HankenGrotesk_600SemiBold,
-  HankenGrotesk_700Bold,
-} from "@expo-google-fonts/hanken-grotesk";
+  Lexend_400Regular,
+  Lexend_500Medium,
+  Lexend_600SemiBold,
+  Lexend_700Bold,
+} from "@expo-google-fonts/lexend";
 import { Stack, useRouter, useSegments } from "expo-router";
 import Constants from "expo-constants";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -159,11 +159,14 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  // Direction B D-DB3: Lexend is the ONE typeface. Every AppText variant names one of these four
+  // families directly, because in React Native a weight utility does nothing for a loaded custom
+  // face — the family IS the weight.
   const [fontsLoaded] = useFonts({
-    HankenGrotesk_400Regular,
-    HankenGrotesk_500Medium,
-    HankenGrotesk_600SemiBold,
-    HankenGrotesk_700Bold,
+    Lexend_400Regular,
+    Lexend_500Medium,
+    Lexend_600SemiBold,
+    Lexend_700Bold,
   });
 
   if (!fontsLoaded) return null;

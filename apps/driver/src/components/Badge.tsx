@@ -36,7 +36,7 @@ export function Badge({
     <View className={`flex-row items-center gap-1 self-start rounded-full px-2 py-1 ${appearance.bg}`}>
       {dot ? <View className={`h-1.5 w-1.5 rounded-full ${appearance.dot}`} /> : null}
       {icon ? <Icon name={icon} size={13} className={appearance.text} /> : null}
-      <AppText variant="caption" className={`font-semibold ${appearance.text}`}>{label}</AppText>
+      <AppText variant="caption" className={`font-ui-sb ${appearance.text}`}>{label}</AppText>
     </View>
   );
 }

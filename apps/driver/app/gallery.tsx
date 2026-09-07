@@ -52,13 +52,22 @@ export default function Gallery() {
         }
       />
 
-      <Section title="Typography">
+      {/* Direction B B0.4 done-when: every variant, so a missing Lexend weight is visible rather
+          than silently falling back to the platform face. `label` and `numericInline` are the two
+          new roles; `numericInline` is the one the 2026-09-07 critique said was missing. */}
+      <Section title="Typography — Lexend 400/500/600/700">
         <View className="gap-1 rounded-xl bg-surface-muted p-4">
           <AppText variant="screenTitle">Today</AppText>
           <AppText variant="navigationTitle">Load LD-20481</AppText>
-          <AppText variant="body">Operational copy uses the platform UI typeface.</AppText>
+          <AppText variant="label" tone="action">NEXT · DELIVER</AppText>
+          <AppText variant="body">One typeface carries the whole app; the variant picks the weight.</AppText>
+          <AppText variant="rowTitle">Row title, Lexend Medium</AppText>
+          <AppText variant="action">Button label, Lexend SemiBold</AppText>
           <AppText variant="supporting" tone="muted">Supporting information remains readable without competing.</AppText>
-          <AppText variant="numericHero" tabular>438,795</AppText>
+          <AppText variant="caption" tone="muted">Caption · 12pt</AppText>
+          <AppText variant="numericInline">08:30 – 11:00</AppText>
+          <AppText variant="numericCompact">87</AppText>
+          <AppText variant="numericHero">438,795</AppText>
         </View>
       </Section>
 
