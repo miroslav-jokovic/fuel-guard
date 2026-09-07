@@ -17,7 +17,8 @@
     "fixtures": "node fixtures/generate.mjs",
     "fixtures:check": "node fixtures/generate.mjs --check",
     "targets": "node fixtures/targets/generate-targets.mjs",
-    "targets:check": "node fixtures/targets/generate-targets.mjs --check"
+    "targets:check": "node fixtures/targets/generate-targets.mjs --check",
+    "expected": "node fixtures/expected.mjs"
   },
   "devDependencies": {
     "typescript": "6.0.3",

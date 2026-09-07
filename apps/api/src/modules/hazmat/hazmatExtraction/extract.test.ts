@@ -70,12 +70,12 @@ describe("runExtraction — pipeline control flow (fake model)", () => {
 
 describe("computeExtractionFlags — the outcome table (step 6)", () => {
   it("flags-present pipeline result stays flagged regardless of verdict", () => {
-    const extract = { usable: false, usabilityReasons: ["too_blurry"], engineLines: [], flags: ["recapture_needed"], usage: { input: 0, output: 0 }, models: { A: "a", B: "b" } } as ExtractResult;
+    const extract = { usable: false, usabilityReasons: ["too_blurry"], usabilityMetrics: [], usabilityGateVersion: null, engineLines: [], flags: ["recapture_needed"], usage: { input: 0, output: 0 }, models: { A: "a", B: "b" } } as ExtractResult;
     expect(isGreen(computeExtractionFlags(extract, null, false))).toBe(false);
   });
 
   it("a truly-clean run (empty pipeline flags + eligible verdict, non-provisional) is GREEN", () => {
-    const extract = { usable: true, usabilityReasons: [], engineLines: [], flags: [], usage: { input: 1, output: 1 }, models: { A: "a", B: "b" } } as ExtractResult;
+    const extract = { usable: true, usabilityReasons: [], usabilityMetrics: [], usabilityGateVersion: null, engineLines: [], flags: [], usage: { input: 1, output: 1 }, models: { A: "a", B: "b" } } as ExtractResult;
     const verdict: Verdict = { engineVersion: "0.7.0", datasetVersion: "2026.07.1", placards: emptyPlacards(), eligibility: { status: "eligible", blocks: [] }, segregation: [], trace: [] };
     expect(isGreen(computeExtractionFlags(extract, verdict, false))).toBe(true);
     // a provisional dataset blocks the clear even when everything else is clean
@@ -97,7 +97,7 @@ describe("computeExtractionFlags — the outcome table (step 6)", () => {
     };
     const verdict = evaluateLoad(load);
     expect(verdict.placards.required.map((p) => p.placard)).toContain("FLAMMABLE");
-    const extract = { usable: true, usabilityReasons: [], engineLines: load.lines, flags: [], usage: { input: 1, output: 1 }, models: { A: "a", B: "b" } } as ExtractResult;
+    const extract = { usable: true, usabilityReasons: [], usabilityMetrics: [], usabilityGateVersion: null, engineLines: load.lines, flags: [], usage: { input: 1, output: 1 }, models: { A: "a", B: "b" } } as ExtractResult;
     expect(computeExtractionFlags(extract, verdict, false)).toContain("eligibility_not_checked");
   });
 });

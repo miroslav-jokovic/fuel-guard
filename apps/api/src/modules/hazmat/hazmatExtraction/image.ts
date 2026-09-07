@@ -1,5 +1,14 @@
 import { createHash } from "node:crypto";
 import sharp from "sharp";
+import { BUNDLED_DEFAULT_CONFIG, computeMetrics, type MeasuredMetrics } from "@silvicom/capture-engine";
+
+/**
+ * The analysis scale the metrics are computed at. Read from the capture engine's bundled config so the
+ * server and the driver app cannot drift: it is the number that gives every other number its meaning
+ * (the same image scored 4283.7 for blur at 3000 px and 7299.9 at 800 px), and a second copy of it
+ * here would be the divergence this whole step exists to close.
+ */
+const ANALYSIS_LONG_EDGE_PX = BUNDLED_DEFAULT_CONFIG.analysis.longEdgePx;
 
 /**
  * Image normalization + usability gate (plan H6 steps 0–1). Deterministic, no AI. Normalization raises
@@ -65,64 +74,99 @@ export async function normalizeImage(input: Buffer): Promise<NormalizeResult> {
   };
 }
 
+/**
+ * Gate ruleset version. Separate from `IMAGE_NORMALIZER_VERSION` on purpose: the normalizer is
+ * unchanged by Step 2.3, so bumping it would invalidate every cached run for no reason. The GATE's
+ * meaning did change — different luminance, different Laplacian, a fixed analysis scale, and it now
+ * reads the uploaded bytes rather than the normalized ones — and a verdict must stay reproducible, so
+ * the version that produced it is recorded on the run.
+ *
+ * v2.0.0 — Step 2.3: `usabilityGate` delegates to `@silvicom/capture-engine`'s `computeMetrics`.
+ */
+export const USABILITY_GATE_VERSION = "2.0.0";
+
 export interface UsabilityThresholds {
   minLongEdgePx: number;
-  minBlurVariance: number; // variance-of-Laplacian floor — below this the page is too blurry to read
-  maxGlareFraction: number; // fraction of near-white specular pixels allowed
+  /**
+   * `null` means MEASURED AND RECORDED BUT NOT ENFORCED (D-SCAN10 shadow mode).
+   *
+   * Not an omission — the point. The old floors were 100 for blur and 0.06 for glare, and neither
+   * survives Step 2.3: 100 was a variance of a CLAMPED Laplacian at whatever resolution the
+   * normalized image happened to be, measured on an image whose contrast had already been stretched.
+   * The number has no meaning under the new definition, and inventing a replacement is precisely
+   * what `config.ts` forbids. So the metrics are recorded on every run from now on, and Step 5.2
+   * derives the floors from that distribution before either check rejects anything.
+   */
+  minBlurVariance: number | null;
+  maxGlareFraction: number | null;
 }
-/** Defaults; the blur/glare floors are corpus-tuned in H11 — conservative starting points here. */
+
+/** Resolution is the one floor that survives unchanged: it is scale-free, and it was never in doubt. */
 export const DEFAULT_USABILITY: UsabilityThresholds = {
   minLongEdgePx: 1200,
-  minBlurVariance: 100,
-  maxGlareFraction: 0.06,
+  minBlurVariance: null,
+  maxGlareFraction: null,
 };
 
 export interface UsabilityResult {
   usable: boolean;
   reasons: string[]; // e.g. "resolution_too_low", "too_blurry", "glare"
-  metrics: { longEdgePx: number; blurVariance: number; glareFraction: number };
+  /** Everything measured, enforced or not — this is what Step 5.2 derives the floors from. */
+  metrics: MeasuredMetrics;
+  gateVersion: string;
 }
 
 /**
- * Server-side quality checks BEFORE any model call — a bad page is rejected for recapture, never sent to
- * the model. Blur = variance of a Laplacian convolution over the luminance channel; glare = fraction of
- * near-white (specular) pixels; plus a hard resolution floor.
+ * Server-side quality checks BEFORE any model call — a bad page is rejected for recapture, never sent
+ * to the model.
+ *
+ * ── WHAT CHANGED, AND WHY IT HAD TO ───────────────────────────────────────────────────────────
+ * This used to compute its own luminance, Laplacian and near-white census through sharp. Measuring
+ * that on 2026-09-06 found it could not agree with the client no matter what numbers were written in
+ * either file: sharp clamps the Laplacian's negative lobe, its greyscale is a linear-light luminance
+ * weighting RGB 127/220/76, its default resampler manufactures near-white pixels, and the metric moves
+ * 1.7x with resolution. Each finding is pinned by a named scenario in `imageSemantics.test.ts` —
+ * "keeps the dark-side edge response and clamps the light-side one to zero",
+ * "rises monotonically as the same image is downscaled, by more than a third overall",
+ * "weights pure red, green and blue as 127 / 220 / 76",
+ * "invents glare on a page whose brightest true pixel is 235, where non-ringing kernels invent none",
+ * and "inflates blur variance and creates glare on a page that had neither".
+ *
+ * So the arithmetic now lives in ONE place and this calls it (D-SCAN8). sharp's remaining job is
+ * decoding, which is the one part each platform genuinely does differently and the one part that
+ * cannot be shared.
+ *
+ * ⚠ It decodes at FULL resolution and downscales in our own code, which is slower than asking sharp
+ * to resize during decode. That is deliberate: sharp's resampler is the thing that manufactured 10%
+ * glare on a page whose brightest pixel was 235, so using it here would reintroduce the defect this
+ * function exists to remove.
  */
 export async function usabilityGate(
   input: Buffer,
   thresholds: UsabilityThresholds = DEFAULT_USABILITY,
 ): Promise<UsabilityResult> {
-  const meta = await sharp(input, { failOn: "none" }).metadata();
-  const longEdgePx = Math.max(meta.width ?? 0, meta.height ?? 0);
-
-  // Luminance buffer for the pixel stats.
-  const grey = sharp(input, { failOn: "none" }).greyscale();
-  const { data: lum } = await grey.clone().raw().toBuffer({ resolveWithObject: true });
-  let nearWhite = 0;
-  for (let i = 0; i < lum.length; i++) if (lum[i]! >= 250) nearWhite++;
-  const glareFraction = lum.length > 0 ? nearWhite / lum.length : 0;
-
-  // Variance of the Laplacian response (focus measure).
-  const { data: lap } = await grey
-    .clone()
-    .convolve({ width: 3, height: 3, kernel: [0, 1, 0, 1, -4, 1, 0, 1, 0] })
+  const { data, info } = await sharp(input, { failOn: "none" })
     .raw()
     .toBuffer({ resolveWithObject: true });
-  let sum = 0;
-  for (let i = 0; i < lap.length; i++) sum += lap[i]!;
-  const mean = lap.length > 0 ? sum / lap.length : 0;
-  let varSum = 0;
-  for (let i = 0; i < lap.length; i++) varSum += (lap[i]! - mean) ** 2;
-  const blurVariance = lap.length > 0 ? varSum / lap.length : 0;
+  const metrics = computeMetrics(
+    new Uint8Array(data.buffer, data.byteOffset, data.byteLength),
+    info.width,
+    info.height,
+    ANALYSIS_LONG_EDGE_PX,
+    info.channels,
+  );
 
   const reasons: string[] = [];
-  if (longEdgePx < thresholds.minLongEdgePx) reasons.push("resolution_too_low");
-  if (blurVariance < thresholds.minBlurVariance) reasons.push("too_blurry");
-  if (glareFraction > thresholds.maxGlareFraction) reasons.push("glare");
+  if (metrics.longEdgePx < thresholds.minLongEdgePx) reasons.push("resolution_too_low");
+  if (thresholds.minBlurVariance !== null && metrics.blurVariance < thresholds.minBlurVariance) {
+    reasons.push("too_blurry");
+  }
+  if (thresholds.maxGlareFraction !== null && metrics.glareFraction > thresholds.maxGlareFraction) {
+    reasons.push("glare");
+  }
 
-  return { usable: reasons.length === 0, reasons, metrics: { longEdgePx, blurVariance, glareFraction } };
+  return { usable: reasons.length === 0, reasons, metrics, gateVersion: USABILITY_GATE_VERSION };
 }
-
 
 /**
  * Whether the bytes we just downloaded are the bytes that were gated on the device.

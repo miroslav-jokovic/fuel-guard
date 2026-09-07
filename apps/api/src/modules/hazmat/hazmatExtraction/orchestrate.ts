@@ -7,7 +7,7 @@ import type { Env } from "../../../env.js";
 import { transitionLoad } from "../hazmatLoads.js";
 import { buildManualLoadInput, computeAdvisories, insertHazmatRun, type CargoTankProfileRow, type ManualLoadRow } from "../hazmatAnalysis.js";
 import { normalizeImage, IMAGE_NORMALIZER_VERSION } from "./image.js";
-import { usabilityGate, verifyIntegrityHash } from "./image.js";
+import { USABILITY_GATE_VERSION, usabilityGate, verifyIntegrityHash } from "./image.js";
 import { anthropicVisionExtractor, HAZMAT_EXTRACTION_PROMPT_VERSION, type ImageInput } from "./vision.js";
 import { runExtraction } from "./extract.js";
 import { computeExtractionFlags, isGreen } from "./outcome.js";
@@ -133,7 +133,15 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
 
       const norm = await normalizeImage(raw);
       hash.update(norm.normalized);
-      gateBuffers.push(norm.normalized);
+      // ── The gate reads the UPLOADED bytes, not the normalized ones (D-SCAN4) ────────────────────
+      // This used to push `norm.normalized`, so the quality gate judged an image that `.normalise()`
+      // had already contrast-stretched: the maximum becomes 255 by construction, which made "fraction
+      // of pixels >= 250" a measurement of the stretch rather than of glare, and inflated blur
+      // variance 1.9x on top (measured 2026-09-06, pinned as M5 in imageSemantics.test.ts). Gating the
+      // bytes the driver actually uploaded is also what lets the client and the server compute the
+      // same number at all — which is the whole point of Step 2.3. `normalizeImage` is unchanged and
+      // still produces what the model reads.
+      gateBuffers.push(raw);
       images.push({ base64: norm.normalized.toString("base64"), mediaType: norm.mediaType }); // D11: real media type from sharp metadata, never assumed
     }
     const inputHash = "sha256:" + hash.digest("hex");
@@ -181,12 +189,20 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
     }
 
     const flags = [...new Set([...computeExtractionFlags(extract, verdict, dataset.provisional), ...qual.flags])];
-    const models = { A: env.HAZMAT_MODEL_A, B: env.HAZMAT_MODEL_B, usage: extract.usage, promptVersion: HAZMAT_EXTRACTION_PROMPT_VERSION, normalizerVersion: IMAGE_NORMALIZER_VERSION };
+    // The gate ruleset is recorded beside the normalizer's, separately, because Step 2.3 changed what
+    // the gate MEANS while leaving the normalizer alone — a verdict has to stay reproducible against
+    // the ruleset that produced it, and one version number cannot honestly stand for both.
+    const models = { A: env.HAZMAT_MODEL_A, B: env.HAZMAT_MODEL_B, usage: extract.usage, promptVersion: HAZMAT_EXTRACTION_PROMPT_VERSION, normalizerVersion: IMAGE_NORMALIZER_VERSION, usabilityGateVersion: extract.usabilityGateVersion ?? USABILITY_GATE_VERSION };
     const outcome = isGreen(flags) ? "green" : "flagged";
     // D3: persist the extraction evidence (what the model read, both passes, every cross-validation
     // flag) and the non-blocking advisories — the columns existed since 0092 and were never written.
     const extractionRecord = {
       usable: extract.usable, usabilityReasons: extract.usabilityReasons,
+      // Every measurement, per page, whether or not anything rejected on it. Since Step 2.3 the blur
+      // and glare checks are RECORDED rather than enforced (D-SCAN10): their old floors were computed
+      // under a different definition and do not survive it, so Step 5.2 derives new ones from exactly
+      // this distribution. A measurement nobody stored would leave that step nothing to derive from.
+      usabilityMetrics: extract.usabilityMetrics,
       passA: extract.passA ?? null, passB: extract.passB ?? null,
       engineLineCount: extract.engineLines.length, flags: extract.flags,
       // M12.2: the EXACT lines the engine evaluated — with these on record, an extraction run is
