@@ -14,14 +14,20 @@ import {
   Skeleton,
 } from '@/components';
 import { enqueue, newClientId } from '@/data/outbox';
-import { stageFile } from '@/data/fileStaging';
+import { discardScannerTempFiles, stageFile } from '@/data/fileStaging';
 import { HAZMAT_CAPTURE_KIND } from '@/data/handlers';
 import { scanBol } from '@/capture/engine';
-import { buildCapturePayload, decideCapture } from '@/features/hazmat/hazmatCaptureModel';
+import { buildCapturePayloads, decideCapture } from '@/features/hazmat/hazmatCaptureModel';
 import { useFeatures } from '@/session/useFeatures';
+
+/** Matches the server's MAX_BOL_PAGES (D19 spend cap): 10 pages x 2 models is the ceiling one load
+ *  may cost. Passed to both the scanner and the decision so one number governs both — iOS cannot
+ *  enforce it at the scanner, so the decision is where it actually binds. */
+const MAX_PAGES = 10;
 
 const CAPTURE_GUIDANCE = [
   ['image', 'Show all four document edges'],
+  ['content_copy', 'Scan every page of the document'],
   ['light_mode', 'Use even light and avoid glare'],
   ['check_circle', 'Keep printed text sharp and readable'],
 ] as const;
@@ -47,16 +53,36 @@ export default function HazmatCaptureScreen() {
     setReasons([]);
     try {
       const result = await scanBol();
-      const decision = decideCapture(result);
-      if (!decision.accepted || !decision.page) {
+      const decision = decideCapture(result, MAX_PAGES);
+      if (!decision.accepted) {
+        // The scanner already wrote these to the OS cache and nothing else will ever delete them —
+        // a driver re-shooting a glaring page five times would otherwise leave five orphans (F9).
+        discardScannerTempFiles(decision.discardUris);
         setReasons(decision.reasons);
         return;
       }
       const loadId = newClientId();
-      const documentId = newClientId();
-      const { payload, localUri } = buildCapturePayload({ loadId, documentId, pageNumber: 1, page: decision.page });
-      const stagedUri = await stageFile(localUri, documentId, 0);
-      await enqueue({ id: documentId, kind: HAZMAT_CAPTURE_KIND, payload, fileUris: [stagedUri] });
+      const documentIds = decision.pages.map(() => newClientId());
+      const { payload, localUris } = buildCapturePayloads({ loadId, documentIds, pages: decision.pages });
+
+      // Every page is copied into the sandbox BEFORE anything is queued, and the record is enqueued
+      // only once all of them are there. The staging rule exists so that work a driver believes is
+      // saved cannot evaporate (plan §13.8 / D12); a record referencing four files where only three
+      // were copied would satisfy the letter of that and break its point.
+      const stagedUris: string[] = [];
+      for (const [index, uri] of localUris.entries()) {
+        stagedUris.push(await stageFile(uri, documentIds[index]!, index));
+      }
+
+      // The record id is the FIRST page's document id rather than a fresh one: the outbox is keyed by
+      // it, and reusing an id that already means something keeps a replay idempotent without a second
+      // identifier nobody else can resolve.
+      await enqueue({ id: documentIds[0]!, kind: HAZMAT_CAPTURE_KIND, payload, fileUris: stagedUris });
+
+      // Only now: until the record exists, the scanner's temporaries were still the only copy of a
+      // page. After it, the staged files are what the outbox uploads and these are redundant.
+      discardScannerTempFiles(localUris);
+
       router.replace(`/hazmat/${loadId}` as never);
     } catch (error) {
       setReasons([error instanceof Error ? error.message : 'Capture failed. Retake the document.']);
@@ -84,7 +110,7 @@ export default function HazmatCaptureScreen() {
     >
       <ScreenHeader
         title="Capture BOL"
-        subtitle="The image is checked for quality before it uploads"
+        subtitle="Scan every page. Each one is checked for quality before it uploads"
         onBack={() => router.back()}
       />
       <OfflineBanner />

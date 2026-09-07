@@ -56,23 +56,52 @@ export interface CheckResult {
 /**
  * Rejection taxonomy (DCE §2). `SCANNER_MODULE_UNAVAILABLE` is Android-specific (Play-Services scanner
  * module absent/not-yet-downloaded — DCE §9).
+ *
+ * ── WHY THIS IS AN ARRAY AND NOT A BARE UNION (SCANNER-UPGRADE-PLAN.md Step 1.1) ──────────────
+ * A union type has no runtime counterpart, so the moment anything has to decide whether a string
+ * arriving from outside TypeScript is a real reason, it must restate the list — and a restated list
+ * is a copy with a delay fuse (root CLAUDE.md: deriving beats restating). Reasons DO arrive from
+ * outside now: the native module reports an expected outcome as a value, and a rejected promise may
+ * carry a `code`. Both are checked against this array, so a reason the native side invents cannot
+ * become a `RejectionReason` by assertion.
  */
-export type RejectionReason =
-  | "DOCUMENT_NOT_DETECTED"
-  | "IMAGE_BLURRED"
-  | "GLARE_OVER_TEXT"
-  | "SHADOW_OVER_TEXT"
-  | "RESOLUTION_TOO_LOW"
-  | "LENS_DIRTY"
-  | "PAGE_INCOMPLETE"
-  | "LOW_CONTRAST"
-  | "UNDER_OR_OVER_EXPOSED"
-  | "TEXT_ILLEGIBLE"
-  | "OCR_UNAVAILABLE"
-  | "SCANNER_MODULE_UNAVAILABLE"
-  | "UNSUPPORTED_DEVICE"
-  | "CAPTURE_CANCELLED"
-  | "PROVIDER_ERROR";
+export const REJECTION_REASONS = [
+  "DOCUMENT_NOT_DETECTED",
+  "IMAGE_BLURRED",
+  "GLARE_OVER_TEXT",
+  "SHADOW_OVER_TEXT",
+  "RESOLUTION_TOO_LOW",
+  "LENS_DIRTY",
+  "PAGE_INCOMPLETE",
+  "LOW_CONTRAST",
+  "UNDER_OR_OVER_EXPOSED",
+  "TEXT_ILLEGIBLE",
+  "OCR_UNAVAILABLE",
+  "SCANNER_MODULE_UNAVAILABLE",
+  "UNSUPPORTED_DEVICE",
+  "CAPTURE_CANCELLED",
+  "PROVIDER_ERROR",
+] as const;
+
+export type RejectionReason = (typeof REJECTION_REASONS)[number];
+
+export function isRejectionReason(value: unknown): value is RejectionReason {
+  return typeof value === "string" && (REJECTION_REASONS as readonly string[]).includes(value);
+}
+
+/**
+ * Coerce an untrusted value to a reason, falling back rather than throwing.
+ *
+ * The fallback is the whole point. `PROVIDER_ERROR` means "something unforeseen happened", which is
+ * exactly what an unrecognised code IS — and a capture flow that threw here would turn a merely
+ * unfamiliar reason into a crash in front of a driver holding a bill of lading.
+ */
+export function toRejectionReason(
+  value: unknown,
+  fallback: RejectionReason = "PROVIDER_ERROR",
+): RejectionReason {
+  return isRejectionReason(value) ? value : fallback;
+}
 
 export interface QualityReport {
   passed: boolean;

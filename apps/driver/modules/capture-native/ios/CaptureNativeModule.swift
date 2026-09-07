@@ -21,6 +21,10 @@ public class CaptureNativeModule: Module {
     Name("CaptureNative")
 
     AsyncFunction("isSupported") { () -> [String: Any] in
+      // `scannerModule` is deliberately absent rather than reported as "available": it describes a
+      // Play-Services download that does not exist on this platform, and an iPhone answering
+      // "available" to a question about Android's module store would be a tidy-looking lie. Absent
+      // is what the field's optionality is for.
       [
         "camera": UIImagePickerController.isSourceTypeAvailable(.camera),
         "docScanner": VNDocumentCameraViewController.isSupported,
@@ -28,9 +32,23 @@ public class CaptureNativeModule: Module {
       ]
     }
 
+    // D-SCAN7: an ANTICIPATED outcome resolves as a value; only the unforeseen rejects.
+    //
+    // The device not supporting VisionKit's scanner is anticipated — it is a fact about the hardware,
+    // known before anything is attempted — so it resolves with `unavailable` and the driver is told
+    // what is true. It used to reject with the code "UNSUPPORTED_DEVICE", and the provider above
+    // caught every rejection as PROVIDER_ERROR without reading a code, so the message never arrived.
+    //
+    // Having no view controller to present from stays a REJECTION, and the difference is the point:
+    // that is not a fact about the device, it is the app being in a state it should never be in while
+    // a driver is asking to scan. PROVIDER_ERROR is the honest answer to it.
     AsyncFunction("scan") { (options: [String: Any], promise: Promise) in
       guard VNDocumentCameraViewController.isSupported else {
-        promise.reject("UNSUPPORTED_DEVICE", "Document scanning is not supported on this device.")
+        promise.resolve([
+          "pages": [[String: Any]](),
+          "cancelled": false,
+          "unavailable": ["reason": "UNSUPPORTED_DEVICE", "detail": "Document scanning is not supported on this device."],
+        ])
         return
       }
       guard let presenter = self.appContext?.utilities?.currentViewController() else {
@@ -57,9 +75,15 @@ public class CaptureNativeModule: Module {
       OcrEngine.recognize(image) { metrics in promise.resolve(metrics) }
     }
 
+    // Dismissing the scanner does NOT call any delegate method, so the previous implementation —
+    // dismiss the presented view controller and return — left `scan()`'s promise unsettled forever.
+    // Nothing calls this today, which is the only reason it has never hung a capture. Routing through
+    // the delegate settles it as a cancellation, which is what a caller asking to cancel means.
     Function("cancel") {
       DispatchQueue.main.async { [weak self] in
-        self?.appContext?.utilities?.currentViewController()?.dismiss(animated: true)
+        guard let self else { return }
+        self.appContext?.utilities?.currentViewController()?.dismiss(animated: true)
+        self.activeDelegate?.cancelFromHost()
       }
     }
   }
@@ -100,6 +124,13 @@ private final class DocumentScanDelegate: NSObject, VNDocumentCameraViewControll
     }
   }
 
+  /// Cancellation asked for by our own JS layer rather than by the driver tapping Cancel. The
+  /// scanner has already been dismissed by the caller; `settle`'s guard makes a later delegate
+  /// callback a no-op, so this cannot double-resolve.
+  func cancelFromHost() {
+    settle { promise.resolve(["pages": [[String: Any]](), "cancelled": true]) }
+  }
+
   func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
     controller.dismiss(animated: true)
     settle { promise.resolve(["pages": [[String: Any]](), "cancelled": true]) }
@@ -114,15 +145,39 @@ private final class DocumentScanDelegate: NSObject, VNDocumentCameraViewControll
 // MARK: - Image pipeline (downscale → JPEG → hash → OCR)
 
 private enum ImagePipeline {
+  /**
+   How many pages may be in flight at once.
+
+   This used to be "all of them": every page was dispatched onto the global queue at the same moment,
+   so a ten-page scan ran ten UIGraphicsImageRenderer bitmaps and ten concurrent `.accurate` Vision
+   requests simultaneously. Each of those holds a multi-megapixel buffer, and the audit named this the
+   single most likely crash in the module.
+
+   Two rather than one because the work alternates between memory-bound (resize + encode) and
+   compute-bound (Vision) phases, so a second page fills the gaps without doubling peak memory; and
+   two rather than ProcessInfo.activeProcessorCount because the constraint here is memory on the
+   worst phone in the fleet, not cores on the best one.
+   */
+  private static let maxConcurrentPages = 2
+
   static func process(images: [UIImage], longEdge: Int, quality: Int, completion: @escaping ([[String: Any]]) -> Void) {
     let group = DispatchGroup()
     var results = [Int: [String: Any]]()
     let lock = NSLock()
+    let slots = DispatchSemaphore(value: maxConcurrentPages)
     for (idx, image) in images.enumerated() {
       group.enter()
       DispatchQueue.global(qos: .userInitiated).async {
-        let page = makePage(image, longEdge: longEdge, quality: quality)
-        lock.lock(); results[idx] = page; lock.unlock()
+        slots.wait()
+        // Without an explicit pool, the CGImage and Data temporaries each page creates are only
+        // released when the dispatch queue's own pool drains — which is after the LAST page on this
+        // thread, so the peak is the sum of every page rather than of the two in flight. This is the
+        // difference between bounding concurrency and actually bounding memory.
+        autoreleasepool {
+          let page = makePage(image, longEdge: longEdge, quality: quality)
+          lock.lock(); results[idx] = page; lock.unlock()
+        }
+        slots.signal()
         group.leave()
       }
     }
@@ -200,7 +255,10 @@ private enum OcrEngine {
     } catch {
       return empty() // OCR failure → degrade closed (the TS gate treats absent metrics as na + flag)
     }
-    let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
+    // `request.results` is already `[VNRecognizedTextObservation]?` on VNRecognizeTextRequest, so the
+    // conditional downcast this used to carry did nothing and the compiler said so — surfaced by the
+    // first Xcode build this module has had on record (Step 1.1, 2026-09-07).
+    let observations = request.results ?? []
     return metrics(from: observations, imageHeightPx: CGFloat(cg.height))
   }
 

@@ -12,6 +12,7 @@ import {
   type SupportResult,
 } from "@silvicom/capture-engine";
 import { getCaptureNativeModule, type NativeOcr, type NativeScannedPage } from "../../modules/capture-native";
+import { interpretNativeScan, rejectionFromThrown, supportFromNative } from "./nativeScanOutcome";
 
 /**
  * DCE v1 provider — the self-built native SystemScanner (OS document scanner + OS OCR) behind the engine
@@ -74,8 +75,7 @@ export function createNativeSystemScannerProvider(
     id: "capture.native.system_scanner",
     version: "0.1.0",
     async isSupported(): Promise<SupportResult> {
-      const s = await native.isSupported();
-      return { supported: s.camera && s.docScanner, camera: s.camera, docScanner: s.docScanner, ocr: s.ocr, scannerModule: s.scannerModule };
+      return supportFromNative(await native.isSupported());
     },
     async scan(options?: ScanOptions): Promise<ScanResult> {
       try {
@@ -85,10 +85,14 @@ export function createNativeSystemScannerProvider(
           enhanceLongEdgePx: config.enhance.modelFacing.longEdgePx,
           enhanceQuality: config.enhance.modelFacing.quality,
         });
-        if (res.cancelled) return { ok: false, reason: "CAPTURE_CANCELLED" };
-        return { ok: true, pages: res.pages.map((p) => assemblePage(p, config, platform)) };
+        // Every decision about what this result MEANS lives in `nativeScanOutcome.ts`, where it can be
+        // unit-tested without a device (D-SCAN13). This function keeps the I/O and nothing else.
+        const outcome = interpretNativeScan(res);
+        if (outcome.kind === "rejected") return { ok: false, reason: outcome.reason, message: outcome.message };
+        return { ok: true, pages: outcome.pages.map((p) => assemblePage(p, config, platform)) };
       } catch (e) {
-        return { ok: false, reason: "PROVIDER_ERROR", message: e instanceof Error ? e.message : String(e) };
+        // A rejection now means only "something unforeseen happened" — see rejectionFromThrown.
+        return { ok: false, reason: rejectionFromThrown(e), message: e instanceof Error ? e.message : String(e) };
       }
     },
     cancel(): void {
