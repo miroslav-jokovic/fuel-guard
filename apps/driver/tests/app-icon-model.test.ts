@@ -6,7 +6,6 @@ import {
   frameSquare,
   outputs,
   recolourMark,
-  relativeLuminance,
   roleHex,
 } from '../scripts/gen-app-icons.mjs';
 
@@ -20,35 +19,6 @@ import {
 
 const ROOT = join(import.meta.dirname, '..');
 const MARK: string = readFileSync(join(ROOT, '../web/public/SilvicomLogoS.svg'), 'utf8');
-
-describe('relativeLuminance', () => {
-  it('puts black at 0 and white at 1', () => {
-    expect(relativeLuminance('#000000')).toBe(0);
-    expect(relativeLuminance('#ffffff')).toBeCloseTo(1, 10);
-  });
-
-  it('reads the brand navy as dark and the mark highlight as light', () => {
-    expect(relativeLuminance('#18274d')).toBeCloseTo(0.0218, 4);
-    expect(relativeLuminance('#f2f2f2')).toBeCloseTo(0.8879, 4);
-  });
-
-  it('decodes the sRGB transfer function rather than reading channels raw', () => {
-    // Mid-grey is the only place the two differ enough to see: 0x80/255 is 0.502 read raw and
-    // 0.216 decoded. Every colour in the real mark sits at one end or the other, so a version of
-    // this that skipped gamma agreed with the correct one on every value the icons actually use.
-    expect(relativeLuminance('#808080')).toBeCloseTo(0.2159, 4);
-    expect(relativeLuminance('#6b6b6b')).toBeCloseTo(0.147, 3);
-  });
-
-  it('expands three-digit hex', () => {
-    expect(relativeLuminance('#fff')).toBeCloseTo(relativeLuminance('#ffffff'), 10);
-  });
-
-  it('refuses something that is not a colour rather than scoring it 0', () => {
-    // A silent 0 would classify a broken value as "part of the mark" and paint it white.
-    expect(() => relativeLuminance('#12g4')).toThrow(/hex/);
-  });
-});
 
 describe('classifyFills', () => {
   it('splits the real mark into three dark fills and one light one, in source order', () => {

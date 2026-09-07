@@ -1418,3 +1418,33 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   only as far as `expo prebuild --platform ios` output (Info.plist, entitlements,
   `PrivacyInfo.xcprivacy`, `IPHONEOS_DEPLOYMENT_TARGET=16.4`, the strip build phase). P1.3's back
   gesture is asserted in the manifest and its BEHAVIOUR is untested — that is P8's device pass.
+
+- 2026-09-07 · P1 follow-on, **found by CI rather than by me**. The first push of
+  `claude/driver-p1-store-config` went red on `lint:scanner-parity`: `gen-app-icons.mjs`'s WCAG
+  luminance carries the Rec.709 weights, and `tests/theme-colors.test.ts` had been carrying the same
+  three numbers inline since B0 under a permanent carve-out. Two copies of one formula in one app —
+  the exact shape the gate exists to refuse.
+
+  I had run that gate locally and read past its failure: the sweep piped every gate through
+  `| tail -3`, so `set -e` saw `tail`'s exit status and never fired. **Check exit codes, not the last
+  three lines.** The rest of the gates were genuinely green; this one was not, and looked it.
+
+  The fix is a consolidation, not a second carve-out: `apps/driver/scripts/srgb.mjs` is now the one
+  home for `toChannels` / `toHex` / `relativeLuminance` / `contrastRatio` /
+  `WHITE_BEATS_BLACK_BELOW`, `theme-colors.test.ts` imports its contrast from there instead of
+  defining it, and `check-scanner-parity.mjs`'s carve-out MOVED to the new file rather than gaining
+  an entry — the list is the same length. `tests/srgb.test.ts` (16 cases) covers it directly, because
+  an error in it is now an error in both the theme contrast assertions and the icons.
+
+  Two of its tests are written as PROPERTIES rather than as copied constants, deliberately: the
+  Rec.709 weights are asserted as "green outweighs red outweighs blue, and the three sum to 1"
+  (restating `0.2126, 0.7152, 0.0722` in a test file would trip the same gate, and would pass
+  whatever the implementation said), and `WHITE_BEATS_BLACK_BELOW` is asserted by solving its own
+  equation rather than by comparing against `0.1791`.
+
+  Mutation re-run after the consolidation: **58 mutants, 58 died** (46 before, plus 12 for the new
+  module — gamma dropped, weights swapped, weights not summing to 1, flare term dropped, contrast
+  made order-dependent, hex expansion and validation removed, the zero pad dropped, the range check
+  disabled, and the threshold moved, each checked against both the srgb suite and the suite of a
+  caller). Tests 376 → 392. `native-android` had already passed on the first run, so the new
+  `:app:processReleaseManifest` step and the merged-manifest assertion are green on a real runner.

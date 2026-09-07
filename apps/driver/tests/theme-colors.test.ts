@@ -1,27 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import roleValues from '@/theme/theme.roles.json';
+// WCAG luminance and contrast were inlined here until 2026-09-07, when scripts/gen-app-icons.mjs
+// needed the same arithmetic and `lint:scanner-parity` refused the second copy. One home now, in
+// scripts/srgb.mjs, with its own tests — this file keeps every assertion it had.
+import { contrastRatio } from '../scripts/srgb.mjs';
 
-type Rgb = readonly [number, number, number];
-
-function parseRgb(value: string): Rgb {
-  const channels = value.split(' ').map(Number);
-  if (channels.length !== 3) throw new Error(`Invalid RGB value: ${value}`);
-  return [channels[0] ?? 0, channels[1] ?? 0, channels[2] ?? 0];
-}
-
-function luminance(rgb: Rgb): number {
-  const [r, g, b] = rgb.map((channel) => {
-    const value = channel / 255;
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  }) as [number, number, number];
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function contrast(foreground: string, background: string): number {
-  const a = luminance(parseRgb(foreground));
-  const b = luminance(parseRgb(background));
-  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-}
+const contrast = (foreground: string, background: string): number =>
+  contrastRatio(foreground, background);
 
 describe('Direction B semantic colors', () => {
   it('keeps the same semantic vocabulary in every appearance', () => {

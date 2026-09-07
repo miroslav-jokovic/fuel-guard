@@ -29,6 +29,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { relativeLuminance, toHex, WHITE_BEATS_BLACK_BELOW } from './srgb.mjs';
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const MARK_SVG = join(ROOT, '../web/public/SilvicomLogoS.svg');
@@ -40,33 +41,11 @@ const ROLES = join(ROOT, 'src/theme/theme.roles.json');
  * hexes means a re-export keeps working: the dark fills are the mark, the light fill is the
  * knockout, and that is true of the drawing rather than of one file's bytes.
  *
- * The threshold is derived, not chosen. The question this classifier is really answering is "does
- * WHITE belong on this colour?", because white is what the dark fills become. WCAG's contrast ratio
- * makes that exact: white beats black on a colour whose relative luminance is below
- * sqrt(1.05 * 0.05) - 0.05 = 0.1791. A round 0.5 was the first version and was untestable — every
- * colour in the real mark sits at 0.02 or 0.87, so any threshold between them classified the file
- * identically and the constant meant nothing.
+ * The threshold is derived, not chosen — see `WHITE_BEATS_BLACK_BELOW` in scripts/srgb.mjs, which
+ * is also where the luminance itself lives. The question this classifier is really answering is
+ * "does WHITE belong on this colour?", because white is what the dark fills become.
  */
-const LUMINANCE_MIDPOINT = Math.sqrt(1.05 * 0.05) - 0.05;
-
-/** sRGB relative luminance (WCAG 2.x). Exported only so the classifier can be tested at the
- *  boundary rather than through it. */
-export function relativeLuminance(hex) {
-  const value = hex.replace('#', '');
-  const full =
-    value.length === 3
-      ? value
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : value;
-  if (!/^[0-9a-f]{6}$/i.test(full)) throw new Error(`not a hex colour: ${hex}`);
-  const [r, g, b] = [0, 2, 4].map((i) => {
-    const channel = parseInt(full.slice(i, i + 2), 16) / 255;
-    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
+const LUMINANCE_MIDPOINT = WHITE_BEATS_BLACK_BELOW;
 
 /**
  * Split the `<style>` block's fill colours into the mark and the knockout.
@@ -165,16 +144,12 @@ function round(n) {
   return Number(n.toFixed(4));
 }
 
-/** theme.roles.json stores "R G B"; a `<rect fill>` wants #RRGGBB. Same conversion app.config.ts
- *  does, for the same reason — the navy has one home. */
+/** theme.roles.json stores "R G B"; a `<rect fill>` wants #rrggbb. Lower-cased because the
+ *  generated SVG is compared against the recoloured fills, which are lower case. */
 export function roleHex(roles, appearance, role) {
   const value = roles?.[appearance]?.[role];
   if (!value) throw new Error(`theme.roles.json has no ${appearance}.${role}`);
-  const channels = value.trim().split(/\s+/).map(Number);
-  if (channels.length !== 3 || channels.some((c) => !Number.isInteger(c) || c < 0 || c > 255)) {
-    throw new Error(`theme.roles.json ${appearance}.${role} is not three 0-255 channels: ${value}`);
-  }
-  return `#${channels.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+  return toHex(value).toLowerCase();
 }
 
 /**
