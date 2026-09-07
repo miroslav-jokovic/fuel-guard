@@ -9,7 +9,6 @@ export type TextVariant =
   | 'rowTitle'
   | 'action'
   | 'navigationTitle'
-  | 'sectionTitle'
   | 'screenTitle'
   | 'numericInline'
   | 'numericCompact'
@@ -48,7 +47,6 @@ const FAMILY: Record<TextVariant, string> = {
   rowTitle: 'font-ui-md',
   action: 'font-ui-sb',
   navigationTitle: 'font-ui-sb',
-  sectionTitle: 'font-ui-sb',
   screenTitle: 'font-ui-sb',
   numericInline: 'font-ui-sb',
   numericCompact: 'font-ui-sb',
@@ -64,7 +62,6 @@ const FAMILY_BOLD: Record<TextVariant, string> = {
   rowTitle: 'font-ui-sb',
   action: 'font-ui-bold',
   navigationTitle: 'font-ui-bold',
-  sectionTitle: 'font-ui-bold',
   screenTitle: 'font-ui-bold',
   numericInline: 'font-ui-bold',
   numericCompact: 'font-ui-bold',
@@ -79,7 +76,6 @@ const SIZE: Record<TextVariant, string> = {
   rowTitle: 'text-rowTitle',
   action: 'text-action',
   navigationTitle: 'text-navigationTitle',
-  sectionTitle: 'text-section-title',
   screenTitle: 'text-screenTitle',
   numericInline: 'text-numericInline',
   numericCompact: 'text-numericCompact',

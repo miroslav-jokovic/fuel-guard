@@ -63,7 +63,7 @@ export default function HazmatHub() {
     return (
       <Screen padTop={false}>
         <ScreenHeader title="Hazmat checks" onClose={() => router.back()} />
-        <Skeleton className="h-[60px] w-full rounded-xl" />
+        <Skeleton className="h-15 w-full rounded-xl" />
       </Screen>
     );
   }

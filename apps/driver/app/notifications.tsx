@@ -68,7 +68,7 @@ export default function NotificationsCentre() {
     return (
       <Screen padTop={false}>
         <ScreenHeader title="Notifications" onClose={() => router.back()} />
-        <Skeleton className="h-[60px] w-full rounded-xl" />
+        <Skeleton className="h-15 w-full rounded-xl" />
       </Screen>
     );
   }

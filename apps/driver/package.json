@@ -14,7 +14,6 @@
     "ios": "pnpm run shared && node ../../scripts/driver-doctor.mjs --building && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 expo run:ios --device",
     "clean": "rm -rf ios/build android/build android/.gradle .expo node_modules/.cache && (watchman watch-del-all 2>/dev/null || true)",
     "prebuild": "expo prebuild",
-    "gen:tab-icons": "node scripts/gen-tab-icons.mjs",
     "gen:theme": "node scripts/gen-driver-theme-css.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",

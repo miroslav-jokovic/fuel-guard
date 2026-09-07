@@ -229,8 +229,8 @@ export default function CheckIn() {
 
   const rosterSkeleton = (
     <View className="gap-2">
-      <Skeleton className="h-[60px] w-full rounded-xl" />
-      <Skeleton className="h-[60px] w-full rounded-xl" />
+      <Skeleton className="h-15 w-full rounded-xl" />
+      <Skeleton className="h-15 w-full rounded-xl" />
     </View>
   );
 

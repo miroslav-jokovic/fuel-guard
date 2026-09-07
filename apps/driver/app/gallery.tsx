@@ -225,7 +225,7 @@ export default function Gallery() {
           <Progress value={0.87} />
         </View>
         <GroupedList>
-          <View className="min-h-[60px] flex-row items-center gap-3 bg-surface px-4 py-3">
+          <View className="min-h-15 flex-row items-center gap-3 bg-surface px-4 py-3">
             <View className="flex-1">
               <AppText variant="rowTitle">Fuel efficiency</AppText>
               <AppText variant="caption" tone="success">Improved this week</AppText>
@@ -233,7 +233,7 @@ export default function Gallery() {
             <View className="w-20"><Sparkline data={[82, 84, 83, 85, 86, 86, 87]} height={18} /></View>
             <AppText variant="numericCompact" tabular>87</AppText>
           </View>
-          <View className="min-h-[60px] flex-row items-center gap-3 bg-surface px-4 py-3">
+          <View className="min-h-15 flex-row items-center gap-3 bg-surface px-4 py-3">
             <View className="flex-1">
               <AppText variant="rowTitle">Idling</AppText>
               <AppText variant="caption" tone="warning">Down 2 points</AppText>

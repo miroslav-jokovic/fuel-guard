@@ -67,7 +67,7 @@ function MessageBubble({
     </>
   );
 
-  const className = `max-w-[80%] rounded-xl px-3 py-2 ${mine ? 'self-end bg-brand' : 'self-start bg-surface-muted'}`;
+  const className = `max-w-bubble rounded-xl px-3 py-2 ${mine ? 'self-end bg-brand' : 'self-start bg-surface-muted'}`;
   if (mine) return <View className={className}>{content}</View>;
 
   return (
@@ -125,7 +125,7 @@ export default function ThreadScreen() {
     return (
       <Screen padTop={false}>
         <ScreenHeader title="Conversation" onBack={() => router.back()} />
-        <Skeleton className="h-[48px] w-3/4 rounded-xl" />
+        <Skeleton className="h-12 w-3/4 rounded-xl" />
       </Screen>
     );
   }
@@ -192,8 +192,8 @@ export default function ThreadScreen() {
 
       {q.isPending && !q.data ? (
         <View className="gap-2">
-          <Skeleton className="h-[48px] w-3/4 rounded-xl" />
-          <Skeleton className="h-[48px] w-2/3 self-end rounded-xl" />
+          <Skeleton className="h-12 w-3/4 rounded-xl" />
+          <Skeleton className="h-12 w-2/3 self-end rounded-xl" />
         </View>
       ) : (
         <ScrollView
