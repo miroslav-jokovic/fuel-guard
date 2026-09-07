@@ -1,4 +1,4 @@
-# Handoff — Phases 0–3 are done; nothing has been on a phone (2026-09-07, revised)
+# Handoff — Phases 0–4 are done; nothing has been on a phone, and now we know nobody ever has (2026-09-07, revised twice)
 
 **Scope: the driver document scanner only.** For fuel, Samsara and SMS, `HANDOFF-2026-09-06.md` still
 stands and is untouched by any of this.
@@ -14,9 +14,9 @@ step and this is a snapshot of one day.
 1. Read `SCANNER-UPGRADE-PLAN.md` top to bottom. §1 (decisions D-SCAN1–13), §3 (execution protocol),
    §8 (the log, which is now long and is the real record). Then this file's §5 and §6.
 2. `git log --oneline -15`, `git branch --show-current`.
-3. **The next step is Phase 4a — the `original_of_record` migration.** Phases 0, 1, 2 and 3 are
-   complete and merged. **Read §7 before starting it: Phase 4 is the first part of this programme
-   that writes to the production schema, and it carries an owner question.**
+3. **The next step is Phase 5.** Phases 0, 1, 2, 3 **and 4** are complete and merged; Phase 4's
+   three migrations are applied to production and verified by querying it. **Read §7 — it now says
+   what Phase 5 needs and what it cannot have yet.**
 4. One step per branch (`claude/<topic>`), PR to `main`, merge after CI. The owner's standing
    instruction as of 2026-09-07 is **merge them as they go green**.
 
@@ -24,7 +24,8 @@ step and this is a snapshot of one day.
 
 ## 2. What landed
 
-Fifteen merges, #614 through #628, plus the plan itself (#613). `main` at `dffd445`.
+Fifteen merges, #614 through #628, plus the plan itself (#613), **plus six more on 2026-09-07 for
+Phase 4: #630, #631, #632, #633, #634, #635.**
 
 | PR | Step | What it did |
 |---|---|---|
@@ -43,6 +44,12 @@ Fifteen merges, #614 through #628, plus the plan itself (#613). `main` at `dffd4
 | **#626** | P3.2 | `measure()` on Android, **bit-identical to iOS**, with its parity check now in CI. |
 | **#627** | P3.3a | A retired threshold says `null`, and the gate reads that as `na` — never as `0`. |
 | **#628** | P3.3b | Every capture measures five things and rejects on none of them; **F7** becomes a real coverage fraction. |
+| **#630** | P4a | Migration 0326 — the original-of-record columns, no reader. |
+| **#631** | Q1 | `hazmat_documents` joins `RETENTION_FORBIDDEN`. It was in **neither** list. |
+| **#632** | P4a′ | Migration 0327 corrects 0326: the DEFERRED artifact must be the one nothing depends on. |
+| **#633** | P4b-i | The server signs a second upload URL; the nightly sweep stops planning to delete the original. |
+| **#634** | P4b-ii-a | **F1 is fixed.** `CapturedPage`'s four image fields stop aliasing; `measure()` moves to the original. |
+| **#635** | P4b-ii-b | **PHASE 4 COMPLETE.** The outbox learns a third outcome so an original can wait for Wi-Fi. |
 
 ---
 
@@ -52,12 +59,15 @@ Fifteen merges, #614 through #628, plus the plan itself (#613). `main` at `dffd4
 ruling, 2026-09-07) moved the device session to the END of the programme. That is a legitimate trade
 and it was taken deliberately — but it means CI compiles the Kotlin, a Mac compiles the Swift, and
 **"it builds" is the strongest claim available for months of work.** §5 is the bill, and it is now
-sixteen items long.
+**twenty-one items long**.
 
-There is a second, sharper edge. Nothing in the repository establishes that a driver has **ever**
-completed a scan through the native module rather than the `expo-image-picker` fallback
-(`RELEASE-GATE.md` Gate C has been unsigned since August). If the answer is "never", the device
-session is a **first integration**, not a confirmation. Budget it that way.
+There is a second, sharper edge, and on 2026-09-07 it stopped being a suspicion. **Production holds
+zero hazmat loads, zero documents and zero runs** — measured against the linked Supabase project
+while checking whether 0326's columns held anything. So the question was never "native provider or
+`expo-image-picker`": *no capture has ever completed through any provider*. The device session is a
+**first integration**, not a confirmation. Budget it that way. (§6 Q5 carries the one caveat: a
+capture could in principle have been made and never drained from the outbox — but this repo is
+configured against exactly one Supabase project, and it is production.)
 
 ---
 
@@ -115,6 +125,20 @@ Nothing here is verified. Every line rests on a compile and a unit test.
     origin, and a missed flip still produces plausible numbers on a vertically symmetric page (#628).
 16. `measure()` on a ten-page scan does not regress Step 1.4's memory ceiling, now that each page is
     decoded a second time (#628).
+17. A real scan produces **two** files per page, and the original is visibly larger than the
+    derivative (#634).
+18. Android's original is byte-identical to ML Kit's own file — it is a `copyTo`, so `cmp` should be
+    silent (#634).
+19. iOS's `jpegData(compressionQuality: 1.0)` at full resolution does not OOM on a ten-page scan.
+    **This is the riskiest of the twenty-one:** it adds a multi-megabyte buffer per page to a
+    pipeline Step 1.4 had to bound to two pages in flight, and no iOS job exists anywhere in CI
+    (#634).
+20. A capture registers, uploads **both** objects, and extraction succeeds — the first end-to-end
+    proof that `sha256` (the archive's) and `integrityHash` (the original's) are the right way round.
+    Getting them swapped fails every extraction with `integrity_mismatch` (#634).
+21. A capture on cellular uploads the archive and leaves the original pending; joining Wi-Fi uploads
+    it exactly once; the sync screen says *"Waiting for Wi-Fi to upload N original pages"* rather
+    than showing a failure (#635).
 
 Plus **§6 Q5 — which provider actually runs.** That is the one that could change the plan.
 
@@ -171,6 +195,35 @@ a carve-out added speculatively before the gate shipped, then caught its own wai
 **`lint:comment-claims` is stricter than it looks.** "pinned by `somefile.test.ts`" fails; it wants a
 quoted `it(...)` title.
 
+**⚠ Code the tests cannot reach is code no mutation can check, and this programme has now been bitten
+twice in one day.** Pointing `measure()` at the derivative instead of the original — inverting
+D-SCAN4 exactly — **passed the entire driver suite**, because `assemblePage` lived in
+`nativeSystemScannerProvider.ts`, which imports the native bridge → `expo-modules-core` → a React
+Native runtime. No unit test can import that file. It exposed a second defect on the way: the
+resolution floor was reading the DERIVATIVE's long edge, which is `enhanceLongEdgePx` — a number we
+chose — so the check passed by construction on a page captured at any resolution at all. The fix is
+the rule `nativeScanOutcome.ts` already stated: **decisions there, I/O in the provider.** The same
+trap was then avoided on purpose one merge later — `connectivity.ts` imports NetInfo and therefore
+React Native, so `isUnmeteredConnection` lives in its own file.
+
+**The driver suite runs in a `node` environment with no RN renderer** (`apps/driver/vitest.config.ts`).
+That is the mechanical reason for the paragraph above: anything importing `react-native`,
+`@react-native-community/netinfo` or `expo-modules-core` is unreachable from a test.
+
+**§3.3's gate table names three scripts that DO NOT EXIST.** `lint:tokens`, `lint:theme` and
+`lint:design` are not in `package.json`. The driver-touching gates that do exist:
+`pnpm --filter @silvicom/driver lint`, `lint:tokens-parity`, `lint:token-schema`, `lint:token-gamut`.
+
+**A signed upload URL is valid for two hours** (`storage-js`, verified in `node_modules`), which is
+useless for an upload deferred to Wi-Fi. The client re-registers for a fresh one — registration is
+idempotent. Worth knowing: **this client never uses the signed URL anyway**, it uploads with the
+driver's own RLS-scoped session.
+
+**`{id}.orig.jpg` was already taken.** `registerDocument` has written every `image/jpeg` capture to
+that key since it was written, and the plan named the same key for the ORIGINAL. Both at one key
+fails SILENTLY — the bucket denies overwrite, the second upload returns "already exists", and the
+outbox treats that as success on purpose. The original is `{id}.original.jpg`.
+
 **`packages/capture-engine` has no `@types/node` on purpose.** No lint gate enforces its
 platform-independence — the absence of Node types in its tsconfig is the only guard. Editor errors in
 its test files are that guard working.
@@ -179,38 +232,44 @@ its test files are that guard working.
 
 ---
 
-## 7. Phase 4 — what is next, and why it needs reading first
+## 7. Phase 5 — what is next, and the one thing it cannot have
 
-**4a — the migration only. 4b — the readers. They must not be combined** (`lint:migration-ordering`,
-plan §3.2). A merge is served ~2m44s before its migration is applied, so a column and its first reader
-ship in two separate merges. Migration numbers are **never pinned in advance** — next-numbered at
-execution. Every new column is **nullable**, because `registerDocument` upserts and
-`lint:upserts` exists for a reason.
+**Phase 4 is done and applied.** Three migrations (0326, 0327, 0328) are on the production schema and
+were verified by querying it, not by trusting the workflow. `hazmat_documents` now carries
+`original_storage_path`, `original_bytes`, `archive_bytes` and `capture_metrics`; `integrity_hash` is
+the ORIGINAL's hash and `sha256` the ARCHIVE's; the nightly orphan sweep knows a path may
+legitimately not exist yet; and the outbox has a third outcome so a deferred upload cannot
+dead-letter.
 
-**This is the first part of the programme that touches production data.** `migrate.yml` auto-applies
-to production Supabase on merge to main, gated on CI green — a merged migration IS a deployed
-migration. Everything before this was code.
+**Phase 5 is where thresholds get derived, and it splits into what can be built now and what cannot.**
 
-**⚠ It carries an owner question.** §6 **Q1**: how long is an untouched ORIGINAL retained, and does it
-join `RETENTION_FORBIDDEN`? It blocks nothing until **4b**, and the code's default until somebody
-rules otherwise is archive-now / original-on-Wi-Fi. Raise it before 4b rather than at it.
+- **Step 5.1 (telemetry) — buildable today.** It populates `capture_metrics`, the column 4a created.
+  D-SCAN13's shape ("build it out, then test on device") applies as it has all programme.
+- **Step 5.3 (`coverageFraction: 1` becomes `na`) — buildable today**, and it is small: delete an
+  invented number from `nativeScanOutcome.ts`'s `assemblePage`.
+- **Step 5.2 (derive each floor) — CANNOT be done yet, and this is the honest blocker.** It derives
+  every threshold from a labelled distribution of *recorded* values. There are none: §6 Q5 measured
+  zero captures in production, so the only sample that exists is the 24 synthetic fixtures. **Step
+  5.2 needs the device session first**, and shipping a threshold derived from synthetic pages alone
+  would be exactly the invented number D-SCAN10 exists to prevent.
+- **Step 5.4 (config verifier) — blocked on §6 Q2** (where the signing key lives). Until then the
+  reject-all verifier stands, which cannot weaken the gate.
 
-Also worth knowing going in: `measure()` currently measures the **1568 px derivative**, not an
-original, because there is no retained original yet. That is stated in `measurePage`'s comment and in
-the §8 log, and it means **metrics recorded before Phase 4 are not comparable with those recorded
-after** — which Step 5.2 needs to know when it derives thresholds from them.
-
----
+⚠ **One thing Step 5.2 must know when it does run:** `measure()` measured the 1568 px derivative
+until #634 and measures the untouched ORIGINAL after it. Those are two eras of recorded metrics and
+they are **not comparable** — different starting image, different resampler, different number of JPEG
+re-encodes, even though D-SCAN1 downscales both to the same analysis edge. `capture_config_version`
+dates every reading. In practice this costs nothing, because era one produced no rows at all.
 
 ## 8. Open questions (plan §6)
 
 | | | |
 |---|---|---|
-| **Q1** | How long is an untouched ORIGINAL retained, and does it join `RETENTION_FORBIDDEN`? | **Owner.** Blocks nothing until Phase 4b; the code defaults to archive-now / original-on-Wi-Fi. |
-| **Q2** | Where does the config signing key live? | Blocks only Step 5.4. Until then the reject-all verifier stands, which cannot weaken the gate. |
+| **Q1** | How long is an untouched ORIGINAL retained, and does it join `RETENTION_FORBIDDEN`? | **ANSWERED, 2026-09-07 (owner).** Kept as long as the archive — no expiry window, no deletion job. And it joins `RETENTION_FORBIDDEN` (#631); it had been in **neither** list. |
+| **Q2** | Where does the config signing key live? | **Now the only open owner question, and it blocks Step 5.4.** Until then the reject-all verifier stands, which cannot weaken the gate. Recommendation in plan §6: the OTA code-signing key's home (D-S7), because the trust model is identical. |
 | **Q3** | Are the fixture tolerances right? | **ANSWERED, 2026-09-07 (#625).** No — they are ~7,700× looser than the noise floor and pass real definition errors. The contract tolerance is unchanged; a strict exactness bound was added beside it. See §4. |
 | **Q4** | Are there de-Googled Android devices in the fleet? | Decides Phase 7 trigger (c). Nothing records the device population. |
-| **Q5** | Has the native provider **ever** run on a device? | The device session. See §3. |
+| **Q5** | Has the native provider **ever** run on a device? | **ALL BUT ANSWERED, 2026-09-07, and the answer is no.** Production holds zero hazmat loads, documents and runs — no capture has completed through ANY provider. See §3. |
 
 ---
 
@@ -218,9 +277,10 @@ after** — which Step 5.2 needs to know when it derives thresholds from them.
 
 - **No custom camera, no OpenCV, no C++, no ML.** Phase 7 opens only on a measured trigger; §7 of the
   plan states the evidence each would need.
-- **No threshold has been derived.** Five image floors and both OCR coverage floors are `null` and
-  gated on by nobody. Step 5.2 derives them from recorded values — which is why the device session and
-  the shadow-mode telemetry matter more than any code left in the plan.
+- **No threshold has been derived, and Step 5.2 cannot derive one until a phone has produced a
+  capture.** Five image floors and both OCR coverage floors are `null` and gated on by nobody. The
+  recorded distribution 5.2 reads from is empty — see §7. This is now the critical path of the whole
+  programme, not a parallel debt.
 - **`src/features/loads/stopCapture.ts` is still a second, ungated capture path** (raw
   `expo-image-picker`, 1600px, q0.6). Named in plan §5 as belonging immediately after Phase 6.2.
 - **The documents surface and driver performance/coaching** — the two features that prompted all of
