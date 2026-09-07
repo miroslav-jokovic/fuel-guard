@@ -123,6 +123,12 @@ jobs:
       - name: One fleet-MPG definition
         run: pnpm lint:mpg
 
+      # The scanner's quality metrics have ONE definition (D-SCAN8). Same failure shape as lint:mpg
+      # above — a comment asserting two implementations agreed, and nothing able to notice they did
+      # not. Deliberately does not recompute the corpus: expected.test.ts does that in test-packages.
+      - name: Scanner metrics have one definition
+        run: pnpm lint:scanner-parity
+
       - name: Upsert-as-update guard
         run: pnpm lint:upserts
 
