@@ -118,11 +118,15 @@ exists, an iPhone. Each row: do the steps, confirm the criterion.
 
 | Requirement | State |
 |---|---|
-| In-app account deletion (Apple 5.1.1(v)) | ✅ built — Settings → Delete account, with confirmation |
+| In-app account deletion (Apple 5.1.1(v)) | ☐ **not built** — this row was wrong from 2026-08-07 to 2026-09-07: `app/settings.tsx` has no such row and `POST /api/me/delete-account` returns 403. Built as an in-app closure request in `DRIVER-APP-DIRECTION-B-PLAN.md` §6 P4 |
 | UGC report affordance (Apple 1.2) | ✅ built — long-press a received message → report, audited |
 | Camera permission string | ✅ declared, purpose-specific (proof-of-work photos) |
 | Photo-library / microphone | ✅ deliberately NOT requested (least privilege) |
-| Location permission string | present for the deferred nav programme — **confirm it is not requested by a build that ships without navigation** |
+| Location permission | `expo-location` is declared and never called (0 call sites, 2026-09-07); removed in `DRIVER-APP-DIRECTION-B-PLAN.md` §6 P1 |
+| Target API 36 · 16 KB page size · pinned SDKs | ☐ — §6 P1 (`expo-build-properties`, `check-16kb.mjs`) |
+| Xcode 26 / iOS 26 SDK build · AAB lane · EAS Submit | ☐ — §6 P2 |
+| Privacy manifest with collected data types · privacy policy URL · Data Safety form | ☐ — §6 P1 and P3 |
+| Review fleet + credentials · listing assets | ☐ — §6 P7 and P8 |
 | Push permission | requested only when the `notifications` feature is on |
 | Privacy labels (camera, photos, push token, coarse identifiers) | ☐ **owner action** — fill from the above before submission |
 | Crash reporting discloses no PII | ✅ shared scrubber (`sentryScrub`), user reduced to id; verify once with a real DSN by triggering a test crash and inspecting the event |

@@ -78,3 +78,7 @@ release gate in place. Typecheck clean across shared · api · admin-api (tsc) a
   Navigation is now fully specified in `NAVIGATION-PROGRAMME-PLAN.md` (HERE Navigate, phases NP0–NP7)
   but implementation remains **not started** beyond the DEV-only MapLibre NP0 visual spike and the
   existing server route/fuel-planning foundation. Do not flip `released:true` before NP7.
+
+## 2026-09-07
+
+The store and production-readiness position moved to `DRIVER-APP-DIRECTION-B-PLAN.md` §6 (P0–P8), written from a file-level inventory that day; the "Required actions before live" list above is superseded by that section and by `RELEASE-GATE.md` Gate D as corrected the same day.
