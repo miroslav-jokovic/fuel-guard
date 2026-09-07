@@ -945,7 +945,7 @@ Touches `app.config.ts`, `package.json`, `plugins/`, `assets/`, `scripts/`, `.gi
   Expo Dev Launcher strings under `APP_VARIANT=store`, an Android manifest with exactly the P1.1
   permissions, and `check-16kb.mjs` passes on the CI APK.
 
-#### P2 · Build and submit lanes (`claude/driver-p2-lanes`)
+#### P2 · Build and submit lanes — REPO HALF DONE 2026-09-07; P2.3 and P2.4 open (`claude/driver-p2-lanes`)
 
 - **P2.1 `eas.json`:**
   ```json
@@ -1472,3 +1472,65 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   `startsWith` and **survived a mutant** — "Silvicom 360 Driver does not read motion data" starts
   with "Silvicom 360 ", so the exact half-rename it existed to catch went through. It now compares
   the whole leading run of capitalised words against the name, and three mutants die on it.
+
+- 2026-09-07 · **P2 repo half built** (`claude/driver-p2-lanes`): `eas.json` (P2.1),
+  `.github/workflows/driver-store.yml` (P2.2), `apps/driver/EAS.md`, `tests/eas-config.test.ts`
+  (19 cases), and an `eas-build-post-install` hook. **P2.3 is the owner's setup and P2.4 is
+  deliberately NOT done — see below.** Both store accounts exist (owner, 2026-09-07), so Q-PR1 is
+  unblocked rather than answered: nothing has been run.
+
+  **Four things found by checking rather than by assuming:**
+
+  1. **`eas.json` cannot carry comments, and an unknown key is fatal.** EAS validates it against a
+     closed schema — a `//` key, or even `$schema`, produces "eas.json is not valid" and no build at
+     all (expo/eas-cli#2600). The first draft of this file was written in this repo's usual
+     heavily-commented style and would have broken every build. The reasoning moved to
+     `apps/driver/EAS.md`; `tests/eas-config.test.ts` asserts the file stays strictly valid and
+     carries no comment keys.
+  2. **An EAS build would have failed at bundle time.** `metro.config.js` THROWS when
+     `packages/shared/dist/index.js` is absent — deliberately, so a stale or missing build cannot
+     produce a bundle against yesterday's contracts — and nothing on an EAS worker runs `build:rn`.
+     Fixed with `"eas-build-post-install": "pnpm run shared"` in `apps/driver/package.json`, which is
+     where EAS looks in a monorepo. Would have cost a build slot and an opaque failure.
+  3. **`buildUrl` is not the artifact.** `eas build --json` returns both `artifacts.buildUrl` (the
+     expo.dev page) and `artifacts.applicationArchiveUrl` (the AAB). §6 P2.2's sketch and my first
+     draft read them in that order, so the 16 KB check would have downloaded an HTML page and failed
+     inside bundletool for a reason unconnected to the app. The step now prefers the archive and
+     refuses anything that does not start with `PK`.
+  4. **A `.apks` is a zip OF apks.** `bundletool build-apks --mode=universal` produces an archive
+     whose `lib/**/*.so` entries are one level deeper, inside `universal.apk`. Handing the `.apks`
+     straight to `check-16kb.mjs` finds no libraries — which it reports as "nothing was checked"
+     rather than as a pass, so the mistake would have been loud rather than silent, but it would
+     still have been a red build for the wrong reason.
+
+  **Deviations from §6 P2, each stated:**
+  (1) **One matrix job per platform** rather than two hand-written jobs — `fail-fast: false`, so an
+  iOS failure cannot cancel a working Android submit.
+  (2) **`eas submit --id <build>` rather than `--path <artifact>`** (both exist; `--id` needs no
+  download and cannot submit a different file from the one that was checked).
+  (3) **`eas-cli` is pinned** (`vars.EAS_CLI_VERSION || '23.2.0'`) rather than `@latest`, matching
+  how `driver-ota.yml` pins `eoas` to the deployed server version.
+  (4) **The fingerprint is recorded as a per-platform release ASSET**, not appended to the release
+  body: two matrix jobs editing one body concurrently is a lost update, and whichever finished second
+  would erase the other's line.
+
+  **P2.4 is NOT built, on purpose.** §6 P2.4 says `driver-ota.yml` should publish
+  `--platform android,ios`. That one-line change would be **unsafe**. The workflow decides whether
+  JavaScript may ship by comparing this commit's native fingerprint against the fingerprint recorded
+  for the binary that is actually installed — and for Android that record is the install page, which
+  `driver-android.yml` writes on every push to main. **There is no iOS record**, and an IPA is built
+  only on a `driver-v*` tag, so it can be many commits behind the newest APK. Publishing an iOS
+  update gated on the APK's fingerprint would compare against the wrong binary and ship JavaScript to
+  an iOS app whose native side had moved — precisely the failure that workflow's own header describes.
+
+  So `driver-store.yml` **records** `fingerprint-<platform>.json` on the tag's GitHub Release from the
+  first build onward, and the `driver-ota.yml` change that READS it is a separate reviewed step. Not
+  touching the live path that ships JavaScript to real phones on behalf of a platform with zero
+  binaries is the whole point.
+
+  **Not verified:** none of this has run. There is no EAS project, no uploaded keystore, no APNs key
+  and no App Store Connect record, so `extra.eas.projectId` is absent and `eas build` would refuse.
+  Whether this monorepo builds correctly on an EAS worker is unknown until it does — the
+  `eas-build-post-install` hook is the one known requirement, not a guarantee there is only one. The
+  seven `<placeholder>` values in `eas.json` are counted and named by `tests/eas-config.test.ts`
+  rather than tracked in someone's head.
