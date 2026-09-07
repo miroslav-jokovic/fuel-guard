@@ -14,7 +14,7 @@ import {
   Skeleton,
 } from '@/components';
 import { enqueue, newClientId } from '@/data/outbox';
-import { stageFile } from '@/data/fileStaging';
+import { discardScannerTempFiles, stageFile } from '@/data/fileStaging';
 import { HAZMAT_CAPTURE_KIND } from '@/data/handlers';
 import { scanBol } from '@/capture/engine';
 import { buildCapturePayloads, decideCapture } from '@/features/hazmat/hazmatCaptureModel';
@@ -55,6 +55,9 @@ export default function HazmatCaptureScreen() {
       const result = await scanBol();
       const decision = decideCapture(result, MAX_PAGES);
       if (!decision.accepted) {
+        // The scanner already wrote these to the OS cache and nothing else will ever delete them —
+        // a driver re-shooting a glaring page five times would otherwise leave five orphans (F9).
+        discardScannerTempFiles(decision.discardUris);
         setReasons(decision.reasons);
         return;
       }
@@ -75,6 +78,11 @@ export default function HazmatCaptureScreen() {
       // it, and reusing an id that already means something keeps a replay idempotent without a second
       // identifier nobody else can resolve.
       await enqueue({ id: documentIds[0]!, kind: HAZMAT_CAPTURE_KIND, payload, fileUris: stagedUris });
+
+      // Only now: until the record exists, the scanner's temporaries were still the only copy of a
+      // page. After it, the staged files are what the outbox uploads and these are redundant.
+      discardScannerTempFiles(localUris);
+
       router.replace(`/hazmat/${loadId}` as never);
     } catch (error) {
       setReasons([error instanceof Error ? error.message : 'Capture failed. Retake the document.']);

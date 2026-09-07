@@ -147,13 +147,19 @@ class CaptureNativeModule : Module() {
 
   private fun processPage(imageUri: Uri, longEdge: Int, quality: Int): Map<String, Any?>? {
     val path = imageUri.path ?: return null
-    val decoded = BitmapFactory.decodeFile(path) ?: return null
+    // Decoded at a bounded size rather than at full resolution. `BitmapFactory.decodeFile(path)` with
+    // no options allocates the whole sensor-resolution bitmap in ARGB_8888 — a 12 MP page is about
+    // 48 MB — and this loop runs once per page, which on a min-spec phone scanning ten pages is an
+    // out-of-memory candidate the audit named. inSampleSize halves during DECODE, so the 48 MB is
+    // never allocated at all; `scale` then trims the remainder to the exact long edge.
+    val decoded = decodeBounded(path, longEdge) ?: return null
     val resized = scale(decoded, longEdge)
     val out = File.createTempFile("bol-", ".jpg", appContext.cacheDirectory)
     FileOutputStream(out).use { resized.compress(Bitmap.CompressFormat.JPEG, quality, it) }
     val bytes = out.readBytes()
     val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-    return mapOf(
+    val ocr = recognize(resized)
+    val page = mapOf(
       "uri" to Uri.fromFile(out).toString(),
       "width" to resized.width,
       "height" to resized.height,
@@ -161,8 +167,31 @@ class CaptureNativeModule : Module() {
       "mediaType" to "image/jpeg",
       "integrityHash" to hash,
       "osEnhanced" to true,
-      "ocr" to recognize(resized),
+      "ocr" to ocr,
     )
+    // Freed here rather than left to the collector: every value read out of these bitmaps is already
+    // in `page`, and on a ten-page scan waiting for GC to notice is what turns a survivable peak into
+    // an OOM. `scale` returns its input unchanged when no scaling was needed, so the identity check
+    // avoids recycling the same bitmap twice — which would throw on the second call.
+    if (resized !== decoded) resized.recycle()
+    decoded.recycle()
+    return page
+  }
+
+  /**
+   * Decode no larger than we need. `inJustDecodeBounds` reads the header only (no pixels allocated),
+   * and `inSampleSize` must be a power of two — the platform rounds anything else down to one, so
+   * computing it any other way silently does nothing.
+   */
+  private fun decodeBounded(path: String, longEdge: Int): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    val sourceLongEdge = max(bounds.outWidth, bounds.outHeight)
+    if (sourceLongEdge <= 0) return null
+
+    var sample = 1
+    while (sourceLongEdge / (sample * 2) >= longEdge) sample *= 2
+    return BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
   }
 
   private fun scale(bitmap: Bitmap, longEdge: Int): Bitmap {

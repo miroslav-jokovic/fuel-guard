@@ -75,9 +75,15 @@ public class CaptureNativeModule: Module {
       OcrEngine.recognize(image) { metrics in promise.resolve(metrics) }
     }
 
+    // Dismissing the scanner does NOT call any delegate method, so the previous implementation —
+    // dismiss the presented view controller and return — left `scan()`'s promise unsettled forever.
+    // Nothing calls this today, which is the only reason it has never hung a capture. Routing through
+    // the delegate settles it as a cancellation, which is what a caller asking to cancel means.
     Function("cancel") {
       DispatchQueue.main.async { [weak self] in
-        self?.appContext?.utilities?.currentViewController()?.dismiss(animated: true)
+        guard let self else { return }
+        self.appContext?.utilities?.currentViewController()?.dismiss(animated: true)
+        self.activeDelegate?.cancelFromHost()
       }
     }
   }
@@ -118,6 +124,13 @@ private final class DocumentScanDelegate: NSObject, VNDocumentCameraViewControll
     }
   }
 
+  /// Cancellation asked for by our own JS layer rather than by the driver tapping Cancel. The
+  /// scanner has already been dismissed by the caller; `settle`'s guard makes a later delegate
+  /// callback a no-op, so this cannot double-resolve.
+  func cancelFromHost() {
+    settle { promise.resolve(["pages": [[String: Any]](), "cancelled": true]) }
+  }
+
   func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
     controller.dismiss(animated: true)
     settle { promise.resolve(["pages": [[String: Any]](), "cancelled": true]) }
@@ -132,15 +145,39 @@ private final class DocumentScanDelegate: NSObject, VNDocumentCameraViewControll
 // MARK: - Image pipeline (downscale → JPEG → hash → OCR)
 
 private enum ImagePipeline {
+  /**
+   How many pages may be in flight at once.
+
+   This used to be "all of them": every page was dispatched onto the global queue at the same moment,
+   so a ten-page scan ran ten UIGraphicsImageRenderer bitmaps and ten concurrent `.accurate` Vision
+   requests simultaneously. Each of those holds a multi-megapixel buffer, and the audit named this the
+   single most likely crash in the module.
+
+   Two rather than one because the work alternates between memory-bound (resize + encode) and
+   compute-bound (Vision) phases, so a second page fills the gaps without doubling peak memory; and
+   two rather than ProcessInfo.activeProcessorCount because the constraint here is memory on the
+   worst phone in the fleet, not cores on the best one.
+   */
+  private static let maxConcurrentPages = 2
+
   static func process(images: [UIImage], longEdge: Int, quality: Int, completion: @escaping ([[String: Any]]) -> Void) {
     let group = DispatchGroup()
     var results = [Int: [String: Any]]()
     let lock = NSLock()
+    let slots = DispatchSemaphore(value: maxConcurrentPages)
     for (idx, image) in images.enumerated() {
       group.enter()
       DispatchQueue.global(qos: .userInitiated).async {
-        let page = makePage(image, longEdge: longEdge, quality: quality)
-        lock.lock(); results[idx] = page; lock.unlock()
+        slots.wait()
+        // Without an explicit pool, the CGImage and Data temporaries each page creates are only
+        // released when the dispatch queue's own pool drains — which is after the LAST page on this
+        // thread, so the peak is the sum of every page rather than of the two in flight. This is the
+        // difference between bounding concurrency and actually bounding memory.
+        autoreleasepool {
+          let page = makePage(image, longEdge: longEdge, quality: quality)
+          lock.lock(); results[idx] = page; lock.unlock()
+        }
+        slots.signal()
         group.leave()
       }
     }
