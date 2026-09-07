@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { messagePreview, sortThreads, threadTitle } from '@silvicom/shared';
 import {
@@ -7,14 +8,15 @@ import {
   Badge,
   Banner,
   Button,
+  Card,
   EmptyState,
-  GroupedList,
+  IconButton,
   Input,
   ListRow,
   OfflineBanner,
   Screen,
   ScreenHeader,
-  SectionLabel,
+  Section,
   Skeleton,
 } from '@/components';
 import { useMessagesRealtime, useStartThread, useThreads } from '@/features/messages/useMessages';
@@ -62,32 +64,37 @@ export default function MessagesInbox() {
   return (
     <Screen
       padTop={false}
+      flow="sections"
       footer={
         composing ? (
           <ActionBar>
-            <Input
-              accessibilityLabel="Message dispatch"
-              placeholder="Message dispatch…"
-              value={draft}
-              onChangeText={setDraft}
-              autoFocus
-              returnKeyType="send"
-              onSubmitEditing={() => void send()}
-            />
-            <Button
-              label="Send"
-              size="lg"
-              icon="mail"
-              disabled={!draft.trim() || startThread.isPending}
-              onPress={() => void send()}
-            />
-          </ActionBar>
-        ) : (
-          <ActionBar>
-            <Button label="Message dispatch" size="lg" icon="mail" onPress={() => setComposing(true)} />
+            <View className="flex-row items-end gap-2">
+              <View className="flex-1">
+                <Input
+                  accessibilityLabel="Message dispatch"
+                  placeholder="Message dispatch…"
+                  value={draft}
+                  onChangeText={setDraft}
+                  autoFocus
+                  returnKeyType="send"
+                  onSubmitEditing={() => void send()}
+                />
+              </View>
+              <IconButton
+                name="arrow_forward"
+                label="Send message"
+                variant="white"
+                disabled={!draft.trim() || startThread.isPending}
+                onPress={() => void send()}
+              />
+            </View>
             <AppText variant="caption" tone="subtle" className="pb-1 text-center">
               Works offline — it sends when you get signal.
             </AppText>
+          </ActionBar>
+        ) : (
+          <ActionBar>
+            <Button label="Message dispatch" size="lg" variant="primary" icon="mail" onPress={() => setComposing(true)} />
           </ActionBar>
         )
       }
@@ -104,36 +111,59 @@ export default function MessagesInbox() {
         />
       ) : null}
 
-      <SectionLabel>Conversations</SectionLabel>
-      {showSkeletons ? (
-        <>
-          <Skeleton className="h-[60px] w-full rounded-xl" />
-          <Skeleton className="h-[60px] w-full rounded-xl" />
-        </>
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon="mail"
-          title="No messages yet"
-          subtitle="Start a conversation below — dispatch sees it on their dashboard."
-        />
-      ) : (
-        <GroupedList>
-          {rows.map((t) => (
-            <ListRow
-              key={t.id}
+      <Section title="Conversations">
+        {showSkeletons ? (
+          <>
+            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+          </>
+        ) : rows.length === 0 ? (
+          <Card variant="flat" padded={false}>
+            <EmptyState
               icon="mail"
-              iconFill={t.unread > 0}
-              title={threadTitle(t, userId ?? '')}
-              subtitle={messagePreview(t.last_message)}
-              onPress={() => router.push(`/messages/${t.id}` as never)}
-              right={t.unread > 0 ? <Badge label={String(t.unread)} tone="brand" /> : undefined}
+              title="No messages yet"
+              subtitle="Start a conversation below — dispatch sees it on their dashboard."
             />
-          ))}
-        </GroupedList>
-      )}
+          </Card>
+        ) : (
+          <Card variant="flat" padded={false}>
+            {rows.map((t, index) => (
+              <View key={t.id}>
+                <ListRow
+                  icon="mail"
+                  iconFill={t.unread > 0}
+                  disc="info"
+                  // The sender is who a driver is looking for; the thread title is the fallback.
+                  title={t.last_message?.sender_name ?? threadTitle(t, userId ?? '')}
+                  subtitle={messagePreview(t.last_message)}
+                  onPress={() => router.push(`/messages/${t.id}` as never)}
+                  right={
+                    <View className="items-end gap-1">
+                      <AppText variant="caption" tone="subtle" tabular>{shortTime(t.last_message_at)}</AppText>
+                      {t.unread > 0 ? <Badge label={String(t.unread)} tone="brand" /> : null}
+                    </View>
+                  }
+                />
+                {index < rows.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
+              </View>
+            ))}
+          </Card>
+        )}
+      </Section>
       {composing ? (
-        <Banner tone="info" message="Your message opens a conversation with your fleet’s dispatch team." />
+        <Section>
+          <Banner tone="info" message="Your message opens a conversation with your fleet’s dispatch team." />
+        </Section>
       ) : null}
     </Screen>
   );
+}
+
+function shortTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const sameDay = new Date().toDateString() === d.toDateString();
+  return sameDay
+    ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

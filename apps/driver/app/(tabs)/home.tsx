@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Banner, Card, EmptyState, OfflineBanner, Screen, Section, Skeleton } from '@/components';
+import { Banner, Card, EmptyState, OfflineBanner, Screen, Section, Skeleton, useToast } from '@/components';
 import { bucketLoads } from '@/features/loads/loadViewModel';
 import { useLoads } from '@/features/loads/useLoads';
-import { dutyView, useShift } from '@/features/duty/useDuty';
+import { dutyView, useShift, useStartShift } from '@/features/duty/useDuty';
 import { useHazmatChecks } from '@/features/hazmat/useHazmatChecks';
 import { useThreads } from '@/features/messages/useMessages';
 import { useMarkRead, useNotifications } from '@/features/notifications/useNotifications';
@@ -20,6 +20,7 @@ import { UpdateReadyBanner } from '@/features/updates/UpdateReadyBanner';
 import { firstName, useDriverContext } from '@/session/useDriverContext';
 import { useFeatures } from '@/session/useFeatures';
 import { useSyncState } from '@/data/sync';
+import { writeLastEquipment } from '@/lib/lastEquipment';
 
 /**
  * Today, as four screens rather than one template (D-DB7, `todayModel.todayState`).
@@ -47,6 +48,8 @@ export default function Home() {
   const hazmat = useHazmatChecks(hazmatEnabled);
   const sync = useSyncState();
   const markRead = useMarkRead();
+  const startShift = useStartShift();
+  const toast = useToast();
 
   const duty = dutyView(shift.data);
   const buckets = bucketLoads(loads.data?.loads ?? []);
@@ -100,8 +103,29 @@ export default function Home() {
       ) : (
         <StartDayCard
           onDuty={duty.onDuty}
+          starting={startShift.isPending}
           onStart={() => router.push('/duty/check-in')}
           onChange={() => router.push('/duty/check-in?mode=swap')}
+          onQuickStart={(shortcut) => {
+            void startShift
+              .mutateAsync({
+                vehicleId: shortcut.vehicle.id,
+                vehicleUnit: shortcut.vehicle.unit_number,
+                ...(shortcut.trailer
+                  ? { trailerId: shortcut.trailer.id, trailerUnit: shortcut.trailer.unit_number }
+                  : {}),
+                takeOver: false,
+              })
+              .then(() => {
+                // Remember what actually started the day, so tomorrow's shortcut is right even when
+                // today's differed from yesterday's.
+                void writeLastEquipment({
+                  vehicleId: shortcut.vehicle.id,
+                  trailerId: shortcut.trailer?.id ?? null,
+                });
+                toast.show(`On duty · Unit ${shortcut.vehicle.unit_number}`);
+              });
+          }}
         />
       )}
     </View>

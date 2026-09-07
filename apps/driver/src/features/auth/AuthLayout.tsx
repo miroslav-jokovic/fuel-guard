@@ -50,7 +50,7 @@ export function AuthScreen({
     <StatusBar style={isDark ? 'light' : 'dark'} />
     <ScrollView
       className="flex-1 bg-canvas"
-      contentContainerClassName="gap-6 px-4"
+      contentContainerClassName="gap-6 px-5"
       contentContainerStyle={{
         paddingTop: insets.top + layout.sectionGap,
         paddingBottom: insets.bottom + layout.screenInset,

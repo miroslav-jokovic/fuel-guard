@@ -708,7 +708,7 @@ additive.
 - **Done when:** gates green; the gallery shows the chart with 2, 5 and 8 weeks and the
   "two ranked weeks" fallback.
 
-### B6 · Duty, More, Settings, Messages, Notifications, Hazmat hub and verdict
+### B6 · Duty, More, Settings, Messages, Notifications, Hazmat hub and verdict — DONE 2026-09-07
 
 **Branch:** `claude/driver-b6-rest`. Restyle with primitives; three behaviour changes, listed.
 
@@ -1291,6 +1291,29 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   (6) Five mutants run against `trendChartModel`; four died. The survivor changes spline CONTROL
   points only — the curve still passes through every week — which is aesthetic tuning, and pinning it
   in a test would freeze a drawing decision rather than a rule.
+- 2026-09-07 · **B6 built.** `startShortcutModel.ts` (11 tests, four mutants killed) + the one-tap
+  start; `completedToday`/`stopsCompletedToday` in `dutyFormat.ts` (5 tests) + the end-shift summary;
+  `FailedSyncList.tsx`; More, Settings, Messages, Notifications, the hazmat hub and verdict, the
+  check-in rows and the auth inset all restyled. Deviations and findings:
+  (1) **The one-tap start declines in every doubtful case rather than guessing.** A shortcut that
+  puts a driver in the wrong truck costs far more than it saves, so an in-use truck, a truck missing
+  from the roster, an unloaded roster and an odometer-required org all fall back to the wizard. A
+  taken TRAILER does not: it offers bobtail, which is a real morning — but it never substitutes a
+  different trailer.
+  (2) **`FailedSyncList` keys its labels off the kind CONSTANTS, not their string values.** My first
+  pass restated them as literals and got all nine wrong, which would have shown a driver
+  `hazmat_capture` on the one screen they read when something has already gone wrong.
+  (3) **`completedToday` compares LOCAL calendar days.** A driver signing off at 22:00 Central on the
+  7th is already the 8th in UTC; a UTC comparison shows them an empty summary at exactly the moment
+  they want to read it. Skipped stops count as worked — the driver still went there.
+  (4) **Settings' three account-ish groups collapse to one**, as B6.5 asks. "Account", "Session" and
+  "Your account" were three headings for one subject, with sign-out two screens of scrolling from
+  the identity it signs out of.
+  (5) **`BuildInfoCard` lost its own heading** — inside a titled `Section` it was the title twice.
+  (6) **Duty rows are gone from More** (B6.4): a second place to change a truck is how a driver ends
+  up unsure which screen is telling the truth. Notifications gains the durable entry.
+  (7) **`app/hazmat/capture.tsx` was NOT touched** (§4 rule 7 — scanner programme). It still uses
+  `SectionLabel`, which is now a bare in-card heading and renders correctly.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a

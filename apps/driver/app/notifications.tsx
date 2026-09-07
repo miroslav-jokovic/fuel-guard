@@ -12,15 +12,15 @@ import {
   Badge,
   AppText,
   Banner,
+  Card,
   EmptyState,
-  GroupedList,
   Icon,
   IconButton,
   ListRow,
   OfflineBanner,
   Screen,
   ScreenHeader,
-  SectionLabel,
+  Section,
   Skeleton,
   ToggleRow,
   type Tone,
@@ -100,7 +100,7 @@ export default function NotificationsCentre() {
   };
 
   return (
-    <Screen padTop={false}>
+    <Screen padTop={false} flow="sections">
       <ScreenHeader
         title="Notifications"
         subtitle={unread > 0 ? `${unread} unread` : undefined}
@@ -129,42 +129,53 @@ export default function NotificationsCentre() {
       ) : null}
       {markRead.isError ? <Banner tone="danger" message={markRead.error.message || 'Could not mark notifications read.'} /> : null}
 
-      {showSkeletons ? (
-        <>
-          <Skeleton className="h-[60px] w-full rounded-xl" />
-          <Skeleton className="h-[60px] w-full rounded-xl" />
-          <Skeleton className="h-[60px] w-full rounded-xl" />
-        </>
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon="notifications"
-          title="Nothing yet"
-          subtitle="Fleet alerts, assignments, and shift updates land here."
-        />
-      ) : (
-        <GroupedList>
-          {rows.map((n) => (
-            <ListRow
-              key={n.id}
-              icon={CATEGORY_ICON[n.category] ?? 'info'}
-              iconFill={n.read_at === null}
-              title={n.title}
-              subtitle={n.body ?? undefined}
-              onPress={() => openRow(n)}
-              right={
-                <View className="items-end gap-1">
-                  <AppText variant="caption" tone="subtle" tabular>{timeLabel(n.created_at)}</AppText>
-                  {n.read_at === null ? <Badge label="New" tone={SEVERITY_TONE[n.severity] ?? 'info'} /> : null}
-                </View>
-              }
+      <Section title="Recent">
+        {showSkeletons ? (
+          <>
+            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+          </>
+        ) : rows.length === 0 ? (
+          <Card variant="flat" padded={false}>
+            <EmptyState
+              icon="notifications"
+              title="Nothing yet"
+              subtitle="Fleet alerts, assignments, and shift updates land here."
             />
-          ))}
-        </GroupedList>
-      )}
+          </Card>
+        ) : (
+          <Card variant="flat" padded={false}>
+            {rows.map((n, index) => (
+              <View key={n.id} className={n.read_at === null ? 'bg-surface-selected' : ''}>
+                <ListRow
+                  icon={CATEGORY_ICON[n.category] ?? 'info'}
+                  iconFill={n.read_at === null}
+                  // Severity is the disc's tone, so an unread critical alert and an unread
+                  // reminder are not the same object at a glance (D-DB6).
+                  disc={SEVERITY_TONE[n.severity] ?? 'info'}
+                  title={n.title}
+                  subtitle={n.body ?? undefined}
+                  onPress={() => openRow(n)}
+                  right={
+                    <View className="items-end gap-1">
+                      <AppText variant="caption" tone="subtle" tabular>{timeLabel(n.created_at)}</AppText>
+                      {n.read_at === null ? <Badge label="New" tone={SEVERITY_TONE[n.severity] ?? 'info'} /> : null}
+                    </View>
+                  }
+                />
+                {index < rows.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
+              </View>
+            ))}
+          </Card>
+        )}
+      </Section>
 
-      <SectionLabel>Notification preferences</SectionLabel>
+      {/* Preferences move to the END: a driver opening this screen came to read what arrived, not
+          to configure what may arrive later (B6.7 / Q-DB4 keeps them on one screen). */}
+      <Section title="Preferences">
       {prefsError ? <Banner tone="danger" message={prefsError} /> : null}
-      <GroupedList>
+      <Card variant="flat" padded={false}>
         {NOTIFICATION_CATEGORIES.map((category) => (
           isMutable(category) ? (
             <ToggleRow
@@ -183,10 +194,11 @@ export default function NotificationsCentre() {
             />
           )
         ))}
-      </GroupedList>
+      </Card>
       <AppText variant="caption" tone="subtle" className="pb-2 text-center">
         Muting is enforced by the server, so a muted category stays quiet on every device.
       </AppText>
+      </Section>
     </Screen>
   );
 }

@@ -5,16 +5,18 @@ import { useQuery } from '@tanstack/react-query';
 import {
   AppText,
   Banner,
+  Card,
   EmptyState,
-  GroupedList,
   Icon,
   OfflineBanner,
   Screen,
   ScreenHeader,
-  SectionLabel,
+  Section,
   Skeleton,
+  TONE_SOFT,
   type Tone,
 } from '@/components';
+import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 import { apiFetch } from '@/lib/api';
 import { useFeatures } from '@/session/useFeatures';
 
@@ -34,14 +36,14 @@ function parseRuns(rows: readonly unknown[]): RunView | null {
   return { outcome, findings: [...blocks, ...segregation], flags };
 }
 
-const OUTCOME: Record<string, { tone: Tone; message: string }> = {
-  cleared: { tone: 'success', message: 'Cleared · this load passed the compliance check.' },
-  analysis_green: { tone: 'success', message: 'Cleared · this load passed the compliance check.' },
-  rejected: { tone: 'danger', message: 'Rejected · review the findings before moving this load.' },
-  needs_review: { tone: 'warning', message: 'In review · a compliance reviewer is finalizing this check.' },
-  pending: { tone: 'info', message: 'Analyzing your BOL · this page updates automatically.' },
+const OUTCOME: Record<string, { tone: Tone; word: string; icon: MaterialSymbolName; message: string }> = {
+  cleared: { tone: 'success', word: 'Cleared', icon: 'check_circle', message: 'This load passed the compliance check.' },
+  analysis_green: { tone: 'success', word: 'Cleared', icon: 'check_circle', message: 'This load passed the compliance check.' },
+  rejected: { tone: 'danger', word: 'Rejected', icon: 'error', message: 'Review the findings before moving this load.' },
+  needs_review: { tone: 'warning', word: 'In review', icon: 'hourglass_empty', message: 'A compliance reviewer is finalizing this check.' },
+  pending: { tone: 'info', word: 'Analyzing', icon: 'hourglass_empty', message: 'Analyzing your BOL · this page updates automatically.' },
 };
-const PENDING: { tone: Tone; message: string } = { tone: 'info', message: 'Analyzing your BOL · this page updates automatically.' };
+const PENDING = OUTCOME.pending!;
 const TERMINAL = new Set(['cleared', 'analysis_green', 'rejected']);
 
 export default function HazmatVerdictScreen() {
@@ -69,7 +71,7 @@ export default function HazmatVerdictScreen() {
   if (features.isLoaded && !hazmatEnabled) return <Redirect href="/home" />;
   if (!features.isLoaded) {
     return (
-      <Screen padTop={false}>
+      <Screen padTop={false} flow="sections">
         <ScreenHeader title="Compliance verdict" onBack={() => router.back()} />
         <Skeleton className="h-28 w-full rounded-xl" />
       </Screen>
@@ -77,7 +79,7 @@ export default function HazmatVerdictScreen() {
   }
 
   return (
-    <Screen padTop={false}>
+    <Screen padTop={false} flow="sections">
       <ScreenHeader title="Compliance verdict" onBack={() => router.back()} />
       <OfflineBanner />
       {query.isError && !query.data ? (
@@ -93,13 +95,22 @@ export default function HazmatVerdictScreen() {
         <EmptyState title="Analyzing" subtitle="The compliance check updates automatically after your BOL syncs." />
       ) : (
         <>
-          <Banner tone={meta.tone} message={meta.message} />
+          {/* The verdict is the screen: a driver opening this wants one word before any detail,
+              and a thin status strip made "Rejected" the same weight as "2 pending". */}
+          <Section first>
+            <Card variant="flat">
+              <View className={`h-11 w-11 items-center justify-center rounded-full ${TONE_SOFT[meta.tone].bg}`}>
+                <Icon name={meta.icon} size={22} fill className={TONE_SOFT[meta.tone].text} />
+              </View>
+              <AppText variant="navigationTitle">{meta.word}</AppText>
+              <AppText variant="supporting" tone="secondary">{meta.message}</AppText>
+            </Card>
+          </Section>
           {view.findings.length > 0 ? (
-            <>
-              <SectionLabel>Findings</SectionLabel>
-              <GroupedList>
+            <Section title="Findings">
+              <Card variant="flat" padded={false}>
                 {view.findings.map((finding, index) => (
-                  <View key={`${finding.ruleId}-${index}`} className="flex-row items-start gap-3 bg-surface px-4 py-3">
+                  <View key={`${finding.ruleId}-${index}`} className="flex-row items-start gap-3 px-4 py-3">
                     <Icon name="warning" size={18} className="mt-0.5 text-warning" />
                     <View className="flex-1 gap-1">
                       <AppText variant="body">{finding.message}</AppText>
@@ -109,21 +120,20 @@ export default function HazmatVerdictScreen() {
                     </View>
                   </View>
                 ))}
-              </GroupedList>
-            </>
+              </Card>
+            </Section>
           ) : null}
           {view.findings.length === 0 && view.flags.length > 0 ? (
-            <>
-              <SectionLabel>Review flags</SectionLabel>
-              <GroupedList>
+            <Section title="Review flags">
+              <Card variant="flat" padded={false}>
                 {view.flags.map((flag, index) => (
-                  <View key={`${flag}-${index}`} className="flex-row items-start gap-3 bg-surface px-4 py-3">
+                  <View key={`${flag}-${index}`} className="flex-row items-start gap-3 px-4 py-3">
                     <Icon name="info" size={18} className="mt-0.5 text-info" />
                     <AppText variant="body" className="flex-1">{flag}</AppText>
                   </View>
                 ))}
-              </GroupedList>
-            </>
+              </Card>
+            </Section>
           ) : null}
         </>
       )}

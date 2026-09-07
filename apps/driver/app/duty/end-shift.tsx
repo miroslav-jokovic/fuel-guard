@@ -5,16 +5,20 @@ import {
   AppText,
   Banner,
   Button,
+  Card,
   Field,
-  GroupedList,
   ListRow,
   NumericField,
   Screen,
   ScreenHeader,
-  SectionLabel,
+  Section,
 } from '@/components';
 import { dutyView, useEndShift, useShift } from '@/features/duty/useDuty';
-import { shiftDurationLabel } from '@/features/duty/dutyFormat';
+import { completedToday, shiftDurationLabel, stopsCompletedToday } from '@/features/duty/dutyFormat';
+import { bucketLoads } from '@/features/loads/loadViewModel';
+import { useLoads } from '@/features/loads/useLoads';
+import { useSyncState } from '@/data/sync';
+import { useFeatures } from '@/session/useFeatures';
 
 /**
  * End your day (D44.5). A modal route over the shell — the same pattern as check-in, for the same
@@ -28,6 +32,9 @@ export default function EndShift() {
   const shift = useShift();
   const duty = dutyView(shift.data);
   const endShift = useEndShift();
+  const { enabled } = useFeatures();
+  const loads = useLoads(enabled('tab.loads'));
+  const sync = useSyncState();
   const [odometer, setOdometer] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -69,10 +76,14 @@ export default function EndShift() {
 
   const duration = shiftDurationLabel(duty.startedAt);
   const startOdo = duty.session?.start_odometer ?? null;
+  // What the driver actually did today, so signing off is a summary rather than a blank confirm.
+  const finishedToday = completedToday(bucketLoads(loads.data?.loads ?? []).previous);
+  const stopsToday = stopsCompletedToday(finishedToday);
 
   return (
     <Screen
       padTop={false}
+      flow="sections"
       // Primary action pinned in the footer (Phase 8.5 — same contract as check-in): reachable
       // without scrolling, in gloves, with the keyboard up.
       footer={
@@ -100,17 +111,33 @@ export default function EndShift() {
 
       {error ? <Banner tone="danger" icon="warning" message={error} /> : null}
 
-      <SectionLabel>Your shift</SectionLabel>
-      <GroupedList>
-        <ListRow
-          icon="local_shipping"
-          iconFill
-          title={duty.equipmentLabel ?? 'On duty'}
-          subtitle={duration ? `On duty ${duration}` : duty.hasTrailer ? 'Truck and trailer' : 'Bobtail'}
-        />
-      </GroupedList>
+      <Section first title="Your shift">
+        <Card variant="flat" padded={false}>
+          <ListRow
+            icon="local_shipping"
+            iconFill
+            disc="neutral"
+            title={duty.equipmentLabel ?? 'On duty'}
+            subtitle={duration ? `On duty ${duration}` : duty.hasTrailer ? 'Truck and trailer' : 'Bobtail'}
+          />
+          <ListRow
+            icon="check_circle"
+            disc="success"
+            title={`${finishedToday.length} ${finishedToday.length === 1 ? 'load' : 'loads'} delivered today`}
+            subtitle={`${stopsToday} ${stopsToday === 1 ? 'stop' : 'stops'} completed`}
+          />
+          {sync.pending > 0 ? (
+            <ListRow
+              icon="sync"
+              disc="action"
+              title={`${sync.pending} ${sync.pending === 1 ? 'item' : 'items'} waiting to sync`}
+              subtitle="They finish uploading after you sign off"
+            />
+          ) : null}
+        </Card>
+      </Section>
 
-      <SectionLabel>Odometer (optional)</SectionLabel>
+      <Section title="Odometer (optional)">
       <Field
         label="Ending odometer"
         hint={
@@ -121,7 +148,7 @@ export default function EndShift() {
       >
         <NumericField value={odometer} onChangeText={setOdometer} unit="mi" placeholder="412450" />
       </Field>
-
+      </Section>
     </Screen>
   );
 }

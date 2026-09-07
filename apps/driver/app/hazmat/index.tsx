@@ -1,3 +1,4 @@
+import { View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import type { MeHazmatLoadRow } from '@silvicom/shared';
 import {
@@ -5,14 +6,14 @@ import {
   AppText,
   Badge,
   Banner,
+  Card,
   Button,
   EmptyState,
-  GroupedList,
   ListRow,
   OfflineBanner,
   Screen,
   ScreenHeader,
-  SectionLabel,
+  Section,
   Skeleton,
   type Tone,
 } from '@/components';
@@ -71,6 +72,7 @@ export default function HazmatHub() {
 
   return (
     <Screen
+      flow="sections"
       padTop={false}
       footer={
         <ActionBar>
@@ -103,35 +105,43 @@ export default function HazmatHub() {
         />
       ) : null}
 
-      <SectionLabel>History</SectionLabel>
-      {showSkeletons ? (
-        <>
-          <Skeleton className="h-[60px] w-full rounded-xl" />
-          <Skeleton className="h-[60px] w-full rounded-xl" />
-        </>
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon="local_fire_department"
-          title="No checks yet"
-          subtitle="Capture a bill of lading and the compliance verdict — with its CFR citations — lands here."
-        />
-      ) : (
-        <GroupedList>
-          {rows.map((row) => {
-            const badge = rowBadge(row);
-            return (
-              <ListRow
-                key={row.id}
-                icon="local_fire_department"
-                title={`BOL check · ${rowDate(row.created_at)}`}
-                subtitle={row.status === 'draft' ? 'Waiting to sync' : undefined}
-                onPress={() => router.push(`/hazmat/${row.id}` as never)}
-                right={<Badge label={badge.label} tone={badge.tone} />}
-              />
-            );
-          })}
-        </GroupedList>
-      )}
+      <Section title="History">
+        {showSkeletons ? (
+          <>
+            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+            <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
+          </>
+        ) : rows.length === 0 ? (
+          <Card variant="flat" padded={false}>
+            <EmptyState
+              icon="local_fire_department"
+              title="No checks yet"
+              subtitle="Capture a bill of lading and the compliance verdict — with its CFR citations — lands here."
+            />
+          </Card>
+        ) : (
+          <Card variant="flat" padded={false}>
+            {rows.map((row, index) => {
+              const badge = rowBadge(row);
+              return (
+                <View key={row.id}>
+                  <ListRow
+                    icon="local_fire_department"
+                    // The disc carries the outcome, so a rejected check and a cleared one are not
+                    // the same red flame with a different chip beside it.
+                    disc={badge.tone}
+                    title={`BOL check · ${rowDate(row.created_at)}`}
+                    subtitle={row.status === 'draft' ? 'Waiting to sync' : undefined}
+                    onPress={() => router.push(`/hazmat/${row.id}` as never)}
+                    right={<Badge label={badge.label} tone={badge.tone} />}
+                  />
+                  {index < rows.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
+                </View>
+              );
+            })}
+          </Card>
+        )}
+      </Section>
     </Screen>
   );
 }

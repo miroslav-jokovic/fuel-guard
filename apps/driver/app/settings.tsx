@@ -3,11 +3,11 @@ import { useRouter } from 'expo-router';
 import {
   Banner,
   AppText,
-  GroupedList,
+  Card,
   ListRow,
   Screen,
   ScreenHeader,
-  SectionLabel,
+  Section,
   SegmentedControl,
   SyncStatus,
 } from '@/components';
@@ -19,6 +19,7 @@ import { DEV_PING_KIND } from '@/data/handlers';
 import { revokePushRegistration } from '@/features/notifications/push';
 import { haptics } from '@/lib/haptics';
 import { BuildInfoCard } from '@/features/support/BuildInfoCard';
+import { FailedSyncList } from '@/features/support/FailedSyncList';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -43,36 +44,56 @@ export default function Settings() {
   }
 
   return (
-    <Screen padTop={false}>
+    <Screen padTop={false} flow="sections">
       <ScreenHeader title="Settings" onClose={() => router.back()} />
 
-      <SectionLabel>Account</SectionLabel>
-      <GroupedList>
-        <ListRow
-          icon="account_circle"
-          iconFill
-          title={email ?? 'Signed in'}
-          subtitle={role ? `Role: ${role}` : undefined}
-        />
-      </GroupedList>
+      {/* B6.5: the three account-ish groups collapse into one. "Account", "Session" and "Your
+          account" were three headings for one subject, and the sign-out lived two screens-worth of
+          scrolling away from the identity it signs out of. */}
+      <Section first title="Account">
+        <Card variant="flat" padded={false}>
+          <ListRow
+            icon="account_circle"
+            iconFill
+            disc="neutral"
+            title={email ?? 'Signed in'}
+            subtitle={role ? `Role: ${role}` : undefined}
+          />
+          <ListRow
+            icon="badge"
+            disc="neutral"
+            title="Company-issued login"
+            subtitle="Your fleet manages this account. Contact your fleet manager to change or close it."
+          />
+          <ListRow
+            icon="logout"
+            disc="danger"
+            title="Sign out"
+            destructive
+            onPress={() => { void signOutWithRevoke(); }}
+          />
+        </Card>
+      </Section>
 
-      <SectionLabel>Data</SectionLabel>
-      <GroupedList><SyncStatus /></GroupedList>
-      {needsAttention > 0 && lastError ? (
-        <Banner
-          tone="danger"
-          message={`Last sync problem: ${lastError}`}
-          actionLabel="Try again"
-          onAction={() => {
-            void runSync();
-          }}
-        />
-      ) : null}
+      <Section title="Sync">
+        <Card variant="flat" padded={false}><SyncStatus /></Card>
+        {needsAttention > 0 && lastError ? (
+          <Banner
+            tone="danger"
+            message={`Last sync problem: ${lastError}`}
+            actionLabel="Try again"
+            onAction={() => {
+              void runSync();
+            }}
+          />
+        ) : null}
+        <FailedSyncList />
+      </Section>
 
-      <SectionLabel>Appearance</SectionLabel>
-      <View className="gap-4 rounded-xl border border-edge-subtle bg-surface p-4">
+      <Section title="Appearance">
+      <Card variant="flat">
         <View className="gap-2">
-          <AppText variant="sectionTitle">Theme</AppText>
+          <AppText variant="rowTitle">Theme</AppText>
           <SegmentedControl<ThemeMode>
             value={mode}
             onChange={setMode}
@@ -86,7 +107,7 @@ export default function Settings() {
         </View>
         <View className="h-px bg-edge-subtle" />
         <View className="gap-2">
-          <AppText variant="sectionTitle">Contrast</AppText>
+          <AppText variant="rowTitle">Contrast</AppText>
           <SegmentedControl
             value={contrastMode}
             onChange={setContrastMode}
@@ -101,37 +122,26 @@ export default function Settings() {
             operational states.
           </AppText>
         </View>
-      </View>
+      </Card>
+      </Section>
+
+      <Section title="Build">
+        <BuildInfoCard />
+      </Section>
 
       {__DEV__ ? (
-        <>
-          <SectionLabel>Developer</SectionLabel>
-          <GroupedList>
+        <Section title="Developer">
+          <Card variant="flat" padded={false}>
             <ListRow
               icon="bolt"
+              disc="action"
               title="Queue a test sync item"
               subtitle={`Outbox: ${pending} pending · turn on airplane mode first to see it queue`}
               onPress={() => { void seedTestSync(); }}
             />
-          </GroupedList>
-        </>
+          </Card>
+        </Section>
       ) : null}
-
-      <BuildInfoCard />
-
-      <SectionLabel>Session</SectionLabel>
-      <GroupedList>
-        <ListRow icon="logout" title="Sign out" destructive onPress={() => { void signOutWithRevoke(); }} />
-      </GroupedList>
-
-      <SectionLabel>Your account</SectionLabel>
-      <GroupedList>
-        <ListRow
-          icon="badge"
-          title="Company-issued login"
-          subtitle="Your fleet manages this account. Contact your fleet manager to change or close it."
-        />
-      </GroupedList>
     </Screen>
   );
 }

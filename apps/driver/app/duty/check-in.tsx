@@ -70,15 +70,16 @@ function EquipmentRow({
 }) {
   return (
     <ListRow
-      icon={icon}
+      icon={selected ? 'check_circle' : icon}
       iconFill={selected}
+      // The disc carries the selection, so the chosen truck is a different OBJECT in the list
+      // rather than the same row with a tick bolted to its right edge (D-DB6).
+      disc={selected ? 'brand' : 'neutral'}
       title={`${icon === 'route' ? 'Trailer' : 'Unit'} ${option.unit_number}`}
       subtitle={unitSubtitle(option)}
       onPress={onPress}
       right={
-        selected ? (
-          <Icon name="check_circle" size={22} className="text-brand" />
-        ) : option.in_use_by ? (
+        option.in_use_by ? (
           <Badge label="In use" tone="caution" icon="person" />
         ) : option.is_default ? (
           <Badge label="Your truck" tone="brand" />
