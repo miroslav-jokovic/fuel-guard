@@ -177,6 +177,32 @@ export function registerSyncHandlers(): void {
     },
   });
 
+/**
+ * Put one staged file at a storage key, treating "already there" as done.
+ *
+ * Driver-scoped RLS on the `hazmat` bucket (0092). The bucket denies overwrite and every key is
+ * derived from a client-generated UUID, so a re-drained record collides with its own earlier upload
+ * — which is exactly what makes a replay a no-op instead of a duplicate. Anything else is a real
+ * failure and is thrown, so the record stays queued and retries.
+ *
+ * Extracted at Phase 4b because a page can now carry two artifacts, and the second one is the
+ * untouched original: a copy-pasted upload block is where the two would quietly drift apart on error
+ * handling, which is the difference between "the original is still queued" and "the original is
+ * gone and nobody said so".
+ */
+async function putObject(localUri: string, storagePath: string, contentType: string): Promise<void> {
+  const bytes = await new File(localUri).arrayBuffer();
+  const { error } = await supabase.storage
+    .from('hazmat')
+    .upload(storagePath, bytes, { contentType, upsert: false });
+  if (!error) return;
+  const message = (error as { message?: string }).message ?? '';
+  const statusCode = (error as { statusCode?: string }).statusCode;
+  if (statusCode !== '409' && !/exist|duplicate/i.test(message)) {
+    throw new SyncError(`BOL upload failed: ${message || 'unknown storage error'}`);
+  }
+}
+
   // ── Hazmat driver capture (M6) ─────────────────────────────────────────────
   // The whole capture is ONE queued item, replay-safe end to end (client-UUID PKs → idempotent create +
   // register + submit; storage upload treats "already exists" as success). Offline capture drains on
@@ -188,10 +214,12 @@ export function registerSyncHandlers(): void {
       const p = (record.payload ?? {}) as {
         loadId?: string;
         create?: { id: string };
-        /** Since multi-page (plan Step 1.2). One entry per page, aligned by index with fileUris. */
+        /** Since multi-page (plan Step 1.2). One entry per page. */
         registers?: RegisterBody[];
         /** The pre-multi-page shape. See the comment below — this is not dead code. */
         register?: RegisterBody;
+        /** Since Phase 4b. Which staged files each register uploads, aligned by index with it. */
+        uploads?: { archiveUri: string; originalUri?: string }[];
       };
       // A record queued by an older build carries `register`; one queued by this build carries
       // `registers`. Both must drain, because the outbox survives an app update: a driver who scanned
@@ -212,29 +240,32 @@ export function registerSyncHandlers(): void {
       //      pages at MAX_BOL_PAGES and counts existing rows to enforce it, so concurrent registers
       //      would race that count.
       for (const [index, reg] of registers.entries()) {
-        const registered = await apiFetch<{ documentId: string; storagePath: string }>(
-          `/api/me/hazmat/loads/${p.loadId}/documents`,
-          { method: 'POST', body: reg },
-        );
+        const registered = await apiFetch<{
+          documentId: string;
+          storagePath: string;
+          original?: { storagePath: string };
+        }>(`/api/me/hazmat/loads/${p.loadId}/documents`, { method: 'POST', body: reg });
         if (!registered.ok || !registered.data) {
           throw new SyncError(registered.error?.message ?? 'Document register failed', registered.status);
         }
 
-        // Driver-scoped RLS on the `hazmat` bucket (0092). Re-upload after a partial success →
-        // already-exists = success (the bucket denies overwrite; the row is keyed by the same client
-        // UUID), which is what makes a re-drained record a no-op rather than a duplicate.
-        const localUri = record.fileUris[index];
-        if (!localUri) continue;
-        const bytes = await new File(localUri).arrayBuffer();
-        const { error } = await supabase.storage
-          .from('hazmat')
-          .upload(registered.data.storagePath, bytes, { contentType: reg.contentType, upsert: false });
-        if (error) {
-          const message = (error as { message?: string }).message ?? '';
-          const statusCode = (error as { statusCode?: string }).statusCode;
-          if (statusCode !== '409' && !/exist|duplicate/i.test(message)) {
-            throw new SyncError(`BOL upload failed: ${message || 'unknown storage error'}`);
-          }
+        // Which staged files this page uploads. `p.uploads` is authoritative from Phase 4b, where a
+        // page can carry two artifacts and positional alignment with a flat `fileUris` stopped being
+        // able to express that. A record queued by an older build has no `uploads`, and its
+        // `fileUris` IS one-per-page — so the fallback is correct rather than approximate, and it
+        // drains a Friday capture that met a weekend update instead of throwing away work that
+        // exists nowhere else.
+        const upload: { archiveUri?: string; originalUri?: string } =
+          p.uploads?.[index] ?? { archiveUri: record.fileUris[index] };
+        if (!upload.archiveUri) continue;
+        await putObject(upload.archiveUri, registered.data.storagePath, reg.contentType);
+
+        // The untouched ORIGINAL of record (D-SCAN6/D-SCAN11). Uploaded only when the server signed a
+        // path for it — which it does exactly when this register declared one — so a client and a
+        // server that disagree about whether a page has an original upload nothing rather than
+        // guessing a key.
+        if (upload.originalUri && registered.data.original) {
+          await putObject(upload.originalUri, registered.data.original.storagePath, 'image/jpeg');
         }
       }
 

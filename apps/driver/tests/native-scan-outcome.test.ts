@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { REJECTION_REASONS } from "@silvicom/capture-engine";
 import { BUNDLED_DEFAULT_CONFIG, evaluateGate, unavailableOcr } from "@silvicom/capture-engine";
 import {
+  assemblePage,
   imageMetricsFromMeasurement,
   interpretNativeScan,
+  measurementTarget,
   reasonForUnsupported,
   rejectionFromThrown,
   supportFromNative,
@@ -27,13 +29,28 @@ import type { NativeImageMetrics, NativeScanResult, NativeScannedPage } from "..
  * stays unchecked for months.
  */
 
+/**
+ * A page carries TWO artifacts since Phase 4b, and the fixture makes them visibly different — a
+ * larger original with its own hash — so a test that confused the two would fail rather than pass by
+ * looking at a value that happens to be shared.
+ */
 const page = (): NativeScannedPage => ({
-  uri: "file:///tmp/page.jpg",
-  width: 1568,
-  height: 2000,
-  bytes: 300_000,
-  mediaType: "image/jpeg",
-  integrityHash: "abc123",
+  original: {
+    uri: "file:///tmp/page.original.jpg",
+    width: 3024,
+    height: 4032,
+    bytes: 3_100_000,
+    mediaType: "image/jpeg",
+    sha256: "original-hash",
+  },
+  derived: {
+    uri: "file:///tmp/page.jpg",
+    width: 1568,
+    height: 2000,
+    bytes: 300_000,
+    mediaType: "image/jpeg",
+    sha256: "derived-hash",
+  },
   osEnhanced: true,
 });
 
@@ -215,5 +232,63 @@ describe("imageMetricsFromMeasurement — shadow-mode measurement (Step 3.3, D-S
       cfg,
     );
     expect(zeroed.reasons).toContain("IMAGE_BLURRED");
+  });
+});
+
+/**
+ * ── WHY THESE EXIST, AND WHAT IT COST TO FIND OUT ─────────────────────────────────────────────
+ * `assemblePage` and the choice of which file to measure lived in the provider until Phase 4b. A
+ * mutation written to check that D-SCAN4 was really enforced — point `measure()` at the DERIVATIVE
+ * instead of the original — **passed the entire driver suite**, because nothing in it could reach
+ * the code that decides. The provider imports the native bridge, which needs a React Native runtime.
+ *
+ * That is precisely the failure mode this file's header describes for rejection reasons, one layer
+ * up, and D-SCAN13's deferral of the device session makes it expensive: an undetected inversion here
+ * would sit in the recorded metrics for months and then be baked into Step 5.2's thresholds.
+ */
+describe("assemblePage (Phase 4b — two artifacts per page)", () => {
+  const cfg = BUNDLED_DEFAULT_CONFIG;
+
+  it("measures the ORIGINAL, which is what D-SCAN4 requires", () => {
+    expect(measurementTarget(page())).toBe("file:///tmp/page.original.jpg");
+  });
+
+  it("keeps the original as the evidentiary record and the derivative as what uploads", () => {
+    const assembled = assemblePage(page(), {}, cfg, "ios");
+    expect(assembled.originalOfRecord.uri).toBe("file:///tmp/page.original.jpg");
+    expect(assembled.originalOfRecord.sha256).toBe("original-hash");
+    // The three derivative fields still alias each other on the v1 path: the OS corrected perspective
+    // and enhanced in one step and hands back one image (DCE §3). Step 6.1 splits them.
+    expect(assembled.enhancedColor.uri).toBe("file:///tmp/page.jpg");
+    expect(assembled.perspectiveCorrected.uri).toBe(assembled.enhancedColor.uri);
+    expect(assembled.enhancedGray.uri).toBe(assembled.enhancedColor.uri);
+    expect(assembled.enhancedColor.sha256).toBe("derived-hash");
+  });
+
+  it("hashes the page by its ORIGINAL, never by a derivative", () => {
+    // `integrityHash` has been documented as the original's hash since DCE §2, and was vacuously so
+    // while a page had one file. Registering the derivative's hash here would record a provenance
+    // claim about bytes nobody kept (0328).
+    expect(assemblePage(page(), {}, cfg, "android").integrityHash).toBe("original-hash");
+  });
+
+  /**
+   * ⚠ The resolution floor must read the ORIGINAL's dimensions. The derivative's long edge is
+   * `enhanceLongEdgePx` — a number we chose — so gating on it would make the check a statement about
+   * our own config that passes by construction, on a page the camera captured at any resolution at
+   * all. The fixture's derivative is 1568 px and the floor is 1200, so the mistake would NOT show up
+   * as a failure; it would show up as a gate that never fires.
+   */
+  it("gates resolution on the original's long edge, not the derivative's", () => {
+    const assembled = assemblePage(page(), {}, cfg, "ios");
+    const resolution = assembled.quality.checks.find((c) => c.name === "resolution");
+    expect(resolution?.detail?.longEdgePx).toBe(4032);
+  });
+
+  it("still refuses a page whose ORIGINAL is below the floor, though its derivative is not", () => {
+    const small = page();
+    small.original = { ...small.original, width: 800, height: 1000 };
+    const assembled = assemblePage(small, {}, cfg, "ios");
+    expect(assembled.quality.reasons).toContain("RESOLUTION_TOO_LOW");
   });
 });

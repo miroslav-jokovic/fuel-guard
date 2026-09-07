@@ -190,19 +190,33 @@ class CaptureNativeModule : Module() {
     // out-of-memory candidate the audit named. inSampleSize halves during DECODE, so the 48 MB is
     // never allocated at all; `scale` then trims the remainder to the exact long edge.
     val decoded = decodeBounded(path, longEdge) ?: return null
+
+    // ── THE ORIGINAL OF RECORD, WHICH ON ANDROID IS A BYTE COPY (D-SCAN6, finding F1) ──────────
+    // `GmsDocumentScanner` hands back a JPEG file URI, so the scanner's OWN bytes are available and
+    // the original is `copyTo` — no decode, no re-encode, no quality parameter, nothing that could
+    // alter a pixel. iOS cannot do this: `VNDocumentCameraScan` exposes only a `UIImage`, so its
+    // original is a maximum-quality full-resolution encode. The asymmetry is real and is documented
+    // on both sides rather than smoothed over, because "untouched" is the whole claim this file is
+    // making.
+    //
+    // Copied out of ML Kit's own file rather than referenced in place: that URI's lifetime belongs to
+    // the scanner session, and an evidentiary record that a library may reclaim is not a record. The
+    // dimensions come from the bounds decode, which reads the header and allocates no pixels — the
+    // original is never decoded at full resolution, which is what keeps this off the OOM path Step
+    // 1.4 closed.
+    val sourceBounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, sourceBounds)
+    val originalFile = File.createTempFile("bol-orig-", ".jpg", appContext.cacheDirectory)
+    File(path).copyTo(originalFile, overwrite = true)
+    val original = describe(originalFile, sourceBounds.outWidth, sourceBounds.outHeight)
+
     val resized = scale(decoded, longEdge)
     val out = File.createTempFile("bol-", ".jpg", appContext.cacheDirectory)
     FileOutputStream(out).use { resized.compress(Bitmap.CompressFormat.JPEG, quality, it) }
-    val bytes = out.readBytes()
-    val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     val ocr = recognize(resized)
     val page = mapOf(
-      "uri" to Uri.fromFile(out).toString(),
-      "width" to resized.width,
-      "height" to resized.height,
-      "bytes" to bytes.size,
-      "mediaType" to "image/jpeg",
-      "integrityHash" to hash,
+      "original" to original,
+      "derived" to describe(out, resized.width, resized.height),
       "osEnhanced" to true,
       "ocr" to ocr,
     )
@@ -213,6 +227,33 @@ class CaptureNativeModule : Module() {
     if (resized !== decoded) resized.recycle()
     decoded.recycle()
     return page
+  }
+
+  /**
+   * One artifact on disk plus the hash of exactly those bytes, in the shape `NativeImage` declares.
+   *
+   * Hashed by streaming the file rather than `readBytes()`: the original is a full-resolution page,
+   * a few megabytes each, and a ten-page scan that held every one of them in a byte array at once is
+   * the kind of peak Step 1.4 spent a merge removing from this module.
+   */
+  private fun describe(file: File, width: Int, height: Int): Map<String, Any?> {
+    val digest = MessageDigest.getInstance("SHA-256")
+    file.inputStream().use { stream ->
+      val buffer = ByteArray(64 * 1024)
+      while (true) {
+        val read = stream.read(buffer)
+        if (read <= 0) break
+        digest.update(buffer, 0, read)
+      }
+    }
+    return mapOf(
+      "uri" to Uri.fromFile(file).toString(),
+      "width" to width,
+      "height" to height,
+      "bytes" to file.length().toInt(),
+      "mediaType" to "image/jpeg",
+      "sha256" to digest.digest().joinToString("") { "%02x".format(it) },
+    )
   }
 
   /**

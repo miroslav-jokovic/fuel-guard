@@ -21,15 +21,44 @@ export interface NativeOcr {
   numberTokens: string[];
 }
 
-/** One page the OS scanner returned (already cropped + enhanced on the v1 SystemScanner path). */
-export interface NativeScannedPage {
+/** One encoded artifact on disk, with the hash of exactly those bytes. */
+export interface NativeImage {
   uri: string;
   width: number;
   height: number;
-  bytes?: number;
+  bytes: number;
   mediaType: string;
-  /** sha256 (hex) over the original-of-record bytes, computed natively. */
-  integrityHash: string;
+  /** sha256 (hex) over THIS file's bytes, computed natively. */
+  sha256: string;
+}
+
+/**
+ * One page the OS scanner returned (already cropped + enhanced on the v1 SystemScanner path).
+ *
+ * ── TWO ARTIFACTS SINCE PHASE 4b (D-SCAN6, audit finding F1) ──────────────────────────────────
+ * This used to be one file described by one hash, and every image field of `CapturedPage` pointed at
+ * it — so the "original of record" was a 1568 px JPEG q80 derivative and the integrity hash covered a
+ * re-encode of a downscale.
+ *
+ * `original` is the page as the scanner produced it; `derived` is the downscaled, re-encoded image
+ * that uploads immediately and that the server's extraction reads. Each carries the hash of its own
+ * bytes, because the server verifies what it downloads against the hash registered for it and one
+ * hash cannot describe two files.
+ *
+ * ⚠ **The two platforms mean different things by "original", and the difference is not hidden here.**
+ * Android's `GmsDocumentScanner` returns a JPEG file URI, so `original` is a byte copy of the
+ * scanner's own file. iOS's `VNDocumentCameraScan` exposes only `imageOfPage(at:) -> UIImage` and
+ * never bytes, so `original` is that image at full resolution encoded at maximum JPEG quality — no
+ * resize, no enhancement, no re-crop, but an encode nonetheless. There is no iOS API that would make
+ * it otherwise, and claiming byte-fidelity we cannot deliver would be exactly the defect F1 was.
+ *
+ * ⚠ This shape changed with `runtime-version.json` 1.0.7. An OTA bundle is only served to a binary
+ * whose runtime version matches, which is what stops this JavaScript meeting a 1.0.6 native module
+ * that still returns the flat shape.
+ */
+export interface NativeScannedPage {
+  original: NativeImage;
+  derived: NativeImage;
   osEnhanced: boolean;
   ocr?: NativeOcr;
 }

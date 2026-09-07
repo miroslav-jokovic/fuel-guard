@@ -1,6 +1,19 @@
-import { toRejectionReason, type ImageMetrics, type RejectionReason, type SupportResult } from "@silvicom/capture-engine";
+import {
+  evaluateGate,
+  toRejectionReason,
+  unavailableOcr,
+  type CaptureConfig,
+  type CapturedPage,
+  type ImageMetrics,
+  type ImageRef,
+  type OcrEvidence,
+  type RejectionReason,
+  type SupportResult,
+} from "@silvicom/capture-engine";
 import type {
+  NativeImage,
   NativeImageMetrics,
+  NativeOcr,
   NativeScanResult,
   NativeScannedPage,
   NativeSupport,
@@ -120,5 +133,95 @@ export function imageMetricsFromMeasurement(m: NativeImageMetrics | null): Parti
     brightnessMean: m.brightnessMean,
     contrastRms: m.contrastRms,
     shadowRange: m.shadowRange,
+  };
+}
+
+
+/**
+ * ── WHY PAGE ASSEMBLY LIVES HERE AND NOT IN THE PROVIDER (moved at Phase 4b) ──────────────────
+ * It used to sit beside the native module, and a mutation proved what that cost: pointing `measure()`
+ * at the DERIVATIVE instead of the original — undoing D-SCAN4 exactly — passed the whole driver
+ * suite, because nothing in it could reach the code that decides. The provider imports the native
+ * bridge, which imports `expo-modules-core`, which needs a React Native runtime, so every decision
+ * inside it is a decision only a phone can check. D-SCAN13 put the phone at the END of the programme.
+ *
+ * So the rule this file already stated for rejection reasons now covers the whole page: decisions
+ * here, I/O there. Which artifact is measured, which one is uploaded, which hash means what and which
+ * dimensions the resolution floor reads are all facts about the contract, and `pnpm test` reaches
+ * every one of them on a laptop.
+ */
+
+/** Which file the metrics are computed from — the ORIGINAL, per D-SCAN4. */
+export function measurementTarget(p: NativeScannedPage): string {
+  return p.original.uri;
+}
+
+function coerceMediaType(s: string): ImageRef["mediaType"] {
+  return s === "image/webp" || s === "image/jpeg" || s === "image/png" ? s : "image/webp";
+}
+
+function toOcr(n: NativeOcr | undefined): OcrEvidence {
+  if (!n) return unavailableOcr("native.none");
+  return {
+    engine: n.engine,
+    recognizedChars: n.recognizedChars,
+    recognizedWords: n.recognizedWords,
+    textCoverageFraction: n.textCoverageFraction,
+    medianCharHeightPx: n.medianCharHeightPx,
+    smallTextBandCoverage: n.smallTextBandCoverage,
+    meanConfidence: n.meanConfidence,
+    numberTokens: n.numberTokens,
+    available: true,
+  };
+}
+
+/** A native artifact as the engine's ImageRef — same fields, and the hash of exactly those bytes. */
+function toImageRef(n: NativeImage): ImageRef {
+  return { uri: n.uri, width: n.width, height: n.height, bytes: n.bytes, mediaType: coerceMediaType(n.mediaType), sha256: n.sha256 };
+}
+
+export function assemblePage(
+  p: NativeScannedPage,
+  measured: Partial<ImageMetrics>,
+  config: CaptureConfig,
+  platform: "ios" | "android",
+): CapturedPage {
+  const original = toImageRef(p.original);
+  const derived = toImageRef(p.derived);
+  const ocr = toOcr(p.ocr);
+  // System scanner returns a cropped, enhanced page → coverage is effectively full (an ASSERTION,
+  // not a measurement — Step 5.3 removes it). Blur, glare, shadow, brightness and contrast are real
+  // measurements from `measure()` as of Step 3.3, and every one of their gate floors is `null`, so
+  // they are RECORDED and gated on by nobody until Step 5.2 derives thresholds from the recorded
+  // distribution (D-SCAN10). `longEdgePx` comes from the page the scanner returned rather than from
+  // the measurement, which reports the same thing — the two agreeing is a property worth keeping
+  // accidental rather than one to depend on.
+  // ⚠ The resolution floor is measured on the ORIGINAL, which is the page as the scanner produced it.
+  // Measuring the derivative would make this check a statement about `enhanceLongEdgePx` — a number
+  // we chose — rather than about what the camera captured, and it would pass every time by
+  // construction.
+  const metrics: ImageMetrics = { longEdgePx: Math.max(original.width, original.height), coverageFraction: 1, ...measured };
+  const quality = evaluateGate({ metrics, ocr, platform }, config);
+  return {
+    originalOfRecord: original,
+    // The three derivative fields still alias each other, and that is the honest v1 shape rather than
+    // an oversight: the OS corrected perspective and enhanced in one step and returns one image
+    // (DCE §3). Step 6.1 produces a real ARCHIVE and MACHINE pair and they stop aliasing.
+    perspectiveCorrected: derived,
+    enhancedColor: derived,
+    enhancedGray: derived,
+    quality,
+    ocr,
+    metadata: {
+      providerId: "capture.native.system_scanner",
+      providerVersion: "0.1.0",
+      ocrEngineId: ocr.engine,
+      configVersion: config.configVersion,
+      device: platform,
+    },
+    // The ORIGINAL's hash, which is what this field has always been documented to be — and, until
+    // Phase 4b, was vacuously so, because a page had one file.
+    integrityHash: p.original.sha256,
+    provenance: { captureMode: "system_scanner", osEnhanced: p.osEnhanced },
   };
 }

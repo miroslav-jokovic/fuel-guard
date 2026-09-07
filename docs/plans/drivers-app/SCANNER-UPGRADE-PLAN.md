@@ -1208,3 +1208,70 @@ Append a dated line when a step ships. Do not mark table rows.
     tests; swallowing the sign failure fails one; signing an original unconditionally fails two;
     removing the deferred paths' protection fails the deletion test; dropping `deferredColumn` fails
     the column assertion; removing the pending grace fails two.
+
+- **2026-09-07** — **Step 4b-ii-a SHIPPED — the original of record stops being a derivative (F1,
+  D-SCAN6).** `CapturedPage`'s four image fields no longer alias one object. `originalOfRecord` is
+  the page the OS scanner produced; the other three are the derivative that uploads and that
+  extraction reads. Both artifacts are staged, both upload at registration, and `measure()` runs on
+  the ORIGINAL, which is what D-SCAN4 asked for and could not have until now.
+  · **The deferral is NOT in this merge.** The original uploads immediately alongside the archive —
+    which is the fallback §6 Q1 already names ("one line, and the driver pays the bytes") — and
+    4b-ii-b makes it wait for an unmetered connection. Interim, and it costs nothing: production has
+    zero hazmat captures (§6 Q5), so no driver pays for a byte of it.
+  · **"Untouched" means different things on the two platforms, and every layer says so rather than
+    averaging it away.** Android's `GmsDocumentScanner` returns a JPEG file URI, so the original is
+    `copyTo` — no decode, no re-encode, the scanner's own bytes — copied out of ML Kit's file because
+    that URI's lifetime belongs to the scanner session and a record a library may reclaim is not a
+    record. iOS's `VNDocumentCameraScan` exposes only `imageOfPage(at:) -> UIImage` and **never
+    bytes**, so its original is that image at full resolution and maximum JPEG quality: no resize, no
+    enhancement, no re-crop, but an encode. There is no iOS API that would make it otherwise, and
+    claiming byte-fidelity we cannot deliver is the defect F1 already was.
+  · **Two hashes now, and swapping them is a failure that hides.** `sha256` on the register describes
+    the ARCHIVE, because the server downloads that object and refuses a mismatch (Step 1.3);
+    `capture.integrityHash` describes the ORIGINAL, which is what it has always been documented as.
+    Sending them the wrong way round fails every extraction with `integrity_mismatch` in one
+    direction and records a provenance claim about bytes nobody kept in the other. Pinned by a test
+    that asserts they differ.
+  · **Memory was kept in mind, not assumed.** Swift encodes, writes and releases the original BEFORE
+    the resize allocates the derivative, so the per-page peak is one large buffer rather than two —
+    Step 1.4 bounded this pipeline to two pages in flight and doubling the per-page peak would have
+    undone half of it. Kotlin hashes by streaming rather than `readBytes()`, and takes the original's
+    dimensions from the bounds decode, so a full-resolution page is never decoded at all.
+
+- **2026-09-07 — ⚠ a mutation that PASSED, and what it cost to fix (the seventh in this programme).**
+  Pointing `measure()` at the derivative instead of the original — inverting D-SCAN4 exactly — passed
+  the **entire driver suite**. Not because the test was weak: because `assemblePage` and the choice
+  of which file to measure lived in `nativeSystemScannerProvider.ts`, which imports the native
+  bridge, which needs a React Native runtime, so **no unit test could reach them at all**.
+  · That is the failure mode `nativeScanOutcome.ts`'s own header describes for rejection reasons, one
+    layer up, and D-SCAN13 makes it expensive: an undetected inversion here sits in the recorded
+    metrics for months and is then baked into Step 5.2's thresholds.
+  · **`assemblePage` and `measurementTarget` moved into `nativeScanOutcome.ts`**, where `pnpm test`
+    reaches them. The provider keeps the I/O and nothing else. The same mutation now fails.
+  · A second one it exposed: the resolution floor read the DERIVATIVE's long edge. That is
+    `enhanceLongEdgePx` — a number we chose — so the check would have been a statement about our own
+    config, passing by construction on a page captured at any resolution at all. It would not have
+    looked like a failure; it would have looked like a gate that never fires. Now gated on the
+    original, with a fixture whose derivative (1568 px) clears the floor while its original (800 px)
+    does not.
+  · Five mutations read in total: the two hashes swapped, the original uploaded for reading, an
+    original declared unconditionally (which would make the JS fallback pay for every page twice),
+    `measure()` on the derivative, and the resolution floor on the derivative.
+
+- **2026-09-07 — two notes for whoever runs §3.3's gate table next.** `lint:tokens`, `lint:theme` and
+  `lint:design` **do not exist** — the plan names three scripts that are not in `package.json`. The
+  driver-touching gates that DO exist and were run here are `pnpm --filter @silvicom/driver lint`,
+  `lint:tokens-parity`, `lint:token-schema` and `lint:token-gamut`. And §3.4 was run in full:
+  `expo prebuild` + `:capture-native:assembleDebug` + `testDebugUnitTest` green, the iOS parity
+  harness PASS (24 fixtures + the F7 corpus, 1.1× headroom on the exactness bound), and
+  `xcodebuild -scheme CaptureNative -sdk iphonesimulator` **BUILD SUCCEEDED** — which is the only
+  thing that compiles `CaptureNativeModule.swift`, and this merge changed it. Runtime 1.0.6 → **1.0.7**.
+
+- **2026-09-07 — ⚠ owed on device, added to §5 of the handoff (items 17–20).** Everything above is a
+  compile and a unit test.
+  17. A real scan produces TWO files per page, and the original is visibly larger than the derivative.
+  18. Android's original is byte-identical to ML Kit's own file (`copyTo`, so `cmp` should be silent).
+  19. iOS's `jpegData(compressionQuality: 1.0)` at full resolution does not OOM on a ten-page scan —
+      this is the one that adds a multi-megabyte buffer per page to a pipeline Step 1.4 had to bound.
+  20. A capture on a real device registers, uploads BOTH objects, and extraction succeeds — which is
+      the first end-to-end proof that `sha256` and `integrityHash` are the right way round.
