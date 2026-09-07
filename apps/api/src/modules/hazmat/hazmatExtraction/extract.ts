@@ -1,3 +1,4 @@
+import type { MeasuredMetrics } from "@silvicom/capture-engine";
 import type { DatasetIndex } from "@hazmat/data";
 import type { HazmatLine } from "@hazmat/engine";
 import { classifyLineLoadState, lineDeclaresLq, type BolFields } from "./bolFields.js";
@@ -26,6 +27,14 @@ export interface ExtractInput {
 export interface UsabilityCheck {
   usable: boolean;
   reasons: string[];
+  /**
+   * Everything the gate measured, enforced or not. Carried through so the orchestrator can persist it
+   * on the run: since Step 2.3 the blur and glare checks are recorded rather than enforced (D-SCAN10),
+   * and Step 5.2 derives their floors from exactly this distribution. A measurement nobody stored
+   * would leave that step with nothing to derive from.
+   */
+  metrics?: MeasuredMetrics;
+  gateVersion?: string;
 }
 export interface ExtractDeps {
   extractor: VisionExtractor;
@@ -35,6 +44,9 @@ export interface ExtractDeps {
 export interface ExtractResult {
   usable: boolean;
   usabilityReasons: string[];
+  /** Per page, in page order — recorded on the run whether or not anything rejected (D-SCAN10). */
+  usabilityMetrics: Array<MeasuredMetrics | null>;
+  usabilityGateVersion: string | null;
   passA?: BolFields;
   passB?: BolFields;
   mapped?: MapBolResult;
@@ -50,11 +62,15 @@ export async function runExtraction(input: ExtractInput, deps: ExtractDeps): Pro
   const models = input.models;
   // 1. Usability gate — a bad page never reaches the model.
   const gates = await Promise.all(input.gateBuffers.map((b) => deps.runUsability(b)));
+  const usabilityMetrics = gates.map((g) => g.metrics ?? null);
+  const usabilityGateVersion = gates[0]?.gateVersion ?? null;
   const bad = gates.filter((g) => !g.usable);
   if (bad.length > 0) {
     return {
       usable: false,
       usabilityReasons: [...new Set(bad.flatMap((g) => g.reasons))],
+      usabilityMetrics,
+      usabilityGateVersion,
       engineLines: [],
       flags: ["recapture_needed"],
       usage: { input: 0, output: 0 },
@@ -115,6 +131,8 @@ export async function runExtraction(input: ExtractInput, deps: ExtractDeps): Pro
   return {
     usable: true,
     usabilityReasons: [],
+    usabilityMetrics,
+    usabilityGateVersion,
     passA: a.fields,
     passB: b.fields,
     mapped,

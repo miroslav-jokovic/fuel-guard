@@ -4,12 +4,25 @@
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "paths": {
-      "@silvicom/shared": ["../../packages/shared/src/index.ts"],
-      "@silvicom/shared/*": ["../../packages/shared/src/*"]
+      "@silvicom/capture-engine": [
+        "../../packages/capture-engine/src/index.ts"
+      ],
+      "@silvicom/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@silvicom/shared/*": [
+        "../../packages/shared/src/*"
+      ]
     }
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
