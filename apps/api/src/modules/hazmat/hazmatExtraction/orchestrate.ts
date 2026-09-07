@@ -7,7 +7,7 @@ import type { Env } from "../../../env.js";
 import { transitionLoad } from "../hazmatLoads.js";
 import { buildManualLoadInput, computeAdvisories, insertHazmatRun, type CargoTankProfileRow, type ManualLoadRow } from "../hazmatAnalysis.js";
 import { normalizeImage, IMAGE_NORMALIZER_VERSION } from "./image.js";
-import { usabilityGate } from "./image.js";
+import { usabilityGate, verifyIntegrityHash } from "./image.js";
 import { anthropicVisionExtractor, HAZMAT_EXTRACTION_PROMPT_VERSION, type ImageInput } from "./vision.js";
 import { runExtraction } from "./extract.js";
 import { computeExtractionFlags, isGreen } from "./outcome.js";
@@ -94,9 +94,12 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
     const qual = await evaluateQualification(admin, orgId, { driver_id: load.driver_id, planned_pickup_at: load.planned_pickup_at }, equipment.kind, now);
 
     const { data: docs } = await admin
-      .from("hazmat_documents").select("storage_path, content_type, page")
+      .from("hazmat_documents").select("storage_path, content_type, page, sha256, capture_mode")
       .eq("org_id", orgId).eq("load_id", loadId).eq("kind", "bol").order("page", { ascending: true });
-    const docRows = (docs ?? []) as Array<{ storage_path: string; content_type: string | null; page: number }>;
+    const docRows = (docs ?? []) as Array<{
+      storage_path: string; content_type: string | null; page: number;
+      sha256: string; capture_mode: string | null;
+    }>;
     if (docRows.length === 0) return finish(null, ["no_documents"], null);
 
     // Download → normalize → base64. The normalized bytes also key the content-hash cache.
@@ -108,6 +111,26 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
       const { data: blob, error } = await admin.storage.from("hazmat").download(d.storage_path);
       if (error || !blob) return finish(null, ["document_unreadable"], null);
       const raw = Buffer.from(await blob.arrayBuffer());
+
+      // ── The integrity hash stops being decorative (plan Step 1.2/F5) ────────────────────────────
+      // `hazmat_documents.sha256` has been recorded since 0092 and recomputed by nobody, so it
+      // asserted a property no code checked — and the driver app's two providers were computing it
+      // over different things (bytes natively, the base64 STRING in the JS fallback) with nothing to
+      // catch the discrepancy. Verified here rather than at registration because this is where the
+      // bytes exist: registration returns an upload URL and the object does not exist yet.
+      //
+      // ⚠ ONLY driver captures are verified, and the restraint is deliberate. `capture_mode` is
+      // non-null exactly when our own scanner produced the row (0133), which is the only case where
+      // we control BOTH the hash producer and the bytes. A manager-registered document's sha256 comes
+      // from a client we did not write, and failing a run on a property nobody guaranteed would turn
+      // an unverifiable claim into a broken feature.
+      // Not an extraction failure — a provenance failure. Reading a document whose bytes are not the
+      // bytes that were gated is exactly what the gate exists to prevent, so the run stops rather
+      // than producing a confident verdict about an unknown image.
+      if (verifyIntegrityHash({ bytes: raw, recorded: d.sha256, captureMode: d.capture_mode }) === "mismatch") {
+        return finish(null, ["integrity_mismatch"], null);
+      }
+
       const norm = await normalizeImage(raw);
       hash.update(norm.normalized);
       gateBuffers.push(norm.normalized);
