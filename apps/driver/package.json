@@ -1,6 +1,6 @@
 {
   "name": "@silvicom/driver",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -20,7 +20,8 @@
     "lint:tokens": "node scripts/check-driver-tokens.mjs && node scripts/check-driver-theme.mjs",
     "lint:theme": "node scripts/check-driver-theme.mjs",
     "lint:design": "node scripts/check-driver-design.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen:icons": "node scripts/gen-app-icons.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/lexend": "0.4.1",
@@ -38,6 +39,7 @@
     "@tanstack/react-query-persist-client": "^5.90.2",
     "aes-js": "^3.1.2",
     "expo": "^57.0.11",
+    "expo-build-properties": "~57.0.17",
     "expo-constants": "^57.0.9",
     "expo-crypto": "57.0.1",
     "expo-dev-client": "57.0.10",
@@ -47,10 +49,10 @@
     "expo-image-manipulator": "^57.0.8",
     "expo-image-picker": "^57.0.8",
     "expo-linking": "^57.0.5",
-    "expo-location": "~57.0.8",
     "expo-notifications": "~57.0.8",
     "expo-router": "^57.0.11",
     "expo-secure-store": "57.0.1",
+    "expo-splash-screen": "~57.0.8",
     "expo-sqlite": "57.0.1",
     "expo-status-bar": "57.0.1",
     "expo-system-ui": "57.0.2",
@@ -71,6 +73,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@resvg/resvg-js": "2.6.2",
     "@types/aes-js": "^3.1.4",
     "@types/react": "~19.2.0",
     "babel-preset-expo": "~57.0.6",

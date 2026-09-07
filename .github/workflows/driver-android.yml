@@ -149,6 +149,12 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           UPDATES_URL: ${{ secrets.UPDATES_URL }}
           UPDATES_APP_ID: ${{ secrets.UPDATES_APP_ID }}
+          # @sentry/react-native's sentry.gradle hooks the release bundle task and runs sentry-cli
+          # through a plain `exec` with no ignoreExitValue — so on a lane that has never had a Sentry
+          # token (this one), the upload does not warn and skip, it FAILS assembleRelease. Only
+          # SENTRY_DISABLE_AUTO_UPLOAD turns the task off. Source-map upload belongs to the EAS
+          # production lane, which has the token (D-PR11, P2). Added with the Sentry plugin 2026-09-07.
+          SENTRY_DISABLE_AUTO_UPLOAD: "true"
         run: ./gradlew assembleRelease --no-daemon
 
       # A debug-signed APK installs fine, which is precisely why this check exists: without it the
@@ -164,6 +170,17 @@ jobs:
             echo "::error::APK is signed with the Android debug key — the release signing config did not apply."
             exit 1
           fi
+
+      # Play requires every native library to be 16 KB page-aligned for anything targeting Android
+      # 15+ (required since 2025-11-01; hard stop for updates 2027-02-01). A 4 KB-aligned .so does
+      # not load on a 16 KB device: the app installs and then crashes on the screen that touches
+      # that library, with no build warning anywhere. This is the first place in the pipeline where
+      # a real bundle of real libraries exists, so it is the first place the question can be asked.
+      # See apps/driver/scripts/check-16kb.mjs and plan §7 Q-PR5 for what to do when one fails.
+      - name: Every native library is 16 KB page-aligned
+        run: >-
+          node apps/driver/scripts/check-16kb.mjs
+          apps/driver/android/app/build/outputs/apk/release/app-release.apk
 
       # The fingerprint of the native project this APK was built from. The OTA workflow compares its
       # own fingerprint with this one to decide "JavaScript-only, publish an update" versus "native

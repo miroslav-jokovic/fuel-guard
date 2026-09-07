@@ -117,5 +117,15 @@ _(none yet — the gate has not been run)_
 (one screen, as planned) · `Q-DB5` thread↔stop linkage (`load_ref` only, built in B4) ·
 `Q-DB6` deck gestures (Accept/Decline only, no swipe).
 
-**§6's P0–P8 production readiness has not started.** P1 (target API 36 + 16 KB) must merge before the
-first store build and P4 (account closure) before the first submission.
+**§6's production readiness: P1 is DONE (2026-09-07); P2–P8 have not started.** P4 (account closure)
+must merge before the first submission.
+
+- `Q-PR5` (a native library that fails the 16 KB check) is **still open and is now checkable**:
+  `scripts/check-16kb.mjs` runs on the APK in `driver-android.yml`, and the next merge to main is
+  the first time it will see a real bundle. The only 4 KB-aligned libraries found in the tree —
+  `expo-sqlite`'s `libsql` and `vec` — are not packaged.
+- `Q-PR1` (EAS project and credentials) is unchanged and unblocked: P1 ships through the existing
+  APK lane.
+- **New, from P1:** whether the dev launcher's NATIVE code links into a Release archive is unknown.
+  Its plist strings are stripped by expo-dev-launcher's own build phase, but that is the plist, not
+  the binary. Answerable only with `pod install` + an archive — P2/P8.

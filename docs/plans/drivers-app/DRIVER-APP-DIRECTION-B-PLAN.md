@@ -849,7 +849,7 @@ from the stores' own published requirements on that date.
 - `DRIVER-APP-BUILD-STATUS.md` gets a dated line pointing here.
 - **Done when:** merged with this plan (this PR).
 
-#### P1 · Native configuration for the stores (`claude/driver-p1-store-config`)
+#### P1 · Native configuration for the stores — DONE 2026-09-07 (`claude/driver-p1-store-config`)
 
 Touches `app.config.ts`, `package.json`, `plugins/`, `assets/`, `scripts/`, `.github/workflows/ci.yml`.
 
@@ -1340,3 +1340,81 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a
   file-level inventory of the store configuration and the stores' published requirements; §7 gains
   Q-PR1–6. P0 (the stale release-gate rows) ships with this document.
+
+- 2026-09-07 · **P1 built** (`claude/driver-p1-store-config`). `app.config.ts` rewritten to §6 P1.1;
+  `plugins/withPredictiveBack.js`, `scripts/gen-app-icons.mjs`, `scripts/check-16kb.mjs` and
+  `scripts/check-android-manifest.mjs` are new; `expo-build-properties` and `expo-splash-screen`
+  added, `expo-location` removed (D-PR6, zero call sites), `@resvg/resvg-js` added as a devDependency;
+  four icons committed; `runtime-version.json` 1.0.8 → 1.1.0 because every one of those is a native
+  change. 112 tests added across `native-config`, `app-icon-model`, `elf-alignment` and
+  `android-manifest` (376 total). **46 mutants introduced, 46 died** — two survived the first pass
+  and are recorded under "measured" below, because they were a real gap, not equivalence.
+
+  **Measured, not assumed** (all on 2026-09-07, this branch):
+  1. **The merged release manifest is the only evidence, and it disagrees with app.config.ts.** Five
+     declared permissions become **thirty-three** after AGP merges every dependency's manifest —
+     biometrics (expo-secure-store), wifi state (NetInfo), FCM, and twenty launcher-badge permissions
+     from expo-notifications. All six blocked permissions are absent, `enableOnBackInvokedCallback`
+     is `true`, `targetSdkVersion` is `36`, `allowBackup` is `false`, and both `uses-feature` entries
+     carry `required="false"` so no device is excluded. `ci.yml` now runs
+     `:app:processReleaseManifest` and asserts this every run; reading `app.config.ts` would have
+     proved none of it.
+  2. **The Sentry plugin would have broken `driver-android.yml`.** `@sentry/react-native`'s
+     `sentry.gradle` runs sentry-cli through a plain `exec` with **no `ignoreExitValue`**, so on a
+     lane with no `SENTRY_AUTH_TOKEN` — which is that lane, and always has been — `assembleRelease`
+     FAILS rather than skipping the upload. Only `SENTRY_DISABLE_AUTO_UPLOAD=true` turns the task
+     off, and the workflow now sets it. D-PR11's "without it the build still succeeds JS-only" was
+     not true as written.
+  3. **`edgeToEdgeEnabled` is gone, not moved.** SDK 57's prebuild prints "customization is no longer
+     available — Android 16 makes edge-to-edge mandatory. Remove the entry." Removing it exposed a
+     `newArchEnabled` type error that the `@ts-expect-error` on `edgeToEdgeEnabled` had been
+     absorbing — TypeScript reports one excess-property error per assignment. The suppression moved
+     with the finding; the error was always there.
+  4. **P1's "a plist without the Expo Dev Launcher strings" is true of the ARCHIVE, not of the
+     prebuild.** Excluding `expo-dev-client` from `plugins` does not stop `expo-dev-launcher`'s
+     config plugin running — it is autolinked from the dependency — so the prebuilt Info.plist still
+     carries `NSBonjourServices: [_expo._tcp]` and the dev-launcher `NSLocalNetworkUsageDescription`.
+     expo-dev-launcher installs its own Xcode build phase ("Strip Local Network Keys for Release")
+     that deletes both from any non-Debug configuration, and that phase IS present in the generated
+     project. **Not verified:** whether the dev launcher's native code is linked into a Release
+     archive at all. That needs `pod install` + an archive and belongs to P2/P8.
+  5. **Two 4 KB-aligned libraries exist in the tree and neither ships.** `expo-sqlite`'s
+     `libsql_experimental.so` and `vec.so` are 4096-aligned on all four ABIs; both are gated on
+     `expo.sqlite.useLibSQL` / `withSQLiteVecExtension`, both default false, and we set neither.
+     Every other native library in this app comes from a Maven AAR and cannot be measured without a
+     built bundle — which is why the check runs on the APK in `driver-android.yml` and **has never
+     run on one**. Q-PR5 is open until the next merge to main produces one.
+  6. **`check-16kb.mjs` agrees with `llvm-objdump`.** Its ELF reader was cross-checked against the
+     NDK 27.1 `llvm-objdump -p` on those four real libraries and matched segment for segment. The
+     cross-check is permanent: when an objdump is discoverable the script runs both and fails on
+     disagreement, and the summary line always says which happened.
+
+  **Deviations from §6 P1, each forced or better:**
+  (1) **`check-16kb.mjs` reads ELF program headers in Node instead of shelling to `llvm-objdump`** —
+  no toolchain dependency, unit-testable against synthesised headers, and per-library reporting. The
+  objdump comparison is kept as a cross-check rather than as the measurement.
+  (2) **The icon script uses `@resvg/resvg-js` as P1.4 said, but classifies the mark's fills by
+  LUMINANCE rather than by a hard-coded hex list**, so an Illustrator re-export keeps working. The
+  threshold is derived (`sqrt(1.05·0.05) − 0.05 = 0.1791`, the point where white beats black), not
+  chosen: a round 0.5 was the first version and **survived two mutants**, because every colour in the
+  real mark sits at 0.022 or 0.888 and any threshold between them classified the file identically.
+  The two tests that pin it now straddle it deliberately.
+  (3) **The notification icon is overdrawn three times.** The source paints the "360" into holes cut
+  out of the leaf, so two antialiased edges meet along every digit and 50% over 50% is 75% — ghost
+  digits at 96px. Overdrawing closes the seam without a pixel threshold, which would have taken the
+  antialiasing off the outer edge too.
+  (4) **`version`, the splash/adaptive-icon navy and the notification amber are DERIVED, not
+  restated** — from `package.json` and `theme.roles.json`. `driver-android.yml` already named the APK
+  from the package.json copy, so the version was two values with nothing checking they agreed.
+  (5) **`ci.yml` prebuilds ONCE, with `APP_VARIANT=store`**, rather than adding a second prebuild.
+  The capture module compiles identically either way and the store variant is the one no laptop
+  exercises. Cost: the `native-android` job gains `:app:processReleaseManifest`.
+  (6) **`gen-app-icons.mjs --check` is NOT a CI gate.** @resvg/resvg-js is a per-platform native
+  binary and a byte-diff of its PNGs between a Mac and an ubuntu runner would fail for reasons that
+  are not the icon. Everything decided before the rasteriser is unit-tested instead.
+
+  **Not verified, stated plainly:** nothing here has run on a phone; no APK or AAB has been built
+  from this branch; `pod install` and an Xcode archive have not been run, so the iOS side is verified
+  only as far as `expo prebuild --platform ios` output (Info.plist, entitlements,
+  `PrivacyInfo.xcprivacy`, `IPHONEOS_DEPLOYMENT_TARGET=16.4`, the strip build phase). P1.3's back
+  gesture is asserted in the manifest and its BEHAVIOUR is untested — that is P8's device pass.
