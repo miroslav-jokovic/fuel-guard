@@ -1,0 +1,211 @@
+name: Driver app — store build and submit
+
+# Builds an AAB and an IPA on EAS and submits them to Play internal testing and TestFlight
+# (DIRECTION-B-PLAN §6 P2.2, D-PR3).
+#
+# WHY THIS IS NOT `driver-android.yml` WITH AN EXTRA STEP. That workflow builds a signed APK on a
+# GitHub runner and publishes it to the internal install page, on every push to main. This one is a
+# RELEASE: it runs only on a `driver-v<semver>` tag, produces the two artifacts the stores accept,
+# and puts them where a human still has to promote them. The two lanes coexist until the Play
+# internal track replaces the install page (P8), and then this one survives.
+#
+# ⚠ NOTHING BELOW HAS EVER RUN. There is no EAS project yet — `eas init`, the keystore upload, the
+# APNs key and the App Store Connect record are the owner's one-time P2.3 setup, and this workflow
+# fails closed on every one of the secrets they produce. The first `driver-v*` tag is the first
+# execution, and it should be a release candidate (`driver-v1.0.0-rc.1`), not 1.0.0.
+#
+# Required repository secrets:
+#   EXPO_TOKEN                      robot access token from expo.dev (Account → Access tokens)
+# Required for the Android submit (uploaded to EAS as secrets, not read here):
+#   the Play service-account JSON, as the EAS secret named in eas.json
+# Required for the iOS submit:
+#   the App Store Connect API key, as an EAS secret
+#
+# WHAT IT DELIBERATELY DOES NOT DO. It does not promote anything to production, and it does not
+# submit for review: Android lands on the internal track as a draft and iOS lands in TestFlight.
+# Metadata and screenshots are P3; review credentials are P7; the promotion click is P8.
+
+on:
+  push:
+    tags:
+      - "driver-v*"
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Which platform to build"
+        type: choice
+        options: [all, android, ios]
+        required: false
+        default: all
+      submit:
+        description: "Submit the build after it finishes"
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: driver-store
+  cancel-in-progress: false # a release build is never worth cancelling for a newer one
+
+permissions:
+  contents: write # to record the built fingerprint on the tag's GitHub Release
+  actions: read # the CI gate reads workflow run status
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90 # an EAS build waits in a queue; the runner is idle for most of it
+    strategy:
+      fail-fast: false # an iOS failure must not cancel a working Android submit, or vice versa
+      matrix:
+        platform: [android, ios]
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same reasoning as driver-android.yml: a tag can be pushed at any commit, including one whose
+      # tests never passed. A store submission made from a red commit is one that reaches real
+      # phones through a channel we cannot recall.
+      - name: Require CI green for this commit
+        uses: ./.github/actions/require-ci-green
+
+      - name: Skip platforms this run did not ask for
+        id: wanted
+        env:
+          WANTED: ${{ github.event.inputs.platform || 'all' }}
+        run: |
+          if [ "$WANTED" = "all" ] || [ "$WANTED" = "${{ matrix.platform }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping ${{ matrix.platform }} — this run asked for $WANTED."
+          fi
+
+      - name: Assert required secrets are present
+        if: steps.wanted.outputs.run == 'true'
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          value=$(echo "$SECRETS_JSON" | jq -r '.EXPO_TOKEN // empty')
+          if [ -z "$value" ]; then
+            echo "::error::EXPO_TOKEN is not set. Create a robot access token at expo.dev and add it."
+            echo "A build that silently falls back to an interactive login is a build that hangs."
+            exit 1
+          fi
+
+      - uses: ./.github/actions/setup
+        if: steps.wanted.outputs.run == 'true'
+
+      # `eas build --wait` blocks until the artifact exists, so the URL is in this job's output
+      # rather than in a dashboard somebody has to go and find. --non-interactive because there is
+      # no terminal here, and without it a missing credential turns into a prompt and then a timeout.
+      #
+      # IOS_BUILD_NUMBER and ANDROID_VERSION_CODE are both the run number (D-PR2): app.config.ts
+      # reads them, eas.json sets appVersionSource to local so EAS does not keep a counter of its
+      # own, and neither is ever hand-edited.
+      - name: Build on EAS
+        if: steps.wanted.outputs.run == 'true'
+        id: build
+        working-directory: apps/driver
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          IOS_BUILD_NUMBER: ${{ github.run_number }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          npx --yes eas-cli@${{ vars.EAS_CLI_VERSION || '23.2.0' }} build \
+            --platform ${{ matrix.platform }} \
+            --profile production \
+            --non-interactive \
+            --wait \
+            --json > build.json
+          # applicationArchiveUrl FIRST: `buildUrl` is the human-readable build page on expo.dev,
+          # not the artifact. Downloading it gives an HTML document that bundletool then rejects for
+          # a reason that has nothing to do with the app.
+          url=$(jq -r '.[0].artifacts.applicationArchiveUrl // .[0].artifacts.buildUrl // empty' build.json)
+          id=$(jq -r '.[0].id // empty' build.json)
+          if [ -z "$url" ]; then
+            echo "::error::EAS reported no artifact URL for ${{ matrix.platform }}."
+            cat build.json
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "### ${{ matrix.platform }} build" >> "$GITHUB_STEP_SUMMARY"
+          echo "EAS build \`$id\` — [artifact]($url)" >> "$GITHUB_STEP_SUMMARY"
+
+      # Play requires every native library to be 16 KB page-aligned for anything targeting Android
+      # 15+ (P1.5, §7 Q-PR5). The AAB is checked through its universal APK, because an AAB is a
+      # publishing format and bundletool is what turns it into something with real `lib/**/*.so`
+      # entries in it. A 4 KB library installs fine and then crashes on a 16 KB device, with no build
+      # warning anywhere — which is why this runs before the submit, not after it.
+      - name: Every native library is 16 KB page-aligned
+        if: steps.wanted.outputs.run == 'true' && matrix.platform == 'android'
+        env:
+          BUNDLETOOL_VERSION: "1.18.1"
+        run: |
+          curl -sSfL -o bundletool.jar \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+          curl -sSfL -o app.aab "${{ steps.build.outputs.url }}"
+          # An AAB is a zip. If EAS handed back a build page instead of an artifact, this is an HTML
+          # document, and saying so here is cheaper than reading a bundletool stack trace.
+          if [ "$(head -c 2 app.aab)" != "PK" ]; then
+            echo "::error::The downloaded artifact is not a zip — EAS returned a page, not an App Bundle."
+            head -c 400 app.aab
+            exit 1
+          fi
+          java -jar bundletool.jar build-apks --mode=universal --bundle=app.aab --output=universal.apks
+          # A .apks is a zip OF apks — `lib/**/*.so` lives one level deeper, inside universal.apk.
+          # Handing the .apks straight to the checker finds no libraries at all, which it correctly
+          # reports as "nothing was checked" rather than as a pass.
+          unzip -o -q universal.apks -d universal
+          node apps/driver/scripts/check-16kb.mjs universal/universal.apk
+
+      # The fingerprint of the native project this artifact was built from, recorded on the tag's
+      # GitHub Release.
+      #
+      # WHY IT IS RECORDED HERE AND READ NOWHERE YET. driver-ota.yml decides "can this JavaScript
+      # ship over the air?" by comparing the current commit's fingerprint against the one recorded
+      # for the binary that is actually installed. For Android that record is the install page, which
+      # driver-android.yml writes on every push to main. For iOS there is no such record and cannot
+      # be one until an IPA exists — and an IPA is built only on a tag, so it can be many commits
+      # older than the newest APK. Publishing an iOS update against the APK's fingerprint would be
+      # exactly the failure the gate exists to prevent, moved to a platform nobody is watching.
+      #
+      # So: this writes the record from the first build onward, and the driver-ota.yml change that
+      # READS it is a separate, reviewed step. See the plan's §6 P2.4.
+      - name: Record the native fingerprint on the release
+        if: steps.wanted.outputs.run == 'true' && startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fingerprint=$(cd apps/driver && node scripts/native-fingerprint.mjs)
+          runtime=$(node -p "require('./apps/driver/runtime-version.json').runtimeVersion")
+          file="fingerprint-${{ matrix.platform }}.json"
+          jq -n --arg p "${{ matrix.platform }}" --arg f "$fingerprint" --arg r "$runtime" \
+                --arg b "${{ steps.build.outputs.id }}" --arg c "${{ github.sha }}" \
+             '{platform:$p, fingerprint:$f, runtimeVersion:$r, easBuildId:$b, commit:$c}' > "$file"
+          # An ASSET per platform, not an edit to the release body: the two matrix jobs run at the
+          # same time, and two `gh release edit --notes` calls against one body is a lost update —
+          # whichever finishes second erases the other's line.
+          gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --notes "Driver store build." 2>/dev/null || true
+          gh release upload "${{ github.ref_name }}" "$file" --clobber
+          echo "Recorded ${{ matrix.platform }} fingerprint $fingerprint (runtime $runtime)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Submit to the store
+        if: steps.wanted.outputs.run == 'true' && (github.event.inputs.submit != 'false')
+        working-directory: apps/driver
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npx --yes eas-cli@${{ vars.EAS_CLI_VERSION || '23.2.0' }} submit \
+            --platform ${{ matrix.platform }} \
+            --profile production \
+            --non-interactive \
+            --id "${{ steps.build.outputs.id }}"
+          {
+            echo "### ${{ matrix.platform }} submitted"
+            if [ "${{ matrix.platform }}" = "android" ]; then
+              echo "Play **internal testing**, as a **draft**. Promotion to production is a click in Play Console (P8)."
+            else
+              echo "**TestFlight** after processing (usually 10–15 minutes). This is NOT a review submission (P7/P8)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
