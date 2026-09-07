@@ -10,6 +10,8 @@ import {
 import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import type { AttentionRow, TodayState } from '@/screens/today/todayModel';
 import { OfferDeck, declineChoices } from '@/features/loads/OfferDeck';
+import { StopHero } from '@/features/loads/StopHero';
+import { SAMPLE_STOP_LOAD } from '@/features/loads/sampleOffers';
 import { SAMPLE_OFFERS } from '@/features/loads/sampleOffers';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
@@ -352,6 +354,18 @@ export default function Gallery() {
             )}
           </View>
         ))}
+      </Section>
+
+      {/* B4 done-when: the stop screen's two heroes. The map one needs network AND coordinates, so
+          the flat fallback is otherwise only reachable by putting a device in airplane mode. */}
+      <Section title="Stop hero — with a map, and without">
+        <StopHero load={SAMPLE_STOP_LOAD} stop={SAMPLE_STOP_LOAD.stops[0]!} onBack={noop} />
+        <StopHero load={SAMPLE_STOP_LOAD} stop={SAMPLE_STOP_LOAD.stops[1]!} onBack={noop} />
+        <AppText variant="caption" tone="muted">
+          The second stop carries no coordinates, so it draws the flat hero — the same thing an
+          offline device sees. The map is `pointerEvents="none"`: a picture, not a navigator, because
+          no route service is reachable from this app.
+        </AppText>
       </Section>
 
       <Section title="Toast host" action={{ label: 'Show one', onPress: () => toast.show('Stop 2 completed · 4 photos queued') }}>

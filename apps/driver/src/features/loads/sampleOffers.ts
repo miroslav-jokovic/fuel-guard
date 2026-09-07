@@ -37,3 +37,29 @@ export const SAMPLE_OFFERS: Load[] = [
     ],
   },
 ];
+
+/**
+ * A load whose first stop has coordinates and whose second does not, so the gallery can show both
+ * stop heroes side by side. The flat hero is otherwise reachable only by putting a device into
+ * airplane mode, which is exactly the state nobody remembers to review.
+ */
+export const SAMPLE_STOP_LOAD: Load = {
+  id: '00000000-0000-4000-8000-000000000903', ref: 'LD-20481', status: 'in_transit',
+  equipment: 'Dry van', commodity: 'Palletised dry goods', hazmat: false, total_miles: 412,
+  accepted_at: '2026-09-06T18:00:00Z', completed_at: null, notes: null,
+  created_at: '2026-09-06T08:00:00Z', vehicle_unit: '4471', trailer_unit: 'T-882',
+  stops: [
+    {
+      ...stop(5, 'Effingham', 'IL', '2026-09-07T14:00:00Z', 'dropoff'),
+      lat: 39.1200, lon: -88.5434,
+      address_line: '1204 W Fayette Ave',
+      appointment_end: '2026-09-07T16:00:00Z',
+      required_photos: ['bol', 'seal'],
+      notes: 'Dock 14. Check in with the guard shack first.',
+    },
+    {
+      ...stop(6, 'Peoria', 'IL', '2026-09-07T19:00:00Z', 'dropoff'),
+      required_photos: ['bol'],
+    },
+  ],
+};

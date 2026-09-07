@@ -608,7 +608,7 @@ additive.
   driver shows "I'm ready"/"Can't take this" on the deck (gallery has both); decline still requires
   a reason and still calls `useDeclineLoad` with it.
 
-### B4 · Load detail and Stop
+### B4 · Load detail and Stop — DONE 2026-09-07
 
 **Branch:** `claude/driver-b4-detail-stop`. Splits `app/loads/[id].tsx` into
 `src/features/loads/{Itinerary.tsx, itineraryModel.ts}`; `app/loads/[id]/stop/[stopId].tsx` into
@@ -1248,6 +1248,27 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   (5) `SAMPLE_OFFERS` is the gallery's only fixture (§4 rule 8) and exists so both driver types can
   be reviewed side by side — the labels are the ONLY difference between them, so one screenshot
   proves nothing about the other.
+- 2026-09-07 · **B4 built.** `itineraryModel.ts` (13 tests), `Itinerary.tsx`, `StopHero.tsx`,
+  `PhotoGrid.tsx`; both screens recomposed; the completion receipt goes through `useToast` and
+  outlives the `router.back()` that follows it. `stop-capture-model.test.ts` is unchanged and green,
+  so the outbox record shape is untouched. Deviations and findings:
+  (1) **The window verdict is judged by `arrived_at` when it exists.** B4.5 says "computed from
+  `arrived_at ?? now`", which is what this does — but the consequence deserves writing down: a stop
+  marked arrived at 13:50 for a 14:00 window must still read "early" when the screen is reopened at
+  16:30, or a good arrival silently becomes a late one. It is a test.
+  (2) **B4.5's message row is built in the ROUTE, not in `features/loads`.** `src/features/loads/*`
+  may not import `features/messages` (`lint:boundaries` — the rule that moved Today to
+  `src/screens/`), so `app/loads/[id]/stop/[stopId].tsx` does the thread lookup and passes the row
+  down. A route may compose across features; a feature may not reach into a sibling. Q-DB5 stands:
+  the match is `load_ref` only, and no row appears when nothing carries the ref.
+  (3) **The lifecycle `TaskStepper` is deleted from load detail** (critique defect 21) but the
+  component stays — `check-in` uses it for a real wizard, which is what a stepper is for.
+  (4) **The window-verdict tests assert the verdict and the arithmetic, never the clock string.** The
+  window renders in the DEVICE locale and timezone, so an exact-string assertion tests the CI
+  runner's timezone rather than the rule — it failed exactly that way first (`09:00 AM` for `14:00`).
+  (5) Four mutants run against `itineraryModel`; three died. The survivor swaps the `skipped` and
+  `completed` checks in `nodeState`, which is genuinely equivalent — `status` holds one value — so
+  no test was added to chase it.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a

@@ -1,14 +1,11 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  DECLINE_REASON_LABELS,
   equipmentRequiresTrailer,
-  missingPhotoSlots,
   nextStop,
   stopProgress,
   type DeclineReason,
-  type LoadStop,
 } from '@silvicom/shared';
 import {
   ActionBar,
@@ -16,18 +13,19 @@ import {
   Badge,
   Banner,
   Button,
+  Card,
+  ChoiceSheet,
   ConfirmSheet,
-  GroupedList,
-  Icon,
   ListRow,
+  Progress,
   Screen,
   ScreenHeader,
-  SectionLabel,
+  Section,
   Skeleton,
-  TaskStepper,
-  type TaskStep,
 } from '@/components';
-import { appointmentLabel, placeLabel, stopTime } from '@/features/loads/loadViewModel';
+import { Itinerary } from '@/features/loads/Itinerary';
+import { declineChoices } from '@/features/loads/OfferDeck';
+import { LOAD_STATUS, driverLoadStatus } from '@/features/loads/loadStatus';
 import {
   useAcceptLoad,
   useAcceptance,
@@ -38,72 +36,15 @@ import {
 import { dutyView, useShift } from '@/features/duty/useDuty';
 import { useFeatures } from '@/session/useFeatures';
 
-const STOP_STATE = {
-  pending: { label: 'Pending', text: 'text-ink-muted', icon: 'schedule' },
-  arrived: { label: 'Arrived', text: 'text-info', icon: 'pin_drop' },
-  completed: { label: 'Complete', text: 'text-operation-complete', icon: 'check_circle' },
-  skipped: { label: 'Skipped', text: 'text-warning', icon: 'warning' },
-} as const;
-
-function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; onPress?: () => void }) {
-  const missing = missingPhotoSlots(stop);
-  const completedPhotos = stop.required_photos.length - missing.length;
-  const state = STOP_STATE[stop.status];
-
-  const content = (
-    <>
-      <View
-        className={`mt-0.5 h-7 w-7 items-center justify-center rounded-full border ${
-          stop.status === 'completed'
-            ? 'border-operation-complete bg-success/10'
-            : isNext
-              ? 'border-operation-current bg-brand-subtle'
-              : 'border-edge bg-surface-muted'
-        }`}
-      >
-        {stop.status === 'completed' ? (
-          <Icon name="check" size={15} className="text-operation-complete" />
-        ) : (
-          <AppText variant="caption" tone={isNext ? 'brand' : 'muted'} tabular className="font-ui-sb">
-            {stop.seq}
-          </AppText>
-        )}
-      </View>
-      <View className="flex-1 gap-0.5">
-        <View className="flex-row flex-wrap items-start gap-2">
-          <AppText variant="rowTitle" className="flex-1">{stop.name}</AppText>
-          <View className="flex-row items-center gap-1">
-            <Icon name={state.icon} size={14} className={state.text} />
-            <AppText variant="caption" className={`font-ui-md ${state.text}`}>{state.label}</AppText>
-          </View>
-        </View>
-        <AppText variant="supporting" tone="muted">{placeLabel(stop)}</AppText>
-        <AppText variant="caption" tone="muted" tabular>
-          {stop.kind === 'pickup' ? 'Pick up' : 'Deliver'} · {appointmentLabel(stop)} · {stopTime(stop.appointment_start)}
-        </AppText>
-        {stop.required_photos.length > 0 ? (
-          <View className="mt-1 flex-row items-center gap-2">
-            <Icon name="photo_camera" size={14} className={missing.length > 0 ? 'text-ink-muted' : 'text-operation-complete'} />
-            <AppText variant="caption" tone={missing.length > 0 ? 'muted' : 'success'}>
-              {completedPhotos} of {stop.required_photos.length} required photos
-            </AppText>
-          </View>
-        ) : null}
-      </View>
-      {onPress ? <Icon name="chevron_right" size={19} className="mt-1 text-ink-subtle" /> : null}
-    </>
-  );
-
-  const className = 'min-h-[76px] flex-row items-start gap-3 bg-surface px-4 py-3';
-  if (!onPress) return <View accessible className={className}>{content}</View>;
-
-  return (
-    <Pressable accessibilityRole="button" onPress={onPress} className={`${className} active:bg-surface-selected`}>
-      {content}
-    </Pressable>
-  );
-}
-
+/**
+ * One load, end to end. The screen is sheet-only: it is reached FROM a hero screen, and stacking a
+ * second navy region under the first reads as a new app rather than a deeper level.
+ *
+ * The lifecycle `TaskStepper` ("Assigned · Accepted · In transit · Stops · Complete") is gone
+ * (critique defect 21). It was a second progress indicator beside the itinerary, and it tracked the
+ * wrong thing — a driver looking at a load they are driving does not need to be told it has been
+ * accepted. What remains is stop progress, which is the run.
+ */
 export default function LoadDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -124,7 +65,7 @@ export default function LoadDetail() {
     return (
       <Screen padTop={false}>
         <ScreenHeader title="Load" onBack={() => router.back()} />
-        <Skeleton className="h-44 w-full rounded-2xl" />
+        <Skeleton className="w-full rounded-xl" style={{ height: 176 }} />
       </Screen>
     );
   }
@@ -138,21 +79,15 @@ export default function LoadDetail() {
     );
   }
 
-  const stops = [...load.stops].sort((a, b) => a.seq - b.seq);
   const next = nextStop(load);
   const progress = stopProgress(load);
-  const needsTrailer = equipmentRequiresTrailer(load.equipment);
-  const trailerGap = duty.onDuty && needsTrailer && !duty.hasTrailer;
+  const status = LOAD_STATUS[driverLoadStatus(load.status)];
+  const working = load.status === 'in_transit';
+  const trailerGap = duty.onDuty && equipmentRequiresTrailer(load.equipment) && !duty.hasTrailer;
   const equipmentDiffers =
     duty.onDuty && load.vehicle_unit !== null && duty.equipmentLabel !== null
       ? !duty.equipmentLabel.includes(load.vehicle_unit)
       : false;
-  const working = load.status === 'in_transit';
-  const taskIndex = load.status === 'offered' ? 1 : load.status === 'accepted' ? 2 : working ? 3 : load.status === 'delivered' ? 4 : 0;
-  const taskSteps: TaskStep[] = ['Assigned', 'Accepted', 'In transit', 'Stops', 'Complete'].map((label, index) => ({
-    label,
-    state: load.status === 'delivered' || index < taskIndex ? 'complete' : index === taskIndex ? 'current' : 'upcoming',
-  }));
   const openStop = (stopId: string) => router.push(`/loads/${load.id}/stop/${stopId}` as never);
 
   const attention = !duty.onDuty
@@ -187,6 +122,7 @@ export default function LoadDetail() {
           label={copy.primary}
           size="lg"
           icon="check_circle"
+          variant="primary"
           haptic="success"
           loading={accept.isPending}
           onPress={() => void accept.mutateAsync(load.id)}
@@ -201,6 +137,7 @@ export default function LoadDetail() {
           label="Start this trip"
           size="lg"
           icon="play_arrow"
+          variant="primary"
           haptic="success"
           loading={start.isPending}
           onPress={() => void start.mutateAsync(load.id)}
@@ -211,9 +148,10 @@ export default function LoadDetail() {
     footer = (
       <ActionBar>
         <Button
-          label={`${next.kind === 'dropoff' ? 'Deliver' : 'Pick up'} · ${placeLabel(next)}`}
+          label={`${next.kind === 'dropoff' ? 'Deliver' : 'Pick up'} · ${next.name}`}
           size="lg"
           icon="arrow_forward"
+          variant="primary"
           haptic="success"
           onPress={() => openStop(next.id)}
         />
@@ -222,69 +160,75 @@ export default function LoadDetail() {
   }
 
   return (
-    <Screen padTop={false} footer={footer}>
+    <Screen padTop={false} flow="sections" footer={footer}>
       <ScreenHeader
         title={load.ref}
-        subtitle={`${stops.length} stops · ${load.equipment ?? 'Load'}`}
+        subtitle={[
+          load.equipment,
+          load.total_miles == null ? null : `${Math.round(load.total_miles).toLocaleString()} mi`,
+          load.vehicle_unit ? `Unit ${load.vehicle_unit}` : null,
+        ].filter(Boolean).join(' · ')}
         onBack={() => router.back()}
-        right={load.hazmat ? <Badge label="Hazmat" tone="warning" icon="warning" /> : undefined}
+        right={<Badge label={status.label} tone={status.tone} />}
       />
 
-      {attention ? (
-        <Banner
-          tone={attention.tone}
-          icon={attention.icon}
-          message={attention.message}
-          actionLabel={'label' in attention ? attention.label : undefined}
-          onAction={'action' in attention ? attention.action : undefined}
-        />
-      ) : null}
-
-      <TaskStepper steps={taskSteps} />
-      {working ? (
-        <AppText variant="caption" tone="muted">
-          {progress.current} of {progress.total} stops complete
-          {next ? ` · Next: ${placeLabel(next)}` : ''}
-        </AppText>
-      ) : null}
-
-      <SectionLabel>Itinerary</SectionLabel>
-      <GroupedList>
-        {stops.map((stop) => (
-          <StopRow
-            key={stop.id}
-            stop={stop}
-            isNext={next?.id === stop.id}
-            onPress={working && stop.status !== 'completed' && stop.status !== 'skipped' ? () => openStop(stop.id) : undefined}
+      <Section first>
+        {attention ? (
+          <Banner
+            tone={attention.tone}
+            icon={attention.icon}
+            message={attention.message}
+            actionLabel={'label' in attention ? attention.label : undefined}
+            onAction={'action' in attention ? attention.action : undefined}
           />
-        ))}
-      </GroupedList>
+        ) : null}
+        <View className="flex-row items-baseline gap-2">
+          <AppText variant="numericInline">{progress.current}</AppText>
+          <AppText variant="supporting" tone="muted" className="flex-1">of {progress.total} stops</AppText>
+        </View>
+        <Progress value={progress.total > 0 ? (progress.current - 1) / progress.total : 0} tone="action" />
+      </Section>
 
-      {load.commodity || load.notes ? (
-        <>
-          <SectionLabel>Load details</SectionLabel>
-          <GroupedList>
-            {load.commodity ? <ListRow icon="route" title="Commodity" subtitle={load.commodity} /> : null}
-            {load.notes ? <ListRow icon="info" title="Notes" subtitle={load.notes} /> : null}
-          </GroupedList>
-        </>
-      ) : null}
+      <Section title="Itinerary">
+        <Itinerary load={load} onOpenStop={openStop} />
+      </Section>
 
-      {declining && reason === null ? (
-        <>
-          <SectionLabel>Why can’t you take it?</SectionLabel>
-          <GroupedList>
-            {copy.reasons.map((declineReason) => (
+      <Section title="This load">
+        <Card variant="flat">
+          <View className="flex-row gap-4">
+            <Fact label="Commodity" value={load.commodity ?? '—'} />
+            <Fact label="Trailer" value={load.trailer_unit ?? '—'} />
+            <Fact label="Stops" value={String(load.stops.length)} />
+          </View>
+          {load.notes ? (
+            <>
+              <View className="h-px bg-edge-subtle" />
+              <ListRow icon="info" disc="neutral" title="Notes from dispatch" subtitle={load.notes} />
+            </>
+          ) : null}
+          {load.hazmat ? (
+            <>
+              <View className="h-px bg-edge-subtle" />
               <ListRow
-                key={declineReason}
-                title={DECLINE_REASON_LABELS[declineReason]}
-                onPress={() => setReason(declineReason)}
+                icon="local_fire_department"
+                disc="danger"
+                title="Hazmat load"
+                subtitle="Placarding and the BOL check apply to this run."
+                onPress={() => router.push('/hazmat')}
               />
-            ))}
-          </GroupedList>
-          <Button label="Never mind" variant="ghost" size="sm" onPress={() => setDeclining(false)} />
-        </>
-      ) : null}
+            </>
+          ) : null}
+        </Card>
+      </Section>
+
+      <ChoiceSheet<DeclineReason>
+        visible={declining && reason === null}
+        title={copy.secondary}
+        message="Dispatch sees the reason you pick."
+        choices={declineChoices(copy)}
+        onChoose={setReason}
+        onCancel={() => setDeclining(false)}
+      />
 
       <ConfirmSheet
         visible={reason !== null}
@@ -305,5 +249,14 @@ export default function LoadDetail() {
         onCancel={() => setReason(null)}
       />
     </Screen>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-1 gap-0.5">
+      <AppText variant="caption" tone="muted">{label}</AppText>
+      <AppText variant="supporting" className="font-ui-md" numberOfLines={2}>{value}</AppText>
+    </View>
   );
 }
