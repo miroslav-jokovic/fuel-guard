@@ -269,15 +269,35 @@ new pattern. Do not silently add a one-off value.
 
 Always check `src/components` before writing markup. The canonical primitives are:
 
-- Layout: `Screen`, `ScreenHeader`, `SectionLabel`, `GroupedList`, `Card`, `ListRow`, `ActionBar`
+- Layout: `Screen`, `ScreenHeader`, `Section`, `SectionLabel`, `GroupedList`, `Card`, `ListRow`, `ActionBar`
 - Typography: `AppText`
 - Actions: `Button`, `IconButton`, `ConfirmSheet`
 - Forms: `Field`, `Input`, `NumericField`
-- Status and feedback: `Badge`, `Banner`, `Toast`, `OfflineBanner`, `SyncStatus`
+- Status and feedback: `Badge`, `Banner`, `Toast` + `ToastProvider`/`useToast`, `OfflineBanner`, `SyncStatus`
 - Progress and workflow: `Progress`, `TaskStepper`
 - Data display: `Sparkline` and compact grouped metric rows.
 - State handling: `Skeleton`, `EmptyState`
 - Choice controls: `SegmentedControl`, `ToggleRow`
+
+Direction B anatomy, in the primitives:
+
+- **`Screen`** takes a `hero` node to become the two-layer composition (navy region, light sheet with
+  28pt corners riding 28pt over it, one ScrollView). It owns the status-bar style and, on a display
+  ≥ 600pt wide, centres content in a 560pt column. `flow="sections"` means the children are
+  `Section`s and the flow adds no gap of its own.
+- **`Section`** owns the space around a titled region: 24pt above the heading, 12pt below it. Do not
+  reintroduce a container gap alongside it — the two rhythms sum.
+- **`Card`** is `sheet` (white, the one shadow), `hero` (on the navy, 1px `hero-edge`, no shadow) or
+  `flat` (neither — a container for rows inside an already-contained region).
+- **`Button`** is a pill at 44 / 48 / 56. `primary` is the navy fill on the sheet; `hero` is the
+  amber fill, and it belongs only on the navy. `onHero` switches `secondary` and `ghost` to their
+  navy forms.
+- **`Badge`** is a chip: 28 or 32pt, pill, `caption` in `ui-md`, and **no `self-start`** — it centres
+  in whatever row holds it.
+- **`ListRow`** takes `disc={tone}` to lead with the 44pt tinted circle (D-DB6). `GroupedList`
+  derives each separator's inset from the row above it, so the line starts where the text does.
+- **Tones** live in `src/components/tone.ts` and are shared by chips, discs, banners, toasts,
+  progress bars and confirm sheets, so one meaning is one pair of colours everywhere.
 
 Extend an existing primitive when the anatomy and behavior are the same. Create a new component
 only when the use case cannot be expressed by an existing primitive without making it confusing.

@@ -5,19 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { Icon } from './Icon';
-import type { Tone } from './Badge';
+import { TONE_SOFT, type Tone } from './tone';
 import { haptics } from '@/lib/haptics';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 import { useTheme } from '@/theme/ThemeProvider';
-
-const BG: Record<Tone, string> = {
-  neutral: 'bg-surface-muted', brand: 'bg-brand-subtle', danger: 'bg-danger/10',
-  caution: 'bg-caution/10', warning: 'bg-warning/10', success: 'bg-success/10', info: 'bg-info/10',
-};
-const FG: Record<Tone, string> = {
-  neutral: 'text-ink-secondary', brand: 'text-brand', danger: 'text-danger',
-  caution: 'text-caution', warning: 'text-warning', success: 'text-success', info: 'text-info',
-};
 
 export function ConfirmSheet({
   visible,
@@ -66,7 +57,7 @@ export function ConfirmSheet({
         </Animated.View>
         <Animated.View
           entering={reduceMotion ? undefined : SlideInDown.springify().damping(28).stiffness(320)}
-          className="rounded-t-2xl border-t border-edge-subtle bg-surface-raised px-4 pt-3"
+          className="rounded-t-2xl bg-surface-raised px-5 pt-3"
           style={{ maxHeight: height - insets.top - 8, paddingBottom: insets.bottom + 16 }}
           accessibilityViewIsModal
         >
@@ -77,8 +68,8 @@ export function ConfirmSheet({
             contentContainerClassName="gap-4 py-4"
           >
             <View className="flex-row items-start gap-3">
-              <View className={`h-10 w-10 items-center justify-center rounded-lg ${BG[tone]}`}>
-                <Icon name={icon} size={21} fill className={FG[tone]} />
+              <View className={`h-11 w-11 items-center justify-center rounded-full ${TONE_SOFT[tone].bg}`}>
+                <Icon name={icon} size={21} fill className={TONE_SOFT[tone].text} />
               </View>
               <View className="flex-1 gap-1">
                 <AppText variant="navigationTitle" accessibilityRole="header">{title}</AppText>

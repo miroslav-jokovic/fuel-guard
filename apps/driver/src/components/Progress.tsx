@@ -1,11 +1,6 @@
 import { View } from 'react-native';
 import { AppText } from './AppText';
-import type { Tone } from './Badge';
-
-const BAR: Record<Tone, string> = {
-  neutral: 'bg-ink-muted', brand: 'bg-brand', danger: 'bg-danger', caution: 'bg-caution',
-  warning: 'bg-warning', success: 'bg-success', info: 'bg-info',
-};
+import { TONE_SOLID, type Tone } from './tone';
 
 export function Progress({
   value,
@@ -29,7 +24,7 @@ export function Progress({
         </View>
       ) : null}
       <View className="h-1 overflow-hidden rounded-full bg-surface-muted">
-        <View className={`h-full rounded-full ${BAR[tone]}`} style={{ width: `${percent}%` }} />
+        <View className={`h-full rounded-full ${TONE_SOLID[tone]}`} style={{ width: `${percent}%` }} />
       </View>
     </View>
   );

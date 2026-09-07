@@ -22,7 +22,7 @@ export function CurrentLoadCard({
   const progress = load.progress.total > 0 ? load.progress.current / load.progress.total : 0;
 
   return (
-    <Card variant="operational">
+    <Card>
       <View className="flex-row items-center gap-2">
         <View className="flex-1 gap-0.5">
           <View className="flex-row flex-wrap items-center gap-2">

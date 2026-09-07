@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '@/theme/ThemeProvider';
 import { AppText, SilvicomLogo360, type Tone } from '@/components';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 import { layout } from '@/theme/tokens';
@@ -42,7 +44,10 @@ export function AuthScreen({
   footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const { isDark } = useTheme();
   return (
+    <>
+    <StatusBar style={isDark ? 'light' : 'dark'} />
     <ScrollView
       className="flex-1 bg-canvas"
       contentContainerClassName="gap-6 px-4"
@@ -57,5 +62,6 @@ export function AuthScreen({
       {children ? <View className="gap-3">{children}</View> : null}
       {footer ? <View className="gap-3">{footer}</View> : null}
     </ScrollView>
+    </>
   );
 }

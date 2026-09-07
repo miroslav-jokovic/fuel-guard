@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Platform, View, useColorScheme as useSystemColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { StatusBar } from 'expo-status-bar';
 import { colorScheme, vars } from 'nativewind';
 import { themeVars, type ThemeKey } from './colors';
 import {
@@ -29,9 +28,9 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 /**
- * Follows platform appearance and accessibility preferences by default. Design System 2.0 keeps
- * those preferences in the theme context so primitives can remove nonessential motion, strengthen
- * separation, and avoid parallel platform checks scattered across components.
+ * Follows platform appearance and accessibility preferences by default. Those preferences live in
+ * the theme context so primitives can remove nonessential motion, strengthen separation, and avoid
+ * parallel platform checks scattered across components.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemColorScheme = useSystemColorScheme();
@@ -142,8 +141,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={value}>
+      {/* The status bar is NOT global any more: Direction B makes some screens navy in the light
+          theme and leaves others white, so the style belongs to whatever is on top. `Screen` and
+          `AuthScreen` each render their own, and expo-status-bar honours the most recent. */}
       <View style={[vars(themeVars[themeKey]), { flex: 1 }]}>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
         {preferencesReady ? children : null}
       </View>
     </ThemeContext.Provider>

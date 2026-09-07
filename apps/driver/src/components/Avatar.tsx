@@ -10,17 +10,21 @@ function initials(name: string): string {
     .join('');
 }
 
-// Initials avatar on the brand fill, with a subtle ring so it holds its shape on any surface.
+/**
+ * Initials on the amber disc. It carries no ring: the avatar's home is the navy duty strip, where a
+ * grey border reads as a rendering artefact rather than containment (D-DB2 — amber is the hero's
+ * one accent, and a person is the one thing on that strip worth accenting).
+ */
 export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <View
-      className="items-center justify-center rounded-full border border-edge bg-brand"
+      className="items-center justify-center rounded-full bg-action"
       style={{ width: size, height: size }}
       accessibilityLabel={name}
     >
       <AppText
         variant="numericCompact"
-        className="text-brand-fg"
+        className="text-action-fg"
         style={{ fontSize: size * 0.38, includeFontPadding: false }}
       >
         {initials(name)}

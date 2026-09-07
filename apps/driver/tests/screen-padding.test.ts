@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screenBottomPadding, screenTopPadding } from '@/theme/safeArea';
+import { heroTopPadding, screenBottomPadding, screenTopPadding } from '@/theme/safeArea';
 import { layout } from '@/theme/tokens';
 
 /**
@@ -32,6 +32,16 @@ describe('screenTopPadding', () => {
   it('is stable on a device that reports no inset', () => {
     expect(screenTopPadding(0, false)).toBe(0);
     expect(screenTopPadding(0, true)).toBe(layout.screenInset);
+  });
+
+  it('starts the navy hero under the status bar with a breath, not a gutter', () => {
+    // The hero is the top of the screen rather than content placed on it, so it takes no 20pt
+    // gutter — but it must not butt against the clock either.
+    expect(heroTopPadding(48)).toBe(48 + 8);
+    expect(heroTopPadding(0)).toBe(8);
+    expect(heroTopPadding(48) - screenTopPadding(48, false)).toBe(8);
+    // A hero always starts higher than a gutter screen, on every real inset.
+    expect(heroTopPadding(48)).toBeLessThan(screenTopPadding(48, true));
   });
 
   it('ends scroll content with one section, not a decorative tab-sized void', () => {

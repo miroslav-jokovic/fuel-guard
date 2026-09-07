@@ -27,6 +27,18 @@ export function screenTopPadding(insetTop: number, padTop: boolean): number {
   return insetTop + (padTop ? layout.screenInset : 0);
 }
 
+/**
+ * Top padding for the navy hero region.
+ *
+ * The hero has no 20pt gutter — its own content starts right under the status bar, because the
+ * region IS the top of the screen rather than something placed on it. It keeps a small 8pt breath
+ * so the duty strip does not touch the clock. Expressed in terms of `screenTopPadding` so the two
+ * rules cannot drift: the hero is the no-gutter case plus a breath.
+ */
+export function heroTopPadding(insetTop: number): number {
+  return screenTopPadding(insetTop, false) + 8;
+}
+
 /** Content ends one real section after the safe area; task footers own their own safe-area inset. */
 export function screenBottomPadding(
   insetBottom: number,

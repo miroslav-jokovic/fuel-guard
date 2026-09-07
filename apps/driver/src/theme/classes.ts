@@ -3,12 +3,14 @@
 // one-off layout classes.
 export const ui = {
   screen: 'flex-1 bg-canvas',
-  scrollContent: 'p-4 gap-4',
-  fixedContent: 'flex-1 gap-4 bg-canvas px-4',
+  scrollContent: 'px-5 py-4 gap-4',
+  /** A screen composed of `Section`s: each one owns the space above it, so the flow adds none. */
+  scrollContentSections: 'px-5 py-4',
+  fixedContent: 'flex-1 gap-4 bg-canvas px-5',
   section: 'gap-3',
-  card: 'rounded-xl border border-edge-subtle bg-surface',
+  card: 'rounded-xl bg-surface',
   cardContent: 'p-4 gap-2',
-  listRow: 'min-h-[52px] flex-row items-center gap-3 bg-surface px-4 py-2',
+  listRow: 'min-h-13 flex-row items-center gap-3 bg-surface px-4 py-3',
   control: 'rounded-lg',
   focusRing: 'focus:border-2 focus:border-edge-focus',
 } as const;
