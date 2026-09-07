@@ -108,6 +108,47 @@ export function outcomeAfterFailure(
   };
 }
 
+/**
+ * How long a deferred record waits before it is looked at again.
+ *
+ * Thirty minutes, and the trade is stated rather than hidden: each deferred attempt re-runs the
+ * record's idempotent steps (create, register, submit) before discovering it still cannot finish, so
+ * a shorter interval buys latency with round trips a driver's data plan pays for. Thirty minutes
+ * costs about forty-eight of those a day for one capture waiting on Wi-Fi, and means an original
+ * lands within half an hour of the driver reaching it. There is no connectivity-transition trigger
+ * on purpose: one more mechanism, waking a queue on an event, to save at most half an hour on an
+ * artifact whose entire design is "upload it when it is free".
+ */
+export const DEFERRED_RETRY_MS = 30 * 60 * 1000;
+
+export interface DeferralOutcome {
+  status: Extract<OutboxStatus, 'pending'>;
+  attempts: number;
+  nextAttemptAt: number;
+  lastError: string;
+}
+
+/**
+ * What happens to a record whose remaining work is not YET possible — a third outcome beside success
+ * and failure.
+ *
+ * ── WHY IT COULD NOT BE A FAILURE ─────────────────────────────────────────────────────────────
+ * D-SCAN11 holds the untouched ORIGINAL of a capture back until the driver reaches an unmetered
+ * connection, which may be days. Expressed as a failure that is eight attempts and a five-minute
+ * backoff ceiling: about twenty minutes to `dead`, and a driver's completed capture reported as
+ * "needs attention" for the crime of being on cellular. That is the same reasoning `outcomeAfterFailure`
+ * already applies to a 429 — "the server saying later, never no" — and a metered connection is the
+ * same sentence said by the network instead.
+ *
+ * So: **`attempts` is not incremented and the status stays `pending`.** A deferral is not a strike
+ * against the record, it cannot dead-letter, and `countNeedsAttention` never sees it. It does stay in
+ * `countPending`, which is honest — something really is undelivered — and `lastError` carries the
+ * reason so a driver looking at the sync screen reads "waiting for Wi-Fi" rather than a blank.
+ */
+export function outcomeAfterDeferral(rec: OutboxRecord, reason: string, now: number): DeferralOutcome {
+  return { status: 'pending', attempts: rec.attempts, nextAttemptAt: now + DEFERRED_RETRY_MS, lastError: reason };
+}
+
 /** Records the driver should be told about ("2 pending", "1 needs attention"). */
 export function countPending(records: readonly OutboxRecord[]): number {
   return records.filter((r) => r.status !== 'done' && r.status !== 'dead').length;

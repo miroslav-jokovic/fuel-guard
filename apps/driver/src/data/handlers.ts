@@ -1,7 +1,8 @@
 import { File } from 'expo-file-system';
 import { apiFetch } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { registerHandler, SyncError } from './sync';
+import { isUnmetered } from '@/lib/connectivity';
+import { DeferredWork, registerHandler, SyncError } from './sync';
 import { queuedRegisters, type RegisterBody } from '@/features/hazmat/hazmatCaptureModel';
 
 /**
@@ -235,6 +236,8 @@ async function putObject(localUri: string, storagePath: string, contentType: str
       // 1) create the driver's own load (idempotent)
       await post('/api/me/hazmat/loads', p.create);
 
+      let deferredOriginals = 0;
+
       // 2+3) register each page and upload its bytes BEFORE any submit, so the extraction never runs
       //      against a partially uploaded document. Sequential rather than parallel: the server caps
       //      pages at MAX_BOL_PAGES and counts existing rows to enforce it, so concurrent registers
@@ -264,15 +267,41 @@ async function putObject(localUri: string, storagePath: string, contentType: str
         // path for it — which it does exactly when this register declared one — so a client and a
         // server that disagree about whether a page has an original upload nothing rather than
         // guessing a key.
+        //
+        // ⚠ And only on an unmetered connection. A VisionKit page is ~2-4 MB, so a three-page bill of
+        // lading is ~12 MB of ORIGINALS on top of the archive that already went — over a driver's own
+        // cellular plan, for bytes nothing reads until somebody disputes the load. `isUnmetered()`
+        // is checked per page rather than once for the record: a ten-page scan can straddle a Wi-Fi
+        // transition, and a page that CAN go now should.
         if (upload.originalUri && registered.data.original) {
-          await putObject(upload.originalUri, registered.data.original.storagePath, 'image/jpeg');
+          if (await isUnmetered()) {
+            await putObject(upload.originalUri, registered.data.original.storagePath, 'image/jpeg');
+          } else {
+            deferredOriginals += 1;
+          }
         }
       }
 
       // 4) submit → analyze, ONCE, after every page has landed (idempotent; an already-submitted load
       //    returns the latest run, not a 409). Submitting per page would start the extraction against
       //    an incomplete document and produce a confident verdict on a document nobody sent.
+      //
+      //    ⚠ This runs BEFORE the deferral below, and the order is the point: extraction reads the
+      //    ARCHIVE at `storage_path`, which is already up, so a driver's hazmat verdict must not wait
+      //    for an evidentiary original that nothing in the analysis path reads. Deferring the submit
+      //    too would mean a load sitting unanalysed until the truck found Wi-Fi.
       await post(`/api/me/hazmat/loads/${p.loadId}/submit`, {});
+
+      // 5) The record is not delivered until its originals are. Thrown last, so everything above has
+      //    already happened and the next attempt replays it idempotently. `DeferredWork` does not
+      //    count against MAX_ATTEMPTS and cannot dead-letter — a week on cellular must not turn a
+      //    completed capture into "needs attention" — and it keeps the staged files, which for the
+      //    original is the only copy that exists.
+      if (deferredOriginals > 0) {
+        throw new DeferredWork(
+          `Waiting for Wi-Fi to upload ${deferredOriginals} original page${deferredOriginals === 1 ? '' : 's'}`,
+        );
+      }
     },
   });
 }

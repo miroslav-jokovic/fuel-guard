@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
+import { isUnmeteredConnection } from './meteredConnection';
 
 /**
  * Real connectivity, not "did a fetch fail" (plan §13.2). NetInfo drives React Query's
@@ -29,6 +30,23 @@ export function initConnectivity(): () => void {
   return () => {
     sub.remove();
   };
+}
+
+/**
+ * True when the current connection does not cost the driver money by the megabyte (D-SCAN11).
+ *
+ * The I/O only. Which facts make a connection unmetered — and the tri-state trap in the answer —
+ * lives in `meteredConnection.ts`, where `pnpm test` can reach it; nothing in THIS file can be
+ * imported by a test, because NetInfo pulls in React Native.
+ *
+ * Offline is metered by definition here: there is nothing to upload over, and answering "yes, free"
+ * would send the handler into an upload that fails rather than into the wait it is asking about.
+ */
+export async function isUnmetered(): Promise<boolean> {
+  const state = await NetInfo.fetch();
+  if (!isStateOnline(state)) return false;
+  const details = state.details as { isConnectionExpensive?: boolean } | null | undefined;
+  return isUnmeteredConnection({ type: state.type, isConnectionExpensive: details?.isConnectionExpensive });
 }
 
 /** Subscribe to the online flag for UI (offline banner, sync affordances). */
