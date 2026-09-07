@@ -92,6 +92,20 @@ export interface EnhanceProfile {
 export interface CaptureConfig {
   /** Format: `capture-YYYY.MM.N` (monotonic — see compareConfigVersion). */
   configVersion: string;
+  /**
+   * The fixed resolution every quality metric is computed at (D-SCAN1).
+   *
+   * It lives in the signed config rather than as a constant because it is the single number that
+   * gives every OTHER number its meaning: the same image scored 4283.7 for blur at 3000 px and
+   * 7299.9 at 800 px (measured 2026-09-06), so a threshold quoted without a scale is not a
+   * threshold. Versioned and signed alongside the floors, so a recorded measurement can always be
+   * interpreted against the scale it was taken at.
+   *
+   * 1024 is derived, not chosen: it is the largest power of two below `resolutionMinLongEdgePx`
+   * (1200), which means anything that clears the resolution floor is always DOWNSCALED here and
+   * never upscaled. Upscaling would make the metric a measurement of the interpolator.
+   */
+  analysis: { longEdgePx: number };
   gates: CaptureConfigGates;
   ocrLegibility: OcrLegibilityConfig;
   enhance: { modelFacing: EnhanceProfile };
@@ -101,6 +115,7 @@ export interface CaptureConfig {
 /** The bundled signed default — the app always has a valid gate offline (truck cabs). */
 export const BUNDLED_DEFAULT_CONFIG: CaptureConfig = {
   configVersion: "capture-2026.08.0",
+  analysis: { longEdgePx: 1024 },
   gates: {
     blurLaplacianVarMin: 100,
     glareClippedFractionMax: 0.06,
@@ -213,6 +228,9 @@ export function validateConfig(u: unknown): CaptureConfig | null {
   if (!u || typeof u !== "object") return null;
   const c = u as Record<string, unknown>;
   if (typeof c.configVersion !== "string" || !parseConfigVersion(c.configVersion)) return null;
+
+  const a = c.analysis as Record<string, unknown> | undefined;
+  if (!a || !isNum(a.longEdgePx) || a.longEdgePx <= 0) return null;
 
   const g = c.gates as Record<string, unknown> | undefined;
   if (!g) return null;
