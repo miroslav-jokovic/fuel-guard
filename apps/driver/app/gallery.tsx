@@ -7,11 +7,45 @@ import {
   Section, SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, severityTone, useToast, type Tone,
 } from '@/components';
 import { LoadCard } from '@/features/loads/LoadCard';
+import { AttentionQueue } from '@/features/today/AttentionQueue';
+import type { AttentionRow, TodayState } from '@/features/today/todayModel';
 import { SAMPLE_UPCOMING } from '@/features/loads/sampleLoads';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 const CHIP_TONES: Tone[] = ['neutral', 'brand', 'action', 'info', 'success', 'danger', 'warning', 'caution'];
+
+/** Fixture rows only — the ORDERING is `todayModel.attentionRows`, pinned by today-model.test.ts. */
+const TODAY_STATES: { state: TodayState; note: string; rows: AttentionRow[] }[] = [
+  {
+    state: 'preShift',
+    note: 'Off duty. The hero asks for equipment; the queue is what to clear before rolling.',
+    rows: [
+      { key: 'a', tone: 'caution', icon: 'route', title: 'Dry van needs a trailer', subtitle: "Add the one you're pulling before your pickup", href: '/duty/check-in' },
+    ],
+  },
+  {
+    state: 'activeLoad',
+    note: 'On duty, a load in transit. The hero is the stop; the queue is what could stop it.',
+    rows: [
+      { key: 'b', tone: 'danger', icon: 'sync_problem', title: "2 items couldn't sync", subtitle: 'Your work is safe · tap to retry', href: '/settings' },
+      { key: 'c', tone: 'info', icon: 'mail', title: 'Maria', subtitle: '“Are you loaded yet?”', time: '11:45', href: '/messages' },
+      { key: 'd', tone: 'action', icon: 'sync', title: '3 items waiting to sync', subtitle: 'Saved on this phone · sends when you have signal' },
+    ],
+  },
+  {
+    state: 'betweenLoads',
+    note: 'On duty, nothing in transit. Up next leads and gets two rows instead of one.',
+    rows: [],
+  },
+  {
+    state: 'recovery',
+    note: 'Duty or profile failed to load. A banner leads, the cached hero stays, up next collapses.',
+    rows: [
+      { key: 'e', tone: 'danger', icon: 'sync_problem', title: "1 item couldn't sync", subtitle: 'Your work is safe · tap to retry', href: '/settings' },
+    ],
+  },
+];
 
 const DEMO_ICONS: MaterialSymbolName[] = [
   'local_shipping', 'navigation', 'route', 'pin_drop', 'local_gas_station', 'speed',
@@ -267,6 +301,25 @@ export default function Gallery() {
             No shadow and no edge: a container for rows inside an already-contained region.
           </AppText>
         </Card>
+      </Section>
+
+      {/* B2 done-when: the four Today states, side by side, because the only other way to see
+          `recovery` is to break the network mid-session on a device. The rows come from the same
+          `attentionRows` the screen calls — a fixture here, real queries there. */}
+      <Section title="Today — the four states">
+        {TODAY_STATES.map(({ state, note, rows }) => (
+          <View key={state} className="gap-2">
+            <View className="flex-row items-center gap-2">
+              <Badge label={state} tone={state === 'recovery' ? 'danger' : 'neutral'} />
+              <AppText variant="caption" tone="muted" className="flex-1">{note}</AppText>
+            </View>
+            {rows.length > 0 ? <AttentionQueue rows={rows} /> : (
+              <Card variant="flat">
+                <AppText variant="supporting" tone="muted">No attention rows — the section is not rendered.</AppText>
+              </Card>
+            )}
+          </View>
+        ))}
       </Section>
 
       <Section title="Toast host" action={{ label: 'Show one', onPress: () => toast.show('Stop 2 completed · 4 photos queued') }}>

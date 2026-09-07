@@ -476,7 +476,7 @@ additive.
 - **Done when:** gates green; every existing screen renders (manual run through all routes on the
   simulator, light and dark); the gallery shows each B1 primitive; no `self-start` on `Badge`.
 
-### B2 · Today
+### B2 · Today — DONE 2026-09-07
 
 **Branch:** `claude/driver-b2-today`. Splits `app/(tabs)/home.tsx` into
 `src/features/today/{todayModel.ts, TodayHero.tsx, AttentionQueue.tsx, UpNext.tsx, WeekStrip.tsx}`;
@@ -1196,6 +1196,24 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   stacking and paired-button stacking belong to the compositions B2–B4 build and land there.
   `heroTopPadding` went into `src/theme/safeArea.ts` rather than inline in `Screen`, because that is
   the module the driver app can actually test — proved by mutating 8 to 20.
+- 2026-09-07 · **B2 built.** `src/features/today/` holds `todayModel.ts` (pure, 20 tests),
+  `TodayHero.tsx`, `AttentionQueue.tsx`, `UpNext.tsx`, `WeekStrip.tsx`, `StartDayCard.tsx`;
+  `home.tsx` is 171 lines of composition. `CATEGORY_ICON` moved to
+  `src/features/notifications/categoryIcon.ts` and both screens read it. Deviations:
+  (1) **`home.tsx` is 171 lines, not "< 150"** — `StartDayCard` came out to its own module (B6.1
+  replaces it wholesale) and the rest is the four states' module order, which is the file's job.
+  (2) **B6.1's one-tap start is NOT in B2**, as B2.1 allows: the pre-shift hero is the existing
+  confirm-equipment action in `Card hero` form, and it also covers `betweenLoads` on duty.
+  (3) **`src/features/duty/DutyCard.tsx` is deleted**, not restyled. Today was its only caller and
+  the duty strip replaces it; B6.4 already rules that Today owns duty.
+  (4) **The countdown flips to "Window open now" AT the appointment**, not one minute after. The
+  plan's "1–59 → Opens in m min" leaves `minutes === 0` reading "Opens in 0 min", which is the wrong
+  sentence for a window that is open. Found by mutation: three of four mutants died and that one
+  lived, so the boundary is now a test.
+  (5) **`Skeleton` takes a `style`** so a module and its placeholder can share one height constant
+  (`SKELETON_HEIGHTS`) instead of a class and a number drifting apart.
+  (6) The four states are in the gallery as fixture rows through the real `AttentionQueue`, because
+  `recovery` is otherwise reachable only by breaking the network mid-session on a device.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a
