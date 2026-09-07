@@ -739,6 +739,27 @@ Append a dated line when a step ships. Do not mark table rows.
 - **2026-09-07** — D-SCAN13: the owner moved the device session to the end of the programme. Step 0.1
   no longer gates Phase 1. Every native step from here owes an on-device verification, and those debts
   are collected in this log rather than in anybody's memory.
+- **2026-09-07** — **PHASE 2 COMPLETE**, merged as #622/#623/#624 (main e776df0). 2.1 `metrics.ts`
+  becomes the implementation of record — integer Rec.709 luma, a SIGNED Laplacian, box downscale to a
+  fixed 1024 px scale that now lives in the signed config, and a tiled high-percentile illumination
+  metric — with `fixtures/expected.json` as the baseline Phase 3's native ports will be held to.
+  2.2 `lint:scanner-parity` keeps it one definition (three detectors, `--self-test`, wired into the
+  `gates` job); it flagged the driver's WCAG relative-luminance helper, which shares the Rec.709
+  weights but applies the sRGB-to-linear transfer first and is therefore a different quantity —
+  carve-out with the reason attached. 2.3 the server calls the reference AND gates the UPLOADED bytes
+  rather than `normalizeImage`'s output, so client/server agreement is structural instead of asserted.
+  Blur and glare floors RETIRED, not replaced (D-SCAN10): both are measured and recorded on every run,
+  enforced by nobody, until Step 5.2 derives them; resolution keeps enforcing because it is scale-free.
+  `USABILITY_GATE_VERSION` recorded separately from the normalizer's, which is deliberately not bumped.
+  **Nothing owed on device from this phase** — it is server-side and pure, fully verified in CI.
+  Worth keeping: four mutations were written during 2.1 that PASSED against deliberately broken code —
+  a step edge cannot detect a clamped Laplacian (its mirror yields the same multiset), and a page that
+  is three-eighths ink cannot detect a median-based shadow metric. Both tests were rewritten until the
+  mutations fail and both now carry a note saying why the obvious version is useless. Then in 2.3 the
+  parity gate failed on its own stale waiver the moment the duplicate went away, `lint:comment-claims`
+  refused a "pinned by" claim that quoted no scenario, and one case in `imageSemantics.test.ts` had to
+  INVERT — it asserted the helpers mirrored the shipped gate, which is now deliberately false, so it
+  pins the divergence instead.
 - **2026-09-07** — **PHASE 1 COMPLETE**, merged as #618/#619/#620/#621 (main d0de05c). 1.1 the
   rejection taxonomy stops dying at the last hop (anticipated outcomes are values, not exceptions;
   Android's isSupported stops returning a hardcoded true; the taxonomy gains a runtime counterpart).
