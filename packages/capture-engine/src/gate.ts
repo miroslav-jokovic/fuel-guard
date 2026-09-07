@@ -93,8 +93,8 @@ export function evaluateGate(input: GateInput, config: CaptureConfig): QualityRe
   else if (metrics.documentDetected) checks.push(pass("documentDetected", 1));
   else reject(fail("documentDetected", 0), "DOCUMENT_NOT_DETECTED");
 
-  // ── coverage (optional) ──
-  if (metrics.coverageFraction === undefined) checks.push(na("coverage"));
+  // ── coverage (optional; `na` on the v1 SystemScanner path since Step 5.3 — see config.ts) ──
+  if (metrics.coverageFraction === undefined || !isEnforcing(g.coverageMinFraction)) checks.push(na("coverage"));
   else if (metrics.coverageFraction >= g.coverageMinFraction) {
     checks.push(pass("coverage", metrics.coverageFraction, { coverageFraction: metrics.coverageFraction }));
   } else {

@@ -70,13 +70,16 @@ export interface CaptureConfigGates {
   /** Max luminance range attributable to shadow. `null` — shadow mode; never enforced by anything. */
   shadowRangeMax: ShadowThreshold;
   /**
-   * Document area / frame area floor (system-scanner crop reports ~1).
+   * Document area / frame area floor. `null` — shadow mode, see `blurLaplacianVarMin`.
    *
-   * NOT in shadow mode, and deliberately: it is still enforcing because `coverageFraction` is not yet
-   * measured by anybody — `nativeSystemScannerProvider` ASSERTS 1, which Step 5.3 removes. When that
-   * assertion goes, this joins the list above until Step 5.2 derives it.
+   * This was the LAST invented number in the metric path, and it retired at Step 5.3 (2026-09-07)
+   * because the quantity it compared against was never measured: the provider asserted
+   * `coverageFraction: 1` on every capture, so 0.6 was tested against a constant somebody typed. The
+   * OS document scanner does not expose the crop's area against the frame — that information exists
+   * only inside VisionKit and ML Kit — so coverage is not measurable on the v1 path at all, and the
+   * honest report is `na`.
    */
-  coverageMinFraction: number;
+  coverageMinFraction: ShadowThreshold;
   /** Acceptable mean brightness band, 0..1. `null` — shadow mode, see `blurLaplacianVarMin`. */
   brightnessMeanRange: [number, number] | null;
   /** RMS contrast floor, 0..1. `null` — shadow mode, see `blurLaplacianVarMin`. */
@@ -174,7 +177,14 @@ export const BUNDLED_DEFAULT_CONFIG: CaptureConfig = {
     blurLaplacianVarMin: null,
     glareClippedFractionMax: null,
     shadowRangeMax: null,
-    coverageMinFraction: 0.6,
+    // ⚠ `null` since 2026-09-07 (plan Step 5.3, audit finding F6). Retired in the SAME merge that
+    // deletes the quantity underneath it: `nativeSystemScannerProvider` ASSERTED `coverageFraction: 1`
+    // on every capture, so this floor spent its whole life comparing 0.6 against a constant somebody
+    // typed. The OS scanner does not expose the crop's area against the frame, so coverage cannot be
+    // measured on the v1 path at all — it is reported `na`, which §5 makes a stated gap covered by the
+    // server backstop rather than a silent pass. Step 5.2 derives a floor if and when v2 RawCapture
+    // gives us a quantity to derive it from.
+    coverageMinFraction: null,
     brightnessMeanRange: null,
     contrastRmsMin: null,
     resolutionMinLongEdgePx: 1200,
@@ -314,9 +324,9 @@ export function validateConfig(u: unknown): CaptureConfig | null {
   if (
     !isShadowThreshold(g.blurLaplacianVarMin) || !isShadowThreshold(g.glareClippedFractionMax) ||
     !isShadowThreshold(g.shadowRangeMax) || !isShadowThreshold(g.contrastRmsMin) || !rangeOk ||
-    // Not shadow thresholds: coverage is still enforcing (its metric is asserted, not measured), and
-    // resolution and the score floor are the two that never retire.
-    !isNum(g.coverageMinFraction) || !isNum(g.resolutionMinLongEdgePx) || !isNum(g.overallAcceptScoreMin)
+    !isShadowThreshold(g.coverageMinFraction) ||
+    // Not shadow thresholds: resolution and the score floor are the two that never retire.
+    !isNum(g.resolutionMinLongEdgePx) || !isNum(g.overallAcceptScoreMin)
   ) {
     return null;
   }

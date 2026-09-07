@@ -198,3 +198,44 @@ describe("evaluateGate — the web platform", () => {
     expect(r.checks.find((c) => c.name === "ocrLegibility")?.status).toBe("na");
   });
 });
+
+/**
+ * Coverage — the last invented number in the metric path, retired at Step 5.3 (audit finding F6).
+ *
+ * ── WHAT WAS WRONG, AND WHY NOTHING CAUGHT IT ─────────────────────────────────────────────────
+ * `nativeSystemScannerProvider` asserted `coverageFraction: 1` on every capture, so the 0.6 floor
+ * spent its whole life comparing against a constant somebody typed. The check reported PASS on every
+ * page ever taken and counted toward the accept score. **No test in this package touched coverage at
+ * all** until this block — the assertion and the floor were removed and the entire suite stayed
+ * green, which is the only reason these exist.
+ *
+ * The pair that matters is the last two: retiring the floor must not break the MECHANISM, because
+ * v2 RawCapture owns the frame and is the thing that could finally measure this.
+ */
+describe("evaluateGate — coverage (Step 5.3, F6)", () => {
+  it("reports na when nothing measured it, which is every v1 capture", () => {
+    const r = evaluateGate(input({ blurVariance: 300 }), cfg);
+    expect(statusOf(r, "coverage")).toBe("na");
+    expect(r.reasons).not.toContain("PAGE_INCOMPLETE");
+  });
+
+  it("reports na when the floor is retired, even if a provider does report a fraction", () => {
+    // The shipped config's floor is `null` since Step 5.3. A `null` coerced to 0 would make
+    // `fraction >= 0` true for every image and report PASS — the exact silent pass §5 forbids.
+    const r = evaluateGate(input({ coverageFraction: 0.01 }), cfg);
+    expect(statusOf(r, "coverage")).toBe("na");
+    expect(r.reasons).not.toContain("PAGE_INCOMPLETE");
+  });
+
+  it("still ENFORCES when a floor and a real measurement both exist — the mechanism survives", () => {
+    const r = evaluateGate(input({ coverageFraction: 0.4 }), enforcing({ coverageMinFraction: 0.6 }));
+    expect(statusOf(r, "coverage")).toBe("fail");
+    expect(r.reasons).toContain("PAGE_INCOMPLETE");
+  });
+
+  it("passes a page that clears a live floor", () => {
+    const r = evaluateGate(input({ coverageFraction: 0.9 }), enforcing({ coverageMinFraction: 0.6 }));
+    expect(statusOf(r, "coverage")).toBe("pass");
+  });
+});
+
