@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { AppText, Card, ListRow } from '@/components';
+import { separatorInsetFor } from '@/components/GroupedList';
 import type { AttentionRow } from './todayModel';
 
 /**
@@ -40,7 +41,9 @@ export function AttentionQueue({
                 : undefined
             }
           />
-          {index < rows.length - 1 ? <View className="ml-18 h-px bg-edge-subtle" /> : null}
+          {index < rows.length - 1 ? (
+            <View className={`${separatorInsetFor({ disc: row.tone, icon: row.icon })} h-px bg-edge-subtle`} />
+          ) : null}
         </View>
       ))}
     </Card>

@@ -7,7 +7,10 @@ import type { IconName } from '@/theme/hugeIcons';
 import { haptics } from '@/lib/haptics';
 
 const TAB_ICON: Record<string, IconName> = {
-  home: 'home',
+  // A calendar page, not a house. The tab is labelled "Today" and opens a day sheet; a house says
+  // "home screen", which is a website's idea, not a driver's. This is the same argument the next
+  // line already makes about Loads — applied to the tab that was still getting it wrong.
+  home: 'calendar_today',
   // A bar chart for Loads was a stand-in: loads are trucks and freight, not analytics.
   loads: 'local_shipping',
   score: 'ranking',

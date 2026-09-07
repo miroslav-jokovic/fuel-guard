@@ -65,6 +65,37 @@ export function shouldSkeletonHero(input: {
   return input.loadsLoading;
 }
 
+/** The alert kinds Today can raise at once, in the order a driver should meet them. */
+export type TodayAlert = 'recovery' | 'offline' | 'update';
+
+/**
+ * Which alerts are live, most urgent first.
+ *
+ * DESIGN.md: "Multiple simultaneous alerts collapse into one attention summary with expandable
+ * detail." Today could stack three — an update offer, a connectivity strip and a recovery error —
+ * as direct children of a `flow="sections"` screen, which gives them no gap either, so they abutted
+ * one another and the first Section at zero spacing.
+ *
+ * The order is the argument. RECOVERY first: the app does not know the driver's duty status, and
+ * every other line on the screen is suspect until it does. OFFLINE second: it changes what a driver
+ * can expect of everything, and it is the normal state on a rural interstate rather than an error.
+ * UPDATE last, always: it is an offer to restart at a convenient moment, and it is the one alert
+ * that can wait for the other two to clear.
+ */
+export function todayAlerts(input: {
+  recovery: boolean;
+  offline: boolean;
+  pendingSync: number;
+  updateReady: boolean;
+}): TodayAlert[] {
+  const alerts: TodayAlert[] = [];
+  if (input.recovery) alerts.push('recovery');
+  // Mirrors OfflineBanner's own condition: it shows while offline OR while work is still draining.
+  if (input.offline || input.pendingSync > 0) alerts.push('offline');
+  if (input.updateReady) alerts.push('update');
+  return alerts;
+}
+
 export const SKELETON_HEIGHTS = {
   // NOT measured against their modules, despite what this block used to claim: CurrentLoadHero is
   // ~392pt and StartDayCard ~320pt against `heroCard: 332`, and DutyStrip is ~46 against 56. The
