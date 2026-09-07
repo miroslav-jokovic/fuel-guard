@@ -89,7 +89,7 @@ const storeBuild = process.env.APP_VARIANT === 'store';
 // sheet, so it says what the photograph is FOR. Declared once and used twice — the Info.plist entry
 // and the expo-image-picker plugin must not disagree.
 const CAMERA_PERMISSION =
-  'Silvicom 360 Driver uses your camera to photograph load stops — bill of lading, seal, trailer and any damage — as proof of work.';
+  'Silvicom 360 uses your camera to photograph load stops — bill of lading, seal, trailer and any damage — as proof of work.';
 
 // Self-hosted update server (xprem). All three values are baked into the NATIVE build and can never
 // be changed by an update — a new server URL, certificate or app id means a new APK, always. Absent
@@ -101,7 +101,12 @@ const hasCertificate =
 
 // Public config only — NEVER put secrets in `extra` (it ships in the bundle). Plan §12.5 / §21 F5.
 const config: ExpoConfig = {
-  name: 'Silvicom 360 Driver',
+  // The store and home-screen name. "Driver" was dropped on 2026-09-07 (D-PR1b, owner ruling):
+  // an iOS home screen truncates at roughly twelve characters, so "Silvicom 360 Driver" reads as
+  // "Silvicom 36…" on the one surface a driver actually looks at. `slug` and both bundle
+  // identifiers deliberately do NOT change — they are what a sideloaded install upgrades from and
+  // what the OTA channel is keyed on (D-PR1).
+  name: 'Silvicom 360',
   slug: 'fuelguard-driver',
   scheme: 'fuelguard',
   version: MARKETING_VERSION,
@@ -131,8 +136,8 @@ const config: ExpoConfig = {
       // purpose string is an App Review rejection (2.3.10 / 5.1.1). Saying plainly that the app does
       // not use them is both true and the only string that does not mislead the driver.
       NSFaceIDUsageDescription:
-        'Silvicom 360 Driver does not use Face ID. This entry exists because the secure keychain library declares it.',
-      NSMotionUsageDescription: 'Silvicom 360 Driver does not read motion data.',
+        'Silvicom 360 does not use Face ID. This entry exists because the secure keychain library declares it.',
+      NSMotionUsageDescription: 'Silvicom 360 does not read motion data.',
       // Cleartext is off in every build. Local networking stays open OUTSIDE a store build so that a
       // laptop dev client can reach a Metro bundler and a LAN API; a store build has no such need and
       // the entry is what a reviewer looks for.

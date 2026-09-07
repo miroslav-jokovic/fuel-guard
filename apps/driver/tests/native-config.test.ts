@@ -73,7 +73,7 @@ describe('app.config.ts — identity (D-PR1, D-PR2)', () => {
     expect(config.ios?.bundleIdentifier).toBe('com.silvicom.fuelguard.driver');
     expect(config.android?.package).toBe('com.silvicom.fuelguard.driver');
     expect(config.slug).toBe('fuelguard-driver');
-    expect(config.name).toBe('Silvicom 360 Driver');
+    expect(config.name).toBe('Silvicom 360');
   });
 
   it('takes the marketing version from package.json rather than restating it', () => {
@@ -271,6 +271,37 @@ describe('app.config.ts — the strings App Review reads', () => {
     const picker = pluginOptions(await store(), 'expo-image-picker');
     expect(picker.photosPermission).toBe(false);
     expect(picker.microphonePermission).toBe(false);
+  });
+
+  it('names the app the same way in every string the driver or a reviewer reads', async () => {
+    // A rename is exactly the change that lands in the config and misses the four purpose strings,
+    // and the result — a permission sheet naming an app that is not the one on the home screen — is
+    // a 5.1.1 rejection and a driver wondering what is asking. Checked against `name` rather than
+    // against a literal, so it keeps holding whatever the app is called next.
+    const config = await store();
+    const plist = config.ios?.infoPlist ?? {};
+    const strings = [
+      plist.NSCameraUsageDescription,
+      plist.NSFaceIDUsageDescription,
+      plist.NSMotionUsageDescription,
+      pluginOptions(config, 'expo-image-picker').cameraPermission,
+    ].map(String);
+
+    // `startsWith(name)` is NOT enough and was the first version of this test: "Silvicom 360 Driver
+    // does not read motion data" starts with "Silvicom 360 " and is exactly the half-rename this
+    // exists to catch (it survived the mutant). So take the whole opening run of capitalised and
+    // numeric words — the product name as written — and require it to BE the app's name.
+    const leadingProperNoun = (sentence: string) => {
+      const words = sentence.split(' ');
+      let end = 0;
+      while (end < words.length && /^[A-Z0-9]/.test(words[end] ?? '')) end += 1;
+      return words.slice(0, end).join(' ');
+    };
+
+    expect(strings).toHaveLength(4);
+    for (const value of strings) {
+      expect(leadingProperNoun(value)).toBe(config.name);
+    }
   });
 
   it('answers Face ID and motion honestly rather than leaving them empty', async () => {
