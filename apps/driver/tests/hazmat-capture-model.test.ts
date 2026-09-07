@@ -92,6 +92,52 @@ describe("decideCapture", () => {
   });
 });
 
+describe("decideCapture — cleaning up after a refused scan", () => {
+  it("hands back every file a refused scan produced", () => {
+    // The scanner writes each page into the OS cache and nothing else will ever delete them:
+    // `sweepOrphans` only knows about the staging directory. A driver re-shooting a glaring page five
+    // times would otherwise leave five orphans behind forever (F9).
+    const r = decideCapture({
+      ok: true,
+      pages: [pageAt(true, [], "file:///tmp/a.webp"), pageAt(false, ["IMAGE_BLURRED"], "file:///tmp/b.webp")],
+    });
+    expect(r.accepted).toBe(false);
+    expect(r.discardUris).toEqual(["file:///tmp/a.webp", "file:///tmp/b.webp"]);
+  });
+
+  it("discards the good pages of a refused set too, since the whole set is refused", () => {
+    const r = decideCapture({ ok: true, pages: [pageAt(true, [], "file:///tmp/keep.webp"), pageAt(false, ["GLARE_OVER_TEXT"])] });
+    expect(r.discardUris).toContain("file:///tmp/keep.webp");
+  });
+
+  it("discards nothing on an accepted scan, because those files are still the only copy", () => {
+    // Until the caller has staged them, deleting these would destroy the capture. It discards them
+    // itself once the outbox record exists.
+    const r = decideCapture({ ok: true, pages: [pageAt(true)] });
+    expect(r.accepted).toBe(true);
+    expect(r.discardUris).toEqual([]);
+  });
+
+  it("discards nothing when the scan never produced a file", () => {
+    expect(decideCapture({ ok: false, reason: "CAPTURE_CANCELLED" }).discardUris).toEqual([]);
+  });
+
+  it("lists a page's file once even though four fields point at it", () => {
+    // On the v1 SystemScanner path all four image fields alias one file. They stop aliasing at
+    // Phase 4, when the untouched original is preserved separately — so deduplicating now is what
+    // keeps this cleanup correct then, rather than leaking three files out of four.
+    const r = decideCapture({ ok: true, pages: [pageAt(false, ["IMAGE_BLURRED"], "file:///tmp/one.webp")] });
+    expect(r.discardUris).toEqual(["file:///tmp/one.webp"]);
+  });
+
+  it("refuses a scan over the cap without leaking its pages", () => {
+    const pages = Array.from({ length: 11 }, (_, i) => pageAt(true, [], `file:///tmp/p${i}.webp`));
+    const r = decideCapture({ ok: true, pages }, 10);
+    expect(r.accepted).toBe(false);
+    expect(r.discardUris).toHaveLength(11);
+  });
+});
+
 describe("buildCapturePayloads", () => {
   it("shapes one register per page, numbered from 1, with matching local uris", () => {
     const pages = [pageAt(true, [], "file:///tmp/p1.webp"), pageAt(true, [], "file:///tmp/p2.webp"), pageAt(true, [], "file:///tmp/p3.webp")];

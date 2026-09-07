@@ -39,6 +39,29 @@ export interface CaptureDecision {
   reasons: string[];
   /** Per-page detail behind `reasons`, for a UI that wants to mark the offending page. */
   pageRejections: PageRejection[];
+  /**
+   * Files the scanner wrote that will now never be used — every image of a refused scan. The caller
+   * deletes them; nothing else can, because `sweepOrphans` only knows about the staging directory and
+   * these were written to the OS cache by native code (plan Step 1.4, F9).
+   */
+  discardUris: string[];
+}
+
+/**
+ * Every distinct file a captured page refers to.
+ *
+ * On the v1 SystemScanner path all four image fields alias one file, so this returns one URI — but
+ * they stop aliasing at Phase 4, when the untouched original is preserved separately from its
+ * derivatives. Deduplicating now means the cleanup keeps working then instead of quietly leaking
+ * three files out of four.
+ */
+function fileUrisOf(page: CapturedPage): string[] {
+  return [...new Set([
+    page.originalOfRecord.uri,
+    page.perspectiveCorrected.uri,
+    page.enhancedColor.uri,
+    page.enhancedGray.uri,
+  ])];
 }
 
 /**
@@ -57,11 +80,13 @@ export interface CaptureDecision {
  * set the driver believes is complete. That changes at v2 RawCapture, where the session is ours.
  */
 export function decideCapture(result: ScanResult, maxPages = 10): CaptureDecision {
+  const discardUris = result.ok ? result.pages.flatMap(fileUrisOf) : [];
   const refuse = (reasons: string[], pageRejections: PageRejection[] = []): CaptureDecision => ({
     accepted: false,
     pages: [],
     reasons,
     pageRejections,
+    discardUris,
   });
 
   if (!result.ok) return refuse([REJECTION_COPY[result.reason]]);
@@ -96,7 +121,9 @@ export function decideCapture(result: ScanResult, maxPages = 10): CaptureDecisio
     );
   }
 
-  return { accepted: true, pages: result.pages, reasons: [], pageRejections: [] };
+  // Nothing to discard on the accepted path here: those files are still the only copy until the
+  // caller has staged them, and it discards them itself once they are not.
+  return { accepted: true, pages: result.pages, reasons: [], pageRejections: [], discardUris: [] };
 }
 
 /** Register-document request body derived from an accepted page (matches the server schema). */

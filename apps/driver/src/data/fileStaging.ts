@@ -30,16 +30,40 @@ export async function stageFile(sourceUri: string, recordId: string, index = 0):
   return target.uri;
 }
 
-/** Delete staged files for a record — called ONLY after a confirmed sync. */
-export function discardStagedFiles(uris: readonly string[]): void {
+/** Best-effort delete. A missing file is fine (already cleaned up); cleanup never raises. */
+function deleteAll(uris: readonly string[]): void {
   for (const uri of uris) {
     try {
       const file = new File(uri);
       if (file.exists) file.delete();
     } catch {
-      // A missing file is fine (already cleaned up); never let cleanup break a successful sync.
+      // Never let cleanup break the thing it was cleaning up after.
     }
   }
+}
+
+/** Delete staged files for a record — called ONLY after a confirmed sync. */
+export function discardStagedFiles(uris: readonly string[]): void {
+  deleteAll(uris);
+}
+
+/**
+ * Delete the scanner's own temporary files once they are no longer the only copy.
+ *
+ * The native module writes each page into the OS cache directory and hands back its URI. Two paths
+ * left those behind forever (plan Step 1.4, audit finding F9):
+ *
+ *   · a REJECTED capture — a driver re-shooting a glaring bill of lading five times leaves five
+ *     orphans, and `sweepOrphans` cannot help because it only knows about the staging directory;
+ *   · an ACCEPTED capture — `stageFile` COPIES into the sandbox, so after the copy the temporary is
+ *     redundant, and on iOS `temporaryDirectory` is not aggressively purged while the app is installed.
+ *
+ * ⚠ Call this only when the bytes exist somewhere else or are known to be unwanted. It is deliberately
+ * a different function from `discardStagedFiles` rather than the same one under a vaguer name: those
+ * two have opposite preconditions, and one comment cannot honestly cover both.
+ */
+export function discardScannerTempFiles(uris: readonly string[]): void {
+  deleteAll(uris);
 }
 
 /** True when every staged file for a record still exists (a relaunch must not lose them). */
