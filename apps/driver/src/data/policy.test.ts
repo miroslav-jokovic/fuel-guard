@@ -6,6 +6,8 @@ import {
   isEligible,
   isTransient,
   nextAttemptDelayMs,
+  DEFERRED_RETRY_MS,
+  outcomeAfterDeferral,
   outcomeAfterFailure,
   pickNext,
   type OutboxRecord,
@@ -168,5 +170,47 @@ describe('idempotency contract', () => {
     };
     expect(afterFailure.id).toBe(original.id);
     expect(afterFailure.attempts).toBe(1);
+  });
+});
+
+/**
+ * A deferral is the third outcome, and every assertion here is about it NOT behaving like a failure.
+ *
+ * D-SCAN11 holds a capture's untouched ORIGINAL back until the driver reaches an unmetered
+ * connection, which can be days. As a failure that is eight attempts against a five-minute backoff
+ * ceiling — roughly twenty minutes to `dead` — and a driver's completed capture reported as "needs
+ * attention" for being on cellular. The same reasoning the 429 case above already carries.
+ */
+describe('outcomeAfterDeferral', () => {
+  it('does not count as an attempt, so a week on cellular cannot exhaust the record', () => {
+    const out = outcomeAfterDeferral(rec({ attempts: 3 }), 'Waiting for Wi-Fi', 10_000);
+    expect(out.attempts).toBe(3);
+  });
+
+  it('stays pending, so it can never dead-letter however long it waits', () => {
+    // Deliberately started past MAX_ATTEMPTS: the guard is the absence of a counter, not a threshold
+    // this happens to sit below.
+    const out = outcomeAfterDeferral(rec({ attempts: MAX_ATTEMPTS + 5 }), 'Waiting for Wi-Fi', 10_000);
+    expect(out.status).toBe('pending');
+    expect(out.attempts).toBe(MAX_ATTEMPTS + 5);
+  });
+
+  it('is counted as pending work and never as needing attention', () => {
+    const deferred = rec({ status: 'pending', lastError: 'Waiting for Wi-Fi' });
+    expect(countPending([deferred])).toBe(1);
+    expect(countNeedsAttention([deferred])).toBe(0);
+  });
+
+  it('is not eligible again until the retry interval has passed', () => {
+    const out = outcomeAfterDeferral(rec(), 'Waiting for Wi-Fi', 10_000);
+    expect(out.nextAttemptAt).toBe(10_000 + DEFERRED_RETRY_MS);
+    const parked = rec({ nextAttemptAt: out.nextAttemptAt });
+    expect(isEligible(parked, 10_000 + DEFERRED_RETRY_MS - 1)).toBe(false);
+    expect(isEligible(parked, 10_000 + DEFERRED_RETRY_MS)).toBe(true);
+  });
+
+  it('keeps the reason, so the sync screen says what is being waited for', () => {
+    expect(outcomeAfterDeferral(rec(), 'Waiting for Wi-Fi to upload 3 original pages', 0).lastError)
+      .toBe('Waiting for Wi-Fi to upload 3 original pages');
   });
 });

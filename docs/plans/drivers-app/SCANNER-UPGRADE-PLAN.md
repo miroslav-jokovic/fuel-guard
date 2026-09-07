@@ -1275,3 +1275,44 @@ Append a dated line when a step ships. Do not mark table rows.
       this is the one that adds a multi-megabyte buffer per page to a pipeline Step 1.4 had to bound.
   20. A capture on a real device registers, uploads BOTH objects, and extraction succeeds — which is
       the first end-to-end proof that `sha256` and `integrityHash` are the right way round.
+
+- **2026-09-07** — **Step 4b-ii-b SHIPPED — PHASE 4 COMPLETE.** The ORIGINAL now waits for an
+  unmetered connection (D-SCAN11), and a driver on cellular does not pay for the evidentiary copy of
+  a page nothing reads until somebody disputes the load.
+  · **The outbox had no way to say "not yet", and that is what this step really added.** It had two
+    outcomes: delivered, or failed — and `MAX_ATTEMPTS` is 8 against a five-minute backoff ceiling,
+    so a wait expressed as a failure reaches `dead` in about twenty minutes and reports a driver's
+    completed capture as **needs attention** for the crime of being on cellular. `DeferredWork` is a
+    third outcome: `outcomeAfterDeferral` leaves `attempts` **untouched**, keeps the status
+    `pending`, and therefore cannot dead-letter however long the wait runs. The precedent was already
+    in the file — `outcomeAfterFailure`'s 429 branch, "the server saying later, never no"; a metered
+    connection is the same sentence said by the network.
+  · **Order inside the handler is load-bearing.** `submit` runs BEFORE the deferral, because
+    extraction reads the ARCHIVE at `storage_path` and that is already up. Deferring the submit too
+    would leave a hazmat load unanalysed until the truck found Wi-Fi — an evidentiary artifact
+    nothing in the analysis path reads would have been holding up the verdict.
+  · **`isUnmetered()` is checked per PAGE, not once per record**, because a ten-page scan can
+    straddle a Wi-Fi transition and a page that can go now should.
+  · **⚠ The tri-state that costs money.** `isConnectionExpensive` is `true`, `false`, or **absent**
+    when the platform will not say. `!facts.isConnectionExpensive` reads absent as "cheap", which is
+    the one wrong answer that bills a driver — a three-page BOL is ~12 MB of originals. The
+    comparison is `=== false`, the predicate treats anything it is unsure about as metered, and the
+    two cases that pin the difference are asserted as a pair. Mutating it to the falsy check fails
+    both.
+  · **A second untestable placement, found and fixed rather than shipped.** `connectivity.ts` imports
+    NetInfo, which imports React Native, and the driver suite runs in a node environment — so the
+    predicate would have had no test at all, one merge after a mutation passed for exactly that
+    reason. It lives in `meteredConnection.ts` as a pure function over two plain fields, and
+    `connectivity.ts` keeps the `NetInfo.fetch()`.
+  · **The cost of deferral is stated, not hidden.** Each deferred attempt replays the record's
+    idempotent steps (create, register, submit) before discovering it still cannot finish, so
+    `DEFERRED_RETRY_MS` buys latency with round trips. Thirty minutes ≈ 48 of those a day for one
+    capture waiting on Wi-Fi. There is deliberately **no connectivity-transition trigger**: one more
+    mechanism, waking a queue on an event, to save at most half an hour on an artifact whose whole
+    design is "upload it when it is free".
+  · Four mutations read: the falsy check (2 tests), a deferral counting as an attempt (2), a deferral
+    marked `failed` so it could dead-letter (1), and a deferral eligible immediately (1). No native
+    change, so no prebuild and no runtime bump — `runtime-version.json` stays at 1.0.7.
+  · **Owed on device, item 21:** a capture on cellular uploads the archive and leaves the original
+    pending; joining Wi-Fi uploads it exactly once; and the sync screen says *"Waiting for Wi-Fi to
+    upload N original pages"* rather than showing a failure.

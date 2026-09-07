@@ -12,7 +12,7 @@ import {
 } from './outbox';
 import { discardStagedFiles, sweepOrphans } from './fileStaging';
 import { isNotADbError, recoverCorruptDb } from './db';
-import { countNeedsAttention, countPending, outcomeAfterFailure, type OutboxRecord } from './policy';
+import { countNeedsAttention, countPending, outcomeAfterDeferral, outcomeAfterFailure, type OutboxRecord } from './policy';
 
 /**
  * The sync engine (plan §13.3). One serial worker drains the outbox: claim the oldest due record,
@@ -34,8 +34,30 @@ export class SyncError extends Error {
   }
 }
 
+/**
+ * Thrown by a handler whose remaining work is not YET possible — not a failure (plan D-SCAN11).
+ *
+ * The distinction is the whole point. A `SyncError` counts against `MAX_ATTEMPTS` and dead-letters
+ * after eight, which is right for a request that failed and wrong for one that has not been tried:
+ * a capture holding an original back until the driver reaches Wi-Fi would be marked "needs
+ * attention" in about twenty minutes for being on cellular. See `outcomeAfterDeferral`.
+ *
+ * A handler that throws this MUST have completed everything it could — the deferral is for what is
+ * left, and every step before it will be replayed on the next attempt, so those steps have to be
+ * idempotent for the same reason a retry does.
+ */
+export class DeferredWork extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DeferredWork';
+  }
+}
+
 export interface SyncHandler {
-  /** Deliver the record. Throw SyncError(status) on failure. Must be safe to replay (idempotent). */
+  /**
+   * Deliver the record. Throw SyncError(status) on failure, or DeferredWork when the rest cannot be
+   * done yet. Must be safe to replay (idempotent).
+   */
   run: (record: OutboxRecord) => Promise<void>;
   /** Query keys to invalidate after a successful delivery. */
   invalidates?: readonly (readonly unknown[])[];
@@ -114,6 +136,15 @@ async function processOne(record: OutboxRecord): Promise<boolean> {
     }
     return true;
   } catch (e) {
+    if (e instanceof DeferredWork) {
+      // NOT a failed attempt: the record is put back with its attempt count untouched, so a driver
+      // who spends a week on cellular still has a capture that is "pending" rather than "dead". Its
+      // staged files are deliberately NOT discarded — the deferred artifact is one of them, and this
+      // is the only copy of it.
+      const deferral = outcomeAfterDeferral(record, e.message, Date.now());
+      await markOutcome(record.id, deferral.status, deferral.attempts, deferral.nextAttemptAt, deferral.lastError);
+      return false;
+    }
     const status = e instanceof SyncError ? e.status : undefined;
     const retryAfterMs = e instanceof SyncError ? e.retryAfterMs : undefined;
     const message = e instanceof Error ? e.message : 'Unknown sync error';
