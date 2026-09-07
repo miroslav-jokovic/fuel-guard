@@ -168,6 +168,26 @@ ORIGINAL is staged and uploaded when `NetInfo` reports an unmetered connection, 
 machinery that already exists. See §6 Q1 for the retention rule and the fallback if the owner rules
 otherwise.
 
+**D-SCAN13 — the device session moves to the END of the programme (owner ruling, 2026-09-07).**
+Step 0.1 was written as a prerequisite: answer "has the native provider ever run on a device?" before
+building on it. The owner has ruled otherwise — build the programme out, then connect a phone to the
+MacBook and test the scanner once, against the finished thing. That is a legitimate trade and it is
+recorded here rather than quietly followed, because it inverts a prerequisite this document states.
+
+What it costs, stated plainly so nobody rediscovers it: **every native change from Phase 1 onward
+ships without on-device verification until that session happens.** CI compiles the Kotlin (Step 0.4)
+and nothing compiles the Swift, so "it builds" is the strongest claim available for months of work.
+The mitigations, which are now obligations rather than nice-to-haves:
+
+  · Every step that touches native code carries an explicit **"owed on device"** line in its PR, and
+    those lines accumulate into the §8 log. The device session's agenda IS that list.
+  · Anything that CAN be proven without hardware MUST be — pure logic lifted out of the native layer,
+    faked-native-module tests, and the fixture corpus doing the work a phone would otherwise do.
+  · Phase 2 (pure TypeScript + server) is fully verifiable today and is therefore not affected.
+  · §6 Q5 stays open for the whole programme. If the answer turns out to be "the native provider has
+    never run", the Phase 1 and Phase 3 native work will not have been exercised by anybody, and the
+    device session becomes a first integration rather than a confirmation. Budget it that way.
+
 **D-SCAN12 — v2 RawCapture is not scheduled. It is gated on a number.**
 Phase 7 opens only if Phase 5's telemetry shows a measured trigger crossed: re-shoot rate, or
 server-backstop rejections of client-accepted pages. DCE §3 already frames v2 as "built only if
@@ -279,7 +299,7 @@ the app in a worse state than it found it, and no phase ships a number nobody me
 *Why first: everything after this rests on facts we do not yet have, and on a CI that cannot compile
 the language most of this plan is written in.*
 
-**Step 0.1 — Answer the one question the repository cannot.**
+**Step 0.1 — Answer the one question the repository cannot.** *(DEFERRED to the end of the programme by D-SCAN13. Its fixture half — the printable calibration targets and the PII rule — SHIPPED 2026-09-07; what remains is the session itself.)*
 *Problem:* `RELEASE-GATE.md` Gate C is unrun and unsigned, and `DRIVER-APP-BUILD-STATUS.md` still
 lists "build the native module" as owed. Nothing in the tree establishes that a driver has ever
 completed a scan through `capture-native` rather than through the `expo-image-picker` fallback. Every
@@ -706,6 +726,19 @@ answer.
 
 Append a dated line when a step ships. Do not mark table rows.
 
+- **2026-09-07** — Phase 0's buildable work SHIPPED and merged: #614 (0.2, five image-pipeline
+  properties pinned, 7 cases), #615 (0.3, 24-page synthetic corpus + generator + PNG codec + integrity
+  test), #616 (0.4, `native-android` CI job + the driver's four never-run gates + the module's gradle
+  output ignored), #617 (0.1 fixture half: two printable A4 calibration targets, a 5x7 font, region
+  geometry in the manifest, 9 cases reading the declared truth back out of the pixels, and the
+  public-repo PII rule for real paperwork with its ignore entry verified before any photograph
+  exists). Every check in all four was proven by mutation, never by a green run. Main at 8066e1f.
+  Measured on the way through: `:capture-native:assembleDebug` is 47s cold and 9s warm locally,
+  3m21s in CI; the synthetic corpus separates every axis it claims to (blur 14199 sharp / 1488 motion
+  / 6 heavy-soft; glare 0.0000 / 0.0360 / 0.6663).
+- **2026-09-07** — D-SCAN13: the owner moved the device session to the end of the programme. Step 0.1
+  no longer gates Phase 1. Every native step from here owes an on-device verification, and those debts
+  are collected in this log rather than in anybody's memory.
 - **2026-09-06** — Plan written. Grounded in the scanner audit of the same date and in five
   measurements taken against this repository's installed `sharp` (§0.2, M1–M5). Nothing built yet;
   Step 0.1 is the next action and it needs the Mac and two phones.
