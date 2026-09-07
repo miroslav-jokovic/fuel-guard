@@ -375,6 +375,19 @@ jobs:
         working-directory: apps/driver/android
         run: ./gradlew :capture-native:assembleDebug --no-daemon --console=plain
 
+      # The Android half of D-SCAN9 (plan Step 3.2): CaptureMetrics.kt reproduces
+      # packages/capture-engine/fixtures/expected.json on all 24 fixtures. It is a plain JVM test —
+      # CaptureMetrics.kt imports nothing, not even android.graphics — so it needs no emulator and
+      # adds a few seconds to a job that is already paying for prebuild and Gradle.
+      #
+      # iOS has the same comparison and does NOT run here: macOS runners bill at roughly ten times
+      # Linux, so modules/capture-native/tests/ios/run-metrics-parity.sh is manual, listed in the
+      # plan's §3.4 native checklist beside the xcodebuild step. The asymmetry is deliberate and is
+      # the reason Android's port is held tighter than iOS's by machinery rather than by memory.
+      - name: Check the capture module's metric parity against the reference
+        working-directory: apps/driver/android
+        run: ./gradlew :capture-native:testDebugUnitTest --no-daemon --console=plain
+
   # ── The required check ────────────────────────────────────────────────────────────────────────
   # main's branch protection requires a status check named `build`. Before the split that was the
   # single job; now it is this one, which does no work and exists only so that one name still means

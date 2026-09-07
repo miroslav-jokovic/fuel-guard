@@ -275,6 +275,11 @@ Additionally, by what the step touches:
 2. **iOS, before the PR:** `cd apps/driver && pnpm exec expo prebuild --platform ios --no-install &&
    pnpm run ios` on the Mac, or at minimum `xcodebuild -workspace ios/FuelGuardDriver.xcworkspace
    -scheme FuelGuardDriver -sdk iphonesimulator build`.
+2b. **Android metric parity now runs in CI**, so item 1's job also fails on a Kotlin metric that
+   drifts: `native-android` runs `:capture-native:testDebugUnitTest` after `assembleDebug`.
+   `CaptureMetrics.kt` imports nothing — not even `android.graphics` — so it is a plain JVM test with
+   no emulator. Run it locally the same way. **This is the asymmetry to keep in mind:** Android's port
+   is held by machinery, iOS's by item 3 below and by whoever remembers to run it.
 3. **iOS metric parity, on every change to `CaptureMetrics.swift` or `CaptureImageDecode.swift`:**
    `apps/driver/modules/capture-native/tests/ios/run-metrics-parity.sh`. It compiles those two files
    for macOS with plain `swiftc` — no Xcode project, no simulator, about a second — and holds them to
@@ -731,6 +736,57 @@ answer.
 ## 8. Progress log
 
 Append a dated line when a step ships. Do not mark table rows.
+
+- **2026-09-07** — **Step 3.2 SHIPPED**: `measure()` on Android, and **iOS and Android are
+  bit-identical**. `CaptureMetrics.kt` is the same transliteration as the Swift — same constant names,
+  same values, same loop bounds in the same order, so the two ports diff against each other as well as
+  against the TypeScript — with three ⚠-marked notes where Kotlin genuinely differs: `Byte` is SIGNED
+  so every plane read masks with `0xFF`; `Math.round` (ties toward +∞, matching JS and Swift) rather
+  than `kotlin.math.round` (ties to EVEN); and `sumSquares` must accumulate in a **Long**, because
+  Kotlin's `Int` is 32-bit where Swift's is 64-bit and the Laplacian's total reaches ~10^12.
+  Step 3.2's done-when is that the two agree with each other, so both harnesses now print the same
+  three quantities at full `Double` precision, and they are **equal to the last digit**:
+  worst blur `2.5815073644649034E-4%` relative / `4.624118082574569E-5` absolute, worst fraction
+  `4.995090079340514E-7` — the same figures on both platforms, from two independent implementations.
+
+- **2026-09-07 — Android's parity check runs in CI; iOS's does not, and that asymmetry is the point.**
+  `CaptureMetrics.kt` imports nothing at all, so `CaptureMetricsParityTest` is a plain JVM test — no
+  Robolectric, no emulator — and `native-android` now runs `:capture-native:testDebugUnitTest` after
+  `assembleDebug`. Two findings on the way there, both worth keeping:
+  · **`javax.imageio` does not exist on the Android unit-test classpath.** An Android library's tests
+    compile against `android.jar`, which ships no ImageIO. So the fixtures are read by `FixturePng`, a
+    test-only transliteration of the corpus's own `png.mjs` — the same answer that file's header gives
+    for why the corpus owns its codec. It is as narrow as the original (colour type 2, depth 8, filter
+    0, no interlace) and refuses anything else rather than half-reading it.
+  · **`org.json` IS in `android.jar`**, so the mockable jar shadows a real `org.json` dependency and
+    every call throws "not mocked". Gson is used instead, test-scope only: a library the platform does
+    not ship cannot be shadowed.
+  Also corrected on the way past: root `CLAUDE.md` said CI is **six** parallel jobs and omitted
+  `native-android`, which #616 added — it says seven now, and says that there is no iOS job and why.
+
+- **2026-09-07 — mutation record for Step 3.2**, six mutations, output read every time:
+  the `0xFF` mask dropped from `LuminancePlane.at` (**all three tests fail** — the dedicated
+  sign-mask case names it directly, which is a better message than "all 24 fixtures are wrong");
+  `Math.round` → `kotlin.math.round` (**1.669% relative on blur — UNDER the 2% contract tolerance**,
+  caught only by the exactness bound Step 3.1 added, and a divergence that could only ever appear on
+  Android); `sumSquares` in Int rather than Long (blur off by 150%, and one fixture reports a
+  **negative variance**, exactly as its ⚠ note predicts); `NEAR_WHITE` 250→249 (glare fails); a
+  no-op reformat as a control (**PASSED, as it must**); and one attempt at the Int-overflow mutation
+  that **did not compile** — a type mismatch, so nothing ran — which is the fourth time in this
+  programme a mutation has broken syntax rather than behaviour. It was redone properly before being
+  counted. The `Math.round` result is a third independent vindication of Step 3.1's finding: the
+  declared corpus tolerance passes real, platform-specific definition errors.
+
+- **2026-09-07 — OWED ON DEVICE, continuing the list** (D-SCAN13):
+  11. `measure()` is reachable across the bridge on Android and resolves the seven keys it claims.
+  12. `BitmapFactory` hands `CaptureImageDecode` the same pixels `FixturePng` hands the unit test.
+      The CI test proves the arithmetic; the `Bitmap` path is untested, and `inPreferredConfig` being
+      honoured (rather than a device preferring RGB_565) is the way it would differ.
+  13. A full-resolution `measure()` decode does not OOM on the min-spec Android. `measure()`
+      deliberately does **not** use `inSampleSize` — subsampling would change `longEdgePx` and the
+      box-downscale's arithmetic, so a correct implementation would fail `expected.json` — and it is
+      bounded instead by `MAX_PIXELS` and an immediate `recycle()`. That trade is stated in
+      `CaptureImageDecode.kt`'s header and is a deviation from the Step 3.2 text.
 
 - **2026-09-07** — **Step 3.1 SHIPPED**: `measure()` on iOS. `CaptureMetrics.swift` is a deliberate
   line-for-line transliteration of `metrics.ts` (same constant names, same values, same loop bounds,
