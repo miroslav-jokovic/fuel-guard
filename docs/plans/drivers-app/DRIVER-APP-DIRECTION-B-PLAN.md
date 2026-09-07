@@ -860,7 +860,6 @@ Touches `app.config.ts`, `package.json`, `plugins/`, `assets/`, `scripts/`, `.gi
       NSCameraUsageDescription: '<the existing proof-of-work string>',
       NSFaceIDUsageDescription: 'Silvicom 360 Driver does not use Face ID. This entry exists because the secure keychain library declares it.',
       NSMotionUsageDescription: 'Silvicom 360 Driver does not read motion data.',
-      NSLocationWhenInUseUsageDescription: undefined, // removed with expo-location
       NSAppTransportSecurity: { NSAllowsArbitraryLoads: false, NSAllowsLocalNetworking: !storeBuild },
     },
     privacyManifests: {
@@ -874,7 +873,7 @@ Touches `app.config.ts`, `package.json`, `plugins/`, `assets/`, `scripts/`, `.gi
         { NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeOtherUserContent', … (messages, stop notes) },
         { NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeCrashData', NSPrivacyCollectedDataTypeLinked: false, … },
       ],
-      NSPrivacyAccessedAPITypes: [ FileTimestamp C617.1, UserDefaults CA92.1, SystemBootTime 35F9.1, DiskSpace E174.1 ],
+      NSPrivacyAccessedAPITypes: [ FileTimestamp C617.1, UserDefaults CA92.1, SystemBootTime 35F9.1 ],
     },
   },
   android: {
@@ -897,8 +896,10 @@ Touches `app.config.ts`, `package.json`, `plugins/`, `assets/`, `scripts/`, `.gi
     ['@sentry/react-native/expo', { organization: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT }],
   ],
   ```
-  `DiskSpace E174.1` is included because `expo-file-system` reports free space; if Xcode 26's privacy
-  report at the first archive lists any other API, it is added then (that report is the verifier).
+  The three accessed-API entries are the ones Expo's template already declares. Xcode 26's privacy
+  report at the first archive (Product → Generate Privacy Report) is the verifier for the rest: any
+  API it lists is added then with its reason code — for disk space, `85F4.1` if the app checks free
+  space before writing, `E174.1` if it displays it — never in advance.
 - **P1.2 Dependencies:** add `expo-build-properties`, `expo-splash-screen`, `@sentry/react-native` is
   present; remove `expo-location`. `pnpm --filter @silvicom/driver exec expo install --fix` pins SDK
   57 versions.
