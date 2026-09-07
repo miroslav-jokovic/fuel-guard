@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { REJECTION_REASONS } from "@silvicom/capture-engine";
+import { BUNDLED_DEFAULT_CONFIG, evaluateGate, unavailableOcr } from "@silvicom/capture-engine";
 import {
+  imageMetricsFromMeasurement,
   interpretNativeScan,
   reasonForUnsupported,
   rejectionFromThrown,
   supportFromNative,
 } from "@/capture/nativeScanOutcome";
-import type { NativeScanResult, NativeScannedPage } from "../modules/capture-native";
+import type { NativeImageMetrics, NativeScanResult, NativeScannedPage } from "../modules/capture-native";
 
 /**
  * The rejection taxonomy survives the last hop (SCANNER-UPGRADE-PLAN.md Step 1.1, F2/F3, D-SCAN7).
@@ -153,5 +155,65 @@ describe("the taxonomy itself", () => {
     expect(REJECTION_REASONS).toContain("SCANNER_MODULE_UNAVAILABLE");
     expect(REJECTION_REASONS).toContain("PROVIDER_ERROR");
     expect(new Set(REJECTION_REASONS).size).toBe(REJECTION_REASONS.length);
+  });
+});
+
+describe("imageMetricsFromMeasurement — shadow-mode measurement (Step 3.3, D-SCAN10)", () => {
+  const measured: NativeImageMetrics = {
+    longEdgePx: 2000,
+    blurVariance: 4321.5,
+    glareFraction: 0.012,
+    brightnessMean: 0.71,
+    contrastRms: 0.23,
+    shadowRange: 0.08,
+    analysisLongEdgePx: 1024,
+  };
+
+  it("passes every measured field through under the name the gate reads", () => {
+    expect(imageMetricsFromMeasurement(measured)).toEqual({
+      blurVariance: 4321.5,
+      glareFraction: 0.012,
+      brightnessMean: 0.71,
+      contrastRms: 0.23,
+      shadowRange: 0.08,
+    });
+  });
+
+  it("does not source longEdgePx from the measurement", () => {
+    // The resolution floor's input is a question about what the camera captured, and the provider
+    // already knows it from the page the scanner returned. Taking it from here would mean a FAILED
+    // measurement was indistinguishable from a page with no pixels — and resolution is the one image
+    // threshold that is still enforcing, so that mistake would reject real captures.
+    expect(imageMetricsFromMeasurement(measured)).not.toHaveProperty("longEdgePx");
+  });
+
+  it("leaves every field ABSENT when the measurement could not be taken", () => {
+    expect(imageMetricsFromMeasurement(null)).toEqual({});
+    for (const key of ["blurVariance", "glareFraction", "brightnessMean", "contrastRms", "shadowRange"]) {
+      expect(imageMetricsFromMeasurement(null)).not.toHaveProperty(key);
+    }
+  });
+
+  it("a failed measurement is `na` at the gate, not a page measured as catastrophic", () => {
+    // The failure this whole function exists to prevent, stated end to end rather than as a property
+    // of a return value. Zeroing the fields instead of omitting them would look identical today —
+    // every floor is null — and would start rejecting good pages the day Step 5.2 turns them on.
+    const cfg = {
+      ...BUNDLED_DEFAULT_CONFIG,
+      gates: { ...BUNDLED_DEFAULT_CONFIG.gates, blurLaplacianVarMin: 100, contrastRmsMin: 0.18 },
+    };
+    const ocr = unavailableOcr("test.none");
+    const absent = evaluateGate(
+      { metrics: { longEdgePx: 1600, ...imageMetricsFromMeasurement(null) }, ocr, platform: "ios" },
+      cfg,
+    );
+    expect(absent.checks.find((c) => c.name === "blur")?.status).toBe("na");
+    expect(absent.reasons).toEqual([]);
+
+    const zeroed = evaluateGate(
+      { metrics: { longEdgePx: 1600, blurVariance: 0, contrastRms: 0 }, ocr, platform: "ios" },
+      cfg,
+    );
+    expect(zeroed.reasons).toContain("IMAGE_BLURRED");
   });
 });

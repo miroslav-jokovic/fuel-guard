@@ -246,25 +246,35 @@ class CaptureNativeModule : Module() {
       val text = Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)))
       var chars = 0
       var words = 0
-      var coverage = 0.0
+      val boxes = mutableListOf<TextBox>()
       val heights = mutableListOf<Int>()
       val tokens = mutableListOf<String>()
-      val area = (bitmap.width.toLong() * bitmap.height.toLong()).toDouble()
       for (block in text.textBlocks) {
         for (line in block.lines) {
           chars += line.text.length
           words += line.elements.size
           line.boundingBox?.let { box ->
-            if (area > 0) coverage += (box.width().toDouble() * box.height()) / area
+            // ML Kit's Rect is already pixels with a top-left origin, so this conversion is the
+            // identity — stated explicitly anyway, because "the platform already agrees" is a fact
+            // about today's ML Kit and not part of the definition. iOS has a real flip to do here.
+            boxes.add(TextBox(box.left.toDouble(), box.top.toDouble(), box.width().toDouble(), box.height().toDouble()))
             heights.add(box.height())
           }
           Regex("\\d{3,}").findAll(line.text).forEach { tokens.add(it.value) }
         }
       }
+      // F7 (plan Step 3.3): both coverage figures are UNIONS over the page area now. The old
+      // textCoverageFraction summed overlapping and nested boxes, so it could exceed 1 and grew with
+      // OCR redundancy; the old smallTextBandCoverage was Σ(line heights)/imageHeight, a sum of
+      // heights over a height, unbounded in line count. Both go through CaptureTextCoverage, the
+      // transliteration of packages/capture-engine/src/textCoverage.ts. Their gate floors are null
+      // until Step 5.2 re-derives them against the quantities that now exist.
+      val width = bitmap.width.toDouble()
+      val height = bitmap.height.toDouble()
+      val coverage = CaptureTextCoverage.textCoverageFraction(boxes, width, height)
+      val smallCoverage = CaptureTextCoverage.smallTextBandCoverage(boxes, width, height)
       val sortedHeights = heights.sorted()
       val median = if (sortedHeights.isEmpty()) 0 else sortedHeights[sortedHeights.size / 2]
-      val smallSum = sortedHeights.take(max(1, sortedHeights.size / 4)).sum()
-      val smallCoverage = if (bitmap.height > 0) smallSum.toDouble() / bitmap.height else 0.0
       mapOf(
         "engine" to "android.mlkit",
         "recognizedChars" to chars,

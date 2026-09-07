@@ -737,6 +737,62 @@ answer.
 
 Append a dated line when a step ships. Do not mark table rows.
 
+- **2026-09-07** — **Step 3.3b SHIPPED — PHASE 3 COMPLETE.** Both providers now call `measure()` and
+  every capture records real blur, glare, shadow, brightness and contrast, **rejecting on none of
+  them**. F7 is fixed on both platforms in the same merge that retires the two floors aimed at the
+  quantities it replaced.
+  · **F7 has ONE definition**, `packages/capture-engine/src/textCoverage.ts`, with Swift and Kotlin
+    transliterations held to a new `fixtures/textBoxes.json` — twelve hand-built box sets, each
+    naming the mistake it exists to catch (overlap counted twice, a nested box counted at all, a
+    shared edge counted, the gap between two boxes filled in, a box hanging off the page unclipped,
+    a degenerate box, a realistic fine-print page, and the same page with every line reported twice).
+    A second fixture file rather than a row in `expected.json` because `textCoverage.ts` consumes OCR
+    OUTPUT, and no synthetic PNG produces OCR output without an OCR engine, which is a device.
+    **Both ports are exact: worst deviation 0.0 against a 1e-9 tolerance.** Android's runs in CI.
+  · The file records what the OLD implementation would have answered per case, and a test asserts
+    that **every case except `empty` disagrees with it** — a corpus the old code would also have
+    passed proves nothing about the change. The headline numbers: `duplicates` 0.25 union against
+    **1.0** summed; `out-of-frame` 0.055 against **0.33**; `fine-print-page-doubled` unmoved at
+    0.3888 where the sum grew to 0.5088.
+  · **A measurement that could not be taken leaves every field ABSENT, never zero.** The gate reads
+    absent as `na`; a zeroed field is a real measurement of a catastrophic page, and the day Step 5.2
+    turns the floors on that is a driver retaking a good photograph because a decode failed. The
+    decision lives in `nativeScanOutcome.ts` — where a unit test reaches it with no device — not in
+    the provider, which keeps the I/O.
+  · Measurement is **sequential across pages**, not `Promise.all`: Step 1.4 bounded exactly this
+    concurrency inside the native module, and ten simultaneous decodes driven from JavaScript would
+    reopen an OOM path the module's own limit cannot see.
+  · Runtime 1.0.5 → 1.0.6. `** BUILD SUCCEEDED **` (scheme CaptureNative); Gradle assemble + unit
+    tests green.
+
+- **2026-09-07 — two things measured during 3.3b that are worth not rediscovering.**
+  · **`smallTextBandCoverage` is still sensitive to OCR verbosity, and by how much is now recorded.**
+    The quartile is selected by COUNT (`max(1, n/4)`), so doubling the boxes doubles how many are
+    selected even though the union no longer double-counts: 0.008 → 0.012, where the OLD metric went
+    0.02 → 0.05. Better by roughly a factor of three, and **not immune**. This is a property of the
+    definition the plan states, not a defect in the implementation — but Step 5.2 derives a floor
+    from recorded values and needs to know. Pinned by a test that says so in its name.
+  · **A test that passes can still be inert.** Removing the height tie-break from the quartile sort
+    did NOT fail the TypeScript test written to catch it, because V8's sort is stable and the two
+    orderings coincide. What caught it was the `equal-heights` case in the committed baseline, and
+    the reversal assertions in the Swift and Kotlin suites — Swift's `sorted` is **not** stable. The
+    TypeScript test now says this about itself rather than implying a strength it does not have.
+
+- **2026-09-07 — mutation record for Step 3.3b**, four mutations, output read every time: the union
+  reduced to a sum of areas (**5 cases fail**, including the baseline); the clipping to the page
+  dropped (2 fail); the quartile tie-break removed (2 fail — see above for which, and which did not);
+  a failed measurement zeroed rather than left absent (2 fail, one of them end-to-end at the gate).
+
+- **2026-09-07 — OWED ON DEVICE, continuing the list** (D-SCAN13):
+  14. A deliberately blurry page records a visibly worse `blurVariance` than a sharp one, and a
+      glare-lit page a worse `glareFraction` — the plan's own Step 3.3 verification, and the only
+      part of it that a laptop cannot do.
+  15. Vision's `boundingBox` flip is right way up. iOS converts from a **bottom-left** normalised
+      origin to top-left pixels next to the Vision call; a missed flip still produces plausible
+      numbers on a page whose text is roughly symmetric vertically, which is most of them.
+  16. `measure()` on a ten-page scan does not regress the memory ceiling Step 1.4 established, now
+      that each page is decoded a second time.
+
 - **2026-09-07** — **Step 3.3 is being shipped in TWO merges, and the order is a safety property.**
   3.3a (this one) retires the thresholds; 3.3b lands F7 and makes the providers produce the metrics.
   Backwards, the second merge would turn five uncalibrated floors into live gates for the ~3 minutes
