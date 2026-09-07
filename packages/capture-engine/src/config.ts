@@ -37,22 +37,59 @@
  * override — which is what this file is for — and not as a constant somebody guessed today.
  */
 
+/**
+ * A threshold that may be in SHADOW MODE (D-SCAN10).
+ *
+ * `null` means "measure it, record it, gate on nothing". It is not the same as a missing key and it
+ * is emphatically not the same as `0`: a `0` floor passes every image ever taken while looking, in a
+ * config dump, exactly like a threshold somebody chose. `null` is the only value that says out loud
+ * that no number has been derived yet, and the gate renders it as `na` — which §5 already defines as
+ * "never a silent pass", the same treatment an unmeasured metric gets.
+ *
+ * A threshold reaches `null` by being RETIRED rather than replaced: Step 5.2 derives each one from
+ * the recorded distribution over the corpus and real captures, and only then does it become a number
+ * again, in a signed config version. Until then, nothing in this repository is entitled to invent one
+ * — which is the rule this file's own header states and which the shipped 100 and 0.06 broke.
+ */
+export type ShadowThreshold = number | null;
+
 export interface CaptureConfigGates {
-  /** Variance-of-Laplacian focus floor — below this the page is too blurry to read reliably. */
-  blurLaplacianVarMin: number;
-  /** Fraction of near-white specular (glare) pixels allowed. */
-  glareClippedFractionMax: number;
-  /** Max luminance range attributable to shadow (v2/native only; `na` when unmeasured). */
-  shadowRangeMax: number;
-  /** Document area / frame area floor (system-scanner crop reports ~1). */
+  /**
+   * Variance-of-Laplacian focus floor.
+   *
+   * `null` since 2026-09-07 (plan Step 3.3). The shipped 100 was never calibrated — `image.ts`
+   * deferred it to "H11", and H11 never ran — and it is now aimed at a DIFFERENT QUANTITY besides:
+   * D-SCAN3's Laplacian is signed and unclamped where sharp's was half-rectified, and D-SCAN1 pins
+   * the scale, which alone moved the same image between 4283.7 and 7299.9. Carrying the old number
+   * across that change would have been the most expensive kind of mistake — one that looks like
+   * continuity. Re-derived in Step 5.2.
+   */
+  blurLaplacianVarMin: ShadowThreshold;
+  /** Fraction of near-white specular (glare) pixels allowed. `null` — shadow mode, see above. */
+  glareClippedFractionMax: ShadowThreshold;
+  /** Max luminance range attributable to shadow. `null` — shadow mode; never enforced by anything. */
+  shadowRangeMax: ShadowThreshold;
+  /**
+   * Document area / frame area floor (system-scanner crop reports ~1).
+   *
+   * NOT in shadow mode, and deliberately: it is still enforcing because `coverageFraction` is not yet
+   * measured by anybody — `nativeSystemScannerProvider` ASSERTS 1, which Step 5.3 removes. When that
+   * assertion goes, this joins the list above until Step 5.2 derives it.
+   */
   coverageMinFraction: number;
-  /** Acceptable mean brightness band, 0..1. */
-  brightnessMeanRange: [number, number];
-  /** RMS contrast floor, 0..1. */
-  contrastRmsMin: number;
-  /** Hard resolution floor (long edge px). Source of truth: 1200 (PLAN M6 DoD / server gate). */
+  /** Acceptable mean brightness band, 0..1. `null` — shadow mode, see `blurLaplacianVarMin`. */
+  brightnessMeanRange: [number, number] | null;
+  /** RMS contrast floor, 0..1. `null` — shadow mode, see `blurLaplacianVarMin`. */
+  contrastRmsMin: ShadowThreshold;
+  /**
+   * Hard resolution floor (long edge px). Source of truth: 1200 (PLAN M6 DoD / server gate).
+   *
+   * The one image threshold that is NOT in shadow mode, because it is the one that is scale-free: it
+   * asks how many pixels the camera captured, which means the same thing whatever any later stage
+   * does. Every other floor above was a number about a pipeline, and the pipeline changed.
+   */
   resolutionMinLongEdgePx: number;
-  /** Overall accept score floor, 0..1. */
+  /** Overall accept score floor, 0..1. Computed over APPLICABLE checks only, so `na` never dilutes it. */
   overallAcceptScoreMin: number;
 }
 
@@ -61,11 +98,21 @@ export interface OcrLegibilityConfig {
   ocrMode: "fast" | "accurate";
   minRecognizedChars: number;
   minRecognizedWords: number;
-  textCoverageFractionMin: number;
+  /**
+   * Text-area floor. Typed as a shadow threshold because F7 replaces the quantity underneath it —
+   * `textCoverageFraction` SUMS overlapping boxes today and will union them — and a floor calibrated
+   * against a sum cannot survive that. It drops to `null` in the step that lands F7 on both
+   * platforms, not before: nulling it earlier would relax a live gate for no reason yet.
+   */
+  textCoverageFractionMin: ShadowThreshold;
   /** Median glyph height floor — the core legibility signal (portable across both platforms). */
   minMedianCharHeightPx: number;
-  /** Coverage floor in the smallest-height quartile — does the fine print survive? */
-  smallTextBandCoverageMin: number;
+  /**
+   * Coverage floor in the smallest-height quartile — does the fine print survive? Same story as
+   * `textCoverageFractionMin`: F7 replaces `Σ(line heights)/imageHeight`, which grows with line
+   * count and is not a fraction of anything, with a real union-over-area coverage.
+   */
+  smallTextBandCoverageMin: ShadowThreshold;
   /**
    * Confidence is SECONDARY only (both platforms' word-confidence is unreliable — DCE §12 #3):
    * it can add caution, never rescue. `use: "off"` ignores it entirely.
@@ -117,12 +164,19 @@ export const BUNDLED_DEFAULT_CONFIG: CaptureConfig = {
   configVersion: "capture-2026.08.0",
   analysis: { longEdgePx: 1024 },
   gates: {
-    blurLaplacianVarMin: 100,
-    glareClippedFractionMax: 0.06,
-    shadowRangeMax: 0.55,
+    // ⚠ Five thresholds went `null` on 2026-09-07 (plan Step 3.3, D-SCAN10), and the ORDER matters:
+    // they are retired in the merge BEFORE the one that makes the providers produce these metrics.
+    // Until Phase 3 nothing set `blurVariance` at all (audit finding F6), so every one of these
+    // checks has always been `na` and the numbers below were never once read. The moment a provider
+    // starts producing them, an uncalibrated floor becomes a live gate — so the floors go first, and
+    // this file's own rule against inventing numbers is kept rather than quietly broken by a
+    // producer landing on top of them.
+    blurLaplacianVarMin: null,
+    glareClippedFractionMax: null,
+    shadowRangeMax: null,
     coverageMinFraction: 0.6,
-    brightnessMeanRange: [0.35, 0.85],
-    contrastRmsMin: 0.18,
+    brightnessMeanRange: null,
+    contrastRmsMin: null,
     resolutionMinLongEdgePx: 1200,
     overallAcceptScoreMin: 0.75,
   },
@@ -221,6 +275,19 @@ function isNum(v: unknown): v is number {
 }
 
 /**
+ * A shadow threshold: a finite number, or an EXPLICIT `null` (D-SCAN10).
+ *
+ * ⚠ The asymmetry between `null` and a missing key is the whole point and is load-bearing. A remote
+ * config that OMITS a threshold is still rejected — `undefined` is not `null` — so a signed override
+ * cannot switch a gate off by leaving a key out, which would be a silent weakening and is precisely
+ * what §8's "a bad config can never WEAKEN the gate" forbids. Retiring a threshold has to be written
+ * down as `null`, deliberately, where a reviewer of the config diff can see it.
+ */
+function isShadowThreshold(v: unknown): v is number | null {
+  return v === null || isNum(v);
+}
+
+/**
  * Structural validation of an untrusted remote config (parse-not-trust, D24). Returns the typed config
  * or null; a null NEVER weakens the gate (the caller keeps last-known-good/bundled).
  */
@@ -235,11 +302,13 @@ export function validateConfig(u: unknown): CaptureConfig | null {
   const g = c.gates as Record<string, unknown> | undefined;
   if (!g) return null;
   const range = g.brightnessMeanRange;
+  const rangeOk = range === null || (Array.isArray(range) && range.length === 2 && isNum(range[0]) && isNum(range[1]));
   if (
-    !isNum(g.blurLaplacianVarMin) || !isNum(g.glareClippedFractionMax) || !isNum(g.shadowRangeMax) ||
-    !isNum(g.coverageMinFraction) || !isNum(g.contrastRmsMin) || !isNum(g.resolutionMinLongEdgePx) ||
-    !isNum(g.overallAcceptScoreMin) ||
-    !Array.isArray(range) || range.length !== 2 || !isNum(range[0]) || !isNum(range[1])
+    !isShadowThreshold(g.blurLaplacianVarMin) || !isShadowThreshold(g.glareClippedFractionMax) ||
+    !isShadowThreshold(g.shadowRangeMax) || !isShadowThreshold(g.contrastRmsMin) || !rangeOk ||
+    // Not shadow thresholds: coverage is still enforcing (its metric is asserted, not measured), and
+    // resolution and the score floor are the two that never retire.
+    !isNum(g.coverageMinFraction) || !isNum(g.resolutionMinLongEdgePx) || !isNum(g.overallAcceptScoreMin)
   ) {
     return null;
   }
@@ -247,8 +316,8 @@ export function validateConfig(u: unknown): CaptureConfig | null {
   const o = c.ocrLegibility as Record<string, unknown> | undefined;
   if (!o || typeof o.enabled !== "boolean" || (o.ocrMode !== "fast" && o.ocrMode !== "accurate")) return null;
   if (
-    !isNum(o.minRecognizedChars) || !isNum(o.minRecognizedWords) || !isNum(o.textCoverageFractionMin) ||
-    !isNum(o.minMedianCharHeightPx) || !isNum(o.smallTextBandCoverageMin)
+    !isNum(o.minRecognizedChars) || !isNum(o.minRecognizedWords) || !isNum(o.minMedianCharHeightPx) ||
+    !isShadowThreshold(o.textCoverageFractionMin) || !isShadowThreshold(o.smallTextBandCoverageMin)
   ) {
     return null;
   }

@@ -36,6 +36,47 @@ describe("validateConfig", () => {
     expect(validateConfig({ configVersion: "capture-2026.08.0" })).toBeNull();
     expect(validateConfig(null)).toBeNull();
   });
+
+  describe("shadow thresholds (D-SCAN10)", () => {
+    // A round trip through JSON on purpose: a remote config arrives as text, and the ONLY thing that
+    // distinguishes "retired on purpose" from "key left out" once it has been parsed is `null`
+    // against `undefined`. Building the object in TypeScript would let a `null` written here reach
+    // the validator by a route no real config ever takes.
+    const parsed = (gates: Record<string, unknown>) =>
+      validateConfig(
+        JSON.parse(JSON.stringify({ ...BUNDLED_DEFAULT_CONFIG, gates: { ...BUNDLED_DEFAULT_CONFIG.gates, ...gates } })),
+      );
+
+    it("accepts an explicit null — that is how a threshold is retired", () => {
+      expect(parsed({ blurLaplacianVarMin: null, contrastRmsMin: null, brightnessMeanRange: null })).not.toBeNull();
+    });
+
+    it("REJECTS a config that omits the key instead", () => {
+      // §8: a bad config can never weaken the gate. If omission read as `null`, a signed override
+      // could switch off blur, glare, shadow, brightness and contrast by shipping a `gates` object
+      // that simply does not mention them — and the diff a reviewer saw would be a deletion, which
+      // is the easiest thing in the world to miss. Retiring has to be written down.
+      const withoutBlur = JSON.parse(JSON.stringify(BUNDLED_DEFAULT_CONFIG));
+      delete withoutBlur.gates.blurLaplacianVarMin;
+      expect(validateConfig(withoutBlur)).toBeNull();
+
+      const withoutSmallText = JSON.parse(JSON.stringify(BUNDLED_DEFAULT_CONFIG));
+      delete withoutSmallText.ocrLegibility.smallTextBandCoverageMin;
+      expect(validateConfig(withoutSmallText)).toBeNull();
+    });
+
+    it("still rejects a non-number that is not null", () => {
+      expect(parsed({ blurLaplacianVarMin: "none" })).toBeNull();
+      expect(parsed({ contrastRmsMin: true })).toBeNull();
+    });
+
+    it("does not let resolution or the score floor retire", () => {
+      // These two never go to shadow: resolution is scale-free, and a null accept-score floor would
+      // mean "accept on no evidence at all", which is the one thing §5 cannot allow.
+      expect(parsed({ resolutionMinLongEdgePx: null })).toBeNull();
+      expect(parsed({ overallAcceptScoreMin: null })).toBeNull();
+    });
+  });
 });
 
 describe("canonicalStringify", () => {
