@@ -43,31 +43,51 @@ plugin list, flips `aps-environment` to `production` and closes `NSAllowsLocalNe
 (**D-PR10**). `tests/native-config.test.ts` asserts all three, and `tests/eas-config.test.ts` asserts
 that the production profile actually sets the variable — the two halves of one claim.
 
-## Why the `EXPO_PUBLIC_*` values are in the file and the keys are not
+## Where the build's values come from — EAS environments, not this file
 
-`EXPO_PUBLIC_*` values are **not secrets**. They are compiled into the JavaScript bundle and are
-already on every phone that has the app; `driver-android.yml` writes the same set into a `.env` from
-GitHub secrets purely as a convenience. Putting them in `eas.json` means what a store build talks to
-is readable in the repository rather than only in a CI settings page.
+Every profile names an **EAS environment** (`environment: "development" | "preview" | "production"`),
+and EAS injects that environment's variables into the build. `eas.json` itself declares only
+`APP_VARIANT`, because that is a *decision* rather than an environment lookup: it says what kind of
+build this is, and it should be reviewable in a pull request.
 
-The **Play service-account JSON** and the **App Store Connect `.p8` key** are real credentials and
-are never committed. They are uploaded once with `eas secret:create` and resolved at submit time.
-`serviceAccountKeyPath` names where EAS puts the file during a submit, not a file in this repo.
+The first version of this file listed the `EXPO_PUBLIC_*` and `UPDATES_*` values inline, on the
+argument that they are not secrets — they compile into the JavaScript bundle and are already on every
+phone that has the app. That argument is still true and it is **not** why they moved. They moved
+because the Supabase publishable key is a **JWT**, this repository runs `gitleaks` and
+`scripts/scan-secrets.mjs` over all tracked content, and a JWT-shaped string in a committed file is
+exactly what those gates exist to stop. Arguing with a secret scanner about a key that is genuinely
+public is a fight worth losing (owner ruling, 2026-09-07).
 
-## The `<placeholders>`
+Set them once, per environment:
 
-Seven values are written as `<...>` and are **not** guesses:
+```sh
+eas env:set production --name EXPO_PUBLIC_API_URL          --value "<prod api url>"        --visibility plaintext
+eas env:set production --name EXPO_PUBLIC_SUPABASE_URL     --value "<prod supabase url>"   --visibility plaintext
+eas env:set production --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<publishable key>"    --visibility sensitive
+eas env:set production --name EXPO_PUBLIC_SENTRY_DSN       --value "<dsn>"                 --visibility sensitive
+eas env:set production --name UPDATES_URL                  --value "<xprem origin>"        --visibility sensitive
+eas env:set production --name UPDATES_APP_ID               --value "<xprem app id>"        --visibility sensitive
+```
 
-- the four `EXPO_PUBLIC_*` / `UPDATES_*` values — copy them from the GitHub environment
-  `driver-android.yml` already uses; a store build pointed at the wrong API is a build that looks
-  fine and talks to nothing.
-- `ascAppId` — the numeric Apple ID of the App Store Connect record, visible in its URL once the
-  record exists.
-- `appleTeamId` — on the Apple Developer membership page.
+`plaintext` for the two URLs because they appear in build logs anyway; `sensitive` for the rest,
+which keeps them out of logs without pretending they are unreadable — a `sensitive` variable is still
+injected into the bundle, and the anon key still ships on every phone. Nothing here is `secret`,
+because a `secret` variable cannot be read back and these are values we will want to check.
 
-`tests/eas-config.test.ts` counts them and prints what is left, so "how much of P2.3 is done" is a
-test run rather than a memory. It does **not** fail on a placeholder: until P2.3 they are the correct
-state of the file.
+`eas env:list production` prints what is set, which makes "is the store build pointed at production?"
+a command rather than a memory. `eas env:pull production` writes them to a local `.env` if you need
+to reproduce a build.
+
+**The real credentials are different.** The Play service-account JSON and the App Store Connect `.p8`
+key are uploaded as files and never committed:
+
+```sh
+eas env:set production --name GOOGLE_SERVICE_ACCOUNT_KEY --type file --visibility secret --value ./play-service-account.json
+eas env:set production --name APP_STORE_CONNECT_KEY      --type file --visibility secret --value ./AuthKey_XXXXXX.p8
+```
+
+`serviceAccountKeyPath` in the submit profile names where EAS places that file during a submit; it is
+not a path in this repository.
 
 ## Submitting to `internal` + `draft`
 
@@ -90,8 +110,9 @@ npx eas-cli init                 # writes extra.eas.projectId — commit it.
                                  # Also mints the push project id (plan §7 Q-PR1).
 npx eas-cli credentials          # Android → upload the EXISTING keystore (D-PR4)
                                  # iOS → EAS-managed cert + profile, upload the APNs key
-npx eas-cli secret:create --scope project --name GOOGLE_SERVICE_ACCOUNT_KEY --type file --value ./play-service-account.json
-npx eas-cli secret:create --scope project --name APP_STORE_CONNECT_KEY     --type file --value ./AuthKey_XXXXXX.p8
+# then the environment variables and key files above (eas env:set).
+# `eas secret:create` still exists and is the older name for the same store; env:set is the
+# current one and is what this document uses throughout, so there is one mechanism to learn.
 ```
 
 Two steps have no CLI and must be done in a browser:
