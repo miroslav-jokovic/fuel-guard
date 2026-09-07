@@ -803,6 +803,17 @@ from the stores' own published requirements on that date.
 - **D-PR1 · Identifiers stay.** Bundle id and package stay `com.silvicom.fuelguard.driver`; display name
   "Silvicom 360 Driver"; slug `fuelguard-driver`. Renaming would orphan every sideloaded install and
   its encrypted outbox.
+- **D-PR1b · The display name is "Silvicom 360", not "Silvicom 360 Driver"** (owner ruling,
+  2026-09-07; supersedes D-PR1's name only). An iOS home screen truncates a label at roughly twelve
+  characters, so the longer name reads as "Silvicom 36…" on the one surface a driver looks at every
+  day, while "Silvicom 360" fits exactly. **Nothing else in D-PR1 moves:** the bundle id, the package
+  and the slug are what a sideloaded install upgrades from and what the OTA channel is keyed on, and
+  all three stay. The four Info.plist purpose strings were renamed with it and a test now requires
+  every one of them to open with `config.name` (a plain `startsWith` is not enough — "Silvicom 360
+  Driver does not read motion data" passes that and is precisely the half-rename it must catch).
+  **Open for the owner:** if a second Silvicom app ever ships — a dispatcher or manager app — this
+  one holds the platform's name and the second needs a qualified one. The App Store listing name is
+  separately editable (30 characters) if a differentiator is wanted there without touching the phone.
 - **D-PR2 · Version scheme.** `version` becomes `1.0.0` at P1 and follows semver by hand; `ios.buildNumber`
   and `android.versionCode` are the CI run number (`IOS_BUILD_NUMBER` / `ANDROID_VERSION_CODE`), never
   hand-edited. `runtime-version.json` stays the OTA runtime key and moves only when the native
@@ -1448,3 +1459,16 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   disabled, and the threshold moved, each checked against both the srgb suite and the suite of a
   caller). Tests 376 → 392. `native-android` had already passed on the first run, so the new
   `:app:processReleaseManifest` step and the merged-manifest assertion are green on a real runner.
+
+- 2026-09-07 · **App renamed to "Silvicom 360"** (`claude/driver-app-name`, D-PR1b above). Seven
+  strings moved: `app.config.ts`'s `name` and its three Info.plist purpose strings, the Android
+  notification channel name, the accept-invite subtitle and the stop screen's camera-denied message.
+  Verified in generated native output on both platforms — `android/app/src/main/res/values/strings.xml`
+  says `Silvicom 360`, and the iOS `CFBundleDisplayName` says the same (the generated Xcode project
+  also renames `Silvicom360Driver` → `Silvicom360`, which is why `runtime-version.json` goes
+  1.1.0 → 1.2.0: it is a native change like any other).
+
+  A new test requires every purpose string to open with `config.name`. Its FIRST version used
+  `startsWith` and **survived a mutant** — "Silvicom 360 Driver does not read motion data" starts
+  with "Silvicom 360 ", so the exact half-rename it existed to catch went through. It now compares
+  the whole leading run of capitalised words against the name, and three mutants die on it.
