@@ -34,16 +34,41 @@ export interface NativeScannedPage {
   ocr?: NativeOcr;
 }
 
+/**
+ * An outcome the native side EXPECTED and is reporting as a value (SCANNER-UPGRADE-PLAN.md D-SCAN7).
+ *
+ * `reason` is checked against the engine's taxonomy by the provider above this bridge; it is a plain
+ * string here because this file is the boundary and a boundary should not pretend to know that what
+ * crossed it is well-formed.
+ */
+export interface NativeUnavailable {
+  reason: string;
+  detail?: string;
+}
+
 export interface NativeScanResult {
   pages: NativeScannedPage[];
   cancelled?: boolean;
+  /**
+   * Present when the scanner could not run for a reason we anticipated — the Play-Services document
+   * scanner module is absent on a de-Googled or enterprise-locked device, or the OS scanner is not
+   * supported at all. NOT an error: `scan()` resolves, and the driver gets the sentence that tells
+   * them what to do instead of "something went wrong".
+   */
+  unavailable?: NativeUnavailable;
 }
 
 export interface NativeSupport {
   camera: boolean;
   docScanner: boolean;
   ocr: boolean;
-  /** Android: Play-Services document-scanner module state (DCE §9). */
+  /**
+   * Android: Play-Services document-scanner module state (DCE §9). Until Step 1.1 this was declared
+   * here and never populated — Android's `isSupported` returned a hardcoded `true/true/true` — so the
+   * onboarding pre-warm the DCE specifies had nothing to read. It is now reported for real, with the
+   * honest caveat that "available" means Play Services is present rather than that the ~300 KB module
+   * has already been downloaded; only `scan()` can establish the latter.
+   */
   scannerModule?: "available" | "unavailable" | "pending_download";
 }
 

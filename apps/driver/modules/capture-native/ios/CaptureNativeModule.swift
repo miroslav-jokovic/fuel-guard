@@ -21,6 +21,10 @@ public class CaptureNativeModule: Module {
     Name("CaptureNative")
 
     AsyncFunction("isSupported") { () -> [String: Any] in
+      // `scannerModule` is deliberately absent rather than reported as "available": it describes a
+      // Play-Services download that does not exist on this platform, and an iPhone answering
+      // "available" to a question about Android's module store would be a tidy-looking lie. Absent
+      // is what the field's optionality is for.
       [
         "camera": UIImagePickerController.isSourceTypeAvailable(.camera),
         "docScanner": VNDocumentCameraViewController.isSupported,
@@ -28,9 +32,23 @@ public class CaptureNativeModule: Module {
       ]
     }
 
+    // D-SCAN7: an ANTICIPATED outcome resolves as a value; only the unforeseen rejects.
+    //
+    // The device not supporting VisionKit's scanner is anticipated — it is a fact about the hardware,
+    // known before anything is attempted — so it resolves with `unavailable` and the driver is told
+    // what is true. It used to reject with the code "UNSUPPORTED_DEVICE", and the provider above
+    // caught every rejection as PROVIDER_ERROR without reading a code, so the message never arrived.
+    //
+    // Having no view controller to present from stays a REJECTION, and the difference is the point:
+    // that is not a fact about the device, it is the app being in a state it should never be in while
+    // a driver is asking to scan. PROVIDER_ERROR is the honest answer to it.
     AsyncFunction("scan") { (options: [String: Any], promise: Promise) in
       guard VNDocumentCameraViewController.isSupported else {
-        promise.reject("UNSUPPORTED_DEVICE", "Document scanning is not supported on this device.")
+        promise.resolve([
+          "pages": [[String: Any]](),
+          "cancelled": false,
+          "unavailable": ["reason": "UNSUPPORTED_DEVICE", "detail": "Document scanning is not supported on this device."],
+        ])
         return
       }
       guard let presenter = self.appContext?.utilities?.currentViewController() else {
@@ -200,7 +218,10 @@ private enum OcrEngine {
     } catch {
       return empty() // OCR failure → degrade closed (the TS gate treats absent metrics as na + flag)
     }
-    let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
+    // `request.results` is already `[VNRecognizedTextObservation]?` on VNRecognizeTextRequest, so the
+    // conditional downcast this used to carry did nothing and the compiler said so — surfaced by the
+    // first Xcode build this module has had on record (Step 1.1, 2026-09-07).
+    let observations = request.results ?? []
     return metrics(from: observations, imageHeightPx: CGFloat(cg.height))
   }
 
