@@ -44,11 +44,10 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     && isHiddenTab(descriptors[activeRoute.key]?.options);
 
   return (
-    // The OUTER view exists only to colour what shows through the 28pt corners. A custom tab bar is
-    // rendered outside the scene, so behind those corners is the navigator's own container — which
-    // is stark white by default, and cut two cream notches into the navy shell. `canvas` is the
-    // app's light ground, so the corners now read as the bar tucking under the page rather than as
-    // two chips out of it (2026-09-07, seen on a simulator for the first time).
+    // What shows through the 28pt corners is the navigator's own container, which is stark white by
+    // default — so the corners cut two notches out of the shell. `canvas` is the app's light ground
+    // and matches the sheet that now runs all the way down to this bar (see Screen.tsx, where the
+    // bottom inset moved inside the sheet), so the corners read as the bar tucking under the page.
     <View className="bg-canvas">
       <View
         className="flex-row rounded-t-2xl bg-hero"
@@ -78,27 +77,34 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             key={route.key}
             accessibilityRole="tab"
             accessibilityState={{ selected: focused }}
-            accessibilityLabel={label}
             onPress={onPress}
             onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
-            className="min-h-13 flex-1 items-center justify-center gap-0.5 active:opacity-70"
+            className="min-h-13 flex-1 items-center justify-center gap-1 active:opacity-70"
             hitSlop={4}
           >
             <Icon
               name={icon}
               size={22}
               fill={focused}
-              className={focused ? 'text-on-hero' : 'text-on-hero-muted'}
+              className={focused ? 'text-on-hero' : 'text-on-hero-secondary'}
             />
+            {/*
+              * `onHeroSecondary`, not `onHeroMuted`. The token contract restricts `on-hero-muted` to
+              * "non-essential copy (axis labels, timestamps)" and requires anything a driver must
+              * read on the hero to use `on-hero` or `on-hero-secondary`. A tab label is the app's
+              * primary navigation, read in sunlight, and was the one place that rule was broken.
+              *
+              * No `numberOfLines`: D-DB9 says Dynamic Type STACKS rather than truncates, and at
+              * large text "Loads" and "Score" were the only labels in the app clipped to fit.
+              */}
             <AppText
               variant="caption"
-              tone={focused ? 'onHero' : 'onHeroMuted'}
+              tone={focused ? 'onHero' : 'onHeroSecondary'}
               className={focused ? 'font-ui-md' : ''}
-              numberOfLines={1}
             >
               {label}
             </AppText>
-            <View className={`mt-0.5 h-1.5 w-1.5 rounded-full ${focused ? 'bg-action' : 'bg-transparent'}`} />
+            <View className={`mt-1 h-1.5 w-1.5 rounded-full ${focused ? 'bg-action' : 'bg-transparent'}`} />
           </Pressable>
         );
         })}

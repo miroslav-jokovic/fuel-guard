@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Load, LoadStop, MeHazmatLoadRow, NotificationEvent, Thread } from '@silvicom/shared';
-import { attentionRows, countdownLabel, todayState, upNextLoads } from '@/screens/today/todayModel';
+import { attentionRows, countdownLabel, shouldSkeletonHero, todayState, upNextLoads } from '@/screens/today/todayModel';
 
 const NOW = Date.parse('2026-09-07T12:00:00Z');
 
@@ -213,3 +213,36 @@ function thread({ senderName }: { senderName: string | null }): Thread {
 function hazmatRow(over: Partial<MeHazmatLoadRow> = {}): MeHazmatLoadRow {
   return { id: idOf(3), status: 'complete', created_at: '2026-09-06T09:00:00Z', latest_outcome: 'rejected', ...over };
 }
+
+describe('shouldSkeletonHero', () => {
+  /**
+   * The bug this replaces: `loads.isPending && !loads.data` was true FOREVER for a fleet with the
+   * Loads tab off, because a disabled TanStack query never leaves `pending`. Those drivers saw a
+   * 332pt grey rectangle where the start-shift card belongs, on every launch. Found by running the
+   * app, not by any gate — the condition lived in JSX where no test could reach it.
+   */
+  it('never skeletons when the fleet has loads disabled, however the query reports itself', () => {
+    // The exact shape of the shipped bug: a disabled query reports `isLoading` false but `isPending`
+    // true forever, and the old condition read the second.
+    expect(shouldSkeletonHero({ loadsEnabled: false, loadsLoading: true, state: 'preShift' })).toBe(false);
+    expect(shouldSkeletonHero({ loadsEnabled: false, loadsLoading: true, state: 'activeLoad' })).toBe(false);
+  });
+
+  it('never skeletons the pre-shift card, which reads no loads at all', () => {
+    expect(shouldSkeletonHero({ loadsEnabled: true, loadsLoading: true, state: 'preShift' })).toBe(false);
+  });
+
+  it('does skeleton the states where a load decides the card', () => {
+    for (const state of ['activeLoad', 'betweenLoads'] as const) {
+      expect(shouldSkeletonHero({ loadsEnabled: true, loadsLoading: true, state })).toBe(true);
+    }
+  });
+
+  it('stops as soon as the fetch finishes', () => {
+    expect(shouldSkeletonHero({ loadsEnabled: true, loadsLoading: false, state: 'activeLoad' })).toBe(false);
+  });
+
+  it('shows no skeleton in recovery — the error is the content', () => {
+    expect(shouldSkeletonHero({ loadsEnabled: true, loadsLoading: false, state: 'recovery' })).toBe(false);
+  });
+});

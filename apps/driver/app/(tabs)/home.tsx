@@ -15,7 +15,7 @@ import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import { UpNextRow } from '@/screens/today/UpNext';
 import { WeekStrip } from '@/screens/today/WeekStrip';
 import { StartDayCard } from '@/screens/today/StartDayCard';
-import { attentionRows, SKELETON_HEIGHTS, todayState, upNextLoads } from '@/screens/today/todayModel';
+import { attentionRows, shouldSkeletonHero, SKELETON_HEIGHTS, todayState, upNextLoads } from '@/screens/today/todayModel';
 import { UpdateReadyBanner } from '@/features/updates/UpdateReadyBanner';
 import { firstName, useDriverContext } from '@/session/useDriverContext';
 import { useFeatures } from '@/session/useFeatures';
@@ -55,7 +55,10 @@ export default function Home() {
   const buckets = bucketLoads(loads.data?.loads ?? []);
   const current = buckets.current[0] ?? null;
   const weekScore = homeScoreSummary(score.data);
-  const driverName = driver.data?.driver.full_name ?? firstName(driver.data?.driver.full_name);
+  // `full_name ?? firstName(full_name)` was always the first operand when a name existed, so the
+  // duty strip greeted a driver with their full legal name and `firstName` only ever produced its
+  // own fallback. A driver is greeted by their first name or not at all.
+  const driverName = firstName(driver.data?.driver.full_name);
   const viewerId = driver.data?.driver.id ?? '';
 
   const state = todayState({
@@ -89,10 +92,33 @@ export default function Home() {
         duty={duty}
         name={driverName}
         loading={loadingShell}
+        // `dutyView(undefined).onDuty` is `false`, so a FAILED shift query rendered as the positive
+        // claim "Off duty" — in navigationTitle weight, at the top of the screen, while the banner
+        // below said the app could not verify it. A driver is legally accountable for that line.
+        // Absence is now its own state (DESIGN.md: "a screen built on data that failed to load says
+        // so first").
+        dutyKnown={state !== 'recovery' || Boolean(shift.data)}
         messages={messagesEnabled ? { unread: threads.data?.unread_total ?? 0, onPress: () => router.push('/messages') } : undefined}
         notifications={notificationsEnabled ? { unread: notifs.data?.unread ?? 0, onPress: () => router.push('/notifications') } : undefined}
       />
-      {loads.isPending && !loads.data ? (
+      {/*
+        * The skeleton stands in for a LOAD, so it may only appear when a load is what this card is
+        * waiting for. Two bugs lived in the old condition (`loads.isPending && !loads.data`):
+        *
+        * 1. A DISABLED query is `isPending` forever. `useLoads(loadsEnabled)` passes `enabled:false`
+        *    when an org has the Loads tab off, and TanStack v5 reports that as pending with no data
+        *    — so those fleets saw a 332pt grey rectangle where the start-shift card belongs, on
+        *    every launch, permanently. `isLoading` (pending AND fetching) is false for a disabled
+        *    query, which is the distinction the old condition could not make. The Up next section
+        *    below already guarded on `loadsEnabled`; the hero did not.
+        * 2. `StartDayCard` reads duty and equipment, never `loads`. Blocking it on a loads request
+        *    made a driver at 05:40 wait on an answer that cannot change what the card says
+        *    (DESIGN.md: "Every vertical region must answer a driver question… If it does none of
+        *    these, remove it").
+        *
+        * So: only skeleton when a load decides the card, and never before the shift has started.
+        */}
+      {shouldSkeletonHero({ loadsEnabled, loadsLoading: loads.isLoading, state }) ? (
         <Skeleton className="w-full rounded-xl" style={{ height: SKELETON_HEIGHTS.heroCard }} />
       ) : current ? (
         <CurrentLoadHero
@@ -102,6 +128,7 @@ export default function Home() {
         />
       ) : (
         <StartDayCard
+          dutyKnown={state !== 'recovery' || Boolean(shift.data)}
           onDuty={duty.onDuty}
           starting={startShift.isPending}
           onStart={() => router.push('/duty/check-in')}

@@ -22,12 +22,21 @@ export function StartDayCard({
   onChange,
   onQuickStart,
   starting = false,
+  dutyKnown = true,
 }: {
   onDuty: boolean;
   onStart: () => void;
   onChange: () => void;
   onQuickStart?: (shortcut: StartShortcut) => void;
   starting?: boolean;
+  /**
+   * False when the shift query failed with no cache. The recovery banner tells the driver in plain
+   * words to "Retry before claiming different equipment" — and until 2026-09-07 the loudest object
+   * on the same screen was an amber "Confirm equipment", directly above it. A screen that both
+   * forbids and offers the same act has told the driver nothing. The action is withheld until the
+   * app knows what it is starting from.
+   */
+  dutyKnown?: boolean;
 }) {
   const { odometerMode } = useFeatures();
   const equipment = useEquipment();
@@ -76,7 +85,13 @@ export function StartDayCard({
           Tell us the truck and trailer you are using, and the day starts.
         </AppText>
         <View className="pt-1">
-          <Button label="Confirm equipment" icon="play_circle" variant="hero" size="lg" onPress={onStart} />
+          {dutyKnown ? (
+            <Button label="Confirm equipment" icon="play_circle" variant="hero" size="lg" onPress={onStart} />
+          ) : (
+            <AppText variant="supporting" tone="onHeroSecondary">
+              Retry above before starting — the app cannot confirm whether you are already on duty.
+            </AppText>
+          )}
         </View>
       </Card>
     );
