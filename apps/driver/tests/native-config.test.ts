@@ -90,6 +90,31 @@ describe('app.config.ts — identity (D-PR1, D-PR2)', () => {
   });
 });
 
+describe('app.config.ts — the EAS project id (P2.3, Q-PR1)', () => {
+  it('carries the id of @miroslavjokovic/fuelguard-driver', async () => {
+    // `eas init` cannot write it: this is a dynamic config, and eas-cli says so and stops. So the
+    // value is hand-written, which is exactly the kind of thing that gets lost in a merge. Without
+    // it `eas build` cannot resolve the project AND expo-notifications cannot mint a push token —
+    // and the second failure is silent, which is why it is pinned rather than trusted.
+    const extra = (await store()).extra as { eas?: { projectId?: string } } | undefined;
+    expect(extra?.eas?.projectId).toBe('46eadc59-d21f-4aa7-afdc-c179eac7aa85');
+  });
+
+  it('is a UUID, not a slug or an account name', async () => {
+    const extra = (await store()).extra as { eas?: { projectId?: string } } | undefined;
+    expect(extra?.eas?.projectId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it('survives in both variants — a store build needs it as much as a dev build', async () => {
+    for (const config of [await store(), await dev()]) {
+      const extra = config.extra as { eas?: { projectId?: string } } | undefined;
+      expect(extra?.eas?.projectId).toBeTruthy();
+    }
+  });
+});
+
 describe('app.config.ts — build numbers come from CI, never from a hand edit (D-PR2)', () => {
   afterEach(() => {
     delete process.env.IOS_BUILD_NUMBER;

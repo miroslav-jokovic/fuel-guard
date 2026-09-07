@@ -27,6 +27,13 @@ const forbidden = [
   // number nobody could look up — and the scale now names all of them (spacing 13/15/18, maxWidth
   // `bubble`). A genuinely new size means adding a step to tailwind.config.js, where it gets a name.
   { pattern: /\b(?:h|w|min-h|min-w|max-w|max-h)-\[/, message: 'add the step to tailwind.config.js and use its name; no arbitrary sizes' },
+  // react-native-svg implements NO CSS: a `<style>` block and `class="…"` selectors are parsed and
+  // then ignored, so every path falls back to the default black fill. It is silent — the SVG is
+  // valid, a browser and every design tool render it correctly, and only a device shows the truth.
+  // The Silvicom mark shipped this way from the 2026-08 re-founding until 2026-09-07 and rendered as
+  // black blobs on the sign-in screen, which is the FIRST screen a driver sees. Inline the fills.
+  { pattern: /<style>/, message: 'react-native-svg ignores CSS: put fills on the elements, not in a <style> block' },
+  { pattern: /\sclass="/, message: 'react-native-svg ignores class selectors: use a fill attribute' },
 ];
 
 // Direction B D-DB5: the app has exactly ONE shadow and it is tinted with the hero navy. A local

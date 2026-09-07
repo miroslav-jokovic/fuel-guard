@@ -1566,3 +1566,37 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   it needs Ruby 3.x against a 2.6.10 system Ruby, and it is a P3/P7 need (screenshots and listing
   metadata), not a P2 one. `eas config` cannot validate `eas.json` until someone runs `eas login`,
   so EAS's own validator has still not seen the file.
+
+- 2026-09-07 · **First run on a simulator, and it found two real defects.** `pnpm ios:sim` on an
+  iPhone 17 Pro (iOS 26.3, Xcode 26.2). This is the first time the iOS side has been compiled since
+  B0 — `CLAUDE.md` says Swift is only ever built by hand — and the Swift capture module, MapLibre and
+  the app all linked clean.
+
+  1. **P1's Sentry plugin broke local iOS builds.** The "Upload Debug Symbols to Sentry" Xcode phase
+     runs on EVERY configuration, so `pnpm ios` died with `An organization ID or slug is required`.
+     Android escapes it only because `sentry.gradle`'s task is gated on non-debug. Nothing could have
+     caught this: CI builds the capture module, never the app, and there is no iOS job at all.
+     `SENTRY_DISABLE_AUTO_UPLOAD=true` now lives in the `ios` and `android` scripts, and a new
+     `ios:sim` script exists because `ios` targets a physical device with `--device` while the
+     simulator is the design-review surface. EAS production builds are unaffected — they do not use
+     these scripts and they SHOULD upload symbols.
+  2. **The Silvicom mark has never rendered.** `src/theme/silvicomLogo360.ts` carries its colours in
+     an SVG `<defs><style>` block with `class="stN"` selectors, and **react-native-svg implements no
+     CSS at all** — it parses the block and ignores it, so every path fell back to the default black
+     fill. On the sign-in screen the mark rendered as a black blob and three solid black circles
+     where "360" belongs. **This is the FIRST screen a driver sees**, it is also on `UpdateRequired`,
+     and it has been broken since the mark arrived in `9c80fb5` (the 2026-08 re-founding) — a
+     pre-existing defect, not a Direction B regression. It survived because nothing had ever run.
+
+     Fixed by inlining the ten fills and deleting the `<style>` block. **Verified pixel-identical**:
+     rendering the before and after through resvg (which DOES support CSS) produces byte-identical
+     PNGs, so the artwork did not change, only the mechanism. The dark variant keeps working
+     unchanged — it derives from the light one by swapping hex values, and those now live in `fill`
+     attributes instead of CSS rules.
+
+     `check-driver-design.mjs` gains two rules banning `<style>` and `class="` in driver source, so
+     it cannot come back. **Proved they fire** by restoring the pre-fix file: six violations.
+
+  This is exactly what §3's device gate exists for, and two of its findings arrived before a phone
+  was even involved. The gate itself is still OPEN — a simulator settles layout, dark mode and
+  wiring, and settles nothing about Q-DB2 (sunlight on the navy hero) or amber on navy at night.
