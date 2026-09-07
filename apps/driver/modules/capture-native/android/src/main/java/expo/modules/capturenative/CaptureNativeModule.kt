@@ -3,6 +3,7 @@ package expo.modules.capturenative
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import androidx.activity.result.IntentSenderRequest
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -66,9 +67,21 @@ class CaptureNativeModule : Module() {
       val playServices = context?.let {
         GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(it) == ConnectionResult.SUCCESS
       }
+      //
+      // `deviceModel` and `osVersion` are the two strings Step 5.1 records, and they come from here
+      // rather than from a dependency — we already own a native module, and `expo-device` would be a
+      // package added for two strings.
+      //
+      // ⚠ `Build.MODEL` is the marketing model ("SM-G991B", "Pixel 7"): a device CLASS chosen by the
+      // manufacturer. It is NOT `Settings.Global.DEVICE_NAME`, which is the name the owner typed and
+      // is exactly the personal data the telemetry record exists to avoid. `Build.VERSION.RELEASE` is
+      // the Android version a human would say ("14"); `SDK_INT` would be the API level, which is a
+      // different and less useful fact when the question is "did the scanner get worse on this OS".
       buildMap {
         put("camera", true)
         put("docScanner", playServices ?: true)
+        put("deviceModel", Build.MODEL)
+        put("osVersion", Build.VERSION.RELEASE)
         put("ocr", true) // ML Kit text recognition is bundled with the app, not a Play-Services module.
         if (playServices != null) put("scannerModule", if (playServices) "available" else "unavailable")
       }

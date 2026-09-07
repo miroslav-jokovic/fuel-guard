@@ -1391,3 +1391,44 @@ Append a dated line when a step ships. Do not mark table rows.
     `{}` when none was sent. No native change, so no prebuild and no runtime bump.
   · **Step 5.1b is next and is the native half:** `deviceModel` and `osVersion` from the support
     probe. The fields are declared on `CaptureMetadata` and absent until then.
+
+- **2026-09-07** — **Step 5.1b SHIPPED — STEP 5.1 COMPLETE.** The support probe now reports
+  `deviceModel` and `osVersion`, the provider caches them, and they land on the telemetry record.
+  Every capture can now answer *"did the scanner get worse on this handset?"*.
+  · **From our own native module, not a new dependency**, exactly as §4 Step 5.1 reasoned:
+    `expo-constants`' `platform.ios.model` is `@deprecated — moved to expo-device`, `expo-device` is
+    not a dependency, and adding a package for two strings when we already own a native module would
+    be a dependency for nothing.
+  · **⚠ CLASS, never identity, and both platforms had a wrong neighbour to avoid.** iOS reports
+    `utsname.machine` ("iPhone14,3") — **not** `UIDevice.current.name`, which is what the owner typed
+    ("Miki's iPhone") and is precisely the personal data this record exists to avoid, and **not**
+    `UIDevice.current.model`, which answers "iPhone" for every iPhone ever made and could not tell
+    anybody whether the scanner regressed on a particular handset. Android reports `Build.MODEL`, not
+    `Settings.Global.DEVICE_NAME`.
+  · **An empty string is dropped, not recorded.** Both platforms build their answer from a system
+    call that can return nothing — `utsname.machine` on a simulator, `Build.MODEL` on a stripped ROM
+    — and `deviceModel: ""` in a column Step 5.2 groups by is a bucket that looks like a device.
+  · **The probe is cached, once per provider.** Android's `isSupported` calls
+    `GoogleApiAvailability.isGooglePlayServicesAvailable`, which is not free, and a phone does not
+    become a different model while the app is running. A failed probe caches the empty answer for the
+    same reason: retrying a system call that just failed, once per page of a ten-page scan, buys
+    nothing.
+
+- **2026-09-07 — ⚠ §3.4 item 2 earned its place: the iOS build caught TWO real compile errors that
+  nothing in CI could have.** Swift's exclusivity checking rejects any read of a value inside a
+  closure already holding `&` access to it, and the idiomatic-looking
+  `withUnsafePointer(to: &info.machine) { … MemoryLayout.size(ofValue: info.machine) … }` violates it
+  twice over. Both were written that way, one after the other:
+
+  ```
+  error: overlapping accesses to 'info.machine', but modification requires exclusive access
+  error: overlapping accesses to 'machine', but modification requires exclusive access
+  ```
+
+  **Neither would have been caught by anything else.** There is no iOS job in CI, and the metric
+  parity harness compiles only `CaptureMetrics.swift` and `CaptureImageDecode.swift` — it does not
+  touch `CaptureNativeModule.swift`. `native-android` is green on the same PR. The fix copies the
+  value AND computes its size before taking the pointer, and the reason is in the comment so the next
+  person does not rediscover it by writing the obvious thing. `xcodebuild -scheme CaptureNative
+  -sdk iphonesimulator` → **`** BUILD SUCCEEDED **`**; parity harness PASS; Gradle assemble + unit
+  tests green. Runtime 1.0.7 → **1.0.8**.

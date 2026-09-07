@@ -25,10 +25,25 @@ public class CaptureNativeModule: Module {
       // Play-Services download that does not exist on this platform, and an iPhone answering
       // "available" to a question about Android's module store would be a tidy-looking lie. Absent
       // is what the field's optionality is for.
+      //
+      // `deviceModel` and `osVersion` are the two strings Step 5.1 records, and they come from here
+      // rather than from a dependency: `expo-constants`' `platform.ios.model` is marked
+      // `@deprecated — moved to expo-device`, `expo-device` is not a dependency, and adding a native
+      // package for two strings when we already own a native module would be a dependency for
+      // nothing.
+      //
+      // ⚠ `utsname.machine`, NOT `UIDevice.current.name` and not `UIDevice.current.model`. `.name` is
+      // the user-assigned device name — "Miki's iPhone" — which is precisely the personal data the
+      // telemetry record is written to avoid, and `.model` answers "iPhone" for every iPhone ever
+      // made, which cannot tell anybody whether the scanner got worse on a particular handset.
+      // `utsname.machine` is the hardware identifier ("iPhone14,3"): a device CLASS, chosen by Apple,
+      // carrying nothing about the person holding it.
       [
         "camera": UIImagePickerController.isSourceTypeAvailable(.camera),
         "docScanner": VNDocumentCameraViewController.isSupported,
         "ocr": true,
+        "deviceModel": DeviceClass.hardwareIdentifier(),
+        "osVersion": UIDevice.current.systemVersion,
       ]
     }
 
@@ -134,6 +149,35 @@ public class CaptureNativeModule: Module {
         guard let self else { return }
         self.appContext?.utilities?.currentViewController()?.dismiss(animated: true)
         self.activeDelegate?.cancelFromHost()
+      }
+    }
+  }
+}
+
+/// The hardware identifier, read from `uname` — "iPhone14,3", never a name a person chose.
+///
+/// `utsname.machine` is a fixed-size C char tuple, so it is read by binding its memory to `CChar` and
+/// letting `String(validatingCString:)` stop at the terminator. A pointer rather than a `Mirror`
+/// walk: the tuple's layout is contiguous and this is the documented way to read it, whereas
+/// reflecting over 256 tuple members allocates a string per byte.
+///
+/// ⚠ `machine` is copied to a local AND its size is computed before the pointer is taken, and
+/// neither is style. Swift's exclusivity checking rejects any read of the value inside a closure
+/// that already holds `&` access to it — *"overlapping accesses to 'machine', but modification
+/// requires exclusive access"* — so both `withUnsafePointer(to: &info.machine)` and a
+/// `MemoryLayout.size(ofValue: machine)` written INSIDE the closure are compile errors. Both were
+/// written that way first, one after the other, and **nothing in CI would have caught either**:
+/// there is no iOS job, and the metric-parity harness compiles only `CaptureMetrics.swift` and
+/// `CaptureImageDecode.swift`. §3.4 item 2 is what found them.
+private enum DeviceClass {
+  static func hardwareIdentifier() -> String {
+    var info = utsname()
+    uname(&info)
+    var machine = info.machine
+    let size = MemoryLayout.size(ofValue: machine)
+    return withUnsafePointer(to: &machine) {
+      $0.withMemoryRebound(to: CChar.self, capacity: size) {
+        String(validatingCString: $0) ?? "unknown"
       }
     }
   }

@@ -3,6 +3,7 @@ import { REJECTION_REASONS } from "@silvicom/capture-engine";
 import { BUNDLED_DEFAULT_CONFIG, evaluateGate, unavailableOcr } from "@silvicom/capture-engine";
 import {
   assemblePage,
+  deviceClassFromNative,
   imageMetricsFromMeasurement,
   interpretNativeScan,
   measurementTarget,
@@ -349,5 +350,50 @@ describe("assemblePage (Phase 4b — two artifacts per page)", () => {
     small.original = { ...small.original, width: 800, height: 1000 };
     const assembled = assemblePage(small, null, cfg, "ios");
     expect(assembled.quality.reasons).toContain("RESOLUTION_TOO_LOW");
+  });
+});
+
+/**
+ * Step 5.1b — the device CLASS on the telemetry record.
+ *
+ * The value of recording it is answering "did the scanner get worse on this handset?", and the
+ * danger of recording it is answering "whose handset is this?". Both platforms deliberately read a
+ * manufacturer-chosen identifier — `utsname.machine` on iOS, `Build.MODEL` on Android — rather than
+ * the name field beside it, which is what the owner typed.
+ */
+describe("deviceClassFromNative (Step 5.1b)", () => {
+  it("carries the class and the OS version through", () => {
+    expect(deviceClassFromNative({ deviceModel: "iPhone14,3", osVersion: "18.2" }))
+      .toEqual({ deviceModel: "iPhone14,3", osVersion: "18.2" });
+  });
+
+  it("reports nothing at all for a binary too old to send them", () => {
+    // Runtime versions below 1.0.8 have no such fields, and an OTA bundle can meet one.
+    expect(deviceClassFromNative({})).toEqual({});
+  });
+
+  /**
+   * ⚠ An empty string is dropped, not passed through. Both platforms build their answer from a system
+   * call that can return nothing — `utsname.machine` on a simulator, `Build.MODEL` on a stripped ROM
+   * — and `deviceModel: ""` in a column Step 5.2 groups by is a bucket that looks like a device.
+   */
+  it("drops an empty string rather than recording it as a device", () => {
+    expect(deviceClassFromNative({ deviceModel: "", osVersion: "14" })).toEqual({ osVersion: "14" });
+  });
+});
+
+describe("assemblePage — device class", () => {
+  it("stamps the class on the page's metadata", () => {
+    const assembled = assemblePage(page(), null, BUNDLED_DEFAULT_CONFIG, "android", { deviceModel: "Pixel 7", osVersion: "14" });
+    expect(assembled.metadata.deviceModel).toBe("Pixel 7");
+    expect(assembled.metadata.osVersion).toBe("14");
+    // The platform string stays what it always was; the class is additional, not a replacement.
+    expect(assembled.metadata.device).toBe("android");
+  });
+
+  it("leaves the fields absent when the probe could not answer", () => {
+    const assembled = assemblePage(page(), null, BUNDLED_DEFAULT_CONFIG, "ios");
+    expect(assembled.metadata.deviceModel).toBeUndefined();
+    expect(assembled.metadata.osVersion).toBeUndefined();
   });
 });

@@ -92,6 +92,21 @@ export interface NativeSupport {
   docScanner: boolean;
   ocr: boolean;
   /**
+   * Device CLASS and OS version, for the Step 5.1 telemetry record. Reported by the support probe
+   * because we already own a native module: `expo-constants`' `platform.ios.model` is deprecated in
+   * favour of `expo-device`, which is not a dependency and would be a package added for two strings.
+   *
+   * ⚠ CLASS, never identity. iOS reports `utsname.machine` ("iPhone14,3") and Android `Build.MODEL`
+   * ("Pixel 7") — both chosen by the manufacturer. Neither is `UIDevice.current.name` or
+   * `Settings.Global.DEVICE_NAME`, which are what the owner typed ("Miki's iPhone") and are the
+   * personal data this record exists to avoid.
+   *
+   * Optional: a binary older than runtime 1.0.8 does not send them, and the JS fallback has no
+   * native module to ask.
+   */
+  deviceModel?: string;
+  osVersion?: string;
+  /**
    * Android: Play-Services document-scanner module state (DCE §9). Until Step 1.1 this was declared
    * here and never populated — Android's `isSupported` returned a hardcoded `true/true/true` — so the
    * onboarding pre-warm the DCE specifies had nothing to read. It is now reported for real, with the
