@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
@@ -7,14 +7,25 @@ import { haptics } from '@/lib/haptics';
 import { useTheme } from '@/theme/ThemeProvider';
 import { layout } from '@/theme/tokens';
 
+/**
+ * Two shapes, one control. `thumb` is the sliding-track picker Settings uses for a small closed set
+ * of appearance choices. `chips` is the Direction B filter rail: a scrolling row of pills that can
+ * carry a count and can sit on the navy hero, where a bordered track disappears.
+ *
+ * Both keep `role="radio"` and `checked`, because a chip rail is still a single choice.
+ */
 export function SegmentedControl<T extends string>({
   options,
   value,
   onChange,
+  variant = 'thumb',
+  onHero = false,
 }: {
-  options: { label: string; value: T }[];
+  options: { label: string; value: T; count?: number }[];
   value: T;
   onChange: (value: T) => void;
+  variant?: 'thumb' | 'chips';
+  onHero?: boolean;
 }) {
   const { reduceMotion } = useTheme();
   const { fontScale } = useWindowDimensions();
@@ -31,9 +42,52 @@ export function SegmentedControl<T extends string>({
 
   const thumbStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
 
+  if (variant === 'chips') {
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerClassName="flex-row gap-2"
+        accessibilityRole="radiogroup"
+      >
+        {options.map((option) => {
+          const active = option.value === value;
+          const fill = active
+            ? 'bg-action'
+            : onHero
+              ? 'bg-on-hero/10'
+              : 'bg-surface-muted';
+          const text = active ? 'text-action-fg' : onHero ? 'text-on-hero' : 'text-ink-secondary';
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active }}
+              onPress={() => {
+                if (active) return;
+                haptics.select();
+                onChange(option.value);
+              }}
+              className={`min-h-9 flex-row items-center justify-center gap-1 rounded-full px-4 ${fill}`}
+            >
+              <AppText variant="supporting" className={`font-ui-md ${text}`} numberOfLines={1}>
+                {option.label}
+              </AppText>
+              {option.count != null ? (
+                <AppText variant="supporting" className={`font-ui-md ${text}`} tabular>
+                  {option.count}
+                </AppText>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    );
+  }
+
   if (fontScale >= layout.largeTextBreakpoint) {
     return (
-      <View className="overflow-hidden rounded-lg border border-edge-subtle bg-surface">
+      <View className="overflow-hidden rounded-lg bg-surface">
         {options.map((option, optionIndex) => {
           const active = option.value === value;
           return (
@@ -54,7 +108,7 @@ export function SegmentedControl<T extends string>({
                 <Icon
                   name={active ? 'radio_button_checked' : 'radio_button_unchecked'}
                   size={20}
-                  className={active ? 'text-brand' : 'text-ink-muted'}
+                  className={active ? 'text-action-ink' : 'text-ink-muted'}
                 />
               </Pressable>
               {optionIndex < options.length - 1 ? <View className="ml-4 h-px bg-edge-subtle" /> : null}
@@ -66,11 +120,11 @@ export function SegmentedControl<T extends string>({
   }
 
   return (
-    <View className="rounded-lg border border-edge-subtle bg-surface-muted p-1">
+    <View className="rounded-full bg-surface-muted p-1">
       <View className="relative flex-row" onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}>
         {segmentWidth > 0 ? (
           <Animated.View
-            className="absolute bottom-0 top-0 rounded-md border border-edge-subtle bg-surface"
+            className="absolute bottom-0 top-0 rounded-full bg-surface"
             style={[{ width: segmentWidth }, thumbStyle]}
           />
         ) : null}
@@ -86,7 +140,7 @@ export function SegmentedControl<T extends string>({
                 haptics.select();
                 onChange(option.value);
               }}
-              className="min-h-11 flex-1 items-center justify-center rounded-md px-2"
+              className="min-h-11 flex-1 items-center justify-center rounded-full px-2"
             >
               <AppText
                 variant="supporting"

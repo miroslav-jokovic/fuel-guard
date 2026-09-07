@@ -107,6 +107,10 @@ module.exports = {
         numericCompact: ['24px', { lineHeight: '28px' }],
         numericHero: ['40px', { lineHeight: '44px' }],
       },
+      // 52 and 72 are real measurements in this design — the row/tab content target and the
+      // separator inset that clears a 44pt disc plus its 12pt gap. They are absent from Tailwind's
+      // default scale, which is the only reason `min-h-[52px]` and `ml-[72px]` existed.
+      spacing: { 13: '52px', 18: '72px' },
       borderRadius: { md: 12, lg: 16, xl: 24, '2xl': 28, full: 9999 },
     },
   },

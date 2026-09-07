@@ -395,7 +395,7 @@ without any screen being broken.
   with Lexend rendering (`Lexend_600SemiBold` visible in the typography section); `pnpm
   lint:token-schema` green at the root.
 
-### B1 · Shell and primitives
+### B1 · Shell and primitives — DONE 2026-09-07
 
 **Branch:** `claude/driver-b1-shell`. Touches `src/components/*`, `src/theme/classes.ts`,
 `app/gallery.tsx`. Screens keep working because primitives keep their props; new props are
@@ -1174,6 +1174,28 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   would have rendered flat until B1. All seventeen moved to `font-ui-md|sb`, and
   `check-driver-design.mjs` now bans the whole Tailwind weight scale so they cannot come back.
   B1 still owns what each of those sites should *be*; this only keeps the emphasis that was there.
+- 2026-09-07 · **B1 built.** `Screen` takes a `hero` node; `Section`, `ToastHost` and
+  `src/components/tone.ts` are new; `Card`, `Button`, `Badge`, `ListRow`, `IconButton`, `Avatar`,
+  `SegmentedControl`, `GroupedList`, `Banner`, `Toast`, `Progress`, `ConfirmSheet`, `Input`,
+  `NumericField`, `Sparkline`, `TabBar`, `SyncStatus`, `ActionBar` and `OfflineBanner` all take
+  their Direction B anatomy. Five deviations:
+  (1) **`ui.scrollContent` does NOT become `gap-0` globally.** Flipping it flattens sixteen screens
+  (~2,950 lines) that B2–B6 have not recomposed yet, and a screen carrying both rhythms gets 40pt
+  between sections. `Screen` takes `flow="sections"` instead: a hero screen is always on it, and
+  each later step flips its own screen at the call site. The gallery is the first on it.
+  (2) **The 72pt separator inset is derived, not fixed.** `ml-[72px]` aligns under a 44pt disc and
+  floats absurdly on a bare settings row, and a `GroupedList` mixes the two. `GroupedList` now reads
+  each row's own `disc`/`icon` props and insets to where that row's TEXT starts (72 / 52 / 16).
+  (3) **`Tone` moved out of `Badge` into `src/components/tone.ts`** with `TONE_SOFT`/`TONE_SOLID`/
+  `TONE_ICON`. Six components imported the type from `Badge` and each kept its own colour table, so
+  adding `action` and `ghost` would have meant six parallel tables of the same meanings. D-DB6 says
+  a disc and a chip for one meaning are one pair of colours; that only holds with one table.
+  (4) **`Button` has no `soft` variant to remove at two sites — there was one**, in the gallery.
+  (5) **B1.14 large text is partly deferred**: the rules that belong to a primitive are in
+  (`SegmentedControl` stacks, chips scroll, nothing caps `allowFontScaling`); the hero card's tile
+  stacking and paired-button stacking belong to the compositions B2–B4 build and land there.
+  `heroTopPadding` went into `src/theme/safeArea.ts` rather than inline in `Screen`, because that is
+  the module the driver app can actually test — proved by mutating 8 to 20.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a

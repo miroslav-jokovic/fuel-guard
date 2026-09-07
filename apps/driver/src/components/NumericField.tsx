@@ -23,10 +23,10 @@ export function NumericField({
   const field = useFieldAccessibility();
   const [focused, setFocused] = useState(false);
   const isInvalid = invalid || Boolean(field?.error);
-  const border = isInvalid ? 'border-danger' : focused ? 'border-2 border-edge-focus' : 'border-edge';
+  const border = isInvalid ? 'border-danger' : focused ? 'border-2 border-edge-focus' : 'border-transparent';
   return (
     <View
-      className={`min-h-14 flex-row items-center gap-2 rounded-lg border bg-surface px-4 ${border}`}
+      className={`min-h-14 flex-row items-center gap-2 rounded-lg border bg-surface-muted px-4 ${border}`}
     >
       <TextInput
         keyboardType="decimal-pad"

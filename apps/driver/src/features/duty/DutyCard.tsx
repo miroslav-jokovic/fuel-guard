@@ -31,7 +31,7 @@ export function DutyCard({
 
   if (!duty.onDuty) {
     return (
-      <Card variant="operational">
+      <Card>
         <View className="flex-row items-start gap-3">
           <Icon name="local_shipping" size={22} className="mt-0.5 text-operation-current" />
           <View className="flex-1 gap-0.5">
@@ -48,7 +48,7 @@ export function DutyCard({
   return (
     <Card>
       <View className="flex-row flex-wrap items-center gap-2">
-        <Badge label={pending ? 'Syncing' : 'On duty'} tone={pending ? 'info' : 'success'} dot />
+        <Badge label={pending ? 'Syncing' : 'On duty'} tone={pending ? 'info' : 'success'} />
         {since ? <AppText variant="caption" tone="muted" tabular>Since {since}</AppText> : null}
       </View>
       <View className="flex-row items-start gap-3 border-t border-edge-subtle pt-3">

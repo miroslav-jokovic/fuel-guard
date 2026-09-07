@@ -17,6 +17,7 @@ import { ThemeProvider } from "@/theme/ThemeProvider";
 import { SessionProvider, useSession } from "@/session/SessionProvider";
 import { useFeatures } from "@/session/useFeatures";
 import { UpdateRequired } from "@/components/UpdateRequired";
+import { ToastProvider } from "@/components/ToastHost";
 import { queryClient } from "@/lib/queryClient";
 import { persistOptions } from "@/lib/persist";
 import { initConnectivity } from "@/lib/connectivity";
@@ -178,9 +179,13 @@ export default function RootLayout() {
             renders real cached data instead of a spinner (plan §13.2). */}
         <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
           <ThemeProvider>
-            <SessionProvider>
-              <RootNavigator />
-            </SessionProvider>
+            {/* Inside ThemeProvider so a toast reads the same theme variables as the screen that
+                raised it, and outside the navigator so it outlives a router.back(). */}
+            <ToastProvider>
+              <SessionProvider>
+                <RootNavigator />
+              </SessionProvider>
+            </ToastProvider>
           </ThemeProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

@@ -17,10 +17,10 @@ export function Input({
   const field = useFieldAccessibility();
   const [focused, setFocused] = useState(false);
   const isInvalid = invalid || Boolean(field?.error);
-  const border = isInvalid ? 'border-danger' : focused ? 'border-edge-focus' : 'border-edge';
+  const border = isInvalid ? 'border-danger' : focused ? 'border-edge-focus' : 'border-transparent';
   return (
     <TextInput
-      className={`min-h-12 rounded-lg border bg-surface px-3 font-ui text-body text-ink placeholder:text-ink-subtle ${border} ${
+      className={`min-h-12 rounded-lg border bg-surface-muted px-4 font-ui text-body text-ink placeholder:text-ink-subtle ${border} ${
         focused && !isInvalid ? 'border-2' : ''
       }`}
       style={[{ paddingVertical: 8, textAlignVertical: 'center', includeFontPadding: false }, style]}

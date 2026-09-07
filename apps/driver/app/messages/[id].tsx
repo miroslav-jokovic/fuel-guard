@@ -222,7 +222,7 @@ export default function ThreadScreen() {
       {/* Report sheet: pick a reason, then confirm. */}
       {reporting && !reportReason ? (
         <View className="gap-2">
-          <SectionLabel compact>Report this message</SectionLabel>
+          <SectionLabel>Report this message</SectionLabel>
           <GroupedList>
             {MESSAGE_REPORT_REASONS.map((r) => (
               <ListRow key={r} title={MESSAGE_REPORT_LABELS[r]} icon="report" onPress={() => setReportReason(r)} />

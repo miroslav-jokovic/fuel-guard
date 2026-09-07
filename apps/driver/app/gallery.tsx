@@ -3,22 +3,15 @@ import { View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import {
   ActionBar, AppText, Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field,
-  GroupedList, Icon, IconButton, Input, ListRow, NumericField, Progress, Screen, ScreenHeader, SectionLabel,
-  SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, severityTone,
+  GroupedList, Icon, IconButton, Input, ListRow, NumericField, Progress, Screen, ScreenHeader,
+  Section, SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, severityTone, useToast, type Tone,
 } from '@/components';
 import { LoadCard } from '@/features/loads/LoadCard';
 import { SAMPLE_UPCOMING } from '@/features/loads/sampleLoads';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View className="gap-3">
-      <SectionLabel compact>{title}</SectionLabel>
-      {children}
-    </View>
-  );
-}
+const CHIP_TONES: Tone[] = ['neutral', 'brand', 'action', 'info', 'success', 'danger', 'warning', 'caution'];
 
 const DEMO_ICONS: MaterialSymbolName[] = [
   'local_shipping', 'navigation', 'route', 'pin_drop', 'local_gas_station', 'speed',
@@ -30,14 +23,16 @@ export default function Gallery() {
   const { isDark, setMode } = useTheme();
   const [gallons, setGallons] = useState('42.3');
   const [seg, setSeg] = useState<'upcoming' | 'current' | 'previous'>('current');
+  const [chip, setChip] = useState<'offered' | 'current' | 'upcoming' | 'history'>('offered');
   const [sheetOpen, setSheetOpen] = useState(false);
+  const toast = useToast();
   const noop = () => undefined; // gallery previews are non-interactive
   const demoLoad = SAMPLE_UPCOMING[0];
 
   if (!__DEV__) return <Redirect href="/home" />;
 
   return (
-    <Screen padTop={false}>
+    <Screen padTop={false} flow="sections">
       <ScreenHeader
         title="Design system"
         subtitle="Operational components · adaptive appearance"
@@ -93,7 +88,7 @@ export default function Gallery() {
         <Button label="Take photo" icon="photo_camera" variant="secondary" onPress={noop} />
         <View className="flex-row gap-3">
           <View className="flex-1">
-            <Button label="Syncing…" loading variant="soft" />
+            <Button label="Syncing…" loading variant="secondary" />
           </View>
           <View className="flex-1">
             <Button label="Remove" icon="delete" variant="danger" size="sm" onPress={noop} />
@@ -192,14 +187,93 @@ export default function Gallery() {
         />
       </Section>
 
-      <Section title="Badges">
+      <Section title="Chips — every tone, on both grounds">
         <View className="flex-row flex-wrap gap-2">
-          <Badge label="In transit" tone="brand" dot />
-          <Badge label="Delivered" tone="success" icon="check_circle" />
-          <Badge label="Hazmat" tone="warning" icon="warning" />
-          <Badge label="Critical" tone={severityTone('critical')} />
-          <Badge label="2 pending" tone="info" dot />
+          {CHIP_TONES.map((tone) => (
+            <Badge key={tone} label={tone} tone={tone} />
+          ))}
         </View>
+        <View className="flex-row flex-wrap gap-2 rounded-xl bg-hero p-4">
+          <Badge label="In transit" tone="action" icon="local_shipping" />
+          <Badge label="Offered" tone="ghost" />
+          <Badge label="Delivered" tone="success" icon="check_circle" />
+          <Badge label="Critical" tone={severityTone('critical')} />
+        </View>
+        <AppText variant="caption" tone="muted">
+          A chip carries no `self-start`: it centres in whatever row holds it. Both rows below show a
+          chip beside two lines of text — the alignment defect the 2026-09-07 critique found on five
+          screens was exactly this.
+        </AppText>
+        <GroupedList>
+          <ListRow
+            title="Stop 2 — Effingham, IL"
+            subtitle="Deliver by 14:30"
+            icon="pin_drop"
+            disc="action"
+            right={<Badge label="Next" tone="action" />}
+          />
+          <ListRow
+            title="Stop 1 — Joliet, IL"
+            subtitle="Delivered 09:12 · 4 photos"
+            icon="check_circle"
+            disc="success"
+            right={<Badge label="Done" tone="success" />}
+          />
+        </GroupedList>
+      </Section>
+
+      <Section title="Hero and sheet — the two registers">
+        <View className="gap-3 rounded-xl bg-hero p-4">
+          <Card variant="hero">
+            <AppText variant="label" tone="onHeroSecondary">NEXT · DELIVER</AppText>
+            <AppText variant="screenTitle" tone="onHero">Effingham, IL</AppText>
+            <AppText variant="supporting" tone="onHeroSecondary">1204 W Fayette Ave · Stop 2 of 4</AppText>
+            <View className="flex-row gap-3 pt-1">
+              <View className="flex-1 gap-1 rounded-lg bg-hero-tile p-3">
+                <AppText variant="caption" tone="onHeroMuted">Appointment</AppText>
+                <AppText variant="numericInline" tone="onHero">14:30</AppText>
+              </View>
+              <View className="flex-1 gap-1 rounded-lg bg-hero-tile p-3">
+                <AppText variant="caption" tone="onHeroMuted">Required here</AppText>
+                <AppText variant="numericInline" tone="onHero">3</AppText>
+              </View>
+            </View>
+            <Button label="Deliver at Effingham" variant="hero" size="lg" onPress={noop} />
+            <Button label="Choose a different stop" variant="ghost" onHero onPress={noop} />
+          </Card>
+          <SegmentedControl
+            variant="chips"
+            onHero
+            value={chip}
+            onChange={setChip}
+            options={[
+              { label: 'Offered', value: 'offered', count: 2 },
+              { label: 'Current', value: 'current' },
+              { label: 'Upcoming', value: 'upcoming', count: 4 },
+              { label: 'History', value: 'history' },
+            ]}
+          />
+        </View>
+        <Card>
+          <AppText variant="rowTitle">Sheet card</AppText>
+          <AppText variant="supporting" tone="muted">
+            White, 24pt, one soft shadow tinted with the hero navy — the app's only shadow.
+          </AppText>
+          <Button label="Primary on the sheet" variant="primary" onPress={noop} />
+        </Card>
+        <Card variant="flat">
+          <AppText variant="rowTitle">Flat card</AppText>
+          <AppText variant="supporting" tone="muted">
+            No shadow and no edge: a container for rows inside an already-contained region.
+          </AppText>
+        </Card>
+      </Section>
+
+      <Section title="Toast host" action={{ label: 'Show one', onPress: () => toast.show('Stop 2 completed · 4 photos queued') }}>
+        <AppText variant="supporting" tone="muted">
+          A toast is raised through `useToast().show(…)` and lives in the root layout, so it outlives
+          the screen that raised it — a completion receipt survives the `router.back()` that follows.
+        </AppText>
       </Section>
 
       <Section title="Inputs — visible focus state">

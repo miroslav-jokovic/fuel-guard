@@ -1,9 +1,13 @@
 import { AppText } from './AppText';
 
-/** Sentence-case heading with 24pt before its section and 8pt before its first child. */
-export function SectionLabel({ children, compact = false }: { children: string; compact?: boolean }) {
+/**
+ * A bare section heading, for the few places that need the type without the `Section` wrapper's
+ * spacing (a heading inside an already-padded card). Prefer `Section`: it owns the rhythm, which is
+ * the half that used to be invisible at the call site.
+ */
+export function SectionLabel({ children }: { children: string }) {
   return (
-    <AppText variant="sectionTitle" tone="secondary" className={compact ? '' : 'mt-2 -mb-2'}>
+    <AppText variant="navigationTitle" accessibilityRole="header">
       {children}
     </AppText>
   );

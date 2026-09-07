@@ -21,7 +21,7 @@ export function PendingBadge() {
   if (needsAttention > 0) {
     return <Badge label={`${needsAttention} needs attention`} tone="danger" icon="sync_problem" />;
   }
-  if (pending > 0) return <Badge label={`${pending} pending`} tone="info" dot />;
+  if (pending > 0) return <Badge label={`${pending} pending`} tone="info" />;
   return null;
 }
 
@@ -61,7 +61,7 @@ export function NeedsAttentionNote() {
   if (needsAttention === 0) return null;
   return (
     <View
-      className="min-h-11 flex-row items-start gap-2 rounded-lg border border-danger/20 bg-danger/10 px-3 py-2"
+      className="min-h-11 flex-row items-start gap-2 rounded-lg bg-danger-soft px-3 py-2"
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
     >
