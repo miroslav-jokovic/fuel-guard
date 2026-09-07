@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.107.0",
+    "@silvicom/capture-engine": "workspace:*",
     "@silvicom/shared": "workspace:*",
     "@hazmat/data": "workspace:*",
     "@hazmat/engine": "workspace:*",

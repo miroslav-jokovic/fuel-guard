@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { createHash } from "node:crypto";
-import { IMAGE_NORMALIZER_VERSION, normalizeImage, usabilityGate, verifyIntegrityHash } from "./image.js";
+import { BUNDLED_DEFAULT_CONFIG, computeMetrics } from "@silvicom/capture-engine";
+import { IMAGE_NORMALIZER_VERSION, USABILITY_GATE_VERSION, normalizeImage, usabilityGate, verifyIntegrityHash } from "./image.js";
 
 /** Build a PNG from a per-pixel grey function so we can exercise the real sharp pipeline deterministically. */
 async function png(width: number, height: number, fn: (x: number, y: number) => number): Promise<Buffer> {
@@ -18,29 +19,73 @@ async function png(width: number, height: number, fn: (x: number, y: number) => 
 
 const checker = (x: number, y: number) => ((x + y) % 2 ? 160 : 100); // high-frequency, no near-white
 
-describe("usabilityGate", () => {
-  it("passes a sharp, well-resolved, glare-free page", async () => {
+describe("usabilityGate — since Step 2.3 it delegates to the shared reference", () => {
+  it("passes a sharp, well-resolved, glare-free page and records what it measured", async () => {
     const g = await usabilityGate(await png(1300, 1300, checker));
     expect(g.usable).toBe(true);
     expect(g.reasons).toEqual([]);
     expect(g.metrics.longEdgePx).toBe(1300);
+    // Measured at the fixed analysis scale, not at whatever size the page happened to be — the same
+    // image scored 4283.7 for blur at 3000 px and 7299.9 at 800 px, so a number without a scale
+    // beside it cannot be compared with anything (M2).
+    expect(g.metrics.analysisLongEdgePx).toBe(1024);
+    expect(g.gateVersion).toBe(USABILITY_GATE_VERSION);
   });
 
-  it("rejects a low-resolution page", async () => {
+  it("rejects a low-resolution page — the one floor that survived the redefinition", async () => {
     const g = await usabilityGate(await png(400, 400, checker));
     expect(g.usable).toBe(false);
     expect(g.reasons).toContain("resolution_too_low");
   });
 
-  it("rejects a blurry (flat) page — no edges → low Laplacian variance", async () => {
-    const g = await usabilityGate(await png(1300, 1300, () => 128));
+  it("measures the ORIGINAL's resolution, not the analysis plane's", async () => {
+    // Gating the downscaled copy would let everything pass, because everything is resized to the same
+    // long edge. The floor is a question about what the camera captured.
+    const g = await usabilityGate(await png(4000, 3000, checker));
+    expect(g.metrics.longEdgePx).toBe(4000);
+    expect(g.metrics.analysisLongEdgePx).toBe(1024);
+  });
+
+  it("MEASURES blur and glare without rejecting on them (D-SCAN10 shadow mode)", async () => {
+    // The old floors were 100 for blur and 0.06 for glare. Neither survives: 100 was the variance of
+    // a CLAMPED Laplacian at an unstated resolution on a contrast-stretched image. Inventing a
+    // replacement is what config.ts forbids, so both are recorded until Step 5.2 derives them from a
+    // real distribution — and a flat page, which is as unfocused as an image can be, proves it.
+    const flat = await usabilityGate(await png(1300, 1300, () => 128));
+    expect(flat.metrics.blurVariance).toBe(0);
+    expect(flat.usable).toBe(true);
+    expect(flat.reasons).not.toContain("too_blurry");
+
+    const blown = await usabilityGate(await png(1300, 1300, () => 255));
+    expect(blown.metrics.glareFraction).toBe(1);
+    expect(blown.usable).toBe(true);
+    expect(blown.reasons).not.toContain("glare");
+  });
+
+  it("still enforces blur and glare when a threshold is supplied, so Step 5.2 has something to turn on", async () => {
+    const g = await usabilityGate(await png(1300, 1300, () => 128), {
+      minLongEdgePx: 1200,
+      minBlurVariance: 10,
+      maxGlareFraction: 0.5,
+    });
     expect(g.usable).toBe(false);
     expect(g.reasons).toContain("too_blurry");
   });
 
-  it("rejects a glare-blown page (mostly near-white)", async () => {
-    const g = await usabilityGate(await png(1300, 1300, () => 255));
-    expect(g.reasons).toContain("glare");
+  it("computes the same numbers the driver app would from the same bytes", async () => {
+    // The claim Step 2.3 exists to make true. Not "the same formula written twice" — literally the
+    // same function, so the two cannot drift.
+    const bytes = await png(1300, 1300, checker);
+    const { data, info } = await sharp(bytes).raw().toBuffer({ resolveWithObject: true });
+    const direct = computeMetrics(
+      new Uint8Array(data.buffer, data.byteOffset, data.byteLength),
+      info.width,
+      info.height,
+      BUNDLED_DEFAULT_CONFIG.analysis.longEdgePx,
+      info.channels,
+    );
+    const viaGate = (await usabilityGate(bytes)).metrics;
+    expect(viaGate).toEqual(direct);
   });
 });
 

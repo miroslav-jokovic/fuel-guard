@@ -220,16 +220,36 @@ describe("M5 — the server gates the normalized image, not the captured one", (
     expect(afterBlur / beforeBlur).toBeGreaterThan(1.5);
   });
 
-  it("passes a page through the shipped gate, so the pinned semantics are the ones in production", async () => {
-    // Belt and braces: the properties above are measured with local helpers that mirror
-    // `usabilityGate`'s arithmetic. This case proves the mirror is faithful by running the real
-    // function over the real normalized bytes and reading its own reported metrics.
+  it("no longer describes the shipped gate, because Step 2.3 moved it off sharp's arithmetic", async () => {
+    // ⚠ THIS CASE USED TO ASSERT THE OPPOSITE, and the change is the point rather than a repair.
+    //
+    // Until Step 2.3 it ran the real `usabilityGate` over the normalized bytes and checked that the
+    // local helpers above were a faithful mirror of it. They no longer are, deliberately: the gate now
+    // delegates to `@silvicom/capture-engine`'s `computeMetrics`, which uses Rec.709 luma rather than
+    // sharp's linear-light one, a SIGNED Laplacian rather than a clamped one, and a fixed 1024 px
+    // analysis scale — and it reads the UPLOADED bytes rather than the normalized ones.
+    //
+    // The helpers above still reproduce sharp's behaviour, because M1-M5 are statements about sharp
+    // and must keep being checkable. What changed is that the product no longer computes that way. So
+    // this case now pins the DIVERGENCE, which is the thing a future reader would otherwise assume
+    // was a bug: the two answers differ, on purpose, and by a lot.
     const source = await greyPng(3000, 2000, documentPixel);
     const { normalized } = await normalizeImage(source);
-    const gate = await usabilityGate(normalized);
 
-    expect(gate.metrics.glareFraction).toBeGreaterThan(0.01);
-    expect(gate.metrics.blurVariance).toBeGreaterThan(1.5 * (await blurVariance(source)));
-    expect(gate.metrics.longEdgePx).toBe(1568);
+    const sharpBlur = await blurVariance(normalized);
+    const sharpGlare = (await nearWhite(normalized)).fraction;
+
+    const gate = await usabilityGate(source); // the uploaded bytes, per D-SCAN4
+    expect(gate.metrics.analysisLongEdgePx).toBe(1024);
+
+    // Glare: sharp's `.normalise()` stretched the maximum to 255 and manufactured a near-white
+    // population on a page whose brightest true pixel was 210. The reference, reading the original,
+    // finds none at all.
+    expect(sharpGlare).toBeGreaterThan(0.01);
+    expect(gate.metrics.glareFraction).toBe(0);
+
+    // Blur: different definition, different scale, different input. Asserting only that they are not
+    // the same number is deliberate — pinning a ratio would pin an accident of these fixtures.
+    expect(gate.metrics.blurVariance).not.toBeCloseTo(sharpBlur, 0);
   });
 });

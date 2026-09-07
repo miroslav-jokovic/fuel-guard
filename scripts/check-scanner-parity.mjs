@@ -72,10 +72,10 @@ const CARVE_OUTS = new Map([
  * waiver whose file no longer trips a detector fails as stale, so the list can only get shorter.
  */
 const WAIVERS = new Map([
-  [
-    "apps/api/src/modules/hazmat/hazmatExtraction/image.ts",
-    "the server's pre-Phase-2 gate; Step 2.3 moves usabilityGate onto the reference and removes this",
-  ],
+  // Empty since Step 2.3 retired its only entry. `apps/api/.../image.ts` carried its own luminance,
+  // Laplacian and near-white census until `usabilityGate` was moved onto the reference; the gate
+  // itself is what noticed, by failing on a stale waiver the moment the duplicate went away. The list
+  // can only shrink, and this is what that looks like when it works.
 ]);
 
 const LUMA_FAMILIES = [
