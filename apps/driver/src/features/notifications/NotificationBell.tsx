@@ -27,7 +27,6 @@ export function NotificationBell({ unread, onPress }: { unread: number; onPress:
             variant="caption"
             tone="inverse"
             allowFontScaling={false}
-            className="text-micro font-bold"
             style={{ fontVariant: ['tabular-nums'] }}
           >
             {capped}

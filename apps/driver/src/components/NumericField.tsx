@@ -39,7 +39,7 @@ export function NumericField({
         aria-invalid={isInvalid || undefined}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        className="flex-1 font-display-bold text-numeric-hero text-ink placeholder:text-ink-subtle"
+        className="flex-1 font-ui-sb text-numericHero text-ink placeholder:text-ink-subtle"
         style={{
           fontVariant: ['tabular-nums'],
           paddingVertical: 8,

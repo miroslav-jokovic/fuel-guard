@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SCAN = ['app', 'src'];
 const forbidden = [
-  { pattern: /\b(?:Inter|Arial|Helvetica|Open Sans|Poppins)\b/i, message: 'use platform UI text through AppText and Hanken Grotesk only for approved display roles' },
+  { pattern: /\b(?:Inter|Arial|Helvetica|Open Sans|Poppins|Hanken|HankenGrotesk)\b/i, message: 'Lexend through AppText only' },
   { pattern: /font-sans(?:-|\b)/, message: 'use semantic AppText variants instead of legacy font aliases' },
   { pattern: /<Text(?:\s|>)/, message: 'use AppText instead of raw React Native Text' },
   { pattern: /\bAlert\.alert\s*\(/, message: 'use ConfirmSheet or an intentional Banner instead of native Alert' },
@@ -19,6 +19,12 @@ const forbidden = [
   { pattern: /\bshadow-(?:sm|md|lg|xl|2xl)\b/, message: 'shadows are reserved for system navigation, sheets, and overlays rather than content surfaces' },
   { pattern: /\btext-\[/, message: 'use the semantic typography scale rather than an arbitrary text size' },
   { pattern: /\b(?:gap|p[trblxy]?|m[trblxy]?)-(?:1\.5|2\.5)\b/, message: 'use 4pt-based structural spacing; 2pt optical spacing is only for tightly stacked text' },
+];
+
+// Direction B D-DB5: the app has exactly ONE shadow and it is tinted with the hero navy. A local
+// style object is the easy way back to a neutral drop shadow, so the role is reserved to the theme.
+const forbiddenOutsideTheme = [
+  { pattern: /\bshadowColor\b/, message: 'shadows come from src/theme/elevation.ts only' },
 ];
 
 const files = [];
@@ -34,8 +40,10 @@ for (const directory of SCAN) walk(join(ROOT, directory));
 const failures = [];
 for (const path of files) {
   const lines = readFileSync(path, 'utf8').split('\n');
+  const insideTheme = path.includes('/src/theme/');
+  const rules = insideTheme ? forbidden : [...forbidden, ...forbiddenOutsideTheme];
   lines.forEach((line, index) => {
-    for (const rule of forbidden) {
+    for (const rule of rules) {
       if (path.endsWith('src/components/AppText.tsx') && rule.pattern.source === '<Text(?:\\s|>)') continue;
       if (rule.pattern.test(line)) failures.push(`${path}:${index + 1} ${rule.message}`);
     }

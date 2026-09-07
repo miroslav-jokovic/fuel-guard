@@ -352,7 +352,7 @@ animation anywhere else.
 
 ## 5. Steps — each stands alone; execute in order
 
-### B0 · Foundation: roles, type, radius, elevation, gates
+### B0 · Foundation: roles, type, radius, elevation, gates — DONE 2026-09-07
 
 **Branch:** `claude/driver-b0-foundation`. Touches only `src/theme/*`, `global.css`,
 `tailwind.config.js`, `app/_layout.tsx`, `package.json`, `scripts/*`, `tests/*`, `DESIGN.md`.
@@ -1145,6 +1145,28 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
 
 - 2026-09-07 · Plan written from the approved canvas (page B) and the 2026-09-07 critique; facts in
   §0 verified against `main` 1d84cfd. Nothing built.
+- 2026-09-07 · **B0 built.** 50 roles × 4 themes (the table in §2.1 has 17 new rows, not 16 — §2's
+  prose said 49 roles, the table said 50; the table wins). `scripts/gen-driver-theme-css.mjs` +
+  `pnpm gen:theme` now write the `global.css` mirror that claimed to be generated and never was,
+  and `tests/theme-css-mirror.test.ts` fails when the file is not what the generator would write
+  (proved by mutating a role: the mirror test and the light hero-contrast case both fail).
+  Four deviations, each forced:
+  (1) **`@expo-google-fonts/lexend` 0.4.3 does not exist** — the registry's published list on
+  2026-09-07 is `0.2.0 … 0.4.1`, so 0.4.1 is installed. Export names are as §0 predicted
+  (`Lexend_400Regular|500Medium|600SemiBold|700Bold`).
+  (2) **`ink` ≥ 4.5 on `accent` is unachievable and wrong** — `accent` is the same lavender in all
+  four appearances, so in the dark themes near-white `ink` lands on it at 1.44:1. The binding rule
+  above the same table already says text on `action` and `accent` is always `action-fg`; the test
+  asserts that instead, and **B1.5's `brand` chip tone is `bg-accent text-action-fg`, not
+  `text-ink`**.
+  (3) **Tailwind keeps the `section-title` size** while the `sectionTitle` variant is retained
+  (§5 B0.4 asks for both the variant's survival and its size class's deletion). It goes with the
+  variant in B7. `micro`, `cta` and `nav` are deleted, and their four call sites moved.
+  (4) `AppText` keeps family and size in separate maps rather than appending a Bold Text weight
+  class — two `font-*` classes on one node resolve by stylesheet order, not string order. The
+  numeric variants are tabular by definition rather than by a `tabular` prop each caller must
+  remember. Hero/action/accent text tones were added in B0 because B1 cannot put text on the hero
+  without them.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a

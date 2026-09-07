@@ -3,86 +3,120 @@
 @tailwind utilities;
 
 /*
- * GENERATED FALLBACK MIRROR of src/theme/theme.roles.json.
- * Native views receive the same variables from ThemeProvider. `pnpm lint:theme` fails when this
- * mirror drifts, so CSS, native SVG/API colors, dark mode, and high contrast share one vocabulary.
- * Operational copy intentionally inherits the platform UI typeface; Hanken is applied only through
- * explicit display classes.
+ * GENERATED MIRROR of src/theme/theme.roles.json — write it with `pnpm gen:theme`
+ * (scripts/gen-driver-theme-css.mjs), never by hand. Native views receive the same variables from
+ * ThemeProvider. `pnpm lint:theme` fails when this mirror drifts, so CSS, native SVG/API colors,
+ * dark mode, and high contrast share one vocabulary. Every appearance is Lexend through AppText;
+ * there is no second typeface (Direction B plan D-DB3).
  */
 @layer base {
   /* theme:light:start */
   :root {
-    --color-canvas: 244 247 250;
+    --color-canvas: 234 240 246;
     --color-surface: 255 255 255;
-    --color-surface-subtle: 248 250 252;
-    --color-surface-muted: 236 241 245;
+    --color-surface-subtle: 245 248 251;
+    --color-surface-muted: 242 245 249;
     --color-surface-raised: 255 255 255;
-    --color-surface-selected: 232 240 255;
-    --color-surface-inverse: 15 23 42;
-    --color-ink: 15 23 42;
-    --color-ink-secondary: 51 65 85;
-    --color-ink-muted: 71 85 105;
-    --color-ink-subtle: 94 110 131;
-    --color-ink-disabled: 148 163 184;
+    --color-surface-selected: 240 238 252;
+    --color-surface-inverse: 20 38 63;
+    --color-ink: 20 38 63;
+    --color-ink-secondary: 62 79 102;
+    --color-ink-muted: 85 103 126;
+    --color-ink-subtle: 94 110 134;
+    --color-ink-disabled: 152 166 184;
     --color-ink-inverse: 255 255 255;
-    --color-edge-subtle: 226 232 240;
-    --color-edge: 203 213 225;
-    --color-edge-strong: 148 163 184;
-    --color-edge-focus: 29 78 216;
-    --color-brand: 29 78 216;
-    --color-brand-pressed: 23 63 172;
-    --color-brand-subtle: 232 240 255;
+    --color-edge-subtle: 220 228 238;
+    --color-edge: 197 208 222;
+    --color-edge-strong: 138 154 176;
+    --color-edge-focus: 166 78 8;
+    --color-brand: 20 38 63;
+    --color-brand-pressed: 31 58 92;
+    --color-brand-subtle: 240 238 252;
     --color-brand-fg: 255 255 255;
     --color-danger: 185 28 28;
     --color-warning: 146 64 14;
     --color-caution: 194 65 12;
-    --color-success: 18 118 55;
-    --color-info: 29 78 216;
-    --color-operation-current: 29 78 216;
-    --color-operation-next: 3 105 161;
-    --color-operation-complete: 18 118 55;
+    --color-success: 28 107 71;
+    --color-info: 75 68 168;
+    --color-operation-current: 166 78 8;
+    --color-operation-next: 75 68 168;
+    --color-operation-complete: 28 107 71;
     --color-operation-blocked: 185 28 28;
-    --color-sync-local: 3 105 161;
+    --color-sync-local: 75 68 168;
     --color-sync-pending: 146 64 14;
     --color-sync-failed: 185 28 28;
+    --color-hero: 20 38 63;
+    --color-hero-raised: 31 58 92;
+    --color-hero-edge: 46 72 102;
+    --color-hero-tile: 40 66 95;
+    --color-on-hero: 255 255 255;
+    --color-on-hero-secondary: 183 196 214;
+    --color-on-hero-muted: 131 148 171;
+    --color-action: 244 163 64;
+    --color-action-pressed: 227 145 46;
+    --color-action-fg: 20 38 63;
+    --color-action-ink: 166 78 8;
+    --color-action-soft: 253 235 210;
+    --color-accent: 207 203 247;
+    --color-accent-ink: 75 68 168;
+    --color-accent-soft: 240 238 252;
+    --color-success-soft: 221 243 232;
+    --color-danger-soft: 251 227 224;
   }
   /* theme:light:end */
 
   /* theme:dark:start */
   .dark {
-    --color-canvas: 10 15 23;
-    --color-surface: 17 25 38;
-    --color-surface-subtle: 14 21 32;
-    --color-surface-muted: 27 39 55;
-    --color-surface-raised: 31 45 64;
-    --color-surface-selected: 25 48 86;
+    --color-canvas: 14 26 43;
+    --color-surface: 23 42 66;
+    --color-surface-subtle: 18 35 58;
+    --color-surface-muted: 31 53 82;
+    --color-surface-raised: 31 53 82;
+    --color-surface-selected: 38 43 82;
     --color-surface-inverse: 244 247 250;
     --color-ink: 244 247 250;
-    --color-ink-secondary: 203 213 225;
-    --color-ink-muted: 174 187 205;
-    --color-ink-subtle: 140 155 176;
-    --color-ink-disabled: 71 85 105;
-    --color-ink-inverse: 10 15 23;
-    --color-edge-subtle: 30 43 59;
-    --color-edge: 45 59 77;
-    --color-edge-strong: 71 85 105;
-    --color-edge-focus: 96 165 250;
-    --color-brand: 96 165 250;
-    --color-brand-pressed: 147 197 253;
-    --color-brand-subtle: 25 48 86;
-    --color-brand-fg: 10 15 23;
+    --color-ink-secondary: 201 212 226;
+    --color-ink-muted: 168 183 202;
+    --color-ink-subtle: 143 160 182;
+    --color-ink-disabled: 91 107 128;
+    --color-ink-inverse: 14 26 43;
+    --color-edge-subtle: 34 54 79;
+    --color-edge: 47 69 96;
+    --color-edge-strong: 76 98 128;
+    --color-edge-focus: 244 163 64;
+    --color-brand: 244 163 64;
+    --color-brand-pressed: 227 145 46;
+    --color-brand-subtle: 38 43 82;
+    --color-brand-fg: 20 38 63;
     --color-danger: 252 129 129;
     --color-warning: 253 186 116;
     --color-caution: 251 146 60;
-    --color-success: 74 222 128;
-    --color-info: 125 211 252;
-    --color-operation-current: 96 165 250;
-    --color-operation-next: 125 211 252;
-    --color-operation-complete: 74 222 128;
+    --color-success: 111 211 155;
+    --color-info: 195 190 245;
+    --color-operation-current: 246 178 94;
+    --color-operation-next: 195 190 245;
+    --color-operation-complete: 111 211 155;
     --color-operation-blocked: 252 129 129;
-    --color-sync-local: 125 211 252;
+    --color-sync-local: 195 190 245;
     --color-sync-pending: 253 186 116;
     --color-sync-failed: 252 129 129;
+    --color-hero: 10 20 34;
+    --color-hero-raised: 23 42 66;
+    --color-hero-edge: 42 63 91;
+    --color-hero-tile: 33 55 84;
+    --color-on-hero: 255 255 255;
+    --color-on-hero-secondary: 183 196 214;
+    --color-on-hero-muted: 131 148 171;
+    --color-action: 244 163 64;
+    --color-action-pressed: 227 145 46;
+    --color-action-fg: 20 38 63;
+    --color-action-ink: 246 178 94;
+    --color-action-soft: 58 42 16;
+    --color-accent: 207 203 247;
+    --color-accent-ink: 195 190 245;
+    --color-accent-soft: 38 43 82;
+    --color-success-soft: 21 59 43;
+    --color-danger-soft: 62 27 27;
   }
   /* theme:dark:end */
 
@@ -90,75 +124,109 @@
   .high-contrast-light {
     --color-canvas: 255 255 255;
     --color-surface: 255 255 255;
-    --color-surface-subtle: 248 250 252;
+    --color-surface-subtle: 245 248 251;
     --color-surface-muted: 238 242 247;
     --color-surface-raised: 255 255 255;
-    --color-surface-selected: 219 234 254;
-    --color-surface-inverse: 0 0 0;
+    --color-surface-selected: 228 225 250;
+    --color-surface-inverse: 11 24 48;
     --color-ink: 0 0 0;
-    --color-ink-secondary: 24 35 52;
-    --color-ink-muted: 51 65 85;
-    --color-ink-subtle: 71 85 105;
-    --color-ink-disabled: 100 116 139;
+    --color-ink-secondary: 26 38 56;
+    --color-ink-muted: 46 62 85;
+    --color-ink-subtle: 62 79 102;
+    --color-ink-disabled: 85 103 126;
     --color-ink-inverse: 255 255 255;
-    --color-edge-subtle: 148 163 184;
-    --color-edge: 71 85 105;
-    --color-edge-strong: 24 35 52;
-    --color-edge-focus: 0 50 140;
-    --color-brand: 0 50 140;
-    --color-brand-pressed: 0 36 102;
-    --color-brand-subtle: 219 234 254;
+    --color-edge-subtle: 138 154 176;
+    --color-edge: 85 103 126;
+    --color-edge-strong: 26 38 56;
+    --color-edge-focus: 122 58 6;
+    --color-brand: 11 24 48;
+    --color-brand-pressed: 0 0 0;
+    --color-brand-subtle: 228 225 250;
     --color-brand-fg: 255 255 255;
     --color-danger: 127 0 0;
-    --color-warning: 112 45 0;
-    --color-caution: 128 42 0;
-    --color-success: 0 92 41;
-    --color-info: 0 50 140;
-    --color-operation-current: 0 50 140;
-    --color-operation-next: 0 76 112;
-    --color-operation-complete: 0 92 41;
+    --color-warning: 92 46 0;
+    --color-caution: 122 42 0;
+    --color-success: 11 74 46;
+    --color-info: 51 44 134;
+    --color-operation-current: 122 58 6;
+    --color-operation-next: 51 44 134;
+    --color-operation-complete: 11 74 46;
     --color-operation-blocked: 127 0 0;
-    --color-sync-local: 0 76 112;
-    --color-sync-pending: 112 45 0;
+    --color-sync-local: 51 44 134;
+    --color-sync-pending: 92 46 0;
     --color-sync-failed: 127 0 0;
+    --color-hero: 11 24 48;
+    --color-hero-raised: 26 45 74;
+    --color-hero-edge: 59 81 112;
+    --color-hero-tile: 38 64 94;
+    --color-on-hero: 255 255 255;
+    --color-on-hero-secondary: 217 226 238;
+    --color-on-hero-muted: 183 196 214;
+    --color-action: 244 163 64;
+    --color-action-pressed: 217 132 32;
+    --color-action-fg: 0 0 0;
+    --color-action-ink: 122 58 6;
+    --color-action-soft: 253 235 210;
+    --color-accent: 207 203 247;
+    --color-accent-ink: 51 44 134;
+    --color-accent-soft: 228 225 250;
+    --color-success-soft: 221 243 232;
+    --color-danger-soft: 251 227 224;
   }
   /* theme:highContrastLight:end */
 
   /* theme:highContrastDark:start */
   .high-contrast-dark {
     --color-canvas: 0 0 0;
-    --color-surface: 8 12 18;
+    --color-surface: 10 20 34;
     --color-surface-subtle: 0 0 0;
-    --color-surface-muted: 20 28 40;
-    --color-surface-raised: 30 42 58;
-    --color-surface-selected: 20 54 96;
+    --color-surface-muted: 20 36 58;
+    --color-surface-raised: 26 45 74;
+    --color-surface-selected: 47 54 112;
     --color-surface-inverse: 255 255 255;
     --color-ink: 255 255 255;
     --color-ink-secondary: 238 242 247;
-    --color-ink-muted: 203 213 225;
-    --color-ink-subtle: 148 163 184;
-    --color-ink-disabled: 100 116 139;
+    --color-ink-muted: 211 220 231;
+    --color-ink-subtle: 183 196 214;
+    --color-ink-disabled: 122 139 162;
     --color-ink-inverse: 0 0 0;
-    --color-edge-subtle: 100 116 139;
-    --color-edge: 148 163 184;
-    --color-edge-strong: 226 232 240;
-    --color-edge-focus: 153 204 255;
-    --color-brand: 153 204 255;
-    --color-brand-pressed: 201 229 255;
-    --color-brand-subtle: 20 54 96;
+    --color-edge-subtle: 85 103 126;
+    --color-edge: 138 154 176;
+    --color-edge-strong: 211 220 231;
+    --color-edge-focus: 255 203 133;
+    --color-brand: 255 203 133;
+    --color-brand-pressed: 255 224 179;
+    --color-brand-subtle: 47 54 112;
     --color-brand-fg: 0 0 0;
     --color-danger: 255 179 179;
-    --color-warning: 255 207 145;
-    --color-caution: 255 184 128;
-    --color-success: 129 235 166;
-    --color-info: 174 226 255;
-    --color-operation-current: 153 204 255;
-    --color-operation-next: 174 226 255;
-    --color-operation-complete: 129 235 166;
+    --color-warning: 255 213 154;
+    --color-caution: 255 190 138;
+    --color-success: 154 232 189;
+    --color-info: 220 217 250;
+    --color-operation-current: 255 203 133;
+    --color-operation-next: 220 217 250;
+    --color-operation-complete: 154 232 189;
     --color-operation-blocked: 255 179 179;
-    --color-sync-local: 174 226 255;
-    --color-sync-pending: 255 207 145;
+    --color-sync-local: 220 217 250;
+    --color-sync-pending: 255 213 154;
     --color-sync-failed: 255 179 179;
+    --color-hero: 0 0 0;
+    --color-hero-raised: 20 36 58;
+    --color-hero-edge: 85 103 126;
+    --color-hero-tile: 30 48 72;
+    --color-on-hero: 255 255 255;
+    --color-on-hero-secondary: 238 242 247;
+    --color-on-hero-muted: 211 220 231;
+    --color-action: 255 203 133;
+    --color-action-pressed: 255 224 179;
+    --color-action-fg: 0 0 0;
+    --color-action-ink: 255 203 133;
+    --color-action-soft: 58 42 16;
+    --color-accent: 220 217 250;
+    --color-accent-ink: 220 217 250;
+    --color-accent-soft: 47 54 112;
+    --color-success-soft: 21 59 43;
+    --color-danger-soft: 62 27 27;
   }
   /* theme:highContrastDark:end */
 }
