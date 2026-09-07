@@ -23,6 +23,10 @@ const forbidden = [
   { pattern: /\bshadow-(?:sm|md|lg|xl|2xl)\b/, message: 'shadows are reserved for system navigation, sheets, and overlays rather than content surfaces' },
   { pattern: /\btext-\[/, message: 'use the semantic typography scale rather than an arbitrary text size' },
   { pattern: /\b(?:gap|p[trblxy]?|m[trblxy]?)-(?:1\.5|2\.5)\b/, message: 'use 4pt-based structural spacing; 2pt optical spacing is only for tightly stacked text' },
+  // The last escape hatch, closed in B7. Twenty-nine sizes had leaked in through it — every one a
+  // number nobody could look up — and the scale now names all of them (spacing 13/15/18, maxWidth
+  // `bubble`). A genuinely new size means adding a step to tailwind.config.js, where it gets a name.
+  { pattern: /\b(?:h|w|min-h|min-w|max-w|max-h)-\[/, message: 'add the step to tailwind.config.js and use its name; no arbitrary sizes' },
 ];
 
 // Direction B D-DB5: the app has exactly ONE shadow and it is tinted with the hero navy. A local

@@ -59,9 +59,6 @@ export const layout = {
  * `numericCompact` at 24 there was nothing, so appointment windows, unit numbers, miles and
  * durations were rendering as 12pt muted captions — the figures a driver actually reads at a glance
  * were the smallest text on the screen.
- *
- * `sectionTitle` is retained through B0 only; eleven screens still use it and B1.7 migrates them to
- * `navigationTitle` before B7 deletes the variant.
  */
 export const typography = {
   caption: { fontSize: 12, lineHeight: 16 },
@@ -71,7 +68,6 @@ export const typography = {
   rowTitle: { fontSize: 16, lineHeight: 22 },
   action: { fontSize: 17, lineHeight: 22 },
   navigationTitle: { fontSize: 18, lineHeight: 24 },
-  sectionTitle: { fontSize: 13, lineHeight: 18 },
   screenTitle: { fontSize: 28, lineHeight: 32 },
   numericInline: { fontSize: 22, lineHeight: 28 },
   numericCompact: { fontSize: 24, lineHeight: 28 },

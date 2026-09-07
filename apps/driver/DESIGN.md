@@ -320,27 +320,73 @@ approved product decisions.
 
 ## Screen composition rules
 
+### Hero and sheet (D-DB1)
+
+Today, Loads, Score and Stop are **hero screens**: `Screen` takes a `hero` node, draws the navy
+region, and rides the light sheet 28pt over it with 28pt top corners. One ScrollView — the hero
+scrolls away with the content, because a driver reading a list should not be paying for a header
+they have already read. Every other screen is **sheet-only**; a second navy region under the first
+reads as a new app rather than a deeper level.
+
+A hero screen passes `flow="sections"`, which means its children are `Section`s that own the space
+above them. A sheet-only screen keeps the flat 16pt gap until its own step recomposes it. The two
+rhythms cannot coexist: a screen with both gets 40pt between sections.
+
+On a display 600pt or wider, content is centred in a 560pt column and nothing stretches — Android 16
+ignores the portrait lock at that width for apps targeting API 36.
+
 ### Today
 
-Today answers, in order: who is driving, what is current, what must happen next, what needs
-attention, and what supporting context is useful. It is a state-driven mission-control surface,
-not a dashboard or configuration page.
+Today is **four screens, not one template** (`screens/today/todayModel.ts`): `preShift`,
+`activeLoad`, `betweenLoads`, `recovery`. The state decides which modules appear and in what order;
+`home.tsx` is composition only, and every rule that decides what a module contains is pure and
+tested. Recovery outranks the rest — a screen built on data that failed to load says so first, and
+still shows what the cache held.
+
+The attention queue is the second half: sync failures, a trailer gap, unread alerts and threads,
+queued work and a hazmat verdict, in priority order, capped at four, with the rest collapsed into an
+honest "+n more". Before it, each of those lived on a different screen, so the one screen a driver
+actually opens could be entirely calm while three things were wrong.
 
 ### Loads
 
-Loads use the `ScreenHeader`, `OfflineBanner`, `SegmentedControl`, and canonical load cards. Upcoming,
-current, and previous are a domain-specific pattern; do not replace it with a generic table.
+The offer deck is the signature moment: Accept and Decline on the card, plates behind it for the
+count, and Offered as the default chip whenever an offer exists — ahead even of the load in transit,
+because an offer is the only thing here with dispatch waiting on an answer. Current, Upcoming and
+History are rows on the sheet, not cards: Today already gives the current load a hero, and repeating
+that card made Loads a second Today.
+
+There is **no filter control**. The reference had one and there is nothing behind it.
+
+### Load detail and Stop
+
+Load detail is sheet-only and carries ONE progress indicator: the itinerary. The lifecycle stepper
+is deleted — a driver looking at a load they are driving does not need to be told it has been
+accepted. A stop's node colour says what happened to it, and the connector out of a **skipped** stop
+stays grey, because the run did not pass through it.
+
+The stop screen's hero is a map, `pointerEvents="none"`. There is no route service in this app, so a
+pannable map would promise something with nothing behind it; it orients a driver in a yard they have
+never been to. Offline, or with no coordinates, the flat navy hero takes its place. Required photos
+are tiles, and a tile never claims more than the app knows.
 
 ### Score
 
-Score uses a compact weekly scorecard, a linear progress cue, explainable grouped metric rows,
-trends, coaching, and explicit empty/ineligible states. A score must never be presented without
-its time period or meaning. Do not use a decorative ring or a grid of dashboard tiles.
+The number and the eight-week trend are the hero; what made the score is the sheet. Every sub-score
+states what it measures and what share of the grade it carries. The chart's floor is the ten below
+the driver's worst week — never a flat 0–100, which spends two thirds of its height on a band no
+driver occupies — and its ceiling stays at 100. No projections, no "on track for", no target the
+driver did not set.
 
-### More and Settings
+### More, Settings, Messages, Notifications
 
-Use `SectionLabel`, `GroupedList`, and `ListRow` for grouped settings and account actions.
-Destructive actions use `ConfirmSheet`, not native alerts.
+`Section` + `Card variant="flat"` + `ListRow disc` for grouped settings and account actions.
+Destructive actions use `ConfirmSheet`; an n-answer question uses `ChoiceSheet`, in front of the
+flow rather than below its fold.
+
+**Duty does not appear in More** — Today owns the shift, and a second place to change a truck is how
+a driver ends up unsure which screen is telling the truth. A failed sync is a **list of records with
+individual retries**, not a count with one global button.
 
 ### Operational workflows
 

@@ -1,8 +1,9 @@
 # Driver App Direction B — "Night cab over a day sheet"
 
-> Status: **Plan approved by owner 2026-09-07 and extended the same day with §6 (production readiness:
-> routing, source connections, App Store and Google Play). Nothing built yet. B0 and P1 are next and
-> independent.**
+> Status: **§5 (B0–B7) is BUILT and merged, 2026-09-07, PRs #642–#649. The owner device gate in B7
+> is OPEN and is the only thing left in §5 — see `DRIVER-APP-DIRECTION-B-AUDIT.md`.
+> §6 (P0–P8 production readiness) has not started; P1 gates the first store build and P4 the first
+> submission.**
 >
 > Owner surface: `apps/driver`
 >
@@ -758,7 +759,7 @@ additive.
 - **Done when:** gates green; every route walked once on the simulator in light and dark with a
   screenshot per route attached to the PR.
 
-### B7 · Cleanup, contract, device gate
+### B7 · Cleanup, contract, device gate — CODE DONE 2026-09-07; device gate OPEN
 
 **Branch:** `claude/driver-b7-close`.
 
@@ -1314,6 +1315,26 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   up unsure which screen is telling the truth. Notifications gains the durable entry.
   (7) **`app/hazmat/capture.tsx` was NOT touched** (§4 rule 7 — scanner programme). It still uses
   `SectionLabel`, which is now a bare in-card heading and renders correctly.
+- 2026-09-07 · **B7 built; §5 code complete.** Bracket escapes closed (14 sites → named steps
+  `spacing.13/15/18` and `maxWidth.bubble`) and `lint:design` now bans `(h|w|min-h|min-w|max-w|max-h)-[`
+  — proved by probe file, which the gate rejected. `sectionTitle` deleted from the variant list, the
+  token scale and Tailwind, its last consumer (`TaskStepper`) moved to `rowTitle`. `assets/tab-icons/`
+  (referenced by nothing since DS 2.0), `scripts/gen-tab-icons.mjs` and its package script deleted.
+  DESIGN.md's "Component rules" and "Screen composition rules" rewritten to describe what B1–B6
+  actually built, including the hero/sheet rules and the `flow` contract.
+  `DRIVER-APP-DIRECTION-B-AUDIT.md` written: what shipped, the **seven corrections made during the
+  build**, the three equivalent mutants accepted, and the device gate as an explicit open checklist.
+  Deviations:
+  (1) **`min-w-[18px]` became `min-w-5` (20px), not an 18px step.** 18 is not on the 4pt quantum and
+  the count badge did not need its own number; the badge is 2pt wider.
+  (2) **`max-w-[80%]` became a NAMED `maxWidth.bubble`** rather than a spacing step — a chat bubble's
+  share of the column is a design decision, and naming it is the point of removing the bracket.
+  (3) **The device gate is not run.** Seven steps shipped with no run on real hardware: there is no
+  iOS job (macOS runners bill ~10×) and no screenshot harness. The gallery was extended at every step
+  as the substitute and now covers all four Today states, both driver types, both stop heroes, four
+  chart states and every chip tone on both grounds — but it is not a phone in daylight. The audit
+  names the two failures to expect (Q-DB2 sunlight; amber-on-navy at night), both of which have a
+  token-only fallback.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a

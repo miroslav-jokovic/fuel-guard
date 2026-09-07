@@ -23,7 +23,7 @@ export function TaskStepper({ steps }: { steps: TaskStep[] }) {
       accessibilityValue={{ min: 1, max: steps.length, now: currentIndex + 1, text: current?.label }}
     >
       <View className="flex-row items-start justify-between gap-3">
-        <AppText variant="sectionTitle" className="flex-1">{current?.label ?? 'Current step'}</AppText>
+        <AppText variant="rowTitle" className="flex-1">{current?.label ?? 'Current step'}</AppText>
         <AppText variant="caption" tone="muted" tabular>Step {currentIndex + 1} of {steps.length}</AppText>
       </View>
       <View className="h-1 overflow-hidden rounded-full bg-surface-muted">

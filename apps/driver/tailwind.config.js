@@ -92,7 +92,7 @@ module.exports = {
         'ui-bold': ['Lexend_700Bold'],
       },
       // Names are exactly the AppText variant names (Direction B §2.3) so a class and a variant
-      // cannot drift apart. `section-title` survives only as long as the `sectionTitle` variant does.
+      // cannot drift apart.
       fontSize: {
         caption: ['12px', { lineHeight: '16px' }],
         label: ['12px', { lineHeight: '16px', letterSpacing: '0.96px' }],
@@ -101,7 +101,6 @@ module.exports = {
         rowTitle: ['16px', { lineHeight: '22px' }],
         action: ['17px', { lineHeight: '22px' }],
         navigationTitle: ['18px', { lineHeight: '24px' }],
-        'section-title': ['13px', { lineHeight: '18px' }],
         screenTitle: ['28px', { lineHeight: '32px' }],
         numericInline: ['22px', { lineHeight: '28px' }],
         numericCompact: ['24px', { lineHeight: '28px' }],
@@ -110,7 +109,10 @@ module.exports = {
       // 52 and 72 are real measurements in this design — the row/tab content target and the
       // separator inset that clears a 44pt disc plus its 12pt gap. They are absent from Tailwind's
       // default scale, which is the only reason `min-h-[52px]` and `ml-[72px]` existed.
-      spacing: { 13: '52px', 18: '72px' },
+      spacing: { 13: '52px', 15: '60px', 18: '72px' },
+      // A chat bubble stops short of the full width so the column reads as a conversation rather
+      // than as full-bleed paragraphs. Named because it is a design decision, not a stray number.
+      maxWidth: { bubble: '80%' },
       borderRadius: { md: 12, lg: 16, xl: 24, '2xl': 28, full: 9999 },
     },
   },
