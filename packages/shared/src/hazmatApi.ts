@@ -161,9 +161,26 @@ export const hazmatRegisterDocumentRequestSchema = z.object({
       configVersion: z.string(),
       mode: z.enum(["system_scanner", "raw_capture", "expo_camera"]),
       osEnhanced: z.boolean(),
+      /**
+       * sha256 over the ORIGINAL-of-record bytes (0133, restated by 0328) — NOT over the bytes being
+       * uploaded to `storagePath`, which is what the sibling `sha256` above describes. The two are
+       * equal on any capture that produced a single artifact, which is every capture before Phase 4.
+       */
       integrityHash: z.string().min(1),
       quality: z.record(z.string(), z.unknown()),
       ocrEvidence: z.record(z.string(), z.unknown()).nullable().default(null),
+      /**
+       * D-SCAN11's three outputs, declared at registration because the server cannot measure them:
+       * the upload happens afterwards, so a size the client does not state is a size nobody records.
+       *
+       * `archiveBytes` sizes the object being registered now. `original` declares that an untouched
+       * ORIGINAL exists and will be uploaded separately — its hash is `integrityHash` above, so only
+       * the size is new. Both optional: a manager registering a document has neither, and a driver
+       * app older than Phase 4b sends neither. The server writes the original's columns only when
+       * `original` is present, so a build that cannot produce one never claims one.
+       */
+      archiveBytes: z.number().int().nonnegative().optional(),
+      original: z.object({ bytes: z.number().int().nonnegative() }).optional(),
     })
     .optional(),
 });
@@ -175,6 +192,21 @@ export interface HazmatRegisterDocumentResponse {
   /** Supabase signed upload URL + token; the client PUTs the image to it. */
   uploadUrl: string;
   token: string;
+  /**
+   * Where the untouched ORIGINAL goes, present only when the request declared one (D-SCAN11).
+   *
+   * ⚠ **A signed upload URL is valid for two hours** (`storage-js`: "They are valid for 2 hours"),
+   * and D-SCAN11 defers this upload until the driver reaches an unmetered connection — which may be
+   * days. So this token is NOT the one a deferred upload should rely on. Registration is idempotent
+   * (`onConflict: "id", ignoreDuplicates: true`, and the page cap excludes the row's own id), so the
+   * client asks again when it is ready to upload and gets a fresh token. That property is what the
+   * outbox already depends on for replay, and it is why no separate "give me a URL" endpoint exists.
+   */
+  original?: {
+    storagePath: string;
+    uploadUrl: string;
+    token: string;
+  };
 }
 
 // ── GET/PUT /hazmat/policy (admin-only write; H8 locks the OrgHazmatPolicy shape) ───────────────

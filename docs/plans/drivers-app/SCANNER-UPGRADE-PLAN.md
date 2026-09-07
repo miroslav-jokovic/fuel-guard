@@ -1148,3 +1148,63 @@ Append a dated line when a step ships. Do not mark table rows.
   is therefore a **first integration**, exactly as D-SCAN13 said to budget for if the answer came
   back this way, and the sixteen owed checks in `HANDOFF-2026-09-07-SCANNER.md` §5 are against code
   no user has ever exercised. It also means Phase 4 has no production data to regress.
+
+- **2026-09-07** — **Step 4b SPLIT at the device boundary; the server half (4b-i) SHIPPED.** §4 writes
+  4b as one step, and it does not fit one reviewable merge: it spans Swift, Kotlin, the engine
+  contract, both providers, staging, connectivity, the outbox handler and the API. The halves also
+  have different verification stories — one is provable in CI today, the other cannot be verified at
+  all until the device session. **They could not be split any finer than this:** Step 1.3's integrity
+  check ties the recorded hash to the uploaded bytes, so the native change and the delivery change
+  have to land together or extraction fails on every capture in between.
+  · **4b-i (this merge):** the shared contract, `registerDocument`, and the orphan sweep. Additive —
+    no client sends the new fields yet, so no row gains an original and nothing changes behaviour.
+  · **4b-ii (next):** `scan()` returning the untouched original on both platforms, `contracts.ts`
+    un-aliasing `CapturedPage`'s four image fields, both providers, `isUnmetered()`, staging per
+    artifact, and the handler. Runtime bump, and **nothing on it is device-verified** — item 17 for
+    the §5 agenda.
+
+- **2026-09-07 — three things 4b-i found by reading the callers, each of which would have shipped a
+  silent failure.**
+  · **⚠ The plan's storage key for the ORIGINAL is already taken.** §4 Step 4b names
+    `{id}.orig.jpg`; `registerDocument` has written **every `image/jpeg` capture to that exact key**
+    since it was written, where `orig` meant "the original upload" back when a capture produced one
+    artifact. Both artifacts at one key fails SILENTLY: the `hazmat` bucket denies overwrite, so the
+    second upload returns "already exists", and the outbox handler treats already-exists as success
+    on purpose — it is what makes a re-drained record a no-op. The original would never upload and
+    every layer would report that it had. The key is `{id}.original.jpg`; the archive keeps the name
+    it has always had, because rewriting a stored key is a data migration on an insert-only evidence
+    table to fix a name that stops misleading anyone the moment the comment exists.
+  · **⚠ A signed upload URL is valid for TWO HOURS** (`storage-js`: *"They are valid for 2 hours"*),
+    and D-SCAN11 defers the original's upload until the driver reaches Wi-Fi — which may be days.
+    The token returned at registration is therefore not the one the deferred upload can use. No new
+    endpoint: registration is already idempotent (`ignoreDuplicates`, and the page cap excludes the
+    row's own id), so the client re-registers when it is ready and gets a fresh token. That is the
+    same property the outbox already depends on for replay. 4b-ii must actually do this.
+  · **`original_sha256` (0327) was redundant on arrival, and 0328 drops it.** `integrity_hash` has
+    been defined as "sha256 over the original-of-record bytes" since **0133**, and
+    `CapturedPage.integrityHash`'s contract comment says the same — three places agreed on the
+    meaning before 0327 invented a fourth name for it. `integrity_hash` stays because
+    `CapturedPage.integrityHash` is a cross-feature engine concept (hazmat AND the web
+    application-captures provider produce it), so retiring it would mean renaming a field through the
+    shared contract and three providers to gain a longer column name. 0133's *"equals sha256 unless a
+    derivative was stored"* has been vacuously true for its whole life — `hazmatCaptureModel.ts`
+    sends the same value as both — and 4b-ii makes the clause real for the first time.
+
+- **2026-09-07 — the nightly orphan sweep learns about a deferred upload (the trap 0326's header
+  named).** `reconcileBucketOrphans` selected `storage_path` alone and runs nightly with
+  `apply: true`, so it got BOTH halves wrong: it would have flagged every pending original as
+  possible evidence loss, and deleted every original that DID land 24 hours later as an object no row
+  pointed at. `planStorageReconcile` gains a `deferred` set whose paths always protect their objects
+  and are reported missing only past a grace window.
+  · **The grace is 30 days and is a CHOSEN operational threshold, not a derived one** — said so in
+    the constant's comment rather than left to look like a measurement. It gates a log line, never a
+    deletion. The exact answer would need the row to record when the upload happened, and it cannot:
+    `hazmat_documents` is insert-only evidence with no UPDATE policy, so there is nowhere to put
+    `original_uploaded_at` without breaking the property the table exists to have. That was
+    considered and rejected, not overlooked.
+  · **`registerDocument` had NO test before this merge** — the only writer of `hazmat_documents`, the
+    function that decides where every BOL image is stored. It has six now.
+  · **All six mutations were read, not assumed.** The plan's literal `.orig.jpg` key fails three
+    tests; swallowing the sign failure fails one; signing an original unconditionally fails two;
+    removing the deferred paths' protection fails the deletion test; dropping `deferredColumn` fails
+    the column assertion; removing the pending grace fails two.
