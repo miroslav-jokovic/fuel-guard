@@ -19,6 +19,7 @@ export { NumericField } from './NumericField';
 export { Field } from './Field';
 export { Progress } from './Progress';
 export { Sparkline } from './Sparkline';
+export { TrendChart } from './TrendChart';
 export { ConfirmSheet } from './ConfirmSheet';
 export { ChoiceSheet, type Choice } from './ChoiceSheet';
 export { SegmentedControl } from './SegmentedControl';

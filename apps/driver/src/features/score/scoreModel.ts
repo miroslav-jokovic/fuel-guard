@@ -23,7 +23,23 @@ export interface ScoreTile {
   value: string;
   spark?: number[];
   trend?: ScoreTrend;
+  /** What this component actually measures, in one fixed sentence. */
+  definition: string;
+  /** How much of the grade it carries, as a percentage of the configured weights. */
+  weightLabel: string;
 }
+
+/**
+ * What each sub-score is measured on. A driver told "Efficiency 78" and given no definition cannot
+ * act on it, and will assume it means whatever they most fear it means. These are fixed sentences,
+ * not copy to be reworded per screen: the coaching line already speaks in the driver's terms, and
+ * this is the plain statement of the measurement underneath it.
+ */
+export const SCORE_DEFINITIONS: Record<ScoreComponentKey, string> = {
+  safety: 'Harsh braking, speeding, following distance',
+  efficiency: 'MPG against the fleet on the same lanes',
+  idling: 'Engine-on time with the truck stopped',
+};
 
 export interface ScoreView {
   state: 'empty' | 'ineligible' | 'ready';
@@ -115,7 +131,17 @@ function componentSpark(weeksAsc: MeScoreWeek[], key: ScoreComponentKey): number
   return vals.length >= 2 ? vals : undefined;
 }
 
-function buildTiles(weeksAsc: MeScoreWeek[], latest: MeScoreWeek, prev: MeScoreWeek | null): ScoreTile[] {
+function buildTiles(
+  weeksAsc: MeScoreWeek[],
+  latest: MeScoreWeek,
+  prev: MeScoreWeek | null,
+  weights: PerformanceWeightsView,
+): ScoreTile[] {
+  const weightOf: Record<ScoreComponentKey, number> = {
+    safety: weights.safety,
+    efficiency: weights.efficiency,
+    idling: weights.idling,
+  };
   return ORDER.map((key) => {
     const cur = SELECTORS[key].score(latest);
     const meta = TILE_META[key];
@@ -126,6 +152,8 @@ function buildTiles(weeksAsc: MeScoreWeek[], latest: MeScoreWeek, prev: MeScoreW
       value: cur == null ? '—' : String(Math.round(cur)),
       spark: componentSpark(weeksAsc, key),
       trend: trendFromDelta(roundedDelta(cur, prev ? SELECTORS[key].score(prev) : null)),
+      definition: SCORE_DEFINITIONS[key],
+      weightLabel: weightPctLabel(weightOf[key], weights),
     };
   });
 }
@@ -201,7 +229,7 @@ export function buildScoreView(data: MeScoreResponse | undefined): ScoreView {
   const prev = weeks[1] ?? null;
   const weeksAsc = [...weeks].reverse();
   const weekLabel = weekRangeLabel(latest.week_start, latest.week_end);
-  const tiles = buildTiles(weeksAsc, latest, prev);
+  const tiles = buildTiles(weeksAsc, latest, prev, data.weights);
 
   const ranked = latest.eligible && latest.week_final != null;
   if (!ranked) {

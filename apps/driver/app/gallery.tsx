@@ -5,7 +5,7 @@ import { acceptanceCopy } from '@silvicom/shared';
 import {
   ActionBar, AppText, Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field,
   ChoiceSheet, GroupedList, Icon, IconButton, Input, ListRow, NumericField, Progress, Screen, ScreenHeader,
-  Section, SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, severityTone, useToast, type Tone,
+  Section, SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, TrendChart, severityTone, useToast, type Tone,
 } from '@/components';
 import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import type { AttentionRow, TodayState } from '@/screens/today/todayModel';
@@ -15,6 +15,14 @@ import { SAMPLE_STOP_LOAD } from '@/features/loads/sampleOffers';
 import { SAMPLE_OFFERS } from '@/features/loads/sampleOffers';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
+
+/** The domain rule only misbehaves at the extremes: a flat band, a wide swing, and a single week. */
+const TREND_SERIES: { label: string; values: number[] }[] = [
+  { label: 'Eight weeks', values: [78, 81, 79, 84, 88, 86, 91, 89] },
+  { label: 'Five weeks, wide swing', values: [42, 63, 55, 74, 88] },
+  { label: 'Two weeks (the minimum)', values: [87, 91] },
+  { label: 'One ranked week — no chart', values: [87] },
+];
 
 const CHIP_TONES: Tone[] = ['neutral', 'brand', 'action', 'info', 'success', 'danger', 'warning', 'caution'];
 
@@ -366,6 +374,19 @@ export default function Gallery() {
           offline device sees. The map is `pointerEvents="none"`: a picture, not a navigator, because
           no route service is reachable from this app.
         </AppText>
+      </Section>
+
+      {/* B5 done-when: the chart at 2, 5 and 8 weeks plus the fallback, because the domain rule
+          only misbehaves at the extremes and one fixture never shows it. */}
+      <Section title="Trend chart — 2, 5, 8 weeks, and below the floor">
+        <View className="gap-5 rounded-xl bg-hero p-4">
+          {TREND_SERIES.map(({ label, values }) => (
+            <View key={label} className="gap-1">
+              <AppText variant="caption" tone="onHeroMuted">{label}</AppText>
+              <TrendChart values={values} />
+            </View>
+          ))}
+        </View>
       </Section>
 
       <Section title="Toast host" action={{ label: 'Show one', onPress: () => toast.show('Stop 2 completed · 4 photos queued') }}>
