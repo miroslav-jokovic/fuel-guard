@@ -25,6 +25,7 @@ interface EasJson {
   build: Record<
     string,
     {
+      environment?: string;
       distribution?: string;
       developmentClient?: boolean;
       env?: Record<string, string>;
@@ -90,8 +91,26 @@ describe('the production profile is a store build (D-PR3, D-PR10)', () => {
     expect(Object.keys(eas.build).sort()).toEqual(['development', 'preview', 'production']);
   });
 
+  it('gives every profile an environment matching its own name', () => {
+    // A profile pointed at the wrong environment is the quiet version of the same failure: a
+    // preview build carrying production URLs, or a store build carrying a laptop's.
+    for (const [name, profile] of Object.entries(eas.build)) {
+      expect(profile.environment).toBe(name);
+    }
+  });
+
   it('sets APP_VARIANT=store — the variable native-config.test.ts asserts the effects of', () => {
     expect(production?.env?.APP_VARIANT).toBe('store');
+  });
+
+  it('declares APP_VARIANT and NOTHING else inline', () => {
+    // Everything else a build needs lives in an EAS environment (owner ruling 2026-09-07): the
+    // Supabase publishable key is a JWT, and a JWT in a tracked file is what gitleaks and
+    // scripts/scan-secrets.mjs exist to stop — however genuinely public that particular key is.
+    // APP_VARIANT stays because it is a decision about what kind of build this is, not a lookup.
+    for (const profile of Object.values(eas.build)) {
+      expect(Object.keys(profile.env ?? {})).toEqual(['APP_VARIANT']);
+    }
   });
 
   it('is the ONLY profile that does', () => {
@@ -116,6 +135,12 @@ describe('the production profile is a store build (D-PR3, D-PR10)', () => {
   it('distributes to the store rather than internally', () => {
     expect(production?.distribution).toBe('store');
     expect(eas.build.preview?.distribution).toBe('internal');
+  });
+
+  it('names an EAS environment, which is where the build-time values come from', () => {
+    // Without this the profile silently gets no variables at all and the bundle is built against
+    // undefined URLs — an app that installs, opens, and can reach nothing.
+    expect(production?.environment).toBe('production');
   });
 
   it('keeps the dev client on the development profile only', () => {
@@ -151,7 +176,6 @@ describe('a submission lands somewhere a human still has to promote it (P8)', ()
 
 describe('what P2.3 still has to fill in', () => {
   const placeholders = [
-    ...Object.entries(eas.build.production?.env ?? {}),
     ['ascAppId', eas.submit.production?.ios?.ascAppId ?? ''],
     ['appleTeamId', eas.submit.production?.ios?.appleTeamId ?? ''],
   ].filter(([, value]) => PLACEHOLDER.test(String(value)));

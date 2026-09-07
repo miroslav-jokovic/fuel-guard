@@ -1534,3 +1534,35 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   `eas-build-post-install` hook is the one known requirement, not a guarantee there is only one. The
   seven `<placeholder>` values in `eas.json` are counted and named by `tests/eas-config.test.ts`
   rather than tracked in someone's head.
+
+- 2026-09-07 · **P2.1 revised: build-time values move out of `eas.json` onto EAS environments**
+  (owner ruling). Each profile now names an `environment` (`development` / `preview` / `production`)
+  and declares only `APP_VARIANT` inline — that one is a decision about what kind of build this is,
+  not an environment lookup, and belongs where a reviewer sees it.
+
+  **Why, precisely:** the `EXPO_PUBLIC_*` values genuinely are not secrets — they compile into the
+  bundle and are already on every phone with the app — and that argument was the original reason for
+  listing them in the file. It is still true and it is not why they moved. The Supabase publishable
+  key is a **JWT**, this repo runs `gitleaks` and `scripts/scan-secrets.mjs` over all tracked
+  content, and a JWT-shaped string in a committed file is exactly what those gates exist to stop.
+  Arguing with a secret scanner about a key that is genuinely public is a fight worth losing.
+
+  `eas.json` now carries **two** placeholders rather than seven — `ascAppId` and `appleTeamId`, which
+  cannot exist before the App Store Connect record does. "Is the store build pointed at production?"
+  is now `eas env:list production`, a command, rather than a grep of a file.
+
+  **Verified against the installed CLI, not the docs:** `eas env:set` is the current command
+  (`eas env:create` does not exist; `eas secret:create` still does and is the older name for the same
+  store — EAS.md uses `env:set` throughout so there is one mechanism to learn). `--type string|file`,
+  `--visibility plaintext|sensitive|secret`, `--scope project|account`. The `environment` field on a
+  build profile is real and takes the three default environment names — worth confirming before
+  writing, because an unknown key in `eas.json` is not a warning but a refusal to build at all.
+
+  Tests 19 → 22; **4 further mutants, 4 died** (store profile reading the preview environment, a
+  profile naming none, a JWT creeping back into the file, preview pulling production values).
+
+- 2026-09-07 · **Tooling installed** for P2.3: `eas-cli 23.2.0` (the version `driver-store.yml`
+  pins, so local and CI agree) and `bundletool 1.18.3`. **`fastlane` deliberately not installed** —
+  it needs Ruby 3.x against a 2.6.10 system Ruby, and it is a P3/P7 need (screenshots and listing
+  metadata), not a P2 one. `eas config` cannot validate `eas.json` until someone runs `eas login`,
+  so EAS's own validator has still not seen the file.

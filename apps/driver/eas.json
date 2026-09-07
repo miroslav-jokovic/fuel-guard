@@ -5,6 +5,7 @@
   },
   "build": {
     "development": {
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
       "env": {
@@ -12,6 +13,7 @@
       }
     },
     "preview": {
+      "environment": "preview",
       "distribution": "internal",
       "env": {
         "APP_VARIANT": "preview"
@@ -21,15 +23,10 @@
       }
     },
     "production": {
+      "environment": "production",
       "distribution": "store",
       "env": {
-        "APP_VARIANT": "store",
-        "EXPO_PUBLIC_API_URL": "<prod api url>",
-        "EXPO_PUBLIC_SUPABASE_URL": "<prod supabase url>",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "<prod publishable key>",
-        "EXPO_PUBLIC_SENTRY_DSN": "<sentry dsn>",
-        "UPDATES_URL": "<xprem origin>",
-        "UPDATES_APP_ID": "<xprem app id>"
+        "APP_VARIANT": "store"
       },
       "android": {
         "buildType": "app-bundle"
