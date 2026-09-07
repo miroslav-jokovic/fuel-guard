@@ -23,12 +23,20 @@ export function DutyStrip({
   duty,
   name,
   loading,
+  dutyKnown = true,
   messages,
   notifications,
 }: {
   duty: DutyView;
   name: string;
   loading: boolean;
+  /**
+   * Is the duty status a FACT? `dutyView(undefined).onDuty` is `false`, so a failed shift query is
+   * indistinguishable from a driver who is genuinely off duty — and this strip printed the second
+   * reading in the screen's boldest type while the recovery banner said the opposite. Defaults to
+   * true so every other caller is unchanged; Today passes `false` only in recovery with no cache.
+   */
+  dutyKnown?: boolean;
   messages?: { unread: number; onPress: () => void };
   notifications?: { unread: number; onPress: () => void };
 }) {
@@ -49,12 +57,14 @@ export function DutyStrip({
   return (
     <View className="flex-row items-center gap-3" style={{ minHeight: 44 }}>
       <Avatar name={name} size={44} />
-      <View className="flex-1 gap-0.5">
-        <AppText variant="navigationTitle" tone="onHero" numberOfLines={1}>
-          {duty.onDuty ? `On duty${elapsed ? ` ${elapsed}` : ''}` : 'Off duty'}
+      <View className="flex-1 gap-1">
+        <AppText variant="navigationTitle" tone={dutyKnown ? 'onHero' : 'onHeroSecondary'} numberOfLines={1}>
+          {!dutyKnown ? 'Duty status unavailable' : duty.onDuty ? `On duty${elapsed ? ` ${elapsed}` : ''}` : 'Off duty'}
         </AppText>
         <AppText variant="supporting" tone="onHeroSecondary" numberOfLines={1}>
-          {[dayLabel(), duty.onDuty ? equipment : null].filter(Boolean).join(' · ')}
+          {!dutyKnown
+            ? dayLabel()
+            : [dayLabel(), duty.onDuty ? equipment : null].filter(Boolean).join(' · ')}
         </AppText>
       </View>
       {messages ? (

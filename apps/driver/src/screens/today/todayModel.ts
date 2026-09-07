@@ -37,7 +37,40 @@ export function todayState(input: {
 }
 
 /** Heights that keep a skeleton the same size as the module it stands in for. */
+/**
+ * May the hero show a skeleton instead of its card?
+ *
+ * A boolean this small does not look worth extracting until it is wrong, and this one was wrong in
+ * two ways at once for every fleet with the Loads tab disabled (2026-09-07):
+ *
+ * - `isPending` is TRUE FOREVER for a disabled query. `useLoads(enabled)` passes `enabled: false`
+ *   when `tab.loads` is off, and TanStack v5 reports that as pending-with-no-data — so the old
+ *   `loads.isPending && !loads.data` never became false and those drivers saw a 332pt grey
+ *   rectangle where the start-shift card belongs, permanently. `isLoading` is `isPending &&
+ *   isFetching`, which a disabled query never satisfies. That distinction is the whole fix.
+ * - The pre-shift card reads duty and equipment, never loads. Waiting on a loads request to draw a
+ *   card that request cannot change is filler, and DESIGN.md is explicit that a region answering no
+ *   driver question is removed.
+ *
+ * Living here rather than in the JSX is the point: `home.tsx` is composition only, and a rule that
+ * can be silently wrong on a device belongs where a test can reach it.
+ */
+export function shouldSkeletonHero(input: {
+  loadsEnabled: boolean;
+  loadsLoading: boolean;
+  state: TodayState;
+}): boolean {
+  if (!input.loadsEnabled) return false;
+  if (input.state === 'preShift') return false;
+  return input.loadsLoading;
+}
+
 export const SKELETON_HEIGHTS = {
+  // NOT measured against their modules, despite what this block used to claim: CurrentLoadHero is
+  // ~392pt and StartDayCard ~320pt against `heroCard: 332`, and DutyStrip is ~46 against 56. The
+  // jump is now rare rather than fixed — `shouldSkeletonHero` keeps the hero skeleton off the two
+  // states that never needed it — but the numbers are approximations and this comment says so
+  // rather than asserting a precision nobody checked.
   dutyStrip: 56,
   heroCard: 332,
   attentionRow: 64,

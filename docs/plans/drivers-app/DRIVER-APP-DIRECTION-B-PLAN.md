@@ -1636,3 +1636,58 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   **Method note.** Two of these were found only by driving the real app: the icons through a
   screenshot, the tab filter by logging what expo-router actually passes. The audit's §3 warning —
   "a gallery is not a phone in daylight" — was too kind to the gallery. It is not a phone at all.
+
+- 2026-09-07 · **Design critique of Today + the tab bar, and its fixes.** Run as an Impeccable
+  `critique`: two isolated assessments (design review; deterministic detector) synthesised here.
+  Heuristic mean **2.0/4** on the observed recovery state, against a model layer the review called
+  "domain reasoning of a quality most products never reach" — the intelligence was real and
+  `home.tsx` threw it away in exactly the states where it mattered.
+
+  **What the deterministic half is worth knowing for:** the bundled detector returned 0 findings and
+  both project gates passed. That is not evidence the screen was fine. The detector's rule set is
+  ~10 literal AI-slop tells and its contrast/typography checks need a DOM, so they cannot run on
+  React Native at all; `check-driver-design.mjs` is a per-line regex sweep. **Neither can see visual
+  hierarchy, information density, empty/error-state design, or copy.** Every gate was green while
+  the screen asserted a duty status it had just failed to fetch.
+
+  **Fixed (highest driver impact first):**
+  1. **A permanent grey rectangle for any fleet with the Loads tab off.** A DISABLED TanStack query
+     is `isPending` forever, and the hero gated on `loads.isPending && !loads.data` with no
+     `loadsEnabled` guard — while the Up next section three lines below guarded correctly. Those
+     drivers could never start a shift. The rule moved into `shouldSkeletonHero` in `todayModel.ts`
+     where a test can reach it: 5 cases, **5 mutants, 5 died**, including the shipped bug's exact
+     shape.
+  2. **The pre-shift card was held hostage by a query it does not read.** `StartDayCard` consumes
+     duty and equipment, never loads; a driver at 05:40 waited 332pt of animated grey for an answer
+     that could not change the card.
+  3. **The hero asserted "Off duty" while the banner said duty was unverified.** `dutyView(undefined)
+     .onDuty` is `false`, so absence rendered as a negative assertion — in the screen's boldest type,
+     about a legally accountable fact. Unknown is now its own state ("Duty status unavailable").
+  4. **…and the screen offered the very act the banner forbade.** The amber "Confirm equipment" CTA
+     sat directly above "Retry before claiming different equipment". The action is withheld until
+     duty is known, with the reason in its place.
+  5. **The 24pt orphan navy band.** `Screen`'s bottom inset was on the scroll container, OUTSIDE the
+     `flex-1` sheet, so it painted as exposed hero navy between the sheet and the tab bar — and the
+     tab bar's 28pt corners then cut notches into it. Moved inside the sheet, which is what D-DB1's
+     "one stacked surface" asks for.
+  6. **The amber avatar outshouted every real action.** `bg-action` on a non-interactive identity
+     chip, beside two genuinely tappable controls in translucent white — the affordance inverted, and
+     against D-DB2's "amber is the only action colour on the hero". Now `hero-tile`.
+  7. **Tab labels used `on-hero-muted`**, which the token contract restricts to "non-essential copy
+     (axis labels, timestamps)". They are the app's primary navigation, read in sunlight. Also
+     dropped `numberOfLines={1}` (D-DB9: Dynamic Type stacks rather than truncates — these were the
+     only clipped labels in the app), moved two 2pt structural values onto the 4pt scale, and removed
+     a duplicated accessibility label VoiceOver read twice.
+  8. **The error banner's own words were grey** (`ink-secondary` on `danger-soft`, against the
+     contract's `*-soft` pairing rule), it was **silent to VoiceOver on iOS** precisely when it was
+     actionable (`accessible={!actionable}`, and `accessibilityLiveRegion` is Android-only), its
+     Retry fired no haptic, and its tap target was `px-1` at the screen edge.
+  9. `firstName(full_name)` was dead code — `full_name ?? firstName(full_name)` always took the first
+     operand, so the duty strip greeted drivers with their **full legal name**.
+
+  **Left for the owner, deliberately not guessed:** whether recovery should be sheet-only (the hero
+  is ~65% of the screen and the least trustworthy region); whether the "Today" tab should keep a
+  house glyph (the file's own comment rejects a bar chart for Loads on the identical argument);
+  collapsing multiple simultaneous alerts into one summary (DESIGN.md asks for it, up to seven can
+  stack); a `RefreshControl` on `Screen` (Today has five queries and no refresh gesture); and
+  `AttentionQueue`'s hardcoded `ml-18` where `GroupedList` derives the same inset.

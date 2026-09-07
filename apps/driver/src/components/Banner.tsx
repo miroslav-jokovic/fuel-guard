@@ -1,5 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { AppText } from './AppText';
+import { haptics } from '@/lib/haptics';
 import { Icon } from './Icon';
 import { TONE_ICON, TONE_SOFT, type Tone } from './tone';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
@@ -18,18 +19,31 @@ export function Banner({
   actionLabel?: string;
   onAction?: () => void;
 }) {
-  const actionable = Boolean(actionLabel && onAction);
   return (
     <View
       className={`min-h-11 flex-row items-center gap-3 rounded-lg px-3 py-2 ${TONE_SOFT[tone].bg}`}
-      accessible={!actionable}
-      accessibilityRole={actionable ? undefined : 'alert'}
+      // `accessible={!actionable}` made the ONE kind of banner that matters — an error with a
+      // recovery action — the one kind VoiceOver never announced, because `accessibilityLiveRegion`
+      // is Android-only. The container announces itself and its children stay reachable.
+      accessible={false}
+      accessibilityRole="alert"
       accessibilityLiveRegion="polite"
     >
       <Icon name={icon ?? TONE_ICON[tone]} size={18} className={TONE_SOFT[tone].text} />
-      <AppText variant="supporting" tone="secondary" className="flex-1">{message}</AppText>
+      <AppText variant="supporting" className={`flex-1 ${TONE_SOFT[tone].text}`}>{message}</AppText>
       {actionLabel && onAction ? (
-        <Pressable accessibilityRole="button" onPress={onAction} className="min-h-11 justify-center px-1">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+          // px-3, not px-1: this is the recovery tap, and it sat as a ~40pt strip at the screen
+          // edge. Haptic to match every other pressable in the app — a driver in a dead zone needs
+          // to know the tap landed.
+          onPress={() => {
+            haptics.select();
+            onAction();
+          }}
+          className="min-h-11 justify-center px-3"
+        >
           <AppText variant="action" className={TONE_SOFT[tone].text}>{actionLabel}</AppText>
         </Pressable>
       ) : null}

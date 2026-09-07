@@ -77,11 +77,18 @@ export function Screen({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {statusBar}
+        {/*
+          * The bottom inset belongs INSIDE the sheet, not on the scroll container.
+          *
+          * It used to sit on `contentContainerStyle`, outside the `flex-1` sheet below — so on a
+          * hero screen those 24pt rendered as a band of exposed navy between the white sheet and
+          * the tab bar, and the tab bar's 28pt corners then cut two light notches into it. It read
+          * as a rendering fault, and it was loudest on a nearly empty screen. Moving it inside lets
+          * the sheet run to the bottom of the scene, which is what D-DB1's "one stacked surface"
+          * asks for.
+          */}
         <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer), protectedByTabBar),
-          }}
+          contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -103,6 +110,7 @@ export function Screen({
               marginTop: -layout.sheetOverlap,
               paddingTop: layout.sheetTopPadding,
               paddingHorizontal: layout.screenInset,
+              paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer), protectedByTabBar),
             }}
           >
             {columnStyle ? <View style={columnStyle}>{children}</View> : children}
