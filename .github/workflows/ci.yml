@@ -365,8 +365,15 @@ jobs:
       # `android/` is generated and never committed, so it has to be produced before it can be
       # built. --no-install because the workspace is already installed; --clean because a cached
       # half-generated project is worse than none.
-      - name: Prebuild the Android project
+      #
+      # APP_VARIANT=store added 2026-09-07 (DIRECTION-B-PLAN §6 P1.6). ONE prebuild, in the variant
+      # that ships: the capture module compiles the same either way, and the store variant is the
+      # one nobody exercises on a laptop. The only difference the flag makes to this project is that
+      # expo-dev-client leaves the plugin list.
+      - name: Prebuild the Android project (store variant)
         working-directory: apps/driver
+        env:
+          APP_VARIANT: store
         run: pnpm exec expo prebuild --platform android --no-install --clean
 
       - uses: gradle/actions/setup-gradle@v4
@@ -387,6 +394,30 @@ jobs:
       - name: Check the capture module's metric parity against the reference
         working-directory: apps/driver/android
         run: ./gradlew :capture-native:testDebugUnitTest --no-daemon --console=plain
+
+      # ── What the app actually ships (DIRECTION-B-PLAN §6 P1.6) ──────────────────────────────
+      # app.config.ts does not DECLARE the manifest, it makes requests of the manifest merger:
+      # `blockedPermissions` emits tools:node="remove", and whether a library's permission actually
+      # went away is only visible after AGP has merged every dependency's manifest into ours. The
+      # five declared permissions become thirty-three in the merged output (measured 2026-09-07), so
+      # reading app.config.ts tells you nothing about what Play will list.
+      #
+      # `processReleaseManifest` and not a full assembleRelease: the manifest is what this step is
+      # about, it needs no keystore, and an app-module release build is minutes rather than seconds.
+      # SENTRY_DISABLE_AUTO_UPLOAD because @sentry/react-native's sentry.gradle runs sentry-cli in a
+      # plain exec with no ignoreExitValue — with no auth token that is a failed build, not a
+      # skipped upload (D-PR11).
+      - name: Merge the release manifest
+        working-directory: apps/driver/android
+        env:
+          SENTRY_DISABLE_AUTO_UPLOAD: "true"
+        run: ./gradlew :app:processReleaseManifest --no-daemon --console=plain
+
+      - name: The shipped manifest is what app.config.ts asked for
+        working-directory: apps/driver
+        run: >-
+          node scripts/check-android-manifest.mjs
+          android/app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml
 
   # ── The required check ────────────────────────────────────────────────────────────────────────
   # main's branch protection requires a status check named `build`. Before the split that was the

@@ -59,11 +59,14 @@ const CARVE_OUTS = new Map([
     "pins sharp's OWN arithmetic as measured evidence (M1-M5); reproducing it is the entire point",
   ],
   [
-    "apps/driver/tests/theme-colors.test.ts",
+    // Moved here from apps/driver/tests/theme-colors.test.ts on 2026-09-07: scripts/gen-app-icons.mjs
+    // needed the same arithmetic to decide which brand-mark fills become white, and this gate is what
+    // stopped it becoming a second copy. The test now imports from here, so there is still one.
+    "apps/driver/scripts/srgb.mjs",
     "WCAG relative luminance for contrast ratios — a DIFFERENT question that happens to share the " +
       "Rec.709 weights. It applies the sRGB-to-linear transfer function first, so it computes " +
       "linear-light luminance where the scanner computes gamma-encoded luma; pointing it at " +
-      "metrics.ts would silently change every accessibility assertion in that file",
+      "metrics.ts would silently change every accessibility assertion that depends on it",
   ],
 ]);
 

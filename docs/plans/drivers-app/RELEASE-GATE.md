@@ -122,10 +122,12 @@ exists, an iPhone. Each row: do the steps, confirm the criterion.
 | UGC report affordance (Apple 1.2) | ✅ built — long-press a received message → report, audited |
 | Camera permission string | ✅ declared, purpose-specific (proof-of-work photos) |
 | Photo-library / microphone | ✅ deliberately NOT requested (least privilege) |
-| Location permission | `expo-location` is declared and never called (0 call sites, 2026-09-07); removed in `DRIVER-APP-DIRECTION-B-PLAN.md` §6 P1 |
-| Target API 36 · 16 KB page size · pinned SDKs | ☐ — §6 P1 (`expo-build-properties`, `check-16kb.mjs`) |
+| Location permission | ✅ **removed 2026-09-07** (§6 P1, D-PR6) — the dependency is gone, and both Android location permissions are in `blockedPermissions` because MapLibre merges them in unasked. The merged release manifest carries neither (measured on `:app:processReleaseManifest`, asserted every CI run) |
+| Target API 36 · pinned SDKs | ✅ **2026-09-07** (§6 P1) — `expo-build-properties` pins 36/36/24; the merged release manifest says `targetSdkVersion="36"` and CI fails if it moves |
+| 16 KB page size | ⚠ **checked, not yet measured on a shipped bundle** — `scripts/check-16kb.mjs` reads every `.so`'s PT_LOAD alignment and runs on the APK in `driver-android.yml`; it has never run on a real bundle of this app's libraries, because the first one is built on the next merge to main. Two 4 KB-aligned libraries exist in `expo-sqlite` (`libsql`, `vec`) and neither is packaged — both are off by default and we do not enable them |
 | Xcode 26 / iOS 26 SDK build · AAB lane · EAS Submit | ☐ — §6 P2 |
-| Privacy manifest with collected data types · privacy policy URL · Data Safety form | ☐ — §6 P1 and P3 |
+| Privacy manifest with collected data types | ✅ **2026-09-07** (§6 P1) — seven collected types, three required-reason APIs, no tracking, no location; `PrivacyInfo.xcprivacy` verified in an `expo prebuild --platform ios` output |
+| Privacy policy URL · Data Safety form | ☐ — §6 P3 |
 | Review fleet + credentials · listing assets | ☐ — §6 P7 and P8 |
 | Push permission | requested only when the `notifications` feature is on |
 | Privacy labels (camera, photos, push token, coarse identifiers) | ☐ **owner action** — fill from the above before submission |
