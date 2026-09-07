@@ -1,4 +1,4 @@
-# Handoff — Phases 0–4 are done; nothing has been on a phone, and now we know nobody ever has (2026-09-07, revised twice)
+# Handoff — Phases 0–4 and Steps 5.1/5.3 are done; the only thing left before the device session is Q2 (2026-09-07, revised three times)
 
 **Scope: the driver document scanner only.** For fuel, Samsara and SMS, `HANDOFF-2026-09-06.md` still
 stands and is untouched by any of this.
@@ -14,9 +14,9 @@ step and this is a snapshot of one day.
 1. Read `SCANNER-UPGRADE-PLAN.md` top to bottom. §1 (decisions D-SCAN1–13), §3 (execution protocol),
    §8 (the log, which is now long and is the real record). Then this file's §5 and §6.
 2. `git log --oneline -15`, `git branch --show-current`.
-3. **The next step is Phase 5.** Phases 0, 1, 2, 3 **and 4** are complete and merged; Phase 4's
-   three migrations are applied to production and verified by querying it. **Read §7 — it now says
-   what Phase 5 needs and what it cannot have yet.**
+3. **The next step is the DEVICE SESSION.** Phases 0–4 are complete, and so are Steps **5.1**
+   (telemetry) and **5.3** (coverage reports `na`). What remains in Phase 5 is 5.2, which cannot run
+   until a phone has produced captures, and 5.4, which is blocked on owner question Q2. **Read §7.**
 4. One step per branch (`claude/<topic>`), PR to `main`, merge after CI. The owner's standing
    instruction as of 2026-09-07 is **merge them as they go green**.
 
@@ -50,6 +50,9 @@ Phase 4: #630, #631, #632, #633, #634, #635.**
 | **#633** | P4b-i | The server signs a second upload URL; the nightly sweep stops planning to delete the original. |
 | **#634** | P4b-ii-a | **F1 is fixed.** `CapturedPage`'s four image fields stop aliasing; `measure()` moves to the original. |
 | **#635** | P4b-ii-b | **PHASE 4 COMPLETE.** The outbox learns a third outcome so an original can wait for Wi-Fi. |
+| **#637** | P5.3 | **F6 fixed.** The last invented number leaves the metric path; coverage reports `na`. |
+| **#638** | P5.1a | Shadow mode was recording **nothing** — the five measured values were discarded at the gate. |
+| **#639** | P5.1b | Device class from the native probe; the iOS build caught two errors CI cannot. |
 
 ---
 
@@ -59,7 +62,7 @@ Phase 4: #630, #631, #632, #633, #634, #635.**
 ruling, 2026-09-07) moved the device session to the END of the programme. That is a legitimate trade
 and it was taken deliberately — but it means CI compiles the Kotlin, a Mac compiles the Swift, and
 **"it builds" is the strongest claim available for months of work.** §5 is the bill, and it is now
-**twenty-one items long**.
+**twenty-four items long**, and item 22 now gates the rest of the programme.
 
 There is a second, sharper edge, and on 2026-09-07 it stopped being a suspicion. **Production holds
 zero hazmat loads, zero documents and zero runs** — measured against the linked Supabase project
@@ -139,6 +142,15 @@ Nothing here is verified. Every line rests on a compile and a unit test.
 21. A capture on cellular uploads the archive and leaves the original pending; joining Wi-Fi uploads
     it exactly once; the sync screen says *"Waiting for Wi-Fi to upload N original pages"* rather
     than showing a failure (#635).
+22. **`hazmat_documents.capture_metrics` actually arrives populated** — the first row ever written to
+    that column, carrying five real metric values, the analysis scale and both timings. Everything
+    Step 5.2 does is reading this column, so it is the one line on this list that gates the rest of
+    the programme (#638).
+23. `deviceModel` and `osVersion` are real strings on both platforms. A simulator can return an empty
+    `utsname.machine`, which the code drops — so this needs a DEVICE, not a simulator, to confirm
+    (#639).
+24. The attempt counter increments across a rejection and a retake, so the re-shoot rate — trigger
+    (a) of the Phase 7 decision — is a real number rather than a column of 1s (#638).
 
 Plus **§6 Q5 — which provider actually runs.** That is the one that could change the plan.
 
@@ -195,6 +207,20 @@ a carve-out added speculatively before the gate shipped, then caught its own wai
 **`lint:comment-claims` is stricter than it looks.** "pinned by `somefile.test.ts`" fails; it wants a
 quoted `it(...)` title.
 
+**⚠ A gate reporting `na` throws its measurement away, and Step 5.1 nearly shipped on top of that.**
+`QualityReport`'s `na` checks carry no `detail` — correctly — and under D-SCAN10 every image floor is
+`null`, so every one of those checks is `na`. Phase 3's "every capture measures five things" was
+true, and the five numbers were discarded one function later. `CapturedPage.metrics` now carries what
+was MEASURED beside `quality`, which carries what was CONCLUDED. If a future step needs a value the
+gate did not act on, that is where it lives.
+
+**⚠ The iOS build is not optional, and it has now caught real errors twice.** §3.4 item 2
+(`xcodebuild -scheme CaptureNative -sdk iphonesimulator`) rejected two Swift exclusivity errors in
+#639 that **nothing else could have seen**: there is no iOS job in CI, and the metric-parity harness
+compiles only `CaptureMetrics.swift` and `CaptureImageDecode.swift`, never
+`CaptureNativeModule.swift`. `native-android` was green on the same branch. Run it on every change to
+any Swift file under `ios/`, not just the metric ones.
+
 **⚠ Code the tests cannot reach is code no mutation can check, and this programme has now been bitten
 twice in one day.** Pointing `measure()` at the derivative instead of the original — inverting
 D-SCAN4 exactly — **passed the entire driver suite**, because `assemblePage` lived in
@@ -243,17 +269,24 @@ dead-letter.
 
 **Phase 5 is where thresholds get derived, and it splits into what can be built now and what cannot.**
 
-- **Step 5.1 (telemetry) — buildable today.** It populates `capture_metrics`, the column 4a created.
-  D-SCAN13's shape ("build it out, then test on device") applies as it has all programme.
-- **Step 5.3 (`coverageFraction: 1` becomes `na`) — buildable today**, and it is small: delete an
-  invented number from `nativeScanOutcome.ts`'s `assemblePage`.
-- **Step 5.2 (derive each floor) — CANNOT be done yet, and this is the honest blocker.** It derives
+- **Step 5.1 (telemetry) — DONE** (#638, #639). `capture_metrics` is written on every driver capture:
+  the five measured values, the analysis scale they were taken at, `captureMs`/`processingMs`, the
+  source page's pre-downscale dimensions, the device class and OS version, and the attempt count.
+  ⚠ **It found that shadow mode had been recording nothing.** Phase 3 measured blur, glare, shadow,
+  brightness and contrast and then discarded them: a `QualityReport`'s `na` checks carry no `detail`,
+  and every one of those floors is `null`, so every check is `na`. Step 5.2 would have been deriving
+  thresholds from a distribution nobody was writing. `analysisLongEdgePx` was in the same state.
+- **Step 5.3 (`coverageFraction: 1` → `na`) — DONE** (#637). The floor retired to `null` in the same
+  merge, because the producer disappearing is the mirror image of Step 3.3 and a surviving 0.6 would
+  be an uncalibrated number lying in wait.
+- **Step 5.2 (derive each floor) — CANNOT be done yet, and it is now the critical path.** It derives
   every threshold from a labelled distribution of *recorded* values. There are none: §6 Q5 measured
   zero captures in production, so the only sample that exists is the 24 synthetic fixtures. **Step
   5.2 needs the device session first**, and shipping a threshold derived from synthetic pages alone
   would be exactly the invented number D-SCAN10 exists to prevent.
-- **Step 5.4 (config verifier) — blocked on §6 Q2** (where the signing key lives). Until then the
-  reject-all verifier stands, which cannot weaken the gate.
+- **Step 5.4 (config verifier) — blocked on §6 Q2** (where the signing key lives), the only open
+  owner question left in the programme. Until then the reject-all verifier stands, which cannot
+  weaken the gate.
 
 ⚠ **One thing Step 5.2 must know when it does run:** `measure()` measured the 1568 px derivative
 until #634 and measures the untouched ORIGINAL after it. Those are two eras of recorded metrics and
@@ -278,9 +311,9 @@ dates every reading. In practice this costs nothing, because era one produced no
 - **No custom camera, no OpenCV, no C++, no ML.** Phase 7 opens only on a measured trigger; §7 of the
   plan states the evidence each would need.
 - **No threshold has been derived, and Step 5.2 cannot derive one until a phone has produced a
-  capture.** Five image floors and both OCR coverage floors are `null` and gated on by nobody. The
-  recorded distribution 5.2 reads from is empty — see §7. This is now the critical path of the whole
-  programme, not a parallel debt.
+  capture.** Five image floors, both OCR coverage floors and now the coverage floor too are `null`
+  and gated on by nobody. Step 5.1 built the recorder; the recording is empty, because production has
+  never held a capture. This is the critical path of the whole programme, not a parallel debt.
 - **`src/features/loads/stopCapture.ts` is still a second, ungated capture path** (raw
   `expo-image-picker`, 1600px, q0.6). Named in plan §5 as belonging immediately after Phase 6.2.
 - **The documents surface and driver performance/coaching** — the two features that prompted all of
