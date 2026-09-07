@@ -43,7 +43,11 @@ const expected = JSON.parse(readFileSync(join(FIXTURES, "expected.json"), "utf8"
   metricsVersion: string;
   analysisLongEdgePx: number;
   corpusVersion: string;
-  tolerance: { blurVarianceRelative: number; fractionAbsolute: number };
+  tolerance: {
+    blurVarianceRelative: number;
+    fractionAbsolute: number;
+    baselineDecimals: { blurVariance: number; fraction: number };
+  };
   fixtures: ExpectedFixture[];
 };
 
@@ -99,5 +103,27 @@ describe("the parity baseline", () => {
 
   it("records a metrics version, so a native suite pinned to older arithmetic fails loudly", () => {
     expect(expected.metricsVersion).toMatch(/^scanner-metrics-\d+$/);
+  });
+
+  it("rounds every committed value to the number of places it says it does", () => {
+    // `baselineDecimals` is not decoration: the iOS harness reads it to work out how much of a
+    // deviation this file's own rounding can account for, and then holds Swift to the REMAINDER.
+    // Measured on 2026-09-07, that strict bound is what catches a definition error the loose
+    // tolerances above cannot see — a Rec.709 coefficient off by one, and a truncating downscale,
+    // both passed at ±2% / ±0.002. So a value carrying more places than declared would hand the
+    // native side a bound smaller than the rounding it is meant to explain, and it would fail for a
+    // reason that has nothing to do with its arithmetic.
+    const places = (value: number) => {
+      const text = String(value);
+      const dot = text.indexOf(".");
+      return dot < 0 ? 0 : text.length - dot - 1;
+    };
+    const { blurVariance, fraction } = expected.tolerance.baselineDecimals;
+    for (const f of expected.fixtures) {
+      expect(places(f.metrics.blurVariance), `${f.name} blurVariance places`).toBeLessThanOrEqual(blurVariance);
+      for (const metric of ["glareFraction", "brightnessMean", "contrastRms", "shadowRange"] as const) {
+        expect(places(f.metrics[metric]), `${f.name} ${metric} places`).toBeLessThanOrEqual(fraction);
+      }
+    }
   });
 });

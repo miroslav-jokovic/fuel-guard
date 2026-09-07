@@ -5,6 +5,10 @@
   "tolerance": {
     "blurVarianceRelative": 0.02,
     "fractionAbsolute": 0.002,
+    "baselineDecimals": {
+      "blurVariance": 4,
+      "fraction": 6
+    },
     "note": "blur compares relatively (its magnitude spans four orders); the 0..1 metrics compare absolutely."
   },
   "fixtures": [
