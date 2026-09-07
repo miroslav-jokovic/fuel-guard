@@ -681,17 +681,33 @@ be started on the strength of this document.
 
 ## 6. Open questions — each with the decision the code takes today
 
-**Q1 — How long is an ORIGINAL retained, and where?**
-*Candidates:* (a) upload always, keep forever — a VisionKit page is ~2-4 MB, so a 3-page BOL is
+**Q1 — How long is an ORIGINAL retained, and where? — ANSWERED, 2026-09-07 (owner ruling).**
+*Candidates as put:* (a) upload always, keep forever — a VisionKit page is ~2-4 MB, so a 3-page BOL is
 ~12 MB per capture on a driver's cellular plan; (b) archive only, original on-device for N days;
 (c) archive immediately, original deferred to an unmetered connection, retained per the evidence
-rule. *Recommendation and what the code does until ruled otherwise:* **(c)**, because the outbox
-already provides staging, idempotent upload and retry, and `@react-native-community/netinfo` is
-already a dependency. *Fallback if the owner rejects (c):* Phase 4b ships with the original uploading
-immediately alongside the archive — one line, and the driver pays the bytes.
-*Owner decision needed on:* the retention window, and whether `hazmat_documents` originals join
-`RETENTION_FORBIDDEN` (root `CLAUDE.md` lists `documents` among the append-only evidence tables, which
-suggests yes).
+rule. The code's default until the ruling was **(c)**, because the outbox already provides staging,
+idempotent upload and retry, and `@react-native-community/netinfo` is already a dependency.
+
+**The ruling, in two parts, because they turned out to be separable:**
+
+  · **Retention: the ORIGINAL is kept as long as the ARCHIVE.** No expiry window, no second
+    lifecycle. So (c) stands unchanged as the *delivery* rule — archive now, original on an unmetered
+    connection — and there is no deletion job to build. The cost is ~3× per page for ever, which is
+    exactly why `original_bytes` / `archive_bytes` shipped in 4a: it is now measurable rather than
+    discovered. The 375-day floor in 49 CFR §172.201(e) for a hazmat shipping paper is a *floor*, and
+    keeping-for-ever clears it without anybody having to be right about the CFR text.
+  · **`hazmat_documents` JOINS `RETENTION_FORBIDDEN`.** This is about deleting ROWS, and it is
+    separable from the bytes question: dropping original bytes while keeping the row and the archive
+    would have been a storage lifecycle, not a row deletion. Measured while asking: the table was in
+    **neither** `RETENTION_FORBIDDEN` nor `RETENTION_RULES` — neither pinned nor pruned, simply
+    growing — while `documents`, `certifications`, `qualification_records` and `dq_exports` were all
+    pinned. Root `CLAUDE.md` already calls it insert-only evidence and 0092 already makes it
+    immutable; the pin makes that machine-enforced, so no future retention rule can prune the row a
+    hazmat verdict cites. It ships as its own small merge (one entry in
+    `apps/api/src/modules/org/dataRetention.ts` plus its guard test in `dataRetention.test.ts`) —
+    independent of Phase 4's columns, and not folded into 4b, whose blast radius is large enough.
+
+**Q1 no longer blocks 4b.**
 
 **Q2 — Where does the config signing key live and who may sign?**
 Blocks Step 5.4 only. *Until answered:* `engine.ts` keeps the reject-all verifier and the bundled
@@ -1006,3 +1022,48 @@ Append a dated line when a step ships. Do not mark table rows.
 - **2026-09-06** — Plan written. Grounded in the scanner audit of the same date and in five
   measurements taken against this repository's installed `sharp` (§0.2, M1–M5). Nothing built yet;
   Step 0.1 is the next action and it needs the Mac and two phones.
+
+- **2026-09-07** — **Step 4a SHIPPED — migration `0326_hazmat_documents_original_of_record.sql`,
+  no reader.** The first part of this programme to touch the production schema. Four additive
+  nullable columns on `hazmat_documents` — `archive_storage_path`, `original_bytes`,
+  `archive_bytes`, `capture_metrics` — plus `hazmat_documents_output_bytes_chk` (a byte count is a
+  size; NULL still means "not recorded", which every pre-Phase-4 row is). No backfill, no RLS
+  change, nothing reads them: `lint:migration-ordering` reports *"4 new column(s) on existing
+  tables, none read by code in the same change"*, which is the shape 4a is required to have.
+  · **The plan asked for FIVE columns; four shipped.** `analysis_config_version` is deliberately
+    absent. §4 Step 4a was written on 2026-09-06, before D-SCAN1's analysis scale had a home, and
+    reads as though the scale might be versioned apart from the gate. Measured while writing the
+    migration: `analysis.longEdgePx` is a **field of `CaptureConfig`**, versioned by that object's
+    single `configVersion`, and `registerDocument` already writes that exact string to
+    `capture_config_version` (0133) from `req.capture.configVersion` — so the new column would have
+    equalled the old one on every row it was ever written to. The server's gate version is likewise
+    already recorded, as `usabilityGateVersion` on `hazmat_runs.models`. A copy is what root
+    `CLAUDE.md`'s register calls a workaround with a delay fuse, and on an evidence table two version
+    columns are two answers to "which config produced this number". If the analysis scale is ever
+    versioned independently, that is a new fact and it earns its own migration ahead of its own
+    reader. The reasoning is in the migration header too, because that is where the next reader looks.
+  · **⚠ Two things Phase 4b owes the nightly orphan sweep, found while writing this and stated here
+    so 4b does not discover them in production.** `storageReconcileScheduler.ts` runs
+    `reconcileHazmatStorageOrphans` daily with `apply: true`, and `reconcileBucketOrphans` selects
+    exactly one column: `storage_path`.
+    **(1)** An ARCHIVE object whose path lives only in `archive_storage_path` is an object no row
+    points at, so twenty-four hours after it uploads the sweep **deletes it**. 4b must add
+    `archive_storage_path` to that reconciler's row-path set in the same merge that starts writing
+    the column.
+    **(2)** D-SCAN11 defers the ORIGINAL to an unmetered connection, so between registration and the
+    driver reaching Wi-Fi `storage_path` names an object that does not exist yet — the sweep's
+    `missingObjects` case, logged as *"possible evidence loss / restore gap — D13"*. Nothing is
+    deleted, but a nightly warning that is routine is a signal nobody reads, so 4b owes the
+    reconciler a way to tell "not uploaded yet" from "gone".
+  · **Q1 was raised before 4b and ANSWERED the same day — see §6.** The ORIGINAL is kept as long as
+    the ARCHIVE (no expiry window, no deletion job; D-SCAN11's archive-now / original-on-Wi-Fi
+    *delivery* rule stands unchanged), and `hazmat_documents` **joins `RETENTION_FORBIDDEN`**, which
+    ships as its own small merge because it is a row-deletion rule and has nothing to do with Phase
+    4's columns. Measured while asking, and worth keeping: `hazmat_documents` was in **neither**
+    `RETENTION_FORBIDDEN` nor `RETENTION_RULES` — neither pinned nor pruned, simply growing — while
+    `documents`, `certifications`, `qualification_records` and `dq_exports` were all pinned. **Q1 no
+    longer blocks 4b.**
+  · Gates run: `lint:migrations`, `lint:migration-ordering`, `lint:rls`, `lint:table-writers` (the
+    regenerated `supabase/schema.generated.sql` is committed — 140 tables, 5804 lines),
+    `lint:upserts`, `pnpm typecheck`, `pnpm lint`, `pnpm test` (all suites + all matrices green).
+    No driver, native or runtime-version change: this merge is SQL and a log line.
