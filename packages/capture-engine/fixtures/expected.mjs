@@ -44,6 +44,25 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const TOLERANCE = {
   blurVarianceRelative: 0.02,
   fractionAbsolute: 0.002,
+  /**
+   * How many decimal places the values below are rounded to — recorded as DATA because a native
+   * harness needs it to tell two different things apart, and deriving it beats restating it.
+   *
+   * Measured on 2026-09-07, when the iOS port (plan Step 3.1) was first held to this file: a correct
+   * transliteration reproduced every fixture to within 0.00026% on blur and 5.0e-7 on the fractions,
+   * and BOTH of those are just the rounding applied here — the arithmetic itself agreed exactly,
+   * because it is integer arithmetic on both sides. The tolerances above are therefore about four
+   * orders of magnitude looser than the noise floor, which was not knowable before an implementation
+   * existed (§6 Q3 asked exactly this).
+   *
+   * That gap is not academic. Two deliberate definition errors were injected into the Swift and both
+   * PASSED at the tolerances above: the Rec.709 green coefficient changed from 46871 to 46870, and
+   * the box-downscale's round() replaced by truncation (which reached 1.78% on blur — under the 2%
+   * line). A native harness that reads these decimals can also assert the STRICTER claim that the
+   * implementation is exact up to this rounding, and both mutations then fail. The loose tolerances
+   * stay as the cross-platform contract; the strict one is what catches a typo.
+   */
+  baselineDecimals: { blurVariance: 4, fraction: 6 },
   note: "blur compares relatively (its magnitude spans four orders); the 0..1 metrics compare absolutely.",
 };
 
@@ -64,11 +83,15 @@ export function computeExpected() {
       metrics: {
         longEdgePx: m.longEdgePx,
         analysisLongEdgePx: m.analysisLongEdgePx,
-        blurVariance: round(m.blurVariance, 4),
-        glareFraction: round(m.glareFraction, 6),
-        brightnessMean: round(m.brightnessMean, 6),
-        contrastRms: round(m.contrastRms, 6),
-        shadowRange: round(m.shadowRange, 6),
+        // The places come from TOLERANCE.baselineDecimals rather than being written twice: that
+        // field is what a native harness reads to know how much of a deviation this rounding can
+        // account for, and a copy that drifted would make it derive a bound for a file that is no
+        // longer rounded that way.
+        blurVariance: round(m.blurVariance, TOLERANCE.baselineDecimals.blurVariance),
+        glareFraction: round(m.glareFraction, TOLERANCE.baselineDecimals.fraction),
+        brightnessMean: round(m.brightnessMean, TOLERANCE.baselineDecimals.fraction),
+        contrastRms: round(m.contrastRms, TOLERANCE.baselineDecimals.fraction),
+        shadowRange: round(m.shadowRange, TOLERANCE.baselineDecimals.fraction),
       },
     };
   });

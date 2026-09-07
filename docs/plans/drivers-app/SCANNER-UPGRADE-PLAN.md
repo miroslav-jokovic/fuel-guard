@@ -275,10 +275,16 @@ Additionally, by what the step touches:
 2. **iOS, before the PR:** `cd apps/driver && pnpm exec expo prebuild --platform ios --no-install &&
    pnpm run ios` on the Mac, or at minimum `xcodebuild -workspace ios/FuelGuardDriver.xcworkspace
    -scheme FuelGuardDriver -sdk iphonesimulator build`.
-3. **Bump `apps/driver/runtime-version.json`** on every native change. An OTA update is only served
+3. **iOS metric parity, on every change to `CaptureMetrics.swift` or `CaptureImageDecode.swift`:**
+   `apps/driver/modules/capture-native/tests/ios/run-metrics-parity.sh`. It compiles those two files
+   for macOS with plain `swiftc` — no Xcode project, no simulator, about a second — and holds them to
+   `fixtures/expected.json` over all 24 fixtures. It is deliberately **not** a `lint:*` script: root
+   `CLAUDE.md` says a gate in `package.json` and in neither CI list is not a gate, and this one cannot
+   run on Linux. So it lives here, with items 1 and 2, as the author's responsibility.
+4. **Bump `apps/driver/runtime-version.json`** on every native change. An OTA update is only served
    to a binary whose runtime version matches; forgetting this ships JavaScript to an app that lacks
    the native code it calls. `driver-ota.yml` compares fingerprints, but the bump is manual.
-4. **Step 0.4 adds a PR-time Android compile job** so that from Phase 1 onward, item 1 is enforced
+5. **Step 0.4 adds a PR-time Android compile job** so that from Phase 1 onward, item 1 is enforced
    rather than remembered.
 
 Reproducing the §0.2 probes: they are plain `node` scripts run from `apps/api` (which owns the
@@ -725,6 +731,67 @@ answer.
 ## 8. Progress log
 
 Append a dated line when a step ships. Do not mark table rows.
+
+- **2026-09-07** — **Step 3.1 SHIPPED**: `measure()` on iOS. `CaptureMetrics.swift` is a deliberate
+  line-for-line transliteration of `metrics.ts` (same constant names, same values, same loop bounds,
+  same order) with three ⚠-marked notes where Swift genuinely differs — `Math.round`'s tie rule vs
+  `.rounded()`, Int rather than Double accumulators in the Laplacian, and `UInt8(...)` trapping where
+  a `Uint8Array` write wraps. Decoding is separated into `CaptureImageDecode.swift` (8-bit RGBA
+  `CGContext`, sRGB, explicit `bytesPerRow`) so the arithmetic imports nothing but Foundation.
+  `measure(uri, analysisLongEdgePx)` takes the analysis scale from the signed config on every call and
+  holds no native default, because a default is a second copy of a signed value that wins whenever a
+  caller forgets. `** BUILD SUCCEEDED **` (scheme CaptureNative, iphonesimulator). Runtime 1.0.3 → 1.0.4.
+
+- **2026-09-07 — deviation from the Step 3.1 text, taken deliberately.** The step asks for "an XCTest
+  reading the fixtures from the bundle". A bundle needs an app target, an app target needs
+  `apps/driver/ios` — which `expo prebuild` generates and `apps/driver/.gitignore:4` ignores, so an
+  Xcode test target added there would be erased by the next `--clean` and would exist in nobody
+  else's checkout. What is being tested is pure arithmetic over a byte array, so it needs none of
+  that: `tests/ios/run-metrics-parity.sh` compiles the SAME two files for macOS with `swiftc` and runs
+  the whole corpus in about a second. It sits outside the podspec's `ios/**` glob, and `pod install`
+  was checked to confirm the module picks up the two new sources and NOT the harness. What the trade
+  costs is on the device list below.
+
+- **2026-09-07 — §6 Q3 ANSWERED, and the answer is that the tolerances could not see a typo.**
+  Q3 asked whether ±2% relative on blur and ±0.002 absolute on the fractions are right. Measured:
+  iOS reproduces the reference **exactly**. The worst deviation over 24 fixtures is 0.00026% on blur
+  and 5.0e-7 on the fractions, and both are nothing but the rounding `expected.mjs` applies when it
+  commits the file — the arithmetic agrees to the last count, because it is integer arithmetic on both
+  sides. So the declared tolerances are ~7,700× looser than the noise floor.
+  That is not academic. **Two deliberate definition errors PASSED at the declared tolerance**: the
+  Rec.709 green coefficient changed 46871 → 46870 (a one-part-in-65536 typo), and the box-downscale's
+  `round()` replaced by truncation — which reached 1.775% on blur, under the 2% line, and failed only
+  one fixture on `shadowRange`. Both are exactly the class of bug this corpus exists to catch.
+  The fix is **not** to move the declared tolerance, which stays as the cross-platform contract.
+  `expected.json` now records `tolerance.baselineDecimals` (4 places on blur, 6 on the fractions —
+  read by `expected.mjs`'s own `round()` calls rather than written twice), and the harness checks a
+  second, strict bound derived from it: half a unit in the last committed place. Both mutations then
+  fail as `EXACT`, and a genuine cross-platform disagreement still reports as a tolerance miss, so the
+  two never arrive as the same sentence. Headroom on the strict bound is 1.1× — it is as tight as the
+  committed file allows. `tests/expected.test.ts` gains a case keeping `baselineDecimals` honest
+  against the values actually committed.
+  **⚠ For Step 3.2:** if Kotlin cannot hit the exact bound, that is a finding to measure and record —
+  Android decodes through `Bitmap`, which is a different path — not a reason to relax anything.
+
+- **2026-09-07 — mutation record for Step 3.1**, since a green run proves nothing on its own. Eight
+  mutations run, output read every time: luma coefficient off by one (**PASSED — the finding above**),
+  `NEAR_WHITE` 250→249 (4 fixtures fail on `glareFraction`), `SHADOW_PERCENTILE` 0.9→0.85 (6 fail on
+  `shadowRange`), a no-op edit to the Laplacian line as a control (**PASSED, as it must**), Laplacian
+  centre −4→−3 (every fixture, up to 3074% off), box-downscale round→truncate (**PASSED — the second
+  finding**), `bytesPerRow` left to Core Graphics (every fixture, reported as DECODE), and RGBA→ARGB
+  channel order (every fixture, DECODE digest mismatch). After the strict bound landed, the two that
+  had passed were re-run and both fail. Worth keeping: the decode stage is checked FIRST, by digesting
+  the decoded RGB against the corpus's own `pixelSha256`, so "Swift measures different pixels" and
+  "Swift computes a different number" can never be confused — and that digest matching on all 24
+  fixtures is itself a measurement: **a `CGContext` render of these PNGs is byte-exact**, which was an
+  assumption in the step text and is now a fact.
+
+- **2026-09-07 — OWED ON DEVICE, continuing the numbered list below** (D-SCAN13):
+  9. `measure()` is reachable across the Expo bridge at all, and resolves the seven keys it claims.
+  10. `UIImage` on a real device hands `CaptureImageDecode` the same pixels ImageIO hands the harness
+      on macOS. The parity run proves the arithmetic and the macOS decode; the device decode path
+      (VisionKit → `UIImage` → `.cgImage`) is untested, and a colour-managed source image is the way
+      it would differ.
 
 - **2026-09-07** — Phase 0's buildable work SHIPPED and merged: #614 (0.2, five image-pipeline
   properties pinned, 7 cases), #615 (0.3, 24-page synthetic corpus + generator + PNG codec + integrity

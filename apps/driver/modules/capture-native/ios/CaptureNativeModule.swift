@@ -67,6 +67,56 @@ public class CaptureNativeModule: Module {
     }
     .runOnQueue(DispatchQueue.main)
 
+    /**
+     Measure one image against the metric definition of record (plan Step 3.1, D-SCAN1..5, D-SCAN8).
+
+     `analysisLongEdgePx` is REQUIRED and comes from the signed capture config in JavaScript. It is
+     part of what the metric means, not a tuning knob — D-SCAN1 fixes the analysis scale precisely so
+     that a number recorded today can be compared with one recorded next month — so Swift holds no
+     default for it. A default here would be a second copy of a signed value, in force whenever a
+     caller forgot to pass it, and silently disagreeing with the server the day the config moved.
+
+     Failure to load or decode REJECTS rather than resolving with a value, and that is consistent
+     with D-SCAN7 rather than an exception to it: this URI is one we wrote ourselves moments ago
+     during a capture we are still inside. A file we just wrote being unreadable is not an
+     anticipated outcome about the device — it is the unforeseen, which is what PROVIDER_ERROR is.
+
+     ⚠ OWED ON DEVICE (D-SCAN13): nothing below has run on a phone. `tests/ios/run-metrics-parity.sh`
+     proves the ARITHMETIC reproduces the reference exactly over all 24 fixtures, on macOS, through
+     ImageIO. It does not prove this function is reachable across the bridge, and it does not prove
+     `UIImage` on a real device hands `CaptureImageDecode` the same pixels ImageIO hands it here.
+     */
+    AsyncFunction("measure") { (uri: String, analysisLongEdgePx: Int, promise: Promise) in
+      guard analysisLongEdgePx > 0 else {
+        promise.reject("PROVIDER_ERROR", "measure() needs a positive analysis scale, received \(analysisLongEdgePx).")
+        return
+      }
+      DispatchQueue.global(qos: .userInitiated).async {
+        // The same reasoning as ImagePipeline's per-page pool: a decoded multi-megapixel image and
+        // the RGBA buffer drawn from it are both large and both autoreleased, and without an
+        // explicit pool they survive until this thread's pool drains rather than until this call
+        // returns. Step 1.4 closed two OOM paths in this module; this is not the place to open a third.
+        let measured: MeasuredMetrics? = autoreleasepool {
+          guard let image = ImageLoader.load(uri),
+                let cgImage = image.cgImage,
+                let decoded = CaptureImageDecode.decode(cgImage)
+          else { return nil }
+          return CaptureMetrics.compute(
+            rgb: decoded.rgba,
+            width: decoded.width,
+            height: decoded.height,
+            analysisLongEdgePx: analysisLongEdgePx,
+            channels: CaptureImageDecode.channels
+          )
+        }
+        guard let measured else {
+          promise.reject("PROVIDER_ERROR", "Could not decode an image at \(uri).")
+          return
+        }
+        promise.resolve(measured.asDictionary)
+      }
+    }
+
     AsyncFunction("recognize") { (uri: String, promise: Promise) in
       guard let image = ImageLoader.load(uri) else {
         promise.reject("PROVIDER_ERROR", "Could not load an image at \(uri).")
