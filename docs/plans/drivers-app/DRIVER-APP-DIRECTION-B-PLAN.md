@@ -1691,3 +1691,28 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   collapsing multiple simultaneous alerts into one summary (DESIGN.md asks for it, up to seven can
   stack); a `RefreshControl` on `Screen` (Today has five queries and no refresh gesture); and
   `AttentionQueue`'s hardcoded `ml-18` where `GroupedList` derives the same inset.
+
+- 2026-09-07 · **The five judgements the critique left open are now decided and built** (owner asked
+  for all five).
+  1. **Recovery drops the hero card.** With duty unverified the start card's action was already
+     withheld, leaving a heading and a sentence with nothing to do above the error that mattered.
+     The hero is now the duty strip alone — roughly two thirds of the scene down to a 44pt strip, and
+     the banner is the first thing under the status bar rather than the fourth element. TypeScript
+     then proved the `dutyKnown` guard inside `StartDayCard` unreachable, so it and its branch were
+     deleted rather than left as decoration.
+  2. **The "Today" tab wears a calendar, not a house.** `TAB_ICON.home` was `home`; the file's own
+     next line already rejects a bar chart for Loads because "loads are trucks and freight, not
+     analytics", and a house on a day sheet is the same mistake. Now `calendar_today`.
+  3. **Simultaneous alerts collapse.** `todayAlerts()` orders them recovery → offline → update and
+     Today renders the leading one with "+n more · tap to show". Three could previously stack, and as
+     direct children of a `flow="sections"` screen they carry no gap, so they abutted each other and
+     the first Section at zero spacing. The order is the argument: recovery first because every other
+     line is suspect until duty is known; the update offer last always, because it is the one alert
+     that can wait. 5 tests, **5 mutants, 5 died**.
+  4. **Pull-to-refresh.** `Screen` takes `onRefresh`/`refreshing`; Today refetches all five queries.
+     There was no refresh gesture anywhere — a driver whose data went stale in a dead zone could only
+     kill the app and reopen it, and the recovery banner's Retry re-asked two of the five.
+  5. **`AttentionQueue`'s hardcoded `ml-18` is gone.** `separatorInsetFor({ disc, icon })` is now the
+     one home for the rule and `GroupedList` reads it through a thin element-shaped wrapper. The
+     constant was right only while every row carries both a disc and a glyph — true today, silently
+     wrong the first time one does not, in the list a driver reads when something has gone wrong.

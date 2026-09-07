@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
-import { View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Banner, Card, EmptyState, OfflineBanner, Screen, Section, Skeleton, useToast } from '@/components';
+import { AppText, Banner, Card, EmptyState, OfflineBanner, Screen, Section, Skeleton, useToast } from '@/components';
 import { bucketLoads } from '@/features/loads/loadViewModel';
 import { useLoads } from '@/features/loads/useLoads';
 import { dutyView, useShift, useStartShift } from '@/features/duty/useDuty';
@@ -15,11 +15,14 @@ import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import { UpNextRow } from '@/screens/today/UpNext';
 import { WeekStrip } from '@/screens/today/WeekStrip';
 import { StartDayCard } from '@/screens/today/StartDayCard';
-import { attentionRows, shouldSkeletonHero, SKELETON_HEIGHTS, todayState, upNextLoads } from '@/screens/today/todayModel';
+import { attentionRows, shouldSkeletonHero, SKELETON_HEIGHTS, todayAlerts, todayState, upNextLoads } from '@/screens/today/todayModel';
 import { UpdateReadyBanner } from '@/features/updates/UpdateReadyBanner';
 import { firstName, useDriverContext } from '@/session/useDriverContext';
 import { useFeatures } from '@/session/useFeatures';
 import { useSyncState } from '@/data/sync';
+import { useIsOnline } from '@/lib/connectivity';
+import { haptics } from '@/lib/haptics';
+import { useAppUpdate } from '@/features/updates/useAppUpdate';
 import { writeLastEquipment } from '@/lib/lastEquipment';
 
 /**
@@ -82,6 +85,17 @@ export default function Home() {
   );
 
   const loadingShell = driver.isPending && !driver.data;
+  const online = useIsOnline();
+  const { pending: pendingSync } = useSyncState();
+  const { ready: updateReady } = useAppUpdate();
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const alerts = todayAlerts({
+    recovery: state === 'recovery',
+    offline: !online,
+    pendingSync,
+    updateReady,
+  });
   // Between loads a driver is choosing what is next, so they get two; mid-run they get one, because
   // the load in front of them is the answer to "what now".
   const upNext = upNextLoads(buckets.upcoming, state === 'activeLoad' ? 1 : 2);
@@ -118,7 +132,19 @@ export default function Home() {
         *
         * So: only skeleton when a load decides the card, and never before the shift has started.
         */}
-      {shouldSkeletonHero({ loadsEnabled, loadsLoading: loads.isLoading, state }) ? (
+      {/*
+        * RECOVERY SHOWS THE STRIP AND NOTHING ELSE.
+        *
+        * With duty unverified the start card's action is withheld (see `dutyKnown`), which leaves a
+        * heading, a sentence and no way to act — at the top of the screen, above the error that
+        * actually matters. DESIGN.md: "Recovery outranks the rest — a screen built on data that
+        * failed to load says so first", and "Every vertical region must answer a driver question,
+        * communicate state, or enable an action. If it does none of these, remove it."
+        *
+        * Dropping it takes the hero from roughly two thirds of the scene to a 44pt strip, so the
+        * banner is the first thing under the status bar rather than the fourth element down.
+        */}
+      {state === 'recovery' ? null : shouldSkeletonHero({ loadsEnabled, loadsLoading: loads.isLoading, state }) ? (
         <Skeleton className="w-full rounded-xl" style={{ height: SKELETON_HEIGHTS.heroCard }} />
       ) : current ? (
         <CurrentLoadHero
@@ -127,8 +153,10 @@ export default function Home() {
           onOpenLoad={() => router.push(`/loads/${current.id}` as never)}
         />
       ) : (
+        // No `dutyKnown` here: this branch is unreachable in recovery now that the hero drops the
+        // card entirely, so duty is always known by the time it renders. TypeScript proved it —
+        // the old guard narrowed to a comparison that could never be false.
         <StartDayCard
-          dutyKnown={state !== 'recovery' || Boolean(shift.data)}
           onDuty={duty.onDuty}
           starting={startShift.isPending}
           onStart={() => router.push('/duty/check-in')}
@@ -159,9 +187,48 @@ export default function Home() {
   );
 
   return (
-    <Screen hero={hero} flow="sections">
-      <UpdateReadyBanner />
-      <OfflineBanner />
+    <Screen
+      hero={hero}
+      flow="sections"
+      // Five independent queries, and until now no gesture to re-ask any of them: a driver whose
+      // data went stale in a dead zone could only kill the app and reopen it. The Retry in the
+      // recovery banner refetched two of the five; this refetches all of them.
+      refreshing={refreshing}
+      onRefresh={() => {
+        setRefreshing(true);
+        void Promise.allSettled([
+          shift.refetch(),
+          driver.refetch(),
+          loads.refetch(),
+          notifs.refetch(),
+          threads.refetch(),
+        ]).finally(() => setRefreshing(false));
+      }}
+    >
+      {/*
+        * ONE alert leads; the rest collapse behind "+n more" (DESIGN.md: "Multiple simultaneous
+        * alerts collapse into one attention summary with expandable detail"). All three used to
+        * render at once, and as direct children of a `flow="sections"` screen they carry no gap, so
+        * they abutted each other and the first Section at zero spacing. Order is `todayAlerts`.
+        */}
+      {alerts.length > 1 && !alertsExpanded ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Show ${alerts.length - 1} more alert${alerts.length - 1 === 1 ? '' : 's'}`}
+          onPress={() => {
+            haptics.select();
+            setAlertsExpanded(true);
+          }}
+          className="min-h-11 justify-center"
+        >
+          <AppText variant="caption" tone="muted">
+            {`+${alerts.length - 1} more · tap to show`}
+          </AppText>
+        </Pressable>
+      ) : null}
+
+      {alertsExpanded || alerts[0] === 'update' ? <UpdateReadyBanner /> : null}
+      {alertsExpanded || alerts[0] === 'offline' ? <OfflineBanner /> : null}
 
       {state === 'recovery' ? (
         <Section first>

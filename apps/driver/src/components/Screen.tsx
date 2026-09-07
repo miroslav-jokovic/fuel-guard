@@ -1,11 +1,12 @@
 import { useContext, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View, useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { BottomTabBarHeightContext } from 'expo-router/js-tabs';
 import { layout } from '@/theme/tokens';
 import { heroTopPadding, screenBottomPadding, screenTopPadding } from '@/theme/safeArea';
 import { useTheme } from '@/theme/ThemeProvider';
+import { roleColors } from '@/theme/colors';
 import { ui } from '@/theme/classes';
 
 /**
@@ -30,12 +31,21 @@ export function Screen({
   footer,
   hero,
   flow = 'flat',
+  onRefresh,
+  refreshing = false,
 }: {
   children: ReactNode;
   scroll?: boolean;
   /** Adds the visual gutter above the content. The SAFE-AREA inset is applied either way. */
   padTop?: boolean;
   footer?: ReactNode;
+  /**
+   * Pull-to-refresh. Today runs five independent queries and had no gesture to re-ask any of them:
+   * a driver whose data went stale in a dead zone could only kill the app and reopen it. Optional,
+   * because a task screen with a single mutation has nothing to pull for.
+   */
+  onRefresh?: () => void;
+  refreshing?: boolean;
   /** The navy hero region. Its presence, not a flag, is what makes this a hero screen. */
   hero?: ReactNode;
   /**
@@ -89,6 +99,16 @@ export function Screen({
           */}
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                // The spinner belongs over the hero, not over the sheet that slides under it.
+                tintColor={isDark ? roleColors.dark.onHeroSecondary : roleColors.light.onHeroSecondary}
+              />
+            ) : undefined
+          }
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

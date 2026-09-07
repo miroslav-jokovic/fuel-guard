@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Load, LoadStop, MeHazmatLoadRow, NotificationEvent, Thread } from '@silvicom/shared';
-import { attentionRows, countdownLabel, shouldSkeletonHero, todayState, upNextLoads } from '@/screens/today/todayModel';
+import { attentionRows, countdownLabel, shouldSkeletonHero, todayAlerts, todayState, upNextLoads } from '@/screens/today/todayModel';
 
 const NOW = Date.parse('2026-09-07T12:00:00Z');
 
@@ -244,5 +244,75 @@ describe('shouldSkeletonHero', () => {
 
   it('shows no skeleton in recovery — the error is the content', () => {
     expect(shouldSkeletonHero({ loadsEnabled: true, loadsLoading: false, state: 'recovery' })).toBe(false);
+  });
+});
+
+describe('todayAlerts', () => {
+  /**
+   * DESIGN.md asks for "one attention summary with expandable detail"; Today could render three
+   * banners at once, as direct children of a `flow="sections"` screen, which gives them no gap.
+   */
+  it('is empty when nothing is wrong — the common case', () => {
+    expect(todayAlerts({ recovery: false, offline: false, pendingSync: 0, updateReady: false })).toEqual([]);
+  });
+
+  it('puts recovery first: every other line is suspect until duty is known', () => {
+    expect(
+      todayAlerts({ recovery: true, offline: true, pendingSync: 3, updateReady: true }),
+    ).toEqual(['recovery', 'offline', 'update']);
+  });
+
+  it('puts the update offer last even when it is the only other thing', () => {
+    expect(todayAlerts({ recovery: false, offline: true, pendingSync: 0, updateReady: true })).toEqual([
+      'offline',
+      'update',
+    ]);
+  });
+
+  it('raises the connectivity alert while work is still draining, though online', () => {
+    // Matches OfflineBanner's own condition; a driver back in signal with unsent work is not "fine".
+    expect(todayAlerts({ recovery: false, offline: false, pendingSync: 2, updateReady: false })).toEqual([
+      'offline',
+    ]);
+  });
+
+  it('stays quiet when online with nothing queued', () => {
+    expect(todayAlerts({ recovery: false, offline: false, pendingSync: 0, updateReady: true })).toEqual([
+      'update',
+    ]);
+  });
+});
+
+describe('todayAlerts', () => {
+  it('is empty when nothing is wrong — the common case', () => {
+    expect(todayAlerts({ recovery: false, offline: false, pendingSync: 0, updateReady: false })).toEqual([]);
+  });
+
+  it('puts recovery first: every other line is suspect until duty is known', () => {
+    expect(todayAlerts({ recovery: true, offline: true, pendingSync: 3, updateReady: true })).toEqual([
+      'recovery',
+      'offline',
+      'update',
+    ]);
+  });
+
+  it('puts the update offer last even when it is the only other thing', () => {
+    expect(todayAlerts({ recovery: false, offline: true, pendingSync: 0, updateReady: true })).toEqual([
+      'offline',
+      'update',
+    ]);
+  });
+
+  it('raises the connectivity alert while work is still draining, though online', () => {
+    // Mirrors OfflineBanner's own condition; a driver back in signal with unsent work is not "fine".
+    expect(todayAlerts({ recovery: false, offline: false, pendingSync: 2, updateReady: false })).toEqual([
+      'offline',
+    ]);
+  });
+
+  it('stays quiet about connectivity when online with nothing queued', () => {
+    expect(todayAlerts({ recovery: false, offline: false, pendingSync: 0, updateReady: true })).toEqual([
+      'update',
+    ]);
   });
 });
