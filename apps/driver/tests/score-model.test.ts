@@ -4,6 +4,7 @@ import {
   buildScoreView,
   homeScoreSummary,
   rankLabel,
+  SCORE_DEFINITIONS,
   weekRangeLabel,
 } from '@/features/score/scoreModel';
 
@@ -159,5 +160,42 @@ describe('homeScoreSummary', () => {
     const s = homeScoreSummary(resp([week({ week_final: null, rank: null, cohort_size: null })]));
     expect(s).toMatchObject({ scoreValue: '—', rankValue: '—' });
     expect(s?.rankUnit).toBeUndefined();
+  });
+});
+
+describe('score tiles carry their definition and their weight', () => {
+  it('gives every component the fixed sentence for what it measures', () => {
+    // A driver told "Efficiency 78" with no definition will assume it means whatever they most
+    // fear it means. The sentence is fixed, not copy to be reworded per screen.
+    const tiles = buildScoreView(resp([week()])).tiles;
+    expect(tiles.map((t) => t.definition)).toEqual([
+      SCORE_DEFINITIONS.safety,
+      SCORE_DEFINITIONS.efficiency,
+      SCORE_DEFINITIONS.idling,
+    ]);
+  });
+
+  it('states each weight as a percentage of the configured total, not of one', () => {
+    const tiles = buildScoreView(resp([week()], { safety: 0.5, efficiency: 0.25, idling: 0.25 })).tiles;
+    expect(tiles.map((t) => t.weightLabel)).toEqual(['50%', '25%', '25%']);
+  });
+
+  it('normalises weights that do not add to one', () => {
+    // The weights are a per-org configuration; nothing guarantees they sum to 1, and a row reading
+    // "200% of your grade" is the kind of thing that gets noticed by a driver, not by a test.
+    const tiles = buildScoreView(resp([week()], { safety: 2, efficiency: 1, idling: 1 })).tiles;
+    expect(tiles.map((t) => t.weightLabel)).toEqual(['50%', '25%', '25%']);
+  });
+
+  it('survives a zero total instead of dividing by it', () => {
+    const tiles = buildScoreView(resp([week()], { safety: 0, efficiency: 0, idling: 0 })).tiles;
+    expect(tiles.map((t) => t.weightLabel)).toEqual(['0%', '0%', '0%']);
+  });
+
+  it('still describes a component whose feed is missing', () => {
+    const tiles = buildScoreView(resp([week({ efficiency_score: null })])).tiles;
+    const efficiency = tiles.find((t) => t.key === 'efficiency')!;
+    expect(efficiency.value).toBe('—');
+    expect(efficiency.definition).toBe(SCORE_DEFINITIONS.efficiency);
   });
 });

@@ -673,7 +673,7 @@ additive.
   flat hero in airplane mode (both screenshots in the PR); completing a stop still enqueues the same
   outbox record shape (`stop-capture-model.test.ts` unchanged and green).
 
-### B5 · Score
+### B5 · Score — DONE 2026-09-07
 
 **Branch:** `claude/driver-b5-score`. New `src/components/TrendChart.tsx` +
 `src/features/score/trendChartModel.ts`.
@@ -1269,6 +1269,28 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   (5) Four mutants run against `itineraryModel`; three died. The survivor swaps the `skipped` and
   `completed` checks in `nodeState`, which is genuinely equivalent — `status` holds one value — so
   no test was added to chase it.
+- 2026-09-07 · **B5 built.** `trendChartModel.ts` (21 tests), `TrendChart.tsx`, `SCORE_DEFINITIONS`
+  and per-tile weight labels in `scoreModel.ts` (5 new tests), Score recomposed as a hero screen.
+  Deviations and findings:
+  (1) **The domain floor is `floor((min − 5) / 10) × 10`, which always leaves air under the lowest
+  week.** The plan writes `max(0, floor((min−5)/10)×10)` and that IS what shipped — but the
+  consequence was not obvious and my first test asserted the opposite: no point ever sits ON the
+  bottom rule, which is right, because a line touching the axis reads as clipped rather than as a
+  low score. It is now a property test across three series.
+  (2) **The area fill and drop line are drawn; the callout is clamped inside the chart width.** The
+  clamp is the one geometry bug this component would otherwise have shipped — a right-anchored
+  series puts the newest point at the right edge, so an unclamped callout runs off it every time.
+  (3) **Axis labels are SVG text at a fixed 11pt**, per B1.14 — they are furniture, and letting
+  Dynamic Type scale them overlaps the plot. The values a driver needs are in the callout and in the
+  SVG's accessibility label, both of which do scale.
+  (4) **Sparklines are dropped from the breakdown rows** as B5.3 asks; the eight-week line carries
+  the history, and three more tiny lines beside it answered a question nobody asked twice.
+  (5) **`weightPctLabel` normalises against the configured total.** Weights are per-org and nothing
+  guarantees they sum to 1; a row reading "200% of your grade" is the kind of thing a driver notices
+  and a test does not, so both the normalisation and the zero-total guard are now pinned.
+  (6) Five mutants run against `trendChartModel`; four died. The survivor changes spline CONTROL
+  points only — the curve still passes through every week — which is aesthetic tuning, and pinning it
+  in a test would freeze a drawing decision rather than a rule.
 - 2026-09-07 · Audit pass: B0.4 keeps `sectionTitle` until B1; every `Screen` owns its status bar;
   560pt column on wide displays; large-text rules per component; deck backers hidden from assistive
   tech; gate list gains `lint:tests` and `lint:comment-claims`. §6 added (P0–P8, D-PR1–12) from a
