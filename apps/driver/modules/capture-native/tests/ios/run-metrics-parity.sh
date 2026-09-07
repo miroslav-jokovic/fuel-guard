@@ -33,6 +33,7 @@ swiftc -O \
   -o "$OUT/metrics-parity" \
   "$MODULE/ios/CaptureMetrics.swift" \
   "$MODULE/ios/CaptureImageDecode.swift" \
+  "$MODULE/ios/CaptureTextCoverage.swift" \
   "$HERE/MetricsParityMain.swift"
 
 "$OUT/metrics-parity" "$FIXTURES"

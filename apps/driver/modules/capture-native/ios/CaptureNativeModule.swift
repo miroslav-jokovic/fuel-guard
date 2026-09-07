@@ -309,13 +309,33 @@ private enum OcrEngine {
     // conditional downcast this used to carry did nothing and the compiler said so — surfaced by the
     // first Xcode build this module has had on record (Step 1.1, 2026-09-07).
     let observations = request.results ?? []
-    return metrics(from: observations, imageHeightPx: CGFloat(cg.height))
+    return metrics(from: observations, imageWidthPx: CGFloat(cg.width), imageHeightPx: CGFloat(cg.height))
   }
 
-  private static func metrics(from observations: [VNRecognizedTextObservation], imageHeightPx: CGFloat) -> [String: Any] {
+  /**
+   ── F7 (plan Step 3.3): both coverage figures are now UNIONS over the page area ────────────────
+   `textCoverageFraction` used to SUM `box.width * box.height` over boxes that overlap and nest, so
+   it could exceed 1 and grew with OCR redundancy; `smallTextBandCoverage` used to be
+   `Σ(line heights) / imageHeight`, a sum of heights over a height, which is not a fraction of
+   anything and grew without bound with line count. Both now go through `CaptureTextCoverage`, the
+   transliteration of `packages/capture-engine/src/textCoverage.ts`, which is held to
+   `fixtures/textBoxes.json`. Their gate floors are `null` until Step 5.2 re-derives them: the old
+   0.08 and 0.02 were aimed at the quantities described above.
+
+   ⚠ Vision's `boundingBox` is normalised 0..1 with a **BOTTOM-left** origin. The flip to top-left
+   pixels happens HERE, next to the Vision call, rather than inside the geometry — which takes pixels
+   in a stated origin precisely so that neither platform's convention leaks into the definition. A
+   missed flip would still produce plausible numbers on a page whose text is roughly symmetric
+   vertically, which is most of them.
+   */
+  private static func metrics(
+    from observations: [VNRecognizedTextObservation],
+    imageWidthPx: CGFloat,
+    imageHeightPx: CGFloat
+  ) -> [String: Any] {
     var chars = 0
     var words = 0
-    var coverage: CGFloat = 0
+    var boxes: [TextBox] = []
     var heights: [CGFloat] = []
     var confidences: [Float] = []
     var tokens: [String] = []
@@ -325,24 +345,30 @@ private enum OcrEngine {
       chars += text.count
       words += text.split(separator: " ").count
       confidences.append(candidate.confidence)
-      let box = observation.boundingBox // normalized 0..1
-      coverage += box.width * box.height
+      let box = observation.boundingBox // normalized 0..1, BOTTOM-left origin
+      boxes.append(TextBox(
+        x: Double(box.minX * imageWidthPx),
+        y: Double((1 - box.maxY) * imageHeightPx),
+        width: Double(box.width * imageWidthPx),
+        height: Double(box.height * imageHeightPx)
+      ))
       heights.append(box.height * imageHeightPx)
       for token in text.split(whereSeparator: { !$0.isNumber }) where token.count >= 3 {
         tokens.append(String(token))
       }
     }
+    let width = Double(imageWidthPx)
+    let height = Double(imageHeightPx)
+    let coverage = CaptureTextCoverage.textCoverageFraction(boxes, width: width, height: height)
+    let smallCoverage = CaptureTextCoverage.smallTextBandCoverage(boxes, width: width, height: height)
     let sortedHeights = heights.sorted()
     let median = sortedHeights.isEmpty ? 0.0 : Double(sortedHeights[sortedHeights.count / 2])
-    let smallCount = max(1, sortedHeights.count / 4)
-    let smallSum = sortedHeights.prefix(smallCount).reduce(0, +)
-    let smallCoverage = imageHeightPx > 0 ? Double(smallSum / imageHeightPx) : 0.0
     let meanConfidence = confidences.isEmpty ? 0.0 : Double(confidences.reduce(0, +)) / Double(confidences.count)
     return [
       "engine": "ios.vision",
       "recognizedChars": chars,
       "recognizedWords": words,
-      "textCoverageFraction": Double(coverage),
+      "textCoverageFraction": coverage,
       "medianCharHeightPx": median,
       "smallTextBandCoverage": smallCoverage,
       "meanConfidence": meanConfidence,

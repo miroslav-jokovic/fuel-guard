@@ -185,9 +185,17 @@ export const BUNDLED_DEFAULT_CONFIG: CaptureConfig = {
     ocrMode: "accurate",
     minRecognizedChars: 80,
     minRecognizedWords: 20,
-    textCoverageFractionMin: 0.08,
+    // ⚠ `null` since 2026-09-07 (plan Step 3.3, F7). Retired in the SAME merge that replaces the
+    // quantity underneath it: `textCoverageFraction` summed overlapping and nested boxes and could
+    // exceed 1, and now unions them. 0.08 was a floor against the old quantity; carrying it across
+    // would be the most expensive kind of mistake, the kind that looks like continuity.
+    textCoverageFractionMin: null,
     minMedianCharHeightPx: 16,
-    smallTextBandCoverageMin: 0.02,
+    // ⚠ `null` since 2026-09-07 (plan Step 3.3, F7). `smallTextBandCoverage` was
+    // `Σ(line heights)/imageHeight` — a sum of heights over a height, which is not a fraction of
+    // anything and passes 1 on a dense page — and is now a union over the page area. Step 5.2
+    // derives the replacement.
+    smallTextBandCoverageMin: null,
     confidenceSignal: { use: "secondary", meanMin: 0.5, platformOverrides: { ios: {}, android: {}, web: {} } },
   },
   enhance: {

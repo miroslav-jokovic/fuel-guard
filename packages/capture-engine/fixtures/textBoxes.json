@@ -1,0 +1,886 @@
+{
+  "textCoverageVersion": "scanner-textcoverage-1",
+  "width": 1000,
+  "height": 1000,
+  "tolerance": {
+    "fractionAbsolute": 1e-9,
+    "decimals": 9
+  },
+  "cases": [
+    {
+      "name": "empty",
+      "why": "No recognised text at all. Must be 0 and must not divide by zero.",
+      "boxes": [],
+      "unionAreaPx": 0,
+      "textCoverageFraction": 0,
+      "smallTextBandCoverage": 0,
+      "legacy": {
+        "sumFraction": 0,
+        "smallBand": 0
+      }
+    },
+    {
+      "name": "single-box",
+      "why": "The trivial case, where union and sum agree — a control, so a broken union is not mistaken for a broken harness.",
+      "boxes": [
+        {
+          "x": 100,
+          "y": 100,
+          "width": 200,
+          "height": 100
+        }
+      ],
+      "unionAreaPx": 20000,
+      "textCoverageFraction": 0.02,
+      "smallTextBandCoverage": 0.02,
+      "legacy": {
+        "sumFraction": 0.02,
+        "smallBand": 0.1
+      }
+    },
+    {
+      "name": "disjoint-pair",
+      "why": "Two boxes that share no area. Union equals sum here too; it separates 'unions correctly' from 'always returns one box'.",
+      "boxes": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 100,
+          "height": 100
+        },
+        {
+          "x": 500,
+          "y": 500,
+          "width": 100,
+          "height": 100
+        }
+      ],
+      "unionAreaPx": 20000,
+      "textCoverageFraction": 0.02,
+      "smallTextBandCoverage": 0.01,
+      "legacy": {
+        "sumFraction": 0.02,
+        "smallBand": 0.1
+      }
+    },
+    {
+      "name": "half-overlap",
+      "why": "THE case. Two equal boxes overlapping by half: the sum counts the shared quarter twice, the union once.",
+      "boxes": [
+        {
+          "x": 100,
+          "y": 100,
+          "width": 200,
+          "height": 200
+        },
+        {
+          "x": 200,
+          "y": 200,
+          "width": 200,
+          "height": 200
+        }
+      ],
+      "unionAreaPx": 70000,
+      "textCoverageFraction": 0.07,
+      "smallTextBandCoverage": 0.04,
+      "legacy": {
+        "sumFraction": 0.08,
+        "smallBand": 0.2
+      }
+    },
+    {
+      "name": "nested",
+      "why": "A box entirely inside another — what happens when an engine reports a line and the word within it. The sum double-counts the whole inner box; the union ignores it.",
+      "boxes": [
+        {
+          "x": 100,
+          "y": 100,
+          "width": 400,
+          "height": 400
+        },
+        {
+          "x": 200,
+          "y": 200,
+          "width": 100,
+          "height": 100
+        }
+      ],
+      "unionAreaPx": 160000,
+      "textCoverageFraction": 0.16,
+      "smallTextBandCoverage": 0.01,
+      "legacy": {
+        "sumFraction": 0.17,
+        "smallBand": 0.1
+      }
+    },
+    {
+      "name": "duplicates",
+      "why": "The same box four times. The sum reports four times the truth; the union is unmoved. This is the shape that let the old fraction exceed 1.",
+      "boxes": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 500,
+          "height": 500
+        },
+        {
+          "x": 0,
+          "y": 0,
+          "width": 500,
+          "height": 500
+        },
+        {
+          "x": 0,
+          "y": 0,
+          "width": 500,
+          "height": 500
+        },
+        {
+          "x": 0,
+          "y": 0,
+          "width": 500,
+          "height": 500
+        }
+      ],
+      "unionAreaPx": 250000,
+      "textCoverageFraction": 0.25,
+      "smallTextBandCoverage": 0.25,
+      "legacy": {
+        "sumFraction": 1,
+        "smallBand": 0.5
+      }
+    },
+    {
+      "name": "touching-edges",
+      "why": "Two boxes sharing an edge and nothing else. A union that counts the shared edge, or that merges them into a bounding box, both answer wrongly here.",
+      "boxes": [
+        {
+          "x": 100,
+          "y": 100,
+          "width": 100,
+          "height": 100
+        },
+        {
+          "x": 200,
+          "y": 100,
+          "width": 100,
+          "height": 100
+        }
+      ],
+      "unionAreaPx": 20000,
+      "textCoverageFraction": 0.02,
+      "smallTextBandCoverage": 0.01,
+      "legacy": {
+        "sumFraction": 0.02,
+        "smallBand": 0.1
+      }
+    },
+    {
+      "name": "out-of-frame",
+      "why": "Boxes that hang off every side, which real OCR emits. Without clipping the coverage exceeds 1 — the same failure by a different route.",
+      "boxes": [
+        {
+          "x": -200,
+          "y": -200,
+          "width": 400,
+          "height": 400
+        },
+        {
+          "x": 900,
+          "y": 900,
+          "width": 400,
+          "height": 400
+        },
+        {
+          "x": 400,
+          "y": -50,
+          "width": 100,
+          "height": 100
+        }
+      ],
+      "unionAreaPx": 55000,
+      "textCoverageFraction": 0.055,
+      "smallTextBandCoverage": 0.005,
+      "legacy": {
+        "sumFraction": 0.33,
+        "smallBand": 0.1
+      }
+    },
+    {
+      "name": "degenerate",
+      "why": "Zero-width, zero-height, and negative-size boxes. Each must contribute nothing rather than crashing or contributing a negative area.",
+      "boxes": [
+        {
+          "x": 100,
+          "y": 100,
+          "width": 0,
+          "height": 200
+        },
+        {
+          "x": 200,
+          "y": 200,
+          "width": 200,
+          "height": 0
+        },
+        {
+          "x": 300,
+          "y": 300,
+          "width": -50,
+          "height": -50
+        },
+        {
+          "x": 400,
+          "y": 400,
+          "width": 100,
+          "height": 100
+        }
+      ],
+      "unionAreaPx": 10000,
+      "textCoverageFraction": 0.01,
+      "smallTextBandCoverage": 0,
+      "legacy": {
+        "sumFraction": 0.01,
+        "smallBand": -0.05
+      }
+    },
+    {
+      "name": "fine-print-page",
+      "why": "A realistic page: eight tall heading lines and twenty-four short fine-print lines. The quartile selection must land on the fine print, and the OLD metric — a sum of heights over the image height — must disagree.",
+      "boxes": [
+        {
+          "x": 80,
+          "y": 80,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 140,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 200,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 260,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 320,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 380,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 440,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 500,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 600,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 615,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 630,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 645,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 660,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 675,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 690,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 705,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 720,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 735,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 750,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 765,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 780,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 795,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 810,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 825,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 840,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 855,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 870,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 885,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 900,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 915,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 930,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 945,
+          "width": 500,
+          "height": 10
+        }
+      ],
+      "unionAreaPx": 388800,
+      "textCoverageFraction": 0.3888,
+      "smallTextBandCoverage": 0.04,
+      "legacy": {
+        "sumFraction": 0.3888,
+        "smallBand": 0.08
+      }
+    },
+    {
+      "name": "fine-print-page-doubled",
+      "why": "The same page with every fine-print line reported TWICE, as an engine that emits a line box and a paragraph box would. The old sum grows; a true coverage fraction must not move at all.",
+      "boxes": [
+        {
+          "x": 80,
+          "y": 80,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 140,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 200,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 260,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 320,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 380,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 440,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 500,
+          "width": 840,
+          "height": 40
+        },
+        {
+          "x": 80,
+          "y": 600,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 615,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 630,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 645,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 660,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 675,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 690,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 705,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 720,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 735,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 750,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 765,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 780,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 795,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 810,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 825,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 840,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 855,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 870,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 885,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 900,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 915,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 930,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 945,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 600,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 615,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 630,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 645,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 660,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 675,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 690,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 705,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 720,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 735,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 750,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 765,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 780,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 795,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 810,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 825,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 840,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 855,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 870,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 885,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 900,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 915,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 930,
+          "width": 500,
+          "height": 10
+        },
+        {
+          "x": 80,
+          "y": 945,
+          "width": 500,
+          "height": 10
+        }
+      ],
+      "unionAreaPx": 388800,
+      "textCoverageFraction": 0.3888,
+      "smallTextBandCoverage": 0.035,
+      "legacy": {
+        "sumFraction": 0.5088,
+        "smallBand": 0.14
+      }
+    },
+    {
+      "name": "equal-heights",
+      "why": "Twelve boxes of IDENTICAL height, so the quartile cut has nothing to break the tie with but the geometry. Pins that all three languages select the same three boxes rather than leaving it to their sort's stability.",
+      "boxes": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 200,
+          "y": 0,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 400,
+          "y": 0,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 600,
+          "y": 0,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 0,
+          "y": 200,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 200,
+          "y": 200,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 400,
+          "y": 200,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 600,
+          "y": 200,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 0,
+          "y": 400,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 200,
+          "y": 400,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 400,
+          "y": 400,
+          "width": 150,
+          "height": 50
+        },
+        {
+          "x": 600,
+          "y": 400,
+          "width": 150,
+          "height": 50
+        }
+      ],
+      "unionAreaPx": 90000,
+      "textCoverageFraction": 0.09,
+      "smallTextBandCoverage": 0.0225,
+      "legacy": {
+        "sumFraction": 0.09,
+        "smallBand": 0.15
+      }
+    }
+  ]
+}

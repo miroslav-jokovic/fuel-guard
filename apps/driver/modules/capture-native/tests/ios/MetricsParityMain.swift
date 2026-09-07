@@ -49,6 +49,12 @@ import ImageIO
  and only then are the numbers compared. A decode mismatch says DECODE in those words and skips the
  arithmetic entirely, because a tolerance verdict on the wrong pixels means nothing at all.
 
+ ── IT CHECKS TWO BASELINES ───────────────────────────────────────────────────────────────────
+ `expected.json` holds what `metrics.ts` answers for 24 PNGs, and `textBoxes.json` holds what
+ `textCoverage.ts` answers for twelve hand-built box sets (F7). The second cannot live in the first:
+ `textCoverage.ts` consumes OCR OUTPUT, and no synthetic PNG produces OCR output without an OCR
+ engine, which is a device rather than a fixture.
+
  Usage: `./run-metrics-parity.sh` (which passes the fixtures directory as the only argument).
  */
 @main
@@ -202,9 +208,11 @@ enum MetricsParity {
                  blurExactBound / max(worst.blurAbsolute, 1e-12)))
     print("")
 
+    failures.append(contentsOf: checkTextCoverage(fixturesDirectory))
+
     if failures.isEmpty {
-      print("RESULT: PASS — \(fixtures.count) fixtures, iOS reproduces the reference exactly "
-        + "(every deviation explained by the baseline's own rounding)")
+      print("RESULT: PASS — \(fixtures.count) fixtures + the F7 box corpus, iOS reproduces the "
+        + "reference exactly (every deviation explained by the baseline's own rounding)")
       exit(0)
     }
     for message in failures { print("  ✗ \(message)") }
@@ -215,6 +223,70 @@ enum MetricsParity {
     }
     print("RESULT: FAIL — \(failures.count) problem(s) across \(fixtures.count) fixtures")
     exit(1)
+  }
+
+  /**
+   The F7 half: `CaptureTextCoverage` against `fixtures/textBoxes.json` (plan Step 3.3).
+
+   A rectangle-union is exactly the kind of small geometric routine two people write two different
+   ways without either looking wrong, which is why it has a baseline at all rather than being left to
+   review. The cases are chosen to separate the ways it can be got wrong — overlap counted twice, a
+   nested box counted at all, a shared edge counted, a gap between two boxes filled in, a box that
+   hangs off the page not clipped — and each one names the mistake it exists to catch.
+   */
+  private static func checkTextCoverage(_ fixturesDirectory: URL) -> [String] {
+    guard let data = try? Data(contentsOf: fixturesDirectory.appendingPathComponent("textBoxes.json")),
+          let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+          let width = root["width"] as? Double,
+          let height = root["height"] as? Double,
+          let tolerance = (root["tolerance"] as? [String: Any])?["fractionAbsolute"] as? Double,
+          let cases = root["cases"] as? [[String: Any]]
+    else {
+      return ["textBoxes.json: could not read the F7 baseline"]
+    }
+
+    var failures: [String] = []
+    var worst = 0.0
+    for testCase in cases {
+      guard let name = testCase["name"] as? String,
+            let rawBoxes = testCase["boxes"] as? [[String: Any]],
+            let wantUnion = testCase["unionAreaPx"] as? Double,
+            let wantCoverage = testCase["textCoverageFraction"] as? Double,
+            let wantSmall = testCase["smallTextBandCoverage"] as? Double
+      else {
+        failures.append("textBoxes.json: malformed case")
+        continue
+      }
+      let boxes = rawBoxes.map {
+        TextBox(
+          x: ($0["x"] as? Double) ?? 0,
+          y: ($0["y"] as? Double) ?? 0,
+          width: ($0["width"] as? Double) ?? 0,
+          height: ($0["height"] as? Double) ?? 0
+        )
+      }
+
+      let union = CaptureTextCoverage.unionArea(boxes, width: width, height: height)
+      // Area is in square pixels and every fixture coordinate is an integer, so the union is an
+      // integer too — compared exactly rather than within a tolerance, because there is no rounding
+      // here for a tolerance to absorb and a near-miss would be a real disagreement.
+      if union != wantUnion {
+        failures.append("textCoverage/\(name): unionAreaPx \(union), expected \(wantUnion)")
+      }
+      for (metric, actual, want) in [
+        ("textCoverageFraction", CaptureTextCoverage.textCoverageFraction(boxes, width: width, height: height), wantCoverage),
+        ("smallTextBandCoverage", CaptureTextCoverage.smallTextBandCoverage(boxes, width: width, height: height), wantSmall),
+      ] {
+        let delta = abs(actual - want)
+        if delta > worst { worst = delta }
+        if !(delta <= tolerance) {
+          failures.append(String(format: "textCoverage/%@: %@ %.12f, expected %.9f (Δ%g > %g)",
+                                 name, metric, actual, want, delta, tolerance))
+        }
+      }
+    }
+    print("F7 text coverage:         \(cases.count) cases, worst deviation \(worst) (tolerance \(tolerance))")
+    return failures
   }
 
   /// The worst deviation seen anywhere in the corpus, so that a green run still reports a

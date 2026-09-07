@@ -10,4 +10,5 @@ export * from "./contracts";
 export * from "./config";
 export * from "./gate";
 export * from "./metrics";
+export * from "./textCoverage";
 export * from "./provider";

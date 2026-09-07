@@ -1,5 +1,10 @@
-import { toRejectionReason, type RejectionReason, type SupportResult } from "@silvicom/capture-engine";
-import type { NativeScanResult, NativeScannedPage, NativeSupport } from "../../modules/capture-native";
+import { toRejectionReason, type ImageMetrics, type RejectionReason, type SupportResult } from "@silvicom/capture-engine";
+import type {
+  NativeImageMetrics,
+  NativeScanResult,
+  NativeScannedPage,
+  NativeSupport,
+} from "../../modules/capture-native";
 
 /**
  * How a native scan result becomes an engine outcome (SCANNER-UPGRADE-PLAN.md Step 1.1, D-SCAN7).
@@ -87,5 +92,33 @@ export function supportFromNative(s: NativeSupport): SupportResult {
     ocr: s.ocr,
     scannerModule: s.scannerModule,
     reason: supported ? undefined : reasonForUnsupported(s),
+  };
+}
+
+/**
+ * What a native `measure()` becomes in the gate's `ImageMetrics` (plan Step 3.3, D-SCAN10).
+ *
+ * ── THE DECISION THIS HOLDS ───────────────────────────────────────────────────────────────────
+ * A measurement that could not be taken must leave every field ABSENT, not zero. The gate reads an
+ * absent field as `na` — §5's "never a silent pass", with the server's usability gate as the
+ * authoritative backstop — whereas a zeroed field is a real measurement of a catastrophically bad
+ * page, and the day Step 5.2 turns the floors back on that is a driver being told to retake a
+ * perfectly good photograph because a decode failed.
+ *
+ * It is the same distinction the config makes between a retired threshold and `0`, one layer down:
+ * absent means "not known", and nothing in this engine is allowed to spell "not known" as a number.
+ *
+ * `longEdgePx` is deliberately NOT taken from here. It is the resolution floor's input and the
+ * provider already has it from the page the scanner returned; sourcing it from the measurement would
+ * mean a failed measurement could not be told apart from a page with no pixels.
+ */
+export function imageMetricsFromMeasurement(m: NativeImageMetrics | null): Partial<ImageMetrics> {
+  if (!m) return {};
+  return {
+    blurVariance: m.blurVariance,
+    glareFraction: m.glareFraction,
+    brightnessMean: m.brightnessMean,
+    contrastRms: m.contrastRms,
+    shadowRange: m.shadowRange,
   };
 }
