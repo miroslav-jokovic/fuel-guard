@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import sharp from "sharp";
 
 /**
@@ -120,4 +121,35 @@ export async function usabilityGate(
   if (glareFraction > thresholds.maxGlareFraction) reasons.push("glare");
 
   return { usable: reasons.length === 0, reasons, metrics: { longEdgePx, blurVariance, glareFraction } };
+}
+
+
+/**
+ * Whether the bytes we just downloaded are the bytes that were gated on the device.
+ *
+ * ── WHY THIS EXISTS (plan Step 1.3, audit finding F5) ─────────────────────────────────────────
+ * `hazmat_documents.sha256` has been recorded since migration 0092 and recomputed by nobody, so it
+ * asserted a property no code checked. Underneath that, the driver app's two providers were computing
+ * it over different things — the native path digested the file's bytes, the JavaScript fallback
+ * digested the BASE64 STRING — and nothing could notice, because the value was only ever stored.
+ *
+ * ── WHY ONLY DRIVER CAPTURES ARE VERIFIABLE ───────────────────────────────────────────────────
+ * `capture_mode` is non-null exactly when our own scanner produced the row (0133). That is the only
+ * case where we control both the hash producer and the bytes. A manager-registered document's sha256
+ * arrives from a client we did not write, against a convention nobody wrote down; failing a run on it
+ * would convert an unverifiable claim into a broken feature. So those return `not_verifiable`, which
+ * is a statement about our knowledge rather than about the document.
+ */
+export type IntegrityVerdict = "verified" | "mismatch" | "not_verifiable";
+
+export function verifyIntegrityHash(args: {
+  bytes: Buffer;
+  recorded: string | null;
+  captureMode: string | null;
+}): IntegrityVerdict {
+  // No capture mode means it did not come from our scanner; no recorded hash means there is nothing
+  // to compare against. Neither is evidence of tampering, and neither may be reported as such.
+  if (args.captureMode === null || !args.recorded) return "not_verifiable";
+  const actual = createHash("sha256").update(args.bytes).digest("hex");
+  return actual === args.recorded.toLowerCase() ? "verified" : "mismatch";
 }

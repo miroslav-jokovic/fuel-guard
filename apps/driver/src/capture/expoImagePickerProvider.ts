@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as Crypto from "expo-crypto";
+import { File } from "expo-file-system";
 import {
   evaluateGate,
   unavailableOcr,
@@ -20,6 +21,11 @@ import {
  * stripped. It measures only what the JS layer reliably can (resolution, enforced BEFORE upload); blur /
  * glare / OCR are left `na` and the server usabilityGate is the authoritative backstop for those.
  */
+
+/** Lowercase hex, matching what `digestStringAsync` returned and what the native providers emit. */
+function toHex(buffer: ArrayBuffer): string {
+  return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 async function processAsset(
   asset: ImagePicker.ImagePickerAsset,
@@ -41,19 +47,34 @@ async function processAsset(
   let out: Awaited<ReturnType<typeof rendered.saveAsync>>;
   let mediaType: ImageRef["mediaType"];
   try {
-    out = await rendered.saveAsync({ format: wantWebp ? SaveFormat.WEBP : SaveFormat.JPEG, compress, base64: true });
+    out = await rendered.saveAsync({ format: wantWebp ? SaveFormat.WEBP : SaveFormat.JPEG, compress });
     mediaType = wantWebp ? "image/webp" : "image/jpeg";
   } catch {
     // Some encoders fail WebP → JPEG at the same quality; the server normalizer re-encodes to the
     // canonical WebP regardless, so the evidentiary record stays consistent.
-    out = await rendered.saveAsync({ format: SaveFormat.JPEG, compress, base64: true });
+    out = await rendered.saveAsync({ format: SaveFormat.JPEG, compress });
     mediaType = "image/jpeg";
   }
 
-  const base64 = out.base64 ?? "";
-  const integrityHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, base64);
-  const approxBytes = Math.floor((base64.length * 3) / 4);
-  const image: ImageRef = { uri: out.uri, width: out.width, height: out.height, bytes: approxBytes, mediaType };
+  /**
+   * ── THE HASH IS OVER THE BYTES, WHICH IT WAS NOT ──────────────────────────────────────────────
+   * This used to ask `saveAsync` for `base64: true` and digest THE BASE64 STRING. The native provider
+   * digests the file's bytes. Same contract field, `integrityHash`, two incompatible values — and
+   * nothing anywhere recomputed either, so the integrity claim was decorative rather than checkable.
+   * The server verifies it as of this step, which turns the discrepancy from cosmetic into a
+   * rejected run, so it has to be the same quantity on every provider. The browser provider was
+   * already correct (`crypto.subtle.digest` over the blob), and is untouched.
+   *
+   * Dropping `base64: true` also removes the round trip the audit flagged: it materialised the whole
+   * image as a JavaScript string on the JS thread at about 1.33x its byte size, purely so it could be
+   * hashed. Reading the file back gives the real byte count too, in place of the `length * 3 / 4`
+   * estimate that stood in for it.
+   */
+  const file = new File(out.uri);
+  const bytes = await file.arrayBuffer();
+  const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes);
+  const integrityHash = toHex(digest);
+  const image: ImageRef = { uri: out.uri, width: out.width, height: out.height, bytes: bytes.byteLength, mediaType };
 
   // Resolution is gated on the PRE-downscale capture so a sub-1200px shot is rejected before upload.
   const metrics: ImageMetrics = { longEdgePx: originalLongEdge };
