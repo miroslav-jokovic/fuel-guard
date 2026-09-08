@@ -15,7 +15,7 @@ import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
  */
 export function AuthMast({ icon, tone = 'neutral' }: { icon?: MaterialSymbolName; tone?: Tone }) {
   return (
-    <View className="items-center gap-6 py-6">
+    <View className="items-center gap-6 pb-24 pt-16">
       <SilvicomLogo360 width={208} height={40} onHero />
       {icon ? (
         <View className={`h-14 w-14 items-center justify-center rounded-full ${TONE_SOFT[tone].bg}`}>
@@ -78,7 +78,7 @@ export function AuthScreen({
   footer?: ReactNode;
 }) {
   return (
-    <Screen hero={<AuthMast icon={icon} tone={tone} />} flow="flat">
+    <Screen hero={<AuthMast icon={icon} tone={tone} />} heroTexture="auth" flow="flat">
       <AuthTitle title={title} subtitle={subtitle} />
       {children ? <View className="gap-3">{children}</View> : null}
       {footer ? <View className="gap-3 pt-2">{footer}</View> : null}
