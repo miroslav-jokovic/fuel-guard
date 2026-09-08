@@ -2021,3 +2021,21 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   would hide the last row of every list with nothing to show for it. Bar and scene now read the same
   three numbers. `screen-padding` and `tab-bar-model` pin both halves; proved by mutation (dropping
   the notch rise fails with `expected 94 to be 125`).
+- 2026-09-08 · **…and then three more things the float broke, each found by the owner looking at it.**
+  (1) **The Documents capture bar doubled up.** A pinned `footer` took `protectedByTabBar ? 0 : inset`,
+  which was right while the shell was a band the footer landed ON. With the shell floating, zero put
+  the capture bar directly underneath it — two bars in the same place, which is exactly what it looked
+  like. The footer, and a fixed (non-scrolling) tab screen's content, now clear `shellHeight` the way
+  the scroll padding does.
+  (2) **The disc needed the ring back, as a HOLE.** Removing the ring left the disc pasted onto the
+  bar; the owner asked for "that effect that button is free floating in that place". No ring can do
+  that in any colour — the effect needs the PAGE visible between disc and capsule. So the capsule is
+  drawn as an SVG path with a circular subpath under `fillRule="evenodd"` (`capsulePath` in
+  `tabBarModel`, three cases pinning it), which is a real hole. A `View` cannot be a shape with a
+  hole, which is why this could not stay a background colour.
+  (3) **A grey crescent inside the hole.** `shellElevation` is an RN shadow on a view with NO
+  backgroundColor, so iOS derives it from the layer's alpha — which is what makes it follow the holed
+  capsule for free, and also what made the DISC join that silhouette while it was a child of the same
+  view. Its shadow was cast INTO the hole, hugging its lower edge, filling the gap that exists to show
+  the page. The disc is a sibling of the capsule now. The capsule's own rim still shades the hole,
+  which is what makes the cut read as a cut rather than a sticker.
