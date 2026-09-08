@@ -72,9 +72,15 @@ function hex(appearance: string, role: string): string {
   return `#${channels.map((c) => c.toString(16).padStart(2, '0')).join('')}`.toUpperCase();
 }
 
-const HERO = hex('light', 'hero'); // #14263F
-const HERO_DARK = hex('dark', 'hero'); // #0A1422
-const ACTION = hex('light', 'action'); // #F4A340
+/**
+ * No hex literal in a comment here either. These three carried one each — `#14263F`, `#0A1422`,
+ * `#F4A340` — and by 2026-09-08 all three were WRONG: the roles had moved to #20283A, #0F1219 and
+ * #F2B267 while the annotations stayed put. A comment that restates a derived value is the same copy
+ * with the same delay fuse as a literal, and it is worse than none, because a reader trusts it.
+ */
+const HERO = hex('light', 'hero');
+const HERO_DARK = hex('dark', 'hero');
+const ACTION = hex('light', 'action');
 
 /**
  * STORE BUILD vs everything else (D-PR10). `APP_VARIANT=store` is set by the EAS production profile
@@ -280,7 +286,13 @@ const config: ExpoConfig = {
       'expo-splash-screen',
       {
         image: './assets/splash-icon.png',
-        imageWidth: 160,
+        /**
+         * 220, paired with the generator's `coverage: 0.70` for this asset. The mark now carries the
+         * margin Android 12+'s circular splash mask requires, and this restores the size that margin
+         * would otherwise have cost on iOS: 0.96 × 160 and 0.70 × 220 are both ~154dp of visible
+         * mark. The two numbers move together or the mark changes size — see scripts/gen-app-icons.mjs.
+         */
+        imageWidth: 220,
         backgroundColor: HERO,
         dark: { backgroundColor: HERO_DARK },
       },

@@ -188,9 +188,22 @@ export function outputs({ hero, white }) {
     {
       file: 'assets/splash-icon.png',
       size: 512,
-      // expo-splash-screen draws this at `imageWidth` (160dp) whatever the asset's size, so margin
-      // baked into the asset is margin that cannot be tuned later. Almost none.
-      coverage: 0.96,
+      /**
+       * 0.70, not 0.96, and the reason is Android rather than iOS.
+       *
+       * The old number reasoned only about iOS — expo-splash-screen draws this at `imageWidth`
+       * whatever the asset's size, so margin baked in is margin that cannot be tuned later, and
+       * "almost none" followed. But on Android 12+ this asset becomes
+       * `windowSplashScreenAnimatedIcon` (see the generated `values/styles.xml`), which the AndroidX
+       * splash theme masks into a CIRCLE — the same mask `adaptive-icon.png` above already accounts
+       * for at 0.56. Measured 2026-09-08: at 0.96 the mark's furthest ink sat at **1.258×** the
+       * inscribed-circle radius and **5.88%** of it fell outside, so the four triangle tips were
+       * being cut off at every Android launch. At 0.70 nothing is outside.
+       *
+       * The iOS size is preserved by raising `imageWidth` in app.config.ts in the same breath:
+       * 0.96 × 160 and 0.70 × 220 are both ~154dp of visible mark. Change one and change the other.
+       */
+      coverage: 0.70,
       background: 'none',
       mark: white,
       knockout: 'none',
