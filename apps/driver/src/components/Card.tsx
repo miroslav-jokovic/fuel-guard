@@ -1,18 +1,30 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { haptics } from '@/lib/haptics';
+import { roleColors } from '@/theme/colors';
 import { cardElevation } from '@/theme/elevation';
 import { useTheme } from '@/theme/ThemeProvider';
 import { layout } from '@/theme/tokens';
 
+type Variant = 'sheet' | 'hero' | 'flat';
+
 /**
- * A 24pt container in one of three registers (D-DB1, D-DB5):
+ * A 24pt container in one of three registers (D-DB1, D-DB5, D-DB16):
  *
- * - `sheet` — the default. White on the light canvas, carrying the app's ONE shadow: a soft offset
- *   tinted with the hero navy, never a neutral black, which reads as grime on a coloured ground.
+ * - `sheet` — the default. The surface colour carrying the app's ONE card shadow, a soft offset
+ *   tinted with the hero navy, and a faint top-to-bottom wash so the card reads as a lit object
+ *   rather than a flat rectangle. In the dark appearances the wash runs the other way (lighter at
+ *   the top) and a hairline `edge-subtle` replaces the shadow, which a near-black ground swallows.
  * - `hero` — a card sitting ON the navy. A shadow is invisible there, so containment comes from a
- *   1px translucent edge instead, and the padding opens up to 20.
- * - `flat` — no shadow and no edge, for a card that groups rows inside an already-contained region.
+ *   1px translucent edge and a wash toward the hero colour at the foot; the padding opens up to 20.
+ * - `flat` — no shadow, no edge, no wash, for a card that groups rows inside an already-contained
+ *   region.
+ *
+ * The wash is an SVG gradient rather than a native gradient view: react-native-svg is already in
+ * the binary, and `expo-linear-gradient` would have been a native module added for one effect —
+ * a rebuild on every lane for a tint. It is drawn as an overlay whose alpha runs from 0 to 1, over a
+ * solid base, so a pressed card still shows its pressed colour underneath.
  *
  * Pass `onPress` to make the whole card a target with press feedback.
  */
@@ -25,19 +37,66 @@ export function Card({
   children: ReactNode;
   onPress?: () => void;
   padded?: boolean;
-  variant?: 'sheet' | 'hero' | 'flat';
+  variant?: Variant;
 }) {
-  const { themeKey } = useTheme();
+  const { themeKey, isDark } = useTheme();
+  const rc = roleColors[themeKey];
   const surface = {
-    sheet: 'rounded-xl bg-surface',
+    sheet: isDark ? 'rounded-xl border border-edge-subtle bg-surface' : 'rounded-xl bg-surface',
     hero: 'rounded-xl border border-hero-edge bg-hero-raised',
     flat: 'rounded-xl bg-surface',
   }[variant];
   const padding = padded
     ? { padding: variant === 'hero' ? layout.cardPadding : layout.sheetCardPadding, gap: 8 }
     : undefined;
-  const elevation = variant === 'sheet' ? cardElevation(themeKey) : undefined;
-  const style = [padding, elevation];
+  const elevation = variant === 'sheet' && !isDark ? cardElevation(themeKey) : undefined;
+
+  // The wash: which colour, and which way it runs. Light sheet cards darken toward the foot by a
+  // hair (white → the subtle surface); dark ones lighten at the head (the raised surface over the
+  // card); hero cards sink toward the hero colour at the foot.
+  const wash =
+    variant === 'sheet'
+      ? isDark
+        ? { color: rc.surfaceRaised, top: 1, bottom: 0 }
+        : { color: rc.surfaceMuted, top: 0, bottom: 0.9 }
+      : variant === 'hero'
+        ? { color: rc.hero, top: 0, bottom: 0.55 }
+        : null;
+
+  // Sized from the measured box rather than percentages: react-native-svg resolves a percentage
+  // root size against its own parent, which is fine, but a Rect's percentage is resolved against
+  // the Svg's viewBox, which this Svg does not have — numeric sizes leave nothing to interpret.
+  const [box, setBox] = useState({ width: 0, height: 0 });
+  const inner = (
+    <View
+      className="overflow-hidden rounded-xl"
+      style={padding}
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        if (width !== box.width || height !== box.height) setBox({ width, height });
+      }}
+    >
+      {wash && box.width > 0 && box.height > 0 ? (
+        <Svg
+          pointerEvents="none"
+          style={{ position: 'absolute', top: 0, left: 0 }}
+          width={box.width}
+          height={box.height}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        >
+          <Defs>
+            <LinearGradient id="wash" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={wash.color} stopOpacity={wash.top} />
+              <Stop offset="1" stopColor={wash.color} stopOpacity={wash.bottom} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width={box.width} height={box.height} fill="url(#wash)" />
+        </Svg>
+      ) : null}
+      {children}
+    </View>
+  );
 
   if (onPress) {
     return (
@@ -48,11 +107,11 @@ export function Card({
           onPress();
         }}
         className={`${surface} ${variant === 'hero' ? 'active:bg-hero-tile' : 'active:bg-surface-selected'}`}
-        style={style}
+        style={elevation}
       >
-        {children}
+        {inner}
       </Pressable>
     );
   }
-  return <View className={surface} style={style}>{children}</View>;
+  return <View className={surface} style={elevation}>{inner}</View>;
 }

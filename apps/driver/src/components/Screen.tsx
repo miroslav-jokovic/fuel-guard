@@ -74,8 +74,10 @@ export function Screen({
 
   const statusBar = <StatusBar style={hero || isDark ? 'light' : 'dark'} />;
 
+  // Inside a tab the shell owns the bottom inset (the Documents tab's capture bar sits ON it);
+  // adding the inset again put 34pt of empty raised surface between the button and the bar.
   const footerNode = footer ? (
-    <View style={[{ paddingHorizontal: layout.screenInset, paddingBottom: insets.bottom + 8 }, columnStyle]}>
+    <View style={[{ paddingHorizontal: layout.screenInset, paddingBottom: (protectedByTabBar ? 0 : insets.bottom) + 8 }, columnStyle]}>
       {footer}
     </View>
   ) : null;
@@ -124,8 +126,10 @@ export function Screen({
           >
             {hero}
           </View>
+          {/* A flat-flow sheet keeps the same 16pt gap between loose children as a flat screen;
+              the auth screens (D-DB15) are the first hero screens that are not made of Sections. */}
           <View
-            className="flex-1 rounded-t-2xl bg-canvas"
+            className={`flex-1 rounded-t-2xl bg-canvas ${flow === 'flat' ? 'gap-4' : ''}`}
             style={{
               marginTop: -layout.sheetOverlap,
               paddingTop: layout.sheetTopPadding,

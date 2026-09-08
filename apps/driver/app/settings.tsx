@@ -11,12 +11,10 @@ import {
   SegmentedControl,
   SyncStatus,
 } from '@/components';
-import { useSession } from '@/session/SessionProvider';
 import { useTheme } from '@/theme/ThemeProvider';
 import { enqueue } from '@/data/outbox';
 import { runSync, useSyncState } from '@/data/sync';
 import { DEV_PING_KIND } from '@/data/handlers';
-import { revokePushRegistration } from '@/features/notifications/push';
 import { haptics } from '@/lib/haptics';
 import { BuildInfoCard } from '@/features/support/BuildInfoCard';
 import { FailedSyncList } from '@/features/support/FailedSyncList';
@@ -25,16 +23,8 @@ type ThemeMode = 'system' | 'light' | 'dark';
 
 export default function Settings() {
   const router = useRouter();
-  const { email, role, signOut } = useSession();
   const { mode, setMode, contrastMode, setContrastMode } = useTheme();
   const { pending, needsAttention, lastError } = useSyncState();
-
-  /** Sign-out revokes this device's push token FIRST, while the session can still authenticate the
-   *  call — otherwise the phone keeps receiving fleet content (D53). Best-effort with a 3s cap. */
-  async function signOutWithRevoke() {
-    await revokePushRegistration();
-    await signOut();
-  }
 
   /** Seeded test mutation (plan §13.1) — proves enqueue → relaunch → drain end-to-end. */
   async function seedTestSync() {
@@ -45,37 +35,11 @@ export default function Settings() {
 
   return (
     <Screen padTop={false} flow="sections">
-      <ScreenHeader title="Settings" onClose={() => router.back()} />
+      <ScreenHeader title="System settings" subtitle="Appearance, sync and build" onClose={() => router.back()} />
 
-      {/* B6.5: the three account-ish groups collapse into one. "Account", "Session" and "Your
-          account" were three headings for one subject, and the sign-out lived two screens-worth of
-          scrolling away from the identity it signs out of. */}
-      <Section first title="Account">
-        <Card variant="flat" padded={false}>
-          <ListRow
-            icon="account_circle"
-            iconFill
-            disc="neutral"
-            title={email ?? 'Signed in'}
-            subtitle={role ? `Role: ${role}` : undefined}
-          />
-          <ListRow
-            icon="badge"
-            disc="neutral"
-            title="Company-issued login"
-            subtitle="Your fleet manages this account. Contact your fleet manager to change or close it."
-          />
-          <ListRow
-            icon="logout"
-            disc="danger"
-            title="Sign out"
-            destructive
-            onPress={() => { void signOutWithRevoke(); }}
-          />
-        </Card>
-      </Section>
-
-      <Section title="Sync">
+      {/* The account card and Sign out moved to More on 2026-09-07 (D-DB14): a driver handing a
+          shared cab phone over should not have to open a settings screen to leave it. */}
+      <Section first title="Sync">
         <Card variant="flat" padded={false}><SyncStatus /></Card>
         {needsAttention > 0 && lastError ? (
           <Banner

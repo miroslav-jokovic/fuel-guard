@@ -90,8 +90,9 @@ import {
   Analytics02Icon,
   MapsGlobal02Icon,
   RankingIcon,
-  BubbleChatIcon,
-  DashboardSquare01Icon,
+  DeliveryTruck01Icon,
+  Folder03Icon,
+  EllipsisIcon,
 } from '@hugeicons/core-free-icons';
 import type { MaterialSymbolName } from './materialSymbols.generated';
 
@@ -100,14 +101,17 @@ import type { MaterialSymbolName } from './materialSymbols.generated';
 // single-adapter change rather than a screen-by-screen migration.
 // App icon vocabulary = the Material-Symbol name set plus a few HugeIcons that have no Material
 // Symbols equivalent (used by the bottom tab bar). Everything still renders through this adapter.
-export type IconName = MaterialSymbolName | 'analytics' | 'maps_global' | 'ranking' | 'chat' | 'grid';
+// The four tab glyphs are the owner's choice (2026-09-07, D-DB14): Home01, DeliveryTruck01, Folder03,
+// Ellipsis — named here by what they are so the tab bar reads as vocabulary, not as vendor ids.
+export type IconName = MaterialSymbolName | 'analytics' | 'maps_global' | 'ranking' | 'delivery_truck' | 'folder' | 'ellipsis';
 
 export const HUGE_ICONS: Record<IconName, IconSvgElement> = {
   analytics: Analytics02Icon,
   maps_global: MapsGlobal02Icon,
   ranking: RankingIcon,
-  chat: BubbleChatIcon,
-  grid: DashboardSquare01Icon,
+  delivery_truck: DeliveryTruck01Icon,
+  folder: Folder03Icon,
+  ellipsis: EllipsisIcon,
   account_circle: UserCircleIcon,
   add: AccountSettingIcon,
   add_a_photo: CameraAdd01Icon,

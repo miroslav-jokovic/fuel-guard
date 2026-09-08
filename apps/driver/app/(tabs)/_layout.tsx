@@ -1,46 +1,39 @@
 import { Tabs } from 'expo-router';
 import { TabBar } from '@/components/TabBar';
-import { useThreads } from '@/features/messages/useMessages';
 import { useFeatures } from '@/session/useFeatures';
 
 /**
- * Bottom tab shell — Today · Loads · Messages · Score · More (D-DB13, 2026-09-07), with Loads,
- * Messages and Score as dashboard-controllable blocks (hardening plan Phase 4, D-PM1/D-PM3):
- * `href: null` removes a disabled tab entirely — the Samsara rule, a feature an org turned off
- * simply doesn't appear. Today and More are never controllable (fail-safe core).
+ * Bottom tab shell — Home · Loads · Documents · More (D-DB14, owner ruling 2026-09-07, superseding
+ * D51's Home · Loads · Score · More). Loads and Documents are dashboard-controllable blocks
+ * (hardening plan Phase 4, D-PM1/D-PM3): `href: null` removes a disabled tab entirely — the Samsara
+ * rule, a feature an org turned off simply doesn't appear. Home and More are never controllable
+ * (fail-safe core).
  *
- * Messages became a tab because talking to dispatch is a top-level activity, not a setting: it was
- * reachable only through a bell-sized button on Today's hero and a row inside More, so a driver on
- * Loads with an unread question had no signal at all. The count rides on the tab now, through
- * `tabBarBadge`, and the duplicate entry points are gone. Notifications stays a feed behind the
- * bell and inside More — it is read, not worked.
+ * Documents is the driver's document surface: the bill-of-lading scanner and every compliance
+ * verdict it produced. It had been a modal hub two taps inside More since the hardening plan's
+ * Phase 3, which is how the scanner programme's whole front door went missing from the app's
+ * navigation. Gated on `hazmat.capture`, the same entitlement the hub carried.
  *
- * Navigate is deliberately NOT a tab: D52 moved navigation to its own programme. `navigate.tsx`
- * stays on disk as the seam — hidden from the bar and dev-only, so production never renders the
- * NP0 sample-route spike. When NP1 lands it takes a slot; the shell draws any count.
+ * Score is NOT a tab: it is a weekly grade, read from More and summarised on Home. The route stays
+ * in the navigator, hidden, so `/score` keeps working from More and from a notification. Messages
+ * and Notifications are the top-bar icons on Home and rows in More (D51, restored — the one-day
+ * Messages tab of D-DB13 is withdrawn). Navigate is deliberately NOT a tab: D52 moved navigation
+ * to its own programme; `navigate.tsx` stays on disk as the seam, hidden and dev-only.
  *
  * Uses expo-router's stable <Tabs> navigator with a fully custom JS tab bar (`TabBar`) — our
  * HugeIcons SVG through the `Icon` component, token-exact colours, identical on both platforms.
  */
 export default function TabsLayout() {
-  const { enabled, scoreDetailTab } = useFeatures();
-  const messagesEnabled = enabled('messages');
-  const threads = useThreads(messagesEnabled);
-  const unread = threads.data?.unread_total ?? 0;
-
+  const { enabled } = useFeatures();
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
-      <Tabs.Screen name="home" options={{ title: 'Today' }} />
+      <Tabs.Screen name="home" options={{ title: 'Home' }} />
       <Tabs.Screen name="loads" options={enabled('tab.loads') ? { title: 'Loads' } : { href: null }} />
       {/* Reserved slot (D52): route exists, tab hidden. */}
       <Tabs.Screen name="navigate" options={{ href: null }} />
-      <Tabs.Screen
-        name="messages"
-        options={messagesEnabled ? { title: 'Messages', tabBarBadge: unread > 0 ? unread : undefined } : { href: null }}
-      />
-      {/* Score DEPTH (tab.score config): the tab is optional even when the score itself is on —
-          Home keeps its weekly tiles either way. Off entirely hides both. */}
-      <Tabs.Screen name="score" options={scoreDetailTab ? { title: 'Score' } : { href: null }} />
+      <Tabs.Screen name="documents" options={enabled('hazmat.capture') ? { title: 'Documents' } : { href: null }} />
+      {/* Reached from More; never a tab (D-DB14). */}
+      <Tabs.Screen name="score" options={{ href: null }} />
       <Tabs.Screen name="more" options={{ title: 'More' }} />
     </Tabs>
   );

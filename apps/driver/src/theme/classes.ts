@@ -10,7 +10,9 @@ export const ui = {
   section: 'gap-3',
   card: 'rounded-xl bg-surface',
   cardContent: 'p-4 gap-2',
-  listRow: 'min-h-13 flex-row items-center gap-3 bg-surface px-4 py-3',
+  // No ground of its own: a row sits in a Card or a GroupedList, which paints the surface — and
+  // since D-DB16 a faint wash over it that an opaque row would have cut into bands.
+  listRow: 'min-h-13 flex-row items-center gap-3 px-4 py-3',
   control: 'rounded-lg',
   focusRing: 'focus:border-2 focus:border-edge-focus',
 } as const;

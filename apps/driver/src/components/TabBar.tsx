@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { AppText } from './AppText';
@@ -17,28 +17,29 @@ import {
 import type { IconName } from '@/theme/hugeIcons';
 import { shellElevation } from '@/theme/elevation';
 import { useTheme } from '@/theme/ThemeProvider';
+import { motion } from '@/theme/tokens';
 import { haptics } from '@/lib/haptics';
 
+/** The four tabs and their glyphs — owner's choice, 2026-09-07 (D-DB14). */
 const TAB_ICON: Record<string, IconName> = {
-  // A calendar page, not a house. The tab is labelled "Today" and opens a day sheet; a house says
-  // "home screen", which is a website's idea, not a driver's.
-  home: 'calendar_today',
-  // A truck for Loads: loads are freight, not analytics.
-  loads: 'local_shipping',
-  // A speech bubble, not an envelope: dispatch and the driver are talking, not posting letters.
-  messages: 'chat',
-  score: 'ranking',
-  more: 'grid',
+  home: 'home',
+  loads: 'delivery_truck',
+  documents: 'folder',
+  more: 'ellipsis',
 };
 
 /**
  * The floating tab shell (D-DB11).
  *
  * A capsule in the hero colour, inset from the screen edges and riding on the home indicator's
- * inset. The active tab's icon rises out of the capsule on an apricot disc that slides between
- * slots; behind the disc a ring in the canvas colour makes the capsule look cut away around it.
- * Selection is carried by the disc, the raised position, the filled icon AND the bolder label —
- * never colour alone (D-DB9).
+ * inset. The active tab's icon sits on an apricot disc raised through a canvas-coloured notch, so
+ * the capsule reads as cut away around it. Selection is carried by the disc, the raised position,
+ * the filled icon AND the bolder label — never colour alone (D-DB9).
+ *
+ * The disc does not travel. The first build slid it between slots on a spring, and the owner ruled
+ * the motion "too much" the same day: a driver switching tabs wants the new screen, not a show.
+ * Now the disc appears at the tapped slot with a 140ms fade and a 4% scale — enough to say
+ * "this moved", not enough to watch (Reduce Motion drops even that).
  *
  * The container reserves `shell.rise` points of canvas above the capsule for the notch. That strip
  * is part of the bar's measured height, so the scene ends above it and no scrolled card ever passes
@@ -54,15 +55,19 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const active = activeSlot(visible, activeRoute, isHiddenTab(descriptors[activeRoute?.key ?? '']?.options));
   const slotWidth = visible.length > 0 && barWidth > 0 ? barWidth / visible.length : 0;
 
-  // One disc, one ring, one shared x: the disc travels to the tapped slot rather than a new disc
-  // appearing there, so the eye follows the selection instead of re-finding it.
-  const x = useSharedValue(0);
+  const pop = useSharedValue(1);
   useEffect(() => {
-    if (slotWidth <= 0 || active < 0) return;
-    const target = discOffset(active, slotWidth, shell.notch);
-    x.value = reduceMotion ? target : withSpring(target, { damping: 22, stiffness: 260 });
-  }, [active, slotWidth, reduceMotion, x]);
-  const notchStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+    if (reduceMotion) {
+      pop.value = 1;
+      return;
+    }
+    pop.value = 0;
+    pop.value = withTiming(1, { duration: motion.fast });
+  }, [active, reduceMotion, pop]);
+  const popStyle = useAnimatedStyle(() => ({
+    opacity: pop.value,
+    transform: [{ scale: 0.96 + pop.value * 0.04 }],
+  }));
 
   const activeIcon = active >= 0 ? TAB_ICON[visible[active]!.name] : null;
   const activeBadge = active >= 0 ? badgeLabel(descriptors[visible[active]!.key]?.options.tabBarBadge) : null;
@@ -76,9 +81,8 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         * In the dark appearances the capsule steps UP to `hero-raised` with a hairline `hero-edge`:
         * the hero colour there is within a few points of the canvas, and a shadow cast onto a
         * near-black ground is nothing, so the shell read as an unlit strip on 2026-09-07's first
-        * dark screenshot. In light the hero on cream needs neither. Chosen from the theme key the
-        * tokens themselves resolve from, not a `dark:` variant, so the shell and its tokens can
-        * never disagree about which appearance is on.
+        * dark screenshot. Chosen from the theme key the tokens themselves resolve from, not a
+        * `dark:` variant, so the shell and its tokens can never disagree about the appearance.
         */}
       <View
         className={`flex-row rounded-full border ${isDark ? 'border-hero-edge bg-hero-raised' : 'border-transparent bg-hero'}`}
@@ -136,8 +140,8 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             importantForAccessibility="no-hide-descendants"
             className="absolute items-center justify-center rounded-full bg-canvas"
             style={[
-              { width: shell.notch, height: shell.notch, top: -shell.rise, left: 0 },
-              notchStyle,
+              { width: shell.notch, height: shell.notch, top: -shell.rise, left: discOffset(active, slotWidth, shell.notch) },
+              popStyle,
             ]}
           >
             <View

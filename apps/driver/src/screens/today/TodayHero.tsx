@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, useWindowDimensions } from 'react-native';
 import { nextStop, photoSlotLabel, stopProgress, missingPhotoSlots, type Load } from '@silvicom/shared';
 import { AppText, Avatar, Badge, Button, Card, Icon, IconButton, Skeleton } from '@/components';
+import { MessagesButton } from '@/features/messages/MessagesButton';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { placeLabel } from '@/features/loads/loadViewModel';
 import { shiftDurationLabel } from '@/features/duty/dutyFormat';
@@ -23,6 +24,7 @@ export function DutyStrip({
   name,
   loading,
   dutyKnown = true,
+  messages,
   notifications,
 }: {
   duty: DutyView;
@@ -35,10 +37,7 @@ export function DutyStrip({
    * true so every other caller is unchanged; Today passes `false` only in recovery with no cache.
    */
   dutyKnown?: boolean;
-  /**
-   * Notifications only. Messages had a twin button here until D-DB13 made it a tab: the count now
-   * rides on the tab, where it is visible from every screen instead of one.
-   */
+  messages?: { unread: number; onPress: () => void };
   notifications?: { unread: number; onPress: () => void };
 }) {
   const [tick, setTick] = useState(0);
@@ -68,6 +67,9 @@ export function DutyStrip({
             : [dayLabel(), duty.onDuty ? equipment : null].filter(Boolean).join(' · ')}
         </AppText>
       </View>
+      {messages ? (
+        <MessagesButton unread={messages.unread} onPress={messages.onPress} onHero />
+      ) : null}
       {notifications ? (
         <NotificationBell unread={notifications.unread} onPress={notifications.onPress} onHero />
       ) : null}

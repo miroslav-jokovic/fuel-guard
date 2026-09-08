@@ -9,12 +9,12 @@ import {
   visibleTabs,
 } from '@/components/tabBarModel';
 
-const ICONS = { home: 1, loads: 1, messages: 1, score: 1, more: 1 };
+const ICONS = { home: 1, loads: 1, documents: 1, more: 1 };
 const routes = [
   { key: 'home-1', name: 'home' },
   { key: 'loads-1', name: 'loads' },
   { key: 'navigate-1', name: 'navigate' },
-  { key: 'messages-1', name: 'messages' },
+  { key: 'documents-1', name: 'documents' },
   { key: 'score-1', name: 'score' },
   { key: 'more-1', name: 'more' },
 ];
@@ -30,9 +30,9 @@ describe('tab shell — which tabs draw', () => {
 
   it('draws only routes with an icon that are not hidden, in navigator order', () => {
     const descriptors = {
-      'home-1': enabled, 'loads-1': hidden, 'navigate-1': enabled, 'messages-1': enabled, 'score-1': enabled, 'more-1': enabled,
+      'home-1': enabled, 'loads-1': hidden, 'navigate-1': enabled, 'documents-1': enabled, 'score-1': hidden, 'more-1': enabled,
     };
-    expect(visibleTabs(routes, descriptors, ICONS).map((r) => r.name)).toEqual(['home', 'messages', 'score', 'more']);
+    expect(visibleTabs(routes, descriptors, ICONS).map((r) => r.name)).toEqual(['home', 'documents', 'more']);
   });
 });
 
@@ -41,7 +41,7 @@ describe('tab shell — where the disc sits', () => {
 
   it('lights the active tab by position among the VISIBLE tabs, not the navigator index', () => {
     expect(activeSlot(visible, { key: 'more-1', name: 'more' }, false)).toBe(3);
-    expect(activeSlot(visible, { key: 'messages-1', name: 'messages' }, false)).toBe(2);
+    expect(activeSlot(visible, { key: 'documents-1', name: 'documents' }, false)).toBe(2);
   });
 
   it('keeps More lit while a hidden Score route is on screen, because that is where the driver came from', () => {

@@ -76,11 +76,30 @@ Each decision below is final; a change is a new dated decision line, not an edit
   heading carries its own weight, and what the kicker said moves into the supporting line
   ("Deliver next · Gary, IN · …"). The `label` variant stays in the scale, reserved, with no
   current caller.
-- **D-DB13 · Messages is a tab.** Today · Loads · Messages · Score · More. Talking to dispatch is a
-  top-level activity, not a setting: it was a bell-sized button on Today's hero and a row inside
-  More, so a driver on Loads with an unread question had no signal. The unread count rides on the
-  tab (`tabBarBadge`), the two duplicate doors are removed, and the inbox is sheet-only.
-  Notifications stays a feed behind the bell and inside More. Navigate remains reserved (D52).
+- **D-DB13 · ⛔ WITHDRAWN the same day.** Messages was a tab for one merge; the owner's tab set
+  (D-DB14) has no room for it and the hero button + More row are restored. Kept so the change is
+  traceable.
+- **D-DB14 · The four tabs (owner, 2026-09-07 evening).** Home · Loads · Documents · More, with
+  Home01, DeliveryTruck01, Folder03 and Ellipsis as their glyphs. Supersedes D51's tab list.
+  **Documents** is the driver's document surface — the bill-of-lading scanner and every compliance
+  verdict it produced — promoted from a modal hub two taps inside More; it is gated on
+  `hazmat.capture` like the hub was. **Score is not a tab**: it is read from More and summarised on
+  Home, and `tab.score.detailTab` no longer changes anything in the app. **More** holds three
+  groups: the account (who is signed in, the company-issued login, **Sign out**), the work surfaces
+  that are not tabs (Driver score, Messages, Notifications) and the settings (System settings,
+  Scanner settings, the gallery in dev). Sign out moved to More from System settings.
+- **D-DB15 · Auth screens are hero-and-sheet.** The Silvicom mark, white, centred on the navy; the
+  title, form and footer on the cream at the one 20pt inset. Replaces a left-aligned 240pt mark
+  over a 16pt-gutter form with a centred dev link under left-aligned copy.
+- **D-DB16 · Cards are lit, not flat.** A sheet card carries a faint SVG wash (white toward the
+  subtle surface at its foot in light; the raised surface fading from its head in dark), a hero
+  card sinks toward the hero colour at its foot. In the dark appearances a card carries a hairline
+  `edge-subtle` instead of the shadow, which a near-black ground swallows. The wash is
+  `react-native-svg`, already in the binary — no gradient module was added. Amends D-DB8's ban on
+  gradients: buttons stay flat; only containers carry a wash, and never above 10% at the deep end
+  in light.
+- **D-DB11 amendment (2026-09-07).** The disc no longer slides between slots: it appears at the
+  tapped slot with a 140ms fade and a 4% scale. The owner ruled the spring "too much".
 
 Icons remain HugeIcons SVG through the single `Icon` adapter. Do not replace these traits with a
 bundled generic UI font, dashboard gradients, arbitrary illustrations, emoji, or ad-hoc icon imports.
@@ -94,9 +113,9 @@ that Apple mandates one universal numeric grid.
 
 - Every screen starts with `Screen`; do not hand-roll safe-area padding.
 - Use `ScreenHeader` for titles, subtitles, back actions, close actions, and trailing actions.
-- Keep enabled tabs in one stable order: Today, Loads, Messages, Score, More (D-DB13). Fleet feature
-  flags may omit Loads, Messages or Score; Today and More are never conditional. The shell draws any
-  count of visible tabs; do not add more conditional tab behaviour beyond `href: null`.
+- Keep enabled tabs in one stable order: Home, Loads, Documents, More (D-DB14). Fleet feature flags
+  may omit Loads or Documents; Home and More are never conditional. The shell draws any count of
+  visible tabs; do not add more conditional tab behaviour beyond `href: null`.
 - Use modal routes for contextual work such as load details, driving, capture, duty, and settings.
 - Respect the device's safe areas and keyboard; never place essential content under system chrome.
 
@@ -308,8 +327,9 @@ Direction B anatomy, in the primitives:
   `Section`s and the flow adds no gap of its own.
 - **`Section`** owns the space around a titled region: 24pt above the heading, 12pt below it. Do not
   reintroduce a container gap alongside it — the two rhythms sum.
-- **`Card`** is `sheet` (white, the one shadow), `hero` (on the navy, 1px `hero-edge`, no shadow) or
-  `flat` (neither — a container for rows inside an already-contained region).
+- **`Card`** is `sheet` (the surface, the one shadow in light, a hairline edge in dark, a faint
+  wash), `hero` (on the navy, 1px `hero-edge`, a wash toward the hero at the foot, no shadow) or
+  `flat` (none of it — a container for rows inside an already-contained region).
 - **`Button`** is a pill at 44 / 48 / 56. `primary` is the charcoal fill on the sheet; `hero` is the
   apricot fill, and it belongs only on the hero. `secondary` carries a hairline `edge` so it keeps a
   shape on a white card. `onHero` switches `secondary` and `ghost` to their hero forms.
@@ -399,9 +419,17 @@ the driver's worst week — never a flat 0–100, which spends two thirds of its
 driver occupies — and its ceiling stays at 100. No projections, no "on track for", no target the
 driver did not set.
 
+### Documents
+
+The scanner's front door, as a tab (D-DB14): the capture action pinned in the footer, every past
+check as a row whose disc carries its outcome, the verdict one tap deeper as a modal. Nothing here
+is invented — a row is a `MeHazmatLoadRow`, a verdict is the server's run.
+
 ### More, Settings, Messages, Notifications
 
-`Section` + `Card variant="flat"` + `ListRow disc` for grouped settings and account actions.
+`Section` + `Card variant="flat"` + `ListRow disc` for grouped settings and account actions. More
+is three groups (D-DB14): account with Sign out, work, settings. Scanner settings is a screen of
+facts with no switches — every capture rule is signed fleet configuration.
 Destructive actions use `ConfirmSheet`; an n-answer question uses `ChoiceSheet`, in front of the
 flow rather than below its fold.
 

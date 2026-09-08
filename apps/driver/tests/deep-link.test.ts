@@ -11,8 +11,8 @@ describe('resolveDeepLink', () => {
 
   it('translates the hazmat web reviewer path to the driver verdict route', () => {
     expect(resolveDeepLink(`/hazmat/loads/${uuid}`)).toBe(`/hazmat/${uuid}`);
-    expect(resolveDeepLink('/hazmat/loads')).toBe('/hazmat');
-    expect(resolveDeepLink('/hazmat/review')).toBe('/hazmat');
+    expect(resolveDeepLink('/hazmat/loads')).toBe('/documents');
+    expect(resolveDeepLink('/hazmat/review')).toBe('/documents');
   });
 
   it('passes load links through unchanged (same shape in both products)', () => {

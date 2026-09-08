@@ -32,7 +32,6 @@ export default function Score() {
   const router = useRouter();
   const features = useFeatures();
   const scoreEnabled = features.enabled('tab.score');
-  const { scoreDetailTab } = features;
   const query = useDriverScore(scoreEnabled);
   const view = buildScoreView(query.data);
   const loading = query.isPending && !query.data;
@@ -62,9 +61,8 @@ export default function Score() {
           <AppText variant="screenTitle" tone="onHero" accessibilityRole="header">Score</AppText>
           <AppText variant="supporting" tone="onHeroSecondary">{view.weekLabel ?? 'Weekly performance'}</AppText>
         </View>
-        {scoreDetailTab ? null : (
-          <AppText variant="supporting" tone="onHeroSecondary" onPress={() => router.back()}>Close</AppText>
-        )}
+        {/* Always reachable from More and never a tab (D-DB14), so Close is unconditional. */}
+        <AppText variant="supporting" tone="onHeroSecondary" onPress={() => router.back()}>Close</AppText>
       </View>
 
       {loading ? (

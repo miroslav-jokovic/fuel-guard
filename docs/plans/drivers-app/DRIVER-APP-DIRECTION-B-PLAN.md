@@ -135,9 +135,17 @@
   shadow (`shellElevation`), amending D-DB5. Rules in `src/components/tabBarModel.ts`.
 - **D-DB12 · No overlines (2026-09-07).** The uppercase kicker above hero-card headings is gone;
   its content moves into the supporting line. `label` stays in the scale, reserved.
-- **D-DB13 · Messages is a tab (2026-09-07).** Today · Loads · Messages · Score · More; unread
-  count on the tab via `tabBarBadge`; the hero button and the More row are removed; the inbox is
-  sheet-only under `(tabs)`. Notifications stays a feed. D52's reserved Navigate slot is unchanged.
+- **D-DB13 · ⛔ WITHDRAWN 2026-09-07, same day.** Messages was a tab for one merge; D-DB14 has no
+  room for it. Hero button and More row restored.
+- **D-DB14 · The four tabs (owner, 2026-09-07 evening).** Home · Loads · Documents · More with
+  Home01 / DeliveryTruck01 / Folder03 / Ellipsis. Supersedes D51's tab list. Documents = the hazmat
+  hub promoted to a tab (gated on `hazmat.capture`). Score is read from More, never a tab. More =
+  account (+ Sign out), work (Score, Messages, Notifications), settings (System, Scanner).
+- **D-DB15 · Auth screens are hero-and-sheet (2026-09-07).** Mark centred on the navy; title, form
+  and footer on the sheet at the 20pt inset.
+- **D-DB16 · Cards are lit (2026-09-07).** Faint SVG wash on sheet and hero cards; hairline edge
+  instead of the shadow in dark. Amends D-DB8 for containers only. D-DB11's disc no longer slides:
+  140ms fade in place.
 
 ---
 
@@ -1744,3 +1752,18 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   the docked bar — accepted for the shell's legibility; (2) `tests/app-icon-model.test.ts` pinned the
   old hero literal and now pins the new one. NOT done: the sign-in mark still carries the asset's grey
   `#ccc` digit discs, which is a brand-asset question for the owner, not a token.
+- 2026-09-07 · **Second pass on the same PR (D-DB14–D-DB16, D-DB13 withdrawn).** Owner review of the
+  first pass: the sign-in was misaligned, the disc's slide was too much, the tab set is Home · Loads
+  · Documents · More, More needs system + scanner settings with Sign out on it, cards must not be
+  flat in dark, and — the sharpest line — "check documentation and git logs and see what our
+  application really needs". Read first: D51/D17 in DRIVER-APP-PLAN.md, the hazmat hub's history,
+  the scanner handoff §5, the feature catalog. Findings: there was never a Documents tab in the
+  record; the hazmat hub (hardening Phase 3) IS the document surface and was a modal behind More,
+  which is why it read as missing. Built: the four tabs; `app/(tabs)/documents.tsx` from the hub
+  (`/hazmat` links repointed, deep-link test updated); More recomposed; `app/scanner-settings.tsx`
+  with `scannerSettingsModel.ts` (11 tests) reading the same native probe and config the engine
+  uses, no switches; sign-in on `Screen hero`; `Card` wash + dark edge; disc fade. Also: the dev
+  bypass now stands in for a bootstrap with every released feature at its catalog default, because
+  a bypass that hid every tab is how the owner concluded the app had lost its screens. The native
+  splash still shows B0's navy on the installed simulator build — `app.config.ts` reads `hero`
+  from the roles file, so the next native build picks up D-DB10 without a change.
