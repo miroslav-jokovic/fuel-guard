@@ -233,7 +233,7 @@ export default function StopCapture() {
         <>
           {verdict ? (
             <Section first={!error}>
-              <Card variant="flat" padded={false}>
+              <Card padded={false}>
                 <ListRow
                   icon="schedule"
                   disc={verdict.tone === 'warning' ? 'caution' : verdict.tone === 'success' ? 'success' : 'neutral'}
@@ -256,7 +256,7 @@ export default function StopCapture() {
             </Section>
           ) : (
             <Section title="Photos for this stop">
-              <Card variant="flat">
+              <Card>
                 <AppText variant="rowTitle">No photos required</AppText>
                 <AppText variant="supporting" tone="muted">Mark this stop complete when you are done here.</AppText>
               </Card>
@@ -265,7 +265,7 @@ export default function StopCapture() {
 
           {stop.notes || thread ? (
             <Section title="At this stop">
-              <Card variant="flat" padded={false}>
+              <Card padded={false}>
                 {stop.notes ? (
                   <ListRow icon="info" disc="neutral" title="Notes from dispatch" subtitle={stop.notes} />
                 ) : null}

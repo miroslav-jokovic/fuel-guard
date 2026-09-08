@@ -81,7 +81,7 @@ export default function More() {
 
       {scoreEnabled || messagesEnabled || notificationsEnabled ? (
         <Section title="Work">
-          <Card variant="flat" padded={false}>
+          <Card padded={false}>
             {scoreEnabled ? (
               <ListRow
                 title="Driver score"
@@ -116,7 +116,7 @@ export default function More() {
       ) : null}
 
       <Section title="Settings">
-        <Card variant="flat" padded={false}>
+        <Card padded={false}>
           <ListRow
             title="System settings"
             subtitle="Appearance, contrast, sync and build"

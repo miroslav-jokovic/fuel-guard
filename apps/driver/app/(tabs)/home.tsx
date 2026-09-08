@@ -275,7 +275,7 @@ export default function Home() {
               <UpNextRow key={load.id} load={load} onPress={() => router.push(`/loads/${load.id}` as never)} />
             ))
           ) : (
-            <Card variant="flat" padded={false}>
+            <Card padded={false}>
               <EmptyState
                 title="Nothing assigned yet"
                 subtitle="Released loads from dispatch will appear here."

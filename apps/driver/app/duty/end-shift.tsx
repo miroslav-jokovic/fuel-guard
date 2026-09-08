@@ -112,7 +112,7 @@ export default function EndShift() {
       {error ? <Banner tone="danger" icon="warning" message={error} /> : null}
 
       <Section first title="Your shift">
-        <Card variant="flat" padded={false}>
+        <Card padded={false}>
           <ListRow
             icon="local_shipping"
             iconFill

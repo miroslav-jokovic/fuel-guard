@@ -118,7 +118,7 @@ export default function MessagesInbox() {
             <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
           </>
         ) : rows.length === 0 ? (
-          <Card variant="flat" padded={false}>
+          <Card padded={false}>
             <EmptyState
               icon="mail"
               title="No messages yet"
@@ -126,7 +126,7 @@ export default function MessagesInbox() {
             />
           </Card>
         ) : (
-          <Card variant="flat" padded={false}>
+          <Card padded={false}>
             {rows.map((t, index) => (
               <View key={t.id}>
                 <ListRow

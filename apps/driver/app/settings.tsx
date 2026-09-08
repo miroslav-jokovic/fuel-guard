@@ -40,7 +40,7 @@ export default function Settings() {
       {/* The account card and Sign out moved to More on 2026-09-07 (D-DB14): a driver handing a
           shared cab phone over should not have to open a settings screen to leave it. */}
       <Section first title="Sync">
-        <Card variant="flat" padded={false}><SyncStatus /></Card>
+        <Card padded={false}><SyncStatus /></Card>
         {needsAttention > 0 && lastError ? (
           <Banner
             tone="danger"
@@ -55,7 +55,7 @@ export default function Settings() {
       </Section>
 
       <Section title="Appearance">
-      <Card variant="flat">
+      <Card>
         <View className="gap-2">
           <AppText variant="rowTitle">Theme</AppText>
           <SegmentedControl<ThemeMode>
@@ -95,7 +95,7 @@ export default function Settings() {
 
       {__DEV__ ? (
         <Section title="Developer">
-          <Card variant="flat" padded={false}>
+          <Card padded={false}>
             <ListRow
               icon="bolt"
               disc="action"

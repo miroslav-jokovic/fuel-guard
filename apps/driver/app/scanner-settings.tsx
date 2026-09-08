@@ -68,7 +68,7 @@ export default function ScannerSettings() {
 
 function Rows({ rows }: { rows: readonly SettingsRow[] }) {
   return (
-    <Card variant="flat" padded={false}>
+    <Card padded={false}>
       {rows.map((row, index) => (
         <View key={row.key}>
           <ListRow icon={row.icon} disc={row.tone} title={row.title} subtitle={row.subtitle} />

@@ -137,7 +137,7 @@ export default function NotificationsCentre() {
             <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
           </>
         ) : rows.length === 0 ? (
-          <Card variant="flat" padded={false}>
+          <Card padded={false}>
             <EmptyState
               icon="notifications"
               title="Nothing yet"
@@ -145,7 +145,7 @@ export default function NotificationsCentre() {
             />
           </Card>
         ) : (
-          <Card variant="flat" padded={false}>
+          <Card padded={false}>
             {rows.map((n, index) => (
               <View key={n.id} className={n.read_at === null ? 'bg-surface-selected' : ''}>
                 <ListRow
@@ -175,7 +175,7 @@ export default function NotificationsCentre() {
           to configure what may arrive later (B6.7 / Q-DB4 keeps them on one screen). */}
       <Section title="Preferences">
       {prefsError ? <Banner tone="danger" message={prefsError} /> : null}
-      <Card variant="flat" padded={false}>
+      <Card padded={false}>
         {NOTIFICATION_CATEGORIES.map((category) => (
           isMutable(category) ? (
             <ToggleRow

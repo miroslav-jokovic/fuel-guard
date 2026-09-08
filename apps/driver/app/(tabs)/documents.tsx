@@ -111,7 +111,7 @@ export default function HazmatHub() {
             <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />
           </>
         ) : rows.length === 0 ? (
-          <Card variant="flat" padded={false}>
+          <Card padded={false}>
             <EmptyState
               icon="local_fire_department"
               title="No checks yet"
@@ -119,7 +119,7 @@ export default function HazmatHub() {
             />
           </Card>
         ) : (
-          <Card variant="flat" padded={false}>
+          <Card padded={false}>
             {rows.map((row, index) => {
               const badge = rowBadge(row);
               return (

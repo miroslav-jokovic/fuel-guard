@@ -188,21 +188,21 @@ function LoadList({
   const rows = { offered: offers, current, upcoming: assigned, history: previous }[chip];
   if (rows.length === 0) {
     return (
-      <Card variant="flat" padded={false}>
+      <Card padded={false}>
         <EmptyState icon="local_shipping" title={EMPTY[chip].title} subtitle={EMPTY[chip].subtitle} />
       </Card>
     );
   }
   if (chip === 'current') {
     return (
-      <Card variant="flat" padded={false}>
+      <Card padded={false}>
         {current.map((load) => <CurrentLoadRow key={load.id} load={load} onPress={() => onOpen(load.id)} />)}
       </Card>
     );
   }
   if (chip === 'history') {
     return (
-      <Card variant="flat" padded={false}>
+      <Card padded={false}>
         {previous.map((load) => <HistoryRow key={load.id} load={load} onPress={() => onOpen(load.id)} />)}
       </Card>
     );
