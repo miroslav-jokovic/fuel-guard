@@ -1193,6 +1193,38 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   30-day job that deletes the non-retained rows (push tokens, message participation, app preferences)
   without fleet action; the retained DQ file is the legal floor and does not move.
 
+- **Q-PR7 · The Apple account is an INDIVIDUAL membership, which rules out internal TestFlight for
+  drivers** (owner decision, raised 2026-09-08). **Measured, not assumed:** Xcode's signed-in account
+  on the owner's Mac is team `FADWJ952AY`, "Miroslav Jokovic", `teamType = Individual`,
+  `isFreeProvisioningTeam = 0` — so the Developer Program is paid and active, and it is a
+  single-person membership.
+
+  Two Apple rules meet here. An internal TestFlight tester must be "an App Store Connect user who has
+  access to your account", and Apple's own help says that a tester who is not part of the account
+  cannot be added to an internal group. An Individual membership admits exactly one user: the Account
+  Holder. So on this account the only possible internal tester is the owner, and the 2026-09-08
+  ruling in favour of internal TestFlight cannot be executed as written.
+
+  ⚠ This corrects a recommendation made earlier the same day, before the account type was checked.
+  The lesson is the cheap one: the account type was one `defaults read` away and was assumed instead.
+
+  *Candidate answers:*
+   (a) **External TestFlight** — up to 10,000 testers by email or public link, no App Store Connect
+       user needed. Costs a Beta App Review (light, typically 1–2 days) and requires the privacy
+       policy URL, which exists since PR #672. **Recommended for the pilot.**
+   (b) **Ad-hoc through EAS internal distribution** — no Apple review at all, installable today, but
+       every device's UDID must be registered and the cap is 100 devices per membership year. Fastest
+       to a first install, clunkiest to operate for 15 people.
+   (c) **Convert the membership to Organization** — needs a D-U-N-S number for Silvicom Inc and goes
+       through Apple Developer Support; days to weeks, not instant.
+
+  *Recommendation:* **(a) for the pilot, and start (c) in parallel regardless.** (c) is not only about
+  testers: an Individual membership publishes under the person's own name as the seller on the App
+  Store — "Miroslav Jokovic", not Silvicom Inc — which is the wrong name on a B2B compliance product
+  sold to carriers, and it is not something to discover during the launch submission.
+
+  *Fallback until it is answered:* Android is unaffected and can pilot first; the iOS half waits.
+
 ---
 
 ## 8. Progress log (append dated lines; never edit rows above)
@@ -2153,3 +2185,15 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   failures are expected (hazmat has never completed a capture; loads are seeded), what blocks
   distribution, and the five-screen demo order. **Only 1 of 286 drivers has an app login**, which is
   the step most likely to be discovered late.
+- 2026-09-08 · **The Apple membership is INDIVIDUAL, and internal TestFlight is therefore not
+  available for drivers — Q-PR7.** Read from Xcode's signed-in account on the owner's Mac rather than
+  asked for: team `FADWJ952AY`, paid and active, `teamType = Individual`. An internal TestFlight
+  tester must be an App Store Connect user with access to the account, and an Individual membership
+  admits exactly one user. ⚠ This corrects a recommendation made earlier the same day, in the same
+  session, before the account type was checked — it was one `defaults read` away. Recommendation now:
+  external TestFlight for the pilot (Beta App Review is light and the privacy policy URL exists since
+  #672), and start the Organization conversion in parallel because an Individual membership also
+  publishes under the owner's personal name as the App Store seller.
+  Also read off the machine: the release keystore exists locally at `~/FuelGuard-backups/`, matching
+  the GitHub secret. **No** App Store Connect API key, Play service account or gcloud config exists on
+  the machine — those are web-console actions and remain owner work.
