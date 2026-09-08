@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { AppText } from './AppText';
@@ -9,12 +10,14 @@ import {
   badgeLabel,
   discOffset,
   isHiddenTab,
+  capsulePath,
   shell,
   shellBottomMargin,
   visibleTabs,
 } from './tabBarModel';
 import type { IconName } from '@/theme/hugeIcons';
 import { shellElevation } from '@/theme/elevation';
+import { roleColors } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeProvider';
 import { haptics } from '@/lib/haptics';
 
@@ -85,10 +88,40 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         * `dark:` variant, so the shell and its tokens can never disagree about the appearance.
         */}
       <View
-        className={`flex-row rounded-full border ${isDark ? 'border-hero-edge bg-hero-raised' : 'border-transparent bg-hero'}`}
+        className="flex-row"
         style={[{ height: shell.height }, shellElevation(themeKey)]}
         onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
       >
+        {/*
+          * The capsule is DRAWN, not a background colour, because it has a hole in it — see
+          * `capsulePath`. A View cannot be a shape with a hole, and the hole is the whole point: it
+          * is what lets the page show between the disc and the bar.
+          *
+          * The shadow stays an RN shadow on the parent rather than an SVG filter. With no
+          * backgroundColor on that view, iOS derives the shadow from the layer's alpha — which is
+          * this path, hole included — so it follows the real silhouette for free.
+          */}
+        {barWidth > 0 ? (
+          <Svg
+            pointerEvents="none"
+            style={{ position: 'absolute', top: 0, left: 0 }}
+            width={barWidth}
+            height={shell.height}
+          >
+            <Path
+              d={capsulePath(
+                barWidth,
+                shell.height,
+                activeIcon && slotWidth > 0
+                  ? discOffset(active, slotWidth, shell.notch) + shell.notch / 2
+                  : -shell.notch,
+                shell.notch / 2,
+              )}
+              fill={isDark ? roleColors[themeKey].heroRaised : roleColors[themeKey].hero}
+              fillRule="evenodd"
+            />
+          </Svg>
+        ) : null}
         {visible.map((route, index) => {
           const focused = index === active;
           const optionTitle = descriptors[route.key]?.options.title;
@@ -133,29 +166,40 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           );
         })}
 
-        {slotWidth > 0 && activeIcon ? (
-          <View
-            pointerEvents="none"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            // NO RING. It was `bg-canvas` — a cream disc-sized circle that made the icon read as cut
-            // out of the capsule, which only worked while the shell was an opaque canvas band. With
-            // the shell transparent (owner ruling 2026-09-08) a filled ring is a solid blob sitting
-            // on whatever the page put behind it, in canvas OR in the capsule's navy. The disc
-            // simply overlaps the capsule now, and the page shows through around it.
-            className="absolute items-center justify-center rounded-full"
-            style={{ width: shell.notch, height: shell.notch, top: -shell.rise, left: discOffset(active, slotWidth, shell.notch) }}
-          >
-            <View
-              className="items-center justify-center rounded-full bg-action"
-              style={{ width: shell.disc, height: shell.disc }}
-            >
-              <Icon name={activeIcon} size={24} fill className="text-action-fg" />
-              {activeBadge ? <SlotBadge label={activeBadge} onDisc /> : null}
-            </View>
-          </View>
-        ) : null}
       </View>
+
+      {/*
+        * The disc lives OUTSIDE the shadowed capsule, and that placement is the fix for a real
+        * artefact rather than a tidy-up. `shellElevation` is an RN shadow on a view with no
+        * backgroundColor, so iOS derives it from the layer's alpha — which is exactly what makes it
+        * follow the holed capsule for free. While the disc was a child of that view it joined the
+        * silhouette, and its shadow was cast INTO the hole: a grey crescent hugging the disc's lower
+        * edge, sitting in the gap that is supposed to show the page. Out here the disc casts nothing
+        * and the hole stays clean; the capsule's own rim still shades it, which is what makes the
+        * cut read as a cut.
+        */}
+      {slotWidth > 0 && activeIcon ? (
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          className="absolute items-center justify-center rounded-full"
+          style={{
+            width: shell.notch,
+            height: shell.notch,
+            top: 0,
+            left: shell.inset + discOffset(active, slotWidth, shell.notch),
+          }}
+        >
+          <View
+            className="items-center justify-center rounded-full bg-action"
+            style={{ width: shell.disc, height: shell.disc }}
+          >
+            <Icon name={activeIcon} size={24} fill className="text-action-fg" />
+            {activeBadge ? <SlotBadge label={activeBadge} onDisc /> : null}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }

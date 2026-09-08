@@ -90,10 +90,17 @@ export function Screen({
 
   const statusBar = <StatusBar style={hero || isDark ? 'light' : 'dark'} />;
 
-  // Inside a tab the shell owns the bottom inset (the Documents tab's capture bar sits ON it);
-  // adding the inset again put 34pt of empty raised surface between the button and the bar.
+  /**
+   * A pinned footer has to clear the floating shell, not sit under it.
+   *
+   * This used to read `protectedByTabBar ? 0 : insets.bottom`, which was right while the shell was an
+   * opaque band the scene ended above — the footer landed ON the band and adding the inset again put
+   * 34pt of empty raised surface between the button and the bar. Now that the shell floats OVER the
+   * scene, zero puts the Documents tab's capture bar directly underneath it: two bars stacked in the
+   * same place, which is exactly what it looked like.
+   */
   const footerNode = footer ? (
-    <View style={[{ paddingHorizontal: layout.screenInset, paddingBottom: (protectedByTabBar ? 0 : insets.bottom) + 8 }, columnStyle]}>
+    <View style={[{ paddingHorizontal: layout.screenInset, paddingBottom: (protectedByTabBar ? tabBarHeight : insets.bottom) + 8 }, columnStyle]}>
       {footer}
     </View>
   ) : null;
@@ -176,9 +183,11 @@ export function Screen({
           className={ui.fixedContent}
           style={[columnStyle, {
             paddingTop: top,
+            // A fixed (non-scrolling) tab screen has no scroll padding to save it, so it takes the
+            // shell's height directly or its last control sits under the capsule.
             paddingBottom: footer
               ? layout.screenInset
-              : (protectedByTabBar ? 0 : insets.bottom) + layout.screenInset,
+              : (protectedByTabBar ? tabBarHeight : insets.bottom) + layout.screenInset,
           }]}
         >
           {children}

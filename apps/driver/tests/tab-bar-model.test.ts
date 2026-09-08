@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  capsulePath,
   activeSlot,
   badgeLabel,
   discOffset,
@@ -87,6 +88,38 @@ describe('tab shell — edges and badges', () => {
     // It is strictly more than the capsule alone: the notch rises above the capsule's top edge, and
     // a scene that stopped at the capsule would still put its last row under the active disc.
     expect(shellHeight(34)).toBeGreaterThan(shell.height + 34);
+  });
+
+  describe('the capsule, with the hole the active disc floats in', () => {
+    /**
+     * The hole is real geometry, not a ring drawn on top, and that distinction is the whole feature:
+     * the owner asked for "that effect that button is free floating in that place", which needs the
+     * PAGE visible between disc and bar. A ring cannot do that — the cream one worked only while the
+     * shell stood on a cream band, and any other colour is a blob.
+     */
+    it('is two subpaths, so evenodd can turn the second into a hole', () => {
+      const d = capsulePath(300, 60, 100, 31);
+      // Two closed subpaths. One alone would be a capsule; three would be a bug.
+      expect(d.match(/Z/g)).toHaveLength(2);
+      // The cap radius is half the height — a capsule, never a rounded rectangle.
+      expect(d).toContain('M 30 0');
+      expect(d).toContain('L 270 0');
+    });
+
+    it('puts the hole exactly where it is asked to', () => {
+      const d = capsulePath(300, 60, 100, 31);
+      // The circle subpath starts at its leftmost point: centre minus radius.
+      expect(d).toContain('M 69 0');
+      expect(d).toContain('a 31 31 0 1 0 62 0');
+    });
+
+    it('stays a valid path when there is no active slot to cut for', () => {
+      // TabBar parks the hole off-canvas rather than branching, so the path always has the same
+      // shape and the fill never flickers between two different geometries.
+      const d = capsulePath(300, 60, -62, 31);
+      expect(d.match(/Z/g)).toHaveLength(2);
+      expect(d).toContain('M -93 0');
+    });
   });
 
   it('reads an unread count as nothing, the number, or 9+', () => {

@@ -94,6 +94,42 @@ export function shellHeight(insetBottom: number): number {
 }
 
 /**
+ * The capsule, with a circular hole punched where the active disc sits (owner ruling 2026-09-08:
+ * "we should have that ring all the way around active button so we have that effect that button is
+ * free floating in that place").
+ *
+ * A GENUINE hole, not a ring drawn on top. Three versions were tried on the device and only this one
+ * is right: a canvas-coloured ring worked while the shell stood on an opaque canvas band and became
+ * a cream blob the moment the shell went transparent; a capsule-coloured ring is just a dark blob;
+ * and no ring at all leaves the disc pasted onto the bar. What the effect needs is to SEE THE PAGE
+ * between the disc and the capsule, and nothing but a hole does that.
+ *
+ * Returned as an SVG path with two subpaths — the rounded capsule, then the circle — to be filled
+ * with `fillRule="evenodd"`, which is what turns the second subpath into a hole rather than a
+ * second blob. The circle's centre sits ON the capsule's top edge, so half of it bites into the
+ * capsule and half is already open air.
+ */
+export function capsulePath(width: number, height: number, holeCentreX: number, holeRadius: number): string {
+  const r = height / 2;
+  const capsule = [
+    `M ${r} 0`,
+    `L ${width - r} 0`,
+    `A ${r} ${r} 0 0 1 ${width - r} ${height}`,
+    `L ${r} ${height}`,
+    `A ${r} ${r} 0 0 1 ${r} 0`,
+    'Z',
+  ].join(' ');
+  // Drawn as two arcs so it closes cleanly; direction does not matter under evenodd.
+  const hole = [
+    `M ${holeCentreX - holeRadius} 0`,
+    `a ${holeRadius} ${holeRadius} 0 1 0 ${holeRadius * 2} 0`,
+    `a ${holeRadius} ${holeRadius} 0 1 0 ${-holeRadius * 2} 0`,
+    'Z',
+  ].join(' ');
+  return `${capsule} ${hole}`;
+}
+
+/**
  * The unread count on a tab, as it reads: nothing for zero, the number to nine, then `9+` so the
  * badge never widens into the neighbouring slot. Strings pass through — expo-router allows them.
  */
