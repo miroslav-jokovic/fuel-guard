@@ -43,6 +43,7 @@ import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppSwitch as BaseSwitch } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import ScoreFeatureOptions from "@/features/settings/ScoreFeatureOptions.vue";
 type SettingsTab = "features" | "app" | "exceptions";
 const activeTab = ref<SettingsTab>("features");
 const tabs: { key: SettingsTab; label: string }[] = [
@@ -119,23 +120,17 @@ async function setOdometerMode(mode: string) {
     savingKey.value = null;
   }
 }
-const scoreDepths = [
-  { label: "Home + Score tab", value: "tab" },
-  { label: "Home summary only", value: "home" },
-];
-const scoreDepth = computed<string>(() => {
-  const parsed = featureConfigSchemas["tab.score"].safeParse(rowByKey.value.get("tab.score")?.config ?? {});
-  return parsed.success && !parsed.data.detailTab ? "home" : "tab";
-});
-async function setScoreDepth(depth: string) {
+const scoreConfig = computed(() => rowByKey.value.get("tab.score")?.config as Record<string, unknown> | undefined);
+/** The score options (depth + leaderboard, D-DB18) save as ONE config row; the child merges them. */
+async function saveScoreOptions(config: Record<string, unknown>) {
   savingKey.value = "tab.score";
   try {
     await saveFeature.mutateAsync({
       featureKey: "tab.score",
       enabled: effectiveEnabled(FEATURE_CATALOG["tab.score"]),
-      config: { detailTab: depth === "tab" },
+      config,
     });
-    toast.success("Score visibility saved");
+    toast.success("Score options saved");
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "Could not save the setting");
   } finally {
@@ -271,18 +266,12 @@ async function removeOverride(featureKey: string) {
               <div class="min-w-0">
                 <h4 class="text-sm font-semibold text-ink">{{ def.label }}</h4>
                 <p class="mt-1 text-sm text-ink-muted">{{ def.description }}</p>
-                <div v-if="def.key === 'tab.score' && effectiveEnabled(def)" class="mt-3 max-w-xs">
-                  <FormField v-slot="{ id }" label="Visibility">
-                    <AppSelect
-                      :id="id"
-                      :model-value="scoreDepth"
-                      :options="scoreDepths"
-                      aria-label="Driver score visibility"
-                      :disabled="savingKey === def.key"
-                      @update:model-value="setScoreDepth(String($event))"
-                    />
-                  </FormField>
-                </div>
+                <ScoreFeatureOptions
+                  v-if="def.key === 'tab.score' && effectiveEnabled(def)"
+                  :config="scoreConfig"
+                  :disabled="savingKey === def.key"
+                  @save="saveScoreOptions"
+                />
                 <div v-if="def.key === 'duty.odometer'" class="mt-3 max-w-xs">
                   <FormField v-slot="{ id }" label="Check-in policy">
                     <AppSelect

@@ -7,8 +7,10 @@ import {
   completeStopRequestSchema,
   declineLoadRequestSchema,
   endShiftRequestSchema,
+  scoreLeaderboardEnabled,
   startLoadRequestSchema,
   startShiftRequestSchema,
+  toFeatureMap,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
 import { driverWriteLimit } from "../../../middleware/driverWriteLimit.js";
@@ -34,7 +36,7 @@ import {
   startLoad,
   type LoadResult,
 } from "../../loads/index.js";
-import { getDriverScore } from "../../performance/index.js";
+import { getDriverLeaderboard, getDriverScore } from "../../performance/index.js";
 import { getResolvedFeatures } from "../driverAppFeatures.js";
 
 /**
@@ -241,6 +243,40 @@ export function meRouter(): Router {
         return;
       }
       res.json(await getDriverScore(admin, orgId, driverId));
+    }),
+  );
+
+  // ── Fleet leaderboard (D-DB18, 2026-09-07) ──────────────────────────────────
+  // The one driver read that crosses into colleagues' rows, so it is fenced twice: the service's
+  // projection (top five first names + grades, plus the viewer) and the org's `tab.score.leaderboard`
+  // opt-out, checked HERE so a fleet that reads rank as a secret is honoured whatever the app asks.
+  // `dpw_driver_scope` is untouched — this is an API projection, not a policy change.
+  router.get(
+    "/score/leaderboard",
+    ...driverOnly,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const driverId = await resolveDriverId(admin, orgId, req.auth!.userId);
+      if (!driverId) {
+        res.status(404).json(apiError("no_driver_record", "No driver record is linked to this account"));
+        return;
+      }
+      const { data: modules } = await admin
+        .from("org_modules")
+        .select("module_key, enabled, config")
+        .eq("org_id", orgId);
+      const features = await getResolvedFeatures(
+        admin,
+        orgId,
+        driverId,
+        (modules ?? []) as { module_key: string; enabled: boolean; config: Record<string, unknown> }[],
+      );
+      if (!scoreLeaderboardEnabled(toFeatureMap(features))) {
+        res.status(404).json(apiError("feature_off", "This fleet does not show the leaderboard"));
+        return;
+      }
+      res.json(await getDriverLeaderboard(admin, orgId, driverId));
     }),
   );
 

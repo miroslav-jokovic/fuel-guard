@@ -9,13 +9,15 @@ import { useHazmatChecks } from '@/features/hazmat/useHazmatChecks';
 import { useThreads } from '@/features/messages/useMessages';
 import { useMarkRead, useNotifications } from '@/features/notifications/useNotifications';
 import { homeScoreSummary } from '@/features/score/scoreModel';
-import { useDriverScore } from '@/features/score/useDriverScore';
+import { useDriverScore, useLeaderboard } from '@/features/score/useDriverScore';
+import { buildLeaderboardView } from '@/features/score/leaderboardModel';
 import { CurrentLoadHero, DutyStrip } from '@/screens/today/TodayHero';
 import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import { UpNextRow } from '@/screens/today/UpNext';
 import { WeekStrip } from '@/screens/today/WeekStrip';
 import { StartDayCard } from '@/screens/today/StartDayCard';
 import { RigCard } from '@/screens/today/RigCard';
+import { Leaderboard } from '@/screens/today/Leaderboard';
 import { attentionRows, shouldSkeletonHero, SKELETON_HEIGHTS, todayAlerts, todayState, upNextLoads } from '@/screens/today/todayModel';
 import { UpdateReadyBanner } from '@/features/updates/UpdateReadyBanner';
 import { firstName, useDriverContext } from '@/session/useDriverContext';
@@ -38,15 +40,17 @@ export default function Home() {
   const router = useRouter();
   const driver = useDriverContext();
   const shift = useShift();
-  const { enabled } = useFeatures();
+  const { enabled, scoreLeaderboard } = useFeatures();
   const loadsEnabled = enabled('tab.loads');
   const scoreEnabled = enabled('tab.score');
+  const leaderboardEnabled = scoreEnabled && scoreLeaderboard;
   const notificationsEnabled = enabled('notifications');
   const messagesEnabled = enabled('messages');
   const hazmatEnabled = enabled('hazmat.capture');
 
   const loads = useLoads(loadsEnabled);
   const score = useDriverScore(scoreEnabled);
+  const leaderboard = useLeaderboard(leaderboardEnabled);
   const notifs = useNotifications(notificationsEnabled);
   const threads = useThreads(messagesEnabled);
   const hazmat = useHazmatChecks(hazmatEnabled);
@@ -203,6 +207,7 @@ export default function Home() {
           loads.refetch(),
           notifs.refetch(),
           threads.refetch(),
+          leaderboard.refetch(),
         ]).finally(() => setRefreshing(false));
       }}
     >
@@ -283,6 +288,11 @@ export default function Home() {
       {state !== 'recovery' && scoreEnabled && weekScore ? (
         <Section title="Your score">
           <WeekStrip score={weekScore} onOpen={() => router.push('/score')} />
+          {/* The fleet, after the driver's own week (D-DB18). Absent, not empty, when the org opted
+              out; a failed fetch shows nothing rather than a board that might be stale. */}
+          {leaderboardEnabled && (leaderboard.data || leaderboard.isLoading) ? (
+            <Leaderboard view={buildLeaderboardView(leaderboard.data)} loading={leaderboard.isLoading && !leaderboard.data} />
+          ) : null}
         </Section>
       ) : null}
 

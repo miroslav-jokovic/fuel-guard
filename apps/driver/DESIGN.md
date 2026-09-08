@@ -108,6 +108,15 @@ Each decision below is final; a change is a new dated decision line, not an edit
   shift*. Every rank is the driver's own: the API deliberately exposes no other driver's row
   (`driverContract.ts`), so a fleet leaderboard is §7 Q-DB7, not a module. The current load stays
   the hero card; Up next stays the rows beneath it.
+- **D-DB18 · The fleet leaderboard (owner's answer to Q-DB7, 2026-09-07: "top five plus me").**
+  Under Your score, a card with the latest ranked week's top five drivers by FIRST NAME and rounded
+  grade, then the driver after a break if they placed lower, and one line saying where they placed.
+  It is an API projection (`GET /api/me/score/leaderboard`): `dpw_driver_scope` still denies a
+  driver every row but their own, the service assembles exactly this shape with the service role,
+  and nothing else crosses — no ids, no sub-scores, no history for anyone but the viewer. A fleet
+  opts out with `tab.score.leaderboard` (web: Driver app settings → Score → "Fleet leaderboard on
+  Home"), and the API refuses the endpoint when it is off, so no build of the app can show it
+  against the fleet's wish. The viewer's row is the selected surface with "(you)" in the name.
 
 Icons remain HugeIcons SVG through the single `Icon` adapter. Do not replace these traits with a
 bundled generic UI font, dashboard gradients, arbitrary illustrations, emoji, or ad-hoc icon imports.
