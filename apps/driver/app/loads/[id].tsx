@@ -194,7 +194,7 @@ export default function LoadDetail() {
       </Section>
 
       <Section title="This load">
-        <Card variant="flat">
+        <Card>
           <View className="flex-row gap-4">
             <Fact label="Commodity" value={load.commodity ?? '—'} />
             <Fact label="Trailer" value={load.trailer_unit ?? '—'} />

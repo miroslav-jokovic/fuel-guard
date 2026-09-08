@@ -1837,3 +1837,38 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   navigation, so this is NOT a fix: the cause was the installed binary or accumulated presented
   screens, and it is open. If it returns, the nine `presentation: "modal"` screens in
   `app/_layout.tsx` under iOS 26's stacked-sheet behaviour are the first place to look.
+- 2026-09-08 · **D-DB19 — elevation is two steps, and it is not always a shadow** (owner ruling,
+  amending D-DB5). D-DB5's "one card shadow, content surfaces cast none" was measured on the running
+  app and found to be doing less than it claimed: the resting shadow (8% at 22pt radius, 8pt offset)
+  landed **below the noise floor** — canvas at `rgb(243,239,232)` and the pixels directly under a card
+  also `rgb(243,239,232)`. And the far larger finding, from classifying every call site: **32 of the
+  app's 49 cards were `variant="flat"`**, and **none of the 32 was nested inside another card**. The
+  variant's stated purpose — "a container for rows inside an already-contained region" — described a
+  case this app does not contain, while two thirds of the surface opted out of depth, a wash and an
+  edge. That is the substance of "it looks sloppy and amateur", and no gate could see it because
+  every one of those call sites was individually legal.
+  So: `flat` is **deleted** (if a genuinely nested card ever appears, derive the depth from the
+  nesting; never choose it again at a call site), and the scale is `resting` | `raised`, taken from
+  whether the card has an `onPress` rather than from a prop — a card a driver can tap sits higher, on
+  every screen, without that becoming a per-screen opinion. What survives from D-DB5 is its important
+  half: two steps and no more, `shadow-*` still banned, `shadowColor` still reserved to `theme/`.
+  The step is expressed per appearance because the grounds differ, and this is measured, not
+  stylistic: LIGHT and HIGH-CONTRAST LIGHT have `surface` === `surface-raised` (both pure white), so
+  there is nowhere to climb and the step is CAST; DARK and HIGH-CONTRAST DARK have a real +10 raise
+  and a near-black canvas that swallows any shadow, so the step is CLIMBED (`surface` →
+  `surface-raised`, with `edge-subtle` → `edge` alongside).
+  Verified on the simulator, A/B at the same pixel beside the same card (canvas `243,239,232`):
+  resting reads `238,234,228` → `230,227,221`, raised reads `233,229,223` → `224,221,216`. In dark a
+  card now sits at `rgb(38,44,60)` on a `rgb(19,23,32)` canvas where it was previously `rgb(28,33,48)`
+  with a hairline. `tests/elevation.test.ts` (5 cases) pins both, and derives "which appearances
+  cast" from `surface === surface-raised` rather than restating the list.
+- 2026-09-08 · **Open, found while shipping D-DB19: the avatar's disc is invisible on a dark card.**
+  `Avatar` uses `bg-hero-tile`, which is designed for the navy duty strip. On a dark *card* it
+  measures **1.18:1 against `surface`** and **1.03:1 against `surface-raised`** — so it was already
+  invisible before D-DB19 and is now marginally more so. The initials themselves are fine (white,
+  ≥11:1, fixed 2026-09-07), so this is containment, not legibility, and the More row degrades to
+  plain white initials rather than breaking. The real cause is that the dark palette's `hero-tile`
+  (39 46 63), `surface-muted` (38 44 60) and `surface-raised` (38 44 60) occupy one crowded band;
+  fixing it means either a ground-aware disc on `Avatar` (it takes no `onHero` prop, though
+  `MessagesButton` and `NotificationBell` both do) or separating those three roles. Not done here —
+  it is a palette question, not an elevation one.

@@ -70,7 +70,7 @@ export function BuildInfoCard() {
 
   return (
     <>
-      <Card variant="flat" padded={false}>
+      <Card padded={false}>
         <Row label="App version" value={String(Constants.expoConfig?.version ?? 'unknown')} />
         <Row label="Runtime" value={String(Updates.runtimeVersion ?? 'unknown')} />
         <Row label="JavaScript" value={bundle} />

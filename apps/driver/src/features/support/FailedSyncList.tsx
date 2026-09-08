@@ -62,7 +62,7 @@ export function FailedSyncList() {
   if (rows.length === 0) return null;
 
   return (
-    <Card variant="flat" padded={false}>
+    <Card padded={false}>
       {rows.map((row, index) => (
         <View key={row.id}>
           <ListRow

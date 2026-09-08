@@ -126,7 +126,7 @@ export default function Score() {
 
       {view.tiles.length > 0 ? (
         <Section title="What made the score" first={!query.isError || Boolean(query.data)}>
-          <Card variant="flat" padded={false}>
+          <Card padded={false}>
             {view.tiles.map((tile, index) => (
               <View key={tile.key}>
                 <ScoreRow tile={tile} />

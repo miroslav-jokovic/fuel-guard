@@ -17,7 +17,7 @@ export function Itinerary({ load, onOpenStop }: { load: Load; onOpenStop: (stopI
   const rows = itineraryRows(load);
 
   return (
-    <Card variant="flat" padded={false}>
+    <Card padded={false}>
       <View className="px-4 py-2">
         {rows.map(({ stop, state, connectorDone }, index) => (
           <StopLine

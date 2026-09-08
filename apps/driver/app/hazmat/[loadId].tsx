@@ -99,7 +99,7 @@ export default function HazmatVerdictScreen() {
           {/* The verdict is the screen: a driver opening this wants one word before any detail,
               and a thin status strip made "Rejected" the same weight as "2 pending". */}
           <Section first>
-            <Card variant="flat">
+            <Card>
               <View className={`h-11 w-11 items-center justify-center rounded-full ${TONE_SOFT[meta.tone].bg}`}>
                 <Icon name={meta.icon} size={22} fill className={TEXT_TONE_CLASS[TONE_SOFT[meta.tone].textTone]} />
               </View>
@@ -109,7 +109,7 @@ export default function HazmatVerdictScreen() {
           </Section>
           {view.findings.length > 0 ? (
             <Section title="Findings">
-              <Card variant="flat" padded={false}>
+              <Card padded={false}>
                 {view.findings.map((finding, index) => (
                   <View key={`${finding.ruleId}-${index}`} className="flex-row items-start gap-3 px-4 py-3">
                     <Icon name="warning" size={18} className="mt-0.5 text-warning" />
@@ -126,7 +126,7 @@ export default function HazmatVerdictScreen() {
           ) : null}
           {view.findings.length === 0 && view.flags.length > 0 ? (
             <Section title="Review flags">
-              <Card variant="flat" padded={false}>
+              <Card padded={false}>
                 {view.flags.map((flag, index) => (
                   <View key={`${flag}-${index}`} className="flex-row items-start gap-3 px-4 py-3">
                     <Icon name="info" size={18} className="mt-0.5 text-info" />

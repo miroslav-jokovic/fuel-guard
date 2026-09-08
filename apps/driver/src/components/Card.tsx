@@ -3,11 +3,11 @@ import { Pressable, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { haptics } from '@/lib/haptics';
 import { roleColors } from '@/theme/colors';
-import { cardElevation } from '@/theme/elevation';
+import { cardElevation, cardSurfaceClass, type ElevationStep } from '@/theme/elevation';
 import { useTheme } from '@/theme/ThemeProvider';
 import { layout } from '@/theme/tokens';
 
-type Variant = 'sheet' | 'hero' | 'flat';
+type Variant = 'sheet' | 'hero';
 
 /**
  * A 24pt container in one of three registers (D-DB1, D-DB5, D-DB16):
@@ -18,8 +18,13 @@ type Variant = 'sheet' | 'hero' | 'flat';
  *   the top) and a hairline `edge-subtle` replaces the shadow, which a near-black ground swallows.
  * - `hero` — a card sitting ON the navy. A shadow is invisible there, so containment comes from a
  *   1px translucent edge and a wash toward the hero colour at the foot; the padding opens up to 20.
- * - `flat` — no shadow, no edge, no wash, for a card that groups rows inside an already-contained
- *   region.
+ * There was a third, `flat` — no shadow, no edge, no wash — documented as "a container for rows
+ * inside an already-contained region". On 2026-09-07 it was carrying **32 of the app's 49 cards**,
+ * and NOT ONE of them was nested inside another card: every single use was a top-level card on the
+ * sheet that had simply opted out of depth. The variant described a case this app does not have,
+ * while two thirds of the surface rendered as flat rectangles — which is the substance of the
+ * owner's "it looks sloppy and amateur". It is gone; if a genuinely nested card ever appears, the
+ * depth should be derived from the nesting, never chosen again at the call site.
  *
  * The wash is an SVG gradient rather than a native gradient view: react-native-svg is already in
  * the binary, and `expo-linear-gradient` would have been a native module added for one effect —
@@ -41,15 +46,21 @@ export function Card({
 }) {
   const { themeKey, isDark } = useTheme();
   const rc = roleColors[themeKey];
+  /**
+   * D-DB19: a card the driver can tap sits higher than one that only holds text. Derived from
+   * `onPress` rather than taken as a prop, so the rule is the same on every screen and cannot become
+   * a per-call-site opinion. `flat` opts out entirely — it groups rows inside something already
+   * contained, and a raised card inside a raised card is noise.
+   */
+  const step: ElevationStep = onPress ? 'raised' : 'resting';
   const surface = {
-    sheet: isDark ? 'rounded-xl border border-edge-subtle bg-surface' : 'rounded-xl bg-surface',
+    sheet: `rounded-xl ${cardSurfaceClass(themeKey, step)}`,
     hero: 'rounded-xl border border-hero-edge bg-hero-raised',
-    flat: 'rounded-xl bg-surface',
   }[variant];
   const padding = padded
     ? { padding: variant === 'hero' ? layout.cardPadding : layout.sheetCardPadding, gap: 8 }
     : undefined;
-  const elevation = variant === 'sheet' && !isDark ? cardElevation(themeKey) : undefined;
+  const elevation = variant === 'sheet' ? cardElevation(themeKey, step) : undefined;
 
   // The wash: which colour, and which way it runs. Light sheet cards darken toward the foot by a
   // hair (white → the subtle surface); dark ones lighten at the head (the raised surface over the

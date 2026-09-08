@@ -353,16 +353,18 @@ export default function Gallery() {
           />
         </View>
         <Card>
-          <AppText variant="rowTitle">Sheet card</AppText>
+          <AppText variant="rowTitle">Resting card</AppText>
           <AppText variant="supporting" tone="muted">
-            White, 24pt, one soft shadow tinted with the hero navy — the app's only shadow.
+            The step a card that only holds content sits at. On the light appearances it is cast —
+            a soft offset tinted with the hero navy; on the dark ones it is climbed, because a
+            shadow on a near-black ground is a cost with no picture.
           </AppText>
-          <Button label="Primary on the sheet" variant="primary" onPress={noop} />
         </Card>
-        <Card variant="flat">
-          <AppText variant="rowTitle">Flat card</AppText>
+        <Card onPress={noop}>
+          <AppText variant="rowTitle">Raised card</AppText>
           <AppText variant="supporting" tone="muted">
-            No shadow and no edge: a container for rows inside an already-contained region.
+            The second and last step (D-DB19). Taken because this card has an onPress, never chosen
+            per call site: a card a driver can tap sits higher than one they cannot.
           </AppText>
         </Card>
       </Section>
@@ -378,7 +380,7 @@ export default function Gallery() {
               <AppText variant="caption" tone="muted" className="flex-1">{note}</AppText>
             </View>
             {rows.length > 0 ? <AttentionQueue rows={rows} /> : (
-              <Card variant="flat">
+              <Card>
                 <AppText variant="supporting" tone="muted">No attention rows — the section is not rendered.</AppText>
               </Card>
             )}
