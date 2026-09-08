@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { inflateSync } from 'node:zlib';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -19,6 +20,45 @@ import {
 
 const ROOT = join(import.meta.dirname, '..');
 const MARK: string = readFileSync(join(ROOT, '../web/public/SilvicomLogoS.svg'), 'utf8');
+
+/**
+ * The top-left pixel of a committed PNG, decoded with node's own zlib and nothing else.
+ *
+ * This is deliberately NOT a byte-diff of the rasteriser's output — `scripts/gen-app-icons.mjs`
+ * explains at length why that cannot be a CI gate (@resvg/resvg-js is a per-platform native binary,
+ * so a Mac and an ubuntu runner disagree for reasons that are not the icon). That decision is right,
+ * and it left a hole: `icon.png` carries an OPAQUE plate painted with the `hero` role, and when that
+ * role moved the committed icon kept the old navy. Measured 2026-09-08 — the App Store icon's plate
+ * was rgb(20,38,63) while the app painted rgb(32,40,58). Nothing was watching, for eleven roles'
+ * worth of theme work.
+ *
+ * A single pixel is portable where the whole image is not, and one pixel is all this needs. Row 0,
+ * pixel 0 is also the one pixel that needs no filter arithmetic: every PNG filter predicts from the
+ * left, the row above, or both, and all of those are zero there, so the stored byte IS the value.
+ */
+function topLeftPixel(file: string): [number, number, number] {
+  const png = readFileSync(join(ROOT, file));
+  let at = 8; // past the signature
+  let colourType = -1;
+  const idat: Buffer[] = [];
+  while (at < png.length) {
+    const length = png.readUInt32BE(at);
+    const type = png.toString('ascii', at + 4, at + 8);
+    const body = png.subarray(at + 8, at + 8 + length);
+    if (type === 'IHDR') {
+      expect(body.readUInt8(8), `${file} bit depth`).toBe(8);
+      expect(body.readUInt8(12), `${file} interlace`).toBe(0);
+      colourType = body.readUInt8(9);
+    }
+    if (type === 'IDAT') idat.push(body);
+    if (type === 'IEND') break;
+    at += length + 12; // length + type + data + crc
+  }
+  const bytesPerPixel = colourType === 6 ? 4 : colourType === 2 ? 3 : 0;
+  expect(bytesPerPixel, `${file} colour type ${colourType}`).toBeGreaterThan(0);
+  const raw = inflateSync(Buffer.concat(idat));
+  return [raw[1]!, raw[2]!, raw[3]!]; // raw[0] is row 0's filter byte
+}
 
 describe('classifyFills', () => {
   it('splits the real mark into three dark fills and one light one, in source order', () => {
@@ -223,11 +263,39 @@ describe('the four outputs', () => {
     expect(spec('adaptive').coverage).toBeLessThanOrEqual(0.61);
   });
 
+  it('keeps the splash logo inside Android 12+’s circular splash mask', () => {
+    /**
+     * The sibling of the assertion above, and it was missing until 2026-09-08.
+     *
+     * On Android 12+ `assets/splash-icon.png` becomes `windowSplashScreenAnimatedIcon` (see the
+     * generated `android/app/src/main/res/values/styles.xml`), which the AndroidX splash theme masks
+     * into a circle — a LARGER circle than the adaptive icon's 66/108 safe zone, but a circle all
+     * the same. Nothing said so, and the spec's own comment reasoned only about iOS, so it carried
+     * `coverage: 0.96`: measured, the mark's furthest ink sat at **1.258×** that circle's radius and
+     * **5.88%** of it was clipped at every Android launch — the four triangle tips.
+     *
+     * The budget is derived rather than typed: the splash may spend the adaptive icon's coverage
+     * scaled back up by the fraction of the canvas that safe zone occupies, and no more.
+     */
+    const ADAPTIVE_SAFE_ZONE = 66 / 108;
+    expect(spec('splash').coverage).toBeLessThanOrEqual(spec('adaptive').coverage / ADAPTIVE_SAFE_ZONE);
+  });
+
   it('makes the notification icon a solid silhouette, overdrawn to close the seams', () => {
     const notification = spec('notification');
     expect(notification.knockout).toBe(notification.mark);
     expect(notification.repeat).toBeGreaterThan(1);
     expect(notification.size).toBe(96);
+  });
+
+  it('paints the committed store icon with the hero the app actually uses', () => {
+    // The one property of the rasterised output that MUST track the theme, checked without
+    // rasterising anything. See topLeftPixel above for why this hole existed and what fell through it.
+    const roles: unknown = JSON.parse(readFileSync(join(ROOT, 'src/theme/theme.roles.json'), 'utf8'));
+    const hero = roleHex(roles, 'light', 'hero');
+    const [r, g, b] = topLeftPixel('assets/icon.png');
+    const asHex = `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+    expect(asHex).toBe(hero.toLowerCase());
   });
 
   it('gives the iOS icon a knockout the same colour as its plate, so it stays opaque', () => {

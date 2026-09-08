@@ -1967,3 +1967,38 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   the tab bar. The floating capsule looked like an overlay, but `TabBar`'s root is an ordinary padded
   `View` that the navigator lays the scene above — it takes its own space and covers nothing. The
   24pt `screenBottomPadding` for a tab screen is correct as written.
+- 2026-09-08 · **The splash cannot carry the artwork, and saying so is the deliverable.** The owner
+  asked for the third reference image as a splash background. It is not available, on either platform,
+  and the evidence is in this repo's own generated output:
+  **Android 12+** draws the splash from `windowSplashScreenBackground` (a COLOUR) plus
+  `windowSplashScreenAnimatedIcon` (a centred icon the system masks into a circle) — see the generated
+  `android/app/src/main/res/values/styles.xml`. There is no image slot; the app targets API 36, so
+  this is the only path. **iOS** can do a full-bleed image, but only via expo-splash-screen's
+  `enableFullScreenImage_legacy`, which the plugin's own types document as *"Legacy transition helper,
+  will be removed."* Shipping it would give two unrecognisably different launches and put the app on a
+  deprecated flag. Not done, per the no-workarounds rule.
+- 2026-09-08 · **What WAS wrong with the splash: Android was clipping the mark.** `assets/splash-icon.png`
+  is generated at `coverage: 0.96`, and that number's comment reasoned only about iOS ("expo-splash-screen
+  draws this at `imageWidth` whatever the asset's size, so margin baked in cannot be tuned later").
+  But on Android 12+ the same asset becomes the circle-masked splash icon. Measured: the mark's
+  furthest ink sat at **1.258×** the inscribed circle's radius and **5.88% of the ink fell outside it**
+  — the four triangle tips were cut off at every Android launch. `adaptive-icon.png` had this right at
+  0.56 for the same reason and said so; the splash entry simply never accounted for it. Now
+  `coverage: 0.70` (furthest ink 0.917×, nothing outside), with `imageWidth` raised 160 → 220 in the
+  same breath so the iOS size is unchanged: 0.96 × 160 and 0.70 × 220 are both ~154dp of visible mark.
+  `'keeps the splash logo inside Android 12+’s circular splash mask'` pins it, deriving the budget from
+  the adaptive icon's coverage ÷ Android's own 66/108 safe zone rather than typing a number.
+- 2026-09-08 · **And the store icon had been shipping the wrong navy.** Regenerating the icons changed
+  `assets/icon.png` too, which I had not touched: its opaque plate is painted with the `hero` role, the
+  role moved, and the committed PNG kept **rgb(20,38,63)** while the app paints **rgb(32,40,58)**. The
+  same drift had rotted all three hex annotations in `app.config.ts` (`#14263F`, `#0A1422`, `#F4A340`
+  against live `#20283A`, `#0F1219`, `#F2B267`) — those are deleted rather than corrected, being a copy
+  of a derived value with the delay fuse this repo's own rule warns about.
+  `gen:icons --check` is **deliberately not a CI gate** (`gen-app-icons.mjs:21`: @resvg/resvg-js is a
+  per-platform binary and a byte-diff between a Mac and an ubuntu runner would fail for reasons that
+  are not the icon). That call is right, and it left a hole: the one property that MUST track the theme
+  had nothing watching it. `'paints the committed store icon with the hero the app actually uses'` now
+  decodes the committed PNG's top-left pixel with node's own zlib — portable where the whole image is
+  not, and row 0 pixel 0 needs no filter arithmetic because every PNG predictor is zero there. Proved
+  against the real artefact: restoring the old committed icon fails with
+  `expected '#14263f' to be '#20283a'`.
