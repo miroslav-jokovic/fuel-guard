@@ -1946,3 +1946,24 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   any tone; proved by mutation (a white tint fails with `expected 12.449… to be >= 12.482…`).
   Verified visually with a temporary probe card on `/score` — reverted; the diff is `Card.tsx`,
   `elevation.ts` and the test only.
+- 2026-09-08 · **D-DB23 — a screen's title starts at the screen inset, like everything under it.**
+  Found by measuring rather than by looking: a left-edge histogram of every rendered row on the
+  settings modal put the section headings at **19.3pt** (the 20pt inset plus glyph bearing) and card
+  content at **32.7–37.3pt** — a coherent hierarchy — and the screen's own title at **64pt**. The
+  title was the one piece of text on the page that did not line up with the page, because
+  `ScreenHeader` put it in a flex row beside the back/close button and the button's 44pt target plus
+  the gap pushed it right. **Seventeen screens** render that header and **21 call sites** pass a
+  leading action, which made it the app's most repeated misalignment.
+  This is not a new rule, which is why it was worth changing: D-DB15 settled the same argument for the
+  auth screens after the owner's "alignment is not correct" — "the mark owns the hero and the sheet
+  owns every line of text, all at the one screen inset". The leading action now takes its own row
+  above the title, which is also how a platform large-title bar is built, so the button keeps its full
+  44pt target and stops displacing the words. A header with no leading action is untouched: there is
+  nothing to displace it, and `right` keeps sitting beside the words.
+  Verified on the device: the settings title moved from 64pt to **19.0–19.7pt**, against section
+  headings at 19.0–19.3pt. `notifications` (modal, has a close) now reads 19.3pt; `more` and
+  `documents` (tabs, no leading action) are unchanged at 20.0pt.
+  **Also checked and NOT changed, because the measurement did not support it:** content hidden behind
+  the tab bar. The floating capsule looked like an overlay, but `TabBar`'s root is an ordinary padded
+  `View` that the navigator lays the scene above — it takes its own space and covers nothing. The
+  24pt `screenBottomPadding` for a tab screen is correct as written.
