@@ -128,10 +128,42 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.silvicom.fuelguard.driver',
-    // Never hand-edited, same reasoning as android.versionCode below: App Store Connect rejects a
-    // build number it has already seen, and a human-managed counter is a counter that goes backwards.
+    /**
+     * IGNORED under `appVersionSource: "remote"`, which eas.json has set since 2026-09-08 — EAS
+     * writes `CFBundleVersion` into the native project at build time and this value only seeds the
+     * remote counter the first time. Kept, rather than deleted, because `expo run:ios` and
+     * `expo prebuild` on a laptop still read it and a missing key there means no build number at all.
+     *
+     * It reads `IOS_BUILD_NUMBER` for the same reason: driver-store.yml still exports the CI run
+     * number, and a local source of truth that disagrees with CI is worse than a redundant one.
+     *
+     * ⚠ D-PR2 said this WAS the counter and `appVersionSource` was `local`. That decision assumed
+     * every store build came from `driver-store.yml`. Measured 2026-09-08: that workflow's only run
+     * ended `action_required` in 2 seconds and has never executed, while two production builds were
+     * cut from a laptop — both stamped `1`, because `IOS_BUILD_NUMBER` is unset outside CI. App Store
+     * Connect refuses a `CFBundleVersion` it has already seen, so the second upload would have been
+     * rejected. The remote counter cannot go backwards and cannot be forgotten, which is the property
+     * D-PR2 actually wanted; see Q-PR9 in DRIVER-APP-DIRECTION-B-PLAN.md for the full trade.
+     */
     buildNumber: process.env.IOS_BUILD_NUMBER ?? '1',
-    config: { usesNonExemptEncryption: false }, // HTTPS + OS crypto = exempt (plan §23.3 / D27)
+    /**
+     * EXPORT COMPLIANCE (`ITSAppUsesNonExemptEncryption`).
+     *
+     * `false` until 2026-09-08, annotated "HTTPS + OS crypto = exempt". The first half was true and
+     * the second was not: this app links **SQLCipher** (the `expo-sqlite` plugin below sets
+     * `useSQLCipher: true`, which compiles AES-256 into SQLite) and bundles **aes-js**. Both are
+     * industry-standard cryptography carried IN the app, not the encryption "within the Apple
+     * operating system" that Apple's export-compliance table names as the exempt case, and neither
+     * fits any Category 5 Part 2 exemption — not medical, not IP protection, not authentication-only,
+     * not banking, not fixed cryptography. The offline outbox holds unsynced driver work and is
+     * encrypted at rest on purpose (D12); the declaration has to say so.
+     *
+     * The consequence is real and accepted: App Store Connect now asks the export questions on each
+     * submission until a compliance code exists, and a French declaration is required to distribute
+     * in France. What is owed to counsel — the French declaration and whether the 5D992.c mass-market
+     * self-classification report to BIS applies — is recorded as Q-PR8 rather than guessed here.
+     */
+    config: { usesNonExemptEncryption: true },
     // A development build talking to the production APNs environment receives nothing, silently. The
     // variant decides, so neither case depends on somebody remembering to flip it.
     entitlements: { 'aps-environment': storeBuild ? 'production' : 'development' },
@@ -160,11 +192,25 @@ const config: ExpoConfig = {
      * disagreement between the three is a disagreement with one document rather than a guess.
      * Precise location is absent because it is not collected (D-PR6 removes expo-location).
      *
-     * NSPrivacyAccessedAPITypes carries only the three categories Expo's own template declares.
-     * Xcode's privacy report at the first archive (Product → Generate Privacy Report) is the
-     * verifier for the rest: an API it lists is added THEN, with its reason code — for disk space,
-     * 85F4.1 if the app checks free space before writing, E174.1 if it displays it — never in
-     * advance, because a declared reason the app cannot justify is worse than a missing one.
+     * NSPrivacyAccessedAPITypes carried only the three categories Expo's own template declares
+     * until 2026-09-08, on the plan that Xcode's privacy report at the first archive would name the
+     * rest. It named none, because that report was never run — and the archive is not the only
+     * verifier available. The BINARY is:
+     *
+     *     nm -u $(find "$DERIVED_DATA" -name '*.a') | grep -E '_f?statfs|_getattrlist'
+     *
+     * which on 2026-09-08 answered `libExpoSQLite.a: _fstatfs` — SQLite asking the filesystem how
+     * much room it has before it writes. `fstatfs` is on Apple's required-reason list for
+     * NSPrivacyAccessedAPICategoryDiskSpace, and neither expo-sqlite nor expo-file-system ships a
+     * privacy manifest of its own (`ExpoFileSystem_privacy.bundle` contains an Info.plist and
+     * nothing else; there is no ExpoSQLite bundle at all), so the declaration can only be made
+     * HERE. Without it the upload fails ITMS-91053, which has been a hard requirement since
+     * 2024-05-01 and is a known expo-sqlite trap (expo/expo#27678).
+     *
+     * The rule the previous comment stated still holds and is why the reason code below is 85F4.1
+     * and not E174.1: a declared reason the app cannot justify is worse than a missing one. SQLite
+     * CHECKS free space in order to write; the app never displays it to anyone, and the number
+     * never leaves the device — which is exactly 85F4.1's condition.
      */
     privacyManifests: {
       NSPrivacyTracking: false,
@@ -190,6 +236,10 @@ const config: ExpoConfig = {
         { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryUserDefaults', NSPrivacyAccessedAPITypeReasons: ['CA92.1'] },
         // React Native's performance timers read the boot time.
         { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategorySystemBootTime', NSPrivacyAccessedAPITypeReasons: ['35F9.1'] },
+        // SQLCipher/SQLite calls fstatfs to size a write before making it (measured in
+        // libExpoSQLite.a, see above). 85F4.1 = check available space in order to write; the value
+        // is never displayed and never sent off-device, which is what that reason requires.
+        { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryDiskSpace', NSPrivacyAccessedAPITypeReasons: ['85F4.1'] },
       ],
     },
   },
