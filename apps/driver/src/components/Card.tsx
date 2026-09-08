@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { haptics } from '@/lib/haptics';
 import { roleColors } from '@/theme/colors';
-import { cardElevation, cardSurfaceClass, type ElevationStep } from '@/theme/elevation';
+import { cardElevation, cardSurfaceClass, heroCardSurfaceClass, type ElevationStep } from '@/theme/elevation';
 import { useTheme } from '@/theme/ThemeProvider';
 import { layout } from '@/theme/tokens';
 
@@ -55,7 +55,7 @@ export function Card({
   const step: ElevationStep = onPress ? 'raised' : 'resting';
   const surface = {
     sheet: `rounded-xl ${cardSurfaceClass(themeKey, step)}`,
-    hero: 'rounded-xl border border-hero-edge bg-hero-raised',
+    hero: `rounded-xl ${heroCardSurfaceClass(themeKey)}`,
   }[variant];
   const padding = padded
     ? { padding: variant === 'hero' ? layout.cardPadding : layout.sheetCardPadding, gap: 8 }
