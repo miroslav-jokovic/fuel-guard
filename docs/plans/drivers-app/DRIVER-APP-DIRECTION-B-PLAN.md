@@ -2075,3 +2075,38 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   The auth texture is `50 80`, not `24 80`: it is a photograph rather than line work, and mapped to
   the band's floor it turned into a night scene at a mean of 33 against the 55.8 the owner had
   approved. Two floors, because the two sources are different kinds of image.
+- 2026-09-08 · **P3.2 built: `/privacy`, `/terms` and `/support` are live routes.** Public,
+  unauthenticated and indexable, rendered in `PublicLayout` and linked three ways — the layout's own
+  footer, each other, and a new **About** group in the driver app's More tab whose rows open the
+  phone's browser. The store forms (P3.3) remain owner actions and are the only half of P3 still open.
+  **The matrix is data, not prose.** `apps/web/src/features/legal/legalMeta.ts` holds `DATA_MATRIX`
+  and `NOT_COLLECTED`; the policy page renders them and the two console questionnaires are filled by
+  reading them. The reason is that the same table has to be true in FOUR places on submission day —
+  this page, the Apple labels, the Apple privacy MANIFEST already shipped in `app.config.ts` (P1.1),
+  and Play Data Safety — and three of those four are typed into a console by a person reading
+  something. Each row carries the Apple `NSPrivacyCollectedDataType` it corresponds to, so the
+  correspondence with the manifest is checkable rather than asserted.
+  **Three deviations from §6.2 P3, each deliberate.** (1) The pages are Vue components, not rendered
+  Markdown: `apps/web` has no Markdown dependency, and adding one would put the copy outside
+  `lint:tokens` and need a sanitiser — the section primitive (`LegalSection.vue`) gets the same
+  result with no dependency and the type scale enforced. (2) `/terms` names no `[STATE]`. A live page
+  with a bracket in it is worse than one that states the truth, which is that the governing law is
+  whatever the carrier's own agreement with Silvicom says; counsel confirms or replaces that in the
+  Q-PR3 revision. (3) `/support` answers the three problems the app's design actually makes likely —
+  a queue that has to drain, a password only a fleet manager can reset, notifications gated on a
+  fleet feature — rather than only publishing the address the plan specified. An address that
+  answers questions the page could have answered becomes a queue nobody can clear.
+  **Two shared surfaces moved, both to stop a copy forming.** `PublicLayout` said "HazmatGuard" as a
+  literal, correct while the placard calculator was its only page; the name now comes from
+  `route.meta.brand` and defaults to the platform, because a privacy policy cannot be published
+  under a module's mark. The placard specimen disclaimer (49 CFR §172.519) moved out of that
+  layout's footer onto the placard page, where it belongs — a layout carries what is true of every
+  page in it, and that disclaimer under a privacy policy would have been both wrong and baffling.
+  **The one new test is a cross-app fitness function.** `apps/driver/tests/legal-links.test.ts` reads
+  both files as text and asserts the driver's `LEGAL_PATHS` equals the web's route paths. Renaming
+  the web route compiles, type-checks and passes every gate in both packages while turning three
+  rows in More into 404s that only a store reviewer would ever report. Proven to fail by mutation:
+  changing `'/privacy'` to `'/legal/privacy'` reported the two sets differing on that member.
+  **Q-PR4 is still open and the code does not wait for it.** `VITE_SUPPORT_EMAIL` unset makes every
+  surface say "ask your fleet manager", which is true today — a driver's first line of support is
+  their dispatcher — so the fallback is honest copy rather than a degraded state.

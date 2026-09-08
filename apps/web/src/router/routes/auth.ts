@@ -15,12 +15,20 @@ export const authRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/auth/LoginPage.vue"),
     meta: { public: true, layout: "auth" },
   },
-  // M7 — free public placard calculator (unauthenticated, indexable; its own layout).
+  /**
+   * M7 — free public placard calculator (unauthenticated, indexable; its own layout).
+   *
+   * `brand` names the mark the public header carries. It is set HERE and nowhere else: P3 put three
+   * legal documents into the same layout, and those are published by the company rather than by the
+   * hazmat module, so the layout defaults to the platform's name and this page opts into the
+   * module's. Before P3 the name was a literal in `PublicLayout.vue`, which was correct only while
+   * this was the sole page in it.
+   */
   {
     path: "/placard-calculator",
     name: "public-placard-calculator",
     component: () => import("@/pages/PublicPlacardCalculatorPage.vue"),
-    meta: { public: true, layout: "public", title: "Free DOT Placard Calculator" },
+    meta: { public: true, layout: "public", title: "Free DOT Placard Calculator", brand: "HazmatGuard" },
   },
   /**
    * H5b — the applicant's own form. Unauthenticated by necessity: they fill it in before they are

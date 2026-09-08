@@ -35,6 +35,7 @@ import { recruitmentRoutes } from "./routes/recruitment";
 import { fuelRoutes } from "./routes/fuel";
 import { financeRoutes } from "./routes/finance";
 import { settingsRoutes } from "./routes/settings";
+import { legalRoutes } from "./routes/legal";
 import { systemRoutes, notFoundRoute } from "./routes/system";
 
 /**
@@ -64,6 +65,7 @@ const routes: RouteRecordRaw[] = [
   ...fuelRoutes,
   ...financeRoutes,
   ...settingsRoutes,
+  ...legalRoutes,
   ...systemRoutes,
   // Must stay last: it matches everything. See `routes/system.ts`.
   notFoundRoute,

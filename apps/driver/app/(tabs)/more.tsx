@@ -1,11 +1,12 @@
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AppText, Avatar, Banner, Card, ListRow, Screen, ScreenHeader, Section } from '@/components';
+import { AppText, Avatar, Banner, Card, Icon, ListRow, Screen, ScreenHeader, Section } from '@/components';
 import { useFeatures } from '@/session/useFeatures';
 import { useSession } from '@/session/SessionProvider';
 import { useDriverContext } from '@/session/useDriverContext';
 import { useShift } from '@/features/duty/useDuty';
 import { revokePushRegistration } from '@/features/notifications/push';
+import { openLegalDocument } from '@/lib/legalLinks';
 
 /**
  * Everything that is not a tab, in three groups the owner named on 2026-09-07 (D-DB14): who is
@@ -148,6 +149,46 @@ export default function More() {
               />
             </>
           ) : null}
+        </Card>
+      </Section>
+
+      {/*
+        About (P3.2). Both stores want their listing's privacy, terms and support URLs reachable
+        from inside the app as well as from the listing, and a driver who wants to know whether the
+        app tracks them should not have to find the store page to ask.
+
+        They open in the phone's browser rather than a screen in here: these documents are published
+        by the company at one address, and a copy rendered natively is a second copy that would be
+        stale the day the policy changes. `legalLinks.ts` derives the address from the API base.
+      */}
+      <Section title="About">
+        <Card padded={false}>
+          <ListRow
+            title="Privacy policy"
+            subtitle="What the app collects, and what it does not"
+            icon="shield"
+            disc="neutral"
+            right={<Icon name="open_in_new" size={18} className="text-ink-subtle" />}
+            onPress={() => { void openLegalDocument('privacy'); }}
+          />
+          <View className="ml-18 h-px bg-edge-subtle" />
+          <ListRow
+            title="Terms of use"
+            subtitle="The rules for using this app"
+            icon="task_alt"
+            disc="neutral"
+            right={<Icon name="open_in_new" size={18} className="text-ink-subtle" />}
+            onPress={() => { void openLegalDocument('terms'); }}
+          />
+          <View className="ml-18 h-px bg-edge-subtle" />
+          <ListRow
+            title="Support"
+            subtitle="What to try first, and who to ask"
+            icon="help"
+            disc="neutral"
+            right={<Icon name="open_in_new" size={18} className="text-ink-subtle" />}
+            onPress={() => { void openLegalDocument('support'); }}
+          />
         </Card>
       </Section>
     </Screen>

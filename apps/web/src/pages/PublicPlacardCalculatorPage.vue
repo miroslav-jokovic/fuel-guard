@@ -34,6 +34,17 @@ import HazmatCalculatorForm from "@/features/hazmat/HazmatCalculatorForm.vue";
         returns the required placards and the citations behind them. Placard images are specimens for
         identification, not regulation-ready artwork.
       </p>
+      <!--
+        This disclaimer stood in `PublicLayout.vue`'s footer until 2026-09-08, when P3 put the privacy
+        policy, the terms and the support page into the same layout. It is a fact about THIS page's
+        output — the specimens it draws and the verdict it returns — and printing it under a privacy
+        policy would have been both wrong and baffling. A layout carries what is true of every page in it.
+      -->
+      <p class="mt-3 text-xs text-ink-tertiary">
+        Placard images shown are <strong>specimens</strong> for identification, not regulation-ready
+        artwork (49 CFR §172.519). Results are informational and derived from the published HMT/CFR;
+        the carrier remains responsible for compliance under 49 CFR §177.817.
+      </p>
     </BaseCard>
   </div>
 </template>

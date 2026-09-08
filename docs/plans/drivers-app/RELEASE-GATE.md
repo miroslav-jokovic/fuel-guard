@@ -127,7 +127,7 @@ exists, an iPhone. Each row: do the steps, confirm the criterion.
 | 16 KB page size | ⚠ **checked, not yet measured on a shipped bundle** — `scripts/check-16kb.mjs` reads every `.so`'s PT_LOAD alignment and runs on the APK in `driver-android.yml`; it has never run on a real bundle of this app's libraries, because the first one is built on the next merge to main. Two 4 KB-aligned libraries exist in `expo-sqlite` (`libsql`, `vec`) and neither is packaged — both are off by default and we do not enable them |
 | Xcode 26 / iOS 26 SDK build · AAB lane · EAS Submit | ☐ — §6 P2 |
 | Privacy manifest with collected data types | ✅ **2026-09-07** (§6 P1) — seven collected types, three required-reason APIs, no tracking, no location; `PrivacyInfo.xcprivacy` verified in an `expo prebuild --platform ios` output |
-| Privacy policy URL · Data Safety form | ☐ — §6 P3 |
+| Privacy policy URL · Data Safety form | ◑ **pages built 2026-09-08** (§6 P3.2) — `/privacy`, `/terms` and `/support` are public, indexable routes in `apps/web`, linked from the public layout's footer and from the driver app's More → About group. Both store FORMS are still owner actions (P3.3): the Play Data Safety questionnaire and the Apple privacy labels are filled from `apps/web/src/features/legal/legalMeta.ts`'s `DATA_MATRIX`, which is the same table the policy page renders and the same list `app.config.ts` declares to Apple |
 | Review fleet + credentials · listing assets | ☐ — §6 P7 and P8 |
 | Push permission | requested only when the `notifications` feature is on |
 | Privacy labels (camera, photos, push token, coarse identifiers) | ☐ **owner action** — fill from the above before submission |
