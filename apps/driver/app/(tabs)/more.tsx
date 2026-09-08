@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AppText, Avatar, Banner, Card, Icon, ListRow, Screen, ScreenHeader, Section } from '@/components';
+import { AppText, Avatar, Banner, Card, ConfirmSheet, Icon, ListRow, Screen, ScreenHeader, Section } from '@/components';
 import { useFeatures } from '@/session/useFeatures';
 import { useSession } from '@/session/SessionProvider';
 import { useDriverContext } from '@/session/useDriverContext';
 import { useShift } from '@/features/duty/useDuty';
 import { revokePushRegistration } from '@/features/notifications/push';
 import { openLegalDocument } from '@/lib/legalLinks';
+import { useCloseAccount } from '@/features/account/useCloseAccount';
+import { useToast } from '@/components/ToastHost';
 
 /**
  * Everything that is not a tab, in three groups the owner named on 2026-09-07 (D-DB14): who is
@@ -38,6 +41,31 @@ export default function More() {
   }
 
   const name = driver.data?.driver.full_name ?? email ?? 'Signed in';
+
+  /**
+   * Closing the account (P4.3). The sign-out runs whether the request succeeded or not — the server
+   * has already banned the login by the time it answers, so leaving the driver on a signed-in screen
+   * with a dead session would be the one genuinely confusing outcome. A failure is reported first,
+   * and then only the local session is cleared.
+   */
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  const closeAccount = useCloseAccount();
+  const toast = useToast();
+
+  async function confirmClose() {
+    try {
+      await closeAccount.mutateAsync();
+    } catch (e) {
+      setConfirmingClose(false);
+      toast.show(
+        e instanceof Error ? e.message : 'Could not close your account. Try again when you have a signal.',
+        'danger',
+      );
+      return;
+    }
+    setConfirmingClose(false);
+    await signOutWithRevoke();
+  }
 
   return (
     <Screen flow="sections">
@@ -76,6 +104,20 @@ export default function More() {
             title="Sign out"
             destructive
             onPress={() => { void signOutWithRevoke(); }}
+          />
+          {/*
+            Close my account (P4.3, Apple 5.1.1(ix)). Below Sign out and visually identical to it in
+            weight, which is deliberate: this is not a feature to advertise, and a driver who wants
+            it will look here. The confirm sheet does the work of making the consequence plain.
+          */}
+          <View className="ml-18 h-px bg-edge-subtle" />
+          <ListRow
+            icon="dangerous"
+            disc="danger"
+            title="Close my account"
+            subtitle="Your login stops working right away"
+            destructive
+            onPress={() => setConfirmingClose(true)}
           />
         </Card>
       </Section>
@@ -191,6 +233,29 @@ export default function More() {
           />
         </Card>
       </Section>
+
+      {/*
+        The message is the whole design of this step. It says three things a driver is entitled to
+        know BEFORE they confirm, in the order they matter: the login dies now, the fleet is asked to
+        delete what it may, and the qualification file the law names stays. Citing §391.51 by number
+        is not legalese here — it is the difference between "they kept my data" and "the regulator
+        requires them to", and a driver in this industry knows that rule.
+      */}
+      <ConfirmSheet
+        visible={confirmingClose}
+        tone="danger"
+        icon="dangerous"
+        title="Close your account?"
+        message={
+          'Your login stops working right now and your fleet is asked to delete your data within 30 days. ' +
+          'Federal rules (49 CFR 391.51) require your fleet to keep your driver qualification records for ' +
+          'three years after you leave; those are kept. You cannot undo this from the app.'
+        }
+        confirmLabel="Close my account"
+        loading={closeAccount.isPending}
+        onConfirm={() => { void confirmClose(); }}
+        onCancel={() => setConfirmingClose(false)}
+      />
     </Screen>
   );
 }

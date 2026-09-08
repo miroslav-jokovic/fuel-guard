@@ -26,6 +26,10 @@
 export { rosterDriversRouter } from "./routes/drivers.js";
 export { rosterArchiveRouter } from "./routes/archive.js";
 export { rosterCredentialsRouter } from "./routes/credentials.js";
+/** The offboarding hold — ban + push revoke + app_access_enabled=false. Exported for the driver
+ *  app's own account closure (P4.2): the driver-side close and the fleet-side hold must mean the
+ *  same thing to GoTrue, so there is one implementation and driver-app calls it through here. */
+export { disableDriverLogin } from "./driverCredentials.js";
 export { rosterSevenDayRouter } from "./routes/sevenDay.js";
 export { recordInferredTrailerPairing } from "./trailerPairing.js";
 // The equipment half of the §396.17 inspection — `maintenance` reads identity and projects the

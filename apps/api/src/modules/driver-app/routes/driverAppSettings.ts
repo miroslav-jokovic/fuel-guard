@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import {
+  resolveClosureRequestSchema,
   setDriverAppFeatureRequestSchema,
   setDriverAppOverrideRequestSchema,
   type SetDriverAppFeatureRequest,
@@ -10,6 +11,12 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { memberLabels, labelOf } from "../../../lib/memberLabels.js";
+import {
+  ClosureRequestError,
+  listClosureRequests,
+  resolveClosureRequest,
+} from "../accountClosure.js";
 import {
   deleteOverride,
   isSettingsError,
@@ -167,6 +174,78 @@ export function driverAppSettingsRouter(): Router {
       res.json({ featureKey: result.featureKey });
     }),
   );
+
+  /**
+   * ── ACCOUNT CLOSURE REQUESTS (P4.2, D-PR8) ─────────────────────────────────────────────────────
+   *
+   * The fleet's 30-day queue. Gated on `roster: manage` rather than `dispatch`, and the split is the
+   * same one this router already draws above: a per-driver feature override is day-to-day exception
+   * handling and dispatch owns it, but deciding what happens to a departing driver's personal data
+   * is roster work — the same population that issues and revokes their login in the first place.
+   *
+   * ⚠ `complete` is not a status change, it is an ATTESTATION. A fleet manager pressing it is saying
+   * the non-retained data was deleted per the published privacy policy, and 0330 makes that
+   * permanent: the row cannot be reopened, so nobody can mark it done for an auditor and quietly
+   * move it back. The button's copy in web says exactly that, and it should keep saying it.
+   */
+  router.get(
+    "/closure-requests",
+    requireOrg,
+    settingsView,
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const rows = await listClosureRequests(admin, orgId);
+      // Names are resolved in ONE read for the whole page (0301, S9) rather than one per row.
+      const labels = await memberLabels(
+        admin,
+        orgId,
+        rows.map((r) => r.resolved_by).filter((v): v is string => Boolean(v)),
+      );
+      res.json({
+        requests: rows.map(({ resolved_by, ...rest }) => ({
+          ...rest,
+          resolved_by_name: resolved_by ? labelOf(labels.get(resolved_by)) : null,
+        })),
+      });
+    }),
+  );
+
+  for (const [verb, outcome] of [
+    ["complete", "completed"],
+    ["decline", "declined"],
+  ] as const) {
+    router.post(
+      `/closure-requests/:id/${verb}`,
+      requireOrg,
+      settingsManage,
+      validateBody(resolveClosureRequestSchema),
+      asyncHandler(async (req: Request, res: Response) => {
+        const admin = getSupabaseAdmin(getAppLocals(req).env);
+        const orgId = req.auth!.orgId!;
+        const id = param(req, "id");
+        const body = res.locals.body as { note?: string };
+        try {
+          await resolveClosureRequest(admin, orgId, id, outcome, req.auth!.userId, body.note);
+        } catch (e) {
+          if (e instanceof ClosureRequestError) {
+            res.status(e.status).json(apiError(e.code, e.message));
+            return;
+          }
+          throw e;
+        }
+        await writeAudit(admin, {
+          orgId,
+          actorId: req.auth!.userId,
+          action: `driver.account_closure_${outcome}`,
+          entity: "driver_account_closure_requests",
+          entityId: id,
+          meta: { outcome, note: body.note ?? null },
+        });
+        res.json({ ok: true });
+      }),
+    );
+  }
 
   return router;
 }
