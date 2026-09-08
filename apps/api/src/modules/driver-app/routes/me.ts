@@ -38,6 +38,7 @@ import {
 } from "../../loads/index.js";
 import { getDriverLeaderboard, getDriverScore } from "../../performance/index.js";
 import { getResolvedFeatures } from "../driverAppFeatures.js";
+import { requestClosure } from "../accountClosure.js";
 
 /**
  * Driver self-service endpoints (Driver App, Phases 1 + 3A). Identity is ALWAYS resolved server-side
@@ -391,35 +392,53 @@ export function meRouter(): Router {
     }),
   );
 
-  // In-app account deletion (Apple 5.1.1(v) + Google — plan CG1/D26). Deletes the login + identity
-  // (auth user, membership, driver link). Fuel records are retained per employer recordkeeping.
+  /**
+   * Account closure — the driver asks for their company-issued login to be closed (P4.2, D-PR8).
+   *
+   * ── WHAT REPLACED WHAT, AND WHY THE OLD ROUTE IS GONE RATHER THAN REOPENED ─────────────────────
+   * `POST /delete-account` stood here since 2026-08-07 returning 403, with a comment arguing that
+   * Apple 5.1.1(v) does not bind an app with no self-registration. That argument is still correct
+   * and it was never the whole question: a driver who leaves a carrier has a real interest in their
+   * login not working the next day, and "contact your fleet manager" is an answer only for a driver
+   * who is on speaking terms with their fleet manager. 5.1.1(ix) is the clause that applies to a
+   * regulated industry, and it asks for a customer-service flow rather than silence.
+   *
+   * So the capability the old route refused to hand a driver — unlink the roster row, destroy the
+   * auth user — is STILL refused, and rightly: that is offboarding and it belongs to the fleet. What
+   * this one grants is narrower and is the driver's to have. It closes the login and files a request.
+   * The roster row, the qualification file and every load they ever ran are untouched.
+   *
+   * Rate-limited with the other driver writes and audited. No body: see accountClosureContract.
+   */
   router.post(
-    "/delete-account",
+    "/account/closure-request",
     ...driverOnly,
-    asyncHandler(async (_req, res) => {
-      // CLOSED (2026-08-07). Driver logins are COMPANY-ISSUED: an admin provisions them (DC4) and
-      // the app offers no self-registration, so Apple 5.1.1(v) — which binds apps that let a user
-      // CREATE an account — does not apply here. Self-deletion was also the wrong capability to
-      // hand a driver: it unlinks their roster row and destroys the auth user, which is an
-      // OFFBOARDING action belonging to the fleet (and already exists as `revokeDriverAccess`,
-      // audited, on the admin side). Removing the button alone would have left the capability
-      // reachable by any driver JWT, so the door is shut here too.
-      //
-      // If a self-serve / owner-operator signup path is ever added, restore the body below and the
-      // Settings action together — the deletion logic underneath is correct and deliberately kept.
-      res.status(403).json(
-        apiError(
-          "account_managed_by_fleet",
-          "Your login is issued and managed by your fleet. Contact your fleet manager to close it.",
-        ),
-      );
-      return;
+    driverWriteLimit,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const driverId = await resolveDriverId(admin, orgId, req.auth!.userId);
+      if (!driverId) {
+        res.status(404).json(apiError("no_driver_record", "No driver record is linked to this account"));
+        return;
+      }
+
+      const { created } = await requestClosure(admin, orgId, driverId, req.auth!.userId);
+
+      // Audited even on a retry: "the phone asked again" is itself worth having on the record when
+      // somebody later reconstructs why a login stopped working.
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "driver.account_closure_requested",
+        entity: "driver_account_closure_requests",
+        entityId: driverId,
+        meta: { driver_id: driverId, already_open: !created },
+      });
+
+      res.json({ ok: true, already: !created });
     }),
   );
-
-  // The previous body (close the open shift, unlink the roster row, drop the membership, delete the
-  // auth user) is preserved in git history at the commit that closed this route — restore it there
-  // if a self-serve signup path is ever added, rather than reconstructing it from memory.
 
   return router;
 }

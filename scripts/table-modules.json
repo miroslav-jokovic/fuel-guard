@@ -69,6 +69,10 @@
       "module": "driver-app",
       "layer": "core"
     },
+    "driver_account_closure_requests": {
+      "module": "driver-app",
+      "layer": "core"
+    },
     "driver_app_features": {
       "module": "driver-app",
       "layer": "core"

@@ -36,6 +36,7 @@ import {
   useSaveDriverOverride,
 } from "@/features/settings/useDriverAppFeatures";
 import { useToastStore } from "@/stores/toast";
+import ClosureRequestsCard from "@/features/settings/ClosureRequestsCard.vue";
 import { AppSelect } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -483,5 +484,13 @@ async function removeOverride(featureKey: string) {
         <p class="text-sm text-ink-muted">Select a driver to review or create an exception.</p>
       </BaseCard>
     </section>
+
+    <!--
+      P4.4 — the fleet's account-closure queue. Last on the page on purpose: it is empty almost
+      always, and a section that is usually empty at the top teaches people to scroll past the top.
+      Its own component because this page is at 488 of the 500-line budget and because the card owns
+      a decision with a consequence, which is more than a settings row.
+    -->
+    <ClosureRequestsCard />
   </div>
 </template>

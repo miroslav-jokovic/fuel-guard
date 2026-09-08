@@ -42,6 +42,9 @@
   "dq_exports": [
     "apps/api/src/modules/evidence/dqExports.ts"
   ],
+  "driver_account_closure_requests": [
+    "apps/api/src/modules/driver-app/accountClosure.ts"
+  ],
   "driver_app_feature_overrides": [
     "apps/api/src/modules/driver-app/driverAppSettings.ts"
   ],

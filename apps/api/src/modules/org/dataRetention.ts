@@ -357,6 +357,22 @@ export const RETENTION_FORBIDDEN = [
    * composition `application_captures` above relies on deliberately, running here against evidence.
    */
   "hazmat_documents",
+  /**
+   * The driver's account-closure request (0330, D-PR8).
+   *
+   * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────
+   * Every other table here is pinned because it holds evidence somebody may later demand. This one
+   * is pinned because it holds evidence that we DELETED something — who asked for their login to be
+   * closed, when, and which fleet manager attested that the non-retained data went. A retention rule
+   * on it would prune the proof that a deletion request was honoured, which is to say it would use
+   * the deletion policy to erase the record of the deletion policy working. The published privacy
+   * policy promises a 30-day fleet action; `resolved_at` and `resolved_by` are the only place that
+   * promise is answerable.
+   *
+   * It holds no driving history, no document and no image — "who asked, when, and what we did" —
+   * so nothing about keeping it works against the request it records.
+   */
+  "driver_account_closure_requests",
 ] as const;
 
 export interface RetentionTableResult {

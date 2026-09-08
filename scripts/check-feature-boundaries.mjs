@@ -116,6 +116,12 @@ const API_ALLOW = new Set([
   "maintenance -> evidence",
   "maintenance -> roster",
   "maintenance -> org",
+  // The driver's own account closure (P4.2) closes their login by calling the roster module's
+  // `disableDriverLogin` through its index — the ban, the push-token revoke and the
+  // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of
+  // "this login is closed" that GoTrue would let drift apart, which is exactly the duplicate the
+  // no-workarounds rule names. The table (0330) stays driver-app's; only the auth act is borrowed.
+  "driver-app -> roster",
   // A rejected EFS row still needs its decline driver resolved against the canonical record.
   "efs -> fuel",
   // The transactions API re-ingests through the collector's entrypoints, and decline resolution

@@ -53,6 +53,18 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
   { table: "case_pattern_reports", column: "driver_id", orgScoped: true },
   { table: "fuel_exceptions", column: "driver_id", orgScoped: true },
   { table: "financial_entries", column: "driver_id", orgScoped: true },
+  /*
+   * The account-closure request (0330). A mechanical move rather than a refusal, and the difference
+   * is worth writing down: MD010 refuses to merge a driver carrying a signed application, an e-sign
+   * consent or an SMS consent, because each of those is a signature by a named person and folding
+   * two of them together would assert something nobody signed. A closure request carries no
+   * signature — it records that a login was closed on a date — and when two driver records turn out
+   * to be one human being, that fact stays true of the surviving record.
+   *
+   * ⚠ The FK is `on delete restrict`, which is the shape that makes an unhandled entry ABORT the
+   * whole merge rather than silently strand a row — the `financial_entries` failure above, exactly.
+   */
+  { table: "driver_account_closure_requests", column: "driver_id", orgScoped: true },
 ];
 
 /** Atomically fold a duplicate driver into the canonical one. One rpc = one transaction — the
