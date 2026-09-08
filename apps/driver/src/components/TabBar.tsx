@@ -58,8 +58,24 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   return (
     <View
-      className="bg-canvas"
-      style={{ paddingTop: shell.rise, paddingHorizontal: shell.inset, paddingBottom: shellBottomMargin(insets.bottom) }}
+      // TRANSPARENT, and floating over the scene (owner ruling 2026-09-08, amending D-DB11).
+      //
+      // It was `bg-canvas`, an opaque band the scene ended above. D-DB11's reasoning for that was
+      // the notch: a canvas-coloured ring behind the disc reads as CUT OUT of the capsule, and the
+      // band guaranteed the ring always had canvas behind it. The cost, which only shows once you
+      // scroll, is that every screen's content is CHOPPED by a hard cream edge — a white card
+      // meeting the band mid-row reads as a rendering fault, and mid-scroll is the common case.
+      // A bar that content passes under reads as a bar; a band that cuts content reads as broken.
+      pointerEvents="box-none"
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingTop: shell.rise,
+        paddingHorizontal: shell.inset,
+        paddingBottom: shellBottomMargin(insets.bottom),
+      }}
     >
       {/*
         * In the dark appearances the capsule steps UP to `hero-raised` with a hairline `hero-edge`:
@@ -122,7 +138,12 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             pointerEvents="none"
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
-            className="absolute items-center justify-center rounded-full bg-canvas"
+            // NO RING. It was `bg-canvas` — a cream disc-sized circle that made the icon read as cut
+            // out of the capsule, which only worked while the shell was an opaque canvas band. With
+            // the shell transparent (owner ruling 2026-09-08) a filled ring is a solid blob sitting
+            // on whatever the page put behind it, in canvas OR in the capsule's navy. The disc
+            // simply overlaps the capsule now, and the page shows through around it.
+            className="absolute items-center justify-center rounded-full"
             style={{ width: shell.notch, height: shell.notch, top: -shell.rise, left: discOffset(active, slotWidth, shell.notch) }}
           >
             <View

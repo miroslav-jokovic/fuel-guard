@@ -2002,3 +2002,22 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   not, and row 0 pixel 0 needs no filter arithmetic because every PNG predictor is zero there. Proved
   against the real artefact: restoring the old committed icon fails with
   `expected '#14263f' to be '#20283a'`.
+- 2026-09-08 · **The tab shell floats over the scene instead of standing on a cream band** (owner
+  ruling, amending D-DB11). The shell's root was `bg-canvas` and the scene ended above it. D-DB11's
+  reasoning was the notch: a canvas-coloured ring behind the active disc reads as CUT OUT of the
+  capsule, and an opaque band guaranteed canvas behind that ring — "nothing ever scrolls behind the
+  notch and the illusion never breaks on a white card". The cost only appears once you scroll, which
+  is why it survived: a white card meeting the band mid-row is **chopped by a hard cream edge**, and
+  mid-scroll is the normal state of every list in the app. A bar content passes under reads as a bar;
+  a band that cuts content reads as a rendering fault.
+  So: the root is transparent and absolutely positioned, and **the ring is gone entirely** rather
+  than recoloured. Recolouring it to the capsule's navy was the first attempt and the owner rejected
+  it on sight — correctly, because a filled ring of any colour is a solid blob sitting on whatever
+  the page put behind it. The disc simply overlaps the capsule, and the page shows through around it.
+  The consequence that had to come with it: the scene now has to END above the shell, or every list's
+  last row sits under a 60pt capsule. `shellHeight(insetBottom)` joins `tabBarModel` (notch rise +
+  capsule + margin) and `Screen` reads it there rather than from `BottomTabBarHeightContext` —
+  the navigator is not guaranteed to measure an absolutely-positioned bar, and a silently-zero height
+  would hide the last row of every list with nothing to show for it. Bar and scene now read the same
+  three numbers. `screen-padding` and `tab-bar-model` pin both halves; proved by mutation (dropping
+  the notch rise fails with `expected 94 to be 125`).

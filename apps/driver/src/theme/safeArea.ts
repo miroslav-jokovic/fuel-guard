@@ -39,12 +39,22 @@ export function heroTopPadding(insetTop: number): number {
   return screenTopPadding(insetTop, false) + 8;
 }
 
-/** Content ends one real section after the safe area; task footers own their own safe-area inset. */
+/**
+ * Content ends one real section after the safe area; task footers own their own safe-area inset.
+ *
+ * `tabBarHeight` is the measured height of the floating shell, or 0 when there is no tab bar. Since
+ * the shell stopped being an opaque band the scene ends above and became a bar the scene passes
+ * UNDER (owner ruling 2026-09-08), that height is the difference between a list whose last row can
+ * be read and one that is permanently behind a capsule. It is measured rather than derived from
+ * `shell` so a change to the capsule's geometry cannot leave this behind: React Navigation reports
+ * the real laid-out height through `BottomTabBarHeightContext`.
+ */
 export function screenBottomPadding(
   insetBottom: number,
   hasFooter: boolean,
-  protectedByTabBar = false,
+  tabBarHeight = 0,
 ): number {
   if (hasFooter) return layout.screenInset;
-  return (protectedByTabBar ? 0 : insetBottom) + layout.sectionGap;
+  const inTab = tabBarHeight > 0;
+  return (inTab ? tabBarHeight : insetBottom) + layout.sectionGap;
 }

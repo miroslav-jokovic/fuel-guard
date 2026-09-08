@@ -6,6 +6,7 @@ import {
   isHiddenTab,
   shell,
   shellBottomMargin,
+  shellHeight,
   visibleTabs,
 } from '@/components/tabBarModel';
 
@@ -71,6 +72,21 @@ describe('tab shell — edges and badges', () => {
   it('rides on the home-indicator inset and never closer than 12pt to the screen edge', () => {
     expect(shellBottomMargin(34)).toBe(34);
     expect(shellBottomMargin(0)).toBe(12);
+  });
+
+  it('reports the whole floating shell, notch strip included, so the scene can clear it', () => {
+    /**
+     * The scene passes UNDER the shell since 2026-09-08, so this number is the difference between a
+     * list whose last row can be read and one permanently behind a capsule. It must cover all three
+     * parts — `Screen` reads exactly this, and reads it from here rather than from
+     * `BottomTabBarHeightContext`, whose value is not guaranteed once the bar is absolutely
+     * positioned.
+     */
+    expect(shellHeight(34)).toBe(shell.rise + shell.height + 34);
+    expect(shellHeight(0)).toBe(shell.rise + shell.height + 12);
+    // It is strictly more than the capsule alone: the notch rises above the capsule's top edge, and
+    // a scene that stopped at the capsule would still put its last row under the active disc.
+    expect(shellHeight(34)).toBeGreaterThan(shell.height + 34);
   });
 
   it('reads an unread count as nothing, the number, or 9+', () => {

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { BottomTabBarHeightContext } from 'expo-router/js-tabs';
 import { layout } from '@/theme/tokens';
+import { shellHeight } from './tabBarModel';
 import { HeroBackdrop } from './HeroBackdrop';
 import type { HeroTextureName } from '@/theme/heroTexture';
 import { heroTopPadding, screenBottomPadding, screenTopPadding } from '@/theme/safeArea';
@@ -71,7 +72,13 @@ export function Screen({
   const insets = useSafeAreaInsets();
   const { isDark } = useTheme();
   const { width } = useWindowDimensions();
+  /**
+   * Inside a tab the scene now passes UNDER the floating shell, so it has to end above it. The
+   * context answers "am I in a tab"; the height comes from `shellHeight`, the same model the bar
+   * draws itself from — see the note there for why this is not read from the context's value.
+   */
   const protectedByTabBar = useContext(BottomTabBarHeightContext) !== undefined;
+  const tabBarHeight = protectedByTabBar ? shellHeight(insets.bottom) : 0;
   const top = screenTopPadding(insets.top, padTop);
 
   /**
@@ -150,7 +157,7 @@ export function Screen({
               marginTop: -layout.sheetOverlap,
               paddingTop: layout.sheetTopPadding,
               paddingHorizontal: layout.screenInset,
-              paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer), protectedByTabBar),
+              paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer), tabBarHeight),
             }}
           >
             {columnStyle ? <View style={columnStyle}>{children}</View> : children}
@@ -188,7 +195,7 @@ export function Screen({
         contentContainerClassName={flow === 'sections' ? ui.scrollContentSections : ui.scrollContent}
         contentContainerStyle={[{
           paddingTop: top,
-          paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer), protectedByTabBar),
+          paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer), tabBarHeight),
         }, columnStyle]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}

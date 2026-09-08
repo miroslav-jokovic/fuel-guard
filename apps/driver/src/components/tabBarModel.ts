@@ -80,6 +80,20 @@ export function shellBottomMargin(insetBottom: number): number {
 }
 
 /**
+ * How much of the screen the floating shell occupies, bottom edge upward — the notch strip, the
+ * capsule, and the margin it rides on.
+ *
+ * `Screen` needs this to keep the last row of a list clear of the capsule, and takes it from HERE
+ * rather than from `BottomTabBarHeightContext`: since the shell became absolutely positioned (owner
+ * ruling 2026-09-08) there is no guarantee the navigator measures it, and a silently-zero height
+ * would put every list's final row under the bar with nothing to show for it. Both the bar and the
+ * scene now read the same three numbers, so they cannot disagree about where the bar ends.
+ */
+export function shellHeight(insetBottom: number): number {
+  return shell.rise + shell.height + shellBottomMargin(insetBottom);
+}
+
+/**
  * The unread count on a tab, as it reads: nothing for zero, the number to nine, then `9+` so the
  * badge never widens into the neighbouring slot. Strings pass through — expo-router allows them.
  */
