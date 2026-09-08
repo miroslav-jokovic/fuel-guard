@@ -1925,3 +1925,24 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   explanation since D-DB16 — "a Rect's percentage is resolved against the Svg's viewBox, which this
   Svg does not have" — and the fix is the same one: measure the box with `onLayout` and pass numbers.
   Any future `Svg` in this app wants the same treatment.
+- 2026-09-08 · **D-DB22 — the hero card is a translucent panel, and it is navy-tinted for a measured
+  reason.** With artwork behind the hero (D-DB20/21), an opaque card punches a rectangle out of it,
+  which defeats the point of putting artwork there. The owner asked for transparent card backgrounds.
+  The obvious move — a white-tinted "glass" panel — is **not available in this palette**, and the
+  number is the argument: the hero card carries `on-hero-muted` (`TodayHero` puts the load reference
+  there, `src/screens/today/TodayHero.tsx:115`), and that tone measures **4.52:1 on the opaque
+  `hero-raised`** it sat on. Against a 4.5 floor that is **0.02 of margin**. Any white translucency
+  lightens the ground and spends a margin that does not exist. `theme-colors.test.ts` never caught it
+  because it holds `on-hero-muted` to `hero` alone — deliberately, per D-DB1 — and the card is not
+  `hero`.
+  So the panel is `bg-hero/65`: navy over the texture, which DARKENS. Measured on the device, the
+  brightest interior pixel of a real hero card is rgb(37,43,57), giving on-hero **14.16**,
+  on-hero-secondary **8.70**, on-hero-muted **5.12** — against 12.48 / 7.67 / 4.52 for the opaque
+  fill. The card gains the translucency and ends up SAFER than what it replaced, which is the only
+  reason this was worth doing rather than declining.
+  High contrast keeps the opaque fill: it draws no texture, so there is nothing to show through, and
+  a translucent panel there would be a card the same colour as its ground held up by an edge alone.
+  `tests/elevation.test.ts` asserts both the floor and that the change is not a step backwards for
+  any tone; proved by mutation (a white tint fails with `expected 12.449… to be >= 12.482…`).
+  Verified visually with a temporary probe card on `/score` — reverted; the diff is `Card.tsx`,
+  `elevation.ts` and the test only.

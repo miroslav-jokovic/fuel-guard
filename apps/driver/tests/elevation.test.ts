@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import roleValues from '@/theme/theme.roles.json';
 import { contrastRatio } from '../scripts/srgb.mjs';
-import { cardElevation, cardSurfaceClass, castsShadow, type ElevationStep } from '@/theme/elevation';
+import { cardElevation, cardSurfaceClass, castsShadow, heroCardSurfaceClass, type ElevationStep } from '@/theme/elevation';
+import { HERO_TEXTURES, heroTextureOpacity } from '@/theme/heroTexture';
 import type { ThemeKey } from '@/theme/colors';
 
 const appearances = Object.keys(roleValues) as ThemeKey[];
@@ -62,6 +63,37 @@ describe('the two-step elevation scale', () => {
         contrastRatio(roles.surface ?? '', roles.canvas ?? ''),
         `${appearance} a resting card against its canvas`,
       ).toBeGreaterThan(1.1);
+    }
+  });
+
+  /**
+   * D-DB22. The hero card is translucent so the artwork behind it reads through. It is navy-tinted
+   * rather than white-tinted for a measured reason, and this is that reason: `on-hero-muted` had
+   * 0.02 of margin on the opaque fill it replaced, so lightening the ground was never available.
+   */
+  it('keeps the translucent hero card safe for the tightest tone it carries', () => {
+    const ALPHA = 0.65; // matches `bg-hero/65` in heroCardSurfaceClass
+    for (const appearance of appearances) {
+      const roles = roleValues[appearance] as Record<string, string>;
+      const opaque = heroCardSurfaceClass(appearance).includes('bg-hero-raised');
+      if (opaque) {
+        // High contrast draws no texture, so there is nothing to show through and the fill stays solid.
+        expect(heroTextureOpacity(appearance), `${appearance}`).toBe(0);
+        continue;
+      }
+      const hero = (roles.hero ?? '').split(' ').map(Number);
+      const ground = hero
+        .map((channel) => Math.round(HERO_TEXTURES.band.ceiling * (1 - ALPHA) + channel * ALPHA))
+        .join(' ');
+      for (const tone of ['on-hero', 'on-hero-secondary', 'on-hero-muted'] as const) {
+        const translucent = contrastRatio(roles[tone] ?? '', ground);
+        expect(translucent, `${tone} on the translucent hero card (${appearance}, ${ground})`).toBeGreaterThanOrEqual(4.5);
+        // And it must not be a step BACKWARDS from the opaque fill it replaced.
+        expect(
+          translucent,
+          `${tone}: translucent vs the hero-raised fill it replaced (${appearance})`,
+        ).toBeGreaterThanOrEqual(contrastRatio(roles[tone] ?? '', roles['hero-raised'] ?? ''));
+      }
     }
   });
 
