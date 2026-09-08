@@ -45,7 +45,10 @@
       },
       "ios": {
         "ascAppId": "6809905033",
-        "appleTeamId": "FADWJ952AY"
+        "appleTeamId": "FADWJ952AY",
+        "ascApiKeyPath": "$ASC_KEY_PATH",
+        "ascApiKeyIssuerId": "$ASC_ISSUER_ID",
+        "ascApiKeyId": "$ASC_KEY_ID"
       }
     }
   }
