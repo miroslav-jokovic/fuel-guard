@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
-import { AppText, Icon, Screen, SilvicomLogo360, TONE_SOFT, type Tone } from '@/components';
+import { AppText, Icon, Screen, SilvicomLogo360, TEXT_TONE_CLASS, TONE_SOFT, type Tone } from '@/components';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 /**
@@ -19,7 +19,7 @@ export function AuthMast({ icon, tone = 'neutral' }: { icon?: MaterialSymbolName
       <SilvicomLogo360 width={208} height={40} onHero />
       {icon ? (
         <View className={`h-14 w-14 items-center justify-center rounded-full ${TONE_SOFT[tone].bg}`}>
-          <Icon name={icon} size={26} fill className={TONE_SOFT[tone].text} />
+          <Icon name={icon} size={26} fill className={TEXT_TONE_CLASS[TONE_SOFT[tone].textTone]} />
         </View>
       ) : null}
     </View>

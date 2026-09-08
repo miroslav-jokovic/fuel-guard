@@ -151,7 +151,7 @@ function SlotBadge({ label, onDisc }: { label: string; onDisc: boolean }) {
     >
       <AppText
         variant="caption"
-        className={onDisc ? 'text-on-hero' : 'text-action-fg'}
+        tone={onDisc ? 'onHero' : 'onAction'}
         allowFontScaling={false}
         tabular
       >

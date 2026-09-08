@@ -65,6 +65,52 @@ for (const path of files) {
   });
 }
 
+/**
+ * A text colour on `AppText` must be a `tone`, never a class.
+ *
+ * `AppText` always renders `TEXT_TONE_CLASS[tone]`, so a colour arriving through `className` is a
+ * SECOND class setting `color` on the same element, and NativeWind settles that by the CSS cascade —
+ * whose last tiebreaker is position in the compiled stylesheet, where Tailwind sorts colour
+ * utilities alphabetically. Position in the className string is not consulted at all.
+ *
+ * The outcome is that the class wins or loses on its own spelling. Measured 2026-09-07 across the
+ * nine soft tones: `secondary`, `success`, `warning` and `onHero` happened to sort after `text-ink`
+ * and rendered; `accent`, `action`, `caution`, `danger` and `info` sorted before it and rendered as
+ * plain ink. Seven components were relying on it. The unread-count badges rendered `ink` on amber at
+ * 1.67:1 in the dark appearance, and `Badge` carried a comment explaining why that must never happen
+ * directly above the code where it was happening.
+ *
+ * This is deliberately narrow: it fires only on an `AppText` opening tag, and only for a class that
+ * names a real colour role. `Icon` parses `className` itself and is untouched.
+ */
+const ROLE_NAMES = Object.keys(JSON.parse(readFileSync(join(ROOT, 'src/theme/theme.roles.json'), 'utf8')).light);
+const COLOUR_CLASS = new RegExp(`(?<![\\w-])text-(?:${ROLE_NAMES.join('|')})(?![\\w-])`);
+
+for (const path of files) {
+  const source = readFileSync(path, 'utf8');
+  // theme/textTone.ts IS the mapping, and the two comments that explain the rule name the classes.
+  if (path.includes('/src/theme/')) continue;
+  for (let at = source.indexOf('<AppText'); at !== -1; at = source.indexOf('<AppText', at + 1)) {
+    let depth = 0;
+    let end = at;
+    while (end < source.length) {
+      const ch = source[end];
+      if (ch === '{') depth += 1;
+      else if (ch === '}') depth -= 1;
+      else if (ch === '>' && depth === 0) break;
+      end += 1;
+    }
+    const props = source.slice(at, end);
+    const colour = props.match(COLOUR_CLASS);
+    if (!colour) continue;
+    // A `tone=` in the same tag would win or lose by spelling; either way the class is the bug.
+    const line = source.slice(0, at).split('\n').length;
+    failures.push(
+      `${path}:${line} AppText takes a colour as tone="…", not className="${colour[0]}" — a second colour class is resolved by stylesheet order, not by the className string`,
+    );
+  }
+}
+
 if (failures.length) {
   console.error('✗ driver design-contract check failed:\n' + failures.map((failure) => `  ${failure}`).join('\n'));
   process.exit(1);

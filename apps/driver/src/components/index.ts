@@ -1,6 +1,6 @@
 export { Screen } from './Screen';
 export { SilvicomLogo360 } from './SilvicomLogo360';
-export { AppText, type AppTextProps, type TextTone, type TextVariant } from './AppText';
+export { AppText, TEXT_TONE_CLASS, type AppTextProps, type TextTone, type TextVariant } from './AppText';
 export { ScreenHeader } from './ScreenHeader';
 export { ActionBar } from './ActionBar';
 export { SectionLabel } from './SectionLabel';
@@ -12,7 +12,7 @@ export { GroupedList } from './GroupedList';
 export { ToggleRow } from './ToggleRow';
 export { Icon, type IconProps } from './Icon';
 export { Badge } from './Badge';
-export { severityTone, TONE_ICON, TONE_SOFT, TONE_SOLID, type Tone } from './tone';
+export { severityTone, TONE_CHIP, TONE_ICON, TONE_SOFT, TONE_SOLID, type Tone } from './tone';
 export { Banner } from './Banner';
 export { Input } from './Input';
 export { NumericField } from './NumericField';

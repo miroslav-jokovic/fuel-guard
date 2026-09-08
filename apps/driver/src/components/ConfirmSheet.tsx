@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppText } from './AppText';
+import { AppText, TEXT_TONE_CLASS } from './AppText';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import { TONE_SOFT, type Tone } from './tone';
@@ -69,7 +69,7 @@ export function ConfirmSheet({
           >
             <View className="flex-row items-start gap-3">
               <View className={`h-11 w-11 items-center justify-center rounded-full ${TONE_SOFT[tone].bg}`}>
-                <Icon name={icon} size={21} fill className={TONE_SOFT[tone].text} />
+                <Icon name={icon} size={21} fill className={TEXT_TONE_CLASS[TONE_SOFT[tone].textTone]} />
               </View>
               <View className="flex-1 gap-1">
                 <AppText variant="navigationTitle" accessibilityRole="header">{title}</AppText>

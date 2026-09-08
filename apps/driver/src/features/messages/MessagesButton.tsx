@@ -20,7 +20,7 @@ export function MessagesButton({ unread, onPress, onHero = false }: { unread: nu
       <Icon name="mail" size={22} fill={unread > 0} className={onHero ? 'text-on-hero' : 'text-ink'} />
       {unread > 0 ? (
         <View className="absolute right-0.5 top-0.5 min-w-5 items-center justify-center rounded-full bg-action px-1 py-1">
-          <AppText variant="caption" className="text-action-fg" allowFontScaling={false} tabular>
+          <AppText variant="caption" tone="onAction" allowFontScaling={false} tabular>
             {capped}
           </AppText>
         </View>

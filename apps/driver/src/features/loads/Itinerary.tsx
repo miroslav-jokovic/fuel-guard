@@ -68,7 +68,8 @@ function StopLine({
           ) : (
             <AppText
               variant="caption"
-              className={`font-ui-sb ${state === 'next' ? 'text-brand-fg' : 'text-ink-muted'}`}
+              tone={state === 'next' ? 'onBrand' : 'muted'}
+              className="font-ui-sb"
               tabular
             >
               {stop.seq}
@@ -81,7 +82,7 @@ function StopLine({
       <View className="flex-1 gap-0.5 pb-3">
         <View className="flex-row items-center gap-2">
           <AppText variant="rowTitle" className="flex-1" numberOfLines={1}>{stop.name}</AppText>
-          <AppText variant="caption" className={`font-ui-md ${tone.text}`}>{NODE_LABEL[state]}</AppText>
+          <AppText variant="caption" tone={tone.textTone} className="font-ui-md">{NODE_LABEL[state]}</AppText>
         </View>
         <AppText variant="supporting" tone="muted" numberOfLines={1}>
           {stop.address_line ?? placeLabel(stop)} · {stop.kind === 'pickup' ? 'Pick up' : 'Deliver'}

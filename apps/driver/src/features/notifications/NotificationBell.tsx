@@ -25,7 +25,7 @@ export function NotificationBell({ unread, onPress, onHero = false }: { unread: 
         <View className="absolute right-0.5 top-0.5 min-w-5 items-center justify-center rounded-full bg-action px-1 py-1">
           <AppText
             variant="caption"
-            className="text-action-fg"
+            tone="onAction"
             allowFontScaling={false}
             style={{ fontVariant: ['tabular-nums'] }}
           >

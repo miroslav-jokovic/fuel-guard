@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
-import { AppText } from './AppText';
+import { AppText, TEXT_TONE_CLASS } from './AppText';
 import { Icon } from './Icon';
 import { TONE_SOFT, type Tone } from './tone';
 import { haptics } from '@/lib/haptics';
@@ -44,7 +44,7 @@ export function ListRow({
     <>
       {icon && discAppearance ? (
         <View className={`h-11 w-11 items-center justify-center rounded-full ${discAppearance.bg}`}>
-          <Icon name={icon} fill={iconFill} size={20} className={discAppearance.text} />
+          <Icon name={icon} fill={iconFill} size={20} className={TEXT_TONE_CLASS[discAppearance.textTone]} />
         </View>
       ) : icon ? (
         <View className="w-6 items-center justify-center">

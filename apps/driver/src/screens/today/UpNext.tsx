@@ -27,7 +27,7 @@ export function UpNextRow({ load, onPress }: { load: Load; onPress: () => void }
     >
       <View className="h-13 w-13 items-center justify-center gap-0.5 rounded-lg bg-surface-muted">
         <AppText variant="caption" tone="muted" className="font-ui-md">{dayTile(first?.appointment_start ?? null)}</AppText>
-        <AppText variant="numericInline" className="text-ink">{clock(first?.appointment_start ?? null)}</AppText>
+        <AppText variant="numericInline">{clock(first?.appointment_start ?? null)}</AppText>
       </View>
       <View className="flex-1 gap-0.5">
         <AppText variant="rowTitle" numberOfLines={1}>
