@@ -2053,3 +2053,25 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   levels. The dark appearances keep their hairline, now a `stroke` on the path rather than a `border`
   on a View, which also traces the hole; `hero-raised` sits within a few points of the dark canvas and
   D-DB11 recorded what that looks like unlit.
+- 2026-09-08 · **The hero artwork was invisible because a ceiling without a floor is not a range.**
+  The owner's report — "when you first time you added images in background they looked ok, but now I
+  don't see them at all" — was exactly right, and the cause was in the generator rather than in any
+  opacity. `gen-hero-texture.swift` blended each pixel toward the hero navy by a gamma curve, which
+  pulls the DARKS UP as hard as it pulls the highlights down. Measured on the shipped band texture:
+  p1 **48**, p99 **54** — the entire image lived in **six levels**. The auth texture read fine only
+  because its looser ceiling of 80 left it 32.
+  The first fix I worked out was wrong, and worth recording: raise the band ceiling 52 → 72 and move
+  the four bare-hero `on-hero-muted` captions to `on-hero-secondary`. It would have worked, but it
+  spends contrast to buy visibility and it kept expanding — the trend chart's axis labels sit on the
+  bare hero too, and those are legitimately muted. Measuring the RANGE instead showed the ceiling was
+  never the constraint.
+  So the generator normalises rather than blends: the source's own 1st-to-99th percentile is stretched
+  onto **[floor, ceiling]**, hue preserved by scaling each pixel rather than mixing it with navy. The
+  band is `18 52` — **34 levels at the same ceiling it always had**. Nothing about the contrast budget
+  moved, which is why this needed no tone changes, no card change and no new assertions: the brightest
+  pixel is still 52. Measured on the device, the worst hero background is now rgb(51,41,30) and
+  `on-hero-muted` reads **5.15** there — BETTER than the 4.51 a flat grey 52 would give, because the
+  real worst pixel is warm and dark rather than neutral.
+  The auth texture is `50 80`, not `24 80`: it is a photograph rather than line work, and mapped to
+  the band's floor it turned into a night scene at a mean of 33 against the 55.8 the owner had
+  approved. Two floors, because the two sources are different kinds of image.
