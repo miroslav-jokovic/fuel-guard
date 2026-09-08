@@ -42,9 +42,10 @@ Each decision below is final; a change is a new dated decision line, not an edit
   Hanken Grotesk everywhere. Numerals are tabular wherever two numbers can sit in a column.
 - **D-DB4 · Radius scale.** 12 (inputs, small tiles), 16 (tiles, thumbnails, day chips), 24 (cards),
   28 (sheet and tab-shell top corners), pill (buttons, chips, icon discs). No other radius.
-- **D-DB5 · Depth.** Cards on the sheet carry one soft offset shadow (`0 10 / blur 20 / 12%` of the
-  hero navy) from `src/theme/elevation.ts`. Hero cards carry a 1px translucent edge and no shadow.
-  Nothing else casts a shadow, and class-based shadows stay banned.
+- **D-DB5 · Depth.** Cards on the sheet carry one soft offset shadow (`0 8 / blur 22 / 8%` of the
+  hero, since D-DB10) from `src/theme/elevation.ts`. Hero cards carry a 1px translucent edge and no
+  shadow. The floating tab shell carries the only other shadow (D-DB11); nothing else casts one,
+  and class-based shadows stay banned.
 - **D-DB6 · Rows.** Every list row leads with a 44pt circular icon disc tinted by the row's meaning
   (lavender = message, amber = sync/attention, green = complete, red = blocked, tile-grey = neutral).
   Chevrons are shown only on rows that open something.
@@ -60,6 +61,26 @@ Each decision below is final; a change is a new dated decision line, not an edit
   native alerts; no card inside a card except a captured-document preview; Dynamic Type stacks
   rather than truncates; Reduce Motion, Bold Text, and high contrast honoured through
   `ThemeProvider`.
+- **D-DB10 · Softened palette (owner, 2026-09-07 evening).** The owner's reading of the B0 values
+  on a device was "too hard": an ice-blue sheet under a saturated navy with a traffic-cone amber.
+  Every role is re-valued, no role is renamed: the sheet is warm cream (`#F3EFE8`), the ink and
+  the hero are a low-saturation charcoal-navy (`#1F2433` / `#20283A`), the action colour is
+  apricot (`#F2B267`), the lavender and the status hues are desaturated to match. The structure of
+  D-DB1–D-DB2 stands; only the temperature changed. The card shadow drops from 12% to 8%.
+- **D-DB11 · The tab shell floats.** A capsule in the hero colour, 16pt in from each edge, riding
+  on the home indicator's inset, with the active tab's icon raised on an apricot disc through a
+  canvas-coloured notch; the disc slides between slots (spring; Reduce Motion jumps). It replaces
+  the docked bar with 28pt corners. The shell is the app's SECOND and last shadow
+  (`shellElevation`), amending D-DB5. Geometry and rules live in `src/components/tabBarModel.ts`.
+- **D-DB12 · No overlines.** The uppercase `label` kicker above a hero-card heading is gone: the
+  heading carries its own weight, and what the kicker said moves into the supporting line
+  ("Deliver next · Gary, IN · …"). The `label` variant stays in the scale, reserved, with no
+  current caller.
+- **D-DB13 · Messages is a tab.** Today · Loads · Messages · Score · More. Talking to dispatch is a
+  top-level activity, not a setting: it was a bell-sized button on Today's hero and a row inside
+  More, so a driver on Loads with an unread question had no signal. The unread count rides on the
+  tab (`tabBarBadge`), the two duplicate doors are removed, and the inbox is sheet-only.
+  Notifications stays a feed behind the bell and inside More. Navigate remains reserved (D52).
 
 Icons remain HugeIcons SVG through the single `Icon` adapter. Do not replace these traits with a
 bundled generic UI font, dashboard gradients, arbitrary illustrations, emoji, or ad-hoc icon imports.
@@ -73,9 +94,9 @@ that Apple mandates one universal numeric grid.
 
 - Every screen starts with `Screen`; do not hand-roll safe-area padding.
 - Use `ScreenHeader` for titles, subtitles, back actions, close actions, and trailing actions.
-- Keep enabled tabs in one stable order: Today, Loads, Score, More. Existing fleet feature flags may
-  omit Loads or Score; do not add more conditional tab behavior before resolving the exception in
-  the implementation audit.
+- Keep enabled tabs in one stable order: Today, Loads, Messages, Score, More (D-DB13). Fleet feature
+  flags may omit Loads, Messages or Score; Today and More are never conditional. The shell draws any
+  count of visible tabs; do not add more conditional tab behaviour beyond `href: null`.
 - Use modal routes for contextual work such as load details, driving, capture, duty, and settings.
 - Respect the device's safe areas and keyboard; never place essential content under system chrome.
 
@@ -157,56 +178,56 @@ Values are hex here and triplets in the file (mechanical conversion).
 
 | Role | light | dark | highContrastLight | highContrastDark | Job |
 |---|---|---|---|---|---|
-| canvas | `#EAF0F6` | `#0E1A2B` | `#FFFFFF` | `#000000` | the sheet |
-| surface | `#FFFFFF` | `#172A42` | `#FFFFFF` | `#0A1422` | cards, rows |
-| surface-subtle | `#F5F8FB` | `#12233A` | `#F5F8FB` | `#000000` | |
-| surface-muted | `#F2F5F9` | `#1F3552` | `#EEF2F7` | `#14243A` | tiles inside cards, day chips |
-| surface-raised | `#FFFFFF` | `#1F3552` | `#FFFFFF` | `#1A2D4A` | sheets, overlays |
-| surface-selected | `#F0EEFC` | `#262B52` | `#E4E1FA` | `#2F3670` | pressed/selected rows (= accent-soft) |
-| surface-inverse | `#14263F` | `#F4F7FA` | `#0B1830` | `#FFFFFF` | |
-| ink | `#14263F` | `#F4F7FA` | `#000000` | `#FFFFFF` | |
-| ink-secondary | `#3E4F66` | `#C9D4E2` | `#1A2638` | `#EEF2F7` | |
-| ink-muted | `#55677E` | `#A8B7CA` | `#2E3E55` | `#D3DCE7` | |
-| ink-subtle | `#5E6E86` | `#8FA0B6` | `#3E4F66` | `#B7C4D6` | |
-| ink-disabled | `#98A6B8` | `#5B6B80` | `#55677E` | `#7A8BA2` | |
-| ink-inverse | `#FFFFFF` | `#0E1A2B` | `#FFFFFF` | `#000000` | |
-| edge-subtle | `#DCE4EE` | `#22364F` | `#8A9AB0` | `#55677E` | row separators |
-| edge | `#C5D0DE` | `#2F4560` | `#55677E` | `#8A9AB0` | |
-| edge-strong | `#8A9AB0` | `#4C6280` | `#1A2638` | `#D3DCE7` | |
-| edge-focus | `#A64E08` | `#F4A340` | `#7A3A06` | `#FFCB85` | focus ring |
-| brand | `#14263F` | `#F4A340` | `#0B1830` | `#FFCB85` | sheet primary action fill + link/selected text |
-| brand-pressed | `#1F3A5C` | `#E3912E` | `#000000` | `#FFE0B3` | |
-| brand-subtle | `#F0EEFC` | `#262B52` | `#E4E1FA` | `#2F3670` | |
-| brand-fg | `#FFFFFF` | `#14263F` | `#FFFFFF` | `#000000` | text on brand |
-| danger | `#B91C1C` | `#FC8181` | `#7F0000` | `#FFB3B3` | |
-| warning | `#92400E` | `#FDBA74` | `#5C2E00` | `#FFD59A` | |
-| caution | `#C2410C` | `#FB923C` | `#7A2A00` | `#FFBE8A` | |
-| success | `#1C6B47` | `#6FD39B` | `#0B4A2E` | `#9AE8BD` | |
-| info | `#4B44A8` | `#C3BEF5` | `#332C86` | `#DCD9FA` | = accent-ink |
-| operation-current | `#A64E08` | `#F6B25E` | `#7A3A06` | `#FFCB85` | = action-ink |
-| operation-next | `#4B44A8` | `#C3BEF5` | `#332C86` | `#DCD9FA` | offered / upcoming |
-| operation-complete | `#1C6B47` | `#6FD39B` | `#0B4A2E` | `#9AE8BD` | |
-| operation-blocked | `#B91C1C` | `#FC8181` | `#7F0000` | `#FFB3B3` | |
-| sync-local | `#4B44A8` | `#C3BEF5` | `#332C86` | `#DCD9FA` | |
-| sync-pending | `#92400E` | `#FDBA74` | `#5C2E00` | `#FFD59A` | |
-| sync-failed | `#B91C1C` | `#FC8181` | `#7F0000` | `#FFB3B3` | |
-| hero | `#14263F` | `#0A1422` | `#0B1830` | `#000000` | hero region, tab shell |
-| hero-raised | `#1F3A5C` | `#172A42` | `#1A2D4A` | `#14243A` | cards on the hero |
-| hero-edge | `#2E4866` | `#2A3F5B` | `#3B5170` | `#55677E` | 1px edge on hero cards, hero dividers |
-| hero-tile | `#28425F` | `#213754` | `#26405E` | `#1E3048` | tiles inside hero cards |
+| canvas | `#F3EFE8` | `#131720` | `#FFFFFF` | `#000000` | the sheet |
+| surface | `#FFFFFF` | `#1C2130` | `#FFFFFF` | `#0F1219` | cards, rows |
+| surface-subtle | `#FAF8F4` | `#171C28` | `#FAF8F4` | `#000000` |  |
+| surface-muted | `#F4F0E9` | `#262C3C` | `#F1EDE6` | `#1C2130` | tiles inside cards, day chips |
+| surface-raised | `#FFFFFF` | `#262C3C` | `#FFFFFF` | `#1F2433` | sheets, overlays |
+| surface-selected | `#EEEAF8` | `#2C2F4E` | `#E4E0F6` | `#333871` | pressed/selected rows (= accent-soft) |
+| surface-inverse | `#1F2433` | `#F4F2EE` | `#12161F` | `#FFFFFF` |  |
+| ink | `#1F2433` | `#F5F3EF` | `#000000` | `#FFFFFF` |  |
+| ink-secondary | `#454B5C` | `#CBCFDA` | `#1E2331` | `#F1EFEA` |  |
+| ink-muted | `#585E6E` | `#ABB1BF` | `#343A4B` | `#D8DCE5` |  |
+| ink-subtle | `#5E6474` | `#959CAB` | `#454B5C` | `#C5CBD8` |  |
+| ink-disabled | `#9A9EAC` | `#5F6676` | `#585E6E` | `#7C8496` |  |
+| ink-inverse | `#FFFFFF` | `#131720` | `#FFFFFF` | `#000000` |  |
+| edge-subtle | `#E7E2DA` | `#2A3040` | `#9A958C` | `#585E6E` | row separators |
+| edge | `#D4CEC4` | `#363D4F` | `#5E6474` | `#9A9EAC` |  |
+| edge-strong | `#9A958C` | `#525A6E` | `#1E2331` | `#D8DCE5` |  |
+| edge-focus | `#9C5210` | `#F2B267` | `#743B08` | `#FFCF8F` | focus ring |
+| brand | `#1F2433` | `#F2B267` | `#12161F` | `#FFCF8F` | sheet primary action fill + link/selected text |
+| brand-pressed | `#30364A` | `#E6A050` | `#000000` | `#FFE1B6` |  |
+| brand-subtle | `#EEEAF8` | `#2C2F4E` | `#E4E0F6` | `#333871` |  |
+| brand-fg | `#FFFFFF` | `#1F2433` | `#FFFFFF` | `#000000` | text on brand |
+| danger | `#B0433B` | `#F58F87` | `#7F1A14` | `#FFB8B3` |  |
+| warning | `#8C5716` | `#F3BC78` | `#5C3700` | `#FFD8A0` |  |
+| caution | `#A64A19` | `#F5A263` | `#7A2E00` | `#FFC194` |  |
+| success | `#276F4D` | `#7BD6A2` | `#0D4A2E` | `#A2E9C4` |  |
+| info | `#5B53B8` | `#C9C4F6` | `#3A3390` | `#DEDBFA` | = accent-ink |
+| operation-current | `#9C5210` | `#F5BE78` | `#743B08` | `#FFCF8F` | = action-ink |
+| operation-next | `#5B53B8` | `#C9C4F6` | `#3A3390` | `#DEDBFA` | offered / upcoming |
+| operation-complete | `#276F4D` | `#7BD6A2` | `#0D4A2E` | `#A2E9C4` |  |
+| operation-blocked | `#B0433B` | `#F58F87` | `#7F1A14` | `#FFB8B3` |  |
+| sync-local | `#5B53B8` | `#C9C4F6` | `#3A3390` | `#DEDBFA` |  |
+| sync-pending | `#8C5716` | `#F3BC78` | `#5C3700` | `#FFD8A0` |  |
+| sync-failed | `#B0433B` | `#F58F87` | `#7F1A14` | `#FFB8B3` |  |
+| hero | `#20283A` | `#0F1219` | `#12161F` | `#000000` | hero region, tab shell |
+| hero-raised | `#2B3446` | `#1C2130` | `#1F2433` | `#1C2130` | cards on the hero |
+| hero-edge | `#3A4457` | `#2E3546` | `#454B5C` | `#585E6E` | 1px edge on hero cards, hero dividers |
+| hero-tile | `#333C4F` | `#272E3F` | `#2B3446` | `#232939` | tiles inside hero cards |
 | on-hero | `#FFFFFF` | `#FFFFFF` | `#FFFFFF` | `#FFFFFF` | primary text on hero |
-| on-hero-secondary | `#B7C4D6` | `#B7C4D6` | `#D9E2EE` | `#EEF2F7` | ≥ 4.5 on hero and hero-raised |
-| on-hero-muted | `#8394AB` | `#8394AB` | `#B7C4D6` | `#D3DCE7` | ≥ 4.5 on hero only |
-| action | `#F4A340` | `#F4A340` | `#F4A340` | `#FFCB85` | amber fill: hero primary button, amber chips |
-| action-pressed | `#E3912E` | `#E3912E` | `#D98420` | `#FFE0B3` | |
-| action-fg | `#14263F` | `#14263F` | `#000000` | `#000000` | text on action **and on accent** |
-| action-ink | `#A64E08` | `#F6B25E` | `#7A3A06` | `#FFCB85` | amber as text on sheet surfaces |
-| action-soft | `#FDEBD2` | `#3A2A10` | `#FDEBD2` | `#3A2A10` | amber disc / soft chip fill |
-| accent | `#CFCBF7` | `#CFCBF7` | `#CFCBF7` | `#DCD9FA` | lavender chip fill |
-| accent-ink | `#4B44A8` | `#C3BEF5` | `#332C86` | `#DCD9FA` | lavender as text |
-| accent-soft | `#F0EEFC` | `#262B52` | `#E4E1FA` | `#2F3670` | lavender disc fill |
-| success-soft | `#DDF3E8` | `#153B2B` | `#DDF3E8` | `#153B2B` | green disc / chip fill |
-| danger-soft | `#FBE3E0` | `#3E1B1B` | `#FBE3E0` | `#3E1B1B` | red disc / chip fill |
+| on-hero-secondary | `#C5CBD8` | `#C5CBD8` | `#DDE1EA` | `#F1EFEA` | ≥ 4.5 on hero and hero-raised |
+| on-hero-muted | `#939CAD` | `#939CAD` | `#C5CBD8` | `#D8DCE5` | ≥ 4.5 on hero only |
+| action | `#F2B267` | `#F2B267` | `#F2B267` | `#FFCF8F` | amber fill: hero primary button, amber chips |
+| action-pressed | `#E6A050` | `#E6A050` | `#DD9843` | `#FFE1B6` |  |
+| action-fg | `#1F2433` | `#1F2433` | `#000000` | `#000000` | text on action **and on accent** |
+| action-ink | `#9C5210` | `#F5BE78` | `#743B08` | `#FFCF8F` | amber as text on sheet surfaces |
+| action-soft | `#FBE9D3` | `#3B2C14` | `#FBE9D3` | `#3B2C14` | amber disc / soft chip fill |
+| accent | `#D7D3F6` | `#D7D3F6` | `#D7D3F6` | `#DEDBFA` | lavender chip fill |
+| accent-ink | `#5B53B8` | `#C9C4F6` | `#3A3390` | `#DEDBFA` | lavender as text |
+| accent-soft | `#EEEAF8` | `#2C2F4E` | `#E4E0F6` | `#333871` | lavender disc fill |
+| success-soft | `#DFF1E6` | `#173D2C` | `#DFF1E6` | `#173D2C` | green disc / chip fill |
+| danger-soft | `#F9E4E0` | `#3F1D1C` | `#F9E4E0` | `#3F1D1C` | red disc / chip fill |
 
 Rules bound to the table, all asserted by `tests/theme-colors.test.ts`:
 
@@ -235,7 +256,7 @@ class and a variant cannot drift apart.
 | Variant | Size / line | Family | Use |
 |---|---|---|---|
 | caption | 12 / 16 | `Lexend_400Regular` | timestamps, helper |
-| label | 12 / 16, uppercase, +0.96 tracking | `Lexend_500Medium` | the one overline on a hero card |
+| label | 12 / 16, uppercase, +0.96 tracking | `Lexend_500Medium` | reserved — no overlines since D-DB12 |
 | supporting | 14 / 20 | `Lexend_400Regular` | secondary row text |
 | body | 16 / 22 | `Lexend_400Regular` | prose |
 | rowTitle | 16 / 22 | `Lexend_500Medium` | row titles |
@@ -257,8 +278,8 @@ screen. Bold Text steps every variant one weight up (400→500, 500→600, 600�
   exceptions defined above. `layout.screenInset` is 20; hero cards pad 20 and sheet cards 16;
   the sheet rides 28pt over the hero (`sheetOverlap`) and opens with 24pt (`sheetTopPadding`).
 - Targets: 44pt minimum, 48pt comfortable, 52pt grouped row, 56pt driving-critical action.
-- Elevation: `cardElevation(themeKey)` from `src/theme/elevation.ts` and nothing else. `lint:design`
-  bans `shadowColor` outside `src/theme/`.
+- Elevation: `cardElevation(themeKey)` and `shellElevation(themeKey)` from `src/theme/elevation.ts`
+  and nothing else. `lint:design` bans `shadowColor` outside `src/theme/`.
 
 If a value is not represented by the token scale, first ask whether the component is actually a
 new pattern. Do not silently add a one-off value.
@@ -289,9 +310,9 @@ Direction B anatomy, in the primitives:
   reintroduce a container gap alongside it — the two rhythms sum.
 - **`Card`** is `sheet` (white, the one shadow), `hero` (on the navy, 1px `hero-edge`, no shadow) or
   `flat` (neither — a container for rows inside an already-contained region).
-- **`Button`** is a pill at 44 / 48 / 56. `primary` is the navy fill on the sheet; `hero` is the
-  amber fill, and it belongs only on the navy. `onHero` switches `secondary` and `ghost` to their
-  navy forms.
+- **`Button`** is a pill at 44 / 48 / 56. `primary` is the charcoal fill on the sheet; `hero` is the
+  apricot fill, and it belongs only on the hero. `secondary` carries a hairline `edge` so it keeps a
+  shape on a white card. `onHero` switches `secondary` and `ghost` to their hero forms.
 - **`Badge`** is a chip: 28 or 32pt, pill, `caption` in `ui-md`, and **no `self-start`** — it centres
   in whatever row holds it.
 - **`ListRow`** takes `disc={tone}` to lead with the 44pt tinted circle (D-DB6). `GroupedList`

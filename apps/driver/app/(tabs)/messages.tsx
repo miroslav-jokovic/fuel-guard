@@ -24,10 +24,14 @@ import { useFeatures } from '@/session/useFeatures';
 import { useSession } from '@/session/SessionProvider';
 
 /**
- * Messages inbox (Phase 7, D54/D-PM4). Unread-first thread list; "Message dispatch" starts a new
- * conversation — the server resolves who's on the other end, the driver never picks recipients.
- * Works offline end-to-end: the list renders from the persisted cache and a new conversation rides
- * the outbox.
+ * Messages inbox (Phase 7, D54/D-PM4), a TAB since D-DB13 (2026-09-07). Unread-first thread list;
+ * "Message dispatch" starts a new conversation — the server resolves who's on the other end, the
+ * driver never picks recipients. Works offline end-to-end: the list renders from the persisted
+ * cache and a new conversation rides the outbox.
+ *
+ * It is sheet-only (D-DB1): a second navy region under Today's reads as a new app rather than a
+ * sibling tab, and a conversation list is list work. The header is the tab's own title, not a
+ * contextual one — there is nothing to close, because the shell is always underneath.
  */
 export default function MessagesInbox() {
   const router = useRouter();
@@ -42,8 +46,8 @@ export default function MessagesInbox() {
   if (features.isLoaded && !features.enabled('messages')) return <Redirect href="/home" />;
   if (!features.isLoaded) {
     return (
-      <Screen padTop={false}>
-        <ScreenHeader title="Messages" onClose={() => router.back()} />
+      <Screen flow="sections">
+        <ScreenHeader title="Messages" subtitle="You and dispatch" />
         <Skeleton className="h-15 w-full rounded-xl" />
       </Screen>
     );
@@ -63,7 +67,6 @@ export default function MessagesInbox() {
 
   return (
     <Screen
-      padTop={false}
       flow="sections"
       footer={
         composing ? (
@@ -99,7 +102,7 @@ export default function MessagesInbox() {
         )
       }
     >
-      <ScreenHeader title="Messages" subtitle="You and dispatch" onClose={() => router.back()} />
+      <ScreenHeader title="Messages" subtitle="You and dispatch" />
       <OfflineBanner />
 
       {threads.isError && !threads.data ? (

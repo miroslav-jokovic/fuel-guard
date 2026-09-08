@@ -173,7 +173,7 @@ describe('roleHex', () => {
   ) as Record<string, Record<string, string>>;
 
   it('reads the navy the icons stand on out of the theme, not out of a literal', () => {
-    expect(roleHex(roles, 'light', 'hero')).toBe('#14263f');
+    expect(roleHex(roles, 'light', 'hero')).toBe('#20283a');
   });
 
   it('refuses a role that does not exist', () => {

@@ -152,8 +152,7 @@ function RootNavigator() {
       <Stack.Screen name="hazmat/[loadId]" options={{ presentation: "modal" }} />
       {/* Notification centre (Phase 6) — opened from the Home bell, gated on `notifications`. */}
       <Stack.Screen name="notifications" options={{ presentation: "modal" }} />
-      {/* Messages (Phase 7) — inbox + conversation, gated on `messages`. */}
-      <Stack.Screen name="messages/index" options={{ presentation: "modal" }} />
+      {/* Messages (Phase 7) — the inbox is a TAB since D-DB13; only the conversation is modal. */}
       <Stack.Screen name="messages/[id]" options={{ presentation: "modal" }} />
     </Stack>
   );

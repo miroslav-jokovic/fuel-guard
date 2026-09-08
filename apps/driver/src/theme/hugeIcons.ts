@@ -90,6 +90,8 @@ import {
   Analytics02Icon,
   MapsGlobal02Icon,
   RankingIcon,
+  BubbleChatIcon,
+  DashboardSquare01Icon,
 } from '@hugeicons/core-free-icons';
 import type { MaterialSymbolName } from './materialSymbols.generated';
 
@@ -98,12 +100,14 @@ import type { MaterialSymbolName } from './materialSymbols.generated';
 // single-adapter change rather than a screen-by-screen migration.
 // App icon vocabulary = the Material-Symbol name set plus a few HugeIcons that have no Material
 // Symbols equivalent (used by the bottom tab bar). Everything still renders through this adapter.
-export type IconName = MaterialSymbolName | 'analytics' | 'maps_global' | 'ranking';
+export type IconName = MaterialSymbolName | 'analytics' | 'maps_global' | 'ranking' | 'chat' | 'grid';
 
 export const HUGE_ICONS: Record<IconName, IconSvgElement> = {
   analytics: Analytics02Icon,
   maps_global: MapsGlobal02Icon,
   ranking: RankingIcon,
+  chat: BubbleChatIcon,
+  grid: DashboardSquare01Icon,
   account_circle: UserCircleIcon,
   add: AccountSettingIcon,
   add_a_photo: CameraAdd01Icon,

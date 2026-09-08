@@ -48,7 +48,6 @@ export function StartDayCard({
   if (onDuty) {
     return (
       <Card variant="hero">
-        <AppText variant="label" tone="onHeroSecondary">NO LOAD IN PROGRESS</AppText>
         <AppText variant="screenTitle" tone="onHero">Nothing to drive yet</AppText>
         <AppText variant="supporting" tone="onHeroSecondary">
           You are on duty. A released load will appear here the moment dispatch sends it.
@@ -70,7 +69,6 @@ export function StartDayCard({
   if (!shortcut || !onQuickStart) {
     return (
       <Card variant="hero">
-        <AppText variant="label" tone="onHeroSecondary">START YOUR DAY</AppText>
         <AppText variant="screenTitle" tone="onHero">Confirm your equipment</AppText>
         <AppText variant="supporting" tone="onHeroSecondary">
           Tell us the truck and trailer you are using, and the day starts.
@@ -87,7 +85,7 @@ export function StartDayCard({
 
   return (
     <Card variant="hero">
-      <AppText variant="label" tone="onHeroSecondary">START YOUR DAY</AppText>
+      {/* No "START YOUR DAY" overline (D-DB12): the question is the heading and needs no kicker. */}
       <AppText variant="screenTitle" tone="onHero">Same rig as yesterday?</AppText>
 
       <View className="gap-2 pt-1">

@@ -112,7 +112,6 @@ export default function Home() {
         // Absence is now its own state (DESIGN.md: "a screen built on data that failed to load says
         // so first").
         dutyKnown={state !== 'recovery' || Boolean(shift.data)}
-        messages={messagesEnabled ? { unread: threads.data?.unread_total ?? 0, onPress: () => router.push('/messages') } : undefined}
         notifications={notificationsEnabled ? { unread: notifs.data?.unread ?? 0, onPress: () => router.push('/notifications') } : undefined}
       />
       {/*

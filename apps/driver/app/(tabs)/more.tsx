@@ -6,15 +6,16 @@ import { useShift } from '@/features/duty/useDuty';
 /**
  * Everything that is not a tab. Duty is deliberately absent: Today owns the shift, and the two rows
  * that used to live here were a second place to change a truck — which is how a driver ends up
- * unsure which screen is telling the truth (B6.4). Notifications gets a durable entry, because a
- * bell that only exists on Today is unreachable the moment a driver is on any other tab.
+ * unsure which screen is telling the truth (B6.4). Messages left for the same reason on 2026-09-07
+ * (D-DB13): it is a tab now, and a row here would be a second door to the same room.
+ * Notifications keeps a durable entry, because a bell that only exists on Today is unreachable the
+ * moment a driver is on any other tab.
  */
 export default function More() {
   const router = useRouter();
   const shift = useShift();
   const { enabled, scoreDetailTab } = useFeatures();
   const hazmatEnabled = enabled('hazmat.capture');
-  const messagesEnabled = enabled('messages');
   const scoreEnabled = enabled('tab.score');
   const notificationsEnabled = enabled('notifications');
 
@@ -30,20 +31,6 @@ export default function More() {
           />
         ) : null}
       </Section>
-
-      {messagesEnabled ? (
-        <Section title="Support">
-          <Card variant="flat" padded={false}>
-            <ListRow
-              title="Message dispatch"
-              subtitle="Start or continue a conversation with your fleet"
-              icon="mail"
-              disc="info"
-              onPress={() => router.push('/messages')}
-            />
-          </Card>
-        </Section>
-      ) : null}
 
       {scoreEnabled && !scoreDetailTab ? (
         <Section title="Performance">

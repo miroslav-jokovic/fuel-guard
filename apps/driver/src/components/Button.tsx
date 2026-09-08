@@ -19,13 +19,15 @@ type Size = 'sm' | 'md' | 'lg';
 const VIEW: Record<Variant, string> = {
   primary: 'bg-brand active:bg-brand-pressed',
   hero: 'bg-action active:bg-action-pressed',
-  secondary: 'bg-surface active:bg-surface-selected',
+  // A hairline edge, because a white pill sitting on a white card had no outline at all — the
+  // offer deck's Decline was a label floating in space until 2026-09-07.
+  secondary: 'border border-edge bg-surface active:bg-surface-selected',
   danger: 'bg-danger active:opacity-90',
   ghost: 'active:bg-surface-muted',
 };
 /** The same variant on the navy: a white pill and a grey ghost both disappear there. */
 const VIEW_ON_HERO: Partial<Record<Variant, string>> = {
-  secondary: 'bg-hero-tile active:bg-hero-edge',
+  secondary: 'border border-hero-edge bg-hero-tile active:bg-hero-edge',
   ghost: 'active:bg-hero-tile',
 };
 const LABEL: Record<Variant, string> = {

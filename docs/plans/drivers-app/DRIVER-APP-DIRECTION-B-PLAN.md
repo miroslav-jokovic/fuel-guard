@@ -127,6 +127,17 @@
   status = text + icon + tone; offline is a normal state; skeletons only without cached data; no
   native alerts; no card inside a card except a captured-document preview; Dynamic Type stacks
   rather than truncates; Reduce Motion, Bold Text, high contrast honoured through `ThemeProvider`.
+- **D-DB10 · Softened palette (2026-09-07, owner).** Every role re-valued, none renamed: cream
+  sheet `#F3EFE8`, charcoal-navy ink/hero `#1F2433`/`#20283A`, apricot action `#F2B267`, status
+  hues desaturated. Values in `apps/driver/DESIGN.md`; the §2.1 table above is B0's history.
+- **D-DB11 · Floating tab shell (2026-09-07).** Inset capsule on the home-indicator inset, active
+  icon raised on an apricot disc through a canvas notch, disc slides between slots. Second and last
+  shadow (`shellElevation`), amending D-DB5. Rules in `src/components/tabBarModel.ts`.
+- **D-DB12 · No overlines (2026-09-07).** The uppercase kicker above hero-card headings is gone;
+  its content moves into the supporting line. `label` stays in the scale, reserved.
+- **D-DB13 · Messages is a tab (2026-09-07).** Today · Loads · Messages · Score · More; unread
+  count on the tab via `tabBarBadge`; the hero button and the More row are removed; the inbox is
+  sheet-only under `(tabs)`. Notifications stays a feed. D52's reserved Navigate slot is unchanged.
 
 ---
 
@@ -1716,3 +1727,20 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
      one home for the rule and `GroupedList` reads it through a thin element-shaped wrapper. The
      constant was right only while every row carries both a disc and a glyph — true today, silently
      wrong the first time one does not, in the list a driver reads when something has gone wrong.
+- 2026-09-07 · **Design polish (D-DB10–D-DB13).** Owner reviewed the B7 build on the simulator and
+  ruled the colours "too hard" and the bottom navigation the weakest surface, supplying five
+  reference boards (cream/greige sheets, one warm accent, floating capsule bars with a raised active
+  disc). Built in one PR: every role re-valued and the mirror regenerated (all 458 tests green, every
+  contrast rule intact, checked by a script before the JSON was written); the floating tab shell with
+  `tabBarModel.ts` (9 tests); Messages promoted to a tab and its two duplicate doors removed;
+  `secondary` buttons and inputs gain a hairline edge; the progress track is 6pt; the card shadow
+  softens to 8%; hero-card overlines removed. Verified on the iPhone 17 Pro simulator through Metro +
+  the dev bypass: light in full; dark ONCE, which is where the capsule was found to vanish against
+  the near-black canvas (fixed: `hero-raised` + hairline edge, chosen from `isDark`). The post-fix
+  dark render could not be captured — the simulator build stopped honouring `simctl ui appearance`
+  after a fast refresh and after a reboot — so the dark shell is owed one look on a device.
+  Deviations: (1) the tab-shell container
+  reserves 31pt of canvas above the capsule for the notch, so the scene is ~50pt shorter than under
+  the docked bar — accepted for the shell's legibility; (2) `tests/app-icon-model.test.ts` pinned the
+  old hero literal and now pins the new one. NOT done: the sign-in mark still carries the asset's grey
+  `#ccc` digit discs, which is a brand-asset question for the owner, not a token.

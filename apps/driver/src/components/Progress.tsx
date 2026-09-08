@@ -23,7 +23,7 @@ export function Progress({
           {detail ? <AppText variant="caption" tone="muted">{detail}</AppText> : null}
         </View>
       ) : null}
-      <View className="h-1 overflow-hidden rounded-full bg-surface-muted">
+      <View className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
         <View className={`h-full rounded-full ${TONE_SOLID[tone]}`} style={{ width: `${percent}%` }} />
       </View>
     </View>
