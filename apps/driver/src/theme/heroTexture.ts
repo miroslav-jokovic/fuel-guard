@@ -19,11 +19,26 @@ import { roleColors, type ThemeKey } from './colors';
  * mast carries the Silvicom mark and nothing else, so holding it to 52 would have thrown away the
  * sunset to protect a tone that is not on the screen.
  *
- * Regenerate with `scripts/gen-hero-texture.swift` (it prints the peak channel it achieved):
+ * **A ceiling alone is not enough, and that is the lesson of 2026-09-08.** The first generator
+ * blended each pixel toward the hero navy by a gamma curve, which pulls the darks UP exactly as hard
+ * as it pulls the highlights down. At the band's ceiling of 52 the whole image ended up living
+ * between levels 48 and 54 — **six levels of range** — and the owner's report was simply that he
+ * could not see the artwork at all. The auth texture read fine because its looser ceiling left it 32
+ * levels. So a texture needs a FLOOR as much as a ceiling: the generator now stretches the source's
+ * 1st-to-99th percentile onto [floor, ceiling] instead of blending, and the band occupies 34 levels
+ * at the same ceiling it always had. Nothing about the contrast budget moved — the brightest pixel is
+ * still 52 — which is why this needed no tone changes, no card change, and no new assertions.
+ *
+ * Regenerate with `scripts/gen-hero-texture.swift` (it prints the span it mapped and the peak it hit):
  *
  *   swiftc -O -o /tmp/tonemap scripts/gen-hero-texture.swift
- *   /tmp/tonemap <source.png> /tmp/out.png <width> <height> <ceiling> <gamma>
+ *   /tmp/tonemap <source.png> /tmp/out.png <width> <height> <floor> <ceiling>
  *   cwebp -q 88 -m 6 /tmp/out.png -o assets/hero-<name>.webp
+ *
+ * Shipped: band `18 52` from the network-map source (34 levels of range, up from six), auth
+ * `50 80` from the road crop (30 levels). The auth floor is far higher because its ceiling is
+ * higher and its source is a photograph rather than line work — mapped to the same floor as the band
+ * it turned into a night scene, at a measured mean of 33 against the 55.8 the owner had approved.
  *
  * NOTE THE GAP, because it is real: 'every texture is safe for every tone it is allowed to back'
  * asserts that the CEILINGS are safe. It cannot assert that a shipped `.webp` respects its ceiling —
