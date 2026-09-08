@@ -118,3 +118,30 @@ export const meScoreResponseSchema = z.object({
   weights: performanceWeightsSchema,
 });
 export type MeScoreResponse = z.infer<typeof meScoreResponseSchema>;
+
+// ── Fleet leaderboard (D-DB18, 2026-09-07) ─────────────────────────────────────
+// The FIRST driver-facing read of other drivers' rows, and a deliberate one: `dpw_driver_scope`
+// still denies the driver every row but their own, and the API assembles exactly this projection —
+// the top five of the latest ranked week by FIRST NAME and rounded grade, plus the viewer wherever
+// they placed — behind the `tab.score.leaderboard` opt-out. No ids of other drivers, no sub-scores,
+// no week history for anyone but the viewer (that is `meScoreResponseSchema`).
+export const meScoreLeaderboardEntrySchema = z.object({
+  rank: z.number().int().positive(),
+  first_name: z.string(),
+  /** Rounded weekly grade; null only for the viewer when they were not ranked that week. */
+  score: z.number().nullable(),
+  is_me: z.boolean(),
+});
+export type MeScoreLeaderboardEntry = z.infer<typeof meScoreLeaderboardEntrySchema>;
+
+export const meScoreLeaderboardResponseSchema = z.object({
+  /** The latest week with ranks in this fleet, or null when no week has been ranked yet. */
+  week_start: z.string().nullable(),
+  week_end: z.string().nullable(),
+  cohort_size: z.number().int().nonnegative(),
+  /** Top five by rank, then the viewer if they placed below fifth. Ascending rank. */
+  entries: z.array(meScoreLeaderboardEntrySchema),
+  /** The viewer's own rank that week, null when they were not ranked (still listed? no — absent). */
+  my_rank: z.number().int().positive().nullable(),
+});
+export type MeScoreLeaderboardResponse = z.infer<typeof meScoreLeaderboardResponseSchema>;

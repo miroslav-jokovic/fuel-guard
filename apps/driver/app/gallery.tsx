@@ -8,6 +8,8 @@ import {
   Section, SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, TrendChart, severityTone, useToast, type Tone,
 } from '@/components';
 import { AttentionQueue } from '@/screens/today/AttentionQueue';
+import { Leaderboard } from '@/screens/today/Leaderboard';
+import { buildLeaderboardView } from '@/features/score/leaderboardModel';
 import type { AttentionRow, TodayState } from '@/screens/today/todayModel';
 import { OfferDeck, declineChoices } from '@/features/loads/OfferDeck';
 import { StopHero } from '@/features/loads/StopHero';
@@ -58,6 +60,22 @@ const TODAY_STATES: { state: TodayState; note: string; rows: AttentionRow[] }[] 
   },
 ];
 
+/** The one place sample colleagues exist (§4 rule 8): the API's "top five plus me" projection. */
+const SAMPLE_LEADERBOARD = {
+  week_start: '2026-08-31',
+  week_end: '2026-09-06',
+  cohort_size: 23,
+  entries: [
+    { rank: 1, first_name: 'Ana', score: 94, is_me: false },
+    { rank: 2, first_name: 'Bojan', score: 91, is_me: false },
+    { rank: 3, first_name: 'Cara', score: 88, is_me: false },
+    { rank: 4, first_name: 'Dmitri', score: 85, is_me: false },
+    { rank: 5, first_name: 'Eve', score: 80, is_me: false },
+    { rank: 9, first_name: 'Miki', score: 72, is_me: true },
+  ],
+  my_rank: 9,
+};
+
 const DEMO_ICONS: MaterialSymbolName[] = [
   'local_shipping', 'navigation', 'route', 'pin_drop', 'local_gas_station', 'speed',
   'check_circle', 'warning', 'error', 'sync', 'school', 'health_and_safety',
@@ -91,6 +109,11 @@ export default function Gallery() {
           />
         }
       />
+
+      <Section first title="Fleet leaderboard — the Home card (D-DB18)">
+        <Leaderboard view={buildLeaderboardView(SAMPLE_LEADERBOARD)} />
+        <Leaderboard view={buildLeaderboardView(undefined)} />
+      </Section>
 
       {/* Direction B B0.4 done-when: every variant, so a missing Lexend weight is visible rather
           than silently falling back to the platform face. `label` and `numericInline` are the two

@@ -8,6 +8,7 @@ import {
   minAppVersion,
   odometerMode,
   resolveFeatures,
+  scoreLeaderboardEnabled,
   takeoverAllowed,
   toFeatureMap,
 } from "./featureCatalog.js";
@@ -126,5 +127,19 @@ describe("catalog invariants (D-PM8 governance)", () => {
       expect(def.label.length).toBeGreaterThan(0);
       expect(def.description.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("scoreLeaderboardEnabled (D-DB18)", () => {
+  const withScore = (enabled: boolean, config: Record<string, unknown>) =>
+    toFeatureMap([{ key: "tab.score", enabled, config }]);
+  it("is on by default when the score feature is on", () => {
+    expect(scoreLeaderboardEnabled(withScore(true, {}))).toBe(true);
+    expect(scoreLeaderboardEnabled(withScore(true, { detailTab: false }))).toBe(true);
+  });
+  it("is off when the org says so, and off whenever the score feature itself is off", () => {
+    expect(scoreLeaderboardEnabled(withScore(true, { leaderboard: false }))).toBe(false);
+    expect(scoreLeaderboardEnabled(withScore(false, { leaderboard: true }))).toBe(false);
+    expect(scoreLeaderboardEnabled(undefined)).toBe(false);
   });
 });

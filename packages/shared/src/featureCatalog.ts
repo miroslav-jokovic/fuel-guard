@@ -59,7 +59,16 @@ export const featureConfigSchemas = {
    * drops the dedicated Score tab — the right shape when the number is context rather than a
    * destination. Feature off still means neither surface, so the coherence rule is unchanged.
    */
-  "tab.score": z.object({ detailTab: z.boolean().default(true) }),
+  "tab.score": z.object({
+    detailTab: z.boolean().default(true),
+    /**
+     * D-DB18 (driver app, 2026-09-07): does Home show the fleet leaderboard — the top five drivers
+     * by first name plus the viewer — for the latest ranked week? Default ON because the owner
+     * reads rank as a motivator; an org that reads it as a secret turns it off here and the API
+     * refuses the endpoint, so no build of the app can show it against the fleet's wish.
+     */
+    leaderboard: z.boolean().default(true),
+  }),
 } as const;
 
 export interface FeatureDef {
@@ -251,6 +260,14 @@ export function scoreDetailTabEnabled(features: FeatureMap | undefined | null): 
   if (!raw || !raw.enabled) return false;
   const parsed = featureConfigSchemas["tab.score"].safeParse(raw.config);
   return parsed.success ? parsed.data.detailTab : true;
+}
+
+/** Does the fleet let a driver see the leaderboard on Home? (see `tab.score` config, D-DB18) */
+export function scoreLeaderboardEnabled(features: FeatureMap | undefined | null): boolean {
+  const raw = features?.get("tab.score");
+  if (!raw || !raw.enabled) return false;
+  const parsed = featureConfigSchemas["tab.score"].safeParse(raw.config);
+  return parsed.success ? parsed.data.leaderboard : true;
 }
 
 export function takeoverAllowed(features: FeatureMap | undefined | null): boolean {

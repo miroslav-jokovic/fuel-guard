@@ -5,6 +5,7 @@ import {
   minAppVersion,
   odometerMode,
   scoreDetailTabEnabled,
+  scoreLeaderboardEnabled,
   takeoverAllowed,
   toFeatureMap,
   type FeatureKey,
@@ -38,6 +39,8 @@ export interface FeaturesView {
   takeoverAllowed: boolean;
   /** Score TAB visibility. Home's weekly tiles follow `enabled('tab.score')` on its own. */
   scoreDetailTab: boolean;
+  /** Home's fleet leaderboard (D-DB18): the org's `tab.score.leaderboard` opt-out, default on. */
+  scoreLeaderboard: boolean;
   minAppVersion: string | null;
 }
 
@@ -64,6 +67,7 @@ export function useFeatures(): FeaturesView {
       odometerMode: odometerMode(features),
       takeoverAllowed: takeoverAllowed(features),
       scoreDetailTab: scoreDetailTabEnabled(features),
+      scoreLeaderboard: scoreLeaderboardEnabled(features),
       minAppVersion: minAppVersion(features),
     }),
     [features, data, standIn],

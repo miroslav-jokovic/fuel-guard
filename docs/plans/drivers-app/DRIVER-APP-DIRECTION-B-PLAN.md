@@ -149,6 +149,10 @@
 - **D-DB17 · Home: Your score + Your rig (owner, 2026-09-07).** Score card with the driver's own
   last four weeks and ranks, opening Score; rig card with the current segment's units, Change rig
   and End shift. A fleet leaderboard is Q-DB7.
+- **D-DB18 · Fleet leaderboard, top five plus me (owner's ruling on Q-DB7, 2026-09-07).** New
+  `GET /api/me/score/leaderboard` (service `performance/driverLeaderboard.ts`, projection only,
+  RLS untouched), `meScoreLeaderboardResponseSchema`, `tab.score.leaderboard` opt-out (default on,
+  switch on the web settings page, enforced by the API), Home card under Your score.
 
 ---
 
@@ -1166,6 +1170,7 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   five by first name plus the viewer, opt-out per org via a `tab.score` config key, because the
   reference boards the owner supplied treat rank as a motivator rather than a secret. *Fallback
   (built in D-DB17):* Home lists the driver's OWN last four weeks with their ranks.
+  **ANSWERED 2026-09-07 by the owner: "Build the leaderboard your way, top five plus me" → D-DB18.**
 
 - **Q-PR1 · EAS project and credentials** (owner, one-time, P2.3): `eas init` project id, Android
   keystore upload, Play App Signing enrolment, APNs key, App Store Connect record. *Fallback:* until
@@ -1789,3 +1794,14 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   other drivers' rows by design, so it is Q-DB7 with a recommendation, not a module. Neither new
   Home module renders in the dev bypass (no shift, no score data), so they are verified by their
   models' tests and owed a look with a real driver sign-in.
+- 2026-09-07 · **D-DB18 built (Q-DB7 answered).** One PR across three packages, in the one shape the
+  contract already described as safe: `packages/shared` gains `tab.score.leaderboard` (default on),
+  `scoreLeaderboardEnabled()` and `meScoreLeaderboardResponseSchema`; `apps/api` gains
+  `performance/driverLeaderboard.ts` (latest ranked week → top five + viewer + cohort + first names,
+  every read org-scoped, `assembleLeaderboard` pure and tested, `expectOrgScoped` on the recorder)
+  and `GET /api/me/score/leaderboard` on the me router, refusing with `feature_off` when the org
+  opted out; `apps/web`'s Driver app settings page gains the switch beside the score depth, writing
+  the merged config so neither key resets the other; `apps/driver` gains `useLeaderboard`,
+  `leaderboardModel.ts` (5 tests) and the Home card. RLS policy `dpw_driver_scope` is untouched — the
+  leaderboard is an API projection. NOT verifiable in the dev bypass (no server session); owed a
+  look with a real driver sign-in on a fleet with a ranked week.
