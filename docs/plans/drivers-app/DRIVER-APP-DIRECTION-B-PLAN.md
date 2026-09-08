@@ -1872,3 +1872,31 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   fixing it means either a ground-aware disc on `Avatar` (it takes no `onHero` prop, though
   `MessagesButton` and `NotificationBell` both do) or separating those three roles. Not done here —
   it is a palette question, not an elevation one.
+- 2026-09-08 · **D-DB20 — the hero carries the artwork's atmosphere, inside a measured contrast
+  budget.** The navy hero was one flat colour. The owner supplied four reference images; measured
+  against `theme.roles.json` they are the palette this app ALREADY has — art navy rgb(25,37,52) vs
+  `hero` rgb(32,40,58), art cream rgb(240,233,225) vs `canvas` rgb(243,239,232), art amber
+  rgb(244,180,113) vs `action` rgb(242,178,103) — so nothing was repainted. What the art has and a
+  slab does not is depth, and that is what shipped.
+  **Why the asset is tone-mapped rather than scrimmed.** The raw artwork has near-white light bands.
+  Drawn at 34% over the hero, a 255 pixel composites to 108; pulling that back inside the budget
+  needs a 76% flat scrim, at which point no artwork survives at all. Measured at the first attempt:
+  worst on-screen background rgb(93,82,77), which puts `on-hero-muted` at **2.73:1** — a failure the
+  existing suite could not see, because it asserts foregrounds against the FLAT `hero` and the hero
+  is no longer flat. Raising the scrim floor to 0.30/0.55 only reached 3.32:1. So the highlights are
+  compressed INTO the asset (`scripts/gen-hero-texture.swift`, ceiling 52, gamma 1.7), which keeps
+  the dark two thirds — contour lines, the road, the network — and removes only the glare.
+  Verified by measurement on the simulator after a clean relaunch, worst background pixel in the
+  hero: **light rgb(45,46,54)** → on-hero 13.50, on-hero-secondary 8.30, on-hero-muted **4.89**;
+  **dark rgb(32,33,39)** → 16.02 / 9.85 / 5.80. High contrast draws no texture at all: it is exactly
+  what that setting exists to remove, and it would spend the margin the setting exists to create.
+  The asset is **9.9 KB** (from a 1.6 MB PNG source). `tests/hero-texture.test.ts` (4 cases) asserts
+  the CEILING is safe for every tone in every appearance and that high contrast is off; both proved
+  by mutation. **The gap is stated in `src/theme/heroTexture.ts` and is real:** the test cannot
+  assert that the shipped `.webp` respects the ceiling, because decoding WebP in the runner would be
+  a dependency for one number. That half is the generator (which prints its peak) plus a device
+  measurement, and re-generating the asset means re-measuring.
+  Not a regression, though it looked like one: the status-bar clock renders BLACK on the hero after
+  toggling the simulator's appearance mid-session. That is the "expo-status-bar honours the most
+  recently mounted one" behaviour already documented in `Screen.tsx`. After a clean relaunch it is
+  rgb(255,255,255) on rgb(45,44,51).

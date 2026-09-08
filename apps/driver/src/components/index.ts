@@ -1,5 +1,6 @@
 export { Screen } from './Screen';
 export { SilvicomLogo360 } from './SilvicomLogo360';
+export { HeroBackdrop } from './HeroBackdrop';
 export { AppText, TEXT_TONE_CLASS, type AppTextProps, type TextTone, type TextVariant } from './AppText';
 export { ScreenHeader } from './ScreenHeader';
 export { ActionBar } from './ActionBar';
