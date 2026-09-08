@@ -134,10 +134,37 @@ const scan = (dir, depth = 0) => {
   }
 };
 scan(root);
-if (conflicts.length) {
+
+/**
+ * ...but a path git already ignores is not one of those hazards. Metro's crawl and the haste map
+ * both work off the tracked tree, so an ignored vendor drop cannot collide with a module, and the
+ * pattern above is broader than the thing it is looking for: ` \d+` at the end of a name matches a
+ * YEAR as readily as a sync daemon's " 2" suffix. `docs/psp-docs/PSP Test Data 3 2019.xlsx` — a
+ * gitignored spreadsheet, correctly named — is what proved it, by failing every `driver:ios` and
+ * `driver:android` run on this machine with a fix instruction ("move them out of the tree") that
+ * would have deleted a file the repo deliberately keeps out of git. A preflight that blocks the
+ * build over a file the build cannot see is worse than no preflight.
+ */
+const dropIgnored = (relPaths) => {
+  if (relPaths.length === 0) return relPaths;
+  const res = spawnSync('git', ['check-ignore', '--stdin'], {
+    cwd: root,
+    input: relPaths.join('\n'),
+    encoding: 'utf8',
+  });
+  // git exits 1 when it matched nothing and 128 when this is not a repo or git is missing. In every
+  // one of those cases nothing is KNOWN to be ignored, so each candidate stands and the check keeps
+  // its teeth — the filter may only ever remove a path git positively confirmed.
+  if (res.error || res.status === 128) return relPaths;
+  const ignored = new Set(res.stdout.split('\n').map((line) => line.trim()).filter(Boolean));
+  return relPaths.filter((relPath) => !ignored.has(relPath));
+};
+
+const trackedConflicts = dropIgnored(conflicts);
+if (trackedConflicts.length) {
   fail(
     'Cloud-sync conflict copies are present',
-    `${conflicts.length} file(s), e.g. ${conflicts.slice(0, 5).join(', ')}`,
+    `${trackedConflicts.length} file(s), e.g. ${trackedConflicts.slice(0, 5).join(', ')}`,
     'Move them out of the tree. If they keep coming back, the repo is inside a synced folder — see check 5.',
   );
 }
