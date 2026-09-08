@@ -97,11 +97,20 @@ The app cannot reach a tester's phone yet. This is the critical path, and none o
 - **All three driver GitHub workflows are inert.** Every run of `driver-android`, `driver-ota` and
   `driver-store` completes as `action_required` in **0 seconds**, on every trigger. CI cannot build;
   builds must be run from a developer machine until this is diagnosed.
-- **Apple and Google account details are outstanding** — team id, App Store Connect API key, Play
-  service account, tester emails. §6 P2.3 of `DRIVER-APP-DIRECTION-B-PLAN.md` is the list.
+- **Apple and Google account details are partly outstanding.** Read off the owner's Mac on
+  2026-09-08: Apple team **`FADWJ952AY`**, paid and active. Still needed: the App Store Connect API
+  key (Issuer ID + Key ID + `.p8` — it can only be minted in the web UI and the file downloads once),
+  the Play service account JSON, and the tester emails. §6 P2.3 is the list.
 
-The decision on the table is **internal TestFlight** for iOS (owner ruling, 2026-09-08): no Apple
-review, up to 100 testers, each added as an App Store Connect user by Apple Account email.
+⚠ **iOS testing cannot use internal TestFlight, and this changed on 2026-09-08.** The Apple
+membership is an **Individual** one (`teamType = Individual`), which admits exactly one App Store
+Connect user — the Account Holder. An internal TestFlight tester must be a user on the account, so
+the only possible internal tester is the owner. The 2026-09-08 ruling in favour of internal TestFlight
+was made before the account type was checked and cannot be executed as written; **Q-PR7** in
+`DRIVER-APP-DIRECTION-B-PLAN.md` carries the three candidates and the recommendation (external
+TestFlight for the pilot, and start the Organization conversion in parallel).
+
+**Android is unaffected** and can pilot first.
 
 ---
 
