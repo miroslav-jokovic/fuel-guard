@@ -2110,3 +2110,46 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   **Q-PR4 is still open and the code does not wait for it.** `VITE_SUPPORT_EMAIL` unset makes every
   surface say "ask your fleet manager", which is true today — a driver's first line of support is
   their dispatcher — so the fallback is honest copy rather than a degraded state.
+- 2026-09-08 · **P4 shipped whole, in ONE PR, and the plan's two-PR instruction was wrong.** §6.2 P4
+  said one migration PR then one code PR "because of the deploy window rule". `lint:table-producers`
+  refused the migration-only PR — a table needs a producer in the same PR that merges its migration,
+  or a pinned waiver naming the plan that owes it — and the waiver list in that gate is EMPTY and
+  always has been. Adding the first entry to route around a gate that was accurately describing the
+  PR is the workaround the no-workarounds rule names. The plan's own premise did not hold either:
+  `lint:migration-ordering` **explicitly exempts a new table**, so the deploy-window rule never
+  required two merges here. Shipped as #673 (migration 0330 + API + app + web).
+  **The order of operations is the design.** The request row is inserted BEFORE the login is closed,
+  and no transaction spans GoTrue and Postgres, so the ordering carries the safety rather than a
+  rollback. Insert-then-close fails toward a request row for a login that still works — visible to
+  the fleet, retryable by the driver, no-op'd by the partial unique index. Close-then-insert fails
+  toward a dead login with no record of why: the driver cannot sign in to ask again and the fleet has
+  no queue item.
+  **`requestClosure` calls roster's `disableDriverLogin`** rather than reimplementing the ban; a
+  second ban path is two implementations of "this login is closed" that GoTrue would let drift. The
+  `driver-app -> roster` edge is pinned in `check-feature-boundaries.mjs` with that reason.
+  **The closure is the ONE driver write that does not ride the outbox**, because the outbox drains by
+  authenticating as the driver and this request is what stops the server accepting that
+  authentication. A queued closure would fire, ban the login, and strand every record behind it.
+  Four things the tests and gates corrected, all of which would have passed review: an `org_id` freeze
+  assertion that set the column to the value it already held (`is distinct from` is false, so it
+  passed against a guard doing nothing); a driver-delete assertion expecting `23503` when 0235's
+  `DR010` guard fires first and the FK is never consulted; a service that took a `resolveName`
+  callback and a route that smuggled user ids through the display-name field to use it; and a queue
+  built as a `DataTable` when it is empty almost always and asks for a decision per row.
+- 2026-09-08 · **Demo loads, and the empty Loads tab they exist for.** Production holds 286 drivers
+  and **zero loads** — dispatch works, nobody has used it, because the feed is McLeod's and that
+  connection is a sandbox against a stale copy. `pnpm --filter @silvicom/api demo:loads` seeds three
+  (offered / accepted / in_transit), dry-run by default, every row marked `DEMO-`, `--remove` undoes
+  it, and it **refuses a driver who already has a real load** — the deadline built in for the day
+  McLeod lands. ⚠ It goes through `createLoad` + `transitionLoad` + the driver-side `acceptLoad` /
+  `startLoad` rather than inserting rows: `lint:table-writers` offered a manifest pin instead, and
+  taking it would have silenced the gate while leaving seeded rows free to differ from dispatch's own
+  in ways nobody would notice until the real feed arrived. `lint:table-modules` then moved the whole
+  script into `modules/loads/`, which is better than adding a "delete a load" capability to
+  production dispatch for a demo script's benefit.
+- 2026-09-08 · **`PILOT-TEST-PLAN.md` written** for the 10–15 driver test. It deliberately does NOT
+  restate Gate B — that is the canonical device matrix and two lists would disagree within a month —
+  and instead carries what Gate B cannot know: the measured state of production on the day, which
+  failures are expected (hazmat has never completed a capture; loads are seeded), what blocks
+  distribution, and the five-screen demo order. **Only 1 of 286 drivers has an app login**, which is
+  the step most likely to be discovered late.

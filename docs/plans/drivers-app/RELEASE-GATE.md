@@ -118,7 +118,7 @@ exists, an iPhone. Each row: do the steps, confirm the criterion.
 
 | Requirement | State |
 |---|---|
-| In-app account deletion (Apple 5.1.1(v)) | ☐ **not built** — this row was wrong from 2026-08-07 to 2026-09-07: `app/settings.tsx` has no such row and `POST /api/me/delete-account` returns 403. Built as an in-app closure request in `DRIVER-APP-DIRECTION-B-PLAN.md` §6 P4 |
+| In-app account deletion (Apple 5.1.1(v) / 5.1.1(ix)) | ✅ **built 2026-09-08** (§6 P4, PR #673) — More → **Close my account**. Not a deletion and does not claim to be: the login is banned immediately and a `driver_account_closure_requests` row (migration 0330) becomes the fleet's 30-day queue item in Settings → Driver App. 5.1.1(ix) is the clause that governs, because §391.51 obliges the CARRIER to keep the qualification file for three years — the confirm sheet says so in those words and the privacy policy repeats it. `POST /api/me/delete-account` is deleted, not reopened. ⚠ Expect App Review to probe this: the reviewer notes must cite 5.1.1(ix) and §391.51, and Q-PR6 records the fallback if they reject it |
 | UGC report affordance (Apple 1.2) | ✅ built — long-press a received message → report, audited |
 | Camera permission string | ✅ declared, purpose-specific (proof-of-work photos) |
 | Photo-library / microphone | ✅ deliberately NOT requested (least privilege) |
@@ -128,7 +128,7 @@ exists, an iPhone. Each row: do the steps, confirm the criterion.
 | Xcode 26 / iOS 26 SDK build · AAB lane · EAS Submit | ☐ — §6 P2 |
 | Privacy manifest with collected data types | ✅ **2026-09-07** (§6 P1) — seven collected types, three required-reason APIs, no tracking, no location; `PrivacyInfo.xcprivacy` verified in an `expo prebuild --platform ios` output |
 | Privacy policy URL · Data Safety form | ◑ **pages built 2026-09-08** (§6 P3.2) — `/privacy`, `/terms` and `/support` are public, indexable routes in `apps/web`, linked from the public layout's footer and from the driver app's More → About group. Both store FORMS are still owner actions (P3.3): the Play Data Safety questionnaire and the Apple privacy labels are filled from `apps/web/src/features/legal/legalMeta.ts`'s `DATA_MATRIX`, which is the same table the policy page renders and the same list `app.config.ts` declares to Apple |
-| Review fleet + credentials · listing assets | ☐ — §6 P7 and P8 |
+| Review fleet + credentials · listing assets | ◑ **notes written 2026-09-08** — `STORE-REVIEW-NOTES.md` carries the text for both consoles, with the account-deletion and camera answers a reviewer reliably asks for. The demo CREDENTIALS and the seeded review org are still owed (§6 P7), and so are the screenshots and the feature graphic (§6 P8) |
 | Push permission | requested only when the `notifications` feature is on |
 | Privacy labels (camera, photos, push token, coarse identifiers) | ☐ **owner action** — fill from the above before submission |
 | Crash reporting discloses no PII | ✅ shared scrubber (`sentryScrub`), user reduced to id; verify once with a real DSN by triggering a test crash and inspecting the event |
