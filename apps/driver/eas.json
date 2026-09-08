@@ -45,7 +45,7 @@
       },
       "ios": {
         "ascAppId": "<App Store Connect app Apple ID>",
-        "appleTeamId": "<Apple Developer team id>"
+        "appleTeamId": "FADWJ952AY"
       }
     }
   }

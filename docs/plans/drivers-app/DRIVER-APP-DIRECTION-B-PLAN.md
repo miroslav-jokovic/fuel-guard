@@ -2197,3 +2197,23 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   Also read off the machine: the release keystore exists locally at `~/FuelGuard-backups/`, matching
   the GitHub secret. **No** App Store Connect API key, Play service account or gcloud config exists on
   the machine — those are web-console actions and remain owner work.
+- 2026-09-08 · **Q-PR7 ANSWERED by the owner: external TestFlight** (candidate (a)), with more drivers
+  added later — which external TestFlight supports, since testers join a group at any time and a
+  version's review is per-version rather than per-tester. P2.3 setup begun:
+  **The EAS `production` and `preview` environments were EMPTY and now hold the three
+  `EXPO_PUBLIC_*` values.** This was a real blocker, not housekeeping: `eas.json`'s production profile
+  resolves its env from the EAS environment, so any build cut before this would have compiled with no
+  Supabase URL, no anon key and no API base — installing an app that opens and does nothing. The anon
+  key is stored `sensitive` rather than `plaintext`; it is publishable by design (it ships in the
+  bundle) but it is still a key, and the distinction costs nothing.
+  `eas.json`'s `appleTeamId` is filled from the measured `FADWJ952AY`. `ascAppId` stays a placeholder
+  until the App Store Connect app record exists — `tests/eas-config.test.ts` tolerates a placeholder
+  and forbids a half-filled value, which is exactly the state this is in.
+  **`CREDENTIALS-CHECKLIST.md` written**, naming every outstanding value, the console path that
+  produces it, and where it must live. ⚠ It says explicitly that `apps/driver/.env` is the WRONG home
+  for any of them: those values are compiled into the bundle by design, so "gitignored" is not the
+  property that matters there.
+  ⚠ Recorded from Apple's own help while checking: an **internal group must exist before an external
+  one can be created**. On this Individual membership that group contains only the owner, which is
+  fine — but it is a step that would otherwise be discovered at the moment of trying, and a demo
+  account is NOT required for TestFlight (that is an App Store review requirement).
