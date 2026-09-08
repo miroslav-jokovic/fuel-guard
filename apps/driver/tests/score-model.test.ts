@@ -149,6 +149,22 @@ describe('buildScoreView — trend edges', () => {
 });
 
 describe('homeScoreSummary', () => {
+  it('lists the driver’s own recent weeks with their rank, newest first, at most four', () => {
+    const weeks = [
+      week({ week_start: '2026-08-31', week_end: '2026-09-06', week_final: 86.4, rank: 3, cohort_size: 23 }),
+      week({ week_start: '2026-08-24', week_end: '2026-08-30', week_final: 81, rank: 5, cohort_size: 22 }),
+      week({ week_start: '2026-08-17', week_end: '2026-08-23', week_final: null, rank: null, eligible: false, ineligible_reason: 'short' }),
+      week({ week_start: '2026-08-10', week_end: '2026-08-16', week_final: 79, rank: null, eligible: true }),
+      week({ week_start: '2026-08-03', week_end: '2026-08-09', week_final: 70, rank: 9, cohort_size: 20 }),
+    ];
+    const recent = homeScoreSummary(resp(weeks))!.recentWeeks;
+    expect(recent).toHaveLength(4);
+    expect(recent[0]).toEqual({ key: '2026-08-31', label: 'Aug 31 – Sep 6', score: '86', rank: '#3 of 23' });
+    expect(recent[1]!.rank).toBe('#5 of 22');
+    expect(recent[2]).toMatchObject({ score: '—', rank: 'Not ranked' });
+    expect(recent[3]).toMatchObject({ score: '79', rank: 'Unranked' });
+  });
+
   it('is null with no settled weeks', () => {
     expect(homeScoreSummary(resp([]))).toBeNull();
   });

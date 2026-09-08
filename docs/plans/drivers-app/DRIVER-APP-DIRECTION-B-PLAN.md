@@ -144,8 +144,11 @@
 - **D-DB15 · Auth screens are hero-and-sheet (2026-09-07).** Mark centred on the navy; title, form
   and footer on the sheet at the 20pt inset.
 - **D-DB16 · Cards are lit (2026-09-07).** Faint SVG wash on sheet and hero cards; hairline edge
-  instead of the shadow in dark. Amends D-DB8 for containers only. D-DB11's disc no longer slides:
-  140ms fade in place.
+  instead of the shadow in dark. Amends D-DB8 for containers only. D-DB11's disc no longer
+  animates at all, and the tab scene switches with `animation: 'none'`.
+- **D-DB17 · Home: Your score + Your rig (owner, 2026-09-07).** Score card with the driver's own
+  last four weeks and ranks, opening Score; rig card with the current segment's units, Change rig
+  and End shift. A fleet leaderboard is Q-DB7.
 
 ---
 
@@ -1153,6 +1156,16 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   `load_ref` only. *Fallback:* no message row when no thread carries the ref.
 - **Q-DB6 · Deck gestures** (owner): B3.2 advances the deck on Accept/Decline only; no swipe.
   *Fallback:* none needed; a swipe is additive later.
+- **Q-DB7 · A fleet leaderboard on Home** (owner + product, raised 2026-09-07): the owner asked
+  Home for "a drivers score rank list". The driver API returns only the signed-in driver's weeks
+  with `rank` and `cohort_size`; RLS hides every other driver's row on purpose, and
+  `driverContract.ts` records that "#4 of 23" is what can be shown *without leaking the
+  leaderboard*. Showing peers needs (a) a product ruling on what a driver may see of colleagues —
+  first names and scores, anonymised positions, or only their own rank — and (b) a new endpoint
+  and contract (`GET /api/me/score/leaderboard`) that returns exactly that. *Recommendation:* top
+  five by first name plus the viewer, opt-out per org via a `tab.score` config key, because the
+  reference boards the owner supplied treat rank as a motivator rather than a secret. *Fallback
+  (built in D-DB17):* Home lists the driver's OWN last four weeks with their ranks.
 
 - **Q-PR1 · EAS project and credentials** (owner, one-time, P2.3): `eas init` project id, Android
   keystore upload, Play App Signing enrolment, APNs key, App Store Connect record. *Fallback:* until
@@ -1767,3 +1780,12 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   a bypass that hid every tab is how the owner concluded the app had lost its screens. The native
   splash still shows B0's navy on the installed simulator build — `app.config.ts` reads `hero`
   from the roles file, so the next native build picks up D-DB10 without a change.
+- 2026-09-07 · **Third pass on the same PR (D-DB17, Q-DB7).** Owner: Home should carry current load
+  cards, a drivers' score rank list with the signed-in driver's scores, and vehicle settings; and
+  tab switching still animated. Built: `WeekStrip` grows into the score card (own last four weeks
+  with ranks, `homeScoreSummary.recentWeeks`, tested), `RigCard` (current segment's units from
+  `dutyView.vehicleUnit|trailerUnit`, Change rig, End shift), tab `animation: 'none'` and a static
+  disc. The current load remains the hero card. NOT built: a peer leaderboard — the API withholds
+  other drivers' rows by design, so it is Q-DB7 with a recommendation, not a module. Neither new
+  Home module renders in the dev bypass (no shift, no score data), so they are verified by their
+  models' tests and owed a look with a real driver sign-in.

@@ -98,8 +98,16 @@ Each decision below is final; a change is a new dated decision line, not an edit
   `react-native-svg`, already in the binary — no gradient module was added. Amends D-DB8's ban on
   gradients: buttons stay flat; only containers carry a wash, and never above 10% at the deep end
   in light.
-- **D-DB11 amendment (2026-09-07).** The disc no longer slides between slots: it appears at the
-  tapped slot with a 140ms fade and a 4% scale. The owner ruled the spring "too much".
+- **D-DB11 amendment (2026-09-07).** No tab-switch motion at all: the disc is drawn at the active
+  slot without a transition and the tab scene switches with `animation: 'none'`. The owner ruled
+  the spring "too much", then the fade too.
+- **D-DB17 · Home carries the rig and the driver's own rank list (owner, 2026-09-07).** Two modules
+  at the foot of the sheet, after the work: **Your score** — this week's grade, fleet rank, the
+  eight-week line and the last four weeks each with its rank, the whole card opening Score — and
+  **Your rig** — the truck and trailer of the current duty segment with *Change rig* and *End
+  shift*. Every rank is the driver's own: the API deliberately exposes no other driver's row
+  (`driverContract.ts`), so a fleet leaderboard is §7 Q-DB7, not a module. The current load stays
+  the hero card; Up next stays the rows beneath it.
 
 Icons remain HugeIcons SVG through the single `Icon` adapter. Do not replace these traits with a
 bundled generic UI font, dashboard gradients, arbitrary illustrations, emoji, or ad-hoc icon imports.

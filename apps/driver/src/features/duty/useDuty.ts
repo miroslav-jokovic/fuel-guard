@@ -225,6 +225,9 @@ export interface DutyView {
   equipmentLabel: string | null;
   vehicleId: string | null;
   trailerId: string | null;
+  /** Unit numbers of the current segment, for the rig card on Home (D-DB17). */
+  vehicleUnit: string | null;
+  trailerUnit: string | null;
   hasTrailer: boolean;
   startedAt: string | null;
 }
@@ -238,6 +241,8 @@ export function dutyView(data: MeShiftResponse | undefined): DutyView {
     equipmentLabel: dutyEquipmentLabel(session),
     vehicleId: seg?.vehicle_id ?? null,
     trailerId: seg?.trailer_id ?? null,
+    vehicleUnit: seg?.vehicle_unit ?? null,
+    trailerUnit: seg?.trailer_unit ?? null,
     hasTrailer: Boolean(seg?.trailer_id),
     startedAt: session?.started_at ?? null,
   };

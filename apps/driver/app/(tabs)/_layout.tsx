@@ -25,8 +25,10 @@ import { useFeatures } from '@/session/useFeatures';
  */
 export default function TabsLayout() {
   const { enabled } = useFeatures();
+  // `animation: 'none'`: the owner ruled every tab-switch motion out on 2026-09-07 — the disc's
+  // slide first, then the scene's cross-fade. A driver tapping a tab wants the screen, now.
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
+    <Tabs screenOptions={{ headerShown: false, animation: 'none' }} tabBar={(props) => <TabBar {...props} />}>
       <Tabs.Screen name="home" options={{ title: 'Home' }} />
       <Tabs.Screen name="loads" options={enabled('tab.loads') ? { title: 'Loads' } : { href: null }} />
       {/* Reserved slot (D52): route exists, tab hidden. */}

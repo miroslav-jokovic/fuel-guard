@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { AppText } from './AppText';
@@ -17,7 +16,6 @@ import {
 import type { IconName } from '@/theme/hugeIcons';
 import { shellElevation } from '@/theme/elevation';
 import { useTheme } from '@/theme/ThemeProvider';
-import { motion } from '@/theme/tokens';
 import { haptics } from '@/lib/haptics';
 
 /** The four tabs and their glyphs — owner's choice, 2026-09-07 (D-DB14). */
@@ -36,10 +34,10 @@ const TAB_ICON: Record<string, IconName> = {
  * the capsule reads as cut away around it. Selection is carried by the disc, the raised position,
  * the filled icon AND the bolder label — never colour alone (D-DB9).
  *
- * The disc does not travel. The first build slid it between slots on a spring, and the owner ruled
- * the motion "too much" the same day: a driver switching tabs wants the new screen, not a show.
- * Now the disc appears at the tapped slot with a 140ms fade and a 4% scale — enough to say
- * "this moved", not enough to watch (Reduce Motion drops even that).
+ * The disc does not animate. The first build slid it between slots on a spring, the second faded
+ * it in, and the owner ruled both "too much" the same day: a driver switching tabs wants the new
+ * screen, not a show. The disc is simply drawn at the active slot, and the tab scene itself
+ * switches without a transition (`animation: 'none'` in the layout).
  *
  * The container reserves `shell.rise` points of canvas above the capsule for the notch. That strip
  * is part of the bar's measured height, so the scene ends above it and no scrolled card ever passes
@@ -47,27 +45,13 @@ const TAB_ICON: Record<string, IconName> = {
  */
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { isDark, reduceMotion, themeKey } = useTheme();
+  const { isDark, themeKey } = useTheme();
   const [barWidth, setBarWidth] = useState(0);
 
   const visible = visibleTabs(state.routes, descriptors, TAB_ICON);
   const activeRoute = state.routes[state.index];
   const active = activeSlot(visible, activeRoute, isHiddenTab(descriptors[activeRoute?.key ?? '']?.options));
   const slotWidth = visible.length > 0 && barWidth > 0 ? barWidth / visible.length : 0;
-
-  const pop = useSharedValue(1);
-  useEffect(() => {
-    if (reduceMotion) {
-      pop.value = 1;
-      return;
-    }
-    pop.value = 0;
-    pop.value = withTiming(1, { duration: motion.fast });
-  }, [active, reduceMotion, pop]);
-  const popStyle = useAnimatedStyle(() => ({
-    opacity: pop.value,
-    transform: [{ scale: 0.96 + pop.value * 0.04 }],
-  }));
 
   const activeIcon = active >= 0 ? TAB_ICON[visible[active]!.name] : null;
   const activeBadge = active >= 0 ? badgeLabel(descriptors[visible[active]!.key]?.options.tabBarBadge) : null;
@@ -134,15 +118,12 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         })}
 
         {slotWidth > 0 && activeIcon ? (
-          <Animated.View
+          <View
             pointerEvents="none"
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             className="absolute items-center justify-center rounded-full bg-canvas"
-            style={[
-              { width: shell.notch, height: shell.notch, top: -shell.rise, left: discOffset(active, slotWidth, shell.notch) },
-              popStyle,
-            ]}
+            style={{ width: shell.notch, height: shell.notch, top: -shell.rise, left: discOffset(active, slotWidth, shell.notch) }}
           >
             <View
               className="items-center justify-center rounded-full bg-action"
@@ -151,7 +132,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               <Icon name={activeIcon} size={24} fill className="text-action-fg" />
               {activeBadge ? <SlotBadge label={activeBadge} onDisc /> : null}
             </View>
-          </Animated.View>
+          </View>
         ) : null}
       </View>
     </View>

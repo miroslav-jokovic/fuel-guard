@@ -60,6 +60,13 @@ export interface HomeScoreSummary {
   /** Split for the two-tile Home layout: "#4" + "of 23" (or "—" with no unit when unranked). */
   rankValue: string;
   rankUnit?: string;
+  /**
+   * The driver's OWN recent weeks, newest first, at most four (D-DB17): the rank list the owner
+   * asked Home for, drawn from the only ranks a driver can read. `MeScoreWeek` carries `rank` and
+   * `cohort_size` and nothing about anyone else — RLS hides every other driver's row on purpose
+   * (driverContract.ts), so a fleet leaderboard is not derivable here and is not invented here.
+   */
+  recentWeeks: { key: string; label: string; score: string; rank: string }[];
 }
 
 const MONTHS = [
@@ -275,5 +282,13 @@ export function homeScoreSummary(data: MeScoreResponse | undefined): HomeScoreSu
     scoreTrend: trendFromDelta(roundedDelta(latest.week_final, prev?.week_final ?? null)),
     rankValue: rank == null ? '—' : `#${rank}`,
     rankUnit: rank != null && cohort != null && cohort > 0 ? `of ${cohort}` : undefined,
+    recentWeeks: weeks.slice(0, 4).map((w) => ({
+      key: w.week_start,
+      label: weekRangeLabel(w.week_start, w.week_end)?.replace(/^Week of /, '') ?? w.week_start,
+      score: w.week_final == null ? '—' : String(Math.round(w.week_final)),
+      rank: w.rank == null
+        ? (w.eligible ? 'Unranked' : 'Not ranked')
+        : w.cohort_size != null && w.cohort_size > 0 ? `#${w.rank} of ${w.cohort_size}` : `#${w.rank}`,
+    })),
   };
 }
