@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { USER_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMember } from "@silvicom/shared";
+import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -30,8 +30,11 @@ const role = ref<UserRole>("dispatcher");
 const submitting = ref(false);
 
 // Email invites are for OFFICE roles only (DRIVER-CREDENTIALS-PLAN.md DC9): driver logins are
-// company-issued from the Drivers page (username + one-time password), never via email.
-const inviteRoleOptions = USER_ROLES.filter((r) => r !== "driver").map((r) => ({
+// company-issued from the Drivers page (username + one-time password), never via email. The literal
+// `driver` exclusion this line used to spell itself now comes from `OFFICE_ROLES` (DC10), which is
+// also what the members list is filtered to and what the role picker below offers — one rule, three
+// readers, after the three disagreed and a driver lost his login for eight days.
+const inviteRoleOptions = OFFICE_ROLES.map((r) => ({
   value: r,
   label: USER_ROLE_LABELS[r],
 }));
@@ -186,7 +189,12 @@ async function removeMember(userId: string) {
 
 // Change an existing member's role. Backend guards against demoting the last admin. Reloads on cancel/error
 // so the inline picker snaps back to the true value.
-const roleOptions = USER_ROLES.map((r) => ({ value: r, label: USER_ROLE_LABELS[r] }));
+// ⚠ OFFICE_ROLES, not USER_ROLES: this picker offered `driver`, so an admin could re-role a
+// colleague into a driver-app login that has no roster row and no password — a membership the
+// Drivers page cannot see and nothing can repair — and could re-role a real driver out of one,
+// which sends their app to the "wrong app" screen. The API refuses both since DC10; the picker
+// should never have asked.
+const roleOptions = OFFICE_ROLES.map((r) => ({ value: r, label: USER_ROLE_LABELS[r] }));
 async function changeRole(userId: string, newRole: string) {
   const m = members.value.find((x) => x.userId === userId);
   if (!m || m.role === newRole) return;
@@ -249,10 +257,21 @@ async function bulkRemove() {
   const ids = [...selectedIds.value].filter((id) => id !== session.userId);
   if (ids.length === 0 || !confirm(`Remove ${ids.length} member${ids.length > 1 ? "s" : ""}?`)) return;
   bulkBusy.value = true;
-  for (const id of ids) await apiFetch(`/api/members/${id}`, { method: "DELETE" });
+  // Count what actually happened. This loop used to discard every response and then report success
+  // unconditionally, so a refused removal — the API now refuses a driver-app login (DC10) — would
+  // have been announced as done. A bulk action that cannot fail out loud is how a fleet-wide mistake
+  // stays invisible until somebody cannot sign in.
+  let removed = 0;
+  const failed: string[] = [];
+  for (const id of ids) {
+    const res = await apiFetch(`/api/members/${id}`, { method: "DELETE" });
+    if (res.ok) removed++;
+    else failed.push(res.error?.message ?? id);
+  }
   bulkBusy.value = false;
   selectedIds.value = new Set();
-  toast.success("Members removed");
+  if (failed.length === 0) toast.success(`${removed} member${removed === 1 ? "" : "s"} removed`);
+  else toast.error(`Removed ${removed} of ${ids.length}`, failed[0]);
   await load();
 }
 
