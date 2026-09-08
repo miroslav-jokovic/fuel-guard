@@ -91,18 +91,19 @@ export function heroCardSurfaceClass(themeKey: ThemeKey): string {
     : 'border border-hero-edge bg-hero/65';
 }
 
-/**
- * The SECOND shadow, and the last (D-DB11, 2026-09-07). The tab shell floats above the sheet on
- * the home indicator, and a capsule with no shadow there is a dark bar painted on the page. It is
- * heavier than a card's because it is further from the ground and must hold against scrolled
- * content passing under it. D-DB5's "nothing else casts a shadow" now reads: cards and the shell.
+/*
+ * THE SECOND SHADOW IS GONE (2026-09-08), and D-DB5's "nothing else casts a shadow" is true again:
+ * cards, and nothing else.
+ *
+ * D-DB11 gave the tab shell a shadow because "a capsule with no shadow there is a dark bar painted
+ * on the page". That reasoning held while the shell was an opaque capsule. It now has a real hole
+ * punched through it for the active disc (`capsulePath`), and an RN shadow on a view with no
+ * backgroundColor is derived from the layer's alpha — so the shadow followed the hole and filled it:
+ * measured on the More tab, the 5pt gap read rgb(232,231,230) against a page of rgb(252,251,250).
+ * A grey ring, exactly where the page was supposed to show.
+ *
+ * You cannot have both. The hole wins, because it does the shadow's job better: a bar you can see
+ * the page THROUGH cannot read as painted on it. Without the shadow the same gap reads
+ * rgb(250,248,245) — the page, within two levels. The dark appearances keep their hairline, now as a
+ * stroke on the path rather than a border on a View.
  */
-export function shellElevation(themeKey: ThemeKey) {
-  return {
-    shadowColor: roleColors[themeKey].hero,
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-  } as const;
-}

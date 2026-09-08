@@ -47,6 +47,21 @@ describe('screenTopPadding', () => {
   it('ends scroll content with one section, not a decorative tab-sized void', () => {
     expect(screenBottomPadding(34, false)).toBe(34 + layout.sectionGap);
     expect(screenBottomPadding(34, true)).toBe(layout.screenInset);
-    expect(screenBottomPadding(34, false, true)).toBe(layout.sectionGap);
+  });
+
+  it('clears the floating tab shell, because the scene now passes under it', () => {
+    /**
+     * The shell used to be an opaque `bg-canvas` band the scene ended above, so a tab screen needed
+     * no bottom allowance at all — this asserted exactly `sectionGap` for that case. It is now
+     * transparent and floats over the scene (owner ruling 2026-09-08), so the same 24pt would leave
+     * the last row of every list sitting under a 60pt capsule, unreadable and untappable.
+     */
+    const shellHeight = 106; // what BottomTabBarHeightContext reports on a 34pt-inset device
+    expect(screenBottomPadding(34, false, shellHeight)).toBe(shellHeight + layout.sectionGap);
+    // The safe-area inset is NOT added on top: the shell already sits on it, and adding both was
+    // the 34pt of dead space this padding was written to avoid in the first place.
+    expect(screenBottomPadding(34, false, shellHeight)).toBeLessThan(shellHeight + 34 + layout.sectionGap);
+    // A footer still owns its own spacing, tab bar or not.
+    expect(screenBottomPadding(34, true, shellHeight)).toBe(layout.screenInset);
   });
 });

@@ -2002,3 +2002,54 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   not, and row 0 pixel 0 needs no filter arithmetic because every PNG predictor is zero there. Proved
   against the real artefact: restoring the old committed icon fails with
   `expected '#14263f' to be '#20283a'`.
+- 2026-09-08 · **The tab shell floats over the scene instead of standing on a cream band** (owner
+  ruling, amending D-DB11). The shell's root was `bg-canvas` and the scene ended above it. D-DB11's
+  reasoning was the notch: a canvas-coloured ring behind the active disc reads as CUT OUT of the
+  capsule, and an opaque band guaranteed canvas behind that ring — "nothing ever scrolls behind the
+  notch and the illusion never breaks on a white card". The cost only appears once you scroll, which
+  is why it survived: a white card meeting the band mid-row is **chopped by a hard cream edge**, and
+  mid-scroll is the normal state of every list in the app. A bar content passes under reads as a bar;
+  a band that cuts content reads as a rendering fault.
+  So: the root is transparent and absolutely positioned, and **the ring is gone entirely** rather
+  than recoloured. Recolouring it to the capsule's navy was the first attempt and the owner rejected
+  it on sight — correctly, because a filled ring of any colour is a solid blob sitting on whatever
+  the page put behind it. The disc simply overlaps the capsule, and the page shows through around it.
+  The consequence that had to come with it: the scene now has to END above the shell, or every list's
+  last row sits under a 60pt capsule. `shellHeight(insetBottom)` joins `tabBarModel` (notch rise +
+  capsule + margin) and `Screen` reads it there rather than from `BottomTabBarHeightContext` —
+  the navigator is not guaranteed to measure an absolutely-positioned bar, and a silently-zero height
+  would hide the last row of every list with nothing to show for it. Bar and scene now read the same
+  three numbers. `screen-padding` and `tab-bar-model` pin both halves; proved by mutation (dropping
+  the notch rise fails with `expected 94 to be 125`).
+- 2026-09-08 · **…and then three more things the float broke, each found by the owner looking at it.**
+  (1) **The Documents capture bar doubled up.** A pinned `footer` took `protectedByTabBar ? 0 : inset`,
+  which was right while the shell was a band the footer landed ON. With the shell floating, zero put
+  the capture bar directly underneath it — two bars in the same place, which is exactly what it looked
+  like. The footer, and a fixed (non-scrolling) tab screen's content, now clear `shellHeight` the way
+  the scroll padding does.
+  (2) **The disc needed the ring back, as a HOLE.** Removing the ring left the disc pasted onto the
+  bar; the owner asked for "that effect that button is free floating in that place". No ring can do
+  that in any colour — the effect needs the PAGE visible between disc and capsule. So the capsule is
+  drawn as an SVG path with a circular subpath under `fillRule="evenodd"` (`capsulePath` in
+  `tabBarModel`, three cases pinning it), which is a real hole. A `View` cannot be a shape with a
+  hole, which is why this could not stay a background colour.
+  (3) **A grey crescent inside the hole.** `shellElevation` is an RN shadow on a view with NO
+  backgroundColor, so iOS derives it from the layer's alpha — which is what makes it follow the holed
+  capsule for free, and also what made the DISC join that silhouette while it was a child of the same
+  view. Its shadow was cast INTO the hole, hugging its lower edge, filling the gap that exists to show
+  the page. The disc is a sibling of the capsule now. The capsule's own rim still shades the hole,
+  which is what makes the cut read as a cut rather than a sticker.
+- 2026-09-08 · **The shell's shadow is retired, and D-DB5's "nothing else casts a shadow" is true
+  again: cards, and nothing else.** The owner saw the artefact on the More tab after the Home one was
+  fixed — same cause, opposite end of the bar. Moving the disc out of the shadowed view stopped the
+  DISC casting into the hole, but the capsule's own alpha-derived shadow still filled it. Measured on
+  More: the 5pt gap read **rgb(232,231,230)** against a page of **rgb(252,251,250)** — a grey ring
+  exactly where the page was supposed to show. An RN shadow on a view with no `backgroundColor` is
+  derived from the layer's alpha, which is what made it follow the holed capsule for free and also
+  what made it impossible to keep. **You cannot have both an alpha-derived shadow and a clean hole.**
+  The hole wins because it does the shadow's job better: D-DB11 gave the shell a shadow so it would
+  not read as "a dark bar painted on the page", and a bar you can see the page THROUGH cannot read
+  that way. Without the shadow the same gap measures **rgb(250,248,245)** — the page, within two
+  levels. The dark appearances keep their hairline, now a `stroke` on the path rather than a `border`
+  on a View, which also traces the hole; `hero-raised` sits within a few points of the dark canvas and
+  D-DB11 recorded what that looks like unlit.

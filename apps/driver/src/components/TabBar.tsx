@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { AppText } from './AppText';
@@ -9,12 +10,13 @@ import {
   badgeLabel,
   discOffset,
   isHiddenTab,
+  capsulePath,
   shell,
   shellBottomMargin,
   visibleTabs,
 } from './tabBarModel';
 import type { IconName } from '@/theme/hugeIcons';
-import { shellElevation } from '@/theme/elevation';
+import { roleColors } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeProvider';
 import { haptics } from '@/lib/haptics';
 
@@ -58,8 +60,24 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   return (
     <View
-      className="bg-canvas"
-      style={{ paddingTop: shell.rise, paddingHorizontal: shell.inset, paddingBottom: shellBottomMargin(insets.bottom) }}
+      // TRANSPARENT, and floating over the scene (owner ruling 2026-09-08, amending D-DB11).
+      //
+      // It was `bg-canvas`, an opaque band the scene ended above. D-DB11's reasoning for that was
+      // the notch: a canvas-coloured ring behind the disc reads as CUT OUT of the capsule, and the
+      // band guaranteed the ring always had canvas behind it. The cost, which only shows once you
+      // scroll, is that every screen's content is CHOPPED by a hard cream edge — a white card
+      // meeting the band mid-row reads as a rendering fault, and mid-scroll is the common case.
+      // A bar that content passes under reads as a bar; a band that cuts content reads as broken.
+      pointerEvents="box-none"
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingTop: shell.rise,
+        paddingHorizontal: shell.inset,
+        paddingBottom: shellBottomMargin(insets.bottom),
+      }}
     >
       {/*
         * In the dark appearances the capsule steps UP to `hero-raised` with a hairline `hero-edge`:
@@ -69,10 +87,61 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         * `dark:` variant, so the shell and its tokens can never disagree about the appearance.
         */}
       <View
-        className={`flex-row rounded-full border ${isDark ? 'border-hero-edge bg-hero-raised' : 'border-transparent bg-hero'}`}
-        style={[{ height: shell.height }, shellElevation(themeKey)]}
+        className="flex-row"
+        /*
+         * NO RN SHADOW on this view, and that is forced rather than chosen.
+         *
+         * `shellElevation` was an RN shadow on a view with no backgroundColor, so iOS derived it
+         * from the layer's alpha — which is what made it follow the holed capsule for free, and also
+         * what made it bleed INTO the hole. Measured on the More tab: the 5pt gap read rgb(232,231,230)
+         * against a page of rgb(252,251,250), so the gap that exists to show the page showed a grey
+         * ring instead. You cannot have both an alpha-derived shadow and a clean hole; the hole wins,
+         * because it is the stronger depth cue — a bar you can see the page THROUGH cannot read as
+         * "a dark bar painted on the page", which is the whole thing D-DB11's shadow was there to
+         * prevent. With it gone the same gap reads rgb(250,248,245): the page, within two levels.
+         */
+        style={{ height: shell.height }}
         onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
       >
+        {/*
+          * The capsule is DRAWN, not a background colour, because it has a hole in it — see
+          * `capsulePath`. A View cannot be a shape with a hole, and the hole is the whole point: it
+          * is what lets the page show between the disc and the bar.
+          *
+          * The shadow stays an RN shadow on the parent rather than an SVG filter. With no
+          * backgroundColor on that view, iOS derives the shadow from the layer's alpha — which is
+          * this path, hole included — so it follows the real silhouette for free.
+          */}
+        {barWidth > 0 ? (
+          <Svg
+            pointerEvents="none"
+            style={{ position: 'absolute', top: 0, left: 0 }}
+            width={barWidth}
+            height={shell.height}
+          >
+            <Path
+              d={capsulePath(
+                barWidth,
+                shell.height,
+                activeIcon && slotWidth > 0
+                  ? discOffset(active, slotWidth, shell.notch) + shell.notch / 2
+                  : -shell.notch,
+                shell.notch / 2,
+              )}
+              fill={isDark ? roleColors[themeKey].heroRaised : roleColors[themeKey].hero}
+              fillRule="evenodd"
+              /*
+               * The dark appearances' hairline, which was `border-hero-edge` while the capsule was a
+               * View. It is not decoration there: `hero-raised` sits within a few points of the dark
+               * canvas, so without it the shell is an unlit strip — the same finding D-DB11 recorded
+               * from the first dark screenshot. A stroke on the path also traces the hole, which a
+               * border never could.
+               */
+              stroke={isDark ? roleColors[themeKey].heroEdge : 'none'}
+              strokeWidth={isDark ? 1 : 0}
+            />
+          </Svg>
+        ) : null}
         {visible.map((route, index) => {
           const focused = index === active;
           const optionTitle = descriptors[route.key]?.options.title;
@@ -117,24 +186,40 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           );
         })}
 
-        {slotWidth > 0 && activeIcon ? (
-          <View
-            pointerEvents="none"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            className="absolute items-center justify-center rounded-full bg-canvas"
-            style={{ width: shell.notch, height: shell.notch, top: -shell.rise, left: discOffset(active, slotWidth, shell.notch) }}
-          >
-            <View
-              className="items-center justify-center rounded-full bg-action"
-              style={{ width: shell.disc, height: shell.disc }}
-            >
-              <Icon name={activeIcon} size={24} fill className="text-action-fg" />
-              {activeBadge ? <SlotBadge label={activeBadge} onDisc /> : null}
-            </View>
-          </View>
-        ) : null}
       </View>
+
+      {/*
+        * The disc lives OUTSIDE the shadowed capsule, and that placement is the fix for a real
+        * artefact rather than a tidy-up. `shellElevation` is an RN shadow on a view with no
+        * backgroundColor, so iOS derives it from the layer's alpha — which is exactly what makes it
+        * follow the holed capsule for free. While the disc was a child of that view it joined the
+        * silhouette, and its shadow was cast INTO the hole: a grey crescent hugging the disc's lower
+        * edge, sitting in the gap that is supposed to show the page. Out here the disc casts nothing
+        * and the hole stays clean; the capsule's own rim still shades it, which is what makes the
+        * cut read as a cut.
+        */}
+      {slotWidth > 0 && activeIcon ? (
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          className="absolute items-center justify-center rounded-full"
+          style={{
+            width: shell.notch,
+            height: shell.notch,
+            top: 0,
+            left: shell.inset + discOffset(active, slotWidth, shell.notch),
+          }}
+        >
+          <View
+            className="items-center justify-center rounded-full bg-action"
+            style={{ width: shell.disc, height: shell.disc }}
+          >
+            <Icon name={activeIcon} size={24} fill className="text-action-fg" />
+            {activeBadge ? <SlotBadge label={activeBadge} onDisc /> : null}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
