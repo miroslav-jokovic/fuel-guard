@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { ODOMETER_SOURCE_WINDOW_DAYS, syncVehicleOdometerReadings } from "./samsaraOdometerSync.js";
+import {
+  ODOMETER_CHUNK_DAYS,
+  ODOMETER_SOURCE_WINDOW_DAYS,
+  odometerSlices,
+  syncVehicleOdometerReadings,
+} from "./samsaraOdometerSync.js";
 import type { OdometerHistoryFetcher } from "./lib/samsaraOdometer.js";
 
 /**
@@ -70,16 +75,68 @@ const TWO_TRUCKS = [
   },
 ];
 
+/**
+ * A fetcher that answers each SLICE differently, keyed by the slice's start instant.
+ *
+ * The fixed-body fetcher above cannot express the one thing a walked window makes possible: two
+ * requests over two spans returning two different readings for the same calendar day.
+ */
+function slicedFetcher(byStart: Record<string, unknown[]>): {
+  fetcher: OdometerHistoryFetcher;
+  calls: { startIso: string; endIso: string }[];
+} {
+  const calls: { startIso: string; endIso: string }[] = [];
+  const fetcher: OdometerHistoryFetcher = async (_ids, startIso, endIso) => {
+    calls.push({ startIso, endIso });
+    return { data: (byStart[startIso] ?? []) as never, complete: true, pages: 1 };
+  };
+  return { fetcher, calls };
+}
+
 const run = (
   rec: ReturnType<typeof seed>,
   fetcher: OdometerHistoryFetcher,
-  options: { sinceDays?: number } = {},
+  options: { sinceDays?: number; chunkDays?: number } = {},
 ) =>
   syncVehicleOdometerReadings(rec.client, ENV, ORG, {
     fetcherOverride: fetcher,
     endIso: END,
     ...options,
   });
+
+describe("odometerSlices", () => {
+  const END_MS = Date.parse(END);
+  const day = 86_400_000;
+
+  it("returns one slice covering any window that fits in a chunk", () => {
+    expect(odometerSlices(END_MS, 4, 7)).toEqual([
+      { startIso: new Date(END_MS - 4 * day).toISOString(), endIso: END },
+    ]);
+  });
+
+  it("covers a deep window exactly once, oldest first, with no gap and no overshoot", () => {
+    const slices = odometerSlices(END_MS, 30, 7);
+    expect(slices).toHaveLength(5); // 7+7+7+7+2
+    expect(slices[0]!.startIso).toBe(new Date(END_MS - 30 * day).toISOString());
+    expect(slices.at(-1)!.endIso).toBe(END);
+    for (let i = 1; i < slices.length; i += 1) {
+      expect(slices[i]!.startIso).toBe(slices[i - 1]!.endIso);
+      expect(Date.parse(slices[i]!.startIso)).toBeGreaterThan(Date.parse(slices[i - 1]!.startIso));
+    }
+  });
+
+  it("never asks for a span wider than the chunk, whatever the window", () => {
+    for (const windowDays of [1, 7, 8, 30, 180, 400]) {
+      for (const slice of odometerSlices(END_MS, windowDays, 7)) {
+        expect(Date.parse(slice.endIso) - Date.parse(slice.startIso)).toBeLessThanOrEqual(7 * day);
+      }
+    }
+  });
+
+  it("still describes a degenerate window rather than reporting a sync that fetched nothing", () => {
+    expect(odometerSlices(END_MS, 0, 7)).toEqual([{ startIso: END, endIso: END }]);
+  });
+});
 
 describe("syncVehicleOdometerReadings", () => {
   it("scopes every tenant query to one organization", async () => {
@@ -197,6 +254,104 @@ describe("syncVehicleOdometerReadings", () => {
     const res = await run(rec, fetcher);
     expect(calls).toHaveLength(0);
     expect(res).toMatchObject({ vehicles: 0, readings: 0, batches: 0 });
+  });
+
+  it("walks a deep window in slices, oldest first, and asks for the whole of it", async () => {
+    // Before 2026-09-08 a deep window was one request, and 180 days of it would have held roughly
+    // four million events in memory before a row was staged. `chunkDays` is passed explicitly so the
+    // walk is proved over a window small enough to enumerate.
+    const rec = seed([{ id: "v1", samsara_vehicle_id: "s-1" }]);
+    const { fetcher, calls } = fetcherFor([]);
+    const res = await run(rec, fetcher, { sinceDays: 6, chunkDays: 2 });
+
+    const day = 86_400_000;
+    expect(calls.map((c) => c.startIso)).toEqual([
+      new Date(Date.parse(END) - 6 * day).toISOString(),
+      new Date(Date.parse(END) - 4 * day).toISOString(),
+      new Date(Date.parse(END) - 2 * day).toISOString(),
+    ]);
+    // Contiguous, and the last slice lands exactly on the window's end rather than past it.
+    expect(calls.map((c) => c.endIso).slice(0, -1)).toEqual(calls.map((c) => c.startIso).slice(1));
+    expect(calls.at(-1)!.endIso).toBe(END);
+    // One batch of trucks, three requests — the two numbers the ledger keeps apart.
+    expect(res).toMatchObject({ batches: 1, chunks: 3, fetches: 3, chunkDays: 2 });
+  });
+
+  it("keeps the rolling window a single request, so the hourly tier is unchanged", async () => {
+    // The walk exists for backfills. If the tier's own four days started costing two requests, this
+    // feature would have quietly become a change to the thing that runs every hour.
+    expect(ODOMETER_SOURCE_WINDOW_DAYS).toBeLessThanOrEqual(ODOMETER_CHUNK_DAYS);
+    const rec = seed();
+    const { fetcher, calls } = fetcherFor(TWO_TRUCKS);
+    const res = await run(rec, fetcher);
+    expect(calls).toHaveLength(1);
+    expect(res).toMatchObject({ chunks: 1, fetches: 1, batches: 1 });
+  });
+
+  it("a day split across two slices keeps the later reading", async () => {
+    // The slice boundary falls at midday on the 6th, and `lastReadingEachDay` keeps the last reading
+    // of each day IT WAS GIVEN — so the older slice stages 10:00's counter for that day and the
+    // newer stages 20:00's. Both upsert to the same (org, vehicle, source, day) key, so the LAST
+    // write wins. Oldest-first makes that the later, higher, correct odometer; reverse the walk and
+    // this row silently becomes an earlier reading, which is the undercount the lookback rule exists
+    // to prevent arriving through the back door.
+    const rec = seed([{ id: "v1", samsara_vehicle_id: "s-1" }]);
+    const day = 86_400_000;
+    const older = new Date(Date.parse(END) - 4 * day).toISOString();
+    const newer = new Date(Date.parse(END) - 2 * day).toISOString();
+    const { fetcher } = slicedFetcher({
+      [older]: [{ id: "s-1", obdOdometerMeters: [{ time: "2026-07-06T10:00:00Z", value: 100 }] }],
+      [newer]: [{ id: "s-1", obdOdometerMeters: [{ time: "2026-07-06T20:00:00Z", value: 500 }] }],
+    });
+    await run(rec, fetcher, { sinceDays: 4, chunkDays: 2 });
+
+    const july6 = rec
+      .writtenRows("samsara_odometer_readings")
+      .filter((r) => r.vehicle_id === "v1" && r.source === "obd" && r.day === "2026-07-06");
+    expect(july6.at(-1)).toMatchObject({ meters: 500, reading_at: "2026-07-06T20:00:00Z" });
+  });
+
+  it("stages each slice as it lands, so a walk that dies keeps what it already collected", async () => {
+    // 180 days is twenty-six requests per batch. Writing once at the end would mean a failure at the
+    // twenty-first discarded the twenty that had already been fetched and paid for.
+    const rec = seed([{ id: "v1", samsara_vehicle_id: "s-1" }]);
+    let seen = 0;
+    const fetcher: OdometerHistoryFetcher = async () => {
+      seen += 1;
+      if (seen === 2) throw new Error("Samsara API 503");
+      return {
+        data: [
+          { id: "s-1", obdOdometerMeters: [{ time: "2026-07-03T09:00:00Z", value: 7_000 }] },
+        ] as never,
+        complete: true,
+        pages: 1,
+      };
+    };
+    await expect(run(rec, fetcher, { sinceDays: 6, chunkDays: 2 })).rejects.toThrow("503");
+    expect(seen).toBe(2);
+    expect(rec.writtenRows("samsara_odometer_readings")).toHaveLength(1);
+  });
+
+  it("names the slice when a page walk is truncated, and stages nothing for it", async () => {
+    const rec = seed([{ id: "v1", samsara_vehicle_id: "s-1" }]);
+    const { fetcher } = fetcherFor(TWO_TRUCKS, { complete: false, pages: 120 });
+    await expect(run(rec, fetcher, { sinceDays: 6, chunkDays: 2 })).rejects.toThrow(
+      /truncated after 120 pages .* over .*; no readings were staged for this slice/,
+    );
+    expect(rec.writtenRows("samsara_odometer_readings")).toHaveLength(0);
+  });
+
+  it("counts a truck that reported in ANY slice as measured, not once per request", async () => {
+    // `vehiclesWithoutData` is the coverage story behind every per-mile figure, and it is a question
+    // about the WINDOW. Counting per request would report one truck as three unmeasured ones.
+    const rec = seed([{ id: "v1", samsara_vehicle_id: "s-1" }]);
+    const day = 86_400_000;
+    const middle = new Date(Date.parse(END) - 4 * day).toISOString();
+    const { fetcher } = slicedFetcher({
+      [middle]: [{ id: "s-1", obdOdometerMeters: [{ time: "2026-07-05T09:00:00Z", value: 42 }] }],
+    });
+    const res = await run(rec, fetcher, { sinceDays: 6, chunkDays: 2 });
+    expect(res).toMatchObject({ vehicles: 1, vehiclesWithData: 1, vehiclesWithoutData: 0 });
   });
 
   it("upserts on the reading's identity, so re-collecting a window converges", async () => {

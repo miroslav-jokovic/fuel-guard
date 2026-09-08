@@ -321,6 +321,24 @@ const integrity = computed(() => {
         secondary-confirm="Pull 120 days of Samsara HOS duty-status logs? Slower — usually only needed once to seed history."
         description="Pull driver Hours-of-Service duty status (Sleeper Berth / Off Duty / On Duty) from Samsara. Powers the rest-vs-work idle split on the Idling page. 'Sync HOS now' pulls a rolling 30 days; 'Backfill last 120 days' seeds history. Also runs on the scheduled sync. Needs the token's Read ELD Compliance scope."
       />
+      <!--
+        The odometer feed is the ONLY measured distance the product has, and every fleet-MPG figure
+        stands on it. It had no card until 2026-09-08 and no trigger of any kind, so when the feed
+        turned out to hold eight days of history the answer to "why is MPG blank on every page" was
+        also "and there is nothing you can press". The backfill is the point of this card, not an
+        extra on it — the hourly tier already keeps the recent end fresh.
+      -->
+      <JobActionCard
+        v-if="session.can('settings')"
+        title="Sync odometer readings"
+        kind="sync_odometer"
+        endpoint="/api/integrations/samsara/sync-odometer"
+        action-label="Sync odometers now"
+        secondary-label="Backfill last 180 days"
+        :secondary-body="{ sinceDays: 180 }"
+        secondary-confirm="Backfill 180 days of odometer history? Runs in 7-day slices and takes a few hours. Fleet MPG can only be measured over a window this feed already covers, so a period that starts before the backfill reaches shows a dash until it finishes."
+        description="Pull Samsara's cumulative odometer counters — the measured distance behind every fleet MPG figure on the Dashboard, the Fuel log and the spend report. The scheduled run keeps the last 4 days fresh; 'Backfill last 180 days' seeds the history those pages' default windows need. Needs the token's Read Vehicle Statistics scope."
+      />
       <JobActionCard
         v-if="session.can('settings')"
         title="Sync driver scores"

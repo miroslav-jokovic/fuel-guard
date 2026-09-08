@@ -667,3 +667,58 @@ three of these are worth re-opening if the evidence changes.
 
   §1.4's August defect is still NOT fixed here, exactly as §5 promised. It is now *visible* the week
   it happens, and it remains filed against `fuel_spend_days` in FUEL-SPEND-RELIABILITY-PLAN.
+
+- **2026-09-08 — M7 the feed the whole plan stands on held eight days of history, so every surface
+  printed a dash.** The owner reported "no MPG displayed on any page at all". Nothing in M1–M6 was
+  wrong. `samsara_odometer_readings` — which M3 made the sole numerator — has its oldest row at
+  **2026-08-31 19:33Z**, because the collector shipped with a four-day rolling window
+  (`ODOMETER_SOURCE_WINDOW_DAYS`), no route ever dispatched `sync_odometer`, and the `endIso` option
+  the sync function already had was never passed by the handler. **There was no way to backfill it,
+  and this plan never asked for one** — that is the gap, and it is a planning gap rather than a
+  coding one.
+
+  It matters because `distanceByVehicle` bounds a period on the last reading **at or before** its
+  start (W3a's own lookback rule). No opening odometer before 2026-09-01 means no truck is
+  measurable in any window that starts earlier, and every window the product defaults to does.
+  Measured on production the same morning, simulating the exact pairing rule in SQL:
+
+      window                         gallons   with miles   share    ratio   surface
+      2026-08-01..08-31 (a month)    235,167            0    0.0%        —   withheld
+      2026-08-09..09-07 (30d)        224,061            0    0.0%        —   withheld
+      2026-09-01..09-07               50,340       42,797   85.0%     6.82   prints 6.82
+      2026-09-02..09-08               43,691       40,129   91.8%     6.66   prints 6.66
+
+  `computeFleetMpg`'s second refusal fired — *"No fuel in this period has a measured distance behind
+  it"* — which is the correct sentence and the Dashboard renders it, but only in a tile subtitle
+  and a `title` attribute, so it reads as absence rather than refusal. **The coverage floor was
+  never reached and is not implicated**: the share was zero, not 41%.
+
+  **Fixed by making a backfill possible rather than by lowering a bar.** `sinceDays` now WALKS the
+  window in `ODOMETER_CHUNK_DAYS` (7) slices, oldest first, staging and writing each slice as it
+  lands; the handler passes `endIso`; `POST /api/integrations/samsara/sync-odometer` dispatches it;
+  and the Data sync page carries the card the feed never had. Seven days is a MEMORY bound, measured
+  against Samsara that day: twenty trucks over seven days is 6 pages and 151,163 events, and the
+  fetcher merges every page of a slice before staging, so thirty days in one call would hold ~650,000
+  events per batch. **Oldest-first is correctness, not taste** — slices meet mid-day, both sides
+  upsert the same (org, vehicle, source, day) key, and the last write wins, so reversing the walk
+  would silently replace a day's closing odometer with a mid-day one. Pinned by "a day split across
+  two slices keeps the later reading"; both that and the per-slice write were proved by mutation.
+
+  Samsara's retention is not the constraint: `/fleet/vehicles/stats/history` returned June 2026
+  counters for this fleet when probed directly on 2026-09-08.
+
+  **What this does NOT fix, stated rather than implied.** Backfilled readings make the OPENING
+  odometer exist; they do not make a truck that never reported measurable, and `measuredShare` will
+  read below 100% on historical windows for exactly that reason. Nor does anything here detect the
+  next time this feed stops — a stall would drain the measurable window from the old end at four days
+  a day, silently, and `samsaraFeedHealth` watches the JOB's cadence rather than the READINGS'.
+  Filed as the open question below.
+
+  **Open question — Q7 (new).** Should a fleet-MPG refusal say *the feed does not reach this window*
+  as a distinct sentence from *this window's fuel is not covered*? Today both arrive as
+  `gallonsWithMiles <= 0`, and they are different problems with different fixes: one is "press
+  Backfill", the other is "these trucks are not reporting". Candidates: (a) `FleetMpgPeriod` already
+  carries `readings` — a period with fuel, zero measured gallons and zero readings is unambiguously
+  the first case, and the reason could say so with no new input; (b) leave it, and rely on the Data
+  sync card being findable. Recommend (a): it costs one branch in `computeFleetMpg`'s caller and it
+  is the difference between a dash somebody can act on and a dash somebody reports as a bug.

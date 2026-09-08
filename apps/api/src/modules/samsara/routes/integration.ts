@@ -173,6 +173,57 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
     }),
   );
 
+  /**
+   * Stage Samsara's cumulative odometer counters — the fleet's ONLY measured distance, and therefore
+   * the input every fleet-MPG surface now stands on (D-MPG1).
+   *
+   * ── WHY THIS ROUTE EXISTS, WHICH IS NOT "SYMMETRY WITH THE OTHER SYNC BUTTONS" ────────────────
+   * The odometer tier shipped with a four-day rolling window and no trigger of any kind, so between
+   * 2026-08-31 and 2026-09-08 the feed's oldest reading was eight days old and there was no way to
+   * reach further back. Because `distanceByVehicle` bounds a period on the last reading AT OR BEFORE
+   * its start, no window beginning before 2026-09-01 had an opening odometer for a single truck:
+   * measured on production, 0% of August's 235,167 gallons had a measured distance behind it, and
+   * every consolidated surface — the Dashboard tile and its weekly trend, the Fuel log's tile, the
+   * Spend trend, the report PDF, the assistant — printed a dash it could explain but not fix. The
+   * gap was not in the arithmetic; it was that the only way to fill a hole in this feed was to wait
+   * four days for it to scroll out of reach.
+   *
+   * `sinceDays` is capped at 400 to match the idle sync's own bound, and the collector walks
+   * anything wide in slices itself, so a 180-day request is one job rather than the caller's loop.
+   * `settings` rather than `admin` for the same reason the idle and HOS syncs are: re-collecting a
+   * vendor's own history into staging is idempotent (the upsert is keyed on org/vehicle/source/day),
+   * so the worst a wrong click costs is API budget.
+   */
+  router.post(
+    "/samsara/sync-odometer",
+    requireOrg,
+    requireSection("settings"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const actorId = req.auth!.userId;
+      const parsed = z
+        .object({
+          sinceDays: z.coerce.number().int().positive().max(400).optional(),
+          // A window END, so one known gap can be repaired without re-collecting everything after
+          // it. Rejected rather than coerced when it is not a real instant: a silent `Date.parse`
+          // NaN would fall back to "now" and quietly fill the wrong months.
+          endIso: z.iso.datetime().optional(),
+        })
+        .safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "sinceDays must be 1–400 and endIso an ISO instant."));
+        return;
+      }
+      const result = await dispatchJob(admin, env, "sync_odometer", {
+        orgId: req.auth!.orgId!,
+        payload: { actorId, ...parsed.data },
+        requestedBy: actorId,
+      });
+      jobResponse(res, result);
+    }),
+  );
+
   // Sync the org's drivers from Samsara into the drivers table (admin).
   router.post(
     "/samsara/sync-drivers",

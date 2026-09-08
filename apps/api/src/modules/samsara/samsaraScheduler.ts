@@ -379,6 +379,11 @@ function startOdometerTier(env: Env): void {
           obdReadings: r.obdReadings,
           gpsDistanceReadings: r.gpsDistanceReadings,
           batches: r.batches,
+          // `fetches` and `chunks` separate "how many trucks" from "how wide a window" in the ledger.
+          // The tier's own window is one slice, so this line reads exactly as it did before the slice
+          // walk existed — a backfill is the only run where the two numbers differ.
+          fetches: r.fetches,
+          chunks: r.chunks,
           windowDays: r.windowDays,
         };
       });
