@@ -70,6 +70,9 @@ const PROBES = [
   "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
   "/messages", "/settings/driver-app", "/settings/fuel-planning", "/settings/data",
   "/settings/efs-soap", "/settings/org", "/settings/notifications", "/settings/audit",
+  // P3's three published documents. Probed like any other route, and public for a reason unrelated
+  // to the auth pages': these are the URLs the two app stores fetch, with no session and no cookie.
+  "/privacy", "/terms", "/support",
   // G1's operator-visited dead ends. The catch-all is deliberately NOT probed here — an unmatched
   // URL is the one case this file cannot express as "declared path resolves to itself", and it has
   // its own suite in `notFound.test.ts`.
@@ -192,6 +195,12 @@ describe("the route table survives being split by area", () => {
       "/login",
       "/maintenance",
       "/placard-calculator", // M7 — the free public calculator, deliberately indexable
+      // P3's three legal documents, public because Apple and Google fetch a listing's privacy,
+      // terms and support URLs with no session — and because a policy a driver cannot open without
+      // signing in is not a published policy. Deliberately indexable for the same reason.
+      "/privacy",
+      "/support",
+      "/terms",
     ]);
   });
 

@@ -408,6 +408,21 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/audit",
   },
   {
+    "name": "privacy-policy",
+    "params": {},
+    "url": "/privacy",
+  },
+  {
+    "name": "terms-of-use",
+    "params": {},
+    "url": "/terms",
+  },
+  {
+    "name": "support",
+    "params": {},
+    "url": "/support",
+  },
+  {
     "name": "server-error",
     "params": {},
     "url": "/error",
@@ -841,12 +856,23 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
+      "brand": "HazmatGuard",
       "layout": "public",
       "public": true,
       "title": "Free DOT Placard Calculator",
     },
     "name": "public-placard-calculator",
     "path": "/placard-calculator",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "public",
+      "public": true,
+      "title": "Privacy policy",
+    },
+    "name": "privacy-policy",
+    "path": "/privacy",
     "redirect": null,
   },
   {
@@ -1100,6 +1126,26 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "inspector-register",
     "path": "/shop/inspectors",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "public",
+      "public": true,
+      "title": "Support",
+    },
+    "name": "support",
+    "path": "/support",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "public",
+      "public": true,
+      "title": "Terms of use",
+    },
+    "name": "terms-of-use",
+    "path": "/terms",
     "redirect": null,
   },
   {

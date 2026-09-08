@@ -131,6 +131,14 @@ function verifyAdoption() {
     "auth/DriverAppRedirectPage.vue",
     "auth/LoginPage.vue",
     "auth/PendingPage.vue",
+    // P3's three published documents. Same reason as the placard calculator directly above: they
+    // render in `PublicLayout` for a driver or a store reviewer with no session, so there is no
+    // workspace for a header to sit in and no breadcrumb trail to walk. `LegalDocument.vue` gives
+    // them their own heading, version and effective date — the chrome a document needs rather than
+    // the chrome a data page needs.
+    "legal/PrivacyPolicyPage.vue",
+    "legal/SupportPage.vue",
+    "legal/TermsPage.vue",
   ]);
   const failures = [];
   const missingHeaders = pageAdoption
