@@ -92,7 +92,7 @@ export default function Loads() {
           onAccept={(load) => void accept.mutateAsync(load.id)}
           onDecline={(load) => setDecliningLoad(load)}
           onOpen={(load) => router.push(`/loads/${load.id}` as never)}
-          onHazmat={() => router.push('/hazmat')}
+          onHazmat={() => router.push('/documents')}
         />
       ) : null}
     </View>

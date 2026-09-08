@@ -16,7 +16,8 @@ export function resolveDeepLink(link: string | null | undefined): Href {
   // Hazmat: web reviewer path → driver verdict screen.
   const hazmatLoad = /^\/hazmat\/loads\/([0-9a-f-]{36})$/i.exec(link);
   if (hazmatLoad) return `/hazmat/${hazmatLoad[1]}` as Href;
-  if (link === '/hazmat/loads' || link === '/hazmat/review') return '/hazmat';
+  // The driver's document surface is the Documents tab (D-DB14); the hub route it replaced is gone.
+  if (link === '/hazmat/loads' || link === '/hazmat/review') return '/documents';
 
   // Loads: same shape in both products.
   if (/^\/loads\/[0-9a-f-]{36}$/i.test(link)) return link as Href;

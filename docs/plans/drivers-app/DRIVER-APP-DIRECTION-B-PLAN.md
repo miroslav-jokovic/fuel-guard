@@ -127,6 +127,28 @@
   status = text + icon + tone; offline is a normal state; skeletons only without cached data; no
   native alerts; no card inside a card except a captured-document preview; Dynamic Type stacks
   rather than truncates; Reduce Motion, Bold Text, high contrast honoured through `ThemeProvider`.
+- **D-DB10 · Softened palette (2026-09-07, owner).** Every role re-valued, none renamed: cream
+  sheet `#F3EFE8`, charcoal-navy ink/hero `#1F2433`/`#20283A`, apricot action `#F2B267`, status
+  hues desaturated. Values in `apps/driver/DESIGN.md`; the §2.1 table above is B0's history.
+- **D-DB11 · Floating tab shell (2026-09-07).** Inset capsule on the home-indicator inset, active
+  icon raised on an apricot disc through a canvas notch, disc slides between slots. Second and last
+  shadow (`shellElevation`), amending D-DB5. Rules in `src/components/tabBarModel.ts`.
+- **D-DB12 · No overlines (2026-09-07).** The uppercase kicker above hero-card headings is gone;
+  its content moves into the supporting line. `label` stays in the scale, reserved.
+- **D-DB13 · ⛔ WITHDRAWN 2026-09-07, same day.** Messages was a tab for one merge; D-DB14 has no
+  room for it. Hero button and More row restored.
+- **D-DB14 · The four tabs (owner, 2026-09-07 evening).** Home · Loads · Documents · More with
+  Home01 / DeliveryTruck01 / Folder03 / Ellipsis. Supersedes D51's tab list. Documents = the hazmat
+  hub promoted to a tab (gated on `hazmat.capture`). Score is read from More, never a tab. More =
+  account (+ Sign out), work (Score, Messages, Notifications), settings (System, Scanner).
+- **D-DB15 · Auth screens are hero-and-sheet (2026-09-07).** Mark centred on the navy; title, form
+  and footer on the sheet at the 20pt inset.
+- **D-DB16 · Cards are lit (2026-09-07).** Faint SVG wash on sheet and hero cards; hairline edge
+  instead of the shadow in dark. Amends D-DB8 for containers only. D-DB11's disc no longer
+  animates at all, and the tab scene switches with `animation: 'none'`.
+- **D-DB17 · Home: Your score + Your rig (owner, 2026-09-07).** Score card with the driver's own
+  last four weeks and ranks, opening Score; rig card with the current segment's units, Change rig
+  and End shift. A fleet leaderboard is Q-DB7.
 
 ---
 
@@ -1134,6 +1156,16 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   `load_ref` only. *Fallback:* no message row when no thread carries the ref.
 - **Q-DB6 · Deck gestures** (owner): B3.2 advances the deck on Accept/Decline only; no swipe.
   *Fallback:* none needed; a swipe is additive later.
+- **Q-DB7 · A fleet leaderboard on Home** (owner + product, raised 2026-09-07): the owner asked
+  Home for "a drivers score rank list". The driver API returns only the signed-in driver's weeks
+  with `rank` and `cohort_size`; RLS hides every other driver's row on purpose, and
+  `driverContract.ts` records that "#4 of 23" is what can be shown *without leaking the
+  leaderboard*. Showing peers needs (a) a product ruling on what a driver may see of colleagues —
+  first names and scores, anonymised positions, or only their own rank — and (b) a new endpoint
+  and contract (`GET /api/me/score/leaderboard`) that returns exactly that. *Recommendation:* top
+  five by first name plus the viewer, opt-out per org via a `tab.score` config key, because the
+  reference boards the owner supplied treat rank as a motivator rather than a secret. *Fallback
+  (built in D-DB17):* Home lists the driver's OWN last four weeks with their ranks.
 
 - **Q-PR1 · EAS project and credentials** (owner, one-time, P2.3): `eas init` project id, Android
   keystore upload, Play App Signing enrolment, APNs key, App Store Connect record. *Fallback:* until
@@ -1716,3 +1748,44 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
      one home for the rule and `GroupedList` reads it through a thin element-shaped wrapper. The
      constant was right only while every row carries both a disc and a glyph — true today, silently
      wrong the first time one does not, in the list a driver reads when something has gone wrong.
+- 2026-09-07 · **Design polish (D-DB10–D-DB13).** Owner reviewed the B7 build on the simulator and
+  ruled the colours "too hard" and the bottom navigation the weakest surface, supplying five
+  reference boards (cream/greige sheets, one warm accent, floating capsule bars with a raised active
+  disc). Built in one PR: every role re-valued and the mirror regenerated (all 458 tests green, every
+  contrast rule intact, checked by a script before the JSON was written); the floating tab shell with
+  `tabBarModel.ts` (9 tests); Messages promoted to a tab and its two duplicate doors removed;
+  `secondary` buttons and inputs gain a hairline edge; the progress track is 6pt; the card shadow
+  softens to 8%; hero-card overlines removed. Verified on the iPhone 17 Pro simulator through Metro +
+  the dev bypass: light in full; dark ONCE, which is where the capsule was found to vanish against
+  the near-black canvas (fixed: `hero-raised` + hairline edge, chosen from `isDark`). The post-fix
+  dark render could not be captured — the simulator build stopped honouring `simctl ui appearance`
+  after a fast refresh and after a reboot — so the dark shell is owed one look on a device.
+  Deviations: (1) the tab-shell container
+  reserves 31pt of canvas above the capsule for the notch, so the scene is ~50pt shorter than under
+  the docked bar — accepted for the shell's legibility; (2) `tests/app-icon-model.test.ts` pinned the
+  old hero literal and now pins the new one. NOT done: the sign-in mark still carries the asset's grey
+  `#ccc` digit discs, which is a brand-asset question for the owner, not a token.
+- 2026-09-07 · **Second pass on the same PR (D-DB14–D-DB16, D-DB13 withdrawn).** Owner review of the
+  first pass: the sign-in was misaligned, the disc's slide was too much, the tab set is Home · Loads
+  · Documents · More, More needs system + scanner settings with Sign out on it, cards must not be
+  flat in dark, and — the sharpest line — "check documentation and git logs and see what our
+  application really needs". Read first: D51/D17 in DRIVER-APP-PLAN.md, the hazmat hub's history,
+  the scanner handoff §5, the feature catalog. Findings: there was never a Documents tab in the
+  record; the hazmat hub (hardening Phase 3) IS the document surface and was a modal behind More,
+  which is why it read as missing. Built: the four tabs; `app/(tabs)/documents.tsx` from the hub
+  (`/hazmat` links repointed, deep-link test updated); More recomposed; `app/scanner-settings.tsx`
+  with `scannerSettingsModel.ts` (11 tests) reading the same native probe and config the engine
+  uses, no switches; sign-in on `Screen hero`; `Card` wash + dark edge; disc fade. Also: the dev
+  bypass now stands in for a bootstrap with every released feature at its catalog default, because
+  a bypass that hid every tab is how the owner concluded the app had lost its screens. The native
+  splash still shows B0's navy on the installed simulator build — `app.config.ts` reads `hero`
+  from the roles file, so the next native build picks up D-DB10 without a change.
+- 2026-09-07 · **Third pass on the same PR (D-DB17, Q-DB7).** Owner: Home should carry current load
+  cards, a drivers' score rank list with the signed-in driver's scores, and vehicle settings; and
+  tab switching still animated. Built: `WeekStrip` grows into the score card (own last four weeks
+  with ranks, `homeScoreSummary.recentWeeks`, tested), `RigCard` (current segment's units from
+  `dutyView.vehicleUnit|trailerUnit`, Change rig, End shift), tab `animation: 'none'` and a static
+  disc. The current load remains the hero card. NOT built: a peer leaderboard — the API withholds
+  other drivers' rows by design, so it is Q-DB7 with a recommendation, not a module. Neither new
+  Home module renders in the dev bypass (no shift, no score data), so they are verified by their
+  models' tests and owed a look with a real driver sign-in.

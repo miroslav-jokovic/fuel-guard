@@ -31,6 +31,8 @@ interface SessionValue {
   refresh: () => Promise<void>;
   /** DEV ONLY — skip Supabase auth and jump straight to the app as a fake driver. */
   activateDevBypass: () => void;
+  /** True while the dev bypass is the session. `useFeatures` reads it to stand in for the bootstrap. */
+  devBypass: boolean;
 }
 
 /**
@@ -120,6 +122,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         activateDevBypass() {
           setDevBypass(true);
         },
+        devBypass: true,
       };
     }
 
@@ -190,6 +193,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       activateDevBypass() {
         if (__DEV__) setDevBypass(true);
       },
+      devBypass: false,
     };
   }, [session, initialized, devBypass]);
 

@@ -214,7 +214,7 @@ export default function LoadDetail() {
                 disc="danger"
                 title="Hazmat load"
                 subtitle="Placarding and the BOL check apply to this run."
-                onPress={() => router.push('/hazmat')}
+                onPress={() => router.push('/documents')}
               />
             </>
           ) : null}

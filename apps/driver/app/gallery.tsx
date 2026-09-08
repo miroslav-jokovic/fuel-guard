@@ -99,7 +99,7 @@ export default function Gallery() {
         <View className="gap-1 rounded-xl bg-surface-muted p-4">
           <AppText variant="screenTitle">Today</AppText>
           <AppText variant="navigationTitle">Load LD-20481</AppText>
-          <AppText variant="label" tone="action">NEXT · DELIVER</AppText>
+          <AppText variant="label" tone="action">Label · reserved, no overlines since D-DB12</AppText>
           <AppText variant="body">One typeface carries the whole app; the variant picks the weight.</AppText>
           <AppText variant="rowTitle">Row title, Lexend Medium</AppText>
           <AppText variant="action">Button label, Lexend SemiBold</AppText>
@@ -301,9 +301,8 @@ export default function Gallery() {
       <Section title="Hero and sheet — the two registers">
         <View className="gap-3 rounded-xl bg-hero p-4">
           <Card variant="hero">
-            <AppText variant="label" tone="onHeroSecondary">NEXT · DELIVER</AppText>
             <AppText variant="screenTitle" tone="onHero">Effingham, IL</AppText>
-            <AppText variant="supporting" tone="onHeroSecondary">1204 W Fayette Ave · Stop 2 of 4</AppText>
+            <AppText variant="supporting" tone="onHeroSecondary">Deliver next · 1204 W Fayette Ave · Stop 2 of 4</AppText>
             <View className="flex-row gap-3 pt-1">
               <View className="flex-1 gap-1 rounded-lg bg-hero-tile p-3">
                 <AppText variant="caption" tone="onHeroMuted">Appointment</AppText>

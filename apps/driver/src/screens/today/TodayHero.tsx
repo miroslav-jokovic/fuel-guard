@@ -118,12 +118,14 @@ export function CurrentLoadHero({
         </AppText>
       </View>
 
+      {/* No overline (D-DB12): the stop's name is the heading, and what happens there leads the
+          line beneath it — "Deliver next · Gary, IN · 400 W 5th Ave" — instead of shouting in caps
+          above a title that already carried the weight. */}
       <View className="gap-1 pt-1">
-        <AppText variant="label" tone="onHeroSecondary">NEXT · {action.toUpperCase()}</AppText>
         <AppText variant="screenTitle" tone="onHero" numberOfLines={2}>{next?.name ?? 'Run complete'}</AppText>
         {next ? (
           <AppText variant="supporting" tone="onHeroSecondary" numberOfLines={2}>
-            {[placeLabel(next), next.address_line].filter(Boolean).join(' · ')}
+            {[`${action} next`, placeLabel(next), next.address_line].filter(Boolean).join(' · ')}
           </AppText>
         ) : null}
       </View>

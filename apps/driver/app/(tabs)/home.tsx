@@ -15,6 +15,7 @@ import { AttentionQueue } from '@/screens/today/AttentionQueue';
 import { UpNextRow } from '@/screens/today/UpNext';
 import { WeekStrip } from '@/screens/today/WeekStrip';
 import { StartDayCard } from '@/screens/today/StartDayCard';
+import { RigCard } from '@/screens/today/RigCard';
 import { attentionRows, shouldSkeletonHero, SKELETON_HEIGHTS, todayAlerts, todayState, upNextLoads } from '@/screens/today/todayModel';
 import { UpdateReadyBanner } from '@/features/updates/UpdateReadyBanner';
 import { firstName, useDriverContext } from '@/session/useDriverContext';
@@ -280,8 +281,20 @@ export default function Home() {
       ) : null}
 
       {state !== 'recovery' && scoreEnabled && weekScore ? (
-        <Section title="This week">
-          <WeekStrip score={weekScore} />
+        <Section title="Your score">
+          <WeekStrip score={weekScore} onOpen={() => router.push('/score')} />
+        </Section>
+      ) : null}
+
+      {/* The rig, last (D-DB17): what the driver signed on to and the two things they can do about
+          it. On duty only — before the shift the hero's start card owns the equipment question. */}
+      {state !== 'recovery' && duty.onDuty ? (
+        <Section title="Your rig">
+          <RigCard
+            duty={duty}
+            onChange={() => router.push('/duty/check-in?mode=swap')}
+            onEndShift={() => router.push('/duty/end-shift')}
+          />
         </Section>
       ) : null}
     </Screen>

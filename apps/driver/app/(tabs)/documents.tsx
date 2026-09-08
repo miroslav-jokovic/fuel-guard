@@ -21,11 +21,14 @@ import { useHazmatChecks } from '@/features/hazmat/useHazmatChecks';
 import { useFeatures } from '@/session/useFeatures';
 
 /**
- * Hazmat hub (hardening plan Phase 3) — the standalone testing surface, decoupled from the Loads
- * module: a capture creates the driver's OWN hazmat load via /api/me/hazmat/* and never touches
- * dispatch loads. Primary action: capture a BOL. Below it: every past check, re-findable — the
- * verdict screen used to be unreachable the moment the driver left it. When the Loads module ships,
- * the same vertical embeds as a load-flow step (plan Phase 6/D51); this hub remains the fallback.
+ * Documents — the driver's document tab (D-DB14, 2026-09-07), which is the hazmat hub of the
+ * hardening plan's Phase 3 promoted from a modal two taps inside More to a top-level surface.
+ *
+ * It is the scanner programme's front door: a capture creates the driver's OWN hazmat load via
+ * /api/me/hazmat/* and never touches dispatch loads. Primary action: capture a BOL. Below it: every
+ * past check, re-findable — the verdict screen used to be unreachable the moment the driver left
+ * it. When the Loads module embeds capture as a load-flow step (plan Phase 6), this tab remains
+ * the place every document lives.
  */
 
 const OUTCOME_BADGE: Record<string, { label: string; tone: Tone }> = {
@@ -61,8 +64,8 @@ export default function HazmatHub() {
   if (features.isLoaded && !hazmatEnabled) return <Redirect href="/home" />;
   if (!features.isLoaded) {
     return (
-      <Screen padTop={false}>
-        <ScreenHeader title="Hazmat checks" onClose={() => router.back()} />
+      <Screen flow="sections">
+        <ScreenHeader title="Documents" subtitle="Bills of lading and compliance checks" />
         <Skeleton className="h-15 w-full rounded-xl" />
       </Screen>
     );
@@ -73,11 +76,11 @@ export default function HazmatHub() {
   return (
     <Screen
       flow="sections"
-      padTop={false}
       footer={
         <ActionBar>
           <Button
             label="Capture BOL"
+            variant="primary"
             size="lg"
             icon="photo_camera"
             haptic="select"
@@ -89,11 +92,7 @@ export default function HazmatHub() {
         </ActionBar>
       }
     >
-      <ScreenHeader
-        title="Hazmat checks"
-        subtitle="BOL compliance, before you roll"
-        onClose={() => router.back()}
-      />
+      <ScreenHeader title="Documents" subtitle="Bills of lading and compliance checks" />
       <OfflineBanner />
 
       {checks.isError && !checks.data ? (
@@ -105,7 +104,7 @@ export default function HazmatHub() {
         />
       ) : null}
 
-      <Section title="History">
+      <Section title="Checks">
         {showSkeletons ? (
           <>
             <Skeleton className="w-full rounded-xl" style={{ height: 64 }} />

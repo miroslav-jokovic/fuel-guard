@@ -20,7 +20,7 @@ export function ToggleRow({
   const { themeKey } = useTheme();
   const colors = roleColors[themeKey];
   return (
-    <View className={`min-h-13 flex-row items-center gap-3 bg-surface px-4 py-2 ${disabled ? 'opacity-60' : ''}`}>
+    <View className={`min-h-13 flex-row items-center gap-3 px-4 py-2 ${disabled ? 'opacity-60' : ''}`}>
       <View className="flex-1 gap-0.5">
         <AppText accessible={false} variant="rowTitle" tone={disabled ? 'disabled' : 'primary'}>{title}</AppText>
         {subtitle ? <AppText accessible={false} variant="supporting" tone={disabled ? 'disabled' : 'muted'}>{subtitle}</AppText> : null}
