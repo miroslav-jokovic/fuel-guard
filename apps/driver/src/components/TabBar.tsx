@@ -16,7 +16,6 @@ import {
   visibleTabs,
 } from './tabBarModel';
 import type { IconName } from '@/theme/hugeIcons';
-import { shellElevation } from '@/theme/elevation';
 import { roleColors } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeProvider';
 import { haptics } from '@/lib/haptics';
@@ -89,7 +88,19 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         */}
       <View
         className="flex-row"
-        style={[{ height: shell.height }, shellElevation(themeKey)]}
+        /*
+         * NO RN SHADOW on this view, and that is forced rather than chosen.
+         *
+         * `shellElevation` was an RN shadow on a view with no backgroundColor, so iOS derived it
+         * from the layer's alpha — which is what made it follow the holed capsule for free, and also
+         * what made it bleed INTO the hole. Measured on the More tab: the 5pt gap read rgb(232,231,230)
+         * against a page of rgb(252,251,250), so the gap that exists to show the page showed a grey
+         * ring instead. You cannot have both an alpha-derived shadow and a clean hole; the hole wins,
+         * because it is the stronger depth cue — a bar you can see the page THROUGH cannot read as
+         * "a dark bar painted on the page", which is the whole thing D-DB11's shadow was there to
+         * prevent. With it gone the same gap reads rgb(250,248,245): the page, within two levels.
+         */
+        style={{ height: shell.height }}
         onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
       >
         {/*
@@ -119,6 +130,15 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               )}
               fill={isDark ? roleColors[themeKey].heroRaised : roleColors[themeKey].hero}
               fillRule="evenodd"
+              /*
+               * The dark appearances' hairline, which was `border-hero-edge` while the capsule was a
+               * View. It is not decoration there: `hero-raised` sits within a few points of the dark
+               * canvas, so without it the shell is an unlit strip — the same finding D-DB11 recorded
+               * from the first dark screenshot. A stroke on the path also traces the hole, which a
+               * border never could.
+               */
+              stroke={isDark ? roleColors[themeKey].heroEdge : 'none'}
+              strokeWidth={isDark ? 1 : 0}
             />
           </Svg>
         ) : null}

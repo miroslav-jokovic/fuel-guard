@@ -2039,3 +2039,17 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   view. Its shadow was cast INTO the hole, hugging its lower edge, filling the gap that exists to show
   the page. The disc is a sibling of the capsule now. The capsule's own rim still shades the hole,
   which is what makes the cut read as a cut rather than a sticker.
+- 2026-09-08 · **The shell's shadow is retired, and D-DB5's "nothing else casts a shadow" is true
+  again: cards, and nothing else.** The owner saw the artefact on the More tab after the Home one was
+  fixed — same cause, opposite end of the bar. Moving the disc out of the shadowed view stopped the
+  DISC casting into the hole, but the capsule's own alpha-derived shadow still filled it. Measured on
+  More: the 5pt gap read **rgb(232,231,230)** against a page of **rgb(252,251,250)** — a grey ring
+  exactly where the page was supposed to show. An RN shadow on a view with no `backgroundColor` is
+  derived from the layer's alpha, which is what made it follow the holed capsule for free and also
+  what made it impossible to keep. **You cannot have both an alpha-derived shadow and a clean hole.**
+  The hole wins because it does the shadow's job better: D-DB11 gave the shell a shadow so it would
+  not read as "a dark bar painted on the page", and a bar you can see the page THROUGH cannot read
+  that way. Without the shadow the same gap measures **rgb(250,248,245)** — the page, within two
+  levels. The dark appearances keep their hairline, now a `stroke` on the path rather than a `border`
+  on a View, which also traces the hole; `hero-raised` sits within a few points of the dark canvas and
+  D-DB11 recorded what that looks like unlit.
