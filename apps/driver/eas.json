@@ -44,7 +44,7 @@
         "releaseStatus": "draft"
       },
       "ios": {
-        "ascAppId": "<App Store Connect app Apple ID>",
+        "ascAppId": "6809905033",
         "appleTeamId": "FADWJ952AY"
       }
     }
