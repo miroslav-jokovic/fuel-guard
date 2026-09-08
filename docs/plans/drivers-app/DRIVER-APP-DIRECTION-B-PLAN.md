@@ -1805,3 +1805,35 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   `leaderboardModel.ts` (5 tests) and the Home card. RLS policy `dpw_driver_scope` is untouched — the
   leaderboard is an API projection. NOT verifiable in the dev bypass (no server session); owed a
   look with a real driver sign-in on a fleet with a ranked week.
+- 2026-09-07 · **The colour a component asks for is now the colour it gets.** Found by looking at the
+  running app, not by a test: the Home avatar's initial was invisible on its own disc. Two causes,
+  stacked. (1) `AppText` renders `TEXT_TONE_CLASS[tone]` and a caller's `className` colour is a
+  SECOND class setting `color`, which NativeWind resolves by the CSS cascade — final tiebreaker
+  `SpecificityIndex.Order`, i.e. position in the compiled stylesheet, where Tailwind sorts colour
+  utilities ALPHABETICALLY. Order inside the className string is never consulted. So `text-ink` (the
+  default `primary` tone) silently beat `text-accent*`, `text-action*`, `text-brand*`, `text-caution`,
+  `text-danger` and `text-info`, while `secondary`, `success`, `warning` and `onHero` happened to sort
+  later and worked. **Eight components** were relying on it: `Avatar`, `Badge`, `Banner`, `ListRow`,
+  `SegmentedControl`, `TabBar`, `Itinerary`, both unread-count badges, `ConfirmSheet`, `AuthLayout`
+  and `hazmat/[loadId]`. Measured cost: unread counts rendered `ink` on amber at **1.67:1** (dark) and
+  on lavender at **1.30:1**, against a designed 8.35 / 10.70. (2) Independently, `Avatar` still asked
+  for `action-fg` — the foreground for the AMBER fill, a near-black in all four appearances — on a
+  `hero-tile` disc: **1.40 / 1.14 / 1.68 / 1.45**, never readable in any theme, and cause (1) swapped
+  it for `ink`, which is why it looked passable in dark and broken in light.
+  Fix: two new tones, `onAction` (`action-fg`, for the solid amber/lavender fills) and `onBrand`
+  (`brand-fg`); the tone table moves to `src/theme/textTone.ts` so it is importable WITHOUT React
+  Native, which is precisely why the old contrast suite could not see any of this — it read
+  `theme.roles.json` and asserted what the design intended, never what the components asked for.
+  `TONE_SOFT` carries a `textTone` instead of a class (renamed so the compiler finds every consumer —
+  it found four more than a grep did), Badge's chip table joins it as `TONE_CHIP`, and `Icon` derives
+  its class from the same map. `tests/tone-pairings.test.ts` reads the real tables; `lint:design`
+  rejects a colour class on an `AppText` opening tag and caught an eighth site (`TabBar`) on its first
+  run. Verified on the simulator: the avatar initial measures `rgb(255,255,255)` on `rgb(51,60,79)`.
+- 2026-09-07 · **The cream card above the navy does NOT reproduce on a clean build.** Reported as "on
+  all pages" and confirmed by pixel: dimmed `hero` (×0.81) and dimmed `canvas` (×0.88) layered behind
+  an inset, rounded, undimmed hero card — the signature of stacked native presentations, which no JS
+  in `Screen` can draw. After `expo run:ios` the top strip is uniform `rgb(32,40,58)` edge to edge,
+  and stays that way through a terminate/relaunch and tab navigation. Nothing in this PR touches
+  navigation, so this is NOT a fix: the cause was the installed binary or accumulated presented
+  screens, and it is open. If it returns, the nine `presentation: "modal"` screens in
+  `app/_layout.tsx` under iOS 26's stacked-sheet behaviour are the first place to look.

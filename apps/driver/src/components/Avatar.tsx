@@ -20,6 +20,11 @@ function initials(name: string): string {
  * nothing, sitting beside the two things that DO (messages, notifications) rendered in translucent
  * white. The affordance was inverted, which is the opposite of "keep primary actions visually
  * dominant" (DESIGN.md). Amber is now spent only where a driver may tap.
+ *
+ * The initials kept `action-fg` through that change, which is the foreground for the AMBER fill and
+ * a near-black in all four appearances by design. On `hero-tile` it measures 1.40 / 1.14 / 1.68 /
+ * 1.45 — the letter was never readable on its own disc in any theme. `onHero` is the foreground
+ * this ground actually has, at 11.05 / 13.56 / 12.48 / 14.51, and `driver theme contrast` pins it.
  */
 export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   return (
@@ -30,7 +35,7 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
     >
       <AppText
         variant="numericCompact"
-        className="text-action-fg"
+        tone="onHero"
         style={{ fontSize: size * 0.38, includeFontPadding: false }}
       >
         {initials(name)}

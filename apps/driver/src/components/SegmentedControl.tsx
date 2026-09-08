@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { AppText } from './AppText';
+import { AppText, type TextTone } from './AppText';
 import { Icon } from './Icon';
 import { haptics } from '@/lib/haptics';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -57,7 +57,7 @@ export function SegmentedControl<T extends string>({
             : onHero
               ? 'bg-on-hero/10'
               : 'bg-surface-muted';
-          const text = active ? 'text-action-fg' : onHero ? 'text-on-hero' : 'text-ink-secondary';
+          const textTone: TextTone = active ? 'onAction' : onHero ? 'onHero' : 'secondary';
           return (
             <Pressable
               key={option.value}
@@ -70,11 +70,11 @@ export function SegmentedControl<T extends string>({
               }}
               className={`min-h-9 flex-row items-center justify-center gap-1 rounded-full px-4 ${fill}`}
             >
-              <AppText variant="supporting" className={`font-ui-md ${text}`} numberOfLines={1}>
+              <AppText variant="supporting" tone={textTone} className="font-ui-md" numberOfLines={1}>
                 {option.label}
               </AppText>
               {option.count != null ? (
-                <AppText variant="supporting" className={`font-ui-md ${text}`} tabular>
+                <AppText variant="supporting" tone={textTone} className="font-ui-md" tabular>
                   {option.count}
                 </AppText>
               ) : null}

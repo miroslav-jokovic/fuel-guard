@@ -1,5 +1,8 @@
 import { Text, type TextProps, type TextStyle } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
+import { TEXT_TONE_CLASS, type TextTone } from '@/theme/textTone';
+
+export { TEXT_TONE_CLASS, type TextTone };
 
 export type TextVariant =
   | 'caption'
@@ -13,25 +16,6 @@ export type TextVariant =
   | 'numericInline'
   | 'numericCompact'
   | 'numericHero';
-
-export type TextTone =
-  | 'primary'
-  | 'secondary'
-  | 'muted'
-  | 'subtle'
-  | 'disabled'
-  | 'inverse'
-  | 'brand'
-  | 'danger'
-  | 'warning'
-  | 'caution'
-  | 'success'
-  | 'info'
-  | 'action'
-  | 'accent'
-  | 'onHero'
-  | 'onHeroSecondary'
-  | 'onHeroMuted';
 
 /**
  * Weight is the family in React Native: a Tailwind weight utility does nothing to a loaded custom
@@ -85,26 +69,6 @@ const SIZE: Record<TextVariant, string> = {
 /** Figures a driver reads at a glance never jitter: the numeric variants are tabular by definition. */
 const ALWAYS_TABULAR: readonly TextVariant[] = ['numericInline', 'numericCompact', 'numericHero'];
 
-const TONE: Record<TextTone, string> = {
-  primary: 'text-ink',
-  secondary: 'text-ink-secondary',
-  muted: 'text-ink-muted',
-  subtle: 'text-ink-subtle',
-  disabled: 'text-ink-disabled',
-  inverse: 'text-ink-inverse',
-  brand: 'text-brand',
-  danger: 'text-danger',
-  warning: 'text-warning',
-  caution: 'text-caution',
-  success: 'text-success',
-  info: 'text-info',
-  action: 'text-action-ink',
-  accent: 'text-accent-ink',
-  onHero: 'text-on-hero',
-  onHeroSecondary: 'text-on-hero-secondary',
-  onHeroMuted: 'text-on-hero-muted',
-};
-
 export interface AppTextProps extends TextProps {
   variant?: TextVariant;
   tone?: TextTone;
@@ -136,7 +100,7 @@ export function AppText({
     <Text
       {...props}
       allowFontScaling={allowFontScaling}
-      className={`${family} ${SIZE[variant]} ${TONE[tone]} ${className}`.trim()}
+      className={`${family} ${SIZE[variant]} ${TEXT_TONE_CLASS[tone]} ${className}`.trim()}
       style={[numericStyle, style]}
     />
   );

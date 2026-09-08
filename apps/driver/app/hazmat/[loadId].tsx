@@ -13,6 +13,7 @@ import {
   ScreenHeader,
   Section,
   Skeleton,
+  TEXT_TONE_CLASS,
   TONE_SOFT,
   type Tone,
 } from '@/components';
@@ -100,7 +101,7 @@ export default function HazmatVerdictScreen() {
           <Section first>
             <Card variant="flat">
               <View className={`h-11 w-11 items-center justify-center rounded-full ${TONE_SOFT[meta.tone].bg}`}>
-                <Icon name={meta.icon} size={22} fill className={TONE_SOFT[meta.tone].text} />
+                <Icon name={meta.icon} size={22} fill className={TEXT_TONE_CLASS[TONE_SOFT[meta.tone].textTone]} />
               </View>
               <AppText variant="navigationTitle">{meta.word}</AppText>
               <AppText variant="supporting" tone="secondary">{meta.message}</AppText>

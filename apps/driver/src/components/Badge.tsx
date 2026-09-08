@@ -1,23 +1,8 @@
 import { View } from 'react-native';
-import { AppText } from './AppText';
+import { AppText, TEXT_TONE_CLASS } from './AppText';
 import { Icon } from './Icon';
-import { TONE_SOFT, type Tone } from './tone';
+import { TONE_CHIP, type Tone } from './tone';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
-
-/**
- * Chip tones (D-DB2/D-DB6). `brand` is the lavender fill and `action` the amber one; `info` and
- * `success`/`danger` use the soft fills with their strong role as text, which is the same pairing a
- * row disc uses, so a chip and a disc for the same meaning are the same two colours.
- *
- * Text on `accent` and `action` is `action-fg`, never `ink`: both hold the same value in all four
- * appearances, so a theme-relative ink lands on lavender at 1.4:1 in the dark themes.
- */
-const TONE: Record<Tone, { bg: string; text: string }> = {
-  ...TONE_SOFT,
-  // The two SOLID chips: lavender for informational state, amber for time-critical state.
-  brand: { bg: 'bg-accent', text: 'text-action-fg' },
-  action: { bg: 'bg-action', text: 'text-action-fg' },
-};
 
 /**
  * Short categorical status only; never a replacement for hierarchy or explanatory copy.
@@ -38,14 +23,14 @@ export function Badge({
   icon?: MaterialSymbolName;
   size?: 'sm' | 'md';
 }) {
-  const appearance = TONE[tone];
+  const appearance = TONE_CHIP[tone];
   return (
     <View
       className={`flex-row items-center justify-center gap-1 rounded-full px-3 ${appearance.bg}`}
       style={{ minHeight: size === 'md' ? 32 : 28 }}
     >
-      {icon ? <Icon name={icon} size={14} className={appearance.text} /> : null}
-      <AppText variant="caption" className={`font-ui-md ${appearance.text}`}>{label}</AppText>
+      {icon ? <Icon name={icon} size={14} className={TEXT_TONE_CLASS[appearance.textTone]} /> : null}
+      <AppText variant="caption" tone={appearance.textTone} className="font-ui-md">{label}</AppText>
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import { Pressable, View } from 'react-native';
-import { AppText } from './AppText';
+import { AppText, TEXT_TONE_CLASS } from './AppText';
 import { haptics } from '@/lib/haptics';
 import { Icon } from './Icon';
 import { TONE_ICON, TONE_SOFT, type Tone } from './tone';
@@ -29,8 +29,8 @@ export function Banner({
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
     >
-      <Icon name={icon ?? TONE_ICON[tone]} size={18} className={TONE_SOFT[tone].text} />
-      <AppText variant="supporting" className={`flex-1 ${TONE_SOFT[tone].text}`}>{message}</AppText>
+      <Icon name={icon ?? TONE_ICON[tone]} size={18} className={TEXT_TONE_CLASS[TONE_SOFT[tone].textTone]} />
+      <AppText variant="supporting" tone={TONE_SOFT[tone].textTone} className="flex-1">{message}</AppText>
       {actionLabel && onAction ? (
         <Pressable
           accessibilityRole="button"
@@ -44,7 +44,7 @@ export function Banner({
           }}
           className="min-h-11 justify-center px-3"
         >
-          <AppText variant="action" className={TONE_SOFT[tone].text}>{actionLabel}</AppText>
+          <AppText variant="action" tone={TONE_SOFT[tone].textTone}>{actionLabel}</AppText>
         </Pressable>
       ) : null}
     </View>
