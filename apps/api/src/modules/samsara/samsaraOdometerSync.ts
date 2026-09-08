@@ -45,6 +45,33 @@ import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
  * The day in progress has a "last reading so far", which the next run replaces. The upsert is keyed
  * on (org, vehicle, source, day), so a re-run of any window converges rather than duplicating, and a
  * missed tick costs nothing as long as the window is wider than the gap.
+ *
+ * ── A DEEP WINDOW IS WALKED IN SLICES, AND THE SLICES GO OLDEST FIRST ──────────────────────────
+ * A wide `sinceDays` is a BACKFILL, and until 2026-09-08 there was no way to run one: the tier's
+ * window was four days, no route dispatched `sync_odometer` at all, and `endIso` was an option the
+ * handler never passed. The consequence was not subtle — the odometer feed's oldest reading was
+ * 2026-08-31, the fleet-MPG consolidation had moved eight surfaces onto measured miles, and
+ * `distanceByVehicle` bounds a period on the last reading AT OR BEFORE its start, so every window
+ * the product defaults to (the Dashboard's thirty days, the spend report's months) had no opening
+ * odometer for any truck. Measured on production that morning: 0% of August's 235,167 gallons had a
+ * measured distance behind it, `computeFleetMpg` refused, and every one of those surfaces printed a
+ * dash. The arithmetic was right and the feed was eight days old.
+ *
+ * So `sinceDays` now WALKS the window rather than asking for it in one call, because one call cannot
+ * carry it: measured against Samsara on 2026-09-08, twenty trucks over seven days is 6 pages and
+ * 151,163 events, and the fetcher merges every page of a slice in memory before staging. Thirty days
+ * in one request would hold roughly 650,000 events per batch, and 180 days would be six times that.
+ * A slice is the unit of both the fetch and the WRITE, so a walk that dies at slice twenty keeps the
+ * nineteen it already staged.
+ *
+ * **The order is oldest-first and that is correctness, not taste.** Adjacent slices meet at an
+ * instant in the middle of a local day, and `lastReadingEachDay` keeps the last reading of each day
+ * IT WAS GIVEN — so for the day the boundary falls in, the older slice stages the last reading
+ * before the boundary and the newer slice stages the last reading of the whole day. Both upsert to
+ * the same (org, vehicle, source, day) key, so whichever runs LAST wins. Oldest-first means the
+ * newer, later, correct reading wins; newest-first would silently overwrite it with an earlier
+ * odometer, which is exactly the undercount §THE LOOKBACK warns about, arriving through the back
+ * door. Pinned by "a day split across two slices keeps the later reading".
  */
 
 /**
@@ -53,6 +80,18 @@ import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
  * counter is ever stored regardless of how many samples the window contained.
  */
 export const ODOMETER_SOURCE_WINDOW_DAYS = 4;
+
+/**
+ * The widest span asked of Samsara in one request when a deep window is walked.
+ *
+ * Seven rather than a fortnight because the cost being bounded is MEMORY, not requests: the fetcher
+ * accumulates every page of a slice before anything is staged, and seven days × twenty trucks was
+ * measured at 151,163 events (6 pages, 17s). Seven rather than four so the daily tier's own window
+ * still fits in a single slice — the scheduled run's shape, its request count and its `batches` stat
+ * are exactly what they were before this walk existed, which is what keeps a backfill feature from
+ * quietly becoming a change to the thing that runs every hour.
+ */
+export const ODOMETER_CHUNK_DAYS = 7;
 
 /** Trucks per stats-history call. Matches the idle capability sync; keeps each request bounded. */
 const BATCH = 20;
@@ -85,8 +124,14 @@ export interface OdometerSyncResult {
   /** Rows staged per counter — the fleet's ECU coverage, visible without a second query. */
   obdReadings: number;
   gpsDistanceReadings: number;
+  /** Vehicle batches. Unchanged by the slice walk, so the daily tier's ledger line reads as it did. */
   batches: number;
+  /** Requests actually made — `batches × chunks`. The cost of a backfill, in the ledger. */
+  fetches: number;
+  /** Time slices each batch was walked in. One for any window inside `ODOMETER_CHUNK_DAYS`. */
+  chunks: number;
   windowDays: number;
+  chunkDays: number;
 }
 
 export interface OdometerSyncOptions {
@@ -94,6 +139,11 @@ export interface OdometerSyncOptions {
   sinceDays?: number;
   /** Window end (default now), so a chunked historical slice can be an explicit range. */
   endIso?: string;
+  /**
+   * Days per request when the window is walked. Defaults to `ODOMETER_CHUNK_DAYS`; exists so a test
+   * can force a multi-slice walk over a small window without pretending to fetch a fortnight.
+   */
+  chunkDays?: number;
   /** Injected in tests; the real fetcher is built from the org's token. */
   fetcherOverride?: OdometerHistoryFetcher;
 }
@@ -150,6 +200,34 @@ function stageVehicle(
   return rows;
 }
 
+/** One request's span. `startIso` is inclusive of whatever Samsara returns at it; `endIso` bounds it. */
+interface OdometerSlice {
+  startIso: string;
+  endIso: string;
+}
+
+/**
+ * Cut `[endMs − windowDays, endMs]` into request-sized spans, **oldest first**.
+ *
+ * The order is load-bearing — see §A DEEP WINDOW IS WALKED IN SLICES. A window at or inside
+ * `chunkDays` yields exactly one slice covering it, so the hourly tier's single request is not a
+ * special case in this function; it is what the general rule already produces.
+ */
+export function odometerSlices(endMs: number, windowDays: number, chunkDays: number): OdometerSlice[] {
+  const span = Math.max(1, chunkDays) * 86_400_000;
+  const startMs = endMs - windowDays * 86_400_000;
+  const slices: OdometerSlice[] = [];
+  for (let cursor = startMs; cursor < endMs; cursor += span) {
+    slices.push({
+      startIso: new Date(cursor).toISOString(),
+      endIso: new Date(Math.min(cursor + span, endMs)).toISOString(),
+    });
+  }
+  // A zero-or-negative window is not a window, but returning nothing would report a successful sync
+  // that fetched nothing. One slice of the degenerate span says what actually happened.
+  return slices.length > 0 ? slices : [{ startIso: new Date(startMs).toISOString(), endIso: new Date(endMs).toISOString() }];
+}
+
 async function writeReadings(
   admin: SupabaseClient,
   rows: StagedReading[],
@@ -163,6 +241,65 @@ async function writeReadings(
       .upsert(rows.slice(i, i + WRITE_CHUNK), { onConflict: "org_id,vehicle_id,source,day" });
     if (error) throw new Error(`Could not stage odometer readings: ${error.message}`);
   }
+}
+
+/**
+ * Fetch, stage and WRITE one batch of trucks across every slice of the window.
+ *
+ * The write is inside the slice loop rather than after it, which is what makes a deep walk
+ * resumable: 180 days is twenty-six requests per batch, and a failure at the twenty-first must not
+ * discard the twenty that already landed. `withData` is a set rather than a counter because a truck
+ * that reported in one slice and not another reported — the question the ledger's coverage line
+ * answers is about the WINDOW, not about a request.
+ */
+async function collectBatch(
+  admin: SupabaseClient,
+  orgId: string,
+  batch: readonly VehicleRow[],
+  slices: readonly OdometerSlice[],
+  fetcher: OdometerHistoryFetcher,
+  orgTz: string,
+  nowIso: string,
+): Promise<{ obdReadings: number; gpsDistanceReadings: number; vehiclesWithData: number }> {
+  const withData = new Set<string>();
+  let obdReadings = 0;
+  let gpsDistanceReadings = 0;
+  const ids = batch.map((v) => v.samsara_vehicle_id);
+
+  for (const slice of slices) {
+    const fetched = await fetcher(ids, slice.startIso, slice.endIso);
+    if (!fetched.complete) {
+      throw new Error(
+        `Samsara odometer history was truncated after ${fetched.pages} pages for org ${orgId} over ` +
+          `${slice.startIso}..${slice.endIso}; no readings were staged for this slice`,
+      );
+    }
+    const bySamsaraId = new Map<string, SamsaraOdometerVehicleRecord>();
+    for (const record of fetched.data) bySamsaraId.set(String(record.id ?? ""), record);
+
+    const rows: StagedReading[] = [];
+    for (const vehicle of batch) {
+      const staged = stageVehicle(
+        orgId,
+        vehicle.id,
+        bySamsaraId.get(vehicle.samsara_vehicle_id),
+        orgTz,
+        nowIso,
+      );
+      // A truck that reported nothing writes NO ROW — not a zero. History thins at the old edge
+      // (10.8% no_data at 2026-01), and a zero-metre reading reads as a counter that reset, which is
+      // a hardware event the distance rule is right to refuse.
+      if (staged.length > 0) withData.add(vehicle.id);
+      for (const row of staged) {
+        if (row.source === "obd") obdReadings += 1;
+        else gpsDistanceReadings += 1;
+      }
+      rows.push(...staged);
+    }
+    await writeReadings(admin, rows);
+  }
+
+  return { obdReadings, gpsDistanceReadings, vehiclesWithData: withData.size };
 }
 
 export async function syncVehicleOdometerReadings(
@@ -185,6 +322,7 @@ export async function syncVehicleOdometerReadings(
   const vehicles = ((vehicleRows ?? []) as VehicleRow[]).filter((v) => v.samsara_vehicle_id);
 
   const windowDays = options.sinceDays ?? ODOMETER_SOURCE_WINDOW_DAYS;
+  const chunkDays = options.chunkDays ?? ODOMETER_CHUNK_DAYS;
   if (vehicles.length === 0) {
     return {
       vehicles: 0,
@@ -194,7 +332,10 @@ export async function syncVehicleOdometerReadings(
       obdReadings: 0,
       gpsDistanceReadings: 0,
       batches: 0,
+      fetches: 0,
+      chunks: 0,
       windowDays,
+      chunkDays,
     };
   }
 
@@ -212,8 +353,7 @@ export async function syncVehicleOdometerReadings(
   if (!Number.isFinite(endMs)) {
     throw new RangeError("Odometer sync endIso must be a valid ISO timestamp");
   }
-  const endIso = new Date(endMs).toISOString();
-  const startIso = new Date(endMs - windowDays * 86_400_000).toISOString();
+  const slices = odometerSlices(endMs, windowDays, chunkDays);
   const fetcher = options.fetcherOverride ?? makeSamsaraOdometerFetcher(env, token);
   const nowIso = new Date().toISOString();
 
@@ -225,41 +365,12 @@ export async function syncVehicleOdometerReadings(
 
   for (let i = 0; i < vehicles.length; i += BATCH) {
     const batch = vehicles.slice(i, i + BATCH);
-    const fetched = await fetcher(
-      batch.map((v) => v.samsara_vehicle_id),
-      startIso,
-      endIso,
-    );
-    if (!fetched.complete) {
-      throw new Error(
-        `Samsara odometer history was truncated after ${fetched.pages} pages for org ${orgId}; no readings were staged for this batch`,
-      );
-    }
+    const tally = await collectBatch(admin, orgId, batch, slices, fetcher, orgTz, nowIso);
     batches += 1;
-    const bySamsaraId = new Map<string, SamsaraOdometerVehicleRecord>();
-    for (const record of fetched.data) bySamsaraId.set(String(record.id ?? ""), record);
-
-    const rows: StagedReading[] = [];
-    for (const vehicle of batch) {
-      const staged = stageVehicle(
-        orgId,
-        vehicle.id,
-        bySamsaraId.get(vehicle.samsara_vehicle_id),
-        orgTz,
-        nowIso,
-      );
-      // A truck that reported nothing writes NO ROW — not a zero. History thins at the old edge
-      // (10.8% no_data at 2026-01), and a zero-metre reading reads as a counter that reset, which is
-      // a hardware event the distance rule is right to refuse.
-      if (staged.length > 0) vehiclesWithData += 1;
-      else vehiclesWithoutData += 1;
-      for (const row of staged) {
-        if (row.source === "obd") obdReadings += 1;
-        else gpsDistanceReadings += 1;
-      }
-      rows.push(...staged);
-    }
-    await writeReadings(admin, rows);
+    obdReadings += tally.obdReadings;
+    gpsDistanceReadings += tally.gpsDistanceReadings;
+    vehiclesWithData += tally.vehiclesWithData;
+    vehiclesWithoutData += batch.length - tally.vehiclesWithData;
   }
 
   return {
@@ -270,6 +381,9 @@ export async function syncVehicleOdometerReadings(
     obdReadings,
     gpsDistanceReadings,
     batches,
+    fetches: batches * slices.length,
+    chunks: slices.length,
     windowDays,
+    chunkDays,
   };
 }

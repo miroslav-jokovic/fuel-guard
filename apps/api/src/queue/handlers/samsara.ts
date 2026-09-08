@@ -245,16 +245,23 @@ export const syncIftaHandler: JobHandler = async (ctx, job) => {
  * Samsara cumulative odometer readings — the fleet's only MEASURED distance (W3b, D-FLEET9).
  *
  * `payload.sinceDays` widens the rolling window, which is how history is backfilled: the same code
- * path, a longer window, no second collector. Nothing here derives a distance — the readings are
- * staged verbatim and `distanceByVehicle` subtracts.
+ * path, a longer window, no second collector. The collector walks a wide window in slices itself
+ * (`ODOMETER_CHUNK_DAYS`), so a deep `sinceDays` is one job rather than a caller's loop. Nothing here
+ * derives a distance — the readings are staged verbatim and `distanceByVehicle` subtracts.
+ *
+ * `payload.endIso` moves the window's END, and it is here rather than left to `sinceDays` alone
+ * because the two answer different questions: `sinceDays: 180` is "fill the last half-year", while
+ * `{ sinceDays: 30, endIso }` is "fill THAT month", which is what a person repairing one known gap
+ * asks for. Without it the only way to reach a gap is to re-collect everything after it as well.
  */
 export const syncOdometerHandler: JobHandler = async (ctx, job) => {
   const { admin, env } = ctx;
   const orgId = job.org_id;
   const actorId = asStr(job.payload.actorId);
   const sinceDays = asNum(job.payload.sinceDays) ?? undefined;
+  const endIso = asStr(job.payload.endIso) ?? undefined;
   try {
-    const r = await syncVehicleOdometerReadings(admin, env, orgId, { sinceDays });
+    const r = await syncVehicleOdometerReadings(admin, env, orgId, { sinceDays, endIso });
     if (r.vehiclesWithoutData > 0) {
       // Trucks that reported no counter at all are the coverage story behind every per-mile figure:
       // a denominator missing part of the fleet reads low on miles and high on cost, and looks
