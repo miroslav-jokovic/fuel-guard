@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { BottomTabBarHeightContext } from 'expo-router/js-tabs';
 import { layout } from '@/theme/tokens';
+import { HeroBackdrop } from './HeroBackdrop';
 import { heroTopPadding, screenBottomPadding, screenTopPadding } from '@/theme/safeArea';
 import { useTheme } from '@/theme/ThemeProvider';
 import { roleColors } from '@/theme/colors';
@@ -114,17 +115,24 @@ export function Screen({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View
-            style={[
-              {
-                paddingTop: heroTopPadding(insets.top),
-                paddingHorizontal: layout.screenInset,
-                paddingBottom: layout.sheetOverlap + 20,
-              },
-              columnStyle,
-            ]}
-          >
-            {hero}
+          {/* The backdrop is full-bleed and the hero content is inset, so they are two views:
+              a padded child inside an unpadded wrapper the absolute backdrop can fill. On a wide
+              screen the content still centres in its readable column while the art runs edge to
+              edge, which is what a backdrop is for. */}
+          <View>
+            <HeroBackdrop />
+            <View
+              style={[
+                {
+                  paddingTop: heroTopPadding(insets.top),
+                  paddingHorizontal: layout.screenInset,
+                  paddingBottom: layout.sheetOverlap + 20,
+                },
+                columnStyle,
+              ]}
+            >
+              {hero}
+            </View>
           </View>
           {/* A flat-flow sheet keeps the same 16pt gap between loose children as a flat screen;
               the auth screens (D-DB15) are the first hero screens that are not made of Sections. */}
