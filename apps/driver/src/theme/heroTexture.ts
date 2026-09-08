@@ -1,37 +1,54 @@
 import { roleColors, type ThemeKey } from './colors';
 
 /**
- * The hero texture's contrast budget (D-DB20).
+ * The hero textures and their contrast budgets (D-DB20, extended by D-DB21).
  *
- * `assets/hero-band.webp` is not the owner's artwork as delivered — it is that artwork tone-mapped
- * toward the hero navy with a hard per-channel ceiling, and this file is where the ceiling lives.
+ * `assets/hero-*.webp` are not the owner's artwork as delivered — they are that artwork tone-mapped
+ * toward the hero navy with a hard per-channel ceiling, and this file is where the ceilings live.
  *
- * It has to exist because the raw art has near-white light bands, and no scrim can hold those down
- * without erasing the texture along with them: at 34% over the hero, a 255 pixel composites to 108,
- * and pulling that back under budget needs a 76% flat scrim, at which point nothing of the artwork
- * survives. Compressing the highlights INTO the asset keeps the dark two thirds — the contour lines,
- * the road, the network — and removes only the glare.
+ * The tone-mapping has to happen in the ASSET because the raw art has near-white light bands, and no
+ * scrim can hold those down without erasing the texture along with them: at 34% over the hero a 255
+ * pixel composites to 108, and pulling that back under budget needs a 76% flat scrim, at which point
+ * nothing of the artwork survives. Compressing the highlights into the asset keeps the dark parts —
+ * the contour lines, the road, the network — and removes only the glare.
+ *
+ * **The two ceilings differ because the two heroes carry different text**, which is the whole reason
+ * this is a table rather than a constant. Measured against `theme.roles.json`: a white `on-hero`
+ * still clears 4.5:1 against a background as light as grey 118, `on-hero-secondary` tolerates 86,
+ * and `on-hero-muted` only 52. A screen hero carries all three, so it takes the tightest. The auth
+ * mast carries the Silvicom mark and nothing else, so holding it to 52 would have thrown away the
+ * sunset to protect a tone that is not on the screen.
  *
  * Regenerate with `scripts/gen-hero-texture.swift` (it prints the peak channel it achieved):
  *
  *   swiftc -O -o /tmp/tonemap scripts/gen-hero-texture.swift
- *   /tmp/tonemap <source.png> /tmp/hero.png 1206 904 52 1.7
- *   cwebp -q 88 -m 6 /tmp/hero.png -o assets/hero-band.webp
+ *   /tmp/tonemap <source.png> /tmp/out.png <width> <height> <ceiling> <gamma>
+ *   cwebp -q 88 -m 6 /tmp/out.png -o assets/hero-<name>.webp
  *
- * NOTE THE GAP, because it is real: 'the hero texture cannot cost a hero tone its contrast' below
- * asserts that the CEILING is safe for every tone in every appearance. It cannot assert that the
- * shipped `.webp` respects the ceiling — decoding WebP in the test runner would be a dependency for
- * one number. That half is verified by the generator (which prints its peak) and by measuring the
- * device, and both were done on 2026-09-08: peak 52 at generation, worst on-screen background pixel
- * rgb(45,46,54) in light and rgb(32,33,41) in dark. Change the asset and you must re-measure.
+ * NOTE THE GAP, because it is real: 'every texture is safe for every tone it is allowed to back'
+ * asserts that the CEILINGS are safe. It cannot assert that a shipped `.webp` respects its ceiling —
+ * decoding WebP in the test runner would be a dependency for one number. That half is the generator
+ * (which prints its peak) plus a device measurement, and both were done for both assets; the numbers
+ * are in the plan entries for 2026-09-08. Change an asset and you must re-measure.
  */
-export const HERO_TEXTURE_CEILING = 52;
+export type HeroTextureName = 'band' | 'auth';
+
+export const HERO_TEXTURES = {
+  /** Every hero screen. Capped at `on-hero-muted`'s tolerance, the tightest of the three. */
+  band: { ceiling: 52, tones: ['on-hero', 'on-hero-secondary', 'on-hero-muted'] },
+  /**
+   * The auth mast only, which carries the white mark alone. `on-hero-muted` is NOT permitted there —
+   * `lint:design` refuses that tone anywhere under the auth surfaces, because this looser ceiling is
+   * only honest for as long as that stays true.
+   */
+  auth: { ceiling: 80, tones: ['on-hero', 'on-hero-secondary'] },
+} as const satisfies Record<HeroTextureName, { ceiling: number; tones: readonly string[] }>;
 
 /**
- * How strongly the texture is drawn per appearance. The asset is toned toward the LIGHT hero, so it
- * sits at full strength there and is held back on the dark hero, where every point of opacity is
- * spent out of a white foreground's margin rather than added to it. High contrast gets none at all:
- * a decorative texture is exactly what that setting exists to remove.
+ * How strongly a texture is drawn per appearance. The assets are toned toward the LIGHT hero, so
+ * they sit at full strength there and are held back on the dark hero, where every point of opacity
+ * is spent out of a white foreground's margin rather than added to it. High contrast gets none at
+ * all: a decorative texture is exactly what that setting exists to remove.
  */
 export function heroTextureOpacity(themeKey: ThemeKey): number {
   if (themeKey === 'highContrastLight' || themeKey === 'highContrastDark') return 0;
@@ -39,17 +56,18 @@ export function heroTextureOpacity(themeKey: ThemeKey): number {
 }
 
 /**
- * The worst background a hero foreground can land on: the ceiling, drawn at this appearance's
- * opacity, over this appearance's hero. Returned as an `r g b` triple so the contrast helper can
- * read it directly.
+ * The worst background a hero foreground can land on: this texture's ceiling, drawn at this
+ * appearance's opacity, over this appearance's hero. Returned as an `r g b` triple so the contrast
+ * helper can read it directly.
  */
-export function worstHeroBackground(themeKey: ThemeKey): string {
+export function worstHeroBackground(themeKey: ThemeKey, texture: HeroTextureName = 'band'): string {
   const opacity = heroTextureOpacity(themeKey);
+  const ceiling = HERO_TEXTURES[texture].ceiling;
   const hero = roleColors[themeKey].hero
     .replace(/^rgb\(|\)$/g, '')
     .split(',')
     .map((part) => Number(part.trim()));
   return hero
-    .map((channel) => Math.round(channel * (1 - opacity) + HERO_TEXTURE_CEILING * opacity))
+    .map((channel) => Math.round(channel * (1 - opacity) + ceiling * opacity))
     .join(' ');
 }

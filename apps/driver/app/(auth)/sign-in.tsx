@@ -62,7 +62,7 @@ export default function SignIn() {
   }
 
   return (
-    <Screen hero={<AuthMast />} flow="flat">
+    <Screen hero={<AuthMast />} heroTexture="auth" flow="flat">
       <AuthTitle title="Sign in" subtitle="Use the Driver ID issued by your fleet." />
 
       {error ? <Banner tone="danger" message={error} /> : null}

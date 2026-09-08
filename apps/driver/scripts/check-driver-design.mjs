@@ -111,6 +111,25 @@ for (const path of files) {
   }
 }
 
+/**
+ * The auth mast's texture (D-DB21) is capped at 80 rather than the band's 52, and that is only
+ * honest while the mast carries nothing dimmer than `on-hero-secondary`. `on-hero-muted` tolerates a
+ * background of grey 52 and no more, so a single muted caption added to a login screen would fail
+ * WCAG against artwork that is otherwise correct — silently, because the pixels come from a `.webp`
+ * that no assertion can read. The looser ceiling buys the sunset; this is what it costs.
+ */
+const AUTH_SURFACES = ['/app/(auth)/', '/src/features/auth/'];
+for (const path of files) {
+  if (!AUTH_SURFACES.some((surface) => path.includes(surface))) continue;
+  readFileSync(path, 'utf8').split('\n').forEach((line, index) => {
+    if (/onHeroMuted|text-on-hero-muted/.test(line)) {
+      failures.push(
+        `${path}:${index + 1} the auth hero texture is capped for on-hero-secondary, so on-hero-muted may not appear on an auth surface (src/theme/heroTexture.ts)`,
+      );
+    }
+  });
+}
+
 if (failures.length) {
   console.error('✗ driver design-contract check failed:\n' + failures.map((failure) => `  ${failure}`).join('\n'));
   process.exit(1);

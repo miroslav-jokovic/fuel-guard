@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import roleValues from '@/theme/theme.roles.json';
 import { contrastRatio } from '../scripts/srgb.mjs';
-import { HERO_TEXTURE_CEILING, heroTextureOpacity, worstHeroBackground } from '@/theme/heroTexture';
+import { HERO_TEXTURES, heroTextureOpacity, worstHeroBackground, type HeroTextureName } from '@/theme/heroTexture';
 import type { ThemeKey } from '@/theme/colors';
 
 const appearances = Object.keys(roleValues) as ThemeKey[];
@@ -11,17 +11,27 @@ const appearances = Object.keys(roleValues) as ThemeKey[];
  * a RANGE of colours. These assert the worst end of that range, which is the only end that matters.
  */
 describe('the hero texture', () => {
-  it('cannot cost a hero tone its contrast', () => {
-    for (const appearance of appearances) {
-      const worst = worstHeroBackground(appearance);
-      const roles = roleValues[appearance] as Record<string, string>;
-      for (const tone of ['on-hero', 'on-hero-secondary', 'on-hero-muted'] as const) {
-        expect(
-          contrastRatio(roles[tone] ?? '', worst),
-          `${tone} on the brightest pixel the texture may produce (${appearance}, ${worst})`,
-        ).toBeGreaterThanOrEqual(4.5);
+  it('every texture is safe for every tone it is allowed to back', () => {
+    for (const [name, texture] of Object.entries(HERO_TEXTURES) as [HeroTextureName, (typeof HERO_TEXTURES)[HeroTextureName]][]) {
+      for (const appearance of appearances) {
+        const worst = worstHeroBackground(appearance, name);
+        const roles = roleValues[appearance] as Record<string, string>;
+        for (const tone of texture.tones) {
+          expect(
+            contrastRatio(roles[tone] ?? '', worst),
+            `${name}: ${tone} on the brightest pixel it may produce (${appearance}, ${worst})`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
       }
     }
+  });
+
+  it('gives the screen hero the tighter ceiling, because it carries the tone with the least room', () => {
+    // The auth mast may be looser ONLY because it carries the mark alone. If the two ever converge,
+    // the looser one has stopped being a deliberate choice and become an accident.
+    expect(HERO_TEXTURES.band.ceiling).toBeLessThan(HERO_TEXTURES.auth.ceiling);
+    expect(HERO_TEXTURES.band.tones).toContain('on-hero-muted');
+    expect(HERO_TEXTURES.auth.tones).not.toContain('on-hero-muted');
   });
 
   it('is switched off entirely in the high-contrast appearances', () => {
@@ -32,7 +42,7 @@ describe('the hero texture', () => {
     expect(heroTextureOpacity('highContrastDark')).toBe(0);
     for (const appearance of ['highContrastLight', 'highContrastDark'] as const) {
       const hero = (roleValues[appearance] as Record<string, string>).hero;
-      expect(worstHeroBackground(appearance).split(' ').map(Number)).toEqual(
+      expect(worstHeroBackground(appearance, 'band').split(' ').map(Number)).toEqual(
         (hero ?? '').split(' ').map(Number),
       );
     }
@@ -47,11 +57,13 @@ describe('the hero texture', () => {
   it('keeps the ceiling below the hero tones it has to sit under', () => {
     // A ceiling at or above a foreground's own value would be a texture that can erase it outright,
     // whatever the ratio arithmetic says afterwards.
-    for (const appearance of appearances.filter((a) => heroTextureOpacity(a) > 0)) {
-      const roles = roleValues[appearance] as Record<string, string>;
-      for (const tone of ['on-hero', 'on-hero-secondary', 'on-hero-muted'] as const) {
-        const darkest = Math.min(...(roles[tone] ?? '').split(' ').map(Number));
-        expect(HERO_TEXTURE_CEILING, `${tone} (${appearance})`).toBeLessThan(darkest);
+    for (const [name, texture] of Object.entries(HERO_TEXTURES) as [HeroTextureName, (typeof HERO_TEXTURES)[HeroTextureName]][]) {
+      for (const appearance of appearances.filter((a) => heroTextureOpacity(a) > 0)) {
+        const roles = roleValues[appearance] as Record<string, string>;
+        for (const tone of texture.tones) {
+          const darkest = Math.min(...(roles[tone] ?? '').split(' ').map(Number));
+          expect(texture.ceiling, `${name}: ${tone} (${appearance})`).toBeLessThan(darkest);
+        }
       }
     }
   });

@@ -1900,3 +1900,28 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   toggling the simulator's appearance mid-session. That is the "expo-status-bar honours the most
   recently mounted one" behaviour already documented in `Screen.tsx`. After a clean relaunch it is
   rgb(255,255,255) on rgb(45,44,51).
+- 2026-09-08 · **D-DB21 — the login screen gets its own artwork, on its own contrast budget.** The
+  auth mast inherited D-DB20's band texture automatically, but the band is capped at 52 because a
+  SCREEN hero carries `on-hero-muted`, and at that ceiling the sunset is gone. The auth mast carries
+  the Silvicom mark and nothing else. Measured against `theme.roles.json`, a white `on-hero` clears
+  4.5:1 against a background as light as **grey 118**, `on-hero-secondary` up to **86**, and
+  `on-hero-muted` only up to **52** — so the ceiling is a property of the tones a hero carries, not of
+  the app, and `HERO_TEXTURES` is a table now: `band` at 52 for all three tones, `auth` at 80 for the
+  two the mast can hold. **`lint:design` refuses `onHeroMuted` anywhere under `app/(auth)/` or
+  `src/features/auth/`**, because the looser ceiling is only honest while that stays true; proved by
+  mutation.
+  The asset is a deliberate crop of `source-road-sunset-portrait.png` — the horizon and the road
+  curve, y 780..1340 of the source — not a centred cover-fit, which had been showing empty sky. The
+  mast grew from `py-6` to `pb-24 pt-16` so there is a hero to put it in. 23 KB.
+  Verified on the simulator with the route guard temporarily disabled (restored; `app/_layout.tsx` is
+  byte-identical to main). Worst background pixel in the auth hero: **light rgb(51,60,76)** → on-hero
+  **11.10**, on-hero-secondary **6.82**; **dark rgb(34,41,52)** → **14.64** / **9.00**.
+- 2026-09-08 · **The react-native-svg percentage trap bit a second time, and it is worth the second
+  note.** `HeroBackdrop`'s scrim was `<Rect width="100%" height="100%">` inside an `Svg` with no
+  viewBox. On the short screen hero nothing showed; on the taller login hero the scrim covered only
+  the upper part and left a **hard horizontal seam** across the middle of the mast — at x=200, y=580
+  read rgb(31,40,58) and y=600 read rgb(23,36,52). Each layer rendered correctly IN ISOLATION (image
+  alone: smooth; scrim alone: smooth), which is what made it hard to see. `Card.tsx` has carried the
+  explanation since D-DB16 — "a Rect's percentage is resolved against the Svg's viewBox, which this
+  Svg does not have" — and the fix is the same one: measure the box with `onLayout` and pass numbers.
+  Any future `Svg` in this app wants the same treatment.
