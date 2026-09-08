@@ -23,6 +23,8 @@ const ORG = "00000000-0000-4000-8000-00000000000a";
 const ADMIN = "00000000-0000-4000-8000-000000000001";
 const MEMBER = "00000000-0000-4000-8000-000000000002";
 const STRANGER = "00000000-0000-4000-8000-000000000009";
+/** A driver-app login: a real membership in this org, issued by the roster (DC10). */
+const DRIVER = "00000000-0000-4000-8000-000000000003";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
@@ -43,7 +45,11 @@ vi.mock("../../messaging/index.js", () => ({ revokePushTokens: vi.fn(async () =>
 const { membersRouter } = await import("./members.js");
 const { writeAudit } = await import("../../../lib/audit.js");
 
-async function call(method: string, path: string, body?: unknown): Promise<{ status: number; json: { members?: unknown[] } | null }> {
+async function call(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<{ status: number; json: { members?: unknown[]; error?: { code?: string } } | null }> {
   const app = express();
   app.use(express.json());
   app.use("/api/members", membersRouter());
@@ -56,7 +62,7 @@ async function call(method: string, path: string, body?: unknown): Promise<{ sta
       headers: { "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    return { status: res.status, json: (await res.json().catch(() => null)) as { members?: unknown[] } | null };
+    return { status: res.status, json: (await res.json().catch(() => null)) as { members?: unknown[]; error?: { code?: string } } | null };
   } finally {
     await closeTestServer(server);
   }
@@ -65,6 +71,10 @@ async function call(method: string, path: string, body?: unknown): Promise<{ sta
 const directory = [
   { user_id: ADMIN, email: "admin@example.test", full_name: "Miki Admin", role: "admin", joined_at: "2026-01-01T00:00:00Z" },
   { user_id: MEMBER, email: "shop@example.test", full_name: null, role: "technician", joined_at: "2026-01-02T00:00:00Z" },
+  // The directory returns driver logins ON PURPOSE — it is the whole product's naming directory, and
+  // a driver who uploads a document has to be nameable in the ledger that prints it. This page is
+  // the one that must not show them.
+  { user_id: DRIVER, email: "aaron@drivers.fuelguard.app", full_name: "AARON ROTHENBERG", role: "driver", joined_at: "2026-01-03T00:00:00Z" },
 ];
 
 beforeEach(() => {
@@ -74,7 +84,8 @@ beforeEach(() => {
     tables: {
       memberships: (q) => {
         const wanted = q.filters().find((f) => f.col === "user_id")?.val;
-        return { data: wanted === MEMBER || wanted === ADMIN ? [{ role: wanted === ADMIN ? "admin" : "technician" }] : [], error: null };
+        const role = wanted === ADMIN ? "admin" : wanted === MEMBER ? "technician" : wanted === DRIVER ? "driver" : null;
+        return { data: role ? [{ role }] : [], error: null };
       },
       user_profiles: { data: [], error: null },
     },
@@ -96,6 +107,77 @@ describe("GET /api/members", () => {
   it("answers 500, not a half-list, when the directory cannot be read", async () => {
     rec = createSupabaseRecorder({ rpc: { org_member_directory: { error: { message: "boom" } } } });
     expect((await call("GET", "")).status).toBe(500);
+  });
+
+  it("does not list driver-app logins — a row this page shows is a row it offers to remove (DC10)", async () => {
+    const { json } = await call("GET", "");
+    expect((json?.members as Array<{ userId: string }>).map((m) => m.userId)).toEqual([ADMIN, MEMBER]);
+  });
+});
+
+/**
+ * DC10 — a driver's membership is the CREDENTIAL, not a permission on one.
+ *
+ * `custom_access_token_hook` mints `org_id` from `memberships` and nothing else, so removing that row
+ * leaves a driver who still authenticates, still holds a valid password, and is stuck forever on the
+ * app's "Account almost ready" screen while the Drivers page goes on reporting app access. It is not
+ * a hypothetical: `member.removed` on 2026-08-31 01:27 UTC did exactly that to a live driver, who was
+ * locked out for eight days with no error message anywhere and no way back through any screen.
+ *
+ * Migration 0329 makes the database refuse it. These are the assertions for the half that refuses it
+ * in WORDS, before a 500 from a trigger is all anybody gets — and for the paths the trigger cannot
+ * see, like promoting a colleague INTO a driver role, which creates a membership with no roster row
+ * and no password behind it.
+ */
+describe("DELETE /api/members/:id", () => {
+  it("removes an office member and audits it", async () => {
+    const { status } = await call("DELETE", `/${MEMBER}`);
+    expect(status).toBe(200);
+    const del = rec.queries.find((q) => q.table === "memberships" && q.write?.method === "delete");
+    expect(del).toBeTruthy();
+    expectOrgScoped(rec, ORG);
+    expect(writeAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "member.removed", entityId: MEMBER }),
+    );
+  });
+
+  it("refuses to remove a driver-app login, and deletes NOTHING", async () => {
+    const { status, json } = await call("DELETE", `/${DRIVER}`);
+    expect(status).toBe(400);
+    expect(json?.error?.code).toBe("roster_managed");
+    expect(rec.queries.filter((q) => q.table === "memberships" && q.write)).toHaveLength(0);
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("refuses to remove a user who is not a member of the caller's org", async () => {
+    expect((await call("DELETE", `/${STRANGER}`)).status).toBe(404);
+    expect(rec.queries.filter((q) => q.write)).toHaveLength(0);
+  });
+});
+
+describe("POST /api/members/:id/revoke", () => {
+  it("refuses a driver-app login — it drops the membership without unlinking the roster row", async () => {
+    const { status, json } = await call("POST", `/${DRIVER}/revoke`);
+    expect(status).toBe(400);
+    expect(json?.error?.code).toBe("roster_managed");
+    expect(rec.queries.filter((q) => q.write)).toHaveLength(0);
+  });
+});
+
+describe("PATCH /api/members/:id — the role half against driver logins", () => {
+  it("refuses to re-role a driver OUT of `driver` — the app would send them to its wrong-app screen", async () => {
+    const { status, json } = await call("PATCH", `/${DRIVER}`, { role: "dispatcher" });
+    expect(status).toBe(400);
+    expect(json?.error?.code).toBe("roster_managed");
+    expect(rec.queries.filter((q) => q.write)).toHaveLength(0);
+  });
+
+  it("refuses to re-role a colleague INTO `driver` — a credential with no roster row and no password", async () => {
+    const { status, json } = await call("PATCH", `/${MEMBER}`, { role: "driver" });
+    expect(status).toBe(400);
+    expect(json?.error?.code).toBe("roster_managed");
+    expect(rec.queries.filter((q) => q.write)).toHaveLength(0);
   });
 });
 

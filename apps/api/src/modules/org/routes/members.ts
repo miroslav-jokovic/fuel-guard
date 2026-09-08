@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { memberUpdateSchema, type MemberUpdateRequest } from "@silvicom/shared";
+import { memberUpdateSchema, isRosterIssuedRole, type MemberUpdateRequest } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -43,13 +43,22 @@ export function membersRouter(): Router {
         return;
       }
 
-      const members = ((data ?? []) as DirectoryRow[]).map((m) => ({
-        userId: m.user_id,
-        email: m.email,
-        fullName: m.full_name,
-        role: m.role,
-        joinedAt: m.joined_at,
-      }));
+      // Driver-app logins are NOT listed here (DC10). `org_member_directory()` deliberately returns
+      // them — it is the whole product's naming directory, and a driver who uploads a document has
+      // to be nameable in the ledger that prints it — but this page is the OFFICE's member list, and
+      // a row it shows is a row it offers to re-role and remove. It showed one on 2026-08-31 and an
+      // admin removed it, which deleted a driver's credential (see migration 0329). The filter is
+      // the same fact the banner above the table already states and the same fact the invite picker
+      // already applies; all three now read it from `ROSTER_ISSUED_ROLES`.
+      const members = ((data ?? []) as DirectoryRow[])
+        .filter((m) => !isRosterIssuedRole(m.role))
+        .map((m) => ({
+          userId: m.user_id,
+          email: m.email,
+          fullName: m.full_name,
+          role: m.role,
+          joinedAt: m.joined_at,
+        }));
       res.json({ members });
     }),
   );
@@ -66,6 +75,30 @@ export function membersRouter(): Router {
 
       if (userId === req.auth!.userId) {
         res.status(400).json(apiError("cannot_remove_self", "You cannot remove yourself from the organization"));
+        return;
+      }
+
+      // ⚠ The membership is looked up BEFORE it is deleted, and the lookup is org-scoped, because for
+      // a driver that row is not a permission — it is the credential itself. `custom_access_token_hook`
+      // reads `memberships` and nothing else to mint `org_id`, so deleting it leaves a driver who can
+      // still sign in, still has a valid password, and lands forever on "Account almost ready" while
+      // the Drivers page goes on reporting app access. That happened on 2026-08-31 and cost a driver
+      // eight days (DC10; migration 0329 makes the database refuse it too, and this is the half that
+      // says so in words). Offboarding a driver is Revoke login on the Drivers page (App access), which
+      // unlinks the roster row first and takes the auth user with it.
+      const member = await lookupMemberRole(admin, orgId, userId);
+      if (!member.ok) {
+        if (member.reason === "not_found") res.status(404).json(apiError("not_found", "Member not found"));
+        else res.status(500).json(apiError("db_error", "Could not load member"));
+        return;
+      }
+      if (isRosterIssuedRole(member.role)) {
+        res.status(400).json(
+          apiError(
+            "roster_managed",
+            "This is a driver-app login, issued from the Drivers page. Remove it there with Revoke login.",
+          ),
+        );
         return;
       }
 
@@ -107,6 +140,22 @@ export function membersRouter(): Router {
 
       if (userId === req.auth!.userId) {
         res.status(400).json(apiError("cannot_revoke_self", "You cannot revoke your own access"));
+        return;
+      }
+
+      // Same refusal as the DELETE above, for the same reason and one step further: this handler
+      // deactivates the roster row and drops the membership but never clears `drivers.user_id`, so
+      // used on a driver it produced the identical wedge — a live auth user, a roster row still
+      // claiming app access, and no membership to mint `org_id` from. The roster's own revoke is the
+      // only path that unlinks first (DC10, migration 0329).
+      const member = await lookupMemberRole(admin, orgId, userId);
+      if (member.ok && isRosterIssuedRole(member.role)) {
+        res.status(400).json(
+          apiError(
+            "roster_managed",
+            "This is a driver-app login, issued from the Drivers page. Remove it there with Revoke login.",
+          ),
+        );
         return;
       }
 
@@ -166,6 +215,23 @@ export function membersRouter(): Router {
       }
 
       if (newRole !== undefined && newRole !== current.role) {
+        // Neither INTO nor OUT OF a roster-issued role (DC10). Out of it re-roles a live driver
+        // credential, and the driver app sends any non-driver role to its "wrong app" screen — the
+        // same lockout as a delete, by a different column. Into it mints a `driver` membership with
+        // no roster row and no password behind it: a login that exists in the token and nowhere else,
+        // which nothing on the Drivers page can then see or repair. Migration 0329's trigger refuses
+        // the first case in the database; the second cannot be a trigger's job, because a membership
+        // that is not yet linked looks exactly like a legitimate one being provisioned.
+        if (isRosterIssuedRole(current.role) || isRosterIssuedRole(newRole)) {
+          res.status(400).json(
+            apiError(
+              "roster_managed",
+              "Driver-app logins are issued and removed on the Drivers page, not here — their role is fixed.",
+            ),
+          );
+          return;
+        }
+
         // Never leave the org without an admin.
         if (current.role === "admin" && newRole !== "admin") {
           const { count } = await admin

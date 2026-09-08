@@ -247,6 +247,12 @@ ok(
   await refused(`insert into invites (org_id, email, role, token, full_name) values ($1,'blank@example.com','dispatcher','tok-blank-0000',' ')`, [ORG]) &&
     !(await refused(`insert into invites (org_id, email, role, token, full_name) values ($1,'named@example.com','dispatcher','tok-named-0000','Someone New')`, [ORG])),
 );
+// SELF_NAMED is a driver with a roster link, and since migration 0329 a linked driver's membership
+// is a CREDENTIAL that cannot be deleted out from under the roster — which the auth.users cascade
+// would do. So the roster lets go first, exactly as `revokeDriverLogin` has always ordered it
+// (unlink, then membership, then the login). This assertion is about `user_profiles` cascading from
+// `auth.users`, and that is unchanged; only the offboarding order it models is now the real one.
+await db.query(`update drivers set user_id = null where user_id = $1`, [SELF_NAMED]);
 await db.query(`delete from auth.users where id = $1`, [SELF_NAMED]);
 ok(
   "deleting the auth user takes their profile with it (cascade)",

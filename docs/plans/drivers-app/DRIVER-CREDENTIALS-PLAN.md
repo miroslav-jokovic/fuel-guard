@@ -42,6 +42,7 @@ abuse or phish.
 | DC7 | Migration **0116**: `drivers.app_username text` (unique per org, partial index), `app_credential_status text` (`none｜active｜disabled`), `app_credential_created_at` / `app_credential_reset_at timestamptz`. schemaCheck probe + RLS gate already enforce coverage | Dashboard state without touching auth internals; status is display-state, Supabase Auth stays the source of truth |
 | DC8 | The one-time password is returned ONCE in the create/reset API response and rendered in a copy/print modal. It is never persisted in our tables, never logged, never in audit meta | Show-once is the industry pattern; anything else becomes a stored secret |
 | DC9 | Driver app login screen: **username + password** fields (no email keyboard), calls DC5, then `supabase.auth.setSession(...)`. Remove/never add forgot-password UI for drivers | Matches what the driver is handed on paper |
+| DC10 | The `driver` membership row **is the credential**, and the roster owns it. It is created and destroyed only by `createDriverLogin` / `revokeDriverLogin`, never by the Users page: that page no longer lists driver logins, its role picker no longer offers `driver`, and `DELETE`/`revoke`/role-change on one are refused. Migration 0329 enforces the same rule in the database — a membership whose user is linked from `drivers.user_id` in that org cannot be deleted or re-roled while the link stands. `ROSTER_ISSUED_ROLES` / `OFFICE_ROLES` in `packages/shared/src/auth.ts` is the one home the API, the web pickers and the invite list all read from | `custom_access_token_hook` mints `org_id` from `memberships` and nothing else, so removing that row locks a driver out permanently while every screen still says they have access. It happened: `member.removed` 2026-08-31 01:27 UTC cost a live driver eight days, and a password reset could not repair it |
 
 ## 2. Audit FIRST (assume nothing — verify in code/dashboard before building)
 
@@ -112,3 +113,21 @@ suites/gates green; 0116 applied; this doc's decision table updated with anythin
   row carried a `driver_id`. Trigger was the invitation redesign (docs/EMAIL-LINK-DELIVERY.md
   §the-short-version-2026-09-04): the redemption service is org-owned and `drivers` is roster-owned,
   and the write should not exist rather than be grandfathered. The column stays; nothing writes it.
+
+- 2026-09-08 — **DC10 added, and the incident behind it closed.** A driver had been locked out since
+  2026-08-31 with the app showing "Account almost ready": auth succeeded, the password was valid, the
+  Drivers page reported app access — and `memberships` had no row for him, so the JWT hook minted no
+  `org_id`. Cause found in `audit_logs`: `member.removed` at 01:27:11 UTC on the Users page, which
+  listed the driver login because `org_member_directory()` returns every membership and offered
+  Remove because `DELETE /api/members/:userId` did not know some memberships are credentials. The
+  same click was available through a select-all bulk Remove, and through an admin's own JWT via
+  PostgREST (`memberships_write` is FOR ALL to `authenticated`), which no API guard can see.
+  Shipped: migration 0329 (backfill for every roster-linked driver missing a membership, plus a
+  BEFORE DELETE OR UPDATE trigger keyed on `drivers.user_id`), the API refusals on
+  DELETE/revoke/role-change, the Users page list filtered to `OFFICE_ROLES`, both role pickers
+  derived from the same constant, and a bulk remove that reports what actually happened instead of
+  always claiming success. 24-assertion matrix at `supabase/tests/driver-membership-invariant.test.mjs`;
+  each guard was mutation-checked. Measured while writing it: a row trigger fired by a referential
+  CASCADE runs as the referencing table's OWNER, not the deleting role — so the `auth.users` cascade
+  is covered whether the function is definer or invoker, and an earlier draft of the migration header
+  that claimed otherwise was wrong and is corrected in place.
