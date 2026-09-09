@@ -81,6 +81,10 @@ describe("buildNavGroups is unchanged by the surface catalogue (S1)", () => {
     } as never);
     expect(denied.find((g) => g.group === "Maintenance")?.items).toEqual([
       "Parts → /shop/inventory",
+      // I8's Assets, arriving GRANTED for exactly the reason the note above states: a surface claim
+      // is sparse, and a screen that did not exist when this override was written cannot have been
+      // denied by it. The list growing here is the rule working, not a regression.
+      "Assets → /shop/assets",
       "Annual inspections → /shop/inspections",
     ]);
     expect(denied).toMatchSnapshot();

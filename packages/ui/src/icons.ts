@@ -146,6 +146,12 @@ export {
   ChartAverageIcon            as DocumentChartBarIcon,           // ⚠ verify
   // ── Domain-specific (nav items) ─────────────────────────────────────────
   ContainerIcon               as TrailerIcon,
+  // The asset register (INVENTORY-PLAN.md I8). Its own glyph, because the nav gate requires one per
+  // menu item and the note on `safety.driver-qualification` records what happened the last time two
+  // live nav items shared one. A toolbox is what the shop calls the things with numbers on them —
+  // and it was chosen over the obvious `WrenchIcon`, which the maintenance GROUP already wears in
+  // the collapsed rail where a near-collision is worst.
+  ToolboxIcon                 as ToolboxIcon,
   CardExchange01Icon          as TransactionIcon,
   PetrolPumpIcon              as PetrolPumpIcon,
   CreditCardNotAcceptIcon     as RejectionIcon,

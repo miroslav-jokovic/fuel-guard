@@ -1540,3 +1540,99 @@ signed here by the person who did it. I6's spike results go here before its seco
   `guard_inventory_asset` is already waiting for it; a photo route for an asset (`setAssetImagePath`
   exists and no screen calls it, the same debt `POST /parts/:id/photo` carries); and the assets API
   and screens, which are I8.
+
+- **I8 — API and web: Assets — DONE 2026-09-09 (no migration).** `/api/maintenance/inventory/assets`
+  and `/asset-types`, `/shop/assets` and `/shop/assets/:id`, three drawers, and the timeline
+  promoted out of `features/anomalies/`. 15 route assertions, 8 drawer, 7 page, 7 rail.
+
+  **The promotion is D-DS18 executed rather than cited, and the second consumer designed the shape.**
+  D-DS18 says a primitive with one consumer had its API designed by guessing, and that the SECOND
+  consumer is the evidence for what should be shared. Comparing the two decided every prop:
+  a near-miss panel and an asset history share the rail, the ordering, the collapse and the marker,
+  and share **no word of content** — so `@/components/ui/TimelineRail.vue` owns exactly that and
+  renders none of it, and both callers fill `#entry`. A version that had tried to own a headline and
+  an actor would have fitted one consumer and been bypassed by the other within a week.
+  **`CaseTimeline.vue`'s own ten assertions still pass untouched**, which is what "behaviour is
+  unchanged" means here; and reversing the rail's sort failed FIVE assertions across both consumers,
+  which is the proof the behaviour moved rather than being duplicated. Named `TimelineRail` and not
+  `Timeline` because `vue/multi-word-component-names` refuses the shorter name — and the longer one
+  is more honest anyway: it owns the rail.
+
+  **A defect only a browser could find: `AppBadge` title-cased "In repair" into "In Repair".** The
+  same primitive §8 already records title-casing "Not counted" at I5, where it was worked around by
+  choosing a one-word label ("Uncounted"). There is no one-word way to say "In repair", so the pills
+  moved to `[BADGE_BASE, toneClass(...)]` — which is the rule `apps/web/CLAUDE.md` states in the
+  first place, and whose base classes deliberately carry no transform (`badges.ts` records why the
+  `capitalize` was removed from them in 2026-08). **The primitive still carries it and the next
+  two-word label will hit this again**; fixing `AppBadge` for all of its callers is the real repair
+  and is owed, not done here.
+
+  **Deviations.** (a) **The done-when's "a Move from the drawer and from the scanner produce
+  identical rows" is HALF met and cannot be more.** The scanner is I6 and does not exist. What holds
+  today is the one door both will use: `useMoveAsset` picks its endpoint by asking `movesHolder`,
+  and I6's verb sheet calls the same hook, so there is no second path to write a movement — the
+  comparison itself is owed at I6 and is named in its step. (b) **"New asset (assigns `tag_code` and
+  `display_no`)" — the drawer assigns neither**, because I7 established that both belong to the
+  system: `display_seq` is allocated by 0333's trigger under a lock and rendered by `nextDisplayNo`,
+  and a tag is issued at I10 with a uniqueness check no form can perform. The create route refuses
+  both, pinned by *"creates one, audits it by the number the shop says out loud, and never takes an
+  identifier"*. (c) **Kit expectations have a service and still no routes.** They are I9's screen
+  (a settings drawer on Units) and routing them here would ship an endpoint with no consumer — the
+  exact defect the I0–I3 review found twice. (d) **Two narrowed schemas were added to
+  `inventoryAssetContract.ts`**, which is I1's file: `moveAssetSchema` and `reportAssetSchema`,
+  DERIVED from `assetMovementInputSchema` by refining through `movesHolder` rather than restating the
+  reason list.
+
+  **`movesHolder` is now asked in five places and restated in none.** The contract's two schemas, the
+  API's two routes, `useMoveAsset`'s endpoint choice, `assetMovementMarker`'s tone, and the drawer's
+  reason list all ask the one function. That is the point: the day an eighth reason arrives, a copy
+  in any of them would be the one nobody updates, and the failure — a new report posted to `/move`,
+  refused by the API, reported to the shop as a failure for a correct payload — would look like a
+  server bug.
+
+  **`asset-types` is its own prefix and not `/assets/types`.** Both are one segment under one router,
+  so Express would resolve them by declaration order and the ordering would be load-bearing with
+  nothing stating it. `inventoryParts.ts` carries a corrected comment about exactly this shape —
+  `/parts/by-upc/:upc` was claimed to need mounting above `/parts/:id` and does not, because two
+  segments cannot collide with one. Here they genuinely would; a separate prefix removes the question
+  instead of answering it in a comment somebody later moves.
+
+  **The history is rendered twice, and the test had to be scoped to say so.** A rail with sticky day
+  headers on a phone, the same page as a `DataTable` on a desk — one query, two renders. jsdom
+  applies no stylesheet, so BOTH are in the DOM under test: a bare `findAll("li")` read 60 for a page
+  rendering thirty, and counting `<tbody tr>` read ZERO because `DataTable` swaps to
+  `DataTableCards` below 768 px and jsdom has no width. Both assertions are now scoped to the
+  component they are about, and the table's is on the rows it was HANDED rather than on elements
+  whose existence measures the viewport.
+
+  **Mutation proofs, five, each restored.** Two against the API: mounting `/move` on the un-narrowed
+  `assetMovementInputSchema` failed exactly *"refuses a report on the move door, and a move on the
+  report door"*; auditing the UUID instead of the display number failed exactly *"creates one, audits
+  it by the number the shop says out loud…"*. Three against the web: the rail trusting the payload's
+  order failed five assertions across BOTH its consumers; minting the movement id per attempt failed
+  *"sends ONE id across a failed attempt and the retry that follows it"*; rendering a report as
+  though it had moved failed *"says a report moved nothing, while a move says where it went"*.
+
+  **The clock assertion was written the way I5 learned to write it.** Two submits land in the same
+  millisecond, so the naive version passes against a drawer that re-clocks every attempt and proves
+  nothing; `vi.useFakeTimers` moves the clock four minutes between the presses, which is what makes
+  the question askable at all. Recorded because this is the second time the same assertion shape has
+  had to be fixed in this plan.
+
+  **Seen in a browser, not only in a test suite.** Built with `preview:local` and driven with
+  Playwright route mocks at 1440 px and 430 px: the list renders twelve assets with the holder and
+  the inferred driver in one column and the status pill absent on in-service rows; the detail renders
+  the thirty-movement history as a table on the desk and as a day-grouped rail on the phone, with an
+  icon per reason and the actor under each headline. No page errors and no Vue errors — the only
+  console lines are `ERR_CONNECTION_REFUSED` from endpoints the mock did not cover, which is the
+  documented behaviour of that recipe. **This is where "In Repair" was found**; no test would have.
+
+  **Verification:** `pnpm test` green across every unit suite and all 42 matrices (apps/web 163 files,
+  apps/api 284); all 38 `lint:*` scripts in root `package.json` plus `apps/web`'s `lint:tokens`;
+  `pnpm typecheck`. Three snapshot families were regenerated because the nav genuinely grew a row —
+  `navEquivalence`, `routeTable`, and `nav.test.ts`'s explicit list — and `plural.test.ts` gained
+  "assets", which is the confirmed-singular ratchet working.
+
+  **What I8 owes onward:** the drawer/scanner comparison (I6); `AST` in I6's resolver registry;
+  `AppBadge`'s `capitalize`, for all of its callers; tag issuance (I10); and Units, the sixth nav
+  row (I9).

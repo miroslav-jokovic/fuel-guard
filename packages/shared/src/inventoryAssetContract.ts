@@ -312,3 +312,58 @@ export const kitExpectationInputSchema = z
     path: ["vehicleId"],
   });
 export type KitExpectationInput = z.infer<typeof kitExpectationInputSchema>;
+
+// ── the two verbs, narrowed from the one payload (plan I8) ───────────────────────────────────────
+
+/**
+ * A move and a report are the same row with different rules, and these are those rules made
+ * unconstructable rather than merely documented.
+ *
+ * ⚠ Both are DERIVED from `assetMovementInputSchema` by refining `reason` through `movesHolder` —
+ * they do not restate the reason list. The split is already stated once, in
+ * `HOLDER_PRESERVING_REASONS`, and a second copy here would be the kind that drifts the day an
+ * eighth reason is added: whichever of the two lists the author forgot would silently start
+ * accepting a report on the move endpoint.
+ *
+ * Why two schemas at all, when one endpoint taking the union would validate the same rules: the
+ * same reason `inventoryContract.ts` gives five stock verbs five schemas. A screen built for moving
+ * a tablet into a truck must not be able to post "reported_missing" because a `reason` field
+ * happened to be bound to the wrong ref, and a route whose schema says which half it serves is a
+ * route whose surface says what it does.
+ */
+export const moveAssetSchema = assetMovementInputSchema.refine((v) => movesHolder(v.reason), {
+  message: "Reporting an item missing or damaged is not a move — use the report endpoint.",
+  path: ["reason"],
+});
+export type MoveAssetInput = z.infer<typeof moveAssetSchema>;
+
+export const reportAssetSchema = assetMovementInputSchema.refine((v) => !movesHolder(v.reason), {
+  message: "That reason moves the item — use the move endpoint.",
+  path: ["reason"],
+});
+export type ReportAssetInput = z.infer<typeof reportAssetSchema>;
+
+/**
+ * Creating an asset, with the place it starts life in.
+ *
+ * The holder is here and not on `assetInputSchema` because it is the ONE moment an asset's holder
+ * is written outside `move_asset` (D-INV3): an asset unpacked onto the crib shelf was not moved
+ * there from anywhere, so it writes no ledger row and `rebuild_asset_holders` leaves it alone. Every
+ * later change of place is a movement. All three absent is the crib's "nothing decided yet" pile,
+ * which is a real state and not a missing value — 0333's CHECK is `<= 1` for exactly that reason.
+ *
+ * Neither `tagCode` nor `displayNo` is accepted. The display number is allocated by the database
+ * under a lock, and a tag is issued at I10 with a uniqueness check no form can do; a create payload
+ * that carried either would be a client naming an identifier the system owns.
+ */
+export const assetCreateSchema = assetInputSchema
+  .extend({
+    locationId: z.uuid().nullable().optional(),
+    vehicleId: z.uuid().nullable().optional(),
+    trailerId: z.uuid().nullable().optional(),
+  })
+  .refine((v) => [v.locationId, v.vehicleId, v.trailerId].filter(Boolean).length <= 1, {
+    message: "An asset starts in one place.",
+    path: ["locationId"],
+  });
+export type AssetCreateInput = z.infer<typeof assetCreateSchema>;

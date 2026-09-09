@@ -12,13 +12,17 @@
  * `ChangeLog` surfaces elsewhere are filterable `DataTable`s and are correct as tables; §0 of the
  * plan says so explicitly. Do not convert them, and do not grow filters here.
  *
- * Local to `features/anomalies/` by D-DS18: one consumer does not get to design a shared API, and
- * `lint:ui-adoption` fails a `@silvicom/ui` barrel export that nothing calls. It is promoted when a
- * second consumer exists and can argue for the shape.
+ * ── THE RAIL MOVED OUT; THE NEAR MISS STAYED (D-DS18, INVENTORY-PLAN.md I8) ────────────────────
+ * This file owned a shared shape until an asset's movement history became the second consumer, at
+ * which point D-DS18's own rule applied: the second consumer is the evidence for what the shared API
+ * should be. `@/components/ui/TimelineRail.vue` now owns the rail, the ordering, the collapse and the
+ * marker; everything below is what is genuinely about a near miss and about nothing else — the
+ * threshold sentence, the truncation notice, the score and the signal labels. Behaviour is
+ * unchanged, and `CaseTimeline.test.ts` is what says so.
  */
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { formatRuleId } from "@silvicom/shared";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
 import { nearMissMarker } from "@/lib/badges";
 
 export interface NearMiss {
@@ -44,21 +48,17 @@ const props = defineProps<{
 const COLLAPSE_AFTER = 8;
 
 /**
- * Newest first, sorted here rather than trusting the payload's order.
+ * The rail's rows, and the near-miss facts hung off each by key.
  *
- * ⚠ The plan said "renders in `fueledAt` order" without fixing a direction. Descending is the choice:
- * this panel is context for a case being reviewed NOW, the most recent near miss is the most
- * probative, and every other list in the product is newest-first. Sorting locally also means an
- * upstream change to `analyzeFills`'s ordering cannot silently reverse the display.
+ * ⚠ The plan said "renders in `fueledAt` order" without fixing a direction. Descending is the choice
+ * and it is `Timeline`'s default: this panel is context for a case being reviewed NOW, the most
+ * recent near miss is the most probative, and every other list in the product is newest-first.
  */
-const ordered = computed(() =>
-  [...props.entries].sort((a, b) => b.fueledAt.localeCompare(a.fueledAt)),
+const rows = computed<TimelineEntry[]>(() =>
+  props.entries.map((e) => ({ key: e.fueledAt + e.score, at: e.fueledAt, marker: nearMissMarker(e.score) })),
 );
-const expanded = ref(false);
-const collapsible = computed(() => ordered.value.length > COLLAPSE_AFTER);
-const visible = computed(() =>
-  collapsible.value && !expanded.value ? ordered.value.slice(0, COLLAPSE_AFTER) : ordered.value,
-);
+const byKey = computed(() => new Map(props.entries.map((e) => [e.fueledAt + e.score, e])));
+const anyEntries = computed(() => props.entries.length > 0);
 /** True when the API truncated the window — worth saying out loud rather than implying a total. */
 const truncated = computed(() => props.total > props.entries.length);
 
@@ -73,7 +73,7 @@ const fmt = (iso: string) =>
 
 <template>
   <!-- An empty window renders nothing at all: an empty rail is furniture that reports a finding. -->
-  <div v-if="ordered.length" class="rounded-control bg-surface-subtle px-3 py-2">
+  <div v-if="anyEntries" class="rounded-control bg-surface-subtle px-3 py-2">
     <div class="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
       <span class="font-semibold text-ink-secondary">Near-miss timeline</span>
       <span class="text-2xs text-ink-tertiary">
@@ -82,35 +82,18 @@ const fmt = (iso: string) =>
       </span>
     </div>
 
-    <ol class="relative space-y-2 pl-4">
-      <!-- The rail. Decorative: the <ol> already carries the sequence for a screen reader. -->
-      <span class="absolute top-1 bottom-1 left-1 w-px bg-edge" aria-hidden="true" />
-      <li v-for="e in visible" :key="e.fueledAt + e.score" class="relative">
-        <span
-          class="absolute top-1 -left-3.5 size-2 rounded-full ring-2 ring-surface"
-          :class="nearMissMarker(e.score)"
-          aria-hidden="true"
-        />
+    <TimelineRail :entries="rows" :collapse-after="COLLAPSE_AFTER">
+      <template #entry="{ entry }">
         <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span class="font-medium text-ink">{{ fmt(e.fueledAt) }}</span>
-          <span class="text-ink-tertiary">scored {{ e.score }}</span>
+          <span class="font-medium text-ink">{{ fmt(entry.at) }}</span>
+          <span class="text-ink-tertiary">scored {{ byKey.get(entry.key)?.score }}</span>
         </div>
-        <p v-if="e.signals.length" class="text-ink-muted">
-          <span v-for="(sig, i) in e.signals" :key="sig"
+        <p v-if="byKey.get(entry.key)?.signals.length" class="text-ink-muted">
+          <span v-for="(sig, i) in byKey.get(entry.key)!.signals" :key="sig"
             ><span v-if="i > 0">, </span>{{ formatRuleId(sig) }}</span
           >
         </p>
-      </li>
-    </ol>
-
-    <BaseButton
-      v-if="collapsible"
-      variant="ghost"
-      size="sm"
-      class="mt-2"
-      @click="expanded = !expanded"
-    >
-      {{ expanded ? "Show fewer" : `Show all ${ordered.length}` }}
-    </BaseButton>
+      </template>
+    </TimelineRail>
   </div>
 </template>

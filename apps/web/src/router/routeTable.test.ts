@@ -66,6 +66,9 @@ const PROBES = [
   // new component. `/shop/inventory` and `/shop/inventory/:id` are a third specificity pair, and
   // `/shop/repair-spend` is the ledger `/shop` itself used to render.
   "/shop/repair-spend", "/shop/inventory", "/shop/inventory/prt_1",
+  // I8's assets — a fourth specificity pair, and a separate address from `/shop/inventory` because
+  // §2.1's seam is two questions about two kinds of row, not one screen with a toggle.
+  "/shop/assets", "/shop/assets/ast_1",
   // I5 PR 2b's count screen. The only route in the product carrying `layout: "shop"` (D-INV17), so
   // its meta is worth pinning as much as its component — a shell swapped by accident is a sidebar
   // appearing on a phone held in a bay.
