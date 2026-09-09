@@ -21,11 +21,9 @@ before writing anything**; this file is the map, not a replacement for them.
 | I9's prerequisite `listEquipmentIdentities` (out of order) | merged | #688 / #689 |
 | **I2** schema + service — migration 0331 | merged | #691 |
 | **I3** the API, mounted | merged | #692 |
-| **Review of I0–I3** — five defects + one stale doc | **OPEN** | **#693** |
-| **I4** the shop home and Parts | **next** | — |
-
-**Merge #693 before starting I4.** It is not tidying: three of its five findings are fields the
-product stored and could never display, and I4's screens are what would have displayed them.
+| **Review of I0–I3** — five defects + one stale doc | merged | #693 |
+| **A3 ruled + the FleetPal path audited** | **OPEN** | **#694** |
+| **I4** the shop home and Parts | **next, and unblocked** | — |
 
 ## What exists to build on
 
@@ -55,17 +53,35 @@ product stored and could never display, and I4's screens are what would have dis
 5. **`lint:filesize` covers `.vue`** — measured at I0, 500 hard / 450 warn. Extract the forms from the
    first commit rather than after the gate fails.
 
-## What I4 needs from the owner — A3, and it is the only blocker
+## A3 is ruled — I4 has no blocker
 
-> **A3** — an initial parts list exists to import (a spreadsheet or a FleetPal export).
-> Retired by: **before I4** — the file and its columns.
+The plan's default is adopted: **a locked-header CSV template with an error report.** The reason it is
+safe is D-INV10 and not convenience — **the shelf is ours**, so FleetPal never becomes an ongoing
+source of parts even after it lands, and the initial import is therefore ONE-TIME whatever file
+arrives. A FleetPal export gets re-headed once in a spreadsheet. **Do not build a column-mapping UI**;
+it is a screen for a job nobody does twice.
 
-Unanswered. The plan's default is a locked-header CSV template with an error report, which is
-buildable without the file — but if a real list exists, its columns should shape the importer rather
-than the shop reshaping its data to fit ours. **Ask for it first; build the template only if there
-isn't one.**
+⚠ **Still owed, and it is a test-quality question rather than a design one:** the actual file. Build
+the importer now; when a real parts list arrives, prove the importer against it instead of against a
+synthetic fixture, and put the row count in §8.
 
-The rest of I4 — the shop home, the Parts list and detail, the nav group — is unblocked.
+Everything else in I4 — the shop home, the Parts list and detail, the nav group — was already unblocked.
+
+## FleetPal is next after inventory, and it is not blocked either
+
+Audited 2026-09-09 (§8). **Nothing in I0–I3 blocks it. One canon line did**, and it is fixed: 
+`docs/SILVICOM-360.md`'s integrations row still told the FleetPal collector to dedupe against McLeod
+AP maintenance dollars — a financial projection D-FLEET2 deleted and D-INV11 forbids, and the exact
+instruction I0's done-when was supposed to have removed. Anyone starting that build would have read
+canon first and built the wrong thing with every gate green.
+
+What holds without further work: `part_movements.work_order_ref` is the entire tie (D-INV10),
+FleetPal writes no table of ours, and the boundary is **machine-enforced** — a `fleetpal` module
+writing `parts`/`part_stock`/`part_movements` is a new write site `check-table-writers.mjs` refuses,
+and a migration touching both modules needs a `cross-module-waiver`. One additive thing is owed at
+I14 and not before: `work_order_ref` has no index, because nothing reads it yet.
+
+**I14 is no longer deferred** and **A6** ("does FleetPal have an export path") is live with it.
 
 ## The other assumptions, and which step retires each
 

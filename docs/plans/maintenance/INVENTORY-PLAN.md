@@ -593,10 +593,16 @@ kit shortfall on `/shop/units`. `OfflineBanner` and `SyncStatus` cover the queue
 
 **Blocked on** the driver release lanes. Sequenced last.
 
-### I14 — FleetPal reconciliation — *deferred*
+### I14 — FleetPal reconciliation — ~~*deferred*~~ *next, per the owner 2026-09-09*
 
 Arrives through the D-SEP8 gate with its own contract. The only open item is whether FleetPal has an
 export path (Q1).
+
+**Readiness audited 2026-09-09 (§8): nothing in I0–I3 blocks it, and one canon line did.** The
+schema needs no change — `part_movements.work_order_ref` is the entire tie (D-INV10) and FleetPal
+writes no table of ours. The boundary is machine-enforced, not merely intended: a `fleetpal` module
+writing `parts`, `part_stock` or `part_movements` is a new write site `lint:table-writers` refuses,
+and a migration touching both modules needs a named `cross-module-waiver`.
 
 ---
 
@@ -625,10 +631,10 @@ A step may not close while its row stands.
 |---|---|---|---|
 | **A1** | The free decoder reads a printed ECC-H `SIL1:` label and a greasy supplier UPC on the shop's phones — Safari, installed, Android. | I6 spike, results in §8 | Scandit's web engine; then D-INV28's revisit clause. |
 | **A2** | The shop has been measured: locations, parts, technicians, phones, wifi in the bays. | ~~Before I2~~ → I4 (the parts list) and I6 (the phones and the bay wifi). **Re-scoped 2026-09-09, see §8** — I1's merged contracts pin every I2 column, so a shop visit can no longer change that migration. The shelving half is ANSWERED: there are no shelf numbers (§1.4). | — |
-| **A3** | An initial parts list exists to import (a spreadsheet or a FleetPal export). | Before I4 — the file and its columns | The locked-header CSV template with an error report, and one afternoon. |
+| **A3** | An initial parts list exists to import (a spreadsheet or a FleetPal export). | **RULED 2026-09-09 (§8): the default is adopted and A3 no longer gates I4's BUILD.** D-INV10 makes the shelf ours, so the import is ONE-TIME whatever its source — a FleetPal export is re-headed once in a spreadsheet, not mapped by a UI nobody needs twice. Still owed: the file itself, so the importer is tested against a real one rather than a synthetic fixture. | The locked-header CSV template with an error report, and one afternoon. |
 | **A4** | Kit contents per unit kind — quantities per tractor, dry van, reefer. | I9 — owner supplies three default lists | Ship empty; the first unit check populates them. |
 | **A5** | The label printer and stock the shop owns. | I10 | Avery 22805 on a laser with polyester stock for bins; aluminium plates from a vendor for truck items. |
-| **A6** | FleetPal has an export path for work orders. | Q1 | `work_order_ref` typed by hand. |
+| **A6** | FleetPal has an export path for work orders. | **LIVE from 2026-09-09** — the owner has put the FleetPal integration next, so I14 is no longer deferred and this is the question that shapes it. | `work_order_ref` typed by hand, which is what ships today and needs nothing from FleetPal. |
 | **A7** | `uqr` is deterministic and correct at every ECC level. | I1b golden fixtures | — |
 
 ---
@@ -984,3 +990,43 @@ signed here by the person who did it. I6's spike results go here before its seco
   fixing it here would fix one of four and leave the other three looking correct by comparison. It
   belongs in its own change across all four call sites, and it is recorded here rather than in a
   comment nobody would find.
+
+- **A3 RULED, AND THE FLEETPAL PATH AUDITED — 2026-09-09 (PR #PENDING5).** The owner put the FleetPal
+  integration next and asked whether anything built so far blocks it. **One thing did, and it was
+  canon.**
+
+  **`docs/SILVICOM-360.md` §2 still instructed a FleetPal FINANCIAL dedup.** Its integrations row read
+  "McLeod AP already carries maintenance dollars; the collector must dedupe against it (the
+  'maintenance arrives twice' trap)". That is the exact instruction **I0's done-when forbade** — "no
+  document instructs a FleetPal financial projection" — and I0 missed it, because it corrected §3 of
+  the same file, `ARCHITECTURE.md` §3 and the maintenance routes header, and never looked at the
+  integrations table two sections earlier. The consequence is not cosmetic: SILVICOM-360.md is canon
+  and the first thing anybody reads before adding a service, so whoever started the FleetPal build
+  would have built a dedup key against McLeod AP — a projection D-FLEET2 deleted and D-INV11 forbids —
+  and every gate would have passed while they did it. The trap the row names was REAL when it was
+  written; it was closed by deleting the second door, not by adding a dedup key, and a row that still
+  describes the key is a map to a door that is bricked up.
+
+  **Nothing else blocks it, and the boundary is machine-enforced rather than merely intended.** The
+  schema needs no change for FleetPal: `part_movements.work_order_ref` is the entire tie (D-INV10),
+  it is nullable free text that a technician types today, and FleetPal writes no table of ours. A
+  `fleetpal` module writing `parts`, `part_stock` or `part_movements` would be a new write site
+  `check-table-writers.mjs` refuses by name, and a migration touching both modules needs a
+  `cross-module-waiver` line — so the "the shelf is ours, the job is FleetPal's" split cannot erode
+  quietly the way a convention would. ⚠ **One additive thing is owed at I14 and not before:**
+  `work_order_ref` carries no index, because nothing reads it yet. A reconciliation joining on it
+  wants one, and that is an ordinary additive migration with no reader-ordering problem.
+
+  **A3 is ruled: the default is adopted, and it does NOT gate I4's build.** The reasoning is D-INV10
+  rather than convenience — **the shelf is ours**, so FleetPal is not an ongoing source of parts even
+  after it lands, and the import is therefore ONE-TIME whatever file arrives. A FleetPal export gets
+  re-headed once in a spreadsheet; a column-mapping UI would be a screen built for a job nobody does
+  twice. The locked-header CSV template with an error report stands, and I4 can be built against it
+  now. **What is still owed is the file itself** — so the importer is proved against a real parts list
+  and not a synthetic fixture — and that is a test-quality question, not a design one. A3's row says
+  so rather than being marked retired.
+
+  **I14 moves from *deferred* to *next*, and A6 goes live with it.** "Whether FleetPal has an export
+  path" stopped being an idle question the moment the integration was scheduled; it is now the
+  question that shapes I14. Nothing shipped depends on the answer — `work_order_ref` typed by hand is
+  what runs today and needs nothing from FleetPal.
