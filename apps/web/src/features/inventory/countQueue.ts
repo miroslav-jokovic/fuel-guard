@@ -1,4 +1,4 @@
-import type { PartMovementInput } from "@silvicom/shared";
+import type { AssetMovementInput, PartMovementInput } from "@silvicom/shared";
 
 /**
  * The count screen's write queue (INVENTORY-PLAN.md I5 PR 2b, D-INV27, §2.12).
@@ -33,14 +33,34 @@ const DB_NAME = "silvicom-count-queue";
 const DB_VERSION = 1;
 const STORE = "movements";
 
+/**
+ * Which ledger a queued row belongs to (I9).
+ *
+ * A shelf walk queues a `counted` PART movement; a unit check queues an `asset_movements` row. They
+ * are the same session shape (D-INV19) and two different endpoints, so the row has to say which —
+ * a queue that guessed would replay a unit check into `record_part_movement`.
+ */
+export type QueuedKind = "part" | "asset";
+
 export interface QueuedCount {
   /** The movement id — the primary key here AND the idempotency key at the server (D-INV27). */
   id: string;
   sessionId: string;
+  /**
+   * ⚠ Absent on rows written before I9, and read as `"part"` when it is. The store is not versioned
+   * for this — there is no schema change, only a new field — and a row already on somebody's phone
+   * when the app updates must not be replayed to the wrong endpoint. Production held zero inventory
+   * rows when this shipped (measured 2026-09-09), so the coalesce is cheap insurance rather than a
+   * migration; it costs one `??` and removes the only way this generalisation could lose a count.
+   */
+  kind?: QueuedKind;
   /** The whole validated payload, sent verbatim on flush. */
-  movement: PartMovementInput;
+  movement: PartMovementInput | AssetMovementInput;
   queuedAt: string;
 }
+
+/** The kind a row belongs to, with the pre-I9 default applied. */
+export const kindOf = (row: QueuedCount): QueuedKind => row.kind ?? "part";
 
 /**
  * ⚠ Every function below RESOLVES rather than throws when IndexedDB is unavailable — a private
@@ -112,13 +132,16 @@ export async function pending(sessionId?: string): Promise<QueuedCount[]> {
  * strip keeps saying so.
  *
  * Returns how many were accepted, which is what the connectivity strip counts down.
+ *
+ * The sender takes the whole ROW rather than the movement, because since I9 the caller has to read
+ * `kind` to know which endpoint the payload belongs to.
  */
-export async function flush(send: (movement: PartMovementInput) => Promise<void>): Promise<number> {
+export async function flush(send: (row: QueuedCount) => Promise<void>): Promise<number> {
   const rows = await pending();
   let sent = 0;
   for (const row of rows) {
     try {
-      await send(row.movement);
+      await send(row);
     } catch {
       break;
     }

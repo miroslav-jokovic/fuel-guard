@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 import type { PartMovementInput } from "@silvicom/shared";
-import { dequeue, enqueue, flush, pending } from "./countQueue";
+import { dequeue, enqueue, flush, kindOf, pending, type QueuedCount } from "./countQueue";
 
 /**
  * The count screen's write queue (INVENTORY-PLAN.md I5 PR 2b).
@@ -85,12 +85,32 @@ describe("the queue keeps the walk", () => {
   });
 });
 
+describe("which ledger a row belongs to (I9)", () => {
+  /**
+   * ⚠ A row written before I9 carries no `kind`, and replaying one to the wrong endpoint would send
+   * a shelf count to `move_asset`. The default is what stops that, and it is asserted rather than
+   * assumed because the row that proves it can only exist on somebody's phone across a deploy.
+   */
+  it("reads a row with no kind as a part movement", async () => {
+    await enqueue(row("a", "2026-09-09T10:00:00.000Z"));
+    const [queued] = await pending();
+    expect(queued!.kind).toBeUndefined();
+    expect(kindOf(queued!)).toBe("part");
+  });
+
+  it("...and carries the kind it was given", async () => {
+    await enqueue({ ...row("b", "2026-09-09T10:00:00.000Z"), kind: "asset" });
+    const [queued] = await pending();
+    expect(kindOf(queued!)).toBe("asset");
+  });
+});
+
 describe("flushing", () => {
   it("sends everything in order and empties the queue", async () => {
     await enqueue(row("a", "2026-09-09T10:00:00.000Z"));
     await enqueue(row("b", "2026-09-09T10:01:00.000Z"));
     const sent: string[] = [];
-    const count = await flush(async (m) => void sent.push(m.id));
+    const count = await flush(async (r) => void sent.push(r.id));
     expect(sent).toEqual(["a", "b"]);
     expect(count).toBe(2);
     expect(await pending()).toEqual([]);
@@ -107,9 +127,9 @@ describe("flushing", () => {
     await enqueue(row("b", "2026-09-09T10:01:00.000Z"));
     await enqueue(row("c", "2026-09-09T10:02:00.000Z"));
     const sent: string[] = [];
-    const send = vi.fn(async (m: PartMovementInput) => {
-      if (m.id === "b") throw new Error("offline");
-      sent.push(m.id);
+    const send = vi.fn(async (r: QueuedCount) => {
+      if (r.id === "b") throw new Error("offline");
+      sent.push(r.id);
     });
     const count = await flush(send);
     expect(sent).toEqual(["a"]);

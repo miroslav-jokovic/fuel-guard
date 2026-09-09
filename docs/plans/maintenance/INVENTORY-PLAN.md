@@ -1731,3 +1731,64 @@ signed here by the person who did it. I6's spike results go here before its seco
   wake lock, offline queue, review, close) rather than one screen with two modes, since a shelf walk
   types a quantity per bin and a unit check taps Found / Not here per item. A4's three kit lists are
   still the owner's, and the drawers ship empty exactly as §6.2 said they should.
+
+- **I9 PR 2 — the unit check on a phone — DONE 2026-09-09 (no migration).** `/shop/count/:sessionId`
+  now serves both walks, the offline queue carries both ledgers, and a unit check is started from
+  the unit's page. 7 check assertions, 2 queue.
+
+  **D-INV19's "one session component serves parts and units" is executed, and the reading is
+  written down.** The decision's stated reason is that two components drift — one grows a recount
+  badge and the other does not. That reason is about the SESSION: its shape, its promise to keep
+  what was typed, its irreversible close. None of it is about the item under the technician's thumb,
+  and the item is where the two genuinely differ: a shelf count types a quantity per bin against a
+  hidden expected figure and lands a `counted` part movement; a check taps Found or Not here per
+  thing and lands an `asset_movements` row, or none at all. One component doing both would have been
+  a screen with two modes and two vocabularies — §2.3's worked example exactly.
+  So: **`CountSessionPage.vue` is the one component the decision asks for** — one route, one place
+  that reads the session's kind and hands off — and everything the two walks share moved into
+  `useWalk` and `WalkHeader.vue`. What cannot drift is the part D-INV19 was worried about.
+  **I5's screen moved to `features/inventory/ShelfWalk.vue` without changing, and its thirteen
+  assertions pass untouched**, which is what says so.
+
+  **Confirming what the system already believes writes NOTHING.** Only two of the three answers
+  write: "Not here" records a claim (`reported_missing`, holder untouched — D-INV24), and "One
+  turned up" moves a thing recorded elsewhere onto the unit (`found`). A ledger row per confirmed
+  strap would bury the two rows that mean something and make an eight-item check indistinguishable
+  from eight moves. Pinned by *"writes NOTHING when the thing is where the system says it is"*.
+
+  **"Not here" is a report and never a removal.** Clearing the holder would make the truck read
+  correctly and destroy the only fact that explains the gap — an asset with no holder cannot say
+  which truck it went missing from, and "654 is missing its fridge" is the entire output of a kit
+  check. Asserted on what is SENT, because zod strips unknown keys.
+
+  **The queue now says which ledger a row belongs to**, and reads a row written before I9 as a part
+  movement. There is no schema change, so the store is not versioned for it — but a row already on
+  somebody's phone when the app updates must not be replayed into `record_part_movement`. One `??`,
+  and it is asserted rather than assumed, because the row that proves it can only exist across a
+  deploy.
+
+  **Two things a browser found that no test would have.** "It's here" appeared TWICE on one screen
+  meaning two different things — the item card's answer and the shortfall's expander — three inches
+  apart; the second is now "One turned up". (The other was I9 PR 1's duplicated driver line.)
+
+  **Mutation proofs, three, each restored.** Recording "Not here" as `removed` failed *"reports a
+  missing item without moving it"*; writing a movement for a confirmed item failed *"writes NOTHING
+  when the thing is where the system says it is"*; sending before writing to the phone failed
+  *"writes the answer to this phone BEFORE the network is touched"*.
+
+  **A fixture trap re-met and worth stating a second time:** `assetMovementInputSchema.assetId` is
+  `z.uuid()`, so a short stub id ("as-01") is refused at the edge and the screen records nothing —
+  which reads as a broken screen and is a broken fixture. `MovementDrawer.test.ts` carries the same
+  note about roster ids.
+
+  **Verification:** `pnpm test` green across every unit suite and all 42 matrices; all 38 `lint:*`
+  plus `lint:tokens`; `pnpm typecheck`. Rendered at 430 px under `preview:local`: no sidebar, the
+  sticky header reads "654 · 0 of 3", one item card with two thumb-sized answers, the Short-of
+  section with its one-tap, the Not-in-the-kit bucket, and the sticky action bar.
+
+  **⚠ WHAT I9 STILL OWES, AND IT IS THE DONE-WHEN'S LAST CLAUSE.** *"An eight-item trailer check
+  completes on a phone with one thumb — named person, §8"* is **NOT signed**. It needs the same shop
+  visit I5's usability sentence has been waiting for since 2026-09-09, and A1/A2 with it. The screen
+  is built, driven at phone width and green; what is missing is a person in a yard. **I9 is not
+  closed until that line is signed here**, and no later step may treat it as closed. A4's three kit
+  lists are also still the owner's; the drawers ship empty as §6.2 said they should.

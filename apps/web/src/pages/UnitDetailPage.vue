@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
 import {
   KIT_EXPECTATION_SOURCE_LABELS,
@@ -16,9 +16,10 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
 import UnitOverrideDrawer from "@/features/inventory/UnitOverrideDrawer.vue";
 import { useUnitKitQuery } from "@/features/inventory/useUnits";
-import { useLocationsQuery } from "@/features/inventory/useInventory";
+import { useLocationsQuery, useOpenCountSession } from "@/features/inventory/useInventory";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
+import { useToastStore } from "@/stores/toast";
 
 /**
  * One unit: what it should carry, what it does, and who has it (INVENTORY-PLAN.md I9).
@@ -37,7 +38,9 @@ import { useSessionStore } from "@/stores/session";
  */
 
 const route = useRoute();
+const router = useRouter();
 const session = useSessionStore();
+const toast = useToastStore();
 
 const kind = computed(() => (String(route.params.kind ?? "") === "tractor" ? "tractor" : "trailer") as "tractor" | "trailer");
 const unitId = computed(() => String(route.params.id ?? ""));
@@ -52,6 +55,28 @@ const { data: locations } = useLocationsQuery();
 
 const moving = ref<AssetDto | null>(null);
 const overriding = ref(false);
+
+/**
+ * Start a walk of this unit (D-INV19).
+ *
+ * The session id is the SERVER's, exactly as a shelf count's is: a walk is opened with the network
+ * up, because the screen cannot show what to check without it, and two taps of Start must not make
+ * two walks. `blind` is false — a kit check is not a blind count, because the whole question is
+ * "is the thing the system names actually here", which cannot be asked without naming it.
+ */
+const openWalk = useOpenCountSession();
+async function startCheck() {
+  try {
+    const walk = await openWalk.mutateAsync({
+      kind: "unit",
+      ...(kind.value === "tractor" ? { vehicleId: unitId.value } : { trailerId: unitId.value }),
+      blind: false,
+    });
+    void router.push({ name: "count-session", params: { sessionId: walk.id } });
+  } catch (e) {
+    toast.error("Could not start the check", e instanceof Error ? e.message : undefined);
+  }
+}
 
 const KIT_COLUMNS: DataTableColumn[] = [
   { key: "assetTypeName", label: "What it should carry" },
@@ -86,6 +111,9 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
     >
       <template v-if="unit && canManage" #actions>
         <BaseButton @click="overriding = true">Kit for this unit</BaseButton>
+        <BaseButton variant="primary" :disabled="openWalk.isPending.value" @click="startCheck">
+          Check this unit
+        </BaseButton>
       </template>
     </PageHeader>
 
