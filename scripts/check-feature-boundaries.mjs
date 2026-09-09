@@ -276,27 +276,49 @@ for (const file of driverAppFiles) {
   }
 }
 
-// ── package boundary: @hazmat/* stay dependency-free of the app and of each other (D3 / G5).
-// `@hazmat/placards` was unscanned until 2026-08-26 — the exact blind spot this scan exists to
-// prevent. It may import @hazmat/engine (it renders placards for engine verdicts, declared as a
-// real dependency), but the app boundary holds for it like its siblings. ──
-for (const [rel, forbiddenSpecs] of [
-  ["packages/hazmat-engine", ["@silvicom/", "@/", "@hazmat/data"]],
-  ["packages/hazmat-data", ["@silvicom/", "@/", "@hazmat/engine"]],
-  ["packages/hazmat-placards", ["@silvicom/", "@/", "@hazmat/data"]],
-]) {
+// ── package boundary: the pure packages stay dependency-free of the app and of each other.
+// @hazmat/* by D3/G5; `@hazmat/placards` was unscanned until 2026-08-26 — the exact blind spot this
+// scan exists to prevent. It may import @hazmat/engine (it renders placards for engine verdicts,
+// declared as a real dependency), but the app boundary holds for it like its siblings.
+// @silvicom/qr joined 2026-09-08 (D-INV16): it encodes QR symbols and computes label geometry for
+// both the API's PDF and the web preview, so anything it reached into would be pulled into a
+// browser bundle and into pdfkit at once. ──
+const PURE_PACKAGES = [
+  ["packages/hazmat-engine", ["@silvicom/", "@/", "@hazmat/data"], "hazmat packages must stay dependency-free — D3/G5"],
+  ["packages/hazmat-data", ["@silvicom/", "@/", "@hazmat/engine"], "hazmat packages must stay dependency-free — D3/G5"],
+  ["packages/hazmat-placards", ["@silvicom/", "@/", "@hazmat/data"], "hazmat packages must stay dependency-free — D3/G5"],
+  ["packages/qr", ["@silvicom/", "@/", "@hazmat/"], "@silvicom/qr must stay dependency-free of the workspace — D-INV16"],
+];
+
+/** Pure so the self-test can plant a synthetic file without touching the tree. */
+function packageImportViolations(relPath, src, forbiddenSpecs, why) {
   const forbidden = new RegExp(`from\\s+["'](${forbiddenSpecs.map((s) => s.replace("/", "\\/")).join("|")})`, "g");
+  return [...src.matchAll(forbidden)].map((m) => `${relPath}  ->  ${m[1]}…  (${why})`);
+}
+
+for (const [rel, forbiddenSpecs, why] of PURE_PACKAGES) {
   let pkgFiles;
   try { pkgFiles = walk(join(ROOT, rel)); } catch { continue; }
   for (const file of pkgFiles) {
-    for (const m of readFileSync(file, "utf8").matchAll(forbidden)) {
-      violations.push(`${relative(ROOT, file)}  ->  ${m[1]}…  (hazmat packages must stay dependency-free — D3/G5)`);
-    }
+    violations.push(
+      ...packageImportViolations(relative(ROOT, file), readFileSync(file, "utf8"), forbiddenSpecs, why),
+    );
   }
 }
 
-// ── engine determinism: a verdict must be a pure function of its inputs (audit: engine-determinism). ──
-// Scope is @hazmat/engine ONLY — @hazmat/data legitimately does I/O (it loads the dataset). Tests exempt.
+// ── determinism: output must be a pure function of input (audit: engine-determinism). ──
+// Two packages are in scope, and they are in scope for the same reason rather than by coincidence:
+// each has TWO callers that must agree to the byte. @hazmat/engine's verdict is rendered on screen
+// and stamped into a PDF; @silvicom/qr's matrix is drawn into a label PDF by the API and previewed
+// as SVG in the browser, and I10's done-when is a pixel comparison between those two. A clock or a
+// random source anywhere in either makes that comparison meaningless.
+//
+// @hazmat/data is deliberately NOT in scope — it legitimately does I/O, because loading the dataset
+// is what it is for. Tests are exempt everywhere; a test may use a clock.
+//
+// This was a single hardcoded scan of packages/hazmat-engine/src until 2026-09-08. It became a loop
+// when @silvicom/qr needed the same guarantee (INVENTORY-PLAN I1b) — adding a third package is one
+// line here, which is the point of the shape.
 const DETERMINISM_RULES = [
   [/\bDate\.now\s*\(/, "Date.now()"],
   [/\bnew\s+Date\s*\(\s*\)/, "new Date() (argless — use an injected clock)"],
@@ -305,19 +327,101 @@ const DETERMINISM_RULES = [
   [/\bfetch\s*\(/, "fetch() (I/O)"],
   [/\brequire\s*\(/, "require() (I/O)"],
   [/\bimport\s*\(/, "dynamic import() (I/O)"],
-  [/from\s+["'](?:node:|fs|os|crypto|child_process|http|https|net|dns|dgram)["']/, "node builtin import (I/O)"],
+  // ⚠ The `node:[a-z_]+` alternative is not tidying. As written until 2026-09-08 this alternation
+  // was `(?:node:|fs|os|…)` anchored to a closing quote, so it matched a bare `from "fs"` and NEVER
+  // matched `from "node:fs"` — the prefixed spelling this repo itself uses at the top of this very
+  // file, and the one anything written since Node 16 reaches for first. The rule was blind to the
+  // form it was most likely to meet. Found by the self-test added at INVENTORY-PLAN I1b, which is
+  // the argument for self-tests: a detector that matches nothing reads exactly like a clean tree.
+  [/from\s+["'](?:node:[a-z_]+(?:\/[a-z_]+)?|fs|os|crypto|child_process|http|https|net|dns|dgram)["']/, "node builtin import (I/O)"],
   [/from\s+["']@supabase\//, "@supabase client import (I/O — the engine must not touch the DB)"],
 ];
-let engineFiles;
-try { engineFiles = walk(join(ROOT, "packages/hazmat-engine/src")); } catch { engineFiles = []; }
-for (const file of engineFiles) {
-  if (/\.test\.tsx?$/.test(file)) continue; // tests may use clocks/random
-  const src = readFileSync(file, "utf8");
-  for (const [re, what] of DETERMINISM_RULES) {
-    if (re.test(src)) {
-      violations.push(`${relative(ROOT, file)}  uses ${what}  (@hazmat/engine must stay deterministic/pure)`);
+const DETERMINISTIC_PACKAGES = [
+  ["packages/hazmat-engine/src", "@hazmat/engine"],
+  ["packages/qr/src", "@silvicom/qr"],
+];
+
+/** Pure so the self-test can plant synthetic source without writing a file into the tree. */
+function determinismViolations(relPath, src, pkgName) {
+  return DETERMINISM_RULES.flatMap(([re, what]) =>
+    re.test(src) ? [`${relPath}  uses ${what}  (${pkgName} must stay deterministic/pure)`] : [],
+  );
+}
+
+for (const [root, pkgName] of DETERMINISTIC_PACKAGES) {
+  let pkgFiles;
+  try { pkgFiles = walk(join(ROOT, root)); } catch { pkgFiles = []; }
+  for (const file of pkgFiles) {
+    if (/\.test\.tsx?$/.test(file)) continue; // tests may use clocks/random
+    violations.push(...determinismViolations(relative(ROOT, file), readFileSync(file, "utf8"), pkgName));
+  }
+}
+
+// ── self-test: prove the two package detectors actually fire, rather than trusting a green run. ──
+// A scan that silently matches nothing looks exactly like a clean tree, which is how `lint:wsdl`
+// crashed on a stale path for ten days without anybody being able to notice. There was no self-test
+// on this script before 2026-09-08; INVENTORY-PLAN I1b asked to extend one and found none to extend.
+if (process.argv.includes("--self-test")) {
+  const fails = [];
+
+  const planted = determinismViolations(
+    "packages/qr/src/planted.ts",
+    "export const pick = () => Math.random();",
+    "@silvicom/qr",
+  );
+  if (!planted.some((v) => v.includes("Math.random()"))) {
+    fails.push("determinism detector did not fire on a planted Math.random() in packages/qr");
+  }
+  if (determinismViolations("packages/qr/src/clean.ts", "export const two = 1 + 1;", "@silvicom/qr").length) {
+    fails.push("determinism detector fired on clean source");
+  }
+  // Every rule gets a sample it must catch. A rule that silently stopped matching — a regex edited
+  // without its test, a renamed API — would otherwise look exactly like a package that had gone
+  // clean, which is the failure mode this whole self-test exists for.
+  const RULE_SAMPLES = [
+    "const t = Date.now();",
+    "const d = new Date();",
+    "const r = Math.random();",
+    "const p = performance.now();",
+    "await fetch(url);",
+    "const m = require('fs');",
+    "const m = await import('./x.js');",
+    'import { readFileSync } from "node:fs";',
+    'import { createClient } from "@supabase/supabase-js";',
+  ];
+  for (const sample of RULE_SAMPLES) {
+    if (!determinismViolations("packages/qr/src/planted.ts", sample, "@silvicom/qr").length) {
+      fails.push(`no determinism rule fires on: ${sample}`);
     }
   }
+  if (RULE_SAMPLES.length !== DETERMINISM_RULES.length) {
+    fails.push(
+      `${DETERMINISM_RULES.length} determinism rule(s) but ${RULE_SAMPLES.length} sample(s) — every rule needs one`,
+    );
+  }
+
+  const plantedImport = packageImportViolations(
+    "packages/qr/src/planted.ts",
+    'import { x } from "@silvicom/shared";',
+    ["@silvicom/", "@/", "@hazmat/"],
+    "self-test",
+  );
+  if (!plantedImport.length) {
+    fails.push("package-boundary detector did not fire on a planted @silvicom import in packages/qr");
+  }
+  if (packageImportViolations("packages/qr/src/clean.ts", 'import { encode } from "uqr";', ["@silvicom/", "@/", "@hazmat/"], "self-test").length) {
+    fails.push("package-boundary detector fired on a legitimate third-party import");
+  }
+
+  if (violations.length) {
+    fails.push(`real tree should be clean for the self-test baseline (${violations.length} violation(s))`);
+  }
+  if (fails.length) {
+    for (const f of fails) console.error(`✗ self-test: ${f}`);
+    process.exit(1);
+  }
+  console.log("✓ boundaries self-test — determinism and package-import detectors both fire on planted source, and not on clean source.");
+  process.exit(0);
 }
 
 if (violations.length) {
@@ -325,4 +429,4 @@ if (violations.length) {
   for (const v of violations) console.error("  " + v);
   process.exit(1);
 }
-console.log("✓ boundaries ok — feature isolation (web + driver + api modules), hazmat packages dependency-free, engine deterministic.");
+console.log("✓ boundaries ok — feature isolation (web + driver + api modules), pure packages dependency-free, @hazmat/engine and @silvicom/qr deterministic.");
