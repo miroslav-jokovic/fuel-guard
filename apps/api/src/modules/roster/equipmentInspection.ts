@@ -1,12 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { InspectionSubjectType } from "@silvicom/shared";
+import { fetchAllPaged } from "../../lib/paging.js";
 
 /**
  * The equipment side of the §396.17 annual inspection, as `roster` exposes it (D-AVI9, D-AVI10).
  *
  * `vehicles` and `trailers` belong to this module (docs/ARCHITECTURE.md §3), so `maintenance` reads
- * and projects through here rather than reaching for `.from("vehicles")`. Two functions, and the
- * second one is the interesting half.
+ * and projects through here rather than reaching for `.from("vehicles")`.
+ *
+ * Three read shapes, by how the caller arrives: ONE row it can name, MANY rows whose ids it already
+ * holds, and — since 2026-09-08 — the WHOLE fleet of a kind, which is what a screen listing units
+ * needs and what nothing here could previously answer (INVENTORY-PLAN.md I9's stated prerequisite).
  */
 
 /**
@@ -24,14 +28,30 @@ export interface EquipmentIdentity {
   vin: string | null;
   plate: string | null;
   /**
-   * Trailers only; null for a tractor and for a trailer whose type nobody has recorded.
+   * Trailers only; null for a TRACTOR, where the question does not apply.
+   *
+   * It is never null for a trailer, and the previous wording here ("a trailer whose type nobody has
+   * recorded") was wrong about the database: `trailers.is_reefer` is `not null default false`, so an
+   * unrecorded trailer reads `false`, not null. Re-measured 2026-09-08 against production: 46 of 234
+   * active trailers are reefers, and the flag and `trailer_type` NEVER disagree — every `is_reefer`
+   * row carries `trailer_type = 'reefer'`, and no false row does.
    *
    * The inspection seeds a different checklist for a reefer, because a reefer has an engine and a
-   * fuel tank and a dry van does not — 46 of 211 trailers are reefers and 152 carry no type at all
-   * (measured 2026-08-31), so this is the difference between a form that opens right and one that
+   * fuel tank and a dry van does not — the difference between a form that opens right and one that
    * pre-marks an inspection of parts that are not there.
    */
   isReefer: boolean | null;
+  /**
+   * The trailer's declared type, or null. Null for a tractor, and null for the **175 of 234 active
+   * trailers that carry no type at all** (measured 2026-09-08) — which is why anything deciding what
+   * a unit IS should read `isReefer` and not this. Kept because it is the finer fact where it exists.
+   *
+   * Values are constrained by `trailers_trailer_type_check` to
+   * `dry_van | reefer | flatbed | tanker | hopper | other`. Deliberately typed as a string rather
+   * than a TypeScript union: the CHECK is the authority, and a hand-copied union is a second source
+   * of truth that drifts the first time somebody adds a value in a migration.
+   */
+  trailerType: string | null;
 }
 
 export type EquipmentError = { error: string; code: string };
@@ -46,7 +66,7 @@ export async function getEquipmentIdentity(
   const { data, error } =
     subjectType === "tractor"
       ? await admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).eq("id", subjectId).maybeSingle()
-      : await admin.from("trailers").select("id, unit_number, vin, plate, is_reefer").eq("org_id", orgId).eq("id", subjectId).maybeSingle();
+      : await admin.from("trailers").select("id, unit_number, vin, plate, is_reefer, trailer_type").eq("org_id", orgId).eq("id", subjectId).maybeSingle();
   if (error) return { error: "Could not load the equipment record", code: "db_error" };
   if (!data) return null;
   const row = data as {
@@ -55,6 +75,7 @@ export async function getEquipmentIdentity(
     vin: string | null;
     plate: string | null;
     is_reefer?: boolean | null;
+    trailer_type?: string | null;
   };
   return {
     id: row.id,
@@ -62,6 +83,7 @@ export async function getEquipmentIdentity(
     vin: row.vin,
     plate: row.plate,
     isReefer: subjectType === "trailer" ? (row.is_reefer ?? null) : null,
+    trailerType: subjectType === "trailer" ? (row.trailer_type ?? null) : null,
   };
 }
 
@@ -84,14 +106,121 @@ export async function getEquipmentIdentities(
   const { data, error } =
     subjectType === "tractor"
       ? await admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).in("id", unique)
-      : await admin.from("trailers").select("id, unit_number, vin, plate").eq("org_id", orgId).in("id", unique);
+      : await admin.from("trailers").select("id, unit_number, vin, plate, is_reefer, trailer_type").eq("org_id", orgId).in("id", unique);
   if (error) return { error: "Could not load the equipment records", code: "db_error" };
-  const rows = (data ?? []) as Array<{ id: string; unit_number: string; vin: string | null; plate: string | null }>;
-  return new Map(
-    rows.map(
-      (r) => [r.id, { id: r.id, unitNumber: r.unit_number, vin: r.vin, plate: r.plate, isReefer: null }] as const,
-    ),
-  );
+  const rows = (data ?? []) as Array<{
+    id: string;
+    unit_number: string;
+    vin: string | null;
+    plate: string | null;
+    is_reefer?: boolean | null;
+    trailer_type?: string | null;
+  }>;
+  return new Map(rows.map((r) => [r.id, toIdentity(subjectType, r)] as const));
+}
+
+/**
+ * One row → one identity, shared by all three readers.
+ *
+ * It exists because the bulk reader used to hardcode `isReefer: null` while the single-row reader
+ * derived it properly. Nothing was broken by that — `inspectionList` is its only caller and reads
+ * unit numbers — but the two readers returned the same TYPE with different meanings for the same
+ * field, and the next caller to trust it would have got "not a reefer" for all 46 of them. D-INV12
+ * makes reefer kits a real consumer, so the divergence is closed here rather than met there.
+ */
+function toIdentity(
+  subjectType: InspectionSubjectType,
+  row: {
+    id: string;
+    unit_number: string;
+    vin: string | null;
+    plate: string | null;
+    is_reefer?: boolean | null;
+    trailer_type?: string | null;
+  },
+): EquipmentIdentity {
+  const isTrailer = subjectType === "trailer";
+  return {
+    id: row.id,
+    unitNumber: row.unit_number,
+    vin: row.vin,
+    plate: row.plate,
+    isReefer: isTrailer ? (row.is_reefer ?? null) : null,
+    trailerType: isTrailer ? (row.trailer_type ?? null) : null,
+  };
+}
+
+export interface EquipmentListOptions {
+  /**
+   * Defaults to TRUE. A retired unit has no kit to be short of and no inspection to fall due, so
+   * every caller so far wants the working fleet — and a caller that forgets the flag and silently
+   * gets 11 retired trailers in a shortfall report has invented phantom work for the shop. Pass
+   * `false` deliberately to see everything.
+   */
+  activeOnly?: boolean;
+}
+
+/**
+ * Every tractor, or every trailer, in one org.
+ *
+ * The gap this fills: nothing in this module could list equipment. `getEquipmentIdentity` needs an
+ * id and `getEquipmentIdentities` needs a set of them, so a screen that wants "all the trailers"
+ * had no owner-sanctioned way to ask — and reaching for `.from("trailers")` from another module is
+ * exactly what D-ARC3 forbids. Named as I9's prerequisite in INVENTORY-PLAN.md and built ahead of
+ * it because it is roster's own work and depends on nothing inventory owns.
+ *
+ * ── IT PAGES, AND THE ORDER IS PART OF THAT ─────────────────────────────────────────────────────
+ * PostgREST caps a response at ~1,000 rows whatever limit you ask for, so a full-table read is a
+ * `.range()` loop; `fetchAllPaged` is the house helper for it. 234 trailers and 207 tractors are
+ * comfortably inside one page today, which is exactly why this is written to page NOW — a fleet
+ * that grows past 1,000 would otherwise start silently truncating, which is how nine filter menus
+ * lost 30 % of their values.
+ *
+ * The `.order()` is not cosmetic: `.range()` without a stable sort lets Postgres return rows in a
+ * different order per page, which duplicates some rows across page boundaries and drops others.
+ * `unit_number` is what a person reads, and `id` breaks its ties.
+ */
+export async function listEquipmentIdentities(
+  admin: SupabaseClient,
+  orgId: string,
+  kind: InspectionSubjectType,
+  options: EquipmentListOptions = {},
+): Promise<EquipmentIdentity[] | EquipmentError> {
+  const activeOnly = options.activeOnly ?? true;
+  type Row = {
+    id: string;
+    unit_number: string;
+    vin: string | null;
+    plate: string | null;
+    is_reefer?: boolean | null;
+    trailer_type?: string | null;
+  };
+
+  try {
+    // Both tables named as literals and the branch written out twice — see the note at the top of
+    // this file on why a `TABLE[kind]` lookup would make these reads invisible to the gates.
+    const rows = await fetchAllPaged<Row>((from, to) =>
+      kind === "tractor"
+        ? (activeOnly
+            ? admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).eq("status", "active")
+            : admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId)
+          )
+            .order("unit_number", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to)
+        : (activeOnly
+            ? admin.from("trailers").select("id, unit_number, vin, plate, is_reefer, trailer_type").eq("org_id", orgId).eq("status", "active")
+            : admin.from("trailers").select("id, unit_number, vin, plate, is_reefer, trailer_type").eq("org_id", orgId)
+          )
+            .order("unit_number", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
+    );
+    return rows.map((r) => toIdentity(kind, r));
+  } catch {
+    // `fetchAllPaged` throws on a page error; this module answers in EquipmentError, not exceptions.
+    return { error: "Could not list the equipment records", code: "db_error" };
+  }
 }
 
 /**
