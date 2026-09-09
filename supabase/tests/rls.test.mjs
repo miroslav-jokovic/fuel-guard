@@ -2270,6 +2270,12 @@ async function main() {
         `with l as (insert into stock_locations (org_id, name, code) values ('${org}', 'RLS Bay', 'RLS-S') returning id), ` +
         `     p as (insert into parts (org_id, part_number, description) values ('${org}', 'RLS-S1', 'RLS part') returning id) ` +
         `insert into part_stock (org_id, part_id, location_id) select '${org}', p.id, l.id from p, l`,
+      // A session names exactly one holder and that holder must be this org's — a CHECK and 0332's
+      // trigger, neither of which the generic synthesiser can satisfy: it fills every column, which
+      // names three holders at once, and it invents ids that belong to nobody.
+      stock_count_sessions: (org) =>
+        `with l as (insert into stock_locations (org_id, name, code) values ('${org}', 'RLS Bay', 'RLS-C') returning id) ` +
+        `insert into stock_count_sessions (org_id, kind, location_id) select '${org}', 'location', l.id from l`,
       // `part_movements.id` has no default on purpose (D-INV27 — the client generates it), so the
       // synthesiser has no value to invent for the primary key even before the location's cap bites.
       part_movements: (org) =>

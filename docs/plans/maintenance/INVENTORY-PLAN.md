@@ -626,11 +626,11 @@ and a migration touching both modules needs a named `cross-module-waiver`.
 `updated_after` filter, plus 70 other endpoints.** The schema is indeed the same; what changed is that
 the parts import is a recurring API pull rather than a one-time file, and A3 says so.
 
-### 6.1b The question the API opened — Q9, open
+### 6.1b The question the API opened — Q9, ANSWERED 2026-09-09
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
-| **Q9** | FleetPal has `/v1/purchase-order-receipt-items/` — stock arriving. If the shop receives against POs there, our `receive` verb is a second place to type the same event. Which one does a technician use? | **(a)** Receive in FleetPal; we ingest receipt items as `received` movements and the `receive` verb becomes manual-only, for stock bought outside a PO. **(b)** Receive with us; FleetPal's PO receipts go unused and its POs stay a purchasing record. **(c)** Both, and reconcile at I14. | **(a).** It is the only one that does not ask somebody to type a delivery twice, and it matches D-INV10's grain — purchasing is FleetPal's, the shelf is ours, and a receipt is the moment one becomes the other. **(c) is the workaround**: two sources of truth for the same event, discovered later as a variance nobody can explain. ⚠ Owner ruling needed before I5 builds the receive flow; it does not block I4. |
+| **Q9** | FleetPal has `/v1/purchase-order-receipt-items/` — stock arriving. If the shop receives against POs there, our `receive` verb is a second place to type the same event. Which one does a technician use? | **(a)** Receive in FleetPal; we ingest receipt items as `received` movements and the `receive` verb becomes manual-only, for stock bought outside a PO. **(b)** Receive with us; FleetPal's PO receipts go unused and its POs stay a purchasing record. **(c)** Both, and reconcile at I14. | **RULED (a) by the owner, 2026-09-09** — the recommendation was adopted. It is the only one that does not ask somebody to type a delivery twice, and it matches D-INV10's grain: purchasing is FleetPal's, the shelf is ours, and a receipt is the moment one becomes the other. **(c) was the workaround**: two sources of truth for the same event, discovered later as a variance nobody can explain. **Consequences, in §8:** our `receive` verb is manual-only and its drawer says so; the I14 ingest writes `received` movements with an id derived from FleetPal's receipt-item id. |
 
 ### 6.2 Assumptions — retired by the step that needs them
 
@@ -1207,3 +1207,80 @@ signed here by the person who did it. I6's spike results go here before its seco
   ⚠ One full run failed `inspections.test.ts` with `ECONNRESET`; it passes in isolation, a second
   full run of the same suite was green, and this PR touches no file under `apps/api`. That is the
   transport flake recorded at I9's prerequisite and in #690, not a regression.
+
+- **Q9 — RULED (a) by the owner, 2026-09-09.** Stock arriving is received in FleetPal and ingested;
+  our `receive` verb becomes the manual path for stock bought outside a purchase order. §6.1b carries
+  the ruling. **Three consequences worth writing down before they are rediscovered.** (a) I5 PR 2's
+  Receive drawer is no longer the primary way stock arrives, and its copy has to say so or the shop
+  will type deliveries twice out of habit — which is the very outcome the ruling exists to prevent.
+  (b) **I14's ingest needs a deterministic movement id derived from FleetPal's receipt-item id.**
+  D-INV27 already makes that possible and free — the RPC's `on conflict (id) do nothing` means a
+  re-pull of the same receipt is a no-op — but an ingest that minted a fresh UUID per pull would
+  double the shelf on the second run and break no test. (c) Nothing about the ruling changes the
+  schema: a `received` movement is a `received` movement whoever typed it, and `supplier` already
+  carries who it came from.
+
+- **I5 PR 1 — the count session — DONE 2026-09-09 (PR pending).** Migration 0332 ships
+  `stock_count_sessions`, the foreign key 0331 deliberately left open on
+  `part_movements.count_session_id`, RLS on the ledger's own gates, and two triggers;
+  `inventory/countSessions.ts` ships the reader and the two writers. 32 matrix assertions and 13
+  service assertions. **The feature is unreachable** — no routes are mounted until PR 2 — which is
+  the condition under which a table may ship with its writer.
+
+  **⚠ THE MATRIX FOUND A CROSS-TENANT HOLE IN THE FIRST DRAFT OF THIS MIGRATION, AND IT IS THE
+  FINDING.** The three holder columns reference `stock_locations(id)`, `vehicles(id)` and
+  `trailers(id)` — `id` alone, because none of those tables carries an `(id, org_id)` unique
+  constraint to point a composite key at. So a session in org A naming org B's bay satisfied every
+  foreign key and every CHECK, and the assertion "a session cannot be opened against another org's
+  bay" came back `null`: nothing refused it. `part_movements` has exactly the same shape and is saved
+  by `record_part_movement` checking the location's org in SQL (`IV012`); a session has no RPC in
+  front of it, so the check did not exist anywhere. 0332 now carries
+  `guard_stock_count_session_holder`, `security definer` with an empty `search_path` on
+  `record_part_movement`'s model, so it is the same answer for a technician's session and for the
+  service role that bypasses RLS. **This is the third time in this programme that a guarantee assumed
+  to come from a foreign key had to be written explicitly**, and the pattern is the same each time:
+  the FK is about existence, and org membership is a different question.
+
+  **A location must also be ACTIVE to be counted**, added with the same trigger. Not tidiness:
+  `record_part_movement` refuses a movement into a closed location, so a session opened on one is a
+  walk in which every single count would be rejected. Refusing at the start costs one error message;
+  refusing at each entry costs somebody their afternoon.
+
+  **THERE IS DELIBERATELY NO "ONE OPEN SESSION PER PLACE" UNIQUE INDEX, and the reason is measured
+  rather than argued.** The obvious safeguard trades two failures that are not symmetric. Two
+  overlapping walks of one bay cannot corrupt the shelf, because a count's delta is taken at commit
+  time against the row it locked — the matrix stages exactly that, two open sessions counting the
+  same bay to 7 and then 5, and asserts the shelf ends at 5 with the ledger still summing to it. The
+  cost of overlap is a confusing review screen. The cost of the index is that one session left open —
+  a technician who walked away, a phone that died — locks that bay out of being counted ever again,
+  with no way out but a database edit, because closing is irreversible by design. A confusing review
+  beats a bay nobody can count.
+
+  **Four smaller things, each of which would have been a wrong assumption if it had not been run.**
+  (a) `on delete restrict` raises **23001 restrict_violation**, not 23503 — the matrix pins the code
+  rather than "it threw", because a constraint quietly changed to `no action` would still throw and
+  would still let a deferred transaction delete the walk. (b) **A BEFORE trigger runs ahead of the
+  CHECK constraints**, so the holder guard's first draft answered "is this null trailer ours" for a
+  row whose actual fault was naming no place at all, and reported `IV012` for it. It now falls
+  through and lets the CHECK own "exactly one". (c) The service maps a 23514 to **`malformed_session`
+  and not to a new `IV018`**: the `IV0xx` numbers in this module are SQLSTATEs a migration actually
+  raises, and minting one that no SQL raises would send the next reader grepping for nothing.
+  (d) `rls.test.mjs` needed a `handSeed` — the generic synthesiser fills every column, which names
+  three holders at once and fails the CHECK before the trigger even looks. Coverage went from 134 to
+  **135 tables, 0 unseedable, 0 leaking**.
+
+  **What PR 2 owes, and one thing it must not assume.** The count-session routes, the four desk
+  drawers and `/shop/count/:sessionId`. ⚠ The session id is the SERVER's, unlike a movement's: a
+  session is opened with the network up because the screen cannot show what to count without it,
+  while D-INV27 makes a MOVEMENT's id the client's because that is what the phone queues in a dead
+  bay. A count screen that generated its own session id would produce two walks from two taps of
+  Start and would break no test — which is why the service asserts it does not send one.
+
+  **Mutation proofs, five, each restored:** removing the holder trigger failed 3 matrix assertions
+  (the foreign bay, the foreign trailer, the closed bay); making closing reversible failed 2;
+  dropping the `kind`-matches-holder CHECK failed *"a `unit` session holding a bay is refused"*;
+  letting `IV017` fall into the generic `db_error` branch failed *"reports an already-closed walk as
+  IV017 and not as a database error"*; and resolving `holderLabel` from the bay join alone failed
+  *"names the holder from whichever join is populated"*.
+  **Verification:** 32 + 13 new assertions, `pnpm test` green across every unit suite and all **41**
+  matrices, all 38 `lint:*` gates, and `pnpm typecheck`.

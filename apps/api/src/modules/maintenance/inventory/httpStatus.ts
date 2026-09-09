@@ -21,6 +21,7 @@ const STATUS: Record<string, number> = {
   IV010: 409, // insufficient_stock
   IV011: 409, // part_movements_append_only
   IV016: 409, // movement_in_flight — a retry, and the message says so
+  IV017: 409, // count_session_closed — 0332's trigger; the walk is over, a correction is a new count
   duplicate_part_number: 409,
   duplicate_location_code: 409,
   // The payload names something unusable.
@@ -28,6 +29,10 @@ const STATUS: Record<string, number> = {
   IV013: 422, // part_inactive
   IV014: 422, // occurred_at_out_of_range
   IV015: 422, // malformed_movement
+  // A CHECK on `stock_count_sessions` refused the row — two holders, none, or a `kind` that
+  // disagrees with the one that is set. Not an `IV0xx`: no migration raises it, `countSessions.ts`
+  // synthesises it from 23514, and a fictional SQLSTATE is worse than a named condition.
+  malformed_session: 422,
   // The request is malformed in a way the schema could not catch.
   empty_patch: 400,
   unsupported_type: 415,
