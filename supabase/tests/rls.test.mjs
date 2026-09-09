@@ -2283,6 +2283,23 @@ async function main() {
         `     p as (insert into parts (org_id, part_number, description) values ('${org}', 'RLS-M1', 'RLS part') returning id) ` +
         `insert into part_movements (id, org_id, part_id, location_id, reason, quantity_delta, occurred_at) ` +
         `select gen_random_uuid(), '${org}', p.id, l.id, 'received', 1, now() from p, l`,
+      // ── 0333, the asset tables ────────────────────────────────────────
+      // The same three failures as `stock_count_sessions`, one table at a time. An asset's holder
+      // must be this org's (0333's trigger), so the synthesiser's invented ids belong to nobody;
+      // `asset_movements.id` has no default because the client generates it (D-INV27); and
+      // `kit_expectations` must name a type this org owns. `asset_types` seeds itself, and is
+      // handed a location-free row here only so the three below can build on one.
+      inventory_assets: (org) =>
+        `with t as (insert into asset_types (org_id, name) values ('${org}', 'RLS type') returning id) ` +
+        `insert into inventory_assets (org_id, asset_type_id, name) select '${org}', id, 'RLS asset' from t`,
+      asset_movements: (org) =>
+        `with t as (insert into asset_types (org_id, name) values ('${org}', 'RLS type M') returning id), ` +
+        `     a as (insert into inventory_assets (org_id, asset_type_id, name) select '${org}', id, 'RLS asset M' from t returning id) ` +
+        `insert into asset_movements (id, org_id, asset_id, reason, occurred_at) ` +
+        `select gen_random_uuid(), '${org}', id, 'found', now() from a`,
+      kit_expectations: (org) =>
+        `with t as (insert into asset_types (org_id, name) values ('${org}', 'RLS type K') returning id) ` +
+        `insert into kit_expectations (org_id, asset_type_id, unit_kind, quantity) select '${org}', id, 'tractor', 1 from t`,
       user_surface_access: (org) =>
         `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-usa@example.com') returning id), ` +
         `     m as (insert into memberships (org_id, user_id, role) select '${org}', id, 'technician' from u returning user_id) ` +
