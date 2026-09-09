@@ -91,6 +91,7 @@ the leading products do this work, every claim cited — §2.5 and D-INV17–25 
 | Maintenance GL family, 10 accounts | **$1,420,366.93** (`40160000 Tires` $332,215.60; `30240000 OTR >$1000` $282,626.06; `30350000 Trailer Repair` $264,021.87; `30250000 OTR <$1000` $123,101.58) | D-INV11 |
 | `financial_entries` rows / `category='maintenance'` | **49,873 / 0** | The `/shop` message is about the projection, not Finance. |
 | AP vouchers carrying a PO number | **5 of 1,464 (0.34 %)** | D-INV14 |
+| Shelf addressing in the shop | **None — there are no aisle, row or bin numbers** (owner, 2026-09-09) | `part_stock.aisle/row/bin` are nullable and nothing requires them; `tag_code` is what addresses a shelf here |
 
 ---
 
@@ -623,7 +624,7 @@ A step may not close while its row stands.
 | # | Assumption | Retired by | Default answer |
 |---|---|---|---|
 | **A1** | The free decoder reads a printed ECC-H `SIL1:` label and a greasy supplier UPC on the shop's phones — Safari, installed, Android. | I6 spike, results in §8 | Scandit's web engine; then D-INV28's revisit clause. |
-| **A2** | The shop has been measured: locations, parts, bins per shelf, technicians, phones, wifi in the bays. | Before I2 — a one-hour visit; numbers into §1.4 | — |
+| **A2** | The shop has been measured: locations, parts, technicians, phones, wifi in the bays. | ~~Before I2~~ → I4 (the parts list) and I6 (the phones and the bay wifi). **Re-scoped 2026-09-09, see §8** — I1's merged contracts pin every I2 column, so a shop visit can no longer change that migration. The shelving half is ANSWERED: there are no shelf numbers (§1.4). | — |
 | **A3** | An initial parts list exists to import (a spreadsheet or a FleetPal export). | Before I4 — the file and its columns | The locked-header CSV template with an error report, and one afternoon. |
 | **A4** | Kit contents per unit kind — quantities per tractor, dry van, reefer. | I9 — owner supplies three default lists | Ship empty; the first unit check populates them. |
 | **A5** | The label printer and stock the shop owns. | I10 | Avery 22805 on a laser with polyester stock for bins; aluminium plates from a vendor for truck items. |
@@ -781,3 +782,82 @@ signed here by the person who did it. I6's spike results go here before its seco
   moves between files is the documented transport flake rather than a regression, but it hit 2 of 2
   local runs against the ~1-in-4 previously recorded, always exactly one per run. That shape
   suggests a teardown race or port exhaustion rather than randomness, and it deserves its own look.
+
+- **I2 — schema and service: locations, parts, stock, the movement ledger — DONE 2026-09-09
+  (PR #PENDING).** Migration 0331 ships `stock_locations`, `parts`, `part_stock` and
+  `part_movements`, the `inventory-photos` bucket, `record_part_movement`, `rebuild_part_stock` and
+  the append-only guard; `apps/api/src/modules/maintenance/inventory/` ships `listParts`, `getPart`,
+  `findPartsByUpc`, `listLocations`, `listStock`, `listMovements` and `recordMovement`. 42 matrix
+  assertions and 11 service assertions.
+
+  **A2 DID NOT GATE THIS STEP, and the reason is a measurement rather than an argument.** §6.2 said a
+  shop visit came before I2, on the risk that real shelving would change the tables. That risk was
+  already spent: I1 merged as #685 and its contracts pin every column this migration creates —
+  `stockLocationDtoSchema` and `partDtoSchema` match field for field, and `stockLineDtoSchema` extends
+  `binAddressSchema`, whose own comment settles the shelving question. A visit could still overturn
+  those shapes; it would then be overturning a merged contract, which is a different PR from this one.
+  A2's row is re-scoped to I4 and I6 rather than retired — the parts list, the phones and the bay wifi
+  are still unmeasured and still gate those steps.
+
+  **The shelving half of A2 IS answered, by the owner on 2026-09-09: this shop has no shelf numbers.**
+  Recorded in §1.4. `aisle`, `row` and `bin` are three nullable fragments that nothing requires — no
+  NOT NULL, no default, no sort, no filter — and `listStock` never asks for them. What addresses a
+  shelf here is `tag_code` and D-INV7's resolver, which inverts the usual order deliberately: nobody
+  reads an address off a shelf and types it, they point a camera at it and the row arrives. The
+  columns stay for a shop that someday numbers its shelves, because three fragments sort by aisle
+  where one string does not (`binAddressSchema`'s reasoning, unchanged).
+
+  **§2.12 rule 2 and step I2's numbered list contradict each other, and only one of them is safe.**
+  Rule 2 says guarded UPDATE first, insert only when `row_count = 1`; the step says insert first. The
+  step is right. The movement id is the client's idempotency key, so if the projection moved before
+  the insert discovered the conflict, every offline replay would move the shelf again and the ledger
+  would disagree with the shelf by exactly the number of times the network was bad. Nothing is lost
+  by the reversal, because the function is one transaction: when the guarded UPDATE raises `IV010`
+  the INSERT above it rolls back with it, and the matrix asserts precisely that — *"a refused
+  movement writes no ledger row"*. The "guard" rule 2 was naming is the `>= 0` predicate ON the
+  update, not its position.
+
+  **Four deviations, each because the step text did not describe something the merged contract needs.**
+  (a) `supplier` is a column: D-INV14 says "receiving takes a supplier name and a cost" and
+  `receiveStockSchema` accepts one, but I2's column list omitted it — storing nothing would have
+  silently dropped a field the contract accepts, which is the trap I1 already hit once with zod's
+  key-stripping. (b) `parts.last_cost` is maintained by the RPC from a `received` row's unit cost;
+  the step says the column exists and never says who writes it, and D-INV15 is meaningless if nothing
+  does. (c) A transfer is TWO ledger rows written by one call, because the projection is per (part,
+  location) and one row cannot move it in two places; the inbound leg's id is derived as
+  `md5(id || ':in')` so a replayed transfer is as idempotent as any other movement, and a
+  `transfer_group_id` column makes the pair recoverable. The alternative — two API calls — can
+  half-fail, which destroys stock at the source and never delivers it. (d) Two SQLSTATEs beyond the
+  step's five: `IV015` for a malformed payload, which a `jsonb` argument cannot be typed out of, and
+  `IV016` for a concurrent duplicate mid-insert. **`IV016`'s branch is NOT exercised by the matrix** —
+  PGlite runs on one connection, so the race cannot be staged there — and it is named here rather
+  than left as an untested claim.
+
+  **One assertion was rewritten after being measured, and the correction is the finding.** It asserted
+  that a technician's browser UPDATE of `part_movements` raises `IV011`, on the reasoning that the
+  append-only trigger fires for everybody. It does not fire, and the ledger is safe anyway: the table
+  carries a SELECT policy and an INSERT policy and no UPDATE policy, so the UPDATE matches zero rows
+  and returns success having done nothing. Two separate guarantees, and the test now names the one
+  that is actually running — pinning `IV011` there would have pinned a mechanism that is not reached.
+  A second assertion was fixed for a duller reason worth recording too: the service-role UPDATE and
+  DELETE ran in one transaction, so the DELETE came back `25P02` — the UPDATE's exception still
+  standing, not the trigger refusing the delete. An assertion that accepts the wrong code for the
+  right reason keeps passing after the trigger is dropped.
+
+  **`rls.test.mjs` needed `handSeed` for three of the four tables**, and not for a schema reason:
+  `stock_locations.code` is the short code somebody says across a bay, capped at 24 characters, and
+  the generic synthesiser's placeholder is longer than that. `part_stock` and `part_movements` build
+  a location on the way to their own row and inherit the failure; `part_movements` could not have been
+  seeded generically in any case, because its primary key has no default on purpose. Widening the
+  column to suit the harness would have deleted the reason the cap exists. Coverage went from 131 to
+  **134 tables, 0 unseedable, 0 leaking**.
+
+  **Mutation proofs, four, each restored:** writing a count's absolute total instead of the delta
+  taken at commit time failed 2 matrix assertions; removing the RPC's idempotency early-return failed
+  1; dropping `listStock`'s `.eq("org_id")` failed the `expectOrgScoped` assertion; handing `numeric`
+  through as the string PostgREST actually sends failed the cost conversion.
+  **Verification:** 42 + 11 new assertions, `pnpm test` green across every unit suite and all 40
+  matrices, all **38** `lint:*` gates (the full list, not only the 28 CI runs by name), and
+  `pnpm typecheck`. The feature is unreachable — no routes are mounted until I3 — which is the
+  condition under which an RPC may ship with its caller, and `lint:migration-ordering` cannot check
+  it because it never reads `create function`.
