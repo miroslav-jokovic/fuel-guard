@@ -2,6 +2,8 @@ import {
   CORRELATION_THRESHOLDS, RECON_STATUS_LABELS,
   FUEL_EXCEPTION_STATUS_LABELS, type FuelExceptionStatus,
   isLowStock, type StockLevel,
+  ASSET_STATUS_LABELS, type AssetStatus,
+  ASSET_MOVEMENT_REASON_LABELS, movesHolder, type AssetMovementReason,
 } from "@silvicom/shared";
 // Modern "soft" badge styling — light fill + subtle inset ring — used consistently across the app.
 // Tones are semantic (design tokens), not raw palette colors: danger > caution > warning > success…
@@ -70,6 +72,9 @@ export function inviteTone(status: string): string {
 const MARKER = {
   warning: "bg-warning-600",
   neutral: "bg-edge-strong",
+  // Added for the asset history (I8): an ordinary move is a fact rather than a warning, and the
+  // neutral dot is already spoken for by the end of a thing's life.
+  info: "bg-info-600",
 } as const;
 
 export function nearMissMarker(score: number): string {
@@ -190,6 +195,53 @@ export function stockLevelBadge(stock: StockLevel): DqBadge | null {
     ? { label: "Out", tone: "danger" }
     : { label: "Low", tone: "warning" };
 }
+
+/**
+ * An asset's status (INVENTORY-PLAN.md I8, D-INV24).
+ *
+ * ── THE LABELS ARE SHARED'S; ONLY THE TONE IS DECIDED HERE ────────────────────────────────────
+ * `ASSET_STATUS_LABELS` is the one spelling of these five words and the driver app (I13) reads the
+ * same map. A label typed here would be a second vocabulary with a delay fuse — the failure the
+ * recruiting plan's R0b fixed across three files.
+ *
+ * ── `in_service` GETS NO BADGE, AND THAT IS THE POINT ─────────────────────────────────────────
+ * A badge that appears on every row means nothing (`archivedBadge` and `stockLevelBadge` both make
+ * the same call). Nearly every asset a shop owns is in service, so the pill is reserved for the
+ * ones that are NOT — the tablet at the repair shop, the strap nobody can find, the thing that has
+ * been written off. That is also why the list can be scanned: the coloured rows are the exceptions.
+ *
+ * `in_repair` is `warning` and not `neutral` because D-INV24 makes it a gap in a truck's kit: the
+ * tablet is still unit 654's and it is still missing FROM 654, which is exactly what a kit check
+ * needs to shout about. `lost` is `danger` — an unresolved fact somebody has to chase — while
+ * `retired` is `neutral`, because a decision that was taken deliberately is not an alarm.
+ */
+export function assetStatusBadge(status: AssetStatus): DqBadge | null {
+  if (status === "in_service") return null;
+  const tone: BadgeTone =
+    status === "lost" ? "danger" : status === "in_repair" ? "warning" : status === "spare" ? "info" : "neutral";
+  return { label: ASSET_STATUS_LABELS[status], tone };
+}
+
+/**
+ * An asset movement's marker on the history rail (I8).
+ *
+ * Solid fills, not `toneClass` — see `nearMissMarker` above for why pill classes are invisible as an
+ * 8 px dot. Three tones for seven reasons, and the split is `movesHolder`'s: a REPORT is somebody
+ * saying something is wrong and is the row a reader is scanning for, `retired` closes the thing's
+ * life, and everything else is an ordinary move.
+ *
+ * ⚠ It asks `movesHolder`; it does not re-list the reporting reasons. That split is stated once in
+ * `HOLDER_PRESERVING_REASONS`, and the day an eighth reason arrives a copy here would quietly render
+ * it as an ordinary move.
+ */
+export function assetMovementMarker(reason: AssetMovementReason): string {
+  if (!movesHolder(reason)) return MARKER.warning;
+  return reason === "retired" ? MARKER.neutral : MARKER.info;
+}
+
+/** The one spelling of what a movement was, for the rail's headline. */
+export const assetMovementLabel = (reason: AssetMovementReason): string =>
+  ASSET_MOVEMENT_REASON_LABELS[reason];
 
 /**
  * Application-invitation state (`InviteState`) → badge.

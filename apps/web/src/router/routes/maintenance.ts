@@ -44,6 +44,23 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/PartsPage.vue"),
     meta: { requiresAuth: true, title: "Parts", parent: "/shop" },
   },
+  /**
+   * The assets (I8). A separate address from `/shop/inventory` rather than a tab on it: §2.1's seam
+   * is two different questions about two different kinds of row, and one screen with a toggle is how
+   * the driver page grew six tabs.
+   */
+  {
+    path: "/shop/assets",
+    name: "assets",
+    component: () => import("@/pages/AssetsPage.vue"),
+    meta: { requiresAuth: true, title: "Assets", parent: "/shop" },
+  },
+  {
+    path: "/shop/assets/:id",
+    name: "asset",
+    component: () => import("@/pages/AssetDetailPage.vue"),
+    meta: { requiresAuth: true, title: "Asset", parent: "/shop/assets" },
+  },
   {
     path: "/shop/inventory/:id",
     name: "part",

@@ -12,6 +12,8 @@ import { inventoryPartsRouter } from "./inventoryParts.js";
 import { inventoryLocationsRouter } from "./inventoryLocations.js";
 import { inventoryStockRouter } from "./inventoryStock.js";
 import { inventoryCountSessionsRouter } from "./inventoryCountSessions.js";
+import { inventoryAssetsRouter } from "./inventoryAssets.js";
+import { inventoryAssetTypesRouter } from "./inventoryAssetTypes.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -62,6 +64,12 @@ export function maintenanceRouter(): Router {
   // makes the ordering load-bearing in a way nothing states, and the day someone adds a `/:id`
   // there it stops being true.
   router.use("/inventory/count-sessions", inventoryCountSessionsRouter());
+  // I8's half of §2.1's seam: the things with identities. `asset-types` is its own prefix rather
+  // than `/assets/types`, because that WOULD collide with `/assets/:id` — see the header of
+  // `inventoryAssetTypes.ts` for why this is the one place in the module where segment ordering
+  // would have been load-bearing.
+  router.use("/inventory/assets", inventoryAssetsRouter());
+  router.use("/inventory/asset-types", inventoryAssetTypesRouter());
   router.use("/inventory", inventoryStockRouter());
 
   router.get(

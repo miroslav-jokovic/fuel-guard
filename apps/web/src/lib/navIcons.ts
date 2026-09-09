@@ -27,6 +27,7 @@ import {
   HazmatPlacardIcon,
   LicenseIcon,
   SparklesIcon,
+  ToolboxIcon,
   TrailerIcon,
   TrophyIcon,
   TruckIcon,
@@ -103,6 +104,9 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   // note on `safety.driver-qualification` records what happened the last time two live nav items
   // shared a glyph, and the collapsed rail is where that failure is worst.
   "maintenance.parts": CubeIcon,
+  // An asset is a thing with a number on it, kept in a box or on a truck. `ToolboxIcon` is unused
+  // anywhere else in the menu; see the barrel for why it is not the wrench the group wears.
+  "maintenance.assets": ToolboxIcon,
   "maintenance.inspections": ChecklistIcon,
   "maintenance.inspectors": CertificateIcon,
 

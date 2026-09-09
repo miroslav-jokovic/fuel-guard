@@ -240,6 +240,13 @@ export const SURFACES: readonly Surface[] = [
    */
   { key: "maintenance.repair-spend", label: "Shop", path: "/shop", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.parts", label: "Parts", path: "/shop/inventory", group: "maintenance", gate: section("maintenance") },
+  /**
+   * The assets (INVENTORY-PLAN.md I8). Its own nav row and not a tab on Parts, because §2.1's seam
+   * is two questions: stock asks "how many and where" about a shelf, an asset asks "which one and
+   * where was it before" about a thing. I4's ruling fixes this group at six rows — Shop, Parts,
+   * Assets, Units, Annual inspections, Inspectors — and this is the fifth; Units arrives at I9.
+   */
+  { key: "maintenance.assets", label: "Assets", path: "/shop/assets", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspections", label: "Annual inspections", path: "/shop/inspections", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspectors", label: "Inspectors", path: "/shop/inspectors", group: "maintenance", gate: section("maintenance") },
 
@@ -263,6 +270,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "recruitment.applicants.detail", label: "Applicant", path: "/recruitment/:id", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
   { key: "maintenance.parts.detail", label: "Part", path: "/shop/inventory/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.parts" },
+  { key: "maintenance.assets.detail", label: "Asset", path: "/shop/assets/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.assets" },
   /**
    * The shelf count (I5 PR 2b). `parent: "maintenance.parts"` rather than a key of its own, and the
    * choice is a permission argument: a count is a walk of the STOCK, so an org that has taken Parts
