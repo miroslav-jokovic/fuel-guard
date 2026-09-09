@@ -22,17 +22,31 @@ const STATUS: Record<string, number> = {
   IV011: 409, // part_movements_append_only
   IV016: 409, // movement_in_flight — a retry, and the message says so
   IV017: 409, // count_session_closed — 0332's trigger; the walk is over, a correction is a new count
+  // 0333, and the same split holds. The unit is full and the tag is taken are facts about the
+  // FLEET that no edit to the request can change; the asset being retired or unknown is the payload
+  // naming something unusable, which is the 422 half below.
+  IV020: 409, // asset_already_held — the truck already carries the one it is expected to carry
+  IV021: 409, // asset_movements_append_only
+  IV022: 409, // the tag is on another asset, or is being reprinted — a tag is assigned once
   duplicate_part_number: 409,
   duplicate_location_code: 409,
+  duplicate_asset_type: 409,
   // The payload names something unusable.
   IV012: 422, // unknown_location
   IV013: 422, // part_inactive
   IV014: 422, // occurred_at_out_of_range
   IV015: 422, // malformed_movement
+  IV023: 422, // asset_retired — the asset named is out of service for good
+  IV024: 422, // unknown_asset — not this org's, or gone. 0331's IV013 is the parts vocabulary
   // A CHECK on `stock_count_sessions` refused the row — two holders, none, or a `kind` that
   // disagrees with the one that is set. Not an `IV0xx`: no migration raises it, `countSessions.ts`
   // synthesises it from 23514, and a fictional SQLSTATE is worse than a named condition.
   malformed_session: 422,
+  // Two more CHECKs with no SQLSTATE of their own, synthesised the same way and for the same
+  // reason: an asset naming two holders (0333's `inventory_assets_one_holder`) and a kit rule whose
+  // unit kind disagrees with the unit it names (`kit_expectations_kind_matches_unit`).
+  malformed_asset: 422,
+  malformed_kit: 422,
   // The request is malformed in a way the schema could not catch.
   empty_patch: 400,
   unsupported_type: 415,

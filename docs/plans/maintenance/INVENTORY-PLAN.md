@@ -1436,3 +1436,107 @@ signed here by the person who did it. I6's spike results go here before its seco
 
   **What I5 still owes:** the usability sentence above, and the scan-to-bin arrival the step text
   describes ("scan the `BIN` tag or pick") — the picker half ships here and the scanner is I6.
+
+- **I7 — schema and service: asset types, assets, movements, kit expectations — DONE 2026-09-09
+  (migration 0333).** Four tables, `move_asset`, `rebuild_asset_holders`, five services, 58 matrix
+  assertions and 24 service assertions. §2.1's other half: a case of filters is stock, and a tablet
+  is A-0412, in 654 and in 611 before that.
+
+  **The two things 0332's matrix taught, carried into this step because the step text does not say
+  them.** (a) **A holder foreign key does not carry the org.** `stock_locations`, `vehicles` and
+  `trailers` have no `(id, org_id)` unique constraint to point a composite key at, so all six holder
+  references here name `id` alone and a row in org A naming org B's bay satisfies every FK and every
+  CHECK. That is now the **third** guarantee in this programme assumed to come from a foreign key
+  and written out by hand. (b) **A BEFORE trigger runs ahead of the CHECK constraints**, so the
+  CHECKs own "at most one holder" and the triggers only ever answer "does the named thing belong to
+  us" — pinned by *"a row naming two holders is reported by the CHECK, not by the org guard"*.
+
+  **The guard is written ONCE, and 0332's copy was re-pointed at it.** `inventory_holder_is_ours`
+  (`security definer`, empty `search_path`) is called by the three new tables' triggers, and 0333
+  re-issues `guard_stock_count_session_holder` to call it as well. Behaviour is unchanged and
+  `count-sessions.test.mjs` is what says so — its three IV012 assertions still pass. A correct
+  applied function was re-issued rather than left as a second spelling because the copy is what goes
+  stale: the next holder rule would have been written into one of the two. The function takes
+  `p_active` rather than existing twice, and the asymmetry is real — a DESTINATION must be a bay
+  that is open for business, while a `from_` holder is a record of where the thing actually was and
+  a bay closing does not un-happen that.
+
+  **Deviation 1 — there is no `display_no` column; there is `display_seq`.** The step's column list
+  names `display_no` (unique per org, sequence). Storing the formatted string would need
+  `nextDisplayNo`'s block-rolling arithmetic written a second time in SQL, which is precisely the
+  defect `tagContract.ts`'s header names about the tag grammar: a second spelling of an identifier
+  is how a label prints fine and scans to nothing. So the database owns the thing only the database
+  can do safely — ALLOCATING the number under `pg_advisory_xact_lock` inside the inserting
+  transaction — and `@silvicom/shared` owns the format. It also sorts numerically, which is the
+  failure `nextDisplayNo`'s own comment warns about (`A-10000` sorts before `A-9999`). The trigger
+  is where allocation is safe for every caller: an "allocate, then insert" pair of round trips from
+  the service would race, because the lock would be gone between them.
+
+  **Deviation 2 — a fifth SQLSTATE, `IV024 unknown_asset`, and `IV022` means what the step said in a
+  way SQL actually raises.** `move_asset` must answer "that asset is not this org's" and 0331's
+  `IV013` is the parts vocabulary ("That part is not available"), so a fifth code was minted —
+  raised by real SQL, which is the house rule `countSessions.ts` states. `IV022` is raised by
+  `guard_inventory_asset` for the two conditions that are really one fact: a tag already on another
+  asset, and a tag being changed or cleared once set (D-INV18 — a tag is printed onto polyester).
+  `idx_inventory_assets_tag` remains the uniqueness GUARANTEE under concurrency and the service maps
+  its bare 23505 to the same sentence, which *"reports a taken tag the same way whether the trigger
+  or the index caught it"* pins. `IV012`, `IV014`, `IV015` and `IV016` are REUSED rather than
+  re-minted: they name module-wide conditions `httpStatus.ts` already maps.
+
+  **Deviation 3 — `AST` is not registered in `tags/resolvers.ts`, because that fabric does not
+  exist.** `apps/api/src/tags/` is I6's, and creating it here would mean shipping the resolve route
+  whose done-when is I6's spike. Owed at I6, where the step text already names it.
+
+  **The opening position is not a movement**, and that decides what `rebuild_asset_holders` may
+  claim. An asset created already sitting in the crib writes no ledger row, so the rebuild
+  recomputes only assets that HAVE a holder-moving movement and leaves the rest alone — exactly the
+  semantics `rebuild_part_stock` already has, where a stock line absent from its `truth` CTE is
+  untouched. Forcing every placement through `move_asset` would make creation two statements that
+  can half-fail. Pinned by *"...and leaves an asset that has never moved where it was created"*.
+
+  **`status` moves only for `retired`.** Every other status in the vocabulary — spare, in_repair,
+  lost — is a person's judgement about the thing rather than a consequence of moving it, and
+  inferring one in the RPC would have this schema deciding that a tablet handed back to the crib is
+  spare when it is in fact broken. D-INV24's `in_repair` case is pinned as the same rule wearing a
+  status: *"an asset in repair is still held by its unit"*.
+
+  **`since` is answered on the detail and is null in the list, deliberately.** It is the occurred_at
+  of the last movement that actually moved the thing — one bounded query for one asset, and an
+  unbounded one for a page, which is the read that cost nine filter menus 30 % of their values to
+  PostgREST's 1,000-row cap. The plan asks for "holder, since when" on the detail (I8); the list
+  asks only where.
+
+  **Not an upsert, and the reason is sharper than the usual one.** `setKitExpectation` is
+  UPDATE-then-INSERT (the 0174/0175 pattern) because the conflict target is one of THREE partial
+  unique indexes — fleet default, vehicle override, trailer override — and PostgREST's `onConflict`
+  names columns rather than a partial index, so which rule it arbitrated on would depend on which
+  columns happened to be null.
+
+  **Mutation proofs, five, each restored.** Three against the migration: reversing
+  `rebuild_asset_holders`' `distinct on` ordering to ascending failed *"rebuild_asset_holders changes
+  nothing after every sequence above"* and its repair partner, and nothing else; taking a movement's
+  `from_` end from the caller's payload instead of the asset's current row failed exactly *"...and
+  the ledger says where it came from"*; resolving every trailer as the plain `trailer` kind failed
+  exactly *"a reefer resolves the reefer kit and not the dry van's"*. Two against the service:
+  emitting `String(display_seq)` failed *"derives the display number from the sequence rather than
+  emitting the integer"*, and reading a trailer's label off the vehicle join failed *"assembles the
+  holder from whichever column is set"*. Each mutation failed only the assertions that describe the
+  fact it broke — the discrimination the three false-passing assertions of I1, 2a and 2b lacked.
+
+  **One fixture defect found by an assertion doing its job.** The recorder's `rpc` fixture IS the
+  data, not `{ data }`, and the first draft passed `{ data: movementRow }`; *"renders both ends of
+  the move from the row the RPC returned"* failed against it and named the reason. Every other
+  assertion in that describe block passed against the wrong fixture, which is the shape to watch for.
+
+  **Verification:** the matrix at 58 assertions and the service tests at 24; `pnpm test` green
+  across every unit suite and all 42 matrices; all 38 `lint:*` scripts in root `package.json` (the
+  full list, not only the 28 CI runs by name); `pnpm typecheck`. RLS coverage moved from 135 tables
+  to **139, 0 unseedable, 0 leaking, 0 anon-readable** — `inventory_assets`, `asset_movements` and
+  `kit_expectations` each needed a `handSeed` for the reason `stock_count_sessions` did (the generic
+  synthesiser fills every column, which names three holders at once, and invents ids belonging to
+  nobody); `asset_types` seeds itself.
+
+  **What I7 owes onward:** `AST` in I6's resolver registry; tag ISSUANCE at I10, where
+  `guard_inventory_asset` is already waiting for it; a photo route for an asset (`setAssetImagePath`
+  exists and no screen calls it, the same debt `POST /parts/:id/photo` carries); and the assets API
+  and screens, which are I8.

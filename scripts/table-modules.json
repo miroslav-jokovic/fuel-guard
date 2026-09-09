@@ -29,6 +29,14 @@
       "module": "recruiting",
       "layer": "core"
     },
+    "asset_movements": {
+      "module": "maintenance",
+      "layer": "core"
+    },
+    "asset_types": {
+      "module": "maintenance",
+      "layer": "core"
+    },
     "audit_logs": {
       "module": "org",
       "layer": "infra"
@@ -313,6 +321,10 @@
       "module": "org",
       "layer": "infra"
     },
+    "inventory_assets": {
+      "module": "maintenance",
+      "layer": "core"
+    },
     "invites": {
       "module": "org",
       "layer": "core"
@@ -320,6 +332,10 @@
     "jobs": {
       "module": "org",
       "layer": "infra"
+    },
+    "kit_expectations": {
+      "module": "maintenance",
+      "layer": "core"
     },
     "load_events": {
       "module": "loads",
