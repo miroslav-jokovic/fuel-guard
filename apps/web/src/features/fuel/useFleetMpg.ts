@@ -1,7 +1,7 @@
 import { type Ref, toValue } from "vue";
 import { keepPreviousData, useQuery } from "@tanstack/vue-query";
 import type { FleetMpgPeriod, FleetMpgSeries } from "@silvicom/shared";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, type ApiResult } from "@/lib/api";
 
 /**
  * The fleet's MPG, from the one place that computes it (M4, D-MPG1).
@@ -38,6 +38,21 @@ export interface FleetMpgQuery {
   enabled?: boolean;
 }
 
+interface FleetMpgEnvelope<T> {
+  ok: boolean;
+  data?: T;
+  error?: { message?: string };
+}
+
+/** The API returns its standard `{ ok, data }` envelope inside apiFetch's result. */
+export function unwrapFleetMpgResponse<T>(res: ApiResult<FleetMpgEnvelope<T>>): T {
+  const body = res.data;
+  if (!res.ok || !body?.ok || !body.data) {
+    throw new Error(body?.error?.message ?? res.error?.message ?? "Could not read fleet MPG");
+  }
+  return body.data;
+}
+
 const params = (q: FleetMpgQuery): string => {
   const p = new URLSearchParams({ from: q.from, to: q.to });
   // Sent only when there IS a scope: an empty `vehicles=` reads as "no scope" on the wire, so a
@@ -54,9 +69,8 @@ export function useFleetMpg(query: Ref<FleetMpgQuery>) {
     enabled: () => toValue(query).enabled !== false,
     queryFn: async (): Promise<FleetMpgPeriod> => {
       const q = toValue(query);
-      const res = await apiFetch<FleetMpgPeriod>(`/api/fueling/fleet-mpg?${params(q)}`);
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not read fleet MPG");
-      return res.data;
+      const res = await apiFetch<FleetMpgEnvelope<FleetMpgPeriod>>(`/api/fueling/fleet-mpg?${params(q)}`);
+      return unwrapFleetMpgResponse(res);
     },
   });
 }
@@ -77,11 +91,10 @@ export function useFleetMpgSeries(
     enabled: () => toValue(query).enabled !== false,
     queryFn: async (): Promise<FleetMpgSeries> => {
       const q = toValue(query);
-      const res = await apiFetch<FleetMpgSeries>(
+      const res = await apiFetch<FleetMpgEnvelope<FleetMpgSeries>>(
         `/api/fueling/fleet-mpg?${params(q)}&grain=${q.grain ?? "week"}`,
       );
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not read fleet MPG");
-      return res.data;
+      return unwrapFleetMpgResponse(res);
     },
   });
 }
