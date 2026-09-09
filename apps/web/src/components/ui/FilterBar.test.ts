@@ -35,3 +35,28 @@ describe("FilterBar slots", () => {
     expect(w.text()).toContain("fills");
   });
 });
+
+/**
+ * The count reads as a sentence, at one as well as at many.
+ *
+ * Every one of this component's 41 call sites passes a PLURAL noun, so before `lib/plural.ts` a
+ * single result rendered "1 entries", "1 shelves", "1 truck stops" — on 41 surfaces, none of which
+ * had noticed. The fix belongs in the component precisely because no call site changed: the 42nd
+ * one will also pass a plural and will also be right.
+ *
+ * `plural.test.ts` holds the vocabulary and reads it out of the source; these two assertions hold
+ * that the component actually asks.
+ */
+describe("FilterBar's count label", () => {
+  it("goes singular at exactly one", () => {
+    const w = mount(FilterBar, { props: { count: 1, countLabel: "entries" } });
+    expect(w.text()).toContain("1 entry");
+    expect(w.text()).not.toContain("1 entries");
+  });
+
+  it("stays plural at zero and above one", () => {
+    // "0 results", never "0 result".
+    expect(mount(FilterBar, { props: { count: 0, countLabel: "entries" } }).text()).toContain("0 entries");
+    expect(mount(FilterBar, { props: { count: 2, countLabel: "entries" } }).text()).toContain("2 entries");
+  });
+});

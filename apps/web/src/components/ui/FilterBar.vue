@@ -9,6 +9,7 @@ import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 import { AppSearchField as SearchInput } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
+import { countLabelFor } from "@/lib/plural";
 
 /**
  * The standard table toolbar (see docs/DESIGN-SYSTEM-CONTRACT.md). One card:
@@ -23,7 +24,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
  * - chips — removable tokens for the SECONDARY (popover) filters only; the
  *   inline triggers already show their values. Emits `remove(key)` /
  *   `clear-all`.
- * - count — always-visible result feedback ("1,204 transactions").
+ * - count — always-visible result feedback ("1,204 transactions", "1 transaction").
  * - #actions — page-level buttons that belong to the table (Export, Rescore…).
  */
 export interface FilterChip {
@@ -37,6 +38,11 @@ withDefaults(
     search?: string;
     searchPlaceholder?: string;
     count?: number | null;
+    /**
+     * The PLURAL noun for the result count, always — "transactions", "shelves", "truck stops".
+     * `lib/plural.ts` renders it singular at exactly one, so no caller passes both forms and no
+     * caller has to remember that a count of one exists.
+     */
     countLabel?: string;
     chips?: FilterChip[];
     moreCount?: number;
@@ -122,7 +128,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
 
       <div class="flex items-center gap-3 lg:ml-auto lg:shrink-0">
         <span v-if="count != null" class="whitespace-nowrap text-sm text-ink-muted">
-          {{ count.toLocaleString() }} {{ countLabel }}
+          {{ count.toLocaleString() }} {{ countLabelFor(count, countLabel) }}
         </span>
         <slot name="actions" />
       </div>
