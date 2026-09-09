@@ -14,6 +14,25 @@ import { formatDateTime } from "@/lib/format";
 
 const session = useSessionStore();
 
+const odometerResultSummary = (stats: Record<string, unknown>) => {
+  if (stats.skipped === "no_samsara_token") {
+    return { label: "Skipped: no Samsara token is configured", warn: true };
+  }
+  const readings = typeof stats.readings === "number" ? stats.readings : null;
+  const vehiclesWithoutData = typeof stats.vehiclesWithoutData === "number" ? stats.vehiclesWithoutData : 0;
+  const vehicles = typeof stats.vehicles === "number" ? stats.vehicles : null;
+  if (readings === 0) {
+    return { label: "Completed without staging any odometer readings", warn: true };
+  }
+  if (vehiclesWithoutData > 0) {
+    return {
+      label: `${readings?.toLocaleString() ?? "Some"} readings staged; ${vehiclesWithoutData} of ${vehicles ?? "some"} trucks had no data`,
+      warn: true,
+    };
+  }
+  return readings == null ? null : { label: `${readings.toLocaleString()} odometer readings staged` };
+};
+
 // Admin-only Samsara diagnostics: probes each Samsara endpoint (incl. HOS) and shows the raw status + shape,
 // so we can see exactly what Samsara returns without guessing at the response fields.
 const diag = ref<unknown>(null);
@@ -337,6 +356,7 @@ const integrity = computed(() => {
         secondary-label="Backfill last 180 days"
         :secondary-body="{ sinceDays: 180 }"
         secondary-confirm="Backfill 180 days of odometer history? Runs in 7-day slices and takes a few hours. Fleet MPG can only be measured over a window this feed already covers, so a period that starts before the backfill reaches shows a dash until it finishes."
+        :result-summary="odometerResultSummary"
         description="Pull Samsara's cumulative odometer counters — the measured distance behind every fleet MPG figure on the Dashboard, the Fuel log and the spend report. The scheduled run keeps the last 4 days fresh; 'Backfill last 180 days' seeds the history those pages' default windows need. Needs the token's Read Vehicle Statistics scope."
       />
       <JobActionCard

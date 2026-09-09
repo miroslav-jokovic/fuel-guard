@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
  * WQ1c handler tests — focus on the migration-specific logic: the `full`/`refreshIdle` payload branches,
- * actor-gated audit, and the NoSamsaraToken → skip (not fail) contract. The underlying sync services are
+ * actor-gated audit, and the NoSamsaraToken contract. Scheduler skips remain non-failures, while a
+ * manually requested odometer sync must fail visibly when no token exists. The underlying sync services are
  * mocked; we assert which ones each handler drives and what it returns/audits.
  */
 
@@ -13,6 +14,7 @@ const { NoSamsaraTokenError } = vi.hoisted(() => ({ NoSamsaraTokenError: class e
 const vehicleSync = vi.hoisted(() => ({
   syncVehiclesFromSamsara: vi.fn(),
   syncVehicleStatsFromSamsara: vi.fn(),
+  syncVehicleOdometerReadings: vi.fn(),
 }));
 const trailerSync = vi.hoisted(() => ({ syncTrailersFromSamsara: vi.fn() }));
 const idleFoundation = vi.hoisted(() => ({ syncIdleFoundation: vi.fn() }));
@@ -33,6 +35,7 @@ vi.mock("../../modules/samsara/index.js", () => ({
   syncHosCurrentStatus: hosSync.syncHosCurrentStatus,
   syncVehiclesFromSamsara: vehicleSync.syncVehiclesFromSamsara,
   syncVehicleStatsFromSamsara: vehicleSync.syncVehicleStatsFromSamsara,
+  syncVehicleOdometerReadings: vehicleSync.syncVehicleOdometerReadings,
   NoSamsaraTokenError,
   syncTrailersFromSamsara: trailerSync.syncTrailersFromSamsara,
   syncDriversFromSamsara: driverSync.syncDriversFromSamsara,
@@ -59,6 +62,7 @@ import {
   syncHosHandler,
   syncStatsHandler,
   syncVehiclesHandler,
+  syncOdometerHandler,
 } from "./samsara.js";
 import { syncDriverScoresHandler } from "./performance.js";
 import type { JobContext, QueueJob } from "../types.js";
@@ -211,6 +215,22 @@ describe("syncDriverScoresHandler — refreshIdle gate", () => {
     await syncDriverScoresHandler(ctx, job("sync_driver_scores", {}), async () => {});
     expect(idleFoundation.syncIdleFoundation).not.toHaveBeenCalled();
     expect(audit.writeAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe("syncOdometerHandler", () => {
+  it("fails a manually requested sync when the Samsara token is missing", async () => {
+    vehicleSync.syncVehicleOdometerReadings.mockRejectedValue(new NoSamsaraTokenError("no token"));
+    await expect(syncOdometerHandler(ctx, job("sync_odometer", { actorId: "u1", sinceDays: 180 }), async () => {})).rejects.toThrow(
+      "No Samsara token is configured",
+    );
+  });
+
+  it("keeps scheduler runs as a skipped completion when the token is missing", async () => {
+    vehicleSync.syncVehicleOdometerReadings.mockRejectedValue(new NoSamsaraTokenError("no token"));
+    await expect(syncOdometerHandler(ctx, job("sync_odometer"), async () => {})).resolves.toEqual({
+      skipped: "no_samsara_token",
+    });
   });
 });
 
