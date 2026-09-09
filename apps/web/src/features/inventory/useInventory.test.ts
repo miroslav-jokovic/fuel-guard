@@ -34,12 +34,15 @@ vi.mock("@tanstack/vue-query", () => ({
 }));
 
 const {
+  useCloseCountSession,
   useCreateLocation,
   useCreatePart,
   useLocationsQuery,
   useLowStockQuery,
   useMovementsQuery,
   usePartsQuery,
+  useOpenCountSession,
+  useRecordMovement,
   useUpdateStockLine,
 } = await import("./useInventory");
 
@@ -98,6 +101,75 @@ describe("the locations request", () => {
     apiFetch.mockClear();
     await runQuery(useLocationsQuery(true) as never);
     expect(lastPath()).toBe("/api/maintenance/inventory/locations?includeInactive=true");
+  });
+});
+
+/**
+ * The five desk verbs are five routes, and the reason is the path — not a field in the body.
+ * `partMovementInputSchema` is a discriminated union so a screen built for receiving cannot post
+ * `reason: "adjusted"`; the hook must send each reason to its own endpoint or the API's whole
+ * five-route shape does nothing.
+ */
+describe("the movement verbs", () => {
+  const base = { id: "m-1", partId: "p1", locationId: "l1", occurredAt: "2026-09-09T10:00:00.000Z", note: null };
+
+  it("posts each reason to its own route", async () => {
+    const cases: Array<[string, string]> = [
+      ["received", "receive"],
+      ["issued", "issue"],
+      ["adjusted", "adjust"],
+      ["transferred", "transfer"],
+      ["returned", "return"],
+      ["counted", "count"],
+    ];
+    for (const [reason, path] of cases) {
+      apiFetch.mockClear();
+      await useRecordMovement().mutateAsync({ ...base, reason } as never);
+      expect(lastPath()).toBe(`/api/maintenance/inventory/${path}`);
+    }
+  });
+
+  /**
+   * ⚠ D-INV27, at the layer where it is easiest to break. The id is the idempotency key, so the hook
+   * must send the one it was GIVEN — a hook that generated its own would mint one per attempt, every
+   * retry would become a second movement, and the shelf would drift by exactly the number of times
+   * the network was bad. Nothing else in the stack would notice.
+   */
+  it("sends the id it was given and never invents one", async () => {
+    apiFetch.mockClear();
+    await useRecordMovement().mutateAsync({ ...base, id: "the-one-id", reason: "received", quantity: 3 } as never);
+    const [, options] = apiFetch.mock.calls[0] as unknown as [string, { body: { id: string } }];
+    expect(options.body.id).toBe("the-one-id");
+  });
+
+  it("sends the same id twice when the same movement is retried", async () => {
+    apiFetch.mockClear();
+    const hook = useRecordMovement();
+    const input = { ...base, id: "retry-me", reason: "received", quantity: 3 } as never;
+    await hook.mutateAsync(input);
+    await hook.mutateAsync(input);
+    const ids = apiFetch.mock.calls.map((c) => (c as unknown as [string, { body: { id: string } }])[1].body.id);
+    expect(ids).toEqual(["retry-me", "retry-me"]);
+  });
+});
+
+describe("count sessions", () => {
+  it("opens a walk without sending an id — the server mints that one", async () => {
+    apiFetch.mockClear();
+    await useOpenCountSession().mutateAsync({ kind: "location", locationId: "l1", blind: true } as never);
+    const [path, options] = apiFetch.mock.calls[0] as unknown as [string, { method: string; body: object }];
+    expect(path).toBe("/api/maintenance/inventory/count-sessions");
+    expect(options.method).toBe("POST");
+    // The opposite of a movement, and deliberately: two taps of Start must not make two walks.
+    expect(Object.keys(options.body)).not.toContain("id");
+  });
+
+  it("closes a walk through the named verb, not a general PATCH", async () => {
+    apiFetch.mockClear();
+    await useCloseCountSession().mutateAsync({ id: "s-1" } as never);
+    const [path, options] = apiFetch.mock.calls[0] as unknown as [string, { method: string }];
+    expect(path).toBe("/api/maintenance/inventory/count-sessions/s-1/close");
+    expect(options.method).toBe("POST");
   });
 });
 

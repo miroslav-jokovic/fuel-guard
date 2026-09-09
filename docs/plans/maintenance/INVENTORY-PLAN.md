@@ -1284,3 +1284,76 @@ signed here by the person who did it. I6's spike results go here before its seco
   *"names the holder from whichever join is populated"*.
   **Verification:** 32 + 13 new assertions, `pnpm test` green across every unit suite and all **41**
   matrices, all 38 `lint:*` gates, and `pnpm typecheck`.
+
+- **I5 PR 2 SPLIT INTO 2a AND 2b, on the owner's ruling 2026-09-09.** §5's I5 names two PRs and its
+  second one carries four desk drawers AND the whole phone count flow — wake lock, the IndexedDB
+  queue, the undo toast, D-INV21's variance rungs, review and close. Those are two different pieces
+  of work with two different done-whens: the desk half is provable in unit tests, and the phone half
+  closes on a named person completing a 20-bin count on a real phone with one thumb. Bundling them
+  means neither gets reviewed as itself. **2a** is the count-session routes and the desk verbs;
+  **2b** is `/shop/count/:sessionId`.
+
+- **I5 PR 2a — the count-session routes and the four desk verbs — DONE 2026-09-09 (PR pending).**
+  `/api/maintenance/inventory/count-sessions` is mounted (list · one · open · `:id/close`), and
+  `MovementDrawer.vue` puts Receive, Issue, Move and Adjust on every shelf row of a part.
+  11 route assertions, 6 hook assertions and 11 component assertions.
+
+  **⚠ THE ID IS MINTED ONCE PER MOVEMENT, AND THE TEST THAT PROVES IT IS THE POINT OF THIS PR.**
+  D-INV27 makes the client's UUID the idempotency key, so a replay is free — but only if the client
+  sends the SAME id. A drawer that minted inside its submit handler would send a new id per attempt,
+  every retry would become a second movement, the shelf would drift by exactly the number of times
+  the network was bad, and **nothing else in the repo would fail**: the hook passes ids through, the
+  route validates them, the RPC honours them, and each of those layers is correct in isolation. So
+  the drawer mints at open, the hook is documented as never generating one, and
+  `MovementDrawer.test.ts` stages the actual failure — the first submit rejected the way a bad
+  connection rejects it, the technician pressing again, and the two calls carrying one id.
+
+  **ONE DRAWER FOR FOUR VERBS, deliberately.** Four files would be four copies of the paragraph
+  above, which is how three of them end up right and one does not. The verbs differ in three or four
+  fields; the part and the location come from the shelf row, because a movement is about one
+  (part, location) pair — the same reason `part_stock` has no surrogate id. Each verb validates
+  against its OWN schema from the contract, so the shapes stay the rules and nothing in the browser
+  re-states them.
+
+  **⚠ AN ASSERTION IN THIS PR PASSED WHILE PROVING NOTHING, AND WAS REWRITTEN.** "clocks the
+  movement once, so a retry is not re-timed" pressed submit twice and compared the two `occurredAt`
+  values — and it passed against a drawer that re-clocked on every attempt, because both presses
+  land inside the same millisecond. The mutation is what caught it. It uses `vi.useFakeTimers` now
+  and moves the clock four minutes between the attempts, which is the only version that asks the
+  question. **This is the second time in this programme that a mutation found an assertion which
+  could not fail**, after I1's zod-key-stripping correction; both times the cause was a fixture too
+  uniform to discriminate.
+
+  **Q9's ruling is on the screen, not only in this document.** The Receive drawer says "For stock
+  bought outside a purchase order. Deliveries received against a PO in FleetPal arrive on their
+  own." — and a test asserts it says so there and nowhere else. The failure the ruling prevents is a
+  shop that types every delivery into both systems out of habit, and a ruling nobody can see from
+  the screen is a ruling that decays.
+
+  **Three deviations.** (a) **No photo on receive.** I5's step text lists one, and the photo route
+  attaches to the PART (`POST /parts/:id/photo`, `parts.image_path`) rather than to a movement — so
+  "optional photo" is really "set the part's photo while receiving it", which belongs on the part
+  form. I4 did not build photo UPLOAD at all (the detail only displays a signed URL), so this is an
+  I4 gap rather than an I5 one, and it is recorded here rather than bolted onto a drawer that writes
+  a different entity. (b) **Closing a session is `POST /:id/close`, not `PATCH /:id`** — 0332's
+  trigger refuses every edit but the close, so a route shaped like a general update would be a
+  promise the database spends its life breaking. (c) **No `audit_logs` row for a session**, the same
+  split the movement routes draw: a walk records who opened it, when, whether it was blind and when
+  it closed, and an audit row would carry LESS than the thing it describes.
+
+  **Mutation proofs, four, each restored:** minting the id inside the submit handler failed *"sends
+  ONE id across a failed attempt and the retry that follows it"*; re-clocking on every attempt failed
+  the rewritten timer assertion (and passed against the original, which is why it was rewritten);
+  sending both unit columns failed *"names the unit's own column rather than sending both"*; and
+  deleting the Q9 sentence failed *"names the purchase-order path on receive"*.
+  **Verification:** 28 new assertions, `pnpm test` green across every unit suite and all 41 matrices,
+  all 38 `lint:*` gates plus `apps/web`'s `lint:tokens`, and `pnpm typecheck`. Driven end to end
+  under `preview:local` with Playwright route mocks: the kebab offers Receive · Issue · Move · Edit
+  shelf · Adjust the count, and a receipt posts to `/inventory/receive` carrying a client-minted
+  UUID, `quantity: 24` and `supplier: "TruckPro"`, with no console or page errors.
+
+  **What 2b owes:** `/shop/count/:sessionId` under `layout: "shop"` — the session start, the blind
+  reveal, `QuantityStepper`, D-INV21's confirm and recount rungs, the undo toast, the close review
+  with Short/Over/Match/Uncounted, the connectivity strip and the IndexedDB queue behind it. ⚠ Its
+  `counted` movements are minted per movement exactly as the desk verbs are, and the session id it
+  counts against comes from the SERVER.

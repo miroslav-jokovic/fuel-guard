@@ -11,6 +11,7 @@ import { printProfilesRouter } from "./printProfiles.js";
 import { inventoryPartsRouter } from "./inventoryParts.js";
 import { inventoryLocationsRouter } from "./inventoryLocations.js";
 import { inventoryStockRouter } from "./inventoryStock.js";
+import { inventoryCountSessionsRouter } from "./inventoryCountSessions.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -56,6 +57,11 @@ export function maintenanceRouter(): Router {
   // and the seam is the plan's own: the catalogue, the places, and the shelves with their ledger.
   router.use("/inventory/parts", inventoryPartsRouter());
   router.use("/inventory/locations", inventoryLocationsRouter());
+  // Mounted BEFORE the catch-all `/inventory` below. Express would fall through to this one anyway —
+  // `inventoryStockRouter` has no `/count-sessions` route and calls next() — but relying on that
+  // makes the ordering load-bearing in a way nothing states, and the day someone adds a `/:id`
+  // there it stops being true.
+  router.use("/inventory/count-sessions", inventoryCountSessionsRouter());
   router.use("/inventory", inventoryStockRouter());
 
   router.get(
