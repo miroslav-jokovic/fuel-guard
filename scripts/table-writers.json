@@ -403,6 +403,9 @@
   "station_geocode_learned": [
     "apps/api/src/modules/fuel/stationGeocodeLearning.ts"
   ],
+  "stock_count_sessions": [
+    "apps/api/src/modules/maintenance/inventory/countSessions.ts"
+  ],
   "stock_locations": [
     "apps/api/src/modules/maintenance/inventory/locationsWrite.ts"
   ],
