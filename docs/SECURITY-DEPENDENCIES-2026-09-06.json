@@ -1,0 +1,959 @@
+{
+  "reviewedAt": "2026-09-06",
+  "commit": "ff0618f",
+  "command": "pnpm audit --prod --json",
+  "note": "Registry findings; runtime exploitability requires reachability analysis. Expo/compiler packages are included in production dependency graphs.",
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 10,
+      "high": 14,
+      "critical": 0
+    },
+    "dependencies": 1288,
+    "devDependencies": 0,
+    "optionalDependencies": 0,
+    "totalDependencies": 1288
+  },
+  "advisories": {
+    "1119441": {
+      "findings": [
+        {
+          "version": "7.0.3",
+          "paths": [
+            "apps__driver>expo>@expo/config-plugins>xcode>uuid"
+          ]
+        },
+        {
+          "version": "8.3.2",
+          "paths": [
+            "apps__api>exceljs>uuid"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/uuidjs/uuid/security/advisories/GHSA-w5hq-g745-h8pq\n- https://github.com/uuidjs/uuid/commit/3d2c5b0342f0fcb52a5ac681c3d47c13e7444b34\n- https://github.com/uuidjs/uuid/releases/tag/v14.0.0\n- https://nvd.nist.gov/vuln/detail/CVE-2026-41907\n- https://github.com/uuidjs/uuid/commit/32389c887c9e75f90442ee4cc95bbab0c4e8346e\n- https://github.com/uuidjs/uuid/commit/3d61d6ac1f782cf6b1dd8661c60f11722cd49a0d\n- https://github.com/uuidjs/uuid/commit/9d27ddf7046ce496ef39569ff84d948eeff9cb2a\n- https://github.com/uuidjs/uuid/releases/tag/v11.1.1\n- https://github.com/uuidjs/uuid/releases/tag/v12.0.1\n- https://github.com/uuidjs/uuid/releases/tag/v13.0.1\n- https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+      "created": "2026-04-22T20:53:24.000Z",
+      "id": 1119441,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\nThe `v3()`, `v5()`, and `v6()` [API methods](https://github.com/uuidjs/uuid#api-summary) (not `uuid` release versions) accept external output buffers but do not reject out-of-range writes (small `buf` or large `offset`).  \nBy contrast, `v4()`, `v1()`, and `v7()` API methods explicitly throw `RangeError` on invalid bounds.\n\nThis inconsistency allows **silent partial writes** into caller-provided buffers.\n\n\n### Affected code\n\n- `src/v35.ts` (`v3()`/`v5()` path) writes `buf[offset + i]` without bounds validation.\n- `src/v6.ts` writes `buf[offset + i]` without bounds validation.\n\n### Reproducible PoC\n\n```bash\ncd /home/StrawHat/uuid\nnpm ci\nnpm run build\n\nnode --input-type=module -e \"\nimport {v4,v5,v6} from './dist-node/index.js';\nconst ns='6ba7b810-9dad-11d1-80b4-00c04fd430c8';\nfor (const [name,fn] of [\n  ['v4()',()=>v4({},new Uint8Array(8),4)],\n  ['v5()',()=>v5('x',ns,new Uint8Array(8),4)],\n  ['v6()',()=>v6({},new Uint8Array(8),4)],\n]) {\n  try { fn(); console.log(name,'NO_THROW'); }\n  catch(e){ console.log(name,'THREW',e.name); }\n}\"\n```\n\nObserved:\n\n- `v4() THREW RangeError`\n- `v5() NO_THROW`\n- `v6() NO_THROW`\n\nExample partial overwrite evidence captured during audit:\n\n```text\nsame true buf [\n  170, 170, 170, 170,\n   75, 224, 100,  63\n]\nv6 [\n  187, 187, 187, 187,\n   31,  19, 185,  64\n]\n```\n\n### Security impact\n\n- **Primary**: integrity/robustness issue (silent partial output).\n- If an application assumes full UUID writes into preallocated buffers, this can produce malformed/truncated/partially stale identifiers without error.\n- In systems where caller-controlled offsets/buffer sizes are exposed indirectly, this may become a security-relevant logic flaw.\n\n### Suggested fix\n\nAdd the same guard used by `v4()`/`v1()`/`v7()`:\n\n```ts\nif (offset < 0 || offset + 16 > buf.length) {\n  throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);\n}\n```\n\nApply to:\n\n- `src/v35.ts` (covers `v3()` and `v5()`)\n- `src/v6.ts`",
+      "reported_by": null,
+      "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-41907"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "uuid",
+      "vulnerable_versions": "<11.1.1",
+      "github_advisory_id": "GHSA-w5hq-g745-h8pq",
+      "recommendation": "Upgrade to version 11.1.1 or later",
+      "patched_versions": ">=11.1.1",
+      "updated": "2026-05-21T18:25:57.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+      },
+      "cwe": [
+        "CWE-787",
+        "CWE-1285"
+      ],
+      "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq"
+    },
+    "1123896": {
+      "findings": [
+        {
+          "version": "2.1.1",
+          "paths": [
+            "apps__api>exceljs>archiver>readdir-glob>minimatch>brace-expansion"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/juliangruber/brace-expansion/security/advisories/GHSA-3jxr-9vmj-r5cp\n- https://nvd.nist.gov/vuln/detail/CVE-2026-13149\n- https://github.com/juliangruber/brace-expansion/pull/122\n- https://github.com/juliangruber/brace-expansion/pull/123\n- https://github.com/juliangruber/brace-expansion/commit/835d6be91201122d9adffb0c0c8c094189ace265\n- https://github.com/juliangruber/brace-expansion/commit/c7e33ec13ac1a684c116720843ce24e208611754\n- https://github.com/juliangruber/brace-expansion/commit/d74e63030c012e3b7ae81657b8d665619cd51b95\n- https://github.com/juliangruber/brace-expansion/releases/tag/v1.1.16\n- https://github.com/juliangruber/brace-expansion/releases/tag/v2.1.2\n- https://github.com/juliangruber/brace-expansion/releases/tag/v5.0.7\n- https://www.npmjs.com/package/brace-expansion\n- https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
+      "created": "2026-07-20T20:51:09.000Z",
+      "id": 1123896,
+      "npm_advisory_id": null,
+      "overview": "### Summary\nbrace-expansion's expand() exhibits exponential-time - O(2ⁿ) - behavior in the number of consecutive non-expanding {} groups. A short, all-ASCII input (~90 bytes/30 groups) blocks the calling thread for minutes; a slightly longer input hangs it effectively indefinitely. Because the dominant consumers run on Node's single-threaded event loop, one small input can fully stall a worker/process.\n\nIn `expand_`, `post` is computed unconditionally at the top of the function, before the early-return branches that don't use it:\n```js\nconst post = m.post.length ? expand_(m.post, max, false) : [''];   // always recurses\n  ...\nif (!isSequence && !isOptions) {\n  if (m.post.match(/,(?!,).*\\}/)) {\n    str = m.pre + '{' + m.body + escClose + m.post;\n    return expand_(str, max, true); // restart — `post` discarded\n  }\n  return [str];\n}\n```\n\nFor input like a{},{},…, the first {} is non-expanding, so control reaches the {a},b} rewrite branch - but `expand_` has already recursed into post over the entire remaining tail, only to throw the result away.\nEach level therefore spawns two recursive expansions over essentially the same remaining work: `T(n) = 2·T(n−1) ⇒ O(2ⁿ)`.\n\nThe max option does not mitigate this: max only bounds the output-building loops; neither the post recursion nor the rewrite recursion consults it.\n  \nMeasured on 5.0.6:\n\n| groups (n) | input bytes | time |\n|---|---|---|\n| 20 | 60 | 130 ms |\n| 24 | 72 | 1.9 s |\n| 26 | 78 | 7.8 s |\n| 30 (PoC) | 90 | ~2 min |\n\n### Proof of concept\n```js\nconst { expand } = require('brace-expansion');\n// 30 non-expanding groups, ~90 bytes — blocks for minutes:\nexpand('a{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}');\n```\n\n### Impact\n\nAny application that passes attacker-influenced strings to brace-expansion.expand() - directly or transitively via minimatch/glob brace patterns - can be driven into a multi-minute-to-indefinite CPU hang by a tiny request, denying service on that thread/process.\n\n### Remediation\n\nUpgrade to a patched release. The fix:\n1. Defers computing post until after the early-return branches (and computes it locally in the $-suffix branch), so post is only expanded when a brace set actually expands and the value is used. This alone removes the exponential.\n1. Converts the {a},b} rewrite from recursion to an in-function loop, so a long run of rewrites cannot grow the call stack.\n\nVerified: the PoC drops from ~2 min to 0.55 ms, 5,000 groups complete in ~344 ms, and output is identical to 5.0.6 across a behavioral-equivalence suite (sequences, padding, $-prefix, a{},b}c, {},a}b, x{{a,b}}y, etc.). Post-fix complexity is ~O(n²) on this input class - acceptable for the security fix; a linear rewrite can be a non-urgent follow-up.\n\nIf immediate upgrade isn't possible, avoid passing untrusted input to expand() / glob brace patterns, or run such expansion under a timeout/worker.",
+      "reported_by": null,
+      "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-13149"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=2.0.0 <2.1.2",
+      "github_advisory_id": "GHSA-3jxr-9vmj-r5cp",
+      "recommendation": "Upgrade to version 2.1.2 or later",
+      "patched_versions": ">=2.1.2",
+      "updated": "2026-07-20T20:51:11.000Z",
+      "cvss": {
+        "score": 5.3,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-407"
+      ],
+      "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp"
+    },
+    "1123897": {
+      "findings": [
+        {
+          "version": "1.1.15",
+          "paths": [
+            "apps__api>exceljs>archiver>archiver-utils>glob>minimatch>brace-expansion"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/juliangruber/brace-expansion/security/advisories/GHSA-3jxr-9vmj-r5cp\n- https://nvd.nist.gov/vuln/detail/CVE-2026-13149\n- https://github.com/juliangruber/brace-expansion/pull/122\n- https://github.com/juliangruber/brace-expansion/pull/123\n- https://github.com/juliangruber/brace-expansion/commit/835d6be91201122d9adffb0c0c8c094189ace265\n- https://github.com/juliangruber/brace-expansion/commit/c7e33ec13ac1a684c116720843ce24e208611754\n- https://github.com/juliangruber/brace-expansion/commit/d74e63030c012e3b7ae81657b8d665619cd51b95\n- https://github.com/juliangruber/brace-expansion/releases/tag/v1.1.16\n- https://github.com/juliangruber/brace-expansion/releases/tag/v2.1.2\n- https://github.com/juliangruber/brace-expansion/releases/tag/v5.0.7\n- https://www.npmjs.com/package/brace-expansion\n- https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
+      "created": "2026-07-20T20:51:09.000Z",
+      "id": 1123897,
+      "npm_advisory_id": null,
+      "overview": "### Summary\nbrace-expansion's expand() exhibits exponential-time - O(2ⁿ) - behavior in the number of consecutive non-expanding {} groups. A short, all-ASCII input (~90 bytes/30 groups) blocks the calling thread for minutes; a slightly longer input hangs it effectively indefinitely. Because the dominant consumers run on Node's single-threaded event loop, one small input can fully stall a worker/process.\n\nIn `expand_`, `post` is computed unconditionally at the top of the function, before the early-return branches that don't use it:\n```js\nconst post = m.post.length ? expand_(m.post, max, false) : [''];   // always recurses\n  ...\nif (!isSequence && !isOptions) {\n  if (m.post.match(/,(?!,).*\\}/)) {\n    str = m.pre + '{' + m.body + escClose + m.post;\n    return expand_(str, max, true); // restart — `post` discarded\n  }\n  return [str];\n}\n```\n\nFor input like a{},{},…, the first {} is non-expanding, so control reaches the {a},b} rewrite branch - but `expand_` has already recursed into post over the entire remaining tail, only to throw the result away.\nEach level therefore spawns two recursive expansions over essentially the same remaining work: `T(n) = 2·T(n−1) ⇒ O(2ⁿ)`.\n\nThe max option does not mitigate this: max only bounds the output-building loops; neither the post recursion nor the rewrite recursion consults it.\n  \nMeasured on 5.0.6:\n\n| groups (n) | input bytes | time |\n|---|---|---|\n| 20 | 60 | 130 ms |\n| 24 | 72 | 1.9 s |\n| 26 | 78 | 7.8 s |\n| 30 (PoC) | 90 | ~2 min |\n\n### Proof of concept\n```js\nconst { expand } = require('brace-expansion');\n// 30 non-expanding groups, ~90 bytes — blocks for minutes:\nexpand('a{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}');\n```\n\n### Impact\n\nAny application that passes attacker-influenced strings to brace-expansion.expand() - directly or transitively via minimatch/glob brace patterns - can be driven into a multi-minute-to-indefinite CPU hang by a tiny request, denying service on that thread/process.\n\n### Remediation\n\nUpgrade to a patched release. The fix:\n1. Defers computing post until after the early-return branches (and computes it locally in the $-suffix branch), so post is only expanded when a brace set actually expands and the value is used. This alone removes the exponential.\n1. Converts the {a},b} rewrite from recursion to an in-function loop, so a long run of rewrites cannot grow the call stack.\n\nVerified: the PoC drops from ~2 min to 0.55 ms, 5,000 groups complete in ~344 ms, and output is identical to 5.0.6 across a behavioral-equivalence suite (sequences, padding, $-prefix, a{},b}c, {},a}b, x{{a,b}}y, etc.). Post-fix complexity is ~O(n²) on this input class - acceptable for the security fix; a linear rewrite can be a non-urgent follow-up.\n\nIf immediate upgrade isn't possible, avoid passing untrusted input to expand() / glob brace patterns, or run such expansion under a timeout/worker.",
+      "reported_by": null,
+      "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-13149"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": "<1.1.16",
+      "github_advisory_id": "GHSA-3jxr-9vmj-r5cp",
+      "recommendation": "Upgrade to version 1.1.16 or later",
+      "patched_versions": ">=1.1.16",
+      "updated": "2026-07-20T20:51:11.000Z",
+      "cvss": {
+        "score": 5.3,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-407"
+      ],
+      "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp"
+    },
+    "1130588": {
+      "findings": [
+        {
+          "version": "1.1.15",
+          "paths": [
+            "apps__api>exceljs>archiver>archiver-utils>glob>minimatch>brace-expansion"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/juliangruber/brace-expansion/security/advisories/GHSA-mh99-v99m-4gvg\n- https://nvd.nist.gov/vuln/detail/CVE-2026-14257\n- https://github.com/juliangruber/brace-expansion/commit/a1bd33999ea75262c4749fff3bbb0d1372bd07b5\n- https://github.com/juliangruber/brace-expansion\n- https://www.npmjs.com/package/brace-expansion\n- https://github.com/juliangruber/brace-expansion/pull/129\n- https://github.com/juliangruber/brace-expansion/pull/130\n- https://github.com/juliangruber/brace-expansion/pull/136\n- https://github.com/juliangruber/brace-expansion/commit/139d015104e71433ad52a41d19467c48ecbb2c7d\n- https://github.com/juliangruber/brace-expansion/commit/cb4b9e47cc2ec777c14b2b4492fb431a56f6a031\n- https://github.com/juliangruber/brace-expansion/commit/d13ff455a58b0d56704f0111e3c2a0b16ceb06eb\n- https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+      "created": "2026-07-24T21:53:14.000Z",
+      "id": 1130588,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`expand()` bounds the *number* of results it produces (the `max` option,\n`100_000` by default) but not their *length*. By chaining many brace groups,\nan attacker keeps the result count under `max` while making every result grow\nwith the number of groups. Building `max` long results — plus the intermediate\narrays combined at each brace group — exhausts memory and crashes the Node\nprocess with an **uncatchable** out-of-memory error. `try/catch` around\n`expand()` does not help: the fatal error terminates the process.\n\nA ~7.5 KB input (`'{a,b}'.repeat(1500)`) is enough to crash a default Node\nprocess.\n\n### Details\n\nFor `N` chained brace groups such as `'{a,b}'.repeat(N)`:\n\n- the result count is `2^N`, immediately capped at `max` (`100_000`), so the\n  `max` protection appears to hold, but\n- each result is `N` characters long, so the total output size is\n  `max × N` characters, which grows without bound in `N`.\n\n`expand_` combines each brace set with the fully-expanded tail:\n\n```js\nconst post = m.post.length ? expand_(m.post, max, false) : ['']\n...\nfor (let j = 0; j < N.length; j++) {\n  for (let k = 0; k < post.length && expansions.length < max; k++) {\n    const expansion = pre + N[j] + post[k]   // grows one group longer per level\n    ...\n    expansions.push(expansion)\n  }\n}\n```\n\nThe loop guard `expansions.length < max` limits how many strings are built, but\nnothing limits how long they get. Each recursion level materializes another\narray of up to `max` strings, one character longer than the level below, and —\nbecause V8 represents `pre + N[j] + post[k]` as a cons-string (rope) that\nreferences `post[k]` — those intermediate strings stay reachable through the\nwhole chain. Memory therefore scales with `max × N`.\n\nMeasured on `5.0.7` (`'{a,b}'.repeat(N)`, default `max`):\n\n| groups (N) | input bytes | result count | peak RSS |\n|---|---|---|---|\n| 20 | 100 | 100,000 | ~80 MB |\n| 50 | 250 | 100,000 | ~214 MB |\n| 100 | 500 | 100,000 | ~409 MB |\n| 300 | 1,500 | 100,000 | ~1,148 MB |\n| 1500 | 7,500 | — | **OOM crash** |\n\n### Proof of concept\n\n```js\nconst { expand } = require('brace-expansion')\n\n// ~7.5 KB input — crashes the process with a fatal, uncatchable OOM:\n//   FATAL ERROR: ... JavaScript heap out of memory\ntry {\n  expand('{a,b}'.repeat(1500))\n} catch (e) {\n  // never reached — the process is already dead\n}\n```\n\n### Impact\n\nAny application that passes attacker-influenced strings to\n`brace-expansion.expand()` — directly, or transitively via `minimatch` / `glob`\nbrace patterns — can be crashed by a small request. Because the failure is a\nfatal V8 out-of-memory error rather than a thrown exception, it cannot be caught\nand it takes down the whole worker/process, denying service.\n\n### Remediation\n\nUpgrade to a patched release. The fix bounds the total number of characters a\nsingle `expand()` call may accumulate (`EXPANSION_MAX_LENGTH`, default\n`4_000_000`, configurable via a new `maxLength` option), applied inside the\noutput-building loops so intermediate arrays are bounded too. Once the limit is\nreached, output is truncated — consistent with how `max` already truncates —\ninstead of growing without bound. The limit sits well above any realistic\nexpansion (100,000 results hitting `max` measure ~1M characters), so legitimate\ninput is unaffected.\n\nAfter the fix, `'{a,b}'.repeat(1500)` returns a bounded, truncated result in\n~0.7 s using ~340 MB and never crashes, including under a constrained 512 MB\nheap.\n\nThe fix bounds memory but the algorithm still rebuilds intermediate arrays at\neach level (roughly `O(N × maxLength)` work on this input class). A streaming\nrewrite that produces output in `O(total output size)` can be a non-urgent\nfollow-up.\n\nIf immediate upgrade isn't possible, avoid passing untrusted input to\n`expand()` / glob brace patterns, or pass a small explicit `max` **and**\n`maxLength`.",
+      "reported_by": null,
+      "title": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-14257"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": "<1.1.17",
+      "github_advisory_id": "GHSA-mh99-v99m-4gvg",
+      "recommendation": "Upgrade to version 1.1.17 or later",
+      "patched_versions": ">=1.1.17",
+      "updated": "2026-07-31T19:37:57.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-mh99-v99m-4gvg"
+    },
+    "1130589": {
+      "findings": [
+        {
+          "version": "2.1.1",
+          "paths": [
+            "apps__api>exceljs>archiver>readdir-glob>minimatch>brace-expansion"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/juliangruber/brace-expansion/security/advisories/GHSA-mh99-v99m-4gvg\n- https://nvd.nist.gov/vuln/detail/CVE-2026-14257\n- https://github.com/juliangruber/brace-expansion/commit/a1bd33999ea75262c4749fff3bbb0d1372bd07b5\n- https://github.com/juliangruber/brace-expansion\n- https://www.npmjs.com/package/brace-expansion\n- https://github.com/juliangruber/brace-expansion/pull/129\n- https://github.com/juliangruber/brace-expansion/pull/130\n- https://github.com/juliangruber/brace-expansion/pull/136\n- https://github.com/juliangruber/brace-expansion/commit/139d015104e71433ad52a41d19467c48ecbb2c7d\n- https://github.com/juliangruber/brace-expansion/commit/cb4b9e47cc2ec777c14b2b4492fb431a56f6a031\n- https://github.com/juliangruber/brace-expansion/commit/d13ff455a58b0d56704f0111e3c2a0b16ceb06eb\n- https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+      "created": "2026-07-24T21:53:14.000Z",
+      "id": 1130589,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`expand()` bounds the *number* of results it produces (the `max` option,\n`100_000` by default) but not their *length*. By chaining many brace groups,\nan attacker keeps the result count under `max` while making every result grow\nwith the number of groups. Building `max` long results — plus the intermediate\narrays combined at each brace group — exhausts memory and crashes the Node\nprocess with an **uncatchable** out-of-memory error. `try/catch` around\n`expand()` does not help: the fatal error terminates the process.\n\nA ~7.5 KB input (`'{a,b}'.repeat(1500)`) is enough to crash a default Node\nprocess.\n\n### Details\n\nFor `N` chained brace groups such as `'{a,b}'.repeat(N)`:\n\n- the result count is `2^N`, immediately capped at `max` (`100_000`), so the\n  `max` protection appears to hold, but\n- each result is `N` characters long, so the total output size is\n  `max × N` characters, which grows without bound in `N`.\n\n`expand_` combines each brace set with the fully-expanded tail:\n\n```js\nconst post = m.post.length ? expand_(m.post, max, false) : ['']\n...\nfor (let j = 0; j < N.length; j++) {\n  for (let k = 0; k < post.length && expansions.length < max; k++) {\n    const expansion = pre + N[j] + post[k]   // grows one group longer per level\n    ...\n    expansions.push(expansion)\n  }\n}\n```\n\nThe loop guard `expansions.length < max` limits how many strings are built, but\nnothing limits how long they get. Each recursion level materializes another\narray of up to `max` strings, one character longer than the level below, and —\nbecause V8 represents `pre + N[j] + post[k]` as a cons-string (rope) that\nreferences `post[k]` — those intermediate strings stay reachable through the\nwhole chain. Memory therefore scales with `max × N`.\n\nMeasured on `5.0.7` (`'{a,b}'.repeat(N)`, default `max`):\n\n| groups (N) | input bytes | result count | peak RSS |\n|---|---|---|---|\n| 20 | 100 | 100,000 | ~80 MB |\n| 50 | 250 | 100,000 | ~214 MB |\n| 100 | 500 | 100,000 | ~409 MB |\n| 300 | 1,500 | 100,000 | ~1,148 MB |\n| 1500 | 7,500 | — | **OOM crash** |\n\n### Proof of concept\n\n```js\nconst { expand } = require('brace-expansion')\n\n// ~7.5 KB input — crashes the process with a fatal, uncatchable OOM:\n//   FATAL ERROR: ... JavaScript heap out of memory\ntry {\n  expand('{a,b}'.repeat(1500))\n} catch (e) {\n  // never reached — the process is already dead\n}\n```\n\n### Impact\n\nAny application that passes attacker-influenced strings to\n`brace-expansion.expand()` — directly, or transitively via `minimatch` / `glob`\nbrace patterns — can be crashed by a small request. Because the failure is a\nfatal V8 out-of-memory error rather than a thrown exception, it cannot be caught\nand it takes down the whole worker/process, denying service.\n\n### Remediation\n\nUpgrade to a patched release. The fix bounds the total number of characters a\nsingle `expand()` call may accumulate (`EXPANSION_MAX_LENGTH`, default\n`4_000_000`, configurable via a new `maxLength` option), applied inside the\noutput-building loops so intermediate arrays are bounded too. Once the limit is\nreached, output is truncated — consistent with how `max` already truncates —\ninstead of growing without bound. The limit sits well above any realistic\nexpansion (100,000 results hitting `max` measure ~1M characters), so legitimate\ninput is unaffected.\n\nAfter the fix, `'{a,b}'.repeat(1500)` returns a bounded, truncated result in\n~0.7 s using ~340 MB and never crashes, including under a constrained 512 MB\nheap.\n\nThe fix bounds memory but the algorithm still rebuilds intermediate arrays at\neach level (roughly `O(N × maxLength)` work on this input class). A streaming\nrewrite that produces output in `O(total output size)` can be a non-urgent\nfollow-up.\n\nIf immediate upgrade isn't possible, avoid passing untrusted input to\n`expand()` / glob brace patterns, or pass a small explicit `max` **and**\n`maxLength`.",
+      "reported_by": null,
+      "title": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-14257"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=2.0.0 <2.1.3",
+      "github_advisory_id": "GHSA-mh99-v99m-4gvg",
+      "recommendation": "Upgrade to version 2.1.3 or later",
+      "patched_versions": ">=2.1.3",
+      "updated": "2026-07-31T19:37:57.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-mh99-v99m-4gvg"
+    },
+    "1130591": {
+      "findings": [
+        {
+          "version": "5.0.7",
+          "paths": [
+            "apps__driver>expo>@expo/cli>glob>minimatch>brace-expansion"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/juliangruber/brace-expansion/security/advisories/GHSA-mh99-v99m-4gvg\n- https://nvd.nist.gov/vuln/detail/CVE-2026-14257\n- https://github.com/juliangruber/brace-expansion/commit/a1bd33999ea75262c4749fff3bbb0d1372bd07b5\n- https://github.com/juliangruber/brace-expansion\n- https://www.npmjs.com/package/brace-expansion\n- https://github.com/juliangruber/brace-expansion/pull/129\n- https://github.com/juliangruber/brace-expansion/pull/130\n- https://github.com/juliangruber/brace-expansion/pull/136\n- https://github.com/juliangruber/brace-expansion/commit/139d015104e71433ad52a41d19467c48ecbb2c7d\n- https://github.com/juliangruber/brace-expansion/commit/cb4b9e47cc2ec777c14b2b4492fb431a56f6a031\n- https://github.com/juliangruber/brace-expansion/commit/d13ff455a58b0d56704f0111e3c2a0b16ceb06eb\n- https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+      "created": "2026-07-24T21:53:14.000Z",
+      "id": 1130591,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`expand()` bounds the *number* of results it produces (the `max` option,\n`100_000` by default) but not their *length*. By chaining many brace groups,\nan attacker keeps the result count under `max` while making every result grow\nwith the number of groups. Building `max` long results — plus the intermediate\narrays combined at each brace group — exhausts memory and crashes the Node\nprocess with an **uncatchable** out-of-memory error. `try/catch` around\n`expand()` does not help: the fatal error terminates the process.\n\nA ~7.5 KB input (`'{a,b}'.repeat(1500)`) is enough to crash a default Node\nprocess.\n\n### Details\n\nFor `N` chained brace groups such as `'{a,b}'.repeat(N)`:\n\n- the result count is `2^N`, immediately capped at `max` (`100_000`), so the\n  `max` protection appears to hold, but\n- each result is `N` characters long, so the total output size is\n  `max × N` characters, which grows without bound in `N`.\n\n`expand_` combines each brace set with the fully-expanded tail:\n\n```js\nconst post = m.post.length ? expand_(m.post, max, false) : ['']\n...\nfor (let j = 0; j < N.length; j++) {\n  for (let k = 0; k < post.length && expansions.length < max; k++) {\n    const expansion = pre + N[j] + post[k]   // grows one group longer per level\n    ...\n    expansions.push(expansion)\n  }\n}\n```\n\nThe loop guard `expansions.length < max` limits how many strings are built, but\nnothing limits how long they get. Each recursion level materializes another\narray of up to `max` strings, one character longer than the level below, and —\nbecause V8 represents `pre + N[j] + post[k]` as a cons-string (rope) that\nreferences `post[k]` — those intermediate strings stay reachable through the\nwhole chain. Memory therefore scales with `max × N`.\n\nMeasured on `5.0.7` (`'{a,b}'.repeat(N)`, default `max`):\n\n| groups (N) | input bytes | result count | peak RSS |\n|---|---|---|---|\n| 20 | 100 | 100,000 | ~80 MB |\n| 50 | 250 | 100,000 | ~214 MB |\n| 100 | 500 | 100,000 | ~409 MB |\n| 300 | 1,500 | 100,000 | ~1,148 MB |\n| 1500 | 7,500 | — | **OOM crash** |\n\n### Proof of concept\n\n```js\nconst { expand } = require('brace-expansion')\n\n// ~7.5 KB input — crashes the process with a fatal, uncatchable OOM:\n//   FATAL ERROR: ... JavaScript heap out of memory\ntry {\n  expand('{a,b}'.repeat(1500))\n} catch (e) {\n  // never reached — the process is already dead\n}\n```\n\n### Impact\n\nAny application that passes attacker-influenced strings to\n`brace-expansion.expand()` — directly, or transitively via `minimatch` / `glob`\nbrace patterns — can be crashed by a small request. Because the failure is a\nfatal V8 out-of-memory error rather than a thrown exception, it cannot be caught\nand it takes down the whole worker/process, denying service.\n\n### Remediation\n\nUpgrade to a patched release. The fix bounds the total number of characters a\nsingle `expand()` call may accumulate (`EXPANSION_MAX_LENGTH`, default\n`4_000_000`, configurable via a new `maxLength` option), applied inside the\noutput-building loops so intermediate arrays are bounded too. Once the limit is\nreached, output is truncated — consistent with how `max` already truncates —\ninstead of growing without bound. The limit sits well above any realistic\nexpansion (100,000 results hitting `max` measure ~1M characters), so legitimate\ninput is unaffected.\n\nAfter the fix, `'{a,b}'.repeat(1500)` returns a bounded, truncated result in\n~0.7 s using ~340 MB and never crashes, including under a constrained 512 MB\nheap.\n\nThe fix bounds memory but the algorithm still rebuilds intermediate arrays at\neach level (roughly `O(N × maxLength)` work on this input class). A streaming\nrewrite that produces output in `O(total output size)` can be a non-urgent\nfollow-up.\n\nIf immediate upgrade isn't possible, avoid passing untrusted input to\n`expand()` / glob brace patterns, or pass a small explicit `max` **and**\n`maxLength`.",
+      "reported_by": null,
+      "title": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-14257"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=4.0.0 <5.0.8",
+      "github_advisory_id": "GHSA-mh99-v99m-4gvg",
+      "recommendation": "Upgrade to version 5.0.8 or later",
+      "patched_versions": ">=5.0.8",
+      "updated": "2026-07-31T19:37:57.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-mh99-v99m-4gvg"
+    },
+    "1130709": {
+      "findings": [
+        {
+          "version": "8.5.16",
+          "paths": [
+            "apps__admin>vue>@vue/compiler-sfc>postcss"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/postcss/postcss/security/advisories/GHSA-fxqj-rqcc-2cmp\n- https://github.com/postcss/postcss/commit/7beca139e70f9075c6b19700fcb00dd8033e5da8\n- https://github.com/postcss/postcss/releases/tag/8.5.19\n- https://github.com/advisories/GHSA-fxqj-rqcc-2cmp",
+      "created": "2026-08-03T17:11:39.000Z",
+      "id": 1130709,
+      "npm_advisory_id": null,
+      "overview": "## Summary\n\nThe fix for GHSA-6g55-p6wh-862q added a guard in `lib/previous-map.js` `PreviousMap.loadFile()` that restricts an attacker-controlled `sourceMappingURL` (from a CSS comment) to a `.map` extension and, for untrusted maps, rejects `..` traversal and absolute paths. The traversal/absolute rejection is nested inside `if (cssFile) { ... }`. When PostCSS is invoked without the `from` option, `cssFile` is falsy and that branch is skipped, leaving only the `.map` extension check.\n\n`PreviousMap` is constructed by `lib/input.js` whenever `pathAvailable && sourceMapAvailable` (under Node with source-map available), independent of `opts.from`/`opts.map` (the constructor returns early only for `opts.map === false`). So `postcss([]).process(css)` on attacker CSS reaches `loadFile` with `cssFile` undefined, and an attacker `/*# sourceMappingURL=/abs/path/x.map */` (or `../`-traversing path) is read via `readFileSync`. When the file is valid JSON, its `sources` (filesystem paths) and `sourcesContent` (source contents) are disclosed in the generated source map.\n\n## Affected code (v8.5.22 — the release carrying the GHSA-6g55 fix)\n\n```js\n// lib/previous-map.js\nloadFile(path, cssFile, trusted) {\n  if (!trusted && !this.unsafeMap) {\n    if (!/\\.map$/i.test(path)) {\n      return undefined\n    }\n    if (cssFile) {                       // guard runs ONLY when `from` is set\n      let relativePath = relative(dirname(cssFile), path)\n      if (relativePath === '..' ||\n          relativePath.startsWith('..' + sep) ||\n          isAbsolute(relativePath)) {\n        return undefined\n      }\n    }\n  }\n  this.root = dirname(path)\n  if (existsSync(path)) {\n    this.mapFile = path\n    return readFileSync(path, 'utf-8').toString().trim()   // sink\n  }\n}\n\n// loadMap(): untrusted annotation path, trusted=false; file === opts.from\n} else if (this.annotation) {\n  let map = this.annotation\n  if (file) map = join(dirname(file), map)   // no `from` -> map stays the raw URL\n  let unknown = this.loadFile(map, file, false)  // file undefined -> cssFile falsy\n```\n\n## Proof of concept (verified on postcss 8.5.22)\n\n```js\nconst postcss = require('postcss')\nconst fs = require('fs')\n\n// a 'secret' sourcemap OUTSIDE any expected tree (stand-in for another project's .map)\nconst secret = '/tmp/pcpoc/secret_out_of_tree.map'\nfs.writeFileSync(secret, JSON.stringify({\n  version: 3, sources: ['/etc/REAL_PATH_LEAK'], mappings: '', names: [],\n  sourcesContent: ['TOP_SECRET_abcdef']\n}))\n\nconst css = 'a{color:red}\\n/*# sourceMappingURL=' + secret + ' */'\nconst leaks = m => m && JSON.stringify(m.toJSON ? m.toJSON() : m).includes('TOP_SECRET_abcdef')\n\n;(async () => {\n  // A) NO `from`  -> guard skipped -> arbitrary absolute .map read + disclosed\n  const a = await postcss([]).process(css, { map: true })\n  console.log('no from   -> leaked:', !!leaks(a.map))   // true\n\n  // B) WITH `from` -> guard active -> blocked\n  const b = await postcss([]).process(css, { from: '/tmp/pcpoc/in.css', map: true })\n  console.log('with from -> leaked:', !!leaks(b.map))    // false\n})()\n```\n\nObserved output on postcss 8.5.22:\n\n```\nno from   -> leaked: true      # sourcesContent 'TOP_SECRET_abcdef' AND sources '/etc/REAL_PATH_LEAK' appear in result.map\nwith from -> leaked: false     # guard rejects the absolute path\n```\n\n`../` traversal (no `from`) also succeeds; non-`.map` targets (`.txt`, `?x=.map`, `#.map`) are blocked by the `.map` check. The tested build contains the GHSA-6g55 fix (`this.json = JSON.parse(...)` in `loadMap`, `consumer()` uses `this.json || this.text`), so this is a residual of that fix.\n\n## Impact\n\nArbitrary `.map`-file read (absolute path or `../` traversal) and disclosure of the target map's `sources` (local filesystem paths) and `sourcesContent` (source) into the generated source map, for any consumer that runs PostCSS on attacker-influenced CSS without a `from` option and exposes `result.map` (online CSS playgrounds, minify/lint services, string-input build steps). Bounded to files ending in `.map` that parse as JSON.\n\n## Suggested fix\n\nApply the traversal/absolute-path rejection to the untrusted map path regardless of whether `cssFile` is present (resolve against `process.cwd()` when there is no `cssFile`, and reject absolute paths and `..` escape in all untrusted cases), or refuse to load an untrusted external map when no base file is known.",
+      "reported_by": null,
+      "title": "PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-69153"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "postcss",
+      "vulnerable_versions": "<=8.5.22",
+      "github_advisory_id": "GHSA-fxqj-rqcc-2cmp",
+      "recommendation": "Upgrade to version 8.5.23 or later",
+      "patched_versions": ">=8.5.23",
+      "updated": "2026-08-03T17:11:40.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-22",
+        "CWE-200"
+      ],
+      "url": "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp"
+    },
+    "1130722": {
+      "findings": [
+        {
+          "version": "10.2.0",
+          "paths": [
+            "apps__admin-api>express-rate-limit>ip-address"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/beaugunderson/ip-address/security/advisories/GHSA-mwp4-54f8-5fhr\n- https://github.com/beaugunderson/ip-address/commit/56368cb3d66c73ba0ee9b6b834fd31b22c2fd71e\n- https://github.com/beaugunderson/ip-address/releases/tag/v10.3.1\n- https://github.com/advisories/GHSA-mwp4-54f8-5fhr",
+      "created": "2026-08-03T19:59:44.000Z",
+      "id": 1130722,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`Address4` accepts an octet written with a leading zero and decodes it as decimal, while the WHATWG URL host parser, `inet_aton`, and `getaddrinfo` all decode a leading zero as octal. The library and the network stack therefore disagree about which host a string names. `new Address4('012.0.0.1')` reports `correctForm()` of `12.0.0.1` and `isPrivate()` of `false`, but `fetch('http://012.0.0.1/')` connects to `10.0.0.1`.\n\nAn application that builds a network trust-boundary decision on these checks (for example a filter intended to block Server-Side Request Forgery, or SSRF) will classify an internal target as external and allow the request. SSRF is an attack in which a user-supplied address coaxes the server into making a request to an internal destination the user could not otherwise reach, such as a loopback service or a cloud metadata endpoint.\n\n### Details\n\n`Address4.parse` gates untrusted input on `RE_ADDRESS` (`src/v4/constants.ts:5`), whose per-octet alternative is:\n\n```\n(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\n```\n\nThe `[01]?[0-9][0-9]?` branch matches a leading zero, so `012` passes validation. Every downstream decode then reads the octet with `parseInt(part, 10)` (`src/common.ts:87`), yielding 12. A resolver reading the same string treats the leading `0` as base 8 and yields 10.\n\nThe defect is in the parse gate rather than in any one classifier, so every consumer of `Address4` inherits it: `isPrivate()`, `isLoopback()`, `isLinkLocal()`, `isCGNAT()`, `isInSubnet()`, `isHostInSubnet()`, and `correctForm()` are all computed from the mis-decoded octets.\n\n`Address6` already rejects this notation on its IPv4-in-IPv6 path, throwing \"IPv4 addresses can't have leading zeroes.\" (`src/ipv6.ts:751-762`), so `Address4` is the outlier within the library.\n\n### Affected versions\n\n`<= 10.3.0`. Unlike GHSA-22jq-vg5j-6vgg and GHSA-4xrf-jv44-h6hh, which were bounded below by the `is*` classification API introduced in 10.1.1, this defect is in `parse` and reaches every release: a guard built on `isInSubnet()` against the RFC 1918 ranges is affected in versions predating that API.\n\n### Impact\n\nThe disagreement runs in both directions. Under-blocking is the security-relevant case; over-blocking is a correctness and availability problem.\n\n| Input | `correctForm()` | Classified as | Resolver reaches | Effect |\n|---|---|---|---|---|\n| `012.0.0.1` | `12.0.0.1` | public | `10.0.0.1` | internal target allowed |\n| `012.012.012.012` | `12.12.12.12` | public | `10.10.10.10` | internal target allowed |\n| `010.0.0.1` | `10.0.0.1` | private | `8.0.0.1` | public target blocked |\n\nReachable targets are those whose leading octet is expressible as a three-character octal literal, which covers the whole of `10.0.0.0/8` and `0.0.0.0/8`. A four-character octet such as `0177` for 127 is rejected by the regex, so loopback is not reachable through this path; see the note on rejection below for why rejection is not the same as safety.\n\n### Reachability\n\nA leading-zero address is a legal URL host, so this is reachable through the ordinary URL path with no unusual application shape required:\n\n```js\nnew URL('http://012.0.0.1/').hostname   // '10.0.0.1'\n```\n\nThis distinguishes it from GHSA-4xrf-jv44-h6hh, where the `/0` CIDR suffix could not survive URL parsing and exploitation therefore required an application that accepted a bare suffix-bearing string. Here the attack rides the same code path a normal user-supplied URL takes.\n\n### Proof of concept\n\n`npm i ip-address@10.3.0`, then:\n\n```js\nconst { Address4 } = require('ip-address');\n\n// A guard of the shape the library documents.\nfunction isBlocked(host) {\n  return Address4.isValid(host) && new Address4(host).isPrivate();\n}\n\nfor (const h of ['10.0.0.1', '012.0.0.1', '012.012.012.012']) {\n  console.log(isBlocked(h) ? 'BLOCK' : 'ALLOW', h,\n              '-> resolver reaches', new URL('http://' + h + '/').hostname);\n}\n```\n\nOn affected versions:\n\n```\nBLOCK 10.0.0.1 -> resolver reaches 10.0.0.1\nALLOW 012.0.0.1 -> resolver reaches 10.0.0.1\nALLOW 012.012.012.012 -> resolver reaches 10.10.10.10\n```\n\nThe literal RFC 1918 address is blocked as expected; the octal-ambiguous spellings of the same destinations are allowed through.\n\n### Remediation\n\nUpgrade to the patched release. In the fix, `Address4.parse` rejects any octet with a leading zero followed by further digits, mirroring the check `Address6` already applies at `src/ipv6.ts:751`, and `RE_ADDRESS` is tightened so those forms no longer appear in the valid corpus. After upgrading, `Address4.isValid('012.0.0.1')` returns `false` and the constructor throws `AddressError`.\n\nThis rejects input that previous releases accepted. An application that deliberately feeds zero-padded addresses such as `010.010.010.010` from a legacy system must strip the padding before parsing.\n\nIf you cannot upgrade immediately, reject any host whose octets carry a leading zero before you parse it:\n\n```js\nif (host.split('.').some((octet) => /^0\\d/.test(octet))) throw new Error('ambiguous address');\n```\n\n### A note on SSRF defense\n\nThese methods are address classifiers, not a complete SSRF defense. Regardless of this fix, a robust SSRF guard must resolve the hostname and validate the *resolved* IP against the socket it connects to, and account for DNS rebinding and redirects. Treat these checks as one layer, not the only one.\n\nOne specific pitfall is worth naming, because the fix above does not remove it. `Address4.isValid()` returning `false` means \"this is not a dotted-quad IPv4 literal\"; it does not mean \"this is not an address that will reach an internal host\". Every one of the following is rejected by `isValid()` and still resolves to loopback:\n\n```\n0177.0.0.1    0x7f.0.0.1    0x7f000001    2130706433\n127.1         127.0.1       127.0.0.1.    １２７.0.0.1\n```\n\nA guard shaped `if (Address4.isValid(h)) { check() } else { treatAsHostname() }` therefore routes all of them past the IP check. Rejecting these is correct behavior for an IPv4 parser and is not changed by this advisory, but a guard must treat \"not a valid literal\" as a case to resolve and re-check, never as a case to allow.",
+      "reported_by": null,
+      "title": "ip-address: Address4 decodes leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-69192"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "ip-address",
+      "vulnerable_versions": "<=10.3.0",
+      "github_advisory_id": "GHSA-mwp4-54f8-5fhr",
+      "recommendation": "Upgrade to version 10.3.1 or later",
+      "patched_versions": ">=10.3.1",
+      "updated": "2026-08-03T19:59:46.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-20",
+        "CWE-918"
+      ],
+      "url": "https://github.com/advisories/GHSA-mwp4-54f8-5fhr"
+    },
+    "1130723": {
+      "findings": [
+        {
+          "version": "10.2.0",
+          "paths": [
+            "apps__admin-api>express-rate-limit>ip-address"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/beaugunderson/ip-address/security/advisories/GHSA-4xrf-jv44-h6hh\n- https://github.com/beaugunderson/ip-address/commit/488fe9bc7c35363b4b090494fc38c266d217740d\n- https://github.com/beaugunderson/ip-address/releases/tag/v10.2.2\n- https://github.com/advisories/GHSA-4xrf-jv44-h6hh",
+      "created": "2026-08-03T19:59:33.000Z",
+      "id": 1130723,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\nEvery special-use classification method is built on `isInSubnet`, which short-circuits to `false` whenever the address's own subnet mask is *shorter* than the reference range's mask. That mask comes verbatim from the CIDR suffix on the parsed input, so appending a suffix such as `/0` suppresses classification entirely: `isLoopback()`, `isPrivate()`, `isLinkLocal()`, `isCGNAT()`, `isMulticast()`, `isUnspecified()`, `isBroadcast()`, `isULA()`, and `getType()` all report an internal address as unremarkable, while `correctForm()` and `address` still return the real internal target.\n\nAn application that builds a network trust-boundary decision on these checks (for example a filter intended to block Server-Side Request Forgery, or SSRF) may therefore treat an internal target as external and allow the request. SSRF is an attack in which a user-supplied address coaxes the server into making a request to an internal destination the user could not otherwise reach, such as a loopback service or a cloud metadata endpoint.\n\n### Details\n\n`isInSubnet` in `src/common.ts` opens with a guard that compares the two prefix lengths:\n\n```js\nexport function isInSubnet(this, address) {\n  if (this.subnetMask < address.subnetMask) {\n    return false;                                  // <-- reached before any bit comparison\n  }\n\n  if (this.mask(address.subnetMask) === address.mask()) {\n    return true;\n  }\n\n  return false;\n}\n```\n\nThat guard is correct for the question `isInSubnet` is named for — whether one *network* is contained in another, where a `/0` network genuinely is not inside a `/8`. It is wrong for classification, which asks a question about the address itself and must not depend on the prefix the caller happened to write. `/0` is shorter than every reference prefix in the special-use tables (loopback `/8`, link-local `/16`, CGNAT `/10`, ULA `/7`, multicast `/4`), so for a classification call the bit comparison is never reached and the method returns `false`.\n\nThe underlying bit comparison is correct, and `mask(n)` already returns the first `n` bits of the full parsed address independently of `subnetMask` — the defect is solely that the containment guard sits in the classification path. Host bits are retained through parsing, so `correctForm()` still yields the real target and the address remains fully usable for connecting.\n\n`/0` is the universal case because it is shorter than every reference prefix, but any suffix shorter than the specific range being tested has the same effect: `10.0.0.5/7` defeats `isPrivate()` for `10.0.0.0/8`.\n\n### Affected versions\n\n`>= 10.1.1, <= 10.2.1`. The `is*` classification API was introduced for `Address4` in 10.1.1 and extended to `Address6` in 10.2.0; releases before 10.1.1 do not expose it and are not affected through this vector. The containment guard itself is much older, but `isInSubnet` alone is a subnet-containment predicate whose behavior here is correct.\n\nThis also defeats the fix released in 10.2.1 for GHSA-22jq-vg5j-6vgg: that release classifies IPv4-mapped and NAT64 addresses by their embedded IPv4 address, but the normalization is reached through `isInSubnet`, so `::ffff:127.0.0.1/0` reverts to being reported as non-internal.\n\n### Impact\n\nEvery classifier is affected on both `Address4` and `Address6`. The sole exception is `Address6.isLinkLocal()` for *native* `fe80::/10` addresses, which compares raw bits directly; its IPv4-mapped path is still affected.\n\n| Address | Reported as | Actually points at |\n|---|---|---|\n| `127.0.0.1/0` | not loopback | loopback (`127.0.0.0/8`) |\n| `10.0.0.1/0`, `10.0.0.5/7` | not private | RFC 1918 `10/8` |\n| `172.16.5.5/0` | not private | RFC 1918 `172.16/12` |\n| `192.168.1.1/0` | not private | RFC 1918 `192.168/16` |\n| `169.254.169.254/0` | not link-local | link-local / cloud metadata (IMDS) |\n| `100.64.0.1/0` | not CGNAT | CGNAT `100.64/10` |\n| `0.0.0.0/0`, `255.255.255.255/0` | not unspecified / not broadcast | unspecified / broadcast |\n| `::1/0` | not loopback | IPv6 loopback |\n| `fc00::1/0` | not ULA, not private | IPv6 ULA `fc00::/7` |\n| `ff02::1/0` | not multicast | IPv6 multicast |\n| `::ffff:127.0.0.1/0` | not loopback | loopback, via IPv4-mapped |\n| `::ffff:169.254.169.254/0` | not link-local | IMDS, via IPv4-mapped |\n| `64:ff9b::7f00:1/0` | not loopback | loopback, via NAT64 |\n\n`getType()` returns `Global unicast` for all of the IPv6 cases above, and `getScope()` follows it.\n\n### Reachability\n\nA CIDR suffix is not legal in a URL host, so this is not reachable through the most common SSRF shape. `new URL('http://127.0.0.1/0')` parses `hostname` as `127.0.0.1` and `pathname` as `/0`, and a guard that classifies the extracted hostname is unaffected. Exploitation requires an application that accepts a bare address string that may carry a suffix and passes it to the constructor before classifying — for example an allow/deny field, a webhook target, or a proxy destination taken as a plain host rather than parsed out of a URL.\n\n### Proof of concept\n\n`npm i ip-address@10.2.1`, then:\n\n```js\nconst { Address4, Address6 } = require('ip-address');\n\n// true => block as internal, false => allow outbound\nfunction isBlocked(host) {\n  try {\n    const a = new Address4(host);\n    return a.isPrivate() || a.isLoopback() || a.isLinkLocal() || a.isCGNAT()\n        || a.isMulticast() || a.isUnspecified() || a.isBroadcast();\n  } catch {}\n  try {\n    const a = new Address6(host);\n    return a.isPrivate() || a.isLoopback() || a.isLinkLocal() || a.isULA()\n        || a.isMulticast() || a.isUnspecified();\n  } catch {}\n  return false;\n}\n\nfor (const h of ['127.0.0.1', '10.0.0.1', '::1',\n                 '127.0.0.1/0', '10.0.0.5/7', '169.254.169.254/0',\n                 '::1/0', '::ffff:127.0.0.1/0', '64:ff9b::7f00:1/0']) {\n  console.log(isBlocked(h) ? 'BLOCK ' : 'ALLOW ', h, '->', new (h.includes(':') ? Address6 : Address4)(h).correctForm());\n}\n```\n\nOn affected versions every suffixed internal target is allowed, and `correctForm()` shows the request would reach the real internal address:\n\n```\nBLOCK  127.0.0.1 -> 127.0.0.1\nBLOCK  10.0.0.1 -> 10.0.0.1\nBLOCK  ::1 -> ::1\nALLOW  127.0.0.1/0 -> 127.0.0.1\nALLOW  10.0.0.5/7 -> 10.0.0.5\nALLOW  169.254.169.254/0 -> 169.254.169.254\nALLOW  ::1/0 -> ::1\nALLOW  ::ffff:127.0.0.1/0 -> ::ffff:7f00:1\nALLOW  64:ff9b::7f00:1/0 -> 64:ff9b::7f00:1\n```\n\nThe first three lines are blocked as expected; the same destinations with a CIDR suffix are allowed through.\n\n### Remediation\n\nUpgrade to the patched release. In the fix, classification no longer consults the address's own prefix: a new `isHostInSubnet()` compares the address's host bits against the reference range only, and every classifier (`isLoopback`, `isPrivate`, `isLinkLocal`, `isCGNAT`, `isMulticast`, `isUnspecified`, `isBroadcast`, `isULA`, `isMapped4`, `isTeredo`, `is6to4`, `isDocumentation`, `getType`, and the IPv4-mapped/NAT64 normalization behind `embeddedIPv4`) uses it. `isInSubnet` keeps its subnet-containment semantics unchanged, including the guard that a wider network is not contained in a narrower one. After upgrading, `new Address4('127.0.0.1/0').isLoopback()` returns `true`.\n\nIf you cannot upgrade immediately, strip the suffix before classifying by re-parsing `addressMinusSuffix`:\n\n```js\nconst parsed = new Address4(userInput);\nconst host = new Address4(parsed.addressMinusSuffix);   // classify this one\n```\n\n### A note on SSRF defense\n\nThese methods are address classifiers, not a complete SSRF defense. Regardless of this fix, a robust SSRF guard must resolve the hostname and validate the *resolved* IP against the socket it connects to, and account for DNS rebinding and redirects. Treat these checks as one layer, not the only one.\n\n### Credit\n\nReported by @hi-im-glitchless.",
+      "reported_by": null,
+      "title": "ip-address: a CIDR suffix on the parsed address suppresses special-use classification and can bypass SSRF and trust-boundary checks",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-69198"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "ip-address",
+      "vulnerable_versions": ">=10.1.1 <=10.2.1",
+      "github_advisory_id": "GHSA-4xrf-jv44-h6hh",
+      "recommendation": "Upgrade to version 10.2.2 or later",
+      "patched_versions": ">=10.2.2",
+      "updated": "2026-08-03T19:59:34.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-20",
+        "CWE-918"
+      ],
+      "url": "https://github.com/advisories/GHSA-4xrf-jv44-h6hh"
+    },
+    "1130724": {
+      "findings": [
+        {
+          "version": "10.2.0",
+          "paths": [
+            "apps__admin-api>express-rate-limit>ip-address"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/beaugunderson/ip-address/security/advisories/GHSA-22jq-vg5j-6vgg\n- https://nvd.nist.gov/vuln/detail/CVE-2026-54272\n- https://github.com/beaugunderson/ip-address/commit/4a1f613f4c1bec915677dea923c10aaa09361ef9\n- https://github.com/beaugunderson/ip-address/releases/tag/v10.2.1\n- https://github.com/advisories/GHSA-22jq-vg5j-6vgg",
+      "created": "2026-08-03T19:52:33.000Z",
+      "id": 1130724,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`Address6`'s special-property checks misclassify IPv4-mapped (`::ffff:0:0/96`) and NAT64 well-known (`64:ff9b::/96`) IPv6 addresses. These checks classify an address by its IPv6 wrapper rather than by the IPv4 address it embeds, so `isLoopback()`, `isLinkLocal()`, `isMulticast()`, and `isUnspecified()` all return `false` for literals such as `::ffff:127.0.0.1` or `::ffff:169.254.169.254` that actually route to loopback, RFC 1918, or link-local (cloud-metadata) destinations. `Address6` also had no `isPrivate()` method, so a mapped RFC 1918 address could not be detected at all.\n\nAn application that builds a network trust-boundary decision on these checks (for example, a filter intended to block Server-Side Request Forgery, or SSRF) may therefore treat an internal target as external and allow the request. SSRF is an attack in which a user-supplied address coaxes the server into making a request to an internal destination the user could not otherwise reach, such as a loopback service or a cloud metadata endpoint.\n\n### Details\n\n`Address6.getType()` classifies an address by matching it against a table of known IPv6 special-use prefixes, returning `Global unicast` when nothing matches. That table had no entry for the IPv4-mapped range (`::ffff:0:0/96`), so every mapped address fell through to `Global unicast`; NAT64 addresses matched their own `NAT64 …` labels. The boolean checks `isLoopback`, `isUnspecified`, and `isMulticast` compared `getType()` against a fixed label and so returned `false`, while `isLinkLocal` and `isULA` checked only the native IPv6 ranges.\n\nThe library already exposed `isMapped4()` and `to4()`, but did not apply them inside these checks, so a mapped or NAT64 address was never normalized to its embedded IPv4 address before classification. The underlying CIDR matching is correct; the defect is that the special-use table omitted the IPv4-mapped range and the checks performed no embedded-IPv4 normalization.\n\n### Affected versions\n\n`>= 10.1.1, <= 10.2.0`. The `is*` classification API was introduced for `Address4` in 10.1.1 and extended to `Address6` in 10.2.0. Releases before 10.1.1 do not expose this API and are not affected through this vector.\n\n### Impact\n\nThe misclassification covers the entire `::ffff:0:0/96` range, in both dotted and hex notation and case-insensitively, plus the `64:ff9b::/96` NAT64 well-known prefix:\n\n| Address | Reported as | Actually points at |\n|---|---|---|\n| `::ffff:127.0.0.1` / `::ffff:7f00:1` | Global unicast | loopback (`127.0.0.0/8`) |\n| `::ffff:10.0.0.1` | Global unicast | RFC 1918 `10/8` |\n| `::ffff:172.16.5.5` | Global unicast | RFC 1918 `172.16/12` |\n| `::ffff:192.168.1.1` | Global unicast | RFC 1918 `192.168/16` |\n| `::ffff:169.254.169.254` / `::ffff:a9fe:a9fe` | Global unicast | link-local / cloud metadata (IMDS) |\n| `::ffff:100.64.0.1` | Global unicast | CGNAT `100.64/10` |\n| `::ffff:0.0.0.0` / `::ffff:255.255.255.255` | Global unicast | unspecified / broadcast |\n| `64:ff9b::7f00:1` / `64:ff9b::a9fe:a9fe` | NAT64 (well-known) | loopback / IMDS via NAT64 |\n\nFor IPv4-mapped addresses the host OS routes to the IPv4 stack, so the misclassification is reachable on any dual-stack host. For NAT64, the classification bypass is unconditional but end-to-end reachability additionally requires a NAT64/DNS64 gateway in the deployment network.\n\n### Proof of concept\n\nA guard assembled from these checks lets internal hosts through:\n\n```js\nconst { Address4, Address6 } = require('ip-address');\n\n// true => block as internal, false => allow outbound\nfunction isBlocked(host) {\n  try {\n    const a = new Address4(host);\n    return a.isPrivate() || a.isLoopback() || a.isLinkLocal() || a.isCGNAT()\n        || a.isMulticast() || a.isUnspecified() || a.isBroadcast();\n  } catch {}\n  try {\n    const a = new Address6(host);\n    return a.isLoopback() || a.isLinkLocal() || a.isULA()\n        || a.isMulticast() || a.isUnspecified();\n  } catch {}\n  return false;\n}\n\nfor (const h of ['127.0.0.1', '::1', '10.0.0.1', '8.8.8.8',\n                 '::ffff:127.0.0.1', '::ffff:10.0.0.1',\n                 '::ffff:169.254.169.254', '64:ff9b::7f00:1']) {\n  console.log(isBlocked(h) ? 'BLOCK ' : 'ALLOW ', h);\n}\n```\n\nOn affected versions this prints (note that every `::ffff:…` and `64:ff9b::…` internal target is allowed):\n\n```\nBLOCK  127.0.0.1\nBLOCK  ::1\nBLOCK  10.0.0.1\nALLOW  8.8.8.8\nALLOW  ::ffff:127.0.0.1\nALLOW  ::ffff:10.0.0.1\nALLOW  ::ffff:169.254.169.254\nALLOW  64:ff9b::7f00:1\n```\n\nThe first three lines (native loopback, native IPv6 loopback, and a literal RFC 1918 address) are blocked as expected; the IPv4-mapped and NAT64 forms of the same internal destinations are allowed through.\n\n### Remediation\n\nUpgrade to the patched release. In the fix, `Address6` normalizes IPv4-mapped and NAT64 well-known addresses to their embedded IPv4 address before classifying, via a new `embeddedIPv4()` helper that `isLoopback`, `isLinkLocal`, `isMulticast`, and `isUnspecified` consult first. `Address6` also gains `isPrivate()`, `isCGNAT()`, and `isBroadcast()` for parity with `Address4`, and `getType()` now labels the `::ffff:0:0/96` range as `IPv4-mapped`. After upgrading, `new Address6('::ffff:127.0.0.1').isLoopback()` returns `true` and `new Address6('::ffff:10.0.0.1').isPrivate()` returns `true`.\n\nIf you cannot upgrade immediately, normalize embedded IPv4 addresses yourself before classifying: call `to4()` on any address where `isMapped4()` (or membership in `64:ff9b::/96`) is true, and run your IPv4 checks against the result.\n\n### A note on SSRF defense\n\nThese methods are address classifiers, not a complete SSRF defense. Regardless of this fix, a robust SSRF guard must resolve the hostname and validate the *resolved* IP against the socket it connects to, and account for DNS rebinding and redirects. Treat these checks as one layer, not the only one.\n\n### Credit\n\nReported by @OV-0-VO.",
+      "reported_by": null,
+      "title": "ip-address: misclassification of IPv4-mapped/NAT64 IPv6 addresses can bypass SSRF and trust-boundary checks",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-54272"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "ip-address",
+      "vulnerable_versions": ">=10.1.1 <=10.2.0",
+      "github_advisory_id": "GHSA-22jq-vg5j-6vgg",
+      "recommendation": "Upgrade to version 10.2.1 or later",
+      "patched_versions": ">=10.2.1",
+      "updated": "2026-08-03T19:52:34.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-20",
+        "CWE-918"
+      ],
+      "url": "https://github.com/advisories/GHSA-22jq-vg5j-6vgg"
+    },
+    "1130734": {
+      "findings": [
+        {
+          "version": "5.0.7",
+          "paths": [
+            "apps__driver>expo>@expo/cli>glob>minimatch>brace-expansion"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/juliangruber/brace-expansion/security/advisories/GHSA-rgw5-rvv9-x895\n- https://github.com/juliangruber/brace-expansion/commit/139d015104e71433ad52a41d19467c48ecbb2c7d\n- https://github.com/juliangruber/brace-expansion/commit/1e30c930238d7162802d88a94189182def178dac\n- https://github.com/juliangruber/brace-expansion/commit/688a99eeaab02627c2b89ba8ba4821fecfa659cf\n- https://github.com/juliangruber/brace-expansion/commit/cb4b9e47cc2ec777c14b2b4492fb431a56f6a031\n- https://nvd.nist.gov/vuln/detail/CVE-2026-69152\n- https://github.com/advisories/GHSA-rgw5-rvv9-x895",
+      "created": "2026-08-03T16:35:32.000Z",
+      "id": 1130734,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\nThe `maxLength` mitigation added in `5.0.8` for GHSA-mh99-v99m-4gvg / CVE-2026-14257 is incomplete. It bounds the accumulator where results are *combined*, but not the intermediate arrays that feed it. A ~25 KB input still crashes the Node process with an **uncatchable** out-of-memory error, so `try/catch` around `expand()` does not help.\n\nA second, related path in the same function lets a ~400 KB input block the event loop for over two minutes without ever exceeding the memory bound.\n\n### Details\n\n`maxLength` was enforced in `combine()`, the single place output grows. Two arrays are built *before* `combine()` runs, and neither was bounded.\n\n**1. Comma alternatives accumulate without a running total (memory exhaustion)**\n\nEach alternative in `{a,b,c,...}` is expanded by its own recursive `expand_()` call, so each receives a full, independent `maxLength` allowance. The results were then concatenated into a single `values` array with no cumulative limit:\n\n```js\nvalues = []\nfor (let j = 0; j < n.length; j++) {\n  values.push.apply(values, expand_(n[j], max, maxLength, false))\n}\n\nacc = combine(acc, pre, values, max, maxLength, ...)\n```\n\nWith `A` alternatives, `values` can reach `A * maxLength` characters before `combine()` gets a chance to truncate it. At the default `maxLength` of 4,000,000 and 400 alternatives, that is well past any default heap.\n\n**2. Padded sequences ignore `maxLength` while generating (CPU exhaustion)**\n\n`expandSequence()` was bounded by `max` (the result *count*) but never consulted `maxLength`. A padded sequence's element width follows the input, so `{0...01..100000}` with a wide pad generates `max` elements, each as wide as the input, only for `combine()` to discard all but a handful.\n\nMemory stays flat here, because V8 represents the padded strings as cons-strings, which is likely why this path was not caught alongside the original issue. The cost is time: work proportional to `max * width`.\n\n| pad width | input bytes | results kept | time (5.0.8) | time (patched) |\n|---|---|---|---|---|\n| 20,000 | 20 KB | 199 | ~7.3 s | ~20 ms |\n| 100,000 | 100 KB | 39 | ~32 s | ~20 ms |\n| 400,000 | 400 KB | 9 | ~124 s | ~18 ms |\n\nOutput is byte-identical before and after the fix; only the wasted work is removed.\n\n### Proof of concept\n\nMemory exhaustion, against `5.0.8`:\n\n```js\nimport { expand } from 'brace-expansion'\n\nconst part = '{' + '0'.repeat(50) + '1..100000}'\nconst input = '{' + Array(400).fill(part).join(',') + '}'  // ~25 KB\n\ntry {\n  expand(input)\n} catch (e) {\n  // never reached - the process is already dead\n}\n```\n\n```\nFATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory\nAborted\n```\n\nEvent-loop stall, against `5.0.8`:\n\n```js\nimport { expand } from 'brace-expansion'\n\n// ~400 KB input, returns 9 results after roughly two minutes of blocking CPU\nexpand('{' + '0'.repeat(400_000) + '1..100000}')\n```\n\n### Impact\n\nDenial of service. Any application that passes attacker-controlled input to `expand()`, directly or transitively through a glob or pattern-matching library, can be remotely crashed or stalled. The out-of-memory variant terminates the process and cannot be handled with `try/catch`.\n\nApplications already on `5.0.8` are affected: the `5.0.8` mitigation does not cover these paths.\n\n### Patches\n\nBoth intermediate arrays are now bounded as they are built, using the same `max` and `maxLength` limits already applied in `combine()`:\n\n- `values` tracks a running result count and character length while alternatives are appended, and stops once either bound is reached.\n- `expandSequence()` accepts `maxLength` and stops generating once the sequence's own characters reach it.\n\nAs with the existing limits, output is truncated rather than allowed to grow without bound, which matches how `max` already behaves. The defaults sit well above any realistic expansion, so legitimate input is unaffected.\n\n### Workarounds\n\nIf upgrading is not immediately possible, avoid passing untrusted input to `expand()` or to glob brace patterns, or pass an explicitly small `max` **and** `maxLength`.\n\nNote that a small `maxLength` alone was not sufficient on affected versions: it was applied per alternative rather than cumulatively, which is the root of the first issue above.\n\n### Credits\n\nThe memory-exhaustion bypass was reported by Alessio Della Libera, CEO & Co-founder at [Numyra](https://numyra.ai/).\n\nThe sequence-generation issue was found while verifying that report.",
+      "reported_by": null,
+      "title": "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-69152"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=4.0.0 <5.0.9",
+      "github_advisory_id": "GHSA-rgw5-rvv9-x895",
+      "recommendation": "Upgrade to version 5.0.9 or later",
+      "patched_versions": ">=5.0.9",
+      "updated": "2026-08-03T20:17:20.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-rgw5-rvv9-x895"
+    },
+    "1130736": {
+      "findings": [
+        {
+          "version": "2.1.1",
+          "paths": [
+            "apps__api>exceljs>archiver>readdir-glob>minimatch>brace-expansion"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/juliangruber/brace-expansion/security/advisories/GHSA-rgw5-rvv9-x895\n- https://github.com/juliangruber/brace-expansion/commit/139d015104e71433ad52a41d19467c48ecbb2c7d\n- https://github.com/juliangruber/brace-expansion/commit/1e30c930238d7162802d88a94189182def178dac\n- https://github.com/juliangruber/brace-expansion/commit/688a99eeaab02627c2b89ba8ba4821fecfa659cf\n- https://github.com/juliangruber/brace-expansion/commit/cb4b9e47cc2ec777c14b2b4492fb431a56f6a031\n- https://nvd.nist.gov/vuln/detail/CVE-2026-69152\n- https://github.com/advisories/GHSA-rgw5-rvv9-x895",
+      "created": "2026-08-03T16:35:32.000Z",
+      "id": 1130736,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\nThe `maxLength` mitigation added in `5.0.8` for GHSA-mh99-v99m-4gvg / CVE-2026-14257 is incomplete. It bounds the accumulator where results are *combined*, but not the intermediate arrays that feed it. A ~25 KB input still crashes the Node process with an **uncatchable** out-of-memory error, so `try/catch` around `expand()` does not help.\n\nA second, related path in the same function lets a ~400 KB input block the event loop for over two minutes without ever exceeding the memory bound.\n\n### Details\n\n`maxLength` was enforced in `combine()`, the single place output grows. Two arrays are built *before* `combine()` runs, and neither was bounded.\n\n**1. Comma alternatives accumulate without a running total (memory exhaustion)**\n\nEach alternative in `{a,b,c,...}` is expanded by its own recursive `expand_()` call, so each receives a full, independent `maxLength` allowance. The results were then concatenated into a single `values` array with no cumulative limit:\n\n```js\nvalues = []\nfor (let j = 0; j < n.length; j++) {\n  values.push.apply(values, expand_(n[j], max, maxLength, false))\n}\n\nacc = combine(acc, pre, values, max, maxLength, ...)\n```\n\nWith `A` alternatives, `values` can reach `A * maxLength` characters before `combine()` gets a chance to truncate it. At the default `maxLength` of 4,000,000 and 400 alternatives, that is well past any default heap.\n\n**2. Padded sequences ignore `maxLength` while generating (CPU exhaustion)**\n\n`expandSequence()` was bounded by `max` (the result *count*) but never consulted `maxLength`. A padded sequence's element width follows the input, so `{0...01..100000}` with a wide pad generates `max` elements, each as wide as the input, only for `combine()` to discard all but a handful.\n\nMemory stays flat here, because V8 represents the padded strings as cons-strings, which is likely why this path was not caught alongside the original issue. The cost is time: work proportional to `max * width`.\n\n| pad width | input bytes | results kept | time (5.0.8) | time (patched) |\n|---|---|---|---|---|\n| 20,000 | 20 KB | 199 | ~7.3 s | ~20 ms |\n| 100,000 | 100 KB | 39 | ~32 s | ~20 ms |\n| 400,000 | 400 KB | 9 | ~124 s | ~18 ms |\n\nOutput is byte-identical before and after the fix; only the wasted work is removed.\n\n### Proof of concept\n\nMemory exhaustion, against `5.0.8`:\n\n```js\nimport { expand } from 'brace-expansion'\n\nconst part = '{' + '0'.repeat(50) + '1..100000}'\nconst input = '{' + Array(400).fill(part).join(',') + '}'  // ~25 KB\n\ntry {\n  expand(input)\n} catch (e) {\n  // never reached - the process is already dead\n}\n```\n\n```\nFATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory\nAborted\n```\n\nEvent-loop stall, against `5.0.8`:\n\n```js\nimport { expand } from 'brace-expansion'\n\n// ~400 KB input, returns 9 results after roughly two minutes of blocking CPU\nexpand('{' + '0'.repeat(400_000) + '1..100000}')\n```\n\n### Impact\n\nDenial of service. Any application that passes attacker-controlled input to `expand()`, directly or transitively through a glob or pattern-matching library, can be remotely crashed or stalled. The out-of-memory variant terminates the process and cannot be handled with `try/catch`.\n\nApplications already on `5.0.8` are affected: the `5.0.8` mitigation does not cover these paths.\n\n### Patches\n\nBoth intermediate arrays are now bounded as they are built, using the same `max` and `maxLength` limits already applied in `combine()`:\n\n- `values` tracks a running result count and character length while alternatives are appended, and stops once either bound is reached.\n- `expandSequence()` accepts `maxLength` and stops generating once the sequence's own characters reach it.\n\nAs with the existing limits, output is truncated rather than allowed to grow without bound, which matches how `max` already behaves. The defaults sit well above any realistic expansion, so legitimate input is unaffected.\n\n### Workarounds\n\nIf upgrading is not immediately possible, avoid passing untrusted input to `expand()` or to glob brace patterns, or pass an explicitly small `max` **and** `maxLength`.\n\nNote that a small `maxLength` alone was not sufficient on affected versions: it was applied per alternative rather than cumulatively, which is the root of the first issue above.\n\n### Credits\n\nThe memory-exhaustion bypass was reported by Alessio Della Libera, CEO & Co-founder at [Numyra](https://numyra.ai/).\n\nThe sequence-generation issue was found while verifying that report.",
+      "reported_by": null,
+      "title": "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-69152"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=2.0.0 <2.1.4",
+      "github_advisory_id": "GHSA-rgw5-rvv9-x895",
+      "recommendation": "Upgrade to version 2.1.4 or later",
+      "patched_versions": ">=2.1.4",
+      "updated": "2026-08-03T20:17:20.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-rgw5-rvv9-x895"
+    },
+    "1130737": {
+      "findings": [
+        {
+          "version": "1.1.15",
+          "paths": [
+            "apps__api>exceljs>archiver>archiver-utils>glob>minimatch>brace-expansion"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/juliangruber/brace-expansion/security/advisories/GHSA-rgw5-rvv9-x895\n- https://github.com/juliangruber/brace-expansion/commit/139d015104e71433ad52a41d19467c48ecbb2c7d\n- https://github.com/juliangruber/brace-expansion/commit/1e30c930238d7162802d88a94189182def178dac\n- https://github.com/juliangruber/brace-expansion/commit/688a99eeaab02627c2b89ba8ba4821fecfa659cf\n- https://github.com/juliangruber/brace-expansion/commit/cb4b9e47cc2ec777c14b2b4492fb431a56f6a031\n- https://nvd.nist.gov/vuln/detail/CVE-2026-69152\n- https://github.com/advisories/GHSA-rgw5-rvv9-x895",
+      "created": "2026-08-03T16:35:32.000Z",
+      "id": 1130737,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\nThe `maxLength` mitigation added in `5.0.8` for GHSA-mh99-v99m-4gvg / CVE-2026-14257 is incomplete. It bounds the accumulator where results are *combined*, but not the intermediate arrays that feed it. A ~25 KB input still crashes the Node process with an **uncatchable** out-of-memory error, so `try/catch` around `expand()` does not help.\n\nA second, related path in the same function lets a ~400 KB input block the event loop for over two minutes without ever exceeding the memory bound.\n\n### Details\n\n`maxLength` was enforced in `combine()`, the single place output grows. Two arrays are built *before* `combine()` runs, and neither was bounded.\n\n**1. Comma alternatives accumulate without a running total (memory exhaustion)**\n\nEach alternative in `{a,b,c,...}` is expanded by its own recursive `expand_()` call, so each receives a full, independent `maxLength` allowance. The results were then concatenated into a single `values` array with no cumulative limit:\n\n```js\nvalues = []\nfor (let j = 0; j < n.length; j++) {\n  values.push.apply(values, expand_(n[j], max, maxLength, false))\n}\n\nacc = combine(acc, pre, values, max, maxLength, ...)\n```\n\nWith `A` alternatives, `values` can reach `A * maxLength` characters before `combine()` gets a chance to truncate it. At the default `maxLength` of 4,000,000 and 400 alternatives, that is well past any default heap.\n\n**2. Padded sequences ignore `maxLength` while generating (CPU exhaustion)**\n\n`expandSequence()` was bounded by `max` (the result *count*) but never consulted `maxLength`. A padded sequence's element width follows the input, so `{0...01..100000}` with a wide pad generates `max` elements, each as wide as the input, only for `combine()` to discard all but a handful.\n\nMemory stays flat here, because V8 represents the padded strings as cons-strings, which is likely why this path was not caught alongside the original issue. The cost is time: work proportional to `max * width`.\n\n| pad width | input bytes | results kept | time (5.0.8) | time (patched) |\n|---|---|---|---|---|\n| 20,000 | 20 KB | 199 | ~7.3 s | ~20 ms |\n| 100,000 | 100 KB | 39 | ~32 s | ~20 ms |\n| 400,000 | 400 KB | 9 | ~124 s | ~18 ms |\n\nOutput is byte-identical before and after the fix; only the wasted work is removed.\n\n### Proof of concept\n\nMemory exhaustion, against `5.0.8`:\n\n```js\nimport { expand } from 'brace-expansion'\n\nconst part = '{' + '0'.repeat(50) + '1..100000}'\nconst input = '{' + Array(400).fill(part).join(',') + '}'  // ~25 KB\n\ntry {\n  expand(input)\n} catch (e) {\n  // never reached - the process is already dead\n}\n```\n\n```\nFATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory\nAborted\n```\n\nEvent-loop stall, against `5.0.8`:\n\n```js\nimport { expand } from 'brace-expansion'\n\n// ~400 KB input, returns 9 results after roughly two minutes of blocking CPU\nexpand('{' + '0'.repeat(400_000) + '1..100000}')\n```\n\n### Impact\n\nDenial of service. Any application that passes attacker-controlled input to `expand()`, directly or transitively through a glob or pattern-matching library, can be remotely crashed or stalled. The out-of-memory variant terminates the process and cannot be handled with `try/catch`.\n\nApplications already on `5.0.8` are affected: the `5.0.8` mitigation does not cover these paths.\n\n### Patches\n\nBoth intermediate arrays are now bounded as they are built, using the same `max` and `maxLength` limits already applied in `combine()`:\n\n- `values` tracks a running result count and character length while alternatives are appended, and stops once either bound is reached.\n- `expandSequence()` accepts `maxLength` and stops generating once the sequence's own characters reach it.\n\nAs with the existing limits, output is truncated rather than allowed to grow without bound, which matches how `max` already behaves. The defaults sit well above any realistic expansion, so legitimate input is unaffected.\n\n### Workarounds\n\nIf upgrading is not immediately possible, avoid passing untrusted input to `expand()` or to glob brace patterns, or pass an explicitly small `max` **and** `maxLength`.\n\nNote that a small `maxLength` alone was not sufficient on affected versions: it was applied per alternative rather than cumulatively, which is the root of the first issue above.\n\n### Credits\n\nThe memory-exhaustion bypass was reported by Alessio Della Libera, CEO & Co-founder at [Numyra](https://numyra.ai/).\n\nThe sequence-generation issue was found while verifying that report.",
+      "reported_by": null,
+      "title": "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-69152"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": "<1.1.18",
+      "github_advisory_id": "GHSA-rgw5-rvv9-x895",
+      "recommendation": "Upgrade to version 1.1.18 or later",
+      "patched_versions": ">=1.1.18",
+      "updated": "2026-08-03T20:17:20.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-rgw5-rvv9-x895"
+    },
+    "1138808": {
+      "findings": [
+        {
+          "version": "1.2.1",
+          "paths": [
+            "apps__driver>expo>@expo/metro>metro>image-size"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2025-71330\n- https://joshua.hu/image-size-infinite-loop-dos-vulnerabilities\n- https://web.archive.org/web/20260224152152/https://github.com/image-size/image-size/pull/439\n- https://www.vulncheck.com/advisories/image-size-denial-of-service-via-malformed-icns-image-parsing\n- https://github.com/advisories/GHSA-w3rx-r6r6-pgpr",
+      "created": "2026-06-10T15:31:30.000Z",
+      "id": 1138808,
+      "npm_advisory_id": null,
+      "overview": "image-size through 2.0.2 contains a denial of service vulnerability that allows remote attackers to permanently block the Node.js event loop by supplying a specially crafted ICNS image buffer. Attackers can craft an ICNS buffer containing valid magic bytes and a zero-valued entry length field to trigger an infinite loop in the ICNS parser, as the offset is never incremented when the entry length field is 0, causing the while loop condition to remain true indefinitely.",
+      "reported_by": null,
+      "title": "image-size: ICNS parser allows denial of service through an infinite loop",
+      "metadata": null,
+      "cves": [
+        "CVE-2025-71330"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "image-size",
+      "vulnerable_versions": "<=2.0.2",
+      "github_advisory_id": "GHSA-w3rx-r6r6-pgpr",
+      "recommendation": "None",
+      "patched_versions": "<0.0.0",
+      "updated": "2026-08-07T20:55:24.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-835"
+      ],
+      "url": "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr"
+    },
+    "1138809": {
+      "findings": [
+        {
+          "version": "1.2.1",
+          "paths": [
+            "apps__driver>expo>@expo/metro>metro>image-size"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2025-71329\n- https://joshua.hu/image-size-infinite-loop-dos-vulnerabilities\n- https://web.archive.org/web/20260224152152/https://github.com/image-size/image-size/pull/439\n- https://www.vulncheck.com/advisories/image-size-denial-of-service-via-infinite-loop-in-jxl-heif-parser\n- https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
+      "created": "2026-06-10T15:31:30.000Z",
+      "id": 1138809,
+      "npm_advisory_id": null,
+      "overview": "image-size through 2.0.2 contains a denial of service vulnerability that allows remote attackers to permanently block the Node.js event loop by supplying a specially crafted image buffer with a zero-valued size field in a recognized box-type. Attackers can trigger an infinite loop in the JXL or HEIF image parsers by providing a crafted image containing a box with a size of zero, causing the offset to never advance and permanently hanging the application.",
+      "reported_by": null,
+      "title": "image-size: JXL and HEIF parsers allow denial of service through infinite loops",
+      "metadata": null,
+      "cves": [
+        "CVE-2025-71329"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "image-size",
+      "vulnerable_versions": "<=2.0.2",
+      "github_advisory_id": "GHSA-5p2g-fcmc-qvqq",
+      "recommendation": "None",
+      "patched_versions": "<0.0.0",
+      "updated": "2026-08-07T20:54:42.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-835"
+      ],
+      "url": "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq"
+    },
+    "1138811": {
+      "findings": [
+        {
+          "version": "3.3.15",
+          "paths": [
+            "apps__admin>vue>@vue/compiler-sfc>postcss>nanoid"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2026-67214\n- https://github.com/ai/nanoid/commit/6ccc67bbaba71d3d77a21d9b636f4171a268ce49\n- https://github.com/ai/nanoid/releases/tag/5.1.16\n- https://www.vulncheck.com/advisories/nanoid-before-infinite-loop-via-negative-size-in-non-secure-module\n- https://github.com/ai/nanoid/pull/600\n- https://github.com/ai/nanoid/pull/601\n- https://github.com/ai/nanoid/commit/e835c9b71eab832bc6106944bdd26ea96cf2c66d\n- https://github.com/advisories/GHSA-28wg-ghj8-5hjv",
+      "created": "2026-07-29T15:31:12.000Z",
+      "id": 1138811,
+      "npm_advisory_id": null,
+      "overview": "nanoid (Nano ID) before 5.1.16 contains an infinite loop in the customAlphabet and nanoid functions of its non-secure module (nanoid/non-secure). When these functions are given a negative size, the loop counter is decremented from a negative value and never reaches its termination condition, spinning indefinitely and hanging the calling thread. An application that passes an unvalidated, attacker-controlled negative size to these functions is exposed to a denial-of-service condition.",
+      "reported_by": null,
+      "title": "nanoid: non-secure generators can loop indefinitely with negative size",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-67214"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "nanoid",
+      "vulnerable_versions": "<3.3.16",
+      "github_advisory_id": "GHSA-28wg-ghj8-5hjv",
+      "recommendation": "Upgrade to version 3.3.16 or later",
+      "patched_versions": ">=3.3.16",
+      "updated": "2026-08-07T20:53:01.000Z",
+      "cvss": {
+        "score": 5.9,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-835"
+      ],
+      "url": "https://github.com/advisories/GHSA-28wg-ghj8-5hjv"
+    },
+    "1139427": {
+      "findings": [
+        {
+          "version": "3.3.15",
+          "paths": [
+            "apps__admin>vue>@vue/compiler-sfc>postcss>nanoid"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2026-67213\n- https://github.com/ai/nanoid/commit/cb3626d0f3342fdf179cd425fd9c4fbb92c7d0e7\n- https://github.com/ai/nanoid/releases/tag/5.1.6\n- https://www.vulncheck.com/advisories/nanoid-before-infinite-loop-via-zero-size-in-customalphabet-and-customrandom\n- https://github.com/ai/nanoid/commit/f9d13f150847d117877adee3460a46eceb0cf49b\n- https://github.com/ai/nanoid/releases/tag/3.3.17\n- https://github.com/ai/nanoid/commit/e10f8d40ce9d1ab47f66d65a16b48086432730d0\n- https://github.com/ai/nanoid/releases/tag/3.3.18\n- https://github.com/advisories/GHSA-2v37-7h3g-55p8",
+      "created": "2026-07-29T15:31:12.000Z",
+      "id": 1139427,
+      "npm_advisory_id": null,
+      "overview": "nanoid (Nano ID) before 5.1.6 contains an infinite loop in the customAlphabet and customRandom functions. When these functions are configured with a size of 0, the internal generation loop never satisfies its exit condition and spins indefinitely, hanging the calling thread. An application that passes an unvalidated, attacker-controlled size of 0 to these functions is exposed to a denial-of-service condition.",
+      "reported_by": null,
+      "title": "nanoid: custom generators can loop indefinitely when size is zero",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-67213"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "nanoid",
+      "vulnerable_versions": "<3.3.18",
+      "github_advisory_id": "GHSA-2v37-7h3g-55p8",
+      "recommendation": "Upgrade to version 3.3.18 or later",
+      "patched_versions": ">=3.3.18",
+      "updated": "2026-08-13T15:43:02.000Z",
+      "cvss": {
+        "score": 5.9,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-835"
+      ],
+      "url": "https://github.com/advisories/GHSA-2v37-7h3g-55p8"
+    },
+    "1139510": {
+      "findings": [
+        {
+          "version": "8.5.16",
+          "paths": [
+            "apps__admin>vue>@vue/compiler-sfc>postcss"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/postcss/postcss/security/advisories/GHSA-r28c-9q8g-f849\n- https://github.com/postcss/postcss/commit/95663d3eb7ba26f4854dd19d3b4f4425760cf56c\n- https://github.com/postcss/postcss/releases/tag/8.5.18\n- https://github.com/advisories/GHSA-r28c-9q8g-f849",
+      "created": "2026-07-24T16:24:55.000Z",
+      "id": 1139510,
+      "npm_advisory_id": null,
+      "overview": "## Vulnerability Details\n\n**File**: `lib/previous-map.js`\n**Line**: 87-98 (`loadFile`), 129-144 (`loadMap`)\n\n\n### Root Cause\nPostCSS auto-detects a `/*# sourceMappingURL=... */` comment inside the CSS text it is asked to parse and, unless the caller explicitly passes `map: false`, attempts to load that path from disk as a \"previous source map.\" This happens on every `postcss.parse()` / `postcss().process()` call by default (opt-out, not opt-in).\n\n`loadMap()` builds the candidate path via `join(dirname(opts.from), annotation)`, where `annotation` is the raw, attacker-controlled string from the CSS comment. `path.join()` normalizes but does not sandbox `..` segments, so a `../../../` prefix walks the resolved path outside the intended directory. If `opts.from` is not set at all, the annotation is used completely unmodified — an absolute path in the CSS comment is read verbatim.\n\n8.5.12 already fixed a strictly worse variant of this (any file, any extension, could be read) by requiring the resolved path to end in `.map` (`loadFile()`). That fix did not address the traversal itself, only the target extension. Since the `join(dirname(file), map)` logic has existed unchanged since PostCSS 8.0.0 (Feb 2020), any file ending in `.map` remains readable through this path in the current release (8.5.16).\n\nOnce loaded, `MapGenerator.isMap()` treats the mere presence of a loaded \"previous map\" as an implicit request to generate `result.map`, even when the caller never set the `map` option. If the loaded map has a `sourcesContent` field (common for maps emitted by bundlers/transpilers), that content is merged into `result.map` and returned to the caller — disclosing the traversed-to file's content to whoever supplied the CSS.\n\n### Attack Scenario\n1. A service accepts user-submitted CSS and runs it through PostCSS to lint/format/transform it, e.g. `postcss().process(userCss, { from: '/app/uploads/user123/input.css', to: '/app/uploads/user123/output.css' })` — idiomatic usage; `map` option untouched.\n2. Attacker submits CSS containing `/*# sourceMappingURL=../../../../some/other/app/dist/bundle.js.map */` (or an absolute path if `from` is unset).\n3. PostCSS reads that `.map` file and folds its `sourcesContent` into `result.map`.\n4. The service does what most build pipelines do with a truthy `result.map` — writes it next to the CSS output or returns it via API (source maps are meant to be consumed by browser devtools, so this is commonly public/served).\n5. Attacker retrieves the emitted map and reads out the traversed file's content.\n\n### Impact\nDisclosure of the contents of arbitrary `.map` files reachable via path traversal (or absolute path when `from` is unset) from the process's filesystem. Affects any application processing CSS it does not fully trust without explicitly passing `map: false`. No authentication or user interaction beyond submitting CSS text is required.\n\n### Vulnerable Code\n```js\nloadFile(path, cssFile, trusted) {\n  if (!trusted && !this.unsafeMap) {\n    if (!/\\.map$/i.test(path)) {\n      return undefined\n    }\n  }\n  this.root = dirname(path)\n  if (existsSync(path)) {\n    this.mapFile = path\n    return readFileSync(path, 'utf-8').toString().trim()\n  }\n}\n\nloadMap(file, prev) {\n  ...\n  } else if (this.annotation) {\n    let map = this.annotation\n    if (file) map = join(dirname(file), map)\n    let unknown = this.loadFile(map, file, false)\n    ...\n  }\n}\n```\n\n### Recommended Fix\nConstrain the resolved path to remain inside the CSS file's own directory instead of relying solely on a filename-extension check:\n```js\nloadFile(path, cssFile, trusted) {\n  if (!trusted && !this.unsafeMap) {\n    if (!/\\.map$/i.test(path)) {\n      return undefined\n    }\n    if (!cssFile) return undefined\n    let root = resolve(dirname(cssFile))\n    let resolvedPath = resolve(root, path)\n    if (resolvedPath !== root && !resolvedPath.startsWith(root + sep)) {\n      return undefined\n    }\n  }\n  this.root = dirname(path)\n  if (existsSync(path)) {\n    this.mapFile = path\n    return readFileSync(path, 'utf-8').toString().trim()\n  }\n}\n```\nI've implemented, tested (full existing test suite — 660/660 passing, plus new PoC-based regression checks for both the traversal and legitimate same-directory cases), and can share this fix on request or via a private fork if invited.\n\n### Verification\nDynamically confirmed on v8.5.16 (current npm release / repo HEAD) via a standalone Node.js harness against `lib/postcss.js`: a \"secret\" `.map` file placed two directories outside a simulated project directory was read via a crafted `sourceMappingURL` comment in otherwise-innocuous CSS, with its `sourcesContent` appearing verbatim in `result.map.toString()` — with no `map` option set by the caller. A second harness confirmed the simpler no-`from` case reads an absolute path directly. A third harness confirmed `map: false` is the only current workaround. The attached fix branch closes both vectors while keeping all 660 existing unit tests green.",
+      "reported_by": null,
+      "title": "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-73646"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "postcss",
+      "vulnerable_versions": "<=8.5.17",
+      "github_advisory_id": "GHSA-r28c-9q8g-f849",
+      "recommendation": "Upgrade to version 8.5.18 or later",
+      "patched_versions": ">=8.5.18",
+      "updated": "2026-08-13T17:55:56.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
+      },
+      "cwe": [
+        "CWE-22"
+      ],
+      "url": "https://github.com/advisories/GHSA-r28c-9q8g-f849"
+    },
+    "1147955": {
+      "findings": [
+        {
+          "version": "0.2.2",
+          "paths": [
+            "apps__driver>expo-router>query-string>decode-uri-component"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/SamVerschueren/decode-uri-component/security/advisories/GHSA-vcc3-ghjq-m6fr\n- https://nvd.nist.gov/vuln/detail/CVE-2026-45822\n- https://github.com/SamVerschueren/decode-uri-component/commit/fa479dafeede7bedf04e5c89aa78f2a78c664005\n- https://github.com/SamVerschueren/decode-uri-component/blob/00662938dc7c6241547ae8abce7785cc13ffd3f6/index.js\n- https://github.com/SamVerschueren/decode-uri-component/releases/tag/v0.5.0\n- https://www.npmjs.com/package/decode-uri-component\n- https://github.com/advisories/GHSA-vcc3-ghjq-m6fr",
+      "created": "2026-08-31T22:10:20.000Z",
+      "id": 1147955,
+      "npm_advisory_id": null,
+      "overview": "### Impact\nAn attacker who can supply input to `decodeUriComponent()` (directly or via a dependency that uses this package on URL/query/path data) can cause excessive CPU usage and application unresponsiveness. This is an availability issue; there is no known memory corruption, data disclosure, or remote code execution impact.\n\n### Patches\nUpgrade to `decode-uri-component@0.5.0`.\n\n### Workarounds\nLimit the size of the input.",
+      "reported_by": null,
+      "title": "decode-uri-component: Denial of service via exponential decoding of malformed percent-encoded input",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-45822"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "decode-uri-component",
+      "vulnerable_versions": "<=0.4.2",
+      "github_advisory_id": "GHSA-vcc3-ghjq-m6fr",
+      "recommendation": "Upgrade to version 0.5.0 or later",
+      "patched_versions": ">=0.5.0",
+      "updated": "2026-08-31T22:10:21.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-405",
+        "CWE-407",
+        "CWE-1176"
+      ],
+      "url": "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr"
+    },
+    "1158506": {
+      "findings": [
+        {
+          "version": "6.15.3",
+          "paths": [
+            "apps__admin-api>express>qs"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/ljharb/qs/security/advisories/GHSA-w7fw-mjwx-w883\n- https://github.com/ljharb/qs/security/advisories/GHSA-x5fp-wj9c-mxmx\n- https://nvd.nist.gov/vuln/detail/CVE-2026-82562\n- https://github.com/ljharb/qs/commit/8859c37470e11b42b547b275e4e9bd0bc8cc5464\n- https://github.com/advisories/GHSA-x5fp-wj9c-mxmx",
+      "created": "2026-09-02T14:46:57.000Z",
+      "id": 1158506,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`qs` `v6.15.3` allows bracket-key input to bypass `arrayLimit` and `throwOnLimitExceeded` when `comma: true`. The input `a[]=1,2,3,4` succeeds with `arrayLimit: 3`, while the equivalent plain-key input is rejected.\n\nAffected version tested:\n\n```text\nqs v6.15.3\ncommit 18d085e919dae70c8f1b200ab99323058edab2c2\n```\n\n### Details\n\n`parseArrayValue()` enforces the comma limit only for flat values. The `a[]` form is marked non-flat, so its comma-separated value is wrapped after parsing and the inner array is not checked. A single parameter can therefore materialize arbitrarily large arrays.\n\n### PoC\n\n```js\nconst qs = require('qs')\nconst options = { comma: true, arrayLimit: 3, throwOnLimitExceeded: true }\n\nconst result = qs.parse('a[]=1,2,3,4', options)\nconsole.log(result.a[0].length) // 4; expected RangeError\n\nconst big = qs.parse('a[]=' + '1,'.repeat(1000000) + '1', { comma: true, arrayLimit: 20 })\nconsole.log(big.a[0].length) // 1000001\n```\n\nOn `v6.15.3`, the first input parses successfully and the second creates an array with 1,000,001 elements. The equivalent `a=1,2,3,4` input throws `RangeError` as expected.\n\n### Impact\n\nAn attacker who can supply a query string or form body can bypass configured array limits and force excessive memory allocation, causing denial of service. The limit must be applied after comma splitting and before the resulting array is wrapped.",
+      "reported_by": null,
+      "title": "qs array-limit bypass via bracket-key comma parsing",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-82562"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "qs",
+      "vulnerable_versions": ">=6.14.2 <=6.15.3",
+      "github_advisory_id": "GHSA-x5fp-wj9c-mxmx",
+      "recommendation": "Upgrade to version 6.16.0 or later",
+      "patched_versions": ">=6.16.0",
+      "updated": "2026-09-02T14:46:58.000Z",
+      "cvss": {
+        "score": 3.7,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
+      },
+      "cwe": [
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-x5fp-wj9c-mxmx"
+    },
+    "1158507": {
+      "findings": [
+        {
+          "version": "6.15.3",
+          "paths": [
+            "apps__admin-api>express>qs"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/ljharb/qs/security/advisories/GHSA-4mjr-xmp4-gh2g\n- https://nvd.nist.gov/vuln/detail/CVE-2026-82417\n- https://github.com/ljharb/qs/commit/e83d321ffafb38cf210683ac31714fce6ce1c6c6\n- https://github.com/advisories/GHSA-4mjr-xmp4-gh2g",
+      "created": "2026-09-02T14:45:13.000Z",
+      "id": 1158507,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`qs.stringify()` calls `utils.isBuffer()` on every value it serializes, and `utils.isBuffer()` invokes `obj.constructor.isBuffer(obj)` without checking that it is callable. A value whose own `constructor.isBuffer` is a non-function makes `qs` call a non-callable and throw `TypeError`. Such a value is produced **by `qs.parse` itself** from an untrusted query string when `plainObjects: true` or `allowPrototypes: true` is set, so a pure-`qs` `parse` → `stringify` round-trip — no `JSON.parse` — turns an unauthenticated query string into an uncaught throw.\n\nAn attacker-controlled `parse` input reaches the host application's availability asset — via `qs`'s own recommended `plainObjects` mitigation — and triggers an uncaught exception during a `parse` → `stringify` round-trip.\n\n### Details\n`utils.isBuffer` runs at `lib/stringify.js:127` for every serialized value:\n\n```js\nif (isNonNullishPrimitive(obj) || utils.isBuffer(obj)) { ... }\n```\n\n`utils.isBuffer` (`lib/utils.js:327-333`) invokes `obj.constructor.isBuffer` without verifying it is callable:\n\n```js\nvar isBuffer = function isBuffer(obj) {\n    if (!obj || typeof obj !== 'object') { return false; }\n    return !!(obj.constructor && obj.constructor.isBuffer && obj.constructor.isBuffer(obj));\n};\n```\n\n`constructor` and `isBuffer` are ordinary keys. `qs.parse` with `plainObjects: true` or `allowPrototypes: true` keeps them as own properties, so the parsed value carries a non-function `constructor.isBuffer`; `stringify` then calls a non-callable and throws `TypeError`. By contrast `utils.isRegExp` uses a brand check (`Object.prototype.toString`); the missing guard here is an internal inconsistency, not a platform limitation.\n\n\n### Trust Boundary Note\n\n`qs.stringify` alone treats its input as caller-constructed, so serializing a hostile object could be argued outside its contract. This report does not depend on that framing: the malicious shape is produced by **`qs.parse`, whose input is untrusted by design**. `qs.parse` normally strips a `constructor` key via its prototype guard, but with the documented options `plainObjects: true` or `allowPrototypes: true` the key survives and lands as an own property. Feeding the parsed object back into `qs.stringify` — the standard round-trip in gateways and request-forwarders — then hits the unchecked call. \n\n\n### PoC\n`poc02c_isBuffer_qs_only_roundtrip.js` — pure-`qs` chain, no `JSON.parse`; an untrusted query string alone reaches the throw:\n\n```js\n'use strict';\nvar qs = require('qs');\n\nvar untrustedQueryString = 'x%5Bconstructor%5D%5BisBuffer%5D=y'; // x[constructor][isBuffer]=y\n\nvar parsed = qs.parse(untrustedQueryString, { plainObjects: true });\nconsole.log('[parse] kept constructor key:', JSON.stringify(parsed));\n\ntry {\n    qs.stringify(parsed);\n    console.log('[stringify] no throw (unexpected)');\n} catch (e) {\n    console.log('[stringify] DoS reproduced ->', e.constructor.name + ':', e.message);\n}\n```\n\n`poc02_isBuffer.js` — the minimal defect:\n\n```js\n'use strict';\nvar qs = require('qs');\ntry {\n    qs.stringify(JSON.parse('{\"a\":{\"constructor\":{\"isBuffer\":\"x\"}}}'));\n} catch (e) {\n    console.log('[A] DoS reproduced ->', e.constructor.name + ':', e.message);\n}\n```\n\n`poc02b_isBuffer_async_crash.js` — worker death in an async sink:\n\n```js\n'use strict';\nvar qs = require('qs');\n\nfunction handleRequestAsync(clientJsonBody) {\n    try {\n        setImmediate(function () {                 // async continuation, outside the try\n            qs.stringify(JSON.parse(clientJsonBody)); // throws here, uncaught\n        });\n        console.log('[handler] returned 200 synchronously; async work scheduled');\n    } catch (e) {\n        console.log('[handler] caught synchronously (will NOT happen):', e.message);\n    }\n}\nprocess.on('exit', function (code) {\n    console.log('[proc] process exiting with code:', code);\n});\nhandleRequestAsync('{\"filters\":{\"constructor\":{\"isBuffer\":\"x\"}}}');\n```\n\n### Execution Steps\n\n```bash\ncd poc\nnpm install qs@6.15.3\nnode poc02c_isBuffer_qs_only_roundtrip.js  # pure qs parse->stringify -> TypeError\nnode poc02_isBuffer.js                      # minimal defect -> TypeError inside stringify\nnode poc02b_isBuffer_async_crash.js         # async sink -> uncaught throw -> exit code 1\n```\n\n### Reproduction Evidence\n\n`poc02c_isBuffer_qs_only_roundtrip.js` :\n\n```\n[parse] kept constructor key: {\"x\":{\"constructor\":{\"isBuffer\":\"y\"}}}\n[stringify] DoS reproduced -> TypeError: obj.constructor.isBuffer is not a function\n```\n\n`poc02_isBuffer.js`:\n\n```\n[A] DoS reproduced -> TypeError: obj.constructor.isBuffer is not a function\n```\n\n`poc02b_isBuffer_async_crash.js` :\n\n```\n[handler] returned 200 synchronously; async work scheduled\n[proc] process exiting with code: 1\nTypeError: obj.constructor.isBuffer is not a function\n    at Object.isBuffer (.../qs/lib/utils.js:332:78)\n    at stringify (.../qs/lib/stringify.js:127:45)\n=== EXIT CODE: 1 ===\n```\n\nThe pure-`qs` round-trip shows the malicious shape originates from `qs.parse` of an untrusted query string, with no `JSON.parse`. The synchronous `try/catch` in the async case does not catch the throw; the process exits with code 1, denying service to all requests on that worker.\n\n### Impact\n\nAn unauthenticated request degrades any endpoint that re-serializes deserialized client data with `qs.stringify`. The primary impact is a per-request failure: the handler throws and the framework returns HTTP 500. Where the call sits in an unguarded async continuation, the throw escapes and the worker process exits, denying service to all requests it was handling, which means a higher impact that depends on the application's error handling, not on `qs`.\n\n### Recommended Fix\n\nReplace the duck-type with a brand check mirroring `utils.isRegExp`:\n\n```js\nvar isBuffer = function isBuffer(obj) {\n    if (!obj || typeof obj !== 'object') { return false; }\n    if (typeof Buffer !== 'undefined' && typeof Buffer.isBuffer === 'function') {\n        return Buffer.isBuffer(obj);\n    }\n    return Object.prototype.toString.call(obj) === '[object Uint8Array]';\n};\n```\n\nIf duck-typing must remain, require `typeof obj.constructor.isBuffer === 'function'` before invoking and wrap the call in `try/catch`.",
+      "reported_by": null,
+      "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-82417"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "qs",
+      "vulnerable_versions": ">=2.2.5 <6.16.0",
+      "github_advisory_id": "GHSA-4mjr-xmp4-gh2g",
+      "recommendation": "Upgrade to version 6.16.0 or later",
+      "patched_versions": ">=6.16.0",
+      "updated": "2026-09-02T14:45:15.000Z",
+      "cvss": {
+        "score": 5.3,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+      },
+      "cwe": [
+        "CWE-248",
+        "CWE-703"
+      ],
+      "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g"
+    },
+    "1158517": {
+      "findings": [
+        {
+          "version": "0.9.10",
+          "paths": [
+            "apps__api>@xmldom/xmldom"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/xmldom/xmldom/security/advisories/GHSA-6gmq-8vp8-gcm6\n- https://nvd.nist.gov/vuln/detail/CVE-2026-83610\n- https://github.com/xmldom/xmldom/pull/1071\n- https://github.com/xmldom/xmldom/pull/1072\n- https://github.com/xmldom/xmldom/commit/4664386e4f4d99d17b416a151dbe8323e245284b\n- https://github.com/xmldom/xmldom/commit/6c3fb5ffeafe7901ec928ce9010988dd716c94a0\n- https://github.com/xmldom/xmldom/releases/tag/0.8.15\n- https://github.com/xmldom/xmldom/releases/tag/0.9.12\n- https://github.com/advisories/GHSA-6gmq-8vp8-gcm6",
+      "created": "2026-09-02T15:18:20.000Z",
+      "id": 1158517,
+      "npm_advisory_id": null,
+      "overview": "## Summary\n\nAn `EntityReference` node can be created with an invalid, attacker-controlled name through `Document.createEntityReference(name)`. When this node is serialized directly with:\n\n```js\nserializer.serializeToString(ref, { requireWellFormed: true })\n```\n\nthe invalid `nodeName` is emitted into the serialized XML fragment without validation or escaping.\n\nThis can produce real XML markup in the serialized output. In the proof of concept below, the serialized fragment contains `<injected/>`, and reparsing the fragment creates a real `injected` element.\n\n---\n\n## Details\n\nThe issue appears to be in the serialization path for `ENTITY_REFERENCE_NODE`.\n\nFor several other node types, `requireWellFormed: true` performs specific validation checks before serialization. For example, comments, processing instructions, document types, and some character data cases are checked before being emitted.\n\nHowever, for `ENTITY_REFERENCE_NODE`, the serializer appears to emit the node name directly in entity reference form:\n\n```js\ncase ENTITY_REFERENCE_NODE:\n  buf.push('&', n.nodeName, ';');\n  return null;\n```\n\nAs a result, if `nodeName` contains characters that break out of the intended `&name;` structure, the serializer can emit additional XML markup.\n\nFor example, an entity reference created with the name:\n\n```text\nsafe; <injected/> &x\n```\n\nis serialized as:\n\n```xml\n&safe; <injected/> &x;\n```\n\nWhen this fragment is later parsed in an XML context, `<injected/>` becomes a real element.\n\nThis is especially surprising when `{ requireWellFormed: true }` is used, because applications may reasonably treat this mode as the stricter or safer XML serialization mode.\n\n---\n\n## Proof of Concept\n\nTested with:\n\n```text\n@xmldom/xmldom@0.9.10\nNode.js v24.18.0\nWindows 10 / PowerShell\n```\n\n```js\n'use strict';\n\nconst { DOMImplementation, XMLSerializer, DOMParser } = require('@xmldom/xmldom');\n\nconst impl = new DOMImplementation();\nconst doc = impl.createDocument(null, 'root', null);\nconst serializer = new XMLSerializer();\n\nfunction countInjected(fragment) {\n  try {\n    const parsed = new DOMParser().parseFromString(`<root>${fragment}</root>`, 'application/xml');\n    return parsed.getElementsByTagName('injected').length;\n  } catch (e) {\n    return `PARSE_THROW ${e.name}: ${e.message}`;\n  }\n}\n\nfor (const name of [\n  'safe',\n  'safe; <injected/> &x',\n  'x<injected',\n  'x y'\n]) {\n  try {\n    const ref = doc.createEntityReference(name);\n    const xml = serializer.serializeToString(ref, { requireWellFormed: true });\n\n    console.log(`[SERIALIZED] ${JSON.stringify(name)}: ${xml}`);\n    console.log(`[INJECTED_COUNT] ${JSON.stringify(name)}: ${countInjected(xml)}`);\n  } catch (e) {\n    console.log(`[THROW] ${JSON.stringify(name)}: ${e.name}: ${e.message}`);\n  }\n}\n```\n\nObserved output:\n\n```text\n[SERIALIZED] \"safe\": &safe;\n[INJECTED_COUNT] \"safe\": 0\n\n[SERIALIZED] \"safe; <injected/> &x\": &safe; <injected/> &x;\n[INJECTED_COUNT] \"safe; <injected/> &x\": 1\n\n[SERIALIZED] \"x<injected\": &x<injected;\n[INJECTED_COUNT] \"x<injected\": 0\n\n[SERIALIZED] \"x y\": &x y;\n[INJECTED_COUNT] \"x y\": 0\n```\n\n---\n\n## Impact\n\nAn application that creates an `EntityReference` from attacker-controlled input and then serializes that node or XML fragment with `requireWellFormed: true` may produce XML containing attacker-controlled markup.\n\nThe impact is limited by two observations:\n\n1. The parser does not create `EntityReference` nodes from ordinary XML entity references.\n2. Appending an `EntityReference` node as an element child is rejected with a `HierarchyRequestError`.\n\nThe main affected scenario is applications that directly use `createEntityReference(name)` and then serialize the resulting node or fragment.\n\n## Fix Applied\n\nTwo complementary, non-breaking fixes.\n(1) `document.createEntityReference(name)` rejects an invalid `Name` at creation, closing the reachable creation vector by default — the opt-in serializer check alone cannot, since a later `nodeName` mutation would bypass a creation-only guard.\n(2) Under `requireWellFormed`, the serializer validates the `EntityReference` `nodeName` as a well-formed XML `Name` and throws `InvalidStateError` when it is not; a valid reference still serializes as `&name;`. Both ship on both maintained versions. The `EntityReference` / `createEntityReference` docs note that under `requireWellFormed` the `nodeName` is validated as an XML `Name`, and that xmldom does not expand entities. See the [XML `Name` production](https://www.w3.org/TR/xml/#NT-Name).\n> **⚠ Opt-in required.** Protection is not automatic. Existing serialization calls remain\n> vulnerable unless `{ requireWellFormed: true }` is explicitly passed. Applications that\n> serialize untrusted DOM content should audit all `serializeToString()` call sites and add it.\n\n### Proof of Concept - fixed path\n\n```js\n'use strict';\n\nconst { DOMImplementation, XMLSerializer } = require('@xmldom/xmldom');\n\nconst impl = new DOMImplementation();\nconst doc = impl.createDocument(null, 'root', null);\nconst serializer = new XMLSerializer();\n\n// Creation-time anchor (applied by default): an invalid XML Name is rejected at creation.\ntry {\n  doc.createEntityReference('safe; <injected/> &x');\n} catch (e) {\n  console.log(`${e.name}`); // rejected at creation\n}\n\n// Default path (requireWellFormed omitted): because creation now rejects an ill-formed name,\n// an ill-formed nodeName is only reachable via a post-creation mutation — and is emitted verbatim.\nconst ref = doc.createEntityReference('safe');\nref.nodeName = 'safe; <injected/> &x';\nconsole.log(serializer.serializeToString(ref));\n// -> &safe; <injected/> &x;   (injection present on the default path)\n\n// Opt-in path: throws on the invalid nodeName.\ntry {\n  serializer.serializeToString(ref, { requireWellFormed: true });\n} catch (e) {\n  console.log(`${e.name}`); // InvalidStateError\n}\n\n// A valid name still serializes as &name; under requireWellFormed.\nconst ok = doc.createEntityReference('valid');\nconsole.log(serializer.serializeToString(ok, { requireWellFormed: true }));\n// -> &valid;\n```\n\n### Why the default stays verbatim\n\nThe creation-time anchor is applied by default, because it is classified non-breaking. The serializer check, by contrast, stays gated behind `{ requireWellFormed: true }`: W3C DOM Parsing's require-well-formed flag defaults to `false`, and the browser `XMLSerializer` emits the `nodeName` verbatim in that default mode, so unconditionally throwing for an ill-formed `EntityReference.nodeName` would be an unjustified breaking change — which is why the default serialization path stays verbatim.\n\n### Residual limitation\n\nThe creation vector is closed by default — the non-breaking creation-time anchor — with no further deferred work. The residual is at serialization: the default path still emits an ill-formed `nodeName` verbatim, because the serializer check is opt-in via `{ requireWellFormed: true }`.",
+      "reported_by": null,
+      "title": "xmldom: XML fragment injection via invalid EntityReference.nodeName during requireWellFormed serialization",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-83610"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "@xmldom/xmldom",
+      "vulnerable_versions": ">=0.9.0 <=0.9.11",
+      "github_advisory_id": "GHSA-6gmq-8vp8-gcm6",
+      "recommendation": "Upgrade to version 0.9.12 or later",
+      "patched_versions": ">=0.9.12",
+      "updated": "2026-09-02T15:18:21.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-116"
+      ],
+      "url": "https://github.com/advisories/GHSA-6gmq-8vp8-gcm6"
+    },
+    "1158518": {
+      "findings": [
+        {
+          "version": "0.8.13",
+          "paths": [
+            "apps__api>soap>xml-crypto>@xmldom/xmldom"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/xmldom/xmldom/security/advisories/GHSA-6gmq-8vp8-gcm6\n- https://nvd.nist.gov/vuln/detail/CVE-2026-83610\n- https://github.com/xmldom/xmldom/pull/1071\n- https://github.com/xmldom/xmldom/pull/1072\n- https://github.com/xmldom/xmldom/commit/4664386e4f4d99d17b416a151dbe8323e245284b\n- https://github.com/xmldom/xmldom/commit/6c3fb5ffeafe7901ec928ce9010988dd716c94a0\n- https://github.com/xmldom/xmldom/releases/tag/0.8.15\n- https://github.com/xmldom/xmldom/releases/tag/0.9.12\n- https://github.com/advisories/GHSA-6gmq-8vp8-gcm6",
+      "created": "2026-09-02T15:18:20.000Z",
+      "id": 1158518,
+      "npm_advisory_id": null,
+      "overview": "## Summary\n\nAn `EntityReference` node can be created with an invalid, attacker-controlled name through `Document.createEntityReference(name)`. When this node is serialized directly with:\n\n```js\nserializer.serializeToString(ref, { requireWellFormed: true })\n```\n\nthe invalid `nodeName` is emitted into the serialized XML fragment without validation or escaping.\n\nThis can produce real XML markup in the serialized output. In the proof of concept below, the serialized fragment contains `<injected/>`, and reparsing the fragment creates a real `injected` element.\n\n---\n\n## Details\n\nThe issue appears to be in the serialization path for `ENTITY_REFERENCE_NODE`.\n\nFor several other node types, `requireWellFormed: true` performs specific validation checks before serialization. For example, comments, processing instructions, document types, and some character data cases are checked before being emitted.\n\nHowever, for `ENTITY_REFERENCE_NODE`, the serializer appears to emit the node name directly in entity reference form:\n\n```js\ncase ENTITY_REFERENCE_NODE:\n  buf.push('&', n.nodeName, ';');\n  return null;\n```\n\nAs a result, if `nodeName` contains characters that break out of the intended `&name;` structure, the serializer can emit additional XML markup.\n\nFor example, an entity reference created with the name:\n\n```text\nsafe; <injected/> &x\n```\n\nis serialized as:\n\n```xml\n&safe; <injected/> &x;\n```\n\nWhen this fragment is later parsed in an XML context, `<injected/>` becomes a real element.\n\nThis is especially surprising when `{ requireWellFormed: true }` is used, because applications may reasonably treat this mode as the stricter or safer XML serialization mode.\n\n---\n\n## Proof of Concept\n\nTested with:\n\n```text\n@xmldom/xmldom@0.9.10\nNode.js v24.18.0\nWindows 10 / PowerShell\n```\n\n```js\n'use strict';\n\nconst { DOMImplementation, XMLSerializer, DOMParser } = require('@xmldom/xmldom');\n\nconst impl = new DOMImplementation();\nconst doc = impl.createDocument(null, 'root', null);\nconst serializer = new XMLSerializer();\n\nfunction countInjected(fragment) {\n  try {\n    const parsed = new DOMParser().parseFromString(`<root>${fragment}</root>`, 'application/xml');\n    return parsed.getElementsByTagName('injected').length;\n  } catch (e) {\n    return `PARSE_THROW ${e.name}: ${e.message}`;\n  }\n}\n\nfor (const name of [\n  'safe',\n  'safe; <injected/> &x',\n  'x<injected',\n  'x y'\n]) {\n  try {\n    const ref = doc.createEntityReference(name);\n    const xml = serializer.serializeToString(ref, { requireWellFormed: true });\n\n    console.log(`[SERIALIZED] ${JSON.stringify(name)}: ${xml}`);\n    console.log(`[INJECTED_COUNT] ${JSON.stringify(name)}: ${countInjected(xml)}`);\n  } catch (e) {\n    console.log(`[THROW] ${JSON.stringify(name)}: ${e.name}: ${e.message}`);\n  }\n}\n```\n\nObserved output:\n\n```text\n[SERIALIZED] \"safe\": &safe;\n[INJECTED_COUNT] \"safe\": 0\n\n[SERIALIZED] \"safe; <injected/> &x\": &safe; <injected/> &x;\n[INJECTED_COUNT] \"safe; <injected/> &x\": 1\n\n[SERIALIZED] \"x<injected\": &x<injected;\n[INJECTED_COUNT] \"x<injected\": 0\n\n[SERIALIZED] \"x y\": &x y;\n[INJECTED_COUNT] \"x y\": 0\n```\n\n---\n\n## Impact\n\nAn application that creates an `EntityReference` from attacker-controlled input and then serializes that node or XML fragment with `requireWellFormed: true` may produce XML containing attacker-controlled markup.\n\nThe impact is limited by two observations:\n\n1. The parser does not create `EntityReference` nodes from ordinary XML entity references.\n2. Appending an `EntityReference` node as an element child is rejected with a `HierarchyRequestError`.\n\nThe main affected scenario is applications that directly use `createEntityReference(name)` and then serialize the resulting node or fragment.\n\n## Fix Applied\n\nTwo complementary, non-breaking fixes.\n(1) `document.createEntityReference(name)` rejects an invalid `Name` at creation, closing the reachable creation vector by default — the opt-in serializer check alone cannot, since a later `nodeName` mutation would bypass a creation-only guard.\n(2) Under `requireWellFormed`, the serializer validates the `EntityReference` `nodeName` as a well-formed XML `Name` and throws `InvalidStateError` when it is not; a valid reference still serializes as `&name;`. Both ship on both maintained versions. The `EntityReference` / `createEntityReference` docs note that under `requireWellFormed` the `nodeName` is validated as an XML `Name`, and that xmldom does not expand entities. See the [XML `Name` production](https://www.w3.org/TR/xml/#NT-Name).\n> **⚠ Opt-in required.** Protection is not automatic. Existing serialization calls remain\n> vulnerable unless `{ requireWellFormed: true }` is explicitly passed. Applications that\n> serialize untrusted DOM content should audit all `serializeToString()` call sites and add it.\n\n### Proof of Concept - fixed path\n\n```js\n'use strict';\n\nconst { DOMImplementation, XMLSerializer } = require('@xmldom/xmldom');\n\nconst impl = new DOMImplementation();\nconst doc = impl.createDocument(null, 'root', null);\nconst serializer = new XMLSerializer();\n\n// Creation-time anchor (applied by default): an invalid XML Name is rejected at creation.\ntry {\n  doc.createEntityReference('safe; <injected/> &x');\n} catch (e) {\n  console.log(`${e.name}`); // rejected at creation\n}\n\n// Default path (requireWellFormed omitted): because creation now rejects an ill-formed name,\n// an ill-formed nodeName is only reachable via a post-creation mutation — and is emitted verbatim.\nconst ref = doc.createEntityReference('safe');\nref.nodeName = 'safe; <injected/> &x';\nconsole.log(serializer.serializeToString(ref));\n// -> &safe; <injected/> &x;   (injection present on the default path)\n\n// Opt-in path: throws on the invalid nodeName.\ntry {\n  serializer.serializeToString(ref, { requireWellFormed: true });\n} catch (e) {\n  console.log(`${e.name}`); // InvalidStateError\n}\n\n// A valid name still serializes as &name; under requireWellFormed.\nconst ok = doc.createEntityReference('valid');\nconsole.log(serializer.serializeToString(ok, { requireWellFormed: true }));\n// -> &valid;\n```\n\n### Why the default stays verbatim\n\nThe creation-time anchor is applied by default, because it is classified non-breaking. The serializer check, by contrast, stays gated behind `{ requireWellFormed: true }`: W3C DOM Parsing's require-well-formed flag defaults to `false`, and the browser `XMLSerializer` emits the `nodeName` verbatim in that default mode, so unconditionally throwing for an ill-formed `EntityReference.nodeName` would be an unjustified breaking change — which is why the default serialization path stays verbatim.\n\n### Residual limitation\n\nThe creation vector is closed by default — the non-breaking creation-time anchor — with no further deferred work. The residual is at serialization: the default path still emits an ill-formed `nodeName` verbatim, because the serializer check is opt-in via `{ requireWellFormed: true }`.",
+      "reported_by": null,
+      "title": "xmldom: XML fragment injection via invalid EntityReference.nodeName during requireWellFormed serialization",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-83610"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "@xmldom/xmldom",
+      "vulnerable_versions": ">=0.7.0 <=0.8.14",
+      "github_advisory_id": "GHSA-6gmq-8vp8-gcm6",
+      "recommendation": "Upgrade to version 0.8.15 or later",
+      "patched_versions": ">=0.8.15",
+      "updated": "2026-09-02T15:18:21.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-116"
+      ],
+      "url": "https://github.com/advisories/GHSA-6gmq-8vp8-gcm6"
+    }
+  },
+  "mcleodAgent": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "dependencies": {
+      "prod": 75,
+      "dev": 0,
+      "optional": 0,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 74
+    }
+  }
+}
