@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
-import { PlusIcon } from "@silvicom/ui/icons";
+import { Cog6ToothIcon, PlusIcon } from "@silvicom/ui/icons";
 import { ASSET_STATUSES, ASSET_STATUS_LABELS, type AssetDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
@@ -12,6 +12,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
+import AssetTypesDrawer from "@/features/inventory/AssetTypesDrawer.vue";
 import { useAssetsQuery, useAssetTypesQuery } from "@/features/inventory/useAssets";
 import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
@@ -83,6 +84,7 @@ const COLUMNS: DataTableColumn[] = [
 const openAsset = (row: Record<string, unknown>) =>
   void router.push({ name: "asset", params: { id: String(row.id) } });
 
+const typesOpen = ref(false);
 const creating = ref(route.query.new === "1");
 watch(creating, (open) => {
   if (!open && route.query.new) void router.replace({ query: {} });
@@ -93,6 +95,12 @@ watch(creating, (open) => {
   <div class="space-y-6">
     <PageHeader description="Everything with a number on it — tools, tablets, straps — and which truck has it.">
       <template #actions>
+        <!-- The gear is the kinds of thing. It is not a nicety: an asset cannot be created without a
+             type, and until 2026-09-09 no screen in the product could make one — the same dead end
+             `LocationsDrawer.vue` closed for stock locations at I4. -->
+        <BaseButton v-if="session.can('maintenance')" aria-label="Kinds of thing" @click="typesOpen = true">
+          <AppIcon :icon="Cog6ToothIcon" class="size-5" aria-hidden="true" />
+        </BaseButton>
         <BaseButton v-if="session.can('maintenance')" variant="primary" @click="creating = true">
           <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New asset
         </BaseButton>
@@ -141,8 +149,8 @@ watch(creating, (open) => {
             Nothing matches those filters. Clear them to see everything the shop owns.
           </p>
           <p v-else>
-            No assets yet. Add the first tablet or load bar, and the shop starts knowing which truck
-            has it.
+            No assets yet. Set up the kinds of thing behind the gear first — then add the first
+            tablet or load bar, and the shop starts knowing which truck has it.
           </p>
         </template>
         <template #footer>
@@ -157,5 +165,6 @@ watch(creating, (open) => {
     </DataWorkspace>
 
     <AssetDrawer :open="creating" @close="creating = false" />
+    <AssetTypesDrawer :open="typesOpen" @close="typesOpen = false" />
   </div>
 </template>

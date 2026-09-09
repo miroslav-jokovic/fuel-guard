@@ -639,9 +639,9 @@ A step may not close while its row stands.
 | # | Assumption | Retired by | Default answer |
 |---|---|---|---|
 | **A1** | The free decoder reads a printed ECC-H `SIL1:` label and a greasy supplier UPC on the shop's phones — Safari, installed, Android. | I6 spike, results in §8 | Scandit's web engine; then D-INV28's revisit clause. |
-| **A2** | The shop has been measured: locations, parts, technicians, phones, wifi in the bays. | ~~Before I2~~ → I4 (the parts list) and I6 (the phones and the bay wifi). **Re-scoped 2026-09-09, see §8** — I1's merged contracts pin every I2 column, so a shop visit can no longer change that migration. The shelving half is ANSWERED: there are no shelf numbers (§1.4). | — |
+| **A2** | The shop has been measured: locations, parts, technicians, phones, wifi in the bays. | ~~Before I2~~ → I4 (the parts list) and I6 (the phones and the bay wifi). **Re-scoped 2026-09-09, see §8** — I1's merged contracts pin every I2 column, so a shop visit can no longer change that migration. The shelving half is ANSWERED: there are no shelf numbers (§1.4), **and the owner ruled on 2026-09-09 that a shelf COUNT is optional for this shop for the same reason — the shelves are not marked.** What stands is the I6 half: the phones and the bay wifi. | — |
 | **A3** | An initial parts list exists to import (a spreadsheet or a FleetPal export). | **ANSWERED 2026-09-09, then CORRECTED the same day by reading the vendor spec (§8).** The list is `GET /v1/parts/`, an API pull with an `updated_after` filter — **recurring, not one-time**, because FleetPal's catalogue stays live while the shop raises work orders there. The locked-header CSV survives as the manual escape hatch for stock bought outside FleetPal, not as the primary path. **A3 does not gate I4** (the shop home and the Parts list need no import), but it now shapes I4's importer, and the sync needs `fleetpal_id`, a unit-of-measure mapping and VMRS resolution — all additive, all listed in §8. | The locked-header CSV template with an error report, and one afternoon. |
-| **A4** | Kit contents per unit kind — quantities per tractor, dry van, reefer. | I9 — owner supplies three default lists | Ship empty; the first unit check populates them. |
+| ~~**A4**~~ | ~~Kit contents per unit kind — quantities per tractor, dry van, reefer.~~ **ANSWERED by the owner 2026-09-09 and RETIRED.** The three lists are `packages/shared/src/inventoryKitCatalogue.ts`, adopted in one tap from the Assets page and editable afterwards. §6.2's "ship empty" fallback turned out to be worse than it sounded — see §8's close-out line: a fresh org had zero asset types and no screen that could create one, so the whole asset half was unreachable on day one. | ~~I9~~ — done | — |
 | **A5** | The label printer and stock the shop owns. | I10 | Avery 22805 on a laser with polyester stock for bins; aluminium plates from a vendor for truck items. |
 | **A6** | FleetPal has an export path for work orders. | **LIVE from 2026-09-09** — the owner has put the FleetPal integration next, so I14 is no longer deferred and this is the question that shapes it. | `work_order_ref` typed by hand, which is what ships today and needs nothing from FleetPal. |
 | **A7** | `uqr` is deterministic and correct at every ECC level. | I1b golden fixtures | — |
@@ -1792,3 +1792,86 @@ signed here by the person who did it. I6's spike results go here before its seco
   is built, driven at phone width and green; what is missing is a person in a yard. **I9 is not
   closed until that line is signed here**, and no later step may treat it as closed. A4's three kit
   lists are also still the owner's; the drawers ship empty as §6.2 said they should.
+
+---
+
+- **CLOSE-OUT OF I0–I9 — audited and largely discharged 2026-09-09 (PRs #708 and this one).**
+  The owner asked for every open question and blocker in I0–I9 answered before I10. This is the
+  audit and what it cost.
+
+  **⚠ THE AUDIT'S LARGEST FINDING WAS A DEAD END I SHIPPED AT I8, AND NO TEST COULD SEE IT.**
+  `assetInputSchema.assetTypeId` is a required uuid, so an asset cannot be created without a type —
+  and there was **no screen in the product that could create one**. `POST /asset-types` shipped at
+  I8 with no consumer, `useCreateAssetType` had no caller, and two drawers I wrote at I9 told the
+  reader to "add one on Assets first", where nothing could. **A fresh org's entire asset and unit
+  half — I7, I8 and I9, three merged steps — was unreachable on day one.** Every gate was green and
+  every suite passed throughout, because each layer is correct in isolation; what was missing was
+  the join between them, which is exactly the shape the I0–I3 review found twice before and which
+  `LocationsDrawer.vue` was built to close for stock locations at I4. `AssetTypesDrawer.vue` closes
+  it, and the Assets page's empty state now names the gear rather than implying an asset can be
+  added without one.
+
+  **A4 is ANSWERED and RETIRED — the owner approved three lists on 2026-09-09**, and they ship as
+  `inventoryKitCatalogue.ts`: twelve kinds of thing and the kit each truck, dry van and reefer
+  carries. The tractor list is anchored on **§393.95** (fire extinguisher, spare fuses, three
+  bidirectional triangles) because those are the rows a roadside inspection asks about; the trailer
+  lists are this fleet's securement practice. One tap on the Assets page adopts them, and every
+  number is editable in the Kit rules drawer afterwards.
+  ⚠ **The reefer's list REPEATS the dry van's, and that is the data model.** `trailer` and
+  `reefer_trailer` are two `UNIT_KINDS` and a fleet rule matches its kind EXACTLY — in
+  `resolveExpected` and again in `move_asset`'s SQL. Inheritance was considered and rejected: a kind
+  silently carrying another kind's rules makes "why does this reefer expect a seal kit"
+  unanswerable from a screen that shows one kind at a time.
+  ⚠ **Every type the adopter creates gets `default_kit_quantity: 0`.** There is no unit kind on
+  `asset_types`, so a non-zero default is `resolveExpected`'s weakest layer and applies to tractors
+  and trailers alike — a truck would start expecting the trailer's four ratchet straps. Pinned.
+  ⚠ **Adopting is idempotent about TYPES and destructive about RULES**, so the button is offered
+  only while the org has no types at all: it is a first run, not a reset. A shop that has since
+  decided its trailers carry six straps would find four again. The service does not enforce that,
+  because a service that refused would be unable to say why.
+
+  **I6's tag fabric is BUILT; its scanner is not, on the owner's sequencing ruling.** D-INV7's
+  `apps/api/src/tags/{registry,resolvers,routes}.ts` and `GET /api/tags/resolve?code=` are live,
+  with maintenance's `BIN` and `AST` resolvers registered at startup on `queue/registry.ts`'s model.
+  That **closes the "register AST" item I7 and I8 both owed**. The camera screen waits for A1's
+  spike, which is what I6's own step text asks for — the owner chose fabric-now/scanner-after rather
+  than building to a result nobody has. The failures are 200s carrying a discriminated member, not
+  404s, because `unknown_tag` and `malformed` have different useful next actions and the sheet needs
+  the scanned code kept.
+  ⚠ **A kind with no resolver and a tag whose id is not this org's answer identically.** Reporting
+  them differently would confirm another tenant's label to whoever scanned it.
+  ⚠ **The route is gated `maintenance: view` and that must not be relaxed in advance.** It lives
+  outside the maintenance module because §2.10 makes it product-wide, but every registered kind is
+  maintenance's today. When a second section registers one, the gate becomes per-resolver.
+
+  **Four standing debts paid in #708**, each carried in §8 with no step owning it: `AppBadge`'s
+  `capitalize` (which had been shipping **"Recount By Someone Else"** to the shop for a week, and
+  had cost two prior workarounds); the repair-spend card counting LINES for want of a sum in its
+  endpoint; `POST /parts/:id/photo`, shipped at I3 with no consumer; and two searches interpolating
+  a user's term into a PostgREST `.or()`, whose grammar reserves the comma, the parentheses and the
+  dot.
+
+  **What remains open across I0–I9, and who owns it.**
+  | Item | Owner | Blocks |
+  |---|---|---|
+  | **A1** — the free decoder on a real iPhone (Safari, installed) and an Android, on a printed ECC-H label and a supplier UPC | a person with two phones and a printer | I6's scanner |
+  | **A2's I6 half** — the bay wifi | a shop visit | I6's scanner |
+  | I9's usability sentence — an eight-item trailer check on a phone, one thumb, named person | a person in a yard | I9 closing |
+  | I5's usability sentence — a 20-bin shelf count | **RULED OPTIONAL by the owner 2026-09-09** | nothing |
+
+  **⚠ I5's shelf-count sentence is retired by RULING, not by measurement.** The owner's words:
+  *"leave this shelfs as optional, because we dont have shelf count in shop (they are not marked)"*.
+  §1.4 had already measured that there are no shelf numbers and `part_stock.aisle/row/bin` are
+  nullable because of it — so nothing in the product changes, and the count session still works: it
+  walks the PARTS at a location, not a wall of labelled bins. What is retired is the done-when's
+  "20-bin" phrasing, which described a workflow this shop does not have. **I5 is closed.**
+
+  **Mutation proofs, six, each restored.** Summing the spend page instead of the window failed three
+  assertions; a case-sensitive type match failed two; giving a created type the kit's quantity as its
+  own default failed one; dropping the reefer's inherited securement failed one; a 404 for a missing
+  resolver failed one; and dropping the scanned code from `malformed` failed one.
+
+  **Verification:** `pnpm test` green across every unit suite and all 42 matrices; all 38 `lint:*`
+  scripts plus `apps/web`'s `lint:tokens`; `pnpm typecheck`. The types drawer and the standard-kit
+  offer were rendered under `preview:local` against a fresh org with zero types — the state the dead
+  end lived in — with no page or Vue errors.

@@ -27,6 +27,8 @@ import { iftaRouter } from "./modules/ifta/index.js";
 import { accountingRouter } from "./modules/accounting/index.js";
 import { billingRouter } from "./modules/billing/index.js";
 import { maintenanceRouter } from "./modules/maintenance/index.js";
+import { tagsRouter } from "./tags/routes.js";
+import { registerTagResolvers } from "./tags/resolvers.js";
 import { auditRouter } from "./modules/org/index.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { tmsRosterMasterRouter } from "./modules/mcleod/index.js";
@@ -208,6 +210,12 @@ function mountFinanceRouters(app: express.Express): void {
   app.use("/api/accounting", accountingRouter());
   app.use("/api/billing", billingRouter());
   app.use("/api/maintenance", maintenanceRouter());
+  /**
+   * D-INV7's one resolve endpoint. It sits OUTSIDE the maintenance module because §2.10 makes it
+   * product-wide — a future `document` or `invite` kind belongs to other sections — and it is
+   * mounted here beside the module whose two kinds are the only ones registered today.
+   */
+  app.use("/api/tags", tagsRouter());
 }
 
 /**
@@ -304,6 +312,7 @@ export function createApp(env: Env): Express {
   const app = express();
   setAppLocals(app, { env });
   registerAllHandlers(); // queue handlers available for dispatchJob (both execution modes)
+  registerTagResolvers(); // D-INV7's kind → resolver map, on the queue registry's model
   app.set("trust proxy", 1); // Railway runs behind a proxy
 
   app.use(securityMiddleware(env));

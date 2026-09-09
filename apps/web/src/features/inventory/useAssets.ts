@@ -137,6 +137,49 @@ export function useCreateAssetType() {
   });
 }
 
+/**
+ * Edit a type — its name, category, whether it is serialized, its own default quantity.
+ *
+ * ⚠ `serialized` is not cosmetic: `move_asset` reads it, and `IV020` fires only for a serialized
+ * type. Turning it on for ratchet straps would make a trailer unable to accept a second one.
+ */
+export function useUpdateAssetType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; patch: Partial<AssetTypeInput> }): Promise<AssetTypeDto> => {
+      const r = await apiFetch<{ type: AssetTypeDto }>(
+        `/api/maintenance/inventory/asset-types/${input.id}`,
+        { method: "PATCH", body: input.patch },
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not save the type");
+      return r.data.type;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
+/**
+ * Adopt the standard kit (A4, owner 2026-09-09) — the types and the three fleet rules in one call.
+ *
+ * ⚠ Offered by the screen ONLY while the org has no types at all. It is idempotent about types but
+ * it OVERWRITES fleet rules with the catalogue's numbers, so it is a first run and not a reset: a
+ * shop that has since decided its trailers carry six straps would find four again.
+ */
+export function useAdoptStandardKit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<{ typesCreated: number; rulesSet: number }> => {
+      const r = await apiFetch<{ typesCreated: number; rulesSet: number }>(
+        "/api/maintenance/inventory/asset-types/standard-kit",
+        { method: "POST", body: {} },
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not set up the standard kit");
+      return r.data;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
 export function useCreateAsset() {
   const qc = useQueryClient();
   return useMutation({

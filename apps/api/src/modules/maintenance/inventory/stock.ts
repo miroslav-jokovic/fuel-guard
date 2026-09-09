@@ -21,7 +21,8 @@ import type { ServiceError } from "./types.js";
 
 const LOCATION_COLUMNS = "id, name, code, address, active";
 
-const STOCK_COLUMNS =
+/** Exported so the `BIN` tag resolver reads a stock line the same way the list does (I6). */
+export const STOCK_COLUMNS =
   "part_id, location_id, quantity_on_hand, reorder_point, reorder_quantity, aisle, row, bin, tag_code, active, " +
   "parts!inner(part_number, description, unit_of_measure, last_cost), " +
   "stock_locations!inner(name)";

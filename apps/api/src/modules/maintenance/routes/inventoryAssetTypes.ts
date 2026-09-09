@@ -6,7 +6,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { createAssetType, listAssetTypes, updateAssetType } from "../inventory/assetTypes.js";
+import { adoptStandardKit, createAssetType, listAssetTypes, updateAssetType } from "../inventory/assetTypes.js";
 import { statusForServiceError } from "../inventory/httpStatus.js";
 import { isServiceError } from "../inventory/types.js";
 
@@ -119,6 +119,41 @@ export function inventoryAssetTypesRouter(): Router {
         meta: { name: result.name, changed: Object.keys(body) },
       });
       res.json({ ok: true, type: result });
+    }),
+  );
+
+  /**
+   * Adopt the standard kit (A4, owner 2026-09-09).
+   *
+   * ⚠ Mounted ABOVE `PATCH /:id` in declaration order and it does not matter — `/standard-kit` is a
+   * POST and `/:id` is a PATCH, so they cannot collide whatever the order. Said out loud because
+   * `inventoryParts.ts` carries a corrected comment about a collision claim that was simply wrong,
+   * and the honest thing is to state which of the two kinds of ordering this is.
+   *
+   * Audited as ONE action rather than as twelve type creations and sixteen rules: what happened was
+   * "this org adopted the standard kit", and a log carrying twenty-eight rows would bury it.
+   */
+  router.post(
+    "/standard-kit",
+    requireOrg,
+    canManage,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const result = await adoptStandardKit(admin, orgId);
+      if (isServiceError(result)) {
+        res.status(statusForServiceError(result.code)).json(apiError(result.code, result.error));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "maintenance.standard_kit_adopted",
+        entity: "asset_types",
+        entityId: orgId,
+        meta: result,
+      });
+      res.status(201).json({ ok: true, ...result });
     }),
   );
 

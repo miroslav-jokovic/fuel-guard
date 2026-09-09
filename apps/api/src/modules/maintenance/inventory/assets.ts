@@ -29,8 +29,13 @@ import type { ServiceError } from "./types.js";
  *     position rather than a modelling shortcut — see `inventoryAssetContract.ts`'s header.
  */
 
-/** What a list or a detail selects. Three joins because the holder is one of three things. */
-const COLUMNS =
+/**
+ * What a list or a detail selects. Three joins because the holder is one of three things.
+ *
+ * Exported so the `AST` tag resolver reads an asset the same way this file does — a second column
+ * list would be a second answer to "what is an asset", and the two would drift on the next column.
+ */
+export const ASSET_COLUMNS =
   "id, tag_code, display_seq, asset_type_id, name, serial_number, model, manufacturer, status, " +
   "condition, location_id, vehicle_id, trailer_id, purchased_at, purchase_cost, warranty_expires_at, " +
   "image_path, notes, asset_types(name), stock_locations(name), vehicles(unit_number, assigned_driver_id), " +
@@ -167,7 +172,7 @@ export async function listAssets(
   const limit = Math.min(opts.limit ?? PAGE_MAX, PAGE_MAX);
   const offset = Math.max(opts.offset ?? 0, 0);
 
-  let q = admin.from("inventory_assets").select(COLUMNS, { count: "exact" }).eq("org_id", orgId);
+  let q = admin.from("inventory_assets").select(ASSET_COLUMNS, { count: "exact" }).eq("org_id", orgId);
   if (opts.assetTypeId) q = q.eq("asset_type_id", opts.assetTypeId);
   if (opts.status) q = q.eq("status", opts.status);
   if (opts.locationId) q = q.eq("location_id", opts.locationId);
@@ -214,7 +219,7 @@ export async function getAsset(
 ): Promise<AssetDto | null | ServiceError> {
   const { data, error } = await admin
     .from("inventory_assets")
-    .select(COLUMNS)
+    .select(ASSET_COLUMNS)
     .eq("org_id", orgId)
     .eq("id", id)
     .maybeSingle();

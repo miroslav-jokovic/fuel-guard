@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssetTypeDto, AssetTypeInput } from "@silvicom/shared";
+import { STANDARD_KIT_LINES, STANDARD_KIT_TYPES } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
 import { PAGE_MAX } from "./parts.js";
-import type { ServiceError } from "./types.js";
+import { isServiceError, type ServiceError } from "./types.js";
+import { setKitExpectation } from "./kitExpectations.js";
 
 /**
  * Asset types — "tablet", "load bar", "ratchet strap" (INVENTORY-PLAN.md step I7).
@@ -115,4 +117,66 @@ export async function updateAssetType(
     return traced("updateAssetType", "db_error", "Could not update the asset type", error);
   }
   return data ? toAssetTypeDto(data as unknown as TypeRow) : null;
+}
+
+/**
+ * Adopt the standard kit — A4's answer, applied to an org that has none (2026-09-09).
+ *
+ * ── IT IS IDEMPOTENT, AND THAT IS WHAT MAKES IT SAFE TO OFFER AS A BUTTON ─────────────────────
+ * A type whose name the org already has is left exactly as it is — not renamed, not re-categorised,
+ * not un-serialized — and its kit line is written all the same. So a second tap changes nothing, and
+ * a shop that has already made its own "Load bar" keeps it and gains the rule. The match is on
+ * `lower(name)`, which is `idx_asset_types_name`'s own rule.
+ *
+ * ── AND IT DOES NOT TOUCH A RULE SOMEBODY HAS ALREADY WRITTEN ─────────────────────────────────
+ * The fleet rules go through `setKitExpectation`, which is UPDATE-then-INSERT on the natural key —
+ * so adopting the kit twice writes the same numbers twice, and a shop that has since decided its
+ * trailers carry six straps would have that overwritten back to four. That is the one destructive
+ * edge, and it is why the SCREEN offers this only while the org has no types at all: the button is
+ * a first run, not a reset. The service does not enforce that, because a service that refused would
+ * be unable to say why.
+ */
+export async function adoptStandardKit(
+  admin: SupabaseClient,
+  orgId: string,
+): Promise<{ typesCreated: number; rulesSet: number } | ServiceError> {
+  const existing = await listAssetTypes(admin, orgId, { limit: 200 });
+  if (isServiceError(existing)) return existing;
+
+  const byName = new Map(existing.types.map((t) => [t.name.toLowerCase(), t.id]));
+  let typesCreated = 0;
+
+  for (const type of STANDARD_KIT_TYPES) {
+    if (byName.has(type.name.toLowerCase())) continue;
+    const created = await createAssetType(admin, orgId, {
+      name: type.name,
+      category: type.category,
+      serialized: type.serialized,
+      // Zero: the kit LINES below say how many a unit carries, per kind. A non-zero default here
+      // would apply to every kind of unit at once — there is no kind on `asset_types` — so a
+      // tractor would start expecting four ratchet straps.
+      defaultKitQuantity: 0,
+    });
+    if (isServiceError(created)) return created;
+    byName.set(type.name.toLowerCase(), created.id);
+    typesCreated += 1;
+  }
+
+  let rulesSet = 0;
+  for (const line of STANDARD_KIT_LINES) {
+    const assetTypeId = byName.get(line.typeName.toLowerCase());
+    // Unreachable unless the catalogue names a line whose type it does not list; a missing type is
+    // skipped rather than throwing, because half a kit is more useful than none and the screen
+    // reports what it wrote.
+    if (!assetTypeId) continue;
+    const set = await setKitExpectation(admin, orgId, {
+      assetTypeId,
+      unitKind: line.unitKind,
+      quantity: line.quantity,
+    });
+    if (isServiceError(set)) return set;
+    rulesSet += 1;
+  }
+
+  return { typesCreated, rulesSet };
 }
