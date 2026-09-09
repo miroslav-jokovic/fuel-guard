@@ -47,6 +47,53 @@ server path; citations are to `main` at `4cf7d97`.
  review  flags as sentences · page thumbnails · passA/passB as raw JSON · Attest & clear | Reject
 ```
 
+### 0.1 The goal this serves — stated by the owner on 2026-09-08, after the audit above was written
+
+> Every driver scans the BOL at **pickup** and at **delivery**, on every load. The system reads it and
+> extracts all of its data. For **hazmat** loads the data feeds billing, the placard calculator and a BOL
+> audit (shipping papers are sometimes written wrongly). For **non-hazmat** loads it feeds billing.
+> **McLeod is the source of truth; this application is a middle man.**
+
+That statement corrects the scope this document was first written under. Three consequences, each
+measured against the code:
+
+**(a) There are two capture paths today and neither is the one the goal needs.** The scanner audited
+above — native OS scanner, quality gate, integrity hash, dual-pass extraction — is attached to
+`hazmat_loads`, a table that is *not* `loads`. The load a driver actually works (`loads`, `load_stops`
+with `kind: pickup | dropoff`, ingested from McLeod by `tmsLoadIngest.ts`) has its own photo flow:
+`load_stop_photos` with a `bol` slot, taken with `expo-image-picker`, resized, **no** gate, **no** hash,
+**no** extraction, and read by nothing but the photo grid (`stopCapture.ts:35`, `driverLoads.ts:108-112`,
+0085:213-225). So the BOL a driver photographs at a stop today is never read, and the BOL the system can
+read is never attached to a stop. The goal needs one path: the scanner's engine, attached to a stop, at
+both stop kinds. Scanner plan Step 6.2 (document profiles; "the capture screen takes a profile and a
+destination rather than hardcoding hazmat") is exactly that seam and is no longer optional.
+
+**(b) The strongest wrong-data check available is the McLeod order, and it is free.** For hazmat, the
+dispatcher's `declared_lines` is what makes auto-clear defensible (F-EX8). For every load, the McLeod
+order is the same kind of thing: `loads.ref`, `commodity`, `hazmat`, `equipment`, and each stop's name,
+address, city and state are already ingested. A BOL whose consignee, reference number and pieces match the
+order is corroborated by a source that did not look at the photo — the independence D-EXR3 asks for. What
+the app holds today is thin: no BOL number, no PO or customer reference numbers, no pieces, no weight, no
+consignee reference. Those columns exist in McLeod (`orders`, `stop`, `reference_number`) and widening the
+read is a field-gap item of the kind `MCLEOD-FIELD-GAP-PLAN.md` already tracks. Reconciliation strength
+is bounded by that read; it is a Phase 0 dependency below.
+
+**(c) "Middle man" fixes what the output is.** The app never becomes the billing truth. Its product per
+stop is: the document images (original + archive), the extracted fields with their evidence ledger, a
+**discrepancy list against the order** (the BOL audit: wrong consignee, missing BOL number, pieces or
+weight off, unsigned or undated delivery copy, OS&D notations), and a **readiness state** the billing
+clerk reads. For hazmat the audit additionally runs `validateBol` (§172.202/.203, engine H3, exists) and
+the placard engine. Whether any of this is written *into* McLeod is an owner question (§8 Q6); the
+integration is read-only SQL over the carrier VPN today and McLeod imaging has no API in this repository.
+
+**What this does to the audit and the plan.** Nothing in F-EX1–13 changes; every defect is in the reading
+and review machinery the goal reuses. What changes is the *shape* of three things: the contract (one
+shipping-document contract with a hazmat section, not a hazmat contract), the declaration (McLeod order
+plus `declared_lines`, not `declared_lines` alone), and the capture's home (`load_stops`, not
+`hazmat_loads`). D-EXR10–12 and Steps 0.0, 0.4, 2.0 carry those changes. The word "safety-critical" in
+D-EXR4 becomes "safety- or money-critical": a field is cross-checked iff it feeds the engine, the order
+reconciliation, or billing readiness.
+
 **Two facts frame everything below.** (a) *No capture has ever completed on a phone* — production holds
 zero hazmat loads, documents and runs (scanner plan §6 Q5, measured 2026-09-07). (b) *No reading has ever
 been scored against a labelled document.* H11 ("shadow pilot: extraction accuracy vs human-verified truth,
@@ -195,10 +242,10 @@ readers of one image share the image's failures. A vote counts as independent wh
 different engine (the device OCR) *or* a different view of the original (a region crop). Agreement between
 pass A and pass B on a whole-page image is one vote of a kind, not two.
 
-**D-EXR4 — The cross-checked set is derived from `HazmatLine`, never listed.** (Forced by F-EX5.) A field is
-safety-critical iff it maps into an engine input or into the declaration. `checkAgreement` compares that set
-by construction, and a test that walks `HazmatLine`'s keys through `mapBolLines` proves no input is read
-from one pass alone.
+**D-EXR4 — The cross-checked set is derived, never listed.** (Forced by F-EX5; widened by §0.1.) A field
+is safety- or money-critical iff it maps into an engine input (`HazmatLine`), into the order
+reconciliation, or into billing readiness. `checkAgreement` compares that set by construction, and a test
+that walks the three consumers' input types proves no such field is read from one pass alone.
 
 **D-EXR5 — Lines align by key.** (Forced by F-EX6.) Readers are matched line-to-line on the id's digit
 string, then the normalised name; a line one reader lacks is *that* line's flag.
@@ -221,6 +268,24 @@ once §3 L2 exists, its region.
 per-field accuracy, false-accept rate, yield, cost per page — come first, and every later step ships with
 its number on that corpus. The research note's engine choices (Tesseract, PaddleOCR, Surya) are decided by
 H11 deliverable 4, on those numbers, or not at all.
+
+**D-EXR10 — One capture path, attached to the stop.** (Forced by §0.1(a).) A document is captured by the
+scanner engine against a `load_stops` row and its kind (`pickup` → the shipper's BOL; `dropoff` → the
+signed delivery copy). `hazmat_loads` links to the same document rows when `loads.hazmat` is true rather
+than owning a second capture. The `load_stop_photos` `bol` slot is retired into this path; the other slots
+(trailer, seal, damage) stay photos — they are not read.
+
+**D-EXR11 — The declaration is the McLeod order, plus `declared_lines` for hazmat.** (Forced by §0.1(b).)
+Every load has a declaration to reconcile against; a load without one (no McLeod match) is treated like a
+driver-self-created hazmat load today — it never auto-accepts. The reconciled field set is whatever the
+McLeod read supplies, and the plan's yield number is measured per field so a thin read shows up as low
+yield, not as false confidence.
+
+**D-EXR12 — The output is verification, never truth.** (Forced by §0.1(c).) Per stop the app emits the
+images, the ledger, the discrepancy list against the declaration, and a readiness state
+(`unread | reading | needs_confirmation | verified | discrepant`). No field the app read is presented to
+billing as the value of record without either matching the order or carrying a reviewer's confirmation.
+Writing into McLeod is not assumed (§8 Q6).
 
 ---
 
@@ -294,7 +359,9 @@ the engine then computes from.
 rule already written), each with a `labels.json` transcribed by a human from the paper: every `BolFields`
 value plus a per-page quality band (`clean` / `soft` / `copy` / `damaged`, assigned by eye, recorded with
 the assigner). Target: 40 documents across at least five shippers, at least ten in `copy` or `damaged` —
-poor originals are the point. Photographs come from the device session (scanner handoff §5) and from the
+poor originals are the point — and, per §0.1, at least half **non-hazmat** and at least ten **signed
+delivery copies**, because the fields billing reads (BOL number, consignee, pieces, weight, signature,
+receiver, delivery date, OS&D notations) are absent from a hazmat-only corpus. Photographs come from the device session (scanner handoff §5) and from the
 office scanner; both routes are labelled the same.
 
 **Runner.** `pnpm --filter @silvicom/api bol:score` — runs `runExtraction` against the corpus with the real
@@ -354,7 +421,23 @@ done-when; every step from Phase 2 on ships with the §5 table. Order is chosen 
 that need no corpus close first, the measurement harness exists before any reading change, and the
 recovery ladder is built rung by rung against numbers.
 
-### PHASE 0 — Measurement (nothing about reading changes)
+### PHASE 0 — Measurement, and the two dependencies §0.1 exposed (nothing about reading changes)
+
+**Step 0.0 — The scanner captures against a stop (D-EXR10).** Scanner plan Step 6.2 built as specified —
+a `DocumentProfile` and a destination threaded through `scan()` — plus a `stop_id`/`kind` on the document
+row and a registration route under `/api/me/loads/:loadId/stops/:stopId/documents` that reuses
+`registerDocument`'s contract (integrity hash, metrics, ocr_evidence). The stop screen's `bol` slot opens
+the scanner; the other slots are untouched. `hazmat_loads` gains a nullable `load_id` so a hazmat load
+links to the operational load rather than duplicating it. *Migration:* additive columns, no reader in the
+same merge. *Done-when:* a pickup and a dropoff on one load each hold a scanned, hashed, extracted
+document, and the hazmat panel shows the pickup one when `loads.hazmat` is true.
+
+**Step 0.4 — Widen the McLeod order read (D-EXR11).** The fields the reconciliation needs and the app
+does not hold: BOL number, customer/PO/consignee reference numbers, pieces, weight (with its `_um`,
+D-FG2), commodity description per stop. Read per `MCLEOD-FIELD-GAP-PLAN.md`'s method — verify the column
+on the linked sandbox first, never assume — into additive `loads`/`load_stops` columns. *Done-when:* the
+scorer's declaration for a non-hazmat corpus document is populated from the ingested order, and the table
+prints per-field yield against it.
 
 **Step 0.1 — Corpus format and labeller.** `fixtures/real/private/<doc>/{pages/*.jpg, labels.json}`;
 `labels.json` is `BolFields` + `{pages:[{band, assignedBy}]}` validated by the existing Zod schema. A
@@ -401,6 +484,15 @@ different `declared_lines` produces two runs.
 `resolution`. No reader yet; the ledger in 2.x is built on it.
 
 ### PHASE 2 — The ledger and the third vote
+
+**Step 2.0 — One shipping-document contract (§0.1).** `shippingDocumentContract.ts` in
+`packages/shared`: sections `identity` (BOL number, date, page-of), `parties` (shipper, consignee, bill-to),
+`references` (PO, customer, consignee refs), `freight` (pieces, pallets, weight + unit, seal, trailer),
+`hazmat` (today's `BolFields.lines` and its header items, unchanged), `execution` (shipper certification,
+receiver signature present, receiver printed name, delivery date/time, stamps, OS&D notations). Both
+passes read the whole contract; the hazmat section is required only when `loads.hazmat`; the `execution`
+section is expected only at a `dropoff`. `BolFields` becomes a projection of it, so nothing in the hazmat
+path is rewritten. *Verify:* the existing 69 extraction tests pass unchanged against the projection.
 
 **Step 2.1 — `FieldEvidence` contract** in `packages/shared` (`hazmatEvidenceContract.ts`): the §4 shape,
 statuses `accepted | confirm | unreadable`, `ACCEPTANCE_RULE_VERSION`. The rule in this step is the *most
@@ -489,6 +581,22 @@ any other.
 long edge for a letter page), chosen so a table row is never split; Step 3.2 records the number that
 maximised accuracy on the corpus.
 
+**Q6 — Does anything get written into McLeod?** The integration is read-only SQL over the VPN; McLeod
+imaging has no API here. Candidates: (a) nothing — the billing clerk works from the app's readiness
+queue and packet; (b) an export (PDF + fields) named per McLeod order for the clerk to attach; (c) a
+McLeod write path, which is a separate integration programme. *Recommendation and default:* (a) now,
+(b) as a Phase 4 step once readiness exists; (c) only on an owner ruling with the McLeod side's
+agreement.
+
+**Q7 — Which fields does billing require to call a load billable?** The `execution` and `freight`
+sections in Step 2.0 are a guess at what the clerk checks today. *Until answered:* the readiness state
+requires BOL number, consignee match, pieces, signature present and delivery date on the dropoff copy;
+the list is a contract constant so the owner's answer is one edit.
+
+**Q8 — Pickup scan, delivery scan, or both, for non-hazmat loads?** The owner said both. *Default:* both
+required; the stop's `required_photos` already models "required at this stop", so per-customer relaxation
+is dispatch configuration, not code.
+
 ---
 
 ## 9. Progress log
@@ -497,3 +605,8 @@ Append dated lines at the end; never edit a row above. (`plan-progress-log-not-t
 
 - **2026-09-08** — Audit complete: F-EX1–F-EX13 from a full read of the phone-to-verdict path plus two
   background audits (driver, reviewer). Decisions D-EXR1–9 and Phases 0–6 proposed. Nothing built.
+- **2026-09-08 (later)** — Owner stated the goal (§0.1): every load, pickup and delivery, hazmat and
+  non-hazmat, billing as a consumer, McLeod the source of truth, the app a middle man. Scope corrected:
+  D-EXR10–12 added; D-EXR4 widened to money-critical fields; Steps 0.0 (capture on stops), 0.4 (McLeod
+  order read), 2.0 (one shipping-document contract) added; corpus target widened; Q6–Q8 opened. The
+  audit's findings are unchanged — the goal reuses the same reading and review machinery.
