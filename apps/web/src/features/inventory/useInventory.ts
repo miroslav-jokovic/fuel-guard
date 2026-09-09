@@ -219,6 +219,41 @@ export function useCountSessionsQuery(status?: Ref<"open" | "closed" | undefined
  * started with the network up, because the screen cannot show what to count without it, while a
  * movement is what the phone queues in a dead bay. Two taps of Start must not make two walks.
  */
+/** One walk, by id — what the count screen opens on. */
+export function useCountSessionQuery(id: Ref<string>) {
+  return useQuery({
+    queryKey: ["inventory", "count-session", id] as const,
+    enabled: computed(() => Boolean(id.value)),
+    queryFn: async (): Promise<CountSessionDto> => {
+      const r = await apiFetch<{ session: CountSessionDto }>(
+        `/api/maintenance/inventory/count-sessions/${id.value}`,
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the count");
+      return r.data.session;
+    },
+  });
+}
+
+/**
+ * The shelf lines at one location — what a walk of that bay counts.
+ *
+ * `enabled` on the location, because the count screen learns which bay it is about from the SESSION
+ * and cannot ask for the shelf before that resolves.
+ */
+export function useStockQuery(locationId: Ref<string | undefined>) {
+  return useQuery({
+    queryKey: ["inventory", "stock", locationId] as const,
+    enabled: computed(() => Boolean(locationId.value)),
+    queryFn: async (): Promise<{ lines: StockLineDto[]; total: number }> => {
+      const r = await apiFetch<{ lines: StockLineDto[]; total: number }>(
+        `/api/maintenance/inventory/stock?locationId=${locationId.value}`,
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the shelf");
+      return r.data;
+    },
+  });
+}
+
 export function useOpenCountSession() {
   const qc = useQueryClient();
   return useMutation({

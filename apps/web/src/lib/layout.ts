@@ -1,7 +1,7 @@
 import type { RouteMeta } from "vue-router";
 
 /** The shells `App.vue` can render a page in. `undefined` means the default — `AppShell`. */
-export type LayoutName = "auth" | "public" | "apply" | "lab" | undefined;
+export type LayoutName = "auth" | "public" | "apply" | "lab" | "shop" | undefined;
 
 /**
  * Which shell a route renders in (G1, UI-GAPS-PLAN.md).
@@ -17,6 +17,10 @@ export type LayoutName = "auth" | "public" | "apply" | "lab" | undefined;
  *
  * `layoutWhenSignedOut` is therefore an override that only applies with no session, and only where a
  * route asks for it. Every other route is unaffected — `layout` alone decides, exactly as before.
+ *
+ * `shop` (D-INV17) is a SIGNED-IN shell like the default one, and takes no `layoutWhenSignedOut`:
+ * the count screen sits behind the desk's login and the router bounces a session without it long
+ * before this function is asked anything.
  */
 export function resolveLayout(meta: RouteMeta, isAuthenticated: boolean): LayoutName {
   if (!isAuthenticated && meta.layoutWhenSignedOut) return meta.layoutWhenSignedOut as LayoutName;

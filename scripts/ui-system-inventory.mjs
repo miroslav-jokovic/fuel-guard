@@ -136,6 +136,12 @@ function verifyAdoption() {
     // workspace for a header to sit in and no breadcrumb trail to walk. `LegalDocument.vue` gives
     // them their own heading, version and effective date — the chrome a document needs rather than
     // the chrome a data page needs.
+    // I5 PR 2b's shelf count, and the reason is the same one every entry above gives: `PageHeader`
+    // is the workspace's chrome — a breadcrumb trail, a route title, an actions row — and this page
+    // renders in `ShopLayout` (D-INV17), which has no workspace around it. It is a phone held in a
+    // bay: no sidebar, one in-content way back, and a sticky header of its own carrying the only
+    // thing a counter needs to see, which is how many bins are left and how many are short.
+    "CountSessionPage.vue",
     "legal/PrivacyPolicyPage.vue",
     "legal/SupportPage.vue",
     "legal/TermsPage.vue",

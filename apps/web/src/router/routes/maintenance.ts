@@ -50,6 +50,20 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/PartDetailPage.vue"),
     meta: { requiresAuth: true, title: "Part", parent: "/shop/inventory" },
   },
+  /**
+   * The count screen (I5 PR 2b). `layout: "shop"` is D-INV17: no sidebar, full-height viewport, a
+   * sticky bottom action bar inside the safe area — a phone held in a bay, not a desk screen.
+   *
+   * ⚠ The route does NOT change while a count is open. Everything a walk does — type, confirm,
+   * record, review, close — happens here, because a route change on a screen holding a wake lock
+   * and an unsent queue is a screen that loses both.
+   */
+  {
+    path: "/shop/count/:sessionId",
+    name: "count-session",
+    component: () => import("@/pages/CountSessionPage.vue"),
+    meta: { requiresAuth: true, title: "Count", parent: "/shop", layout: "shop" },
+  },
   {
     path: "/shop/inspections",
     name: "annual-inspections",
