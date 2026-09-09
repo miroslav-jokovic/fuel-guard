@@ -223,7 +223,23 @@ export const SURFACES: readonly Surface[] = [
   { key: "finance.billing", label: "Invoices", path: "/billing", group: "finance", gate: section("billing") },
 
   // ── maintenance ───────────────────────────────────────────────────────────────────────────────
-  { key: "maintenance.repair-spend", label: "Repair spend", path: "/shop", group: "maintenance", gate: section("maintenance") },
+  /**
+   * ⚠ THE KEY SAYS `repair-spend` AND THE SCREEN IS NOW THE SHOP'S HOME (INVENTORY-PLAN.md I4).
+   *
+   * `/shop` was the repair-spend ledger and is the section home from I4 on; the ledger moved down to
+   * `/shop/repair-spend`. The obvious tidy — renaming the key to `maintenance.shop` — is exactly what
+   * must not happen, and not on style grounds: **the key IS the primary key an override is stored
+   * against** (S3/S4), so renaming it silently resets every org's and every user's answer about this
+   * screen to the shipped default. Measured in production 2026-09-09, before the relabel: one live
+   * `user_surface_access` row denies `maintenance.repair-spend` to one member. A rename would have
+   * granted them the screen back with nothing in the product recording that it had happened.
+   *
+   * The consequence of KEEPING it is real too and is smaller: that member is now denied the shop
+   * home rather than one report. The ledger below carries `parent: "maintenance.repair-spend"`, so
+   * the half of their denial that already existed keeps meaning what it meant.
+   */
+  { key: "maintenance.repair-spend", label: "Shop", path: "/shop", group: "maintenance", gate: section("maintenance") },
+  { key: "maintenance.parts", label: "Parts", path: "/shop/inventory", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspections", label: "Annual inspections", path: "/shop/inspections", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspectors", label: "Inspectors", path: "/shop/inspectors", group: "maintenance", gate: section("maintenance") },
 
@@ -246,6 +262,18 @@ export const SURFACES: readonly Surface[] = [
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },
   { key: "recruitment.applicants.detail", label: "Applicant", path: "/recruitment/:id", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
+  { key: "maintenance.parts.detail", label: "Part", path: "/shop/inventory/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.parts" },
+  /**
+   * The repair-spend ledger, which used to BE `/shop` (I4).
+   *
+   * It is a child rather than a nav entry of its own for two reasons that point the same way. The
+   * maintenance group is fixed at six entries by I4's ruling and this is not one of them — it is one
+   * `StatCard` on the home and the page behind that card. And it must answer to
+   * `maintenance.repair-spend`, because that key already carries a production denial about THIS
+   * page: given a key of its own the denial would stop reaching the ledger the day the home took
+   * the key over. D-SURF8's inheritance is what keeps that answer where it was pointed.
+   */
+  { key: "maintenance.repair-spend.ledger", label: "Repair spend", path: "/shop/repair-spend", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
 
   // ── non-nav screens that already state a section, transcribed (no behaviour change) ───────────
   { key: "dispatch.loads.new", label: "New Load", path: "/loads/new", group: "dispatch", gate: manage("dispatch"), module: "dispatch", parent: "dispatch.loads" },

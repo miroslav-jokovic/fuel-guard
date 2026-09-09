@@ -223,3 +223,38 @@ describe("buildNavGroups under an org's overrides", () => {
     expect(names("admin", { settings: "none" })).toContain("Settings");
   });
 });
+
+/**
+ * The shop's nav group after I4 (INVENTORY-PLAN.md), and the one thing about it that is a
+ * PERMISSION decision rather than a naming one.
+ *
+ * `/shop` was the repair-spend ledger and is the section home from I4; the ledger moved to
+ * `/shop/repair-spend`. The surface key stayed `maintenance.repair-spend` for both, because the key
+ * is the primary key an override is stored against (S3/S4) — measured in production on 2026-09-09,
+ * before the relabel: one live `user_surface_access` row denies that exact key to one member.
+ * Renaming it would have handed them the screen back with nothing in the product recording it.
+ *
+ * These two assertions are what a rename would break, and they are here rather than in the plan
+ * because a decision recorded only in prose is a decision the next refactor deletes.
+ */
+describe("the shop group keeps its stored answers through I4's relabel", () => {
+  const shopItems = (surfaces: Parameters<typeof buildNavGroups>[4] = null) =>
+    buildNavGroups("technician", null, {}, null, surfaces)
+      .find((g) => g.label === "Maintenance")
+      ?.items.map((i) => `${i.name} ${i.to}`) ?? [];
+
+  it("renders Shop at /shop and Parts at /shop/inventory, in that order", () => {
+    expect(shopItems()).toEqual([
+      "Shop /shop",
+      "Parts /shop/inventory",
+      "Annual inspections /shop/inspections",
+      "Inspectors /shop/inspectors",
+    ]);
+  });
+
+  it("still answers to `maintenance.repair-spend`, which is the key production already stores", () => {
+    expect(shopItems({ "maintenance.repair-spend": false })).not.toContain("Shop /shop");
+    // …and only that entry. A denial that took the whole group with it would be a different bug.
+    expect(shopItems({ "maintenance.repair-spend": false })).toContain("Parts /shop/inventory");
+  });
+});

@@ -34,6 +34,7 @@ import { driverRoutes } from "./routes/drivers";
 import { recruitmentRoutes } from "./routes/recruitment";
 import { fuelRoutes } from "./routes/fuel";
 import { financeRoutes } from "./routes/finance";
+import { maintenanceRoutes } from "./routes/maintenance";
 import { settingsRoutes } from "./routes/settings";
 import { legalRoutes } from "./routes/legal";
 import { systemRoutes, notFoundRoute } from "./routes/system";
@@ -64,6 +65,7 @@ const routes: RouteRecordRaw[] = [
   ...recruitmentRoutes,
   ...fuelRoutes,
   ...financeRoutes,
+  ...maintenanceRoutes,
   ...settingsRoutes,
   ...legalRoutes,
   ...systemRoutes,

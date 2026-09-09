@@ -1107,3 +1107,103 @@ signed here by the person who did it. I6's spike results go here before its seco
   the Samsara webhook, which was wired correctly against a trigger that had never existed on the
   account: here the event is in the vendor's published schema, though it still has to be confirmed on
   the actual FleetPal account before I14 depends on it.
+
+- **I4 — web: the shop home and Parts — DONE 2026-09-09 (PR pending).** `/shop` is the section home,
+  `/shop/inventory` and `/shop/inventory/:id` are the catalogue and one part, and the four `/shop`
+  routes moved out of `router/routes/finance.ts` into a new `router/routes/maintenance.ts`. Both
+  route-table snapshots regenerated; the diff is additions plus one `title`. `stockLevelBadge()` is
+  in `@/lib/badges` and asks `isLowStock` rather than restating it. 21 new assertions.
+
+  **THE SURFACE KEY WAS KEPT, AND THE REASON IS A PRODUCTION MEASUREMENT RATHER THAN A PRINCIPLE.**
+  `maintenance.repair-spend` now labels "Shop" and addresses the home. Before the relabel, production
+  was queried: **one live `user_surface_access` row denies that exact key to one member** (and one
+  denies `maintenance.inspectors` to the same member; `org_role_surface_access` holds nothing for
+  maintenance). A key is the primary key an override is stored against (S3/S4), so the obvious tidy —
+  renaming it to `maintenance.shop` — would have handed that member the screen back with nothing in
+  the product recording that it had happened. ⚠ **Keeping it has a smaller consequence that is still
+  real and is stated rather than buried: that member is now denied the shop HOME rather than one
+  report.** The ledger moved to `/shop/repair-spend` and carries `parent: "maintenance.repair-spend"`,
+  so the half of their denial that already existed keeps meaning exactly what it meant. Pinned by
+  two tests; renaming the key fails three, and dropping the `parent` fails one.
+
+  **AND A SECOND CONSEQUENCE OF THE SAME SHAPE, WHICH IS ABOUT EVERY FUTURE STEP.** A surface claim
+  is SPARSE — an absent key is *unchanged*, not denied — so **every new surface arrives GRANTED to
+  everyone holding its section**. `navEquivalence.test.ts`'s S3 case was written as "a technician
+  left with Annual Inspections alone" and that stopped being what those two denials produce the
+  moment Parts existed. The snapshot would have absorbed it silently; the comment now states the
+  rule and an explicit assertion holds the list, because a stale worked example is the same defect
+  class as a comment claiming a hazard measurement denies. An org that has narrowed a role must
+  answer again for each screen the product adds — I8, I9 and I11 will each do this to them.
+
+  **⚠ A BLOCKER FOUND BY MEASURING, AND CLOSED HERE BECAUSE NO STEP OWNED IT.** On 2026-09-09
+  production held **zero rows in all four inventory tables**, and `stock_locations` is the one
+  nothing in the product could ever write: I3 shipped `POST /locations` and `PATCH /locations/:id`
+  with no consumer, no step in §5 owns a screen for them, and I11's settings drawer chooses a
+  DEFAULT location, which presumes some exist. Followed literally the programme would have reached
+  I5 with a receive drawer that has nowhere to receive into, and I4's own "Add a shelf" would have
+  opened an empty picker. **This is the same class of gap the review found for `reorder_point`** —
+  an endpoint with no consumer and no step owning one — and it is closed the same way, in the step
+  whose screens first need it: `LocationsDrawer.vue` behind the gear on Parts, which is where I11's
+  settings land too. §5's I11 should be read as *adds to* that drawer, not as introducing it.
+  Closing a location does not delete it: the RPC refuses a movement into an inactive one (`IV012`),
+  so every picker asks for active locations and this one screen shows the closed ones, because
+  reopening has to be possible from somewhere. The part detail asks for BOTH lists — the ledger
+  resolves names including closed bays, or a movement into a bay since closed renders as "—" and the
+  evidence the ledger exists for is erased.
+
+  **`reorder_point` got its writer here too, for the reason the review's fifth finding names.** The
+  home's low-stock `StatCard` and the Parts low-stock filter both land in this step (I12's own text
+  assigns the filter to I4), and a card that can only ever read zero is the review's defect one layer
+  up. `StockLineDrawer.vue` writes the reorder point, the reorder quantity and whether the line is
+  carried; the QUANTITY is absent from the form and from the endpoint, because
+  `record_part_movement` is the projection's only writer (D-INV4). A shelf can be added to a part
+  that has never been received — the endpoint is a guarded UPDATE then an INSERT — which is what puts
+  "we carry this and have none" on the low-stock list on day one.
+
+  **Six deviations from the step text, each because the thing it describes does not exist yet.**
+  (a) **No Scan button.** I4's text puts one on the home; `/shop/scan` is built at I6, so the button
+  would resolve to the catch-all and put a 404 behind the most prominent control on the page. (The
+  size it names, `AppButton size="lg"`, is also not in the primitive — it has `sm` and `md`.)
+  (b) **No kit-shortfall card** — I7–I9 build assets and units, and the step text already says hidden
+  until then. (c) **The nav group is FOUR rows, not six**: Assets (I8) and Units (I9) join later, and
+  the done-when's "six-row group" is met at I9 rather than here. (d) **No CSV import.** A3's escape
+  hatch needs a bulk endpoint the API does not have, and this step is web-only — it is an API change,
+  not a deferral. (e) **The gear carries locations, not `inventory_settings`** (I11's table does not
+  exist). (f) **The repair-spend card counts LINES, not dollars**: `GET /api/maintenance/spend`
+  answers with a page of entries and a row count and no sum, and adding the page up would report a
+  total that stops at fifty rows and would be believed — the exact defect the review found in
+  `/low-stock`. A sum belongs in that endpoint. In production the card renders the API's
+  `pendingSources` sentence, because the maintenance ledger is still empty.
+
+  **A2's I4 half is discharged; its I6 half stands.** The shelving question was already answered
+  (no shelf numbers, §1.4) and the parts-list question was answered by A3 (`GET /v1/parts/`). What
+  I4 additionally measured is that the shop starts from nothing — zero parts, zero locations — so the
+  first thing a real user sees is the first-run empty state, which is why that state has a working
+  action rather than three tiles pointing at steps that have not shipped. The phones and the bay wifi
+  are untouched and still gate I6.
+
+  **Two measured, pre-existing characteristics, noted and NOT changed here.**
+  (1) **`AnnualInspectionsPage.vue:188` passes `:row-to` and `DataTable` declares no such prop.** It
+  lands in `$attrs` and does nothing, so those rows have never been clickable and the kebab's "Open
+  report" is what opens one. I4's step text names that page as the shape to follow; the Parts tables
+  use `@row-click`, which is the mechanism the component actually emits, and the dead prop is
+  recorded rather than copied. (2) **`FilterBar` does not pluralise its count** — 40 call sites all
+  pass a plural noun, so "1 shelves" is the house rendering everywhere and this page matches it. It
+  is one change in the primitive for all 40, not a local rule in one page.
+
+  **Mutation proofs, five, each restored:** rewriting `stockLevelBadge` to compare a quantity against
+  `reorderPoint ?? 0` instead of asking `isLowStock` failed *"says nothing at all when no reorder
+  point has been set, even at zero on hand"*; adding `?limit=50&offset=0` to the low-stock read failed
+  *"asks for the whole list"*; renaming the surface key to `maintenance.shop` failed three (one nav,
+  two guard); dropping `parent` from the moved ledger failed *"the moved repair-spend ledger still
+  answers to the key its denial is stored under"*; collapsing the two location lists into one failed
+  *"asks for the closed ones too when told to"*.
+  **Verification:** all **38** `lint:*` gates (the full list, not only the 28 CI runs by name) plus
+  `apps/web`'s own `lint:tokens`, `pnpm typecheck`, and `pnpm test` green across every unit suite and
+  all 40 matrices. Every screen was rendered under `preview:local` with Playwright route mocks and
+  `VITE_DEV_BYPASS` — the shop home populated and first-run, Parts, the low-stock filter, a part
+  detail with shelves and ledger, the new-part drawer reached from the empty state, and the locations
+  drawer with a closed bay — with no console or page errors on any of them.
+  ⚠ One full run failed `inspections.test.ts` with `ECONNRESET`; it passes in isolation, a second
+  full run of the same suite was green, and this PR touches no file under `apps/api`. That is the
+  transport flake recorded at I9's prerequisite and in #690, not a regression.

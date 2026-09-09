@@ -64,13 +64,25 @@ describe("buildNavGroups is unchanged by the surface catalogue (S1)", () => {
   });
 
   it("the org's SCREEN answers narrow the sidebar, per role (S3/D-SURF1)", () => {
-    // The owner's worked example in the surface it was asked about: a technician left with Annual
-    // Inspections alone. The Maintenance group must keep exactly one item, and the technician's
-    // other group (Fleet → equipment: view) must be untouched — a screen denial is not a section one.
+    // The owner's worked example in the surface it was asked about: a technician denied the shop
+    // home and the inspector register. The technician's other group (Fleet → equipment: view) must
+    // be untouched — a screen denial is not a section one.
+    //
+    // ⚠ The example was written as "left with Annual Inspections alone", and that stopped being
+    // what these two denials produce when I4 added Parts (INVENTORY-PLAN.md). It is not a
+    // regression: a surface claim is SPARSE, so a key nobody has answered about is UNCHANGED rather
+    // than denied, and a screen that did not exist when an override was written cannot have been
+    // denied by it. The consequence is worth stating rather than snapshotting quietly — **every new
+    // surface arrives granted to everyone holding its section**, so an org that has narrowed a role
+    // must answer again for each screen the product adds.
     const denied = render("technician", [...MODULE_KEYS], {}, null, {
       "maintenance.repair-spend": false,
       "maintenance.inspectors": false,
     } as never);
+    expect(denied.find((g) => g.group === "Maintenance")?.items).toEqual([
+      "Parts → /shop/inventory",
+      "Annual inspections → /shop/inspections",
+    ]);
     expect(denied).toMatchSnapshot();
     // …and the same denials against a role that reaches those screens by a different section answer
     // still apply, because the key is the screen and not the role's route to it.

@@ -62,6 +62,10 @@ const PROBES = [
   // The §396.17 register and one report (A7). Written out as a pair for the same reason the
   // loads routes are: a static segment must keep beating a param.
   "/shop/inspections", "/shop/inspections/insp_1", "/shop/inspectors",
+  // I4 moved these four out of `routes/finance.ts` into `routes/maintenance.ts` and gave `/shop` a
+  // new component. `/shop/inventory` and `/shop/inventory/:id` are a third specificity pair, and
+  // `/shop/repair-spend` is the ledger `/shop` itself used to render.
+  "/shop/repair-spend", "/shop/inventory", "/shop/inventory/prt_1",
   "/fuel-reconciliation", "/fuel-exceptions", "/import",
   "/transactions", "/rejections",
   "/fuel-cards", "/fuel-cards/fc_1",
