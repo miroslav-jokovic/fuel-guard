@@ -19,12 +19,15 @@ import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLineDrawer from "@/features/inventory/StockLineDrawer.vue";
 import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
+import FileDropzone from "@/components/ui/FileDropzone.vue";
 import {
+  useAttachPartPhoto,
   useLocationsQuery,
   useMovementsQuery,
   usePartQuery,
 } from "@/features/inventory/useInventory";
 import { useSessionStore } from "@/stores/session";
+import { useToastStore } from "@/stores/toast";
 
 /**
  * One part: what it is, where it sits, and everything that has happened to it
@@ -46,6 +49,7 @@ import { useSessionStore } from "@/stores/session";
 
 const route = useRoute();
 const session = useSessionStore();
+const toast = useToastStore();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data, isLoading, isError, error, refetch } = usePartQuery(id);
@@ -75,6 +79,23 @@ const movements = useMovementsQuery(movementFilter);
  */
 const locationName = (locationId: string) =>
   locations.value?.find((l) => l.id === locationId)?.name ?? "—";
+
+/**
+ * ⚠ The route this calls shipped at I3 with NO consumer, and stayed that way until 2026-09-09: the
+ * page rendered `photoUrl` and there was no way in the product to produce one. I8's asset drawer
+ * shipped its screen alongside its route for exactly this reason; this is the parts half paid.
+ */
+const photo = useAttachPartPhoto();
+async function onPhoto(files: File[]) {
+  const file = files[0];
+  if (!file || !part.value) return;
+  try {
+    await photo.mutateAsync({ id: part.value.id, file });
+    toast.success("Photo added");
+  } catch (e) {
+    toast.error("Could not add the photo", e instanceof Error ? e.message : undefined);
+  }
+}
 
 const editing = ref(false);
 /**
@@ -171,14 +192,24 @@ function detailOf(m: {
               <dd class="mt-1 text-sm text-ink-secondary">{{ part.notes }}</dd>
             </div>
           </dl>
-          <!-- Signed for 300 s (D-INV8) and re-signed with the query, so a page left open overnight
-               refetches rather than rendering a broken image. -->
-          <img
-            v-if="data?.photoUrl"
-            :src="data.photoUrl"
-            :alt="`Photo of ${part.partNumber}`"
-            class="size-28 shrink-0 rounded-surface object-cover ring-1 ring-edge"
-          />
+          <div class="shrink-0 sm:w-40">
+            <!-- Signed for 300 s (D-INV8) and re-signed with the query, so a page left open overnight
+                 refetches rather than rendering a broken image. -->
+            <img
+              v-if="data?.photoUrl"
+              :src="data.photoUrl"
+              :alt="`Photo of ${part.partNumber}`"
+              class="size-28 rounded-surface object-cover ring-1 ring-edge"
+            />
+            <FileDropzone
+              v-else-if="canManage"
+              accept=".jpg,.jpeg,.png,.webp,.heic"
+              label="Add a photo"
+              hint="So the next person picks the right one off the shelf."
+              :busy="photo.isPending.value"
+              @files="onPhoto"
+            />
+          </div>
         </div>
         <div v-if="!part.active" class="mt-4">
           <AppBadge tone="neutral">Retired</AppBadge>

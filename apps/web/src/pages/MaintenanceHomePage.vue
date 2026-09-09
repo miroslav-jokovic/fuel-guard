@@ -5,6 +5,7 @@ import { CubeIcon, ExclamationTriangleIcon, PlusIcon, ArrowsRightLeftIcon, Gauge
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { lastFullMonth } from "@/lib/dateWindow";
+import { fmtMoney } from "@/lib/chartTheme";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";
 import { useLowStockQuery, useMovementsQuery, usePartsQuery } from "@/features/inventory/useInventory";
 import StartCountDrawer from "@/features/inventory/StartCountDrawer.vue";
@@ -29,12 +30,13 @@ import { useSessionStore } from "@/stores/session";
  * then, and a tile reading "0 shortfalls" against a fleet nobody has recorded a kit for would be a
  * measurement of nothing.
  *
- * ── AND THE REPAIR-SPEND CARD COUNTS LINES RATHER THAN DOLLARS ────────────────────────────────
- * `GET /api/maintenance/spend` answers with a PAGE of entries and a row count; there is no sum in
- * the response. Adding the dollars up from the page would report a total that stops at fifty rows
- * and would be believed — the exact defect the 2026-09-09 review found in `/low-stock` — so the
- * card counts what the ledger holds for the window and the page behind it carries the amounts.
- * A sum belongs in that endpoint, and that is an API change, not this web-only step.
+ * ── THE REPAIR-SPEND CARD SHOWS DOLLARS, AND THE SUM IS THE ENDPOINT'S ────────────────────────
+ * It counted LINES until 2026-09-09, because `GET /api/maintenance/spend` answered with a page and
+ * a row count and no sum — and adding the page up here would have reported a total that stops at
+ * fifty rows and would be believed, which is the exact defect the review found in `/low-stock`.
+ * I4 recorded that as owed; the endpoint now returns `totalAmount` over the whole window, computed
+ * by the ledger's own `summarizeByCategory`. **`entries` is still one page and must never be summed
+ * here** — the figure on this card comes from the endpoint or it does not appear.
  */
 
 const window_ = lastFullMonth();
@@ -123,8 +125,8 @@ const firstRun = computed(() => !catalogueLoading.value && (catalogue.value?.tot
            links to renders the same one. A zero here without it would be a mysterious zero. -->
       <StatCard
         label="Repair spend"
-        :value="spend?.pendingSources ? '—' : (spend?.total ?? 0)"
-        :sub="spend?.pendingSources ?? 'Ledger lines in the last full month'"
+        :value="spend?.pendingSources ? '—' : fmtMoney(spend?.totalAmount ?? 0)"
+        :sub="spend?.pendingSources ?? 'Booked in the last full month'"
         :icon="GaugeIcon"
         tone="text-ink-muted bg-surface-subtle"
         :loading="spendLoading"

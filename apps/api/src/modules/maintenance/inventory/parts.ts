@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PartDto } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
+import { orFilterValue } from "../../../lib/postgrestFilters.js";
 import type { ServiceError } from "./types.js";
 
 /**
@@ -82,7 +83,10 @@ export async function listParts(
   if (!opts.includeInactive) q = q.eq("active", true);
   if (opts.category) q = q.eq("category", opts.category);
   if (opts.search?.trim()) {
-    const term = `%${opts.search.trim()}%`;
+    // ⚠ QUOTED, not interpolated raw. `.or()` is one string PostgREST parses into a filter tree, and
+    // `,` `(` `)` `.` are its separators — a part number with a comma in it used to either 400 or
+    // build a filter nobody wrote. `orFilterValue` is the grammar's own escape; see its header.
+    const term = orFilterValue(`%${opts.search.trim()}%`);
     q = q.or(`part_number.ilike.${term},description.ilike.${term}`);
   }
 

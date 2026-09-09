@@ -60,7 +60,9 @@ const variantFor = (value: InspectionResult) => {
       <p class="truncate text-sm text-ink" :title="item.label">{{ item.label }}</p>
     </div>
 
-    <AppBadge v-if="untouched" tone="neutral" class="shrink-0">default</AppBadge>
+    <!-- "Default" and not "default": `AppBadge` stopped title-casing on 2026-09-09, and this was the
+         one call site in the product leaning on it to fix a lower-case literal. -->
+    <AppBadge v-if="untouched" tone="neutral" class="shrink-0">Default</AppBadge>
 
     <div
       role="group"

@@ -198,6 +198,38 @@ export function useRecordMovement() {
   });
 }
 
+/**
+ * Attach a photo to a part: ask the API to sign an upload, then PUT the bytes straight to Storage.
+ *
+ * ⚠ **This closes a route that shipped at I3 with no consumer** — `POST /parts/:id/photo` has been
+ * live since 2026-09-09 and nothing in the product called it, which is the same defect the I0–I3
+ * review found twice and which `useAttachAssetPhoto` avoided at I8 by shipping its screen with it.
+ * The part detail renders `photoUrl` and had no way to produce one.
+ *
+ * The bytes never touch the API process (D-INV8, `inventory/photos.ts`), and the part row is
+ * pointed at the path by the signing call itself — so a phone that uploads and then loses its
+ * connection has still recorded where the photo will be.
+ */
+export function useAttachPartPhoto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; file: File }): Promise<void> => {
+      const r = await apiFetch<{ uploadUrl: string; token: string }>(
+        `/api/maintenance/inventory/parts/${input.id}/photo`,
+        { method: "POST", body: { photoId: crypto.randomUUID(), contentType: input.file.type } },
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not start the upload");
+      const put = await fetch(r.data.uploadUrl, {
+        method: "PUT",
+        headers: { "content-type": input.file.type },
+        body: input.file,
+      });
+      if (!put.ok) throw new Error("The photo did not upload. Try again.");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
 // ── count sessions (I5 PR 2a; the count screen itself is 2b) ─────────────────────────────────────
 
 export function useCountSessionsQuery(status?: Ref<"open" | "closed" | undefined>) {

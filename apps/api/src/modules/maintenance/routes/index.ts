@@ -4,7 +4,7 @@ import { requireAuth, requireOrg, requireSection } from "../../../middleware/aut
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { searchEntries } from "../../financial/index.js";
+import { searchEntries, summarizeByCategory } from "../../financial/index.js";
 import { inspectionsRouter, inspectionPrintingRouter } from "./inspections.js";
 import { inspectorsRouter } from "./inspectors.js";
 import { printProfilesRouter } from "./printProfiles.js";
@@ -90,16 +90,33 @@ export function maintenanceRouter(): Router {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const f = parsed.data;
-      const result = await searchEntries(admin, req.auth!.orgId!, {
+      const orgId = req.auth!.orgId!;
+      const result = await searchEntries(admin, orgId, {
         category: "maintenance",
         from: f.from,
         to: f.to,
         limit: f.limit,
         offset: f.offset,
       });
+      /**
+       * The window's TOTAL, and the reason it is a second read rather than a sum of the page.
+       *
+       * The page stops at fifty rows. A card adding it up would report a number that is right for
+       * fifty repairs and wrong for the fifty-first, and would be believed — the exact defect the
+       * 2026-09-09 review found in `/low-stock`, where a list of what to order stopped early and
+       * said "nothing more to order". I4 shipped the shop home counting LINES for want of this
+       * figure and recorded it as owed; this is that debt paid.
+       *
+       * It asks `summarizeByCategory`, which is the ledger's own aggregation substrate and pages the
+       * window fully. A sum written here would be a second arithmetic over the same rows.
+       */
+      const byCategory = await summarizeByCategory(admin, orgId, f.from, f.to);
+      const spend = byCategory.find((c) => c.category === "maintenance" && c.direction === "out");
       res.json({
         ok: true,
         ...result,
+        /** Dollars over the whole window, not over the page. Null is impossible; zero is a real answer. */
+        totalAmount: spend?.amount ?? 0,
         // The page renders this reason verbatim while the store holds nothing — the truth,
         // instead of a mysterious zero.
         pendingSources:
