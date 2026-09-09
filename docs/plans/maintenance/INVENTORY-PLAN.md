@@ -1000,7 +1000,7 @@ signed here by the person who did it. I6's spike results go here before its seco
   belongs in its own change across all four call sites, and it is recorded here rather than in a
   comment nobody would find.
 
-- **A3 RULED, AND THE FLEETPAL PATH AUDITED — 2026-09-09 (PR #PENDING5).** The owner put the FleetPal
+- **A3 RULED, AND THE FLEETPAL PATH AUDITED — 2026-09-09 (PR #694).** The owner put the FleetPal
   integration next and asked whether anything built so far blocks it. **One thing did, and it was
   canon.**
 
@@ -1040,7 +1040,7 @@ signed here by the person who did it. I6's spike results go here before its seco
   question that shapes I14. Nothing shipped depends on the answer — `work_order_ref` typed by hand is
   what runs today and needs nothing from FleetPal.
 
-- **THE FLEETPAL API SPEC WAS READ, AND IT CORRECTS THE A3 RULING ABOVE — 2026-09-09 (PR #PENDING5).**
+- **THE FLEETPAL API SPEC WAS READ, AND IT CORRECTS THE A3 RULING ABOVE — 2026-09-09 (PR #694).**
   The owner supplied FleetPal's OpenAPI document (`docs/FleetPal/`, gitignored beside the PSP guide —
   vendor material, 830 KB of generated JSON, read from the working tree). **71 endpoints.** Everything
   below is from the vendor's own schema rather than from this plan's expectations, which is the
