@@ -676,3 +676,70 @@ signed here by the person who did it. I6's spike results go here before its seco
   28 CI runs by name) and `pnpm typecheck` passes. **No assertion was mutated at this step and none
   was owed** — I0 ships no test and its done-when is documentary; protocol §4.8 resumes at I1 against
   `deriveKitStatus`. Assumptions A1–A7 all still stand; none of them gates I0.
+
+- **I1 — the contracts — DONE 2026-09-08 (PR #685, merged 528fca5).** `tagContract.ts` owns the
+  `SIL1:<kind>:<id>` grammar; `inventoryContract.ts`, `inventoryAssetContract.ts` and
+  `inventoryScanContract.ts` own the vocabularies, the DTOs and the movement payloads;
+  `inventoryRules.ts` owns `isLowStock`, `deriveKitStatus`, `countVarianceTier` and `nextDisplayNo`.
+  **Mutation proof:** flipping `deriveKitStatus` so extra beats short failed exactly one test, "calls
+  a trailer short when it is both short and carrying a spare" (`expected 'extra' to be 'short'`),
+  24 others green.
+  **A contradiction inside D-INV21 had to be settled to write `countVarianceTier`.** Its two
+  thresholds — a confirm above max(5, 5 %) and a recount above 10 % — were written independently and
+  cross each other on small numbers: twelve expected against ten counted is 16.7 %, over the recount
+  line, but a variance of 2, which the floor of 5 has already forgiven. Applied literally a
+  technician would be told a second person must recount a bin nobody asked them to confirm. Settled
+  by making `recount` the higher rung of ONE ladder rather than a parallel test, and by stopping the
+  zero-against-non-zero rule at `confirm`. No constant was invented. **The consequence is pinned by
+  its own test and the count screen (I5) must expect it: below about fifty expected there is no
+  numeric `confirm` rung at all**, because both rungs share the floor of 5 and confirm's 5 % is lower
+  than recount's 10 %; on smaller bins the only route to `confirm` is the zero rule.
+  Three deviations. (a) The step names one file; four exist, because `lint:filesize`'s 500-line
+  budget is a hard gate — the seam is §2.1's own, stock against identity, so the files map to I2/I5,
+  I7 and I6. (b) Unit of measure is a closed vocabulary where the step's table implies free text:
+  D-INV13 forbids custom FIELDS, not vocabularies inside the fields that exist, and `ea`/`EA`/`each`
+  from four people makes "12" on a stock line unsayable. (c) One assertion was rewritten after being
+  measured — zod STRIPS unknown keys rather than rejecting them, so a test that looked like it
+  proved a stray `quantityOnHand` is refused was really only proving `countedTotal` is required. It
+  now proves what holds: the key is dropped at the edge and cannot reach the RPC.
+  **Verification:** 194 shared test files / 2757 tests, 38 lint gates, `pnpm typecheck`, and the RN
+  build of `@silvicom/shared` all pass.
+
+- **I1b — `@silvicom/qr` — DONE 2026-09-08 (PR #686, merged 4b316b9).** `encode`, `toSvg`,
+  `toSvgPath`, `labelSheet` and the five presets, on `uqr@0.1.3` pinned. 48 tests.
+  **Mutation proof:** transposing the placement derivation to fill down-then-across failed exactly
+  two tests, both about where a label physically lands, 17 green.
+  **The gate work found a live defect.** The step said to extend the boundaries self-test; there was
+  no self-test on `check-feature-boundaries.mjs` to extend, so one was written — and its first run
+  failed on its own sample, because the node-builtin determinism rule was
+  `(?:node:|fs|os|…)` anchored to a closing quote. It matched a bare `from "fs"` and **never matched
+  `from "node:fs"`** — the spelling this repo uses at the top of the file the rule lives in. The
+  purity guarantee on `@hazmat/engine` had been blind to the likeliest way of breaking it since the
+  rule was written. Fixed; every rule now carries a sample it must catch; `lint:boundaries` chains
+  `--self-test` as `check-table-access` and `check-shared-contracts` already did.
+  **Two measured numbers correct the plan.** Both real payloads encode to **version 2 (25 × 25) at
+  ECC-H**, not the version 4 §2.4 budgeted — about 0.77 mm per module on a 1-inch label against a
+  0.4 mm floor, so the grammar has room for a longer kind. And research §4.7's "~0.69 mm at 1 inch"
+  is a version-3 symbol measured WITH its quiet zone; `moduleSizeMm` reproduces that convention so
+  the figures are comparable.
+  **The presets were verified against published vendor geometry, not recalled**, and each one's
+  arithmetic is asserted: margin + used width = sheet, with opposite margins equal. That check
+  resolves a real ambiguity — several vendor tables report "across" and "down" transposed, and only
+  one orientation both fits and centres. **22805 is 24 to a sheet in 4 × 6**, not the 12 its label
+  size suggests. `roll-single` is our own definition rather than a vendor template and is the one
+  preset **A5** can invalidate.
+  **A correction to this session's own first draft:** a comment claimed the two-branch slot
+  calculation exists because "a naive modulo gets it wrong". Mutating it into that modulo failed no
+  test — the two are algebraically identical, since the first sheet's capacity is
+  `perSheet − (start − 1)` and the modulo cancels it exactly. The comment now says why the branches
+  are kept rather than warning about a bug that is not there.
+  **A7 is only PARTLY retired.** The golden fixtures pin determinism at every ECC level, and
+  structural facts are asserted independently against the QR specification (size = 17 + 4 × version,
+  the 7 × 7 finder in three corners and not the fourth, alternating timing patterns, a different
+  matrix for a one-character change). None of that establishes that a real scanner reads a real
+  printed label, which is I10's done-when. **A7's row stands until then**, and no step that depends
+  on a physically scannable label may close against this evidence alone.
+
+- **Owed and paid late:** the §8 lines for I1 and I1b were written after both had merged rather than
+  in their own PRs, which is a deviation from protocol §10's intent even though the lines are
+  accurate. I0's line shipped inside its PR and that is the shape the remaining steps follow.
