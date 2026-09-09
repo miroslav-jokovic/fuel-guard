@@ -1,5 +1,9 @@
 # Handoff — shop inventory, 2026-09-09
 
+> ⚠ **SUPERSEDED for anybody starting work.** I4 and the whole of I5 shipped later the same day;
+> the current map is `HANDOFF-2026-09-09-INVENTORY-I7.md`. This file is kept as the record of what
+> was true before I4, and its findings about I0–I3 are all still accurate.
+
 For whoever picks up **I4**. Written at the end of the session that built I2, I3 and the review of
 I0–I3.
 
