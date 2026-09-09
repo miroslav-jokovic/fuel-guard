@@ -281,6 +281,23 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/inspectors",
   },
   {
+    "name": "repair-spend",
+    "params": {},
+    "url": "/shop/repair-spend",
+  },
+  {
+    "name": "parts",
+    "params": {},
+    "url": "/shop/inventory",
+  },
+  {
+    "name": "part",
+    "params": {
+      "id": "prt_1",
+    },
+    "url": "/shop/inventory/prt_1",
+  },
+  {
     "name": "",
     "params": {},
     "url": "/fuel-reconciliation",
@@ -1092,7 +1109,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Maintenance",
+      "title": "Shop",
     },
     "name": "shop",
     "path": "/shop",
@@ -1126,6 +1143,36 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "inspector-register",
     "path": "/shop/inspectors",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop",
+      "requiresAuth": true,
+      "title": "Parts",
+    },
+    "name": "parts",
+    "path": "/shop/inventory",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop/inventory",
+      "requiresAuth": true,
+      "title": "Part",
+    },
+    "name": "part",
+    "path": "/shop/inventory/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop",
+      "requiresAuth": true,
+      "title": "Repair spend",
+    },
+    "name": "repair-spend",
+    "path": "/shop/repair-spend",
     "redirect": null,
   },
   {

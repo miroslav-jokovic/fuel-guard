@@ -1,0 +1,255 @@
+import { computed, type Ref } from "vue";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/vue-query";
+import { apiFetch } from "@/lib/api";
+import type {
+  PartDto,
+  PartInput,
+  StockLocationInput,
+  PartMovementDto,
+  StockLineDto,
+  StockLineSettings,
+  StockLocationDto,
+} from "@silvicom/shared";
+
+/**
+ * Shop inventory, client side (INVENTORY-PLAN.md step I4).
+ *
+ * ── EVERY KEY STARTS `["inventory", …]` ────────────────────────────────────────────────────────
+ * One prefix for the whole feature, so a write can invalidate the shelf, the catalogue and the
+ * ledger with one call — which is what a movement actually changes. The alternative, invalidating
+ * three keys by name at each mutation, is three chances to forget the third; the part detail reads
+ * the catalogue row AND the stock lines AND the movements, and all three move when a part is
+ * received.
+ *
+ * ── WHAT IS NOT HERE, AND WHY ─────────────────────────────────────────────────────────────────
+ * No movement hooks. The six verbs are I5's drawers, and each one has to mint a client UUID **per
+ * movement rather than per attempt** (D-INV27) — the id is the idempotency key and the server half
+ * of the offline queue. Writing them here now, without the screen that owns the id's lifetime,
+ * would be the easiest possible place to get that wrong: minting per attempt breaks the replay and
+ * breaks no test.
+ */
+
+const PER_PAGE = 50;
+
+export interface PartsFilter {
+  search?: string;
+  category?: string;
+  includeInactive?: boolean;
+  page: number;
+}
+
+export interface PartDetail {
+  part: PartDto;
+  stock: StockLineDto[];
+  /** Signed, 300 s (D-INV8). Null until a photo is attached. */
+  photoUrl: string | null;
+}
+
+export function usePartsQuery(filter: Ref<PartsFilter>) {
+  return useQuery({
+    queryKey: ["inventory", "parts", filter] as const,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<{ parts: PartDto[]; total: number }> => {
+      const f = filter.value;
+      const params = new URLSearchParams({
+        limit: String(PER_PAGE),
+        offset: String((f.page - 1) * PER_PAGE),
+      });
+      if (f.search) params.set("search", f.search);
+      if (f.category) params.set("category", f.category);
+      if (f.includeInactive) params.set("includeInactive", "true");
+      const r = await apiFetch<{ parts: PartDto[]; total: number }>(
+        `/api/maintenance/inventory/parts?${params}`,
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load parts");
+      return r.data;
+    },
+  });
+}
+
+export function usePartQuery(id: Ref<string>) {
+  return useQuery({
+    queryKey: ["inventory", "part", id] as const,
+    enabled: computed(() => Boolean(id.value)),
+    queryFn: async (): Promise<PartDetail> => {
+      const r = await apiFetch<PartDetail>(`/api/maintenance/inventory/parts/${id.value}`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the part");
+      return r.data;
+    },
+  });
+}
+
+/**
+ * The shop's locations. `includeInactive` is for the manager screen, which has to show a closed bay
+ * to reopen it; every picker takes the default, because a movement into a closed location is
+ * refused by the RPC (`IV012`) and offering one would be an error the form could have prevented.
+ */
+export function useLocationsQuery(includeInactive = false) {
+  return useQuery({
+    queryKey: ["inventory", "locations", includeInactive] as const,
+    queryFn: async (): Promise<StockLocationDto[]> => {
+      const r = await apiFetch<{ locations: StockLocationDto[] }>(
+        `/api/maintenance/inventory/locations${includeInactive ? "?includeInactive=true" : ""}`,
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load stock locations");
+      return r.data.locations;
+    },
+  });
+}
+
+/**
+ * Everything that has fallen to its reorder point.
+ *
+ * Deliberately takes no page argument, because the endpoint takes none: a low-stock list that
+ * under-reports says "nothing to order" and is believed, so the API returns the whole thing (the
+ * defect the 2026-09-09 review of I0–I3 found and fixed). A `limit` added here would put the
+ * shortfall back one layer up.
+ */
+export function useLowStockQuery() {
+  return useQuery({
+    queryKey: ["inventory", "low-stock"] as const,
+    queryFn: async (): Promise<{ lines: StockLineDto[]; total: number }> => {
+      const r = await apiFetch<{ lines: StockLineDto[]; total: number }>(
+        "/api/maintenance/inventory/low-stock",
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load low stock");
+      return r.data;
+    },
+  });
+}
+
+/**
+ * Create a stock location, and close or rename one.
+ *
+ * ⚠ **The plan assigned this write to no step at all**, and I4 found it the way the 2026-09-09
+ * review found the missing `reorder_point` writer: by measuring. On 2026-09-09 production held
+ * **zero rows in all four inventory tables**, and `stock_locations` is the one nothing could ever
+ * put a row in — I3 shipped `POST /locations` and `PATCH /locations/:id` with no consumer, no step
+ * owns the screen, and I11's settings drawer picks a DEFAULT location, which presumes some exist.
+ * Without this the shelf picker on a part is an empty list, I5's receive drawer has nowhere to
+ * receive into, and the whole feature is unreachable on day one for a reason no screen explains.
+ */
+export function useCreateLocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: StockLocationInput): Promise<StockLocationDto> => {
+      const r = await apiFetch<{ location: StockLocationDto }>("/api/maintenance/inventory/locations", {
+        method: "POST",
+        body: input,
+      });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not add the location");
+      return r.data.location;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
+export function useUpdateLocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; patch: Partial<StockLocationInput> }): Promise<void> => {
+      const r = await apiFetch(`/api/maintenance/inventory/locations/${input.id}`, {
+        method: "PATCH",
+        body: input.patch,
+      });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not save the location");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
+export interface MovementsFilter {
+  partId?: string;
+  since?: string;
+  page: number;
+}
+
+export function useMovementsQuery(filter: Ref<MovementsFilter>) {
+  return useQuery({
+    queryKey: ["inventory", "movements", filter] as const,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<{ movements: PartMovementDto[]; total: number }> => {
+      const f = filter.value;
+      const params = new URLSearchParams({
+        limit: String(PER_PAGE),
+        offset: String((f.page - 1) * PER_PAGE),
+      });
+      if (f.partId) params.set("partId", f.partId);
+      if (f.since) params.set("since", f.since);
+      const r = await apiFetch<{ movements: PartMovementDto[]; total: number }>(
+        `/api/maintenance/inventory/movements?${params}`,
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the movement history");
+      return r.data;
+    },
+  });
+}
+
+export function useCreatePart() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: PartInput): Promise<PartDto> => {
+      const r = await apiFetch<{ part: PartDto }>("/api/maintenance/inventory/parts", {
+        method: "POST",
+        body: input,
+      });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not add the part");
+      return r.data.part;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
+/**
+ * Edit a part, or retire one.
+ *
+ * Retiring is `active: false` through this same call rather than a DELETE, and the API records it
+ * as its own audit action: a part number that stops appearing in the issue picker is the event
+ * somebody searches the log for. Nothing in the product deletes a part — history is denominated in
+ * it.
+ */
+export function useUpdatePart() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; patch: Partial<PartInput> }): Promise<PartDto> => {
+      const r = await apiFetch<{ part: PartDto }>(`/api/maintenance/inventory/parts/${input.id}`, {
+        method: "PATCH",
+        body: input.patch,
+      });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not save the part");
+      return r.data.part;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
+/**
+ * The reorder point, the optional bin fragments, and whether the line is still carried.
+ *
+ * ⚠ The quantity is deliberately absent, from the body and from the endpoint behind it: it is the
+ * ledger's projection and `record_part_movement` is its only writer (D-INV4). A form that could
+ * type a total would destroy the evidence for the question the shop actually asks, which is where
+ * the eleventh filter went.
+ *
+ * The line is addressed by its natural key — `part_stock` has no surrogate id, because a stock line
+ * IS the (part, location) pair — and the endpoint creates the row when it does not exist yet, which
+ * is what makes "we carry this part at the main shelf, tell me at three" sayable before the first
+ * delivery has ever been received.
+ */
+export function useUpdateStockLine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      partId: string;
+      locationId: string;
+      settings: StockLineSettings;
+    }): Promise<void> => {
+      const r = await apiFetch(
+        `/api/maintenance/inventory/stock/${input.partId}/${input.locationId}`,
+        { method: "PATCH", body: input.settings },
+      );
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not save the shelf");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}

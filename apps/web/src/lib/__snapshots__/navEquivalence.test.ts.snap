@@ -62,7 +62,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -116,7 +117,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -152,7 +154,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -188,7 +191,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -263,7 +267,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -342,7 +347,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -419,7 +425,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -499,7 +506,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -575,7 +583,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -649,7 +658,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -730,7 +740,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -974,7 +985,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -1045,7 +1057,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -1114,7 +1127,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -1387,7 +1401,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -1415,7 +1430,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -1443,7 +1459,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
     ],
@@ -1471,6 +1488,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
   {
     "group": "Maintenance",
     "items": [
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
     ],
   },
@@ -1537,7 +1555,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
   {
     "group": "Maintenance",
     "items": [
-      "Repair spend → /shop",
+      "Shop → /shop",
+      "Parts → /shop/inventory",
       "Annual inspections → /shop/inspections",
     ],
   },

@@ -1,11 +1,14 @@
 import type { RouteRecordRaw } from "vue-router";
 
 /**
- * The finance sections (P5, D-SEP7/8): the fleet report, billing, and the maintenance section that is
- * NOT the /maintenance downtime page — that URL and route name were taken by system.ts long
- * before this section existed, so the shop lives at /shop (the program plan's §6 Q7 fallback).
- * Routes carry requiresAuth only, per the house rule — the pages self-gate via the section
- * matrix, and the API refuses the wrong role regardless.
+ * The finance sections (P5, D-SEP7/8): the fleet report and billing.
+ *
+ * ⚠ The four `/shop` routes were declared here until I4 (INVENTORY-PLAN.md) and now live in
+ * `maintenance.ts`. They were here because maintenance arrived as a ledger FAMILY — a filtered view
+ * of what finance had already booked — and that stopped being true when the module gained tables of
+ * its own at I2. Routes carry requiresAuth only, per the house rule: the section question is
+ * answered once in `SURFACES` and read by the guard (D-SURF3), and the API refuses the wrong role
+ * regardless.
  */
 export const financeRoutes: RouteRecordRaw[] = [
   {
@@ -27,29 +30,5 @@ export const financeRoutes: RouteRecordRaw[] = [
     name: "billing",
     component: () => import("@/pages/BillingPage.vue"),
     meta: { requiresAuth: true, title: "Invoices" },
-  },
-  {
-    path: "/shop",
-    name: "shop",
-    component: () => import("@/pages/MaintenanceSpendPage.vue"),
-    meta: { requiresAuth: true, title: "Maintenance" },
-  },
-  {
-    path: "/shop/inspections",
-    name: "annual-inspections",
-    component: () => import("@/pages/AnnualInspectionsPage.vue"),
-    meta: { requiresAuth: true, title: "Annual inspections", parent: "/shop" },
-  },
-  {
-    path: "/shop/inspectors",
-    name: "inspector-register",
-    component: () => import("@/pages/InspectorRegisterPage.vue"),
-    meta: { requiresAuth: true, title: "Inspectors", parent: "/shop" },
-  },
-  {
-    path: "/shop/inspections/:id",
-    name: "annual-inspection",
-    component: () => import("@/pages/AnnualInspectionFormPage.vue"),
-    meta: { requiresAuth: true, title: "Annual inspection", parent: "/shop/inspections" },
   },
 ];

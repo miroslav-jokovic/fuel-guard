@@ -187,6 +187,27 @@ describe("the section gates on the navigation guard", () => {
     expect(await landsOn("technician", "/shop/inspections/abc")).toBe("dashboard");
   });
 
+  /**
+   * I4 moved the repair-spend ledger off `/shop` and gave the home that address, keeping the KEY
+   * `maintenance.repair-spend` on the home because that is what an override is stored against.
+   * Production carries exactly one such row (measured 2026-09-09, `user_surface_access`), so the
+   * ledger has to keep answering to it — which is what `parent` does, and is why the moved page is
+   * a child rather than a nav entry with a key of its own.
+   */
+  it("the moved repair-spend ledger still answers to the key its denial is stored under", async () => {
+    session.surfaces = { "maintenance.repair-spend": false };
+    expect(await landsOn("technician", "/shop")).toBe("dashboard");
+    expect(await landsOn("technician", "/shop/repair-spend")).toBe("dashboard");
+    // …and Parts is a different key, so the same denial leaves it open.
+    expect(await landsOn("technician", "/shop/inventory")).not.toBe("dashboard");
+  });
+
+  it("a part's detail route is closed to a role Parts is closed to (D-SURF8)", async () => {
+    session.surfaces = { "maintenance.parts": false };
+    expect(await landsOn("technician", "/shop/inventory")).toBe("dashboard");
+    expect(await landsOn("technician", "/shop/inventory/abc")).toBe("dashboard");
+  });
+
   it("a surface answer can only NARROW — it never lifts a role past its section (D-SURF2)", async () => {
     // A recruiter holds `maintenance: none`. An org saying "allowed" about a maintenance screen
     // must not become a way to hand them the section, which is why the gate is checked first.

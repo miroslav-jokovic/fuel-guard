@@ -387,7 +387,10 @@ describe("the People tab", () => {
     const preview = w.find('nav[aria-label="Sidebar preview"]');
     const items = preview.findAll("li");
     expect(items.some((li) => li.text().startsWith("Annual inspections") && !li.classes().includes("line-through"))).toBe(true);
-    expect(items.some((li) => li.text().startsWith("Repair spend") && li.classes().includes("line-through"))).toBe(true);
+    // "Shop" and not "Repair spend": I4 relabelled this surface when `/shop` became the section
+    // home. The KEY is what the fixture denies and what the store holds, and it deliberately did not
+    // move — an override is written against the key, so renaming it would reset every org's answer.
+    expect(items.some((li) => li.text().startsWith("Shop") && li.classes().includes("line-through"))).toBe(true);
     // The product constants render in the preview and are named as unchangeable (Q-SURF3) — and
     // the sentence names THOSE, not every screen, or it would be telling an admin that the
     // controls above do nothing.

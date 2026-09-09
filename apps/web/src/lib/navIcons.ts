@@ -10,6 +10,7 @@ import {
   ClipboardDocumentListIcon,
   ClockIcon,
   Cog6ToothIcon,
+  CubeIcon,
   ExceptionLedgerIcon,
   IftaLedgerIcon,
   ExclamationTriangleIcon,
@@ -94,7 +95,14 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "finance.fleet-report": ChartAverageIcon,
   "finance.billing": DocumentTextIcon,
 
+  // The shop's home. It kept `GaugeIcon` through I4's relabel from "Repair spend" to "Shop": a gauge
+  // reads as "the shop at a glance", which is what the page became, and the glyph is unique in the
+  // menu already. Changing it would have been churn without a reason (D-UI6 is about COLLISIONS).
   "maintenance.repair-spend": GaugeIcon,
+  // A part is a discrete thing on a shelf. `CubeIcon` is unused anywhere else in the menu — the
+  // note on `safety.driver-qualification` records what happened the last time two live nav items
+  // shared a glyph, and the collapsed rail is where that failure is worst.
+  "maintenance.parts": CubeIcon,
   "maintenance.inspections": ChecklistIcon,
   "maintenance.inspectors": CertificateIcon,
 

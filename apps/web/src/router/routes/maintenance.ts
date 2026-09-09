@@ -1,0 +1,71 @@
+import type { RouteRecordRaw } from "vue-router";
+
+/**
+ * The maintenance section — the shop (INVENTORY-PLAN.md step I4, D-S360-7).
+ *
+ * ── WHY THESE ROUTES WERE IN `finance.ts` AND ARE NOT ANY MORE ─────────────────────────────────
+ * The §396.17 register and the repair-spend ledger were declared beside the fleet report because
+ * maintenance arrived as a ledger family: at the time the only thing the section held was a filtered
+ * view of what finance had already booked. That stopped being true at I2, when the module gained
+ * four tables of its own and stopped being a projection of anybody else's. The routes move here so
+ * the file a URL is declared in names the module that owns it — the same reason
+ * `router/index.ts` composes one file per product area at all.
+ *
+ * ── THE SECTION LIVES AT `/shop`, NOT AT `/maintenance` ───────────────────────────────────────
+ * `/maintenance` is G1's dead-end page, shown when the API is down, and it took that URL and route
+ * name long before this section existed (`routes/system.ts`). `/shop` is the program plan's §6 Q7
+ * fallback and is what the shop calls itself anyway.
+ *
+ * ── AND `/shop` IS THE HOME, NOT THE LEDGER, FROM I4 ──────────────────────────────────────────
+ * It rendered `MaintenanceSpendPage` until I4. The ledger is one `StatCard` on the home now and the
+ * page behind that card, at `/shop/repair-spend`. The SURFACE key stayed `maintenance.repair-spend`
+ * for both — see the reasoning in `packages/shared/src/surfaces.ts`, which is a permission argument
+ * and not a naming one.
+ *
+ * Routes carry `requiresAuth` only, per the house rule: the section question is answered once in
+ * `SURFACES` and read by the guard (D-SURF3), and the API refuses the wrong role regardless.
+ */
+export const maintenanceRoutes: RouteRecordRaw[] = [
+  {
+    path: "/shop",
+    name: "shop",
+    component: () => import("@/pages/MaintenanceHomePage.vue"),
+    meta: { requiresAuth: true, title: "Shop" },
+  },
+  {
+    path: "/shop/repair-spend",
+    name: "repair-spend",
+    component: () => import("@/pages/MaintenanceSpendPage.vue"),
+    meta: { requiresAuth: true, title: "Repair spend", parent: "/shop" },
+  },
+  {
+    path: "/shop/inventory",
+    name: "parts",
+    component: () => import("@/pages/PartsPage.vue"),
+    meta: { requiresAuth: true, title: "Parts", parent: "/shop" },
+  },
+  {
+    path: "/shop/inventory/:id",
+    name: "part",
+    component: () => import("@/pages/PartDetailPage.vue"),
+    meta: { requiresAuth: true, title: "Part", parent: "/shop/inventory" },
+  },
+  {
+    path: "/shop/inspections",
+    name: "annual-inspections",
+    component: () => import("@/pages/AnnualInspectionsPage.vue"),
+    meta: { requiresAuth: true, title: "Annual inspections", parent: "/shop" },
+  },
+  {
+    path: "/shop/inspectors",
+    name: "inspector-register",
+    component: () => import("@/pages/InspectorRegisterPage.vue"),
+    meta: { requiresAuth: true, title: "Inspectors", parent: "/shop" },
+  },
+  {
+    path: "/shop/inspections/:id",
+    name: "annual-inspection",
+    component: () => import("@/pages/AnnualInspectionFormPage.vue"),
+    meta: { requiresAuth: true, title: "Annual inspection", parent: "/shop/inspections" },
+  },
+];

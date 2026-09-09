@@ -1,6 +1,7 @@
 import {
   CORRELATION_THRESHOLDS, RECON_STATUS_LABELS,
   FUEL_EXCEPTION_STATUS_LABELS, type FuelExceptionStatus,
+  isLowStock, type StockLevel,
 } from "@silvicom/shared";
 // Modern "soft" badge styling — light fill + subtle inset ring — used consistently across the app.
 // Tones are semantic (design tokens), not raw palette colors: danger > caution > warning > success…
@@ -161,6 +162,33 @@ export function dqExpiryBadge(
  */
 export function archivedBadge(archivedAt: string | null | undefined): DqBadge | null {
   return archivedAt ? { label: "Archived", tone: "neutral" } : null;
+}
+
+/**
+ * A stock line's level (INVENTORY-PLAN.md I4, D-INV4).
+ *
+ * ── IT ASKS `isLowStock`; IT DOES NOT RE-IMPLEMENT IT ──────────────────────────────────────────
+ * The comparison is `inventoryRules.ts`'s, and that file exists precisely because the low-stock
+ * card, the low-stock filter and the API must agree about the same shelf. A `quantity <= reorder`
+ * written here would be a second definition with a delay fuse: the day the rule grows a lead-time
+ * term, the badge and the list it sits in would disagree and each would look right on its own.
+ *
+ * ── A NULL REORDER POINT IS NO BADGE AT ALL, EVEN ON AN EMPTY SHELF ───────────────────────────
+ * This is the rule's own deliberate half, carried through to the pixel: nobody has said what
+ * "enough" means for this part, so the system has not established there is too little of it, and a
+ * red pill would report a shortage the shop never defined. An empty shelf with no reorder point is
+ * visible as a zero on-hand, which is the honest signal and is what the quantity column already
+ * shows. Same reasoning as `archivedBadge` returning null on a live row: a badge that appears on
+ * every row means nothing.
+ *
+ * `Out` and `Low` are split because they are two different phone calls — one is "order more before
+ * we run out", the other is "a truck is waiting and there are none".
+ */
+export function stockLevelBadge(stock: StockLevel): DqBadge | null {
+  if (!isLowStock(stock)) return null;
+  return stock.quantityOnHand === 0
+    ? { label: "Out", tone: "danger" }
+    : { label: "Low", tone: "warning" };
 }
 
 /**
