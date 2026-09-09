@@ -2256,6 +2256,27 @@ async function main() {
       // which reads as "cannot seed" for a schema that is doing exactly what it should. Handing it a
       // real member is three lines; weakening the constraint to suit the harness would delete the
       // guarantee that an override can never name somebody who is not in the org.
+      // ── 0331, the inventory tables ────────────────────────────────────────
+      // Not a schema problem and not a harness problem: `stock_locations.code` is the short code a
+      // person says out loud ("MAIN"), capped at 24 characters, and the generic synthesiser's
+      // placeholder text is longer than that. Three tables report the same failure because two of
+      // them build a location on the way to their own row. Widening the column to suit the seeder
+      // would delete the reason the cap exists — the code is printed on a label and read across a
+      // bay — so the seeder is handed a real one instead, exactly as `samsara_ifta_fetches` is
+      // handed a real year.
+      stock_locations: (org) =>
+        `insert into stock_locations (org_id, name, code) values ('${org}', 'RLS Bay', 'RLS')`,
+      part_stock: (org) =>
+        `with l as (insert into stock_locations (org_id, name, code) values ('${org}', 'RLS Bay', 'RLS-S') returning id), ` +
+        `     p as (insert into parts (org_id, part_number, description) values ('${org}', 'RLS-S1', 'RLS part') returning id) ` +
+        `insert into part_stock (org_id, part_id, location_id) select '${org}', p.id, l.id from p, l`,
+      // `part_movements.id` has no default on purpose (D-INV27 — the client generates it), so the
+      // synthesiser has no value to invent for the primary key even before the location's cap bites.
+      part_movements: (org) =>
+        `with l as (insert into stock_locations (org_id, name, code) values ('${org}', 'RLS Bay', 'RLS-M') returning id), ` +
+        `     p as (insert into parts (org_id, part_number, description) values ('${org}', 'RLS-M1', 'RLS part') returning id) ` +
+        `insert into part_movements (id, org_id, part_id, location_id, reason, quantity_delta, occurred_at) ` +
+        `select gen_random_uuid(), '${org}', p.id, l.id, 'received', 1, now() from p, l`,
       user_surface_access: (org) =>
         `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-usa@example.com') returning id), ` +
         `     m as (insert into memberships (org_id, user_id, role) select '${org}', id, 'technician' from u returning user_id) ` +

@@ -142,3 +142,6 @@ state.json
 
 # SMS provider keys pasted for setup — same reason as docs/psp-docs/ above.
 docs/sms/
+
+# Impeccable plugin state (hook cache, critiques) — session-local, never committed
+.impeccable/

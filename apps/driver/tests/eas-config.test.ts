@@ -28,6 +28,7 @@ interface EasJson {
       environment?: string;
       distribution?: string;
       developmentClient?: boolean;
+      autoIncrement?: boolean;
       env?: Record<string, string>;
       android?: { buildType?: string };
       ios?: { image?: string };
@@ -75,12 +76,32 @@ describe('eas.json is a file EAS will accept', () => {
   });
 });
 
-describe('build numbers stay in the repository (D-PR2)', () => {
-  it('sets appVersionSource to local, so EAS never keeps its own counter', () => {
-    // `remote` is Expo's recommendation and is wrong here: app.config.ts derives both build numbers
-    // from the CI run number, and a second counter for a monotonic value disagrees the first time a
-    // build runs anywhere else.
-    expect(eas.cli.appVersionSource).toBe('local');
+/**
+ * EAS owns the build counter (D-PR2 as amended by Q-PR9, 2026-09-08).
+ *
+ * This block asserted `local` until 2026-09-08, reasoning that "app.config.ts derives both build
+ * numbers from the CI run number, and a second counter for a monotonic value disagrees the first
+ * time a build runs anywhere else". The reasoning was sound and its PREMISE was false: builds do run
+ * somewhere else, and only somewhere else. `driver-store.yml` — the only place `IOS_BUILD_NUMBER` is
+ * ever set — has never executed a single time (its one run ended `action_required` in 2 seconds,
+ * measured 2026-09-08), while two production builds were cut from a laptop and both carried
+ * `buildNumber: 1`, because the fallback is `1`. App Store Connect refuses a `CFBundleVersion` it
+ * has already accepted, so the second upload of that pair would have been rejected.
+ *
+ * `remote` restores the property `local` was chosen FOR — a counter that cannot go backwards and
+ * cannot be forgotten — and takes it out of the hands of whoever is running the build.
+ */
+describe('EAS owns the build counter (D-PR2, amended by Q-PR9)', () => {
+  it('sets appVersionSource to remote, so a laptop build cannot reuse a build number', () => {
+    expect(eas.cli.appVersionSource).toBe('remote');
+  });
+
+  it('auto-increments on the production profile and nowhere else', () => {
+    // A preview or development build that consumed a store build number would burn a value App
+    // Store Connect can then never accept, for a binary that was never going to be uploaded.
+    expect(eas.build.production?.autoIncrement).toBe(true);
+    expect(eas.build.development?.autoIncrement).toBeUndefined();
+    expect(eas.build.preview?.autoIncrement).toBeUndefined();
   });
 });
 

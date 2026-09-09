@@ -8,9 +8,15 @@ import path from "node:path";
  * Fitness function for Step 5.4.
  *
  * A suite that starts an HTTP server and tears it down with a hand-rolled `server.close(…)` waits on
- * keep-alive sockets, hangs its `afterAll` for the full 10s hook timeout, and takes the worker down
- * with live sockets — turning `apps/api` red about one full run in four under CPU contention. The
- * fix is `closeTestServer`, and it only holds while EVERY suite uses it.
+ * keep-alive sockets and hangs its `afterAll` for the full 10s hook timeout. `closeTestServer` fixes
+ * that, and it only holds while EVERY suite uses it — which is what this file enforces.
+ *
+ * ⚠ This note used to add "turning `apps/api` red about one full run in four under CPU contention",
+ * treating the hook timeout and the `UND_ERR_SOCKET: other side closed` failures as one fault. They
+ * are two. The hook timeout is gone; the socket failures were measured on 2026-09-08 at 6 of 23 full
+ * runs — still about one in four — and survive with client keep-alive disabled entirely. See
+ * `httpServer.ts` for what that measurement rules out. Keep this gate for the half it does fix; do
+ * not read a green run here as evidence that the other half is solved.
  *
  * So this asserts the property directly on the source: no test file may call `server.close(` itself.
  * Written as a source scan rather than a runtime check because the failure is a RACE — there is no

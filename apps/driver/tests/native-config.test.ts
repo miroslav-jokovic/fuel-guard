@@ -115,7 +115,17 @@ describe('app.config.ts — the EAS project id (P2.3, Q-PR1)', () => {
   });
 });
 
-describe('app.config.ts — build numbers come from CI, never from a hand edit (D-PR2)', () => {
+/**
+ * D-PR2 as amended 2026-09-08 (Q-PR9). The environment is still read — driver-store.yml still
+ * exports the run number, and `expo prebuild` on a laptop still needs a value — but it is no longer
+ * the SOURCE OF TRUTH for a store build: eas.json sets `appVersionSource: "remote"` and
+ * `production.autoIncrement`, so EAS owns the counter and writes it into the native project.
+ *
+ * The original decision assumed every store build came from CI. It did not: the workflow has never
+ * executed (its only run ended `action_required`), and two production builds cut from a laptop were
+ * both stamped `1`.
+ */
+describe('app.config.ts — build numbers are never hand-edited (D-PR2, amended by Q-PR9)', () => {
   afterEach(() => {
     delete process.env.IOS_BUILD_NUMBER;
     delete process.env.ANDROID_VERSION_CODE;
@@ -277,9 +287,43 @@ describe('app.config.ts — the privacy manifest (§6.0, P3.1 data matrix)', () 
       'NSPrivacyAccessedAPICategoryFileTimestamp',
       'NSPrivacyAccessedAPICategoryUserDefaults',
       'NSPrivacyAccessedAPICategorySystemBootTime',
+      'NSPrivacyAccessedAPICategoryDiskSpace',
     ]);
     for (const api of apis) {
       expect(api.NSPrivacyAccessedAPITypeReasons.length).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * The list above was three entries long and the binary needed four. This asserts the one that was
+   * missing, by name and by reason code, because the cost of losing it again is an upload rejected
+   * with ITMS-91053 rather than anything visible in a build log.
+   *
+   * `85F4.1` and not `E174.1`: SQLCipher's `fstatfs` sizes a write, and the app shows the number to
+   * nobody. If expo-sqlite ever ships its own privacy manifest this entry becomes redundant rather
+   * than wrong, so it stays until that bundle actually appears in a build.
+   */
+  it('declares disk space for SQLCipher, which calls fstatfs and ships no manifest of its own', async () => {
+    const apis = (await store()).ios?.privacyManifests?.NSPrivacyAccessedAPITypes ?? [];
+    const disk = apis.find(
+      (a) => a.NSPrivacyAccessedAPIType === 'NSPrivacyAccessedAPICategoryDiskSpace',
+    );
+    expect(disk?.NSPrivacyAccessedAPITypeReasons).toEqual(['85F4.1']);
+  });
+});
+
+describe('app.config.ts — export compliance is declared, not assumed', () => {
+  /**
+   * `usesNonExemptEncryption` was `false` on the grounds of "HTTPS + OS crypto". The app also links
+   * SQLCipher and bundles aes-js, which is AES-256 carried in the app rather than the OS encryption
+   * Apple's exemption names — so the honest answer is `true` and the paperwork is Q-PR8's.
+   *
+   * Pinned because the pressure to flip it back is real: `true` makes App Store Connect ask export
+   * questions on every submission, and the quickest way to silence a prompt is to answer it wrongly.
+   */
+  it('declares that the app carries non-exempt encryption (SQLCipher, aes-js)', async () => {
+    for (const config of [await store(), await dev()]) {
+      expect(config.ios?.config?.usesNonExemptEncryption).toBe(true);
     }
   });
 });

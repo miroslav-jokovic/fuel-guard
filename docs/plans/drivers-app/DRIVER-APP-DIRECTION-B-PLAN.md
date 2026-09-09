@@ -1225,6 +1225,75 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
 
   *Fallback until it is answered:* Android is unaffected and can pilot first; the iOS half waits.
 
+  ⚠ **Added 2026-09-08:** there is a THIRD reason for (c), and it is the one that can cost a
+  rejection rather than a wrong name. Guideline **5.1.1(ix)** reads, verbatim: *"Apps that provide
+  services in highly regulated fields (such as banking and financial services, healthcare, gambling,
+  legal cannabis use, air travel and crypto exchanges) **or that require sensitive user information**
+  should be submitted by a legal entity that provides the services, and not by an individual
+  developer."* This app carries driver identity and §391.51 qualification records for a DOT-regulated
+  motor carrier. Trucking is not on Apple's example list and the clause says "should", not "must", so
+  this is a risk rather than a certainty — but it converts (c) from a branding preference into a
+  launch-blocking item, and it is not something to discover mid-submission. Recommendation is
+  unchanged and now stronger: **(a) for the pilot, start (c) immediately.**
+
+- **Q-PR8 · Export compliance now declares non-exempt encryption; the paperwork is unanswered**
+  (counsel, raised 2026-09-08). `ios.config.usesNonExemptEncryption` was `false`, annotated "HTTPS +
+  OS crypto = exempt". The first half was true; the second was not. The app links **SQLCipher**
+  (`expo-sqlite` with `useSQLCipher: true`, which compiles AES-256 into SQLite so the offline outbox
+  is encrypted at rest — D12) and bundles **aes-js**. Apple's export-compliance table exempts
+  "encryption limited to that within the Apple operating system"; cryptography carried in the app is
+  a different row, and SQLCipher fits none of the Category 5 Part 2 exemptions (medical, IP
+  protection, authentication-only, banking, fixed cryptography).
+
+  **Changed to `true`** in the same PR, because a declaration that is convenient and wrong is worse
+  than one that is inconvenient and right. The cost is accepted and real: App Store Connect asks the
+  export questions on every submission until a compliance code exists.
+
+  *Open, for counsel — do NOT guess these:*
+   (a) The **French encryption declaration**, required to distribute in France. Needed at all if the
+       pilot and launch are US-only?
+   (b) Whether the **5D992.c mass-market self-classification report** to BIS applies (annual, due
+       1 February). SQLCipher's own guidance says applications distributed through app stores
+       "should go through the export compliance process" and explicitly declines to give legal
+       advice.
+   (c) Whether a **CCATS** is needed — on the reading here it is not, since AES-256 is an industry
+       standard rather than a proprietary algorithm, and Apple's table asks for CCATS only for the
+       proprietary case.
+
+  *Recommendation:* add to the counsel review package rather than opening a separate engagement.
+  Nothing here blocks a TestFlight build; (a) blocks French availability and (b) is a filing
+  obligation independent of Apple.
+
+- **Q-PR9 · The build counter moved to EAS, which contradicts D-PR2 as written** (owner ruling
+  2026-09-08, taken). D-PR2 said `ios.buildNumber` and `android.versionCode` are the CI run number
+  and `eas.json` keeps `appVersionSource: "local"` so EAS never runs a second counter. The reasoning
+  was right and rested on an assumption nobody had checked: **that store builds come from CI.**
+
+  *Measured 2026-09-08:* `driver-store.yml` — the only place `IOS_BUILD_NUMBER` is ever set — has
+  never executed. Its single run ended `action_required` in 2 seconds, the same approval block that
+  holds all three driver workflows. Meanwhile `eas build:list` shows two production iOS builds cut
+  that day from a laptop, one ERRORED and one FINISHED, **both stamped `buildNumber: 1`**, because
+  the fallback is `1` and the variable is unset outside CI. App Store Connect refuses a
+  `CFBundleVersion` it has already accepted, so the next upload would have been rejected for a reason
+  with nothing to do with the app.
+
+  *Taken:* `appVersionSource: "remote"` with `autoIncrement` on the production profile — Expo's
+  recommended default since EAS CLI 12. EAS holds the counter, so it increments for a laptop build
+  and a CI build alike, and it cannot be forgotten. `IOS_BUILD_NUMBER` is still read by
+  `app.config.ts` (it seeds the remote counter and `expo prebuild` on a laptop still needs a value),
+  and `driver-store.yml` still exports it, so unblocking that lane later changes nothing here.
+
+  ⚠ This is a real deviation from D-PR2, not a clarification, and the property it restores is the one
+  D-PR2 wanted: a counter that cannot go backwards. `tests/eas-config.test.ts` asserted `local` and
+  now asserts `remote`; the old case's comment is preserved in the new one so the reversal is
+  legible rather than silent.
+
+  *Owner action, once:* nothing, if the remote counter initialises from the local value — EAS seeds
+  from `1` and the next production build becomes `2`, which is correct because `1` is consumed. If
+  App Store Connect has ACCEPTED a higher build than EAS knows about, run
+  `eas build:version:set` and enter the last number the store saw, or the first upload after this
+  will collide again.
+
 ---
 
 ## 8. Progress log (append dated lines; never edit rows above)
@@ -2217,6 +2286,42 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   one can be created**. On this Individual membership that group contains only the owner, which is
   fine — but it is a step that would otherwise be discovered at the moment of trying, and a demo
   account is NOT required for TestFlight (that is an App Store review requirement).
+- 2026-09-08 · **Three App Review blockers found by auditing the BUILT BINARY, and fixed.** The dev
+  client was built and installed on a physical iPhone (iOS 26.6.1) to test Direction B on device;
+  the audit that followed read the `.app` rather than the config, which is what turned up the first
+  and worst of these.
+  (1) **`NSPrivacyAccessedAPICategoryDiskSpace` was undeclared.**
+  `nm -u libExpoSQLite.a` answers `_fstatfs` — SQLite sizing a write — and `fstatfs` is on Apple's
+  required-reason list. Neither expo-sqlite nor expo-file-system ships a privacy manifest to declare
+  it in (`ExpoFileSystem_privacy.bundle` holds an Info.plist and nothing else; there is no
+  ExpoSQLite bundle at all), so `app.config.ts` was the only possible home and did not carry it.
+  Uploads fail **ITMS-91053** on this, a hard requirement since 2024-05-01 and a known expo-sqlite
+  trap (expo/expo#27678). Declared with **85F4.1** — check space in order to write, never displayed,
+  never sent off-device — and not E174.1, which would have been the reason the app cannot justify.
+  ⚠ The config comment had planned for exactly this, deferring it to "Xcode's privacy report at the
+  first archive". That report was never run, and the binary was available the whole time: the plan
+  named a verifier that needed a step nobody had taken, when a one-line `nm` would have answered it.
+  RELEASE-GATE's privacy-manifest row said ✅ on the strength of a prebuild output — which proved
+  the manifest was PRESENT, not that it was COMPLETE.
+  (2) **The iOS build counter never incremented** — Q-PR9, above. Now `appVersionSource: "remote"`
+  with `autoIncrement`.
+  (3) **Export compliance declared the wrong thing** — Q-PR8, above. Now `true`, with the French
+  declaration and the 5D992.c question logged for counsel rather than answered here.
+  All five new or changed assertions were proved discriminating by mutation (removing the DiskSpace
+  entry, flipping the encryption flag, and reverting `eas.json` to `local` fails exactly five cases
+  and no others).
+  ⚠ Not fixed, and not fixable in a PR: **Q-PR7 gains a rejection risk**, 5.1.1(ix)'s clause that an
+  app requiring sensitive user information "should be submitted by a legal entity … and not by an
+  individual developer". The Organization conversion was already recommended for TestFlight seats and
+  the seller name; it is now the one item that can stop a submission outright.
+  Also confirmed clean while looking: built with Xcode 26.2 / iOS 26.2 SDK (`DTSDKName =
+  iphoneos26.2`), clearing the 2026-04-28 minimum-SDK mandate; the store variant resolves with the
+  dev launcher dropped, `NSAllowsLocalNetworking: false` and production APNs; `/privacy`, `/terms`
+  and `/support` all return 200 on the production host; no webview, no external payment, no
+  third-party AI service. Two App Store Connect items are owner actions this repo cannot see and
+  neither appears in RELEASE-GATE: the **updated age-rating questionnaire** (unanswered accounts have
+  been blocked from submitting updates since 2026-01-31) and **DSA trader status** (required
+  globally since 2025-02-17, not only for EU distribution).
 - 2026-09-08 · **The first iOS build ever attempted FAILED on Sentry, exactly as `app.config.ts`
   warned it would.** The `@sentry/react-native/expo` plugin runs `sentry-cli` at build time and the
   upload is a plain `exec` with no `ignoreExitValue`, so a failure to authenticate fails the BUILD.

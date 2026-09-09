@@ -441,6 +441,18 @@
       "module": "org",
       "layer": "core"
     },
+    "part_movements": {
+      "module": "maintenance",
+      "layer": "core"
+    },
+    "part_stock": {
+      "module": "maintenance",
+      "layer": "core"
+    },
+    "parts": {
+      "module": "maintenance",
+      "layer": "core"
+    },
     "pattern_sweep_requests": {
       "module": "anomalies",
       "layer": "infra"
@@ -508,6 +520,10 @@
     "station_geocode_learned": {
       "module": "fuel",
       "layer": "derived"
+    },
+    "stock_locations": {
+      "module": "maintenance",
+      "layer": "core"
     },
     "support_impersonation_grants": {
       "module": "org",
