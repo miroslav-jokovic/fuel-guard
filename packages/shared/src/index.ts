@@ -140,3 +140,8 @@ export * from "./efs/overrideFreeze.js";
 export * from "./efs/registry.js";
 export * from "./annualInspectionCatalogue.js";
 export * from "./annualInspectionContract.js";
+export * from "./tagContract.js";
+export * from "./inventoryContract.js";
+export * from "./inventoryAssetContract.js";
+export * from "./inventoryScanContract.js";
+export * from "./inventoryRules.js";
