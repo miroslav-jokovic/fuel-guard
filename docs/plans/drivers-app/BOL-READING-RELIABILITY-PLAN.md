@@ -638,6 +638,21 @@ fixed licence against clerk minutes per load is a different sum from a per-call 
 Layer 1 reads Samsara's documents if the read-only token exposes them, else waits; Layer 2 delivers a
 packet for the clerk to attach; no write is built.
 
+*Fourth statement, 2026-09-08:* **McLeod is self-hosted; all data is on the carrier's own server; McLeod
+still charges heavily for writes.** Two consequences. (1) Q9(i) is very likely *yes*: a self-hosted
+imaging module keeps its documents either in the same database or on a share on the same host, and
+both are reachable from where the VPN SQL account already reads — so Layer 1 can read the images
+McLeod's own capture app writes, near-real-time, at no cost. Verify the table or share on the next VPN
+session and record the path here. (2) The write charge is **contractual, not technical**. A direct
+INSERT into imaging tables on a server we own is physically possible and is ruled out anyway, for three
+reasons that stand independently: the licence terms (an unlicensed write is a support and legal
+exposure, and the whole point is not to pay for what is not needed); the imaging schema's internal
+invariants (blob references, index rows, order links) are undocumented, so a wrong row corrupts billing
+records with no vendor to call; and this repository's McLeod write policy is already "no SQL writes, no
+DDL, no stored procedures" (`MCLEOD-READ-ONLY-INTEGRATION-HANDOFF.md:6`). Layer 2's delivery choice is
+therefore unchanged: the product's own import feature if it exists (Q9 ii), else the clerk packet, else
+a licensed write priced against clerk minutes (Q9 iii).
+
 **Q7 — Which fields does billing require to call a load billable?** The `execution` and `freight`
 sections in Step 2.0 are a guess at what the clerk checks today. *Until answered:* the readiness state
 requires BOL number, consignee match, pieces, signature present and delivery date on the dropoff copy;
