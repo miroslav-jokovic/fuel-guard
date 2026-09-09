@@ -650,3 +650,29 @@ A step may not close while its row stands.
 
 *(Dated lines appended as steps land — never edits to step text. Each phone flow's usability sentence is
 signed here by the person who did it. I6's spike results go here before its second task.)*
+
+- **I0 — governance — DONE 2026-09-08 (PR #684).** Both canon documents now name the feature:
+  `SILVICOM-360.md` §3 carries **D-S360-7**, and `ARCHITECTURE.md` §3's maintenance row states the
+  four tables the module owns today and the ten that arrive at I2–I11. Three corrections were made
+  that the step text did not anticipate, each because the thing it described had stopped being true:
+  (a) the maintenance row hedged `maintenance_print_profiles` as "only if the office keeps printing
+  onto pre-printed stock — plan step A8 is optional", but A8 was ruled against and then reversed and
+  0283 shipped, so the module owns four tables and not three-and-a-maybe; (b) a **third** location
+  carried the superseded FleetPal financial contract beyond the two §2.7 named — the maintenance
+  routes header, which described repair dollars arriving "from exactly two doors, both dedup-keyed
+  (D-SEP8)"; this step's done-when is that no document instructs a FleetPal financial projection, and
+  it would not have been met with that comment standing, so it now describes one door and states that
+  inventory does not open a third; (c) `ARCHITECTURE.md` §6 recorded `lint:filesize` as
+  "live (gap: no `.vue`/`.tsx`/shared coverage)" — re-measured, `check-file-size.mjs:57` scans
+  `["apps","packages"]` and `:122` covers `.ts`/`.tsx`/`.vue`, so the gap had closed without the row
+  being updated. That correction has a consequence for I4 rather than being tidying: the inventory
+  forms are extracted from the first commit because `.vue` really is inside the 500/450 budget.
+  The count in this plan's I0 step text — "the nine inventory tables" — is the count through I7; the
+  tenth is I11's `inventory_settings`, and the architecture row states both rather than leaving the
+  discrepancy to be discovered. `SEPARATION-PROGRAM-PLAN.md` and `ANNUAL-INSPECTION-PLAN.md` still
+  cite the dedup contract and were deliberately left alone: they are decision logs of what was true
+  on 2026-08-27, and this repo appends to plans rather than rewriting them.
+  **Verification:** all 38 `lint:*` scripts in root `package.json` pass (the full list, not only the
+  28 CI runs by name) and `pnpm typecheck` passes. **No assertion was mutated at this step and none
+  was owed** — I0 ships no test and its done-when is documentary; protocol §4.8 resumes at I1 against
+  `deriveKitStatus`. Assumptions A1–A7 all still stand; none of them gates I0.

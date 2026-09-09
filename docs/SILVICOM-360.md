@@ -81,6 +81,29 @@ later without the features above noticing.
   §396.19 inspector assertion are DERIVED, never typed; the finished report files itself into
   `documents` + `certifications` so the truck & trailer files above are built against content that
   already exists. Plan: `docs/plans/maintenance/ANNUAL-INSPECTION-PLAN.md`.
+- **Shop inventory and truck inventory** — the maintenance section's second and third features,
+  one module and one shared spine. **Shop inventory** is the parts and tools the repair shop holds,
+  counted, located and consumed. **Truck inventory** is the equipment that belongs to a unit — tablet,
+  holder, straps, fridge, chains, load bars: what should be on unit 654, what actually is, and what
+  left when. They are one feature in the plan because they share one tag namespace and one scan that
+  resolves it; a technician holding a phone does not know, and must not need to know, which of the two
+  the code in their hand belongs to.
+  **D-S360-7: Silvicom builds its own inventory, and authority splits by fact.** The shelf is ours —
+  on-hand, location, reorder points, counts, asset identity and kits (D-INV6, the bar being that it is
+  easier to use than FleetPal's). The repair job and what it consumed are FleetPal's, tied to ours by a
+  nullable `work_order_ref` and nothing stronger (D-INV10). Money is neither: parts cost never reaches
+  the fleet report, because GL `30230000 Shop Parts` already carries $270,670.22 of it and the
+  2026-09-03 fleet ruling made McLeod's general ledger the whole financial input (D-INV11, D-FLEET2).
+  A part issue is not a spend event — the money left when the part was bought.
+  Two further rulings are the product's, not the schema's: a quantity is never typed, it is the
+  projection of an append-only movement ledger (D-INV4), because "where did the eleventh filter go" is
+  the only inventory question anyone actually asks; and inventory belongs to the *unit*, with the
+  driver shown by inference and no signed handover (D-INV3) — custody deductions are a live dispute
+  area in trucking, and the answer to a missing tablet is a dated movement history, not a signature.
+  Measured 2026-09-08 against 330 migrations: no inventory schema exists, no place concept exists
+  (`terminals` was created at 0097 and dropped at 0259 after zero rows), and no barcode reader exists
+  anywhere in the repo. Plan: `docs/plans/maintenance/INVENTORY-PLAN.md`, with
+  `INVENTORY-UX-RESEARCH.md` beside it carrying the cited measurements of what the leaders do.
 - **Applicant & hiring digitalisation** — unblocks the moment counsel returns; then A0/P1/P5.
 - **Training** — six authored Silvicom 360 content modules exist
   (`docs/plans/silvicom360/MODULE-01..06`) with no delivery system and, until now, no owner.

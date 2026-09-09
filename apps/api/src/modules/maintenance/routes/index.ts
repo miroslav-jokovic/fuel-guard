@@ -24,10 +24,14 @@ const spendSchema = z.object({
  * free text ("754 Repair") that D-FS5 forbids guessing at. The response carries that state
  * explicitly so the page can render the truth instead of a mysterious zero.
  *
- * When data DOES arrive it comes from exactly two doors, both dedup-keyed (D-SEP8):
- *  · finance's GLID ruling promotes repair-flavored AP accounts to category='maintenance';
- *  · the FleetPal collector, which MAY NOT land its first row before adopting the same
- *    dedup_key contract — or the fleet is billed twice for the same wrench.
+ * When data DOES arrive it comes through ONE door, not the two this comment described until
+ * 2026-09-08: finance's GLID ruling promoting repair-flavored AP accounts to
+ * category='maintenance'. The second door — the FleetPal collector projecting work-order expense
+ * under a matched dedup_key — was closed by the 2026-09-03 fleet ruling (D-FLEET2), which made
+ * McLeod's general ledger the entire financial input and took FleetPal out of Finance. FleetPal is
+ * operational now (D-INV10): work orders, PM schedules, DVIR defects. Nor does the inventory
+ * feature open a third door: a part issue is not a spend event, GL 30230000 Shop Parts already
+ * carries the money, and D-INV11 says it never arrives here.
  */
 export function maintenanceRouter(): Router {
   const router = Router();
