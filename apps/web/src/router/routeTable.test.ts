@@ -69,6 +69,9 @@ const PROBES = [
   // I8's assets — a fourth specificity pair, and a separate address from `/shop/inventory` because
   // §2.1's seam is two questions about two kinds of row, not one screen with a toggle.
   "/shop/assets", "/shop/assets/ast_1",
+  // I9's units. TWO params, not one — the roster's kind and the id — because a truck and a trailer
+  // share neither a table nor a number space.
+  "/shop/units", "/shop/units/tractor/veh_1", "/shop/units/trailer/tr_1",
   // I5 PR 2b's count screen. The only route in the product carrying `layout: "shop"` (D-INV17), so
   // its meta is worth pinning as much as its component — a shell swapped by accident is a sidebar
   // appearing on a phone held in a bay.

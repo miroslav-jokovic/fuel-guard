@@ -61,6 +61,24 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/AssetDetailPage.vue"),
     meta: { requiresAuth: true, title: "Asset", parent: "/shop/assets" },
   },
+  /**
+   * Units (I9). Two path params rather than one, because a truck and a trailer share neither a table
+   * nor a number space: the URL carries which of the two the id belongs to, so no screen has to
+   * guess. `kind` here is the ROSTER's word — a reefer is a `trailer` — and `unitKindOf` draws the
+   * kit distinction from `is_reefer`.
+   */
+  {
+    path: "/shop/units",
+    name: "units",
+    component: () => import("@/pages/UnitsPage.vue"),
+    meta: { requiresAuth: true, title: "Units", parent: "/shop" },
+  },
+  {
+    path: "/shop/units/:kind/:id",
+    name: "unit",
+    component: () => import("@/pages/UnitDetailPage.vue"),
+    meta: { requiresAuth: true, title: "Unit", parent: "/shop/units" },
+  },
   {
     path: "/shop/inventory/:id",
     name: "part",

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { holderKindSchema, itemConditionSchema } from "./inventoryContract.js";
+import { KIT_STATES } from "./inventoryRules.js";
 
 /**
  * Truck inventory — the half with identities (`docs/plans/maintenance/INVENTORY-PLAN.md` §5 I1,
@@ -116,6 +117,25 @@ export const UNIT_KIND_LABELS: Record<UnitKind, string> = {
   trailer: "Trailer",
   reefer_trailer: "Reefer trailer",
 };
+
+/**
+ * Which kit a unit answers to (D-INV12, plan I9).
+ *
+ * Beside the vocabulary it returns, and beside `movesHolder`, for the same reason: a rule about a
+ * closed list belongs with the list. A tractor is a tractor; a trailer is a `reefer_trailer` when
+ * `trailers.is_reefer` is set and a plain `trailer` otherwise.
+ *
+ * ⚠ **This rule is spelled a second time, in SQL, and that is not an oversight.** `move_asset`
+ * (migration 0333) resolves the same kind inside the database to answer `IV020`, because an RPC
+ * cannot call TypeScript. The two must agree, so they are written to look alike and each names the
+ * other; `supabase/tests/inventory-assets.test.mjs` pins the SQL half by "a reefer resolves the
+ * reefer kit and not the dry van's". Everything ABOVE the database — the units list, the kit card,
+ * the settings drawer — asks this function and nothing else.
+ */
+export function unitKindOf(unit: { kind: "tractor" | "trailer"; isReefer?: boolean | null }): UnitKind {
+  if (unit.kind === "tractor") return "tractor";
+  return unit.isReefer ? "reefer_trailer" : "trailer";
+}
 
 // ── shared field shapes ──────────────────────────────────────────────────────────────────────────
 
@@ -367,3 +387,67 @@ export const assetCreateSchema = assetInputSchema
     path: ["locationId"],
   });
 export type AssetCreateInput = z.infer<typeof assetCreateSchema>;
+
+// ── units: what a truck or trailer is expected to hold, against what it does (plan I9) ───────────
+
+/**
+ * One line of a unit's kit: a kind of thing, how many it should carry, how many it has.
+ *
+ * ⚠ `expected`, `held` and `delta` are `deriveKitStatus`'s own numbers, carried through rather than
+ * recomputed — the API runs that function and puts its answer here. The done-when is that kit status
+ * comes from ONE shared function on api and web, so the DTO exists to transport its result, not to
+ * invite a second arithmetic on the way.
+ *
+ * `source` is not decoration: the settings drawer has to say whether a number came from this unit's
+ * own override, the fleet default for its kind, or the asset type's `default_kit_quantity` — and
+ * "reset to the fleet default" is unsayable without knowing which of the three is in force. It is
+ * the resolution order `move_asset` uses for `IV020`, reported rather than re-decided.
+ */
+export const KIT_EXPECTATION_SOURCES = ["unit", "fleet", "type"] as const;
+export const kitExpectationSourceSchema = z.enum(KIT_EXPECTATION_SOURCES);
+export type KitExpectationSource = (typeof KIT_EXPECTATION_SOURCES)[number];
+
+export const KIT_EXPECTATION_SOURCE_LABELS: Record<KitExpectationSource, string> = {
+  unit: "This unit",
+  fleet: "Fleet default",
+  type: "The type's own default",
+};
+
+export const unitKitLineDtoSchema = z.object({
+  assetTypeId: z.uuid(),
+  assetTypeName: z.string(),
+  expected: z.number().int().nonnegative(),
+  held: z.number().int().nonnegative(),
+  /** held − expected. Negative is a shortfall, which is the number the shop acts on. */
+  delta: z.number().int(),
+  source: kitExpectationSourceSchema,
+});
+export type UnitKitLineDto = z.infer<typeof unitKitLineDtoSchema>;
+
+/**
+ * A unit and its kit.
+ *
+ * ── THE UNIT IS NAMED BY (kind, id) AND NOT BY A SINGLE ID ────────────────────────────────────
+ * A truck and a trailer can share neither a table nor a number space, and the product has both. The
+ * pair is what the URL carries (`/shop/units/:kind/:id`) and what every route below takes, so no
+ * caller has to guess which table an id belongs to. `kind` here is the KIT kind — `reefer_trailer`
+ * is a trailer — and `unitKindOf` is the one place that distinction is drawn above the database.
+ *
+ * `inferredDriverName` is the D-INV3 rule again: for a tractor it is whoever
+ * `vehicles.assigned_driver_id` names at the moment somebody looks, and it is stored nowhere. Null
+ * for a trailer, because whoever is pulling it today is a different question with a different
+ * answer.
+ */
+export const unitKitDtoSchema = z.object({
+  kind: unitKindSchema,
+  unitId: z.uuid(),
+  unitNumber: z.string(),
+  inferredDriverName: z.string().nullable(),
+  /** `deriveKitStatus`'s own three words — `KIT_STATES`, not a copy of them. */
+  state: z.enum(KIT_STATES),
+  /** Total units missing across every line — the figure the shop home counts. */
+  shortBy: z.number().int().nonnegative(),
+  extraBy: z.number().int().nonnegative(),
+  lines: z.array(unitKitLineDtoSchema),
+});
+export type UnitKitDto = z.infer<typeof unitKitDtoSchema>;

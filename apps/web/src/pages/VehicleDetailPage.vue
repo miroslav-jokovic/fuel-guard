@@ -9,6 +9,7 @@ import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
+import UnitKitCard from "@/features/inventory/UnitKitCard.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/lib/chartTheme";
@@ -116,6 +117,13 @@ const fillColumns: DataTableColumn[] = [
         vs Samsara ({{ vehicle.odometer_offset_source === "manual" ? "manual override" : "auto-learned" }}) — applied before mismatch checks.
       </p>
     </BaseCard>
+
+    <!-- What this truck is carrying (INVENTORY-PLAN.md I9, D-AVI17). Read only and gated
+         `maintenance: view`: the equipment section owns the truck's file and the shop owns what is
+         inside it, so this is a window and never a control. A reader without the shop section gets
+         no card at all — a card full of blanks would say "this truck carries nothing", which is a
+         different and alarming claim. -->
+    <UnitKitCard v-if="id" kind="tractor" :unit-id="id" />
 
     <BaseCard>
       <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>

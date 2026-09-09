@@ -32,6 +32,7 @@ export { listAssets, getAsset, toAssetDto, holderOf, type AssetRow } from "./ass
 export { createAsset, updateAsset, setAssetImagePath } from "./assetsWrite.js";
 export { listAssetTypes, createAssetType, updateAssetType, toAssetTypeDto } from "./assetTypes.js";
 export { listAssetMovements, moveAsset, toAssetMovementDto } from "./assetMovements.js";
+export { listUnitKits, getUnitKit, resolveExpected } from "./units.js";
 export {
   listKitExpectations,
   setKitExpectation,

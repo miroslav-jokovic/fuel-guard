@@ -14,6 +14,7 @@ import { inventoryStockRouter } from "./inventoryStock.js";
 import { inventoryCountSessionsRouter } from "./inventoryCountSessions.js";
 import { inventoryAssetsRouter } from "./inventoryAssets.js";
 import { inventoryAssetTypesRouter } from "./inventoryAssetTypes.js";
+import { inventoryUnitsRouter, kitExpectationsRouter } from "./inventoryUnits.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -70,6 +71,11 @@ export function maintenanceRouter(): Router {
   // would have been load-bearing.
   router.use("/inventory/assets", inventoryAssetsRouter());
   router.use("/inventory/asset-types", inventoryAssetTypesRouter());
+  // I9's units: the same assets read from the other end — what a truck is expected to hold against
+  // what it does. `kit-expectations` is the rules behind those numbers, and gets its own prefix for
+  // the reason `asset-types` did: `/units/kit-expectations` would collide with `/units/:kind/:id`.
+  router.use("/inventory/units", inventoryUnitsRouter());
+  router.use("/inventory/kit-expectations", kitExpectationsRouter());
   router.use("/inventory", inventoryStockRouter());
 
   router.get(
