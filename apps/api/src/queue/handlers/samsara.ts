@@ -24,9 +24,9 @@ import { syncVehicleOdometerReadings } from "../../modules/samsara/index.js";
  * instead of N-per-process.
  *
  * Idempotent (plan Q9): every sync upserts/dedupes by external id, so a retry (lease expiry, requeue)
- * re-fetches and converges on the same rows. A missing Samsara token is NOT a failure — it returns a
- * `{ skipped }` stat (job done), matching the old scheduler behavior and avoiding pointless retries of a
- * non-transient condition. Audit is written ONLY when `payload.actorId` is present (a manual button),
+ * re-fetches and converges on the same rows. A missing Samsara token is a scheduler skip, but a manual
+ * button must fail visibly because reporting it as done makes an operator believe data was collected.
+ * Audit is written ONLY when `payload.actorId` is present (a manual button),
  * mirroring the old route closures; scheduler-origin runs carry no actor and write no audit.
  */
 const asStr = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
@@ -281,7 +281,10 @@ export const syncOdometerHandler: JobHandler = async (ctx, job) => {
     }
     return { ...r };
   } catch (e) {
-    if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
+    if (e instanceof NoSamsaraTokenError) {
+      if (actorId) throw new Error("No Samsara token is configured for this organization", { cause: e });
+      return { skipped: "no_samsara_token" };
+    }
     throw e;
   }
 };
