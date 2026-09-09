@@ -341,6 +341,9 @@
     "apps/api/src/modules/org/digestScheduler.ts",
     "apps/web/src/composables/useOrgSettings.ts"
   ],
+  "parts": [
+    "apps/api/src/modules/maintenance/inventory/partsWrite.ts"
+  ],
   "pattern_sweep_requests": [
     "apps/api/src/modules/anomalies/patternSweepRequests.ts",
     "apps/api/src/modules/anomalies/patternSweepScheduler.ts",
@@ -396,6 +399,9 @@
   ],
   "station_geocode_learned": [
     "apps/api/src/modules/fuel/stationGeocodeLearning.ts"
+  ],
+  "stock_locations": [
+    "apps/api/src/modules/maintenance/inventory/locationsWrite.ts"
   ],
   "support_impersonation_grants": [
     "apps/admin-api/src/lib/impersonation.ts"
