@@ -30,7 +30,7 @@ export { statusForServiceError } from "./httpStatus.js";
 export { isServiceError, type ServiceError } from "./types.js";
 export { listAssets, getAsset, toAssetDto, holderOf, type AssetRow } from "./assets.js";
 export { createAsset, updateAsset, setAssetImagePath } from "./assetsWrite.js";
-export { listAssetTypes, createAssetType, updateAssetType, toAssetTypeDto } from "./assetTypes.js";
+export { listAssetTypes, createAssetType, updateAssetType, toAssetTypeDto, adoptStandardKit } from "./assetTypes.js";
 export { listAssetMovements, moveAsset, toAssetMovementDto } from "./assetMovements.js";
 export { listUnitKits, getUnitKit, resolveExpected } from "./units.js";
 export {
