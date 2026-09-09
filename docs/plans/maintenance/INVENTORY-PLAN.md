@@ -916,3 +916,71 @@ signed here by the person who did it. I6's spike results go here before its seco
   matrices, all 38 `lint:*` gates, `pnpm typecheck`. `lint:table-writers` accepts the two new pairs —
   `parts ← inventory/partsWrite.ts` and `stock_locations ← inventory/locationsWrite.ts` — which are
   the module's own tables, not a cross-module write.
+
+- **REVIEW OF I0–I3 — 2026-09-09 (PR #693).** An audit of everything merged so far, against the
+  code rather than against these progress lines. **Five defects and one stale document**, four of
+  them in shipped code and one of them a gap in this PLAN. All fixed here.
+
+  **1. `supplier` was WRITE-ONLY.** 0331 stored the column, `record_part_movement` wrote it,
+  `MovementRow` read it — and `partMovementDtoSchema` did not carry it, so `toMovementDto` never
+  returned it. A technician could record who the parts came from and nothing in the product could
+  ever read it back. The irony is exact: I2's §8 line added that column specifically because "storing
+  nothing would have silently dropped a field the contract accepts", and then dropped it one layer
+  further out. **This is the same defect class I1 recorded about zod stripping unknown keys, and it
+  survived because nothing tested the DTO at all** — `inventoryContract.test.ts` tested the INPUT
+  shapes, which are the rules, and no DTO.
+
+  **2. `transferGroupId` was not on the DTO either.** 0331 wrote it so "the pair is recoverable from
+  the ledger"; recoverable by somebody writing SQL, not through the API. A transfer rendered in the
+  movements list as two unexplained rows, one negative and one positive, with nothing tying them.
+
+  **3. `actorName` was always null.** The field has been in the contract since I1 and
+  `toMovementDto`'s parameter defaulted to `null` with no caller ever passing one. The ledger — the
+  screen whose entire job is "who took the eleventh filter" — could only have shown a UUID or
+  nothing. Now wired to `lib/memberLabels`, one directory call per page and never one per row, which
+  is the shape that helper exists to enforce. `user_profiles` joins the `expectOrgScoped` exemption
+  for the reason `modules/org/routes/members.test.ts:190` already documents.
+
+  **4. `/low-stock` UNDER-REPORTED past the first page — the worst of the five.** It was a flag on
+  `listStock`, which reads ONE page, so the filter ran over at most 200 rows and `total` counted only
+  those. A shop with more stock lines than a page would have been told "nothing to order" and
+  believed it. Now `listLowStock`, its own reader, paging to the end; the query narrows to lines that
+  HAVE a reorder point — the rule's own null branch, not its threshold — and `isLowStock` still
+  decides, in one place. The route takes no `limit`/`offset` at all, because this answer is complete
+  or it is misleading. ⚠ **I2's §8 line defended the old behaviour** ("filtering the page is honest,
+  until the shop has more stock lines than one page"), which rested on A3 — unmeasured then and
+  unmeasured now. A correctness argument standing on an open assumption is not a correctness argument.
+
+  **5. Nothing in the product could set a `reorder_point`, and that is a gap in THIS PLAN.**
+  `stockLineSettingsSchema` shipped in I1 with zero consumers; no step assigns the write; and I12 is
+  "Low stock", which READS the column. Followed literally the programme would have shipped a
+  low-stock screen reading a column nothing could ever set — permanently empty, for a reason no
+  screen could explain. Closed with `PATCH /stock/:partId/:locationId` and `inventory/stockSettings.ts`.
+  The quantity is absent from both, deliberately: it is the ledger's projection and
+  `record_part_movement` is its only writer. The row may not exist when a reorder point is first set,
+  so it is a guarded UPDATE then an INSERT with every not-null column — the 0174/0175 pattern, never
+  `.upsert()` with the patch.
+
+  **6. `ARCHITECTURE.md`'s maintenance row was stale.** I0 wrote "Four tables today … ten more arrive
+  with inventory"; four of the ten arrived at I2 and the row still said four. It now says eight, names
+  which six remain, and states that `part_movements` is append-only with one writer.
+
+  **Mutation proofs, three, each restored:** stopping `listLowStock` after one page failed *"pages to
+  the end, so a low line on the second page is still found"*; dropping `supplier` on the way out
+  failed the route assertion; removing `supplier` from the DTO schema failed the new contract
+  assertion. That last one is the guard the review's first finding needed and did not have.
+
+  **What the audit did NOT find, checked explicitly:** no `TODO`/`FIXME`/unlabelled workaround in any
+  inventory file; contract fields and schema columns agree for `parts`, `part_stock` and
+  `stock_locations`; all four tables covered by `rls.test.mjs` with 0 unseedable and 0 leaking; the
+  routers are reached through `/api/maintenance`'s mount and each carries `router.use(requireAuth)`,
+  so `routeAuth.test.ts` covers them; §6.1's eight questions all remain answered; §6.2's A1, A3–A7
+  stand and are each assigned to the step that retires them.
+
+  ⚠ **One pre-existing repo-wide characteristic, noted and NOT changed here.** `listParts`'
+  search interpolates the term into a PostgREST `.or()` filter without escaping, so a comma or a
+  parenthesis in the search box produces a malformed filter. It is the house pattern — `financial/
+  reads.ts:69`, `efs/efsCardExport.ts:67` and `efs/routes/read.ts:192` all do exactly the same — so
+  fixing it here would fix one of four and leave the other three looking correct by comparison. It
+  belongs in its own change across all four call sites, and it is recorded here rather than in a
+  comment nobody would find.

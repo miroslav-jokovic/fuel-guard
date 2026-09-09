@@ -284,7 +284,10 @@ describe("the catalogue", () => {
       await fetch(`${base}/api/maintenance/inventory/low-stock`);
       await fetch(`${base}/api/maintenance/inventory/movements?partId=${PART}`);
     });
-    expectOrgScoped(rec, ORG);
+    // `user_profiles` is keyed by auth user id and carries no org — `memberLabels`' own design, and
+    // the same exemption `modules/org/routes/members.test.ts:190` takes. It is reached only for an
+    // actor who has LEFT the org, and only for ids already read off this org's ledger rows.
+    expectOrgScoped(rec, ORG, { exempt: ["user_profiles"] });
   });
 
   /**
@@ -326,5 +329,96 @@ describe("the photo route", () => {
       }),
     );
     expect(res.status).toBe(415);
+  });
+});
+
+describe("stock-line settings", () => {
+  /**
+   * The gap this closes is in the PLAN, not in a file: `stockLineSettingsSchema` shipped in I1 with
+   * no consumer, no step owned the write, and I12 reads `reorder_point`. Without this route the
+   * low-stock screen would have read a column nothing could set.
+   */
+  it("sets a reorder point on an existing line", async () => {
+    rec = createSupabaseRecorder({ tables: { part_stock: [{ part_id: PART }] } });
+    const res = await withServer((base) =>
+      fetch(`${base}/api/maintenance/inventory/stock/${PART}/${LOCATION}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reorderPoint: 5, reorderQuantity: 24 }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const written = rec.writtenRows("part_stock")[0]!;
+    expect(written.reorder_point).toBe(5);
+    // The quantity is the ledger's projection and must never appear in a settings write.
+    expect(written).not.toHaveProperty("quantity_on_hand");
+    expectOrgScoped(rec, ORG);
+  });
+
+  /**
+   * A reorder point is legitimately set on a pair that has never moved, so the row may not exist.
+   * `.upsert()` with the patch would be the partial upsert the gate forbids; the house pattern is a
+   * guarded UPDATE and then an INSERT carrying every not-null column.
+   */
+  it("creates the line at zero when there is none, with a full payload", async () => {
+    rec = createSupabaseRecorder({ tables: { part_stock: [] } });
+    const res = await withServer((base) =>
+      fetch(`${base}/api/maintenance/inventory/stock/${PART}/${LOCATION}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reorderPoint: 5 }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const inserted = rec.writtenRows("part_stock").find((r) => "org_id" in r)!;
+    expect(inserted).toMatchObject({
+      org_id: ORG,
+      part_id: PART,
+      location_id: LOCATION,
+      quantity_on_hand: 0,
+      reorder_point: 5,
+    });
+    expect(rec.forTable("part_stock").some((q) => q.write?.method === "upsert")).toBe(false);
+  });
+
+  it("refuses a body that tries to set the quantity", async () => {
+    rec = createSupabaseRecorder({ tables: { part_stock: [{ part_id: PART }] } });
+    await withServer((base) =>
+      fetch(`${base}/api/maintenance/inventory/stock/${PART}/${LOCATION}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reorderPoint: 5, quantityOnHand: 999 }),
+      }),
+    );
+    // zod STRIPS unknown keys rather than rejecting them (measured in I1), so the proof is not a 400
+    // — it is that the value never reaches the database.
+    expect(rec.writtenRows("part_stock")[0]!).not.toHaveProperty("quantity_on_hand");
+  });
+});
+
+describe("the movement ledger names who moved it", () => {
+  it("returns an actor NAME, not only a uuid", async () => {
+    rec = createSupabaseRecorder({
+      tables: { part_movements: [movementRow()] },
+      rpc: { org_member_directory: [{ user_id: USER, email: "tech@shop.test", full_name: "Dana Reyes" }] },
+    });
+    const res = await withServer((base) => fetch(`${base}/api/maintenance/inventory/movements`));
+    const body = (await res.json()) as { movements: Array<{ actorName: string | null }> };
+    expect(body.movements[0]!.actorName).toBe("Dana Reyes");
+  });
+
+  it("carries the supplier and the transfer pairing the schema stores", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        part_movements: [movementRow({ supplier: "Fleetpride", transfer_group_id: MOVEMENT })],
+      },
+      rpc: { org_member_directory: [] },
+    });
+    const res = await withServer((base) => fetch(`${base}/api/maintenance/inventory/movements`));
+    const body = (await res.json()) as {
+      movements: Array<{ supplier: string | null; transferGroupId: string | null }>;
+    };
+    expect(body.movements[0]!.supplier).toBe("Fleetpride");
+    expect(body.movements[0]!.transferGroupId).toBe(MOVEMENT);
   });
 });

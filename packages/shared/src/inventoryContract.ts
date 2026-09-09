@@ -314,6 +314,28 @@ export const partMovementDtoSchema = z.object({
   actorUserId: z.uuid().nullable(),
   actorName: z.string().nullable(),
   blind: z.boolean().nullable(),
+  /**
+   * Who it came from, on a receipt (D-INV14: "receiving takes a supplier name and a cost"). It is
+   * NOT vendor management — there is no vendor table and no purchase order, because 5 of 1,464 AP
+   * vouchers carry a PO number. It sits on the movement rather than on the part because the same
+   * filter bought from two suppliers is one part.
+   *
+   * ⚠ Added 2026-09-09, after the I0–I3 review found the column was WRITE-ONLY: 0331 stored it and
+   * `receiveStockSchema` accepted it, and this DTO did not return it, so the field a technician
+   * filled in could never be read back by anything. That is the same class of defect I1 recorded
+   * about zod stripping unknown keys — a value accepted at one edge and dropped at the other.
+   */
+  supplier: optionalText(120),
+  /**
+   * Set on BOTH legs of a transfer, to the outbound leg's id, so the pair is recoverable. Null on
+   * every other reason.
+   *
+   * ⚠ Also added by the 2026-09-09 review. 0331 wrote the column specifically so "the pair is
+   * recoverable from the ledger", and without it on the DTO the pairing was recoverable only by
+   * somebody writing SQL: the movements list rendered a transfer as two unexplained rows, one
+   * negative and one positive, with nothing tying them together.
+   */
+  transferGroupId: z.uuid().nullable(),
   occurredAt: z.string(),
   receivedAt: z.string(),
 });

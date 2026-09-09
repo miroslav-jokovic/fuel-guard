@@ -93,8 +93,6 @@ export async function listLocations(
 export interface ListStockOptions {
   locationId?: string;
   partId?: string;
-  /** D-INV12's low-stock question, asked of the same reader rather than a second one. */
-  belowReorderOnly?: boolean;
   includeInactive?: boolean;
   limit?: number;
   offset?: number;
@@ -118,12 +116,56 @@ export async function listStock(
     .range(offset, offset + limit - 1);
   if (error) return traced("listStock", "db_error", "Could not load stock", error);
 
-  let lines = ((data ?? []) as unknown as StockRow[]).map(toStockLineDto);
-  // The low-stock rule is `isLowStock` in `inventoryRules.ts` and it is CALLED here, not restated.
-  // Writing `reorder_point is not null and quantity_on_hand <= reorder_point` into this query would
-  // be a second copy of a threshold — and the rule has a real edge the copy loses, because a reorder
-  // point of zero is meaningful and a null one is not a shortage. `idx_part_stock_reorder` exists
-  // for the day this must move into SQL; that day is a measurement, not this step.
-  if (opts.belowReorderOnly) lines = lines.filter(isLowStock);
-  return { lines, total: opts.belowReorderOnly ? lines.length : (count ?? 0) };
+  const lines = ((data ?? []) as unknown as StockRow[]).map(toStockLineDto);
+  return { lines, total: count ?? 0 };
+}
+
+/**
+ * What needs ordering.
+ *
+ * ── WHY THIS IS ITS OWN READER AND NOT A FLAG ON `listStock` ───────────────────────────────────
+ * ⚠ It WAS a flag, and the 2026-09-09 review found the flag was wrong in the way that matters most
+ * for this particular question. `listStock` fetches ONE page and the flag filtered that page, so a
+ * shop with more stock lines than a page got the low ones from the first 200 rows and a `total`
+ * counting only those — reported as if it were the whole answer. A low-stock screen that
+ * UNDER-reports is worse than no low-stock screen: it says "nothing to order" and is believed.
+ *
+ * ── THE RULE STAYS IN ONE PLACE, AND THE QUERY ONLY NARROWS TO CANDIDATES ──────────────────────
+ * `isLowStock` (`inventoryRules.ts`) is still the authority and is still the only thing that decides.
+ * The query does NOT restate its threshold — a column-to-column comparison is not expressible in
+ * PostgREST anyway, and a generated `is_low` column would be exactly the second source of truth
+ * D-INV13's reasoning warns about. What the query does instead is drop the rows the rule can only
+ * ever answer `false` for: a line with NO reorder point is not a shortage, it is a line where nobody
+ * has said what "enough" means. That is the rule's own null branch, not its threshold.
+ *
+ * The remaining set is bounded by how many lines somebody has bothered to set a reorder point on,
+ * which is inherently small — you set one on what you reorder — and it is paged to the end rather
+ * than assumed to fit, because "how many parts" is assumption A3 and still unmeasured.
+ */
+export async function listLowStock(
+  admin: SupabaseClient,
+  orgId: string,
+  opts: { locationId?: string } = {},
+): Promise<{ lines: StockLineDto[]; total: number } | ServiceError> {
+  const candidates: StockLineDto[] = [];
+  for (let offset = 0; ; offset += PAGE_MAX) {
+    let q = admin
+      .from("part_stock")
+      .select(STOCK_COLUMNS)
+      .eq("org_id", orgId)
+      .eq("active", true)
+      .not("reorder_point", "is", null);
+    if (opts.locationId) q = q.eq("location_id", opts.locationId);
+
+    const { data, error } = await q.order("part_id", { ascending: true }).range(offset, offset + PAGE_MAX - 1);
+    if (error) return traced("listLowStock", "db_error", "Could not load the low-stock list", error);
+
+    const page = (data ?? []) as unknown as StockRow[];
+    candidates.push(...page.map(toStockLineDto));
+    // A short page is the end. PostgREST caps every response at 1,000 rows whatever limit is asked
+    // for, so the loop trusts the page size it actually received and never a requested one.
+    if (page.length < PAGE_MAX) break;
+  }
+  const lines = candidates.filter(isLowStock);
+  return { lines, total: lines.length };
 }

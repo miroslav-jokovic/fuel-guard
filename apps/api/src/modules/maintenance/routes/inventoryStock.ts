@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  stockLineSettingsSchema,
   adjustStockSchema,
   countStockSchema,
   issueStockSchema,
@@ -13,7 +14,8 @@ import { requireAuth, requireOrg, requireSection } from "../../../middleware/aut
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { listStock } from "../inventory/stock.js";
+import { listLowStock, listStock } from "../inventory/stock.js";
+import { updateStockLine } from "../inventory/stockSettings.js";
 import { listMovements, recordMovement } from "../inventory/movements.js";
 import { statusForServiceError } from "../inventory/httpStatus.js";
 import { isServiceError } from "../inventory/types.js";
@@ -43,6 +45,9 @@ const stockListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
+
+/** No `limit`/`offset`: the answer is the whole list or it is misleading (see the route). */
+const lowStockSchema = z.object({ locationId: z.uuid().optional() });
 
 const movementListSchema = z.object({
   partId: z.uuid().optional(),
@@ -83,22 +88,23 @@ export function inventoryStockRouter(): Router {
   );
 
   /**
-   * What needs ordering. The same reader with `belowReorderOnly`, rather than a second query with a
-   * copy of the threshold in it — `isLowStock` in `inventoryRules.ts` is the rule, and it has an edge
-   * a copy loses: a reorder point of zero is meaningful and a null one is not a shortage.
+   * What needs ordering. Its OWN reader, not a flag on `/stock`, and not paginated: this list must be
+   * complete or it is worse than absent — a low-stock screen that under-reports says "nothing to
+   * order" and is believed. `listLowStock` pages to the end over the lines that have a reorder point
+   * at all, then asks `isLowStock` (`inventoryRules.ts`), which stays the only place the rule lives.
    */
   router.get(
     "/low-stock",
     requireOrg,
     canView,
     asyncHandler(async (req, res) => {
-      const parsed = stockListSchema.safeParse(req.query);
+      const parsed = lowStockSchema.safeParse(req.query);
       if (!parsed.success) {
         res.status(400).json(apiError("bad_request", "Check the filter values."));
         return;
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await listStock(admin, req.auth!.orgId!, { ...parsed.data, belowReorderOnly: true });
+      const result = await listLowStock(admin, req.auth!.orgId!, parsed.data);
       if (isServiceError(result)) {
         res.status(statusForServiceError(result.code)).json(apiError(result.code, result.error));
         return;
@@ -124,6 +130,39 @@ export function inventoryStockRouter(): Router {
         return;
       }
       res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * The reorder point, the optional bin fragments, and whether the line is still carried.
+   *
+   * ⚠ Added by the 2026-09-09 review of I0–I3: `stockLineSettingsSchema` shipped in I1 with no
+   * consumer and no step owning the write, while I12 reads `reorder_point`. Notably absent from the
+   * body, and from the service behind it, is the QUANTITY — that is the ledger's projection and
+   * `record_part_movement` is its only writer (D-INV4).
+   *
+   * The line is addressed by its natural key, because `part_stock` has no surrogate id: a stock line
+   * IS the pair.
+   */
+  router.patch(
+    "/stock/:partId/:locationId",
+    requireOrg,
+    canManage,
+    validateBody(stockLineSettingsSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await updateStockLine(
+        admin,
+        req.auth!.orgId!,
+        String(req.params.partId ?? ""),
+        String(req.params.locationId ?? ""),
+        res.locals.body as z.infer<typeof stockLineSettingsSchema>,
+      );
+      if (isServiceError(result)) {
+        res.status(statusForServiceError(result.code)).json(apiError(result.code, result.error));
+        return;
+      }
+      res.json({ ok: true });
     }),
   );
 
