@@ -32,7 +32,7 @@ let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
 
 const { listParts, getPart, findPartsByUpc } = await import("./parts.js");
-const { listStock, listLocations } = await import("./stock.js");
+const { listStock, listLowStock, listLocations } = await import("./stock.js");
 const { listMovements, recordMovement } = await import("./movements.js");
 
 const partRow = (over: Record<string, unknown> = {}) => ({
@@ -110,7 +110,11 @@ describe("inventory reads", () => {
     await listStock(rec.client, ORG, { locationId: LOCATION });
     await listLocations(rec.client, ORG);
     await listMovements(rec.client, ORG, { partId: PART });
-    expectOrgScoped(rec, ORG);
+    // `user_profiles` is keyed by auth user id and carries no org, which is `memberLabels`' own
+    // design and the same exemption `modules/org/routes/members.test.ts:190` takes. It is reached
+    // only for a DEPARTED actor, and only for ids that came off org-scoped rows in the first place —
+    // `listMovements` never asks it for anybody it did not already read out of this org's ledger.
+    expectOrgScoped(rec, ORG, { exempt: ["user_profiles"] });
   });
 
   it("converts a numeric cost from the string PostgREST actually sends", async () => {
@@ -139,10 +143,10 @@ describe("inventory reads", () => {
   it("asks the contract whether a line is low, rather than restating the threshold", async () => {
     rec = createSupabaseRecorder({
       tables: {
-        // Three lines that discriminate: one plainly low, one plainly not, and the edge the rule
-        // actually turns on — a reorder point of NULL, which is "nobody has said what enough means"
-        // and not "there is enough". A copied `quantity <= reorder_point` predicate treats null as
-        // false too, so only the ZERO case below separates the rule from the copy.
+        // Four lines that discriminate: one plainly low, one plainly not, and the two edges the rule
+        // actually turns on — a NULL reorder point, which means "nobody has said what enough means"
+        // and is not a shortage, and a reorder point of ZERO, which is a real instruction to warn at
+        // empty. A copied `quantity <= reorder_point` predicate gets the zero case wrong.
         part_stock: [
           stockRow({ part_id: "low", quantity_on_hand: 2, reorder_point: 5 }),
           stockRow({ part_id: "fine", quantity_on_hand: 40, reorder_point: 5 }),
@@ -151,9 +155,46 @@ describe("inventory reads", () => {
         ],
       },
     });
-    const out = await listStock(rec.client, ORG, { belowReorderOnly: true });
+    const out = await listLowStock(rec.client, ORG);
     expect("lines" in out && out.lines.map((l) => l.partId)).toEqual(["low", "zero-point"]);
   });
+
+  /**
+   * ⚠ The defect this pins is the one the 2026-09-09 review found: low stock used to be a flag on
+   * `listStock`, which fetches ONE page and filtered it, so a shop with more stock lines than a page
+   * got the low ones from the first 200 rows and a total counting only those. A low-stock list that
+   * under-reports says "nothing to order" and is believed.
+   *
+   * The fixture is deliberately shaped so a single-page reader CANNOT pass: the only low line is on
+   * the SECOND page, behind a full first page of lines that are all fine.
+   */
+  it("pages to the end, so a low line on the second page is still found", async () => {
+    const full = Array.from({ length: 200 }, (_, i) =>
+      stockRow({ part_id: `fine-${i}`, quantity_on_hand: 40, reorder_point: 5 }),
+    );
+    rec = createSupabaseRecorder({
+      tables: {
+        part_stock: {
+          pages: [full, [stockRow({ part_id: "buried", quantity_on_hand: 1, reorder_point: 5 })]],
+        },
+      },
+    });
+    const out = await listLowStock(rec.client, ORG);
+    expect("lines" in out && out.lines.map((l) => l.partId)).toEqual(["buried"]);
+    expect("total" in out && out.total).toBe(1);
+    // Two reads, not one — and the second was asked for by offset, not by luck.
+    expect(rec.forTable("part_stock")).toHaveLength(2);
+  });
+
+  it("asks the database only for lines that HAVE a reorder point, and never for a threshold", async () => {
+    rec = createSupabaseRecorder({ tables: { part_stock: [] } });
+    await listLowStock(rec.client, ORG);
+    const ops = rec.forTable("part_stock")[0]!.ops.map((o) => o.method);
+    // `.not("reorder_point","is",null)` is the rule's own NULL branch, not its threshold. Nothing
+    // here compares a quantity to anything — `isLowStock` does that, in one place.
+    expect(ops).toContain("not");
+  });
+
 });
 
 describe("recording a movement", () => {

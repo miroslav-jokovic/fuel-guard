@@ -341,6 +341,9 @@
     "apps/api/src/modules/org/digestScheduler.ts",
     "apps/web/src/composables/useOrgSettings.ts"
   ],
+  "part_stock": [
+    "apps/api/src/modules/maintenance/inventory/stockSettings.ts"
+  ],
   "parts": [
     "apps/api/src/modules/maintenance/inventory/partsWrite.ts"
   ],

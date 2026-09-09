@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PartMovementDto, PartMovementInput } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
+import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 import { PAGE_MAX } from "./parts.js";
 import type { ServiceError } from "./types.js";
 
@@ -63,6 +64,8 @@ export const toMovementDto = (r: MovementRow, actorName: string | null = null): 
   note: r.note,
   actorUserId: r.actor_user_id,
   actorName,
+  supplier: r.supplier,
+  transferGroupId: r.transfer_group_id,
   blind: r.blind,
   occurredAt: r.occurred_at,
   receivedAt: r.received_at,
@@ -120,7 +123,26 @@ export async function listMovements(
     .order("occurred_at", { ascending: false })
     .range(offset, offset + limit - 1);
   if (error) return traced("listMovements", "db_error", "Could not load the movement history", error);
-  return { movements: ((data ?? []) as unknown as MovementRow[]).map((r) => toMovementDto(r)), total: count ?? 0 };
+
+  const rows = (data ?? []) as unknown as MovementRow[];
+  /**
+   * Who moved it, as a name (`lib/memberLabels`, the product's one answer to that question).
+   *
+   * ⚠ Added 2026-09-09 by the I0–I3 review. `partMovementDtoSchema` has carried `actorName` since
+   * I1 and this reader passed `null` for it on every row, so the ledger — the screen whose entire
+   * job is "who took the eleventh filter" — could only ever have shown a UUID or nothing. One
+   * directory call for the whole page, never one per row, which is the shape `memberLabels` exists
+   * to enforce.
+   */
+  const labels = await memberLabels(
+    admin,
+    orgId,
+    rows.map((r) => r.actor_user_id).filter((id): id is string => Boolean(id)),
+  );
+  return {
+    movements: rows.map((r) => toMovementDto(r, r.actor_user_id ? labelOf(labels.get(r.actor_user_id)) : null)),
+    total: count ?? 0,
+  };
 }
 
 /**

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  partMovementDtoSchema,
   ADJUST_REASONS,
   ADJUST_REASON_LABELS,
   COUNT_SESSION_STATUS_LABELS,
@@ -307,5 +308,56 @@ describe("scanResultSchema — the failures are members, not errors", () => {
       stockLines: [],
     });
     expect(isResolvedScan(parsed)).toBe(true);
+  });
+});
+
+describe("partMovementDtoSchema — a stored column that the DTO drops is invisible", () => {
+  /**
+   * The defect this pins was real and shipped: `part_movements` stored `supplier` and
+   * `transfer_group_id`, `receiveStockSchema` accepted a supplier, and the DTO carried neither — so
+   * a technician could type who the parts came from and nothing could ever read it back, and a
+   * transfer rendered as two unexplained rows with no way to pair them. Found by the 2026-09-09
+   * review of I0–I3, not by a test, which is why there is now a test.
+   *
+   * ⚠ The assertion is on the parsed OUTPUT's keys and not on `.safeParse` succeeding, because zod
+   * STRIPS unknown keys rather than rejecting them (measured in I1). A test that only checked a full
+   * row parses would have passed against the broken schema — the stripped field is exactly what it
+   * would have been silently dropping.
+   */
+  const fullRow = {
+    id: "11111111-1111-4111-8111-111111111111",
+    partId: "22222222-2222-4222-8222-222222222222",
+    locationId: "33333333-3333-4333-8333-333333333333",
+    reason: "received" as const,
+    adjustReason: null,
+    quantityDelta: 24,
+    countedTotal: null,
+    countSessionId: null,
+    unitCost: 12.5,
+    vehicleId: null,
+    trailerId: null,
+    workOrderRef: null,
+    note: null,
+    actorUserId: "44444444-4444-4444-8444-444444444444",
+    actorName: "Dana Reyes",
+    supplier: "Fleetpride",
+    transferGroupId: "55555555-5555-4555-8555-555555555555",
+    blind: null,
+    occurredAt: "2026-09-09T10:00:00.000Z",
+    receivedAt: "2026-09-09T10:00:02.000Z",
+  };
+
+  it("keeps the supplier a receipt recorded", () => {
+    const parsed = partMovementDtoSchema.parse(fullRow);
+    expect(parsed.supplier).toBe("Fleetpride");
+  });
+
+  it("keeps the id that pairs the two legs of a transfer", () => {
+    const parsed = partMovementDtoSchema.parse(fullRow);
+    expect(parsed.transferGroupId).toBe(fullRow.transferGroupId);
+  });
+
+  it("keeps the actor's NAME, which is what a ledger screen prints", () => {
+    expect(partMovementDtoSchema.parse(fullRow).actorName).toBe("Dana Reyes");
   });
 });
