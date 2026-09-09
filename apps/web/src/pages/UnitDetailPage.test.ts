@@ -65,7 +65,11 @@ vi.mock("@/features/inventory/useUnits", async () => {
 });
 vi.mock("@/features/inventory/useInventory", async () => {
   const { ref: r } = await import("vue");
-  return { useLocationsQuery: () => ({ data: r([]) }) };
+  return {
+    useLocationsQuery: () => ({ data: r([]) }),
+    // The page can start a walk of this unit (D-INV19); `UnitCheck.test.ts` drives the walk itself.
+    useOpenCountSession: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
+  };
 });
 vi.mock("@/features/inventory/useAssets", async () => {
   const { ref: r } = await import("vue");
