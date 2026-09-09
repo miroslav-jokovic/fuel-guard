@@ -195,6 +195,38 @@ describe('a submission lands somewhere a human still has to promote it (P8)', ()
   });
 });
 
+/**
+ * The three App Store Connect API key fields are VARIABLE REFERENCES, never values.
+ *
+ * ── WHY THIS IS A TEST AND NOT A CONVENTION ────────────────────────────────────────────────────
+ * `eas submit` needs the key, the key id and the issuer id. The obvious way to give it them is to
+ * type them into this file — and this file is committed. The issuer id is not a credential on its
+ * own (it is useless without the .p8, which never leaves the owner's machine), but it is an account
+ * identifier, and the same edit that pastes one in is the edit that later pastes in something that
+ * IS a secret. `lint:secrets` scans for known secret SHAPES and a UUID is not one of them, so
+ * nothing else in this repo would notice.
+ *
+ * The values live in `~/FuelGuard-backups/asc-api.env`, outside the repo, and EAS substitutes them
+ * at submit time. ⚠ The consequence, so it is not discovered in CI: a submission only works where
+ * those variables are exported. A CI lane must provide them as secrets.
+ */
+describe('the App Store Connect key is referenced, never embedded', () => {
+  const ios = (eas.submit.production?.ios ?? {}) as Record<string, string | undefined>;
+
+  for (const field of ['ascApiKeyPath', 'ascApiKeyIssuerId', 'ascApiKeyId'] as const) {
+    it(`${field} is a $VARIABLE reference`, () => {
+      expect(ios[field], `${field} must be set`).toBeDefined();
+      expect(ios[field]).toMatch(/^\$[A-Z_][A-Z0-9_]*$/);
+    });
+  }
+
+  /** A UUID here is an issuer id somebody pasted. Caught by shape, since it has one. */
+  it('carries no literal UUID anywhere in the submit config', () => {
+    const json = JSON.stringify(eas.submit ?? {});
+    expect(json).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  });
+});
+
 describe('what P2.3 still has to fill in', () => {
   const placeholders = [
     ['ascAppId', eas.submit.production?.ios?.ascAppId ?? ''],

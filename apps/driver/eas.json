@@ -45,8 +45,11 @@
         "releaseStatus": "draft"
       },
       "ios": {
-        "ascAppId": "<App Store Connect app Apple ID>",
-        "appleTeamId": "FADWJ952AY"
+        "ascAppId": "6809905033",
+        "appleTeamId": "FADWJ952AY",
+        "ascApiKeyPath": "$ASC_KEY_PATH",
+        "ascApiKeyIssuerId": "$ASC_ISSUER_ID",
+        "ascApiKeyId": "$ASC_KEY_ID"
       }
     }
   }

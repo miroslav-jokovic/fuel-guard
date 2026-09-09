@@ -2322,3 +2322,16 @@ Nothing in §5 waits on an answer here; each entry names what the code does unti
   neither appears in RELEASE-GATE: the **updated age-rating questionnaire** (unanswered accounts have
   been blocked from submitting updates since 2026-01-31) and **DSA trader status** (required
   globally since 2025-02-17, not only for EU distribution).
+- 2026-09-08 · **The first iOS build ever attempted FAILED on Sentry, exactly as `app.config.ts`
+  warned it would.** The `@sentry/react-native/expo` plugin runs `sentry-cli` at build time and the
+  upload is a plain `exec` with no `ignoreExitValue`, so a failure to authenticate fails the BUILD.
+  `SENTRY_ORG` was unset, `sentry-cli` aborted with "An organization ID or slug is required", and the
+  build died seven minutes in. The config comment had said all of this since P1; what it also said —
+  "EAS production builds (P2) set the token instead and let it run" — was an assumption P2 never
+  discharged, and nothing checked that it had.
+  **Fixed by `SENTRY_DISABLE_AUTO_UPLOAD=true` in both EAS environments, and it costs nothing today**:
+  `EXPO_PUBLIC_SENTRY_DSN` is also unset, so Sentry is already a no-op at runtime and the build was
+  uploading source maps for a service receiving no events. ⚠ The cost is deferred, not avoided — the
+  day a DSN is added, crash stack traces arrive MINIFIED until `SENTRY_ORG`, `SENTRY_PROJECT` and
+  `SENTRY_AUTH_TOKEN` join it. That is a Q for whoever turns crash reporting on, not a pilot blocker.
+  Second attempt: build `0ec2b351`.
