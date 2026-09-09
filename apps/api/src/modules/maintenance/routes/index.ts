@@ -8,6 +8,9 @@ import { searchEntries } from "../../financial/index.js";
 import { inspectionsRouter, inspectionPrintingRouter } from "./inspections.js";
 import { inspectorsRouter } from "./inspectors.js";
 import { printProfilesRouter } from "./printProfiles.js";
+import { inventoryPartsRouter } from "./inventoryParts.js";
+import { inventoryLocationsRouter } from "./inventoryLocations.js";
+import { inventoryStockRouter } from "./inventoryStock.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -47,6 +50,13 @@ export function maintenanceRouter(): Router {
   // measured with.
   router.use("/print-profiles", printProfilesRouter());
   router.use("/printing", inspectionPrintingRouter());
+
+  // Shop inventory (INVENTORY-PLAN.md step I3, D-S360-7) — the module's second feature. Three
+  // sub-routers under one prefix rather than one file, because the 500-line budget is a hard gate
+  // and the seam is the plan's own: the catalogue, the places, and the shelves with their ledger.
+  router.use("/inventory/parts", inventoryPartsRouter());
+  router.use("/inventory/locations", inventoryLocationsRouter());
+  router.use("/inventory", inventoryStockRouter());
 
   router.get(
     "/spend",

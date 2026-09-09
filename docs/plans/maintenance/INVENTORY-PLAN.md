@@ -861,3 +861,58 @@ signed here by the person who did it. I6's spike results go here before its seco
   `pnpm typecheck`. The feature is unreachable — no routes are mounted until I3 — which is the
   condition under which an RPC may ship with its caller, and `lint:migration-ordering` cannot check
   it because it never reads `create function`.
+
+- **I3 — API: parts routes — DONE 2026-09-09 (PR #PENDING3).** `/api/maintenance/inventory/…` is
+  mounted: `parts` (list, by-upc, one, create, patch, photo), `locations` (list, create, patch),
+  `stock`, `low-stock`, `movements`, and the six verbs `receive` / `issue` / `adjust` / `transfer` /
+  `return` / `count`. Reads take `requireSection("maintenance", "view")`, writes take its manage
+  roles. 20 route assertions. **The feature is now reachable** — I2's caveat is discharged.
+
+  **The `IV0xx` split is 409 against 422, and the line between them is a sentence a technician can
+  tell apart.** 409 means the payload is fine and the SHELF refuses it — one filter left not two
+  (`IV010`), the ledger is not editable (`IV011`), an identical movement is already landing
+  (`IV016`); there is nothing to fix in the form. 422 means the payload NAMES something unusable — a
+  closed or foreign location (`IV012`), a retired part (`IV013`), a clock a day out (`IV014`), a body
+  missing the quantity for its own reason (`IV015`). A 500 is kept for what it means everywhere else,
+  and the tests pin that too: an unmapped `42P01` is still a 500 rather than being swept into the
+  table.
+
+  **Three deviations.**
+  (a) **The photo route signs an upload URL rather than accepting multipart**, which the step text
+  named. D-INV8's actual words are "uploads go through the API (service role); reads are signed
+  URLs", and a signed upload URL IS the service role authorising the write — the client never holds a
+  key and the bucket still has no `storage.objects` policy. It is also the route
+  `modules/evidence/compliance.ts:117` already established, `apps/api` has no multipart middleware at
+  all, and a signed URL can be retried by an offline client against Storage directly where a
+  multipart POST cannot be retried without re-sending the bytes through the process that also runs
+  the schedulers. **The org prefix is built from `req.auth.orgId` and never from the request**, which
+  is load-bearing precisely because the bucket has no RLS to fall back on.
+  (b) **Six verb routes, not one `POST /movements` with a reason.** `partMovementInputSchema` is a
+  discriminated union so the shapes ARE the rules; one endpoint taking the union would let a screen
+  built for receiving send `reason: "adjusted"`. Pinned: a receipt posted to `/adjust` is a 400 and
+  reaches no RPC.
+  (c) **Movements are NOT written to `audit_logs`**, and this is the opposite of the parts and
+  locations routes beside them. `part_movements` IS the audit — append-only by trigger, carrying its
+  actor, both clocks and the reason — so a second row per issue would double the busiest table in the
+  module to record what the first says better. Creating or retiring a PART is audited, because the
+  catalogue is not itself a ledger, and retirement gets its own action rather than an update with a
+  flag buried in a `changed` list: it is the event somebody searches for when a part stops appearing
+  in the issue picker.
+
+  **A comment claimed a hazard that measurement says does not exist, and it is worth recording
+  because the mutation is what caught it.** `/parts/by-upc/:upc` carried a note saying it had to be
+  mounted above `/:id` or a barcode would fall into the id route. Moving it below `/:id` **failed no
+  test** — `/by-upc/:upc` is two path segments and `/:id` is one, so Express can never confuse them
+  whatever the order. Both the comment and the test's name now say what is actually being pinned:
+  that a barcode is queried as a `upc` and never as an id, which is D-INV7's whole fall-through. A
+  warning about a hazard that is not there is worse than no comment, because the next person routes
+  around it.
+
+  **Mutation proofs, three, each restored:** dropping `IV010` from the status map failed the 409
+  assertion; making the transfer route call the RPC twice failed *"sends a transfer to the RPC as ONE
+  call"* — the half-failure that would destroy stock at the source and never deliver it; and the
+  route-order mutation above failed nothing, which is why the comment changed instead of the code.
+  **Verification:** 20 route assertions, `pnpm test` green across every unit suite and all 40
+  matrices, all 38 `lint:*` gates, `pnpm typecheck`. `lint:table-writers` accepts the two new pairs —
+  `parts ← inventory/partsWrite.ts` and `stock_locations ← inventory/locationsWrite.ts` — which are
+  the module's own tables, not a cross-module write.
