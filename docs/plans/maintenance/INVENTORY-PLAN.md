@@ -1859,6 +1859,11 @@ signed here by the person who did it. I6's spike results go here before its seco
   | I9's usability sentence — an eight-item trailer check on a phone, one thumb, named person | a person in a yard | I9 closing |
   | I5's usability sentence — a 20-bin shelf count | **RULED OPTIONAL by the owner 2026-09-09** | nothing |
 
+  **All three are written up as a runbook**, `docs/plans/maintenance/I6-SPIKE-RUNBOOK.md`: what to
+  print, which three devices, what to record, and what "pass" means — so the twenty minutes that
+  gate I6's scanner are twenty minutes rather than an afternoon of working out what to do. A1 needs
+  a printer and a phone and nothing else; only A2's wifi half and I9's walk need the yard.
+
   **⚠ I5's shelf-count sentence is retired by RULING, not by measurement.** The owner's words:
   *"leave this shelfs as optional, because we dont have shelf count in shop (they are not marked)"*.
   §1.4 had already measured that there are no shelf numbers and `part_stock.aisle/row/bin` are
