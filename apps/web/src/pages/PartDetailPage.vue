@@ -17,6 +17,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLineDrawer from "@/features/inventory/StockLineDrawer.vue";
+import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
 import {
   useLocationsQuery,
@@ -76,6 +77,13 @@ const locationName = (locationId: string) =>
   locations.value?.find((l) => l.id === locationId)?.name ?? "—";
 
 const editing = ref(false);
+/**
+ * The verb drawers open from a SHELF ROW, because a movement is about one (part, location) pair —
+ * the same reason `part_stock` has no surrogate id. A part that is not stocked anywhere yet has no
+ * row to receive into, which is what "Add a shelf" is for: it creates the line at zero, and the
+ * first receipt fills it.
+ */
+const moving = ref<{ verb: DeskVerb; line: StockLineDto } | null>(null);
 const shelfEditing = ref<StockLineDto | null>(null);
 const shelfAdding = ref(false);
 const canManage = computed(() => session.can("maintenance"));
@@ -202,7 +210,21 @@ function detailOf(m: {
             <template #cell-reorderQuantity="{ value }">{{ value ?? "—" }}</template>
             <template #actions="{ row }">
               <KebabMenu v-if="canManage">
+                <BaseButton class="kebab-item" @click="moving = { verb: 'received', line: row }">
+                  Receive
+                </BaseButton>
+                <BaseButton class="kebab-item" @click="moving = { verb: 'issued', line: row }">
+                  Issue
+                </BaseButton>
+                <BaseButton class="kebab-item" @click="moving = { verb: 'transferred', line: row }">
+                  Move
+                </BaseButton>
                 <BaseButton class="kebab-item" @click="shelfEditing = row">Edit shelf</BaseButton>
+                <!-- Last, and separated: an adjustment is the only verb that admits an unexplained
+                     decrease, which is why the contract demands a reason for it and no other. -->
+                <BaseButton class="kebab-item" @click="moving = { verb: 'adjusted', line: row }">
+                  Adjust the count
+                </BaseButton>
               </KebabMenu>
             </template>
             <template #empty>
@@ -261,6 +283,14 @@ function detailOf(m: {
       :part-id="part.id"
       :locations="openLocations ?? []"
       @close="shelfAdding = false"
+    />
+    <MovementDrawer
+      v-if="moving"
+      :open="true"
+      :verb="moving.verb"
+      :line="moving.line"
+      :locations="openLocations ?? []"
+      @close="moving = null"
     />
     <StockLineDrawer
       v-if="part && shelfEditing"

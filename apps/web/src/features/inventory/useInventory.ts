@@ -2,6 +2,9 @@ import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
 import type {
+  CountSessionDto,
+  CountSessionInput,
+  PartMovementInput,
   PartDto,
   PartInput,
   StockLocationInput,
@@ -21,12 +24,14 @@ import type {
  * the catalogue row AND the stock lines AND the movements, and all three move when a part is
  * received.
  *
- * ── WHAT IS NOT HERE, AND WHY ─────────────────────────────────────────────────────────────────
- * No movement hooks. The six verbs are I5's drawers, and each one has to mint a client UUID **per
- * movement rather than per attempt** (D-INV27) — the id is the idempotency key and the server half
- * of the offline queue. Writing them here now, without the screen that owns the id's lifetime,
- * would be the easiest possible place to get that wrong: minting per attempt breaks the replay and
- * breaks no test.
+ * ── THE MOVEMENT ID IS MINTED BY THE SCREEN, NEVER BY THIS FILE ───────────────────────────────
+ * ⚠ `useRecordMovement` takes a whole `PartMovementInput`, id included, and does not generate one.
+ * That is D-INV27 and it is the single easiest thing in this feature to get wrong: the id is the
+ * idempotency key, so it must be minted ONCE PER MOVEMENT and reused on every retry. A hook that
+ * called `crypto.randomUUID()` inside its `mutationFn` would mint one per ATTEMPT — every retry
+ * would become a second movement, the shelf would drift by exactly the number of times the network
+ * was bad, and no test would fail. `MovementDrawer.vue` owns the id's lifetime because it owns the
+ * form's.
  */
 
 const PER_PAGE = 50;
@@ -153,6 +158,92 @@ export function useUpdateLocation() {
         body: input.patch,
       });
       if (!r.ok) throw new Error(r.error?.message ?? "Could not save the location");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
+/**
+ * The five desk verbs, one route each (`/receive`, `/issue`, `/adjust`, `/transfer`, `/return`).
+ *
+ * One hook rather than five, because after validation they differ in nothing this layer does — the
+ * path is the reason and the payload is the contract's own discriminated union, so a caller cannot
+ * post a receipt to `/adjust` without a type error. The API's own routes are five for the opposite
+ * reason: there the shapes have to BE the rules at the edge.
+ *
+ * **201 on a replay is a success, not a failure.** `record_part_movement` returns the existing row
+ * for an id it has already seen, so a queue flushing twice gets the same movement both times.
+ */
+const VERB_PATH: Record<PartMovementInput["reason"], string> = {
+  received: "receive",
+  issued: "issue",
+  adjusted: "adjust",
+  transferred: "transfer",
+  returned: "return",
+  counted: "count",
+};
+
+export function useRecordMovement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: PartMovementInput): Promise<PartMovementDto> => {
+      const r = await apiFetch<{ movement: PartMovementDto }>(
+        `/api/maintenance/inventory/${VERB_PATH[input.reason]}`,
+        { method: "POST", body: input },
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not record the movement");
+      return r.data.movement;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
+// ── count sessions (I5 PR 2a; the count screen itself is 2b) ─────────────────────────────────────
+
+export function useCountSessionsQuery(status?: Ref<"open" | "closed" | undefined>) {
+  return useQuery({
+    queryKey: ["inventory", "count-sessions", status ?? null] as const,
+    queryFn: async (): Promise<{ sessions: CountSessionDto[]; total: number }> => {
+      const params = status?.value ? `?status=${status.value}` : "";
+      const r = await apiFetch<{ sessions: CountSessionDto[]; total: number }>(
+        `/api/maintenance/inventory/count-sessions${params}`,
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load counts");
+      return r.data;
+    },
+  });
+}
+
+/**
+ * Open a walk. The server mints the id — the opposite of a movement, and deliberately: a session is
+ * started with the network up, because the screen cannot show what to count without it, while a
+ * movement is what the phone queues in a dead bay. Two taps of Start must not make two walks.
+ */
+export function useOpenCountSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CountSessionInput): Promise<CountSessionDto> => {
+      const r = await apiFetch<{ session: CountSessionDto }>("/api/maintenance/inventory/count-sessions", {
+        method: "POST",
+        body: input,
+      });
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not start the count");
+      return r.data.session;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
+  });
+}
+
+export function useCloseCountSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; note?: string | null }): Promise<CountSessionDto> => {
+      const r = await apiFetch<{ session: CountSessionDto }>(
+        `/api/maintenance/inventory/count-sessions/${input.id}/close`,
+        { method: "POST", body: { note: input.note ?? null } },
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not close the count");
+      return r.data.session;
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["inventory"] }),
   });
