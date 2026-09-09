@@ -53,19 +53,21 @@ before writing anything**; this file is the map, not a replacement for them.
 5. **`lint:filesize` covers `.vue`** — measured at I0, 500 hard / 450 warn. Extract the forms from the
    first commit rather than after the gate fails.
 
-## A3 is ruled — I4 has no blocker
+## A3 is answered — and it is an API, not a file
 
-The plan's default is adopted: **a locked-header CSV template with an error report.** The reason it is
-safe is D-INV10 and not convenience — **the shelf is ours**, so FleetPal never becomes an ongoing
-source of parts even after it lands, and the initial import is therefore ONE-TIME whatever file
-arrives. A FleetPal export gets re-headed once in a spreadsheet. **Do not build a column-mapping UI**;
-it is a screen for a job nobody does twice.
+The owner supplied FleetPal's OpenAPI document (`docs/FleetPal/`, gitignored beside the PSP guide —
+read it from the working tree). **The parts list is `GET /v1/parts/`, with an `updated_after` filter,
+so the import is RECURRING and not one-time**: FleetPal's catalogue stays live while the shop raises
+work orders there, and an import that ran once would drift the next day. The locked-header CSV keeps
+its place as the manual escape hatch for stock bought outside FleetPal — not as the primary path.
 
-⚠ **Still owed, and it is a test-quality question rather than a design one:** the actual file. Build
-the importer now; when a real parts list arrives, prove the importer against it instead of against a
-synthetic fixture, and put the row count in §8.
+⚠ **A3 does not gate I4.** The shop home and the Parts list and detail need no import at all. Build
+them; the importer is a later commit in the same step and now has a real shape to build to.
 
-Everything else in I4 — the shop home, the Parts list and detail, the nav group — was already unblocked.
+**Do not** hand-map FleetPal's columns in a UI. **Do** plan for three additive things when the sync
+lands (all in plan §8): a `fleetpal_id` column on `parts`, a unit-of-measure mapping — theirs is 22
+members to our 11, and their `hr` is *Labor Hour* which must never become one of ours — and VMRS
+resolution for `manufacturer` and `component`.
 
 ## FleetPal is next after inventory, and it is not blocked either
 
@@ -81,7 +83,19 @@ writing `parts`/`part_stock`/`part_movements` is a new write site `check-table-w
 and a migration touching both modules needs a `cross-module-waiver`. One additive thing is owed at
 I14 and not before: `work_order_ref` has no index, because nothing reads it yet.
 
-**I14 is no longer deferred** and **A6** ("does FleetPal have an export path") is live with it.
+**I14 is no longer deferred** and **A6 is answered**: yes, 71 endpoints, webhooks included
+(`work_order.completed`) — though the event still has to be confirmed on the real account before I14
+depends on it, the way Samsara's trigger could not be.
+
+**D-INV10 is confirmed by FleetPal's own model**, not merely asserted against it: its `Part` carries
+no quantity, no location and no reorder point anywhere. There is no second shelf. `JobItem` records
+what a repair consumed, which is consumption and not stock.
+
+⚠ **One new question, Q9 in plan §6.1b, needs an owner ruling before I5** (not before I4).
+FleetPal has `/v1/purchase-order-receipt-items/` — stock arriving. If the shop receives against POs
+there, our `receive` verb is a second place to type the same delivery. The recommendation is to
+receive in FleetPal and ingest, because it is the only option that does not ask somebody to type a
+delivery twice; "do both and reconcile" is the workaround.
 
 ## The other assumptions, and which step retires each
 
