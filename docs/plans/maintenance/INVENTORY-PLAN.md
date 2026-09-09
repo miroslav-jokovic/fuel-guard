@@ -784,7 +784,7 @@ signed here by the person who did it. I6's spike results go here before its seco
   suggests a teardown race or port exhaustion rather than randomness, and it deserves its own look.
 
 - **I2 — schema and service: locations, parts, stock, the movement ledger — DONE 2026-09-09
-  (PR #PENDING).** Migration 0331 ships `stock_locations`, `parts`, `part_stock` and
+  (PR #691).** Migration 0331 ships `stock_locations`, `parts`, `part_stock` and
   `part_movements`, the `inventory-photos` bucket, `record_part_movement`, `rebuild_part_stock` and
   the append-only guard; `apps/api/src/modules/maintenance/inventory/` ships `listParts`, `getPart`,
   `findPartsByUpc`, `listLocations`, `listStock`, `listMovements` and `recordMovement`. 42 matrix
