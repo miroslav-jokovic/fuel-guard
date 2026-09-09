@@ -94,6 +94,51 @@ plus `declared_lines`, not `declared_lines` alone), and the capture's home (`loa
 D-EXR4 becomes "safety- or money-critical": a field is cross-checked iff it feeds the engine, the order
 reconciliation, or billing readiness.
 
+### 0.2 The intake today, and the economics of the write — owner, 2026-09-08, third statement
+
+> Drivers capture with **McLeod's image capture**, which sends images straight into McLeod for billing.
+> Drivers also upload images to **Samsara**. The new driver app is meant to replace the load flow and the
+> image flow and unify them. McLeod API usage is very expensive and **writing** to its database is
+> expensive; **reading is free**. The aim is a service that makes the job easier.
+
+This settles the shape of the service better than anything above, because it separates three things
+the earlier sections ran together:
+
+| Concern | Who does it today | What it costs | Where the value is |
+|---|---|---|---|
+| **Intake** — a driver captures a page | McLeod capture app; Samsara app | driver time, two apps | low: it moves pixels |
+| **Verification** — is this the right document, legible, complete, consistent with the order | nobody until the billing clerk opens it | clerk time, rebills, disputes, aged receivables | **high — this is the job that gets easier** |
+| **Delivery** — the image reaches the McLeod order for billing | McLeod capture writes it | **a McLeod write** | low: it is a filing step |
+
+Everything in §1–§5 is *verification*, and verification needs only **reads**: the McLeod order (free), the
+image, and our own pipeline. The expensive step — the write — is the least valuable one, and it is the
+only one McLeod's own app does well. So the service is built in two layers, and the write is decided
+last, on a price:
+
+**Layer 1 — read-only, no driver change, first.** McLeod's capture keeps writing images where billing
+expects them. Our service *reads* them (if McLeod imaging stores documents in tables or a share reachable
+over the VPN — §8 Q9 verifies this; if not, the same layer reads Samsara's documents through the
+read-only token) and runs the pipeline on every delivered movement: present? signed? legible? matches
+the order? Output is the readiness queue and the discrepancy list for the clerk, and a **missing-or-bad
+POD chase** to the driver through the push and SMS paths that already exist. Zero writes, zero new driver
+behaviour, and — not incidentally — it is the fastest way to fill §5's corpus with real documents at
+volume, which Phase 0 otherwise waits on a phone for.
+
+**Layer 2 — our app captures, and delivery is chosen by cost.** When the driver app replaces the two
+capture apps, the image must still reach McLeod. Candidates, cheapest first: (a) a channel McLeod
+already accepts without API spend — a watched import folder, a bulk index file, or an email-to-imaging
+address, whichever McLeod supports (Q9 asks McLeod, not the code); (b) a one-click packet the clerk
+attaches by hand, priced as clerk minutes per load; (c) a paid write, batched to one per load and
+carrying a reference rather than bytes where McLeod allows it, only if (a) does not exist and (b)'s
+minutes cost more. Until (a) or (c) is settled, Layer 1's intake stays McLeod's — the unification of the
+driver app is not blocked by it, because the app can capture *and* the clerk can still be served by
+Layer 1 reading what lands in McLeod.
+
+**What this changes in the plan.** D-EXR12 (verification, never truth) is now forced by economics as
+well as doctrine. Q6 is answered by default — no writes — and replaced by Q9, which is a question for
+McLeod. Step 0.0 (capture on stops) stays, but it no longer gates value: Layer 1 delivers before any
+driver opens the new scanner, and its readings are the Phase 0 baseline.
+
 **Two facts frame everything below.** (a) *No capture has ever completed on a phone* — production holds
 zero hazmat loads, documents and runs (scanner plan §6 Q5, measured 2026-09-07). (b) *No reading has ever
 been scored against a labelled document.* H11 ("shadow pilot: extraction accuracy vs human-verified truth,
@@ -581,12 +626,17 @@ any other.
 long edge for a letter page), chosen so a table row is never split; Step 3.2 records the number that
 maximised accuracy on the corpus.
 
-**Q6 — Does anything get written into McLeod?** The integration is read-only SQL over the VPN; McLeod
-imaging has no API here. Candidates: (a) nothing — the billing clerk works from the app's readiness
-queue and packet; (b) an export (PDF + fields) named per McLeod order for the clerk to attach; (c) a
-McLeod write path, which is a separate integration programme. *Recommendation and default:* (a) now,
-(b) as a Phase 4 step once readiness exists; (c) only on an owner ruling with the McLeod side's
-agreement.
+**Q6 — Does anything get written into McLeod? — ANSWERED BY DEFAULT, 2026-09-08 (§0.2).** Writes are
+expensive and reads are free, so the service writes nothing; delivery to McLeod is chosen in Q9.
+
+**Q9 — What does McLeod accept without API spend, and can we read what its capture app writes?** Three
+facts to get from McLeod support or the sandbox, none of which the code can supply: (i) where McLeod
+imaging stores a captured document — a table, a file share, or an external store — and whether the VPN
+SQL account can read it; (ii) whether imaging accepts a watched-folder / bulk-index / email import;
+(iii) the actual price structure of a write — per call, or a fixed integration licence — because a
+fixed licence against clerk minutes per load is a different sum from a per-call fee. *Until answered:*
+Layer 1 reads Samsara's documents if the read-only token exposes them, else waits; Layer 2 delivers a
+packet for the clerk to attach; no write is built.
 
 **Q7 — Which fields does billing require to call a load billable?** The `execution` and `freight`
 sections in Step 2.0 are a guess at what the clerk checks today. *Until answered:* the readiness state
@@ -610,3 +660,8 @@ Append dated lines at the end; never edit a row above. (`plan-progress-log-not-t
   D-EXR10–12 added; D-EXR4 widened to money-critical fields; Steps 0.0 (capture on stops), 0.4 (McLeod
   order read), 2.0 (one shipping-document contract) added; corpus target widened; Q6–Q8 opened. The
   audit's findings are unchanged — the goal reuses the same reading and review machinery.
+- **2026-09-08 (third)** — Owner described the intake (§0.2): McLeod's capture app writes images to
+  McLeod for billing, drivers also upload to Samsara, McLeod writes are expensive and reads free. The
+  service splits into Layer 1 (read-only verification + POD chase over what McLeod/Samsara already hold,
+  no driver change) and Layer 2 (our capture; delivery to McLeod chosen on price). Q6 answered by default
+  (no writes); Q9 opened for McLeod.
