@@ -862,7 +862,7 @@ signed here by the person who did it. I6's spike results go here before its seco
   condition under which an RPC may ship with its caller, and `lint:migration-ordering` cannot check
   it because it never reads `create function`.
 
-- **I3 — API: parts routes — DONE 2026-09-09 (PR #PENDING3).** `/api/maintenance/inventory/…` is
+- **I3 — API: parts routes — DONE 2026-09-09 (PR #692).** `/api/maintenance/inventory/…` is
   mounted: `parts` (list, by-upc, one, create, patch, photo), `locations` (list, create, patch),
   `stock`, `low-stock`, `movements`, and the six verbs `receive` / `issue` / `adjust` / `transfer` /
   `return` / `count`. Reads take `requireSection("maintenance", "view")`, writes take its manage
