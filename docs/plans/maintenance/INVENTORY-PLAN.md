@@ -743,3 +743,41 @@ signed here by the person who did it. I6's spike results go here before its seco
 - **Owed and paid late:** the §8 lines for I1 and I1b were written after both had merged rather than
   in their own PRs, which is a deviation from protocol §10's intent even though the lines are
   accurate. I0's line shipped inside its PR and that is the shape the remaining steps follow.
+
+- **I9's prerequisite — `listEquipmentIdentities` — DONE 2026-09-08 (PR #688, merged 3493c3f),
+  TAKEN OUT OF ORDER.** I2 is blocked on A2 and everything downstream of it inherits that block —
+  I3 reads I2's tables, I5's `count_session_id` is an FK into `part_movements`, I6's resolver
+  returns a `stock_line`, and I7's `inventory_assets.location_id` references `stock_locations`. This
+  was the only piece of the plan that A2 does not gate, being roster's own work, so the owner agreed
+  to take it early. **The rest of I9 is NOT done** and its row in §5 stands.
+  **Three things the file asserted were wrong, and I9 would have inherited all three.** (a) The
+  `EquipmentIdentity` comment said `isReefer` is null "for a trailer whose type nobody has
+  recorded"; `trailers.is_reefer` is `not null default false`, so an unrecorded trailer reads
+  `false` and null means tractor and nothing else. (b) `getEquipmentIdentities` hardcoded
+  `isReefer: null` while the single-row reader derived it — two readers returning one type with two
+  meanings for a field. Harmless so far, because `inspectionList` is its only caller and reads unit
+  numbers, but **D-INV12's reefer kits would have been told all 46 reefers are dry vans**. Both now
+  route through one `toIdentity`. (c) The measurement below.
+  **MEASURED IN PRODUCTION 2026-09-08, AND IT DECIDES HOW I9 DERIVES `unitKind`.** Of 234 active
+  trailers: 46 carry `is_reefer` with `trailer_type = 'reefer'`, 13 are `false` with `'dry_van'`,
+  and **175 are `false` with no `trailer_type` at all**. The two columns never contradict each
+  other. So **`reefer_trailer` must be derived from `is_reefer`, never from `trailer_type`** —
+  deriving it the other way silently classifies three quarters of the active fleet as unknown.
+  `trailer_type` is carried as the finer fact where it exists and typed as a string, because the
+  `trailers_trailer_type_check` CHECK is its authority and a hand-copied TypeScript union is a
+  second source of truth with a delay fuse. Tractor and trailer counts (207 / 234) match §1.4, so
+  the fleet has not moved since the plan was written.
+  **The derivation itself is deliberately NOT in roster.** The function returns equipment facts;
+  inventory decides what kit a kind gets. Putting `UNIT_KINDS` behind a roster call would make
+  roster depend on an inventory vocabulary.
+  **Mutation proofs, three, each restored:** re-introducing the hardcoded `isReefer: null` failed 2
+  tests; replacing the paging loop with a single `.range(0, 999)` failed 2, including the 1001-row
+  read driven through the recorder's page queue; flipping the `activeOnly` default failed 1.
+  **Verification:** 13 new tests, every query asserted org-scoped, 38 lint gates, `pnpm typecheck`,
+  and CI green on all eight jobs.
+  ⚠ **Noted in passing, not fixed:** two full local API runs each failed exactly one unrelated test
+  with `SocketError: other side closed` — `savedViews` on one run, `publicInvites` on the next, both
+  in `modules/org/routes`, each passing in isolation, and `test-api` green in CI. A failure that
+  moves between files is the documented transport flake rather than a regression, but it hit 2 of 2
+  local runs against the ~1-in-4 previously recorded, always exactly one per run. That shape
+  suggests a teardown race or port exhaustion rather than randomness, and it deserves its own look.
