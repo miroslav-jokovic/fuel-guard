@@ -54,6 +54,11 @@ const CONFIG: Record<ToastVariant, VariantConfig> = {
 function cfg(t: Toast): VariantConfig {
   return CONFIG[t.variant];
 }
+
+async function runAction(t: Toast) {
+  toast.dismiss(t.id);
+  await t.action?.onAction();
+}
 </script>
 
 <template>
@@ -90,6 +95,16 @@ function cfg(t: Toast): VariantConfig {
             <div class="min-w-0 flex-1">
               <p class="text-sm font-semibold text-ink">{{ t.title }}</p>
               <p v-if="t.message" class="mt-0.5 text-sm leading-snug text-ink-muted">{{ t.message }}</p>
+              <!-- One action, and it dismisses. A toast that stayed up after its own action would
+                   leave an Undo button for something already undone. -->
+              <button
+                v-if="t.action"
+                type="button"
+                class="mt-1.5 rounded-control text-sm font-semibold text-link hover:text-link-hover focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                @click="runAction(t)"
+              >
+                {{ t.action.label }}
+              </button>
             </div>
           </div>
 

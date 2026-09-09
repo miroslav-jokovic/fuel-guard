@@ -1357,3 +1357,82 @@ signed here by the person who did it. I6's spike results go here before its seco
   with Short/Over/Match/Uncounted, the connectivity strip and the IndexedDB queue behind it. ⚠ Its
   `counted` movements are minted per movement exactly as the desk verbs are, and the session id it
   counts against comes from the SERVER.
+
+- **I5 PR 2b — the count on the phone — DONE 2026-09-09 (PR pending), WITH ITS USABILITY SENTENCE
+  STILL OPEN.** `/shop/count/:sessionId` under `layout: "shop"`, a new `ShopLayout`, `QuantityStepper`
+  in `components/ui/`, `countQueue.ts` over IndexedDB, `useWakeLock`, and a Start affordance on the
+  shop home. 33 new assertions.
+
+  ⚠ **Protocol §4.9 is NOT satisfied and this step does not close.** I5's done-when is "a 20-bin count
+  completes on a phone with one thumb, blind, with the right buckets at review — named person, §8".
+  Nothing below is that. The screen was driven end to end in Playwright at iPhone 13 width and every
+  assertion here passes, but nobody has walked a shelf with it, and A2's phone half (§6.2 — the
+  shop's phones, the bay wifi) is still unmeasured. **The row stays open until a person signs it.**
+
+  **THE ORDER OF OPERATIONS IS THE FEATURE, AND THE FIRST TEST OF IT COULD NOT FAIL.** The count is
+  written to the phone BEFORE the network is touched, so a technician who walks behind a container
+  does not lose the last four bins. The first assertion made the send reject and checked the row was
+  queued afterwards — which passes just as well against a screen that sends first and writes the
+  count down only when the send FAILS. The mutation proved it: moving the `enqueue` into the catch
+  broke nothing. The two shapes are indistinguishable from outside and differ only in what survives
+  a tab closing mid-request, which is the case a bay is full of. The assertion now observes the queue
+  **from inside the send**, which is the only vantage point the claim is a claim from. **This is the
+  third false-passing assertion a mutation has caught in this programme** (after I1's zod
+  key-stripping and 2a's same-millisecond clock), and all three had the same shape: a fixture that
+  could not discriminate between the code and its opposite.
+
+  **A SECOND DEFECT THE TESTS FOUND, IN THE SCREEN RATHER THAN IN A TEST.** The bottom bar offered
+  "Review and close" only once every line had a number, so the review was unreachable mid-walk — which
+  makes "uncounted bins are a choice" not a choice at all, and the way out of that is a technician
+  typing zeros they never counted. The bar now carries Review beside Record count throughout.
+
+  **Four decisions worth naming.**
+  (a) **`ShopLayout` is `100dvh`, not `100vh`** — Safari's `100vh` includes a URL bar that is not
+  there, so a sticky bottom bar sits under the fold until you scroll. Plus
+  `overscroll-behavior-y: contain` (the rubber-band fires pull-to-refresh, which mid-count means a
+  reload) and `env(safe-area-inset-bottom)` (the primary action otherwise sits under the home
+  indicator). The bar is a TELEPORT target rather than a slot, because `App.vue` renders the
+  `RouterView` and only the page knows what its primary action is.
+  (b) **IndexedDB over `localStorage`**, which would hold this data and needs no dependency —
+  rejected because it is synchronous, so every write stalls the main thread while a thumb is mid-tap,
+  on the one screen that has to feel instant. The cost is `fake-indexeddb` as a dev dependency, and
+  the queue is tested against a real implementation of the API rather than a `Map` behind an
+  interface, so a `keyPath` typo fails.
+  (c) **The flush STOPS at the first failure.** A count is a run of absolute totals and the RPC takes
+  each delta at commit time, so skipping a failure and carrying on applies later counts against a
+  shelf missing an earlier one, and the variance report blames a bin nobody miscounted.
+  (d) **The wake lock is re-requested on `visibilitychange`** — the browser releases it silently when
+  the page is hidden, so switching apps to read a part number and switching back leaves a page that
+  believes it holds a lock and does not. It also tracks whether the CALLER ever asked, or the same
+  handler acquires a lock for a page that never wanted one.
+
+  **`blind` is per MOVEMENT and the session records only how the walk STARTED.** A supervisor may
+  reveal part-way; rows before and after are recorded differently, which is what makes a variance
+  readable afterwards. Pinned both ways.
+
+  **Two smaller findings.** `AppBadge` carries `capitalize`, so "Not counted" renders as "Not
+  Counted" — true in the source and wrong on the screen, found on a real render and fixed by using
+  one word ("Uncounted"); the assertion says why. And `CountSessionPage.vue` joins
+  `ui-system-inventory.mjs`'s `PageHeader` exemptions for the reason every other entry gives:
+  `PageHeader` is the workspace's chrome, and this page has no workspace around it.
+
+  **The toast primitive grew ONE optional action**, because the undo belongs in the toast rather than
+  in a second notification shape — and one, never two: a toast with two choices is a dialog that
+  vanishes. `push`'s fourth argument became an options object so the next thing a toast needs is not
+  a sixth positional.
+
+  **Mutation proofs, four, each restored:** sending before writing the count down failed the
+  rewritten ordering assertion (and passed against the original, which is why it was rewritten);
+  reading `blind` from the session instead of the mode in force failed *"records rows counted after a
+  reveal as not blind"*; treating an uncounted line as a zero failed two review assertions; and
+  letting `flush` skip a failure and continue failed *"STOPS at the first failure and keeps the rest,
+  in order"*.
+  **Verification:** 33 new assertions (11 queue, 9 stepper, 13 screen), `pnpm test` green across every
+  unit suite and all 41 matrices, all 38 `lint:*` gates plus `apps/web`'s `lint:tokens`, and
+  `pnpm typecheck`. Driven under `preview:local` on an **iPhone 13 viewport**: no sidebar, the header
+  reads "1 of 2 · 1 short · blind" (counts, not percent), the movement posts with `blind: true` and
+  the session's id, the undo toast appears with one action, and the review shows −1 beside an
+  Uncounted line. No console or page errors.
+
+  **What I5 still owes:** the usability sentence above, and the scan-to-bin arrival the step text
+  describes ("scan the `BIN` tag or pick") — the picker half ships here and the scanner is I6.

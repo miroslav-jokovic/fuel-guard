@@ -3,12 +3,26 @@ import { ref } from "vue";
 
 export type ToastVariant = "success" | "error" | "warning" | "info";
 
+/**
+ * One action, optional (INVENTORY-PLAN.md I5's undo toast).
+ *
+ * ⚠ ONE, and never two. A toast is a transient thing a person glances at; two choices in it is a
+ * dialog that vanishes, and the count screen it was added for is used with one thumb at arm's
+ * length. The action runs and the toast dismisses — a caller that needs the toast to survive its
+ * own action wants a dialog instead.
+ */
+export interface ToastAction {
+  label: string;
+  onAction: () => void | Promise<void>;
+}
+
 export interface Toast {
   id: string;
   variant: ToastVariant;
   title: string;
   message?: string;
   duration: number;
+  action?: ToastAction;
 }
 
 const DEFAULT_DURATIONS: Record<ToastVariant, number> = {
@@ -23,7 +37,19 @@ const MAX_VISIBLE = 5;
 export const useToastStore = defineStore("toast", () => {
   const toasts = ref<Toast[]>([]);
 
-  function push(variant: ToastVariant, title: string, message?: string, duration?: number): string {
+  /**
+   * `options` replaced a bare `duration` argument when the undo toast landed. It is an object rather
+   * than a fifth positional so the next thing a toast needs does not become a sixth — the same
+   * reasoning `DataTable`'s column object records.
+   */
+  function push(
+    variant: ToastVariant,
+    title: string,
+    message?: string,
+    options?: number | { duration?: number; action?: ToastAction },
+  ): string {
+    const opts = typeof options === "number" ? { duration: options } : (options ?? {});
+    const duration = opts.duration;
     const id =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
@@ -31,7 +57,7 @@ export const useToastStore = defineStore("toast", () => {
     const ms = duration ?? DEFAULT_DURATIONS[variant];
 
     if (toasts.value.length >= MAX_VISIBLE) toasts.value.shift();
-    toasts.value.push({ id, variant, title, message, duration: ms });
+    toasts.value.push({ id, variant, title, message, duration: ms, action: opts.action });
 
     if (ms > 0) setTimeout(() => dismiss(id), ms);
     return id;

@@ -298,6 +298,13 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/inventory/prt_1",
   },
   {
+    "name": "count-session",
+    "params": {
+      "sessionId": "cs_1",
+    },
+    "url": "/shop/count/cs_1",
+  },
+  {
     "name": "",
     "params": {},
     "url": "/fuel-reconciliation",
@@ -1113,6 +1120,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "shop",
     "path": "/shop",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "shop",
+      "parent": "/shop",
+      "requiresAuth": true,
+      "title": "Count",
+    },
+    "name": "count-session",
+    "path": "/shop/count/:sessionId",
     "redirect": null,
   },
   {

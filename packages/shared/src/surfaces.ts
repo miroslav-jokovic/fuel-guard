@@ -264,6 +264,13 @@ export const SURFACES: readonly Surface[] = [
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
   { key: "maintenance.parts.detail", label: "Part", path: "/shop/inventory/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.parts" },
   /**
+   * The shelf count (I5 PR 2b). `parent: "maintenance.parts"` rather than a key of its own, and the
+   * choice is a permission argument: a count is a walk of the STOCK, so an org that has taken Parts
+   * away from a role has taken the thing a count is about — and D-INV19 makes the same session shape
+   * serve I9's unit check, which will point at Units for the same reason.
+   */
+  { key: "maintenance.parts.count", label: "Count", path: "/shop/count/:sessionId", group: "maintenance", gate: section("maintenance"), parent: "maintenance.parts" },
+  /**
    * The repair-spend ledger, which used to BE `/shop` (I4).
    *
    * It is a child rather than a nav entry of its own for two reasons that point the same way. The

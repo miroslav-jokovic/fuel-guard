@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
-import { CubeIcon, ExclamationTriangleIcon, PlusIcon, ArrowsRightLeftIcon, GaugeIcon } from "@silvicom/ui/icons";
+import { CubeIcon, ExclamationTriangleIcon, PlusIcon, ArrowsRightLeftIcon, GaugeIcon, ChecklistIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { lastFullMonth } from "@/lib/dateWindow";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";
 import { useLowStockQuery, useMovementsQuery, usePartsQuery } from "@/features/inventory/useInventory";
+import StartCountDrawer from "@/features/inventory/StartCountDrawer.vue";
+import { useSessionStore } from "@/stores/session";
 
 /**
  * The shop's home (INVENTORY-PLAN.md step I4).
@@ -56,6 +58,9 @@ const startOfToday = computed(() => {
 const todayFilter = computed(() => ({ since: startOfToday.value, page: 1 }));
 const { data: today, isLoading: todayLoading } = useMovementsQuery(todayFilter);
 
+const session = useSessionStore();
+const counting = ref(false);
+
 const catalogueFilter = ref({ page: 1 });
 const { data: catalogue, isLoading: catalogueLoading } = usePartsQuery(catalogueFilter);
 
@@ -65,7 +70,15 @@ const firstRun = computed(() => !catalogueLoading.value && (catalogue.value?.tot
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="What the shop holds, what needs ordering, and what moved today." />
+    <PageHeader description="What the shop holds, what needs ordering, and what moved today.">
+      <template v-if="session.can('maintenance')" #actions>
+        <!-- The one thing on this page that starts a task rather than opening a list. Scan joins it
+             at I6; until then a count is picked from a location rather than arrived at by camera. -->
+        <BaseButton variant="primary" @click="counting = true">
+          <AppIcon :icon="ChecklistIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Count a shelf
+        </BaseButton>
+      </template>
+    </PageHeader>
 
     <BaseCard v-if="firstRun" padding="md">
       <div class="flex flex-col items-start gap-3">
@@ -118,5 +131,6 @@ const firstRun = computed(() => !catalogueLoading.value && (catalogue.value?.tot
         to="/shop/repair-spend"
       />
     </div>
+    <StartCountDrawer :open="counting" @close="counting = false" />
   </div>
 </template>

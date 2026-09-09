@@ -5,6 +5,7 @@ import AppShell from "@/layouts/AppShell.vue";
 import AuthLayout from "@/layouts/AuthLayout.vue";
 import PublicLayout from "@/layouts/PublicLayout.vue";
 import ApplyLayout from "@/layouts/ApplyLayout.vue";
+import ShopLayout from "@/layouts/ShopLayout.vue";
 import ToastContainer from "@/components/ToastContainer.vue";
 import ErrorBoundary from "@/components/ErrorBoundary.vue";
 import UpdateBanner from "@/components/UpdateBanner.vue";
@@ -27,6 +28,14 @@ const isLabLayout = computed(() => layout.value === "lab");
  * their date of birth. The carrier's name comes from the page via a route-scoped ref.
  */
 const isApplyLayout = computed(() => layout.value === "apply");
+/**
+ * The shop's own shell (D-INV17): a phone in a bay, no sidebar, a sticky bottom action bar. It is
+ * NOT wrapped in `ErrorBoundary` for the reason the boundary's own comment gives about the other
+ * standalone shells — but the reason is different enough to state: a count screen that threw would
+ * be better off showing the boundary's dead end than a blank page, and the page's own `#bar` is
+ * what it would replace. It is left outside deliberately for now and named in the plan's §8.
+ */
+const isShopLayout = computed(() => layout.value === "shop");
 </script>
 
 <template>
@@ -45,6 +54,9 @@ const isApplyLayout = computed(() => layout.value === "apply");
   <ApplyLayout v-else-if="isApplyLayout" :carrier="applyCarrier">
     <RouterView @carrier="applyCarrier = $event" />
   </ApplyLayout>
+  <ShopLayout v-else-if="isShopLayout">
+    <RouterView />
+  </ShopLayout>
   <AppShell v-else>
     <!--
       Q-UI5 — only the app shell is wrapped. The auth, apply and public layouts are small static
