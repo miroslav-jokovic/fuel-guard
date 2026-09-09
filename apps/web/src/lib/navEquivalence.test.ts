@@ -85,6 +85,7 @@ describe("buildNavGroups is unchanged by the surface catalogue (S1)", () => {
       // is sparse, and a screen that did not exist when this override was written cannot have been
       // denied by it. The list growing here is the rule working, not a regression.
       "Assets → /shop/assets",
+      "Units → /shop/units",
       "Annual inspections → /shop/inspections",
     ]);
     expect(denied).toMatchSnapshot();

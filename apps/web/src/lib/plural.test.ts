@@ -102,6 +102,7 @@ function scanSource(): Scan {
 const EXPECTED: Record<string, string> = {
   alerts: "alert",
   assets: "asset",
+  units: "unit",
   applicants: "applicant",
   cards: "card",
   changes: "change",

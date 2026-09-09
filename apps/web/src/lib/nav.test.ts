@@ -244,11 +244,12 @@ describe("the shop group keeps its stored answers through I4's relabel", () => {
       ?.items.map((i) => `${i.name} ${i.to}`) ?? [];
 
   it("renders Shop at /shop and Parts at /shop/inventory, in that order", () => {
-    // Five of I4's six rows. Assets joined at I8; Units arrives at I9 and this list grows once more.
+    // All six of I4's rows, complete at I9: Assets joined at I8 and Units here.
     expect(shopItems()).toEqual([
       "Shop /shop",
       "Parts /shop/inventory",
       "Assets /shop/assets",
+      "Units /shop/units",
       "Annual inspections /shop/inspections",
       "Inspectors /shop/inspectors",
     ]);

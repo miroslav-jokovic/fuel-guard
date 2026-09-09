@@ -1636,3 +1636,98 @@ signed here by the person who did it. I6's spike results go here before its seco
   **What I8 owes onward:** the drawer/scanner comparison (I6); `AST` in I6's resolver registry;
   `AppBadge`'s `capitalize`, for all of its callers; tag issuance (I10); and Units, the sixth nav
   row (I9).
+
+- **I9 PR 1 — Units, their kits and the rules behind them — DONE 2026-09-09 (no migration).**
+  `/api/maintenance/inventory/units` and `/kit-expectations`, `/shop/units` and
+  `/shop/units/:kind/:id`, the fleet-rules and per-unit drawers, the read-only kit card, and the
+  sixth and last nav row. 12 service assertions, 12 route, 6 list, 4 detail, 7 drawer.
+
+  **⚠ I9 IS SPLIT INTO TWO PRS AND ITS STEP TEXT DOES NOT SAY SO.** The step has five bullets and
+  the last of them — the unit check on a phone — is a screen, not a variation. I5's own step text
+  called for a split at exactly this seam (desk first, phone second) and this one earns it the same
+  way: the desk half is complete and reviewable on its own, and the phone half's done-when needs a
+  shop visit that has not happened. **PR 2 is the unit check**, and it carries D-INV19's harder
+  instruction with it — see below.
+
+  **The kit is derived on every read and stored nowhere.** No status column, no cache: held against
+  expected goes stale the moment an asset moves, and this repo has already paid once for a
+  compliance fact kept in two unsynchronised places (CDL and medical expiry, D-ARC3). Four reads and
+  some arithmetic is what the screen costs — the roster's two tables, the expectations, the types,
+  and every held asset in one `fetchAllPaged` sweep. **Not one read per unit**: 440 units is the
+  measured fleet.
+
+  **The three layers resolve in `move_asset`'s own order, and the DTO reports which one won.**
+  Per-unit override → the fleet default for the unit's kind → the asset type's
+  `default_kit_quantity`. That order is not this step's invention; it is what 0333 uses to decide
+  `IV020`, so a kit screen resolving it differently would tell a technician a truck may hold two of
+  something the database will refuse to give it a second of. `source` on each line exists because
+  **"reset to the fleet default" is unsayable without it** — and because a drawer full of numbers
+  whose origin nobody can see is a drawer where the first thing anybody does is retype every value,
+  turning three fleet rules into thirty per-unit ones.
+
+  **A finding the resolution forced into the open: a type's own default applies to every KIND of
+  unit, tractors included.** There is no kind on `asset_types`, and `move_asset` falls back to that
+  column without asking what it is looking at. Scoping the type layer by kind would have been the
+  tidier-looking choice and would have disagreed with `IV020` about the same truck. Pinned by
+  *"applies a type's own default to a tractor as readily as to a trailer"*.
+
+  **`unitKindOf` is added to the contract, and it names its SQL twin.** A trailer is a
+  `reefer_trailer` when `is_reefer` is set. That rule is now spelled twice — here and inside
+  `move_asset`, because an RPC cannot call TypeScript — so the two are written to look alike and
+  each names the other. Everything above the database asks the function; nothing re-derives it.
+  Deliberately NOT a fourth spelling: the units read, the settings drawers and the URL all ask it.
+
+  **Blank and zero are different answers, in both drawers.** "0" says this unit deliberately carries
+  none of a thing; blank says "whatever the fleet says". A drawer treating an empty field as zero
+  would silently convert "follow the fleet" into "carry none" for every row the author did not
+  touch, **and no other test in this repo would fail** — the API happily stores a zero and the kit
+  screen happily renders one. Mutating that distinction away fails four assertions.
+
+  **Deviations.** (a) **The split, above.** (b) **The read-only kit card is on the VEHICLE page
+  only, because there is no trailer detail page to put one on.** `/trailers` is a list; `/trailers/:id`
+  does not exist and creating one is a fleet-section feature no step owns. `/shop/units/trailer/:id`
+  serves the shop's need for the same unit, and the gap is named here rather than filled by
+  inventing a page as a side effect. (c) **Unit DTOs were added to `inventoryAssetContract.ts`**,
+  which is I1's file — `unitKitDtoSchema`, `unitKitLineDtoSchema` and the three
+  `KIT_EXPECTATION_SOURCES`; `state` reads `KIT_STATES` rather than restating the three words.
+  (d) **`PUT /kit-expectations`, not POST.** The operation's key is (type, unit kind, unit) and
+  sending the same body twice must not make two rules; a POST that sometimes creates and sometimes
+  updates is a verb that tells the caller nothing.
+
+  **The kit badge went straight to `[BADGE_BASE, toneClass(...)]`, and that is I8's finding paying
+  for itself.** `KIT_STATE_LABELS.extra` is "Extra items" — two words — and `AppBadge` carries
+  `capitalize`, which title-cased "In repair" on a real page at I8. `kitStatusBadge` in `badges.ts`
+  says so at the place the next author will look. The primitive is still unfixed.
+
+  **Mutation proofs, eight, each restored.** API: resolving the three layers strongest-first failed
+  *"lets a per-unit override beat the fleet default…"*; calling every trailer a plain `trailer`
+  failed the two reefer assertions; auditing every rule as a fleet rule failed *"...and calls a
+  per-unit override what it is"*; letting an unknown kind through failed *"refuses a kind that is
+  neither a tractor nor a trailer"*. Web: treating blank as zero failed four; writing the override
+  with the roster's kind failed *"names the KIT kind and the unit's own column"*; the list computing
+  its own shortfall failed *"renders the shortfall the API computed, not one of its own"*; a delete
+  in place of the move failed *"offers a MOVE for something on the unit, never a delete"*.
+
+  **Two testing traps this step re-met, both already recorded at I8.** `DataTable` renders
+  `DataTableCards` in jsdom (no stylesheet, no width), so a row click has to go through the
+  component's own event rather than a `<tr>`. And `KebabMenu` teleports its panel to `<body>`, so
+  row actions are queried on the real document — `InspectorRegisterPage.test.ts` records why
+  stubbing the teleport instead makes `useFloating` recurse until Vue aborts.
+
+  **Seen in a browser.** `preview:local` + Playwright route mocks at 1440 px: the list renders four
+  units with "1 of 2 carried", the shortfall as a count of THINGS, "Extra items" in sentence case,
+  and no badge at all on the complete one; the detail renders the kit with its "Rule from" column,
+  the assets below it, and the driver named once. **The render found a duplication no test would
+  have**: the driver appeared in both the header and the summary card, which reads as two facts
+  about two moments rather than one fact stated plainly. Fixed, and pinned by *"names the driver
+  once — inferred, and never stored (D-INV3)"*.
+
+  **Verification:** `pnpm test` green across every unit suite and all 42 matrices (apps/web 165
+  files, apps/api 286); all 38 `lint:*` scripts plus `apps/web`'s `lint:tokens`; `pnpm typecheck`.
+  Built in a dedicated worktree after the shared tree was taken by another session mid-I8.
+
+  **What PR 1 owes onward:** the unit check on the phone, and with it D-INV19's "one session
+  component serves parts and units" — which on inspection is a SHELL to extract (header, progress,
+  wake lock, offline queue, review, close) rather than one screen with two modes, since a shelf walk
+  types a quantity per bin and a unit check taps Found / Not here per item. A4's three kit lists are
+  still the owner's, and the drawers ship empty exactly as §6.2 said they should.

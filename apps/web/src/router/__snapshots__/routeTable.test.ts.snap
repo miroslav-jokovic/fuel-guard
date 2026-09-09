@@ -310,6 +310,27 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/assets/ast_1",
   },
   {
+    "name": "units",
+    "params": {},
+    "url": "/shop/units",
+  },
+  {
+    "name": "unit",
+    "params": {
+      "id": "veh_1",
+      "kind": "tractor",
+    },
+    "url": "/shop/units/tractor/veh_1",
+  },
+  {
+    "name": "unit",
+    "params": {
+      "id": "tr_1",
+      "kind": "trailer",
+    },
+    "url": "/shop/units/trailer/tr_1",
+  },
+  {
     "name": "count-session",
     "params": {
       "sessionId": "cs_1",
@@ -1223,6 +1244,26 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "repair-spend",
     "path": "/shop/repair-spend",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop",
+      "requiresAuth": true,
+      "title": "Units",
+    },
+    "name": "units",
+    "path": "/shop/units",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop/units",
+      "requiresAuth": true,
+      "title": "Unit",
+    },
+    "name": "unit",
+    "path": "/shop/units/:kind/:id",
     "redirect": null,
   },
   {

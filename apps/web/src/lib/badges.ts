@@ -4,6 +4,7 @@ import {
   isLowStock, type StockLevel,
   ASSET_STATUS_LABELS, type AssetStatus,
   ASSET_MOVEMENT_REASON_LABELS, movesHolder, type AssetMovementReason,
+  KIT_STATE_LABELS, type KitState,
 } from "@silvicom/shared";
 // Modern "soft" badge styling — light fill + subtle inset ring — used consistently across the app.
 // Tones are semantic (design tokens), not raw palette colors: danger > caution > warning > success…
@@ -220,6 +221,26 @@ export function assetStatusBadge(status: AssetStatus): DqBadge | null {
   const tone: BadgeTone =
     status === "lost" ? "danger" : status === "in_repair" ? "warning" : status === "spare" ? "info" : "neutral";
   return { label: ASSET_STATUS_LABELS[status], tone };
+}
+
+/**
+ * A unit's kit against what it should hold (INVENTORY-PLAN.md I9, D-INV12).
+ *
+ * ── `complete` GETS NO BADGE ──────────────────────────────────────────────────────────────────
+ * The same rule `assetStatusBadge` and `stockLevelBadge` follow: a badge on every row means nothing,
+ * so the pill is reserved for the units somebody has to do something about. A fleet whose kits are
+ * all complete shows a clean list, and the coloured rows are the walk to make.
+ *
+ * `short` is `danger` and `extra` is `neutral`, which is `deriveKitStatus`'s own asymmetry made
+ * visible: a missing strap is a load that cannot be secured, and a spare chain is at worst untidy.
+ *
+ * ⚠ Its label is TWO WORDS ("Extra items"), so a caller must render it with `BADGE_BASE` and not
+ * with `AppBadge` — that primitive carries `capitalize` and would title-case it on screen while the
+ * source read correctly. Recorded here because this helper is where the next author will look.
+ */
+export function kitStatusBadge(state: KitState): DqBadge | null {
+  if (state === "complete") return null;
+  return { label: KIT_STATE_LABELS[state], tone: state === "short" ? "danger" : "neutral" };
 }
 
 /**

@@ -247,6 +247,11 @@ export const SURFACES: readonly Surface[] = [
    * Assets, Units, Annual inspections, Inspectors — and this is the fifth; Units arrives at I9.
    */
   { key: "maintenance.assets", label: "Assets", path: "/shop/assets", group: "maintenance", gate: section("maintenance") },
+  /**
+   * Units (I9) — the sixth and last row of the group I4's ruling fixed at six. It is the assets read
+   * from the other end: Assets answers "where is A-0412", Units answers "what is truck 654 missing".
+   */
+  { key: "maintenance.units", label: "Units", path: "/shop/units", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspections", label: "Annual inspections", path: "/shop/inspections", group: "maintenance", gate: section("maintenance") },
   { key: "maintenance.inspectors", label: "Inspectors", path: "/shop/inspectors", group: "maintenance", gate: section("maintenance") },
 
@@ -271,6 +276,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
   { key: "maintenance.parts.detail", label: "Part", path: "/shop/inventory/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.parts" },
   { key: "maintenance.assets.detail", label: "Asset", path: "/shop/assets/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.assets" },
+  { key: "maintenance.units.detail", label: "Unit", path: "/shop/units/:kind/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.units" },
   /**
    * The shelf count (I5 PR 2b). `parent: "maintenance.parts"` rather than a key of its own, and the
    * choice is a permission argument: a count is a walk of the STOCK, so an org that has taken Parts

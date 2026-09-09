@@ -152,6 +152,10 @@ export {
   // and it was chosen over the obvious `WrenchIcon`, which the maintenance GROUP already wears in
   // the collapsed rail where a near-collision is worst.
   ToolboxIcon                 as ToolboxIcon,
+  // The units register (INVENTORY-PLAN.md I9) — a truck and what is inside it. Its own glyph,
+  // because the nav gate wants one per menu item: `TruckIcon` belongs to the fleet GROUP and
+  // `VehicleIcon` to Vehicles, and the question this page asks is about the LOAD, not the truck.
+  PackageDeliveredIcon        as UnitKitIcon,
   CardExchange01Icon          as TransactionIcon,
   PetrolPumpIcon              as PetrolPumpIcon,
   CreditCardNotAcceptIcon     as RejectionIcon,
