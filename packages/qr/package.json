@@ -1,0 +1,16 @@
+{
+  "name": "@silvicom/qr",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "QR encoding and label-sheet geometry — pure, deterministic, zero workspace deps.",
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": { "uqr": "0.1.3" },
+  "devDependencies": { "typescript": "6.0.3", "vitest": "4.1.9" }
+}
