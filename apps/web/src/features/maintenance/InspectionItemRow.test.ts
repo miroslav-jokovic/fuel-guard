@@ -78,8 +78,11 @@ describe("what the row tells the inspector about itself", () => {
   });
 
   it("says when an answer is still the one the form opened with (D-AVI13)", () => {
-    expect(mountRow({ source: "default" }).text()).toContain("default");
-    expect(mountRow({ source: "inspector" }).text()).not.toContain("default");
+    // "Default", capital D, since 2026-09-09: `AppBadge` stopped title-casing its slot (it was
+    // rendering "Recount By Someone Else" elsewhere), and this badge's literal was the one call
+    // site in the product leaning on that transform to fix a lower-case word.
+    expect(mountRow({ source: "default" }).text()).toContain("Default");
+    expect(mountRow({ source: "inspector" }).text()).not.toContain("Default");
   });
 
   it("offers a repair date only for a defect, because a date anywhere else is a data-entry error", () => {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { orFilterValue } from "../../lib/postgrestFilters.js";
 
 /**
  * The financial store's read interface (P5.1/P5.2 substrate). Every reader applies THE
@@ -66,7 +67,12 @@ export async function searchEntries(
   if (f.from) q = q.gte("occurred_at", f.from);
   if (f.to) q = q.lt("occurred_at", f.to);
   // external_id reaches one payment by its own reference (the 0257 index); ledger keys too.
-  if (f.q) q = q.or(`external_id.ilike.%${f.q}%,ledger_account.ilike.%${f.q}%`);
+  // ⚠ The term is QUOTED — an invoice reference with a comma or a dot in it is ordinary, and `.or()`
+  // reads both as its own separators. `orFilterValue` is PostgREST's escape; see its header.
+  if (f.q) {
+    const term = orFilterValue(`%${f.q}%`);
+    q = q.or(`external_id.ilike.${term},ledger_account.ilike.${term}`);
+  }
   const { data, error, count } = await q
     .order("occurred_at", { ascending: false })
     .order("id", { ascending: false }) // stable UI pagination under tied timestamps
