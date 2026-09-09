@@ -39,7 +39,7 @@ later without the features above noticing.
 | **PSP** (FMCSA pre-employment screening) | Screening reports into the DQ file | Live (UAT token held; production billing rules pinned) |
 | **Hazmat regulatory data** | Versioned rules powering the hazmat engine | Live (pure packages, versioned data) |
 | **Manual uploads** | Toll expenses, Pilot/posted fuel prices, spreadsheets | Partially live (imports + price XLS); tolls not yet built |
-| **FleetPal** | Maintenance | Planned — ⚠ McLeod AP already carries maintenance dollars; the collector must dedupe against it (the "maintenance arrives twice" trap, FINANCIAL-STORE-PLAN) |
+| **FleetPal** | Maintenance — **operational, not financial** | Planned. ⚠ **This row instructed a financial dedup until 2026-09-09 and that instruction is WRONG**: the 2026-09-03 fleet ruling (D-FLEET2) made McLeod's GL the entire financial input, and D-INV11 closes the parts door — GL `30230000` already carries the money. **FleetPal must not project into `financial_entries` at all**, so there is no "maintenance arrives twice" trap left to dedupe against; the trap was real when this row was written and was closed by deletion rather than by a dedup key. What FleetPal owns is the repair JOB — work orders, PM schedules, DVIR defects — tied to our shelf by `part_movements.work_order_ref` and by nothing else (D-INV10). D-SEP8's gate survives in its operational half: no first row before its ingest contract is written. |
 | **FMCSA Clearinghouse / MCMIS** | §382.701 queries, carrier data | Planned |
 | ~~SambaSafety~~ | MVR ordering + licence monitoring | **DEFERRED 2026-08-26 on cost** (D-S360-4). Possibly replaced later by an in-house MVR path; the recon and the settled credential decision are preserved in the plan banners |
 

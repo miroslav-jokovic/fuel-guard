@@ -593,10 +593,16 @@ kit shortfall on `/shop/units`. `OfflineBanner` and `SyncStatus` cover the queue
 
 **Blocked on** the driver release lanes. Sequenced last.
 
-### I14 — FleetPal reconciliation — *deferred*
+### I14 — FleetPal reconciliation — ~~*deferred*~~ *next, per the owner 2026-09-09*
 
 Arrives through the D-SEP8 gate with its own contract. The only open item is whether FleetPal has an
 export path (Q1).
+
+**Readiness audited 2026-09-09 (§8): nothing in I0–I3 blocks it, and one canon line did.** The
+schema needs no change — `part_movements.work_order_ref` is the entire tie (D-INV10) and FleetPal
+writes no table of ours. The boundary is machine-enforced, not merely intended: a `fleetpal` module
+writing `parts`, `part_stock` or `part_movements` is a new write site `lint:table-writers` refuses,
+and a migration touching both modules needs a named `cross-module-waiver`.
 
 ---
 
@@ -615,7 +621,16 @@ export path (Q1).
 | Q7 | Who answers for a missing tablet? | Nobody signs. If a dispute occurs, an `esign_consents`-shaped acknowledgement on the existing movement row. | D-INV3 |
 | Q8 | Moving average or last cost? | Last cost. | D-INV15 |
 
-Open, not blocking: whether FleetPal has an export path. Either way the schema is the same.
+~~Open, not blocking: whether FleetPal has an export path. Either way the schema is the same.~~
+**ANSWERED 2026-09-09 from the vendor's OpenAPI document (§8): yes — `GET /v1/parts/` with an
+`updated_after` filter, plus 70 other endpoints.** The schema is indeed the same; what changed is that
+the parts import is a recurring API pull rather than a one-time file, and A3 says so.
+
+### 6.1b The question the API opened — Q9, open
+
+| # | Question | Candidates | Recommendation |
+|---|---|---|---|
+| **Q9** | FleetPal has `/v1/purchase-order-receipt-items/` — stock arriving. If the shop receives against POs there, our `receive` verb is a second place to type the same event. Which one does a technician use? | **(a)** Receive in FleetPal; we ingest receipt items as `received` movements and the `receive` verb becomes manual-only, for stock bought outside a PO. **(b)** Receive with us; FleetPal's PO receipts go unused and its POs stay a purchasing record. **(c)** Both, and reconcile at I14. | **(a).** It is the only one that does not ask somebody to type a delivery twice, and it matches D-INV10's grain — purchasing is FleetPal's, the shelf is ours, and a receipt is the moment one becomes the other. **(c) is the workaround**: two sources of truth for the same event, discovered later as a variance nobody can explain. ⚠ Owner ruling needed before I5 builds the receive flow; it does not block I4. |
 
 ### 6.2 Assumptions — retired by the step that needs them
 
@@ -625,10 +640,10 @@ A step may not close while its row stands.
 |---|---|---|---|
 | **A1** | The free decoder reads a printed ECC-H `SIL1:` label and a greasy supplier UPC on the shop's phones — Safari, installed, Android. | I6 spike, results in §8 | Scandit's web engine; then D-INV28's revisit clause. |
 | **A2** | The shop has been measured: locations, parts, technicians, phones, wifi in the bays. | ~~Before I2~~ → I4 (the parts list) and I6 (the phones and the bay wifi). **Re-scoped 2026-09-09, see §8** — I1's merged contracts pin every I2 column, so a shop visit can no longer change that migration. The shelving half is ANSWERED: there are no shelf numbers (§1.4). | — |
-| **A3** | An initial parts list exists to import (a spreadsheet or a FleetPal export). | Before I4 — the file and its columns | The locked-header CSV template with an error report, and one afternoon. |
+| **A3** | An initial parts list exists to import (a spreadsheet or a FleetPal export). | **ANSWERED 2026-09-09, then CORRECTED the same day by reading the vendor spec (§8).** The list is `GET /v1/parts/`, an API pull with an `updated_after` filter — **recurring, not one-time**, because FleetPal's catalogue stays live while the shop raises work orders there. The locked-header CSV survives as the manual escape hatch for stock bought outside FleetPal, not as the primary path. **A3 does not gate I4** (the shop home and the Parts list need no import), but it now shapes I4's importer, and the sync needs `fleetpal_id`, a unit-of-measure mapping and VMRS resolution — all additive, all listed in §8. | The locked-header CSV template with an error report, and one afternoon. |
 | **A4** | Kit contents per unit kind — quantities per tractor, dry van, reefer. | I9 — owner supplies three default lists | Ship empty; the first unit check populates them. |
 | **A5** | The label printer and stock the shop owns. | I10 | Avery 22805 on a laser with polyester stock for bins; aluminium plates from a vendor for truck items. |
-| **A6** | FleetPal has an export path for work orders. | Q1 | `work_order_ref` typed by hand. |
+| **A6** | FleetPal has an export path for work orders. | **LIVE from 2026-09-09** — the owner has put the FleetPal integration next, so I14 is no longer deferred and this is the question that shapes it. | `work_order_ref` typed by hand, which is what ships today and needs nothing from FleetPal. |
 | **A7** | `uqr` is deterministic and correct at every ECC level. | I1b golden fixtures | — |
 
 ---
@@ -984,3 +999,111 @@ signed here by the person who did it. I6's spike results go here before its seco
   fixing it here would fix one of four and leave the other three looking correct by comparison. It
   belongs in its own change across all four call sites, and it is recorded here rather than in a
   comment nobody would find.
+
+- **A3 RULED, AND THE FLEETPAL PATH AUDITED — 2026-09-09 (PR #694).** The owner put the FleetPal
+  integration next and asked whether anything built so far blocks it. **One thing did, and it was
+  canon.**
+
+  **`docs/SILVICOM-360.md` §2 still instructed a FleetPal FINANCIAL dedup.** Its integrations row read
+  "McLeod AP already carries maintenance dollars; the collector must dedupe against it (the
+  'maintenance arrives twice' trap)". That is the exact instruction **I0's done-when forbade** — "no
+  document instructs a FleetPal financial projection" — and I0 missed it, because it corrected §3 of
+  the same file, `ARCHITECTURE.md` §3 and the maintenance routes header, and never looked at the
+  integrations table two sections earlier. The consequence is not cosmetic: SILVICOM-360.md is canon
+  and the first thing anybody reads before adding a service, so whoever started the FleetPal build
+  would have built a dedup key against McLeod AP — a projection D-FLEET2 deleted and D-INV11 forbids —
+  and every gate would have passed while they did it. The trap the row names was REAL when it was
+  written; it was closed by deleting the second door, not by adding a dedup key, and a row that still
+  describes the key is a map to a door that is bricked up.
+
+  **Nothing else blocks it, and the boundary is machine-enforced rather than merely intended.** The
+  schema needs no change for FleetPal: `part_movements.work_order_ref` is the entire tie (D-INV10),
+  it is nullable free text that a technician types today, and FleetPal writes no table of ours. A
+  `fleetpal` module writing `parts`, `part_stock` or `part_movements` would be a new write site
+  `check-table-writers.mjs` refuses by name, and a migration touching both modules needs a
+  `cross-module-waiver` line — so the "the shelf is ours, the job is FleetPal's" split cannot erode
+  quietly the way a convention would. ⚠ **One additive thing is owed at I14 and not before:**
+  `work_order_ref` carries no index, because nothing reads it yet. A reconciliation joining on it
+  wants one, and that is an ordinary additive migration with no reader-ordering problem.
+
+  **A3 is ruled: the default is adopted, and it does NOT gate I4's build.** The reasoning is D-INV10
+  rather than convenience — **the shelf is ours**, so FleetPal is not an ongoing source of parts even
+  after it lands, and the import is therefore ONE-TIME whatever file arrives. A FleetPal export gets
+  re-headed once in a spreadsheet; a column-mapping UI would be a screen built for a job nobody does
+  twice. The locked-header CSV template with an error report stands, and I4 can be built against it
+  now. **What is still owed is the file itself** — so the importer is proved against a real parts list
+  and not a synthetic fixture — and that is a test-quality question, not a design one. A3's row says
+  so rather than being marked retired.
+
+  **I14 moves from *deferred* to *next*, and A6 goes live with it.** "Whether FleetPal has an export
+  path" stopped being an idle question the moment the integration was scheduled; it is now the
+  question that shapes I14. Nothing shipped depends on the answer — `work_order_ref` typed by hand is
+  what runs today and needs nothing from FleetPal.
+
+- **THE FLEETPAL API SPEC WAS READ, AND IT CORRECTS THE A3 RULING ABOVE — 2026-09-09 (PR #694).**
+  The owner supplied FleetPal's OpenAPI document (`docs/FleetPal/`, gitignored beside the PSP guide —
+  vendor material, 830 KB of generated JSON, read from the working tree). **71 endpoints.** Everything
+  below is from the vendor's own schema rather than from this plan's expectations, which is the
+  standing rule for vendor integrations and the reason it exists.
+
+  **D-INV10 is CONFIRMED by FleetPal's own data model, not merely asserted against it.** FleetPal's
+  `Part` carries `number`, `description`, `universal_product_code`, `component`, `manufacturer`,
+  `manufacturer_part_number`, `unit_of_measure`, `serialized_part`, `position_applicable` — and **no
+  quantity, no location, no reorder point, nowhere**. There is no second shelf to conflict with:
+  FleetPal models the part DEFINITION and the repair JOB, and on-hand simply is not in its model.
+  `JobItem` records what a repair consumed (`part`, `quantity`, `price`, type `PART`/`LABOR`/`SERVICE`)
+  which is consumption, not stock. `part_stock` fills a hole the vendor genuinely leaves open.
+
+  **⚠ A3's ruling three entries above is WRONG in its mechanism, and this corrects it.** That entry
+  ruled the initial import "ONE-TIME whatever its source, because the shelf is ours, so a FleetPal
+  export gets re-headed once in a spreadsheet". The shelf half is right and the import half is not:
+  FleetPal exposes `GET /v1/parts/` **with an `updated_after` filter**, and its catalogue is live —
+  the shop keeps raising work orders there, so new parts keep appearing there. An import that runs
+  once would begin drifting the day after it ran. **A3's real answer is an API pull, recurring, and
+  the locked-header CSV template is the WRONG SHAPE for it.** The CSV path still earns its place as
+  the manual escape hatch for a part nobody bought through FleetPal; it is no longer the primary. The
+  error was reasoning from the plan's phrase "a spreadsheet or a FleetPal export" instead of reading
+  what the export actually is.
+
+  **`work_order_ref` is compatible, and the field is named.** `WorkOrder.reference_number` — "the work
+  order number as users see it in the app, including any shop prefix" — is what a technician would
+  type and what our free-text column should hold. Not `number` (sequential, no prefix) and not `id`
+  (opaque). Our column is `text` capped at 64 and needs no change.
+
+  **Three mappings the sync will need, none of them a blocker today, all of them additive:**
+  (a) **`parts` has no external id.** FleetPal's `id` is "opaque, stable for the lifetime of the
+  object". A sync keyed on `part_number` would MOSTLY work — theirs is "unique per company, compared
+  case-insensitively" and `idx_parts_number` is on `lower(part_number)`, which is the same rule — but a
+  renumbered part would arrive as a duplicate. `fleetpal_id` is the honest key and is one additive
+  column plus the two-merge dance.
+  (b) **The unit vocabularies differ and must be mapped, not merged.** Ours is 11 members
+  (`each`…`pound`); FleetPal's is 22 and metric-heavy (`bx`, `cs`, `disp`, `ea`, `m`, `L`, `hr`, `cm`,
+  `kg`, `km`, `g`, `pk`, `pr`, `set`, `ml`, `ft`, `gal`, `in`, `lb`, `mi`, `oz`, `pt`, `qt`). **`hr` is
+  Labor Hour and must NOT gain an equivalent in ours** — labour is not a part, and a `quantity_on_hand`
+  of hours is a category error the shelf would happily store.
+  (c) **`manufacturer` and `component` are VMRS ids in FleetPal and free text in ours**, resolvable
+  through `/v1/vmrs-manufacturers` and `/v1/vmrs-components`. Our columns hold the resolved label; the
+  ids belong with `fleetpal_id` if they are kept at all.
+
+  **`serialized_part` is a gift rather than a gap.** FleetPal already marks which catalogue entries are
+  tracked one-by-one, which is exactly §2.1's stock-versus-asset seam that I7 builds. A sync can
+  populate the split instead of somebody deciding it 400 times.
+
+  **D-INV14 ("no vendors, no purchase orders") survives, and for a better reason than the one
+  recorded.** The plan justified it with "5 of 1,464 AP vouchers carry a PO number". The stronger
+  reason is that FleetPal already runs the whole flow: `/v1/purchase-orders/`,
+  `/v1/purchase-order-items/`, `/v1/purchase-order-receipts/`, `/v1/purchase-order-receipt-items/`,
+  `/v1/vendors/`, `/v1/payment-terms/`. Building ours would duplicate a system the shop already has,
+  which is a stronger argument than a low PO count and does not depend on that count staying low.
+
+  **⚠ AND IT OPENS A REAL QUESTION — Q9, recorded rather than answered.**
+  `purchase-order-receipt-items` is literally stock arriving. If the shop receives against POs in
+  FleetPal, then our `receive` verb is a second place to type the same event, and "two places to type
+  the same thing" is precisely the shape this repo calls a workaround. Three candidate answers, with a
+  recommendation, in §6.1.
+
+  **Webhooks exist and I14 can be push rather than poll.** `/v1/webhook-subscriptions/` with a
+  `work_order.completed` event and `/v1/webhook-deliveries/` for redelivery. Worth contrasting with
+  the Samsara webhook, which was wired correctly against a trigger that had never existed on the
+  account: here the event is in the vendor's published schema, though it still has to be confirmed on
+  the actual FleetPal account before I14 depends on it.
