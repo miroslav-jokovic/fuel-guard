@@ -917,7 +917,7 @@ signed here by the person who did it. I6's spike results go here before its seco
   `parts ← inventory/partsWrite.ts` and `stock_locations ← inventory/locationsWrite.ts` — which are
   the module's own tables, not a cross-module write.
 
-- **REVIEW OF I0–I3 — 2026-09-09 (PR #PENDING4).** An audit of everything merged so far, against the
+- **REVIEW OF I0–I3 — 2026-09-09 (PR #693).** An audit of everything merged so far, against the
   code rather than against these progress lines. **Five defects and one stale document**, four of
   them in shipped code and one of them a gap in this PLAN. All fixed here.
 
