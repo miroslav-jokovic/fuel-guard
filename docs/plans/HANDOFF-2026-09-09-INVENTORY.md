@@ -11,7 +11,8 @@ before writing anything**; this file is the map, not a replacement for them.
 
 ## Where it stands
 
-`main` at `53fc7b2` carries **I0–I3**. One PR is open.
+**I0–I3 are merged, and so are the review and the FleetPal audit. Nothing is open.** I4 is next and has
+no blocker.
 
 | Step | State | PR |
 |---|---|---|
@@ -22,7 +23,7 @@ before writing anything**; this file is the map, not a replacement for them.
 | **I2** schema + service — migration 0331 | merged | #691 |
 | **I3** the API, mounted | merged | #692 |
 | **Review of I0–I3** — five defects + one stale doc | merged | #693 |
-| **A3 ruled + the FleetPal path audited** | **OPEN** | **#694** |
+| **A3 answered + the FleetPal path audited** | merged | #694 |
 | **I4** the shop home and Parts | **next, and unblocked** | — |
 
 ## What exists to build on
