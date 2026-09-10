@@ -22,7 +22,6 @@ export interface RouteFuelSettingsRow {
   fuel_before_states?: string[] | null;
   avoid_brands?: string[] | null;
   preferred_brands?: string[] | null;
-  emergency_brands?: string[] | null;
   enabled_brands?: string[] | null;
   emergency_fill_gallons?: number | string | null;
   plan_def?: boolean | null;
@@ -59,7 +58,6 @@ export function resolveRouteFuelConfig(row: RouteFuelSettingsRow | null | undefi
     avoidBrands: arr(row?.avoid_brands, d.avoidBrands),
     preferredBrands: arr(row?.preferred_brands, d.preferredBrands),
     enabledBrands: arr(row?.enabled_brands, d.enabledBrands),
-    emergencyBrands: arr(row?.emergency_brands, d.emergencyBrands),
     emergencyFillGallons: num(row?.emergency_fill_gallons, d.emergencyFillGallons),
     planDef: row?.plan_def ?? d.planDef,
     defaultEquipmentType: (row?.default_equipment_type as EquipmentType) || d.defaultEquipmentType,

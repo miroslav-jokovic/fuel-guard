@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isPreferred, rankPrice, cheapest, nearest, ESTIMATE_PENALTY_USD } from "./stationSelect.js";
+import { isPreferred, isEmergencyOnly, isOffNetworkEligible, isPriced, rankPrice, cheapest, nearest, ESTIMATE_PENALTY_USD } from "./stationSelect.js";
 import { DEFAULT_ROUTE_FUEL_SETTINGS } from "./types.js";
 import type { SolverStation } from "./solver.js";
 
@@ -11,6 +11,21 @@ describe("isPreferred", () => {
     expect(isPreferred(st({ brand: "one9" }), cfg)).toBe(false);      // avoid_brands
     expect(isPreferred(st({ state: "CA" }), cfg)).toBe(false);        // avoid_states
     expect(isPreferred(st({ brand: "pilot", state: "TX" }), cfg)).toBe(true);
+  });
+});
+
+describe("the brand ladder (D-FP4)", () => {
+  it("an avoided brand or an avoided state is emergency-only on every rung", () => {
+    expect(isEmergencyOnly(st({ brand: "one9" }), cfg)).toBe(true);
+    expect(isEmergencyOnly(st({ brand: "pilot", state: "CA" }), cfg)).toBe(true);
+    expect(isEmergencyOnly(st({ brand: "loves" }), cfg)).toBe(false);
+    expect(isOffNetworkEligible(st({ brand: "one9" }), cfg)).toBe(false); // never off-network
+    expect(isOffNetworkEligible(st({ brand: "loves" }), cfg)).toBe(true);  // enabled, not preferred, not avoided
+    expect(isOffNetworkEligible(st({ brand: "pilot" }), cfg)).toBe(false); // preferred is a higher rung
+  });
+  it("an unpriced station is not priced, whatever its brand", () => {
+    expect(isPriced(st({ netPrice: null }))).toBe(false);
+    expect(isPriced(st({ netPrice: 3.5 }))).toBe(true);
   });
 });
 

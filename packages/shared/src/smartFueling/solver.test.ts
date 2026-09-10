@@ -84,9 +84,9 @@ describe("planFuelStops — fuel", () => {
   });
 
   it("no Pilot reachable but truck has fuel → OFF-NETWORK stop (flagged), NOT an emergency", () => {
-    // one9 is an avoid-brand (not preferred) and it's in TX (not avoided). Truck at 50% (well above 10%). The
+    // loves is enabled but not preferred, and it's in TX (not avoided). Truck at 50% (well above 10%). The
     // only reachable pump is off-network → suggest it, flagged, but never call it an emergency.
-    const plan = planFuelStops(input({ distanceToGoMiles: 600, stations: [st("off", 300, 3.5, "one9", "TX")] }));
+    const plan = planFuelStops(input({ distanceToGoMiles: 600, stations: [st("off", 300, 3.5, "loves", "TX")] }));
     const stop = plan.stops.find((s) => s.station?.id === "off");
     expect(stop).toBeTruthy();
     expect(stop!.isEmergency).toBe(false);
@@ -94,6 +94,38 @@ describe("planFuelStops — fuel", () => {
     expect(plan.flags).toContain("off_network_stop_used");
     expect(plan.flags).not.toContain("emergency_fill_used");
     expect(plan.status).not.toBe("emergency_used");
+  });
+
+  it("an avoided brand is never chosen for an off-network stop", () => {
+    // ONE9 (avoided) is nearer AND cheaper than the Love's beside it; the off-network rung is non-avoided brands
+    // only, so the truck goes to Love's. Before D-FP4 the fallback was "nearest of any kind" → ONE9.
+    const plan = planFuelStops(input({ distanceToGoMiles: 600, stations: [st("one9", 300, 3.2, "one9", "TX"), st("loves", 310, 3.8, "loves", "TX")] }));
+    expect(plan.stops).toHaveLength(1);
+    expect(plan.stops[0]!.station!.id).toBe("loves");
+    expect(plan.stops[0]!.isOffNetwork).toBe(true);
+    expect(plan.stops[0]!.isEmergency).toBe(false);
+  });
+
+  it("only an avoided brand in range with fuel in the tank → an emergency splash, never a full off-network fill", () => {
+    const plan = planFuelStops(input({ distanceToGoMiles: 600, stations: [st("one9", 300, 3.5, "one9", "TX"), st("pilot-later", 480, 3.5)] }));
+    const one9 = plan.stops.find((s) => s.station?.id === "one9")!;
+    expect(one9).toBeTruthy();
+    expect(one9.isEmergency).toBe(true);
+    expect(one9.isOffNetwork).toBe(false);
+    expect(one9.fillGal).toBeLessThan(100); // a splash to reach the next Pilot, not a top-off
+    expect(plan.status).toBe("emergency_used");
+    expect(plan.flags).toContain("emergency_fill_used");
+  });
+
+  it("a station with no price is never chosen while a priced one is reachable, and is taken flagged when it is all there is", () => {
+    const priced = planFuelStops(input({ distanceToGoMiles: 700, stations: [st("unpriced", 340, null), st("priced", 300, 3.9)] }));
+    expect(priced.stops[0]!.station!.id).toBe("priced");
+    const only = planFuelStops(input({ distanceToGoMiles: 700, stations: [st("unpriced", 340, null)] }));
+    expect(only.stops[0]!.station!.id).toBe("unpriced");
+    expect(only.stops[0]!.isEmergency).toBe(false);
+    expect(only.stops[0]!.isOffNetwork).toBe(false); // a Pilot without a price is still on-network
+    expect(only.flags).toContain("some_stations_missing_price");
+    expect(only.totalCost).toBeNull();
   });
 
   it("truck under criticalFuelPct with only an off-network pump → TRUE emergency (missed-fill splash)", () => {
