@@ -18,7 +18,6 @@ describe("chooseFill", () => {
   it("full-fills up to the fill target — every planned fill is a full fill", () => {
     const d = chooseFill(ctx());
     expect(d.fillGal).toBeCloseTo(190 - 50, 6); // top off to the fill target
-    expect(d.isMinFill).toBe(false);
   });
   it("border top-off is always a full fill", () => {
     const d = chooseFill(ctx({ borderTopOff: true }));
@@ -41,7 +40,6 @@ describe("chooseFill", () => {
     const pick = st({ id: "dear", milesAhead: 200, netPrice: 4.0 });
     const cheaper = st({ id: "cheap", milesAhead: 500, netPrice: 3.0 });
     const d = chooseFill(ctx({ pick, stations: [pick, cheaper] }));
-    expect(d.isMinFill).toBe(false);
     expect(d.fillGal).toBeCloseTo(140, 6);
   });
 });

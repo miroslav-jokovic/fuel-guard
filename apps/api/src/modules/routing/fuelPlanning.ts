@@ -9,7 +9,7 @@ import {
   milesFromMeters, resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, findFirstBorderCrossingMile, stripStepDistance,
   planPricing,
   type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState,
-  type PostedQuote, type DiscountRule,
+  type PostedQuote, type DiscountRule, type PlanFlag,
 } from "@silvicom/shared";
 import { stopView, pointAtMile, type PlanStopView, type StationRow } from "./planStopView.js";
 export type { PlanStopView } from "./planStopView.js";
@@ -93,10 +93,9 @@ export interface PlanResult {
     /** The same gallons at the posted pump prices, and the contract discount between the two (D-FP5). */
     totalCostAtPump: number | null;
     discountSavings: number | null;
-    savingsVsNaive: number | null;
     arrivalFuelPct: number | null;
     reachesDestination: boolean;
-    flags: string[];
+    flags: PlanFlag[];
   };
   route?: { distanceMiles: number; durationHours: number; polyline: LatLng[]; directions: { instruction: string; miles: number }[] };
   truck?: ReturnType<typeof truckStateView>;
@@ -149,13 +148,17 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { status: "error", message: e instanceof Error ? e.message : "Routing failed", origin, destination };
   }
   const distanceMiles = milesFromMeters(route.distanceMeters);
+  // Derive avg speed from the RAW route seconds (not the 1-decimal-rounded hours) so rounding error does not
+  // bleed into every mile/break estimate downstream. ONE speed (D-FP8): the truck state's "Reachable now" and
+  // the solver's walk both use it — until 2026-09-10 the tile used a 55 mph constant and the walk the route's.
+  const avgSpeedMph = route.durationSeconds > 0 ? distanceMiles / (route.durationSeconds / 3600) : 55;
   // Instruction text has HERE's own km/m distance baked in ("… Go for 8 km."); strip it and show miles
   // ourselves (from lengthMeters) so the turn-by-turn reads in miles only. Applied on read, so cached
   // routes with the old km text are cleaned too — no cache invalidation needed.
   const directions = route.steps.map((st) => ({ instruction: stripStepDistance(st.instruction), miles: r1(milesFromMeters(st.lengthMeters)) }));
   const routeView = { distanceMiles: r1(distanceMiles), durationHours: r1(route.durationSeconds / 3600), polyline: route.polyline, directions };
 
-  const tele = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, req.loadGrossLb ?? null);
+  const tele = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, req.loadGrossLb ?? null, avgSpeedMph);
   let truck: TruckFuelState;
   let hos: HosClocks;
   let manualFuelUsed = false;
@@ -165,7 +168,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     hos = tele.hos;
   } else if (req.manualFuelPct != null) {
     // Fallback: dispatcher-entered fuel level (uses live HOS when present, else typed / none).
-    const m = buildManualTruckState(veh, req.manualFuelPct, req.manualHos ?? null, tele.ok ? tele.hos : NULL_HOS, isReefer, cfg, req.loadGrossLb ?? null);
+    const m = buildManualTruckState(veh, req.manualFuelPct, req.manualHos ?? null, tele.ok ? tele.hos : NULL_HOS, isReefer, cfg, req.loadGrossLb ?? null, avgSpeedMph);
     truck = m.state;
     hos = m.hos;
     manualFuelUsed = true;
@@ -175,9 +178,6 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { status: "telematics_unavailable", telematicsReason: reason, message: TELEMATICS_MESSAGE[reason], route: routeView, origin, destination };
   }
   const truckView = truckStateView(truck, hos);
-  // Derive avg speed from the RAW route seconds (not the 1-decimal-rounded hours) so rounding error does not
-  // bleed into every mile/break estimate downstream.
-  const avgSpeedMph = route.durationSeconds > 0 ? distanceMiles / (route.durationSeconds / 3600) : 55;
   const breakDue = breakFuelAdvice({ timeUntilBreakMs: hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: [] });
 
   // Single-pass bbox — a spread of Math.min(...polyline) overflows the call stack on a long route.
@@ -303,13 +303,13 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   // Overweight safeguard: with no load weight entered, fills aren't capped for legal gross weight. Only warn when
   // it actually matters — a large single fill (~700+ lb of diesel) that could push a heavy truck over gross.
   const uncappedBigFill = truck.flags.includes("load_weight_unknown") && plan.stops.some((st) => st.kind === "fuel" && st.fillGal >= 100);
-  const planFlags = manualFuelUsed ? [...plan.flags, "manual_fuel_entry"] : [...plan.flags];
+  const planFlags: PlanFlag[] = manualFuelUsed ? [...plan.flags, "manual_fuel_entry"] : [...plan.flags];
   if (uncappedBigFill && !planFlags.includes("fills_uncapped_no_load_weight")) planFlags.push("fills_uncapped_no_load_weight");
   const planMessage = describePlan(plan.status, planFlags);
   return {
     status: plan.status,
     message: planMessage,
-    plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, totalCostAtPump: pricing.totalCostAtPump, discountSavings: pricing.discountSavings, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
+    plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, totalCostAtPump: pricing.totalCostAtPump, discountSavings: pricing.discountSavings, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
     route: routeView, truck: truckView, breakAdvice, manualFuelUsed, origin, destination,
   };
 }
@@ -342,7 +342,7 @@ const NULL_HOS: HosClocks = { driveRemainingMs: null, shiftRemainingMs: null, cy
 /** Read live fuel + HOS for the truck, distinguishing WHY it's unavailable so the UI can guide the dispatcher. */
 async function fetchTruckFuelState(
   admin: SupabaseClient, env: Env, orgId: string, veh: VehState,
-  isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null,
+  isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null, avgSpeedMph: number,
 ): Promise<TeleResult> {
   if (!veh.samsara_vehicle_id) return { ok: false, reason: "not_linked" };
   const token = await loadSamsaraToken(admin, env, orgId);
@@ -362,30 +362,30 @@ async function fetchTruckFuelState(
     if (h) hos = h;
   } catch { /* HOS best-effort; solver flags no_hos */ }
 
-  const state = composeTruckState(veh, fuelSamples, hos, isReefer, cfg, loadGrossLb, now);
+  const state = composeTruckState(veh, fuelSamples, hos, isReefer, cfg, loadGrossLb, now, avgSpeedMph);
   return { ok: true, state, hos };
 }
 
 /** Build a TruckFuelState from raw inputs (shared by live + manual paths). */
-function composeTruckState(veh: VehState, fuelSamples: { time: string; value: number }[], hos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null, nowMs: number): TruckFuelState {
+function composeTruckState(veh: VehState, fuelSamples: { time: string; value: number }[], hos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null, nowMs: number, avgSpeedMph: number): TruckFuelState {
   return buildTruckFuelState(
     {
       fuelSamples, tankCapacityGal: Number(veh.tank_capacity_gal), observedMaxFillGal: veh.observed_max_fill_gal != null ? Number(veh.observed_max_fill_gal) : null,
       baselineMpg: veh.baseline_mpg != null ? Number(veh.baseline_mpg) : null, hos, isReefer, loadGrossLb, lastFillTimeMs: null, nowMs,
     },
-    { reservePct: cfg.reservePct, mpgSafetyFactor: cfg.mpgSafetyFactor, fillTargetPct: cfg.fillTargetPct },
+    { reservePct: cfg.reservePct, mpgSafetyFactor: cfg.mpgSafetyFactor, fillTargetPct: cfg.fillTargetPct, avgSpeedMph },
   );
 }
 
 /** Manual fallback: build the truck state from a dispatcher-entered fuel % (+ optional HOS) when telematics is out. */
-function buildManualTruckState(veh: VehState, fuelPct: number, manualHos: PlanRequest["manualHos"], liveHos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null): { state: TruckFuelState; hos: HosClocks } {
+function buildManualTruckState(veh: VehState, fuelPct: number, manualHos: PlanRequest["manualHos"], liveHos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null, avgSpeedMph: number): { state: TruckFuelState; hos: HosClocks } {
   const now = Date.now();
   const clamped = Math.max(0, Math.min(100, fuelPct));
   const asMs = (h?: number | null) => (h != null && h >= 0 ? h * 3_600_000 : null);
   const hos: HosClocks = manualHos
     ? { driveRemainingMs: asMs(manualHos.driveHours), shiftRemainingMs: asMs(manualHos.shiftHours), cycleRemainingMs: asMs(manualHos.cycleHours), timeUntilBreakMs: asMs(manualHos.breakHours) }
     : liveHos; // fall back to live HOS clocks when the driver didn't type them
-  const state = composeTruckState(veh, [{ time: new Date(now).toISOString(), value: clamped }], hos, isReefer, cfg, loadGrossLb, now);
+  const state = composeTruckState(veh, [{ time: new Date(now).toISOString(), value: clamped }], hos, isReefer, cfg, loadGrossLb, now, avgSpeedMph);
   return { state, hos };
 }
 

@@ -62,7 +62,6 @@ const nodes = computed<Node[]>(() => {
     const after = pct(s.arrivalGal + s.gallons);
     const tags: { label: string; tone: string }[] = [];
     if (s.isBorderTopOff) tags.push({ label: `Top off before ${s.borderState ?? "border"}`, tone: "info" });
-    if (s.isMinFill) tags.push({ label: "Partial fill", tone: "caution" });
     // Where the price came from, as a label the dispatcher can weigh: the carrier's own report is the only
     // basis that is not an estimate (D-FP5).
     const basis = priceBasisLabel(s);

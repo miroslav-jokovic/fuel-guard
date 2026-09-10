@@ -29,7 +29,6 @@ export interface PlanStopView {
   coversBreak: boolean; isOvernight: boolean; driveHoursLeftOnArrival: number | null;
   isBorderTopOff: boolean;
   borderState: string | null;
-  isMinFill: boolean;
   isOffNetwork: boolean;
   priceEstimated: boolean;
   priceConfidence: "high" | "medium" | "low" | null;
@@ -44,7 +43,7 @@ export interface PlanResult {
   status: PlanResultStatus;
   message?: string;
   plan?: {
-    stops: PlanStopView[]; totalGallons: number; totalCost: number | null; totalCostAtPump: number | null; discountSavings: number | null; savingsVsNaive: number | null;
+    stops: PlanStopView[]; totalGallons: number; totalCost: number | null; totalCostAtPump: number | null; discountSavings: number | null;
     arrivalFuelPct: number | null; reachesDestination: boolean; flags: string[];
   };
   route?: { distanceMiles: number; durationHours: number; polyline: { lat: number; lng: number }[]; directions: { instruction: string; miles: number }[] };

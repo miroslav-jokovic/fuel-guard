@@ -31,8 +31,6 @@ export interface PlanStopView {
   isBorderTopOff: boolean;
   /** The state being entered at a border top-off (e.g. "CA", "MA"), for the UI label. null otherwise. */
   borderState: string | null;
-  /** Always false since D-FP3 retired min-drawdown; leaves with FP7. */
-  isMinFill: boolean;
   /** An enabled, non-preferred brand chosen because no preferred station was reachable (never an avoided one). */
   isOffNetwork: boolean;
   /** true = netPrice is a history/brand estimate, not a fresh quote (Phase 5). */
@@ -107,6 +105,6 @@ export function stopView(st: PlannedStop, ctx: {
     postedPrice, discountPerGal: discountPerGal(postedPrice, st.netPrice), priceBasis: est?.basis ?? "none",
     cost: st.cost != null ? Math.round(st.cost * 100) / 100 : null, arrivalGal: r1(st.arrivalGal), isEmergency: st.isEmergency,
     coversBreak: st.coversBreak, isOvernight: st.isOvernight, driveHoursLeftOnArrival: st.driveHoursLeftOnArrival != null ? r1(st.driveHoursLeftOnArrival) : null,
-    isBorderTopOff: st.isBorderTopOff, borderState: st.isBorderTopOff ? ctx.border?.state ?? null : null, isMinFill: st.isMinFill, isOffNetwork: st.isOffNetwork,
+    isBorderTopOff: st.isBorderTopOff, borderState: st.isBorderTopOff ? ctx.border?.state ?? null : null, isOffNetwork: st.isOffNetwork,
   };
 }

@@ -37,9 +37,6 @@ export interface FillContext {
 
 export interface FillDecision {
   fillGal: number;
-  /** Always false since D-FP3 retired min-drawdown; kept on the decision so `PlannedStop.isMinFill` and the
-   *  API view it feeds do not change shape in the same merge as the solver (FP7 removes both). */
-  isMinFill: boolean;
   /** This fill happened inside an avoided state (California splash) — surfaces the avoided-state flag. */
   isAvoidedState: boolean;
 }
@@ -67,5 +64,5 @@ export function chooseFill(ctx: FillContext): FillDecision {
     fill = Math.min(fillTargetGal - arrivalGal, weightCap); // full fill
   }
 
-  return { fillGal: Math.max(0, fill), isMinFill: false, isAvoidedState };
+  return { fillGal: Math.max(0, fill), isAvoidedState };
 }

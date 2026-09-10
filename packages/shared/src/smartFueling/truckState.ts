@@ -12,6 +12,7 @@
 import { currentFuelPercent, effectiveTankCapacityGal, gallonsOnHand, type FuelSample } from "./fuelLevel.js";
 import { legalDriveMs, combineTeamLegalDriveMs, hosReachableMiles, type HosClocks } from "./hos.js";
 import { effectiveMpg, rangeMilesOnGallons, weightLegalFillGal, DEFAULT_IDLE_GAL_PER_HOUR, DEFAULT_REEFER_GAL_PER_HOUR, type BurnModel } from "./consumption.js";
+import type { TruckFlag } from "./planFlags.js";
 
 export interface TruckStateConfig {
   reservePct: number; // % of tank
@@ -62,7 +63,7 @@ export interface TruckFuelState {
     hosFromTeam: boolean;
     mpgPresent: boolean;
   };
-  flags: string[];
+  flags: TruckFlag[];
 }
 
 const minutesBetween = (aMs: number, bMs: number) => Math.abs(aMs - bMs) / 60000;
@@ -73,7 +74,7 @@ export function buildTruckFuelState(input: TruckStateInput, cfg: TruckStateConfi
   const maxGross = cfg.maxGrossLb ?? 80000;
   const freshMin = cfg.freshnessMinutes ?? 60;
   const postFillMin = cfg.postFillMinutes ?? 60;
-  const flags: string[] = [];
+  const flags: TruckFlag[] = [];
 
   // Fuel level
   const smoothed = currentFuelPercent(input.fuelSamples);

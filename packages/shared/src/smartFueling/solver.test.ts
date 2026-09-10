@@ -156,11 +156,6 @@ describe("planFuelStops — fuel", () => {
     expect(plan.stops[0]!.station!.id).toBe("easy");
   });
 
-  it("savings vs naive is >= 0", () => {
-    const plan = planFuelStops(input({ distanceToGoMiles: 700, stations: [st("near-dear", 300, 4.0), st("far-cheap", 350, 3.4)] }));
-    expect(plan.savingsVsNaive!).toBeGreaterThanOrEqual(0);
-  });
-
   it("abstains when there is no fuel reading", () => {
     const plan = planFuelStops(input({ distanceToGoMiles: 300, stations: [st("a", 150, 3.5)], truck: mkTruck({ gallonsOnHand: null }) }));
     expect(plan.status).toBe("infeasible");
