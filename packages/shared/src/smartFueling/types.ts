@@ -84,9 +84,10 @@ export interface RouteFuelSettings {
   criticalFuelPct: number;
   /** States to top off before entering (sparse fueling — e.g. Massachusetts has one truck stop) — stations here stay usable. */
   fuelBeforeStates: string[];
+  /** Emergency-only brands (D-FP4). Together with `avoidStates` this IS the emergency list — the separate
+   *  `emergency_brands` column was resolved and never read by any rule, so it left the config on 2026-09-10. */
   avoidBrands: string[];
   preferredBrands: string[];
-  emergencyBrands: string[];
   /** Truck-stop networks this org has turned ON — a hard registry filter applied BEFORE the solver
    *  (the registry may hold more networks than an org uses). Empty is not allowed (resolve falls back). */
   enabledBrands: string[];
@@ -113,7 +114,6 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   fuelBeforeStates: ["MA"], // top off before entering — Massachusetts has essentially one truck stop
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],
-  emergencyBrands: ["one9"],
   enabledBrands: ["pilot", "flying_j", "one9"],
   emergencyFillGallons: 50,
   planDef: false,

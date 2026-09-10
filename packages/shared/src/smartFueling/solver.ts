@@ -32,7 +32,7 @@ import { galPerMile } from "./consumption.js";
 import { hoursFromMs } from "./units.js";
 import type { RouteFuelSettings } from "./types.js";
 import type { TruckFuelState } from "./truckState.js";
-import { isPreferred, cheapest, nearest } from "./stationSelect.js";
+import { isPreferred, isEmergencyOnly, isPriced, cheapest, nearest } from "./stationSelect.js";
 import { chooseFill } from "./fillPolicy.js";
 
 const H = 3_600_000;
@@ -107,8 +107,8 @@ export interface PlannedStop {
   isBorderTopOff: boolean;
   /** Always false since D-FP3 retired min-drawdown; the field leaves with the API view in FP7. */
   isMinFill: boolean;
-  /** Not a Pilot/Flying J — an off-network stop suggested only because no preferred station was reachable (a
-   *  Pilot coverage gap). NOT an emergency; surfaced so the dispatcher knows a preferred station is missing. */
+  /** An enabled but non-preferred brand, chosen only because no preferred station was reachable (a network
+   *  coverage gap). NOT an emergency, and never an avoided brand — those are emergency-only (D-FP4). */
   isOffNetwork: boolean;
 }
 
@@ -242,23 +242,35 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     pos = pick.milesAhead;
   };
 
-  // Choose among reachable stations, honoring the emergency rule STRICTLY. A stop is only "emergency" when the
-  // truck is genuinely stuck: (a) the nearest reachable pump is inside an avoided state (e.g. already in CA with
-  // no preferred way out), or (b) the truck is under criticalFuelPct with no Pilot/Flying J reachable (a missed
-  // planned fill). Any OTHER no-Pilot stretch is an OFF-NETWORK stop (flagged) — never a fake emergency.
+  // Choose among reachable stations when no preferred priced one is in the band — the brand ladder (D-FP4),
+  // top to bottom: preferred priced → other non-avoided priced (OFF-NETWORK, flagged) → non-avoided unpriced
+  // (flagged "price unknown", preferred first) → avoided brand/state, which is a genuine EMERGENCY: the truck
+  // is inside California with no preferred way out, or only a ONE9 sits in range. A truck under criticalFuelPct
+  // (a missed planned fill) is an emergency at the nearest pump whatever its brand. Before 2026-09-10 the
+  // fallback was "the nearest pump of any kind", which is how an avoided, unpriced ONE9 became a normal stop.
   const pickStop = (opts: SolverStation[]): { pick: SolverStation; emergency: boolean; offNetwork: boolean } => {
-    const preferredPriced = opts.filter((x) => isPreferred(x, cfg) && x.netPrice != null);
-    if (opts.some((x) => isPreferred(x, cfg) && x.netPrice == null)) droppedNoPrice = true;
+    if (opts.some((x) => !isEmergencyOnly(x, cfg) && !isPriced(x))) droppedNoPrice = true;
+    const preferredPriced = opts.filter((x) => isPreferred(x, cfg) && isPriced(x));
     if (preferredPriced.length > 0) return { pick: select(preferredPriced), emergency: false, offNetwork: false };
-    const near = opts.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b));
-    const nearInAvoided = near.state != null && cfg.avoidStates.includes(near.state);
     const curPct = tankCap > 0 ? (gal / tankCap) * 100 : 0;
-    if (nearInAvoided || curPct <= cfg.criticalFuelPct + EPS) {
+    if (curPct <= cfg.criticalFuelPct + EPS) {
       usedEmergency = true;
-      return { pick: near, emergency: true, offNetwork: false };
+      return { pick: nearest(opts), emergency: true, offNetwork: false };
     }
-    usedOffNetwork = true;
-    return { pick: near, emergency: false, offNetwork: true };
+    const otherPriced = opts.filter((x) => !isEmergencyOnly(x, cfg) && isPriced(x));
+    if (otherPriced.length > 0) {
+      usedOffNetwork = true;
+      return { pick: select(otherPriced), emergency: false, offNetwork: true };
+    }
+    const unpricedPreferred = opts.filter((x) => isPreferred(x, cfg));
+    if (unpricedPreferred.length > 0) return { pick: nearest(unpricedPreferred), emergency: false, offNetwork: false };
+    const unpricedOther = opts.filter((x) => !isEmergencyOnly(x, cfg));
+    if (unpricedOther.length > 0) {
+      usedOffNetwork = true;
+      return { pick: nearest(unpricedOther), emergency: false, offNetwork: true };
+    }
+    usedEmergency = true; // only avoided pumps in range → a splash at the nearest, never a full fill
+    return { pick: nearest(opts), emergency: true, offNetwork: false };
   };
 
   // Loop guard: every iteration either returns or applies a fuel stop at a station not used before, so this
@@ -319,8 +331,8 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     // priced station in the last `refuelBandMiles` of range. If none sits that close to the reserve, DRIVE AS FAR
     // AS POSSIBLE — the farthest reachable preferred station, never a cheap early one. Fall back to the whole
     // reachable set (off-network or a true emergency) only when no preferred priced station is reachable at all.
-    if (inWindow.some((x) => isPreferred(x, cfg) && x.netPrice == null)) droppedNoPrice = true;
-    const reachablePreferred = inWindow.filter((x) => isPreferred(x, cfg) && x.netPrice != null);
+    if (inWindow.some((x) => isPreferred(x, cfg) && !isPriced(x))) droppedNoPrice = true;
+    const reachablePreferred = inWindow.filter((x) => isPreferred(x, cfg) && isPriced(x));
     if (reachablePreferred.length === 0) {
       const { pick, emergency, offNetwork } = pickStop(inWindow);
       applyFuelStop(pick, emergency, false, offNetwork);

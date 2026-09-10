@@ -206,11 +206,17 @@ not, and stays a data question for the roster, not a planner rule.
 
 ### D-FP4 — one brand ladder, applied on every path
 
-Enabled → preferred → other enabled (off-network, flagged) → **avoided brands and avoided states are
-emergency-only, on every path**, and **an unpriced station is never a non-emergency pick on any path**.
+Four rungs, top to bottom, and the walk takes the highest rung that has a station in range:
+**preferred + priced** (cheapest) → **other enabled, non-avoided + priced** (cheapest, flagged
+off-network) → **non-avoided but unpriced** (nearest, preferred first, flagged "price unknown" — a
+Pilot with no quote is still a Pilot) → **avoided brands and avoided states**, which are
+**emergency-only on every path**: a splash sized to reach the next preferred station, never a full
+fill, and the plan says `emergency_used`. A truck under the critical-fuel threshold is an emergency
+at the nearest pump whatever its brand, as before. The unpriced rung is deliberate: refusing to plan
+a stop at a real Pilot because the report missed it would strand a truck to make a point about data.
 `emergency_brands` is retired as a concept: "avoided" already means "emergency only", and a second
-list that nothing reads is a copy with a delay fuse. `pickStop` and the min-fill lookahead both use the
-same predicate.
+list that nothing read was a copy with a delay fuse. The predicates live in `stationSelect.ts` and
+`pickStop` is their only caller.
 
 ### D-FP5 — every price is shown twice, and the totals are too
 
@@ -312,3 +318,4 @@ All four answered by the owner's 2026-09-10 ruling quoted in the status line.
 - 2026-09-10 — owner ruled on §1.1 (quoted in the status line); §2 became rulings, §6's four questions
   answered, min-drawdown retired under "no overcomplications". FP1 starts.
 - 2026-09-10 — **FP1 BUILT** (#727): stops by range only, HOS advanced as a clock and used for tags, 34-h restart + `cycle_restart_required`, min-drawdown out of `fillPolicy.ts`. The 748 replay is a fixture; watched fail first.
+- 2026-09-10 — **FP2 BUILT** (#728): the four-rung ladder in `stationSelect.ts`; `pickStop` is its only caller; `emergencyBrands` gone from `RouteFuelSettings` (column and form field stay until FP6). Unit 748's replay now cannot pick ONE9.
