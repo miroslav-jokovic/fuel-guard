@@ -7,9 +7,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   resolveRouteFuelConfig, effectiveTruckProfile, buildTruckFuelState, planFuelStops, stationsAlongRoute,
   milesFromMeters, resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, findFirstBorderCrossingMile, stripStepDistance,
-  type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState, type PriceConfidence,
+  planPricing,
+  type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState,
   type PostedQuote, type DiscountRule,
 } from "@silvicom/shared";
+import { stopView, pointAtMile, type PlanStopView, type StationRow } from "./planStopView.js";
+export type { PlanStopView } from "./planStopView.js";
 import type { Env } from "../../env.js";
 import { getOrComputeRoute } from "./routeGeometry.js";
 import { breakFuelAdvice } from "@silvicom/shared";
@@ -43,59 +46,6 @@ export interface PlanRequest {
 
 /** Why live telematics could not drive the plan (drives the UI message + manual-entry fallback). */
 export type TelematicsReason = "not_linked" | "not_connected" | "unavailable" | "no_fuel_reading";
-
-export interface PlanStopView {
-  kind: "fuel" | "rest";
-  milesAhead: number;
-  stationLat: number | null;
-  stationLng: number | null;
-  stationName: string | null;
-  brand: string | null;
-  state: string | null;
-  exit: string | null;
-  storeNumber: string | null;
-  detourMiles: number;
-  gallons: number;
-  netPrice: number | null;
-  priceAgeHours: number | null;
-  cost: number | null;
-  arrivalGal: number;
-  isEmergency: boolean;
-  coversBreak: boolean;
-  isOvernight: boolean;
-  driveHoursLeftOnArrival: number | null;
-  /** This fuel stop is the mandated top-off just before entering a border state (e.g. the California border). */
-  isBorderTopOff: boolean;
-  /** The state being entered at a border top-off (e.g. "CA", "MA"), for the UI label. null otherwise. */
-  borderState: string | null;
-  /** This is a min-drawdown partial fill (bought only enough to reach the next cheaper stop), not a full top-off. */
-  isMinFill: boolean;
-  /** true = netPrice is a history/brand estimate, not a fresh quote (Phase 5). */
-  priceEstimated: boolean;
-  /** Confidence in an estimated price (null when the price is a fresh quote or unknown). */
-  priceConfidence: PriceConfidence | null;
-}
-
-/** Interpolate the lat/lng at a given cumulative mile along the route polyline (positions rest stops on the map). */
-function pointAtMile(poly: LatLng[], targetMi: number): { lat: number; lng: number } | null {
-  if (poly.length === 0) return null;
-  const havMi = (a: LatLng, b: LatLng) => {
-    const toRad = (d: number) => (d * Math.PI) / 180;
-    const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
-    const s1 = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-    return 3958.8 * 2 * Math.atan2(Math.sqrt(s1), Math.sqrt(1 - s1));
-  };
-  let cum = 0;
-  for (let i = 1; i < poly.length; i++) {
-    const seg = havMi(poly[i - 1]!, poly[i]!);
-    if (cum + seg >= targetMi) {
-      const t = seg > 0 ? (targetMi - cum) / seg : 0;
-      return { lat: poly[i - 1]!.lat + (poly[i]!.lat - poly[i - 1]!.lat) * t, lng: poly[i - 1]!.lng + (poly[i]!.lng - poly[i - 1]!.lng) * t };
-    }
-    cum += seg;
-  }
-  return poly[poly.length - 1]!;
-}
 
 /**
  * Locate the route mile at which the truck first crosses INTO an avoided state (e.g. California), so the solver
@@ -140,6 +90,9 @@ export interface PlanResult {
     stops: PlanStopView[];
     totalGallons: number;
     totalCost: number | null;
+    /** The same gallons at the posted pump prices, and the contract discount between the two (D-FP5). */
+    totalCostAtPump: number | null;
+    discountSavings: number | null;
     savingsVsNaive: number | null;
     arrivalFuelPct: number | null;
     reachesDestination: boolean;
@@ -249,7 +202,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     // stranded routes. The brand filter already guarantees diesel.
     .gte("lat", minLat - pad).lte("lat", maxLat + pad)
     .gte("lng", minLng - pad).lte("lng", maxLng + pad);
-  const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
+  const stations = (stationRows ?? []) as StationRow[];
   if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, truck: truckView, breakAdvice: breakDue, manualFuelUsed, origin, destination };
 
   // Narrow to the on-route corridor FIRST, then pull price history only for those stations (fewer rows).
@@ -261,16 +214,17 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   const now0 = Date.now();
   const lookbackHours = DEFAULT_PRICE_LOOKBACK_HOURS;
   const cutoffIso = new Date(now0 - lookbackHours * 3_600_000).toISOString();
-  const historyByStation = new Map<string, { net: number | null; observedAtMs: number }[]>();
+  const historyByStation = new Map<string, { net: number | null; posted: number | null; observedAtMs: number }[]>();
   const latestByStation = new Map<string, { net: number | null; at: string }>();
   for (let i = 0; i < candidateIds.length; i += 200) {
     const part = candidateIds.slice(i, i + 200);
     const { data: priceRows } = await admin
-      .from("fuel_prices").select("station_id, net_price, observed_at").eq("org_id", orgId).eq("product", "diesel")
+      .from("fuel_prices").select("station_id, net_price, posted_price, observed_at").eq("org_id", orgId).eq("product", "diesel")
       .in("station_id", part).gte("observed_at", cutoffIso).order("observed_at", { ascending: false });
-    for (const pr of (priceRows ?? []) as Array<{ station_id: string; net_price: number | string | null; observed_at: string }>) {
+    for (const pr of (priceRows ?? []) as Array<{ station_id: string; net_price: number | string | null; posted_price: number | string | null; observed_at: string }>) {
       const net = pr.net_price != null ? Number(pr.net_price) : null;
-      (historyByStation.get(pr.station_id) ?? historyByStation.set(pr.station_id, []).get(pr.station_id)!).push({ net, observedAtMs: Date.parse(pr.observed_at) });
+      const posted = pr.posted_price != null ? Number(pr.posted_price) : null;
+      (historyByStation.get(pr.station_id) ?? historyByStation.set(pr.station_id, []).get(pr.station_id)!).push({ net, posted, observedAtMs: Date.parse(pr.observed_at) });
       if (!latestByStation.has(pr.station_id)) latestByStation.set(pr.station_id, { net, at: pr.observed_at }); // rows are observed_at DESC
     }
   }
@@ -341,24 +295,9 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
       breakRemainingMs: hos.timeUntilBreakMs,
     },
   });
-  const stops: PlanStopView[] = plan.stops.map((st) => {
-    const s = st.station ? stationById.get(st.station.id) ?? null : null;
-    const latest = st.station ? latestByStation.get(st.station.id) : undefined;
-    const est = st.station ? estByStation.get(st.station.id) : undefined;
-    const pos = s ? { lat: Number(s.lat), lng: Number(s.lng) } : pointAtMile(route.polyline, st.milesAhead);
-    return {
-      kind: st.kind,
-      milesAhead: r1(st.milesAhead),
-      stationLat: pos?.lat ?? null, stationLng: pos?.lng ?? null,
-      stationName: s ? (s.name ?? s.brand) : null, brand: s?.brand ?? null, state: s?.state ?? null, exit: s?.exit ?? null, storeNumber: s?.store_number ?? null,
-      detourMiles: st.station ? r1(st.station.detourMiles) : 0, gallons: r1(st.fillGal),
-      netPrice: st.netPrice, priceAgeHours: latest ? Math.round((Date.now() - Date.parse(latest.at)) / 3_600_000) : null,
-      priceEstimated: est?.estimated ?? false, priceConfidence: est?.estimated ? est.confidence : null,
-      cost: st.cost != null ? Math.round(st.cost * 100) / 100 : null, arrivalGal: r1(st.arrivalGal), isEmergency: st.isEmergency,
-      coversBreak: st.coversBreak, isOvernight: st.isOvernight, driveHoursLeftOnArrival: st.driveHoursLeftOnArrival != null ? r1(st.driveHoursLeftOnArrival) : null,
-      isBorderTopOff: st.isBorderTopOff, borderState: st.isBorderTopOff ? border?.state ?? null : null, isMinFill: st.isMinFill, isOffNetwork: st.isOffNetwork,
-    };
-  });
+  const stopCtx = { stationById, latestByStation, postedByStation, estByStation, polyline: route.polyline, border, nowMs: Date.now() };
+  const stops: PlanStopView[] = plan.stops.map((st) => stopView(st, stopCtx));
+  const pricing = planPricing(stops.map((st) => ({ gallons: st.gallons, netPrice: st.netPrice, postedPrice: st.postedPrice })));
 
   const breakAdvice = breakFuelAdvice({ timeUntilBreakMs: hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: plan.stops.filter((st) => st.kind === "fuel").map((st) => st.milesAhead) });
   // Overweight safeguard: with no load weight entered, fills aren't capped for legal gross weight. Only warn when
@@ -370,7 +309,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   return {
     status: plan.status,
     message: planMessage,
-    plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
+    plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, totalCostAtPump: pricing.totalCostAtPump, discountSavings: pricing.discountSavings, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
     route: routeView, truck: truckView, breakAdvice, manualFuelUsed, origin, destination,
   };
 }

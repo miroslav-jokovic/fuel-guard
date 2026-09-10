@@ -41,6 +41,17 @@ interface Node {
   tags: { label: string; tone: string }[];
 }
 
+function priceBasisLabel(s: PlanStopView): string | null {
+  const age = s.priceAgeHours != null ? `, ${s.priceAgeHours} h ago` : "";
+  switch (s.priceBasis) {
+    case "fresh": return `Your report${age}`;
+    case "posted_discount": return `Posted price${age}`;
+    case "station_history": return `Station history (est.${s.priceConfidence ? `, ${s.priceConfidence}` : ""})`;
+    case "brand": return "Brand average (est.)";
+    default: return null;
+  }
+}
+
 const nodes = computed<Node[]>(() => {
   const out: Node[] = [];
   out.push({ key: "start", icon: MapPinIcon, tone: "success", title: "Start", sub: props.origin, fuel: props.startFuelPct != null ? `Departing at ${props.startFuelPct}% fuel` : undefined, tags: [] });
@@ -52,10 +63,18 @@ const nodes = computed<Node[]>(() => {
     const tags: { label: string; tone: string }[] = [];
     if (s.isBorderTopOff) tags.push({ label: `Top off before ${s.borderState ?? "border"}`, tone: "info" });
     if (s.isMinFill) tags.push({ label: "Partial fill", tone: "caution" });
-    if (s.priceEstimated) tags.push({ label: `Est. price${s.priceConfidence ? ` (${s.priceConfidence})` : ""}`, tone: "neutral" });
+    // Where the price came from, as a label the dispatcher can weigh: the carrier's own report is the only
+    // basis that is not an estimate (D-FP5).
+    const basis = priceBasisLabel(s);
+    if (basis) tags.push({ label: basis, tone: s.priceEstimated ? "neutral" : "success" });
     if (s.isEmergency) tags.push({ label: "Emergency", tone: "warning" });
     if (s.coversBreak) tags.push({ label: "Covers 30-min break", tone: "success" });
-    const priceStr = s.netPrice != null ? `@ ${money(s.netPrice)}/gal${s.priceEstimated ? " (est.)" : ""}` : "price unknown";
+    // Both prices, always in the same order: what the pump posts, then what this carrier pays (D-FP5).
+    const priceStr = s.netPrice == null
+      ? "price unknown"
+      : s.postedPrice != null && s.discountPerGal != null
+        ? `pump ${money(s.postedPrice)} → your price ${money(s.netPrice)}/gal (${s.discountPerGal >= 0 ? "−" : "+"}${money(Math.abs(s.discountPerGal))})`
+        : `@ ${money(s.netPrice)}/gal, net only`;
     out.push({
       key: `stop${i}`, icon: BoltIcon, tone: s.isEmergency ? "warning" : "brand",
       title: `Fuel — ${s.stationName ?? s.brand ?? "Station"}`, sub: s.state ?? undefined, mile: s.milesAhead,
