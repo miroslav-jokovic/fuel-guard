@@ -422,7 +422,7 @@ neither list is not a gate.
 money/metre units in a comment citing the spec, and `lint:fleetpal-contract` fails when a field is
 deleted from a schema (proved by deleting one).
 
-### F2 — Schema: credentials, units, and the sync state — *next-numbered migration*
+### F2 — Schema and store: credentials, units, and the sync state — **DONE 2026-09-10 (migration 0334)** — *next-numbered migration; the store arrived with it, see §8*
 
 The smallest schema that lets F3's client be exercised end to end.
 
@@ -777,3 +777,94 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next: F2** — the schema (credentials, sync state, `fleetpal_units`, webhook deliveries). Still
   no credential needed.
+
+- **2026-09-10 · F2 DONE (migration 0334) — the collector's ground, and a cascade defect the matrix
+  caught before it shipped.** Four tables: `fleetpal_credentials` (the key **sealed** with
+  `secretBox`, org+purpose AAD — a step up from `efs_soap_credentials.soap_password` and
+  `integration_credentials.samsara_api_token`, both plaintext behind "service role only", and cheap
+  here because nothing legacy has to be migrated), `fleetpal_sync_state`, `fleetpal_units` and
+  `fleetpal_webhook_deliveries`. All four RLS-on with no client policy. `supabase/tests/
+  fleetpal-collector.test.mjs` — **66 assertions, 0 failed**.
+
+  **⚠ THE DEFECT THIS STEP'S MATRIX EXISTS FOR, found in the first draft.** `vehicle_id uuid
+  references vehicles(id) **on delete set null**` is the obvious action and it is wrong in the
+  direction that matters. `set null` performs an UPDATE as its FK action; that update is evaluated
+  against `fleetpal_units_match_agrees`; and `match_method='vin'` with no match attached violates
+  it — so the DELETE is refused with 23514 and **a vehicle becomes undeletable the moment a FleetPal
+  unit resolves to it**. A collector reaching back to constrain a core module is the exact inversion
+  D-FP2 exists to prevent, and **no gate sees it**: the migration is valid, the constraint is
+  correct, and the interaction only appears when something tries to delete a truck. It is the
+  `merge_driver` cascade trap arriving through a check constraint instead of a missing branch.
+
+  `on delete cascade` ships, and it is right on its own terms rather than merely working: a vehicle
+  with any history cannot be deleted at all (`fuel_transactions` and `financial_entries` are ON
+  DELETE RESTRICT), so a deletable one is a row created in error — and the vendor's unit still
+  exists, so the next sweep re-stages it as `unmatched` and it reappears in F5's worklist.
+  Self-healing, and it loses nothing that was true. The assertion pins the **property** (deleting a
+  truck must succeed, and leave nothing claiming to be matched to it) rather than the mechanism.
+
+  **IV012 arrives for the fourth time, and is CALLED rather than copied.** Neither `vehicles` nor
+  `trailers` carries an `(id, org_id)` unique constraint, so `references vehicles(id)` is satisfied
+  by another carrier's truck — here that would attribute one carrier's repair cost to another's
+  equipment. 0333's `inventory_holder_is_ours` already asks exactly this question, so
+  `guard_fleetpal_unit_match` calls it with `p_location => null` and `p_active => false`. The active
+  flag is off deliberately: **a repair from March belongs to the truck that was running in March**,
+  whatever its status today.
+
+  **A row may not say one thing and mean another.** `fleetpal_units_match_agrees` refuses
+  `unmatched` with a truck attached and refuses a named method with nothing attached — both parse,
+  both store, and both would make the unmatched count either under- or over-report. That count is
+  the one number whose job is to say how much of the fleet the report is missing (D-FP14).
+
+  **Four gates refused the first commit, each correctly.** `lint:rls` wanted `fleetpal` in
+  `MODULE_SECTIONS` (added as `null` — a collector with no client-facing section, so a role-named
+  policy here would need a waiver by construction); `lint:table-access` wanted a
+  `-- raw-access-waiver` because a `.sql` file has no module directory and the gate cannot tell that
+  the migration owns the table it references; `lint:matrix-exit` wanted `await db.close()` before
+  the RESULT line; and `lint:table-writers` wanted the regenerated `schema.generated.sql` committed
+  in the same PR. **154 tables, 167 functions, 6,379 lines** after this migration.
+
+  **Mutation proofs, three, each restored:** dropping the IV012 trigger failed all three cross-org
+  assertions; reverting to `on delete set null` failed all three delete assertions; neutering
+  `match_agrees` failed all three row-consistency assertions.
+  **Verified by:** `pnpm test` ("All suites passed"; `Matrix fleetpal-collector 66 passed, 0 failed`),
+  `pnpm typecheck`, `pnpm lint`, and `lint:migrations`, `lint:migration-ordering`, `lint:rls`,
+  `lint:table-writers`, `lint:table-modules`, `lint:table-access`, `lint:boundaries`, `lint:upserts`,
+  `lint:matrix-exit`, `lint:comment-claims`, `lint:fleetpal-contract`, `lint:secrets`.
+
+  **⚠ DEVIATION, AND IT MADE THE STEP BIGGER: F2 SHIPS THE STORE AS WELL AS THE SCHEMA.** The step
+  as written was schema only, and CI refused it — `lint:table-producers`: *"4 table(s) have no
+  producer anywhere"*. Its waiver list is **empty**; the ratchet has been fully paid off, so adding
+  four entries would have been its first regression, and the gate is right that schema nothing
+  writes "is not infrastructure, it is a promise nobody is keeping". So `modules/fleetpal/` arrives
+  here — `credentials.ts`, `syncState.ts`, `units.ts`, `deliveries.ts`, an `index.ts` stating
+  D-FP2/D-FP3 in the module header, and 21 assertions. **F3's step text is unchanged**; it gains the
+  HTTP client on top of a store that already exists.
+
+  **Three assertions in that store, each guarding a write that would look completely successful:**
+  (a) **`stageUnit` never touches the resolution.** If the nightly sweep wrote `match_method` along
+  with the vendor's fields, every unit a person had linked by hand would revert to `unmatched` once
+  a night, invisibly, and the only symptom would be a per-unit cost report that got emptier.
+  (b) **A failed sweep does not advance the watermark** — advancing past a window we never processed
+  loses whatever changed in it and looks perfectly healthy doing so. (c) **A window position is not
+  written as a watermark**: `defects` and `expirations` have no `updated` field at all, so their
+  `detected_after` position is about when a thing was CREATED, and read back as a watermark it would
+  skip every defect that resolved after the last sweep.
+
+  ⚠ **Three more gates and one repo-wide test refused the work before it was right, and I had run
+  only thirteen of the thirty-eight.** `lint:table-producers` (above), `lint:table-writers` (the
+  four writer pairs go in `scripts/table-writers.json` in the same PR), and `envCasts.test.ts`,
+  which forbids `{ … } as unknown as Env` in a test — the cast type-checks and then hands the code
+  an object missing every key it did not mention, which `loadEnv` can never return. `testEnv()` is
+  the sanctioned builder. **Run all 38 by name from `package.json`, not a chosen subset** — and note
+  `for g in $ALL` does not word-split in zsh, so a loop over an unquoted variable runs one gate
+  called "everything" and reports it as a single FAIL.
+
+  **Mutation proofs, six in total.** Three against the migration (above) and three against the
+  store, each restored: `stageUnit` writing `match_method` failed *"never touches the resolution, so
+  a nightly sweep cannot unmatch what a person linked"*; `recordFailure` also setting a watermark
+  failed *"leaves the position untouched when a sweep fails"*; `advance` writing a window position
+  into `watermark` failed *"writes a watermark and a window position to DIFFERENT columns"*.
+
+  **Next: F3** — the client (pagination, backoff, the vendor error vocabulary). Still no credential
+  needed; it is tested against fixtures until F4 replaces them with recorded ones.
