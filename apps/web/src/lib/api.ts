@@ -32,12 +32,28 @@ export interface ApiResult<T> {
  * rendered on demand and deliberately never stored, like the inspection DRAFT preview.
  *
  * The caller owns the returned URL and must `URL.revokeObjectURL` it when done.
+ *
+ * ── IT TAKES A BODY, BECAUSE ONE DOCUMENT IS NOT ADDRESSABLE BY URL ───────────────────────────
+ * Every caller until I10 asked for a document a path identifies — one inspection's report. A label
+ * sheet is not that: it is up to 240 chosen things plus a stock, a start position and a nudge, which
+ * is a request body and would be an unusable query string. So `init` widens this to any method, and
+ * `body` is serialised HERE for the same reason `apiFetch` serialises its own — a caller that passed
+ * an already-stringified body would send a double-encoded one, which express rejects as a generic
+ * 500 with the request never reaching its handler. That has shipped twice in this repo.
  */
-export async function fetchObjectUrl(path: string): Promise<string> {
+export async function fetchObjectUrl(
+  path: string,
+  init: { method?: string; body?: object } = {},
+): Promise<string> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const res = await fetch(`${API_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    method: init.method ?? "GET",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
   });
   if (!res.ok) {
     // The body is JSON on failure and a PDF on success, so the message only exists on this branch.

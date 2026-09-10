@@ -114,6 +114,17 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/ScanPage.vue"),
     meta: { requiresAuth: true, title: "Scan", parent: "/shop", layout: "shop" },
   },
+  /**
+   * The label screen (I10). A DESK screen and not `layout: "shop"` — the scan and the count are a
+   * phone held standing up in a bay; this is somebody at a computer next to a printer with a sheet
+   * of blank stock in their hand.
+   */
+  {
+    path: "/shop/labels",
+    name: "labels",
+    component: () => import("@/pages/LabelsPage.vue"),
+    meta: { requiresAuth: true, title: "Labels", parent: "/shop" },
+  },
   {
     path: "/shop/inspections",
     name: "annual-inspections",

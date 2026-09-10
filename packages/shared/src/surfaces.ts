@@ -302,6 +302,14 @@ export const SURFACES: readonly Surface[] = [
    */
   { key: "maintenance.scan", label: "Scan", path: "/shop/scan", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
   /**
+   * The label screen (I10). Non-nav, and it parents to the shop home for the SAME argument the scan
+   * above makes: one sheet can carry shelf labels and asset labels together, so parenting it to
+   * either half would deny it for the wrong reason — a role allowed Assets but not Parts would lose
+   * the ability to print an asset's tag. The maintenance group is fixed at six rows by I4's ruling
+   * and this is not one of them; it is reached from Parts and from Assets.
+   */
+  { key: "maintenance.labels", label: "Labels", path: "/shop/labels", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
+  /**
    * The repair-spend ledger, which used to BE `/shop` (I4).
    *
    * It is a child rather than a nav entry of its own for two reasons that point the same way. The

@@ -77,6 +77,8 @@ const PROBES = [
   // swapped by accident is a sidebar appearing on a phone held in a bay.
   "/shop/count/cs_1",
   "/shop/scan",
+  // I10's label screen — a desk screen, unlike the two above it.
+  "/shop/labels",
   "/fuel-reconciliation", "/fuel-exceptions", "/import",
   "/transactions", "/rejections",
   "/fuel-cards", "/fuel-cards/fc_1",

@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
-import { Cog6ToothIcon, PlusIcon } from "@silvicom/ui/icons";
+import { Cog6ToothIcon, PlusIcon, ScanIcon } from "@silvicom/ui/icons";
 import { ASSET_STATUSES, ASSET_STATUS_LABELS, type AssetDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
@@ -100,6 +100,9 @@ watch(creating, (open) => {
              `LocationsDrawer.vue` closed for stock locations at I4. -->
         <BaseButton v-if="session.can('maintenance')" aria-label="Kinds of thing" @click="typesOpen = true">
           <AppIcon :icon="Cog6ToothIcon" class="size-5" aria-hidden="true" />
+        </BaseButton>
+        <BaseButton v-if="session.can('maintenance')" to="/shop/labels">
+          <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
         </BaseButton>
         <BaseButton v-if="session.can('maintenance')" variant="primary" @click="creating = true">
           <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New asset

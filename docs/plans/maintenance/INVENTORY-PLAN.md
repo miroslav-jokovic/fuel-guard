@@ -2085,3 +2085,83 @@ signed here by the person who did it. I6's spike results go here before its seco
   **Verification:** all 37 `lint:*` scripts, `eslint .`, `pnpm typecheck` across ten workspaces,
   `pnpm test` green across every unit suite and all 42 matrices. 21 new assertions across three
   files.
+
+- **I10 PR 2 — the label screen — DONE 2026-09-10 (no migration). I10 IS BUILT; it does not CLOSE.**
+  `/shop/labels`: tick what needs a label, choose the stock, watch the sheet assemble, print it.
+  Reached from Parts and from Assets; `@silvicom/qr` now has three consumers.
+
+  **The screen picks its own things, and that was a decision with a measurement behind it.** The
+  obvious flow is to tick rows on Parts or Assets and carry the selection across. A run may be 240
+  targets, each a uuid — roughly **9 KB of query string**, past what browsers and proxies carry — and
+  the alternatives were a Pinia store holding a selection across a navigation, or a route that only
+  works when you arrived from one screen. Both are a second place the selection lives. So the picker
+  is on the label screen, a segmented control swaps Shelves↔Assets, and the two list pages link
+  across carrying nothing. **One id IS carried**, in the query, because a detail page's "print this
+  one" is a real want and a single id in a URL is not a workaround.
+
+  **It is a DESK screen and not `layout: "shop"`.** The scan and count screens are a phone held
+  standing up in a bay; this is somebody at a computer beside a printer with blank stock in their
+  hand, which is the app shell's posture exactly. Its surface parents to the shop home for the same
+  argument the scan surface makes: one sheet carries shelf labels and asset labels together, so
+  parenting to either half would deny it for the wrong reason.
+
+  **⚠ THE PAGE TEST FOUND A REAL DEFECT AND IT IS THE KIND THAT GETS WORKED AROUND RATHER THAN
+  REPORTED.** The query watcher runs during setup and can arrive with a row already ticked; the
+  watcher that fetches the faces was declared after it without `immediate`, so it saw no CHANGE and
+  never fired. A page reached from a detail screen's "print this label" showed the row selected, an
+  **empty preview** beside it, and a Print button that worked — because printing reads `targets`
+  directly. Nothing else in the repo could have caught it: every layer is correct on its own.
+
+  **The preview and the PDF now share THREE functions, not two.** `labelSheet()` for placement,
+  `encode()` for the matrix, and — since a lint warning sent it this way — `toSvgPath()` for the
+  geometry. The first draft injected `toSvg()`'s whole document with `v-html`, which `vue/no-v-html`
+  warns about; taking the PATH instead removed the warning, injects no markup at all, and is what
+  `labelPdf.ts` was already doing. `shape-rendering="crispEdges"` is carried by hand and is
+  load-bearing (research §4.6): without it the browser antialiases the module edges and a scanner
+  reading the screen sees grey where it needs a hard transition.
+
+  ⚠ **The preview's two type sizes are POINTS and live in a scoped `<style>`.** They are
+  `labelPdf.ts`'s `CODE_SIZE` and `LINE_SIZE`, not the app's type scale — rounding them to
+  `text-2xs` would make the preview a picture of a different label than the one that prints, which is
+  the single thing the component exists not to do. `ShopLayout.vue` takes the same escape from
+  `lint:tokens` for `100dvh`, for the same reason.
+
+  **`QuantityStepper` was the obvious reuse and is the wrong control.** It is the shelf-walk stepper:
+  56 dp targets, a "None left" chip, and an input handler that strips every non-digit — which
+  silently eats the minus sign a nudge of −6 needs. Right for a gloved thumb in a bay, wrong at a
+  desk. The nudge and start position use the ordinary text input the other inventory forms use, and
+  clamp to the contract's own bounds so a 422 cannot arrive at the end of a flow.
+
+  ⚠ **`count-label="selected"` failed `plural.test.ts` and the gate was right about something real.**
+  "Selected" is an adjective with no singular a person would say. The count that matters is what the
+  RUN will produce, so the label is `labels` and the number is the target count — which is also the
+  more useful figure, because it is what comes out of the printer.
+
+  **`fetchObjectUrl` gained a body.** Every caller until now asked for a document a path identifies —
+  one inspection's report. A sheet is 240 chosen things plus a stock, a start position and a nudge,
+  which is a request body. The helper serialises it, for the same reason `apiFetch` serialises its
+  own: a double-encoded body is not a type error, it is a generic 500 with the request never reaching
+  its handler, and that has shipped twice in this repo.
+
+  **Mutation proof, one, restored.** Shortening a stock line's row key to drop the location failed
+  exactly two assertions — the round trip and the print payload — which is the pair that matters,
+  because a shelf has no id of its own and a separator mistake would print labels for the wrong bin
+  with every layer below perfectly happy.
+
+  **⚠ ONE UNRELATED FLAKE, NOT CAUSED HERE AND NOT FIXED HERE.** A full `pnpm test` failed
+  `routes/inventory.test.ts` → "looks a barcode up as a upc, never as a part id"; it passes in
+  isolation on two consecutive runs. That is the API suite flake recorded on 2026-09-08 (6 of 23
+  runs, port reuse and keep-alive both ruled out, root cause still open) and it is noted rather than
+  chased.
+
+  **WHAT I10 STILL OWES, AND IT IS A PERSON.** The done-when's first clause — *a printed 22805 sheet
+  scans back through I6 on both phones* — is physical. It needs **A5 answered** (the printer and
+  stock the shop owns) and it is the same twenty minutes as the runbook's §1: print the sheet from
+  `/shop/labels`, scan it with the handheld, and try the 0.75-inch case. **I10 closes on that
+  sentence and not before.** The pixel comparison the step also asks for is now buildable — both
+  renderers call the same three functions with the same numbers — and is the honest next assertion
+  for whoever has a printed sheet in front of them.
+
+  **Verification:** all 37 `lint:*` scripts, `eslint .` with zero warnings, `apps/web`'s
+  `lint:tokens`, `pnpm typecheck` across ten workspaces, `pnpm test` green across every unit suite
+  and all 42 matrices.
