@@ -1,14 +1,18 @@
 # FleetPal — the maintenance collector, and the first per-unit repair cost the stack has ever held · 2026-09-10
 
-**Status:** ACTIVE, nothing built. **Owner:** Miki. **Section:** `maintenance`.
-**Module:** `apps/api/src/modules/fleetpal/` — a collector under D-ARC1/D-ARC3, arriving through the
-D-SEP8 gate.
+**Status:** ACTIVE. **F0–F3 shipped 2026-09-10; resume at F4.** **Owner:** Miki.
+**Section:** `maintenance`. **Module:** `apps/api/src/modules/fleetpal/` — a collector under
+D-ARC1/D-ARC3, arriving through the D-SEP8 gate.
+
+**Session handoff:** [HANDOFF-2026-09-10-FLEETPAL](./HANDOFF-2026-09-10-FLEETPAL.md) — where the
+build stopped, what is proven against fixtures versus what has never spoken to the vendor, F4 in the
+order to do it, and the eight traps that already cost time. **Read it first.**
 
 **Supersedes** `INVENTORY-PLAN.md` §I14 as the queue for FleetPal work. I14 stays in the tree as the
 record of the 2026-09-09 readiness audit that found nothing in I0–I3 blocking this, and its Q9
 ruling is carried forward verbatim as **D-FP12** below.
 
-**Read first:** `INVENTORY-PLAN.md` §2.7 and §8 (the 2026-09-09 FleetPal audit),
+**Then:** `INVENTORY-PLAN.md` §2.7 and §8 (the 2026-09-09 FleetPal audit),
 `FINANCE-FLEET-REPORT-PLAN.md` §0 (the rulings that took FleetPal out of Finance),
 `docs/ARCHITECTURE.md` §2 (the `fleetpal` row) and `docs/MIGRATION-DISCIPLINE.md`.
 
