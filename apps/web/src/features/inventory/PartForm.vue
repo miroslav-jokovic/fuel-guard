@@ -35,7 +35,24 @@ import {
  * from a VMRS id into this column; it should find null or a name, never "".
  */
 
-const props = defineProps<{ part?: PartDto | null; submitting?: boolean }>();
+const props = defineProps<{
+  part?: PartDto | null;
+  submitting?: boolean;
+  /**
+   * A barcode to start a NEW part from — the scan page's "attach or create" path (I6).
+   *
+   * A technician at the receiving desk scans a carton from a supplier the shop has never bought
+   * from, the resolve endpoint answers `malformed`, and the honest next action is to create the part
+   * carrying that barcode (research §2.5: never a shrug). The code has to travel into the form,
+   * because the alternative is reading twelve digits off one part of the screen and typing them into
+   * another with the carton still in the other hand — which is the transcription error the barcode
+   * existed to prevent.
+   *
+   * Ignored when `part` is set: an existing part's own UPC is the truth about it, and a scan is not
+   * a reason to overwrite it silently.
+   */
+  initialUpc?: string;
+}>();
 const emit = defineEmits<{ submit: [input: PartInput]; cancel: [] }>();
 
 const form = reactive({
@@ -44,7 +61,7 @@ const form = reactive({
   manufacturer: props.part?.manufacturer ?? "",
   category: props.part?.category ?? "",
   unitOfMeasure: props.part?.unitOfMeasure ?? "each",
-  upc: props.part?.upc ?? "",
+  upc: props.part?.upc ?? props.initialUpc ?? "",
   notes: props.part?.notes ?? "",
   active: props.part?.active ?? true,
 });

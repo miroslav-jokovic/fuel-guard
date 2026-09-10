@@ -99,6 +99,21 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/CountSessionPage.vue"),
     meta: { requiresAuth: true, title: "Count", parent: "/shop", layout: "shop" },
   },
+  /**
+   * The scan surface (I6). `layout: "shop"` for the same reason the count screen has it — a phone
+   * held standing up, next to a shelf, with a scanner in the other hand.
+   *
+   * ⚠ Like the count, the route does NOT change while the technician is scanning (D-INV17). Every
+   * verb opens as an overlay on this page rather than navigating, so a rhythm of scan → issue →
+   * scan is not four page loads. The rule was written for the camera, whose permission an installed
+   * web app is documented to re-ask for on navigation, and it survives its original reason.
+   */
+  {
+    path: "/shop/scan",
+    name: "scan",
+    component: () => import("@/pages/ScanPage.vue"),
+    meta: { requiresAuth: true, title: "Scan", parent: "/shop", layout: "shop" },
+  },
   {
     path: "/shop/inspections",
     name: "annual-inspections",

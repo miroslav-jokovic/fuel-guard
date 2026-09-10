@@ -131,6 +131,11 @@ export {
   // items wearing the same icon, both visible at once in an expanded sidebar. `CheckListIcon` is
   // literally a checklist, which is what 56 components on a form is.
   CheckListIcon               as ChecklistIcon,
+  // The shop's scan surface (INVENTORY-PLAN.md I6). A barcode being read, rather than `QrCodeIcon`'s
+  // static symbol: what the button starts is the act of scanning, and on the path that ships first
+  // the thing in the technician's hand is a 1D-and-2D imager pointed at a supplier's carton as often
+  // as at one of our QR labels. A glyph showing only a QR would name the narrower half.
+  BarcodeScanIcon             as ScanIcon,
   // The inspector register (B3). Distinct from `UserListIcon`, which the Applicants nav item wears —
   // the note above records what happened the last time two live nav items shared a glyph. A
   // qualification is what this list holds, so a certificate is what it looks like.
