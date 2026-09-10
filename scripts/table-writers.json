@@ -137,6 +137,18 @@
   "financial_entries": [
     "apps/api/src/modules/financial/projection.ts"
   ],
+  "fleetpal_credentials": [
+    "apps/api/src/modules/fleetpal/credentials.ts"
+  ],
+  "fleetpal_sync_state": [
+    "apps/api/src/modules/fleetpal/syncState.ts"
+  ],
+  "fleetpal_units": [
+    "apps/api/src/modules/fleetpal/units.ts"
+  ],
+  "fleetpal_webhook_deliveries": [
+    "apps/api/src/modules/fleetpal/deliveries.ts"
+  ],
   "fuel_cards": [
     "apps/api/src/modules/fuel/cardAssignments.ts"
   ],

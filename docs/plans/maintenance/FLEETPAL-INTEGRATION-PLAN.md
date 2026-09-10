@@ -422,7 +422,7 @@ neither list is not a gate.
 money/metre units in a comment citing the spec, and `lint:fleetpal-contract` fails when a field is
 deleted from a schema (proved by deleting one).
 
-### F2 — Schema: credentials, units, and the sync state — **DONE 2026-09-10 (migration 0334)** — *next-numbered migration*
+### F2 — Schema and store: credentials, units, and the sync state — **DONE 2026-09-10 (migration 0334)** — *next-numbered migration; the store arrived with it, see §8*
 
 The smallest schema that lets F3's client be exercised end to end.
 
@@ -831,6 +831,40 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   `pnpm typecheck`, `pnpm lint`, and `lint:migrations`, `lint:migration-ordering`, `lint:rls`,
   `lint:table-writers`, `lint:table-modules`, `lint:table-access`, `lint:boundaries`, `lint:upserts`,
   `lint:matrix-exit`, `lint:comment-claims`, `lint:fleetpal-contract`, `lint:secrets`.
+
+  **⚠ DEVIATION, AND IT MADE THE STEP BIGGER: F2 SHIPS THE STORE AS WELL AS THE SCHEMA.** The step
+  as written was schema only, and CI refused it — `lint:table-producers`: *"4 table(s) have no
+  producer anywhere"*. Its waiver list is **empty**; the ratchet has been fully paid off, so adding
+  four entries would have been its first regression, and the gate is right that schema nothing
+  writes "is not infrastructure, it is a promise nobody is keeping". So `modules/fleetpal/` arrives
+  here — `credentials.ts`, `syncState.ts`, `units.ts`, `deliveries.ts`, an `index.ts` stating
+  D-FP2/D-FP3 in the module header, and 21 assertions. **F3's step text is unchanged**; it gains the
+  HTTP client on top of a store that already exists.
+
+  **Three assertions in that store, each guarding a write that would look completely successful:**
+  (a) **`stageUnit` never touches the resolution.** If the nightly sweep wrote `match_method` along
+  with the vendor's fields, every unit a person had linked by hand would revert to `unmatched` once
+  a night, invisibly, and the only symptom would be a per-unit cost report that got emptier.
+  (b) **A failed sweep does not advance the watermark** — advancing past a window we never processed
+  loses whatever changed in it and looks perfectly healthy doing so. (c) **A window position is not
+  written as a watermark**: `defects` and `expirations` have no `updated` field at all, so their
+  `detected_after` position is about when a thing was CREATED, and read back as a watermark it would
+  skip every defect that resolved after the last sweep.
+
+  ⚠ **Three more gates and one repo-wide test refused the work before it was right, and I had run
+  only thirteen of the thirty-eight.** `lint:table-producers` (above), `lint:table-writers` (the
+  four writer pairs go in `scripts/table-writers.json` in the same PR), and `envCasts.test.ts`,
+  which forbids `{ … } as unknown as Env` in a test — the cast type-checks and then hands the code
+  an object missing every key it did not mention, which `loadEnv` can never return. `testEnv()` is
+  the sanctioned builder. **Run all 38 by name from `package.json`, not a chosen subset** — and note
+  `for g in $ALL` does not word-split in zsh, so a loop over an unquoted variable runs one gate
+  called "everything" and reports it as a single FAIL.
+
+  **Mutation proofs, six in total.** Three against the migration (above) and three against the
+  store, each restored: `stageUnit` writing `match_method` failed *"never touches the resolution, so
+  a nightly sweep cannot unmatch what a person linked"*; `recordFailure` also setting a watermark
+  failed *"leaves the position untouched when a sweep fails"*; `advance` writing a window position
+  into `watermark` failed *"writes a watermark and a window position to DIFFERENT columns"*.
 
   **Next: F3** — the client (pagination, backoff, the vendor error vocabulary). Still no credential
   needed; it is tested against fixtures until F4 replaces them with recorded ones.
