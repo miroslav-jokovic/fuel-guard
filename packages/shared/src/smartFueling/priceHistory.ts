@@ -18,6 +18,9 @@ export type PriceBasis = "fresh" | "posted_discount" | "station_history" | "bran
 
 export interface PriceSample {
   net: number | null;
+  /** The pump (posted) price the net was quoted against, when the feed carries one — the Pilot daily report
+   *  carries both on every row. Null when the source is net-only. */
+  posted?: number | null;
   observedAtMs: number;
 }
 
@@ -28,6 +31,9 @@ export interface PriceEstimate {
   estimated: boolean;
   confidence: PriceConfidence;
   basis: PriceBasis;
+  /** The pump price behind `net`, so a stop can show the price with and without the discount (D-FP5). Null
+   *  when the net is a history or brand median (there is no single pump price behind a median) or unknown. */
+  posted: number | null;
 }
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
@@ -53,24 +59,25 @@ export function estimateStationPrice(
   opts: { ttlHours: number; lookbackHours?: number; brandMedian?: number | null },
 ): PriceEstimate {
   const lookbackHours = opts.lookbackHours ?? DEFAULT_PRICE_LOOKBACK_HOURS;
-  const valid = samples.filter((s): s is { net: number; observedAtMs: number } => s.net != null && Number.isFinite(s.net));
+  const valid = samples.filter((s): s is PriceSample & { net: number } => s.net != null && Number.isFinite(s.net));
 
-  let freshest: { net: number; observedAtMs: number } | null = null;
+  let freshest: (PriceSample & { net: number }) | null = null;
   for (const s of valid) if (!freshest || s.observedAtMs > freshest.observedAtMs) freshest = s;
 
   if (freshest && nowMs - freshest.observedAtMs <= opts.ttlHours * HOUR + 1) {
-    return { net: round3(freshest.net), estimated: false, confidence: "high", basis: "fresh" };
+    const posted = freshest.posted != null && Number.isFinite(freshest.posted) ? round3(freshest.posted) : null;
+    return { net: round3(freshest.net), estimated: false, confidence: "high", basis: "fresh", posted };
   }
 
   const recent = valid.filter((s) => nowMs - s.observedAtMs <= lookbackHours * HOUR);
   if (recent.length > 0) {
     const net = median(recent.map((s) => s.net))!;
-    return { net: round3(net), estimated: true, confidence: recent.length >= 3 ? "medium" : "low", basis: "station_history" };
+    return { net: round3(net), estimated: true, confidence: recent.length >= 3 ? "medium" : "low", basis: "station_history", posted: null };
   }
 
   if (opts.brandMedian != null && Number.isFinite(opts.brandMedian)) {
-    return { net: round3(opts.brandMedian), estimated: true, confidence: "low", basis: "brand" };
+    return { net: round3(opts.brandMedian), estimated: true, confidence: "low", basis: "brand", posted: null };
   }
 
-  return { net: null, estimated: false, confidence: "low", basis: "none" };
+  return { net: null, estimated: false, confidence: "low", basis: "none", posted: null };
 }
