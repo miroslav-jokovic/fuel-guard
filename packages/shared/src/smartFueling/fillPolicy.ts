@@ -23,7 +23,8 @@ export interface FillContext {
   emergency: boolean;
   borderTopOff: boolean;
   cfg: RouteFuelSettings;
-  usable: number;
+  /** Gallons on board after a full fill — tank × fillTargetPct (D-FP3). */
+  fillTargetGal: number;
   reserve: number;
   weightCap: number;
   tankCap: number;
@@ -45,16 +46,16 @@ export interface FillDecision {
 }
 
 export function chooseFill(ctx: FillContext): FillDecision {
-  const { pick, arrivalGal, emergency, borderTopOff, cfg, usable, reserve, weightCap, dest, stations, galFor } = ctx;
+  const { pick, arrivalGal, emergency, borderTopOff, cfg, fillTargetGal, reserve, weightCap, dest, stations, galFor } = ctx;
   const inAvoided = pick.state != null && cfg.avoidStates.includes(pick.state);
   let fill: number;
   let isAvoidedState = false;
 
   if (borderTopOff) {
-    fill = Math.min(usable - arrivalGal, weightCap); // enter the avoided state full, whatever the price
+    fill = Math.min(fillTargetGal - arrivalGal, weightCap); // enter the avoided state full, whatever the price
   } else if (emergency && inAvoided) {
     isAvoidedState = true;
-    fill = Math.min(cfg.emergencyFillGallons, usable - arrivalGal, weightCap);
+    fill = Math.min(cfg.emergencyFillGallons, fillTargetGal - arrivalGal, weightCap);
   } else if (emergency) {
     // Low-fuel emergency (driver missed a planned fill, no Pilot reachable): a MINIMAL splash — just enough to
     // safely reach the next preferred station (or the destination), floored at the emergency splash size. Not a
@@ -62,9 +63,9 @@ export function chooseFill(ctx: FillContext): FillDecision {
     const nextPreferred = stations.find((x) => x.milesAhead > pick.milesAhead + EPS && isPreferred(x, cfg));
     const nextDist = (nextPreferred ? nextPreferred.milesAhead + nextPreferred.detourMiles : dest) - pick.milesAhead;
     const needed = galFor(Math.max(0, nextDist)) + reserve - arrivalGal;
-    fill = Math.min(Math.max(cfg.emergencyFillGallons, needed), usable - arrivalGal, weightCap);
+    fill = Math.min(Math.max(cfg.emergencyFillGallons, needed), fillTargetGal - arrivalGal, weightCap);
   } else {
-    fill = Math.min(usable - arrivalGal, weightCap); // full fill
+    fill = Math.min(fillTargetGal - arrivalGal, weightCap); // full fill
   }
 
   return { fillGal: Math.max(0, fill), isMinFill: false, isAvoidedState };

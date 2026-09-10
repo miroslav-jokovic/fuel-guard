@@ -19,9 +19,6 @@ import { loadSamsaraToken } from "../samsara/lib/samsaraToken.js";
 import { makeSamsaraFetcher, makeSamsaraHosFetcher } from "../samsara/lib/samsara.js";
 import { hereReverseGeocodeState } from "../../lib/hereGeocode.js";
 
-/** Fuel % at/above which entering an avoided state does NOT require a pre-border top-off (California rule). 80% per policy. */
-const BORDER_TOP_OFF_PCT = 80;
-
 export interface PlanPoint { lat?: number | null; lng?: number | null; text?: string | null }
 export interface PlanRequest {
   vehicleId: string;
@@ -325,8 +322,8 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { id: c.station.id, brand: s.brand, state: s.state, milesAhead: c.alongTrackMiles, detourMiles: c.detourMiles, netPrice: est.net, priceEstimated: est.estimated };
   });
 
-  // Border top-off: if this route enters a state we must fuel up before (California — pricey fuel; Massachusetts
-  // — one truck stop), top the tank off just before the line (unless it'd already cross above BORDER_TOP_OFF_PCT).
+  // Border top-off: entering a state we must fuel up before (California — pricey fuel; Massachusetts — one truck
+  // stop) tops the tank off before the line unless it'd cross above `border_top_off_pct` (0335; was a constant).
   const border = await findBorderTopOffMile(env, [...cfg.avoidStates, ...cfg.fuelBeforeStates], route.polyline, distanceMiles, origin, destination);
 
   const plan = planFuelStops({
@@ -336,7 +333,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     settings: cfg,
     avgSpeedMph,
     avoidedBorderMiles: border?.mile ?? undefined,
-    borderTopOffPct: BORDER_TOP_OFF_PCT,
+    borderTopOffPct: cfg.borderTopOffPct,
     hos: {
       driveRemainingMs: hos.driveRemainingMs,
       shiftRemainingMs: hos.shiftRemainingMs,
@@ -437,7 +434,7 @@ function composeTruckState(veh: VehState, fuelSamples: { time: string; value: nu
       fuelSamples, tankCapacityGal: Number(veh.tank_capacity_gal), observedMaxFillGal: veh.observed_max_fill_gal != null ? Number(veh.observed_max_fill_gal) : null,
       baselineMpg: veh.baseline_mpg != null ? Number(veh.baseline_mpg) : null, hos, isReefer, loadGrossLb, lastFillTimeMs: null, nowMs,
     },
-    { reservePct: cfg.reservePct, mpgSafetyFactor: cfg.mpgSafetyFactor },
+    { reservePct: cfg.reservePct, mpgSafetyFactor: cfg.mpgSafetyFactor, fillTargetPct: cfg.fillTargetPct },
   );
 }
 

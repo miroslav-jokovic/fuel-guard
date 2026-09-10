@@ -10,9 +10,9 @@ function mkTruck(over: Partial<TruckFuelState> = {}): TruckFuelState {
   return {
     gallonsOnHand: 100,
     effectiveTankCapacityGal: 200,
-    usableGal: 190,
+    fillTargetGal: 190,
     reserveGal: 38,
-    usableAboveReserveGal: 62,
+    aboveReserveGal: 62,
     belowReserve: false,
     weightLegalFillGal: 1000,
     burn: { effMpg: 6, idleGalPerHour: 0.8, reeferGalPerHour: 0 },
@@ -300,7 +300,7 @@ describe("planFuelStops — hours of service annotate, they never place (D-FP1)"
     const plan = planFuelStops(input({
       distanceToGoMiles: 2600,
       stations: [],
-      truck: mkTruck({ gallonsOnHand: 5000, effectiveTankCapacityGal: 6000, usableGal: 6000, reserveGal: 100, usableAboveReserveGal: 5900 }),
+      truck: mkTruck({ gallonsOnHand: 5000, effectiveTankCapacityGal: 6000, fillTargetGal: 6000, reserveGal: 100, aboveReserveGal: 5900 }),
       hos: hos(11, 8),
     }));
     expect(plan.reachesDestination).toBe(true);
@@ -315,7 +315,7 @@ describe("planFuelStops — unit 748, Mansfield MA → Windsor CO (production re
   // variant of the plan's §1.2 replay, which yielded FIVE "overnight" fills at 61–68% on the pre-D-FP1 solver.
   const mpg = 6.83 * 0.9;
   const truck748 = mkTruck({
-    gallonsOnHand: 198, effectiveTankCapacityGal: 200, usableGal: 190, reserveGal: 38, usableAboveReserveGal: 160,
+    gallonsOnHand: 198, effectiveTankCapacityGal: 200, fillTargetGal: 190, reserveGal: 38, aboveReserveGal: 160,
     burn: { effMpg: mpg, idleGalPerHour: 0.8, reeferGalPerHour: 0 }, fuelRangeMiles: 160 * mpg, reachableMiles: 330,
   });
   const corridor: SolverStation[] = [

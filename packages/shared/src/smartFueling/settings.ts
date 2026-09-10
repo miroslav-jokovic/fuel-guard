@@ -8,6 +8,8 @@ import type { RouteFuelSettings, TruckProfile, EquipmentType } from "./types.js"
 
 export interface RouteFuelSettingsRow {
   reserve_pct?: number | string | null;
+  fill_target_pct?: number | string | null;
+  border_top_off_pct?: number | string | null;
   corridor_miles?: number | string | null;
   min_purchase_gal?: number | string | null;
   mpg_safety_factor?: number | string | null;
@@ -41,8 +43,11 @@ const arr = (v: string[] | null | undefined, d: string[]): string[] => (Array.is
 
 export function resolveRouteFuelConfig(row: RouteFuelSettingsRow | null | undefined): RouteFuelSettings {
   const d = DEFAULT_ROUTE_FUEL_SETTINGS;
+  const reservePct = num(row?.reserve_pct, d.reservePct);
   return {
-    reservePct: num(row?.reserve_pct, d.reservePct),
+    reservePct,
+    fillTargetPct: num(row?.fill_target_pct, d.fillTargetPct),
+    borderTopOffPct: num(row?.border_top_off_pct, d.borderTopOffPct),
     corridorMiles: num(row?.corridor_miles, d.corridorMiles),
     minPurchaseGal: num(row?.min_purchase_gal, d.minPurchaseGal),
     mpgSafetyFactor: num(row?.mpg_safety_factor, d.mpgSafetyFactor),
@@ -53,7 +58,9 @@ export function resolveRouteFuelConfig(row: RouteFuelSettingsRow | null | undefi
     avoidStates: arr(row?.avoid_states, d.avoidStates),
     oppositeSideAccessMiles: num(row?.opposite_side_access_miles, d.oppositeSideAccessMiles),
     refuelBandMiles: num(row?.refuel_band_miles, d.refuelBandMiles),
-    criticalFuelPct: num(row?.critical_fuel_pct, d.criticalFuelPct),
+    // A critical threshold at or above the reserve would call every planned stop an emergency (the planner
+    // fuels AT the reserve by design), so it is clamped under it here as well as bounded in 0335.
+    criticalFuelPct: Math.min(num(row?.critical_fuel_pct, d.criticalFuelPct), reservePct),
     fuelBeforeStates: arr(row?.fuel_before_states, d.fuelBeforeStates),
     avoidBrands: arr(row?.avoid_brands, d.avoidBrands),
     preferredBrands: arr(row?.preferred_brands, d.preferredBrands),

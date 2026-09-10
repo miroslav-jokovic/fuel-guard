@@ -64,7 +64,15 @@ export const EQUIPMENT_TYPES: { value: EquipmentType; label: string }[] = [
 
 /** Per-org planning policy + safety parameters. Every fleet-specific value is configuration, not code. */
 export interface RouteFuelSettings {
+  /** Safety floor the planner never crosses, as a % of the TANK — the number on the gauge (D-FP3, 0335).
+   *  Until FP4 it was a % of a hidden 95% "usable" fraction, one point lower on the gauge. */
   reservePct: number;
+  /** Every planned fill tops the tank up to this % of capacity. 100 = to the top (owner ruling 2026-09-10).
+   *  Replaced the `usableFraction = 0.95` constant that put "fill to ~95%" on every stop. */
+  fillTargetPct: number;
+  /** Top off before an avoided / fuel-before state unless the truck would cross at or above this %. Was a
+   *  constant of 80 in the API whose own solver comment said 85 (0335). */
+  borderTopOffPct: number;
   corridorMiles: number;
   minPurchaseGal: number;
   mpgSafetyFactor: number;
@@ -100,6 +108,8 @@ export interface RouteFuelSettings {
 
 export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   reservePct: 20,
+  fillTargetPct: 100,
+  borderTopOffPct: 80,
   corridorMiles: 2.5,
   minPurchaseGal: 50,
   mpgSafetyFactor: 0.9,
