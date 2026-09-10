@@ -4,6 +4,10 @@
 collector) and `D-DW*` (the dashboard widget catalogue). Cite them the way `D-SAM2` and `D-SURF3`
 are cited.
 
+**Companion plan.** `docs/plans/mcleod/MCLEOD-COLLECTOR-PLAN.md` owns *how McLeod is read* — change
+detection, cadence, isolation, and the live/sandbox split (`D-MCC*`). This plan owns *what the map
+is*. Where they overlap — LM0's grant and LM1's change detection — this document defers.
+
 **There are no open questions in this document.** Every question the research raised was closed
 against a measurement, and §3 records the measurement beside the ruling. Where a fact could change
 (a vendor grant, a carrier's configuration), §4's resume ritual says how to re-measure it and §5's
@@ -60,8 +64,12 @@ thought. All four are recorded here rather than discovered again later.
    now.** `HAS_DBACCESS('lme')` returned **0 on 2026-08-26** and returns **1 on 2026-09-10**;
    `lme.dbo.movement` has 298,238 rows and the last mobile-comm position was written in the same
    minute as the query. The memory note `mcleod-sandbox-access` ("cannot read `lme`") is superseded.
-   `lme_analytics` still exists and still lags — 71 stop arrivals recorded today against `lme`'s 116
-   at the same instant — so a live feature reads `lme` and nothing else.
+
+   `lme_analytics` is **not a replica** — it is a full backup of `lme` restored on demand, and
+   `msdb.dbo.restorehistory` records exactly two restores ever (2026-08-21 and **2026-09-10 11:36**,
+   three hours before this measurement, which is the only reason it looked near-live). Between
+   restores it is frozen. A live feature reads `lme` and nothing else; the sandbox is where the work
+   is rehearsed. `MCLEOD-COLLECTOR-PLAN.md` D-MCC2 carries the full ruling.
 
 **And one thing nobody had noticed we already own:** the Samsara vehicle-stats feed we poll every
 20 minutes has requested `types=gps,...` since the tier was built. Every GPS sample — latitude,
@@ -77,7 +85,7 @@ for this feature is, in the literal sense, already running.
   COLLECTORS                     CORE STORE                    HARNESS
   ──────────                     ──────────                    ───────
   samsara  ──── positions ────▶  vehicle_positions  ─┐
-           (stats/feed, 2 min)   (1 row per vehicle) │
+          (stats/feed, 30 s)     (1 row per vehicle) │
                                                       ├──▶  livemap  ──▶  web: features/livemap
   mcleod   ──── loads ────────▶  loads / load_stops  │      (API module)      · LiveMapPanel
            (on-prem agent push)  + dispatcher_ext_id  │                       · /live-map page
@@ -304,7 +312,8 @@ Re-measure with the probes in §4.2 before trusting any of these in a later sess
 |---|---|---|
 | `lme` (production) readable | **yes** — `HAS_DBACCESS('lme') = 1` | was `0` on 2026-08-26; supersedes `mcleod-sandbox-access` |
 | `lme` size | `movement` 298,238 rows | direct count |
-| `lme_analytics` lag | behind — 71 vs `lme`'s 116 stop arrivals for today, same instant | same query both DBs |
+| `lme_analytics` | **a full restore of `lme`, frozen at the restore instant** — restored twice ever (2026-08-21, **2026-09-10 11:36**). Not a replica, not a refreshing feed | `msdb.dbo.restorehistory`; see MCLEOD-COLLECTOR-PLAN D-MCC2 |
+| Change Tracking on `lme` | **enabled**, 91 tables, 10-day retention; `VIEW CHANGE TRACKING` **denied** to our login | MCLEOD-COLLECTOR-PLAN §3.1 |
 | Server timezone | `(UTC-06:00) Central Time (US & Canada)`, currently `-05:00` | `CURRENT_TIMEZONE()`, `SYSDATETIMEOFFSET()` |
 | Network | `10.0.1.171:1433`, reachable from the carrier LAN; **not** from Railway | `nc -z` |
 
@@ -491,13 +500,21 @@ and is **not** the shape of a grant that should back a production feature. Separ
 `lme` appeared between 2026-08-26 and 2026-09-10 with no recorded change.
 
 **Ask IT for.** A login `silvicom_dispatch_ro` on the `APPNEW` instance with `SELECT` on exactly:
-`lme.dbo.movement`, `lme.dbo.continuity`, `lme.dbo.stop`, `lme.dbo.orders`, `lme.dbo.tractor`,
-`lme.dbo.trailer`, `lme.dbo.users`, `lme.dbo.company`, and a **column-scoped** grant on
-`lme.dbo.driver` covering `id, company_id, first_name, name, fleet_manager, tractor_id, status`
-only. No `mc_position` (D-LM2 does not read it). No write anywhere.
+`lme.dbo.movement`, `lme.dbo.movement_order`, `lme.dbo.continuity`, `lme.dbo.stop`,
+`lme.dbo.orders`, `lme.dbo.tractor`, `lme.dbo.trailer`, `lme.dbo.users`, `lme.dbo.company`, and a
+**column-scoped** grant on `lme.dbo.driver` covering
+`id, company_id, first_name, name, fleet_manager, tractor_id, status` only. No `mc_position`
+(D-LM2 does not read it). No write anywhere.
 
-**Done when.** The §4.2 P1–P3 probes and the LM1 board query all return under the new login, and
-`SELECT social_security_no FROM lme.dbo.driver` is refused.
+**Plus `VIEW CHANGE TRACKING`** on the tracked tables in that list — see
+`docs/plans/mcleod/MCLEOD-COLLECTOR-PLAN.md` MC0 for the exact grants and why. Change Tracking is
+**already enabled** on `lme` (91 tables, 10-day retention); the permission is the only missing
+piece, and without it the collector falls back to a trailing-window re-read that works but costs
+more.
+
+**Done when.** The §4.2 P1–P3 probes and the LM1 board query all return under the new login,
+`SELECT COUNT(*) FROM CHANGETABLE(CHANGES lme.dbo.movement, <current-1000>) AS ct` returns a number,
+and `SELECT social_security_no FROM lme.dbo.driver` is refused.
 
 **If the grant is refused or delayed:** proceed with every other step using the existing login —
 the agent already runs on-prem with a working credential and nothing downstream changes. Record the
@@ -511,6 +528,12 @@ permanent.
 
 **Files.** `packages/shared/src/tms.ts`, `tools/mcleod-agent/loads.mjs` (new),
 `tools/mcleod-agent/agent.mjs`, `tools/mcleod-agent/queries.mjs`.
+
+⚠ **Change detection is not this step's to invent.** `docs/plans/mcleod/MCLEOD-COLLECTOR-PLAN.md`
+owns it (D-MCC1/D-MCC5): this step asks `changes.mjs` which movement ids moved and re-reads only
+those, plus `continuity` for the active set (D-MCC3 — 420 rows, 0.19 s, because `continuity` is the
+one table this plan needs that Change Tracking does **not** cover). Build MC1 first, or build LM1
+against the trailing-window fallback and rewire at MC2 — both are sequenced there.
 
 **Contract.** Add to `tmsLoadInputSchema`:
 
@@ -816,3 +839,10 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   documented upgrade path (D-LM1b), and the **Kafka Connector** — real 5-second GPS streaming — is
   named and rejected on architectural shape rather than left unmentioned (D-LM1c). Added D-LM9b
   (the freshness bound, added up) and traps 13–15.
+- 2026-09-10 — `MCLEOD-COLLECTOR-PLAN.md` written beside this one after the owner set the collector
+  architecture (change detector → collector → store → harness) and ruled that loads read **live
+  `lme`**, not the sandbox. **Change Tracking turned out to be already enabled on `lme`** — 91
+  tables, 10-day retention, 2.3 M versions retained — so the detector is a grant, not a build. LM0
+  gains `VIEW CHANGE TRACKING`; LM1 defers its change detection to MC1/MC2. `continuity`, the one
+  table this plan needs that CT does not cover, is handled by a 420-row re-read rather than an
+  ALTER on production.
