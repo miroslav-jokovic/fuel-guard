@@ -252,7 +252,8 @@
     "apps/api/src/modules/samsara/samsaraScheduler.ts"
   ],
   "inventory_assets": [
-    "apps/api/src/modules/maintenance/inventory/assetsWrite.ts"
+    "apps/api/src/modules/maintenance/inventory/assetsWrite.ts",
+    "apps/api/src/modules/maintenance/inventory/tagIssuance.ts"
   ],
   "invites": [
     "apps/api/src/modules/org/inviteRedemption.ts",
@@ -351,7 +352,8 @@
     "apps/web/src/composables/useOrgSettings.ts"
   ],
   "part_stock": [
-    "apps/api/src/modules/maintenance/inventory/stockSettings.ts"
+    "apps/api/src/modules/maintenance/inventory/stockSettings.ts",
+    "apps/api/src/modules/maintenance/inventory/tagIssuance.ts"
   ],
   "parts": [
     "apps/api/src/modules/maintenance/inventory/partsWrite.ts"

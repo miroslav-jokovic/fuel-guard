@@ -15,6 +15,7 @@ import { inventoryCountSessionsRouter } from "./inventoryCountSessions.js";
 import { inventoryAssetsRouter } from "./inventoryAssets.js";
 import { inventoryAssetTypesRouter } from "./inventoryAssetTypes.js";
 import { inventoryUnitsRouter, kitExpectationsRouter } from "./inventoryUnits.js";
+import { inventoryLabelsRouter } from "./inventoryLabels.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -74,6 +75,10 @@ export function maintenanceRouter(): Router {
   // I9's units: the same assets read from the other end — what a truck is expected to hold against
   // what it does. `kit-expectations` is the rules behind those numbers, and gets its own prefix for
   // the reason `asset-types` did: `/units/kit-expectations` would collide with `/units/:kind/:id`.
+  // Labels (I10). Mounted above the catch-all for the same reason `/count-sessions` is: it is a
+  // distinct concern rather than a shelf verb, and relying on the stock router falling through is a
+  // dependency on a file that has no reason to know this route exists.
+  router.use("/inventory/labels", inventoryLabelsRouter());
   router.use("/inventory/units", inventoryUnitsRouter());
   router.use("/inventory/kit-expectations", kitExpectationsRouter());
   router.use("/inventory", inventoryStockRouter());

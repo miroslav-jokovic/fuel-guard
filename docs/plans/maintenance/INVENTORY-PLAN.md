@@ -2004,3 +2004,84 @@ signed here by the person who did it. I6's spike results go here before its seco
   again: *"the first one is a map to a place the programme left this morning"*. A runbook is only
   worth the twenty minutes it saves, and it saves none if the person holding it is looking for a
   camera that is not there.
+
+- **I10 PR 1 — tag issuance and the label sheet — DONE 2026-09-10 (no migration).** The API half:
+  a tag code is minted and stamped, a run resolves to what will be printed, and a PDF comes out on
+  any of the five presets. **The label SCREEN is I10 PR 2 and I10 does not close.**
+
+  **⚠ A5 IS NOT ANSWERED AND THIS SHIPPED ANYWAY, ON THE OWNER'S RULING OF 2026-09-10.** §6.2 makes
+  A5 — the printer and stock the shop actually owns — I10's retiring assumption, and it stands
+  unretired: the owner said proceed. So this builds to **A5's own default answer**, which is D-INV25's
+  five presets, and the cost of being wrong is bounded and worth stating: a preset is `margin`,
+  `pitch`, `columns`, `rows` and a `material` sentence in `LABEL_PRESETS`, so a sixth sheet is a
+  literal and not a code change anywhere else. **`roll-single` is the one to distrust** — its own
+  header already says so, because unlike the four Avery templates it is OUR geometry with no vendor
+  page to check against, and its 2-inch media is an assumption.
+
+  **The parts.** `inventoryLabelContract.ts` (targets, the run, `LabelFaceDto`); `tagIssuance.ts`
+  (mint + stamp); `labels.ts` (resolve a run to faces); `labelPdf.ts` (draw it);
+  `routes/inventoryLabels.ts` (`GET /presets`, `POST /faces`, `POST /sheet`). `@silvicom/qr` gained
+  its **first two consumers** — it had been merged and unused since I1b — and `labelSheet()` and
+  `toSvgPath()` are used exactly as written, with nothing here recomputing geometry.
+
+  **⚠ RESOLVING A RUN IS A WRITE, INCLUDING THE PREVIEW, AND THAT IS THE DESIGN.** Asking for a
+  label issues a tag to anything that has none, so `POST /faces` mutates. The alternative — a preview
+  showing placeholder codes and a sheet carrying different real ones — is a screen that lies about
+  the only thing it exists to show. It is safe to repeat because `issueTagCode` only ever fills a
+  NULL, so preview-then-print gives one code and a retried print gives that same code again. A tag
+  issued and never printed costs nothing; a label printed for a code nobody stored is the failure the
+  ordering exists to make impossible.
+
+  **⚠ THE ASYMMETRY THIS STEP FOUND AND COULD NOT FIX, AND IT IS OWED.** `inventory_assets.tag_code`
+  is immutable by trigger — 0333's `guard_inventory_asset` raises `IV022` for the service role too.
+  **`part_stock.tag_code` has no such trigger**, only `idx_part_stock_tag`. So for a shelf, "a tag is
+  never re-stamped" is guaranteed by the service's `.is("tag_code", null)` predicate and by one
+  assertion in `labels.test.ts`, and by nothing in the database. I10 ships no migration, so it stays
+  that way for now. **The next inventory migration should give `part_stock` the trigger its sibling
+  already has** — the failure it prevents is two physical objects answering to one code, found by a
+  technician in a bay months later.
+
+  **The birthday number is why issuance retries.** `tagContract.ts` records it: six Crockford
+  characters is 32^6 ≈ 1.07 billion per org, and that is **~4.5 % odds of a collision somewhere in
+  the set by 10,000 tags** — which a shop with 234 trailers and 207 tractors reaches. So the UPDATE
+  IS the uniqueness check, 23505 and `IV022` both mean "draw again", and `MAX_ATTEMPTS` is 6 because
+  six consecutive collisions is a broken random source rather than bad luck. `randomInt` and not
+  `Math.random()`, for distribution rather than secrecy: a biased generator spends the birthday
+  budget faster than that arithmetic assumes.
+
+  **⚠ `lint:table-access` REFUSED THE FIRST DRAFT AND WAS RIGHT.** `admin.from(subject.table)` reads
+  perfectly well and is invisible to every table gate — `lint:table-writers` would not have seen this
+  file at all, and a writer nothing can see is exactly how a second producer for an owned table
+  arrives unnoticed. The dispatch is now a branch with two literal table names, the algorithm stays
+  shared, and both pairs are in `scripts/table-writers.json` (216 pinned write sites).
+
+  **`: string` on a select constant is load-bearing.** supabase-js parses a select passed as a string
+  LITERAL and types an embedded join as an ARRAY, so `parts!inner(part_number)` arrives as
+  `{part_number}[]` and the row cast stops compiling. Widening the constant turns the inference off.
+  `STOCK_COLUMNS` in `stock.ts` reaches the same place by being a concatenation; this says it out loud.
+
+  **Mutation proofs, two, both restored.** Dropping `startPosition` on the way to `labelSheet()`
+  failed exactly two assertions — the first-sheet capacity and the "draws somewhere different" pair.
+  Printing an asset's tag code as its caption instead of `nextDisplayNo(display_seq)` failed exactly
+  the D-INV18 assertion; both are strings, both look plausible on screen, and only a person reading a
+  label aloud in a yard would have found it.
+
+  **⚠ AND THE FIRST MUTATION EXPOSED TWO ASSERTIONS THAT WERE PROVING NOTHING.** `expect(a.equals(b))
+  .toBe(false)` on two rendered PDFs is TRUE no matter what the renderer does, because pdfkit stamps
+  a `/CreationDate` and a random `/ID` into every document — so dropping `startPosition` entirely
+  still passed it. They now compare through a `normalize()` that strips both, and a new control case
+  ("renders identical inputs identically") is what proves the normalisation exposes the difference
+  rather than hiding it. This is the second time in two days that a mutation has caught an assertion
+  passing for the wrong reason; the first was fake timers replacing `performance`.
+
+  **What PR 1 deliberately does not claim.** The `/shop/labels` screen, the on-screen preview, the
+  X/Y nudge control and the "Scale 100 % / Actual size" instruction with its uniform-shift versus
+  progressive-drift diagnostic — all PR 2. The step's pixel comparison belongs there too, because it
+  compares this renderer against the PREVIEW: both call `labelSheet()` and `toSvgPath()` with the
+  same numbers, which is what makes it a test rather than a comparison of two guesses. And the
+  done-when's first clause — a printed 22805 sheet scanned back through I6 on two phones — is
+  physical, needs A5 answered, and belongs with the runbook.
+
+  **Verification:** all 37 `lint:*` scripts, `eslint .`, `pnpm typecheck` across ten workspaces,
+  `pnpm test` green across every unit suite and all 42 matrices. 21 new assertions across three
+  files.
