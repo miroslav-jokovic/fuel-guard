@@ -103,7 +103,20 @@ docs/psp-docs/
 # would land in a diff nobody can review. It was committed once by an over-broad `git add -A` on
 # 2026-09-09 and removed before the branch was opened as a PR; this line stops it recurring. Read it
 # from the working tree — it does not need to be in history to be used.
-docs/FleetPal/
+#
+# ⚠ The pattern is `docs/FleetPal/*` and NOT `docs/FleetPal/`, and the difference is load-bearing:
+# git does not descend into an excluded DIRECTORY, so a `!` negation under one is silently ignored
+# and the file below would stay untracked with nothing to say so. Excluding the directory's
+# CONTENTS instead leaves the negation able to fire. Measured 2026-09-10 with
+# `git check-ignore -v docs/FleetPal/SOURCE.md`, which named `docs/FleetPal/` as the matching rule
+# until this was changed — run it again after touching these three lines.
+docs/FleetPal/*
+# …except SOURCE.md, which is OURS. Neither reason above applies to it: it is a note we wrote rather
+# than the vendor's document, and it is a few lines rather than 18k of generated JSON. It records
+# which spec version `packages/shared/src/fleetpalContract.ts` was built against, so a reader whose
+# working tree holds a NEWER spec can tell that instead of assuming the two agree.
+# (FLEETPAL-INTEGRATION-PLAN.md §F0.)
+!docs/FleetPal/SOURCE.md
 
 # Scratch worktrees created by Claude Code — a full stale copy of the app. Only .git/info/exclude
 # listed it, which is local-to-one-clone; this makes every clone ignore it.

@@ -371,7 +371,7 @@ This is also what finally feeds `vehicles.next_pm_due_odometer` / `next_pm_due_a
 Steps **F0–F3** and **F5–F7** need no credential. **F4** is the only step the key gates, and it is
 positioned so that everything ahead of it is already merged when the key arrives.
 
-### F0 — Governance — *no migration*
+### F0 — Governance — **DONE 2026-09-10** — *no migration*
 
 Canon says FleetPal is planned and operational-not-financial; it does not yet say a collector is
 being built or where its plan lives.
@@ -677,3 +677,47 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 - **2026-09-10 · Plan written.** The spec read end to end (71 endpoints, filter matrix in §1.5),
   four owner rulings recorded as D-FP3/D-FP4/D-FP8/D-FP11, production measured (§1.4). Nothing
   built. The next step is **F0**, and it needs no credential.
+
+- **2026-09-10 · F0 DONE — governance, and the stale sentence a customer could read.**
+  `docs/ARCHITECTURE.md` §2 and `docs/SILVICOM-360.md` §2 now name the module, its planned tables,
+  D-FP2's write rule and D-FP3's operational-cost ruling; `INVENTORY-PLAN.md` §I14 is struck through
+  and points here, keeping its 2026-09-09 audit as the record of why the split was right. Only F13
+  remains I14's business.
+
+  **The finding this step existed for.** `modules/maintenance/routes/index.ts` told users *"the
+  FleetPal feed awaits its dedup contract"* — written 2026-08-27, falsified 2026-09-03 by D-FLEET2,
+  and still on screen on 2026-09-10. I0 rewrote the module header directly above it on 2026-09-09
+  and missed the string underneath, because the header is read by us and the sentence is read by the
+  shop. It is the only place in the product where a customer reads a ruling, which is what makes it
+  worth three assertions rather than a quiet edit.
+
+  **Two of those assertions are opposite halves of one claim**, and either alone is passable by a
+  wrong sentence: *"says the ledger is the only door, now that FleetPal is not a second one"* would
+  pass against a sentence that silently drops FleetPal, and *"never revives the dedup contract
+  D-FLEET2 deleted"* would pass against one that mentions FleetPal while still promising money from
+  it. Only together do they say what the ruling says.
+
+  **`docs/FleetPal/SOURCE.md` is now tracked, and the gitignore pattern had to change to allow it.**
+  `!docs/FleetPal/SOURCE.md` under `docs/FleetPal/` does nothing — git does not descend into an
+  excluded directory, so the negation never fires and the file stays untracked with no error. The
+  pattern is `docs/FleetPal/*` (contents, not the directory), verified with `git check-ignore -v`
+  before and after. The 830 KB spec is still ignored; only our own note is committed, and it records
+  the byte size and endpoint count that are the spec's only usable fingerprint — `info.version: v1`
+  is held constant by the vendor across additive changes and identifies no snapshot.
+
+  **Mutation proofs, two, both restored:** restoring the old sentence failed *"says the ledger is the
+  only door, now that FleetPal is not a second one"* and *"never revives the dedup contract D-FLEET2
+  deleted"*; making the reason unconditional failed *"stays silent once the ledger holds repairs,
+  rather than explaining a number that is there"*.
+  **Verified by:** `pnpm test` (every unit suite and all matrices, "All suites passed"),
+  `pnpm typecheck`, `pnpm lint`, `lint:migrations`, `lint:rls`, `lint:boundaries`,
+  `lint:table-writers`, `lint:surfaces`, `lint:upserts`, `lint:secrets`, `check-file-size.mjs`,
+  `check-comment-claims.mjs`.
+
+  ⚠ **A worktree trap cost fifteen minutes and is now in the setup memory.** `pnpm --filter
+  @fuelguard/shared build:rn` prints *"No projects matched the filters"* and **exits 0** — the
+  packages were renamed to `@silvicom/*` at the re-founding. The only visible symptom was the
+  `telematics-coverage-buckets` matrix reporting *"NO RESULT REPORTED - did not execute"* while
+  every other matrix passed. Read the name out of `package.json` rather than typing it.
+
+  **Next: F1** — the contracts and the field manifest. No credential needed.

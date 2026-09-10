@@ -94,3 +94,35 @@ describe("the repair-spend window", () => {
     expect(summarizeByCategory.mock.calls[0]?.slice(2)).toEqual(["2026-08-01", "2026-09-01"]);
   });
 });
+
+/**
+ * The empty-state sentence is the only ruling in this product that a CUSTOMER reads directly, which
+ * is what makes it worth assertions of its own. It said the FleetPal feed "awaits its dedup
+ * contract" from 2026-08-27 until 2026-09-10 — three weeks after D-FLEET2 deleted the second door
+ * that contract would have guarded (FLEETPAL-INTEGRATION-PLAN.md §F0). Nothing failed, because
+ * nothing looked.
+ *
+ * The first two are opposite halves of one claim and both are needed: the first passes against a
+ * sentence that quietly drops FleetPal and says nothing about it, and the second passes against one
+ * that mentions FleetPal while still promising money from it. Only together do they say what the
+ * ruling says.
+ */
+describe("the empty-state reason", () => {
+  it("says the ledger is the only door, now that FleetPal is not a second one", async () => {
+    searchEntries.mockResolvedValueOnce({ entries: [], total: 0 });
+    const body = await call("from=2026-08-01&to=2026-09-01");
+    expect(body.pendingSources).toContain("McLeod AP repair dollars await finance's GL-account ruling");
+    expect(body.pendingSources).toContain("FleetPal will not add to this figure");
+  });
+
+  it("never revives the dedup contract D-FLEET2 deleted", async () => {
+    searchEntries.mockResolvedValueOnce({ entries: [], total: 0 });
+    const body = await call("from=2026-08-01&to=2026-09-01");
+    expect(body.pendingSources).not.toMatch(/dedup/i);
+  });
+
+  it("stays silent once the ledger holds repairs, rather than explaining a number that is there", async () => {
+    const body = await call("from=2026-08-01&to=2026-09-01");
+    expect(body.pendingSources).toBeNull();
+  });
+});

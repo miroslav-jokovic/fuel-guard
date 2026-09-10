@@ -593,10 +593,27 @@ kit shortfall on `/shop/units`. `OfflineBanner` and `SyncStatus` cover the queue
 
 **Blocked on** the driver release lanes. Sequenced last.
 
-### I14 — FleetPal reconciliation — ~~*deferred*~~ *next, per the owner 2026-09-09*
+### I14 — FleetPal reconciliation — ~~*deferred*~~ ~~*next, per the owner 2026-09-09*~~ **→ its own plan, 2026-09-10**
 
-Arrives through the D-SEP8 gate with its own contract. The only open item is whether FleetPal has an
-export path (Q1).
+**This step is no longer a queue entry. It has become `FLEETPAL-INTEGRATION-PLAN.md`** (steps F0–F15,
+decisions D-FP1–14, PR #714), and that document — not this one — is where FleetPal work is picked up.
+
+The section stays in place because the 2026-09-09 readiness audit below is the finding that made the
+split correct, and because it records what I14 *was* when it was one step: a reconciliation. Reading
+the vendor's OpenAPI document on 2026-09-10 showed it is not one step and not only a reconciliation.
+FleetPal turns out to hold **per-unit repair cost** — `/v1/service-history` carries cost split five
+ways, labour hours and the meter reading at the time, per unit — which is a fact no other source in
+the stack has, since `mcleod_gl_totals` has no equipment dimension. The owner ruled the same day that
+it is built, as an operational number in the Maintenance section, beside a coverage ratio, and still
+never in `financial_entries` (D-FP3, D-FP4). Q9's receipt ruling and this plan's D-INV10/D-INV11 are
+carried forward verbatim as D-FP12 and D-FP13.
+
+What remains I14's business — and only this — is the shelf half: FleetPal PO receipt items becoming
+`received` movements and `PART` job items becoming `issued` ones, which is **F13** over there.
+
+~~Arrives through the D-SEP8 gate with its own contract. The only open item is whether FleetPal has an
+export path (Q1).~~ It arrives through the D-SEP8 gate still; the export-path question was answered
+by reading the spec (§8, 2026-09-09) and again by the full read on 2026-09-10.
 
 **Readiness audited 2026-09-09 (§8): nothing in I0–I3 blocks it, and one canon line did.** The
 schema needs no change — `part_movements.work_order_ref` is the entire tie (D-INV10) and FleetPal
