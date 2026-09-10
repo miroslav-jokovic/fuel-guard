@@ -256,6 +256,24 @@ citation, so none was renumbered.)*
   `'A'` (available, unassigned) is pulled too — 51 movements, 50 with stops and orders, scheduled
   −8 to 0 days — and forms the map's unassigned bucket.
 
+- **D-LM15 — an unrecognised stop type is REPORTED, not guessed into a delivery and not silently
+  dropped.** `stop_type` is `PU` and `SO` on 240 of 247 stops on the live board; the tail — `VA`,
+  `VP`, `SP` (and `SD` historically) — is 2.8%. An earlier draft of LM1 mapped that tail to
+  `dropoff`. That is a guess with a consequence: `writeStops` derives the driver's photo checklist
+  from `kind` (`pickup` → `["trailer","bol"]`, anything else → `["bol"]`), so calling a yard move a
+  delivery **asks a driver for a bill of lading that does not exist**. `movements.mjs` already
+  refuses the same guess for the same reason, mapping the tail to `other`.
+
+  The load contract has no `other` — `tmsStopInputSchema.kind` is `pickup | dropoff`, and
+  `load_stops.kind` has a CHECK constraint — so widening it is a migration and belongs to **LM2**,
+  which already ships one. Until then **LM1b sends `PU` and `SO` and reports any other type with its
+  movement id and raw code**, the way `entityLookup` reports an unmatched key. Nothing is invented
+  and nothing vanishes without a line in the report; the load lands in `pending_approval`, so a human
+  sees the stop list before any driver does.
+
+  ⚠ What this is NOT: a decision that the tail is unimportant. It is unmeasured — the VPN was down
+  when this was written (§4.2 P5) — and measuring it is LM2's prerequisite, not a nice-to-have.
+
 ### The map
 
 - **D-LM6 — MapLibre + the HERE proxy we already run. No new vendor, no key in a browser.**
@@ -547,6 +565,10 @@ SELECT HAS_DBACCESS('lme') AS can_read_lme, GETDATE() AS server_local,
 SELECT COUNT(*) AS active, SUM(CASE WHEN LTRIM(RTRIM(ISNULL(dispatcher_user_id,'')))<>'' THEN 1 ELSE 0 END) AS with_dispatcher
 FROM lme.dbo.movement WHERE company_id='TMS' AND status='P';
 
+-- P5 · what ARE the VA / VP / SP stop types? (D-LM15, blocks LM2's vocabulary widening)
+--      Look at their location, appointment window and position in the sequence against the PU/SO
+--      around them. Decide whether they widen the enum or stay reported-and-unsent.
+
 -- P4 · was equipment_item ever really in conflict with continuity? (trap 16's correction)
 --      Join the way MOVEMENT_FACTS does — via m.equipment_group_id, NOT currentmovement_id — and
 --      compare per (movement, type) as SETS, so team drivers cannot fan out into false mismatches.
@@ -736,9 +758,10 @@ WHERE m.company_id = @company
 | `external_status` | `movement.status` | `P` active · `A` available · `D` delivered · `V` void |
 | `stops` | `lme.dbo.stop` by `movement_id`, ordered by `movement_sequence` | 231/231 active stops geocoded |
 
-**Stop mapping.** `stop_type` → `kind`: **`PU` → `pickup`, `SO` → `dropoff`**. The live board also
-carries `VA`, `VP` and `SP` (7 of 247 stops on that snapshot); map those to `dropoff` and record the raw code in
-`notes`, rather than dropping the stop. `sched_arrive_early`/`sched_arrive_late` →
+**Stop mapping.** `stop_type` → `kind`: **`PU` → `pickup`, `SO` → `dropoff`**, and **nothing else**
+(D-LM15). The live board also carries `VA`, `VP` and `SP` (7 of 247 on that snapshot); those are
+**reported with their movement id and raw code, not sent** — mapping them to `dropoff` would put a
+bill-of-lading capture on a driver's phone for a stop that has no bill of lading. `sched_arrive_early`/`sched_arrive_late` →
 `appointment_start`/`appointment_end`. `status` `D` = done, `A` = pending — so **picked up** is a
 `PU` stop with `status='D'` and **delivered** is the final `SO` stop with `status='D'`.
 `lat = latitude` but **`lon = -longitude`** (§3.4 — every McLeod geo column at this carrier is
@@ -793,7 +816,15 @@ one load per order, because a driver drives the *movement*, and the board is a b
 
 ---
 
-### LM2 · Migration — `vehicle_positions`, `tms_dispatchers`, `loads.dispatcher_external_id`
+### LM2 · Migration — `vehicle_positions`, `tms_dispatchers`, `loads.dispatcher_external_id`,
+### and the stop-kind vocabulary
+
+**Prerequisite: run §4.2 P5 first.** D-LM15 leaves `VA`/`VP`/`SP` reported-but-unsent because nobody
+has measured what they are. This migration is where that is settled — either `load_stops.kind` gains
+`'other'` (widening the CHECK constraint and `tmsStopInputSchema`, after which LM1b's reporting
+branch becomes a mapping), or the measurement shows the tail is genuinely not driver work and the
+reporting branch stays as the permanent answer. **Do not widen the enum without the measurement**;
+an `'other'` nobody can define is worse than a reported exception.
 
 **Schema only. No reader, no writer.** The two new tables are exempt from the ordering rule; the
 new *column* is not, and its first writer is LM3 in a separate merge.
