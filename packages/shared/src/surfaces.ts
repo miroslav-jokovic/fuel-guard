@@ -285,6 +285,23 @@ export const SURFACES: readonly Surface[] = [
    */
   { key: "maintenance.parts.count", label: "Count", path: "/shop/count/:sessionId", group: "maintenance", gate: section("maintenance"), parent: "maintenance.parts" },
   /**
+   * The scan surface (I6). Non-nav, and its parent is the SHOP HOME rather than Parts.
+   *
+   * The count above parents to Parts because a count is a walk of the stock, and an org that has
+   * taken Parts away from a role has taken away the thing a count is about. A scan is not that: one
+   * pull of a trigger resolves a stock line, an asset or a supplier barcode without the person
+   * holding the scanner knowing or needing to know which (D-INV7), so parenting it to either half
+   * would deny it for the wrong reason — a role allowed Assets but not Parts would lose the ability
+   * to scan an ASSET tag. The shop home is the honest parent: it is the door this screen is behind,
+   * and a role denied the shop entirely is denied its scanner too.
+   *
+   * ⚠ That parent is `maintenance.repair-spend`, whose key is a historical spelling of the shop home
+   * and which carries a live production denial (see the note on the nav row above). Inheriting it is
+   * deliberate: the member who cannot open the shop cannot open its scanner, which is the same
+   * answer they already have about every other screen in the section.
+   */
+  { key: "maintenance.scan", label: "Scan", path: "/shop/scan", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
+  /**
    * The repair-spend ledger, which used to BE `/shop` (I4).
    *
    * It is a child rather than a nav entry of its own for two reasons that point the same way. The

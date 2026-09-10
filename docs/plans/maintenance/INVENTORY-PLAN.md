@@ -1880,3 +1880,106 @@ signed here by the person who did it. I6's spike results go here before its seco
   scripts plus `apps/web`'s `lint:tokens`; `pnpm typecheck`. The types drawer and the standard-kit
   offer were rendered under `preview:local` against a fresh org with zero types — the state the dead
   end lived in — with no page or Vue errors.
+
+- **I6 PR 1 — the scan surface, on a hardware scanner — DONE 2026-09-10 (no migration).**
+  `/shop/scan` under `layout: "shop"` is live: a code arrives, `GET /api/tags/resolve` answers, and
+  the verbs are the desk's own drawers. **The camera is NOT in this PR and I6 does not close.**
+
+  **⚠ THE ORDER OF I6's TWO INPUT PATHS WAS REVERSED, ON THE OWNER'S RULING OF 2026-09-10, AND
+  THAT IS THE ONLY THING IN THE STEP TEXT THIS CONTRADICTS.** §5's I6 opens "Spike first" and means
+  the camera: A1 asks whether the free WASM decoder reads a greasy supplier UPC on the shop's own
+  phones, and the close-out of 2026-09-09 recorded the whole scanner as waiting on it. What that
+  sequencing did not consider is that **a scan does not have to come from a camera**. A Bluetooth
+  scanner in HID mode is a keyboard: it pairs in iOS Settings, types the barcode and an Enter, and
+  needs no permission, no WebAssembly, no camera and no A1. The owner ordered handheld imagers on
+  2026-09-10 after the options were measured, which makes this the path the receiving desk will
+  actually use — and it is the path where the UPC risk lives, because a dedicated imager is exactly
+  what ZXing's measured 10.2 % on out-of-focus 1D is bad at.
+
+  So A1 no longer gates a shop that can scan; it gates the camera, which is a second input to the
+  same `resolve → verb → write` loop this PR builds. **A1 is not retired and its runbook stands
+  unchanged** — `I6-SPIKE-RUNBOOK.md` §1 is still the twenty minutes that decide whether the camera
+  half is built on the free decoder or on a paid web SDK (D-INV28's revisit clause).
+
+  **What shipped.** `useScanInput` (`@/composables`, product-wide by the same argument that put the
+  resolver registry outside the maintenance module) reads the wedge; `ScanPage.vue` orchestrates;
+  `ScanResultCard.vue` gives each of the five `ScanResult` members its own words; `ScanStockLine.vue`
+  renders one shelf and its four verbs. **No new form was written.** `MovementDrawer` and
+  `AssetMoveDrawer` are the desk's, unchanged, because a movement recorded from a scan and one
+  recorded from the part detail must be the same row written the same way — and a phone-shaped copy
+  of either would be a second place D-INV27's "mint the id once per MOVEMENT, not once per attempt"
+  has to be got right, which is the rule in this feature that breaks no test when it is broken.
+
+  **The judgement the whole path rests on is timing, and it is the only signal available.** A HID
+  scanner is indistinguishable from a keyboard by every other means a page has. The rule: a gap over
+  **100 ms** between two characters means a person, and the burst restarts from that character — so
+  everything left in the buffer arrived at machine speed by construction, and a buffer that reaches
+  six characters needs no second test. Enter terminates; a **200 ms** idle flush covers the scanner
+  whose Enter suffix somebody turned off in a configuration barcode months ago (otherwise
+  unattributable from the floor: "it beeps and nothing happens"); **800 ms** is the same-symbol
+  window, which is Zebra's DataWedge rule and stops one carton in an auto-sense cradle opening the
+  verb sheet five times.
+
+  ⚠ **The bias is deliberate and it is towards false positives.** Fifteen characters typed at machine
+  speed with nothing focused become a resolve call that answers `malformed` and a card that says so —
+  one wasted tap. A missed scan is a technician pulling a trigger at a label that works, which is the
+  failure that makes people stop using a product.
+
+  **⚠ ONE THING IS WRITTEN DOWN RATHER THAN ASSUMED, AND THE DEVICE SESSION MUST CHECK IT.** The
+  capture is a `document` keydown listener, not a permanently focused hidden input — which was
+  rejected because it fights every other control for focus, raises the soft keyboard on a phone with
+  no scanner paired, and makes "scan while a result is on screen" depend on focus surviving whatever
+  was last touched. **iOS is documented as inconsistent about delivering hardware-keyboard events to
+  a page with no focused element.** If A1's session finds keystrokes do not reach `document` on iOS
+  Safari, the fix is one line — focus the typed-entry field on mount — and nothing else in the file
+  changes, because the timing rule does the work either way. Add it to the runbook's device checklist.
+
+  ⚠ **A paired HID scanner suppresses the iOS on-screen keyboard**, so the typed-entry fallback
+  cannot be typed into while the scanner is connected. The documented fix is a **double-press of the
+  scanner trigger**, which toggles the keyboard back until the next scan. The screen says so, because
+  the alternative is a technician deciding the field is broken.
+
+  **Decode feedback is the hardware's**, which is why none was built: the scanner beeps in the
+  technician's hand on a successful read, better than anything a web page can do and with no
+  permission. What it cannot say is whether the code RESOLVED, and that is what the card is for.
+
+  **Two smaller things, both consequences rather than additions.** `PartForm`/`PartDrawer` gained
+  `initialUpc`, so an unrecognised barcode travels INTO the new-part form — research §2.5's "attach
+  or create with the code kept", and the reason every member of `ScanResult` carries `code` at all;
+  the alternative is reading thirteen digits off one part of the screen and typing them into another
+  with the carton still in the other hand. And `BarcodeScanIcon as ScanIcon` joined the icon barrel:
+  a barcode being read rather than `QrCodeIcon`'s static symbol, because on this path the thing in
+  the hand is pointed at a supplier's carton as often as at one of our QR labels.
+
+  **What this PR deliberately does not claim.** The camera and its whole ergonomic layer — the 64 dp
+  trigger, the centre-weighted aimer, tone-and-flash feedback, torch, crop-zoom, the still-photo
+  fallback — belong to the camera half. Verb ordering does NOT adapt to last-used, which §5's I6 asks
+  for: it is written for a sheet whose four verbs a thumb hunts for, and a fixed order is what builds
+  muscle memory at a desk. Count is absent from the verb row on purpose — a count is a SESSION that
+  opens, is blind, holds a queue and closes irreversibly (D-INV19), and starting one from a verb row
+  would put a technician mid-walk with no way back to the walk they were already on.
+
+  **The surface parents to the SHOP HOME, not to Parts.** The count parents to Parts because a count
+  is a walk of the stock. A scan is not: one trigger pull resolves a stock line, an asset or a
+  supplier barcode without the person holding the scanner knowing which (D-INV7), so parenting to
+  either half would deny it for the wrong reason — a role allowed Assets but not Parts would lose the
+  ability to scan an ASSET tag. It inherits `maintenance.repair-spend`'s live production denial
+  deliberately: a member who cannot open the shop cannot open its scanner.
+
+  **Mutation proofs, two, both restored.** Raising `HUMAN_GAP_MS` to 100000 failed exactly one
+  assertion — "ignores a person typing, however long they type for" — and nothing else. Pinning the
+  page's `enabled` to `true` failed exactly "stops listening to the scanner while a drawer is open",
+  which is the assertion that a stray trigger pull cannot swap the item under a half-filled form.
+
+  **⚠ AND THE SUITE ITSELF FAILED HONESTLY BEFORE IT PASSED, WHICH IS WORTH THE LINE.** Two cases
+  failed on the first run because `vi.useFakeTimers()` installs its own `performance` and had been
+  called AFTER the `performance.now` spy — so every gap measured as zero, every burst read as machine
+  speed, and the "ignores a person typing" case passed the whole tag through. Had the order been the
+  other way round from the start, this file would have reported green while asserting nothing about
+  the one judgement the feature rests on. The order is now commented at the `beforeEach`.
+
+  **Verification:** all 37 `lint:*` scripts plus `eslint .` and `apps/web`'s `lint:tokens`;
+  `pnpm typecheck` across all ten workspaces; `pnpm test` green across every unit suite and all 42
+  matrices. `ScanPage.vue` is in `ui-system-inventory.mjs`'s `PageHeader` exception list beside
+  `CountSessionPage.vue`, with the reason: it renders in `ShopLayout`, which has no workspace for a
+  header, and its actions are decided by what was just scanned rather than fixed at the top.

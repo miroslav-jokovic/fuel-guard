@@ -338,6 +338,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/count/cs_1",
   },
   {
+    "name": "scan",
+    "params": {},
+    "url": "/shop/scan",
+  },
+  {
     "name": "",
     "params": {},
     "url": "/fuel-reconciliation",
@@ -1244,6 +1249,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "repair-spend",
     "path": "/shop/repair-spend",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "shop",
+      "parent": "/shop",
+      "requiresAuth": true,
+      "title": "Scan",
+    },
+    "name": "scan",
+    "path": "/shop/scan",
     "redirect": null,
   },
   {

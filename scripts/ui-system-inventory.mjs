@@ -142,6 +142,12 @@ function verifyAdoption() {
     // bay: no sidebar, one in-content way back, and a sticky header of its own carrying the only
     // thing a counter needs to see, which is how many bins are left and how many are short.
     "CountSessionPage.vue",
+    // I6's scan surface — the second and, for now, last `ShopLayout` page, exempt for the same
+    // reason as the count directly above and for one more of its own. `PageHeader`'s actions row is
+    // where a page puts what it can do, and on this screen what can be done is decided by what was
+    // just scanned: the verbs live on the result and change with every trigger pull. A fixed header
+    // of actions would either be empty or be wrong.
+    "ScanPage.vue",
     "legal/PrivacyPolicyPage.vue",
     "legal/SupportPage.vue",
     "legal/TermsPage.vue",

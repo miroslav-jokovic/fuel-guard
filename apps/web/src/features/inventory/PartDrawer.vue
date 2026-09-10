@@ -14,7 +14,12 @@ import { useToastStore } from "@/stores/toast";
  * design (`IV0xx` map to 409 and 422 with a sentence a technician can act on), and replacing them
  * with "Could not save" here would throw away the half of the answer that says what to do.
  */
-const props = defineProps<{ open: boolean; part?: PartDto | null }>();
+const props = defineProps<{
+  open: boolean;
+  part?: PartDto | null;
+  /** A scanned barcode to start a new part from — see `PartForm`'s own prop for the argument. */
+  initialUpc?: string;
+}>();
 const emit = defineEmits<{ close: []; saved: [part: PartDto] }>();
 
 const toast = useToastStore();
@@ -41,6 +46,12 @@ async function onSubmit(input: PartInput) {
 
 <template>
   <SlideOver :open="open" :title="part ? 'Edit part' : 'New part'" @close="emit('close')">
-    <PartForm :part="part" :submitting="submitting" @submit="onSubmit" @cancel="emit('close')" />
+    <PartForm
+      :part="part"
+      :initial-upc="initialUpc"
+      :submitting="submitting"
+      @submit="onSubmit"
+      @cancel="emit('close')"
+    />
   </SlideOver>
 </template>

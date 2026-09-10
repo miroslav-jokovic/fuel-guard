@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
-import { CubeIcon, ExclamationTriangleIcon, PlusIcon, ArrowsRightLeftIcon, GaugeIcon, ChecklistIcon } from "@silvicom/ui/icons";
+import { CubeIcon, ExclamationTriangleIcon, PlusIcon, ArrowsRightLeftIcon, GaugeIcon, ChecklistIcon, ScanIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { lastFullMonth } from "@/lib/dateWindow";
@@ -74,9 +74,14 @@ const firstRun = computed(() => !catalogueLoading.value && (catalogue.value?.tot
   <div class="space-y-6">
     <PageHeader description="What the shop holds, what needs ordering, and what moved today.">
       <template v-if="session.can('maintenance')" #actions>
-        <!-- The one thing on this page that starts a task rather than opening a list. Scan joins it
-             at I6; until then a count is picked from a location rather than arrived at by camera. -->
-        <BaseButton variant="primary" @click="counting = true">
+        <!-- The two things on this page that start a task rather than opening a list.
+             Scan leads: it is the verb of the job — a technician arrives at this screen holding a
+             carton or standing at a bin, and every shelf verb is one trigger pull away behind it.
+             A count is the deliberate, slower act, and it is picked from a location. -->
+        <BaseButton variant="primary" to="/shop/scan">
+          <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Scan
+        </BaseButton>
+        <BaseButton @click="counting = true">
           <AppIcon :icon="ChecklistIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Count a shelf
         </BaseButton>
       </template>
