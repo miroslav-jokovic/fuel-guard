@@ -1,8 +1,12 @@
 # Fuel planning — stops where the tank needs them, one honest settings page, prices with and without the discount
 
-**Status:** ACTIVE. Rulings in §2 are **recommended**, not yet made — the owner asked on 2026-09-10 for
-the module to be analysed and made "100% precise and really accurate and polished and user friendly",
-and named four observations; every one of them is confirmed below and each has a root cause that is
+**Status:** ACTIVE. **Rulings in §2 were MADE by the owner on 2026-09-10**, after reading §1.1: "Truck
+should be fueled when it gets to 20% to the top and next stop should be based on MPG (we have this
+engine also) and fuel tank capacity … there is no need to fuel 3-4 times for 1900 miles if we have
+enough fuel … Rules for CA should stay, also we need proper settings … without any overcomplications."
+That sentence answers Q-FP1 to Q-FP4 (§6) and is the standard every step below is graded against.
+The owner had asked for the module to be made "100% precise and really accurate and polished and user
+friendly" and named four observations; every one is confirmed below and each has a root cause that is
 not the one the code's own comments describe. **Owner:** Miki. **Author's position:** every figure in
 §1 was measured against production (org `86d6b3ea…`) or replayed through the shipped solver on
 2026-09-10; nothing in it is reasoned from reading the code alone.
@@ -150,7 +154,15 @@ input and no rules, so `priceEstimated` today can only mean "station history med
 
 ---
 
-## 2. The rulings (recommended — each is one decision, stated so it can be refused)
+## 2. The rulings (made 2026-09-10)
+
+**One arithmetic fact first, because the owner's "1,200–1,300 miles between fills" is not what a
+20% rule produces.** Unit 748: 200 gal × 6.83 MPG = **1,366 mi** tank-to-empty. Full to a 20% reserve
+is 160 gal, and the planner derates MPG by the safety factor 0.9, so it plans on **983 mi** between
+fills. "Fuel at 20%" and "fuel every ~1,000 mi" are the same rule for this truck; 1,200–1,300 is the
+tank run nearly dry. The distance is a consequence of two settings the owner controls — reserve % and
+the MPG safety factor — and FP6's hints say so in those words. Nothing else in the planner shortens it
+once D-FP1 lands.
 
 ### D-FP1 — a fuel stop is placed by RANGE and by nothing else
 
@@ -175,13 +187,16 @@ window length is not in Samsara's clocks; assume **70 h** (the 70/8 ruleset this
 `cycle_restart_required` so the dispatcher sees it. After D-FP1 this affects only tags and flags, never
 placement — which is why F2 is safe to fix at all.
 
-### D-FP3 — the fill target is a setting, defaults to 100%, and the reserve is a gauge reading
+### D-FP3 — the fill target is a setting, defaults to 100%, the reserve is a gauge reading, and every fill is a full fill
 
 `fill_target_pct` (new column, default **100**) replaces `usableFraction`. `reserve_pct` becomes a
 percentage **of the tank** — the number on the gauge — not of "usable"; for the one configured org
 that moves the reserve from 19% to 20% of the gauge, which is stated here so it is not discovered.
 "Usable" leaves the vocabulary of the UI entirely. The plan says "Arrive ~22% → fill to 100%" and
-means it.
+means it. Min-drawdown (partial fills to reach cheaper fuel, opt-in since 0061) is **retired** under
+"without any overcomplications": the solver always fills full, `always_fill_full` / `fill_cap_pct` /
+`min_purchase_gal` leave the form, and the Buy-discipline tab's partial-fill reading of the same
+column goes with them. Columns stay until a later migration drops them.
 
 ⚠ Stated, not hidden: 748's largest fill on record is **168.7 gal against a 200-gal nameplate**
 (`observed_max_fill_gal`). A 100% target plans a 156-gal fill for it. Either the nameplate is wrong or
@@ -217,14 +232,13 @@ when it changes:
    checkboxes drawn from the enabled set; avoided states and fuel-before states as chips with the
    50-state list; border top-off % (new column, replaces the constant and the 80/85 disagreement);
    corridor buffer; opposite-side detour (mi).
-3. **Fill policy** — one radio: "Fill the tank at every stop" (default) / "Buy only enough to reach
-   cheaper fuel", the second revealing partial-fill cap and minimum purchase. Emergency splash size
-   lives here too.
+3. **Emergencies** — the splash size (gal), and nothing else: every planned fill is full (D-FP3).
 4. **Prices** — freshness window; the discount rules table, limited to enabled brands, with the
    sentence about Pilot kept.
 5. **Load and truck defaults** — unchanged. **Targets** — unchanged, stays beside the brand lists (C8).
 
-Retired from the form: off-route recompute, plan DEF, emergency brands — inert or unread. Their
+Retired from the form: off-route recompute, plan DEF, emergency brands (inert or unread), and the
+three min-drawdown fields (D-FP3). Their
 columns stay until a later migration drops them; a column with no reader is harmless, a form field
 with no reader is a lie.
 
@@ -247,7 +261,7 @@ exists, so it passes the route speed in.
 
 | Step | Change | Done when |
 |---|---|---|
-| **FP1** | Solver: delete the reset-combine; cycle charged on every leg; 34-h restart with `cycle_restart_required`; `isOvernight` becomes a coincidence tag | replay fixture "unit 748 Mansfield → Windsor: two fills at the reserve, not five at two-thirds" passes and is proved to fail on the pre-FP1 solver; "an overnight reset never places a fuel stop the range does not need"; "a truck whose cycle runs out mid-trip is planned exactly like one with a fresh cycle" |
+| **FP1** | Solver: delete the reset-combine; HOS becomes a clock the walk advances (breaks, 10-h resets, 34-h restart applied silently, cycle charged on every leg) with `cycle_restart_required`; `isOvernight` becomes a coincidence tag; min-drawdown removed from `fillPolicy.ts` | replay fixture "unit 748 Mansfield → Windsor: two fills at the reserve, not five at two-thirds" passes and is proved to fail on the pre-FP1 solver; "an overnight reset never places a fuel stop the range does not need"; "a truck whose cycle runs out mid-trip is planned exactly like one with a fresh cycle" |
 | **FP2** | Brand ladder (D-FP4) in `stationSelect.ts`; `pickStop` and the min-fill lookahead use it; `emergencyBrands` removed from `RouteFuelSettings` | "an avoided brand is never chosen for an off-network stop"; "a station with no price is never a non-emergency pick"; prod ONE9 replay yields no ONE9 stop |
 | **FP3** | Migration (next-numbered): `fill_target_pct` (100), `refuel_band_miles` (150), `critical_fuel_pct` (10), `opposite_side_access_miles` (2), `border_top_off_pct` (80); `always_fill_full` default → true; `price_ttl_hours` default → 72; regenerate `schema.generated.sql` | `lint:migrations`, `lint:table-writers`, matrices green; **no reader in this PR** (`lint:migration-ordering`) |
 | **FP4** | Readers: `resolveRouteFuelConfig` reads the five columns; `usableFraction` deleted; reserve = % of tank; `BORDER_TOP_OFF_PCT` deleted; form schema + defaults | "reserve is a share of the tank, not of a usable fraction"; the settings page round-trips every column (`ROUTE_FUEL_SETTINGS_COLS` derives it) |
@@ -260,6 +274,10 @@ FP1 and FP2 are pure shared code and can ship the same day. FP3 must merge and b
 (the two-merge rule; `pnpm verify:live` confirms). FP5–FP7 are independent of each other after FP4.
 
 ## 4. What we delete
+
+- Min-drawdown: the `!cfg.alwaysFillFull` branch of `fillPolicy.ts` (FP1); `always_fill_full`,
+  `fill_cap_pct`, `min_purchase_gal` from the form and `RouteFuelSettings` (FP6); the Buy-discipline
+  partial-fill reading (FP6).
 
 - `solver.ts` reset-combine branch and `COMBINE_BAND_MI`; `silentResetAt`'s partial clock handling.
 - `truckState.ts` `usableFraction` and the `usableGal` vocabulary in views.
@@ -279,16 +297,17 @@ FP1 and FP2 are pure shared code and can ship the same day. FP3 must merge and b
 
 ## 6. Questions — owner rulings needed, with the recommendation
 
-- **Q-FP1 Fill target default: 100 or 95?** Recommend **100** (the owner's stated expectation) as the
-  default, with the setting there for a fleet whose pumps stop early. The gauge caveat in D-FP3 stands.
-- **Q-FP2 Keep min-drawdown (partial fills) as an opt-in policy?** Recommend **keep**: it is tested,
-  off by default, and a real policy for a fleet with steep price spreads. Retire it only if the owner
-  says the fleet will never use it.
-- **Q-FP3 Cycle window after a restart: 70 h?** Recommend **70** with the flag; a per-org
-  `hos_cycle_hours` setting only if a 60/7 fleet ever onboards.
-- **Q-FP4 Should HOS still be fetched at all?** Recommend **yes**: the break tag, the day-end tag and
-  the hours-left figure are what a dispatcher uses to brief a driver, and they cost one Samsara call.
+All four answered by the owner's 2026-09-10 ruling quoted in the status line.
+
+- **Q-FP1 Fill target default — ANSWERED 100** ("to the top"). The setting stays for a fleet whose
+  pumps stop early; the gauge caveat in D-FP3 stands.
+- **Q-FP2 Keep min-drawdown? — ANSWERED no** ("without any overcomplications"). Retired, D-FP3.
+- **Q-FP3 Cycle window after a restart — ANSWERED 70 h**, with the flag; no per-org setting.
+- **Q-FP4 Still fetch HOS? — ANSWERED yes, as annotation only** ("next stop should be based on MPG and
+  fuel tank capacity"): the break tag, the day-end tag and hours left on arrival.
 
 ## 7. Progress log — append one dated line per step, never edit the §3 table
 
 - 2026-09-10 — plan written from the production measurements in §1; nothing built.
+- 2026-09-10 — owner ruled on §1.1 (quoted in the status line); §2 became rulings, §6's four questions
+  answered, min-drawdown retired under "no overcomplications". FP1 starts.
