@@ -64,6 +64,10 @@ consumer and defers to it on everything below.
 
 ## 2. Decisions
 
+*(D-MCC10 was added on 2026-09-10 after the cost measurement and sits beside the cadence decision it
+belongs with, so the numbering is allocation order rather than document order. A decision ID is a
+stable citation; none was renumbered.)*
+
 - **D-MCC1 — change detection is SQL Server Change Tracking, and it is already there.**
   `lme` has CT enabled with **10-day retention and auto-cleanup on**, across **91 tables** —
   including `movement`, `movement_order`, `orders`, `stop`, `driver`, `tractor`, `trailer`,
