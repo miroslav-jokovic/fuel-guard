@@ -311,3 +311,4 @@ All four answered by the owner's 2026-09-10 ruling quoted in the status line.
 - 2026-09-10 — plan written from the production measurements in §1; nothing built.
 - 2026-09-10 — owner ruled on §1.1 (quoted in the status line); §2 became rulings, §6's four questions
   answered, min-drawdown retired under "no overcomplications". FP1 starts.
+- 2026-09-10 — **FP1 BUILT** (#727): stops by range only, HOS advanced as a clock and used for tags, 34-h restart + `cycle_restart_required`, min-drawdown out of `fillPolicy.ts`. The 748 replay is a fixture; watched fail first.
