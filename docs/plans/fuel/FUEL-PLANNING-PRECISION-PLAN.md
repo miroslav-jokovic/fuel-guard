@@ -311,3 +311,4 @@ All four answered by the owner's 2026-09-10 ruling quoted in the status line.
 - 2026-09-10 — plan written from the production measurements in §1; nothing built.
 - 2026-09-10 — owner ruled on §1.1 (quoted in the status line); §2 became rulings, §6's four questions
   answered, min-drawdown retired under "no overcomplications". FP1 starts.
+- 2026-09-10 — **FP3 BUILT** (#729): migration 0335 adds `fill_target_pct` (100), `refuel_band_miles` (150), `critical_fuel_pct` (10), `opposite_side_access_miles` (2), `border_top_off_pct` (80); `always_fill_full` default → true, `price_ttl_hours` default → 72. No reader in this merge; FP4 waits for `pnpm verify:live` to report 0335 current.
