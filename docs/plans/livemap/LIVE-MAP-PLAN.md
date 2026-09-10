@@ -1082,6 +1082,14 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   documented upgrade path (D-LM1b), and the **Kafka Connector** — real 5-second GPS streaming — is
   named and rejected on architectural shape rather than left unmentioned (D-LM1c). Added D-LM9b
   (the freshness bound, added up) and traps 13–15.
+- 2026-09-10 — **LM1a shipped** (PR #734): the contract + ingest half of LM1. `hazmat` is
+  `.optional()` with no default and the ingest writes it only when present (D-LM12), closing a live
+  defect where a silent feed erased our own engine's determination; `dispatcher_external_id` /
+  `dispatcher_name` and `tmsDispatchersPayloadSchema` added. **LM1 is split**: LM1b is the agent
+  half (`loads.mjs`, `--loads`), because this fix stands alone. ⚠ Lesson for every later step: the
+  route parses with `safeParse` BEFORE the ingest sees the payload, so a zod default is invisible to
+  a test that builds its input in TypeScript — mutating `.default(false)` back left the whole ingest
+  suite green. Schema behaviour gets a test in `packages/shared`.
 - 2026-09-10 — `MCLEOD-COLLECTOR-PLAN.md` written beside this one after the owner set the collector
   architecture (change detector → collector → store → harness) and ruled that loads read **live
   `lme`**, not the sandbox. **Change Tracking turned out to be already enabled on `lme`** — 91
