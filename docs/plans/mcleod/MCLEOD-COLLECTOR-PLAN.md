@@ -23,9 +23,10 @@ diverges from the sketch, and §2 D-MCC4 says why: we already have that layer, a
 would add a deployment target without adding a capability.
 
 The concern behind the design — *do not overload a self-hosted server* — is correct to hold and
-turns out not to be the binding constraint. §3.3 measures it: the proposed collector runs at
-**0.024% of the server's existing request load**. The real hazard is lock contention, not volume,
-and D-MCC6 is the decision that addresses it.
+turns out not to be the binding constraint. §3.4 measures a full poll cycle at **4 ms of CPU and a
+33 MB working set**, which is **0.012%** of the server's daily batch volume. The two things that
+actually matter are lock contention (D-MCC6) and **connection churn, which costs 25× more than the
+query it carries** (D-MCC10).
 
 This plan governs **all** McLeod ingestion. `docs/plans/livemap/LIVE-MAP-PLAN.md` is its first
 consumer and defers to it on everything below.
@@ -153,33 +154,73 @@ consumer and defers to it on everything below.
 
   Three mitigations, in order of importance. **(1)** `CHANGETABLE` reads CT's internal side tables,
   not the base table, so change *detection* contends with nothing. **(2)** The keyed re-read that
-  follows touches only the changed ids through a clustered seek — the whole active board is 0.3 s
-  and 420 continuity rows are 0.19 s. **(3)** Every collector query carries an explicit statement
-  timeout and an explicit `READ COMMITTED` isolation level; **`NOLOCK` is not used**, because a
-  dirty read that reaches a financial figure is a worse outcome than a query that waits, and the
-  queries here are too short to need it.
+  follows touches only the changed ids through a clustered seek — measured at **4 ms of CPU** for the
+  whole board (§3.4). **(3)** Every collector query carries an explicit statement timeout, an
+  explicit `LOCK_TIMEOUT` and `READ COMMITTED`; **`NOLOCK` is not used**, because a dirty read that
+  reaches a financial figure is a worse outcome than a query that waits, and at 4 ms these queries
+  are far too short to need it.
 
-  For scale: the server sustains **~138 batch requests/second** across 141 hours of uptime on 42
-  cores and 62 GB, with 0 blocked sessions at the time of measurement. A 30-second collector tick is
-  **0.033 req/s — 0.024% of that**. Volume was never the constraint.
+  **The query is not the cost — §3.4 measures the whole cycle at 4 ms of CPU and a 33 MB working
+  set.** What that changes is where the attention goes: to D-MCC10, connection handling, which costs
+  25× more than the query it carries.
+
+  Buffer-pool safety falls out of the same measurement and is worth stating plainly, because
+  eviction is how a read-only query hurts an OLTP server. The cycle touches **~4,144 pages — about
+  33 MB — and it is the *same* 33 MB every time**. Polling keeps that set hot rather than displacing
+  anything McLeod needs, against 62 GB of RAM and a 54.9 GB database.
 
 - **D-MCC7 — the on-prem agent stays the only thing that touches McLeod.** Railway has no route to
   `10.0.1.171` and never gets one. The agent reads over the LAN and pushes over HTTPS with an ingest
   token. This is already true and is restated because a live map creates the temptation to open a
   tunnel; the answer is no.
 
-- **D-MCC8 — cadence is per feed and stated, not global.** A single interval would over-poll the
-  roster and under-serve dispatch. Measured daily change volume on the dispatch tables is **26–345
-  stops and 26–263 movements per day** (7-day sample; Mondays and Tuesdays peak), so a 30-second
-  dispatch tick returns **zero rows on the large majority of ticks** — which is exactly the
-  behaviour CT is designed for and the reason it is cheap.
+- **D-MCC8 — cadence is per feed and stated, not global; dispatch is 60 s, FLAT.**
 
   | Feed | Tables | Cadence | Why |
   |---|---|---|---|
-  | dispatch | `movement`, `stop`, `orders`, `movement_order` + `continuity` re-read | **60 s** | the live board; D-LM9b's budget |
+  | dispatch | `movement`, `movement_order`, `orders`, `stop`, `trailer` + `continuity` re-read | **60 s flat** | see below |
   | roster | `driver`, `tractor`, `trailer`, `users` | **daily** | changes a few times a month |
-  | finance | `gl_ledger*`, `drs_*`, `billing_history`, `journal_*`, `voucher*` | **existing 75-day window sweep** | monthly close; D-FIN4's manual-entry lag |
+  | finance | `gl_ledger*`, `drs_*`, `billing_history`, `journal_*`, `voucher*` | **existing 75-day window sweep** (MC5) | monthly close; D-FIN4's manual-entry lag |
   | reference | `location`, `customer`, `commodity`, `city`, `gl_account` | **weekly** | slow-moving lookups |
+
+  **Why 60 seconds, from the arrival rate rather than from taste.** 28 days of stop arrivals by
+  hour (Central) put **85% of all activity in 07:00–16:00**, peaking at 08:00 with 1,087 arrivals —
+  twice its neighbours, which reads as a morning batch entry rather than organic traffic. Converted
+  to a rate: **0.65 changes per minute at the busiest hour**, 0.28/min across business hours, and
+  **0.018/min overnight — about one an hour**. A 60-second poll therefore never accumulates more
+  than about one change even at peak, and a dispatcher sees a pickup or delivery within a minute of
+  McLeod knowing it. Polling faster finds nothing, because nothing is there.
+
+  **Why FLAT, and not backed off overnight.** The obvious optimisation is to slow down at night,
+  when 98% of polls find nothing. It was costed and rejected: it saves roughly 500 cycles/day ×
+  4 ms = **2 CPU-seconds**, and a time-of-day schedule would have to be expressed in Central time —
+  **which is DST-shifting, the exact trap already in this plan's trap list (§5.9)**. Trading a DST
+  bug for two CPU-seconds is a bad deal. One interval, no calendar.
+
+  **What a day of it costs the server** (§3.4 for the per-cycle figures):
+
+  | | Ours per day | Server's total | Share |
+  |---|---|---|---|
+  | Batch requests | 1,440 | ~11.9 M | **0.012%** |
+  | CPU | 5.8 sec | 3.6 M core-sec | **0.00016%** |
+  | Logins (pooled, D-MCC10) | ~1 | ~75,000 | **~0%** |
+  | Buffer pool | the same 33 MB, kept hot | 62 GB | no eviction pressure |
+
+- **D-MCC10 — one held connection, not one per poll. This is the biggest lever, and it is not the
+  query.** A bare connect + `SELECT 1` against this server costs **~110 ms** wall clock; the entire
+  board cycle costs **4 ms of CPU**. Connection setup — TCP, TLS, login, auth — is therefore roughly
+  **25× more expensive than the work it carries**, and it is expensive on the *server* side too, not
+  just ours.
+
+  Reconnecting every poll at 60 s would add **1,440 logins/day**. The server currently handles ~75,000
+  (455,430 logins over ~146 h of uptime) and holds 852 connections, so that is **1.9% of its login
+  volume — spent entirely on handshakes, to run 5.8 CPU-seconds of actual work**. Pooled, it is ~1
+  login and the same work.
+
+  So the agent holds **one connection, pool size 1**, with keep-alive, and reconnects with backoff
+  on failure. Pool size 1 rather than "a pool" is deliberate: the agent is serial by design
+  (D-MCC6's one-query-at-a-time property), and a larger pool would let a retry storm open several
+  sessions against a server whose writers we are trying not to disturb.
 
 - **D-MCC9 — falling behind 10 days is a defined event with a defined recovery, not an incident.**
   CT retention is 10 days with auto-cleanup on. If the agent is down longer,
@@ -226,11 +267,49 @@ consumer and defers to it on everything below.
 | Capacity | **42 cores, 62 GB RAM** |
 | Uptime at measurement | 141 hours |
 | Sustained load | **~138 batch requests/second** (70,843,263 batches over uptime) |
-| Concurrency at measurement | 48 sessions, 1 running, **0 blocked** |
-| **Our proposed dispatch tick** | **0.033 req/s = 0.024% of baseline** |
-| Board query cost | ~0.30 s including TLS connect |
-| `continuity` active re-read | 420 rows, ~0.19 s |
+| Concurrency at measurement | 852 user connections, 48 active requests, **0 blocked** |
+| Login volume | **455,430** over uptime ≈ **75,000/day** |
+| **Our dispatch tick at 60 s** | 1,440 batches/day = **0.012% of baseline** |
+| Board query cost | **4 ms CPU** (the 0.30 s first measured was almost all TLS + network — §3.4) |
+| `continuity` active re-read | 420 rows via clustered seek |
 | Dispatch change volume | **26–345 stops/day, 26–263 movements/day** (7-day sample) |
+
+### 3.4 What one poll cycle actually costs
+
+Measured on the sandbox 2026-09-10 via `sys.dm_exec_query_stats` — same data, same indexes, so
+logical reads are identical to production. Per the owner's instruction, the live server was not
+touched for this.
+
+| | Logical reads | CPU | Notes |
+|---|---|---|---|
+| Board query (movement + orders + 3× continuity + trailer) | 3,549 | **4 ms** | chose `MAXDOP 1` on its own |
+| Stops query | 595 | **<1 ms** | |
+| **Full cycle** | **~4,144 pages ≈ 33 MB** | **~4 ms** | the same 33 MB every cycle |
+| Connect + TLS + auth (`SELECT 1`, wall clock) | — | **~110 ms** | **25× the query** — see D-MCC10 |
+
+Server context for the same instant: **~138 batch requests/sec** sustained, **455,430 logins** over
+~146 h uptime (**~75,000/day**), **852** user connections, **0** blocked sessions.
+
+Activity distribution — 28 days of stop arrivals by hour (Central), which is what sets the cadence:
+
+| Window | Arrivals | Rate |
+|---|---|---|
+| 07:00–16:00 | 4,664 (**85%**) | 0.28/min |
+| 08:00 (peak) | 1,087 | **0.65/min** |
+| 20:00–05:00 | ~309 (5.6%) | 0.018/min |
+
+### 3.5 How little of the database we read
+
+| | We read | The table holds | Share |
+|---|---|---|---|
+| Tables granted | **7** (+ column-scoped `driver`) | 1,459 | **0.5%** |
+| Movements | 161 (active board) | 298,255 | **0.05%** |
+| Stops | 338 | 614,284 | **0.05%** |
+| Bytes touched per cycle | ~33 MB | 54.9 GB | **0.06%** |
+
+⚠ Until MC0's grant lands, each cycle re-reads those 161 active movements rather than only the ones
+that changed. That is still 0.05% of the table at 4 ms — "only the rows we need", not yet "only the
+rows that changed". Change Tracking upgrades it to the second; neither reads the other 99.95%.
 
 ---
 
@@ -297,14 +376,34 @@ run with an artificially stale watermark takes the `rebaseline` branch rather th
 
 ---
 
-### MC3 · The isolation and timeout policy, applied once
+### MC3 · One connection, one query helper — the politeness policy, applied once
 
-Every McLeod query in the agent goes through one helper that sets an explicit statement timeout and
-`READ COMMITTED`, and **no query uses `NOLOCK`** (D-MCC6). A lint rule in `check-agent-syntax.mjs`
-asserts both — the point of a policy nobody can accidentally opt out of.
+Every McLeod query in the agent goes through **one helper that owns both the connection and the
+session settings**, so no call site can opt out of either.
 
-**Done when.** `pnpm lint:agent-syntax` fails on an added `NOLOCK` and on a raw query that bypasses
-the helper; both proven by mutation.
+**The connection (D-MCC10 — the bigger half).** One pooled connection, **`max: 1`, `min: 1`**, with
+keep-alive, held for the life of the process and reconnected with exponential backoff on failure.
+Not a connection per poll: connect + TLS + auth measured **~110 ms against a 4 ms query**, so
+reconnecting each cycle would spend 1,440 logins/day — 1.9% of the server's login volume — on
+handshakes alone. `max: 1` and not a real pool because the agent is serial by design; a larger pool
+would let a retry storm open several sessions against writers we are trying not to disturb.
+
+**The session settings, per query:**
+
+| Setting | Value | Why that number |
+|---|---|---|
+| `LOCK_TIMEOUT` | **5,000 ms** | we yield rather than queue behind a McLeod writer (RCSI is OFF) |
+| statement timeout | **15 s** | **3,750× the measured 4 ms** — can only fire on genuine pathology |
+| `MAXDOP` | **1** | the board query already chose DOP 1; pinning it means we can never take parallel workers |
+| isolation | **`READ COMMITTED`** | and **never `NOLOCK`** — a dirty read reaching a financial figure is worse than a query that waits, and at 4 ms these are far too short to need it |
+
+**Circuit breaker.** If a cycle exceeds **2 s** (500× normal), stop polling, back off exponentially
+and report. Something has changed on the server, and the correct response is to get out of the way
+rather than retry harder.
+
+**Done when.** `pnpm lint:agent-syntax` fails on an added `NOLOCK`, on a raw query that bypasses the
+helper, and on a second connection being opened — each proven by mutation. A test asserts the pool
+is `max: 1` and that a forced disconnect reconnects with backoff rather than per-query.
 
 ---
 
@@ -362,10 +461,16 @@ warning line has to stay switched on.
    **`orders.id`** (16,948) and **`orders.blnum`** is not unique at all (2,020 collisions).
 8. **A restore of `lme` into `lme_analytics` carries CT state with it**, so a watermark taken from
    the sandbox is meaningless against production and vice versa. Watermarks are stored per database.
+9. **A time-of-day polling schedule would be expressed in Central time, which is DST-shifting.**
+   That is why the dispatch cadence is flat (D-MCC8) — backing off overnight saves 2 CPU-seconds
+   and buys a DST bug.
+10. **Connection churn costs more than the queries.** ~110 ms to connect against 4 ms to run the
+    board. One held connection, `max: 1` (D-MCC10) — reconnecting per poll is the single easiest
+    way to make a negligible collector look like load.
 
 ---
 
-## 6. Scope — which tables each feed reads
+## 6. Table scope per feed
 
 Verified against `scripts/table-modules.json` and the live schema, 2026-09-10.
 
