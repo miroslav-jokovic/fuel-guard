@@ -227,15 +227,6 @@ export interface FuelPolicy {
   avoidStates: readonly string[];
   avoidBrands: readonly string[];
   preferredBrands: readonly string[];
-  /**
-   * Whether the planner tops the tank off at every stop — `route_fuel_settings.always_fill_full`.
-   *
-   * Read by the compliance side for one reason: when it is TRUE, `fillPolicy.ts`'s min-drawdown rule
-   * never runs, so `fill_cap_pct` and the minimum purchase are DORMANT and judging fills against them
-   * would be a report contradicting the planner reading the same table (B4's shape). What the surface
-   * does instead is price the setting — F13's carried-fuel figure is what leaving it on costs.
-   */
-  alwaysFillFull: boolean;
   /** The standards the carrier set for itself. All-null until they do. */
   targets: FuelTargets;
 }
@@ -252,10 +243,6 @@ export const DEFAULT_FUEL_POLICY: FuelPolicy = {
   avoidStates: ["CA"],
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],
-  // Matches `DEFAULT_ROUTE_FUEL_SETTINGS.alwaysFillFull` — min-drawdown is opt-in per org, not the
-  // default — so the two halves of the product start from the same assumption about an unconfigured
-  // carrier rather than from two.
-  alwaysFillFull: true,
   // ⚠ Not a default — the ABSENCE of one. An unconfigured carrier has no target, and inventing one
   // here would put the product's opinion behind every variance figure in the section.
   targets: NO_FUEL_TARGETS,
@@ -266,7 +253,6 @@ export interface FuelPolicyRow {
   avoid_states?: string[] | null;
   avoid_brands?: string[] | null;
   preferred_brands?: string[] | null;
-  always_fill_full?: boolean | null;
   target_on_network_pct?: number | string | null;
   target_discount_capture_pct?: number | string | null;
   target_avoided_state_gal?: number | string | null;
@@ -296,9 +282,6 @@ export function fuelPolicyFromSettings(row: FuelPolicyRow | null | undefined): F
     avoidStates: list(row?.avoid_states, DEFAULT_FUEL_POLICY.avoidStates, (s) => s.toUpperCase()),
     avoidBrands: list(row?.avoid_brands, DEFAULT_FUEL_POLICY.avoidBrands, (s) => s.toLowerCase()),
     preferredBrands: list(row?.preferred_brands, DEFAULT_FUEL_POLICY.preferredBrands, (s) => s.toLowerCase()),
-    // A boolean has no empty-versus-null distinction to preserve: absent means unconfigured, and an
-    // unconfigured carrier gets the planner's own default rather than a second opinion.
-    alwaysFillFull: row?.always_fill_full ?? DEFAULT_FUEL_POLICY.alwaysFillFull,
     // ⚠ NOT run through the null-means-default rule above. For the lists, null means "never
     // configured" and the default applies; for a target, null means there ISN'T one and there is
     // nothing to fall back to. PostgREST returns `numeric` as a string, so each is coerced once here

@@ -40,7 +40,7 @@ describe("chooseFill", () => {
   it("a cheaper station ahead no longer shortens a fill — min-drawdown is retired (D-FP3)", () => {
     const pick = st({ id: "dear", milesAhead: 200, netPrice: 4.0 });
     const cheaper = st({ id: "cheap", milesAhead: 500, netPrice: 3.0 });
-    const d = chooseFill(ctx({ cfg: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false }, pick, stations: [pick, cheaper] }));
+    const d = chooseFill(ctx({ pick, stations: [pick, cheaper] }));
     expect(d.isMinFill).toBe(false);
     expect(d.fillGal).toBeCloseTo(140, 6);
   });

@@ -11,12 +11,8 @@ export interface RouteFuelSettingsRow {
   fill_target_pct?: number | string | null;
   border_top_off_pct?: number | string | null;
   corridor_miles?: number | string | null;
-  min_purchase_gal?: number | string | null;
   mpg_safety_factor?: number | string | null;
-  deviation_threshold_mi?: number | string | null;
   price_ttl_hours?: number | string | null;
-  always_fill_full?: boolean | null;
-  fill_cap_pct?: number | string | null;
   avoid_states?: string[] | null;
   opposite_side_access_miles?: number | string | null;
   refuel_band_miles?: number | string | null;
@@ -26,7 +22,6 @@ export interface RouteFuelSettingsRow {
   preferred_brands?: string[] | null;
   enabled_brands?: string[] | null;
   emergency_fill_gallons?: number | string | null;
-  plan_def?: boolean | null;
   default_height_in?: number | string | null;
   default_length_in?: number | string | null;
   default_width_in?: number | string | null;
@@ -49,12 +44,8 @@ export function resolveRouteFuelConfig(row: RouteFuelSettingsRow | null | undefi
     fillTargetPct: num(row?.fill_target_pct, d.fillTargetPct),
     borderTopOffPct: num(row?.border_top_off_pct, d.borderTopOffPct),
     corridorMiles: num(row?.corridor_miles, d.corridorMiles),
-    minPurchaseGal: num(row?.min_purchase_gal, d.minPurchaseGal),
     mpgSafetyFactor: num(row?.mpg_safety_factor, d.mpgSafetyFactor),
-    deviationThresholdMi: num(row?.deviation_threshold_mi, d.deviationThresholdMi),
     priceTtlHours: num(row?.price_ttl_hours, d.priceTtlHours),
-    alwaysFillFull: row?.always_fill_full ?? d.alwaysFillFull,
-    fillCapPct: num(row?.fill_cap_pct, d.fillCapPct),
     avoidStates: arr(row?.avoid_states, d.avoidStates),
     oppositeSideAccessMiles: num(row?.opposite_side_access_miles, d.oppositeSideAccessMiles),
     refuelBandMiles: num(row?.refuel_band_miles, d.refuelBandMiles),
@@ -66,7 +57,6 @@ export function resolveRouteFuelConfig(row: RouteFuelSettingsRow | null | undefi
     preferredBrands: arr(row?.preferred_brands, d.preferredBrands),
     enabledBrands: arr(row?.enabled_brands, d.enabledBrands),
     emergencyFillGallons: num(row?.emergency_fill_gallons, d.emergencyFillGallons),
-    planDef: row?.plan_def ?? d.planDef,
     defaultEquipmentType: (row?.default_equipment_type as EquipmentType) || d.defaultEquipmentType,
     defaultProfile: {
       heightIn: num(row?.default_height_in, d.defaultProfile.heightIn),

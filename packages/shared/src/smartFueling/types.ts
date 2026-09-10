@@ -74,14 +74,8 @@ export interface RouteFuelSettings {
    *  constant of 80 in the API whose own solver comment said 85 (0335). */
   borderTopOffPct: number;
   corridorMiles: number;
-  minPurchaseGal: number;
   mpgSafetyFactor: number;
-  deviationThresholdMi: number;
   priceTtlHours: number;
-  /** true = top off at every stop. false = min-drawdown: buy only enough to reach the next cheaper stop. */
-  alwaysFillFull: boolean;
-  /** When min-drawdown is active, cap a non-cheapest partial fill at this % of tank (full fill only at the cheapest reachable stop). */
-  fillCapPct: number;
   avoidStates: string[];
   /** Extra detour miles charged to an opposite-side (of travel) station — a divided-highway back-track. 0 = off. */
   oppositeSideAccessMiles: number;
@@ -100,7 +94,6 @@ export interface RouteFuelSettings {
    *  (the registry may hold more networks than an org uses). Empty is not allowed (resolve falls back). */
   enabledBrands: string[];
   emergencyFillGallons: number;
-  planDef: boolean;
   /** Carrier's usual trailer/equipment — the plan form default (per-plan override wins). */
   defaultEquipmentType: EquipmentType;
   defaultProfile: TruckProfile;
@@ -111,12 +104,8 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   fillTargetPct: 100,
   borderTopOffPct: 80,
   corridorMiles: 2.5,
-  minPurchaseGal: 50,
   mpgSafetyFactor: 0.9,
-  deviationThresholdMi: 3,
   priceTtlHours: 72, // a manually-uploaded daily report can lag 1-2 days; treat quotes within 3 days as current
-  alwaysFillFull: true, // always top off (full tank). Min-drawdown is opt-in per org, not the default.
-  fillCapPct: 75,
   avoidStates: ["CA"],
   oppositeSideAccessMiles: 2, // interstate truck stops sit at interchanges → opposite side ≈ a real crossover
   refuelBandMiles: 150, // defer fueling to the last ~150 mi of range so the truck fuels near reserve, not early
@@ -126,7 +115,6 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   preferredBrands: ["pilot", "flying_j"],
   enabledBrands: ["pilot", "flying_j", "one9"],
   emergencyFillGallons: 50,
-  planDef: false,
   defaultEquipmentType: "dry_van",
   defaultProfile: { heightIn: 162, lengthIn: 840, widthIn: 102, axleCount: 5, grossWeightLb: 80000 },
 };

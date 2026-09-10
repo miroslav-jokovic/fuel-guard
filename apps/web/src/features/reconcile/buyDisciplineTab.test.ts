@@ -123,16 +123,11 @@ describe("BuyDisciplineTab", () => {
     expect(t).toContain(`Only ${report.noBasis + report.unpriceable} could not be judged at all`);
   });
 
-  // ── the one action on the page ────────────────────────────────────────────────────────────────
-  it("offers the planner setting that would stop it, with the number that decides it", () => {
-    const t = render(legs(), policy({ alwaysFillFull: true }));
-    expect(t).toContain("Always fill full");
-    expect(t).toContain("switched off");
-  });
-
-  it("says nothing about the setting when the carrier has already turned min-drawdown on", () => {
-    // Judging a carrier against a discipline they have enabled is noise; the legs still show.
-    const t = render(legs(), policy({ alwaysFillFull: false }));
+  // ── no setting to offer ───────────────────────────────────────────────────────────────────────
+  it("does not offer a partial-fill setting — the planner fills full on every stop (D-FP3)", () => {
+    // Until 2026-09-10 this card priced the min-drawdown switch; the owner retired that policy. The legs
+    // still show, and nothing on the card points at a setting that no longer exists.
+    const t = render(legs(), policy());
     expect(t).not.toContain("Always fill full");
     expect(t).toContain("CA → AZ");
   });

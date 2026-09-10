@@ -6,9 +6,8 @@
  *   3. Low-fuel emergency elsewhere → a minimal splash: just enough to reach the next preferred station.
  *   4. Otherwise → full top-off. Every planned fill is a full fill (D-FP3, owner ruling 2026-09-10: "fueled
  *      when it gets to 20% to the top … without any overcomplications"). Min-drawdown — buy only enough to
- *      reach the next cheaper station, opt-in since 0061 — was retired with that ruling; `alwaysFillFull` and
- *      `fillCapPct` are still columns and settings fields until FP6 removes them from the form, and nothing
- *      here reads them.
+ *      reach the next cheaper station, opt-in since 0061 — was retired with that ruling; its three columns
+ *      (`always_fill_full`, `fill_cap_pct`, `min_purchase_gal`) stay on the table with no reader.
  * Returns only the DECISION (gallons + flags); the caller applies it to tank/clock state.
  */
 import type { SolverStation } from "./solver.js";
