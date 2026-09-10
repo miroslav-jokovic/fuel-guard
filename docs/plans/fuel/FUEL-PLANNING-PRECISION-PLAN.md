@@ -319,3 +319,4 @@ All four answered by the owner's 2026-09-10 ruling quoted in the status line.
   answered, min-drawdown retired under "no overcomplications". FP1 starts.
 - 2026-09-10 — **FP1 BUILT** (#727): stops by range only, HOS advanced as a clock and used for tags, 34-h restart + `cycle_restart_required`, min-drawdown out of `fillPolicy.ts`. The 748 replay is a fixture; watched fail first.
 - 2026-09-10 — **FP2 BUILT** (#728): the four-rung ladder in `stationSelect.ts`; `pickStop` is its only caller; `emergencyBrands` gone from `RouteFuelSettings` (column and form field stay until FP6). Unit 748's replay now cannot pick ONE9.
+- 2026-09-10 — **FP3 BUILT** (#729): migration 0335 adds `fill_target_pct` (100), `refuel_band_miles` (150), `critical_fuel_pct` (10), `opposite_side_access_miles` (2), `border_top_off_pct` (80); `always_fill_full` default → true, `price_ttl_hours` default → 72. No reader in this merge; FP4 waits for `pnpm verify:live` to report 0335 current.
