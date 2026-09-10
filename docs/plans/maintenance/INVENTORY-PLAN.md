@@ -1983,3 +1983,24 @@ signed here by the person who did it. I6's spike results go here before its seco
   matrices. `ScanPage.vue` is in `ui-system-inventory.mjs`'s `PageHeader` exception list beside
   `CountSessionPage.vue`, with the reason: it renders in `ShopLayout`, which has no workspace for a
   header, and its actions are decided by what was just scanned rather than fixed at the top.
+
+- **I6-SPIKE-RUNBOOK.md AMENDED — 2026-09-10.** The PR above owed one thing to this document and it
+  is paid here: **§0, the fifteen minutes to run the day the handheld scanners arrive**, led by the
+  one check that `useScanInput.ts` wrote down rather than assumed — *does a scan reach the page when
+  nothing on it is focused*, in Safari and again installed. Plus the double-press keyboard toggle,
+  the Enter suffix, the same-symbol window, reconnect after sleep, and the greasy supplier UPC,
+  which §0 answers in hardware.
+
+  **Two corrections to the page that matter more than the checklist.** Its opening sentence —
+  *"A1 and part of A2 gate I6's scanner"* — was true on 2026-09-09 and is now half wrong in the
+  direction that misleads: **A1 gates the CAMERA and nothing the shop does day to day.** And §1's
+  instruction to "open the scan surface" no longer means what it says, because `/shop/scan` exists
+  now and has no camera on it. Both are amended in place with dated boxes rather than rewritten,
+  because this repo appends to plans; the numbering is untouched and the new section is **§0** for
+  the same reason — §1 is cited by name from the entry above, and a citation that silently moves is
+  worse than an odd number.
+
+  This is the failure a previous handoff in this programme named exactly once and it is worth naming
+  again: *"the first one is a map to a place the programme left this morning"*. A runbook is only
+  worth the twenty minutes it saves, and it saves none if the person holding it is looking for a
+  camera that is not there.

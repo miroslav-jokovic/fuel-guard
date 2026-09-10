@@ -8,6 +8,92 @@ Three things are owed. **A1 and part of A2 gate I6's scanner**; the third closes
 listed in the order they can be done, not in plan order — A1 needs a printer and a phone, and
 nothing else.
 
+> **⚠ AMENDED 2026-09-10, AFTER PR #711 — READ THIS BEFORE THE SECTIONS BELOW.**
+>
+> The sentence above — "A1 and part of A2 gate I6's scanner" — was true when it was written and is
+> now only half true, and the half that changed is the important one. **The shop can scan today.**
+> `/shop/scan` shipped in #711 on a **Bluetooth HID scanner**, which is a keyboard: it pairs in iOS
+> Settings, types the barcode and an Enter, and needs no camera permission, no WebAssembly and no
+> A1. The owner ordered handheld imagers on 2026-09-10.
+>
+> So **A1 now gates the CAMERA half of I6 and nothing else.** §1 below is unchanged and still
+> correct — it is still the twenty minutes that decide whether the camera is built on the free
+> decoder or on a paid web SDK (D-INV28's revisit clause). What changed is its urgency: nothing the
+> shop does day to day is waiting on it any more.
+>
+> **§0 is new and comes first**, because the hardware is arriving and its checks take fifteen
+> minutes. It is numbered zero rather than renumbering §1–§3, because this document's §1 is cited by
+> name from `INVENTORY-PLAN.md` §8 and a citation that silently moves is worse than an odd number.
+
+---
+
+## 0. The handheld scanners, the day they arrive (15 minutes, at the receiving desk)
+
+**⚠ These checks do not GATE anything — the path is live.** They close the one assumption its
+implementation wrote down rather than assumed, and they confirm this particular model behaves the
+way its class is documented to. Do them the day the boxes are opened, not later: every answer below
+is cheap now and expensive to reconstruct from a complaint in three weeks.
+
+### Before you start
+
+Pair the scanner: **iOS Settings → Bluetooth**. It should appear and connect as a **keyboard** — if
+it offers itself as anything else, it is not in HID mode and its manual has a configuration barcode
+to put it there. Then open **Shop → Scan** on the phone.
+
+Have to hand: a printed `SIL1:BIN:…` label if §1's sheet exists yet, and **any supplier carton with a
+UPC on it**. Either one exercises the whole path; the carton is the more interesting.
+
+### The one that actually matters
+
+- [ ] **Does a scan reach the page when nothing on it is focused?** Open Scan, **touch nothing**,
+      and pull the trigger. Does the item appear?
+
+  **Why this is the question.** The capture is a `document` keydown listener rather than a
+  permanently focused hidden input — the hidden input was rejected because it fights every other
+  control for focus, raises the soft keyboard on a phone with no scanner paired, and makes "scan
+  while a result is on screen" depend on focus surviving whatever was last touched. **But iOS is
+  documented as inconsistent about delivering hardware-keyboard events to a page with no focused
+  element**, and that is the single thing in `useScanInput.ts` that a desk cannot verify. It was
+  written down rather than assumed, and this line is where it gets answered.
+
+  **If it fails, say so and stop worrying about it** — the fix is one line (focus the typed-entry
+  field on mount) and nothing else in the file changes, because the timing rule does the work
+  either way.
+
+- [ ] **Repeat it installed to the home screen** (Share → Add to Home Screen, open from the icon).
+      Standalone mode is a different WebKit path and has its own history of surprises.
+
+### The rest, in the order you will hit them
+
+- [ ] **Does the on-screen keyboard come back?** With the scanner paired, tap the **"Type a code"**
+      field at the bottom. A paired HID keyboard makes iOS hide the soft keyboard, so it probably
+      will not appear. **Double-press the scanner trigger.** Does it appear then? That is the
+      documented toggle and the screen's hint says so; confirm it is true of this model.
+- [ ] **Does the Enter suffix arrive?** If the item appears the instant you scan, it does. If there
+      is a beat of about a fifth of a second first, the suffix is switched off on this unit and the
+      idle flush caught it — **not a fault**, but worth knowing, because it is otherwise
+      indistinguishable from a slow network.
+- [ ] **One label, one sheet.** Hold the trigger down, or leave the scanner in its cradle pointed at
+      a label. Does the item open **once**, or over and over? Once is the 800 ms same-symbol window
+      doing its job.
+- [ ] **A greasy supplier UPC.** Smear a thumbprint on the carton's barcode and scan it. **This is
+      A1's hard half, answered by hardware instead of by WebAssembly** — a dedicated imager is
+      exactly what the free decoder's measured 10.2 % on out-of-focus 1D is bad at. If it reads
+      reliably here, the camera's UPC risk stops being a workflow risk and becomes a convenience one.
+- [ ] **Sleep and come back.** Lock the phone, wait five minutes, wake it, scan. Does it reconnect
+      on its own? This is the flakiest area in this price bracket and the difference between a tool
+      and a nuisance.
+- [ ] **Issue something.** Scan a bin, tap **Issue**, fill it in, save. Then — with the form still
+      open on a different scan — confirm a stray trigger pull does **not** change the item under it.
+
+### What to send back
+
+The seven answers, and one sentence with your name — the same shape §3 asks for. For example:
+
+> *Paired as a keyboard first try. Scans land with nothing focused, in Safari and installed.
+> Double-press brings the keyboard back. Greasy UPC read every time. Reconnected after ten minutes
+> asleep. — Miki, 2026-09-11*
+
 ---
 
 ## 1. A1 — does the free decoder read our labels? (20 minutes, at a desk)
@@ -42,6 +128,24 @@ have been handled.
 | 1 | An iPhone | Safari, straight to the URL |
 | 2 | **The same iPhone** | Installed to the home screen ("Add to Home Screen") |
 | 3 | An Android | Chrome |
+
+> **⚠ Added 2026-09-10: "the scan surface" below does not mean `/shop/scan`.** That screen exists now
+> and has **no camera on it** — #711 shipped the hardware-scanner path only. So this section still
+> needs something to point a camera through, and the two honest ways to get one are worth naming
+> rather than leaving to whoever picks the page up:
+>
+> - **The device facts** — permission prompts across a route change, torch, what happens after
+>   backgrounding — are properties of iOS and not of our code, and can be measured on **any** public
+>   WASM barcode-scanner demo opened on the same phone. That is most of the checklist and it costs
+>   nothing to set up.
+> - **The decode-rate facts** — 1 inch, 0.75 inch, the greasy UPC — are only meaningful against
+>   **our** decoder at **our** settings, which means the camera layer has to exist first, behind a
+>   flag. Build it with a diagnostics panel (decode latency, capability dump, prompt counter, the
+>   last twenty reads) so this session produces numbers rather than impressions.
+>
+> The greasy-UPC answer is also obtainable a third way, and sooner: **§0 asks a hardware imager the
+> same question.** A confident "the handheld reads it every time" does not tell you what the WASM
+> decoder will do, but it does tell you the shop is not blocked either way.
 
 On each, open the scan surface and record:
 
@@ -119,3 +223,8 @@ That line goes into the plan's §8 verbatim and **I9 closes**.
   count session itself still works; it walks the parts at a location. **I5 is closed.**
 - **A5** (the label printer and stock) and **A6** (FleetPal work orders) — both real, both owned by
   the owner, and both retired by **I10** and **I14** rather than by anything in I0–I9.
+- **Anything that would let the shop start scanning** — that is done, as of #711, and §0 is a
+  confirmation rather than a gate. The distinction matters for whoever reads this page cold: if the
+  scanners are paired and Shop → Scan resolves a label, **nothing on this list is standing between
+  the shop and its inventory**. What is left decides how the CAMERA gets built (§1), how hard the
+  offline queue has to work (§2), and whether I9 can be marked closed (§3).
