@@ -38,8 +38,7 @@ const FEED: SpendLine[] = [
 ];
 
 const POLICY: FuelPolicy = {
-  avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], alwaysFillFull: true,
-  // No target set — the state every carrier is in until somebody fills the form in (C8).
+  avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], // No target set — the state every carrier is in until somebody fills the form in (C8).
   targets: NO_FUEL_TARGETS,
 };
 const withPolicy = (o: Partial<FuelPolicy>): FuelPolicy => ({ ...POLICY, ...o });

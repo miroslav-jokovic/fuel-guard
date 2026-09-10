@@ -7,9 +7,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   resolveRouteFuelConfig, effectiveTruckProfile, buildTruckFuelState, planFuelStops, stationsAlongRoute,
   milesFromMeters, resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, findFirstBorderCrossingMile, stripStepDistance,
-  type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState, type PriceConfidence,
-  type PostedQuote, type DiscountRule,
+  planPricing,
+  type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState,
+  type PostedQuote, type DiscountRule, type PlanFlag,
 } from "@silvicom/shared";
+import { stopView, pointAtMile, type PlanStopView, type StationRow } from "./planStopView.js";
+export type { PlanStopView } from "./planStopView.js";
 import type { Env } from "../../env.js";
 import { getOrComputeRoute } from "./routeGeometry.js";
 import { breakFuelAdvice } from "@silvicom/shared";
@@ -18,9 +21,6 @@ import { geocodeAddress } from "./geocode.js";
 import { loadSamsaraToken } from "../samsara/lib/samsaraToken.js";
 import { makeSamsaraFetcher, makeSamsaraHosFetcher } from "../samsara/lib/samsara.js";
 import { hereReverseGeocodeState } from "../../lib/hereGeocode.js";
-
-/** Fuel % at/above which entering an avoided state does NOT require a pre-border top-off (California rule). 80% per policy. */
-const BORDER_TOP_OFF_PCT = 80;
 
 export interface PlanPoint { lat?: number | null; lng?: number | null; text?: string | null }
 export interface PlanRequest {
@@ -46,59 +46,6 @@ export interface PlanRequest {
 
 /** Why live telematics could not drive the plan (drives the UI message + manual-entry fallback). */
 export type TelematicsReason = "not_linked" | "not_connected" | "unavailable" | "no_fuel_reading";
-
-export interface PlanStopView {
-  kind: "fuel" | "rest";
-  milesAhead: number;
-  stationLat: number | null;
-  stationLng: number | null;
-  stationName: string | null;
-  brand: string | null;
-  state: string | null;
-  exit: string | null;
-  storeNumber: string | null;
-  detourMiles: number;
-  gallons: number;
-  netPrice: number | null;
-  priceAgeHours: number | null;
-  cost: number | null;
-  arrivalGal: number;
-  isEmergency: boolean;
-  coversBreak: boolean;
-  isOvernight: boolean;
-  driveHoursLeftOnArrival: number | null;
-  /** This fuel stop is the mandated top-off just before entering a border state (e.g. the California border). */
-  isBorderTopOff: boolean;
-  /** The state being entered at a border top-off (e.g. "CA", "MA"), for the UI label. null otherwise. */
-  borderState: string | null;
-  /** This is a min-drawdown partial fill (bought only enough to reach the next cheaper stop), not a full top-off. */
-  isMinFill: boolean;
-  /** true = netPrice is a history/brand estimate, not a fresh quote (Phase 5). */
-  priceEstimated: boolean;
-  /** Confidence in an estimated price (null when the price is a fresh quote or unknown). */
-  priceConfidence: PriceConfidence | null;
-}
-
-/** Interpolate the lat/lng at a given cumulative mile along the route polyline (positions rest stops on the map). */
-function pointAtMile(poly: LatLng[], targetMi: number): { lat: number; lng: number } | null {
-  if (poly.length === 0) return null;
-  const havMi = (a: LatLng, b: LatLng) => {
-    const toRad = (d: number) => (d * Math.PI) / 180;
-    const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
-    const s1 = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-    return 3958.8 * 2 * Math.atan2(Math.sqrt(s1), Math.sqrt(1 - s1));
-  };
-  let cum = 0;
-  for (let i = 1; i < poly.length; i++) {
-    const seg = havMi(poly[i - 1]!, poly[i]!);
-    if (cum + seg >= targetMi) {
-      const t = seg > 0 ? (targetMi - cum) / seg : 0;
-      return { lat: poly[i - 1]!.lat + (poly[i]!.lat - poly[i - 1]!.lat) * t, lng: poly[i - 1]!.lng + (poly[i]!.lng - poly[i - 1]!.lng) * t };
-    }
-    cum += seg;
-  }
-  return poly[poly.length - 1]!;
-}
 
 /**
  * Locate the route mile at which the truck first crosses INTO an avoided state (e.g. California), so the solver
@@ -143,10 +90,12 @@ export interface PlanResult {
     stops: PlanStopView[];
     totalGallons: number;
     totalCost: number | null;
-    savingsVsNaive: number | null;
+    /** The same gallons at the posted pump prices, and the contract discount between the two (D-FP5). */
+    totalCostAtPump: number | null;
+    discountSavings: number | null;
     arrivalFuelPct: number | null;
     reachesDestination: boolean;
-    flags: string[];
+    flags: PlanFlag[];
   };
   route?: { distanceMiles: number; durationHours: number; polyline: LatLng[]; directions: { instruction: string; miles: number }[] };
   truck?: ReturnType<typeof truckStateView>;
@@ -199,13 +148,17 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { status: "error", message: e instanceof Error ? e.message : "Routing failed", origin, destination };
   }
   const distanceMiles = milesFromMeters(route.distanceMeters);
+  // Derive avg speed from the RAW route seconds (not the 1-decimal-rounded hours) so rounding error does not
+  // bleed into every mile/break estimate downstream. ONE speed (D-FP8): the truck state's "Reachable now" and
+  // the solver's walk both use it — until 2026-09-10 the tile used a 55 mph constant and the walk the route's.
+  const avgSpeedMph = route.durationSeconds > 0 ? distanceMiles / (route.durationSeconds / 3600) : 55;
   // Instruction text has HERE's own km/m distance baked in ("… Go for 8 km."); strip it and show miles
   // ourselves (from lengthMeters) so the turn-by-turn reads in miles only. Applied on read, so cached
   // routes with the old km text are cleaned too — no cache invalidation needed.
   const directions = route.steps.map((st) => ({ instruction: stripStepDistance(st.instruction), miles: r1(milesFromMeters(st.lengthMeters)) }));
   const routeView = { distanceMiles: r1(distanceMiles), durationHours: r1(route.durationSeconds / 3600), polyline: route.polyline, directions };
 
-  const tele = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, req.loadGrossLb ?? null);
+  const tele = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, req.loadGrossLb ?? null, avgSpeedMph);
   let truck: TruckFuelState;
   let hos: HosClocks;
   let manualFuelUsed = false;
@@ -215,7 +168,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     hos = tele.hos;
   } else if (req.manualFuelPct != null) {
     // Fallback: dispatcher-entered fuel level (uses live HOS when present, else typed / none).
-    const m = buildManualTruckState(veh, req.manualFuelPct, req.manualHos ?? null, tele.ok ? tele.hos : NULL_HOS, isReefer, cfg, req.loadGrossLb ?? null);
+    const m = buildManualTruckState(veh, req.manualFuelPct, req.manualHos ?? null, tele.ok ? tele.hos : NULL_HOS, isReefer, cfg, req.loadGrossLb ?? null, avgSpeedMph);
     truck = m.state;
     hos = m.hos;
     manualFuelUsed = true;
@@ -225,9 +178,6 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { status: "telematics_unavailable", telematicsReason: reason, message: TELEMATICS_MESSAGE[reason], route: routeView, origin, destination };
   }
   const truckView = truckStateView(truck, hos);
-  // Derive avg speed from the RAW route seconds (not the 1-decimal-rounded hours) so rounding error does not
-  // bleed into every mile/break estimate downstream.
-  const avgSpeedMph = route.durationSeconds > 0 ? distanceMiles / (route.durationSeconds / 3600) : 55;
   const breakDue = breakFuelAdvice({ timeUntilBreakMs: hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: [] });
 
   // Single-pass bbox — a spread of Math.min(...polyline) overflows the call stack on a long route.
@@ -252,7 +202,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     // stranded routes. The brand filter already guarantees diesel.
     .gte("lat", minLat - pad).lte("lat", maxLat + pad)
     .gte("lng", minLng - pad).lte("lng", maxLng + pad);
-  const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
+  const stations = (stationRows ?? []) as StationRow[];
   if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, truck: truckView, breakAdvice: breakDue, manualFuelUsed, origin, destination };
 
   // Narrow to the on-route corridor FIRST, then pull price history only for those stations (fewer rows).
@@ -264,16 +214,17 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   const now0 = Date.now();
   const lookbackHours = DEFAULT_PRICE_LOOKBACK_HOURS;
   const cutoffIso = new Date(now0 - lookbackHours * 3_600_000).toISOString();
-  const historyByStation = new Map<string, { net: number | null; observedAtMs: number }[]>();
+  const historyByStation = new Map<string, { net: number | null; posted: number | null; observedAtMs: number }[]>();
   const latestByStation = new Map<string, { net: number | null; at: string }>();
   for (let i = 0; i < candidateIds.length; i += 200) {
     const part = candidateIds.slice(i, i + 200);
     const { data: priceRows } = await admin
-      .from("fuel_prices").select("station_id, net_price, observed_at").eq("org_id", orgId).eq("product", "diesel")
+      .from("fuel_prices").select("station_id, net_price, posted_price, observed_at").eq("org_id", orgId).eq("product", "diesel")
       .in("station_id", part).gte("observed_at", cutoffIso).order("observed_at", { ascending: false });
-    for (const pr of (priceRows ?? []) as Array<{ station_id: string; net_price: number | string | null; observed_at: string }>) {
+    for (const pr of (priceRows ?? []) as Array<{ station_id: string; net_price: number | string | null; posted_price: number | string | null; observed_at: string }>) {
       const net = pr.net_price != null ? Number(pr.net_price) : null;
-      (historyByStation.get(pr.station_id) ?? historyByStation.set(pr.station_id, []).get(pr.station_id)!).push({ net, observedAtMs: Date.parse(pr.observed_at) });
+      const posted = pr.posted_price != null ? Number(pr.posted_price) : null;
+      (historyByStation.get(pr.station_id) ?? historyByStation.set(pr.station_id, []).get(pr.station_id)!).push({ net, posted, observedAtMs: Date.parse(pr.observed_at) });
       if (!latestByStation.has(pr.station_id)) latestByStation.set(pr.station_id, { net, at: pr.observed_at }); // rows are observed_at DESC
     }
   }
@@ -325,8 +276,8 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { id: c.station.id, brand: s.brand, state: s.state, milesAhead: c.alongTrackMiles, detourMiles: c.detourMiles, netPrice: est.net, priceEstimated: est.estimated };
   });
 
-  // Border top-off: if this route enters a state we must fuel up before (California — pricey fuel; Massachusetts
-  // — one truck stop), top the tank off just before the line (unless it'd already cross above BORDER_TOP_OFF_PCT).
+  // Border top-off: entering a state we must fuel up before (California — pricey fuel; Massachusetts — one truck
+  // stop) tops the tank off before the line unless it'd cross above `border_top_off_pct` (0335; was a constant).
   const border = await findBorderTopOffMile(env, [...cfg.avoidStates, ...cfg.fuelBeforeStates], route.polyline, distanceMiles, origin, destination);
 
   const plan = planFuelStops({
@@ -336,7 +287,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     settings: cfg,
     avgSpeedMph,
     avoidedBorderMiles: border?.mile ?? undefined,
-    borderTopOffPct: BORDER_TOP_OFF_PCT,
+    borderTopOffPct: cfg.borderTopOffPct,
     hos: {
       driveRemainingMs: hos.driveRemainingMs,
       shiftRemainingMs: hos.shiftRemainingMs,
@@ -344,36 +295,21 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
       breakRemainingMs: hos.timeUntilBreakMs,
     },
   });
-  const stops: PlanStopView[] = plan.stops.map((st) => {
-    const s = st.station ? stationById.get(st.station.id) ?? null : null;
-    const latest = st.station ? latestByStation.get(st.station.id) : undefined;
-    const est = st.station ? estByStation.get(st.station.id) : undefined;
-    const pos = s ? { lat: Number(s.lat), lng: Number(s.lng) } : pointAtMile(route.polyline, st.milesAhead);
-    return {
-      kind: st.kind,
-      milesAhead: r1(st.milesAhead),
-      stationLat: pos?.lat ?? null, stationLng: pos?.lng ?? null,
-      stationName: s ? (s.name ?? s.brand) : null, brand: s?.brand ?? null, state: s?.state ?? null, exit: s?.exit ?? null, storeNumber: s?.store_number ?? null,
-      detourMiles: st.station ? r1(st.station.detourMiles) : 0, gallons: r1(st.fillGal),
-      netPrice: st.netPrice, priceAgeHours: latest ? Math.round((Date.now() - Date.parse(latest.at)) / 3_600_000) : null,
-      priceEstimated: est?.estimated ?? false, priceConfidence: est?.estimated ? est.confidence : null,
-      cost: st.cost != null ? Math.round(st.cost * 100) / 100 : null, arrivalGal: r1(st.arrivalGal), isEmergency: st.isEmergency,
-      coversBreak: st.coversBreak, isOvernight: st.isOvernight, driveHoursLeftOnArrival: st.driveHoursLeftOnArrival != null ? r1(st.driveHoursLeftOnArrival) : null,
-      isBorderTopOff: st.isBorderTopOff, borderState: st.isBorderTopOff ? border?.state ?? null : null, isMinFill: st.isMinFill, isOffNetwork: st.isOffNetwork,
-    };
-  });
+  const stopCtx = { stationById, latestByStation, postedByStation, estByStation, polyline: route.polyline, border, nowMs: Date.now() };
+  const stops: PlanStopView[] = plan.stops.map((st) => stopView(st, stopCtx));
+  const pricing = planPricing(stops.map((st) => ({ gallons: st.gallons, netPrice: st.netPrice, postedPrice: st.postedPrice })));
 
   const breakAdvice = breakFuelAdvice({ timeUntilBreakMs: hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: plan.stops.filter((st) => st.kind === "fuel").map((st) => st.milesAhead) });
   // Overweight safeguard: with no load weight entered, fills aren't capped for legal gross weight. Only warn when
   // it actually matters — a large single fill (~700+ lb of diesel) that could push a heavy truck over gross.
   const uncappedBigFill = truck.flags.includes("load_weight_unknown") && plan.stops.some((st) => st.kind === "fuel" && st.fillGal >= 100);
-  const planFlags = manualFuelUsed ? [...plan.flags, "manual_fuel_entry"] : [...plan.flags];
+  const planFlags: PlanFlag[] = manualFuelUsed ? [...plan.flags, "manual_fuel_entry"] : [...plan.flags];
   if (uncappedBigFill && !planFlags.includes("fills_uncapped_no_load_weight")) planFlags.push("fills_uncapped_no_load_weight");
   const planMessage = describePlan(plan.status, planFlags);
   return {
     status: plan.status,
     message: planMessage,
-    plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
+    plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, totalCostAtPump: pricing.totalCostAtPump, discountSavings: pricing.discountSavings, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
     route: routeView, truck: truckView, breakAdvice, manualFuelUsed, origin, destination,
   };
 }
@@ -406,7 +342,7 @@ const NULL_HOS: HosClocks = { driveRemainingMs: null, shiftRemainingMs: null, cy
 /** Read live fuel + HOS for the truck, distinguishing WHY it's unavailable so the UI can guide the dispatcher. */
 async function fetchTruckFuelState(
   admin: SupabaseClient, env: Env, orgId: string, veh: VehState,
-  isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null,
+  isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null, avgSpeedMph: number,
 ): Promise<TeleResult> {
   if (!veh.samsara_vehicle_id) return { ok: false, reason: "not_linked" };
   const token = await loadSamsaraToken(admin, env, orgId);
@@ -426,30 +362,30 @@ async function fetchTruckFuelState(
     if (h) hos = h;
   } catch { /* HOS best-effort; solver flags no_hos */ }
 
-  const state = composeTruckState(veh, fuelSamples, hos, isReefer, cfg, loadGrossLb, now);
+  const state = composeTruckState(veh, fuelSamples, hos, isReefer, cfg, loadGrossLb, now, avgSpeedMph);
   return { ok: true, state, hos };
 }
 
 /** Build a TruckFuelState from raw inputs (shared by live + manual paths). */
-function composeTruckState(veh: VehState, fuelSamples: { time: string; value: number }[], hos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null, nowMs: number): TruckFuelState {
+function composeTruckState(veh: VehState, fuelSamples: { time: string; value: number }[], hos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null, nowMs: number, avgSpeedMph: number): TruckFuelState {
   return buildTruckFuelState(
     {
       fuelSamples, tankCapacityGal: Number(veh.tank_capacity_gal), observedMaxFillGal: veh.observed_max_fill_gal != null ? Number(veh.observed_max_fill_gal) : null,
       baselineMpg: veh.baseline_mpg != null ? Number(veh.baseline_mpg) : null, hos, isReefer, loadGrossLb, lastFillTimeMs: null, nowMs,
     },
-    { reservePct: cfg.reservePct, mpgSafetyFactor: cfg.mpgSafetyFactor },
+    { reservePct: cfg.reservePct, mpgSafetyFactor: cfg.mpgSafetyFactor, fillTargetPct: cfg.fillTargetPct, avgSpeedMph },
   );
 }
 
 /** Manual fallback: build the truck state from a dispatcher-entered fuel % (+ optional HOS) when telematics is out. */
-function buildManualTruckState(veh: VehState, fuelPct: number, manualHos: PlanRequest["manualHos"], liveHos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null): { state: TruckFuelState; hos: HosClocks } {
+function buildManualTruckState(veh: VehState, fuelPct: number, manualHos: PlanRequest["manualHos"], liveHos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null, avgSpeedMph: number): { state: TruckFuelState; hos: HosClocks } {
   const now = Date.now();
   const clamped = Math.max(0, Math.min(100, fuelPct));
   const asMs = (h?: number | null) => (h != null && h >= 0 ? h * 3_600_000 : null);
   const hos: HosClocks = manualHos
     ? { driveRemainingMs: asMs(manualHos.driveHours), shiftRemainingMs: asMs(manualHos.shiftHours), cycleRemainingMs: asMs(manualHos.cycleHours), timeUntilBreakMs: asMs(manualHos.breakHours) }
     : liveHos; // fall back to live HOS clocks when the driver didn't type them
-  const state = composeTruckState(veh, [{ time: new Date(now).toISOString(), value: clamped }], hos, isReefer, cfg, loadGrossLb, now);
+  const state = composeTruckState(veh, [{ time: new Date(now).toISOString(), value: clamped }], hos, isReefer, cfg, loadGrossLb, now, avgSpeedMph);
   return { state, hos };
 }
 

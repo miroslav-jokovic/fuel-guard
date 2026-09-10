@@ -64,16 +64,18 @@ export const EQUIPMENT_TYPES: { value: EquipmentType; label: string }[] = [
 
 /** Per-org planning policy + safety parameters. Every fleet-specific value is configuration, not code. */
 export interface RouteFuelSettings {
+  /** Safety floor the planner never crosses, as a % of the TANK — the number on the gauge (D-FP3, 0335).
+   *  Until FP4 it was a % of a hidden 95% "usable" fraction, one point lower on the gauge. */
   reservePct: number;
+  /** Every planned fill tops the tank up to this % of capacity. 100 = to the top (owner ruling 2026-09-10).
+   *  Replaced the `usableFraction = 0.95` constant that put "fill to ~95%" on every stop. */
+  fillTargetPct: number;
+  /** Top off before an avoided / fuel-before state unless the truck would cross at or above this %. Was a
+   *  constant of 80 in the API whose own solver comment said 85 (0335). */
+  borderTopOffPct: number;
   corridorMiles: number;
-  minPurchaseGal: number;
   mpgSafetyFactor: number;
-  deviationThresholdMi: number;
   priceTtlHours: number;
-  /** true = top off at every stop. false = min-drawdown: buy only enough to reach the next cheaper stop. */
-  alwaysFillFull: boolean;
-  /** When min-drawdown is active, cap a non-cheapest partial fill at this % of tank (full fill only at the cheapest reachable stop). */
-  fillCapPct: number;
   avoidStates: string[];
   /** Extra detour miles charged to an opposite-side (of travel) station — a divided-highway back-track. 0 = off. */
   oppositeSideAccessMiles: number;
@@ -84,14 +86,14 @@ export interface RouteFuelSettings {
   criticalFuelPct: number;
   /** States to top off before entering (sparse fueling — e.g. Massachusetts has one truck stop) — stations here stay usable. */
   fuelBeforeStates: string[];
+  /** Emergency-only brands (D-FP4). Together with `avoidStates` this IS the emergency list — the separate
+   *  `emergency_brands` column was resolved and never read by any rule, so it left the config on 2026-09-10. */
   avoidBrands: string[];
   preferredBrands: string[];
-  emergencyBrands: string[];
   /** Truck-stop networks this org has turned ON — a hard registry filter applied BEFORE the solver
    *  (the registry may hold more networks than an org uses). Empty is not allowed (resolve falls back). */
   enabledBrands: string[];
   emergencyFillGallons: number;
-  planDef: boolean;
   /** Carrier's usual trailer/equipment — the plan form default (per-plan override wins). */
   defaultEquipmentType: EquipmentType;
   defaultProfile: TruckProfile;
@@ -99,13 +101,11 @@ export interface RouteFuelSettings {
 
 export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   reservePct: 20,
+  fillTargetPct: 100,
+  borderTopOffPct: 80,
   corridorMiles: 2.5,
-  minPurchaseGal: 50,
   mpgSafetyFactor: 0.9,
-  deviationThresholdMi: 3,
   priceTtlHours: 72, // a manually-uploaded daily report can lag 1-2 days; treat quotes within 3 days as current
-  alwaysFillFull: true, // always top off (full tank). Min-drawdown is opt-in per org, not the default.
-  fillCapPct: 75,
   avoidStates: ["CA"],
   oppositeSideAccessMiles: 2, // interstate truck stops sit at interchanges → opposite side ≈ a real crossover
   refuelBandMiles: 150, // defer fueling to the last ~150 mi of range so the truck fuels near reserve, not early
@@ -113,10 +113,8 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   fuelBeforeStates: ["MA"], // top off before entering — Massachusetts has essentially one truck stop
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],
-  emergencyBrands: ["one9"],
   enabledBrands: ["pilot", "flying_j", "one9"],
   emergencyFillGallons: 50,
-  planDef: false,
   defaultEquipmentType: "dry_van",
   defaultProfile: { heightIn: 162, lengthIn: 840, widthIn: 102, axleCount: 5, grossWeightLb: 80000 },
 };

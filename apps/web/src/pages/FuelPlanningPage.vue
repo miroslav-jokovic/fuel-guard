@@ -3,7 +3,8 @@ import { AppIcon } from "@silvicom/ui";
 import {
   ArrowPathIcon,
 } from "@silvicom/ui/icons";
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
+import { planFlagCopy } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import FuelPlanForm from "@/features/fueling/FuelPlanForm.vue";
@@ -24,6 +25,12 @@ const formRef = ref<InstanceType<typeof FuelPlanForm> | null>(null);
 const result = ref<PlanResult | null>(null);
 const routeLabels = ref<{ origin: string; destination: string; waypoints: string[] } | null>(null);
 const lastRequest = ref<PlanRequest | null>(null);
+
+// Every flag the plan carries, as a sentence (D-FP7). The status banner already explains the flags that
+// decide the plan's status; the rest are the notes a dispatcher briefs the driver with. Unit 748's plan
+// carried four flags and the page rendered none of them.
+const BANNER_FLAGS = new Set(["INFEASIBLE_no_reachable_fuel", "no_fuel_reading_cannot_plan", "off_network_stop_used", "emergency_fill_used", "avoided_state_fill_used"]);
+const notes = computed(() => (result.value?.plan?.flags ?? []).filter((f) => !BANNER_FLAGS.has(f)).map((flag) => ({ flag, text: planFlagCopy(flag) })));
 
 // Persist the last plan across a page refresh so a reload never wipes the dispatcher's work.
 const RESULT_KEY = "fuelguard:fuelplan:result";
@@ -107,12 +114,9 @@ async function onManualSubmit(manual: { fuelPct: number; hos: PlanRequest["manua
         :loading="plan.isPending.value"
         @submit="onManualSubmit"
       />
-      <p v-if="result.manualFuelUsed" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-800">
-        Planned from a manually-entered fuel level — live Samsara data was unavailable for this truck.
-      </p>
-      <p v-if="result.plan?.flags.includes('fills_uncapped_no_load_weight')" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-800">
-        No load weight entered, so fuel fills aren't capped for legal gross weight. If this truck is running heavy, double-check axle/gross weights before topping off.
-      </p>
+      <ul v-if="notes.length" class="space-y-1 rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-800">
+        <li v-for="n in notes" :key="n.flag">{{ n.text }}</li>
+      </ul>
       <FuelPlanSummary v-if="result.plan" :result="result" />
       <RouteSummary
         v-if="result.route"

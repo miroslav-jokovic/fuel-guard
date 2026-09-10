@@ -29,17 +29,21 @@ export interface PlanStopView {
   coversBreak: boolean; isOvernight: boolean; driveHoursLeftOnArrival: number | null;
   isBorderTopOff: boolean;
   borderState: string | null;
-  isMinFill: boolean;
   isOffNetwork: boolean;
   priceEstimated: boolean;
   priceConfidence: "high" | "medium" | "low" | null;
+  /** The posted pump price behind netPrice (D-FP5); null when the net is a median or unknown. */
+  postedPrice: number | null;
+  /** Pump minus net, $/gal, signed. */
+  discountPerGal: number | null;
+  priceBasis: "fresh" | "posted_discount" | "station_history" | "brand" | "none";
 }
 export type PlanResultStatus = "ok" | "emergency_used" | "infeasible" | "routing_unavailable" | "no_stations" | "telematics_unavailable" | "error";
 export interface PlanResult {
   status: PlanResultStatus;
   message?: string;
   plan?: {
-    stops: PlanStopView[]; totalGallons: number; totalCost: number | null; savingsVsNaive: number | null;
+    stops: PlanStopView[]; totalGallons: number; totalCost: number | null; totalCostAtPump: number | null; discountSavings: number | null;
     arrivalFuelPct: number | null; reachesDestination: boolean; flags: string[];
   };
   route?: { distanceMiles: number; durationHours: number; polyline: { lat: number; lng: number }[]; directions: { instruction: string; miles: number }[] };

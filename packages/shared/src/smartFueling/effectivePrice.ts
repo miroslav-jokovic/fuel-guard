@@ -68,7 +68,7 @@ export function resolveEffectivePrice(inp: EffectivePriceInputs): PriceEstimate 
   if (postedUsable(inp.posted, inp.nowMs, inp.ttlHours)) {
     const net = netFromPosted(inp.posted.price, inp.discountRule);
     if (net != null && net > 0) {
-      return { net: round3(net), estimated: true, confidence: "medium", basis: "posted_discount" };
+      return { net: round3(net), estimated: true, confidence: "medium", basis: "posted_discount", posted: round3(inp.posted.price) };
     }
   }
 

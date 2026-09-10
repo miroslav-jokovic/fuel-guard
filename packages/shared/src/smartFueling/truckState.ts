@@ -1,17 +1,23 @@
 /**
  * Compose the validated TruckFuelState the solver consumes (pure). Combines fuel level, HOS, and the burn
- * model into: gallons on hand, reserve floor, usable-above-reserve, the fuel range and the HOS range, and the
- * BINDING reachable miles = min(fuel, HOS). Confidence flags surface every degraded input so the solver can
+ * model into: gallons on hand, the reserve floor, gallons above reserve, the fuel range and the HOS range, and
+ * the BINDING reachable miles = min(fuel, HOS). Confidence flags surface every degraded input so the solver can
  * abstain / widen reserve rather than plan on data we can't stand behind (assumption-free posture).
+ *
+ * Two numbers here are the owner's, not ours (D-FP3, 2026-09-10): the reserve is a % of the TANK — what the
+ * gauge shows — and a planned fill tops up to `fillTargetPct` of the tank, 100 by default. Until FP4 a hidden
+ * `usableFraction = 0.95` sat between both: every stop said "fill to ~95%" and "20% reserve" was 19% on the
+ * gauge, and neither number appeared on the settings page.
  */
 import { currentFuelPercent, effectiveTankCapacityGal, gallonsOnHand, type FuelSample } from "./fuelLevel.js";
 import { legalDriveMs, combineTeamLegalDriveMs, hosReachableMiles, type HosClocks } from "./hos.js";
 import { effectiveMpg, rangeMilesOnGallons, weightLegalFillGal, DEFAULT_IDLE_GAL_PER_HOUR, DEFAULT_REEFER_GAL_PER_HOUR, type BurnModel } from "./consumption.js";
+import type { TruckFlag } from "./planFlags.js";
 
 export interface TruckStateConfig {
-  reservePct: number;
+  reservePct: number; // % of tank
   mpgSafetyFactor: number;
-  usableFraction?: number; // default 0.95
+  fillTargetPct?: number; // % of tank a planned fill tops up to; default 100
   avgSpeedMph?: number; // conservative, default 55
   maxGrossLb?: number; // legal cap, default 80000
   idleGalPerHour?: number;
@@ -36,9 +42,10 @@ export interface TruckStateInput {
 export interface TruckFuelState {
   gallonsOnHand: number | null;
   effectiveTankCapacityGal: number;
-  usableGal: number;
+  /** Gallons on board after a planned fill (tank × fillTargetPct). */
+  fillTargetGal: number;
   reserveGal: number;
-  usableAboveReserveGal: number | null;
+  aboveReserveGal: number | null;
   belowReserve: boolean;
   weightLegalFillGal: number;
   burn: BurnModel;
@@ -56,27 +63,27 @@ export interface TruckFuelState {
     hosFromTeam: boolean;
     mpgPresent: boolean;
   };
-  flags: string[];
+  flags: TruckFlag[];
 }
 
 const minutesBetween = (aMs: number, bMs: number) => Math.abs(aMs - bMs) / 60000;
 
 export function buildTruckFuelState(input: TruckStateInput, cfg: TruckStateConfig): TruckFuelState {
-  const usableFraction = cfg.usableFraction ?? 0.95;
+  const fillTargetPct = cfg.fillTargetPct ?? 100;
   const avgSpeed = cfg.avgSpeedMph ?? 55;
   const maxGross = cfg.maxGrossLb ?? 80000;
   const freshMin = cfg.freshnessMinutes ?? 60;
   const postFillMin = cfg.postFillMinutes ?? 60;
-  const flags: string[] = [];
+  const flags: TruckFlag[] = [];
 
   // Fuel level
   const smoothed = currentFuelPercent(input.fuelSamples);
   const effCap = effectiveTankCapacityGal(input.tankCapacityGal, input.observedMaxFillGal);
-  const usableGal = effCap * usableFraction;
+  const fillTargetGal = effCap * (fillTargetPct / 100);
   const onHand = gallonsOnHand(smoothed, effCap);
-  const reserveGal = usableGal * (cfg.reservePct / 100);
-  const usableAboveReserve = onHand == null ? null : onHand - reserveGal;
-  const belowReserve = usableAboveReserve != null && usableAboveReserve <= 0;
+  const reserveGal = effCap * (cfg.reservePct / 100);
+  const aboveReserve = onHand == null ? null : onHand - reserveGal;
+  const belowReserve = aboveReserve != null && aboveReserve <= 0;
 
   // Confidence: freshness + post-fill distrust
   const latest = input.fuelSamples[input.fuelSamples.length - 1];
@@ -102,7 +109,7 @@ export function buildTruckFuelState(input: TruckStateInput, cfg: TruckStateConfi
   const hosMiles = hosReachableMiles(legalMs, avgSpeed);
 
   // Ranges — fuel range on the gallons above reserve; reachable = the binding constraint
-  const fuelRange = usableAboveReserve == null ? null : rangeMilesOnGallons(Math.max(0, usableAboveReserve), burn, avgSpeed);
+  const fuelRange = aboveReserve == null ? null : rangeMilesOnGallons(Math.max(0, aboveReserve), burn, avgSpeed);
   const reachable =
     fuelRange == null && hosMiles == null ? null : Math.min(fuelRange ?? Infinity, hosMiles ?? Infinity);
 
@@ -116,9 +123,9 @@ export function buildTruckFuelState(input: TruckStateInput, cfg: TruckStateConfi
   return {
     gallonsOnHand: onHand,
     effectiveTankCapacityGal: effCap,
-    usableGal,
+    fillTargetGal,
     reserveGal,
-    usableAboveReserveGal: usableAboveReserve,
+    aboveReserveGal: aboveReserve,
     belowReserve,
     weightLegalFillGal: fillCap,
     burn,
