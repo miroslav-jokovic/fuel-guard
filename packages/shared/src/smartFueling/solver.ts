@@ -154,7 +154,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   const gpm = galPerMile(truck.burn, avgSpeed);
   const galFor = (mi: number) => mi * gpm;
   const msPerMile = H / avgSpeed;
-  const usable = truck.usableGal;
+  const fillTargetGal = truck.fillTargetGal;
   const reserve = truck.reserveGal;
   const weightCap = truck.weightLegalFillGal;
   const tankCap = truck.effectiveTankCapacityGal;
@@ -224,7 +224,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     const dayEndsHere = hosKnown && legalDriveMsNow() <= TAG_WINDOW_MS;
     if (pick.priceEstimated && pick.netPrice != null) usedEstimatedPrice = true;
     const { fillGal: fill, isAvoidedState } = chooseFill({
-      pick, arrivalGal, emergency, borderTopOff, cfg, usable, reserve, weightCap, tankCap, gpm, dest, stations, used, galFor,
+      pick, arrivalGal, emergency, borderTopOff, cfg, fillTargetGal, reserve, weightCap, tankCap, gpm, dest, stations, used, galFor,
     });
     if (isAvoidedState) usedAvoidedState = true;
     // A fuel stop is >= 30 min off the wheel, so it covers the break; where the day ends, the driver rests here.

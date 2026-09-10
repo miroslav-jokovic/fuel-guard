@@ -22,13 +22,18 @@ const optionalTarget = (max: number) =>
 const stateList = z.array(z.string().trim().length(2)).max(60);
 
 export const routeFuelSettingsFormSchema = z.object({
-  // Safety & feasibility
+  // Tank & safety (0335 gave the last three their columns; bounds match the table's check constraints)
   reserve_pct: z.coerce.number().min(0).max(50),
+  fill_target_pct: z.coerce.number().min(50).max(100),
+  refuel_band_miles: z.coerce.number().min(0).max(1000),
+  critical_fuel_pct: z.coerce.number().min(0).max(50),
   mpg_safety_factor: z.coerce.number().min(0.5).max(1),
   emergency_fill_gallons: z.coerce.number().min(0).max(500),
   min_purchase_gal: z.coerce.number().min(0).max(500),
   // Corridor & routing
   corridor_miles: z.coerce.number().min(0.5).max(25),
+  opposite_side_access_miles: z.coerce.number().min(0).max(25),
+  border_top_off_pct: z.coerce.number().min(0).max(100),
   deviation_threshold_mi: z.coerce.number().min(0).max(100),
   // Prices
   price_ttl_hours: z.coerce.number().int().min(1).max(8760),
@@ -63,6 +68,11 @@ export type RouteFuelSettingsForm = z.infer<typeof routeFuelSettingsFormSchema>;
 /** Field defaults for the form when the org has no saved row yet (mirrors DEFAULT_ROUTE_FUEL_SETTINGS). */
 export const ROUTE_FUEL_SETTINGS_DEFAULTS: RouteFuelSettingsForm = {
   reserve_pct: 20,
+  fill_target_pct: 100,
+  refuel_band_miles: 150,
+  critical_fuel_pct: 10,
+  opposite_side_access_miles: 2,
+  border_top_off_pct: 80,
   mpg_safety_factor: 0.9,
   emergency_fill_gallons: 50,
   min_purchase_gal: 50,

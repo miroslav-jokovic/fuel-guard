@@ -5,19 +5,19 @@ import type { SolverStation } from "./solver.js";
 
 const st = (over: Partial<SolverStation>): SolverStation => ({ id: "p", brand: "pilot", state: "TX", milesAhead: 200, detourMiles: 0, netPrice: 3.5, ...over });
 
-// 200-gal tank, usable 190, reserve 38, 6 mpg -> gpm ~1/6. Arrive with 50 gal on hand.
+// 200-gal tank, fill target 190, reserve 38, 6 mpg -> gpm ~1/6. Arrive with 50 gal on hand.
 function ctx(over: Partial<FillContext> = {}): FillContext {
   return {
     pick: st({}), arrivalGal: 50, emergency: false, borderTopOff: false,
-    cfg: DEFAULT_ROUTE_FUEL_SETTINGS, usable: 190, reserve: 38, weightCap: 1000, tankCap: 200,
+    cfg: DEFAULT_ROUTE_FUEL_SETTINGS, fillTargetGal: 190, reserve: 38, weightCap: 1000, tankCap: 200,
     gpm: 1 / 6, dest: 900, stations: [st({})], used: new Set<string>(), galFor: (mi) => mi / 6, ...over,
   };
 }
 
 describe("chooseFill", () => {
-  it("full-fills up to usable — every planned fill is a full fill", () => {
+  it("full-fills up to the fill target — every planned fill is a full fill", () => {
     const d = chooseFill(ctx());
-    expect(d.fillGal).toBeCloseTo(190 - 50, 6); // top off to usable
+    expect(d.fillGal).toBeCloseTo(190 - 50, 6); // top off to the fill target
     expect(d.isMinFill).toBe(false);
   });
   it("border top-off is always a full fill", () => {

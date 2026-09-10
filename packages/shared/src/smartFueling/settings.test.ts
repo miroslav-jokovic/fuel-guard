@@ -14,6 +14,21 @@ describe("resolveRouteFuelConfig", () => {
   });
 });
 
+describe("resolveRouteFuelConfig — the 0335 columns", () => {
+  it("reads fill target, refuel band, critical %, opposite-side miles and border top-off from the row", () => {
+    const c = resolveRouteFuelConfig({ fill_target_pct: "95", refuel_band_miles: 200, critical_fuel_pct: 8, opposite_side_access_miles: 0, border_top_off_pct: 85 });
+    expect(c.fillTargetPct).toBe(95);
+    expect(c.refuelBandMiles).toBe(200);
+    expect(c.criticalFuelPct).toBe(8);
+    expect(c.oppositeSideAccessMiles).toBe(0);
+    expect(c.borderTopOffPct).toBe(85);
+  });
+  it("clamps the critical threshold under the reserve, so a planned stop at the reserve is never an emergency", () => {
+    expect(resolveRouteFuelConfig({ reserve_pct: 15, critical_fuel_pct: 30 }).criticalFuelPct).toBe(15);
+    expect(resolveRouteFuelConfig({ reserve_pct: 25, critical_fuel_pct: 10 }).criticalFuelPct).toBe(10);
+  });
+});
+
 describe("effectiveTruckProfile", () => {
   const cfg = DEFAULT_ROUTE_FUEL_SETTINGS;
   it("uses per-vehicle overrides, else org defaults", () => {

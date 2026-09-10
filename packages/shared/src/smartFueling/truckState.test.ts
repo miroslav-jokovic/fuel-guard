@@ -21,11 +21,22 @@ describe("buildTruckFuelState", () => {
   it("composes gallons, reserve, ranges; reachable = min(fuel, HOS)", () => {
     const st = buildTruckFuelState(base, cfg);
     expect(st.gallonsOnHand).toBeCloseTo(120, 0); // 60% of 200
-    expect(st.usableGal).toBeCloseTo(190, 0); // 200 * 0.95
-    expect(st.reserveGal).toBeCloseTo(38, 0); // 20% of usable
+    expect(st.fillTargetGal).toBeCloseTo(200, 0); // fill target 100% of tank by default
+    expect(st.reserveGal).toBeCloseTo(40, 0); // 20% of the TANK
     expect(st.reachableMiles).toBe(Math.min(st.fuelRangeMiles!, st.hosReachableMiles!));
     expect(st.confidence.fuelPresent && st.confidence.hosPresent && st.confidence.mpgPresent).toBe(true);
     expect(st.flags).toEqual([]);
+  });
+  it("reserve is a share of the tank, not of a usable fraction", () => {
+    // Before FP4: reserve = 20% of (200 × 0.95) = 38 gal — 19% on the gauge. Now: 20% of the tank = 40 gal, and
+    // the fill target moves the top of the tank without moving the floor.
+    const top = buildTruckFuelState(base, { ...cfg, fillTargetPct: 100 });
+    const early = buildTruckFuelState(base, { ...cfg, fillTargetPct: 95 });
+    expect(top.reserveGal).toBeCloseTo(40, 6);
+    expect(early.reserveGal).toBeCloseTo(40, 6);
+    expect(top.fillTargetGal).toBeCloseTo(200, 6);
+    expect(early.fillTargetGal).toBeCloseTo(190, 6);
+    expect(top.aboveReserveGal).toBeCloseTo(80, 6); // 120 on hand − 40
   });
   it("HOS binds when the shift clock is short", () => {
     const st = buildTruckFuelState({ ...base, hos: { ...base.hos, shiftRemainingMs: 1 * H } }, cfg);
@@ -34,7 +45,7 @@ describe("buildTruckFuelState", () => {
   });
   it("weight-legal fill is NOT zero when the load is unknown (null) — else the truck can never fuel", () => {
     const st = buildTruckFuelState({ ...base, loadGrossLb: null }, cfg);
-    expect(st.weightLegalFillGal).toBeGreaterThan(st.usableGal); // weight does not bind below tank capacity
+    expect(st.weightLegalFillGal).toBeGreaterThanOrEqual(st.fillTargetGal); // falls back to the tank itself, so a 100% target is exactly reachable
     expect(st.flags).toContain("load_weight_unknown");            // ...but we flag that fills are uncapped
   });
   it("does NOT flag load_weight_unknown when a load weight is provided", () => {
