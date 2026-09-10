@@ -87,8 +87,8 @@ vi.mock("@/features/inventory/useInventory", async () => {
 });
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true }) }));
 vi.mock("vue-router", () => ({
-  useRoute: () => ({ params: { sessionId: SESSION } }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ params: { sessionId: SESSION }, path: `/shop/count/${SESSION}`, meta: { title: "Count" } }),
+  useRouter: () => ({ push: vi.fn(), resolve: () => ({ name: "not-found", meta: {} }) }),
 }));
 
 const { pending } = await import("@/features/inventory/countQueue");
@@ -146,6 +146,23 @@ beforeEach(() => {
   document.body.innerHTML = "";
   withBar();
   vi.spyOn(window, "confirm").mockReturnValue(true);
+});
+
+/** D-INV17 as amended 2026-09-10: the walk is a page in the app's own shell, not a phone screen of its own. */
+describe("the page's anatomy", () => {
+  it("titles the page with the shelf and describes it with the progress, in the product's own header", () => {
+    const w = page();
+    expect(w.find("h1").text()).toBe("Main shop");
+    expect(w.text()).toContain("0 of 2 counted");
+    expect(w.text()).toContain("blind");
+  });
+
+  it("offers the walk's actions in the header row and again as the phone's bottom bar", () => {
+    const w = page();
+    const records = w.findAll("button").filter((b) => b.text() === "Record count");
+    expect(records).toHaveLength(2);
+    expect(records[1]!.element.closest(".walk-bar")).not.toBeNull();
+  });
 });
 
 describe("the order of operations", () => {

@@ -4,6 +4,8 @@ import { useRoute } from "vue-router";
 import ShelfWalk from "@/features/inventory/ShelfWalk.vue";
 import UnitCheck from "@/features/inventory/UnitCheck.vue";
 import { useCountSessionQuery } from "@/features/inventory/useInventory";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import { AppCallout } from "@silvicom/ui";
 
 /**
  * A walk, on a phone — of a shelf or of a truck (D-INV19; INVENTORY-PLAN.md I5 PR 2b and I9).
@@ -35,8 +37,14 @@ const { data: walk, isLoading, isError } = useCountSessionQuery(sessionId);
 </script>
 
 <template>
-  <div v-if="isError" class="text-sm text-ink">That walk is not on file.</div>
-  <div v-else-if="isLoading" class="text-sm text-ink-tertiary">Loading…</div>
+  <div v-if="isError" class="space-y-6">
+    <PageHeader />
+    <AppCallout tone="danger">That walk is not on file.</AppCallout>
+  </div>
+  <div v-else-if="isLoading" class="space-y-6">
+    <PageHeader />
+    <p class="text-sm text-ink-tertiary">Loading…</p>
+  </div>
   <UnitCheck v-else-if="walk?.kind === 'unit'" />
   <ShelfWalk v-else />
 </template>

@@ -86,8 +86,10 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Part", parent: "/shop/inventory" },
   },
   /**
-   * The count screen (I5 PR 2b). `layout: "shop"` is D-INV17: no sidebar, full-height viewport, a
-   * sticky bottom action bar inside the safe area — a phone held in a bay, not a desk screen.
+   * The count screen (I5 PR 2b). It shipped under `layout: "shop"` (D-INV17: no sidebar, a sticky
+   * bottom bar) and renders in `AppShell` since 2026-09-10, when the owner opened a unit check from
+   * the Units list and found a screen that shared nothing with the page it came from. The phone's
+   * bottom bar survives inside the page (`WalkActions.vue`); the shell does not.
    *
    * ⚠ The route does NOT change while a count is open. Everything a walk does — type, confirm,
    * record, review, close — happens here, because a route change on a screen holding a wake lock
@@ -97,11 +99,12 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     path: "/shop/count/:sessionId",
     name: "count-session",
     component: () => import("@/pages/CountSessionPage.vue"),
-    meta: { requiresAuth: true, title: "Count", parent: "/shop", layout: "shop" },
+    meta: { requiresAuth: true, title: "Count", parent: "/shop" },
   },
   /**
-   * The scan surface (I6). `layout: "shop"` for the same reason the count screen has it — a phone
-   * held standing up, next to a shelf, with a scanner in the other hand.
+   * The scan surface (I6). `layout: "shop"` — the last route carrying it since the count left the
+   * shell on 2026-09-10 — because this is a phone held standing up, next to a shelf, with a scanner
+   * in the other hand: a posture, not a page, and the shell's bottom bar is where the thumb is.
    *
    * ⚠ Like the count, the route does NOT change while the technician is scanning (D-INV17). Every
    * verb opens as an overlay on this page rather than navigating, so a rhythm of scan → issue →

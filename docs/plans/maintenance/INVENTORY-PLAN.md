@@ -234,7 +234,7 @@ prefix is alphabetic, a UPC is digits.
 | **D-INV14** | **No vendors, no purchase orders.** Receiving takes a supplier name and a cost. | Q5 |
 | **D-INV15** | **Last cost; not configurable.** | Q8 |
 | **D-INV16** | **The QR concern is two reusable pieces.** `packages/shared/src/tagContract.ts` owns the vocabulary; `packages/qr` (`@silvicom/qr`) owns encoding and label-sheet geometry — pure, zero workspace deps, on the `@hazmat/engine` model. Decoding lives with the scanner. | §2.10 |
-| **D-INV17** | **The scan page and the count session use a standalone shop layout, and the scan route does not change while the camera is open.** `layout: "shop"` on `ApplyLayout`'s model: no sidebar, full-height viewport, `overscroll-behavior-y: contain`, a sticky bottom action bar with `env(safe-area-inset-bottom)`, in-content back. Scan → resolve → verb sheet → write all happen on `/shop/scan`. Every other inventory screen is a desk screen in `AppShell`. The shop installs the web app to the home screen. | §2.11; research §1, §5.1 |
+| **D-INV17** | **The scan page uses a standalone shop layout, and the scan route does not change while the camera is open.** `layout: "shop"` on `ApplyLayout`'s model: no sidebar, full-height viewport, `overscroll-behavior-y: contain`, a sticky bottom action bar with `env(safe-area-inset-bottom)`, in-content back. Scan → resolve → verb sheet → write all happen on `/shop/scan`. Every other inventory screen is a desk screen in `AppShell`. The shop installs the web app to the home screen. **Amended 2026-09-10 (owner):** the count session and the unit check are desk pages in `AppShell` too — `PageHeader`, cards, a table for the review — and keep the phone's bottom action bar inside the page below `sm` (`WalkActions.vue`); the route still does not change while a walk is open. The shell is the scanner's alone. | §2.11; research §1, §5.1; log 2026-09-10 |
 | **D-INV18** | **An asset has two identifiers and no identifier setting.** `tag_code`: the opaque Crockford base32 id in the QR, assigned once, never reprinted. `display_no`: a per-org sequence (`A-0412`), auto-assigned, printed in text under the QR, spoken aloud. | Research §3.4 |
 | **D-INV19** | **A shelf count and a unit check are one session shape.** `stock_count_sessions` (org, location or unit, started_by, blind, status, opened/closed_at). Each entry commits at once — a `counted` movement or an `asset_movements` row carrying the session id. Buckets Found / Not yet / Unexpected while open; Short / Over / Missing at close. One session component serves parts (I5) and units (I9). | Research §2.7, §3.3 |
 | **D-INV20** | **Counts are blind by default.** The expected figure is hidden until the count is typed; any `manage` role may reveal; the mode is recorded on the row. | Research §2.6 |
@@ -2194,3 +2194,16 @@ signed here by the person who did it. I6's spike results go here before its seco
   Also corrected `AnnualInspectionsPage.vue`'s `:row-to` / `:per-page`, neither a declared prop.
   **Left on purpose:** server-side sort for the paged catalogue and asset list; the `v-if` +
   `:open="true"` drawer mount that skips the close transition.
+
+- **2026-09-10 — the count and the check leave the phone shell (D-INV17 amended; PR
+  `claude/count-walk-in-app-shell`).** The owner opened "Check this unit" from a unit's page at a
+  desk and found a screen that shared nothing with the page it came from: no sidebar, a sticky
+  header of its own, hand-rolled boxes, a bottom bar. Ruled: the walk follows the product's anatomy.
+  `/shop/count/:sessionId` renders in `AppShell`; `ShelfWalk.vue` and `UnitCheck.vue` each render a
+  `PageHeader` (the shelf or "Truck 654" as title, the progress line as description), the queue's
+  promise as a callout, the current bin or item as a card, the short-of and not-in-kit buckets as
+  divided-row cards, the review as a `DataTable`. What the phone needed survives in
+  `WalkActions.vue`: one action list per walk, rendered in the header row from `sm` up and as a
+  fixed bottom bar inside the safe area below it. `WalkHeader.vue` is gone. The scan screen keeps
+  `ShopLayout` — a scanner in the other hand is a posture, not a page. Every assertion in
+  `CountSessionPage.test.ts` and `UnitCheck.test.ts` held through the move.

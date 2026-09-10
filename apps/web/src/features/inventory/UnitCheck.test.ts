@@ -107,8 +107,8 @@ vi.mock("@/features/inventory/useAssets", async () => {
   };
 });
 vi.mock("vue-router", () => ({
-  useRoute: () => ({ params: { sessionId: SESSION } }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ params: { sessionId: SESSION }, path: `/shop/count/${SESSION}`, meta: { title: "Count" } }),
+  useRouter: () => ({ push: vi.fn(), resolve: () => ({ name: "not-found", meta: {} }) }),
 }));
 
 const { pending } = await import("@/features/inventory/countQueue");
@@ -148,6 +148,15 @@ beforeEach(() => {
   move.mutateAsync.mockImplementation(async () => ({ id: "m-1" }));
   closeWalk.mutateAsync.mockClear();
   kit.value = { unit, assets: [asset(ON_UNIT)] };
+});
+
+/** D-INV17 as amended 2026-09-10: the check is a page in the app's own shell, titled like the unit's page. */
+describe("the page's anatomy", () => {
+  it("titles the page the way the unit's own page does, and describes it with the progress", () => {
+    const w = page();
+    expect(w.find("h1").text()).toBe("Truck 654");
+    expect(w.text()).toContain("0 of 1 checked");
+  });
 });
 
 describe("what each answer writes", () => {
