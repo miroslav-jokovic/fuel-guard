@@ -111,7 +111,7 @@ const LOW_COLUMNS: DataTableColumn[] = [
 ];
 
 const SHORT_COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", cellClass: "font-mono text-xs text-ink", width: "sm" },
+  { key: "unitNumber", label: "Unit", cellClass: "font-medium text-ink", width: "sm" },
   { key: "shortBy", label: "Missing", numeric: true },
   { key: "state", label: "Status", width: "sm" },
 ];
