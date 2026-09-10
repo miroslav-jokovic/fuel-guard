@@ -145,4 +145,5 @@ export * from "./inventoryContract.js";
 export * from "./inventoryAssetContract.js";
 export * from "./inventoryKitCatalogue.js";
 export * from "./inventoryScanContract.js";
+export * from "./inventoryLabelContract.js";
 export * from "./inventoryRules.js";

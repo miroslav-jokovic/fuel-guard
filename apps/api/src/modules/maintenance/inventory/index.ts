@@ -39,3 +39,6 @@ export {
   deleteKitExpectation,
   toKitExpectationDto,
 } from "./kitExpectations.js";
+export { resolveLabelFaces } from "./labels.js";
+export { renderLabelSheet, type LabelPdfOptions } from "./labelPdf.js";
+export { issueTagCode, mintTagId, type TagSubject } from "./tagIssuance.js";
