@@ -84,9 +84,9 @@ describe("planFuelStops — fuel", () => {
   });
 
   it("no Pilot reachable but truck has fuel → OFF-NETWORK stop (flagged), NOT an emergency", () => {
-    // one9 is an avoid-brand (not preferred) and it's in TX (not avoided). Truck at 50% (well above 10%). The
+    // loves is enabled but not preferred, and it's in TX (not avoided). Truck at 50% (well above 10%). The
     // only reachable pump is off-network → suggest it, flagged, but never call it an emergency.
-    const plan = planFuelStops(input({ distanceToGoMiles: 600, stations: [st("off", 300, 3.5, "one9", "TX")] }));
+    const plan = planFuelStops(input({ distanceToGoMiles: 600, stations: [st("off", 300, 3.5, "loves", "TX")] }));
     const stop = plan.stops.find((s) => s.station?.id === "off");
     expect(stop).toBeTruthy();
     expect(stop!.isEmergency).toBe(false);
@@ -94,6 +94,38 @@ describe("planFuelStops — fuel", () => {
     expect(plan.flags).toContain("off_network_stop_used");
     expect(plan.flags).not.toContain("emergency_fill_used");
     expect(plan.status).not.toBe("emergency_used");
+  });
+
+  it("an avoided brand is never chosen for an off-network stop", () => {
+    // ONE9 (avoided) is nearer AND cheaper than the Love's beside it; the off-network rung is non-avoided brands
+    // only, so the truck goes to Love's. Before D-FP4 the fallback was "nearest of any kind" → ONE9.
+    const plan = planFuelStops(input({ distanceToGoMiles: 600, stations: [st("one9", 300, 3.2, "one9", "TX"), st("loves", 310, 3.8, "loves", "TX")] }));
+    expect(plan.stops).toHaveLength(1);
+    expect(plan.stops[0]!.station!.id).toBe("loves");
+    expect(plan.stops[0]!.isOffNetwork).toBe(true);
+    expect(plan.stops[0]!.isEmergency).toBe(false);
+  });
+
+  it("only an avoided brand in range with fuel in the tank → an emergency splash, never a full off-network fill", () => {
+    const plan = planFuelStops(input({ distanceToGoMiles: 600, stations: [st("one9", 300, 3.5, "one9", "TX"), st("pilot-later", 480, 3.5)] }));
+    const one9 = plan.stops.find((s) => s.station?.id === "one9")!;
+    expect(one9).toBeTruthy();
+    expect(one9.isEmergency).toBe(true);
+    expect(one9.isOffNetwork).toBe(false);
+    expect(one9.fillGal).toBeLessThan(100); // a splash to reach the next Pilot, not a top-off
+    expect(plan.status).toBe("emergency_used");
+    expect(plan.flags).toContain("emergency_fill_used");
+  });
+
+  it("a station with no price is never chosen while a priced one is reachable, and is taken flagged when it is all there is", () => {
+    const priced = planFuelStops(input({ distanceToGoMiles: 700, stations: [st("unpriced", 340, null), st("priced", 300, 3.9)] }));
+    expect(priced.stops[0]!.station!.id).toBe("priced");
+    const only = planFuelStops(input({ distanceToGoMiles: 700, stations: [st("unpriced", 340, null)] }));
+    expect(only.stops[0]!.station!.id).toBe("unpriced");
+    expect(only.stops[0]!.isEmergency).toBe(false);
+    expect(only.stops[0]!.isOffNetwork).toBe(false); // a Pilot without a price is still on-network
+    expect(only.flags).toContain("some_stations_missing_price");
+    expect(only.totalCost).toBeNull();
   });
 
   it("truck under criticalFuelPct with only an off-network pump → TRUE emergency (missed-fill splash)", () => {
@@ -136,15 +168,31 @@ describe("planFuelStops — fuel", () => {
   });
 });
 
-describe("planFuelStops — HOS integration", () => {
+describe("planFuelStops — hours of service annotate, they never place (D-FP1)", () => {
   it("HOS unknown → fuel-only (no break/reset stops inserted)", () => {
     const plan = planFuelStops(input({ distanceToGoMiles: 300, stations: [st("a", 150, 3.5)] })); // no hos
     expect(plan.stops).toHaveLength(0);
     expect(plan.flags).not.toContain("overnight_reset_required");
   });
 
-  it("inserts a 10-hour reset (overnight) combined with a fuel stop when legal drive is exhausted first", () => {
-    // Full tank (fuel not the binder); ~8h legal drive → must reset ~440 mi; a station sits there.
+  it("an overnight reset never places a fuel stop the range does not need", () => {
+    // A full tank covers the 700 mi; the 8-h drive clock ends at ~440 mi where a station sits. Until 2026-09-10
+    // the solver "combined" a fill into that rest whenever the tank had minPurchaseGal of room — a stop at ~65%
+    // of tank the trip does not need. The reset is applied silently and flagged; the itinerary stays empty.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 700,
+      stations: [st("at-rest", 430, 3.5)],
+      truck: mkTruck({ gallonsOnHand: 190 }),
+      hos: hos(8, 8),
+    }));
+    expect(plan.reachesDestination).toBe(true);
+    expect(plan.stops).toHaveLength(0);
+    expect(plan.flags).toContain("overnight_reset_required");
+  });
+
+  it("tags a range-placed fuel stop as the day's end when the drive clock runs out there", () => {
+    // 190 gal → 912 mi of range above reserve; 1,000 mi to go → one fill is needed by RANGE, and the only station
+    // (430) is where the 8-h drive clock also runs out → the stop carries the overnight tag as a coincidence label.
     const plan = planFuelStops(input({
       distanceToGoMiles: 1000,
       stations: [st("resetstop", 430, 3.5)],
@@ -152,7 +200,9 @@ describe("planFuelStops — HOS integration", () => {
       hos: hos(8, 8),
     }));
     expect(plan.reachesDestination).toBe(true);
-    expect(plan.stops.some((s) => s.isOvernight && s.kind === "fuel")).toBe(true); // shown as a FUEL stop, not a rest
+    expect(plan.stops).toHaveLength(1);
+    expect(plan.stops[0]!.isOvernight).toBe(true);
+    expect(plan.stops[0]!.kind).toBe("fuel");
     expect(plan.flags).toContain("overnight_reset_required");
   });
 
@@ -183,19 +233,19 @@ describe("planFuelStops — HOS integration", () => {
     expect(plan.stops.every((s) => s.kind === "fuel")).toBe(true);
   });
 
-  it("places the overnight reset NEAR the drive limit, not at an early cheap station", () => {
-    // Full tank (fuel not binding), ~8h drive -> reset due ~440 mi. A cheap station at 100 must NOT trigger an
-    // early overnight; the reset combines with the station near the limit (420).
+  it("a cheap station where the day begins never becomes a stop; the range picks the far one", () => {
+    // Full tank (912 mi of range), 1,000 mi to go → one fill by range. A cheap station at 100 and a dearer one at
+    // 420 (where the 8-h drive clock also ends). No station sits in the refuel band, so the walk takes the FARTHEST
+    // reachable preferred station — 420 — and tags it as the day's end. The cheap early one is never a stop.
     const plan = planFuelStops(input({
       distanceToGoMiles: 1000,
       stations: [st("cheap-early", 100, 3.0), st("near-limit", 420, 4.0)],
       truck: mkTruck({ gallonsOnHand: 190 }),
       hos: hos(8, 8),
     }));
-    const overnight = plan.stops.find((x) => x.isOvernight);
-    expect(overnight).toBeTruthy();
-    expect(overnight!.station!.id).toBe("near-limit");
-    expect(plan.stops.some((x) => x.station?.id === "cheap-early")).toBe(false); // no wasteful early stop
+    expect(plan.stops).toHaveLength(1);
+    expect(plan.stops[0]!.station!.id).toBe("near-limit");
+    expect(plan.stops[0]!.isOvernight).toBe(true);
   });
 
   it("does a real FULL fill (not 0 gallons) at a fuel stop", () => {
@@ -204,7 +254,7 @@ describe("planFuelStops — HOS integration", () => {
     expect(plan.stops[0]!.fillGal).toBeGreaterThan(50);
   });
 
-    it("applies a required reset SILENTLY when no station is reachable (no rest node, still flags it)", () => {
+  it("applies a required reset SILENTLY when no station is reachable (no rest node, still flags it)", () => {
     // Full tank, ~8h drive, and NO stations → the 10-hour reset is applied silently so the route stays legal,
     // but never appears as a rest stop. The reset is still surfaced as a plan flag for the dispatcher.
     const plan = planFuelStops(input({
@@ -217,9 +267,9 @@ describe("planFuelStops — HOS integration", () => {
     expect(plan.flags).toContain("overnight_reset_required");
   });
 
-  it("rests silently instead of adding a junk fuel stop when the tank is near-full at the reset (convenience, not a rule)", () => {
-    // Drive clock nearly exhausted (0.5 h) with a station ~25 mi ahead; the truck is essentially full there, so a
-    // "fuel + rest" combine would only add a splash — it must REST silently and NOT emit that near-full stop.
+  it("rests silently instead of adding a junk fuel stop when the tank is near-full at the reset", () => {
+    // Drive clock nearly exhausted (0.5 h) with a station ~25 mi ahead; the truck is essentially full there, so
+    // it must REST silently and NOT emit that near-full stop.
     const plan = planFuelStops(input({
       distanceToGoMiles: 400,
       stations: [st("nearfull", 25, 3.5)],
@@ -228,6 +278,20 @@ describe("planFuelStops — HOS integration", () => {
     }));
     expect(plan.reachesDestination).toBe(true);
     expect(plan.stops.some((s) => s.station?.id === "nearfull")).toBe(false);
+  });
+
+  it("a truck whose cycle runs out mid-trip is planned exactly like one with a fresh cycle", () => {
+    // 3 h of cycle left on a ~22-h drive. Until 2026-09-10 the cycle was never restarted and never charged for
+    // silent legs, so the legal window collapsed to a few miles and every passed station became an "overnight"
+    // stop (unit 748: five fills at 61–68%). The 34-h restart is applied silently and only flagged.
+    const stations = [st("s1", 300, 3.6), st("s2", 650, 3.4), st("s3", 980, 3.7)];
+    const fresh = planFuelStops(input({ distanceToGoMiles: 1200, stations, hos: hos(11, 8, 14, 70) }));
+    const spent = planFuelStops(input({ distanceToGoMiles: 1200, stations, hos: hos(11, 8, 14, 3) }));
+    const shape = (p: ReturnType<typeof planFuelStops>) => p.stops.map((s) => [s.station!.id, Math.round(s.fillGal * 10) / 10]);
+    expect(spent.status).toBe("ok");
+    expect(shape(spent)).toEqual(shape(fresh));
+    expect(spent.flags).toContain("cycle_restart_required");
+    expect(fresh.flags).not.toContain("cycle_restart_required");
   });
 
   it("does not falsely report infeasible on a long, sparse-station HOS-limited route (loop-guard sizing)", () => {
@@ -241,6 +305,42 @@ describe("planFuelStops — HOS integration", () => {
     }));
     expect(plan.reachesDestination).toBe(true);
     expect(plan.status).not.toBe("infeasible");
+  });
+});
+
+describe("planFuelStops — unit 748, Mansfield MA → Windsor CO (production replay, 2026-09-10)", () => {
+  // The plan the owner rejected: fuel_plans 67093503…, 1,961 mi at 65.6 mph, 99% of a 200-gal tank, 6.83 MPG
+  // derated to 6.147, HOS drive 6 h / shift 8.3 h / cycle 12.9 h / break in 3 h. The corridor is the three
+  // stations the saved plan chose plus a priced Pilot every 70 mi and an unpriced ONE9 every 55 mi — the "dense"
+  // variant of the plan's §1.2 replay, which yielded FIVE "overnight" fills at 61–68% on the pre-D-FP1 solver.
+  const mpg = 6.83 * 0.9;
+  const truck748 = mkTruck({
+    gallonsOnHand: 198, effectiveTankCapacityGal: 200, usableGal: 190, reserveGal: 38, usableAboveReserveGal: 160,
+    burn: { effMpg: mpg, idleGalPerHour: 0.8, reeferGalPerHour: 0 }, fuelRangeMiles: 160 * mpg, reachableMiles: 330,
+  });
+  const corridor: SolverStation[] = [
+    st("fj-in", 950.4, 5.571, "flying_j", "IN", 0.4),
+    st("fj-ia", 1293, 5.322, "flying_j", "IA", 2.4),
+    st("one9-ne", 1631.8, null, "one9", "NE", 0.3),
+    st("pilot-ne-2", 1745, 5.41, "pilot", "NE", 0.5),
+    st("pilot-ne-3", 1840, 5.38, "pilot", "NE", 0.5),
+  ];
+  for (let m = 100; m < 1950; m += 70) corridor.push(st(`p${m}`, m, 5.45 + ((m % 7) / 100), "pilot", "XX", 0.5));
+  for (let m = 130; m < 1950; m += 55) corridor.push(st(`o${m}`, m, null, "one9", "XX", 0.3));
+  const hos748: HosState = { driveRemainingMs: 6 * H, shiftRemainingMs: 8.3 * H, cycleRemainingMs: 12.9 * H, breakRemainingMs: 3 * H };
+
+  it("unit 748 Mansfield → Windsor: two fills at the reserve, not five at two-thirds", () => {
+    const plan = planFuelStops({ distanceToGoMiles: 1961, stations: corridor, truck: truck748, settings: DEFAULT_ROUTE_FUEL_SETTINGS, avgSpeedMph: 1961 / 29.9, hos: hos748 });
+    expect(plan.status).toBe("ok");
+    expect(plan.reachesDestination).toBe(true);
+    expect(plan.stops).toHaveLength(2);
+    for (const s of plan.stops) {
+      expect(s.arrivalGal / 200).toBeLessThan(0.25); // fuelled near the 20% reserve, never at two-thirds
+      expect(s.station!.brand).not.toBe("one9");
+      expect(s.netPrice).not.toBeNull();
+    }
+    expect(plan.totalCost).not.toBeNull();
+    expect(plan.flags).toContain("cycle_restart_required");
   });
 });
 
@@ -323,73 +423,6 @@ describe("planFuelStops — avoided-state border top-off (California rule)", () 
     const plan = planFuelStops(input({ distanceToGoMiles: 300, stations: [st("a", 140, 3.5)] }));
     expect(plan.stops.some((s) => s.isBorderTopOff)).toBe(false);
     expect(plan.flags).not.toContain("topped_off_before_avoided_state");
-  });
-});
-
-describe("planFuelStops — min-drawdown (partial fills)", () => {
-  const fuelStop = (plan: ReturnType<typeof planFuelStops>, id: string) => plan.stops.find((s) => s.station?.id === id);
-
-  it("partial-fills at a pricey stop when a cheaper station is reachable ahead (min-drawdown opt-in)", () => {
-    // Only the dear station (a@200, $4.00) is in the initial fuel window; a cheaper one (b@500, $3.00) sits
-    // beyond it. With min-drawdown ON, buy just enough at `a` to reach `b`, then top off at `b`.
-    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("a", 200, 4.0), st("b", 500, 3.0)], settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false } }));
-    expect(plan.reachesDestination).toBe(true);
-    const a = fuelStop(plan, "a")!, b = fuelStop(plan, "b")!;
-    expect(a.isMinFill).toBe(true);
-    expect(a.fillGal).toBeGreaterThanOrEqual(50 - 1e-6); // honors the min purchase
-    expect(a.fillGal).toBeLessThan(100);                 // ...but is NOT a full top-off
-    expect(b.isMinFill).toBe(false);                     // cheapest ahead → full fill
-    expect(b.fillGal).toBeGreaterThan(a.fillGal);
-    expect(plan.flags).toContain("min_drawdown_partial_fills");
-  });
-
-  it("full-fills at the cheapest reachable stop (no cheaper ahead), even with min-drawdown on", () => {
-    // a@200 ($3.00) is cheapest; b@500 ($4.00) is pricier → `a` is the cheapest in the horizon → top off.
-    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("a", 200, 3.0), st("b", 500, 4.0)], settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false } }));
-    const a = fuelStop(plan, "a")!;
-    expect(a.isMinFill).toBe(false);
-    expect(a.fillGal).toBeGreaterThan(100); // full fill
-    expect(plan.flags).not.toContain("min_drawdown_partial_fills");
-  });
-
-  it("alwaysFillFull=true disables min-drawdown (full fill even with cheaper fuel ahead)", () => {
-    const plan = planFuelStops(input({
-      distanceToGoMiles: 900,
-      stations: [st("a", 200, 4.0), st("b", 500, 3.0)],
-      settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: true },
-    }));
-    const a = fuelStop(plan, "a")!;
-    expect(a.isMinFill).toBe(false);
-    expect(a.fillGal).toBeGreaterThan(100);            // topped off at the first stop...
-    expect(fuelStop(plan, "b")).toBeUndefined();       // ...so the cheaper station is never needed
-    expect(plan.flags).not.toContain("min_drawdown_partial_fills");
-  });
-
-  it("caps a partial fill at fillCapPct of tank when the next cheaper station is far", () => {
-    // The only cheaper station (b@1000) needs ~94% of tank to reach in one hop; the 75% cap limits the fill so
-    // the truck doesn't haul that much expensive fuel — it refuels again at c on the way.
-    const plan = planFuelStops(input({
-      distanceToGoMiles: 1200,
-      stations: [st("a", 100, 4.0), st("c", 600, 4.5), st("b", 1000, 3.0)],
-      settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false },
-    }));
-    expect(plan.reachesDestination).toBe(true);
-    const a = fuelStop(plan, "a")!;
-    expect(a.isMinFill).toBe(true);
-    expect(a.arrivalGal + a.fillGal).toBeLessThanOrEqual(0.75 * 200 + 1.5); // onboard capped at ~75% of a 200-gal tank
-    expect(a.arrivalGal + a.fillGal).toBeLessThan(190 - 5);                 // clearly not a full fill (~94% need)
-  });
-
-  it("border top-off is always a FULL fill, overriding min-drawdown", () => {
-    const plan = planFuelStops(input({
-      distanceToGoMiles: 300,
-      stations: [st("pre", 140, 3.5), st("cheaper-in-ca", 200, 2.9, "pilot", "CA")],
-      avoidedBorderMiles: 150,
-      settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false },
-    }));
-    const border = plan.stops.find((s) => s.isBorderTopOff)!;
-    expect(border.isMinFill).toBe(false);
-    expect(border.fillGal).toBeGreaterThan(50);
   });
 });
 

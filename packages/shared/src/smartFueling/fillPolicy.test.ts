@@ -8,14 +8,14 @@ const st = (over: Partial<SolverStation>): SolverStation => ({ id: "p", brand: "
 // 200-gal tank, usable 190, reserve 38, 6 mpg -> gpm ~1/6. Arrive with 50 gal on hand.
 function ctx(over: Partial<FillContext> = {}): FillContext {
   return {
-    pick: st({}), arrivalGal: 50, emergency: false, overnight: false, borderTopOff: false,
+    pick: st({}), arrivalGal: 50, emergency: false, borderTopOff: false,
     cfg: DEFAULT_ROUTE_FUEL_SETTINGS, usable: 190, reserve: 38, weightCap: 1000, tankCap: 200,
     gpm: 1 / 6, dest: 900, stations: [st({})], used: new Set<string>(), galFor: (mi) => mi / 6, ...over,
   };
 }
 
 describe("chooseFill", () => {
-  it("full-fills by default (alwaysFillFull) up to usable", () => {
+  it("full-fills up to usable — every planned fill is a full fill", () => {
     const d = chooseFill(ctx());
     expect(d.fillGal).toBeCloseTo(190 - 50, 6); // top off to usable
     expect(d.isMinFill).toBe(false);
@@ -37,15 +37,11 @@ describe("chooseFill", () => {
     expect(d.fillGal).toBeLessThan(139); // not a full fill
     expect(d.isAvoidedState).toBe(false);
   });
-  it("min-drawdown (opt-in) partial-fills at a pricey stop with a cheaper one reachable ahead", () => {
+  it("a cheaper station ahead no longer shortens a fill — min-drawdown is retired (D-FP3)", () => {
     const pick = st({ id: "dear", milesAhead: 200, netPrice: 4.0 });
     const cheaper = st({ id: "cheap", milesAhead: 500, netPrice: 3.0 });
-    const d = chooseFill(ctx({
-      cfg: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false },
-      pick, stations: [pick, cheaper],
-    }));
-    expect(d.isMinFill).toBe(true);
-    expect(d.fillGal).toBeLessThan(140); // not a full top-off
-    expect(d.fillGal).toBeGreaterThanOrEqual(DEFAULT_ROUTE_FUEL_SETTINGS.minPurchaseGal - 1e-6);
+    const d = chooseFill(ctx({ cfg: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false }, pick, stations: [pick, cheaper] }));
+    expect(d.isMinFill).toBe(false);
+    expect(d.fillGal).toBeCloseTo(140, 6);
   });
 });
