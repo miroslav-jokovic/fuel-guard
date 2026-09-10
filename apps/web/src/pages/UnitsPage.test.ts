@@ -169,6 +169,19 @@ describe("the fleet's kit", () => {
     }
   });
 
+  /** The fleet arrives whole, so the page pages it itself — twenty at a time, like the roster lists. */
+  it("pages the fleet twenty at a time and counts the whole of it in the toolbar", () => {
+    units.value = {
+      units: Array.from({ length: 25 }, (_, i) => unit({ unitId: `u${i}`, unitNumber: `T-${String(i).padStart(3, "0")}` })),
+      total: 25,
+    };
+    const w = page();
+    expect(w.text()).toContain("25 units");
+    expect(w.text()).toContain("T-019");
+    expect(w.text()).not.toContain("T-020");
+    expect(w.text()).toContain("Showing 1–20 of 25");
+  });
+
   it("names its one header action, and gives every row a menu", () => {
     units.value = { units: [unit()], total: 1 };
     const w = page();

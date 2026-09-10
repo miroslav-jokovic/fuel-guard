@@ -10,6 +10,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import KitRulesDrawer from "@/features/inventory/KitRulesDrawer.vue";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
@@ -36,11 +37,17 @@ import { useSessionStore } from "@/stores/session";
  * counts and what somebody loads into a truck before driving out to the yard; the number of lines
  * is a fact about the table, not about the walk.
  *
- * ── SEARCH AND SORT ARE THE PAGE'S OWN, BECAUSE THE FLEET ARRIVES WHOLE ───────────────────────
+ * ── SEARCH, SORT AND PAGING ARE THE PAGE'S OWN, BECAUSE THE FLEET ARRIVES WHOLE ───────────────
  * `/units` is unpaginated — a fleet is a few hundred rows at most and a kit list that stopped at
- * fifty would say "everything else is fine". So, unlike Parts and Assets, this page may filter
- * and order what it holds without presenting a page-local answer as the fleet's. The search is
- * over the unit number, which is the only thing anybody types here.
+ * fifty would say "everything else is fine". So, unlike Parts and Assets, this page may filter,
+ * order and page what it holds without presenting a page-local answer as the fleet's: the count in
+ * the toolbar is the whole answer, and the footer pages the same list twenty at a time, the way
+ * `TrailersPage.vue` and `VehiclesPage.vue` page the roster the fleet came from. The search is over
+ * the unit number, which is the only thing anybody types here.
+ *
+ * The unit number is `font-medium text-ink`, the identity-column tone every roster list uses for
+ * it. It shipped in `font-mono`, which the product reserves for machine identifiers — decal serials,
+ * barcodes — and a truck number is what somebody says across a yard, not a machine's.
  *
  * ── THE FILTERS' "EVERYTHING" IS `""` ─────────────────────────────────────────────────────────
  * `FilterSelect` reads any non-empty value as applied. `PartsPage.vue` carries the measurement.
@@ -59,6 +66,8 @@ const KIT_OPTIONS = [
   { value: "", label: "Every unit" },
   { value: "short", label: "Short of something" },
 ];
+
+const PAGE_SIZE = 20;
 
 const search = ref("");
 const kind = ref("");
@@ -82,8 +91,12 @@ const rows = computed(() => {
   return sortRows(found, sort.value);
 });
 
+const page = ref(1);
+watch([search, kind, kit, sort], () => (page.value = 1));
+const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+
 const COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", sortable: true, cellClass: "font-mono text-xs text-ink", width: "sm" },
+  { key: "unitNumber", label: "Unit", sortable: true, cellClass: "font-medium text-ink", width: "sm" },
   { key: "kind", label: "Kind", sortable: true, cellClass: "text-ink-secondary" },
   { key: "lines", label: "Kit" },
   { key: "shortBy", label: "Missing", sortable: true, numeric: true },
@@ -136,7 +149,7 @@ const rulesOpen = ref(false);
       <DataTable
         embedded
         :columns="COLUMNS"
-        :rows="rows"
+        :rows="pageRows"
         row-key="unitId"
         :loading="units.isLoading.value"
         :error="units.isError.value ? 'Could not load the fleet' : null"
@@ -178,6 +191,9 @@ const rulesOpen = ref(false);
             No units yet. Trucks and trailers arrive from the roster — add one there, and its kit
             shows up here.
           </p>
+        </template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="rows.length" @update:page="page = $event" />
         </template>
       </DataTable>
     </DataWorkspace>
