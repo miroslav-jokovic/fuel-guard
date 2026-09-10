@@ -37,9 +37,12 @@ const lines = computed(() => (unit.value?.lines ?? []).filter((l) => l.expected 
 </script>
 
 <template>
-  <BaseCard v-if="maySee" padding="md">
+  <BaseCard v-if="maySee">
+    <!-- `text-sm`, the heading size every other card on the vehicle and trailer pages uses. This
+         card rendered a `text-lg` "Kit" that was the loudest heading on a page whose own were
+         `text-sm` (2026-09-10 critique). -->
     <div class="flex items-center justify-between gap-3">
-      <h2 class="text-lg font-semibold text-ink">Kit</h2>
+      <h2 class="text-sm font-semibold text-ink">Kit</h2>
       <span
         v-if="unit && kitStatusBadge(unit.state)"
         :class="[BADGE_BASE, toneClass(kitStatusBadge(unit.state)!.tone)]"
@@ -66,7 +69,7 @@ const lines = computed(() => (unit.value?.lines ?? []).filter((l) => l.expected 
 
       <RouterLink
         :to="{ name: 'unit', params: { kind, id: unitId } }"
-        class="mt-4 inline-block text-sm font-medium text-brand-700 hover:underline"
+        class="mt-4 inline-block text-sm font-medium text-link hover:text-link-hover"
       >
         Open in the shop
       </RouterLink>

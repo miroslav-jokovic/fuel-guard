@@ -46,7 +46,7 @@ const A_LOOSE = "aaaaaaaa-4444-4444-8444-444444444444";
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
 
-const { listAssets, getAsset } = await import("./assets.js");
+const { listAssets, getAsset, displaySeqOf } = await import("./assets.js");
 const { createAsset, updateAsset } = await import("./assetsWrite.js");
 const { listAssetMovements, moveAsset } = await import("./assetMovements.js");
 const { listKitExpectations, setKitExpectation } = await import("./kitExpectations.js");
@@ -412,5 +412,51 @@ describe("kit expectations", () => {
       quantity: 1,
     });
     expect(result).toMatchObject({ code: "IV012" });
+  });
+});
+
+/**
+ * Search (2026-09-10). The list page grew a search box because a manager typing "A-0412" or a
+ * serial into the Assets list had no way to find it short of paging — and a client-side filter
+ * over one server page would have said "no such asset" about a tablet on page two.
+ */
+describe("asset search", () => {
+  beforeEach(() => {
+    rec = createSupabaseRecorder({
+      tables: { inventory_assets: byFilters, drivers: DRIVERS, asset_movements: [] },
+    });
+  });
+
+  it("reads a display number in every spelling the shop uses, and nothing else as one", () => {
+    expect(displaySeqOf("A-0412")).toBe(412);
+    expect(displaySeqOf("a0412")).toBe(412);
+    expect(displaySeqOf("0412")).toBe(412);
+    expect(displaySeqOf("412")).toBe(412);
+    expect(displaySeqOf("SN-1")).toBeNull();
+    expect(displaySeqOf("tablet")).toBeNull();
+    expect(displaySeqOf("")).toBeNull();
+  });
+
+  it("sends one OR over the text columns, and adds the number only when the term is one", async () => {
+    await listAssets(rec.client, ORG, { search: "A-0412" });
+    const or = rec.forTable("inventory_assets")[0]!.ops.find((o) => o.method === "or");
+    expect(or).toBeDefined();
+    const clause = String(or!.args[0]);
+    expect(clause).toContain("name.ilike.");
+    expect(clause).toContain("serial_number.ilike.");
+    expect(clause).toContain("tag_code.ilike.");
+    expect(clause).toContain("display_seq.eq.412");
+    expectOrgScoped(rec, ORG, SCOPED);
+  });
+
+  it("leaves the number clause out for a term that is not a number", async () => {
+    await listAssets(rec.client, ORG, { search: "SN-1" });
+    const or = rec.forTable("inventory_assets")[0]!.ops.find((o) => o.method === "or");
+    expect(String(or!.args[0])).not.toContain("display_seq");
+  });
+
+  it("sends no OR at all for a blank search", async () => {
+    await listAssets(rec.client, ORG, { search: "   " });
+    expect(rec.forTable("inventory_assets")[0]!.ops.some((o) => o.method === "or")).toBe(false);
   });
 });

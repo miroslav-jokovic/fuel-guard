@@ -9,7 +9,7 @@ import {
   AppButton as BaseButton,
   AppFormField as FormField,
   AppInput as BaseInput,
-  AppSelect,
+  AppSegmentedControl,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useAssetTypesQuery } from "./useAssets";
@@ -40,8 +40,16 @@ import { useToastStore } from "@/stores/toast";
 const props = defineProps<{ open: boolean; unitKind?: UnitKind }>();
 const emit = defineEmits<{ close: [] }>();
 
+/** The footer submits the form by id — `PartForm.vue` records why the buttons are not in the body. */
+const FORM_ID = "kit-rules-form";
+
 const toast = useToastStore();
 const kind = ref<UnitKind>(props.unitKind ?? "tractor");
+/**
+ * Three fixed kinds, so a segmented control and not a select: the choice is the drawer's whole
+ * subject and should be visible at all times, not folded into a panel the operating system draws.
+ */
+const KIND_OPTIONS = UNIT_KINDS.map((k) => ({ value: k, label: UNIT_KIND_LABELS[k] }));
 const { data: types } = useAssetTypesQuery();
 
 const filter = computed(() => ({ unitKind: kind.value, fleetOnly: true }));
@@ -104,22 +112,21 @@ async function submit() {
 </script>
 
 <template>
-  <SlideOver :open="open" title="Kit rules" @close="emit('close')">
-    <form class="space-y-4" @submit.prevent="submit">
-      <FormField v-slot="{ id }" label="For which kind of unit">
-        <AppSelect
-          :id="id"
-          v-model="kind"
-          :options="UNIT_KINDS.map((k) => ({ value: k, label: UNIT_KIND_LABELS[k] }))"
-        />
-      </FormField>
+  <SlideOver
+    :open="open"
+    title="Kit rules"
+    description="How many of each thing a kind of unit carries. Leave a row empty to use the kind's own default; type 0 to say it carries none."
+    @close="emit('close')"
+  >
+    <form :id="FORM_ID" class="space-y-6" @submit.prevent="submit">
+      <AppSegmentedControl
+        :model-value="kind"
+        :options="KIND_OPTIONS"
+        label="Kind of unit"
+        @update:model-value="kind = $event as UnitKind"
+      />
 
-      <p class="text-xs text-ink-tertiary">
-        How many of each thing this kind of unit carries. Leave a row empty to use the type's own
-        default; type 0 to say it carries none.
-      </p>
-
-      <div v-if="rows.length" class="space-y-3">
+      <div v-if="rows.length" class="space-y-4">
         <FormField
           v-for="row in rows"
           :key="row.id"
@@ -136,13 +143,16 @@ async function submit() {
         </FormField>
       </div>
       <p v-else class="text-sm text-ink-secondary">
-        No asset types yet. Add one on Assets first — a type is what a kit rule counts.
+        No kinds of thing yet. Add one under Asset kinds on Assets first — a kind is what a kit rule counts.
       </p>
-
-      <div class="flex justify-end gap-2 pt-2">
-        <BaseButton type="button" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton type="submit" variant="primary" :disabled="busy || !rows.length">Save rules</BaseButton>
-      </div>
     </form>
+    <template #footer>
+      <div class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" :disabled="busy" @click="emit('close')">Cancel</BaseButton>
+        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="busy || !rows.length">
+          {{ busy ? "Saving…" : "Save rules" }}
+        </BaseButton>
+      </div>
+    </template>
   </SlideOver>
 </template>

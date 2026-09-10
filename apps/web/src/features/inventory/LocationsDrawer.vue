@@ -27,8 +27,13 @@ import { useToastStore } from "@/stores/toast";
  *
  * ── IT IS A DRAWER ON PARTS, NOT A FIFTH NAV ENTRY ────────────────────────────────────────────
  * I4's ruling fixes the maintenance group's membership, and a shop with one bay does not want a
- * menu item for the list of it. The gear is where I11's inventory settings land too, so the two
- * arrive in one place rather than as two shop-configuration surfaces a year apart.
+ * menu item for the list of it. The "Stock locations" button is where I11's inventory settings
+ * land too, so the two arrive in one place rather than as two shop-configuration surfaces a year
+ * apart.
+ *
+ * ── THE ACTIONS ARE IN THE FOOTER (2026-09-10) ────────────────────────────────────────────────
+ * "Add a location" while the list is showing; Cancel and Save while the form is. Pinned, so a
+ * long list of bays never scrolls the way in out of reach — `PartForm.vue` records the rule.
  *
  * ── CLOSING, NOT DELETING ─────────────────────────────────────────────────────────────────────
  * A closed location keeps its stock lines and its history; what changes is that the RPC refuses a
@@ -39,6 +44,8 @@ import { useToastStore } from "@/stores/toast";
 
 defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
+
+const FORM_ID = "location-form";
 
 const toast = useToastStore();
 const { data: locations, isLoading } = useLocationsQuery(true);
@@ -140,25 +147,33 @@ async function setActive(location: StockLocationDto, active: boolean) {
         No locations yet. Add the shop itself first — everything on a shelf is somewhere.
       </p>
 
-      <form v-if="adding" class="space-y-4 border-t border-edge-subtle pt-4" @submit.prevent="onSubmit">
-        <FormField v-slot="{ id }" label="Name" :error="errors.name">
-          <BaseInput :id="id" v-model="form.name" placeholder="Main shop" :invalid="!!errors.name" />
-        </FormField>
-        <!-- Capped at 24 characters because it is what somebody says across a bay, not a label. -->
-        <FormField v-slot="{ id }" label="Short code" hint="What people call it out loud." :error="errors.code">
-          <BaseInput :id="id" v-model="form.code" placeholder="MAIN" :invalid="!!errors.code" />
-        </FormField>
-        <FormField v-slot="{ id }" label="Address">
-          <BaseInput :id="id" v-model="form.address" />
-        </FormField>
-        <div class="flex justify-end gap-2">
-          <BaseButton type="button" @click="adding = false">Cancel</BaseButton>
-          <BaseButton type="submit" variant="primary" :disabled="submitting">
-            {{ editing ? "Save location" : "Add location" }}
-          </BaseButton>
+      <form v-if="adding" :id="FORM_ID" class="border-t border-edge-subtle pt-5" @submit.prevent="onSubmit">
+        <h3 class="text-sm font-semibold text-ink">{{ editing ? "Edit location" : "New location" }}</h3>
+        <div class="mt-4 space-y-4">
+          <FormField v-slot="{ id }" label="Name" :error="errors.name">
+            <BaseInput :id="id" v-model="form.name" placeholder="Main shop" :invalid="!!errors.name" />
+          </FormField>
+          <!-- Capped at 24 characters because it is what somebody says across a bay, not a label. -->
+          <FormField v-slot="{ id }" label="Short code" hint="What people call it out loud." :error="errors.code">
+            <BaseInput :id="id" v-model="form.code" placeholder="MAIN" :invalid="!!errors.code" />
+          </FormField>
+          <FormField v-slot="{ id }" label="Address">
+            <BaseInput :id="id" v-model="form.address" />
+          </FormField>
         </div>
       </form>
-      <BaseButton v-else variant="primary" @click="startAdd">Add a location</BaseButton>
     </div>
+    <template #footer>
+      <div v-if="adding" class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" :disabled="submitting" @click="adding = false">Cancel</BaseButton>
+        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="submitting">
+          {{ submitting ? "Saving…" : editing ? "Save location" : "Add location" }}
+        </BaseButton>
+      </div>
+      <div v-else class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" @click="emit('close')">Close</BaseButton>
+        <BaseButton variant="primary" @click="startAdd">Add a location</BaseButton>
+      </div>
+    </template>
   </SlideOver>
 </template>

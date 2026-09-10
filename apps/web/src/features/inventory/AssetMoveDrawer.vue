@@ -17,7 +17,6 @@ import {
   AppButton as BaseButton,
   AppCombobox,
   AppFormField as FormField,
-  AppSelect,
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
@@ -69,10 +68,21 @@ const movementId = crypto.randomUUID();
 /** Fixed at the first submit and reused, so a retry is the same movement at the same moment. */
 const occurredAt = ref<string | null>(null);
 
+/** The footer submits the form by id — `PartForm.vue` records why the buttons are not in the body. */
+const FORM_ID = "asset-move-form";
+
 /** The reasons this drawer offers, split by the one function that owns the split. */
 const reasons = computed<AssetMovementReason[]>(() =>
   ASSET_MOVEMENT_REASONS.filter((r) => movesHolder(r) === (props.mode === "move")),
 );
+const reasonOptions = computed(() =>
+  reasons.value.map((r) => ({ value: r, label: ASSET_MOVEMENT_REASON_LABELS[r] })),
+);
+/** "" is "unchanged", which is a real answer and the usual one, so it is an option and the placeholder. */
+const CONDITION_OPTIONS = [
+  { value: "", label: "Unchanged" },
+  ...ITEM_CONDITIONS.map((c) => ({ value: c, label: ITEM_CONDITION_LABELS[c] })),
+];
 
 const form = reactive({
   reason: (props.mode === "move" ? "assigned" : "reported_missing") as AssetMovementReason,
@@ -150,7 +160,7 @@ async function submit() {
     :title="mode === 'move' ? 'Move this asset' : 'Report a problem'"
     @close="emit('close')"
   >
-    <form class="space-y-4" @submit.prevent="submit">
+    <form :id="FORM_ID" class="space-y-4" @submit.prevent="submit">
       <div class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
         <p class="text-sm font-medium text-ink">{{ asset.displayNo }} — {{ asset.name }}</p>
         <p class="mt-0.5 text-xs text-ink-muted">
@@ -160,11 +170,7 @@ async function submit() {
       </div>
 
       <FormField v-slot="{ id }" label="What happened" :error="errors.reason">
-        <AppSelect
-          :id="id"
-          v-model="form.reason"
-          :options="reasons.map((r) => ({ value: r, label: ASSET_MOVEMENT_REASON_LABELS[r] }))"
-        />
+        <AppCombobox :id="id" v-model="form.reason" :options="reasonOptions" placeholder="What happened to it" />
       </FormField>
 
       <FormField
@@ -191,26 +197,20 @@ async function submit() {
       </p>
 
       <FormField v-slot="{ id }" label="Condition" hint="Optional. Leave it if nothing changed.">
-        <AppSelect
-          :id="id"
-          v-model="form.condition"
-          :options="[
-            { value: '', label: 'Unchanged' },
-            ...ITEM_CONDITIONS.map((c) => ({ value: c, label: ITEM_CONDITION_LABELS[c] })),
-          ]"
-        />
+        <AppCombobox :id="id" v-model="form.condition" :options="CONDITION_OPTIONS" placeholder="Unchanged" />
       </FormField>
 
       <FormField v-slot="{ id }" label="Note">
         <BaseTextarea :id="id" v-model="form.note" :rows="2" />
       </FormField>
-
-      <div class="flex justify-end gap-2 pt-2">
-        <BaseButton type="button" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton type="submit" variant="primary" :disabled="record.isPending.value">
-          {{ mode === "move" ? "Move it" : "Record it" }}
+    </form>
+    <template #footer>
+      <div class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" :disabled="record.isPending.value" @click="emit('close')">Cancel</BaseButton>
+        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="record.isPending.value">
+          {{ record.isPending.value ? (mode === "move" ? "Moving…" : "Recording…") : mode === "move" ? "Move it" : "Record it" }}
         </BaseButton>
       </div>
-    </form>
+    </template>
   </SlideOver>
 </template>

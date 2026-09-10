@@ -32,6 +32,9 @@ import { useToastStore } from "@/stores/toast";
 defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
+/** The footer submits the form by id — `PartForm.vue` records why the buttons are not in the body. */
+const FORM_ID = "start-count-form";
+
 const router = useRouter();
 const toast = useToastStore();
 const { data: locations } = useLocationsQuery();
@@ -68,14 +71,14 @@ async function start() {
     description="Walk one location and say what is actually there. The count is saved on the phone as you go."
     @close="emit('close')"
   >
-    <form class="space-y-4" @submit.prevent="start">
+    <form :id="FORM_ID" class="space-y-4" @submit.prevent="start">
       <FormField v-slot="{ id }" label="Which location" :error="error">
         <AppCombobox
           :id="id"
           v-model="locationId"
           :options="options"
           placeholder="Choose a location"
-          empty-text="No stock locations yet — add one from the gear on Parts."
+          empty-text="No stock locations yet — add one under Stock locations on Parts."
         />
       </FormField>
 
@@ -90,10 +93,14 @@ async function start() {
         </BaseCheckbox>
       </div>
 
-      <div class="flex justify-end gap-2 pt-2">
-        <BaseButton type="button" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton type="submit" variant="primary" :disabled="openSession.isPending.value">Start counting</BaseButton>
-      </div>
     </form>
+    <template #footer>
+      <div class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" :disabled="openSession.isPending.value" @click="emit('close')">Cancel</BaseButton>
+        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="openSession.isPending.value">
+          {{ openSession.isPending.value ? "Starting…" : "Start counting" }}
+        </BaseButton>
+      </div>
+    </template>
   </SlideOver>
 </template>

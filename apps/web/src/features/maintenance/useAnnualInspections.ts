@@ -80,7 +80,9 @@ export interface InspectionFilter {
   page: number;
 }
 
-const PER_PAGE = 50;
+/** One page of inspections, as the API pages them. The list page derives its pagination from this. */
+export const INSPECTIONS_PAGE_SIZE = 50;
+const PER_PAGE = INSPECTIONS_PAGE_SIZE;
 
 export function useInspectionsQuery(filter: Ref<InspectionFilter>) {
   return useQuery({

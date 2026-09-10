@@ -11,9 +11,10 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
 import AssetTypesDrawer from "@/features/inventory/AssetTypesDrawer.vue";
-import { useAssetsQuery, useAssetTypesQuery } from "@/features/inventory/useAssets";
+import { ASSETS_PAGE_SIZE, useAssetsQuery, useAssetTypesQuery } from "@/features/inventory/useAssets";
 import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 
@@ -37,12 +38,19 @@ import { useSessionStore } from "@/stores/session";
  * `assetStatusBadge` returns null for `in_service`, which nearly every asset is. A badge on every
  * row means nothing; the coloured ones are the exceptions worth walking over to.
  *
- * ⚠ The pill is `[BADGE_BASE, toneClass(...)]` and NOT `AppBadge`, which is the rule
- * `apps/web/CLAUDE.md` states — and here it is load-bearing rather than stylistic. `AppBadge` carries
- * `capitalize`, so it rendered "In Repair" on a real page while the source said "In repair"; the
- * plan's own §8 records the same primitive title-casing "Not counted" at I5, which was worked around
- * there by choosing a one-word label. There is no one-word way to say "In repair", so this uses the
- * base classes, which deliberately carry no transform (badges.ts records why).
+ * The pill is `[BADGE_BASE, toneClass(...)]` because that is the rule `apps/web/CLAUDE.md` states
+ * for every badge. (It was once load-bearing as well: `AppBadge` carried `capitalize` until
+ * 2026-09-09 and rendered "In Repair" on a real page. The primitive no longer does, so the base
+ * classes are the convention here and not a workaround.)
+ *
+ * ── SEARCH IS THE API'S, AND THE COLUMNS DO NOT SORT ──────────────────────────────────────────
+ * The list arrives one server page at a time, so the search box asks `/assets?search=` rather than
+ * filtering the fifty rows on screen — a client filter over one page says "no such asset" about a
+ * tablet on page two. The same fact is why no column header sorts: a page-local order presented as
+ * the fleet's is the wrong answer that gets believed. Server-side sort is owed to the API.
+ *
+ * ── THE FILTERS' "EVERYTHING" IS `""` ─────────────────────────────────────────────────────────
+ * `FilterSelect` reads any non-empty value as applied. `PartsPage.vue` carries the measurement.
  */
 
 const route = useRoute();
@@ -50,24 +58,28 @@ const router = useRouter();
 const session = useSessionStore();
 
 const STATUS_OPTIONS = [
-  { value: "all", label: "All statuses" },
+  { value: "", label: "All statuses" },
   ...ASSET_STATUSES.map((s) => ({ value: s, label: ASSET_STATUS_LABELS[s] })),
 ];
 
-const status = ref<string>("all");
-const typeId = ref<string>("all");
+const search = ref("");
+const status = ref<string>("");
+const typeId = ref<string>("");
 const page = ref(1);
-watch([status, typeId], () => (page.value = 1));
+watch([search, status, typeId], () => (page.value = 1));
 
 const { data: types } = useAssetTypesQuery();
 const typeOptions = computed(() => [
-  { value: "all", label: "All kinds" },
+  { value: "", label: "All kinds" },
   ...(types.value ?? []).map((t) => ({ value: t.id, label: t.name })),
 ]);
 
+const filtered = computed(() => Boolean(search.value || status.value || typeId.value));
+
 const filter = computed(() => ({
-  status: status.value === "all" ? undefined : (status.value as AssetDto["status"]),
-  assetTypeId: typeId.value === "all" ? undefined : typeId.value,
+  search: search.value.trim() || undefined,
+  status: (status.value || undefined) as AssetDto["status"] | undefined,
+  assetTypeId: typeId.value || undefined,
   page: page.value,
 }));
 const assets = useAssetsQuery(filter);
@@ -95,11 +107,12 @@ watch(creating, (open) => {
   <div class="space-y-6">
     <PageHeader description="Everything with a number on it — tools, tablets, straps — and which truck has it.">
       <template #actions>
-        <!-- The gear is the kinds of thing. It is not a nicety: an asset cannot be created without a
-             type, and until 2026-09-09 no screen in the product could make one — the same dead end
-             `LocationsDrawer.vue` closed for stock locations at I4. -->
-        <BaseButton v-if="session.can('maintenance')" aria-label="Kinds of thing" @click="typesOpen = true">
-          <AppIcon :icon="Cog6ToothIcon" class="size-5" aria-hidden="true" />
+        <!-- The kinds of thing, as a worded button. It is not a nicety: an asset cannot be created
+             without a type, and until 2026-09-09 no screen in the product could make one — the same
+             dead end `LocationsDrawer.vue` closed for stock locations at I4. Worded rather than an
+             icon-only gear for the reason `PartsPage.vue` records. -->
+        <BaseButton v-if="session.can('maintenance')" @click="typesOpen = true">
+          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Asset kinds
         </BaseButton>
         <BaseButton v-if="session.can('maintenance')" to="/shop/labels">
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
@@ -111,7 +124,13 @@ watch(creating, (open) => {
     </PageHeader>
 
     <DataWorkspace>
-      <FilterBar embedded :count="assets.data.value?.total ?? 0" count-label="assets">
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search number, name, serial or tag…"
+        :count="assets.data.value?.total ?? 0"
+        count-label="assets"
+      >
         <template #filters>
           <FilterSelect v-model="typeId" label="Kind" :options="typeOptions" />
           <FilterSelect v-model="status" label="Status" :options="STATUS_OPTIONS" />
@@ -137,7 +156,6 @@ watch(creating, (open) => {
           </span>
           <span v-else class="text-ink-tertiary">Not placed</span>
         </template>
-        <template #cell-serialNumber="{ value }">{{ value ?? "—" }}</template>
         <template #cell-status="{ value }">
           <span
             v-if="assetStatusBadge(value)"
@@ -147,19 +165,25 @@ watch(creating, (open) => {
           </span>
           <span v-else class="text-ink-tertiary">—</span>
         </template>
+        <template #actions="{ row }">
+          <KebabMenu>
+            <BaseButton class="kebab-item" @click="openAsset(row)">Open asset</BaseButton>
+          </KebabMenu>
+        </template>
         <template #empty>
-          <p v-if="status !== 'all' || typeId !== 'all'">
+          <p v-if="search">No asset matches that. Try its number, its serial, or the tag on it.</p>
+          <p v-else-if="filtered">
             Nothing matches those filters. Clear them to see everything the shop owns.
           </p>
           <p v-else>
-            No assets yet. Set up the kinds of thing behind the gear first — then add the first
+            No assets yet. Set up the kinds of thing under Asset kinds first — then add the first
             tablet or load bar, and the shop starts knowing which truck has it.
           </p>
         </template>
         <template #footer>
           <TablePagination
             :page="page"
-            :page-size="50"
+            :page-size="ASSETS_PAGE_SIZE"
             :total="assets.data.value?.total ?? 0"
             @update:page="page = $event"
           />

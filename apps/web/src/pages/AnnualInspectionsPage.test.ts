@@ -25,6 +25,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/features/maintenance/useAnnualInspections", () => ({
+  INSPECTIONS_PAGE_SIZE: 50,
   useInspectionsQuery: () => ({
     data: { value: { inspections: state.rows.value, total: state.rows.value.length } },
     isLoading: ref(false),

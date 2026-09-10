@@ -50,6 +50,9 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ close: [] }>();
 
+/** The footer submits the form by id — `PartForm.vue` records why the buttons are not in the body. */
+const FORM_ID = "stock-line-form";
+
 const toast = useToastStore();
 const save = useUpdateStockLine();
 
@@ -102,7 +105,7 @@ async function onSubmit() {
 
 <template>
   <SlideOver :open="open" :title="line ? 'Edit shelf' : 'Add a shelf'" @close="emit('close')">
-    <form class="space-y-4" @submit.prevent="onSubmit">
+    <form :id="FORM_ID" class="space-y-4" @submit.prevent="onSubmit">
       <!-- The location cannot move once the line exists: a stock line IS the (part, location) pair,
            so changing it here would silently create a second line and orphan the first. Moving stock
            between shelves is the `transfer` verb (I5), which writes both legs. So an existing line
@@ -118,7 +121,7 @@ async function onSubmit() {
           v-model="form.locationId"
           :options="locationOptions"
           placeholder="Choose a location"
-          empty-text="No stock locations yet — add one from the gear on Parts."
+          empty-text="No stock locations yet — add one under Stock locations on Parts."
         />
       </FormField>
 
@@ -152,10 +155,14 @@ async function onSubmit() {
         </BaseCheckbox>
       </div>
 
-      <div class="flex justify-end gap-2 pt-2">
-        <BaseButton type="button" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton type="submit" variant="primary" :disabled="save.isPending.value">Save shelf</BaseButton>
-      </div>
     </form>
+    <template #footer>
+      <div class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" :disabled="save.isPending.value" @click="emit('close')">Cancel</BaseButton>
+        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="save.isPending.value">
+          {{ save.isPending.value ? "Saving…" : "Save shelf" }}
+        </BaseButton>
+      </div>
+    </template>
   </SlideOver>
 </template>

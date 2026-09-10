@@ -76,6 +76,7 @@ const history = ref<{ movements: AssetMovementDto[]; total: number }>({ movement
 vi.mock("@/features/inventory/useAssets", async () => {
   const { ref: r } = await import("vue");
   return {
+    ASSETS_PAGE_SIZE: 50,
     useAssetQuery: () => ({ data: detail, isError: r(false), error: r(null), refetch: vi.fn() }),
     useAssetMovementsQuery: () => ({ data: history, isLoading: r(false), isError: r(false), refetch: vi.fn() }),
     useAttachAssetPhoto: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),

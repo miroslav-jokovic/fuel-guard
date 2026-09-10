@@ -19,15 +19,16 @@ import {
   type AssetMovementReason,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import ErrorState from "@/components/ErrorState.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
 import {
+  ASSETS_PAGE_SIZE,
   useAssetMovementsQuery,
   useAssetQuery,
   useAttachAssetPhoto,
@@ -56,6 +57,11 @@ import { useToastStore } from "@/stores/toast";
  * Deliberate, at the API: it is the occurred_at of the last movement that actually MOVED the thing
  * (a fridge reported missing in March has been 654's since January), which is one bounded query for
  * one asset and would be an unbounded one for a page.
+ *
+ * ── SHAPED LIKE THE OTHER ENTITY PAGES (2026-09-10) ───────────────────────────────────────────
+ * Titled summary card, status badge top-right, plain fact labels, `text-sm` section headings,
+ * `ErrorState`, a loading line, plain `DataTable` for the lone table, and the photo dropzone only
+ * while somebody is adding one. `PartDetailPage.vue` carries the reasoning in full.
  */
 
 const route = useRoute();
@@ -63,7 +69,7 @@ const session = useSessionStore();
 const toast = useToastStore();
 const id = computed(() => String(route.params.id ?? ""));
 
-const { data, isError, error, refetch } = useAssetQuery(id);
+const { data, isLoading, isError, error, refetch } = useAssetQuery(id);
 const asset = computed(() => data.value?.asset ?? null);
 const canManage = computed(() => session.can("maintenance"));
 
@@ -131,12 +137,14 @@ const LEDGER_COLUMNS: DataTableColumn[] = [
 ];
 
 const photo = useAttachAssetPhoto();
+const addingPhoto = ref(false);
 async function onPhoto(files: File[]) {
   const file = files[0];
   if (!file || !asset.value) return;
   try {
     await photo.mutateAsync({ id: asset.value.id, file });
     toast.success("Photo added");
+    addingPhoto.value = false;
   } catch (e) {
     toast.error("Could not add the photo", e instanceof Error ? e.message : undefined);
   }
@@ -153,101 +161,89 @@ async function onPhoto(files: File[]) {
       </template>
     </PageHeader>
 
-    <BaseCard v-if="isError" padding="md">
-      <p class="text-sm text-ink">
-        {{ error instanceof Error ? error.message : "Could not load the asset." }}
-      </p>
-      <BaseButton class="mt-3" @click="() => refetch()">Try again</BaseButton>
-    </BaseCard>
+    <ErrorState
+      v-if="isError"
+      :message="error instanceof Error ? error.message : 'Could not load the asset.'"
+      @retry="() => refetch()"
+    />
+
+    <p v-else-if="isLoading && !asset" class="text-sm text-ink-tertiary">Loading the asset…</p>
 
     <template v-else-if="asset">
-      <BaseCard padding="md">
-        <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-          <dl class="grid flex-1 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Where it is</dt>
-              <dd class="mt-1 text-sm text-ink">
-                {{ asset.holder.label ?? "Not placed" }}
-                <!-- D-INV3: the driver is read off the truck at the moment somebody looks, and is
-                     stored nowhere. There is no handover and no signature anywhere in this feature. -->
-                <span v-if="asset.holder.inferredDriverName" class="block text-xs text-ink-tertiary">
-                  with {{ asset.holder.inferredDriverName }}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Since</dt>
-              <dd class="mt-1 text-sm text-ink">
-                {{ asset.holder.since ? fmtWhen(asset.holder.since) : "—" }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Kind</dt>
-              <dd class="mt-1 text-sm text-ink">{{ asset.assetTypeName }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Condition</dt>
-              <dd class="mt-1 text-sm text-ink">{{ ITEM_CONDITION_LABELS[asset.condition] }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Serial</dt>
-              <dd class="mt-1 font-mono text-xs text-ink">{{ asset.serialNumber ?? "—" }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Make and model</dt>
-              <dd class="mt-1 text-sm text-ink">
-                {{ [asset.manufacturer, asset.model].filter(Boolean).join(" ") || "—" }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Bought</dt>
-              <dd class="mt-1 text-sm text-ink">{{ fmtDate(asset.purchasedAt) }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Warranty until</dt>
-              <dd class="mt-1 text-sm text-ink">{{ fmtDate(asset.warrantyExpiresAt) }}</dd>
-            </div>
-            <div v-if="asset.notes" class="col-span-2 sm:col-span-4">
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Notes</dt>
-              <dd class="mt-1 text-sm text-ink-secondary">{{ asset.notes }}</dd>
-            </div>
-          </dl>
-          <div class="shrink-0 sm:w-40">
+      <BaseCard>
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex min-w-0 items-center gap-3">
             <!-- Signed for 300 s (D-INV8) and re-signed with the query, so a page left open
                  overnight refetches rather than rendering a broken image. -->
             <img
               v-if="data?.photoUrl"
               :src="data.photoUrl"
               :alt="`Photo of ${asset.displayNo}`"
-              class="size-28 rounded-surface object-cover ring-1 ring-edge"
+              class="size-12 shrink-0 rounded-surface object-cover ring-1 ring-edge"
             />
-            <FileDropzone
-              v-else-if="canManage"
-              accept=".jpg,.jpeg,.png,.webp,.heic"
-              label="Add a photo"
-              hint="So the next person knows what to look for."
-              :busy="photo.isPending.value"
-              @files="onPhoto"
-            />
+            <h2 class="text-sm font-semibold text-ink">Asset summary</h2>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <BaseButton
+              v-if="canManage && !data?.photoUrl && !addingPhoto"
+              variant="ghost"
+              size="sm"
+              @click="addingPhoto = true"
+            >
+              Add a photo
+            </BaseButton>
+            <!-- `[BADGE_BASE, toneClass(...)]`: the rule `apps/web/CLAUDE.md` states for every badge. -->
+            <span
+              v-if="assetStatusBadge(asset.status)"
+              :class="[BADGE_BASE, toneClass(assetStatusBadge(asset.status)!.tone)]"
+            >
+              {{ assetStatusBadge(asset.status)!.label }}
+            </span>
           </div>
         </div>
-        <div v-if="assetStatusBadge(asset.status)" class="mt-4">
-          <!-- `[BADGE_BASE, toneClass(...)]`, not `AppBadge`: the primitive carries `capitalize`
-               and title-cased "In repair" on a real render. See `AssetsPage.vue` for the whole note. -->
-          <span :class="[BADGE_BASE, toneClass(assetStatusBadge(asset.status)!.tone)]">
-            {{ assetStatusBadge(asset.status)!.label }}
-          </span>
-          <span v-if="asset.status === 'retired'" class="ml-2 text-xs text-ink-tertiary">
-            Off the fleet. Its history stays, and its number is never reused.
-          </span>
-          <span v-else-if="asset.status === 'in_repair'" class="ml-2 text-xs text-ink-tertiary">
-            Still counted as its unit's, and still missing from it.
-          </span>
-        </div>
+        <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+          <div>
+            <dt class="text-ink-muted">Where it is</dt>
+            <dd class="font-medium text-ink">
+              {{ asset.holder.label ?? "Not placed" }}
+              <!-- D-INV3: the driver is read off the truck at the moment somebody looks, and is
+                   stored nowhere. There is no handover and no signature anywhere in this feature. -->
+              <span v-if="asset.holder.inferredDriverName" class="block text-xs font-normal text-ink-tertiary">
+                with {{ asset.holder.inferredDriverName }}
+              </span>
+            </dd>
+          </div>
+          <div><dt class="text-ink-muted">Since</dt><dd class="font-medium text-ink">{{ asset.holder.since ? fmtWhen(asset.holder.since) : "—" }}</dd></div>
+          <div><dt class="text-ink-muted">Kind</dt><dd class="font-medium text-ink">{{ asset.assetTypeName }}</dd></div>
+          <div><dt class="text-ink-muted">Condition</dt><dd class="font-medium text-ink">{{ ITEM_CONDITION_LABELS[asset.condition] }}</dd></div>
+          <div><dt class="text-ink-muted">Serial</dt><dd class="font-mono text-xs text-ink">{{ asset.serialNumber ?? "—" }}</dd></div>
+          <div><dt class="text-ink-muted">Make and model</dt><dd class="font-medium text-ink">{{ [asset.manufacturer, asset.model].filter(Boolean).join(" ") || "—" }}</dd></div>
+          <div><dt class="text-ink-muted">Bought</dt><dd class="font-medium text-ink">{{ fmtDate(asset.purchasedAt) }}</dd></div>
+          <div><dt class="text-ink-muted">Warranty until</dt><dd class="font-medium text-ink">{{ fmtDate(asset.warrantyExpiresAt) }}</dd></div>
+          <div v-if="asset.notes" class="col-span-2 sm:col-span-4">
+            <dt class="text-ink-muted">Notes</dt>
+            <dd class="text-ink-secondary">{{ asset.notes }}</dd>
+          </div>
+        </dl>
+        <p v-if="asset.status === 'retired'" class="mt-3 text-xs text-ink-tertiary">
+          Off the fleet. Its history stays, and its number is never reused.
+        </p>
+        <p v-else-if="asset.status === 'in_repair'" class="mt-3 text-xs text-ink-tertiary">
+          Still counted as its unit's, and still missing from it.
+        </p>
+        <FileDropzone
+          v-if="addingPhoto && canManage"
+          class="mt-4"
+          accept=".jpg,.jpeg,.png,.webp,.heic"
+          label="Add a photo"
+          hint="So the next person knows what to look for."
+          :busy="photo.isPending.value"
+          @files="onPhoto"
+        />
       </BaseCard>
 
       <section class="space-y-3">
-        <h2 class="text-lg font-semibold text-ink">History</h2>
+        <h2 class="text-sm font-semibold text-ink">History</h2>
 
         <!-- The phone's read: a rail with sticky day headers. -->
         <BaseCard v-if="rows.length" padding="md" class="lg:hidden">
@@ -274,9 +270,8 @@ async function onPhoto(files: File[]) {
         </BaseCard>
 
         <!-- The desk's read: the same page of movements, comparable column by column. -->
-        <DataWorkspace class="hidden lg:block">
           <DataTable
-            embedded
+            class="hidden lg:block"
             :columns="LEDGER_COLUMNS"
             :rows="rows"
             :loading="movements.isLoading.value"
@@ -291,21 +286,18 @@ async function onPhoto(files: File[]) {
             <template #cell-condition="{ value }">
               {{ value ? ITEM_CONDITION_LABELS[value as keyof typeof ITEM_CONDITION_LABELS] : "—" }}
             </template>
-            <template #cell-actorName="{ value }">{{ value ?? "—" }}</template>
-            <template #cell-note="{ value }">{{ value ?? "—" }}</template>
             <template #empty>
               <p>Nothing has happened to it yet. Moving it onto a truck starts the history.</p>
             </template>
             <template #footer>
               <TablePagination
                 :page="page"
-                :page-size="50"
+                :page-size="ASSETS_PAGE_SIZE"
                 :total="movements.data.value?.total ?? 0"
                 @update:page="page = $event"
               />
             </template>
           </DataTable>
-        </DataWorkspace>
 
         <!-- The rail renders nothing when empty (an empty rail is furniture that reports a
              finding), so the phone gets its own sentence rather than a blank card. -->

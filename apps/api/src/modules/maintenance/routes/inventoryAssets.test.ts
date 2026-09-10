@@ -201,6 +201,13 @@ describe("reading assets", () => {
     const res = await withServer((base) => call(base, "/assets?status=melted"));
     expect(res.status).toBe(400);
   });
+
+  it("takes a search term through to the list, and refuses one longer than a label", async () => {
+    const body = await withServer(async (base) => bodyOf(await call(base, "/assets?search=A-0412")));
+    expect(body.ok).toBe(true);
+    const res = await withServer((base) => call(base, `/assets?search=${"x".repeat(121)}`));
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("writing an asset", () => {

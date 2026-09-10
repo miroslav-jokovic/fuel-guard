@@ -34,7 +34,9 @@ import type {
  * form's.
  */
 
-const PER_PAGE = 50;
+/** One page of the catalogue or the ledger, as the API pages them. Pages derive their pagination from this. */
+export const INVENTORY_PAGE_SIZE = 50;
+const PER_PAGE = INVENTORY_PAGE_SIZE;
 
 export interface PartsFilter {
   search?: string;

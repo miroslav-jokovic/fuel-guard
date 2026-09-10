@@ -16,7 +16,6 @@ import {
   AppCombobox,
   AppFormField as FormField,
   AppInput as BaseInput,
-  AppSelect,
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
@@ -49,9 +48,16 @@ import { useToastStore } from "@/stores/toast";
  * Each verb validates against its own schema from `@silvicom/shared` — the same one the API's route
  * uses — so an issue cannot be built without a unit and an adjustment cannot be built without a
  * reason. Nothing here re-states those rules; `submit()` picks the schema and reports what it says.
+ *
+ * ── THE ACTIONS ARE IN THE FOOTER, AND THE BUTTON SAYS WHEN IT IS WORKING (2026-09-10) ────────
+ * Pinned `#footer`, submitting the form by id, with a "Recording…" label while the write is in
+ * flight — `InspectorDrawer.vue`'s shape. A technician on bay Wi-Fi who saw only a greyed button
+ * had no way to tell a slow write from a dead one; the label is that signal.
  */
 
 export type DeskVerb = "received" | "issued" | "adjusted" | "transferred";
+
+const FORM_ID = "movement-form";
 
 const props = defineProps<{
   open: boolean;
@@ -86,10 +92,12 @@ const form = reactive({
   unit: "",
   workOrderRef: "",
   delta: "",
-  adjustReason: "correction" as (typeof ADJUST_REASONS)[number],
+  adjustReason: "correction" as string,
   toLocationId: "",
   note: "",
 });
+
+const ADJUST_OPTIONS = ADJUST_REASONS.map((r) => ({ value: r, label: ADJUST_REASON_LABELS[r] }));
 
 /**
  * Trucks and trailers in one list, because D-INV5 issues a part to exactly one unit and a technician
@@ -182,7 +190,7 @@ async function submit() {
 
 <template>
   <SlideOver :open="open" :title="TITLES[verb]" @close="emit('close')">
-    <form class="space-y-4" @submit.prevent="submit">
+    <form :id="FORM_ID" class="space-y-4" @submit.prevent="submit">
       <div class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
         <p class="text-sm font-medium text-ink">{{ line.partNumber }} — {{ line.partDescription }}</p>
         <p class="mt-0.5 text-xs text-ink-muted">
@@ -247,11 +255,7 @@ async function submit() {
              unexplained decrease impossible, because an inventory anybody can quietly write down is
              an inventory nobody trusts. The contract refuses the row without it. -->
         <FormField v-slot="{ id }" label="Why" :error="errors.adjustReason">
-          <AppSelect
-            :id="id"
-            v-model="form.adjustReason"
-            :options="ADJUST_REASONS.map((r) => ({ value: r, label: ADJUST_REASON_LABELS[r] }))"
-          />
+          <AppCombobox :id="id" v-model="form.adjustReason" :options="ADJUST_OPTIONS" placeholder="Choose a reason" />
         </FormField>
       </template>
 
@@ -270,13 +274,14 @@ async function submit() {
       <FormField v-slot="{ id }" label="Note">
         <BaseTextarea :id="id" v-model="form.note" :rows="2" />
       </FormField>
-
-      <div class="flex justify-end gap-2 pt-2">
-        <BaseButton type="button" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton type="submit" variant="primary" :disabled="record.isPending.value">
-          {{ TITLES[verb] }}
+    </form>
+    <template #footer>
+      <div class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" :disabled="record.isPending.value" @click="emit('close')">Cancel</BaseButton>
+        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="record.isPending.value">
+          {{ record.isPending.value ? "Recording…" : TITLES[verb] }}
         </BaseButton>
       </div>
-    </form>
+    </template>
   </SlideOver>
 </template>
