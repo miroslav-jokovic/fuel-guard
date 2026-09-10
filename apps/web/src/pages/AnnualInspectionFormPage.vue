@@ -23,7 +23,7 @@ import {
   useInspectionQuery,
   usePatchInspection,
 } from "@/features/maintenance/useAnnualInspections";
-import { fetchObjectUrl } from "@/lib/api";
+import { openInspectionPdf } from "@/features/maintenance/inspectionDocuments";
 
 /**
  * The §396.17 inspection form (plan step A7).
@@ -227,10 +227,7 @@ function completeInspection() {
  */
 async function openPdf(kind: "report" | "preview") {
   try {
-    const url = await fetchObjectUrl(`/api/maintenance/inspections/${id.value}/${kind}.pdf`);
-    window.open(url, "_blank", "noopener");
-    // Revoked on a delay rather than immediately: the new tab has to have loaded it first.
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    await openInspectionPdf(`/api/maintenance/inspections/${id.value}/${kind}.pdf`);
   } catch (e) {
     toast.error("Could not open the document", e instanceof Error ? e.message : undefined);
   }

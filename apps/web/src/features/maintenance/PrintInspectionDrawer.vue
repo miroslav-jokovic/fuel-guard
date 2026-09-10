@@ -8,7 +8,7 @@ import {
   AppInput as BaseInput,
 } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
-import { fetchObjectUrl } from "@/lib/api";
+import { openInspectionPdf } from "@/features/maintenance/inspectionDocuments";
 import { useToastStore } from "@/stores/toast";
 import { usePrintProfilesQuery, useSavePrintProfile } from "@/features/maintenance/useAnnualInspections";
 
@@ -57,10 +57,7 @@ function openSetup() {
  */
 async function openPdf(path: string) {
   try {
-    const url = await fetchObjectUrl(path);
-    window.open(url, "_blank", "noopener");
-    // Revoked on a delay rather than immediately: the new tab has to have loaded it first.
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    await openInspectionPdf(path);
   } catch (e) {
     toast.error("Could not open the document", e instanceof Error ? e.message : undefined);
   }
