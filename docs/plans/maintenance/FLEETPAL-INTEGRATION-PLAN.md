@@ -398,7 +398,7 @@ this plan. **No document — and no string the product prints — instructs a Fl
 projection.** That is the I0 done-when, re-asserted and widened to code, because this plan is the
 first thing that could quietly reintroduce one.
 
-### F1 — The contracts and the field manifest — *no migration*
+### F1 — The contracts and the field manifest — **DONE 2026-09-10** — *no migration*
 
 `packages/shared/src/fleetpalContract.ts` — Zod schemas for every resource ingested: `Unit`,
 `WorkOrder`, `Job`, `JobItem`, `ServiceHistory`, `Meter`, `PMSchedule` + `Interval`, `Part`,
@@ -721,3 +721,59 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   every other matrix passed. Read the name out of `package.json` rather than typing it.
 
   **Next: F1** — the contracts and the field manifest. No credential needed.
+
+- **2026-09-10 · F1 DONE — the contracts, the manifest, and a gate built the opposite way to its
+  neighbour.** `packages/shared/src/fleetpalContract.ts` re-exports four files under
+  `fleetpal/` — `primitives` (the wire conventions), `equipment`, `repair`, `purchasing` — covering
+  **18 resources and 16 vocabularies**. Split by the vendor's own seam rather than by the 500-line
+  budget, so "why is the odometer 663 million" has one place to be answered.
+
+  **The gate reads a generated manifest, and that indirection is the whole design.** `docs/FleetPal/`
+  is gitignored, so the spec is in every working tree and **no CI checkout**. A gate reading it
+  directly would find nothing and pass **by skipping**, on every run — which is precisely the ten
+  days `lint:wsdl` spent crashing on a stale path with nobody able to notice. So
+  `gen-fleetpal-manifest.mjs` runs by hand beside a tree that has the spec and commits
+  `fieldManifest.generated.json` (729 lines, field NAMES only — no vendor prose, no VMRS text per
+  D-FP8), and `check-fleetpal-contract.mjs` compares that against the schemas. Both files are in CI.
+  `lint:fleetpal-contract` is in `package.json` **and** in the `gates` job of `ci.yml`, added in this
+  same PR, because root `CLAUDE.md`'s rule is that a gate in neither list is not a gate.
+
+  **⚠ THE ASSERTION THIS STEP EXISTS FOR IS A PAIR, AND EITHER HALF ALONE IS WRONG.** The vendor
+  adds response fields and enum members inside v1 and instructs consumers to ignore what they do not
+  recognise — so every object is `z.looseObject` and every vocabulary is `z.string()` with a
+  separate `const`. A `z.enum` would turn a change they told us to expect into an outage; but
+  tolerance alone is indistinguishable from not caring. So the contract test pins *"accepts a
+  work-order status nobody has written a branch for"* **and** *"pins every vocabulary against the
+  manifest, so an added member is noticed rather than swallowed"*. The parser accepts the unknown
+  member; the gate makes somebody look at it.
+
+  **Three findings while writing it.** (a) `FLEETPAL_INTERVAL_TYPES` was `[...FLEETPAL_METER_TYPES,
+  "TIME"]` — tidier, and unpinnable, because the gate reads these consts as source text. A
+  spread-built vocabulary is exactly the one that silently gains a member, so it is written out with
+  a comment saying why. (b) `z.number().finite()` is **deprecated in zod 4**, where a bare
+  `z.number()` already rejects `NaN` and `Infinity` — measured, and now pinned by a test rather than
+  remembered. (c) `lint:shared-contracts` gained `packages/shared/src/fleetpal` to its
+  `VENDOR_PARSER_MODULES`: D-SEP11's converse says a browser app may import these TYPES and never
+  the parsers, which is the rule that took `efs_transactions` off PostgREST.
+
+  **A wrong number in a comment, caught by its own test.** The header claimed a truck at 412,000
+  miles reads 663,000,000 metres. It reads **663,049,728**; 663,000,000 is 411,969. Corrected in
+  both places, and the test now also pins that the vendor's own example bound — "must be greater
+  than or equal to 412000" — is **256 miles**, because reading a metre bound as miles produces a
+  plausible limit that is nothing of the kind.
+
+  **Mutation proofs, five, each restored:** deleting `total_labor_hours` from the service-history
+  schema failed the gate's coverage check; shortening `FLEETPAL_RECEIPT_ITEM_TYPES` to drop `CANCEL`
+  failed its enum check; and `--self-test` proves all three detectors fire (a vendor-added field, a
+  field name invented on our side, a vendor-added enum member) plus that a clean tree stays clean.
+  **Verified by:** `pnpm test` ("All suites passed", 1,997 PASS lines), `pnpm typecheck`, `pnpm lint`,
+  `lint:fleetpal-contract`, `lint:shared-contracts`, `lint:boundaries`, `lint:comment-claims`,
+  `lint:filesize`, `lint:secrets`, `lint:codegen`.
+
+  ⚠ **A second environmental failure, same class as F0's.** `apps/web` typecheck failed on
+  `Cannot find module '@silvicom/qr'` — the I10 merge added a workspace package this worktree had
+  not linked. `pnpm install --frozen-lockfile` fixed it in 1.4s. **Re-install after every merge you
+  rebase onto**, not only at worktree creation.
+
+  **Next: F2** — the schema (credentials, sync state, `fleetpal_units`, webhook deliveries). Still
+  no credential needed.

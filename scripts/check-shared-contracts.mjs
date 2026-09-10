@@ -33,6 +33,10 @@ const ROOT = new URL("..", import.meta.url).pathname;
 const VENDOR_PARSER_MODULES = [
   "packages/shared/src/efsImport",
   "packages/shared/src/samsara",
+  // FleetPal (D-FP1): the maintenance collector's wire contracts. The web reads per-unit repair
+  // cost through an API endpoint, never by parsing a vendor payload in a browser — the same rule
+  // that took efs_transactions off PostgREST.
+  "packages/shared/src/fleetpal",
 ];
 const BROWSER_APPS = ["apps/web/src", "apps/driver/src"];
 

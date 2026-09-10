@@ -224,6 +224,16 @@ jobs:
       - name: EFS SOAP operations match the checked-in WSDL
         run: pnpm lint:wsdl
 
+      # Added here in the SAME PR as the gate itself (FLEETPAL-INTEGRATION-PLAN.md F1), because root
+      # CLAUDE.md's rule is that a gate in package.json and in neither CI list is not a gate — the
+      # four above spent weeks in exactly that position. It is the second collector-contract gate,
+      # and built the OPPOSITE way to lint:wsdl on purpose: the WSDL is checked in and read
+      # directly, while FleetPal's 830 KB OpenAPI spec is gitignored, so this reads a committed
+      # field-name manifest generated from it. A gate that read the spec would find nothing in this
+      # checkout and pass by skipping, which is the failure lint:wsdl demonstrated for ten days.
+      - name: FleetPal contracts match the vendor spec manifest
+        run: pnpm lint:fleetpal-contract
+
       # D-FC1: an org-scoped RPC must be callable BY A BROWSER — `security invoker` plus
       # `coalesce(p_org, auth_org_id())`, with p_org carrying a DEFAULT so PostgREST can resolve a
       # call that omits it. /ifta and the Buy discipline tab were dead on arrival with every test
