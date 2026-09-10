@@ -122,11 +122,28 @@ export function maintenanceRouter(): Router {
         ...result,
         /** Dollars over the whole window, not over the page. Null is impossible; zero is a real answer. */
         totalAmount: spend?.amount ?? 0,
-        // The page renders this reason verbatim while the store holds nothing — the truth,
-        // instead of a mysterious zero.
+        /**
+         * The page renders this reason verbatim while the store holds nothing — the truth, instead
+         * of a mysterious zero.
+         *
+         * ⚠ **THE SECOND SENTENCE OUTLIVED THE RULING IT DESCRIBED, AND THIS IS THE ONLY PLACE A
+         * CUSTOMER COULD READ ONE.** Until 2026-09-10 it said the FleetPal feed "awaits its dedup
+         * contract" — true when written on 2026-08-27, false from 2026-09-03, when D-FLEET2 made
+         * McLeod's general ledger the entire financial input and took FleetPal out of Finance. There
+         * is no second door left for a dedup key to guard. I0 rewrote the module header above on
+         * 2026-09-09 and missed this string underneath it: the header is read by us, this sentence
+         * is read by the shop, and a ruling nobody can see from the screen decays.
+         * FLEETPAL-INTEGRATION-PLAN.md step F0 corrects it, and the replacement is pinned by
+         * "says the ledger is the only door, now that FleetPal is not a second one".
+         *
+         * What replaces it is the standing position rather than a softer version of the old promise:
+         * FleetPal work orders are the repair RECORD (D-INV10, D-FP3) and their cost is already in
+         * the ledger under the maintenance GL family (D-INV11), so FleetPal will never add a dollar
+         * to this figure however the integration lands.
+         */
         pendingSources:
           result.total === 0
-            ? "Repair spend is not classified yet: McLeod AP repair dollars await finance's GL-account ruling, and the FleetPal feed awaits its dedup contract."
+            ? "Repair spend is not classified yet: McLeod AP repair dollars await finance's GL-account ruling. FleetPal will not add to this figure — its work orders are the repair record, and their cost is already in the ledger."
             : null,
       });
     }),
