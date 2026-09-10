@@ -121,6 +121,9 @@ const EXPECTED: Record<string, string> = {
   inspectors: "inspector",
   invoices: "invoice",
   jurisdictions: "jurisdiction",
+  // I10's label screen counts what the RUN will produce, not what is ticked: "selected" is an
+  // adjective and has no singular a person would say, which is the smell this table exists to catch.
+  labels: "label",
   loads: "load",
   parts: "part",
   plans: "plan",

@@ -22,6 +22,7 @@
     "@hugeicons/vue": "1.0.7",
     "@sentry/vue": "^10.69.0",
     "@silvicom/capture-engine": "workspace:*",
+    "@silvicom/qr": "workspace:*",
     "@silvicom/shared": "workspace:*",
     "@silvicom/ui": "workspace:*",
     "@supabase/supabase-js": "2.110.0",

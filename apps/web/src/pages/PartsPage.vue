@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
-import { Cog6ToothIcon, PlusIcon } from "@silvicom/ui/icons";
+import { Cog6ToothIcon, PlusIcon, ScanIcon } from "@silvicom/ui/icons";
 import { UNIT_OF_MEASURE_LABELS, type StockLineDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
@@ -129,6 +129,9 @@ watch(creating, (open) => {
       <template #actions>
         <BaseButton v-if="session.can('maintenance')" aria-label="Stock locations" @click="locationsOpen = true">
           <AppIcon :icon="Cog6ToothIcon" class="size-5" aria-hidden="true" />
+        </BaseButton>
+        <BaseButton v-if="session.can('maintenance')" to="/shop/labels">
+          <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
         </BaseButton>
         <BaseButton v-if="session.can('maintenance')" variant="primary" @click="creating = true">
           <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New part
