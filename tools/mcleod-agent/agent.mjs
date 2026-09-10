@@ -23,6 +23,7 @@ import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchMovementFacts } from "./movements.mjs";
+import { fetchDispatchLoads } from "./loads.mjs";
 import { fetchLedgerControl, fetchGlAccounts } from "./ledger.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
 
@@ -58,6 +59,20 @@ const CFG = {
   // pipeline. Rolling accrual window; the ingest is idempotent on the McLeod row id, so overlap
   // is the normal case, not a hazard.
   financial: process.argv.includes("--financial"),
+  // --loads reads the OPEN board - the loads a dispatcher is working right now - and is the feed
+  // behind the live map (LIVE-MAP-PLAN.md LM1). Distinct from the movement sweep above, which reads
+  // CLOSED trips for cost. An ingested load lands in pending_approval and never on a driver's phone
+  // until a human releases it (D48), so a wrong field mapping is caught by review, not by a driver.
+  loads: process.argv.includes("--loads"),
+  // 'P' includes movement 11787, scheduled March 2015 and still open - 4,182 days stale. Bounding by
+  // scheduled date rather than status alone excludes exactly that row today, while the worst REAL
+  // load is 7 days past its last scheduled arrival (D-LM14).
+  loadsStaleDays: Number(process.env.MCLEOD_LOADS_STALE_DAYS ?? 30),
+  // Accounts that are not people. `loadmaster` and `lmeadm` are BOTH named "McLeod Administrator"
+  // and held 21 of 109 active loads between them; their loads have no human dispatcher and the
+  // product must say so rather than invent one. Configuration, never inferred from the name, because
+  // an account can be renamed and a real person can share a name (D-LM4).
+  systemDispatchers: String(process.env.MCLEOD_SYSTEM_DISPATCHERS ?? "loadmaster,lmeadm").split(","),
   // 75, not 45 (D-FIN4): McLeod's manual entries land about a month late, and a late entry older than
   // the window was never seen again. The first three days of each month also re-read the two
   // previous months WHOLE (the hardening pass, windows.mjs); --harden forces that on any day.
@@ -133,7 +148,7 @@ if (!CFG.inspect && !CFG.dryRun && (!CFG.ingestUrl || !CFG.ingestToken)) {
   fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
 }
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
-if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial) {
+if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial || CFG.loads) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
@@ -519,6 +534,31 @@ async function runRetire() {
 
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
 /** Sweep one rolling accrual window of settlements + AP vouchers into FuelGuard (P3.2). */
+/**
+ * The open board → FuelGuard. Loads only; the dispatcher roster is posted from LM3, when
+ * `POST /api/tms/dispatchers` exists. Calling it before then would log a 404 every cycle.
+ */
+async function runLoads() {
+  if (CFG.dryRun) {
+    log(`DRY RUN — reading ${CFG.sql.database} as company ${CFG.sql.companyId}; nothing will be posted`);
+  }
+  const res = await fetchDispatchLoads(CFG.sql, {
+    staleDays: CFG.loadsStaleDays,
+    systemDispatchers: CFG.systemDispatchers,
+  });
+  log(`loads: ${res.loads.length} on the board, ${res.dispatchers.length} dispatcher(s)`);
+  // Reported, never silently dropped - the rule entityLookup already holds for unmatched keys.
+  for (const s of res.skipped) log(`loads: SKIPPED movement ${s.movement_id} - ${s.reason}`);
+  for (const n of res.notes) log(`loads: ${n}`);
+
+  if (CFG.dryRun) {
+    console.log(JSON.stringify({ loads: res.loads, dispatchers: res.dispatchers }, null, 2));
+    return;
+  }
+  const out = await postToFuelGuard("/api/tms/loads", { loads: res.loads });
+  log(`loads: ingested ${JSON.stringify(out?.data ?? out)}`);
+}
+
 async function runFinancial() {
   const { windowStart, windowEnd, hardening } = financialWindow({ trailingDays: CFG.financialWindowDays, harden: CFG.harden });
   log(
@@ -595,6 +635,21 @@ async function runFinancial() {
 }
 
 async function main() {
+  if (CFG.loads) {
+    await runLoads();
+    if (CFG.intervalMinutes > 0) {
+      log(`loads: looping every ${CFG.intervalMinutes} min (Ctrl-C to stop)`);
+      while (true) {
+        await sleep(CFG.intervalMinutes * 60_000);
+        try {
+          await runLoads();
+        } catch (e) {
+          log(`loads cycle error (will retry next interval): ${e.message}`);
+        }
+      }
+    }
+    return;
+  }
   if (CFG.dryRun) {
     log(`DRY RUN — reading ${CFG.sql.database} as company ${CFG.sql.companyId} (mode=${CFG.rosterMode}); nothing will be posted`);
     await runRoster();
