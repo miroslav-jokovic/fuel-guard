@@ -20,6 +20,7 @@ vi.mock("vue-router", () => ({ useRouter: () => ({ push }) }));
 
 const state = vi.hoisted(() => ({
   admin: { value: true },
+  manage: { value: true },
   rows: { value: [] as unknown[] },
   discard: { mutateAsync: vi.fn(async () => undefined), isPending: { value: false } },
 }));
@@ -36,7 +37,16 @@ vi.mock("@/features/maintenance/useAnnualInspections", () => ({
   }),
   useDiscardInspection: () => state.discard,
 }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, admin: state.admin.value }) }));
+vi.mock("@/stores/session", () => ({
+  useSessionStore: () => ({ can: () => state.manage.value, canView: () => true, admin: state.admin.value }),
+}));
+const documents = vi.hoisted(() => ({ download: vi.fn(async () => undefined) }));
+vi.mock("@/features/maintenance/inspectionDocuments", async () => {
+  const actual = await vi.importActual<typeof import("@/features/maintenance/inspectionDocuments")>(
+    "@/features/maintenance/inspectionDocuments",
+  );
+  return { ...actual, downloadInspectionPdf: documents.download };
+});
 
 const AnnualInspectionsPage = (await import("@/pages/AnnualInspectionsPage.vue")).default;
 
@@ -60,7 +70,7 @@ const page = (rows: unknown[]) => {
   state.rows.value = rows;
   return mount(AnnualInspectionsPage, {
     attachTo: document.body,
-    global: { stubs: { PageHeader: true, NewInspectionDrawer: true, DeleteInspectionDrawer: true } },
+    global: { stubs: { PageHeader: true, NewInspectionDrawer: true, DeleteInspectionDrawer: true, PrintInspectionDrawer: true } },
   });
 };
 
@@ -86,7 +96,63 @@ beforeEach(() => {
   setActivePinia(createPinia());
   push.mockClear();
   state.discard.mutateAsync.mockClear();
+  documents.download.mockClear();
+  state.manage.value = true;
   vi.restoreAllMocks();
+});
+
+describe("getting the page out without opening the report", () => {
+  it("offers Download report and Print on a filed report, and Download preview on a draft", async () => {
+    const filed = await openMenu(page([row({ status: "final", outcome: "pass", document_id: "d-1" })]));
+    expect(filed).toContain("Download report");
+    expect(filed).toContain("Print…");
+    expect(filed).not.toContain("Download preview");
+    document.body.innerHTML = "";
+    const draft = await openMenu(page([row()]));
+    expect(draft).toContain("Download preview");
+    expect(draft).not.toContain("Download report");
+    expect(draft).not.toContain("Print…");
+  });
+
+  it("downloads the filed report by unit and date, and never navigates to the report page", async () => {
+    const w = page([row({ status: "final", outcome: "pass", inspected_on: "2026-06-16", unit_number: "1187" })]);
+    await click(w, "Download report");
+    expect(documents.download).toHaveBeenCalledWith(
+      "/api/maintenance/inspections/insp-1/report.pdf",
+      "annual-inspection-1187-2026-06-16.pdf",
+    );
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("asks for a draft's preview, not a report the API would refuse", async () => {
+    const w = page([row()]);
+    await click(w, "Download preview");
+    expect(documents.download).toHaveBeenCalledWith(
+      "/api/maintenance/inspections/insp-1/preview.pdf",
+      "annual-inspection-1187-2026-06-16-preview.pdf",
+    );
+  });
+
+  it("opens the print drawer for that row rather than the report page", async () => {
+    const w = page([row({ status: "final", outcome: "pass" })]);
+    await click(w, "Print…");
+    const drawer = w.findComponent({ name: "PrintInspectionDrawer" });
+    expect(drawer.exists()).toBe(true);
+    expect(drawer.attributes("inspection-id") ?? drawer.props("inspectionId")).toBe("insp-1");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  /** `report.pdf` is behind `canView` at the API; a reader who cannot manage the section still gets the record. */
+  it("lets somebody who can only view the section download a filed report, but not a draft's preview", async () => {
+    state.manage.value = false;
+    const filed = await openMenu(page([row({ status: "final", outcome: "pass" })]));
+    expect(filed).toContain("Download report");
+    expect(filed).not.toContain("Discard");
+    document.body.innerHTML = "";
+    const draft = await openMenu(page([row()]));
+    expect(draft).not.toContain("Download preview");
+    expect(draft).not.toContain("Continue inspection");
+  });
 });
 
 describe("carrying on with an unfinished inspection", () => {

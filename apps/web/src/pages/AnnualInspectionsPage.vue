@@ -14,6 +14,12 @@ import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawer.vue";
 import NewInspectionDrawer from "@/features/maintenance/NewInspectionDrawer.vue";
+import PrintInspectionDrawer from "@/features/maintenance/PrintInspectionDrawer.vue";
+import {
+  downloadInspectionPdf,
+  inspectionPdfFilename,
+  inspectionPdfPath,
+} from "@/features/maintenance/inspectionDocuments";
 import { useToastStore } from "@/stores/toast";
 import {
   INSPECTIONS_PAGE_SIZE,
@@ -55,6 +61,18 @@ import { useSessionStore } from "@/stores/session";
  * this removes a filed §396.21 record, its certification and its PDF, and hands the truck's
  * inspection date back. That needs a reason and a typed unit number, so it opens the SAME drawer the
  * report page uses — one component, so the two surfaces cannot ask for it differently.
+ *
+ * ── THE PAGE CAN BE HAD WITHOUT OPENING THE REPORT (2026-09-10) ────────────────────────────────
+ * "Download report" saves the filed PDF under a name that says which unit and which date, and
+ * "Print…" opens the same paper-choice drawer the report page opens — both from the row, because
+ * the office filing a month of inspections should not have to open each one to get the page out,
+ * and a download should not have to go through a preview tab. The bytes come from the same routes
+ * the report page reads (`inspectionDocuments.ts` owns the fetch); a draft offers "Download preview"
+ * instead, since a draft has no filed page and the API says so.
+ *
+ * The menu is offered to anybody who can VIEW the section, because reading a filed report is a
+ * view-level act (`report.pdf` is behind `canView` at the API); the entries that change something
+ * stay behind `can("maintenance")` and the one that destroys a record behind `admin`.
  */
 
 const router = useRouter();
@@ -135,6 +153,18 @@ function openReport(row: InspectionSummary) {
   void router.push({ name: "annual-inspection", params: { id: row.id } });
 }
 
+/** The row whose paper choice is open, held while the print drawer is. */
+const printing = ref<InspectionSummary | null>(null);
+
+async function download(row: InspectionSummary) {
+  try {
+    await downloadInspectionPdf(inspectionPdfPath(row), inspectionPdfFilename(row));
+  } catch (e) {
+    // The API's own sentence — "not filed yet" and "not this org's" are different next actions.
+    toast.error("Could not download the report", e instanceof Error ? e.message : undefined);
+  }
+}
+
 async function discardDraft(row: InspectionSummary) {
   if (
     !confirm(
@@ -198,12 +228,22 @@ async function discardDraft(row: InspectionSummary) {
       <template #cell-next_due_on="{ row }">{{ row.next_due_on ?? "—" }}</template>
       <template #cell-decal_serial="{ row }">{{ row.decal_serial ?? "—" }}</template>
       <template #actions="{ row }">
-        <KebabMenu v-if="session.can('maintenance')">
+        <KebabMenu v-if="session.canView('maintenance')">
           <BaseButton class="kebab-item" @click="openReport(row)">
-            {{ row.status === "draft" ? "Continue inspection" : "Open report" }}
+            {{ row.status === "draft" && session.can("maintenance") ? "Continue inspection" : "Open report" }}
           </BaseButton>
+          <!-- A draft's page is a preview drawn now, behind `canManage` at the API like the draft
+               itself; a filed report is the stored bytes, behind `canView`. -->
           <BaseButton
-            v-if="row.status === 'draft'"
+            v-if="row.status === 'final' || session.can('maintenance')"
+            class="kebab-item"
+            @click="download(row)"
+          >
+            {{ row.status === "final" ? "Download report" : "Download preview" }}
+          </BaseButton>
+          <BaseButton v-if="row.status === 'final'" class="kebab-item" @click="printing = row">Print…</BaseButton>
+          <BaseButton
+            v-if="row.status === 'draft' && session.can('maintenance')"
             class="kebab-item kebab-item-danger"
             @click="discardDraft(row)"
           >
@@ -242,5 +282,13 @@ async function discardDraft(row: InspectionSummary) {
     />
 
     <NewInspectionDrawer :open="creating" @created="onCreated" @close="creating = false" />
+
+    <PrintInspectionDrawer
+      v-if="printing"
+      :open="true"
+      :inspection-id="printing.id"
+      :can-manage="session.can('maintenance')"
+      @close="printing = null"
+    />
   </div>
 </template>
