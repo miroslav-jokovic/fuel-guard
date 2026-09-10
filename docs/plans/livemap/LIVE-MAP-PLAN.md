@@ -547,6 +547,11 @@ SELECT HAS_DBACCESS('lme') AS can_read_lme, GETDATE() AS server_local,
 SELECT COUNT(*) AS active, SUM(CASE WHEN LTRIM(RTRIM(ISNULL(dispatcher_user_id,'')))<>'' THEN 1 ELSE 0 END) AS with_dispatcher
 FROM lme.dbo.movement WHERE company_id='TMS' AND status='P';
 
+-- P4 · was equipment_item ever really in conflict with continuity? (trap 16's correction)
+--      Join the way MOVEMENT_FACTS does — via m.equipment_group_id, NOT currentmovement_id — and
+--      compare per (movement, type) as SETS, so team drivers cannot fan out into false mismatches.
+--      Expected: they agree. If they do, delete this probe and the note beside D-LM12's neighbour.
+
 -- P3 · do the join keys still resolve? (compare against drivers.mcleod_driver_id / vehicles.unit_number)
 SELECT cd.equipment_type_id, COUNT(DISTINCT LTRIM(RTRIM(cd.equipment_id))) AS distinct_codes
 FROM lme.dbo.movement m
@@ -685,7 +690,14 @@ SELECT m.id                                  AS movement_id,
        o.blnum                               AS bol_number,    -- customer's BOL; NOT unique
        o.commodity                           AS commodity,
        m.move_distance                       AS total_miles,
-       LTRIM(RTRIM(cd.equipment_id))         AS driver_code,
+       -- TEAMS: 'D' appears twice on 176 movements, so a LEFT JOIN here would emit the
+       -- movement twice and duplicate the load. Aggregated, exactly as MOVEMENT_FACTS does.
+       STUFF((SELECT ',' + LTRIM(RTRIM(d.equipment_id))
+                FROM lme.dbo.continuity d
+               WHERE d.movement_id = m.id AND d.company_id = m.company_id
+                 AND d.equipment_type_id = 'D'
+               ORDER BY d.equipment_id
+                 FOR XML PATH('')), 1, 1, '')      AS driver_codes,
        LTRIM(RTRIM(ct.equipment_id))         AS tractor_unit,
        LTRIM(RTRIM(cl.equipment_id))         AS trailer_unit,
        LTRIM(RTRIM(ISNULL(tr.trailer_type,''))) AS trailer_type  -- 'R' ⇒ reefer (D-LM13)
@@ -693,7 +705,6 @@ FROM lme.dbo.movement m
 LEFT JOIN lme.dbo.users u        ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
 LEFT JOIN lme.dbo.movement_order mo ON mo.movement_id = m.id AND mo.company_id = m.company_id
 LEFT JOIN lme.dbo.orders o       ON o.id = mo.order_id AND o.company_id = mo.company_id
-LEFT JOIN lme.dbo.continuity cd  ON cd.movement_id=m.id AND cd.company_id=m.company_id AND cd.equipment_type_id='D'
 LEFT JOIN lme.dbo.continuity ct  ON ct.movement_id=m.id AND ct.company_id=m.company_id AND ct.equipment_type_id='T'
 LEFT JOIN lme.dbo.continuity cl  ON cl.movement_id=m.id AND cl.company_id=m.company_id AND cl.equipment_type_id='L'
 LEFT JOIN lme.dbo.trailer tr     ON tr.id = cl.equipment_id AND tr.company_id = m.company_id
@@ -715,7 +726,7 @@ WHERE m.company_id = @company
 | `external_id` | **`${company_id}:${movement.id}`** | `movement.id` collides 18,761× across companies |
 | `ref` | **`orders.id`** (e.g. `0134754`) | unique within TMS: 134,963 rows, 134,963 distinct. ⚠ collides 16,948× **across** companies — if a second McLeod company is ever swept into one org, `ref` must become composite too |
 | — | **NOT `blnum`** | 2,020 collisions in 134,315 orders (1.5%); `loads` has `unique index (org_id, ref)`, so blnum would fail the ingest on ~1.5% of loads. Carry it in `raw` and surface it as a searchable BOL |
-| `driver_employee_id` | `continuity` D | 109/109 → `drivers.mcleod_driver_id` |
+| `driver_employee_id` | `continuity` D, **aggregated** | 109/109 → `drivers.mcleod_driver_id`. ⚠ Teams: 2 drivers on 176 movements. The contract carries ONE driver, so the feed sends the first and reports the second — it does not silently drop a co-driver, and it does not duplicate the load |
 | `vehicle_unit` | `continuity` T | 108/108 → `vehicles.unit_number` |
 | `trailer_unit` | `continuity` L | 108/108 → `trailers.unit_number` (R-strip) |
 | `equipment` | `trailer.trailer_type` | 113/113 on the live board (96 `V`, 17 `R`) |
@@ -735,14 +746,23 @@ west-absolute; a copied sign puts the whole fleet in Asia).
 
 **Five traps this step must encode, each already paid for once:**
 
-- **Assignments come from `continuity`, NEVER from `equipment_group`/`equipment_item`.** The two
-  disagree on the live board — movement 290227 is `DKELLY`/tractor 702 in `continuity` and
-  `BMASSEY`/tractor 746 in `equipment_item`, and `continuity` is the one that matches reality
-  (`BMASSEY`/746 is on movement 290333). `continuity` is keyed **by movement** — "what is on this
-  load". `equipment_group.currentmovement_id` is keyed by the equipment **unit** — "what is this
-  tractor+driver doing now" — and the two drift. `equipment_item` looks like the more properly
-  normalised structure and even has marginally better coverage (111 active movements vs 110), which
-  is exactly why this is written down: it would win an argument in review and be wrong.
+- **Assignments come from `continuity`, and the alternative is not a trap — my comparison of the
+  two was.** ⚠ **CORRECTED 2026-09-10, same day it was written.** This bullet claimed
+  `equipment_group`/`equipment_item` "disagrees with `continuity` on the live board" and cited
+  movement 290227. **That measurement was invalid, twice over.** It joined
+  `equipment_group.currentmovement_id = m.id` — "which group is *currently* pointing at this
+  movement" — where this repo's own production-proven `MOVEMENT_FACTS` joins
+  `equipment_item.equipment_group_id = m.equipment_group_id`, the movement's own reference to its
+  group. And it paired driver rows on type alone while **176 movements carry two drivers** (teams),
+  producing a cartesian product whose mismatched pairs *are* the "disagreements" — which is why the
+  comparison returned 617 rows where 111 movements × 3 types is 333.
+
+  What survives: `continuity` **is** validated for this feed — 109/109 drivers, 108/108 tractors,
+  108/108 trailers resolved against our roster, spot-checked against real dispatcher/driver/truck
+  combinations on the live board. It is used here because it is keyed by movement and carries
+  `is_preassignment` and arrival dates. Nothing establishes that `equipment_item` is wrong, and
+  `queries.mjs` documents it as the canonical path to a movement's tractor. **Do not re-derive a
+  conflict between them from this document.** The re-measurement, when the VPN is up, is in §4.2 P4.
 
 - `external_id` is **`${company_id}:${movement.id}`**, never the bare id. `movement.id` repeats
   across companies — 18,761 collisions across TMS/TMS2/TMS3 — and the ingest is keyed
@@ -1038,9 +1058,11 @@ this feature, and it is worth a step in its own plan once this connection exists
     slower tier's deltas, silently.
 15. **Samsara's GPS ping drops to every 5 minutes when a vehicle is off or idle.** A single global
     staleness threshold marks the whole parked fleet `offline` overnight (D-LM9b).
-16. **`equipment_group`/`equipment_item` is NOT the assignment source — `continuity` is.** They
-    disagree on the live board, and `equipment_item` is the one that is wrong for this question. It
-    looks more normalised and has marginally better coverage, which is precisely why it is a trap.
+16. **A movement can carry TWO drivers — the carrier runs teams.** `equipment_type_id = 'D'`
+    appears **twice on 176 movements** (measured 2026-08-26, `queries.mjs` header). `'T'` and `'L'`
+    appear exactly once. A `LEFT JOIN` on the driver row therefore **emits the movement twice** and
+    duplicates the load. `MOVEMENT_FACTS` already solves this by aggregating drivers into a
+    delimited list instead of joining them; the load feed must do the same.
 17. **`orders.blnum` is not unique** — 2,020 collisions. It cannot be `ref` against
     `unique (org_id, ref)`. Use `orders.id`; carry the BOL in `raw`.
 18. **`orders.id` collides across companies** (16,948×), exactly like `movement.id`. Single-company
@@ -1082,6 +1104,15 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   documented upgrade path (D-LM1b), and the **Kafka Connector** — real 5-second GPS streaming — is
   named and rejected on architectural shape rather than left unmentioned (D-LM1c). Added D-LM9b
   (the freshness bound, added up) and traps 13–15.
+- 2026-09-10 — **Two corrections to this document, found while executing LM1b.** (1) Trap 16 and its
+  decision bullet claimed `equipment_item` disagrees with `continuity`; **the comparison behind that
+  was invalid** — wrong group join, plus a cartesian product over team drivers — and the claim is
+  withdrawn. `continuity` remains the source because it is validated and keyed by movement, not
+  because the alternative is broken. (2) **The plan's LM1 SQL had a real defect**: `'D'` appears
+  twice on 176 movements (the carrier runs teams), so the `LEFT JOIN` on the driver row would have
+  emitted those movements twice and duplicated the load. Now aggregated, as `MOVEMENT_FACTS` already
+  does. Both were caught by reading `tools/mcleod-agent/queries.mjs`, whose header records the
+  team-driver measurement from 2026-08-26 — **the repo already knew, and the plan had not asked it.**
 - 2026-09-10 — **LM1a shipped** (PR #734): the contract + ingest half of LM1. `hazmat` is
   `.optional()` with no default and the ingest writes it only when present (D-LM12), closing a live
   defect where a silent feed erased our own engine's determination; `dispatcher_external_id` /
