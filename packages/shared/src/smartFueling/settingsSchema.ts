@@ -1,5 +1,11 @@
-/** Zod schema for the Planned-Fueling Settings form (shared by web validation + type). Mirrors the
- *  driver-performance schema. Bounds keep the planner in a safe, sensible envelope. */
+/** Zod schema for the Fuel Planning settings form (shared by web validation + type). Mirrors the
+ *  driver-performance schema. Bounds keep the planner in a safe, sensible envelope.
+ *
+ *  Every field here is READ by the planner or the router (D-FP6, 2026-09-10) — the page derives its
+ *  SELECT list from this shape, so a field nothing reads is a column the page round-trips for no reason
+ *  and a control that promises something. Six left on that day: off-route recompute and DEF (never had a
+ *  reader), emergency brands (resolved, never consulted — avoided IS emergency-only), and the three
+ *  min-drawdown fields (the policy was retired, D-FP3). Their columns stay until a migration drops them. */
 import { z } from "zod";
 
 const brandList = z.array(z.string().trim().min(1)).max(30);
@@ -29,21 +35,15 @@ export const routeFuelSettingsFormSchema = z.object({
   critical_fuel_pct: z.coerce.number().min(0).max(50),
   mpg_safety_factor: z.coerce.number().min(0.5).max(1),
   emergency_fill_gallons: z.coerce.number().min(0).max(500),
-  min_purchase_gal: z.coerce.number().min(0).max(500),
   // Corridor & routing
   corridor_miles: z.coerce.number().min(0.5).max(25),
   opposite_side_access_miles: z.coerce.number().min(0).max(25),
   border_top_off_pct: z.coerce.number().min(0).max(100),
-  deviation_threshold_mi: z.coerce.number().min(0).max(100),
   // Prices
   price_ttl_hours: z.coerce.number().int().min(1).max(8760),
-  // Policy
-  always_fill_full: z.boolean(),
-  fill_cap_pct: z.coerce.number().min(10).max(100),
-  plan_def: z.boolean(),
+  // Policy — the brand ladder (D-FP4): preferred, then other enabled, then avoided = emergency only.
   preferred_brands: brandList,
   avoid_brands: brandList,
-  emergency_brands: brandList,
   // Networks turned ON for this org (hard registry filter). Must keep at least one network enabled.
   enabled_brands: brandList.refine((v) => v.length >= 1, "Enable at least one truck stop network"),
   avoid_states: stateList,
@@ -75,16 +75,10 @@ export const ROUTE_FUEL_SETTINGS_DEFAULTS: RouteFuelSettingsForm = {
   border_top_off_pct: 80,
   mpg_safety_factor: 0.9,
   emergency_fill_gallons: 50,
-  min_purchase_gal: 50,
   corridor_miles: 2.5,
-  deviation_threshold_mi: 3,
   price_ttl_hours: 72,
-  always_fill_full: true,
-  fill_cap_pct: 75,
-  plan_def: false,
   preferred_brands: ["pilot", "flying_j"],
   avoid_brands: ["one9"],
-  emergency_brands: ["one9"],
   enabled_brands: ["pilot", "flying_j", "one9"],
   avoid_states: ["CA"],
   fuel_before_states: ["MA"],

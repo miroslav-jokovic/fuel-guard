@@ -140,19 +140,6 @@ const coverage = computed(() => {
   };
 });
 
-/**
- * The sentence this whole feature is for.
- *
- * `fillPolicy.ts` rule 4 — min-drawdown — already buys just enough to reach the next cheaper station,
- * floored at the minimum purchase and capped at `fill_cap_pct`. It runs only when `always_fill_full`
- * is FALSE, and this carrier has it true, so the cap is dormant and the discipline is switched off.
- * The number beside the switch is what makes that a decision rather than a preference.
- */
-const drawdown = computed(() => {
-  if (!props.policy.alwaysFillFull) return null;
-  return report.value.excess > 0 ? report.value.excess : null;
-});
-
 // ── the states, ranked on the price of the FUEL ────────────────────────────────────────────────
 const ranking = computed(() => rankStatesByFuelCost(props.fills.filter((f) => f.inWindow !== false)));
 const divergence = computed(() => policyDivergence(ranking.value, props.policy.avoidStates));
@@ -267,14 +254,11 @@ function exportRows() {
         understates. The total is a floor, not an estimate.
       </p>
 
-      <!-- The one action on this page: a planner setting, with the number that decides it. -->
-      <div v-if="drawdown" class="mt-3 rounded-surface bg-caution-50 px-3 py-2.5 ring-1 ring-caution-100">
-        <p class="text-sm text-caution-800">
-          Your fuel planner can already buy just enough to reach the next cheaper station — it is switched
-          off, because <strong>Always fill full</strong> is on in Fuel Planning Settings. Over this window that
-          setting is worth at least {{ usd(drawdown) }}.
-        </p>
-      </div>
+      <!--
+        Until 2026-09-10 a callout here offered the planner's min-drawdown switch, priced. The owner retired
+        that policy the same day (D-FP3: every planned fill is full, "without any overcomplications"), so the
+        carried-fuel figure above is now a fact about where the fleet buys, with no setting to point at.
+      -->
     </BaseCard>
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">

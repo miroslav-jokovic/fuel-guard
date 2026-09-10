@@ -45,7 +45,7 @@ const configCards = [
   // `/settings/*` routes were listed here and this one was not. `routeReachability.test.ts` is what
   // stops the next one going unnoticed for as long as this one did.
   { name: "Driver performance", to: "/settings/driver-performance", icon: TrophyIcon, desc: "How safety, efficiency and idling are weighted into a driver's score.", show: session.admin },
-  { name: "Planned fueling", to: "/settings/fuel-planning", icon: MapIcon, desc: "Reserves, corridor width, price freshness, brand policy, and the default truck profile.", show: session.admin },
+  { name: "Planned fueling", to: "/settings/fuel-planning", icon: MapIcon, desc: "The tank rules, the stations the planner may use, emergencies, prices, and the default load and truck.", show: session.admin },
   { name: "Audit log", to: "/settings/audit", icon: ClipboardDocumentListIcon, desc: "Who did what, and when.", show: session.admin || session.readOnly },
 ].filter((c) => c.show);
 
