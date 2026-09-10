@@ -47,3 +47,11 @@ export {
 } from "./syncState.js";
 export { listUnits, countUnmatched, stageUnit, setMatch, type FleetpalUnitRow } from "./units.js";
 export { claimDelivery, finishDelivery, listRecentDeliveries } from "./deliveries.js";
+export { FleetpalClient, MAX_PAGE_SIZE, type FleetpalClientOptions, type FleetpalRequestLog } from "./client.js";
+export {
+  FleetpalError,
+  parseRetryAfter,
+  errorFromResponse,
+  RATE_LIMIT_FALLBACK_SEC,
+  type FleetpalErrorKind,
+} from "./errors.js";
