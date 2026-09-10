@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { PartDto, PartInput } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
-import PartForm from "./PartForm.vue";
+import PartForm, { PART_FORM_ID } from "./PartForm.vue";
 import { useCreatePart, useUpdatePart } from "./useInventory";
 import { useToastStore } from "@/stores/toast";
 
@@ -13,6 +14,9 @@ import { useToastStore } from "@/stores/toast";
  * The API's message is what the toast shows on failure. Inventory's refusals are specific by
  * design (`IV0xx` map to 409 and 422 with a sentence a technician can act on), and replacing them
  * with "Could not save" here would throw away the half of the answer that says what to do.
+ *
+ * The actions live in the drawer's pinned `#footer` and submit the form by id — `PartForm.vue`
+ * records why the row left the body.
  */
 const props = defineProps<{
   open: boolean;
@@ -46,12 +50,14 @@ async function onSubmit(input: PartInput) {
 
 <template>
   <SlideOver :open="open" :title="part ? 'Edit part' : 'New part'" @close="emit('close')">
-    <PartForm
-      :part="part"
-      :initial-upc="initialUpc"
-      :submitting="submitting"
-      @submit="onSubmit"
-      @cancel="emit('close')"
-    />
+    <PartForm :part="part" :initial-upc="initialUpc" @submit="onSubmit" />
+    <template #footer>
+      <div class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" :disabled="submitting" @click="emit('close')">Cancel</BaseButton>
+        <BaseButton :form="PART_FORM_ID" type="submit" variant="primary" :disabled="submitting">
+          {{ submitting ? (part ? "Saving…" : "Adding…") : part ? "Save part" : "Add part" }}
+        </BaseButton>
+      </div>
+    </template>
   </SlideOver>
 </template>

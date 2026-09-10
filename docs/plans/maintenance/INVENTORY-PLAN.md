@@ -2182,3 +2182,15 @@ signed here by the person who did it. I6's spike results go here before its seco
   **Verification:** all 37 `lint:*` scripts, `eslint .` with zero warnings, `apps/web`'s
   `lint:tokens`, `pnpm typecheck` across ten workspaces, `pnpm test` green across every unit suite
   and all 42 matrices.
+
+- **2026-09-10 — design alignment of the four screens (PR `claude/maintenance-design-alignment`).**
+  A dual-agent critique with real-browser renders scored Shop, Parts, Assets and Units 27/40: every
+  gate green and every difference in the layer no gate sees. Landed: filters rest on `""` (a
+  `"all"` resting value renders as a filter already applied); the shop home carries a kit-shortfall
+  tile and previews of what to order and which units are short; all ten drawers pin their actions in
+  the SlideOver footer with busy labels, use the combobox and the date primitive; Assets searches
+  server-side (`GET /assets?search=`), Units searches and sorts the whole fleet, every list row has a
+  kebab; the three detail pages take the Vehicle/Driver card anatomy; the icon-only gears are worded.
+  Also corrected `AnnualInspectionsPage.vue`'s `:row-to` / `:per-page`, neither a declared prop.
+  **Left on purpose:** server-side sort for the paged catalogue and asset list; the `v-if` +
+  `:open="true"` drawer mount that skips the close transition.

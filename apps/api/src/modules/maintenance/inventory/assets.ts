@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssetDto, AssetHolder, AssetStatus, HolderKind } from "@silvicom/shared";
 import { nextDisplayNo } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
+import { orFilterValue } from "../../../lib/postgrestFilters.js";
 import { PAGE_MAX } from "./parts.js";
 import type { ServiceError } from "./types.js";
 
@@ -127,6 +128,12 @@ export const toAssetDto = (
 });
 
 export interface ListAssetsOptions {
+  /**
+   * Free text over what a person knows about the thing: its name, serial, make and model, the tag
+   * on it — and its number. "A-0412" or "412" reaches `display_seq`, because the number is what
+   * the shop says out loud and the column is an integer nobody can `ilike`.
+   */
+  search?: string;
   assetTypeId?: string;
   status?: AssetStatus;
   locationId?: string;
@@ -164,6 +171,16 @@ async function driverNames(
   );
 }
 
+/**
+ * The integer behind a display number, if the search term is one. `A-0412`, `a0412`, `0412` and
+ * `412` all name display_seq 412; anything with letters after the prefix is not a number and gets
+ * no sequence clause at all.
+ */
+export function displaySeqOf(term: string): number | null {
+  const m = /^a?-?(\d{1,9})$/i.exec(term);
+  return m ? Number(m[1]) : null;
+}
+
 export async function listAssets(
   admin: SupabaseClient,
   orgId: string,
@@ -179,6 +196,23 @@ export async function listAssets(
   if (opts.vehicleId) q = q.eq("vehicle_id", opts.vehicleId);
   if (opts.trailerId) q = q.eq("trailer_id", opts.trailerId);
   if (opts.unassigned) q = q.is("location_id", null).is("vehicle_id", null).is("trailer_id", null);
+  if (opts.search?.trim()) {
+    // ⚠ QUOTED, never interpolated raw — `parts.ts` carries the reason: `.or()` is one string
+    // PostgREST parses, and a serial number with a comma in it would otherwise build a filter
+    // nobody wrote. `orFilterValue` is the grammar's own escape.
+    const raw = opts.search.trim();
+    const term = orFilterValue(`%${raw}%`);
+    const clauses = [
+      `name.ilike.${term}`,
+      `serial_number.ilike.${term}`,
+      `manufacturer.ilike.${term}`,
+      `model.ilike.${term}`,
+      `tag_code.ilike.${term}`,
+    ];
+    const seq = displaySeqOf(raw);
+    if (seq !== null) clauses.push(`display_seq.eq.${seq}`);
+    q = q.or(clauses.join(","));
+  }
 
   const { data, error, count } = await q
     .order("display_seq", { ascending: true })

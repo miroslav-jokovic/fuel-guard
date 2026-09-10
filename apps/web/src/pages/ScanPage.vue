@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput } from "@silvicom/ui";
+import ErrorState from "@/components/ErrorState.vue";
 import { useScanInput } from "@/composables/useScanInput";
 import { useLocationsQuery } from "@/features/inventory/useInventory";
 import { useScanQuery } from "@/features/inventory/useScan";
@@ -115,9 +116,14 @@ function refresh() {
 
     <p v-if="isFetching" class="text-sm text-ink-tertiary">Looking it up…</p>
 
-    <p v-else-if="isError" class="text-sm text-ink">
-      {{ error instanceof Error ? error.message : "Could not read that code." }}
-    </p>
+    <!-- The product's error state, not a bare paragraph: it carries the retry, which on this
+         screen is the difference between "scan it again" and "walk to a desk". -->
+    <ErrorState
+      v-else-if="isError"
+      :message="error instanceof Error ? error.message : 'Could not read that code.'"
+      :retrying="isFetching"
+      @retry="() => refetch()"
+    />
 
     <ScanResultCard v-else-if="result" :result="result" @action="act" />
 

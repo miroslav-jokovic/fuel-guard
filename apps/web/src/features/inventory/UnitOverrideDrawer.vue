@@ -29,6 +29,9 @@ import { useToastStore } from "@/stores/toast";
 const props = defineProps<{ open: boolean; unit: UnitKitDto; rosterKind: "tractor" | "trailer" }>();
 const emit = defineEmits<{ close: [] }>();
 
+/** The footer submits the form by id — `PartForm.vue` records why the buttons are not in the body. */
+const FORM_ID = "unit-override-form";
+
 const toast = useToastStore();
 const { data: types } = useAssetTypesQuery();
 
@@ -103,15 +106,14 @@ async function submit() {
 </script>
 
 <template>
-  <SlideOver :open="open" :title="`Kit for ${unit.unitNumber}`" @close="emit('close')">
-    <form class="space-y-4" @submit.prevent="submit">
-      <p class="text-xs text-ink-tertiary">
-        Numbers for this unit alone. Leave a row empty to follow the rule for every
-        {{ unit.kind === "tractor" ? "truck" : unit.kind === "reefer_trailer" ? "reefer" : "trailer" }};
-        type 0 to say this one carries none.
-      </p>
-
-      <div v-if="rows.length" class="space-y-3">
+  <SlideOver
+    :open="open"
+    :title="`Kit for ${unit.unitNumber}`"
+    :description="`Numbers for this unit alone. Leave a row empty to follow the rule for every ${unit.kind === 'tractor' ? 'truck' : unit.kind === 'reefer_trailer' ? 'reefer' : 'trailer'}; type 0 to say this one carries none.`"
+    @close="emit('close')"
+  >
+    <form :id="FORM_ID" class="space-y-4" @submit.prevent="submit">
+      <div v-if="rows.length" class="space-y-4">
         <FormField
           v-for="row in rows"
           :key="row.id"
@@ -127,13 +129,16 @@ async function submit() {
         </FormField>
       </div>
       <p v-else class="text-sm text-ink-secondary">
-        No asset types yet. Add one on Assets first — a type is what a kit rule counts.
+        No kinds of thing yet. Add one under Asset kinds on Assets first — a kind is what a kit rule counts.
       </p>
-
-      <div class="flex justify-end gap-2 pt-2">
-        <BaseButton type="button" @click="emit('close')">Cancel</BaseButton>
-        <BaseButton type="submit" variant="primary" :disabled="busy || !rows.length">Save</BaseButton>
-      </div>
     </form>
+    <template #footer>
+      <div class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" :disabled="busy" @click="emit('close')">Cancel</BaseButton>
+        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="busy || !rows.length">
+          {{ busy ? "Saving…" : "Save kit" }}
+        </BaseButton>
+      </div>
+    </template>
   </SlideOver>
 </template>

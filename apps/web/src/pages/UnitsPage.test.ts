@@ -135,6 +135,49 @@ describe("the fleet's kit", () => {
   });
 
   /**
+   * `FilterSelect` reads any non-empty value as a filter in force and draws a ✕ for it. The page
+   * shipped resting on `"all"`, so both chips opened blue with a ✕ that cleared them to a value
+   * neither option list had (2026-09-10, measured in a render). The resting value is `""`.
+   */
+  it("opens with no filter applied", () => {
+    units.value = { units: [unit()], total: 1 };
+    const w = page();
+    const clears = w.findAll("button").filter((b) => (b.attributes("aria-label") ?? "").startsWith("Clear "));
+    expect(clears).toHaveLength(0);
+  });
+
+  /** The fleet arrives whole, so the page may filter it — a client search over a complete list is honest. */
+  it("finds a unit by number, and says so when none matches", async () => {
+    units.value = { units: [unit(), unit({ unitId: REEFER, unitNumber: "R-8800", kind: "reefer_trailer" })], total: 2 };
+    vi.useFakeTimers();
+    try {
+      const w = page();
+      // The search field debounces its model by 250 ms, so the clock is driven by hand.
+      const type = async (value: string) => {
+        await w.find("input[type='search'], input[type='text']").setValue(value);
+        vi.advanceTimersByTime(300);
+        await w.vm.$nextTick();
+      };
+      await type("R-88");
+      expect(w.text()).toContain("R-8800");
+      expect(w.text()).not.toContain("654");
+      expect(w.text()).toContain("1 unit");
+      await type("zzz");
+      expect(w.text()).toContain("No unit number matches that.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("names its one header action, and gives every row a menu", () => {
+    units.value = { units: [unit()], total: 1 };
+    const w = page();
+    expect(w.text()).toContain("Kit rules");
+    // The menu's items render only once it is open; the trigger is what proves the path exists.
+    expect(w.find('button[aria-label="Actions"]').exists()).toBe(true);
+  });
+
+  /**
    * A reefer's KIT kind is `reefer_trailer`; the table it lives in is `trailers`. The link carries
    * the roster's word, and a link that sent the kit kind would 400 at the API.
    */

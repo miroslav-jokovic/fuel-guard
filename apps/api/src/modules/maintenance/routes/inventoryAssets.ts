@@ -45,6 +45,7 @@ import { isServiceError } from "../inventory/types.js";
  */
 
 const listSchema = z.object({
+  search: z.string().max(120).optional(),
   assetTypeId: z.uuid().optional(),
   status: z.enum(["in_service", "in_repair", "spare", "lost", "retired"]).optional(),
   locationId: z.uuid().optional(),

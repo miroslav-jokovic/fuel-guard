@@ -29,9 +29,13 @@ import { movesHolder } from "@silvicom/shared";
  * have moved once for every time the network was bad — with no test failing.
  */
 
-const PER_PAGE = 50;
+/** One page of assets, as the API pages them. The list page derives its pagination from this. */
+export const ASSETS_PAGE_SIZE = 50;
+const PER_PAGE = ASSETS_PAGE_SIZE;
 
 export interface AssetsFilter {
+  /** Free text over number, name, serial, make/model and tag — the API's `search`. */
+  search?: string;
   assetTypeId?: string;
   status?: AssetStatus;
   locationId?: string;
@@ -57,6 +61,7 @@ export function useAssetsQuery(filter: Ref<AssetsFilter>) {
         limit: String(PER_PAGE),
         offset: String((f.page - 1) * PER_PAGE),
       });
+      if (f.search) params.set("search", f.search);
       if (f.assetTypeId) params.set("assetTypeId", f.assetTypeId);
       if (f.status) params.set("status", f.status);
       if (f.locationId) params.set("locationId", f.locationId);

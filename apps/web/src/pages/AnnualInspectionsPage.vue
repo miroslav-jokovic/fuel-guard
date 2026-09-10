@@ -16,6 +16,7 @@ import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawe
 import NewInspectionDrawer from "@/features/maintenance/NewInspectionDrawer.vue";
 import { useToastStore } from "@/stores/toast";
 import {
+  INSPECTIONS_PAGE_SIZE,
   useDiscardInspection,
   useInspectionsQuery,
   type InspectionSummary,
@@ -185,7 +186,8 @@ async function discardDraft(row: InspectionSummary) {
       :loading="isLoading || isFetching"
       :error="isError ? (error?.message ?? 'Could not load inspections') : null"
       row-key="id"
-      :row-to="(row: { id: string }) => ({ name: 'annual-inspection', params: { id: row.id } })"
+      :row-class="() => 'cursor-pointer'"
+      @row-click="(row) => openReport(row as InspectionSummary)"
       @retry="() => refetch()"
     >
       <template #cell-verdict="{ row }">
@@ -219,7 +221,11 @@ async function discardDraft(row: InspectionSummary) {
         No {{ subjectType === "tractor" ? "tractor" : "trailer" }} inspections yet.
       </template>
       <template #footer>
-        <TablePagination :page="page" :total="total" :per-page="50" @update:page="(p: number) => (page = p)" />
+        <!-- `page-size`, which is the prop's name. This passed `per-page` until 2026-09-10, which
+             `TablePagination` never declared, so the footer counted twenty per page while the API
+             sent fifty — and `row-to` above was the same mistake: rows here had never been
+             clickable, and only the kebab opened one. Both measured in the 2026-09-10 critique. -->
+        <TablePagination :page="page" :total="total" :page-size="INSPECTIONS_PAGE_SIZE" @update:page="(p: number) => (page = p)" />
       </template>
     </DataTable>
     </DataWorkspace>

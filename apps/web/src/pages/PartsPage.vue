@@ -11,10 +11,12 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
 import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
 import LocationsDrawer from "@/features/inventory/LocationsDrawer.vue";
-import { useLowStockQuery, usePartsQuery } from "@/features/inventory/useInventory";
+import { INVENTORY_PAGE_SIZE, useLowStockQuery, usePartsQuery } from "@/features/inventory/useInventory";
+import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -33,13 +35,31 @@ import { useSessionStore } from "@/stores/session";
  * already and the 2026-09-09 review of I0–I3 removed it. `TablePagination` therefore renders in the
  * catalogue view only, and the count in the toolbar is the whole answer in both.
  *
- * ── THE GEAR IS STOCK LOCATIONS, AND IT IS HERE BECAUSE NOTHING ELSE COULD MAKE ONE ───────────
+ * ── "STOCK LOCATIONS" IS A WORDED BUTTON, AND IT IS HERE BECAUSE NOTHING ELSE COULD MAKE ONE ──
  * I4's step text puts a settings gear on Parts and means I11's `inventory_settings`, which has no
- * table yet. What the gear carries today is the locations manager, and that is not an early
+ * table yet. What the button carries today is the locations manager, and that is not an early
  * delivery of I11 — it is a gap no step owned. Measured 2026-09-09: production holds zero rows in
  * all four inventory tables, `POST /locations` shipped at I3 with no consumer, and I11's settings
  * drawer picks a DEFAULT location, presuming some exist. `LocationsDrawer.vue` carries the
  * reasoning; I11 adds its settings to the same drawer.
+ *
+ * It says what it opens. The 2026-09-10 critique of this section found that the three inventory
+ * lists carried the only unlabelled header buttons in the product — an icon-only gear each, one of
+ * them the page's sole action — and that a reader arriving from any other section had no way to
+ * know that shop configuration was split across three of them. A word costs nothing; a tooltip the
+ * reader has to hover for is not a label.
+ *
+ * ── THE FILTER'S "EVERYTHING" IS `""`, AS IT IS ON EVERY OTHER LIST ───────────────────────────
+ * `FilterSelect` reads any non-empty value as a filter APPLIED: blue, with a ✕ that emits `""`. This
+ * page shipped with `"all"` as its resting value, so the chip opened in the applied state and the ✕
+ * cleared it to a value none of its options had. Measured in a real render 2026-09-10; the same
+ * defect sat on Assets and Units. `AnnualInspectionsPage.vue` and every older list use `""`.
+ *
+ * ── THE CATALOGUE DOES NOT SORT; THE LOW-STOCK VIEW DOES ──────────────────────────────────────
+ * The catalogue arrives one server page at a time, and a column header that sorted the fifty rows
+ * on screen would present a page-local order as the catalogue's — the "believed wrong answer" this
+ * file's low-stock note is about. The low-stock list arrives whole, so its columns sort honestly.
+ * A server-side sort for the catalogue is owed to the API, not faked here.
  *
  * ── AND WHAT IS STILL NOT HERE ────────────────────────────────────────────────────────────────
  * No CSV import: the manual escape hatch A3 leaves open needs an endpoint the API does not have,
@@ -52,12 +72,12 @@ const router = useRouter();
 const session = useSessionStore();
 
 const STOCK_OPTIONS = [
-  { value: "all", label: "All parts" },
+  { value: "", label: "All parts" },
   { value: "low", label: "At reorder point" },
 ];
 
 const search = ref("");
-const stock = ref<string>(route.query.stock === "low" ? "low" : "all");
+const stock = ref<string>(route.query.stock === "low" ? "low" : "");
 const page = ref(1);
 watch([search, stock], () => (page.value = 1));
 
@@ -72,8 +92,13 @@ const catalogueFilter = computed(() => ({ search: search.value || undefined, pag
 const catalogue = usePartsQuery(catalogueFilter);
 const low = useLowStockQuery();
 
+const sort = ref<SortState>({ key: null, dir: "asc" });
+const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
+
 const rows = computed(() =>
-  lowOnly.value ? (low.data.value?.lines ?? []) : (catalogue.data.value?.parts ?? []),
+  lowOnly.value
+    ? sortRows(low.data.value?.lines ?? [], sort.value)
+    : (catalogue.data.value?.parts ?? []),
 );
 const total = computed(() => (lowOnly.value ? (low.data.value?.total ?? 0) : (catalogue.data.value?.total ?? 0)));
 const loading = computed(() => (lowOnly.value ? low.isLoading.value : catalogue.isLoading.value));
@@ -89,11 +114,11 @@ const CATALOGUE_COLUMNS: DataTableColumn[] = [
 ];
 
 const LOW_COLUMNS: DataTableColumn[] = [
-  { key: "partNumber", label: "Part number", cellClass: "font-mono text-xs text-ink", width: "md" },
+  { key: "partNumber", label: "Part number", sortable: true, cellClass: "font-mono text-xs text-ink", width: "md" },
   { key: "partDescription", label: "Description" },
-  { key: "locationName", label: "Location", cellClass: "text-ink-secondary" },
-  { key: "quantityOnHand", label: "On hand", numeric: true },
-  { key: "reorderPoint", label: "Reorder at", numeric: true },
+  { key: "locationName", label: "Location", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "quantityOnHand", label: "On hand", sortable: true, numeric: true },
+  { key: "reorderPoint", label: "Reorder at", sortable: true, numeric: true },
   { key: "reorderQuantity", label: "Order", numeric: true },
 ];
 
@@ -106,12 +131,13 @@ const columns = computed(() => (lowOnly.value ? LOW_COLUMNS : CATALOGUE_COLUMNS)
 const rowKey = computed(() => (lowOnly.value ? ((r: Record<string, unknown>) => `${r.partId}:${r.locationId}`) : "id"));
 
 /**
- * Opening a row is `@row-click`, not `row-to`.
+ * Opening a row is `@row-click` AND the kebab's "Open part". The click is the mouse's path; the
+ * kebab is the keyboard's and the screen reader's — a row that only opens on click has no focusable
+ * element in it, which the 2026-09-10 critique measured as "rows open only by mouse" on all three
+ * inventory lists. Contract §5.7 asks for both, and `AnnualInspectionsPage.vue` carries both.
  *
- * ⚠ `AnnualInspectionsPage.vue` — the page I4's step text names as the shape to follow — passes
- * `:row-to`, and `DataTable` declares no such prop: it lands in `$attrs` and does nothing, so those
- * rows have never been clickable and the kebab's "Open report" is what actually opens one. Measured
- * 2026-09-09 by grepping the component; recorded in the plan's §8 rather than copied.
+ * (That page passed `:row-to` until 2026-09-10, a prop `DataTable` never declared, so its rows had
+ * never been clickable — measured 2026-09-09 by grepping the component and corrected alongside this.)
  */
 const openPart = (row: Record<string, unknown>) =>
   void router.push({ name: "part", params: { id: String(lowOnly.value ? row.partId : row.id) } });
@@ -127,8 +153,8 @@ watch(creating, (open) => {
   <div class="space-y-6">
     <PageHeader description="Everything the shop carries, and what has fallen to its reorder point.">
       <template #actions>
-        <BaseButton v-if="session.can('maintenance')" aria-label="Stock locations" @click="locationsOpen = true">
-          <AppIcon :icon="Cog6ToothIcon" class="size-5" aria-hidden="true" />
+        <BaseButton v-if="session.can('maintenance')" @click="locationsOpen = true">
+          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Stock locations
         </BaseButton>
         <BaseButton v-if="session.can('maintenance')" to="/shop/labels">
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
@@ -159,17 +185,21 @@ watch(creating, (open) => {
         :row-key="rowKey"
         :loading="loading"
         :error="failed ? (failed instanceof Error ? failed.message : 'Could not load parts') : null"
+        :sort="lowOnly ? sort : null"
         :row-class="() => 'cursor-pointer'"
+        @sort="onSort"
         @row-click="openPart"
         @retry="refetch"
       >
-        <template #cell-manufacturer="{ value }">{{ value ?? "—" }}</template>
-        <template #cell-category="{ value }">{{ value ?? "—" }}</template>
         <template #cell-unitOfMeasure="{ value }">{{ UNIT_OF_MEASURE_LABELS[value as keyof typeof UNIT_OF_MEASURE_LABELS] }}</template>
         <template #cell-quantityOnHand="{ row }">
           <StockLevelCell :line="row as StockLineDto" />
         </template>
-        <template #cell-reorderQuantity="{ value }">{{ value ?? "—" }}</template>
+        <template #actions="{ row }">
+          <KebabMenu>
+            <BaseButton class="kebab-item" @click="openPart(row)">Open part</BaseButton>
+          </KebabMenu>
+        </template>
         <template #empty>
           <p v-if="lowOnly">
             Nothing is at its reorder point. A shelf is only counted here once somebody has set one —
@@ -179,7 +209,7 @@ watch(creating, (open) => {
           <p v-else>No parts yet. Add the first one, and the shop starts keeping count of it.</p>
         </template>
         <template v-if="!lowOnly" #footer>
-          <TablePagination :page="page" :page-size="50" :total="total" @update:page="page = $event" />
+          <TablePagination :page="page" :page-size="INVENTORY_PAGE_SIZE" :total="total" @update:page="page = $event" />
         </template>
       </DataTable>
     </DataWorkspace>

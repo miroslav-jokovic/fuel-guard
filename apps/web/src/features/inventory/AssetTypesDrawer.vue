@@ -45,6 +45,9 @@ import { useToastStore } from "@/stores/toast";
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
+/** The footer submits the form by id — `PartForm.vue` records why the buttons are not in the body. */
+const FORM_ID = "asset-type-form";
+
 const toast = useToastStore();
 const { data: types } = useAssetTypesQuery();
 const create = useCreateAssetType();
@@ -117,13 +120,13 @@ async function adoptKit() {
 </script>
 
 <template>
-  <SlideOver :open="props.open" title="Kinds of thing" @close="emit('close')">
+  <SlideOver
+    :open="props.open"
+    title="Asset kinds"
+    description="A kind of thing is what an asset is one of, and what a kit rule counts. Nothing can be added to the shop until at least one exists."
+    @close="emit('close')"
+  >
     <div class="space-y-4">
-      <p class="text-xs text-ink-tertiary">
-        A kind of thing is what an asset is one of, and what a kit rule counts. Nothing can be added
-        to the shop until at least one exists.
-      </p>
-
       <!-- A4's answer, and only while there is nothing. See the header for why it disappears. -->
       <div v-if="empty" class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
         <p class="text-sm font-medium text-ink">Start from the standard kit</p>
@@ -149,42 +152,49 @@ async function adoptKit() {
         </li>
       </ul>
 
-      <BaseButton v-if="!adding" :disabled="busy" @click="startAdd">Add a kind of thing</BaseButton>
-
-      <form v-else class="space-y-4 border-t border-edge-subtle pt-4" @submit.prevent="submit">
-        <FormField v-slot="{ id }" label="Name" :error="errors.name">
-          <BaseInput :id="id" v-model="form.name" :invalid="!!errors.name" placeholder="Load bar" />
-        </FormField>
-        <FormField v-slot="{ id }" label="Category" hint="How the list groups. Optional.">
-          <BaseInput :id="id" v-model="form.category" placeholder="Securement" />
-        </FormField>
-        <FormField
-          v-slot="{ id }"
-          label="How many a unit carries by default"
-          hint="Used when no kit rule says otherwise. Zero is the usual answer — the rules on Units say the rest."
-          :error="errors.defaultKitQuantity"
-        >
-          <BaseInput :id="id" v-model="form.defaultKitQuantity" inputmode="numeric" />
-        </FormField>
-        <!-- The copy says what the flag DOES, because what it does is refuse a second one. -->
-        <div class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
-          <BaseCheckbox v-model="form.serialized">
-            <span class="text-sm">
-              <span class="font-medium text-ink">Track each one separately</span>
-              <span class="block text-xs text-ink-muted">
-                For things where which one matters — a tablet has a serial number and a warranty. Off
-                for straps and chocks, where four are just four.
+      <form v-if="adding" :id="FORM_ID" class="border-t border-edge-subtle pt-5" @submit.prevent="submit">
+        <h3 class="text-sm font-semibold text-ink">{{ editing ? "Edit kind" : "New kind of thing" }}</h3>
+        <div class="mt-4 space-y-4">
+          <FormField v-slot="{ id }" label="Name" :error="errors.name">
+            <BaseInput :id="id" v-model="form.name" :invalid="!!errors.name" placeholder="Load bar" />
+          </FormField>
+          <FormField v-slot="{ id }" label="Category" hint="How the list groups. Optional.">
+            <BaseInput :id="id" v-model="form.category" placeholder="Securement" />
+          </FormField>
+          <FormField
+            v-slot="{ id }"
+            label="How many a unit carries by default"
+            hint="Used when no kit rule says otherwise. Zero is the usual answer — the rules on Units say the rest."
+            :error="errors.defaultKitQuantity"
+          >
+            <BaseInput :id="id" v-model="form.defaultKitQuantity" inputmode="numeric" />
+          </FormField>
+          <!-- The copy says what the flag DOES, because what it does is refuse a second one. -->
+          <div class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
+            <BaseCheckbox v-model="form.serialized">
+              <span class="text-sm">
+                <span class="font-medium text-ink">Track each one separately</span>
+                <span class="block text-xs text-ink-muted">
+                  For things where which one matters — a tablet has a serial number and a warranty. Off
+                  for straps and chocks, where four are just four.
+                </span>
               </span>
-            </span>
-          </BaseCheckbox>
-        </div>
-        <div class="flex justify-end gap-2">
-          <BaseButton type="button" @click="adding = false">Cancel</BaseButton>
-          <BaseButton type="submit" variant="primary" :disabled="busy">
-            {{ editing ? "Save" : "Add" }}
-          </BaseButton>
+            </BaseCheckbox>
+          </div>
         </div>
       </form>
     </div>
+    <template #footer>
+      <div v-if="adding" class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" :disabled="busy" @click="adding = false">Cancel</BaseButton>
+        <BaseButton :form="FORM_ID" type="submit" variant="primary" :disabled="busy">
+          {{ busy ? "Saving…" : editing ? "Save kind" : "Add kind" }}
+        </BaseButton>
+      </div>
+      <div v-else class="flex items-center justify-end gap-3">
+        <BaseButton variant="ghost" @click="emit('close')">Close</BaseButton>
+        <BaseButton variant="primary" :disabled="busy" @click="startAdd">Add a kind of thing</BaseButton>
+      </div>
+    </template>
   </SlideOver>
 </template>

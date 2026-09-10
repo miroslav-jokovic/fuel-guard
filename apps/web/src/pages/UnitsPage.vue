@@ -10,9 +10,11 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
 import KitRulesDrawer from "@/features/inventory/KitRulesDrawer.vue";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
+import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -33,6 +35,15 @@ import { useSessionStore } from "@/stores/session";
  * A trailer missing two straps and a chain is short by THREE. `shortBy` is what the shop home
  * counts and what somebody loads into a truck before driving out to the yard; the number of lines
  * is a fact about the table, not about the walk.
+ *
+ * ── SEARCH AND SORT ARE THE PAGE'S OWN, BECAUSE THE FLEET ARRIVES WHOLE ───────────────────────
+ * `/units` is unpaginated — a fleet is a few hundred rows at most and a kit list that stopped at
+ * fifty would say "everything else is fine". So, unlike Parts and Assets, this page may filter
+ * and order what it holds without presenting a page-local answer as the fleet's. The search is
+ * over the unit number, which is the only thing anybody types here.
+ *
+ * ── THE FILTERS' "EVERYTHING" IS `""` ─────────────────────────────────────────────────────────
+ * `FilterSelect` reads any non-empty value as applied. `PartsPage.vue` carries the measurement.
  */
 
 const route = useRoute();
@@ -40,32 +51,43 @@ const router = useRouter();
 const session = useSessionStore();
 
 const KIND_OPTIONS = [
-  { value: "all", label: "Trucks and trailers" },
+  { value: "", label: "Trucks and trailers" },
   { value: "tractor", label: "Trucks" },
   { value: "trailer", label: "Trailers" },
 ];
 const KIT_OPTIONS = [
-  { value: "all", label: "Every unit" },
+  { value: "", label: "Every unit" },
   { value: "short", label: "Short of something" },
 ];
 
-const kind = ref("all");
+const search = ref("");
+const kind = ref("");
 /** The shop home's shortfall card links here with `?kit=short`; the filter is the page's own after that. */
-const kit = ref(route.query.kit === "short" ? "short" : "all");
+const kit = ref(route.query.kit === "short" ? "short" : "");
 watch(kit, (v) => void router.replace({ query: v === "short" ? { kit: "short" } : {} }));
 
 const filter = computed(() => ({
-  kind: kind.value === "all" ? undefined : (kind.value as "tractor" | "trailer"),
+  kind: (kind.value || undefined) as "tractor" | "trailer" | undefined,
   shortOnly: kit.value === "short",
 }));
 const units = useUnitsQuery(filter);
 
+const sort = ref<SortState>({ key: null, dir: "asc" });
+const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
+
+const rows = computed(() => {
+  const term = search.value.trim().toLowerCase();
+  const all = units.data.value?.units ?? [];
+  const found = term ? all.filter((u) => u.unitNumber.toLowerCase().includes(term)) : all;
+  return sortRows(found, sort.value);
+});
+
 const COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", cellClass: "font-mono text-xs text-ink", width: "sm" },
-  { key: "kind", label: "Kind", cellClass: "text-ink-secondary" },
+  { key: "unitNumber", label: "Unit", sortable: true, cellClass: "font-mono text-xs text-ink", width: "sm" },
+  { key: "kind", label: "Kind", sortable: true, cellClass: "text-ink-secondary" },
   { key: "lines", label: "Kit" },
-  { key: "shortBy", label: "Missing", numeric: true },
-  { key: "state", label: "Status", width: "sm" },
+  { key: "shortBy", label: "Missing", sortable: true, numeric: true },
+  { key: "state", label: "Status", sortable: true, width: "sm" },
 ];
 
 /** "3 of 5 kinds carried" — what the row is about, in the words the reader is looking for. */
@@ -89,14 +111,22 @@ const rulesOpen = ref(false);
   <div class="space-y-6">
     <PageHeader description="What every truck and trailer is supposed to be carrying, and what it is missing.">
       <template #actions>
-        <BaseButton v-if="session.can('maintenance')" aria-label="Kit rules" @click="rulesOpen = true">
-          <AppIcon :icon="Cog6ToothIcon" class="size-5" aria-hidden="true" />
+        <!-- Worded, not an icon-only gear — `PartsPage.vue` records why. This is the page's only
+             action, and an unlabelled one was the whole of its header. -->
+        <BaseButton v-if="session.can('maintenance')" @click="rulesOpen = true">
+          <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Kit rules
         </BaseButton>
       </template>
     </PageHeader>
 
     <DataWorkspace>
-      <FilterBar embedded :count="units.data.value?.total ?? 0" count-label="units">
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search unit number…"
+        :count="rows.length"
+        count-label="units"
+      >
         <template #filters>
           <FilterSelect v-model="kind" label="Kind" :options="KIND_OPTIONS" />
           <FilterSelect v-model="kit" label="Kit" :options="KIT_OPTIONS" />
@@ -106,11 +136,13 @@ const rulesOpen = ref(false);
       <DataTable
         embedded
         :columns="COLUMNS"
-        :rows="units.data.value?.units ?? []"
+        :rows="rows"
         row-key="unitId"
         :loading="units.isLoading.value"
         :error="units.isError.value ? 'Could not load the fleet' : null"
+        :sort="sort"
         :row-class="() => 'cursor-pointer'"
+        @sort="onSort"
         @row-click="openUnit"
         @retry="() => units.refetch()"
       >
@@ -125,16 +157,21 @@ const rulesOpen = ref(false);
           <span v-if="value > 0" class="font-semibold text-danger-700">{{ value }}</span>
           <span v-else class="text-ink-tertiary">—</span>
         </template>
-        <!-- `[BADGE_BASE, toneClass(...)]` and NOT `AppBadge`: "Extra items" is two words, and that
-             primitive carries `capitalize`, which title-cased "In repair" on a real page at I8. -->
+        <!-- `[BADGE_BASE, toneClass(...)]`: the rule `apps/web/CLAUDE.md` states for every badge. -->
         <template #cell-state="{ value }">
           <span v-if="kitStatusBadge(value)" :class="[BADGE_BASE, toneClass(kitStatusBadge(value)!.tone)]">
             {{ kitStatusBadge(value)!.label }}
           </span>
           <span v-else class="text-ink-tertiary">—</span>
         </template>
+        <template #actions="{ row }">
+          <KebabMenu>
+            <BaseButton class="kebab-item" @click="openUnit(row)">Open unit</BaseButton>
+          </KebabMenu>
+        </template>
         <template #empty>
-          <p v-if="kit === 'short'">
+          <p v-if="search">No unit number matches that.</p>
+          <p v-else-if="kit === 'short'">
             Nothing is short. Every truck and trailer is carrying what its kit asks for.
           </p>
           <p v-else>

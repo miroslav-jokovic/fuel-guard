@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
-import { AppBadge, AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import {
   ADJUST_REASON_LABELS,
@@ -10,28 +10,44 @@ import {
   type StockLineDto,
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import ErrorState from "@/components/ErrorState.vue";
 import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLineDrawer from "@/features/inventory/StockLineDrawer.vue";
 import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import {
+  INVENTORY_PAGE_SIZE,
   useAttachPartPhoto,
   useLocationsQuery,
   useMovementsQuery,
   usePartQuery,
 } from "@/features/inventory/useInventory";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 
 /**
  * One part: what it is, where it sits, and everything that has happened to it
  * (INVENTORY-PLAN.md I4).
+ *
+ * ── THE PAGE IS SHAPED LIKE THE OTHER ENTITY PAGES, ON PURPOSE (2026-09-10) ───────────────────
+ * A titled summary card with the status badge top-right, facts as `dt text-ink-muted` /
+ * `dd font-medium`, `text-sm font-semibold` section headings, `ErrorState` for a failed fetch and a
+ * loading line before the card — the anatomy `VehicleDetailPage.vue`, `DriverDetailPage.vue` and
+ * `FuelCardDetailPage.vue` share. This page and its two siblings shipped with their own recipe
+ * (headless card, uppercase KPI-style labels, badge under the facts, a hand-rolled "Try again"
+ * card, `text-lg` headings), and the 2026-09-10 critique measured it as the pages reading foreign
+ * beside the rest of the product. Lone tables are plain `DataTable`s: `DataWorkspace` is the
+ * toolbar-plus-table shell and there is no toolbar here.
+ *
+ * The photo is a thumbnail in the card header when there is one, and a dropzone only while
+ * somebody is adding one. The dropzone primitive is 256px tall, and sitting beside four facts it
+ * made the card three-quarters empty — measured in a real render.
  *
  * ── THE LEDGER IS THE PAGE'S POINT ────────────────────────────────────────────────────────────
  * `part_movements` is the truth and the on-hand figure above it is a projection of these rows
@@ -86,12 +102,14 @@ const locationName = (locationId: string) =>
  * shipped its screen alongside its route for exactly this reason; this is the parts half paid.
  */
 const photo = useAttachPartPhoto();
+const addingPhoto = ref(false);
 async function onPhoto(files: File[]) {
   const file = files[0];
   if (!file || !part.value) return;
   try {
     await photo.mutateAsync({ id: part.value.id, file });
     toast.success("Photo added");
+    addingPhoto.value = false;
   } catch (e) {
     toast.error("Could not add the photo", e instanceof Error ? e.message : undefined);
   }
@@ -160,75 +178,72 @@ function detailOf(m: {
       </template>
     </PageHeader>
 
-    <BaseCard v-if="isError" padding="md">
-      <p class="text-sm text-ink">
-        {{ error instanceof Error ? error.message : "Could not load the part." }}
-      </p>
-      <BaseButton class="mt-3" @click="() => refetch()">Try again</BaseButton>
-    </BaseCard>
+    <ErrorState
+      v-if="isError"
+      :message="error instanceof Error ? error.message : 'Could not load the part.'"
+      @retry="() => refetch()"
+    />
+
+    <p v-else-if="isLoading && !part" class="text-sm text-ink-tertiary">Loading the part…</p>
 
     <template v-else-if="part">
-      <BaseCard padding="md">
-        <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-          <dl class="grid flex-1 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Manufacturer</dt>
-              <dd class="mt-1 text-sm text-ink">{{ part.manufacturer ?? "—" }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Category</dt>
-              <dd class="mt-1 text-sm text-ink">{{ part.category ?? "—" }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Counted in</dt>
-              <dd class="mt-1 text-sm text-ink">{{ UNIT_OF_MEASURE_LABELS[part.unitOfMeasure] }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Barcode</dt>
-              <dd class="mt-1 font-mono text-xs text-ink">{{ part.upc ?? "—" }}</dd>
-            </div>
-            <div v-if="part.notes" class="col-span-2 sm:col-span-4">
-              <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Notes</dt>
-              <dd class="mt-1 text-sm text-ink-secondary">{{ part.notes }}</dd>
-            </div>
-          </dl>
-          <div class="shrink-0 sm:w-40">
+      <BaseCard>
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex min-w-0 items-center gap-3">
             <!-- Signed for 300 s (D-INV8) and re-signed with the query, so a page left open overnight
                  refetches rather than rendering a broken image. -->
             <img
               v-if="data?.photoUrl"
               :src="data.photoUrl"
               :alt="`Photo of ${part.partNumber}`"
-              class="size-28 rounded-surface object-cover ring-1 ring-edge"
+              class="size-12 shrink-0 rounded-surface object-cover ring-1 ring-edge"
             />
-            <FileDropzone
-              v-else-if="canManage"
-              accept=".jpg,.jpeg,.png,.webp,.heic"
-              label="Add a photo"
-              hint="So the next person picks the right one off the shelf."
-              :busy="photo.isPending.value"
-              @files="onPhoto"
-            />
+            <h2 class="text-sm font-semibold text-ink">Part summary</h2>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <BaseButton
+              v-if="canManage && !data?.photoUrl && !addingPhoto"
+              variant="ghost"
+              size="sm"
+              @click="addingPhoto = true"
+            >
+              Add a photo
+            </BaseButton>
+            <span v-if="!part.active" :class="[BADGE_BASE, toneClass('neutral')]">Retired</span>
           </div>
         </div>
-        <div v-if="!part.active" class="mt-4">
-          <AppBadge tone="neutral">Retired</AppBadge>
-          <span class="ml-2 text-xs text-ink-tertiary">
-            No longer carried. Its history stays, and it is not offered when issuing.
-          </span>
-        </div>
+        <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+          <div><dt class="text-ink-muted">Manufacturer</dt><dd class="font-medium text-ink">{{ part.manufacturer ?? "—" }}</dd></div>
+          <div><dt class="text-ink-muted">Category</dt><dd class="font-medium text-ink">{{ part.category ?? "—" }}</dd></div>
+          <div><dt class="text-ink-muted">Counted in</dt><dd class="font-medium text-ink">{{ UNIT_OF_MEASURE_LABELS[part.unitOfMeasure] }}</dd></div>
+          <div><dt class="text-ink-muted">Barcode</dt><dd class="font-mono text-xs text-ink">{{ part.upc ?? "—" }}</dd></div>
+          <div v-if="part.notes" class="col-span-2 sm:col-span-4">
+            <dt class="text-ink-muted">Notes</dt>
+            <dd class="text-ink-secondary">{{ part.notes }}</dd>
+          </div>
+        </dl>
+        <p v-if="!part.active" class="mt-3 text-xs text-ink-tertiary">
+          No longer carried. Its history stays, and it is not offered when issuing.
+        </p>
+        <FileDropzone
+          v-if="addingPhoto && canManage"
+          class="mt-4"
+          accept=".jpg,.jpeg,.png,.webp,.heic"
+          label="Add a photo"
+          hint="So the next person picks the right one off the shelf."
+          :busy="photo.isPending.value"
+          @files="onPhoto"
+        />
       </BaseCard>
 
       <section class="space-y-3">
         <div class="flex items-center justify-between gap-4">
-          <h2 class="text-lg font-semibold text-ink">Shelves</h2>
+          <h2 class="text-sm font-semibold text-ink">Shelves</h2>
           <BaseButton v-if="canManage" @click="shelfAdding = true">
             <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Add a shelf
           </BaseButton>
         </div>
-        <DataWorkspace>
           <DataTable
-            embedded
             :columns="SHELF_COLUMNS"
             :rows="shelves"
             :row-key="(r: StockLineDto) => `${r.partId}:${r.locationId}`"
@@ -237,8 +252,6 @@ function detailOf(m: {
             <template #cell-quantityOnHand="{ row }">
               <StockLevelCell :line="row" />
             </template>
-            <template #cell-reorderPoint="{ value }">{{ value ?? "—" }}</template>
-            <template #cell-reorderQuantity="{ value }">{{ value ?? "—" }}</template>
             <template #actions="{ row }">
               <KebabMenu v-if="canManage">
                 <BaseButton class="kebab-item" @click="moving = { verb: 'received', line: row }">
@@ -265,14 +278,11 @@ function detailOf(m: {
               </p>
             </template>
           </DataTable>
-        </DataWorkspace>
       </section>
 
       <section class="space-y-3">
-        <h2 class="text-lg font-semibold text-ink">History</h2>
-        <DataWorkspace>
+        <h2 class="text-sm font-semibold text-ink">History</h2>
           <DataTable
-            embedded
             :columns="LEDGER_COLUMNS"
             :rows="movements.data.value?.movements ?? []"
             :loading="movements.isLoading.value"
@@ -289,7 +299,6 @@ function detailOf(m: {
               </span>
             </template>
             <template #cell-locationId="{ value }">{{ locationName(value) }}</template>
-            <template #cell-actorName="{ value }">{{ value ?? "—" }}</template>
             <template #cell-note="{ row }">{{ detailOf(row) }}</template>
             <template #empty>
               <p>Nothing has moved yet. Receiving the first delivery starts the history.</p>
@@ -297,13 +306,12 @@ function detailOf(m: {
             <template #footer>
               <TablePagination
                 :page="page"
-                :page-size="50"
+                :page-size="INVENTORY_PAGE_SIZE"
                 :total="movements.data.value?.total ?? 0"
                 @update:page="page = $event"
               />
             </template>
           </DataTable>
-        </DataWorkspace>
       </section>
     </template>
 

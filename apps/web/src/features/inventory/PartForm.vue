@@ -1,3 +1,8 @@
+<script lang="ts">
+/** The form's id, which its drawer's pinned footer submits by `form=`. */
+export const PART_FORM_ID = "part-form";
+</script>
+
 <script setup lang="ts">
 import { reactive, ref } from "vue";
 import {
@@ -8,11 +13,10 @@ import {
   type PartInput,
 } from "@silvicom/shared";
 import {
-  AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
+  AppCombobox as ComboSelect,
   AppFormField as FormField,
   AppInput as BaseInput,
-  AppSelect,
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
 
@@ -33,11 +37,19 @@ import {
  * `manufacturer` is present-but-empty on some rows and absent on others, which is two spellings of
  * one fact for every consumer downstream to handle. The FleetPal sync (I14) resolves manufacturer
  * from a VMRS id into this column; it should find null or a name, never "".
+ *
+ * ── THE BUTTONS ARE NOT HERE (2026-09-10) ─────────────────────────────────────────────────────
+ * The form carries an id and its drawer's pinned footer submits it by `form=`, the shape
+ * `InspectorDrawer.vue` and `NewInspectionDrawer.vue` use in this same section. A Cancel/Save row
+ * at the bottom of a scrolling body scrolls away under the fields, and the 2026-09-10 critique
+ * measured every inventory drawer doing that against thirty-five elsewhere that do not. The select
+ * is `AppCombobox` for the reason `InspectorDrawer.vue` records: the native panel is drawn by the
+ * operating system and looks like nothing else on the page.
  */
+
 
 const props = defineProps<{
   part?: PartDto | null;
-  submitting?: boolean;
   /**
    * A barcode to start a NEW part from — the scan page's "attach or create" path (I6).
    *
@@ -53,18 +65,20 @@ const props = defineProps<{
    */
   initialUpc?: string;
 }>();
-const emit = defineEmits<{ submit: [input: PartInput]; cancel: [] }>();
+const emit = defineEmits<{ submit: [input: PartInput] }>();
 
 const form = reactive({
   partNumber: props.part?.partNumber ?? "",
   description: props.part?.description ?? "",
   manufacturer: props.part?.manufacturer ?? "",
   category: props.part?.category ?? "",
-  unitOfMeasure: props.part?.unitOfMeasure ?? "each",
+  unitOfMeasure: (props.part?.unitOfMeasure ?? "each") as string,
   upc: props.part?.upc ?? props.initialUpc ?? "",
   notes: props.part?.notes ?? "",
   active: props.part?.active ?? true,
 });
+
+const UNIT_OPTIONS = UNITS_OF_MEASURE.map((u) => ({ value: u, label: UNIT_OF_MEASURE_LABELS[u] }));
 
 const blankToNull = (v: string): string | null => (v.trim() === "" ? null : v);
 
@@ -96,61 +110,61 @@ function onSubmit() {
 </script>
 
 <template>
-  <form class="space-y-4" @submit.prevent="onSubmit">
-    <FormField v-slot="{ id }" label="Part number" :error="errors.partNumber">
-      <BaseInput :id="id" v-model="form.partNumber" :invalid="!!errors.partNumber" />
-    </FormField>
+  <form :id="PART_FORM_ID" class="space-y-6" @submit.prevent="onSubmit">
+    <section aria-labelledby="part-form-what">
+      <h3 id="part-form-what" class="text-sm font-semibold text-ink">What it is</h3>
+      <p class="mt-1 text-sm text-ink-muted">The catalogue entry. Where it sits and how many there are come from the shelves.</p>
+      <div class="mt-4 space-y-4">
+        <FormField v-slot="{ id }" label="Part number" :error="errors.partNumber">
+          <BaseInput :id="id" v-model="form.partNumber" :invalid="!!errors.partNumber" />
+        </FormField>
 
-    <FormField v-slot="{ id }" label="Description" :error="errors.description">
-      <BaseInput :id="id" v-model="form.description" :invalid="!!errors.description" placeholder="Oil filter, spin-on" />
-    </FormField>
+        <FormField v-slot="{ id }" label="Description" :error="errors.description">
+          <BaseInput :id="id" v-model="form.description" :invalid="!!errors.description" placeholder="Oil filter, spin-on" />
+        </FormField>
 
-    <div class="grid grid-cols-2 gap-3">
-      <FormField v-slot="{ id }" label="Manufacturer">
-        <BaseInput :id="id" v-model="form.manufacturer" />
-      </FormField>
-      <FormField v-slot="{ id }" label="Category">
-        <BaseInput :id="id" v-model="form.category" placeholder="Filters" />
-      </FormField>
-    </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField v-slot="{ id }" label="Manufacturer">
+            <BaseInput :id="id" v-model="form.manufacturer" />
+          </FormField>
+          <FormField v-slot="{ id }" label="Category">
+            <BaseInput :id="id" v-model="form.category" placeholder="Filters" />
+          </FormField>
+        </div>
 
-    <div class="grid grid-cols-2 gap-3">
-      <FormField v-slot="{ id }" label="Counted in" :error="errors.unitOfMeasure">
-        <AppSelect
-          :id="id"
-          v-model="form.unitOfMeasure"
-          :options="UNITS_OF_MEASURE.map((u) => ({ value: u, label: UNIT_OF_MEASURE_LABELS[u] }))"
-        />
-      </FormField>
-      <!-- The supplier's own barcode. A scan of a factory carton falls through to this column when
-           the code is not one of ours (D-INV7), so it is worth typing once. -->
-      <FormField v-slot="{ id }" label="Barcode (UPC)" hint="From the supplier's carton. Optional.">
-        <BaseInput :id="id" v-model="form.upc" inputmode="numeric" />
-      </FormField>
-    </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField v-slot="{ id }" label="Counted in" :error="errors.unitOfMeasure">
+            <ComboSelect :id="id" v-model="form.unitOfMeasure" :options="UNIT_OPTIONS" placeholder="Each, gallon, set…" />
+          </FormField>
+          <!-- The supplier's own barcode. A scan of a factory carton falls through to this column when
+               the code is not one of ours (D-INV7), so it is worth typing once. -->
+          <FormField v-slot="{ id }" label="Barcode (UPC)" hint="From the supplier's carton. Optional.">
+            <BaseInput :id="id" v-model="form.upc" inputmode="numeric" />
+          </FormField>
+        </div>
+      </div>
+    </section>
 
-    <FormField v-slot="{ id }" label="Notes">
-      <BaseTextarea :id="id" v-model="form.notes" :rows="3" />
-    </FormField>
+    <section aria-labelledby="part-form-notes">
+      <h3 id="part-form-notes" class="text-sm font-semibold text-ink">Notes</h3>
+      <div class="mt-4 space-y-4">
+        <FormField v-slot="{ id }" label="Anything the next person should know">
+          <BaseTextarea :id="id" v-model="form.notes" :rows="3" />
+        </FormField>
 
-    <!-- Retiring, not deleting. History is denominated in this part, so the row stays and stops
-         being offered; the API records it as its own audit action for exactly that reason. -->
-    <div v-if="props.part" class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
-      <BaseCheckbox v-model="form.active">
-        <span class="text-sm">
-          <span class="font-medium text-ink">Still carried</span>
-          <span class="block text-xs text-ink-muted">
-            Clear this to retire the part. It keeps its history and stops being offered.
-          </span>
-        </span>
-      </BaseCheckbox>
-    </div>
-
-    <div class="flex justify-end gap-2 pt-2">
-      <BaseButton type="button" @click="emit('cancel')">Cancel</BaseButton>
-      <BaseButton type="submit" variant="primary" :disabled="props.submitting">
-        {{ props.part ? "Save part" : "Add part" }}
-      </BaseButton>
-    </div>
+        <!-- Retiring, not deleting. History is denominated in this part, so the row stays and stops
+             being offered; the API records it as its own audit action for exactly that reason. -->
+        <div v-if="props.part" class="rounded-control bg-surface-subtle px-3 py-2.5 ring-1 ring-edge">
+          <BaseCheckbox v-model="form.active">
+            <span class="text-sm">
+              <span class="font-medium text-ink">Still carried</span>
+              <span class="block text-xs text-ink-muted">
+                Clear this to retire the part. It keeps its history and stops being offered.
+              </span>
+            </span>
+          </BaseCheckbox>
+        </div>
+      </div>
+    </section>
   </form>
 </template>
