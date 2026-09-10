@@ -50,6 +50,11 @@ const MODULE_SECTIONS = {
   "posted-prices": "fuel", // carved out of fuel at P1.5; its tables' client policies were authored under the fuel section
   samsara: null,
   mcleod: null,
+  // A collector, and deny-all in both directions: the four 0334 tables carry no client policy
+  // and never will. The web reads resolved units and per-unit repair cost through the
+  // maintenance module's endpoints, so a role-named policy here would be a second, weaker
+  // door onto a credential and a watermark (D-FP1, D-SEP1).
+  fleetpal: null,
   psp: "safety",
   org: "admin",
   // `fleet` split into `roster` + `equipment` on 2026-08-30 (D-ROS12, DRIVER-ROSTER-PLAN R0a), so

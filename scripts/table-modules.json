@@ -189,6 +189,22 @@
       "module": "financial",
       "layer": "core"
     },
+    "fleetpal_credentials": {
+      "module": "fleetpal",
+      "layer": "infra"
+    },
+    "fleetpal_sync_state": {
+      "module": "fleetpal",
+      "layer": "infra"
+    },
+    "fleetpal_units": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_webhook_deliveries": {
+      "module": "fleetpal",
+      "layer": "infra"
+    },
     "fuel_cards": {
       "module": "fuel",
       "layer": "core"

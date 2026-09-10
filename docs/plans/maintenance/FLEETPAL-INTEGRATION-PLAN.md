@@ -422,7 +422,7 @@ neither list is not a gate.
 money/metre units in a comment citing the spec, and `lint:fleetpal-contract` fails when a field is
 deleted from a schema (proved by deleting one).
 
-### F2 — Schema: credentials, units, and the sync state — *next-numbered migration*
+### F2 — Schema: credentials, units, and the sync state — **DONE 2026-09-10 (migration 0334)** — *next-numbered migration*
 
 The smallest schema that lets F3's client be exercised end to end.
 
@@ -777,3 +777,60 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next: F2** — the schema (credentials, sync state, `fleetpal_units`, webhook deliveries). Still
   no credential needed.
+
+- **2026-09-10 · F2 DONE (migration 0334) — the collector's ground, and a cascade defect the matrix
+  caught before it shipped.** Four tables: `fleetpal_credentials` (the key **sealed** with
+  `secretBox`, org+purpose AAD — a step up from `efs_soap_credentials.soap_password` and
+  `integration_credentials.samsara_api_token`, both plaintext behind "service role only", and cheap
+  here because nothing legacy has to be migrated), `fleetpal_sync_state`, `fleetpal_units` and
+  `fleetpal_webhook_deliveries`. All four RLS-on with no client policy. `supabase/tests/
+  fleetpal-collector.test.mjs` — **66 assertions, 0 failed**.
+
+  **⚠ THE DEFECT THIS STEP'S MATRIX EXISTS FOR, found in the first draft.** `vehicle_id uuid
+  references vehicles(id) **on delete set null**` is the obvious action and it is wrong in the
+  direction that matters. `set null` performs an UPDATE as its FK action; that update is evaluated
+  against `fleetpal_units_match_agrees`; and `match_method='vin'` with no match attached violates
+  it — so the DELETE is refused with 23514 and **a vehicle becomes undeletable the moment a FleetPal
+  unit resolves to it**. A collector reaching back to constrain a core module is the exact inversion
+  D-FP2 exists to prevent, and **no gate sees it**: the migration is valid, the constraint is
+  correct, and the interaction only appears when something tries to delete a truck. It is the
+  `merge_driver` cascade trap arriving through a check constraint instead of a missing branch.
+
+  `on delete cascade` ships, and it is right on its own terms rather than merely working: a vehicle
+  with any history cannot be deleted at all (`fuel_transactions` and `financial_entries` are ON
+  DELETE RESTRICT), so a deletable one is a row created in error — and the vendor's unit still
+  exists, so the next sweep re-stages it as `unmatched` and it reappears in F5's worklist.
+  Self-healing, and it loses nothing that was true. The assertion pins the **property** (deleting a
+  truck must succeed, and leave nothing claiming to be matched to it) rather than the mechanism.
+
+  **IV012 arrives for the fourth time, and is CALLED rather than copied.** Neither `vehicles` nor
+  `trailers` carries an `(id, org_id)` unique constraint, so `references vehicles(id)` is satisfied
+  by another carrier's truck — here that would attribute one carrier's repair cost to another's
+  equipment. 0333's `inventory_holder_is_ours` already asks exactly this question, so
+  `guard_fleetpal_unit_match` calls it with `p_location => null` and `p_active => false`. The active
+  flag is off deliberately: **a repair from March belongs to the truck that was running in March**,
+  whatever its status today.
+
+  **A row may not say one thing and mean another.** `fleetpal_units_match_agrees` refuses
+  `unmatched` with a truck attached and refuses a named method with nothing attached — both parse,
+  both store, and both would make the unmatched count either under- or over-report. That count is
+  the one number whose job is to say how much of the fleet the report is missing (D-FP14).
+
+  **Four gates refused the first commit, each correctly.** `lint:rls` wanted `fleetpal` in
+  `MODULE_SECTIONS` (added as `null` — a collector with no client-facing section, so a role-named
+  policy here would need a waiver by construction); `lint:table-access` wanted a
+  `-- raw-access-waiver` because a `.sql` file has no module directory and the gate cannot tell that
+  the migration owns the table it references; `lint:matrix-exit` wanted `await db.close()` before
+  the RESULT line; and `lint:table-writers` wanted the regenerated `schema.generated.sql` committed
+  in the same PR. **154 tables, 167 functions, 6,379 lines** after this migration.
+
+  **Mutation proofs, three, each restored:** dropping the IV012 trigger failed all three cross-org
+  assertions; reverting to `on delete set null` failed all three delete assertions; neutering
+  `match_agrees` failed all three row-consistency assertions.
+  **Verified by:** `pnpm test` ("All suites passed"; `Matrix fleetpal-collector 66 passed, 0 failed`),
+  `pnpm typecheck`, `pnpm lint`, and `lint:migrations`, `lint:migration-ordering`, `lint:rls`,
+  `lint:table-writers`, `lint:table-modules`, `lint:table-access`, `lint:boundaries`, `lint:upserts`,
+  `lint:matrix-exit`, `lint:comment-claims`, `lint:fleetpal-contract`, `lint:secrets`.
+
+  **Next: F3** — the client (pagination, backoff, the vendor error vocabulary). Still no credential
+  needed; it is tested against fixtures until F4 replaces them with recorded ones.
