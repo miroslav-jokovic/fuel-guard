@@ -93,9 +93,37 @@ export const tmsLoadInputSchema = z.object({
   trailer_unit: z.string().trim().min(1).nullish(),
   equipment: z.string().max(60).nullish(),
   commodity: z.string().max(200).nullish(),
-  hazmat: z.boolean().default(false),
+  /**
+   * OPTIONAL, and deliberately WITHOUT a default (D-LM12, LIVE-MAP-PLAN.md).
+   *
+   * It used to be `.default(false)`, which made "the feed omitted this" indistinguishable from "the
+   * feed asserts this load is not placarded". That is safe only while the TMS actually knows. McLeod
+   * at this carrier does not: measured 2026-09-10, `orders.hazmat = 'Y'` on **1 of 134,996** orders,
+   * the `Z`-suffixed hazmat equipment codes appear on 3 of 11,880 2026 orders, and every other
+   * hazmat-bearing column in the database is empty. Hazmat is Silvicom's own determination, made by
+   * the versioned rules engine.
+   *
+   * `hazmat` is in `AMENDABLE_LOAD_FIELDS` and `tmsMayOverwrite` lets the feed write freely while a
+   * load is `draft` or `pending_approval` — so with a default, an agent that omits the field would
+   * send `false` and ERASE what our engine determined. Absent must not mean false. Silence from a
+   * feed that does not know is not an answer.
+   */
+  hazmat: z.boolean().optional(),
   total_miles: z.number().nonnegative().max(99_999).nullish(),
   notes: z.string().max(2000).nullish(),
+  /**
+   * The dispatcher who owns this load in the TMS — McLeod's `movement.dispatcher_user_id`.
+   *
+   * This is THE scope for a dispatcher's board (D-LM3). It is populated on 270,021 of 270,021
+   * delivered movements and 109 of 109 active ones, whereas the truck's own fleet code —
+   * `tractor.fleet_id`, which looks like the same answer and is dispatcher-NAMED (KANE, PETE, IVO) —
+   * agrees with it on only 60 of 107 active movements. A truck belongs to a fleet nominally; who is
+   * dispatching it today is a property of the load. An unassigned load (McLeod status `A`) correctly
+   * carries none.
+   */
+  dispatcher_external_id: z.string().trim().min(1).max(32).nullish(),
+  /** The dispatcher's display name, for labelling a load before an admin has mapped them to a user. */
+  dispatcher_name: z.string().trim().max(120).nullish(),
   /** The TMS's own status, when it has one — used to detect a cancellation upstream. */
   external_status: z.string().max(60).nullish(),
   canceled: z.boolean().default(false),
@@ -108,6 +136,30 @@ export const tmsLoadsPayloadSchema = z.object({
   loads: z.array(tmsLoadInputSchema).max(500),
 });
 export type TmsLoadsPayload = z.infer<typeof tmsLoadsPayloadSchema>;
+
+/**
+ * The TMS's dispatcher roster — who exists, not who owns what (that rides on the load above).
+ *
+ * Sent as its own payload because the mapping to a Silvicom user is an OFFICE act, not a feed act:
+ * McLeod has 15 active dispatcher accounts and Silvicom has 2 dispatcher memberships, so most of
+ * the people whose loads render on a board have no account yet, and their loads must still be
+ * labelled and grouped. `is_system` marks the accounts that are not people — `loadmaster` and
+ * `lmeadm`, both named "McLeod Administrator", which between them held 21 of 109 active loads on
+ * 2026-09-10. Those loads have no human dispatcher and the product must say so rather than invent
+ * one.
+ */
+export const tmsDispatcherInputSchema = z.object({
+  external_id: z.string().trim().min(1).max(32),
+  display_name: z.string().trim().max(120).nullish(),
+  is_system: z.boolean().default(false),
+  is_active: z.boolean().default(true),
+});
+export type TmsDispatcherInput = z.infer<typeof tmsDispatcherInputSchema>;
+
+export const tmsDispatchersPayloadSchema = z.object({
+  dispatchers: z.array(tmsDispatcherInputSchema).max(500),
+});
+export type TmsDispatchersPayload = z.infer<typeof tmsDispatchersPayloadSchema>;
 
 /** What the ingest did with each load — the agent logs this, and dispatch sees the amendments. */
 export const TMS_LOAD_OUTCOMES = ["created", "updated", "amended", "unchanged", "canceled", "skipped"] as const;

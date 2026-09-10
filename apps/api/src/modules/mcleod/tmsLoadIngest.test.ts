@@ -289,3 +289,47 @@ describe("a load from McLeod finds the records it names", () => {
     expect((loadWrites(writes)[0]!.payload as { driver_id: string }).driver_id).toBe("d-2");
   });
 });
+
+/**
+ * D-LM12. McLeod at this carrier does not know whether a load is hazmat — `orders.hazmat = 'Y'` on
+ * 1 of 134,996 rows — so our own rules engine decides it. `hazmat` is in `AMENDABLE_LOAD_FIELDS`
+ * and the feed may overwrite freely before approval, so the schema's old `.default(false)` turned
+ * every silent poll into an assertion that erased that decision.
+ */
+describe("hazmat, which the feed does not know", () => {
+  it("omits hazmat from the insert when the feed did not send it, so the column default applies", async () => {
+    const { admin, writes } = stub({});
+    const { hazmat: _absent, ...withoutHazmat } = load();
+    await ingestLoads(admin, "org", "mcleod", [withoutHazmat as TmsLoadInput]);
+    const inserted = loadWrites(writes).find((w) => w.op === "insert")?.payload as Record<string, unknown>;
+    // Present-but-null would fail the NOT NULL constraint; the key must be absent entirely.
+    expect(Object.hasOwn(inserted, "hazmat")).toBe(false);
+  });
+
+  it("does not erase a hazmat load our engine flagged, when the feed says nothing", async () => {
+    const { admin, writes } = stub({
+      existingLoads: [{ id: "L1", external_id: "MV-1001", status: "pending_approval", ref: "LD-20481", hazmat: true, equipment: null, commodity: null, driver_id: null, vehicle_id: null, trailer_id: null }],
+    });
+    const { hazmat: _absent, ...withoutHazmat } = load();
+    await ingestLoads(admin, "org", "mcleod", [withoutHazmat as TmsLoadInput]);
+    const patch = loadWrites(writes).find((w) => w.op === "update")?.payload as Record<string, unknown>;
+    expect(Object.hasOwn(patch, "hazmat")).toBe(false);
+  });
+
+  it("still writes hazmat when a feed genuinely asserts it", async () => {
+    const { admin, writes } = stub({});
+    await ingestLoads(admin, "org", "mcleod", [load({ hazmat: true })]);
+    const inserted = loadWrites(writes).find((w) => w.op === "insert")?.payload as { hazmat: unknown };
+    expect(inserted.hazmat).toBe(true);
+  });
+
+  it("does not raise an amendment on an approved load merely because the feed omitted hazmat", async () => {
+    const { admin, writes } = stub({
+      existingLoads: [{ id: "L1", external_id: "MV-1001", status: "approved", ref: "LD-20481", hazmat: true, equipment: null, commodity: null, driver_id: null, vehicle_id: null, trailer_id: null }],
+    });
+    const { hazmat: _absent, ...withoutHazmat } = load();
+    const res = await ingestLoads(admin, "org", "mcleod", [withoutHazmat as TmsLoadInput]);
+    expect(res.results[0]?.outcome).toBe("unchanged");
+    expect(events(writes).filter((e) => e.kind === "amended")).toHaveLength(0);
+  });
+});
