@@ -7,7 +7,10 @@ import {
   type PartMovementInput,
   type StockLineDto,
 } from "@silvicom/shared";
-import { AppBadge, AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, AppCard as BaseCard } from "@silvicom/ui";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import QuantityStepper from "@/components/ui/QuantityStepper.vue";
 import { useWakeLock } from "@/composables/useWakeLock";
 import {
@@ -17,20 +20,32 @@ import {
   useStockQuery,
 } from "@/features/inventory/useInventory";
 import { useWalk } from "@/features/inventory/useWalk";
-import WalkHeader from "@/features/inventory/WalkHeader.vue";
+import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 
 /**
- * A shelf walk, on a phone (INVENTORY-PLAN.md I5 PR 2b; D-INV17, D-INV19, D-INV20, D-INV21).
+ * A shelf walk (INVENTORY-PLAN.md I5 PR 2b; D-INV17 as amended 2026-09-10, D-INV19, D-INV20, D-INV21).
  *
  * ── IT WAS `pages/CountSessionPage.vue` UNTIL I9, AND MOVED WITHOUT CHANGING ──────────────────
  * D-INV19 says one session component serves parts and units, and I9's unit check is the second
  * body: a shelf count types a quantity per bin and a check taps Found or Not here per item, which
  * are two vocabularies and two ledgers. So the ROUTE component is still one — `CountSessionPage.vue`
  * reads the session's kind and hands off — and what the two share moved to `useWalk` and
- * `WalkHeader.vue`: the write-then-send order, the queue, the strip. Nothing about the walk below
- * changed in the move, and `CountSessionPage.test.ts`'s assertions are what say so.
+ * `WalkActions.vue`: the write-then-send order, the queue, the actions rendered where the hand is.
+ * Nothing about the walk below changed in the move, and `CountSessionPage.test.ts`'s assertions are
+ * what say so.
+ *
+ * ── IT IS A PAGE IN THE APP'S OWN SHELL, SINCE 2026-09-10 ─────────────────────────────────────
+ * D-INV17 gave the count a phone-only shell — no sidebar, a sticky header of its own, a bottom bar.
+ * The owner, opening a unit check from the Units list at a desk, found a screen that shared nothing
+ * with the page they had come from, and ruled that the walk follows the product's anatomy:
+ * `PageHeader` with the location as its title and the progress as its description, the queue's
+ * promise as a callout, the current bin as a card, the review as a table. What the phone needed
+ * from the old shell survives in `WalkActions.vue`: below `sm` the actions are a fixed bottom bar
+ * inside the safe area, and this root pads for it. The scan screen keeps its shell — a scanner in
+ * the other hand is a different posture from a shelf to count.
  *
  * ── THE ORDER OF OPERATIONS IS THE DESIGN ─────────────────────────────────────────────────────
  * Type a number → **write it to this phone** → try to send it → move on. Not "send it, and if that
@@ -214,14 +229,62 @@ const review = computed<ReviewRow[]>(() =>
 
 const TONE = { short: "danger", over: "warning", match: "success", uncounted: "neutral" } as const;
 
-/**
- * ⚠ ONE WORD, and that is not a style choice. `AppBadge` carries `capitalize`, which title-cases
- * every word inside it — so "Not counted" renders as "Not Counted" and breaks the sentence-case copy
- * rule at the pixel while reading correctly in the source. Measured on a real render at iPhone width,
- * 2026-09-09. A single word is immune, and "Uncounted" is the honest label anyway.
- */
+/** One word each: "Uncounted" is the honest label for a bin nobody walked, and a delta is its own word. */
 const badgeFor = (row: ReviewRow) =>
   row.state === "uncounted" ? "Uncounted" : row.delta === 0 ? "Match" : row.delta > 0 ? `+${row.delta}` : `${row.delta}`;
+
+/** The review as table rows: flat, because `DataTable` reads a cell by key. */
+const reviewRows = computed(() =>
+  review.value.map((row) => ({
+    key: keyOf(row.line),
+    partNumber: row.line.partNumber,
+    partDescription: row.line.partDescription,
+    counted: counted.value[keyOf(row.line)] ?? null,
+    expected: row.line.quantityOnHand,
+    state: row.state,
+    label: badgeFor(row),
+    recount: row.recount,
+  })),
+);
+
+const REVIEW_COLUMNS: DataTableColumn[] = [
+  { key: "partNumber", label: "Part number", cellClass: "font-medium text-ink", width: "md" },
+  { key: "partDescription", label: "Description", cellClass: "text-ink-secondary" },
+  { key: "counted", label: "Counted", numeric: true },
+  { key: "expected", label: "Expected", numeric: true },
+  { key: "state", label: "Result", width: "sm" },
+];
+
+/** "12 of 40 · 3 short · blind" — counts, never percent: "30 %" is not a number of bins. */
+const progress = computed(
+  () =>
+    `${doneCount.value} of ${lines.value.length} counted` +
+    (shortCount.value ? ` · ${shortCount.value} short` : "") +
+    (blindNow.value ? " · blind" : ""),
+);
+
+/**
+ * ⚠ Review is reachable BEFORE every line is counted, and that is not a convenience. "Uncounted
+ * bins are a choice" is only a choice if the close is reachable while some are uncounted — a bar
+ * that offered Review only once the walk was complete would make finishing early impossible, and
+ * the way out of that is somebody typing zeros they never counted. Found by
+ * `CountSessionPage.test.ts`'s review cases, which could not open the review at all.
+ */
+const actions = computed<WalkAction[]>(() => {
+  if (reviewing.value) {
+    return [
+      { label: "Keep counting", onClick: () => (reviewing.value = false) },
+      { label: "Close the count", primary: true, disabled: closeWalk.isPending.value, onClick: () => void close() },
+    ];
+  }
+  if (current.value) {
+    return [
+      { label: "Review", onClick: () => (reviewing.value = true) },
+      { label: "Record count", primary: true, disabled: draft.value === null, onClick: () => void commit() },
+    ];
+  }
+  return [{ label: "Review and close", primary: true, onClick: () => (reviewing.value = true) }];
+});
 
 async function close() {
   const uncounted = review.value.filter((r) => r.state === "uncounted").length;
@@ -243,92 +306,65 @@ async function close() {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div v-if="walkFailed" class="text-sm text-ink">That count is not on file.</div>
+  <div class="space-y-6 pb-20 sm:pb-0">
+    <AppCallout v-if="walkFailed" tone="danger">That count is not on file.</AppCallout>
 
     <template v-else-if="walk">
-      <!-- Counts, not percent. "12 of 40 · 3 short" is what somebody reads at a glance. -->
-      <WalkHeader
-        :title="walk.holderLabel ?? 'Count'"
-        :progress="`${doneCount} of ${lines.length}${shortCount ? ` · ${shortCount} short` : ''}${blindNow ? ' · blind' : ''}`"
-        :queued="queued"
-      />
+      <PageHeader :title="walk.holderLabel ?? 'Count'" :description="progress">
+        <template v-if="walk.status === 'open'" #actions>
+          <WalkActions :actions="actions" />
+        </template>
+      </PageHeader>
 
-      <div v-if="walkLoading || stockLoading" class="text-sm text-ink-tertiary">Loading the shelf…</div>
+      <!-- The promise the queue keeps. Shown only when something is actually waiting: a callout that
+           was always there would be furniture, and the one time it matters it would read as chrome. -->
+      <AppCallout v-if="queued > 0" tone="warning">
+        Saving on this phone — will sync when connected. {{ queued }} waiting.
+      </AppCallout>
 
-      <template v-else-if="!reviewing && current">
-        <BaseCard padding="md">
-          <p class="text-base font-semibold text-ink">{{ current.partNumber }}</p>
-          <p class="mt-0.5 text-sm text-ink-secondary">{{ current.partDescription }}</p>
-          <p v-if="!blindNow" class="mt-2 text-sm text-ink-tertiary">
-            Expected {{ current.quantityOnHand }}
-          </p>
-          <div class="mt-4">
-            <QuantityStepper v-model="draft" label="Counted" />
+      <p v-if="walkLoading || stockLoading" class="text-sm text-ink-tertiary">Loading the shelf…</p>
+
+      <BaseCard v-else-if="!reviewing && current">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <h2 class="text-sm font-semibold text-ink">Now counting</h2>
+            <p class="mt-2 text-base font-semibold text-ink">{{ current.partNumber }}</p>
+            <p class="text-sm text-ink-secondary">{{ current.partDescription }}</p>
+            <p v-if="!blindNow" class="mt-1 text-sm text-ink-tertiary">Expected {{ current.quantityOnHand }}</p>
           </div>
-        </BaseCard>
-
-        <div class="flex items-center justify-between">
-          <BaseButton v-if="blindNow && canReveal" variant="ghost" size="sm" @click="reveal">
-            Show expected
-          </BaseButton>
+          <span class="shrink-0 text-xs text-ink-tertiary">{{ remaining.length }} left</span>
+        </div>
+        <!-- Sized for a thumb, not for a desk: full width on a phone, a hand's width on a monitor. -->
+        <div class="mt-4 max-w-md">
+          <QuantityStepper v-model="draft" label="Counted" />
+        </div>
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <BaseButton v-if="blindNow && canReveal" variant="ghost" size="sm" @click="reveal">Show expected</BaseButton>
           <span v-else />
-          <BaseButton
-            v-if="remaining.length > 1"
-            variant="ghost"
-            size="sm"
-            @click="index = (index + 1) % remaining.length"
-          >
+          <BaseButton v-if="remaining.length > 1" variant="ghost" size="sm" @click="index = (index + 1) % remaining.length">
             Skip for now
           </BaseButton>
         </div>
-      </template>
+      </BaseCard>
 
-      <template v-else-if="!reviewing">
-        <BaseCard padding="md">
-          <p class="text-base font-semibold text-ink">Every line is counted</p>
-          <p class="mt-1 text-sm text-ink-tertiary">Review the variances and close the count.</p>
-        </BaseCard>
-      </template>
+      <AppCallout v-else-if="!reviewing" tone="success">
+        Every line is counted. Review the variances and close the count.
+      </AppCallout>
 
       <!-- Review: sorted by how far off it is, because that is the order somebody acts in. -->
-      <template v-else>
-        <ul class="divide-y divide-edge-subtle">
-          <li v-for="row in review" :key="`${row.line.partId}:${row.line.locationId}`" class="flex items-start justify-between gap-3 py-3">
-            <div class="min-w-0">
-              <p class="text-sm font-medium text-ink">{{ row.line.partNumber }}</p>
-              <p class="mt-0.5 truncate text-xs text-ink-tertiary">{{ row.line.partDescription }}</p>
-              <AppBadge v-if="row.recount" tone="caution" class="mt-1">Recount by someone else</AppBadge>
-            </div>
-            <AppBadge :tone="TONE[row.state]">{{ badgeFor(row) }}</AppBadge>
-          </li>
-        </ul>
-      </template>
-    </template>
+      <section v-else class="space-y-3">
+        <h2 class="text-sm font-semibold text-ink">Review</h2>
+        <DataTable :columns="REVIEW_COLUMNS" :rows="reviewRows" row-key="key">
+          <template #cell-state="{ row }">
+            <span class="inline-flex flex-wrap items-center gap-1">
+              <span :class="[BADGE_BASE, toneClass(TONE[row.state as keyof typeof TONE])]">{{ row.label }}</span>
+              <span v-if="row.recount" :class="[BADGE_BASE, toneClass('caution')]">Recount by someone else</span>
+            </span>
+          </template>
+        </DataTable>
+      </section>
 
-    <Teleport v-if="walk && walk.status === 'open'" to="#shop-action-bar">
-      <!--
-        ⚠ Review is reachable BEFORE every line is counted, and that is not a convenience.
-        "Uncounted bins are a choice" is only a choice if the close is reachable while some are
-        uncounted — a bar that offered Review only once the walk was complete would make finishing
-        early impossible, and the way out of that is somebody typing zeros they never counted.
-        Found by `CountSessionPage.test.ts`'s review cases, which could not open the review at all.
-      -->
-      <div v-if="!reviewing && current" class="flex gap-2">
-        <BaseButton block @click="reviewing = true">Review</BaseButton>
-        <BaseButton variant="primary" block :disabled="draft === null" @click="commit">
-          Record count
-        </BaseButton>
-      </div>
-      <BaseButton v-else-if="!reviewing" variant="primary" block @click="reviewing = true">
-        Review and close
-      </BaseButton>
-      <div v-else class="flex gap-2">
-        <BaseButton block @click="reviewing = false">Keep counting</BaseButton>
-        <BaseButton variant="primary" block :disabled="closeWalk.isPending.value" @click="close">
-          Close the count
-        </BaseButton>
-      </div>
-    </Teleport>
+      <WalkActions v-if="walk.status === 'open'" :actions="actions" bar />
+    </template>
   </div>
 </template>

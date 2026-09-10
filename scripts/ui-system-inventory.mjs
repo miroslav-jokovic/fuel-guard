@@ -136,14 +136,15 @@ function verifyAdoption() {
     // workspace for a header to sit in and no breadcrumb trail to walk. `LegalDocument.vue` gives
     // them their own heading, version and effective date — the chrome a document needs rather than
     // the chrome a data page needs.
-    // I5 PR 2b's shelf count, and the reason is the same one every entry above gives: `PageHeader`
-    // is the workspace's chrome — a breadcrumb trail, a route title, an actions row — and this page
-    // renders in `ShopLayout` (D-INV17), which has no workspace around it. It is a phone held in a
-    // bay: no sidebar, one in-content way back, and a sticky header of its own carrying the only
-    // thing a counter needs to see, which is how many bins are left and how many are short.
+    // I5 PR 2b's count and I9's check. The route component renders NO header of its own by design:
+    // it reads the session's kind and hands off to `ShelfWalk.vue` or `UnitCheck.vue`, and each of
+    // those renders the `PageHeader` — because only the body knows the title (the shelf, or "Truck
+    // 654") and the progress line that is its description. Since 2026-09-10 (D-INV17 as amended)
+    // the page renders in `AppShell` like every other desk page; the exemption is about WHICH file
+    // carries the header, not whether one is there.
     "CountSessionPage.vue",
-    // I6's scan surface — the second and, for now, last `ShopLayout` page, exempt for the same
-    // reason as the count directly above and for one more of its own. `PageHeader`'s actions row is
+    // I6's scan surface — the one `ShopLayout` page since the count left the shell, exempt because
+    // that shell has no workspace for a header and for one more reason of its own. `PageHeader`'s actions row is
     // where a page puts what it can do, and on this screen what can be done is decided by what was
     // just scanned: the verbs live on the result and change with every trigger pull. A fixed header
     // of actions would either be empty or be wrong.

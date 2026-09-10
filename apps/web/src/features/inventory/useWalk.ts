@@ -11,7 +11,7 @@ import { dequeue, enqueue, flush, kindOf, pending, type QueuedCount, type Queued
  * item: the walk is written to the phone before the network is touched, the queue is drained on
  * reconnect, the strip counts what is waiting, and closing is irreversible.
  *
- * So the shell is this composable plus `WalkHeader.vue`, and each body owns its own words. That is
+ * So the shell is this composable plus `WalkActions.vue`, and each body owns its own words. That is
  * D-INV19's "one session component serves parts and units" read as what it can actually mean:
  * `/shop/count/:sessionId` is one route and one component, and it hands off to the body that
  * matches the session's kind.
