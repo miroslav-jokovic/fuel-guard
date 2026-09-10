@@ -33,6 +33,23 @@ import {
  *      dock holding paperwork nobody can reconcile.
  */
 
+/**
+ * Strip a `hazmat` key that only exists because `withNulls` turned an absent value into null.
+ *
+ * `loads.hazmat` is NOT NULL DEFAULT false. Every other field in the insert payload is nullable, so
+ * collapsing undefined → null is right for them and wrong for this one — Postgres rejects the null
+ * instead of applying the default. Pinned by "omits hazmat from the insert when the feed did not
+ * send it, so the column default applies".
+ */
+function omitUndefinedHazmat(
+  row: Record<string, unknown>,
+  sent: boolean | undefined,
+): Record<string, unknown> {
+  if (sent !== undefined) return row;
+  const { hazmat: _dropped, ...rest } = row;
+  return rest;
+}
+
 export interface LoadIngestResult {
   received: number;
   created: number;
@@ -229,8 +246,14 @@ export async function ingestLoads(
 
     // `undefined` is preserved throughout: it means the feed said nothing about this field, which is
     // different from clearing it. Only the insert path collapses undefined to null (a new row has
-    // nothing to preserve). `hazmat` always has a value because the schema defaults it — a feed
-    // asserting "not placarded" is real information.
+    // nothing to preserve).
+    //
+    // ⚠ `hazmat` JOINED that rule on 2026-09-10 (D-LM12) and its schema default was removed with it.
+    // It used to always carry a value, so a feed omitting it asserted "not placarded" — which was
+    // only ever safe while the TMS knew. McLeod at this carrier does not (`orders.hazmat = 'Y'` on
+    // 1 of 134,996 rows), hazmat is decided by our own rules engine, and `hazmat` sits in
+    // `AMENDABLE_LOAD_FIELDS` where `tmsMayOverwrite` lets the feed write freely before approval.
+    // A default of `false` therefore erased our determination on the next poll.
     const fields = {
       ref: input.ref,
       equipment: input.equipment,
@@ -276,7 +299,11 @@ export async function ingestLoads(
         .from("loads")
         .insert({
           org_id: orgId,
-          ...withNulls(fields),
+          // `loads.hazmat` is NOT NULL DEFAULT false, so an absent value must be OMITTED and left to
+          // the column default — never collapsed to null the way the nullable fields beside it are.
+          // Without this, a feed that says nothing about hazmat (the normal case here, D-LM12) would
+          // fail the insert on the NOT NULL constraint rather than create the load.
+          ...omitUndefinedHazmat(withNulls(fields), fields.hazmat),
           source: "tms",
           provider,
           external_id: input.external_id,
