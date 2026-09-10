@@ -438,7 +438,7 @@ All RLS-enabled, no client policy. PGlite matrix per table.
 **Done when:** the matrices print `RESULT`, `schema.generated.sql` is committed, and
 `check-table-modules.mjs` passes with the new `fleetpal` module entries.
 
-### F3 — The client — *no migration*
+### F3 — The client — **DONE 2026-09-10** — *no migration*
 
 `modules/fleetpal/client.ts` (+ `errors.ts`, `units.ts` for conversions). No key needed: it is
 tested against fixtures hand-built from the spec's own examples.
@@ -868,3 +868,59 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next: F3** — the client (pagination, backoff, the vendor error vocabulary). Still no credential
   needed; it is tested against fixtures until F4 replaces them with recorded ones.
+
+- **2026-09-10 · F3 DONE — the client, and the four ways a sweep loses data without leaving a
+  trace.** `client.ts` + `errors.ts`, **21 assertions**, no credential used: the fetch is injected
+  and every fixture is shaped from the vendor's documented examples, so F4 is a substitution rather
+  than a rewrite.
+
+  **⚠ 1. `walk()` FOLLOWS `next` AND NEVER COMPUTES AN OFFSET.** The vendor orders results
+  newest-first and warns that rows added mid-walk shift items between pages, so `?offset=` both
+  SKIPS and REPEATS rows — silently, and in proportion to how busy the shop is, which is exactly
+  when the sweep matters. The assertion is on the REQUEST: the second url must be the one the vendor
+  handed back verbatim, and no url the client builds may carry an `offset`. It also refuses a `next`
+  it has already served and stops at a page guard — a proxy rewriting `next` to point at itself
+  would otherwise hold a scheduler tick open for ever, and the symptom would be "the sync stopped"
+  with nothing in the logs.
+
+  **⚠ 2. A 429 IS AN INSTRUCTION, NOT A FAILURE**, and `Retry-After` **wins over our own curve** —
+  they know their limiter. Everything else backs off exponentially from one second, bounded, because
+  an endpoint failing for ever is a configuration problem and looping on it is how one org's sweep
+  starves every other org's.
+
+  **⚠ 3. A 400 IS NEVER RETRIED.** The same body fails identically for ever; a retry loop on a
+  validation error is an outage that presents as a slow sync. Nor is a 401 or a 403: keys carry
+  their issuing user's role, so both are support tickets, and retrying them just spends the rate
+  limit. `retryable` is a property of the error kind, which is what made all three provable by
+  mutating one line.
+
+  **⚠ 4. EVERY REQUEST IS DEADLINED.** `fetch` without a signal waits for ever.
+
+  **A near-miss worth recording: `Number("Wed, 10 Sep 2026 …")` is `NaN`.** `Retry-After` is
+  documented as seconds but HTTP permits an HTTP-date and a proxy may send one, so a
+  `Number(raw) ?? 0` would have become a **zero-second wait** — hammering the very endpoint that had
+  just asked us to slow down, at the moment it was least able to take it. `parseRetryAfter` tries
+  seconds, then `Date.parse`, then falls back to a real 30-second pause, and the assertion covers
+  all three.
+
+  **Two other refusals, each because losing information is worse than failing.** A `4xx` body that
+  is not JSON — a proxy's HTML error page — must not throw while parsing, or a diagnosable 401
+  becomes an unexplained crash; the status survives. And a 200 whose body fails the contract is a
+  **validation** error rather than a retry: it is our bug or a vendor change, and neither is fixed
+  by asking again.
+
+  **Branch on `code`, never on `message`** — the vendor says codes are stable and messages "may be
+  reworded", so `FleetpalError.codes` carries the field-keyed codes and nothing reads a message
+  except to show a person. A test also pins that the api key never reaches `client.log`, which is
+  written to `fleetpal_sync_state.last_error` and read by an operator.
+
+  **Mutation proofs, four, each restored:** paging by offset failed *"follows `next` and never
+  computes an offset"*; making `rate_limit` non-retryable failed *"waits the time a 429 asks for,
+  then resumes"*; making everything but `auth` retryable failed *"never retries a 400 — the same
+  body fails identically for ever"*; and a zero fallback in `parseRetryAfter` failed *"does not turn
+  an unreadable Retry-After into a hot loop"*.
+  **Verified by:** all 38 `lint:*` gates by name, `pnpm test` ("All suites passed"), `pnpm typecheck`.
+
+  **F0–F3 are done and the credential is still not needed.** Next is **F4**, the live smoke, which
+  is the one step that is: enumerate `GET /v1/webhook-events`, record real fixtures over these, and
+  measure the match rate and the rate limit.
