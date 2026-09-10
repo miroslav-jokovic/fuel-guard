@@ -114,6 +114,10 @@ that repo is its *design*, and §2 names the three pieces worth taking.
 
 ## 2. Decisions
 
+*(Numbers are allocation order, not document order: D-LM12–14 were added on 2026-09-10 after the
+sandbox research and belong with the collector decisions they extend. A decision ID is a stable
+citation, so none was renumbered.)*
+
 ### The collector
 
 - **D-LM1 — positions come from the Samsara vehicle-stats cursor feed, at a 30-second tier.**
@@ -204,6 +208,53 @@ that repo is its *design*, and §2 names the three pieces worth taking.
   gl-accounts, ledger-totals, office-lines, deductions and driver-time, and **has no `loads.mjs`**.
   `tmsLoadInputSchema` already carries every field McLeod supplies except the dispatcher, so the
   contract change is two optional fields.
+
+- **D-LM12 — hazmat is Silvicom's determination and McLeod is never asked for it.** Measured
+  exhaustively on 2026-09-10 across every hazmat-bearing column in the database:
+  `orders.hazmat = 'Y'` on **1 of 134,996**; `orders.equipment_type_id` carrying a `Z` (hazmat) DAT
+  code on **3 of 11,880** 2026 orders; `edistatus.hazmat_code_id` blank on all 308,486;
+  `freight_group_item` (which holds `hazmat_class_code` and friends) **0 rows**; `route.hazmat_type`
+  is `'0'` on 5,402,250 of 5,402,295 and is a city-pair mileage cache with no load key anyway.
+  **McLeod at this carrier does not record whether a load is hazmat.** Pulling the field would
+  answer "not hazmat" for every hazmat load — worse than no answer.
+
+  That is fine, because hazmat already belongs to the `hazmat` module and its versioned rules
+  engine. What follows is the part that is **not** optional: `hazmat` is in
+  `AMENDABLE_LOAD_FIELDS`, and `tmsMayOverwrite` lets the feed write freely while a load is `draft`
+  or `pending_approval`. With `hazmat: z.boolean().default(false)`, an agent that omits the field
+  sends `false`, and a re-sync **erases a hazmat flag our own engine set**. So the schema changes to
+  `.optional()` with no default, and `ingestLoads` writes the column only when the key is present —
+  the same "absent ≠ false" third state the per-user surface reset already uses. Silence from a feed
+  that does not know is not the same as an answer.
+
+  What McLeod *does* know is the other half, and it is fully populated: **`driver.hazmat_certified`
+  is 1,311 `Y` / 159 `N` of 1,470 rows (100%)**, with `hazmat_date` on 1,336, and `equipment_type`
+  code `H` has `applies_to = 'D'`. McLeod models hazmat as a **driver qualification**, not a load
+  attribute. That belongs to the roster/DQF pull, not here — noted so it is not lost.
+
+- **D-LM13 — reefer comes from the assigned trailer, because it is nowhere on the load.** Twelve
+  candidate locations were checked (§3.8). `orders.equipment_type_id` — the DAT code that *would*
+  carry `R`/`RZ` — is populated on **0 orders in 2023, 0 in 2024 and 5 in 2026**, and is blank on
+  113 of the 114 orders on the live board. `orders.actual_reefer_profile`: 0 of 11,880.
+  `orders.setpoint_temp`: 0.6%. `callin.setpoint_temp` and `callin.temperature`: **NULL on all
+  162,511 rows** across 54,515 movements. `commodity`: blank on 81% of orders, and every commodity
+  actually used is `is_hazmat='N'` with no temperature.
+
+  The signal is the physical trailer: **`trailer.trailer_type`** (`V` van / `R` reefer), 91%
+  classified fleet-wide and **113/113 — 100% — on the live board** (96 `V`, 17 `R`), reached through
+  `continuity` type `L`. Our own roster cannot substitute: `trailers.trailer_type` is null on **186
+  of 245** rows — which this pull can also backfill. "Reefer hazmat" is therefore
+  `trailer_type='R'` **AND** our engine's hazmat flag; the DAT vocabulary does have `RZ` = *Reefer
+  Hazmat*, and this carrier has never used it.
+
+- **D-LM14 — the active set is bounded by scheduled date, not by status alone.** `movement.status`
+  `'P'` includes **movement 11787: dispatcher `lmeadm`, scheduled March 2015, still active,
+  4,182 days stale** — a phantom that would sit on a dispatcher's map forever. It is also the only
+  active movement with no `continuity` row, which is how it surfaced. Exactly one such row exists
+  today, and the worst *real* load is **≤7 days** past its last scheduled arrival, so a **30-day**
+  bound sits about four times above reality and three orders of magnitude below the phantom. Status
+  `'A'` (available, unassigned) is pulled too — 51 movements, 50 with stops and orders, scheduled
+  −8 to 0 days — and forms the map's unassigned bucket.
 
 ### The map
 
@@ -420,6 +471,44 @@ Nothing about the matching layer needs to be built.
 
 ---
 
+### 3.8 Where the load's equipment character is — and is not (sandbox, 2026-09-10)
+
+Searched exhaustively on `lme_analytics` (a copy of `lme`, so structure and multi-year population
+are identical), read-only, without touching the live server.
+
+| Candidate | Result |
+|---|---|
+| `orders.equipment_type_id` (the DAT code carrying `R`/`RZ`) | **0 in 2023 · 0 in 2024 · 5 in 2026**; blank on 113 of 114 live-board orders |
+| `orders.equipment_type_options` | blank on all 134,963 |
+| `orders.actual_reefer_profile` | **0** of 11,880 2026 orders |
+| `orders.setpoint_temp` / `temperature_min` / `temperature_max` | 855 of 134,996 (0.6%) |
+| `orders.commodity_id` → `commodity` (62-row lookup) | blank on 81% of 2026 orders; every used commodity is `is_hazmat='N'` with no temperature |
+| `callin.setpoint_temp` / `callin.temperature` | 162,511 rows over 54,515 movements — **NULL on every one** |
+| `freight_group` / `billing_freight_group` (108k) | LTL/interline structure (`bol_nbr`, `pro_nbr`, place uids) — no equipment |
+| `freight_group_item` (holds `hazmat_class_code` etc.) | **0 rows** |
+| `route.hazmat_type` | 5,402,250 of 5,402,295 are `'0'`; city-pair mileage cache, no load key |
+| `edistatus.hazmat_code_id` | blank on all 308,486 |
+| `orders.hazmat` | **1** of 134,996 |
+| **`trailer.trailer_type`** ✅ | `V` 267 · `R` 100 · blank 37 fleet-wide; **113/113 on the live board** |
+
+Also established: `equipment_type` is a full DAT lookup (`R` Reefer, **`RZ` Reefer Hazmat**, `FZ`
+Flatbed Hazmat — `Z` marks hazmat; `H` = Hazmat with `applies_to='D'`, a driver endorsement). The
+vocabulary exists; the carrier does not use it on loads.
+
+### 3.9 Load identity and shape (sandbox, 2026-09-10)
+
+| Fact | Value |
+|---|---|
+| Orders per active movement | **exactly 1** on all 111 — `movement_order` is 1:1 here |
+| `orders.id` uniqueness | unique within TMS (134,963 / 134,963); **16,948 collisions across companies** |
+| `orders.blnum` uniqueness | **2,020 collisions** in 134,315 — unusable as `ref` against `unique (org_id, ref)` |
+| `blnum` on the live board | 110 of 111 populated, 110 distinct |
+| Stop vocabulary | `PU` pickup · `SO` delivery · `VA`/`VP`/`SP` (7 of 247); status `A` pending / `D` done |
+| Status `A` movements | 51, of which 50 carry stops and orders; scheduled −8 to 0 days |
+| Status `P` staleness | −6 to **4,182** days — the tail is movement 11787 (March 2015), the only one over 7 days |
+| `driver.hazmat_certified` | **1,311 `Y` / 159 `N` of 1,470 (100%)**; `hazmat_date` on 1,336 |
+| `continuity` vs `equipment_item` | **disagree on the live board** — see D-LM12/§6 trap 16 |
+
 ## 4. Execution protocol — read before executing anything, every session
 
 ### 4.1 Resume ritual
@@ -499,12 +588,31 @@ and can therefore read `social_security_no` on 1,461 driver rows. That is fine f
 and is **not** the shape of a grant that should back a production feature. Separately, its access to
 `lme` appeared between 2026-08-26 and 2026-09-10 with no recorded change.
 
-**Ask IT for.** A login `silvicom_dispatch_ro` on the `APPNEW` instance with `SELECT` on exactly:
+**Ask IT for.** A login `silvicom_dispatch_ro` on the `APPNEW` instance with `SELECT` on exactly
+**seven tables**:
+
 `lme.dbo.movement`, `lme.dbo.movement_order`, `lme.dbo.continuity`, `lme.dbo.stop`,
-`lme.dbo.orders`, `lme.dbo.tractor`, `lme.dbo.trailer`, `lme.dbo.users`, `lme.dbo.company`, and a
-**column-scoped** grant on `lme.dbo.driver` covering
-`id, company_id, first_name, name, fleet_manager, tractor_id, status` only. No `mc_position`
-(D-LM2 does not read it). No write anywhere.
+`lme.dbo.orders`, `lme.dbo.trailer`, `lme.dbo.users`
+
+plus a **column-scoped** grant on `lme.dbo.driver` covering
+`id, company_id, first_name, name, fleet_manager, tractor_id, is_active, termination_date` — used
+only to name an unresolved driver code in the unmatched report. No write anywhere.
+
+**What is deliberately NOT in the list, and why** — the scope shrank when the owner ruled the live
+connection is for load data only (2026-09-10):
+
+- **`tractor`** — the unit number comes from `continuity`, and it resolves to `vehicles.unit_number`
+  at 108/108 on the live board. Nothing needs McLeod's tractor row.
+- **`mc_position`** — positions come from Samsara (D-LM2).
+- **`company`** — the sweep is single-company (`TMS`); the id is configuration, not a lookup.
+- ⚠ `lme.dbo.driver` has **no `status` column** — it is `is_active` + `termination_date`. An earlier
+  draft of this step named `status` and would have produced a grant script that fails.
+
+**Plus `VIEW CHANGE TRACKING`** on the tracked tables in that list — see
+`docs/plans/mcleod/MCLEOD-COLLECTOR-PLAN.md` MC0 for the exact grants and why. Change Tracking is
+**already enabled** on `lme` (91 tables, 10-day retention); the permission is the only missing
+piece, and without it the collector falls back to a trailing-window re-read that works but costs
+more. Note `continuity` is **not** change-tracked, so it needs `SELECT` only (D-MCC3).
 
 **Plus `VIEW CHANGE TRACKING`** on the tracked tables in that list — see
 `docs/plans/mcleod/MCLEOD-COLLECTOR-PLAN.md` MC0 for the exact grants and why. Change Tracking is
@@ -524,10 +632,22 @@ permanent.
 
 ---
 
-### LM1 · The agent learns to push loads and dispatchers — no schema, no API change
+### LM1 · The agent learns to push loads — no database schema change; one API behaviour fix
 
-**Files.** `packages/shared/src/tms.ts`, `tools/mcleod-agent/loads.mjs` (new),
-`tools/mcleod-agent/agent.mjs`, `tools/mcleod-agent/queries.mjs`.
+**Files.** `packages/shared/src/tms.ts`, `apps/api/src/modules/mcleod/tmsLoadIngest.ts`,
+`tools/mcleod-agent/loads.mjs` (new), `tools/mcleod-agent/agent.mjs`,
+`tools/mcleod-agent/queries.mjs`.
+
+⚠ **Loads only. The dispatcher *endpoint* does not exist until LM3.** The dispatcher fields ride
+along inside the load payload from this step (harmlessly stripped by the deployed API until LM3
+reads them), but `POST /api/tms/dispatchers` is created in LM3 — so `--loads` must not call it yet,
+or every run logs a 404. Gate the dispatcher push behind the same flag that LM3 turns on.
+
+⚠ **The hazmat fix ships here, both halves together.** The `.optional()` schema change (D-LM12) and
+the `ingestLoads` change that writes the column only when the key is *present* are one correctness
+unit: shipping the schema half alone would send `undefined` into the writer, whose serialisation is
+exactly the ambiguity the change exists to remove. Neither half touches the database schema, so this
+is not a migration-ordering concern.
 
 ⚠ **Change detection is not this step's to invent.** `docs/plans/mcleod/MCLEOD-COLLECTOR-PLAN.md`
 owns it (D-MCC1/D-MCC5): this step asks `changes.mjs` which movement ids moved and re-reads only
@@ -545,31 +665,84 @@ dispatcher_name: z.string().trim().max(120).nullish(),
 
 and a new `tmsDispatchersPayloadSchema` carrying `{ external_id, display_name, is_system, is_active }`.
 
-Both are additive and optional, so **this step ships before any migration and breaks nothing**:
-`tmsLoadInputSchema` is a plain `z.object`, which strips unknown keys, so the deployed API accepts
-the enriched payload and ignores the new fields until LM3 reads them.
+⚠ **`hazmat` must also change from `.default(false)` to `.optional()` — see D-LM12.** It is in
+`AMENDABLE_LOAD_FIELDS`, so as the schema stands today an omitted `hazmat` becomes `false` and a
+re-sync of an unapproved load would **erase our own hazmat determination**. Absent and false must
+become distinguishable, and `ingestLoads` must write the column only when the key is present.
 
-**The SQL** (validated 2026-09-10 against `lme`; returns the live board in ~0.3 s):
+Except for that one, the additions are optional, so **this step ships before any migration and
+breaks nothing**: `tmsLoadInputSchema` is a plain `z.object`, which strips unknown keys, so the
+deployed API accepts the enriched payload and ignores the new fields until LM3 reads them.
+
+**The SQL** (shape validated 2026-09-10; the board returns in ~0.3 s):
 
 ```sql
-SELECT m.id, m.status, LTRIM(RTRIM(m.dispatcher_user_id)) AS dispatcher_id, u.name AS dispatcher_name,
-       LTRIM(RTRIM(cd.equipment_id)) AS driver_code,
-       LTRIM(RTRIM(ct.equipment_id)) AS tractor_unit,
-       LTRIM(RTRIM(cl.equipment_id)) AS trailer_unit
+SELECT m.id                                  AS movement_id,
+       m.status                              AS movement_status,
+       LTRIM(RTRIM(m.dispatcher_user_id))    AS dispatcher_id,
+       u.name                                AS dispatcher_name,
+       o.id                                  AS order_id,      -- → ref (see below)
+       o.blnum                               AS bol_number,    -- customer's BOL; NOT unique
+       o.commodity                           AS commodity,
+       m.move_distance                       AS total_miles,
+       LTRIM(RTRIM(cd.equipment_id))         AS driver_code,
+       LTRIM(RTRIM(ct.equipment_id))         AS tractor_unit,
+       LTRIM(RTRIM(cl.equipment_id))         AS trailer_unit,
+       LTRIM(RTRIM(ISNULL(tr.trailer_type,''))) AS trailer_type  -- 'R' ⇒ reefer (D-LM13)
 FROM lme.dbo.movement m
-LEFT JOIN lme.dbo.users u  ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
-LEFT JOIN lme.dbo.continuity cd ON cd.movement_id=m.id AND cd.company_id=m.company_id AND cd.equipment_type_id='D'
-LEFT JOIN lme.dbo.continuity ct ON ct.movement_id=m.id AND ct.company_id=m.company_id AND ct.equipment_type_id='T'
-LEFT JOIN lme.dbo.continuity cl ON cl.movement_id=m.id AND cl.company_id=m.company_id AND cl.equipment_type_id='L'
-WHERE m.company_id = @company AND m.status IN ('P','A')
+LEFT JOIN lme.dbo.users u        ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
+LEFT JOIN lme.dbo.movement_order mo ON mo.movement_id = m.id AND mo.company_id = m.company_id
+LEFT JOIN lme.dbo.orders o       ON o.id = mo.order_id AND o.company_id = mo.company_id
+LEFT JOIN lme.dbo.continuity cd  ON cd.movement_id=m.id AND cd.company_id=m.company_id AND cd.equipment_type_id='D'
+LEFT JOIN lme.dbo.continuity ct  ON ct.movement_id=m.id AND ct.company_id=m.company_id AND ct.equipment_type_id='T'
+LEFT JOIN lme.dbo.continuity cl  ON cl.movement_id=m.id AND cl.company_id=m.company_id AND cl.equipment_type_id='L'
+LEFT JOIN lme.dbo.trailer tr     ON tr.id = cl.equipment_id AND tr.company_id = m.company_id
+WHERE m.company_id = @company
+  AND m.status IN ('P','A')
+  -- Staleness bound (D-LM14). Excludes exactly one row today: movement 11787, scheduled
+  -- March 2015, still 'P', 4,182 days stale. The worst REAL load is ≤7 days.
+  AND EXISTS (
+    SELECT 1 FROM lme.dbo.stop s
+    WHERE s.movement_id = m.id AND s.company_id = m.company_id
+      AND s.sched_arrive_early >= DATEADD(day, -30, GETDATE())
+  )
 ```
 
-Stops come from `lme.dbo.stop` by `movement_id`, ordered by `movement_sequence`, mapping
-`stop_type` → `kind`, `sched_arrive_early`/`sched_arrive_late` → `appointment_start`/`_end`, and
-**`lon = -longitude`** (§3.4 — every McLeod geo column at this carrier is west-absolute; a copied
-sign puts the whole fleet in Asia).
+**Field mapping — each measured, none assumed:**
 
-**Three traps this step must encode, each already paid for once:**
+| Contract field | Source | Measured |
+|---|---|---|
+| `external_id` | **`${company_id}:${movement.id}`** | `movement.id` collides 18,761× across companies |
+| `ref` | **`orders.id`** (e.g. `0134754`) | unique within TMS: 134,963 rows, 134,963 distinct. ⚠ collides 16,948× **across** companies — if a second McLeod company is ever swept into one org, `ref` must become composite too |
+| — | **NOT `blnum`** | 2,020 collisions in 134,315 orders (1.5%); `loads` has `unique index (org_id, ref)`, so blnum would fail the ingest on ~1.5% of loads. Carry it in `raw` and surface it as a searchable BOL |
+| `driver_employee_id` | `continuity` D | 109/109 → `drivers.mcleod_driver_id` |
+| `vehicle_unit` | `continuity` T | 108/108 → `vehicles.unit_number` |
+| `trailer_unit` | `continuity` L | 108/108 → `trailers.unit_number` (R-strip) |
+| `equipment` | `trailer.trailer_type` | 113/113 on the live board (96 `V`, 17 `R`) |
+| `commodity` | `orders.commodity` | present where coded; blank is honest |
+| `total_miles` | `movement.move_distance` | the only usable distance — `pay_distance`, `manifest_loaded_distance`, `manifest_empty_distance` sum to **exactly 0** across 21,547 movements |
+| `hazmat` | **omitted entirely** | D-LM12 — McLeod does not have it |
+| `external_status` | `movement.status` | `P` active · `A` available · `D` delivered · `V` void |
+| `stops` | `lme.dbo.stop` by `movement_id`, ordered by `movement_sequence` | 231/231 active stops geocoded |
+
+**Stop mapping.** `stop_type` → `kind`: **`PU` → `pickup`, `SO` → `dropoff`**. The live board also
+carries `VA`, `VP` and `SP` (7 of 247 stops on that snapshot); map those to `dropoff` and record the raw code in
+`notes`, rather than dropping the stop. `sched_arrive_early`/`sched_arrive_late` →
+`appointment_start`/`appointment_end`. `status` `D` = done, `A` = pending — so **picked up** is a
+`PU` stop with `status='D'` and **delivered** is the final `SO` stop with `status='D'`.
+`lat = latitude` but **`lon = -longitude`** (§3.4 — every McLeod geo column at this carrier is
+west-absolute; a copied sign puts the whole fleet in Asia).
+
+**Five traps this step must encode, each already paid for once:**
+
+- **Assignments come from `continuity`, NEVER from `equipment_group`/`equipment_item`.** The two
+  disagree on the live board — movement 290227 is `DKELLY`/tractor 702 in `continuity` and
+  `BMASSEY`/tractor 746 in `equipment_item`, and `continuity` is the one that matches reality
+  (`BMASSEY`/746 is on movement 290333). `continuity` is keyed **by movement** — "what is on this
+  load". `equipment_group.currentmovement_id` is keyed by the equipment **unit** — "what is this
+  tractor+driver doing now" — and the two drift. `equipment_item` looks like the more properly
+  normalised structure and even has marginally better coverage (111 active movements vs 110), which
+  is exactly why this is written down: it would win an argument in review and be wrong.
 
 - `external_id` is **`${company_id}:${movement.id}`**, never the bare id. `movement.id` repeats
   across companies — 18,761 collisions across TMS/TMS2/TMS3 — and the ingest is keyed
@@ -584,12 +757,19 @@ sign puts the whole fleet in Asia).
   (`inferDeadheadLegs` reported 133% deadhead against a true ~3.5%).
 
 **Done when.** `node agent.mjs --loads --dry-run` prints the active board with stops, dispatchers
-and 100% key resolution; `pnpm lint:agent-syntax` green; a unit test in
-`tools/mcleod-agent/*.test.mjs` pins the longitude negation and the composite `external_id`.
+and 100% key resolution; `pnpm lint:agent-syntax` green; and unit tests in
+`tools/mcleod-agent/*.test.mjs` pin — each **proven able to fail** by mutating the implementation —
+the longitude negation, the composite `external_id`, `ref` taking `orders.id` rather than `blnum`,
+the `PU`/`SO` → `pickup`/`dropoff` mapping, and the staleness bound rejecting movement 11787.
 
-**If P2 shows `dispatcher_user_id` below 100%:** push what is there. A load with no dispatcher is
+**If `dispatcher_user_id` is below 100%:** push what is there. A load with no dispatcher is
 representable (status `A` already has none) and lands in the map's unassigned bucket. Nothing in the
 design assumes totality — D-LM3 needs it to beat 56%, not to be perfect.
+
+**If a movement carries more than one order:** today every one of the 111 active movements carries
+**exactly one** (`movement_order` measured 1:1), so the `LEFT JOIN` above cannot fan out. If that
+ever changes, take the lowest `order_id` for `ref` and record the rest in `raw` — do **not** emit
+one load per order, because a driver drives the *movement*, and the board is a board of trips.
 
 ---
 
@@ -601,9 +781,14 @@ new *column* is not, and its first writer is LM3 in a separate merge.
 `vehicle_positions` — owner `samsara`, layer `raw`, PK `(org_id, vehicle_id)`, one row per vehicle:
 `lat`, `lng`, `heading_degrees`, `speed_mph`, `is_ecu_speed`, `formatted_location`, `sampled_at`,
 `received_at`, `source`. Constrained: lat ∈ [-90, 90], lng ∈ [-180, 180], heading ∈ [0, 360).
-RLS on, no client policy (API-only). Header comment states why this is not columns on `vehicles`:
-`roster` owns that table, and a per-tick UPDATE on a core roster row would contend with every other
-writer.
+FK `(vehicle_id, org_id)` → `vehicles(id, org_id)` — that composite unique already exists, so the
+org can't drift from the vehicle's. RLS on, no client policy (API-only). Header comment states why
+this is not columns on `vehicles`: `roster` owns that table, and a per-tick UPDATE on a core roster
+row would contend with every other writer.
+
+Both module names are verified against `scripts/table-modules.json`: `samsara` and `mcleod` are
+existing modules, and `samsara_feed_cursors` is already samsara-owned — so LM4's new cursor is a
+*row*, not a schema change.
 
 `tms_dispatchers` — owner `mcleod`, layer `raw`, PK `(org_id, provider, external_id)`:
 `display_name`, `user_id` **nullable** → `auth.users` ON DELETE SET NULL, `is_system`, `is_active`,
@@ -616,23 +801,31 @@ scoped board read.
 Plus: `scripts/table-modules.json` entries, a PGlite matrix per new table printing `RESULT`, and the
 regenerated `schema.generated.sql`.
 
-**Done when.** `pnpm lint:migrations lint:rls lint:table-writers lint:table-producers`,
-`pnpm test` (matrices included), and the migration applies cleanly on PGlite.
+**Done when.** `pnpm lint:migrations lint:rls lint:table-writers lint:table-producers
+lint:table-modules`, `node scripts/check-migration-ordering.mjs`, `pnpm test` (matrices included),
+and the migration applies cleanly on PGlite.
 
 ---
 
-### LM3 · The ingest writes the dispatcher — one merge after LM2
+### LM3 · The ingest writes the dispatcher — **one merge after LM2, not the same one**
+
+⚠ **This is the step the deploy window governs.** `loads.dispatcher_external_id` is a new *column*,
+and Railway serves a merge ~2m44s before `migrate.yml` applies its migration. A writer against a
+column that does not exist yet fails exactly as a reader does, so LM2 and LM3 **cannot** be the same
+PR (`lint:migration-ordering`, invoked directly at `ci.yml:111`/`:117`). The two new *tables* are
+exempt — it is the column that forces the split.
 
 **Files.** `apps/api/src/modules/mcleod/tmsLoadIngest.ts`,
 `apps/api/src/modules/mcleod/routes/tmsIngest.ts`, new `tmsDispatcherIngest.ts`.
 
 `ingestLoads` persists `dispatcher_external_id`. A new `POST /api/tms/dispatchers` upserts
 `tms_dispatchers` with a **complete** payload (`lint:upserts`), never touching `user_id` — the link
-is an office act (LM11), and a re-sync must not unlink a person an admin has mapped.
+is an office act (LM11), and a re-sync must not unlink a person an admin has mapped. This step also
+turns on the agent-side dispatcher push LM1 left flagged off.
 
 **Done when.** `expectOrgScoped` asserts both writers; a test proves a re-sync of an existing
-dispatcher leaves `user_id` untouched; `pnpm verify:live` shows the migration applied before this
-merge is served.
+dispatcher leaves `user_id` untouched; a test proves `is_system` is set for `loadmaster`/`lmeadm`;
+`pnpm verify:live` shows migration LM2 **applied** before this merge is served.
 
 ---
 
@@ -696,8 +889,15 @@ not a fake personal scope.
 Owns no table; reads `vehicle_positions`, `vehicles`, `drivers`, `loads`, `load_stops` and
 `tms_dispatchers` through their owners' interfaces (`lint:boundaries`, `lint:table-access`).
 
+⚠ **This step ships before the loads feed is on (LM12), and must be correct with zero loads.**
+`loads` has 0 rows in production today, so the first working version of this endpoint returns
+positions with **null load context** for every truck. That is the normal state for weeks, not an
+error: the map is useful showing where the fleet is before it can show what each truck is hauling.
+Load context, dispatcher labels and the `mine` scope all light up when LM12 turns the feed on.
+
 **Done when.** `expectOrgScoped`; a test proves an unmapped caller gets `all` plus the reason and a
-mapped caller gets only their own; response stays under the 500-line file budget by splitting the
+mapped caller gets only their own; **a test proves the endpoint returns every vehicle with a
+position when `loads` is empty**; response stays under the 500-line file budget by splitting the
 query builder out.
 
 ---
@@ -719,9 +919,12 @@ workaround with a delay fuse.
 ### LM8 · `LiveMapPanel.vue` and the `/live-map` surface
 
 GeoJSON source + symbol layer (D-LM7), `icon-rotate` from `heading_degrees`, colour by a `match` on
-state, native clustering. `requestAnimationFrame` interpolation between 20s polls, paused on hidden
-tab. Per-truck staleness (D-LM10). Filters: dispatcher, state, load status. Click → the load, the
-truck, the driver.
+state. `requestAnimationFrame` interpolation between 20s polls, paused on hidden tab. Per-truck
+staleness (D-LM10). Filters: dispatcher, state, load status. Click → the load, the truck, the driver.
+
+**Clustering is available but off by default at this fleet size.** A dispatcher wants to see each of
+~200 trucks, not a disc reading "47". Turn it on at a zoom/threshold where markers actually collide,
+not as a blanket setting — the GeoJSON layer makes it a one-line change either way (D-LM7).
 
 New surface `{ key: "dispatch.live-map", label: "Live map", path: "/live-map", group: "dispatch",
 gate: section("dispatch"), module: "dispatch" }`, its icon in the web's `Record<key, Icon>`, and the
@@ -747,24 +950,37 @@ self-test.
 
 ---
 
-### LM10 · Role defaults and per-user layout
+### LM10 · Role defaults and per-user layout — **this step carries a migration**
 
-Default layouts per `UserRole`; `dispatcher` gets `livemap` first. Per-user override stored with
-three states (`null` = inherit, D-DW3), on the per-user surface-reset pattern.
+Default layouts per `UserRole` live in code beside the catalogue (`defaultFor` + an order index,
+D-DW2) — no schema. The **per-user override does need a table**, and an earlier draft of this step
+omitted it:
+
+`user_dashboard_layout` — owner `org`, layer `core`, PK `(org_id, user_id)`: `widget_keys text[]`
+(the visible set, in order) and `updated_at`. A **missing row** means inherit the role default; an
+empty array means "I chose to hide everything". Those are the two states D-DW3 requires to be
+distinguishable, and storing the layout as a row-or-no-row gives them for free — no third sentinel
+value to remember. Modelled on `user_surface_access`, RLS on, and it is a **new table**, so its
+reader may ship in the same merge (the ordering rule exempts new tables).
 
 **Done when.** A dispatcher signing in sees the map first with no configuration; a user who hides a
-widget still inherits a later default change to the widgets they did not touch.
+widget still inherits a later default change to widgets they did not touch; deleting the row
+restores the role default exactly; `pnpm lint:rls lint:table-modules lint:table-producers` green and
+the PGlite matrix prints `RESULT`.
 
 ---
 
-### LM11 · Settings → link McLeod dispatchers to Silvicom users
+### LM11 · Link McLeod dispatchers to Silvicom users — **no new surface**
 
-An admin screen over `tms_dispatchers`: the observed dispatcher list with load counts, a user
-picker, and `is_system` rows (`loadmaster`, `lmeadm`) shown as system accounts that cannot be
-linked. Audited like every other membership-adjacent act.
+A card on the **existing** Settings → Integrations → McLeod page, not a new route: the observed
+dispatcher list with load counts, a user picker, and `is_system` rows (`loadmaster`, `lmeadm`) shown
+as system accounts that cannot be linked. Reusing that page means no `SURFACES` entry, no route
+snapshot change, and no new thing for an admin to find — it sits where the rest of the McLeod
+integration already lives. Audited like every other membership-adjacent act.
 
 **Done when.** Linking a dispatcher immediately narrows that user's `/api/livemap/positions` scope
-from `all` to `mine`; a matrix proves an unlinked dispatcher's loads still render for everyone else.
+from `all` to `mine`; a matrix proves an unlinked dispatcher's loads still render for everyone else;
+`pnpm lint:surfaces` green **without** a new key (the absence is the point).
 
 ---
 
@@ -777,11 +993,23 @@ from `all` to `mine`; a matrix proves an unlinked dispatcher's loads still rende
    turning it on is itself audited.
 3. Schedule the agent's `--loads` run (Windows Task Scheduler, on-prem), starting at 10 minutes and
    tightening only if the review queue proves it is worth it.
-4. Verify: `loads` row count, unmatched-key report empty, `tms_dispatchers` seeded with 15 rows, the
-   live map showing positions for the active board.
+4. Verify, each against a number rather than a glance:
+   - `loads` row count ≈ the active board (111 at the last measurement, and it moves);
+   - the unmatched-key report is **empty** — driver/tractor/trailer all resolved 100% on 2026-09-10,
+     so anything unmatched is a roster-link regression, not an expected miss;
+   - `tms_dispatchers` seeded with **15** rows, of which **2** (`loadmaster`, `lmeadm`) are
+     `is_system`;
+   - **movement 11787 is absent** — the March-2015 phantom is the staleness bound's test case
+     (D-LM14);
+   - reefer loads appear: ~17 of 113 on the live board carried `trailer_type='R'`;
+   - the live map shows positions for the active board.
 
 **If the first sweep reports unmatched keys:** they are reported, never dropped (`entityLookup.ts`).
 Fix the roster link and re-run — the ingest is idempotent on `(org_id, provider, external_id)`.
+
+**Out of scope, recorded so it is not lost:** `driver.hazmat_certified` is 100% populated in McLeod
+(1,311 `Y` / 159 `N` of 1,470, `hazmat_date` on 1,336). That belongs to the roster/DQF pull, not to
+this feature, and it is worth a step in its own plan once this connection exists (D-LM12).
 
 ---
 
@@ -810,6 +1038,21 @@ Fix the roster link and re-run — the ingest is idempotent on `(org_id, provide
     slower tier's deltas, silently.
 15. **Samsara's GPS ping drops to every 5 minutes when a vehicle is off or idle.** A single global
     staleness threshold marks the whole parked fleet `offline` overnight (D-LM9b).
+16. **`equipment_group`/`equipment_item` is NOT the assignment source — `continuity` is.** They
+    disagree on the live board, and `equipment_item` is the one that is wrong for this question. It
+    looks more normalised and has marginally better coverage, which is precisely why it is a trap.
+17. **`orders.blnum` is not unique** — 2,020 collisions. It cannot be `ref` against
+    `unique (org_id, ref)`. Use `orders.id`; carry the BOL in `raw`.
+18. **`orders.id` collides across companies** (16,948×), exactly like `movement.id`. Single-company
+    sweeps are safe; a second company makes `ref` composite too.
+19. **A McLeod column existing says nothing about this carrier using it.** `orders.hazmat` (1 row),
+    `orders.equipment_type_id` (5 rows in 2026), `callin.temperature` (0 of 162,511),
+    `freight_group_item` (0 rows), all four `ods_*` tables (0 rows), `pft_cost` (0 rows).
+    **Count rows before designing against a column.**
+20. **`movement.status='P'` is not "active"** — one row has been `P` since March 2015. Bound the set
+    by scheduled date (D-LM14).
+21. **`hazmat` is in `AMENDABLE_LOAD_FIELDS`.** A feed that sends `false` because it does not know
+    erases what our own engine determined. Absent must not mean false (D-LM12).
 
 ---
 

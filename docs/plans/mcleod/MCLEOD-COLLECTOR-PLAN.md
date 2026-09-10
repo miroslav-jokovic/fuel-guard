@@ -97,8 +97,22 @@ consumer and defers to it on everything below.
 
   So: **every collector reads `lme` in production; every collector is developed and rehearsed
   against `lme_analytics` first.** If a future reader wants a figure from the sandbox anyway, the
-  rule is that it must carry its restore timestamp — MC6 builds that check once so nobody has to
+  rule is that it must carry its restore timestamp — MC4 builds that check once so nobody has to
   remember it.
+
+  **This is not hypothetical — it is already costing data, and here is the measurement.** On
+  2026-09-10 the finance sweep ran at 13:01 CDT, 85 minutes after the sandbox was restored at 11:36:
+
+  | September 2026 billing rows | |
+  |---|---|
+  | our `mcleod_billing` staging | **504** |
+  | `lme_analytics` (sandbox) | **504** |
+  | `lme` (production) | **524** |
+
+  Production staging is **20 rows — 3.8% — short of September billing**, and the gap widens every
+  hour until the next restore. The failure mode is quiet by construction: the sweep re-runs a 75-day
+  window idempotently, so running it again *without* a restore rewrites the same stale figures and
+  looks exactly like a successful refresh. MC5 is the step that closes it.
 
 - **D-MCC3 — the two untracked tables are handled by bounded re-read, not by an ALTER on
   production.** `continuity` (the movement↔driver/tractor/trailer link), `users`, `mc_position` and
@@ -305,15 +319,30 @@ old) — not a production source (D-MCC2)`; running against `lme` prints nothing
 
 ---
 
-### MC5 · Move the finance sweep onto the detector — after the dispatch feed has run a week
+### MC5 · Point the finance sweep at `lme`, then move it onto the detector
 
-The finance tables are all CT-tracked (§3.1), so the existing 75-day trailing-window sweep can
-become a CT delta. **Deliberately sequenced after dispatch**: the finance path reconciles to the
-cent against a printed income statement, and it is not the place to debug a new change detector.
-Keep the window sweep as the reconciliation control until a week of agreement is measured.
+**Two changes, in this order, because they fail differently.**
 
-**Done when.** A CT-driven sweep and a window sweep produce identical staging rows for the same
-period, compared row by row, before the window sweep is retired.
+**MC5a — change the source.** The finance sweep reads `lme_analytics` today and is measurably
+behind (D-MCC2: 504 staging rows against production's 524 for September). Repoint it at `lme`. This
+is a configuration change plus the LM0-shaped grant extended to the finance tables — no new code,
+no new detector, and it is the change that makes the numbers true. Verify by re-running the same
+75-day window and confirming the September count moves from 504 to 524.
+
+**MC5b — change the mechanism, after the dispatch feed has run a week.** The finance tables are all
+CT-tracked (§3.1), so the trailing-window sweep can become a CT delta. **Deliberately sequenced
+last**: the finance path reconciles to the cent against a printed income statement, and it is not
+the place to debug a new change detector. Keep the window sweep as the reconciliation control until
+a week of agreement is measured.
+
+**Done when.** MC5a: the September billing count in staging equals `lme`'s, and MC4's warning line
+no longer fires for the finance run. MC5b: a CT-driven sweep and a window sweep produce identical
+staging rows for the same period, compared row by row, before the window sweep is retired.
+
+**If the finance grant on `lme` is refused:** keep the sandbox source and **automate the restore
+immediately before each sweep**, so the freeze window is minutes rather than weeks. That is the
+owner's original design and it works — it just has to be scheduled rather than manual, and MC4's
+warning line has to stay switched on.
 
 ---
 
@@ -329,13 +358,29 @@ period, compared row by row, before the window sweep is retired.
 5. **RCSI is OFF.** A long read blocks McLeod's writers. Short, keyed, timed queries — never
    `NOLOCK` as a substitute for keeping them short.
 6. **`MAX(date)` is never a watermark** — the sentinel is 2215-03-12.
-7. **`movement.id` repeats across companies** — 18,761 collisions. Every key is composite.
+7. **`movement.id` repeats across companies** — 18,761 collisions. Every key is composite. So does
+   **`orders.id`** (16,948) and **`orders.blnum`** is not unique at all (2,020 collisions).
 8. **A restore of `lme` into `lme_analytics` carries CT state with it**, so a watermark taken from
    the sandbox is meaningless against production and vice versa. Watermarks are stored per database.
 
 ---
 
-## 6. Progress log
+## 6. Scope — which tables each feed reads
+
+Verified against `scripts/table-modules.json` and the live schema, 2026-09-10.
+
+| Feed | McLeod tables (read-only) | CT? |
+|---|---|---|
+| dispatch | `movement`, `movement_order`, `continuity`, `stop`, `orders`, `trailer`, `users` | all but `continuity` and `users` |
+| roster | `driver`, `tractor`, `trailer`, `users` | `driver`, `tractor`, `trailer` |
+| finance | `gl_ledger(_hist)`, `gl_account`, `drs_settle_hist`, `drs_deduct_hist`, `billing_history`, `journal_*`, `voucher*`, `settlement`, `open_item`, `vendor`, `payee` | all |
+| reference | `location`, `customer`, `commodity`, `city`, `gl_account` | all |
+
+⚠ **`continuity` is the assignment source and `equipment_group`/`equipment_item` is not** — they
+disagree on the live board and `continuity` is the correct one. See `LIVE-MAP-PLAN.md` §6 trap 16;
+it is repeated there because that is where the SQL lives.
+
+## 7. Progress log
 
 - 2026-09-10 — plan written. §3 measured against live `lme`. Change Tracking found already enabled
   on 91 tables (10-day retention, 2.3 M versions retained); the only gap is the `VIEW CHANGE
