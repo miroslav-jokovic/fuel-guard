@@ -34,6 +34,7 @@ import type { RouteFuelSettings } from "./types.js";
 import type { TruckFuelState } from "./truckState.js";
 import { isPreferred, isEmergencyOnly, isPriced, cheapest, nearest } from "./stationSelect.js";
 import { chooseFill } from "./fillPolicy.js";
+import type { PlanFlag } from "./planFlags.js";
 
 const H = 3_600_000;
 const DRIVE_RESET_MS = 11 * H; // fresh drive clock after a 10-hour reset
@@ -105,8 +106,6 @@ export interface PlannedStop {
   driveHoursLeftOnArrival: number | null;
   /** This fuel stop is the mandated top-off just before entering an avoided state (e.g. the California border). */
   isBorderTopOff: boolean;
-  /** Always false since D-FP3 retired min-drawdown; the field leaves with the API view in FP7. */
-  isMinFill: boolean;
   /** An enabled but non-preferred brand, chosen only because no preferred station was reachable (a network
    *  coverage gap). NOT an emergency, and never an avoided brand — those are emergency-only (D-FP4). */
   isOffNetwork: boolean;
@@ -119,8 +118,7 @@ export interface FuelPlan {
   totalGallons: number;
   totalCost: number | null;
   arrivalFuelPct: number | null;
-  savingsVsNaive: number | null;
-  flags: string[];
+  flags: PlanFlag[];
 }
 
 const EPS = 1e-6;
@@ -133,22 +131,21 @@ interface GreedyResult {
   usedAvoidedState: boolean;
   usedReset: boolean;
   usedRestart: boolean;
-  hosLimited: boolean;
   infeasible: boolean;
   droppedNoPrice: boolean;
   usedBorderTopOff: boolean;
-  usedMinFill: boolean;
   usedEstimatedPrice: boolean;
   usedOffNetwork: boolean;
 }
 
 /**
- * One greedy pass by RANGE. `select` chooses among reachable preferred stations ("smart" = cheapest, "naive" =
- * nearest) so the same safety machinery produces both the plan and its savings baseline. Hours of service are
- * carried along as a clock the walk advances (breaks, resets, restart applied silently) and consulted only to
- * tag the stops the range placed.
+ * One greedy pass by RANGE: the cheapest reachable preferred station inside the refuel band. Hours of service
+ * are carried along as a clock the walk advances (breaks, resets, restart applied silently) and consulted only
+ * to tag the stops the range placed. The "naive nearest-station" baseline that once ran beside this for a
+ * savings figure is gone (D-FP7): it was the same walk with a different picker, and its number was null on
+ * both plans production ever made.
  */
-function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => SolverStation): GreedyResult {
+function runGreedy(input: FuelPlanInput): GreedyResult {
   const { distanceToGoMiles: dest, truck, settings: cfg } = input;
   const avgSpeed = input.avgSpeedMph ?? 55;
   const gpm = galPerMile(truck.burn, avgSpeed);
@@ -187,8 +184,8 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   let usedOffNetwork = false;
 
   const done = (reaches: boolean, infeasible: boolean, arrivalGal: number | null): GreedyResult => ({
-    stops, reaches, arrivalGal, usedEmergency, usedAvoidedState, usedReset, usedRestart, hosLimited: usedReset || usedRestart,
-    infeasible, droppedNoPrice, usedBorderTopOff, usedMinFill: false, usedEstimatedPrice, usedOffNetwork,
+    stops, reaches, arrivalGal, usedEmergency, usedAvoidedState, usedReset, usedRestart,
+    infeasible, droppedNoPrice, usedBorderTopOff, usedEstimatedPrice, usedOffNetwork,
   });
 
   // The driver's rest, taken wherever the clocks say — never a stop. A spent cycle means a 34-hour restart
@@ -236,7 +233,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       milesAhead: pick.milesAhead, station: pick, arrivalGal, fillGal: fill, netPrice: pick.netPrice,
       cost: pick.netPrice != null ? pick.netPrice * fill : null, isEmergency: emergency, kind: "fuel",
       coversBreak, isOvernight: dayEndsHere, driveHoursLeftOnArrival: driveLeftOnArrival,
-      isBorderTopOff: borderTopOff, isMinFill: false, isOffNetwork: offNetwork,
+      isBorderTopOff: borderTopOff, isOffNetwork: offNetwork,
     });
     used.add(pick.id);
     pos = pick.milesAhead;
@@ -251,7 +248,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   const pickStop = (opts: SolverStation[]): { pick: SolverStation; emergency: boolean; offNetwork: boolean } => {
     if (opts.some((x) => !isEmergencyOnly(x, cfg) && !isPriced(x))) droppedNoPrice = true;
     const preferredPriced = opts.filter((x) => isPreferred(x, cfg) && isPriced(x));
-    if (preferredPriced.length > 0) return { pick: select(preferredPriced), emergency: false, offNetwork: false };
+    if (preferredPriced.length > 0) return { pick: cheapest(preferredPriced), emergency: false, offNetwork: false };
     const curPct = tankCap > 0 ? (gal / tankCap) * 100 : 0;
     if (curPct <= cfg.criticalFuelPct + EPS) {
       usedEmergency = true;
@@ -260,7 +257,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     const otherPriced = opts.filter((x) => !isEmergencyOnly(x, cfg) && isPriced(x));
     if (otherPriced.length > 0) {
       usedOffNetwork = true;
-      return { pick: select(otherPriced), emergency: false, offNetwork: true };
+      return { pick: cheapest(otherPriced), emergency: false, offNetwork: true };
     }
     const unpricedPreferred = opts.filter((x) => isPreferred(x, cfg));
     if (unpricedPreferred.length > 0) return { pick: nearest(unpricedPreferred), emergency: false, offNetwork: false };
@@ -340,7 +337,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     }
     const inBand = reachablePreferred.filter((x) => (x.milesAhead - pos) + x.detourMiles >= fuelMi - cfg.refuelBandMiles - EPS);
     const pick = inBand.length > 0
-      ? select(inBand)
+      ? cheapest(inBand)
       : reachablePreferred.reduce((a, b) => ((a.milesAhead + a.detourMiles) >= (b.milesAhead + b.detourMiles) ? a : b));
     applyFuelStop(pick, false);
   }
@@ -350,43 +347,36 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
 const sumCost = (stops: PlannedStop[]): number | null =>
   stops.some((s) => s.kind === "fuel" && s.cost == null) ? null : stops.reduce((t, s) => t + (s.cost ?? 0), 0);
 
-/** Plan the fuel + HOS stops for one route. Runs the safe greedy, plus a naive nearest-station baseline for savings. */
+/** Plan the fuel stops for one route: the range walk, plus the flags a dispatcher reads (typed, D-FP7). */
 export function planFuelStops(input: FuelPlanInput): FuelPlan {
-  const flags: string[] = [];
+  const flags: PlanFlag[] = [];
   if (input.truck.gallonsOnHand == null) {
-    return { status: "infeasible", stops: [], reachesDestination: false, totalGallons: 0, totalCost: null, arrivalFuelPct: null, savingsVsNaive: null, flags: ["no_fuel_reading_cannot_plan", ...input.truck.flags] };
+    return { status: "infeasible", stops: [], reachesDestination: false, totalGallons: 0, totalCost: null, arrivalFuelPct: null, flags: ["no_fuel_reading_cannot_plan", ...input.truck.flags] };
   }
   if (input.truck.belowReserve) flags.push("starts_below_reserve");
 
-  const smart = runGreedy(input, cheapest);
-  if (smart.droppedNoPrice) flags.push("some_stations_missing_price");
-  if (smart.usedEmergency) flags.push("emergency_fill_used");
-  if (smart.usedOffNetwork) flags.push("off_network_stop_used");
-  if (smart.usedAvoidedState) flags.push("avoided_state_fill_used");
-  if (smart.usedBorderTopOff) flags.push("topped_off_before_avoided_state");
-  if (smart.usedEstimatedPrice) flags.push("estimated_prices_used");
-  if (smart.usedReset) flags.push("overnight_reset_required");
-  if (smart.usedRestart) flags.push("cycle_restart_required");
-  if (smart.hosLimited) flags.push("hos_limited");
+  const walk = runGreedy(input);
+  if (walk.droppedNoPrice) flags.push("some_stations_missing_price");
+  if (walk.usedEmergency) flags.push("emergency_fill_used");
+  if (walk.usedOffNetwork) flags.push("off_network_stop_used");
+  if (walk.usedAvoidedState) flags.push("avoided_state_fill_used");
+  if (walk.usedBorderTopOff) flags.push("topped_off_before_avoided_state");
+  if (walk.usedEstimatedPrice) flags.push("estimated_prices_used");
+  if (walk.usedReset) flags.push("overnight_reset_required");
+  if (walk.usedRestart) flags.push("cycle_restart_required");
 
-  if (smart.infeasible) {
-    return { status: "infeasible", stops: smart.stops, reachesDestination: false, totalGallons: smart.stops.reduce((t, s) => t + s.fillGal, 0), totalCost: sumCost(smart.stops), arrivalFuelPct: null, savingsVsNaive: null, flags: ["INFEASIBLE_no_reachable_fuel", ...flags, ...input.truck.flags] };
+  const totalGallons = walk.stops.reduce((t, s) => t + s.fillGal, 0);
+  if (walk.infeasible) {
+    return { status: "infeasible", stops: walk.stops, reachesDestination: false, totalGallons, totalCost: sumCost(walk.stops), arrivalFuelPct: null, flags: ["INFEASIBLE_no_reachable_fuel", ...flags, ...input.truck.flags] };
   }
-
-  const naive = runGreedy(input, nearest);
-  const smartCost = sumCost(smart.stops);
-  const naiveCost = sumCost(naive.stops);
-  const savings = smartCost != null && naiveCost != null && !naive.infeasible ? Math.max(0, naiveCost - smartCost) : null;
-  const arrivalPct = smart.arrivalGal != null ? (smart.arrivalGal / input.truck.effectiveTankCapacityGal) * 100 : null;
-
+  const arrivalPct = walk.arrivalGal != null ? (walk.arrivalGal / input.truck.effectiveTankCapacityGal) * 100 : null;
   return {
-    status: smart.usedEmergency ? "emergency_used" : "ok",
-    stops: smart.stops,
-    reachesDestination: smart.reaches,
-    totalGallons: smart.stops.reduce((t, s) => t + s.fillGal, 0),
-    totalCost: smartCost,
+    status: walk.usedEmergency ? "emergency_used" : "ok",
+    stops: walk.stops,
+    reachesDestination: walk.reaches,
+    totalGallons,
+    totalCost: sumCost(walk.stops),
     arrivalFuelPct: arrivalPct != null ? Math.round(arrivalPct * 10) / 10 : null,
-    savingsVsNaive: savings != null ? Math.round(savings * 100) / 100 : null,
     flags: [...flags, ...input.truck.flags],
   };
 }
