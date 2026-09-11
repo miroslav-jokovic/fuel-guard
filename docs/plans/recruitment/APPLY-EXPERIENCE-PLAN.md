@@ -473,4 +473,22 @@ adjacent table rows conflict every time.
   One URL per slot at most — retaking replaces and revokes, so the rule the existing revoke stated
   ("a phone should not hold four hundred-kilobyte blobs alive because a licence was re-taken four
   times") still holds. Both leak directions are mutation-proved.
+- 2026-09-11 — **F1 + F2 MERGED** (#746). The forms control everywhere, and a job panel that asks
+  for three things.
+- 2026-09-11 — **F3 MEASURED CLEAN — no fixes were needed.** All nine screens plus the job panel,
+  at 320 and 390, against the built bundle: no horizontal overflow, no clipped text, and no
+  colliding visible text. ⚠ Recorded with the METHOD, because the first two runs of the detector
+  both lied and a future reader should not trust a bare "it's fine":
+  · comparing every element on the page flagged the drawer's contents against the page behind the
+    scrim — an overlay is SUPPOSED to sit on top, so elements in different positioned contexts must
+    not be compared;
+  · and it then flagged the panel's own labels against its footer, because an element scrolled out
+    of an `overflow-y-auto` container still reports a rect that intersects its siblings. Anything
+    clipped by a scrolling ancestor has to be excluded before the comparison means anything.
+  Both traps make a *dirty* result out of a clean page, which is the safe direction — but a third
+  version of the same mistake could as easily hide a real one.
+- 2026-09-11 — **F4 begun.** 0336 adds the five review/approval columns and nothing reads them yet:
+  a column and its first reader ship in two merges, because Railway serves a merge before
+  `migrate.yml` applies its schema. `application_edits` is deliberately NOT in this migration — a
+  table with no writer fails `lint:table-producers`, and there is no code here to write it.
 
