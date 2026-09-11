@@ -4,10 +4,10 @@ import {
   AppCombobox as ComboSelect,
   AppInput as BaseInput,
   AppDateField,
-  AppFormField as FormField,
 } from "@silvicom/ui";
 import { jurisdictionOptions } from "@silvicom/shared";
 import { emptyLicence, type ApplicationDraft } from "@/features/apply/draft";
+import ApplyField from "@/features/apply/ApplyField.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -41,18 +41,18 @@ const JURISDICTIONS = jurisdictionOptions();
     <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
-      <FormField v-slot="{ id }" :label="copy.number">
-        <BaseInput :id="id" v-model="draft.cdl_number" />
-      </FormField>
-      <FormField v-slot="{ id }" :label="copy.state" :hint="copy.stateHint">
-        <ComboSelect :id="id" v-model="draft.cdl_state" :options="JURISDICTIONS" />
-      </FormField>
-      <FormField v-slot="{ id }" :label="copy.class" :hint="copy.optional">
-        <BaseInput :id="id" v-model="draft.cdl_class" maxlength="10" />
-      </FormField>
-      <FormField v-slot="{ id }" :label="copy.expires">
-        <AppDateField :id="id" v-model="draft.cdl_expires_at" />
-      </FormField>
+      <ApplyField v-slot="f" :path="['cdl_number']" :label="copy.number">
+        <BaseInput v-bind="f" v-model="draft.cdl_number" />
+      </ApplyField>
+      <ApplyField v-slot="f" :path="['cdl_state']" :label="copy.state" :hint="copy.stateHint">
+        <ComboSelect v-bind="f" v-model="draft.cdl_state" :options="JURISDICTIONS" />
+      </ApplyField>
+      <ApplyField v-slot="f" :path="['cdl_class']" :label="copy.class" :hint="copy.optional">
+        <BaseInput v-bind="f" v-model="draft.cdl_class" maxlength="10" />
+      </ApplyField>
+      <ApplyField v-slot="f" :path="['cdl_expires_at']" :label="copy.expires">
+        <AppDateField v-bind="f" v-model="draft.cdl_expires_at" />
+      </ApplyField>
     </div>
 
     <div class="space-y-3">
@@ -65,20 +65,20 @@ const JURISDICTIONS = jurisdictionOptions();
         class="space-y-4 rounded-surface bg-surface-muted p-4"
       >
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" :label="copy.issuingAuthority" :hint="copy.issuingAuthorityHint">
-            <BaseInput :id="id" v-model="licence.issuing_authority" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.otherNumber">
-            <BaseInput :id="id" v-model="licence.number" />
-          </FormField>
+          <ApplyField v-slot="f" :path="['additional_licences', i, 'issuing_authority']" :label="copy.issuingAuthority" :hint="copy.issuingAuthorityHint">
+            <BaseInput v-bind="f" v-model="licence.issuing_authority" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['additional_licences', i, 'number']" :label="copy.otherNumber">
+            <BaseInput v-bind="f" v-model="licence.number" />
+          </ApplyField>
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" :label="copy.expires">
-            <AppDateField :id="id" v-model="licence.expires_at" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.otherKind" :hint="copy.otherKindHint">
-            <BaseInput :id="id" v-model="licence.kind" placeholder="Optional" />
-          </FormField>
+          <ApplyField v-slot="f" :path="['additional_licences', i, 'expires_at']" :label="copy.expires">
+            <AppDateField v-bind="f" v-model="licence.expires_at" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['additional_licences', i, 'kind']" :label="copy.otherKind" :hint="copy.otherKindHint">
+            <BaseInput v-bind="f" v-model="licence.kind" placeholder="Optional" />
+          </ApplyField>
         </div>
         <div class="flex justify-end">
           <BaseButton variant="ghost" size="sm" @click="draft.additional_licences.splice(i, 1)">

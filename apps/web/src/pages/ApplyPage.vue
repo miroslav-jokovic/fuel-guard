@@ -30,7 +30,8 @@ import {
   useSubmitApplication,
 } from "@/features/apply/useApplication";
 import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
-import { issuesFromParse, useApplicationWizard } from "@/features/apply/useApplicationWizard";
+import { issuesFromParse, useApplicationWizard, type SectionIssue } from "@/features/apply/useApplicationWizard";
+import { provideApplyIssues } from "@/features/apply/issues";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -107,6 +108,26 @@ const autosaveEnabled = ref(false);
 const furthestSection = ref<string | null>(null);
 
 const wizard = useApplicationWizard(draft, furthestSection);
+/**
+ * Every control on every screen reads this to mark itself (D-AX3). Provided once here rather than
+ * threaded through seven components as a prop — see `issues.ts` for why.
+ */
+provideApplyIssues(wizard.issues);
+
+/**
+ * Take the driver to the field an entry in the summary is about.
+ *
+ * The summary at the Send button can name a field on any of the nine screens, so this may have to
+ * change screen first — and `keepIssues` is what stops the list it was clicked from disappearing on
+ * the way. `nextTick` because the control does not exist in the DOM until the new screen renders.
+ */
+async function showIssue(issue: SectionIssue): Promise<void> {
+  if (issue.section && issue.section !== wizard.section.value) {
+    wizard.goTo(issue.section, true);
+    await nextTick();
+  }
+  wizard.focusIssue(issue);
+}
 
 watch(
   [() => invitation.data.value, released],
@@ -225,9 +246,12 @@ async function send(): Promise<void> {
   // The last screen being valid is not the same thing as the application being complete, and the
   // driver is one tap from certifying that it is. Each issue is attributed to the screen that owns
   // the field, so "employers" reads as somewhere to go back to.
-  const parsed = driverApplicationSchema.safeParse(toApplication(draft));
+  const candidate = toApplication(draft);
+  const parsed = driverApplicationSchema.safeParse(candidate);
   if (!parsed.success) {
-    wizard.setIssues(issuesFromParse(parsed.error.issues));
+    // The candidate travels with the issues: `messageFor` needs the VALUE that failed to tell an
+    // empty box ("This is needed") from a two-character one ("This is too short").
+    wizard.setIssues(issuesFromParse(parsed.error.issues, candidate));
     globalThis.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
@@ -346,10 +370,21 @@ async function send(): Promise<void> {
       <h2 class="text-sm font-semibold text-ink">
         {{ wizard.isLast.value ? APPLY_COPY.issues.headingFinal : APPLY_COPY.issues.heading }}
       </h2>
+      <!-- ⚠ This used to render `issue.key` — the Zod path, which is the contract key — so a driver
+           read `equipment_experience` beside "Too small: expected string to have >=1 characters".
+           `label` is the field in the words printed above the box, and `say` is a sentence addressed
+           to the person reading it (D-AX3).
+
+           Each entry is a control rather than a line of text, because on the employment screen the
+           field it names can be two thousand pixels below the fold. It is `BaseButton variant="link"`
+           and not a bare `<button>`: a raw button in a page or a feature fails `lint:ui-adoption`. -->
       <ul class="mt-2 space-y-1 text-sm text-ink-secondary">
         <li v-if="sendError">{{ sendError }}</li>
-        <li v-for="issue in wizard.issues.value" :key="`${issue.key}-${issue.message}`">
-          <span class="font-medium text-ink">{{ issue.key }}</span> — {{ issue.message }}
+        <li v-for="issue in wizard.issues.value" :key="issue.fieldId + issue.message">
+          <BaseButton variant="link" @click="showIssue(issue)">
+            <span class="font-medium text-ink">{{ issue.label }}</span>
+          </BaseButton>
+          — {{ issue.say }}
         </li>
       </ul>
     </BaseCard>

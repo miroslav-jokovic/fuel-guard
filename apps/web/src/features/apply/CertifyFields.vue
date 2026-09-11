@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { AppCheckbox as BaseCheckbox, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
+import { AppCheckbox as BaseCheckbox, AppInput as BaseInput } from "@silvicom/ui";
 import type { ApplicationDraft } from "@/features/apply/draft";
+import ApplyField from "@/features/apply/ApplyField.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -20,10 +21,15 @@ const copy = APPLY_COPY.certify;
 <template>
   <section class="space-y-4">
     <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
-    <BaseCheckbox v-model="draft.certified">{{ copy.statement }}</BaseCheckbox>
-    <FormField v-slot="{ id }" :label="copy.signedName">
-      <BaseInput :id="id" v-model="draft.signed_name" autocomplete="name" />
-    </FormField>
+    <!-- No label: the certification sentence IS the label, and `AppFormField` with none renders
+         nothing above the box — it is here for the error line underneath, which is the one a driver
+         meets most often on this screen. -->
+    <ApplyField v-slot="f" :path="['certified']">
+      <BaseCheckbox v-bind="f" v-model="draft.certified">{{ copy.statement }}</BaseCheckbox>
+    </ApplyField>
+    <ApplyField v-slot="f" :path="['signed_name']" :label="copy.signedName">
+      <BaseInput v-bind="f" v-model="draft.signed_name" autocomplete="name" />
+    </ApplyField>
     <p class="text-xs text-ink-muted">{{ copy.dateNote }}</p>
   </section>
 </template>

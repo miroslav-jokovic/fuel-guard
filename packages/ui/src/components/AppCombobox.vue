@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useId, watch, nextTick } from "vue";
+import { computed, onBeforeUnmount, ref, useAttrs, useId, watch, nextTick } from "vue";
 import { CheckIcon, ChevronUpDownIcon } from "../icons";
 import AppIcon from "./AppIcon.vue";
 import AppInput from "./AppInput.vue";
+
+defineOptions({ inheritAttrs: false });
 
 export interface ComboboxOption {
   value: string;
@@ -39,6 +41,23 @@ const props = withDefaults(
   },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string]; "update:query": [value: string] }>();
+
+/**
+ * ⚠ **`class` stays on the root; everything else goes to the input** (2026-09-11).
+ *
+ * This component inherited attributes onto its root `<div>`, which is right for `class` — three call
+ * sites size the whole control with `class="w-32 shrink-0"` — and wrong for everything else. An
+ * `aria-invalid` or an `aria-describedby` on a positioning div is announced by nothing, so a
+ * combobox inside an `AppFormField` showing an error was silent to a screen reader while the sighted
+ * user saw red text. Splitting them is what lets both be true, and it changes no existing call site:
+ * `class` lands exactly where it landed before.
+ */
+const attrs = useAttrs();
+const rootClass = computed(() => attrs.class);
+const inputAttrs = computed(() => {
+  const { class: _class, ...rest } = attrs;
+  return rest;
+});
 const selectedLabel = computed(
   () => props.options.find((option) => option.value === props.modelValue)?.label ?? "",
 );
@@ -187,8 +206,9 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div ref="root" class="relative" @focusout="blur">
+  <div ref="root" class="relative" :class="rootClass" @focusout="blur">
     <AppInput
+      v-bind="inputAttrs"
       :id="id"
       :model-value="query"
       :placeholder="placeholder"

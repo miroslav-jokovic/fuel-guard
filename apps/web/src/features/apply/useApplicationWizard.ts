@@ -10,6 +10,7 @@ import {
   type DriverApplicationFields,
 } from "@silvicom/shared";
 import { toApplication, type ApplicationDraft } from "./draft";
+import { describeField, fieldId, messageFor, valueAt, type FieldPath } from "./fieldLabels";
 
 /**
  * One screen at a time, validated by the server's own schema (A3).
@@ -33,11 +34,44 @@ import { toApplication, type ApplicationDraft } from "./draft";
  */
 
 export interface SectionIssue {
-  /** The contract key, so the message can be shown against the field it belongs to. */
+  /**
+   * The WHOLE contract path, as Zod reports it: `["addresses", 1, "city"]`.
+   *
+   * ⚠ Only `path[0]` used to be kept, and the cost was two things at once. A driver with three
+   * addresses was told "addresses" and had to find which card and which box; and nothing could mark
+   * the offending control, because nothing knew which one it was. Everything below — the label, the
+   * DOM id, the inline message under the field, the focus move — is derived from this array.
+   */
+  path: FieldPath;
+  /** The top-level contract key. Which screen owns it, and what the section map is keyed on. */
   key: string;
+  /** Zod's sentence, kept for nothing but the tests that assert a rule fired. Never rendered. */
   message: string;
+  /** The field in the words the screen prints above it: "Address 2 · City". */
+  label: string;
+  /** What the driver is told to do, in a sentence addressed to them. This is what renders. */
+  say: string;
+  /** The control's DOM id, so a summary entry can move focus to the box it is about. */
+  fieldId: string;
   /** Which screen owns it — how the review step sends the driver to the right place. */
   section: ApplicationSection | null;
+}
+
+/** One issue, from a Zod issue or a cross-field rule, with everything the screen needs to show it. */
+function toSectionIssue(
+  raw: { code?: string; message: string; format?: string; path: FieldPath },
+  section: ApplicationSection | null,
+  candidate: unknown,
+): SectionIssue {
+  return {
+    path: raw.path,
+    key: String(raw.path[0] ?? ""),
+    message: raw.message,
+    label: describeField(raw.path),
+    say: messageFor(raw, valueAt(candidate, raw.path)),
+    fieldId: fieldId(raw.path),
+    section,
+  };
 }
 
 /** Validate exactly one screen's fields against the contract. */
@@ -55,8 +89,7 @@ export function validateSection(section: ApplicationSection, draft: ApplicationD
     .safeParse(Object.fromEntries(keys.map((k) => [k, candidate[k]])));
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
-      const key = String(issue.path[0] ?? "");
-      issues.push({ key, message: issue.message, section });
+      issues.push(toSectionIssue(issue as never, section, candidate));
     }
   }
 
@@ -65,7 +98,15 @@ export function validateSection(section: ApplicationSection, draft: ApplicationD
     // The whole candidate, not the picked subset: a rule that reads `declares_no_accidents` to judge
     // `accidents` needs both, and both are on this screen by construction.
     if (!rule.check(candidate as Partial<DriverApplicationFields>)) {
-      issues.push({ key: String(rule.path), message: rule.message, section });
+      // `code: "custom"` because that is what it is — a rule whose message was written for a driver
+      // and must pass through untouched, exactly like the refinements inside the schema.
+      issues.push(
+        toSectionIssue(
+          { code: "custom", message: rule.message, path: [rule.path as string] },
+          section,
+          candidate,
+        ),
+      );
     }
   }
   return issues;
@@ -79,14 +120,18 @@ export function validateSection(section: ApplicationSection, draft: ApplicationD
  * driver is told is what the server would have said. `sectionOwning` is what turns "employers" into
  * "go back to Where you have worked".
  */
-export function issuesFromParse(issues: ReadonlyArray<{ path: PropertyKey[]; message: string }>): SectionIssue[] {
+export function issuesFromParse(
+  issues: ReadonlyArray<{ code?: string; path: PropertyKey[]; message: string; format?: string }>,
+  candidate?: unknown,
+): SectionIssue[] {
   return issues.map((issue) => {
-    const key = String(issue.path[0] ?? "");
-    return {
-      key,
-      message: issue.message,
-      section: sectionOwning(key as keyof DriverApplicationFields),
-    };
+    const path = issue.path as FieldPath;
+    const key = String(path[0] ?? "");
+    return toSectionIssue(
+      { code: issue.code, message: issue.message, format: issue.format, path },
+      sectionOwning(key as keyof DriverApplicationFields),
+      candidate,
+    );
   });
 }
 
@@ -123,20 +168,32 @@ export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<stri
     if (at > furthest.value) furthest.value = at;
   };
 
-  function goTo(target: ApplicationSection): void {
+  /**
+   * Jump to a screen.
+   *
+   * ⚠ `keepIssues` exists for ONE caller and the distinction is real. The review screen's "Fix"
+   * button means "take me there to change something", and carrying a stale list across would show a
+   * driver errors about a screen they are no longer on. The SEND button's summary means "this is
+   * what is stopping you" — clicking an entry there has to arrive with that entry still on screen,
+   * beside the field it names, or the driver lands on a long screen with no idea what they came for.
+   */
+  function goTo(target: ApplicationSection, keepIssues = false): void {
     const at = APPLICATION_SECTION_ORDER.indexOf(target);
     if (at < 0) return;
-    issues.value = [];
+    if (!keepIssues) issues.value = [];
     moveTo(at);
     scrollToTop();
   }
+
+  /** Move the cursor to one issue's control, wherever it is. Used by the send summary. */
+  const focusIssue = (issue: SectionIssue): void => focusFirstIssue([issue]);
 
   /** Try to advance. Returns false and shows what is missing when the screen is not complete. */
   function next(): boolean {
     const found = validateSection(section.value, draft);
     issues.value = found;
     if (found.length > 0) {
-      scrollToTop();
+      focusFirstIssue(found);
       return false;
     }
     if (!isLast.value) {
@@ -156,6 +213,33 @@ export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<stri
 
   const scrollToTop = (): void => globalThis.scrollTo({ top: 0, behavior: "smooth" });
 
+  /**
+   * Put the cursor in the first box that needs an answer.
+   *
+   * ── WHY THIS IS NOT `scrollTo(0)` ─────────────────────────────────────────────────────────────
+   * The old behaviour scrolled to the top of the page and rendered a list. On the employment screen
+   * that list can be twelve entries long and the field it is about can be two thousand pixels below
+   * the fold, so a driver was told what was wrong and then had to hunt for where. Moving focus is
+   * what the WAI-ARIA form-validation pattern asks for, and it also answers the question on a screen
+   * reader, which cannot see a list appear at all.
+   *
+   * ⚠ `scrollToTop` is still the fallback and is not dead code. A cross-field rule's path is a
+   * COLLECTION — `["accidents"]`, `["employers"]` — and no single control holds it, so there is
+   * nothing to focus; the summary at the top is the whole answer for those, and the page has to go
+   * there. `smoothScroll` is guarded because jsdom implements neither method.
+   */
+  function focusFirstIssue(found: SectionIssue[]): void {
+    const target = found
+      .map((i) => globalThis.document?.getElementById(i.fieldId))
+      .find((el): el is HTMLElement => el !== null && el !== undefined);
+    if (!target) {
+      scrollToTop();
+      return;
+    }
+    target.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    target.focus?.();
+  }
+
   return {
     section,
     /** What autosave stores — the name of the column, and the screen a resumed session opens on. */
@@ -170,6 +254,7 @@ export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<stri
     },
     resume,
     goTo,
+    focusIssue,
     next,
     back,
     sectionOwning,
