@@ -9,7 +9,14 @@
   "applicant_dispositions": [
     "apps/api/src/modules/recruiting/routes/dispositions.ts"
   ],
+  "application_drafts": [
+    "apps/api/src/modules/recruiting/applicationReview.ts"
+  ],
+  "application_edits": [
+    "apps/api/src/modules/recruiting/applicationReview.ts"
+  ],
   "application_invitations": [
+    "apps/api/src/modules/recruiting/applicationReview.ts",
     "apps/api/src/modules/recruiting/routes/applicationInvites.ts"
   ],
   "asset_types": [
