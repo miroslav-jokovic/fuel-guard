@@ -495,6 +495,66 @@ describe("the applicant's page", () => {
     expect((w.find("input[autocomplete=\"given-name\"]").element as HTMLInputElement).value).toBe("Susan");
   });
 
+  /**
+   * X8/D-AX9. The 7001(c) consent this driver gave promises them a copy "at no charge", and until
+   * now the only way to get one was to ask the carrier.
+   */
+  it("offers the driver their own copy once the application is in", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T18:00:00Z" },
+      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain("Your application is in");
+    expect(w.text()).toContain("Download your copy");
+  });
+
+  it("asks for a fresh link at the moment of the press, and opens it", async () => {
+    // A signed URL is good for five minutes, so it is fetched when the button is pressed rather than
+    // held on the page waiting to go stale.
+    const open = vi.fn(() => ({}) as Window);
+    vi.stubGlobal("open", open);
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).endsWith("/document")
+        ? ok({ url: "https://storage.test/signed/app.pdf", filename: "driver-application.pdf", expiresInSeconds: 300 })
+        : ok({
+          carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+          phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T18:00:00Z" },
+          draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+        }));
+    const w = mountPage();
+    await settle(w);
+
+    await w.findAll("button").find((b) => b.text().includes("Download your copy"))!.trigger("click");
+    await settle(w);
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/document"), expect.anything());
+    expect(open).toHaveBeenCalledWith("https://storage.test/signed/app.pdf", "_blank", "noopener");
+  });
+
+  it("names the other way to get the document when the link will not open", async () => {
+    // A blocked popup and a failed fetch are indistinguishable here, and both leave the driver
+    // needing the same next step.
+    vi.stubGlobal("open", vi.fn(() => null));
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).endsWith("/document")
+        ? ok({ url: "https://storage.test/signed/app.pdf", filename: "f.pdf", expiresInSeconds: 300 })
+        : ok({
+          carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+          phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T18:00:00Z" },
+          draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+        }));
+    const w = mountPage();
+    await settle(w);
+    await w.findAll("button").find((b) => b.text().includes("Download your copy"))!.trigger("click");
+    await settle(w);
+
+    expect(w.text()).toContain("ask the carrier to send you a copy");
+  });
+
   it("says one thing about a dead link, whatever killed it", async () => {
     fetchMock.mockResolvedValue(dead());
     const w = mountPage();

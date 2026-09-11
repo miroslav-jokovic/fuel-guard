@@ -367,4 +367,15 @@ adjacent table rows conflict every time.
   defect D-AX3 fixed on the driver's screen; and `render.ts` crossed the 500-line budget, so the
   certificate is its own module. The column list is pinned by a test of the QUERY, because that is
   where the defect lived and no test of the renderer could ever have seen it.
+- 2026-09-11 — **X7 MERGED** (#742). ⚠ Its CI run failed once on
+  `inventory/labelPdf.test.ts` — a file this PR does not touch, not reproducible in five full local
+  runs, and green on re-run. That is the open api flake in
+  [[api-test-flake-is-not-timeouts]]; this is one more measured instance of it.
+- 2026-09-11 — **X8 built.** `GET /api/public/application/:token/document`. ⚠ The first version of its
+  org-scope test was worthless and a mutation proved it: it gathered every `eq` against
+  `driver_applications` and found an `org_id` among them, so it passed with this module's own filter
+  deleted — `ensureApplicationPdf` queries the same table and its filter answered for both. Replaced
+  with `expectOrgScoped`, which `apps/api/CLAUDE.md` names for exactly this reason.
+  **Q-AX3 stands as recommended: the download ships, the completion email does not** — its wording is
+  counsel's material and nothing in this plan touches that.
 

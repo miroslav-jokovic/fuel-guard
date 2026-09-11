@@ -343,6 +343,17 @@ export const APPLY_COPY = {
       `${carrier} has it, certified in your name. They will contact you about what happens next.`,
     reopen:
       "You can close this page. Your link still opens to this message, and it cannot be used to send a second application.",
+    /**
+     * X8/D-AX9. The 7001(c) consent promises a copy "at no charge" and, until now, the only way to
+     * get one was to ask the carrier — which discharges the statute and is a long way below what
+     * somebody who has ever used a commercial e-signature product expects.
+     */
+    download: "Download your copy",
+    downloading: "Preparing your copy…",
+    downloadNote:
+      "Everything you filled in, everything you signed, and a record of when and how you signed it.",
+    downloadFailed:
+      "That did not open just now. Try again in a moment, or ask the carrier to send you a copy.",
   },
 
   dead: {

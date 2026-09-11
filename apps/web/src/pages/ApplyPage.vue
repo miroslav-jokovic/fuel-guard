@@ -24,6 +24,7 @@ import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import { emptyDraft, fromDraftPayload, toApplication, type ApplicationDraft } from "@/features/apply/draft";
 import { driverApplicationSchema } from "@silvicom/shared";
 import {
+  fetchApplicantCopy,
   giveEsignConsent,
   unlockApplicationDraft,
   useApplyInvitationQuery,
@@ -239,6 +240,32 @@ async function unlock(): Promise<void> {
   }
 }
 
+// ── The driver's own copy (X8, D-AX9) ─────────────────────────────────────────────────────────
+const copyWorking = ref(false);
+const copyFailed = ref(false);
+
+/**
+ * Ask for a fresh link and open it.
+ *
+ * `window.open` rather than an `<a download>` with a stored href: the URL is signed for five minutes
+ * and is fetched at the moment of the press, so there is never a stale one on the page waiting to
+ * disappoint somebody. A popup blocked by the browser is indistinguishable here from a failure, and
+ * both get the same sentence — which names the other way to get the document.
+ */
+async function downloadCopy(): Promise<void> {
+  copyWorking.value = true;
+  copyFailed.value = false;
+  try {
+    const copy = await fetchApplicantCopy(token.value);
+    const opened = globalThis.open(copy.url, "_blank", "noopener");
+    if (!opened) copyFailed.value = true;
+  } catch {
+    copyFailed.value = true;
+  } finally {
+    copyWorking.value = false;
+  }
+}
+
 // ── Sending ───────────────────────────────────────────────────────────────────────────────────
 async function send(): Promise<void> {
   sendError.value = null;
@@ -285,6 +312,16 @@ async function send(): Promise<void> {
     <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.done.heading }}</h1>
     <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.done.body(invitation.data.value?.carrier ?? "") }}</p>
     <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.done.reopen }}</p>
+
+    <!-- X8/D-AX9. The consent the driver gave promises a copy at no charge; until now the only way
+         to get one was to ask the carrier. -->
+    <div class="mt-6 space-y-2">
+      <BaseButton variant="secondary" :disabled="copyWorking" @click="downloadCopy">
+        {{ copyWorking ? APPLY_COPY.done.downloading : APPLY_COPY.done.download }}
+      </BaseButton>
+      <p class="text-xs text-ink-muted">{{ APPLY_COPY.done.downloadNote }}</p>
+      <p v-if="copyFailed" class="text-sm text-ink-secondary">{{ APPLY_COPY.done.downloadFailed }}</p>
+    </div>
   </BaseCard>
 
   <!-- A4/D-APP5: §390.32(d) requires proof of 15 U.S.C. 7001(c) consent behind an electronic
