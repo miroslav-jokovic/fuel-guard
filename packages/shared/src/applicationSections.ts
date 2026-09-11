@@ -46,6 +46,23 @@ export const APPLICATION_SECTION_ORDER = [
 
 export type ApplicationSection = (typeof APPLICATION_SECTION_ORDER)[number];
 
+/**
+ * The screens the driver fills in on the FIRST visit (F4, D-AX11).
+ *
+ * ⚠ `certify` is not one of them, and that is the whole of the review change. §391.21(b)(12) has the
+ * applicant swear that "all entries on it and information in it are true and complete" — and once the
+ * office can correct an entry, a certification taken before that correction certifies a document that
+ * no longer exists. So the first visit ends at `review` with a hand-off, and the certification is the
+ * second visit, on the document as it finally stands.
+ *
+ * The order itself is unchanged and `certify` is still a section everywhere else: `sectionOwning`
+ * still sends a `signed_name` error to it, the progress list still has somewhere to send a driver,
+ * and `APPLICATION_SECTION_KEYS` still accounts for its two contract keys.
+ */
+export const APPLICATION_FILLING_SECTIONS = APPLICATION_SECTION_ORDER.filter(
+  (section): section is Exclude<ApplicationSection, "certify"> => section !== "certify",
+);
+
 export const APPLICATION_SECTION_LABELS: Record<ApplicationSection, string> = {
   identity: "About you",
   addresses: "Where you have lived",
@@ -55,7 +72,7 @@ export const APPLICATION_SECTION_LABELS: Record<ApplicationSection, string> = {
   questions: "The carrier's own questions",
   documents: "Your documents",
   review: "Check your answers",
-  certify: "Sign and send",
+  certify: "Sign it",
 };
 
 /**

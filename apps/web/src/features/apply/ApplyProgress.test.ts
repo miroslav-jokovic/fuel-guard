@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import { APPLICATION_SECTION_ORDER } from "@silvicom/shared";
+import { APPLICATION_FILLING_SECTIONS } from "@silvicom/shared";
 import ApplyProgress from "./ApplyProgress.vue";
 
 /**
@@ -23,7 +23,7 @@ describe("where the driver is", () => {
   it("names the current screen and counts it", () => {
     const w = card({ index: 3 });
     expect(w.text()).toContain("Where you have worked");
-    expect(w.text()).toContain(`Step 4 of ${APPLICATION_SECTION_ORDER.length}`);
+    expect(w.text()).toContain(`Step 4 of ${APPLICATION_FILLING_SECTIONS.length}`);
   });
 
   it("keeps the bar out of the accessibility tree, so the facts are announced once", () => {
@@ -48,9 +48,13 @@ describe("the step list, which is the part that navigates", () => {
   it("opens on the counter, and names every screen", async () => {
     const w = card();
     await w.find('button[aria-controls="apply-step-list"]').trigger("click");
-    expect(stepButtons(w)).toHaveLength(APPLICATION_SECTION_ORDER.length);
+    expect(stepButtons(w)).toHaveLength(APPLICATION_FILLING_SECTIONS.length);
     expect(w.text()).toContain("Your licence");
-    expect(w.text()).toContain("Sign and send");
+    // ⚠ The list stops at "Check your answers" since F4. Signing is not a screen of this visit — it
+    // happens on the second one, after the office has read what was sent — and a step in the list
+    // the driver cannot reach from here would be a promise the page has no way to keep.
+    expect(w.text()).toContain("Check your answers");
+    expect(w.text()).not.toContain("Sign it");
   });
 
   it("refuses a screen the driver has never reached", async () => {

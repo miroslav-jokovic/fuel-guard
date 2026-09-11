@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
 import { usdotNumberSchema } from "./recruitmentContract.js";
+// ⚠ The rules that span fields live in their own module since 2026-09-11 (the 500-line budget), and
+// they import this file's TYPE only — `import type` is erased, so there is no runtime cycle.
+import { APPLICATION_CROSS_FIELD_RULES } from "./applicationRules.js";
 import { EMPLOYMENT_WINDOW_YEARS, CMV_WINDOW_YEARS, yearsBefore } from "./employmentCoverage.js";
 
 /**
@@ -374,66 +377,52 @@ export const applicationDraftPayloadSchema = driverApplicationObject.partial().e
 export type ApplicationDraftPayload = z.infer<typeof applicationDraftPayloadSchema>;
 
 /**
- * The rules that no single field can express, in one list rather than in a `.refine()` chain.
+ * The rules that span fields, applied to whatever object is being checked.
  *
- * A3 needs them twice — once over the whole document at submit, once over the one section a driver
- * is looking at — and two copies of "an empty list is only an answer if you SAID it was empty" is
- * two copies that drift. `check` therefore takes a PARTIAL: mid-form, most of the document does not
- * exist yet, and a rule whose fields are absent must not fire.
- *
- * Every one of them exists for the same reason (H8's lesson, restated in 0208's header): an empty
- * array is an ANSWER, not an omission, and only the driver can turn one into the other.
+ * The parameter is widened because the two schemas below differ in the type of `certified` — `true`
+ * in the certified document, `boolean | undefined` before it is signed — and no rule reads it.
  */
-export interface ApplicationCrossFieldRule {
-  /** The field the message attaches to — and the field that decides which section owns the rule. */
-  path: keyof DriverApplicationFields;
-  message: string;
-  check: (v: Partial<DriverApplicationFields>) => boolean;
-}
-
-export const APPLICATION_CROSS_FIELD_RULES: readonly ApplicationCrossFieldRule[] = [
-  {
-    path: "accidents",
-    message: "List every accident in the last 3 years, or confirm there were none",
-    check: (v) => v.accidents === undefined || v.accidents.length > 0 || v.declares_no_accidents === true,
-  },
-  {
-    path: "violations",
-    message: "List every violation in the last 3 years, or confirm there were none",
-    check: (v) => v.violations === undefined || v.violations.length > 0 || v.declares_no_violations === true,
-  },
-  {
-    path: "employers",
-    message: "List your employers, or confirm you have not been employed",
-    check: (v) => v.employers === undefined || v.employers.length > 0 || v.declares_no_employment === true,
-  },
-  {
-    /**
-     * §391.21(b)(6) is mandatory content of the application form, and until now this schema let it be
-     * entirely blank — `experience` was nullish and there was nothing else. Either half of the
-     * paragraph's sentence satisfies it, and a driver can always answer one: they can name the
-     * equipment they have driven even if they will not write a paragraph about it.
-     */
-    path: "equipment_experience",
-    message: "Describe your driving experience, or list the equipment you have driven",
-    check: (v) =>
-      v.equipment_experience === undefined
-      || v.equipment_experience.length > 0
-      || Boolean(v.experience?.trim()),
-  },
-  {
-    path: "licence_denial_detail",
-    message: "Describe the denial, revocation or suspension",
-    check: (v) => v.licence_ever_denied !== true || Boolean(v.licence_denial_detail?.trim()),
-  },
-];
-
-export const driverApplicationSchema = driverApplicationObject.superRefine((v, ctx) => {
+const crossFieldRules = (v: object, ctx: z.RefinementCtx): void => {
+  const fields = v as Partial<DriverApplicationFields>;
   for (const rule of APPLICATION_CROSS_FIELD_RULES) {
-    if (!rule.check(v)) ctx.addIssue({ code: "custom", message: rule.message, path: [rule.path] });
+    if (!rule.check(fields)) ctx.addIssue({ code: "custom", message: rule.message, path: [rule.path] });
   }
-});
+};
+
+export const driverApplicationSchema = driverApplicationObject.superRefine(crossFieldRules);
 export type DriverApplication = z.infer<typeof driverApplicationSchema>;
+
+/**
+ * The finished application, before anybody has certified it (F4, D-AX11).
+ *
+ * ⚠ Everything §391.21(b) requires EXCEPT the certification and the signature — which is exactly the
+ * state a document is in when the driver hands it to the office to read. Checking it with
+ * `driverApplicationSchema` would refuse every hand-off, because that object requires `certified` to
+ * be literally `true`, and the whole point of the review is that the certification comes afterwards:
+ * a signature given before the office corrects an answer is a signature on a document that was
+ * then changed.
+ *
+ * The cross-field rules come along unchanged. "You listed no accidents and did not say you had none"
+ * is as true of a document waiting to be read as of one being filed.
+ */
+export const applicationBeforeCertificationSchema = driverApplicationObject
+  .extend({
+    /**
+     * ⚠ `.extend()` and NOT `.omit()`, and the difference is not cosmetic.
+     *
+     * `driverApplicationObject` is `.strict()`, so omitting these two turns them into UNRECOGNISED
+     * keys — and the client builds its candidate with `toApplication`, which always emits both. The
+     * first version of this schema used `.omit()` and refused every hand-off with `Unrecognized keys:
+     * "certified", "signed_name"`, which is an error message no driver could act on and which points
+     * at no field on any screen.
+     *
+     * Widening them says the true thing instead: at this point in the flow the box is not ticked and
+     * the name is not typed, and that is not a defect in the document.
+     */
+    certified: z.boolean().optional(),
+    signed_name: z.string().max(200).optional(),
+  })
+  .superRefine(crossFieldRules);
 
 // ── which list an entry belongs to ────────────────────────────────────────────
 

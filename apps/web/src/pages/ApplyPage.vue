@@ -5,8 +5,6 @@ import {
   AppButton as BaseButton,
   AppCallout,
   AppCard as BaseCard,
-  AppDateField,
-  AppFormField as FormField,
 } from "@silvicom/ui";
 import ApplicantDetailsFields from "@/features/apply/ApplicantDetailsFields.vue";
 import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
@@ -16,18 +14,20 @@ import SafetyHistoryFields from "@/features/apply/SafetyHistoryFields.vue";
 import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
 import DocumentCaptureFields from "@/features/apply/DocumentCaptureFields.vue";
 import ReviewFields from "@/features/apply/ReviewFields.vue";
-import CertifyFields from "@/features/apply/CertifyFields.vue";
+import SignOffFields from "@/features/apply/SignOffFields.vue";
+import ApplicationFiledCard from "@/features/apply/ApplicationFiledCard.vue";
+import DraftUnlockGate from "@/features/apply/DraftUnlockGate.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
 import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
+import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
 import { emptyDraft, fromDraftPayload, toApplication, type ApplicationDraft } from "@/features/apply/draft";
-import { driverApplicationSchema } from "@silvicom/shared";
+import { applicationBeforeCertificationSchema, driverApplicationSchema } from "@silvicom/shared";
 import {
-  fetchApplicantCopy,
   giveEsignConsent,
-  unlockApplicationDraft,
   useApplyInvitationQuery,
+  useRequestReview,
   useSubmitApplication,
 } from "@/features/apply/useApplication";
 import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
@@ -87,6 +87,7 @@ const token = computed(() => String(route.params.token ?? ""));
 
 const invitation = useApplyInvitationQuery(token);
 const submit = useSubmitApplication(token);
+const handOff = useRequestReview(token);
 
 // The layout's header shows the carrier's name once the link resolves.
 watch(() => invitation.data.value?.carrier, (name) => emit("carrier", name ?? null), { immediate: true });
@@ -100,6 +101,24 @@ const justSent = ref(false);
  * ever be local state, because submitting killed the token and a reopened link answered "not valid".
  */
 const submitted = computed(() => justSent.value || Boolean(invitation.data.value?.phases?.submittedAt));
+
+/**
+ * The two states the OFFICE puts the link into (F4, D-AX11).
+ *
+ * ⚠ Read in this order — the LAST thing that happened wins. Reading forwards ("has it been sent for
+ * review?") answers with the first box ticked and gets every later state wrong, which is the classic
+ * shape of this bug: an approved application has `reviewRequestedAt` set too, and is not waiting.
+ */
+const handedOver = ref(false);
+const awaitingSignature = computed(
+  () => !submitted.value && Boolean(invitation.data.value?.phases?.approvedAt),
+);
+const awaitingReview = computed(
+  () =>
+    !submitted.value
+    && !awaitingSignature.value
+    && (handedOver.value || Boolean(invitation.data.value?.phases?.reviewRequestedAt)),
+);
 
 // ── Resuming (A2) ─────────────────────────────────────────────────────────────────────────────
 const released = ref<Record<string, unknown> | null>(null);
@@ -220,64 +239,57 @@ const ceremonyNeeded = computed(
     && !ceremonyDone.value,
 );
 
-const unlockDob = ref("");
-const unlockFailed = ref(false);
-const unlocking = ref(false);
-
-/** One question, one answer, and a wrong answer costs nothing but another try (D-APP16). */
-async function unlock(): Promise<void> {
-  if (!unlockDob.value) return;
-  unlocking.value = true;
-  unlockFailed.value = false;
-  try {
-    const res = await unlockApplicationDraft(token.value, unlockDob.value);
-    if (res.draft.locked || !res.draft.payload) unlockFailed.value = true;
-    else released.value = res.draft.payload;
-  } catch {
-    unlockFailed.value = true;
-  } finally {
-    unlocking.value = false;
-  }
-}
-
-// ── The driver's own copy (X8, D-AX9) ─────────────────────────────────────────────────────────
-const copyWorking = ref(false);
-const copyFailed = ref(false);
-
-/**
- * Ask for a fresh link and open it.
- *
- * `window.open` rather than an `<a download>` with a stored href: the URL is signed for five minutes
- * and is fetched at the moment of the press, so there is never a stale one on the page waiting to
- * disappoint somebody. A popup blocked by the browser is indistinguishable here from a failure, and
- * both get the same sentence — which names the other way to get the document.
- */
-async function downloadCopy(): Promise<void> {
-  copyWorking.value = true;
-  copyFailed.value = false;
-  try {
-    const copy = await fetchApplicantCopy(token.value);
-    const opened = globalThis.open(copy.url, "_blank", "noopener");
-    if (!opened) copyFailed.value = true;
-  } catch {
-    copyFailed.value = true;
-  } finally {
-    copyWorking.value = false;
-  }
-}
 
 // ── Sending ───────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The whole document, through the server's own schema — not the union of the per-screen checks.
+ *
+ * The last screen being valid is not the same thing as the application being complete. Each issue is
+ * attributed to the screen that owns the field, so "employers" reads as somewhere to go back to, and
+ * the candidate travels with them: `messageFor` needs the VALUE that failed to tell an empty box
+ * ("This is needed") from a two-character one ("This is too short").
+ */
+function documentIsComplete(): boolean {
+  const candidate = toApplication(draft);
+  // ⚠ WITHOUT the certification. On this visit the driver has not signed anything and must not have
+  // to — `driverApplicationSchema` requires `certified` to be literally `true`, so checking with it
+  // here would refuse every hand-off and tell the driver to tick a box that is not on their screen.
+  const parsed = applicationBeforeCertificationSchema.safeParse(candidate);
+  if (parsed.success) return true;
+  wizard.setIssues(issuesFromParse(parsed.error.issues, candidate));
+  globalThis.scrollTo({ top: 0, behavior: "smooth" });
+  return false;
+}
+
+/**
+ * Hand it to the office (F4, D-AX11) — the last act of the FIRST visit.
+ *
+ * ⚠ The certification is deliberately not asked for here. §391.21(b)(12) has the applicant swear
+ * that every entry is true and complete, and the office can now correct an entry — so a signature
+ * taken now would be a signature on a document that may not be the one filed. It is asked for on the
+ * second visit instead, beside the changes.
+ *
+ * The completeness check still runs, against everything §391.21(b) requires except those two.
+ */
+async function sendForReview(): Promise<void> {
+  sendError.value = null;
+  if (!documentIsComplete()) return;
+  try {
+    await handOff.mutateAsync();
+    handedOver.value = true;
+    globalThis.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) {
+    sendError.value = e instanceof Error ? e.message : APPLY_COPY.handoff.failed;
+  }
+}
+
+/** Certify it and file it — the last act of the SECOND visit. */
 async function send(): Promise<void> {
   sendError.value = null;
-  // The WHOLE document, through the server's own schema — not the union of the per-screen checks.
-  // The last screen being valid is not the same thing as the application being complete, and the
-  // driver is one tap from certifying that it is. Each issue is attributed to the screen that owns
-  // the field, so "employers" reads as somewhere to go back to.
   const candidate = toApplication(draft);
   const parsed = driverApplicationSchema.safeParse(candidate);
   if (!parsed.success) {
-    // The candidate travels with the issues: `messageFor` needs the VALUE that failed to tell an
-    // empty box ("This is needed") from a two-character one ("This is too short").
     wizard.setIssues(issuesFromParse(parsed.error.issues, candidate));
     globalThis.scrollTo({ top: 0, behavior: "smooth" });
     return;
@@ -308,20 +320,20 @@ async function send(): Promise<void> {
   <!-- What happened, not what will (A1). The old copy promised signing that this page could not
        deliver — submitting killed the link the promise was made on — and D-APP4 moves the signing
        ahead of the certification, so there is no longer a later step to promise. -->
-  <BaseCard v-else-if="submitted">
-    <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.done.heading }}</h1>
-    <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.done.body(invitation.data.value?.carrier ?? "") }}</p>
-    <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.done.reopen }}</p>
+  <ApplicationFiledCard
+    v-else-if="submitted"
+    :token="token"
+    :carrier="invitation.data.value?.carrier ?? ''"
+  />
 
-    <!-- X8/D-AX9. The consent the driver gave promises a copy at no charge; until now the only way
-         to get one was to ask the carrier. -->
-    <div class="mt-6 space-y-2">
-      <BaseButton variant="secondary" :disabled="copyWorking" @click="downloadCopy">
-        {{ copyWorking ? APPLY_COPY.done.downloading : APPLY_COPY.done.download }}
-      </BaseButton>
-      <p class="text-xs text-ink-muted">{{ APPLY_COPY.done.downloadNote }}</p>
-      <p v-if="copyFailed" class="text-sm text-ink-secondary">{{ APPLY_COPY.done.downloadFailed }}</p>
-    </div>
+  <!-- F4/D-AX11: handed over, and not yet approved. The driver has done everything they can do for
+       the moment, and the screen says so rather than leaving them on a form with a spent button. -->
+  <BaseCard v-else-if="awaitingReview">
+    <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.handoff.waitingHeading }}</h1>
+    <p class="mt-2 text-sm text-ink-muted">
+      {{ APPLY_COPY.handoff.waitingBody(invitation.data.value?.carrier ?? "") }}
+    </p>
+    <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.handoff.waitingNote }}</p>
   </BaseCard>
 
   <!-- A4/D-APP5: §390.32(d) requires proof of 15 U.S.C. 7001(c) consent behind an electronic
@@ -350,18 +362,27 @@ async function send(): Promise<void> {
 
   <!-- A2/D-APP16: the draft holds a date of birth, so the bare link does not read it back. One
        question, asked only when there is something to protect. -->
-  <BaseCard v-else-if="locked">
-    <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.unlock.heading }}</h1>
-    <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.unlock.body(invitation.data.value?.carrier ?? "") }}</p>
-    <div class="mt-4 max-w-xs">
-      <FormField v-slot="{ id }" :label="APPLY_COPY.unlock.label">
-        <AppDateField :id="id" v-model="unlockDob" />
-      </FormField>
-    </div>
-    <p v-if="unlockFailed" class="mt-2 text-sm text-ink-secondary">{{ APPLY_COPY.unlock.failed }}</p>
+  <DraftUnlockGate
+    v-else-if="locked"
+    :token="token"
+    :carrier="invitation.data.value?.carrier ?? ''"
+    @unlocked="released = $event"
+  />
+
+  <!-- F4/D-AX12: approved, and waiting for the signature. ⚠ After the date-of-birth gate above, not
+       before it: this screen prints the whole application, and D-APP16 exists because an application
+       link is forwarded in email and read on a shared phone. -->
+  <BaseCard v-else-if="awaitingSignature">
+    <AppCallout v-if="sendError" tone="caution" class="mb-4">{{ sendError }}</AppCallout>
+    <SignOffFields
+      v-model="draft"
+      :carrier="invitation.data.value?.carrier ?? ''"
+      :edits="invitation.data.value?.edits ?? []"
+      :captures="invitation.data.value?.captures ?? []"
+    />
     <div class="mt-6 flex justify-end">
-      <BaseButton variant="primary" :disabled="unlocking || !unlockDob" @click="unlock">
-        {{ unlocking ? APPLY_COPY.unlock.checking : APPLY_COPY.unlock.action }}
+      <BaseButton variant="primary" :disabled="submit.isPending.value" @click="send">
+        {{ submit.isPending.value ? APPLY_COPY.signOff.signing : APPLY_COPY.signOff.sign }}
       </BaseButton>
     </div>
   </BaseCard>
@@ -388,28 +409,12 @@ async function send(): Promise<void> {
       @go-to="wizard.goTo"
     />
 
-    <BaseCard v-if="wizard.issues.value.length || sendError">
-      <h2 class="text-sm font-semibold text-ink">
-        {{ wizard.isLast.value ? APPLY_COPY.issues.headingFinal : APPLY_COPY.issues.heading }}
-      </h2>
-      <!-- ⚠ This used to render `issue.key` — the Zod path, which is the contract key — so a driver
-           read `equipment_experience` beside "Too small: expected string to have >=1 characters".
-           `label` is the field in the words printed above the box, and `say` is a sentence addressed
-           to the person reading it (D-AX3).
-
-           Each entry is a control rather than a line of text, because on the employment screen the
-           field it names can be two thousand pixels below the fold. It is `BaseButton variant="link"`
-           and not a bare `<button>`: a raw button in a page or a feature fails `lint:ui-adoption`. -->
-      <ul class="mt-2 space-y-1 text-sm text-ink-secondary">
-        <li v-if="sendError">{{ sendError }}</li>
-        <li v-for="issue in wizard.issues.value" :key="issue.fieldId + issue.message">
-          <BaseButton variant="link" @click="showIssue(issue)">
-            <span class="font-medium text-ink">{{ issue.label }}</span>
-          </BaseButton>
-          — {{ issue.say }}
-        </li>
-      </ul>
-    </BaseCard>
+    <ApplyIssueList
+      :issues="wizard.issues.value"
+      :send-error="sendError"
+      :final="wizard.isLast.value"
+      @show="showIssue"
+    />
 
     <BaseCard>
       <ApplicantDetailsFields v-if="wizard.section.value === 'identity'" v-model="draft" />
@@ -427,12 +432,11 @@ async function send(): Promise<void> {
         :captures="invitation.data.value.captures ?? []"
       />
       <ReviewFields
-        v-else-if="wizard.section.value === 'review'"
+        v-else
         :draft="draft"
         :captures="invitation.data.value.captures ?? []"
         @go-to="wizard.goTo"
       />
-      <CertifyFields v-else v-model="draft" />
     </BaseCard>
 
     <!-- Shown read-only on the last screen ONLY while the ceremony cannot run (Q-H3: the wording is
@@ -455,16 +459,21 @@ async function send(): Promise<void> {
       <span v-else />
       <BaseButton
         variant="primary"
-        :disabled="submit.isPending.value || (wizard.isLast.value && wordingNotFinal)"
-        @click="wizard.isLast.value ? send() : wizard.next()"
+        :disabled="handOff.isPending.value || (wizard.isLast.value && wordingNotFinal)"
+        @click="wizard.isLast.value ? sendForReview() : wizard.next()"
       >
         <template v-if="wizard.isLast.value">
           <!-- Disabled rather than hidden: the driver has reached the end of their application and
                the control they came for should still be where they expect it, saying why it will
-               not go. A missing button reads as a bug in the page. -->
+               not go. A missing button reads as a bug in the page.
+
+               ⚠ It SENDS rather than certifies since F4. The signature is asked for on the second
+               visit, on the document as the office leaves it — see `sendForReview`. -->
           {{ wordingNotFinal
             ? APPLY_COPY.notOpen.sendLabel
-            : submit.isPending.value ? APPLY_COPY.nav.sending : APPLY_COPY.nav.send }}
+            : handOff.isPending.value
+              ? APPLY_COPY.handoff.sending
+              : APPLY_COPY.handoff.send(invitation.data.value.carrier) }}
         </template>
         <template v-else>
           {{ wizard.section.value === 'documents' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}

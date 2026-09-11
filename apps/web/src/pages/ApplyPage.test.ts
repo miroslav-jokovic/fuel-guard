@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { APPLICATION_SECTION_ORDER } from "@silvicom/shared";
+import { APPLICATION_FILLING_SECTIONS } from "@silvicom/shared";
 import ApplyPage from "@/pages/ApplyPage.vue";
 
 /**
@@ -64,7 +64,7 @@ const COMPLETE_DRAFT = {
  * Read off the vocabulary rather than typed in, so adding a screen — A8 added `documents` — moves
  * these assertions instead of breaking six of them for a reason that is not the reason under test.
  */
-const TOTAL = APPLICATION_SECTION_ORDER.length;
+const TOTAL = APPLICATION_FILLING_SECTIONS.length;
 const step = (n: number): string => `Step ${n} of ${TOTAL}`;
 
 const ok = (body: unknown) => ({ ok: true, json: async () => body });
@@ -128,10 +128,13 @@ describe("the applicant's page", () => {
     const w = mountPage();
     await settle(w);
 
-    // identity → addresses → licence → employment → safety → documents → review → certify
+    // identity → addresses → licence → employment → safety → questions → documents → review
     for (let i = 0; i < TOTAL - 1; i++) await advance(w);
 
-    expect(w.text()).toContain("Sign and send");
+    // ⚠ "Check your answers" is the last screen of the FIRST visit since F4. The certification is not
+    // on it: the office reads the application before anybody signs it, so a signature taken here
+    // would be a signature on a document that may still change.
+    expect(w.text()).toContain("Check your answers");
     // The wording is SERVED, so what somebody signed is a fact the server can prove — never shipped
     // in the client bundle where a build could change it.
     expect(w.text()).toContain("We may obtain your FMCSA crash and inspection history.");
@@ -143,7 +146,7 @@ describe("the applicant's page", () => {
   });
 
   /** The wizard, end to end — and a working proof that every screen's field set validates. */
-  it("walks one screen at a time and ends on the certification", async () => {
+  it("walks one screen at a time and ends by handing it to the carrier", async () => {
     // ⚠ PUBLISHED wording, since 2026-08-23: with draft instruments the last screen offers "Not
     // ready to send yet" instead, which is the next test. This one is about the nine screens.
     fetchMock.mockResolvedValue(ok({
@@ -196,11 +199,12 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("Your documents");
     expect(w.text()).toContain("Front of your licence");
     await advance(w);
-    // Nobody certifies what they cannot see (§391.21(b)(12)).
+    // Nobody sends what they cannot see, and nobody certifies it either (§391.21(b)(12)).
     expect(w.text()).toContain("Check your answers");
     expect(w.text()).toContain("Susan Godfrey");
-    await advance(w);
-    expect(w.text()).toContain("Send my application");
+    // ⚠ And the last control hands it over rather than certifying it (F4, D-AX11).
+    expect(w.text()).toContain("Send it to Silvicom Inc");
+    expect(w.text()).not.toContain("I certify that all entries");
   });
 
   /**
@@ -326,9 +330,127 @@ describe("the applicant's page", () => {
 
     expect(w.text()).toContain("Your application is in");
     // And the form is gone — there is nothing here to fill in or send a second time.
-    expect(w.text()).not.toContain("Send my application");
+    expect(w.text()).not.toContain("Send it to");
     // The old copy promised a later signing step through a link this page had just closed.
     expect(w.text()).not.toContain("you will be asked to sign");
+  });
+
+  /**
+   * The three states the OFFICE puts the link into (F4, D-AX11/D-AX12).
+   *
+   * ⚠ The one that matters is the LAST of them. §391.21(b)(12) has the applicant certify that every
+   * entry is true and complete, and the office can now change an entry — so the screen that asks for
+   * that signature has to show what was changed, or nobody can honestly give it.
+   */
+  it("says the carrier has it, once it has been handed over", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: {
+        consentedAt: "2026-09-09T09:00:00Z", releasesCompletedAt: "2026-09-09T09:10:00Z",
+        reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: null, submittedAt: null,
+      },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain("They have your application");
+    // And the form is gone: a driver who has handed it over must not be able to keep editing the
+    // document somebody is reading.
+    expect(w.text()).not.toContain("Step 1 of");
+    expect(w.text()).not.toContain("Send it to");
+  });
+
+  it("⚠ shows what the carrier changed, above the certification, once it comes back to sign", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: {
+        consentedAt: "2026-09-09T09:00:00Z", releasesCompletedAt: "2026-09-09T09:10:00Z",
+        reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z", submittedAt: null,
+      },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      edits: [
+        { path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet", editedAt: "2026-09-11T08:00:00Z" },
+      ],
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain("Ready for your signature");
+    // The field in the driver's own words, not a contract path.
+    expect(w.text()).toContain("Employer 1 · City");
+    expect(w.text()).toContain("Jolliet");
+    expect(w.text()).toContain("Joliet");
+    expect(w.text()).toContain("I certify that all entries");
+    expect(w.text()).toContain("Sign and send it");
+  });
+
+  it("says plainly when the carrier changed nothing", async () => {
+    // Silence would read as "we did not look". An applicant asked to re-certify is owed the answer
+    // either way.
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: {
+        consentedAt: null, releasesCompletedAt: null,
+        reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z", submittedAt: null,
+      },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      edits: [],
+    }));
+    const w = mountPage();
+    await settle(w);
+    expect(w.text()).toContain("They did not change any of your answers.");
+  });
+
+  it("asks for the Social Security number on the signing screen, and nowhere else", async () => {
+    // ⚠ It moved there because D-APP3 keeps it out of every saved draft: a number typed on the first
+    // visit is gone by the second, and the second visit is when the file is created.
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: {
+        consentedAt: null, releasesCompletedAt: null,
+        reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z", submittedAt: null,
+      },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+    }));
+    const w = mountPage();
+    await settle(w);
+    expect(w.text()).toContain("Social Security number");
+
+    // The first screen of the first visit does not ask for it.
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+    }));
+    const first = mountPage();
+    await settle(first);
+    expect(first.text()).toContain("About you");
+    expect(first.text()).not.toContain("Social Security number");
+  });
+
+  it("hands the application over when the last screen's button is pressed", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: "review", updatedAt: null },
+      esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
+    }));
+    const w = mountPage();
+    await settle(w);
+    expect(w.text()).toContain("Check your answers");
+
+    fetchMock.mockResolvedValueOnce(ok({ ok: true, reviewRequestedAt: "2026-09-11T10:00:00Z" }));
+    await advance(w);
+
+    const sent = fetchMock.mock.calls.find((c) => String(c[0]).endsWith("/review"));
+    expect(sent).toBeDefined();
+    expect((sent?.[1] as RequestInit | undefined)?.method).toBe("POST");
+    // ⚠ No body. The answers are already saved — a second copy arriving by another road is two
+    // sources of truth for one application.
+    expect((sent?.[1] as RequestInit | undefined)?.body).toBeUndefined();
+    // And the driver is told it landed, rather than left on a form with a spent button.
+    expect(w.text()).toContain("They have your application");
   });
 
   /**

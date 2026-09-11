@@ -40,7 +40,30 @@ export interface ApplyRelease {
 export interface ApplyPhases {
   consentedAt: string | null;
   releasesCompletedAt: string | null;
+  /**
+   * The two the OFFICE owns (F4, 0336).
+   *
+   * ⚠ Without them this page cannot tell apart three states that look identical to it: still filling
+   * it in, waiting for the carrier to read it, and asked to sign the corrected document. A driver who
+   * had finished used to see the same screen as one who had never started.
+   */
+  reviewRequestedAt: string | null;
+  approvedAt: string | null;
   submittedAt: string | null;
+}
+
+/**
+ * One answer the office corrected while it had the application (D-AX12).
+ *
+ * ⚠ There is no `editedBy` here and there must not be. The driver is owed what changed about their
+ * own statement before they swear to it; which member of staff typed it is the carrier's internal
+ * record, and the server does not send it.
+ */
+export interface ApplyEdit {
+  path: (string | number)[];
+  before: unknown;
+  after: unknown;
+  editedAt: string;
 }
 
 /**
@@ -90,6 +113,8 @@ export interface ApplyInvitation {
    * them would mean a signed read URL per slot on an unauthenticated surface on every page load.
    */
   captures: ApplicationCaptureView[];
+  /** What the office changed while it had the application. Empty for almost every one of them. */
+  edits: ApplyEdit[];
 }
 
 async function publicFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -137,6 +162,19 @@ export interface ApplicantCopy {
  */
 export const fetchApplicantCopy = (token: string): Promise<ApplicantCopy> =>
   publicFetch<ApplicantCopy>(`/${token}/document`);
+
+/**
+ * Hand the finished application to the office (F4, D-AX11).
+ *
+ * No body: the answers are already saved — the form autosaves after every screen and the office opens
+ * that draft — so what is being sent is the ACT, not a second copy of the application.
+ */
+export function useRequestReview(token: Ref<string>) {
+  return useMutation({
+    mutationFn: () =>
+      publicFetch<{ reviewRequestedAt: string }>(`/${token.value}/review`, { method: "POST" }),
+  });
+}
 
 export function useSubmitApplication(token: Ref<string>) {
   return useMutation({

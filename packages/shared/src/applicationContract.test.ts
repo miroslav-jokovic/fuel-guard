@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  applicationBeforeCertificationSchema,
   driverApplicationSchema,
   employmentSegments,
   requiredEmployers,
@@ -199,6 +200,63 @@ describe("the application itself", () => {
  * accepted a document that answered neither — `experience` was nullish and there was nothing else —
  * which is mandatory content of the application form left blank.
  */
+/**
+ * The document as it stands when the driver hands it to the office (F4, D-AX11).
+ *
+ * ⚠ The test that matters is the FIRST one. `driverApplicationObject` is `.strict()`, so a schema
+ * built with `.omit({ certified, signed_name })` turns those two keys into *unrecognised* ones — and
+ * the client's `toApplication` always emits both. The first version did exactly that and refused
+ * every hand-off with `Unrecognized keys: "certified", "signed_name"`: an error that names no field
+ * on any screen and that a driver has no way to act on.
+ */
+describe("handing it over before it is certified", () => {
+  it("⚠ accepts a document that still carries an unticked box and an empty name", () => {
+    const parsed = applicationBeforeCertificationSchema.safeParse({
+      ...completeApplication(),
+      certified: false,
+      signed_name: "",
+    });
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+  });
+
+  it("accepts one with neither key at all", () => {
+    const { certified, signed_name, ...rest } = completeApplication();
+    void certified;
+    void signed_name;
+    expect(applicationBeforeCertificationSchema.safeParse(rest).success).toBe(true);
+  });
+
+  it("still requires everything else the regulation does", () => {
+    // The hand-off is not a way round §391.21(b). Only the signature waits.
+    const parsed = applicationBeforeCertificationSchema.safeParse({
+      ...completeApplication(),
+      certified: false,
+      last_name: "",
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.some((i) => i.path[0] === "last_name")).toBe(true);
+  });
+
+  it("still applies the rules that span fields", () => {
+    // "You listed no accidents and did not say you had none" is as true of a document waiting to be
+    // read as of one being filed.
+    const parsed = applicationBeforeCertificationSchema.safeParse({
+      ...completeApplication(),
+      certified: false,
+      accidents: [],
+      declares_no_accidents: false,
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.some((i) => i.path[0] === "accidents")).toBe(true);
+  });
+
+  it("refuses an unticked box on the CERTIFIED schema, which is the one that files it", () => {
+    // The two schemas must not converge: this is the whole reason there are two.
+    const parsed = driverApplicationSchema.safeParse({ ...completeApplication(), certified: false });
+    expect(parsed.success).toBe(false);
+  });
+});
+
 describe("§391.21(b)(6)", () => {
   const base = {
     first_name: "Susan", last_name: "Godfrey", date_of_birth: "1980-03-14",

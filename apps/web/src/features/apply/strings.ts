@@ -1,3 +1,4 @@
+import { APPLY_FLOW_COPY } from "./strings.flow";
 import {
   APPLICATION_SECTION_LABELS,
   CMV_WINDOW_YEARS,
@@ -74,8 +75,6 @@ export const APPLY_COPY = {
     back: "Back",
     next: "Next",
     review: "Check my answers",
-    send: "Send my application",
-    sending: "Sending…",
     fix: "Go to this section",
   },
 
@@ -112,7 +111,6 @@ export const APPLY_COPY = {
     /** Q-H2. The number is optional, and the reason it is asked at all is stated in one sentence. */
     ssnHint:
       "Optional. It is on the application because some driving-record checks match on it. Only the last four digits are kept in a readable form.",
-    ssnNotSaved: "This is the one answer that is not saved as you go — type it just before you send.",
   },
 
   addresses: {
@@ -336,8 +334,13 @@ export const APPLY_COPY = {
   },
 
   review: {
+    /**
+     * ⚠ It no longer says "about to certify" (F4). On this visit the driver is about to SEND it —
+     * the certification is asked for afterwards, on the document as the carrier leaves it, because
+     * swearing that every entry is true has to happen after the entries stop moving.
+     */
     intro:
-      "This is everything you are about to certify as true and complete. Check it, and go back to any section that needs changing.",
+      "This is everything you are about to send. Check it, and go back to any section that needs changing.",
     empty: "Not answered",
     none: "None declared",
     count: (n: number, noun: string): string => `${n} ${noun}${n === 1 ? "" : "s"}`,
@@ -345,102 +348,16 @@ export const APPLY_COPY = {
 
   certify: {
     heading: "Your certification",
-    intro: "You have to certify this before it can be sent. Typing your name is your signature.",
+    intro: "Typing your name is your signature.",
     statement:
       "I certify that all entries on this application are true and complete to the best of my knowledge.",
     signedName: "Your full name",
-    dateNote: "The date is recorded for you when you send this.",
-  },
-
-  done: {
-    heading: "Your application is in",
-    body: (carrier: string): string =>
-      `${carrier} has it, certified in your name. They will contact you about what happens next.`,
-    reopen:
-      "You can close this page. Your link still opens to this message, and it cannot be used to send a second application.",
-    /**
-     * X8/D-AX9. The 7001(c) consent promises a copy "at no charge" and, until now, the only way to
-     * get one was to ask the carrier — which discharges the statute and is a long way below what
-     * somebody who has ever used a commercial e-signature product expects.
-     */
-    download: "Download your copy",
-    downloading: "Preparing your copy…",
-    downloadNote:
-      "Everything you filled in, everything you signed, and a record of when and how you signed it.",
-    downloadFailed:
-      "That did not open just now. Try again in a moment, or ask the carrier to send you a copy.",
-  },
-
-  dead: {
-    heading: "This link is not valid",
-    body: "It may have expired, or the carrier may have replaced it. Ask the carrier who invited you for a new one.",
+    dateNote: "The date is recorded for you when you sign.",
   },
 
   /**
-   * The carrier has not published its final wording, so nothing can be signed and nothing can be
-   * sent (2026-08-23).
-   *
-   * ── WHY THE FORM STAYS OPEN AND ONLY THE SEND IS STOPPED ──────────────────────────────────
-   * The server refuses the submission while the wording is draft (`WORDING_NOT_FINAL`), and the first
-   * instinct was to put a wall in front of the whole page. That would have overturned H5b, which
-   * deliberately keeps the form usable while the ceremony cannot run — and it would have thrown away
-   * something real: the link is a SESSION (D-APP1), autosave has never been gated, and a driver who
-   * fills the form today finds it waiting the day the wording publishes.
-   *
-   * So the fact is told on the FIRST screen instead of discovered at the last, the Send button is
-   * disabled rather than removed, and the read-only disclosure panel says what it costs.
-   *
-   * ⚠ **None of these blame the reader, and none of them promise a date.** It is a fact about the
-   * carrier's paperwork; the only useful action the applicant has is to ask the person who invited
-   * them, so that is the sentence.
+   * The ceremony and the lifecycle screens — consent, signing, the hand-off, the certification.
+   * One object so `strings.test.ts` can walk all of it; see `strings.flow.ts` for the seam.
    */
-  notOpen: {
-    banner: (carrier: string): string =>
-      `${carrier} is still finalising the wording of the documents that go with this application, so it cannot be sent yet. Fill in what you can — everything you type is saved, and this link will still be here.`,
-    cannotSend:
-      "You cannot sign these yet, and the application cannot be sent until the carrier publishes the final wording. Ask the person who invited you when that will be.",
-    sendLabel: "Not ready to send yet",
-  },
-
-  consent: {
-    heading: "Before you start",
-    intro: (carrier: string): string =>
-      `${carrier} would like to send you this application, and take your signature on it, electronically. The law says you have to agree to that first — and that you have to be told the following before you do.`,
-    /** 7001(c)(1)(C)(ii): the affirmation itself, given in the browser they just read it in. */
-    action: "I agree — continue",
-    working: "One moment…",
-    draftNotice:
-      "This carrier has not published its final wording yet, so there is nothing to agree to today. You can go straight on with your application.",
-    failed: "That did not go through. Check your signal and try again.",
-  },
-
-  signing: {
-    adoptHeading: "Your signature",
-    adoptIntro: (carrier: string, count: number): string =>
-      `${carrier} needs you to sign ${count} authorizations before you fill in the application. Type your name once — each document is then one tap, and you will see exactly what you are signing.`,
-    adoptLabel: "Type your full name",
-    adoptHint: "This is your signature. Type it as it appears on your licence.",
-    adoptAction: "Use this as my signature",
-    /** A8b/D-APP8. Optional, and said to be optional — a driver who cannot draw one has still
-     *  signed, and the typed name above is what the carrier's file records. */
-    drawLabel: "Draw it too, if you like",
-    drawHint: "Optional. Your typed name above is your signature either way — this just puts your own mark on the document.",
-    drawClear: "Clear",
-    counter: (n: number, total: number): string => `${n} of ${total}`,
-    sign: "I agree — sign this",
-    signing: "Signing…",
-    /** The carrier's outstanding act, said as the carrier's — the driver can do nothing about it. */
-    notFinal:
-      "This carrier has not published its final wording for this document yet, so it cannot be signed today. They have been told. You can still fill in your application.",
-  },
-
-  unlock: {
-    heading: "Pick up where you left off",
-    body: (carrier: string): string =>
-      `You have already started this application for ${carrier}. Confirm your date of birth and your answers come back.`,
-    label: "Your date of birth",
-    failed: "That does not match this application. Try again, or ask the carrier for a new link and start fresh.",
-    checking: "Checking…",
-    action: "Continue",
-  },
+  ...APPLY_FLOW_COPY,
 } as const;

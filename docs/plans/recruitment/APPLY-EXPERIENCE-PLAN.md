@@ -309,6 +309,19 @@ route and the page either way; the email is a small addition on top and needs a 
 it says, which touches wording counsel has not seen. Recommendation: **ship the download in X8, hold
 the email until the instruments are published**, so nothing in this plan touches counsel's material.
 
+**Q-AX4 · Nothing tells the applicant their application has been approved.** Raised 2026-09-11 by F4
+(4b), and it is the one seam the two-visit flow opens. The driver hands the application over, the
+office approves it days later, and the only thing that carries that news is the driver reopening
+their own link on the off-chance. The waiting screen therefore promises nothing — it says "keep this
+link", which is true — but the honest product sends an email (and later an SMS) the moment
+`approved_at` is stamped.
+
+Candidates: (a) email on approval from `approveApplication`, reusing the invitation mailer; (b) let
+the recruiter press "tell them it is ready", so the carrier chooses the moment; (c) nothing, and the
+recruiter phones them. Recommendation: **(a)**, because the office has already made its decision by
+then and a step that can be forgotten is a step that will be. It needs one sentence of copy about a
+signature, which is why it is a question rather than a step: the wording sits beside counsel's.
+
 ## 5. What this plan deliberately does not do
 
 - It does not touch any disclosure, intent statement or version. (D-AX1.)
@@ -580,3 +593,26 @@ adjacent table rows conflict every time.
   `applicationIntake.ts` reached 506 lines with the two new phases, so the four-authorization ceremony
   moved to `applicationReleases.ts` — a real seam (FCRA §604(b)(2) makes each instrument its own
   document, signed on its own) rather than a cut made for the line count.
+- 2026-09-11 — **F4 (4b/n): the applicant's page becomes two visits.** The first ends at "Check your
+  answers" with **Send it to <carrier>**; the second opens on a signing screen that shows what the
+  office changed, the whole document, the §391.21(b)(12) certification and the signature.
+  `APPLICATION_FILLING_SECTIONS` is the wizard's order now — the same nine sections minus `certify`,
+  which is not a screen of the first visit — so the counter reads "Step 8 of 8" and the step list
+  stops at "Check your answers" rather than offering a screen the driver cannot reach from there.
+  ⚠ **The Social Security number moved to the signing screen, and it was forced rather than chosen.**
+  D-APP3 keeps it out of every saved draft, and the application is now signed on a SECOND visit — so a
+  number typed on the first is gone by then. Asking beside the signature is also the better privacy
+  answer: typed once, sealed immediately, held nowhere in between.
+  ⚠ `applicationBeforeCertificationSchema` uses `.extend()` and NOT `.omit()`. `driverApplicationObject`
+  is `.strict()`, so omitting `certified`/`signed_name` makes them UNRECOGNISED keys — and `toApplication`
+  always emits both. The first version did exactly that and refused every hand-off with
+  `Unrecognized keys: "certified", "signed_name"`, an error naming no field on any screen. Pinned by a
+  test that fails when the `.extend` is swapped back for an `.omit`.
+  ⚠ Three files hit the 500-line budget at once and each was split along a real seam, not a convenient
+  one: `strings.flow.ts` (the ceremony and lifecycle copy — everything left in `strings.ts` is a
+  question the form asks), `applicationRules.ts` (the rules that span fields, imported back by
+  type-only reference so there is no runtime cycle), and `ApplyPage.vue` → `ApplicationFiledCard.vue`,
+  `DraftUnlockGate.vue`, `ApplyIssueList.vue`.
+  Measured in a real browser at 320/390/1280 on all three screens: no sideways scroll, nothing out of
+  frame. **Q-AX4 is open and is the visible seam** — nothing tells the applicant their application has
+  been approved, so the waiting screen promises no email and says "keep this link" instead.

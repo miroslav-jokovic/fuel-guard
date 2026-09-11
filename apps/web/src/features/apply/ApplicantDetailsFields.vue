@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppButton as BaseButton, AppInput as BaseInput, AppDateField, AppFormField as FormField } from "@silvicom/ui";
+import { AppButton as BaseButton, AppInput as BaseInput, AppDateField } from "@silvicom/ui";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
@@ -77,9 +77,9 @@ const copy = APPLY_COPY.identity;
          steps, after the two heaviest screens in the form. -->
     <QuestionnaireFields v-model="draft" section="identity" />
 
-    <FormField v-slot="{ id }" :label="copy.ssn" :hint="copy.ssnHint">
-      <BaseInput :id="id" v-model="draft.ssn" inputmode="numeric" autocomplete="off" />
-    </FormField>
-    <p class="text-xs text-ink-muted">{{ copy.ssnNotSaved }}</p>
+    <!-- ⚠ The Social Security number is NOT here since F4. It moved to the signing screen, and it was
+         forced rather than chosen: D-APP3 keeps it out of every saved draft, the application is now
+         signed on a SECOND visit after the office has read it, and a number typed here would be gone
+         by then. `SignOffFields.vue` says the rest. -->
   </section>
 </template>
