@@ -17,6 +17,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { confirmCapture, listCaptures, startCapture } from "../applicationCapture.js";
+import { applicantVisibleEdits, requestReview } from "../applicationHandoff.js";
 import { applicantCopy } from "../applicationCopy.js";
 import { loadCarrierWording } from "../carrierWording.js";
 import { loadDraft, saveDraft, unlockDraft } from "../applicationDraft.js";
@@ -24,12 +25,10 @@ import { esignConsentForApplicant, recordEsignConsent } from "../esignConsent.js
 import {
   isIntakeError,
   phasesOf,
-  recordRelease,
-  releasesForApplicant,
   resolveInvitation,
-  signedReleases,
   submitApplication,
 } from "../applicationIntake.js";
+import { recordRelease, releasesForApplicant, signedReleases } from "../applicationReleases.js";
 
 /**
  * The public application surface — H5, and the only unauthenticated write path in the product that
@@ -117,6 +116,9 @@ export function publicApplicationRouter(): Router {
       // And which slots have been photographed (A8), so a resumed session does not ask a driver to
       // take a licence photograph they already took.
       const captures = await listCaptures(admin, invitation.org_id, invitation.id);
+      // What the office corrected while it had it (F4, D-AX12). The driver is about to certify that
+      // every entry is true — they are owed the changes somebody else made to their statement.
+      const edits = await applicantVisibleEdits(admin, invitation.org_id, invitation.id);
 
       res.json({
         // The carrier's name and nothing else about them. An application link is not a directory.
@@ -134,6 +136,8 @@ export function publicApplicationRouter(): Router {
         // Slots and dates, not pictures (A8) — see `listCaptures` for why the photographs are not
         // re-served to the person who took them.
         captures,
+        // Empty for every application nobody has corrected, which is most of them.
+        edits,
       });
     }),
   );
@@ -168,6 +172,35 @@ export function publicApplicationRouter(): Router {
       // The application id and nothing else. The applicant does not need — and must not be handed —
       // their own driver id or the carrier's org id.
       res.status(201).json({ ok: true, applicationId: result.applicationId });
+    }),
+  );
+
+  /**
+   * Hand the finished application to the office (F4, D-AX11).
+   *
+   * The body carries nothing. What is being recorded is an ACT — "I have finished, please read it" —
+   * and the answers it is about are already saved: the form autosaves after every screen, and the
+   * office opens that draft. A body here would be a second copy of the application arriving by a
+   * different road, and the two would eventually disagree.
+   */
+  router.post(
+    "/:token/review",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await requestReview(
+        admin, String(req.params.token ?? ""), context(req), new Date(),
+      );
+      if (isIntakeError(result)) {
+        const status =
+          result.code === "invalid_link"
+            ? 404
+            : result.code === "already_submitted" || result.code === "nothing_to_review"
+              ? 409
+              : 500;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json({ ok: true, reviewRequestedAt: result.reviewRequestedAt });
     }),
   );
 

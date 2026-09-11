@@ -160,8 +160,42 @@ describe("opening the link", () => {
     expect(body.phases).toEqual({
       consentedAt: "2026-08-20T09:00:00Z",
       releasesCompletedAt: null,
+      // The two the office owns (F4). Null here, and that is the ordinary case: nobody has read it.
+      reviewRequestedAt: null,
+      approvedAt: null,
       submittedAt: null,
     });
+  });
+
+  it("hands back what the office corrected, without naming who corrected it", async () => {
+    // ⚠ D-AX12: the driver is about to certify that every entry is true, so they are owed the
+    // changes somebody else made to their statement. Who typed it is the carrier's own record.
+    holder.client = createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: "inv-1", org_id: ORG, driver_id: DRIVER,
+          token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+          consented_at: null, releases_completed_at: null,
+          review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
+          submitted_at: null,
+        }],
+        organizations: [{ name: "Silvicom Inc" }],
+        application_edits: [{
+          path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet",
+          edited_at: "2026-09-11T08:00:00Z", edited_by: "cccccccc-dddd-4eee-8fff-000000000000",
+        }],
+      },
+    }).client;
+
+    const res = await call(`/${TOKEN}`);
+    const body = (await res.json()) as { edits: Array<Record<string, unknown>> };
+    expect(body.edits).toHaveLength(1);
+    expect(body.edits[0]).toEqual({
+      path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet",
+      editedAt: "2026-09-11T08:00:00Z",
+    });
+    expect(JSON.stringify(body.edits)).not.toContain("cccccccc");
   });
 
   it("tells an anonymous caller nothing about who exists", async () => {
@@ -188,6 +222,53 @@ describe("the rate limit", () => {
       if (res.status === 429) sawLimit = true;
     }
     expect(sawLimit).toBe(true);
+  });
+});
+
+/**
+ * Handing the finished application to the office (F4, D-AX11).
+ *
+ * The act is the whole payload: the answers are already saved, and a body here would be a second copy
+ * of the application arriving by a different road.
+ */
+describe("sending it to the carrier to read", () => {
+  it("stamps the hand-off and says when", async () => {
+    holder.client = createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: "inv-1", org_id: ORG, driver_id: DRIVER,
+          token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+          consented_at: null, releases_completed_at: null,
+          review_requested_at: null, approved_at: null, submitted_at: null,
+        }],
+        application_drafts: [{ invitation_id: "inv-1" }],
+        audit_logs: [],
+      },
+    }).client;
+
+    const res = await call(`/${TOKEN}/review`, { method: "POST" });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { ok: boolean; reviewRequestedAt: string };
+    expect(body.ok).toBe(true);
+    expect(typeof body.reviewRequestedAt).toBe("string");
+    // Nothing about who it resolved to, like every other answer on this surface.
+    expect(JSON.stringify(body)).not.toContain(ORG);
+    expect(JSON.stringify(body)).not.toContain(DRIVER);
+  });
+
+  it("answers 409 when there is nothing saved to read, not 500", async () => {
+    holder.client = seed().client;
+    const res = await call(`/${TOKEN}/review`, { method: "POST" });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("nothing_to_review");
+  });
+
+  it("answers a dead link the way every dead link is answered", async () => {
+    holder.client = seed(null).client;
+    const res = await call(`/${TOKEN}/review`, { method: "POST" });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("invalid_link");
   });
 });
 

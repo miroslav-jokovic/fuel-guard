@@ -7,11 +7,11 @@ import {
   isIntakeError,
   mintInvitationToken,
   phasesOf,
-  recordRelease,
   resolveInvitation,
   sealSsn,
   submitApplication,
 } from "./applicationIntake.js";
+import { recordRelease } from "./applicationReleases.js";
 
 /**
  * The unauthenticated intake. The token is the ENTIRE access-control story here, so most of what is
@@ -161,10 +161,15 @@ describe("the link is a session, not a fuse", () => {
     expect(isIntakeError(result)).toBe(false);
   });
 
-  it("hands the page the three phase stamps so it opens where the driver stopped", async () => {
+  it("hands the page every phase stamp so it opens where the driver stopped", async () => {
+    // ⚠ Five since F4, not three. The two the OFFICE owns are here because the applicant's page
+    // cannot otherwise tell apart three states that look identical to it — still filling it in,
+    // waiting for the carrier, and asked to sign — and the only thing separating them is a stamp.
     const inv = invitation({
       consented_at: "2026-08-19T00:00:00Z",
       releases_completed_at: "2026-08-19T00:05:00Z",
+      review_requested_at: "2026-08-19T00:30:00Z",
+      approved_at: null,
       submitted_at: null,
     });
     const result = await resolveInvitation(seed(inv).client, TOKEN, NOW);
@@ -172,6 +177,8 @@ describe("the link is a session, not a fuse", () => {
     expect(phasesOf(result)).toEqual({
       consentedAt: "2026-08-19T00:00:00Z",
       releasesCompletedAt: "2026-08-19T00:05:00Z",
+      reviewRequestedAt: "2026-08-19T00:30:00Z",
+      approvedAt: null,
       submittedAt: null,
     });
   });
