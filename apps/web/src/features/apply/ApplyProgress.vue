@@ -3,8 +3,8 @@ import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { CheckIcon, ChevronDownIcon } from "@silvicom/ui/icons";
 import {
+  APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_LABELS,
-  APPLICATION_SECTION_ORDER,
   type ApplicationSection,
 } from "@silvicom/shared";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -13,7 +13,8 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * Where the driver is, what is behind them, and what is left (APPLY-EXPERIENCE-PLAN, X4).
  *
  * ── WHAT THIS REPLACES ────────────────────────────────────────────────────────────────────────
- * A one-pixel bar and the words "Step 4 of 9". On a phone that bar was the entire map of a nine-screen
+ * A one-pixel bar and the words "Step 4 of 9". (Eight since F4 — the certification moved to a
+ * second visit, after the office has read what was sent and corrected anything it corrected.) On a phone that bar was the entire map of a nine-screen
  * federal application, and it answered only one of the three questions somebody part-way through a
  * long form actually has: how far in am I, how much is left, and can I go back and change something.
  *
@@ -47,7 +48,7 @@ const copy = APPLY_COPY.progress;
 const open = ref(false);
 
 const steps = computed(() =>
-  APPLICATION_SECTION_ORDER.map((section, at) => ({
+  APPLICATION_FILLING_SECTIONS.map((section, at) => ({
     section,
     at,
     label: APPLICATION_SECTION_LABELS[section],
@@ -56,8 +57,8 @@ const steps = computed(() =>
   })),
 );
 
-const current = computed(() => APPLICATION_SECTION_LABELS[APPLICATION_SECTION_ORDER[props.index]!]);
-const total = APPLICATION_SECTION_ORDER.length;
+const current = computed(() => APPLICATION_SECTION_LABELS[APPLICATION_FILLING_SECTIONS[props.index]!]);
+const total = APPLICATION_FILLING_SECTIONS.length;
 
 function jump(section: ApplicationSection, reachable: boolean): void {
   if (!reachable) return;

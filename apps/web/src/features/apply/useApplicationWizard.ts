@@ -1,8 +1,8 @@
 import { computed, ref, type Ref } from "vue";
 import {
   APPLICATION_CROSS_FIELD_RULES,
+  APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_KEYS,
-  APPLICATION_SECTION_ORDER,
   driverApplicationObject,
   isApplicationSection,
   sectionOwning,
@@ -148,15 +148,15 @@ export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<stri
   const furthest = ref(0);
   const issues = ref<SectionIssue[]>([]);
 
-  const section = computed<ApplicationSection>(() => APPLICATION_SECTION_ORDER[index.value]!);
+  const section = computed<ApplicationSection>(() => APPLICATION_FILLING_SECTIONS[index.value]!);
   const isFirst = computed(() => index.value === 0);
-  const isLast = computed(() => index.value === APPLICATION_SECTION_ORDER.length - 1);
+  const isLast = computed(() => index.value === APPLICATION_FILLING_SECTIONS.length - 1);
 
   /** Where the driver left off, if the saved token is one this version of the form knows. */
   function resume(): void {
     const saved = resumeAt.value;
     if (!isApplicationSection(saved)) return;
-    const at = APPLICATION_SECTION_ORDER.indexOf(saved);
+    const at = APPLICATION_FILLING_SECTIONS.indexOf(saved as never);
     if (at < 0) return;
     index.value = at;
     furthest.value = at;
@@ -178,7 +178,7 @@ export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<stri
    * beside the field it names, or the driver lands on a long screen with no idea what they came for.
    */
   function goTo(target: ApplicationSection, keepIssues = false): void {
-    const at = APPLICATION_SECTION_ORDER.indexOf(target);
+    const at = APPLICATION_FILLING_SECTIONS.indexOf(target as never);
     if (at < 0) return;
     if (!keepIssues) issues.value = [];
     moveTo(at);
@@ -243,7 +243,7 @@ export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<stri
   return {
     section,
     /** What autosave stores — the name of the column, and the screen a resumed session opens on. */
-    furthestSection: computed<ApplicationSection>(() => APPLICATION_SECTION_ORDER[furthest.value]!),
+    furthestSection: computed<ApplicationSection>(() => APPLICATION_FILLING_SECTIONS[furthest.value]!),
     /**
      * The same high-water mark as a number — the fence the step list navigates inside (X4).
      *
@@ -253,7 +253,7 @@ export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<stri
      */
     furthestIndex: computed(() => furthest.value),
     index: computed(() => index.value),
-    total: APPLICATION_SECTION_ORDER.length,
+    total: APPLICATION_FILLING_SECTIONS.length,
     isFirst,
     isLast,
     issues: computed(() => issues.value),

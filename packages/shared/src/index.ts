@@ -99,6 +99,9 @@ export * from "./rosterContract.js";
 export * from "./recruitmentContract.js";
 export * from "./authorizationContract.js";
 export * from "./applicationContract.js";
+// The rules that span fields — split out of the contract on 2026-09-11 and re-exported beside it, so
+// every consumer still reaches `APPLICATION_CROSS_FIELD_RULES` through `@silvicom/shared` unchanged.
+export * from "./applicationRules.js";
 export * from "./applicantPipeline.js";
 export * from "./applicationIntake.js";
 export * from "./sevenDayStatement.js";
