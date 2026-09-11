@@ -453,6 +453,10 @@
       "module": "messaging",
       "layer": "core"
     },
+    "org_disclosures": {
+      "module": "recruiting",
+      "layer": "core"
+    },
     "org_integrations": {
       "module": "org",
       "layer": "infra"

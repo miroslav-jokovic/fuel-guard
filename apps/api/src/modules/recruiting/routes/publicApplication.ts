@@ -18,6 +18,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { confirmCapture, listCaptures, startCapture } from "../applicationCapture.js";
 import { applicantCopy } from "../applicationCopy.js";
+import { loadCarrierWording } from "../carrierWording.js";
 import { loadDraft, saveDraft, unlockDraft } from "../applicationDraft.js";
 import { esignConsentForApplicant, recordEsignConsent } from "../esignConsent.js";
 import {
@@ -102,6 +103,11 @@ export function publicApplicationRouter(): Router {
         .eq("id", invitation.org_id)
         .maybeSingle();
 
+      // The carrier's own published instruments (0338), or the code's placeholders for anything they
+      // have not published. Loaded once and used for both the releases and the consent below, so the
+      // page cannot show a published release beside a placeholder consent.
+      const wording = await loadCarrierWording(admin, invitation.org_id);
+
       // What they typed last time (A2). The body is withheld once a date of birth is in it — see
       // `applicationDraft.ts` for why the bare link is not enough to read one back (D-APP16).
       const draft = await loadDraft(admin, invitation.org_id, invitation.id);
@@ -116,7 +122,7 @@ export function publicApplicationRouter(): Router {
         // The carrier's name and nothing else about them. An application link is not a directory.
         carrier: (org as { name?: string } | null)?.name ?? "the carrier",
         expiresAt: invitation.expires_at,
-        releases: releasesForApplicant(),
+        releases: releasesForApplicant(wording),
         releasesSigned: signed,
         // Where this driver stopped (D-APP1). Three dates and nothing else — the page opens on the
         // step they had reached instead of on a blank form they have already filled in once.
@@ -124,7 +130,7 @@ export function publicApplicationRouter(): Router {
         draft,
         // The 15 U.S.C. 7001(c) consent, served like every other instrument — the exact text, from
         // the server, so what somebody agreed to is a fact we can prove (A4).
-        esignConsent: esignConsentForApplicant(),
+        esignConsent: esignConsentForApplicant(wording.esignConsent),
         // Slots and dates, not pictures (A8) — see `listCaptures` for why the photographs are not
         // re-served to the person who took them.
         captures,

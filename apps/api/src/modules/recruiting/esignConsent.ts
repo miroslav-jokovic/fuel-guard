@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ESIGN_CONSENT,
+  type EsignConsentDocument,
   esignConsentBody,
   isDraftDisclosure,
 } from "@silvicom/shared";
@@ -10,6 +11,7 @@ import {
   type IntakeError,
   type SubmitContext,
 } from "./applicationIntake.js";
+import { loadCarrierWording } from "./carrierWording.js";
 
 /**
  * Consent to transact electronically — the first act on the link (A4, D-APP5).
@@ -33,7 +35,8 @@ import {
  */
 
 /** Is the 7001(c) consent collectable — i.e. has counsel's text been published (A0)? */
-export const esignConsentIsPublishable = (): boolean => !isDraftDisclosure(ESIGN_CONSENT.version);
+export const esignConsentIsPublishable = (doc: EsignConsentDocument = ESIGN_CONSENT): boolean =>
+  !isDraftDisclosure(doc.version);
 
 export const CONSENT_ALREADY_GIVEN: IntakeError = {
   code: "esign_consent_already_given",
@@ -41,7 +44,7 @@ export const CONSENT_ALREADY_GIVEN: IntakeError = {
 };
 
 /** What the applicant's page renders before anything else — served, never shipped in the bundle. */
-export function esignConsentForApplicant(): {
+export function esignConsentForApplicant(doc: EsignConsentDocument = ESIGN_CONSENT): {
   version: string;
   title: string;
   citation: string;
@@ -52,13 +55,13 @@ export function esignConsentForApplicant(): {
   required: boolean;
 } {
   return {
-    version: ESIGN_CONSENT.version,
-    title: ESIGN_CONSENT.title,
-    citation: ESIGN_CONSENT.citation,
-    body: esignConsentBody(),
-    intent: ESIGN_CONSENT.intent,
-    draft: isDraftDisclosure(ESIGN_CONSENT.version),
-    required: esignConsentIsPublishable(),
+    version: doc.version,
+    title: doc.title,
+    citation: doc.citation,
+    body: esignConsentBody(doc),
+    intent: doc.intent,
+    draft: isDraftDisclosure(doc.version),
+    required: esignConsentIsPublishable(doc),
   };
 }
 
@@ -77,10 +80,14 @@ export async function recordEsignConsent(
 ): Promise<{ consentId: string } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
+  // ⚠ Loaded here, not passed in (0338): the invitation names the org, and a caller that could
+  // forget to pass the carrier's published consent is a caller that could record a consent against
+  // placeholder text.
+  const doc = (await loadCarrierWording(admin, invitation.org_id)).esignConsent;
 
   // The same refusal the signing endpoint gives, for the same reason: this is a signed instrument,
   // and a consent recorded against placeholder wording is evidence of nothing.
-  if (isDraftDisclosure(ESIGN_CONSENT.version)) {
+  if (isDraftDisclosure(doc.version)) {
     return {
       code: "disclosure_not_final",
       message:
@@ -94,9 +101,9 @@ export async function recordEsignConsent(
     p_org: invitation.org_id,
     p_invitation: invitation.id,
     p_driver: invitation.driver_id,
-    p_version: ESIGN_CONSENT.version,
-    p_text: esignConsentBody(),
-    p_intent: ESIGN_CONSENT.intent,
+    p_version: doc.version,
+    p_text: esignConsentBody(doc),
+    p_intent: doc.intent,
     p_ip: ctx.ip,
     p_user_agent: ctx.userAgent,
   });

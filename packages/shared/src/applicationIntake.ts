@@ -170,14 +170,23 @@ export const APPLICATION_RELEASE_ORDER: readonly AuthorizationPurpose[] = [
  * So the scope is exactly the six things that path touches: the 7001(c) consent that makes the
  * electronic record a record at all, and the four releases the ceremony collects.
  *
+ * ⚠ **The carrier's own published wording is passed IN** (0338). The default is the code's
+ * placeholders, and that default is the safe one: a caller that forgets to pass the carrier's
+ * documents gets `v0-draft` and therefore a refusal, never an accidental opening.
+ *
  * ⚠ **It lives here rather than beside `DISCLOSURES` because of the direction of the imports.**
  * `APPLICATION_RELEASE_ORDER` is application vocabulary; `authorizationContract.ts` knows nothing
  * about applications and must keep not knowing, or the catalogue starts depending on one of its
  * consumers.
  */
-export const applicationWordingIsDraft = (): boolean =>
-  isDraft(ESIGN_CONSENT.version)
-  || APPLICATION_RELEASE_ORDER.some((p) => isDraft(DISCLOSURES[p].version));
+export const applicationWordingIsDraft = (
+  wording: { disclosures: typeof DISCLOSURES; esignConsent: typeof ESIGN_CONSENT } = {
+    disclosures: DISCLOSURES,
+    esignConsent: ESIGN_CONSENT,
+  },
+): boolean =>
+  isDraft(wording.esignConsent.version)
+  || APPLICATION_RELEASE_ORDER.some((p) => isDraft(wording.disclosures[p].version));
 
 // ── what a submission becomes ─────────────────────────────────────────────────
 

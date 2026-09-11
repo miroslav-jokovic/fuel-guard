@@ -3,7 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICATION_RELEASE_ORDER,
   DISCLOSURES,
+  ESIGN_CONSENT,
   applicationWordingIsDraft,
+  type CarrierWording,
   esignConsentRequired,
   isDraftDisclosure,
   planApplicationIntake,
@@ -13,6 +15,7 @@ import {
   type AuthorizationPurpose,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
+import { loadCarrierWording } from "./carrierWording.js";
 import { promoteCaptures } from "./applicationCapture.js";
 import { ensureApplicationPdf } from "./applicationPdf/file.js";
 import { isSecretBoxConfigured, seal, secretAad } from "../../lib/secretBox.js";
@@ -139,7 +142,16 @@ export async function resolveInvitation(
 }
 
 /** The instruments an applicant is asked to sign, with the exact wording, composed server-side. */
-export function releasesForApplicant(): Array<{
+/**
+ * The code's placeholders, as a `CarrierWording`.
+ *
+ * ⚠ The default for every function below, and the default is the SAFE one: a caller that forgets to
+ * load the carrier's published documents gets `v0-draft` and therefore a refusal. Failing closed is
+ * the only acceptable direction for a function that decides whether a signature may be taken.
+ */
+const CODE_WORDING: CarrierWording = { disclosures: DISCLOSURES, esignConsent: ESIGN_CONSENT };
+
+export function releasesForApplicant(wording: CarrierWording = CODE_WORDING): Array<{
   purpose: AuthorizationPurpose;
   version: string;
   title: string;
@@ -149,7 +161,7 @@ export function releasesForApplicant(): Array<{
   draft: boolean;
 }> {
   return APPLICATION_RELEASE_ORDER.map((purpose) => {
-    const doc = DISCLOSURES[purpose];
+    const doc = wording.disclosures[purpose];
     return { ...doc, draft: isDraftDisclosure(doc.version) };
   });
 }
@@ -201,8 +213,11 @@ export const CONSENT_REQUIRED: IntakeError = {
   message: "Agree to sign and receive these documents electronically before you go on.",
 };
 
-export function requireEsignConsent(invitation: { consented_at: string | null }): IntakeError | null {
-  return esignConsentRequired(invitation.consented_at) ? CONSENT_REQUIRED : null;
+export function requireEsignConsent(
+  invitation: { consented_at: string | null },
+  wording: CarrierWording = CODE_WORDING,
+): IntakeError | null {
+  return esignConsentRequired(invitation.consented_at, wording.esignConsent) ? CONSENT_REQUIRED : null;
 }
 
 export const RELEASES_COMPLETE: IntakeError = {
@@ -273,9 +288,14 @@ export async function submitApplication(
 ): Promise<{ applicationId: string; driverId: string } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
+  // ⚠ Loaded HERE rather than taken as a parameter (0338). The invitation is what names the org, and
+  // a caller that could forget to pass the carrier's published wording is a caller that could open
+  // the signing gate on placeholder text. Nothing upstream can get this wrong because nothing
+  // upstream is asked.
+  const wording = await loadCarrierWording(admin, invitation.org_id);
   // §390.32(d): an electronic §391.21 application must include proof of 7001(c) consent, so the
   // consent comes first or the document we file is not the one the regulation asked for (A4).
-  const consent = requireEsignConsent(invitation);
+  const consent = requireEsignConsent(invitation, wording);
   if (consent) return consent;
   // The submit phase is this path's own to spend (D-APP1). Said plainly rather than neutrally: only
   // the holder of the token reaches this, `GET /:token` already told them the application is in, and
@@ -284,7 +304,7 @@ export async function submitApplication(
   if (invitation.submitted_at) return ALREADY_SUBMITTED;
   // Last of the refusals, in the same position `recordRelease` puts its own: the phase questions are
   // about THIS link and are cheap, the wording question is about the carrier. See WORDING_NOT_FINAL.
-  if (applicationWordingIsDraft()) return WORDING_NOT_FINAL;
+  if (applicationWordingIsDraft(wording)) return WORDING_NOT_FINAL;
 
   const { driverPatch, employment } = planApplicationIntake(body.application);
   const ssn = sealSsn(env, invitation.org_id, body.ssn);
@@ -391,6 +411,7 @@ export async function recordRelease(
 ): Promise<{ id: string; signedCount: number; completed: boolean } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
+  const wording = await loadCarrierWording(admin, invitation.org_id);
   // A signature given electronically by somebody who never agreed to sign electronically is the
   // gap §390.32(d) exists to close (A4).
   const consent = requireEsignConsent(invitation);
@@ -399,7 +420,7 @@ export async function recordRelease(
   // refusal that keeps a finished ceremony from reaching the database at all.
   if (invitation.releases_completed_at) return RELEASES_COMPLETE;
 
-  const doc = DISCLOSURES[body.purpose];
+  const doc = wording.disclosures[body.purpose];
   if (isDraftDisclosure(doc.version)) {
     return {
       code: "disclosure_not_final",
