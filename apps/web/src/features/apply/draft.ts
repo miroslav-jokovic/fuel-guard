@@ -237,6 +237,34 @@ const num = (v: string): number => {
  * an empty string is an answer of nothing. Rows the applicant added and left completely blank are
  * dropped — an accidental "Add another" click is not a declaration.
  */
+/**
+ * One employer, as the contract wants it.
+ *
+ * ⚠ Lifted out of `toApplication` so that ONE row can be validated on its own — X5 asks each job for
+ * its fifteen answers in a drawer of its own and checks it when the driver saves, rather than
+ * collecting six jobs and reporting ninety controls' worth of problems at once. A second mapper for
+ * that would be a second opinion about what a row is, and the two would drift on the next field.
+ */
+export function toEmployerPayload(e: DraftEmployer): Record<string, unknown> {
+  return {
+    employer_name: e.employer_name.trim(),
+    usdot_number: text(e.usdot_number),
+    address_line1: text(e.address_line1),
+    city: text(e.city),
+    state: text(e.state),
+    phone: text(e.phone),
+    email: text(e.email),
+    position_held: text(e.position_held),
+    started_on: e.started_on,
+    ended_on: text(e.ended_on),
+    operated_cmv: e.operated_cmv,
+    dot_regulated: e.dot_regulated,
+    reason_for_leaving: text(e.reason_for_leaving),
+    subject_to_fmcsr: e.subject_to_fmcsr,
+    safety_sensitive: e.safety_sensitive,
+  };
+}
+
 export function toApplication(draft: ApplicationDraft): unknown {
   return {
     first_name: draft.first_name.trim(),
@@ -297,25 +325,7 @@ export function toApplication(draft: ApplicationDraft): unknown {
     licence_ever_denied: draft.licence_ever_denied,
     licence_denial_detail: text(draft.licence_denial_detail),
     prior_failed_pre_employment_test: draft.prior_failed_pre_employment_test,
-    employers: draft.employers
-      .filter((e) => e.employer_name.trim())
-      .map((e) => ({
-        employer_name: e.employer_name.trim(),
-        usdot_number: text(e.usdot_number),
-        address_line1: text(e.address_line1),
-        city: text(e.city),
-        state: text(e.state),
-        phone: text(e.phone),
-        email: text(e.email),
-        position_held: text(e.position_held),
-        started_on: e.started_on,
-        ended_on: text(e.ended_on),
-        operated_cmv: e.operated_cmv,
-        dot_regulated: e.dot_regulated,
-        reason_for_leaving: text(e.reason_for_leaving),
-        subject_to_fmcsr: e.subject_to_fmcsr,
-        safety_sensitive: e.safety_sensitive,
-      })),
+    employers: draft.employers.filter((e) => e.employer_name.trim()).map(toEmployerPayload),
     declares_no_employment: draft.declares_no_employment,
     /**
      * The carrier's questions (A9). The version is stamped only when something was actually answered:

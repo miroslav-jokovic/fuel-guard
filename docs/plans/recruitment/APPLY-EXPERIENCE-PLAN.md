@@ -349,4 +349,13 @@ adjacent table rows conflict every time.
   in it, so the gate had a blind spot exactly the shape of the thing that got through — and it only
   surfaced because D-AX7 moved that question onto a screen one page test happened to check. The
   citation is gone and the gate now walks the questionnaire definition too.
+- 2026-09-11 — **X4 MERGED** (#740).
+- 2026-09-11 — **X5 built.** The employment screen is a list plus one panel per job, not 107 controls.
+  The coverage meter derives from `employmentCoverage` in shared rather than computing a second
+  answer — including the part that is easy to get wrong, that a hole in years four to ten is not a
+  defect. **Q-AX2 is answered and D-AX2 stands:** the counter still reads "Step 4 of 9", because the
+  jobs are a panel and not extra screens, so the bar never stalls.
+  Two more defects found in the browser at 390px: the job list truncated its own dates
+  ("Driver · 02/01/2025…"), and `Remove` sat a thumb's width from `Change` on a list row — it now
+  lives in the panel, where the driver can see what they are deleting.
 
