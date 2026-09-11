@@ -352,6 +352,9 @@
   "notification_reads": [
     "apps/api/src/modules/messaging/routes/notifications.ts"
   ],
+  "org_disclosures": [
+    "apps/api/src/modules/recruiting/carrierWording.ts"
+  ],
   "org_integrations": [
     "apps/admin-api/src/lib/members.ts",
     "apps/api/src/modules/mcleod/routes/tmsRosterMaster.ts",

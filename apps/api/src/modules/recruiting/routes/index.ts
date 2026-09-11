@@ -8,6 +8,7 @@ import { recruitmentInquiriesRouter } from "./inquiries.js";
 import { recruitmentApplicationInvitesRouter } from "./applicationInvites.js";
 import { recruitmentDispositionsRouter } from "./dispositions.js";
 import { recruitmentApplicationReviewRouter } from "./applicationReview.js";
+import { recruitmentWordingRouter } from "./wording.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -29,5 +30,6 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentHireRouter()); // applicant -> driver, and the evidence handoff (H8)
   router.use(recruitmentDispositionsRouter()); // the other exit: why an application ended without one (0238)
   router.use(recruitmentApplicationReviewRouter()); // read, correct and approve an application before it is signed (F4)
+  router.use(recruitmentWordingRouter()); // the carrier publishes its own instrument wording (0338)
   return router;
 }

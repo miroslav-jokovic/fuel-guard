@@ -502,4 +502,22 @@ adjacent table rows conflict every time.
   ⚠ A cross-tenant test here was worthless as first written — `supabaseRecorder` records `.eq()` and
   does not apply it, so a flat array answers another carrier's query with this carrier's row. It uses
   a function fixture now, which is what [[supabase-recorder-does-not-filter]] has been saying.
+- 2026-09-11 — **F4 (2/n) MERGED** (#749). ⚠ Its first CI run failed `gates`: I ran eleven lint
+  scripts and not `lint:table-writers`, which pins every table write site and wants every live table
+  assigned a module. Three new write sites and one unowned table, caught by exactly the manifest that
+  exists to catch them.
+- 2026-09-11 — **Carrier-owned wording built** (0338), answering the owner's screenshot. The office
+  publishes its own text for the six instruments; anything unpublished keeps the code's `v0-draft`
+  placeholder, so **every existing refusal stays exactly where it was** and the whole change is
+  behaviour-preserving until a carrier publishes. `loadCarrierWording` is called INSIDE
+  `submitApplication`, `recordRelease` and `recordEsignConsent` rather than passed in — a caller that
+  could forget is a caller that could open the signing gate on placeholder text — and a failed read
+  degrades to the placeholders, which is the only safe direction.
+  ⚠ The version is **assigned**, never typed: `driver_authorizations` stores the text and the version
+  together, so two versions must never be able to mean two different things.
+  ⚠ The table was reshaped once, by `rls.test.mjs`. Its first CHECK made the row's shape depend on
+  the VALUE of `instrument`, and the tenant-isolation matrix seeds generically from the catalog and
+  fills only NOT NULL columns — `supabase/CLAUDE.md` is explicit that an unseedable table is a
+  failure, not a skip. The fix was a better design: `body` always holds the text as shown (composed
+  at publish time for the consent), and `clauses` records what it was composed from.
 
