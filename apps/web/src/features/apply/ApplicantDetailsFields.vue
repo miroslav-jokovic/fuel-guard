@@ -2,6 +2,7 @@
 import { AppButton as BaseButton, AppInput as BaseInput, AppDateField, AppFormField as FormField } from "@silvicom/ui";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
+import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -69,6 +70,12 @@ const copy = APPLY_COPY.identity;
         <BaseInput v-bind="f" v-model="draft.phone" type="tel" autocomplete="tel" />
       </ApplyField>
     </div>
+
+    <!-- D-AX7: the carrier's own page-1 questions — the position applied for, how they heard about
+         the company, and the two eligibility questions. They are asked here because that is where the
+         carrier's paper asks them, and because "what job are you applying for?" was the sixth of nine
+         steps, after the two heaviest screens in the form. -->
+    <QuestionnaireFields v-model="draft" section="identity" />
 
     <FormField v-slot="{ id }" :label="copy.ssn" :hint="copy.ssnHint">
       <BaseInput :id="id" v-model="draft.ssn" inputmode="numeric" autocomplete="off" />

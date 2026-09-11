@@ -51,10 +51,23 @@ export const APPLY_COPY = {
     title: "Driver application",
     /** Named as a function because the carrier is a fact, and a template literal here would be a
      *  string a translator cannot reorder. */
-    subtitle: (carrier: string): string =>
-      `For ${carrier}. Your answers save as you go — you can close this page and come back.`,
+    /**
+     * ⚠ It used to end "Your answers save as you go — you can close this page and come back." That
+     * sentence moved into the progress card (X4), beside the live "Saved" indicator, because a
+     * promise about saving is worth most where the evidence of it is — and repeating it in two
+     * places on one screen made the page read as if it were reassuring itself.
+     */
+    subtitle: (carrier: string): string => `For ${carrier}.`,
     opening: "Opening your application…",
     stepOf: (n: number, total: number): string => `Step ${n} of ${total}`,
+  },
+
+  /** The progress card (X4) — where they are, what is left, and that it is all being kept. */
+  progress: {
+    here: "You are here",
+    /** Shown until autosave has actually done something, so the card is never a blank promise. */
+    savesItself: "Your answers save as you go",
+    comeBack: "You can close this page and open your link again later.",
   },
 
   nav: {
@@ -228,7 +241,13 @@ export const APPLY_COPY = {
    * carrier's form changes without an engineer editing a string.
    */
   questions: {
+    /**
+     * ⚠ Two labels, because "Add another" beside an empty table is a lie about what is there. On the
+     * carrier's questions screen the education and references tables start empty, so the only thing
+     * a driver saw was a button offering them a second of something they did not have a first of.
+     */
     addRow: "Add another",
+    addFirstRow: "Add one",
     removeRow: "Remove",
   },
 

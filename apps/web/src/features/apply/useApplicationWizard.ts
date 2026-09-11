@@ -244,6 +244,14 @@ export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<stri
     section,
     /** What autosave stores — the name of the column, and the screen a resumed session opens on. */
     furthestSection: computed<ApplicationSection>(() => APPLICATION_SECTION_ORDER[furthest.value]!),
+    /**
+     * The same high-water mark as a number — the fence the step list navigates inside (X4).
+     *
+     * Exposed rather than recomputed from `furthestSection`, because the mark is an index here and a
+     * section token only at the edge where it is stored; a consumer converting back and forth would
+     * be the second opinion about what "furthest" means.
+     */
+    furthestIndex: computed(() => furthest.value),
     index: computed(() => index.value),
     total: APPLICATION_SECTION_ORDER.length,
     isFirst,

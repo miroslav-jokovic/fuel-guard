@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { SILVICOM_DRIVER_V1 } from "@silvicom/shared";
 import { APPLY_COPY } from "./strings";
 
 /**
@@ -38,8 +39,23 @@ function leaves(node: unknown, path: string): Array<{ path: string; text: string
   return [];
 }
 
+/**
+ * ⚠ **The carrier's questions are copy a driver reads, and this file did not know about them.**
+ *
+ * `proof_of_age`'s hint carried "§391.11(b)(1)" from the day A9 was written until 2026-09-11, when
+ * D-AX7 moved that question onto a screen one page test happened to check for citations. Everything
+ * below walked `APPLY_COPY` and the questionnaire is not in it — a gate with a blind spot exactly the
+ * shape of the thing that got through. The definition is walked here now, for the same reason and by
+ * the same rule.
+ */
 describe("apply copy", () => {
-  const all = leaves(APPLY_COPY, "APPLY_COPY");
+  const all = [...leaves(APPLY_COPY, "APPLY_COPY"), ...leaves(SILVICOM_DRIVER_V1, "SILVICOM_DRIVER_V1")];
+
+  it("reaches the carrier's own questions, which are copy too", () => {
+    // The guard that the walk actually descends into the definition rather than stopping at its id.
+    expect(all.some((l) => l.text === "Do you have proof of age?")).toBe(true);
+    expect(all.some((l) => l.path.includes("columns"))).toBe(true);
+  });
 
   it("covers the whole object, functions included", () => {
     // A walker that silently returned nothing would make every assertion below vacuously true.

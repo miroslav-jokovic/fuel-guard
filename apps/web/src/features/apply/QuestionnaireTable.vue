@@ -80,6 +80,8 @@ const options = (column: { options?: readonly string[] }) =>
       </div>
     </div>
 
-    <BaseButton v-if="canAdd" variant="secondary" @click="add">{{ copy.addRow }}</BaseButton>
+    <BaseButton v-if="canAdd" variant="secondary" @click="add">
+      {{ rows.length === 0 ? copy.addFirstRow : copy.addRow }}
+    </BaseButton>
   </div>
 </template>

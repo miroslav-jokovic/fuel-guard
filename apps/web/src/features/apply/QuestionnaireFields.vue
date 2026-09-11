@@ -6,7 +6,7 @@ import {
   AppSelect as BaseSelect,
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
-import { questionnaireForApplicant } from "@silvicom/shared";
+import { questionnaireForApplicant, questionsForScreen, type ApplicationSection } from "@silvicom/shared";
 import QuestionnaireTable from "@/features/apply/QuestionnaireTable.vue";
 import type { ApplicationDraft } from "@/features/apply/draft";
 
@@ -29,6 +29,16 @@ import type { ApplicationDraft } from "@/features/apply/draft";
  * expressed as a component: the carrier's form changes without a line of this changing.
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
+
+/**
+ * Which screen's questions to render (D-AX7).
+ *
+ * ⚠ The component is unchanged in every other respect — it still knows none of the carrier's
+ * questions by name and renders whatever the definition holds. What moved is that the definition now
+ * says which screen each question belongs on, because the carrier's own paper says so: five of these
+ * are on its page 1, beside the name and the address.
+ */
+const props = withDefaults(defineProps<{ section?: ApplicationSection }>(), { section: "questions" });
 
 const definition = questionnaireForApplicant();
 
@@ -59,15 +69,29 @@ const rowsFor = (id: string): Record<string, unknown>[] => {
   return Array.isArray(v) ? (v as Record<string, unknown>[]) : [];
 };
 
-const questions = computed(() => definition.questions);
+const questions = computed(() => questionsForScreen(definition, props.section));
 </script>
 
 <template>
   <div class="space-y-5">
-    <p class="text-sm text-ink-muted">{{ definition.intro }}</p>
+    <!-- Only on the screen that IS the carrier's questions. On `identity` and `employment` these sit
+         among the regulation's own fields and a paragraph explaining that they are not part of the
+         federal application would be introducing a distinction the driver has no use for there. -->
+    <p v-if="section === 'questions'" class="text-sm text-ink-muted">{{ definition.intro }}</p>
 
-    <div v-for="question in questions" :key="question.id" class="space-y-2">
-      <FormField v-slot="{ id }" :label="question.label" :hint="question.hint">
+    <!-- ⚠ A grid, and the reason is what these questions now sit beside (D-AX7). Rendered one per
+         row, a two-word answer like "Position you are applying for" took a 680px input on a desktop
+         while the name fields above it sat three to a row — the carrier's questions read as a
+         different form bolted underneath the regulation's. A `longtext` or a `table` still spans the
+         whole width, because those answers are paragraphs and grids and a half-width box invites a
+         one-line answer to a question that wanted more. -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div
+        v-for="question in questions"
+        :key="question.id"
+        :class="['space-y-2', (question.kind === 'longtext' || question.kind === 'table') && 'sm:col-span-2']"
+      >
+        <FormField v-slot="{ id }" :label="question.label" :hint="question.hint">
         <BaseTextarea
           v-if="question.kind === 'longtext'"
           :id="id"
@@ -102,7 +126,8 @@ const questions = computed(() => definition.questions);
           :inputmode="question.kind === 'number' ? 'numeric' : undefined"
           @update:model-value="set(question.id, $event)"
         />
-      </FormField>
+        </FormField>
+      </div>
     </div>
   </div>
 </template>
