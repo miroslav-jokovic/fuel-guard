@@ -14,7 +14,8 @@ import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
-import { BADGE_BASE, inquiryStateTone, toneClass } from "@/lib/badges";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { inquiryStateTone } from "@/lib/badges.recruiting";
 import { useInquiryQueueQuery, type InquiryQueueRow } from "@/features/recruitment/useInquiryQueue";
 
 /**

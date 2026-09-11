@@ -19,12 +19,8 @@ import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
-import {
-  applicantDispositionBadge,
-  applicantStageBadge,
-  BADGE_BASE,
-  toneClass,
-} from "@/lib/badges";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { applicantDispositionBadge, applicantStageBadge } from "@/lib/badges.recruiting";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useArchiveDriver } from "@/composables/useDrivers";
@@ -86,6 +82,18 @@ const counts = computed(() => {
   for (const a of pipelineQ.data.value ?? []) out.set(a.stage, (out.get(a.stage) ?? 0) + 1);
   return out;
 });
+
+/**
+ * Who owes the next move, for the stages that exist before an application is filed (F5).
+ *
+ * Only these three: everything after them is answered by the outstanding list, which is about the
+ * FILE and is meaningful once the file exists.
+ */
+const WAITING_ON: Partial<Record<ApplicantStage, string>> = {
+  filling_in: "The applicant",
+  awaiting_review: "You — read it and approve it",
+  awaiting_signature: "Their signature",
+};
 
 const columns: DataTableColumn[] = [
   { key: "full_name", label: "Applicant" },
@@ -260,7 +268,15 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
           </span>
         </template>
         <template #cell-outstanding="{ row }">
-          <span v-if="row.outstanding.length === 0" class="text-ink-muted">Nothing</span>
+          <!-- ⚠ Before the application is FILED the chase list says nothing useful: every requirement
+               here is derived from the file, and the file does not exist yet. Listing "Employment
+               history" beside "Waiting for you" would tell a recruiter to chase a driver for
+               something the carrier is itself sitting on. So the three pre-filing stages answer the
+               question the column actually asks — who are we waiting for. -->
+          <span v-if="WAITING_ON[row.stage as ApplicantStage]" class="text-ink-secondary">
+            {{ WAITING_ON[row.stage as ApplicantStage] }}
+          </span>
+          <span v-else-if="row.outstanding.length === 0" class="text-ink-muted">Nothing</span>
           <span v-else class="text-ink-secondary">
             {{ row.outstanding.map((r: keyof typeof APPLICANT_REQUIREMENT_LABELS) => APPLICANT_REQUIREMENT_LABELS[r]).join(", ") }}
           </span>

@@ -45,6 +45,17 @@ interface HistoryRow {
   inquiry_status: string;
 }
 
+/** The live invitation, for the stages that exist before an application is filed (F5). */
+interface InvitationRow {
+  id: string;
+  driver_id: string;
+  review_requested_at: string | null;
+  approved_at: string | null;
+  submitted_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
 /** The shape `employmentCoverage` judges — the DB row minus everything the arithmetic ignores. */
 const toPeriod = (r: HistoryRow): EmploymentPeriod => ({
   id: r.id,
@@ -108,7 +119,7 @@ export function recruitmentEmploymentRouter(): Router {
         return;
       }
 
-      const [history, auths, decisions] = await Promise.all([
+      const [history, auths, decisions, invitations, drafts] = await Promise.all([
         admin
           .from("driver_employment_history")
           .select(HISTORY_COLS)
@@ -128,8 +139,26 @@ export function recruitmentEmploymentRouter(): Router {
           .select("id, driver_id, outcome, decided_on, reason, rested_on_consumer_report, decided_by, created_at")
           .eq("org_id", orgId)
           .in("driver_id", ids),
+        /**
+         * The application's own phases, and whether anything has been typed (F5).
+         *
+         * ⚠ Without these two the board could only ever say "Not started" for a driver part-way
+         * through the form: every other input here comes from `driver_employment_history`, which is
+         * written at SUBMISSION. The owner filled in their own test application and was told nothing
+         * had happened, on two separate screens, for this reason.
+         */
+        admin
+          .from("application_invitations")
+          .select("id, driver_id, review_requested_at, approved_at, submitted_at, revoked_at, created_at")
+          .eq("org_id", orgId)
+          .in("driver_id", ids)
+          .order("created_at", { ascending: false }),
+        admin
+          .from("application_drafts")
+          .select("invitation_id")
+          .eq("org_id", orgId),
       ]);
-      if (history.error || auths.error || decisions.error) {
+      if (history.error || auths.error || decisions.error || invitations.error || drafts.error) {
         res.status(500).json(apiError("db_error", "Could not load the pipeline"));
         return;
       }
@@ -146,6 +175,22 @@ export function recruitmentEmploymentRouter(): Router {
         if (list) list.push(row);
         else decisionsBy.set(row.driver_id, [row]);
       }
+      /**
+       * The invitation a recruiter means when they say "their application" — the newest that is not
+       * revoked. A driver can hold several: a link expires, a recruiter sends another, and the one
+       * that matters is the live one. Ordered newest-first above, so the FIRST seen per driver wins.
+       */
+      const inviteBy = new Map<string, InvitationRow>();
+      for (const row of (invitations.data ?? []) as InvitationRow[]) {
+        if (row.revoked_at) continue;
+        if (!inviteBy.has(row.driver_id)) inviteBy.set(row.driver_id, row);
+      }
+      // ⚠ Keyed on the INVITATION, never on the driver: a rehire's draft from a previous application
+      // is not evidence that they have started this one.
+      const draftFor = new Set(
+        ((drafts.data ?? []) as Array<{ invitation_id: string }>).map((d) => d.invitation_id),
+      );
+
       const authsBy = new Map<string, AuthorizationRow[]>();
       for (const row of (auths.data ?? []) as Array<AuthorizationRow & { driver_id: string }>) {
         const list = authsBy.get(row.driver_id);
@@ -160,10 +205,19 @@ export function recruitmentEmploymentRouter(): Router {
         // Segment A only. §391.21(b)(11) asks for CMV jobs alone, so a stretch without one is
         // somebody who was not driving, and a pipeline that chased it would chase every applicant.
         const gapDays = coverage.segmentA.gaps.reduce((sum, g) => sum + g.days, 0);
+        const invite = inviteBy.get(a.id) ?? null;
         const progress = applicantProgress({
           employerCount: own.length,
           gapDays,
           authorizations: authsBy.get(a.id) ?? [],
+          application: invite
+            ? {
+                reviewRequestedAt: invite.review_requested_at,
+                approvedAt: invite.approved_at,
+                submittedAt: invite.submitted_at,
+              }
+            : null,
+          hasDraft: invite ? draftFor.has(invite.id) : false,
         });
         return {
           driver_id: a.id,

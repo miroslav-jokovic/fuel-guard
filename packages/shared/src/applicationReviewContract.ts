@@ -106,6 +106,51 @@ export const applicationIsEditable = (phases: ApplicationPhases): boolean =>
   applicationReviewState(phases) === "awaiting_review";
 
 /**
+ * Where the application has got to, INCLUDING whether anybody has typed anything (F5).
+ *
+ * ── WHY `applicationReviewState` WAS NOT ENOUGH ───────────────────────────────────────────────
+ * ⚠ That function answers "filling" for two situations a recruiter needs to tell apart: a driver who
+ * was invited and has not opened the link, and a driver who is on screen six. Nothing staff-facing
+ * could tell them apart, because **nothing staff-facing read the draft** — the applicant board
+ * computed its stage from `driver_employment_history`, which is written only at submission, and the
+ * invitation row read `consented_at`, which is never stamped while the carrier's wording is draft.
+ * So an owner who filled in their own test application was told "Not started", twice, on two screens.
+ *
+ * The draft is the only evidence a driver has begun. One boolean — does a row exist — is the whole of
+ * the fix, and it is passed in rather than read here because this package does no I/O.
+ */
+export const APPLICATION_PROGRESS_STATES = [
+  "not_started",
+  "filling",
+  "awaiting_review",
+  "approved",
+  "certified",
+] as const;
+
+export type ApplicationProgressState = (typeof APPLICATION_PROGRESS_STATES)[number];
+
+export const APPLICATION_PROGRESS_LABELS: Record<ApplicationProgressState, string> = {
+  not_started: "Not opened yet",
+  filling: "Filling it in",
+  awaiting_review: "Waiting for you",
+  approved: "Sent back to sign",
+  certified: "Signed and filed",
+};
+
+/**
+ * ⚠ Read in reverse, for the same reason `applicationReviewState` is: the LAST thing that happened
+ * wins. A certified application has every earlier stamp set too.
+ */
+export function applicationProgress(
+  phases: ApplicationPhases,
+  hasDraft: boolean,
+): ApplicationProgressState {
+  const state = applicationReviewState(phases);
+  if (state !== "filling") return state;
+  return hasDraft ? "filling" : "not_started";
+}
+
+/**
  * May the driver certify?
  *
  * Approved and not yet certified. ⚠ Not "approved", full stop: `submitted_at` is what makes a second
