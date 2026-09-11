@@ -346,6 +346,34 @@ export const driverApplicationObject = z
 export type DriverApplicationFields = z.infer<typeof driverApplicationObject>;
 
 /**
+ * The autosaved DRAFT, as it actually sits in `application_drafts.payload`.
+ *
+ * ── WHY THIS IS NOT `driverApplicationObject.partial()` ───────────────────────────────────────
+ * ⚠ It was, on the API's edit path, and that refused EVERY correction an office could make. Two
+ * differences, and the first one alone is fatal:
+ *
+ *   1. The draft carries `questionnaire` — the carrier's own answers, keyed by question id, as the
+ *      form holds them while the driver types. The certified document carries `questionnaire_version`
+ *      and `questionnaire_answers` instead, written at submit. `driverApplicationObject` is
+ *      `.strict()`, so a real draft failed on "Unrecognized key: questionnaire" before any field in
+ *      it was looked at — and the tests did not see it, because their fixture was a hand-written
+ *      contract-shaped object rather than anything `toDraftPayload` has ever produced.
+ *   2. `certified` and `signed_name` are absent from a draft on purpose: §391.21(b)'s certification
+ *      is an act performed once, on the finished document. `.partial()` is what makes their absence
+ *      legal here.
+ *
+ * ── WHAT IT STILL CHECKS, WHICH IS THE POINT ──────────────────────────────────────────────────
+ * Every field that IS present must be a legal value of its own type, nested rows included — so an
+ * office cannot put the draft into a state the driver would then be unable to certify. That is the
+ * one thing the edit path needs from a schema, and a draft-shaped schema is the only one that can
+ * check it without refusing the ordinary case.
+ */
+export const applicationDraftPayloadSchema = driverApplicationObject.partial().extend({
+  questionnaire: z.record(z.string(), z.unknown()).nullish(),
+});
+export type ApplicationDraftPayload = z.infer<typeof applicationDraftPayloadSchema>;
+
+/**
  * The rules that no single field can express, in one list rather than in a `.refine()` chain.
  *
  * A3 needs them twice — once over the whole document at submit, once over the one section a driver

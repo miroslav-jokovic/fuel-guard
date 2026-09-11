@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { driverApplicationSchema } from "@silvicom/shared";
+import { applicationDraftPayloadSchema, driverApplicationSchema } from "@silvicom/shared";
 import {
   emptyDraft,
   fromDraftPayload,
@@ -33,6 +33,39 @@ const complete = (): ApplicationDraft => ({
 });
 
 const parse = (draft: ApplicationDraft) => driverApplicationSchema.safeParse(toApplication(draft));
+
+/**
+ * A draft with something in EVERY field, including the optional ones and the ones a driver usually
+ * leaves alone. `complete()` is the minimum a valid application needs; this is the maximum the form
+ * can hold, and it is what a totality test has to be given to mean anything.
+ */
+const everything = (): ApplicationDraft => ({
+  ...complete(),
+  middle_name: "Jane",
+  // The canonical code, unlike `complete()`'s deliberate lowercase: normalising a legacy free-text
+  // state is the job of the D-AX5 test below, and a round-trip test that also normalises would be
+  // unable to tell a lost answer from a corrected one.
+  cdl_state: "PA",
+  other_names: ["Susan Bellweather"],
+  addresses: [
+    { line1: "1 Road", line2: "Apt 4", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" },
+    { line1: "9 Old Way", line2: "", city: "Gary", state: "IN", postal_code: "46402", from: "2017-03", to: "2019-12" },
+  ],
+  cdl_class: "A",
+  additional_licences: [{ issuing_authority: "IL", number: "HM-9", expires_at: "2027-05-01", kind: "Hazmat endorsement" }],
+  equipment_experience: [
+    { equipment_class: "tractor_tanker", equipment_type: "Tank", from: "2021-02", to: "2023-08", approx_miles: "180000" },
+  ],
+  accidents: [{ occurred_on: "2024-06-02", nature: "Rear-ended at a light", fatalities: "0", injuries: "1", hazmat_spill: false }],
+  declares_no_accidents: false,
+  violations: [{ occurred_on: "2024-02-11", offence: "Speeding", state: "IL", penalty: "$120" }],
+  declares_no_violations: false,
+  licence_ever_denied: true,
+  licence_denial_detail: "Suspended for 30 days in 2016.",
+  prior_failed_pre_employment_test: true,
+  declares_no_employment: false,
+  questionnaire: { proof_of_age: true },
+});
 
 describe("what the form sends", () => {
   it("produces a document the server's own schema accepts", () => {
@@ -155,6 +188,40 @@ describe("what autosave sends", () => {
     expect(payload.first_name).toBe("Susan");
     expect(payload.date_of_birth).toBe("1980-04-01");
     expect((payload.employers as unknown[]).length).toBe(1);
+  });
+
+  /**
+   * ⚠ Totality, because the spot checks above are exactly what let one field through.
+   *
+   * `prior_failed_pre_employment_test` — §40.25(j)'s two-year question, and by this file's own
+   * reckoning the most consequential answer on the form — was missing from `toDraftPayload` from the
+   * day it was added until 2026-09-11. A driver who ticked it, closed the tab and came back had
+   * answered NO, with nothing on screen saying so, because `fromDraftPayload` floors every missing
+   * key at the empty draft. Nothing failed: every test asked about a field somebody had remembered.
+   *
+   * This one asks about all of them, so the next field added cannot go the same way.
+   */
+  it("carries every answer the form can hold", () => {
+    const draft = everything();
+    const restored = fromDraftPayload(toDraftPayload(draft));
+    // The three that are deliberately NOT saved, each for a reason written where it is dropped: the
+    // SSN (D-APP3) and the two halves of the certification, which is an act and not an answer.
+    const notSaved = new Set(["ssn", "certified", "signed_name"]);
+    for (const key of Object.keys(draft) as (keyof ApplicationDraft)[]) {
+      if (notSaved.has(key)) continue;
+      expect(restored[key], `${key} did not survive the round trip`).toEqual(draft[key]);
+    }
+  });
+
+  /**
+   * The office's edit path re-parses the saved payload before it writes a correction, and it parses
+   * it with `applicationDraftPayloadSchema`. If what autosave writes is not what that schema accepts,
+   * every correction to every real application is refused — which is what happened while it used the
+   * CERTIFIED contract instead, and could not be seen from either side alone.
+   */
+  it("writes a payload the office's edit path accepts", () => {
+    const parsed = applicationDraftPayloadSchema.safeParse(toDraftPayload(everything()));
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
   });
 });
 

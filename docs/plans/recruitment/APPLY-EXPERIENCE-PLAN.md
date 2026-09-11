@@ -534,3 +534,30 @@ adjacent table rows conflict every time.
   were on the settings page and one was reachable only by typing the URL), and the route-table probe
   list, which refuses a new route it has not been told to expect.
 
+- 2026-09-11 — **F4 (3/n): the review drawer**, on the applicant's record page and mounted from it
+  (the owner chose "full-width drawer from that page"). The invitation row emits which application;
+  the page opens `ApplicationReviewDrawer`. It renders the driver's OWN summary — `buildReviewSummary`,
+  the same function their certify screen uses — above a correction list built from the saved payload,
+  and that split is deliberate: reading a document wants `04/01/2026` and "Illinois (IL)", correcting
+  a field wants exactly the characters that are stored, because those are the characters being
+  replaced. `SlideOver` gained an `xl` size rather than a bespoke panel beside it.
+  ⚠ **The edit path did not work at all, and its tests could not see it.** `editApplication` parsed the
+  saved draft with `driverApplicationObject.partial()` — the CERTIFIED contract, which is `.strict()`
+  — and a real autosaved payload carries `questionnaire`, which the certified document does not. Every
+  correction to every real application came back "That is not a valid answer for this field". The
+  fixture was a hand-written contract-shaped object, so nothing failed. Fixed with
+  `applicationDraftPayloadSchema` in shared (the draft as it is actually written), and the fixture is
+  now draft-shaped; reverting the schema fails three tests.
+  ⚠ **`prior_failed_pre_employment_test` was never autosaved**, from the day P8 added it. §40.25(j)'s
+  two-year question — by the form's own reckoning the most consequential answer on it — was lost by any
+  driver who ticked it, closed the tab and came back, silently, because `fromDraftPayload` floors every
+  missing key at the empty draft. Fixed, and pinned by a TOTALITY test over every key of a maximal
+  draft rather than another spot check, which is what let it through.
+  ⚠ Two measured layout defects, found in the browser at 320/390 and not by reading: `PspRecordsSection`'s
+  two `shrink-0` buttons held the applicant record page 439px wide at every viewport (the whole page
+  scrolled sideways on a phone, which also pushed the fixed drawer's panel off the right of the screen),
+  and `SlideOver`'s panel had no `min-w-0`, so one long unbroken string — an email address — held the
+  drawer wider than the phone it was open on. `break-words` does not reduce min-content width; only
+  `min-w-0` on the flex item lets the panel take the width it is given.
+  ⚠ And nothing may sit between `TransitionChild` and `DialogPanel`, not even an HTML comment:
+  `as="template"` requires exactly one child node, and adding one took every drawer in the app down.

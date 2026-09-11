@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { Driver } from "@silvicom/shared";
@@ -10,6 +10,7 @@ import DispositionSection from "@/features/recruitment/DispositionSection.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
+import ApplicationReviewDrawer from "@/features/apply/ApplicationReviewDrawer.vue";
 
 /**
  * One applicant's hiring paperwork — the recruiting surface's own record page (R7, D-ROS6).
@@ -34,6 +35,16 @@ import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 const route = useRoute();
 const id = computed(() => String(route.params.id ?? ""));
 
+/**
+ * The application open for review (F4).
+ *
+ * ⚠ Mounted HERE rather than inside `ApplicationInviteCard`, and that is the boundary rule working:
+ * the drawer renders an application and therefore belongs to `features/apply`, which
+ * `features/recruitment` may not import. A page may import any feature, so the invitation card emits
+ * which row was chosen and this page opens it.
+ */
+const reviewing = ref<string | null>(null);
+
 const { data: driver } = useQuery({
   queryKey: ["driver-detail", id],
   enabled: computed(() => Boolean(id.value)),
@@ -54,7 +65,11 @@ const { data: driver } = useQuery({
 
     <!-- The recruiter's act of asking, and the act that ends it (0238). An applicant who is hired
          stops being one; a disposition is how that is recorded rather than left implied. -->
-    <ApplicationInviteCard :driver-id="id" :driver-status="driver?.status ?? ''" />
+    <ApplicationInviteCard
+      :driver-id="id"
+      :driver-status="driver?.status ?? ''"
+      @review="reviewing = $event"
+    />
     <DispositionSection :driver-id="id" :driver-status="driver?.status ?? ''" />
 
     <!-- §391.21(b)(10)'s record and §391.23's investigation OF that record. One job, and the only
@@ -66,5 +81,15 @@ const { data: driver } = useQuery({
          qualification section's write affordances gated on a permission a recruiter does not hold —
          a layout decision made by a permission bug. R0 removed the bug; R7 removes the layout. -->
     <PspRecordsSection :driver-id="id" />
+
+    <!-- Reading the answers, correcting them, and approving them so the applicant can sign. The
+         owner's words: *"complete application should be reviewable and editable on our side in
+         dashboard and after that when approved and reviewed we should send it back to driver for
+         signing"* — and until F4 there was no surface that showed a filed application at all. -->
+    <ApplicationReviewDrawer
+      :open="reviewing !== null"
+      :invitation-id="reviewing"
+      @close="reviewing = null"
+    />
   </div>
 </template>

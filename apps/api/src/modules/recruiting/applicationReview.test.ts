@@ -18,17 +18,51 @@ const INV = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const ACTOR = "cccccccc-dddd-4eee-8fff-000000000000";
 const NOW = new Date("2026-09-11T12:00:00Z");
 
+/**
+ * A payload in the shape `toDraftPayload` actually writes — NOT a hand-made contract-shaped object.
+ *
+ * ⚠ That distinction is the whole of the 2026-09-11 defect. The autosaved draft carries
+ * `questionnaire` (the carrier's own answers, as the form holds them), empty strings where the
+ * driver has answered nothing, and no `certified`/`signed_name`. The edit path parsed it with the
+ * CERTIFIED contract, which is `.strict()`, so every real correction was refused on an unrecognised
+ * key — and the fixture here was contract-shaped, so nothing failed.
+ */
 const PAYLOAD = {
   first_name: "Susan",
+  middle_name: "",
   last_name: "Godfrey",
+  other_names: [],
   date_of_birth: "1980-04-01",
   email: "s@example.test",
   phone: "555-0111",
-  employers: [
-    { employer_name: "Old Carrier", city: "Jolliet", started_on: "2023-01-01", ended_on: null, operated_cmv: true, dot_regulated: true },
+  addresses: [
+    { line1: "1 Elm St", line2: "", city: "Joliet", state: "IL", postal_code: "60431", from: "2019-04", to: "" },
   ],
+  cdl_number: "D1234",
+  cdl_state: "IL",
+  cdl_class: "A",
+  cdl_expires_at: "2028-04-01",
+  experience: "Twelve years, mostly dry van.",
+  equipment_experience: [
+    { equipment_class: "tractor_semi_trailer", equipment_type: "Van", from: "2019-04", to: "", approx_miles: "" },
+  ],
+  employers: [
+    {
+      employer_name: "Old Carrier", usdot_number: "", address_line1: "", city: "Jolliet", state: "IL",
+      phone: "", email: "", position_held: "Driver", started_on: "2023-01-01", ended_on: "2026-01-01",
+      operated_cmv: true, dot_regulated: true, reason_for_leaving: "", subject_to_fmcsr: true, safety_sensitive: true,
+    },
+  ],
+  declares_no_employment: false,
   accidents: [],
   declares_no_accidents: true,
+  violations: [],
+  declares_no_violations: true,
+  licence_ever_denied: false,
+  licence_denial_detail: "",
+  prior_failed_pre_employment_test: false,
+  additional_licences: [],
+  questionnaire: { proof_of_age: true },
 };
 
 const invitation = (over: Record<string, unknown> = {}) => ({
@@ -122,6 +156,23 @@ describe("correcting one answer", () => {
     expect(isReviewError(result) && result.code).toBe("invalid_edit");
     expect(rec.writtenRows("application_drafts")).toHaveLength(0);
     expect(rec.writtenRows("application_edits")).toHaveLength(0);
+  });
+
+  it("\u26a0 does not refuse a real autosaved draft for carrying the carrier's own questions", async () => {
+    // The regression that made this whole feature inert: `questionnaire` is a draft key and not a
+    // key of the certified document, the certified contract is `.strict()`, and every correction to
+    // every real application came back "That is not a valid answer for this field".
+    const rec = seed();
+    const result = await editApplication(
+      rec.client, ORG, INV,
+      { path: ["employers", 0, "position_held"], value: "Line-haul driver" },
+      { actorId: ACTOR },
+    );
+    expect(isReviewError(result)).toBe(false);
+    const saved = rec.writtenRows("application_drafts")[0] as { payload: Record<string, unknown> };
+    // And the answers it does not understand are kept exactly as they were, rather than stripped by
+    // the parse — the draft that is written is the edited COPY, never the schema's output.
+    expect(saved.payload.questionnaire).toEqual({ proof_of_age: true });
   });
 
   it("parses the draft as PARTIAL, because a draft is allowed to be unfinished", async () => {

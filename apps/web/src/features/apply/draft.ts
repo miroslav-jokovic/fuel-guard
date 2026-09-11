@@ -390,6 +390,12 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     declares_no_violations: draft.declares_no_violations,
     licence_ever_denied: draft.licence_ever_denied,
     licence_denial_detail: draft.licence_denial_detail,
+    // ⚠ Absent from this list until 2026-09-11, and it is §40.25(j)'s two-year question — by this
+    // file's own reckoning "the single most consequential answer on the form for what the carrier has
+    // to do next". A driver who ticked it, closed the tab and came back had answered NO, silently,
+    // because `fromDraftPayload` falls back to the empty draft for anything the payload omits. Both
+    // halves of the round trip are pinned by "carries every answer the form can hold".
+    prior_failed_pre_employment_test: draft.prior_failed_pre_employment_test,
     employers: draft.employers,
     declares_no_employment: draft.declares_no_employment,
     additional_licences: draft.additional_licences,
@@ -462,6 +468,7 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     declares_no_violations: bool("declares_no_violations"),
     licence_ever_denied: bool("licence_ever_denied"),
     licence_denial_detail: str("licence_denial_detail"),
+    prior_failed_pre_employment_test: bool("prior_failed_pre_employment_test"),
     employers: rows<DraftEmployer>("employers", base.employers).map((e) => ({ ...e, state: state(e.state) })),
     declares_no_employment: bool("declares_no_employment"),
     additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),

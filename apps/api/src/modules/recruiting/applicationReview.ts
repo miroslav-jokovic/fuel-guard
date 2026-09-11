@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   applicationIsEditable,
   applicationReviewState,
-  driverApplicationObject,
+  applicationDraftPayloadSchema,
   type ApplicationEdit,
   type ApplicationPath,
   type ApplicationPhases,
@@ -198,12 +198,17 @@ export async function editApplication(
   const next = withValueAt(payload, edit.path, edit.value) as Record<string, unknown>;
 
   /**
-   * ⚠ `.partial()` — the draft is a DRAFT and is allowed to be incomplete. Parsing it whole would
-   * refuse every edit to an application the driver has not finished, which is most of them. What is
-   * being checked is that the edited field itself is a legal value of its own type, and that nothing
-   * else was broken on the way in.
+   * ⚠ The DRAFT schema, not the certified one.
+   *
+   * This read `driverApplicationObject.partial()` until 2026-09-11, and that refused every correction
+   * an office could make: a real autosaved payload carries `questionnaire`, the certified document
+   * does not, and the contract is `.strict()` — so the parse failed on an unrecognised key before any
+   * field was looked at. It passed the tests because their fixture was a hand-written contract-shaped
+   * object rather than anything `toDraftPayload` has ever written. `applicationDraftPayloadSchema`
+   * carries the reasoning; what it still checks is that every field PRESENT is a legal value of its
+   * own type, which is the one thing this path needs.
    */
-  const parsed = driverApplicationObject.partial().safeParse(next);
+  const parsed = applicationDraftPayloadSchema.safeParse(next);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     return {

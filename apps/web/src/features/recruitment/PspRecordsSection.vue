@@ -157,8 +157,12 @@ const sourceTone = (row: QualificationRecordRow): string => {
 <template>
   <div class="space-y-6">
     <BaseCard>
-      <div class="flex items-start justify-between gap-4">
-        <div>
+      <!-- ⚠ `flex-wrap` + `min-w-0`, measured 2026-09-11: without them this row was 439px wide at
+           every viewport, because two `shrink-0` buttons beside an unbounded paragraph cannot fold.
+           It made the whole applicant record page scroll sideways on a phone — and a page that
+           scrolls sideways also pushes a fixed drawer's panel off the right of the screen. -->
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0 flex-1 basis-64">
           <h3 class="text-sm font-semibold text-ink">PSP records</h3>
           <p class="mt-1 text-sm text-ink-muted">
             The FMCSA Pre-Employment Screening Program is voluntary — a file without one is still a
@@ -167,7 +171,7 @@ const sourceTone = (row: QualificationRecordRow): string => {
             a report can only be retrieved with the code from the request that bought it.
           </p>
         </div>
-        <div v-if="canFile" class="flex shrink-0 items-center gap-3">
+        <div v-if="canFile" class="flex flex-wrap items-center gap-3">
           <BaseButton @click="drawerOpen = true">Import a PSP record</BaseButton>
           <BaseButton variant="primary" @click="orderOpen = true">Order a PSP record</BaseButton>
         </div>
