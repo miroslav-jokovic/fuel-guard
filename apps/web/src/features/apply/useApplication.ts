@@ -121,6 +121,23 @@ export function useApplyInvitationQuery(token: Ref<string>) {
   });
 }
 
+/** What the carrier filed, for the person whose answers it is (X8, D-AX9). */
+export interface ApplicantCopy {
+  url: string;
+  filename: string;
+  expiresInSeconds: number;
+}
+
+/**
+ * Fetch a short-lived link to the filed application.
+ *
+ * ⚠ Not a `useQuery`. A signed URL is good for five minutes and this is an ACT the driver takes, not
+ * a fact about the page: caching it would hand somebody a dead link ten minutes later and give them
+ * no way to ask for a fresh one. Asked for when the button is pressed, used once, never stored.
+ */
+export const fetchApplicantCopy = (token: string): Promise<ApplicantCopy> =>
+  publicFetch<ApplicantCopy>(`/${token}/document`);
+
 export function useSubmitApplication(token: Ref<string>) {
   return useMutation({
     /**

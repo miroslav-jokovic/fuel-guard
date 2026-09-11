@@ -17,6 +17,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { confirmCapture, listCaptures, startCapture } from "../applicationCapture.js";
+import { applicantCopy } from "../applicationCopy.js";
 import { loadDraft, saveDraft, unlockDraft } from "../applicationDraft.js";
 import { esignConsentForApplicant, recordEsignConsent } from "../esignConsent.js";
 import {
@@ -324,6 +325,31 @@ export function publicApplicationRouter(): Router {
       }
       // How far the ceremony got, so the page can move to the next instrument without refetching.
       res.status(201).json({ ok: true, signedCount: result.signedCount, completed: result.completed });
+    }),
+  );
+
+  /**
+   * The applicant's own copy of what was filed (X8, D-AX9).
+   *
+   * ⚠ A GET that returns a URL rather than the bytes, which is this product's idiom for every other
+   * evidence document (`compliance.ts`). The bytes go from Storage to the driver's phone and never
+   * through this API — one fewer place for a PDF of somebody's employment history to be logged,
+   * buffered or cached.
+   *
+   * `not_submitted` is a 409 and not a 404: the link is perfectly valid and the answer is "not yet",
+   * which is a different sentence and a different thing for the page to do about it.
+   */
+  router.get(
+    "/:token/document",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await applicantCopy(admin, String(req.params.token ?? ""), new Date());
+      if (isIntakeError(result)) {
+        const status = result.code === "invalid_link" ? 404 : result.code === "not_submitted" ? 409 : 503;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ ok: true, ...result });
     }),
   );
 
