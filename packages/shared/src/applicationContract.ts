@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateOfBirthSchema, isoDateSchema } from "./rosterContract.js";
+import { isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
 import { usdotNumberSchema } from "./recruitmentContract.js";
 import { EMPLOYMENT_WINDOW_YEARS, CMV_WINDOW_YEARS, yearsBefore } from "./employmentCoverage.js";
 
@@ -234,7 +234,14 @@ export const driverApplicationObject = z
     first_name: z.string().min(1).max(100),
     middle_name: z.string().max(100).nullish(),
     last_name: z.string().min(1).max(100),
-    date_of_birth: dateOfBirthSchema,
+    /**
+     * ⚠ REQUIRED, unlike the roster's (X9). This took `dateOfBirthSchema` — the roster's nullish one
+     * — until 2026-09-11, so an application with no date of birth validated and submitted: the filed
+     * document was missing §391.21(b)(2) content, and the draft was never gated, because
+     * `draftIsLocked` withholds the body only once a date of birth is in it (D-APP16). The reasoning
+     * is written out where the two schemas sit side by side.
+     */
+    date_of_birth: requiredDateOfBirthSchema,
     /**
      * ⚠ NOT a §391.21(b) field, and deliberately here anyway — the one place this schema carries
      * something the numbered paragraphs do not ask for.

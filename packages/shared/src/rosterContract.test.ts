@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { dateOfBirthIssue, driverUpdateSchema, touchesDriverLifecycle } from "./rosterContract.js";
+import {
+  dateOfBirthIssue,
+  driverUpdateSchema,
+  requiredDateOfBirthSchema,
+  touchesDriverLifecycle,
+} from "./rosterContract.js";
 
 /**
  * Date of birth is the input that gates PSP, a SambaSafety MVR and a Clearinghouse query, and PSP
@@ -75,5 +80,40 @@ describe("touchesDriverLifecycle — gated on the FIELD, not on the value", () =
 
   it("reads a CLEARED field as a touch — `null` is still a change", () => {
     expect(touchesDriverLifecycle({ termination_date: null })).toBe(true);
+  });
+});
+
+/**
+ * One mistake, one message (X9).
+ *
+ * ⚠ Zod runs a `superRefine` even after the regex before it has failed, and `dateOfBirthIssue`'s
+ * first branch answers an unparseable value with the regex's own sentence — so a blank date of birth
+ * produced TWO issues saying the same thing, one of them phrased for whoever wrote the schema. It
+ * surfaced the moment the application began requiring a date of birth, against the apply form's rule
+ * that nothing a validator would say reaches a driver.
+ */
+describe("what a bad date of birth reports, and how much of it", () => {
+  const issues = (v: unknown) => {
+    const r = requiredDateOfBirthSchema.safeParse(v);
+    return r.success ? [] : r.error.issues;
+  };
+
+  it("reports a value of the wrong shape once, not twice", () => {
+    for (const bad of ["", "   ", "1980-4-1", "yesterday"]) {
+      expect(issues(bad)).toHaveLength(1);
+    }
+  });
+
+  it("lets the shape check speak for the shape, and says nothing else about it", () => {
+    // The second issue was `code: "custom"`, which every caller treats as a sentence written for a
+    // human — so the guard is what keeps that assumption true.
+    expect(issues("").every((i) => i.code !== "custom")).toBe(true);
+  });
+
+  it("still names WHICH rule a well-shaped date breaks", () => {
+    // The reason the refinement exists at all: "invalid" would leave a caller guessing among three.
+    const soon = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    expect(issues(soon)[0]?.message).toBe("Date of birth cannot be in the future");
+    expect(issues("1990-02-31")[0]?.message).toBe("That is not a real date");
   });
 });

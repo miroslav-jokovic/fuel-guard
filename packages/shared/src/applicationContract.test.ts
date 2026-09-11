@@ -5,6 +5,32 @@ import {
   requiredEmployers,
   type ApplicationEmployer,
 } from "./applicationContract.js";
+import { dateOfBirthSchema } from "./rosterContract.js";
+
+/** The smallest document the contract accepts, so a test can change one field and ask about it. */
+const completeApplication = () => ({
+  first_name: "Susan",
+  last_name: "Godfrey",
+  date_of_birth: "1980-04-01",
+  email: "s@example.test",
+  phone: "555-0111",
+  addresses: [
+    { line1: "1 Road", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: null },
+  ],
+  cdl_number: "PA334554",
+  cdl_state: "PA",
+  cdl_expires_at: "2029-01-01",
+  experience: "Eight years, dry van and reefer.",
+  accidents: [],
+  declares_no_accidents: true,
+  violations: [],
+  declares_no_violations: true,
+  licence_ever_denied: false,
+  employers: [],
+  declares_no_employment: true,
+  certified: true as const,
+  signed_name: "Susan Godfrey",
+});
 
 const ASOF = "2026-08-19"; // windows: (b)(10) 2023-08-19 → 2026-08-19, (b)(11) 2016-08-19 → 2023-08-19
 
@@ -260,5 +286,44 @@ describe("other names", () => {
   it("carries the names a previous employer would know", () => {
     const parsed = driverApplicationSchema.parse({ ...base, other_names: ["Susan Smith"] });
     expect(parsed.other_names).toEqual(["Susan Smith"]);
+  });
+});
+
+/**
+ * §391.21(b)(2)'s date of birth (X9).
+ *
+ * ⚠ The application took the ROSTER's nullish schema until 2026-09-11, so an application with no
+ * date of birth validated and submitted. Two failures from one line: the filed document was missing
+ * content the paragraph names, and the draft was never gated — `draftIsLocked` withholds a draft's
+ * body only once a date of birth is in it (D-APP16), so a driver who never typed one had their
+ * address and employment history served in the clear to anyone holding the link.
+ */
+describe("the date of birth the application requires and the roster does not", () => {
+  const withDob = (v: unknown) => driverApplicationSchema.safeParse({ ...completeApplication(), date_of_birth: v });
+
+  it("refuses an application with no date of birth", () => {
+    for (const absent of ["", "   ", null, undefined]) {
+      expect(withDob(absent).success).toBe(false);
+    }
+  });
+
+  it("still refuses one that is not a date, or is under age", () => {
+    // The rules are SHARED with the roster's optional schema rather than restated, so these keep
+    // holding for the same reason they always did.
+    expect(withDob("not-a-date").success).toBe(false);
+    expect(withDob("2026-02-30").success).toBe(false);
+    expect(withDob(new Date().toISOString().slice(0, 10)).success).toBe(false);
+  });
+
+  it("accepts one, with the whitespace a phone keyboard adds", () => {
+    expect(withDob("1980-04-01").success).toBe(true);
+    expect(withDob(" 1980-04-01 ").success).toBe(true);
+  });
+
+  it("leaves the roster's own date of birth optional, because a driver record may not have one yet", () => {
+    // The office keys in what it has; the date arrives with the qualification file.
+    expect(dateOfBirthSchema.safeParse(null).success).toBe(true);
+    expect(dateOfBirthSchema.safeParse("").success).toBe(true);
+    expect(dateOfBirthSchema.safeParse("not-a-date").success).toBe(false);
   });
 });

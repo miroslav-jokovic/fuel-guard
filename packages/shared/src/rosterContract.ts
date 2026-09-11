@@ -73,19 +73,78 @@ export function dateOfBirthIssue(value: string, today: string): string | null {
   return null;
 }
 
+/**
+ * The RULES a date of birth has to satisfy, with nothing said about whether one is required.
+ *
+ * Split out so the two callers below share them exactly (APPLY-EXPERIENCE-PLAN X9). The regex, the
+ * "at least 18" and the "not a real date" checks are the same question wherever it is asked; only
+ * *whether the answer may be absent* differs, and that is the one thing each caller states for
+ * itself.
+ */
+/** One definition, read by the regex below and by the guard inside the refinement beside it. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+const dateOfBirthRules = z
+  .string()
+  .regex(ISO_DATE, "Expected a date as YYYY-MM-DD")
+  // superRefine, not refine: the message names WHICH rule failed ("at least 18", "not a real
+  // date"), and a caller who is told only "invalid" has to guess which of three things to fix.
+  .superRefine((v, ctx) => {
+    /**
+     * ⚠ Silent when the SHAPE is already wrong, and that guard earns its place.
+     *
+     * Zod runs this refinement even after the regex above has failed, and `dateOfBirthIssue`'s first
+     * branch answers an unparseable value with "Expected a date as YYYY-MM-DD" — so a blank date of
+     * birth produced TWO issues saying the same thing, one of them phrased for whoever wrote the
+     * schema. It surfaced the moment the application started requiring a date of birth (X9), against
+     * the apply form's rule that nothing a validator would say reaches a driver.
+     *
+     * One mistake, one message: the regex speaks for the shape, this speaks for the meaning.
+     */
+    if (!ISO_DATE.test(v)) return;
+    const issue = dateOfBirthIssue(v, new Date().toISOString().slice(0, 10));
+    if (issue) ctx.addIssue({ code: "custom", message: issue });
+  });
+
+/**
+ * A date of birth that may be absent — the ROSTER's shape.
+ *
+ * A driver record can legitimately be created without one: the office keys in what it has, and the
+ * date arrives with the qualification file. ⚠ This is emphatically NOT the application's shape; see
+ * `requiredDateOfBirthSchema`.
+ */
 export const dateOfBirthSchema = z.preprocess(
   (v) => (typeof v === "string" && v.trim() === "" ? null : v),
-  z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD")
-    .nullish()
-    // superRefine, not refine: the message names WHICH rule failed ("at least 18", "not a real
-    // date"), and a caller who is told only "invalid" has to guess which of three things to fix.
-    .superRefine((v, ctx) => {
-      if (v == null) return;
-      const issue = dateOfBirthIssue(v, new Date().toISOString().slice(0, 10));
-      if (issue) ctx.addIssue({ code: "custom", message: issue });
-    }),
+  dateOfBirthRules.nullish(),
+);
+
+/**
+ * A date of birth that must be there — the APPLICATION's shape (X9).
+ *
+ * ── WHY THE APPLICATION CANNOT SHARE THE ROSTER'S ─────────────────────────────────────────────
+ * `driverApplicationSchema` took `dateOfBirthSchema` until 2026-09-11, so **an application with no
+ * date of birth validated and submitted.** Two things went wrong at once, and the second is the one
+ * that is easy to miss:
+ *
+ *   · §391.21(b)(2) names the date of birth, so the filed document was missing required content;
+ *   · and a draft is gated on it. `draftIsLocked` withholds the body *only once a date of birth is
+ *     in it* (D-APP16) — which is the right rule, because the date is what the challenge asks for.
+ *     But it means a driver who never typed one had a draft holding their address history and their
+ *     employment history that `GET /:token` served **in the clear** to anyone holding the link. The
+ *     second factor D-APP16 exists to add was contingent on an answer nothing required.
+ *
+ * Requiring it in the contract closes both, and closes the second more thoroughly than it first
+ * appears: `APPLICATION_SECTION_KEYS.identity` owns `date_of_birth`, and the wizard validates each
+ * screen with the contract's own object — so the first screen now refuses to advance without one,
+ * and no draft can reach the address screen ungated.
+ *
+ * ⚠ Safe to tighten, which is not true of every field here: `driver_applications.payload` is never
+ * re-parsed on render (`applicationPdf/file.ts` casts it), so no filed row can be made
+ * unreproducible by this, and nothing has been filed against the old shape in production.
+ */
+export const requiredDateOfBirthSchema = z.preprocess(
+  (v) => (typeof v === "string" ? v.trim() : v),
+  dateOfBirthRules,
 );
 
 // ── vocabularies ──────────────────────────────────────────────────────────────
