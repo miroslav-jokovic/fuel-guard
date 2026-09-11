@@ -9,6 +9,7 @@ import {
   ConnectIcon,
   LockIcon,
   DatabaseSyncIcon,
+  DocumentTextIcon,
   DevicePhoneMobileIcon,
   MapIcon,
   RadarIcon,
@@ -38,6 +39,11 @@ const configCards = [
   // accident rather than by construction.
   { name: "Driver App", to: "/settings/driver-app", icon: DevicePhoneMobileIcon, desc: "Which features drivers see, app behavior, per-driver exceptions, and the minimum app version.", show: session.can("roster") },
   { name: "Data & sync", to: "/settings/data", icon: DatabaseSyncIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", show: session.can("settings") },
+  // ⚠ Listed here from the day the page shipped, and deliberately so: `routeReachability.test.ts`
+  // exists because ten of eleven `/settings/*` routes were on this page and one was reachable only
+  // by typing the URL. This is also the page that answers "why can no applicant send anything" —
+  // until all six instruments are published, every signing path refuses.
+  { name: "Application wording", to: "/settings/application-wording", icon: DocumentTextIcon, desc: "The disclosures and authorizations an applicant signs. Nothing can be signed or sent until these are published.", show: session.can("settings") },
   { name: "EFS integration", to: "/settings/efs-soap", icon: ConnectIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", show: session.admin },
   { name: "Card control", to: "/settings/card-control", icon: LockIcon, desc: "Who may lock cards and grant fuel exceptions, and the EFS write-access check.", show: session.admin },
   { name: "Anomaly thresholds", to: "/settings/thresholds", icon: AdjustmentsHorizontalIcon, desc: "Tune the detection engine and AI settings.", show: session.admin },

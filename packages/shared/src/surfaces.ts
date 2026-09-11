@@ -324,6 +324,14 @@ export const SURFACES: readonly Surface[] = [
   // ── non-nav screens that already state a section, transcribed (no behaviour change) ───────────
   { key: "dispatch.loads.new", label: "New Load", path: "/loads/new", group: "dispatch", gate: manage("dispatch"), module: "dispatch", parent: "dispatch.loads" },
   { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), parent: "admin.settings" },
+  /**
+   * ⚠ `manage("settings")` and not `recruitment`: this screen decides the text an applicant legally
+   * signs. A recruiter processing applications has no business rewriting a federal authorization,
+   * and the blast radius of a bad edit is every signature taken afterwards. The API's READ is
+   * `recruitment view` for the same reason in reverse — a recruiter does need to find out that an
+   * unpublished instrument is what is stopping every applicant they invite.
+   */
+  { key: "admin.settings.application-wording", label: "Application wording", path: "/settings/application-wording", group: "admin", gate: manage("settings"), parent: "admin.settings" },
   // `roster` and not `settings`: this console decides what DRIVERS see, and `driverAppSettings.ts`
   // gates on rolesThatManage("roster"). The card, the route and the endpoint ask one question —
   // before R0 all three asked the same global boolean and agreed by accident rather than by design.

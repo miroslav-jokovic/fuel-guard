@@ -96,6 +96,17 @@ export const settingsRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Data & Sync", parent: "/settings" },
   },
   {
+    path: "/settings/application-wording",
+    name: "application-wording",
+    component: () => import("@/pages/ApplicationWordingPage.vue"),
+    meta: {
+      requiresAuth: true,
+      requiresManage: "settings",
+      title: "Application wording",
+      parent: "/settings",
+    },
+  },
+  {
     path: "/settings/efs-soap",
     name: "efs-soap",
     component: () => import("@/pages/EfsSoapPage.vue"),
