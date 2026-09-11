@@ -455,6 +455,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/data",
   },
   {
+    "name": "application-wording",
+    "params": {},
+    "url": "/settings/application-wording",
+  },
+  {
     "name": "efs-soap",
     "params": {},
     "url": "/settings/efs-soap",
@@ -1024,6 +1029,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "settings",
     "path": "/settings",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "requiresManage": "settings",
+      "title": "Application wording",
+    },
+    "name": "application-wording",
+    "path": "/settings/application-wording",
     "redirect": null,
   },
   {

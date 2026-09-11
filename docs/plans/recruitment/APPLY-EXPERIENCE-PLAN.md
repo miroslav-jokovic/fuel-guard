@@ -520,4 +520,17 @@ adjacent table rows conflict every time.
   fills only NOT NULL columns — `supabase/CLAUDE.md` is explicit that an unseedable table is a
   failure, not a skip. The fix was a better design: `body` always holds the text as shown (composed
   at publish time for the consent), and `clauses` records what it was composed from.
+- 2026-09-11 — **Carrier-owned wording MERGED** (#750), and the settings screen built on top of it.
+  `/settings/application-wording`, gated `manage("settings")` — a recruiter processing applications
+  has no business rewriting a federal authorization, and the blast radius of a bad edit is every
+  signature taken afterwards. The page leads with the COUNT of unpublished instruments, because it is
+  the only number on it anybody can act on: until it is zero, nothing an applicant does works.
+  The 7001(c) consent is asked for as six fields rather than one box, and the editor is pre-filled
+  with whatever is live — for an unpublished instrument that is our placeholder, which is the point:
+  the office edits a starting draft rather than facing six empty boxes.
+  ⚠ Three gates caught things a reading would not have: `lint:surfaces` (a permission granting
+  nothing, because the surface named a path the route snapshot did not have), `routeReachability`
+  (a page nothing links to — the reason that test exists is that ten of eleven `/settings/*` routes
+  were on the settings page and one was reachable only by typing the URL), and the route-table probe
+  list, which refuses a new route it has not been told to expect.
 
