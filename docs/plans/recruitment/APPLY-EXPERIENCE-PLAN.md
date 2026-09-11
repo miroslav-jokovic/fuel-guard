@@ -321,6 +321,77 @@ the email until the instruments are published**, so nothing in this plan touches
 - It does not add a decline-to-sign path. Also a real gap against DocuSign, also wording-adjacent
   (what a declined application says to the driver is counsel's sentence), deferred with the rest.
 
+## 7. Owner feedback, 2026-09-11 — F1–F5
+
+Six observations after X1–X9 landed. Three were the form's own doing and are small; two change the
+**lifecycle** and are not.
+
+**F1 · The form used controls the rest of the product does not.** `apps/web/CLAUDE.md` says
+*"FilterSelect (toolbars) vs ComboSelect (forms)"* and the apply flow was the one surface answering a
+choice with the browser's native `<select>` — a different chevron, a different focus ring, and on a
+phone a native sheet thrown over the page. Every gate passed; nothing reads composition.
+
+**F2 · The employment panel looked mandatory and is not.** Owner: *"most of the drivers are not
+remembering all places and exact company names, so this should be much simpler with company name,
+and dates from to he worked there, all other things are optional."* They were right and the form was
+lying about itself — `applicationEmployerSchema` has only ever required `employer_name` and
+`started_on`; everything else is already `.nullish()`. Fifteen controls in one column simply looked
+like fifteen questions.
+
+**F3 · Mobile, and text that overlaps or leaves its frame.** A measured sweep at 320/390, not a
+reading — the same method that found five defects in X4 and X5 that no test saw.
+
+**F4 · The application must be reviewable and EDITABLE by the office, and signed only after it is
+approved.** This is the one that changes the shape of the thing. Today there is no review at all:
+`application_invitations` has `consented_at`, `releases_completed_at` and `submitted_at` and nothing
+else, the dashboard has no surface that shows a filed application, and the driver's certification is
+the last act before filing.
+
+**F5 · Releasing the copy to the driver is an office decision, not an automatic one.** X8 hands the
+copy to anyone holding the link the moment the application is filed. That becomes a gate.
+
+### The decisions F4 turns on, answered by the owner 2026-09-11
+
+**D-AX11 · The four authorizations stay UP FRONT; only the §391.21(b)(12) certification moves.**
+`SCREENING_PREREQUISITES` gates `psp_record` on `psp` + `fcra_disclosure`, `mvr_order` on
+`fcra_disclosure`, and `previous_employer_inquiry` on `previous_employer`. Those four signatures are
+exactly what let the office screen — so moving them behind the review would mean **reviewing blind**,
+which is the opposite of what a review is for. The driver therefore signs twice, and the second touch
+buys something the first cannot: a certification of the document that will actually be filed.
+
+⚠ This is a deliberate reversal of **D-APP4**, which put all signing before the form on the grounds
+that *"a second touch loses people"*. That reasoning still holds for the authorizations, which is why
+they stay. It does not hold for the certification, because a certification of answers the office has
+since corrected is a certification of something else.
+
+**D-AX12 · An office edit is shown to the driver, marked, before they certify.** §391.21(b)(12) is
+the applicant's own statement that the entries are true. If the carrier has changed one, an auditor —
+or a plaintiff — will ask whether the applicant saw the change. The signing screen marks each edited
+answer and shows what it was.
+
+**D-AX13 · An edit is a correction, never an overwrite.** The evidence rule this repository already
+holds: corrections are new rows. The draft payload the office edits is not yet a filed application,
+so the edit is cheap — but who changed what, and when, is recorded, because the answer being
+certified is no longer only the driver's.
+
+### Steps
+
+**F1 · The forms control everywhere** — done when no screen in the apply flow renders a native
+dropdown, and a test says so rather than a convention.
+
+**F2 · Three fields and a disclosure** — done when a driver adding a job is asked for the company, the
+start and the end, with everything else reachable and marked optional.
+
+**F3 · The mobile sweep** — done when every screen at 320 and 390 has no horizontal overflow, no
+clipped text and no control colliding with another, measured in a browser.
+
+**F4 · Review, edit, approve, then sign** — done when an office reader can open a submitted
+application, correct it, approve it, and the driver is asked to certify the corrected document with
+the changes marked.
+
+**F5 · The copy is released, not served** — done when the driver's download answers "not yet" until
+the office releases it.
+
 ## 6. Progress log
 
 Append dated lines here. Do not edit the step headings to mark progress — parallel PRs marking

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
+  AppCombobox as ComboSelect,
   AppFormField as FormField,
   AppInput as BaseInput,
-  AppSelect as BaseSelect,
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
 import { questionnaireForApplicant, questionsForScreen, type ApplicationSection } from "@silvicom/shared";
@@ -99,14 +99,20 @@ const questions = computed(() => questionsForScreen(definition, props.section));
           :rows="3"
           @update:model-value="set(question.id, $event)"
         />
-        <BaseSelect
+        <!-- ⚠ `ComboSelect`, not the native `AppSelect` this carried until 2026-09-11. The rest of
+             the product answers a choice in a FORM with this control — `apps/web/CLAUDE.md` says so
+             in as many words, "FilterSelect (toolbars) vs ComboSelect (forms)" — and the apply flow
+             was the one surface using the browser's own dropdown instead. That reads as a different
+             application bolted on: a different chevron, a different focus ring, and on a phone a
+             native sheet thrown over the page. -->
+        <ComboSelect
           v-else-if="question.kind === 'boolean'"
           :id="id"
           :model-value="boolValue(question.id)"
           :options="YES_NO"
           @update:model-value="setBool(question.id, $event)"
         />
-        <BaseSelect
+        <ComboSelect
           v-else-if="question.kind === 'select'"
           :id="id"
           :model-value="(answer(question.id) as string) ?? ''"

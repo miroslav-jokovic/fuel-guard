@@ -194,6 +194,56 @@ describe("the hub, and one job at a time", () => {
     expect(w.text()).not.toMatch(/\b2 employers\b/);
   });
 
+  /**
+   * ⚠ Owner, 2026-09-11: *"most of the drivers are not remembering all places and exact company
+   * names, so this should be much simpler with company name, and dates from to he worked there, all
+   * other things are optional."*
+   *
+   * `applicationEmployerSchema` has only ever required `employer_name` and `started_on` — the panel
+   * simply LOOKED mandatory, fifteen controls deep. What is pinned is that the three the regulation
+   * needs are the three in front of the driver, and that nothing was dropped to get there.
+   */
+  it("asks for three things, and puts the rest behind a disclosure", async () => {
+    const d = emptyDraft();
+    d.employers = [];
+    const w = screen(d);
+    await button(w, "Add your first job")!.trigger("click");
+
+    /**
+     * ⚠ Asked POSITIONALLY — "is this input a descendant of the disclosure" — and not by comparing
+     * id lists. The first version of this assertion gathered the ids inside `<details>` and
+     * subtracted them from all the ids on the panel, which looks equivalent and is not: a field
+     * rendered in BOTH places has its id in the subtracted set, so the copy sitting above the fold
+     * vanished from the comparison. A mutation that put `position_held` back on top passed it.
+     */
+    const details = w.find("details").element;
+    const primary = w
+      .findAll("input")
+      .filter((i) => !details.contains(i.element))
+      .map((i) => i.attributes("id"))
+      .filter((id) => id?.startsWith("apply-employers"));
+
+    expect(primary).toEqual([
+      "apply-employers-0-employer_name",
+      "apply-employers-0-started_on",
+      "apply-employers-0-ended_on",
+    ]);
+  });
+
+  it("keeps every optional answer reachable, rather than deleting the question", async () => {
+    // Simpler is not the same as smaller: a driver who DOES remember the dispatcher's number must
+    // still have somewhere to put it, and §391.23 still wants an address to write to.
+    const d = emptyDraft();
+    d.employers = [];
+    const w = screen(d);
+    await button(w, "Add your first job")!.trigger("click");
+
+    for (const field of ["position_held", "usdot_number", "address_line1", "city", "state", "phone", "email", "reason_for_leaving"]) {
+      expect(w.find(`#apply-employers-0-${field}`).exists()).toBe(true);
+    }
+    expect(w.findAll("details")).toHaveLength(1);
+  });
+
   it("removes a job from inside the panel, not from a button beside Change", async () => {
     // Measured at 390px: the two sat a thumb's width apart, and they are not equally undoable.
     const d = emptyDraft();

@@ -3,9 +3,9 @@ import { computed, ref } from "vue";
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
+  AppCombobox as ComboSelect,
   AppInput as BaseInput,
   AppMonthField,
-  AppSelect as BaseSelect,
 } from "@silvicom/ui";
 import { EQUIPMENT_CLASSES, EQUIPMENT_CLASS_LABELS } from "@silvicom/shared";
 import ApplyField from "@/features/apply/ApplyField.vue";
@@ -189,7 +189,8 @@ const removeJob = (index: number): void => {
       >
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ApplyField v-slot="f" :path="['equipment_experience', i, 'equipment_class']" :label="copy.equipmentClass">
-            <BaseSelect v-bind="f" v-model="row.equipment_class" :options="EQUIPMENT_OPTIONS" />
+            <!-- The forms idiom the rest of the product uses; see `QuestionnaireFields.vue`. -->
+            <ComboSelect v-bind="f" v-model="row.equipment_class" :options="EQUIPMENT_OPTIONS" />
           </ApplyField>
           <ApplyField
             v-slot="f"
