@@ -11,6 +11,7 @@ import {
 import { EQUIPMENT_CLASSES, EQUIPMENT_CLASS_LABELS, jurisdictionOptions } from "@silvicom/shared";
 import { emptyEmployer, emptyEquipment, type ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
+import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /** The classes §391.21(b)(6) and FMCSA's own form name, in the order that form lists them. */
@@ -35,6 +36,10 @@ const copy = APPLY_COPY.employment;
 <template>
   <section class="space-y-4">
     <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
+
+    <!-- D-AX7. The carrier's paper asks this on page 1; it is asked here, above the list, because a
+         driver cannot picture who is being asked about until they have named them. -->
+    <QuestionnaireFields v-model="draft" section="employment" />
 
     <BaseCheckbox v-model="draft.declares_no_employment">{{ copy.none }}</BaseCheckbox>
 

@@ -7,8 +7,10 @@ import {
   questionnaireByRef,
   questionnaireForApplicant,
   questionnaireRef,
+  questionsForScreen,
   readableAnswers,
 } from "./questionnaireContract.js";
+import { APPLICATION_SECTION_ORDER } from "./applicationSections.js";
 import { driverApplicationSchema } from "./applicationContract.js";
 import { planApplicationIntake } from "./applicationIntake.js";
 
@@ -201,5 +203,58 @@ describe("questionnaire answers are projected nowhere", () => {
   it("survives an application that answered nothing at all", () => {
     expect(readableAnswers(null)).toEqual({});
     expect(readableAnswers(undefined)).toEqual({});
+  });
+});
+
+/**
+ * Where each question is asked (D-AX7).
+ *
+ * ⚠ The last assertion is the one that matters: every question has exactly one home. A typo in a
+ * `screen` value would otherwise put a question on a screen nothing renders, and it would vanish from
+ * the form with no error anywhere — the same silent-drop shape as the `location`/`state` defect that
+ * filed every traffic conviction with no place attached.
+ */
+describe("which screen a carrier question is asked on", () => {
+  it("puts the workbook's page-1 questions on the first screen", () => {
+    expect(questionsForScreen(SILVICOM_DRIVER_V1, "identity").map((q) => q.id)).toEqual([
+      "position",
+      "heard_from",
+      "legally_work",
+      "proof_of_age",
+    ]);
+  });
+
+  it("asks about contacting employers where the employers are listed", () => {
+    // The one deliberate departure from the paper, which has it on page 1.
+    expect(questionsForScreen(SILVICOM_DRIVER_V1, "employment").map((q) => q.id)).toEqual([
+      "may_contact_employers",
+    ]);
+  });
+
+  it("leaves the workbook's page-16 questions on the carrier's own screen", () => {
+    expect(questionsForScreen(SILVICOM_DRIVER_V1, "questions").map((q) => q.id)).toEqual([
+      "education",
+      "military_service",
+      "military_when",
+      "other_training",
+      "references",
+    ]);
+  });
+
+  it("defaults a question that says nothing to the carrier's own screen", () => {
+    const def = {
+      ...SILVICOM_DRIVER_V1,
+      questions: [{ id: "anything", label: "Anything", kind: "text" as const }],
+    };
+    expect(questionsForScreen(def, "questions").map((q) => q.id)).toEqual(["anything"]);
+    expect(questionsForScreen(def, "identity")).toEqual([]);
+  });
+
+  it("gives every question exactly one home, so none can be lost to a typo", () => {
+    const homes = APPLICATION_SECTION_ORDER.flatMap((section) =>
+      questionsForScreen(SILVICOM_DRIVER_V1, section).map((q) => q.id),
+    );
+    expect([...homes].sort()).toEqual([...SILVICOM_DRIVER_V1.questions.map((q) => q.id)].sort());
+    expect(new Set(homes).size).toBe(homes.length);
   });
 });

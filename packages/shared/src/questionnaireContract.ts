@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ApplicationSection } from "./applicationSections.js";
 
 /**
  * The carrier's own questions, versioned and kept OUT of the regulated contract (A9, D-APP12).
@@ -64,6 +65,27 @@ export interface QuestionnaireQuestion {
   id: string;
   label: string;
   kind: QuestionKind;
+  /**
+   * The wizard screen this question is asked on. Defaults to `questions` (APPLY-EXPERIENCE-PLAN
+   * D-AX7).
+   *
+   * ── WHY A CARRIER'S QUESTION GETS TO SAY THIS ─────────────────────────────────────────────
+   * Because the carrier's own paper already says it, and the paper is the authority. `APPLICATION.xlsx`
+   * puts five of these nine on **page 1**, beside the name and the address: the position applied for,
+   * how the applicant heard about the company, whether they can legally work in the USA, whether they
+   * have proof of age, and whether previous employers may be contacted. The other four — education,
+   * military service, other training and three references — are on **page 16**, at the back.
+   *
+   * Our wizard asked all nine on one screen two-thirds of the way through, so "what job are you
+   * applying for?" was the sixth of nine steps, after the two heaviest screens in the form.
+   *
+   * ⚠ **This moves WHERE a question is asked and never WHAT is asked.** The transcription rule at the
+   * top of this file is unchanged: spelling is corrected, substance is counsel's. A question's `id`,
+   * `label`, `kind` and the answer it produces are untouched by this field, and the answers still
+   * travel in one `questionnaire_answers` blob owned by the `questions` section — which is why
+   * `APPLICATION_SECTION_KEYS` needs no change and `sectionsCoverTheContract` is unaffected.
+   */
+  screen?: ApplicationSection;
   /** Shown under the field. Where the packet explains itself, the explanation comes across. */
   hint?: string;
   /** Required for `select`. */
@@ -136,27 +158,50 @@ export const SILVICOM_DRIVER_V1: QuestionnaireDefinition = {
   questions: [
     {
       id: "position",
+      screen: "identity",
       label: "Position you are applying for",
       kind: "text",
     },
     {
       id: "heard_from",
+      screen: "identity",
       label: "How did you hear about this company?",
       kind: "text",
     },
     {
       id: "legally_work",
+      screen: "identity",
       label: "Can you legally work in the USA?",
       kind: "boolean",
     },
     {
       id: "proof_of_age",
+      screen: "identity",
       label: "Do you have proof of age?",
       kind: "boolean",
-      hint: "§391.11(b)(1) sets the federal minimum at 21. Silvicom's own policy is 23.",
+      /**
+       * ⚠ This read "§391.11(b)(1) sets the federal minimum at 21. Silvicom's own policy is 23." and
+       * it had done since A9. **D-UI9 forbids a CFR citation on any screen a driver reads** — and no
+       * gate could see this one: `strings.test.ts` walks `APPLY_COPY`, and the carrier's questions are
+       * not in it. Found 2026-09-11 only because D-AX7 moved this question onto a screen that one
+       * assertion happened to check. The gate now walks this definition too.
+       *
+       * The substance is unchanged; only the paragraph number is gone. The audience argument is the
+       * whole of D-UI9: a citation is an instrument for arguing with an auditor, and the person being
+       * asked for their proof of age is not one.
+       */
+      hint: "The federal minimum age is 21. Silvicom's own policy is 23.",
     },
     {
       id: "may_contact_employers",
+      /**
+       * ⚠ **The one deliberate departure from the paper's layout** (D-AX7). The workbook has this on
+       * page 1 with the other four; it is asked on the EMPLOYMENT screen instead, directly above the
+       * list of employers. Asking a driver for permission to contact employers they have not yet
+       * named is a question with no referent — they cannot picture who is being asked about. Moving
+       * where it is asked changes nothing about what is asked.
+       */
+      screen: "employment",
       label: "May we contact your previous employers?",
       kind: "boolean",
       /**
@@ -221,6 +266,20 @@ export const SILVICOM_DRIVER_V1: QuestionnaireDefinition = {
  * becomes a column on `organizations` and this function grows an argument.
  */
 export const questionnaireForApplicant = (): QuestionnaireDefinition => SILVICOM_DRIVER_V1;
+
+/**
+ * The questions asked on one screen, in the definition's own order.
+ *
+ * ⚠ Derived from the definition rather than listed per screen, because a list would be a second
+ * place to forget a question. A question with no `screen` belongs to `questions`, which is what every
+ * definition written before D-AX7 means and what a carrier adding one without thinking about it
+ * should get.
+ */
+export const questionsForScreen = (
+  def: QuestionnaireDefinition,
+  screen: ApplicationSection,
+): readonly QuestionnaireQuestion[] =>
+  def.questions.filter((q) => (q.screen ?? "questions") === screen);
 
 /** Every definition that has ever been served, by `id@version` — a stored answer names one of these. */
 export const QUESTIONNAIRES: Record<string, QuestionnaireDefinition> = {

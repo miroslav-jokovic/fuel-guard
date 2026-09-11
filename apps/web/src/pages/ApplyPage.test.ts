@@ -160,6 +160,10 @@ describe("the applicant's page", () => {
 
     expect(w.text()).toContain(step(1));
     expect(w.text()).toContain("About you");
+    // D-AX7: the carrier's own page-1 questions are asked on the first screen, where its paper asks
+    // them. "What job are you applying for?" was the sixth of nine steps until 2026-09-11.
+    expect(w.text()).toContain("Position you are applying for");
+    expect(w.text()).toContain("How did you hear about this company?");
     // ⚠ This used to assert the screen NAMED its paragraph — "§391.21(b)(2)" rendered under the
     // heading. Inverted 2026-08-22 on the owner's judgement that citations are "useless and
     // confusing for a regular user": the driver gets the words, the auditor gets the PDF. The
@@ -174,13 +178,19 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("Any other licences or permits");
     await advance(w);
     expect(w.text()).toContain("Where you have worked");
+    // D-AX7's one departure from the paper: asked above the employer list rather than on page 1,
+    // because a driver cannot picture who is being asked about until they have named them.
+    expect(w.text()).toContain("May we contact your previous employers?");
     await advance(w);
     expect(w.text()).toContain("Your driving record");
     await advance(w);
     // A9: the carrier's own questions — and the screen says they are the carrier's, because unlike
     // every other screen in this wizard it discharges no CFR paragraph (D-APP12).
     expect(w.text()).toContain("The carrier's own questions");
-    expect(w.text()).toContain("How did you hear about this company?");
+    // What is LEFT on this screen after D-AX7 — the four the workbook puts on its page 16.
+    expect(w.text()).toContain("Education and training");
+    expect(w.text()).toContain("Three personal references");
+    expect(w.text()).not.toContain("How did you hear about this company?");
     await advance(w);
     // A8: the photographs are taken while the driver still has the documents in their hand.
     expect(w.text()).toContain("Your documents");

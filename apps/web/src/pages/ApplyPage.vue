@@ -8,7 +8,6 @@ import {
   AppDateField,
   AppFormField as FormField,
 } from "@silvicom/ui";
-import { APPLICATION_SECTION_LABELS } from "@silvicom/shared";
 import ApplicantDetailsFields from "@/features/apply/ApplicantDetailsFields.vue";
 import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
 import LicenceFields from "@/features/apply/LicenceFields.vue";
@@ -21,6 +20,7 @@ import CertifyFields from "@/features/apply/CertifyFields.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
 import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
+import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import { emptyDraft, fromDraftPayload, toApplication, type ApplicationDraft } from "@/features/apply/draft";
 import { driverApplicationSchema } from "@silvicom/shared";
 import {
@@ -342,29 +342,14 @@ async function send(): Promise<void> {
       <AppCallout v-if="wordingNotFinal" tone="caution" class="mt-3">
         {{ APPLY_COPY.notOpen.banner(invitation.data.value.carrier) }}
       </AppCallout>
-      <p v-if="saveStatus" class="mt-2 text-xs text-ink-muted">{{ saveStatus }}</p>
     </div>
 
-    <!-- Where they are, in words and as a bar.
-         ⚠ This block used to carry a third line: `APPLICATION_SECTION_CITATIONS[section]`, so a
-         driver on a phone read "§391.21(b)(3)" above the boxes asking where they had lived. It was
-         argued for on the grounds that a regulated form should say who is asking — but a CFR
-         paragraph number does not answer that question for the person being asked, it answers it for
-         somebody auditing us later, and that reader gets the PDF. Removed 2026-08-22 on the owner's
-         judgement that citations are "useless and confusing for a regular user"; the map itself is
-         kept and still prints (see `applicationSections.ts`). -->
-    <div class="space-y-2">
-      <div class="flex items-baseline justify-between gap-4">
-        <h2 class="text-base font-semibold text-ink">{{ APPLICATION_SECTION_LABELS[wizard.section.value] }}</h2>
-        <span class="text-xs text-ink-muted">{{ APPLY_COPY.page.stepOf(wizard.index.value + 1, wizard.total) }}</span>
-      </div>
-      <div class="h-1 w-full overflow-hidden rounded-detail bg-surface-muted">
-        <div
-          class="h-full bg-brand-500 transition-all"
-          :style="{ width: `${((wizard.index.value + 1) / wizard.total) * 100}%` }"
-        />
-      </div>
-    </div>
+    <ApplyProgress
+      :index="wizard.index.value"
+      :furthest="wizard.furthestIndex.value"
+      :save-status="saveStatus"
+      @go-to="wizard.goTo"
+    />
 
     <BaseCard v-if="wizard.issues.value.length || sendError">
       <h2 class="text-sm font-semibold text-ink">

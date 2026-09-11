@@ -336,3 +336,17 @@ adjacent table rows conflict every time.
 - 2026-09-11 — **X3 built.** The review screen is composed by `reviewSummary.ts`, a pure function, so
   "everything the driver typed is on the page they certify" is an assertion that walks a filled draft
   rather than a claim about markup. It found the omission it was written for on its first run.
+- 2026-09-11 — **X3 MERGED** (#739).
+- 2026-09-11 — **X4 built, and it is the first thing in this flow ever rendered in a browser.**
+  Verified against the built bundle at 320px, 390px and 900px with Playwright route mocks, which is
+  what U7 of `RECRUITING-UI-SURFACE-PLAN.md` has been owed since 2026-08-22. Three defects were
+  visible there and invisible to every gate: "You are here" collided with a two-line step label at
+  320px; disabled step rows stacked `text-ink-tertiary` on the button's own `disabled:` mute; and the
+  carrier's questions took a 680px input for a two-word answer beside three-up name fields.
+  **Q-AX1 is answered: the rail survives 320px, because the bar indicates and the list navigates.**
+- 2026-09-11 — ⚠ **A D-UI9 violation found, older than this plan.** `proof_of_age`'s hint has carried
+  "§391.11(b)(1)" since A9. `strings.test.ts` walks `APPLY_COPY` and the carrier's questions are not
+  in it, so the gate had a blind spot exactly the shape of the thing that got through — and it only
+  surfaced because D-AX7 moved that question onto a screen one page test happened to check. The
+  citation is gone and the gate now walks the questionnaire definition too.
+
