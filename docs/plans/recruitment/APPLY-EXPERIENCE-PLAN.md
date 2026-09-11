@@ -616,3 +616,20 @@ adjacent table rows conflict every time.
   Measured in a real browser at 320/390/1280 on all three screens: no sideways scroll, nothing out of
   frame. **Q-AX4 is open and is the visible seam** — nothing tells the applicant their application has
   been approved, so the waiting screen promises no email and says "keep this link" instead.
+- 2026-09-11 — **F4 (4c/n): the certification is refused until the office approves.** `submitApplication`
+  now reads `applicationAwaitsSignature(phasesOf(invitation))` and answers `not_yet_approved` (409, not
+  500) to anything else. §391.21(b)(12) has the applicant swear every entry is true and complete, and
+  the office can change an entry between the driver sending it and the driver signing it — so a
+  signature taken before the review is a signature on a document that may not be the one filed, and
+  `submitted_at` spends the phase, so that file could never afterwards be corrected.
+  ⚠ It shipped THREE merges after the phase column and one after the page that hands the application
+  over, in that order deliberately: a gate landing first would have refused every submission from the
+  client still in the field. That is the deploy-window rule applied to behaviour rather than to a
+  column, and it is the reason F4's server half was split 4a/4c around the page in 4b.
+  ⚠ Read through the shared predicate rather than from `approved_at` directly — the office's drawer,
+  the applicant's page and this route all read the same three timestamps, and three readings are three
+  chances for two screens to disagree about whether somebody may sign.
+  The submit fixture became `submittableInvitation` and now carries the review and approval stamps; it
+  has grown twice for the same reason (the consent in 2026-08-23, these two now), each time because a
+  gate that had been inert became real, and each time the fixture started saying out loud what a
+  lawful submission rests on.

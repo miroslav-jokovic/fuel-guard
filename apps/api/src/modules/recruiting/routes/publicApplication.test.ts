@@ -77,6 +77,9 @@ const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
             token_hash: hashInvitationToken(TOKEN),
             expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
             consented_at: null, releases_completed_at: null, submitted_at: null,
+            // F4: submitting requires an approved application, so the default link is one the office
+            // has read and approved. A test about a phase refusal overrides these two.
+            review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
             ...over,
           }]
         : [],
@@ -160,9 +163,10 @@ describe("opening the link", () => {
     expect(body.phases).toEqual({
       consentedAt: "2026-08-20T09:00:00Z",
       releasesCompletedAt: null,
-      // The two the office owns (F4). Null here, and that is the ordinary case: nobody has read it.
-      reviewRequestedAt: null,
-      approvedAt: null,
+      // The two the office owns (F4) — set here because `seed()`'s default link is one that has been
+      // read and approved, which is the only state a submission is made from.
+      reviewRequestedAt: "2026-09-10T09:00:00Z",
+      approvedAt: "2026-09-11T09:00:00Z",
       submittedAt: null,
     });
   });
@@ -258,7 +262,8 @@ describe("sending it to the carrier to read", () => {
   });
 
   it("answers 409 when there is nothing saved to read, not 500", async () => {
-    holder.client = seed().client;
+    // A link nobody has handed over yet — `seed()`'s default is one the office has already approved.
+    holder.client = seed({ review_requested_at: null, approved_at: null }).client;
     const res = await call(`/${TOKEN}/review`, { method: "POST" });
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe("nothing_to_review");
@@ -327,6 +332,29 @@ describe("submitting", () => {
 /**
  * A2 — the form saves itself, and a saved date of birth is not readable from the bare link.
  */
+/**
+ * ⚠ The certification is refused until the office has approved the document (F4, D-AX11).
+ *
+ * The applicant's page hands the application over and does not offer a signature until it comes back,
+ * so this is the belt to that braces — and the status matters as much as the refusal: a 500 would
+ * read to a driver as "the system is broken" when the truth is "nobody has read it yet".
+ */
+describe("certifying before the carrier has approved it", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("answers 409 and says what to do, rather than 500", async () => {
+    publishAll();
+    holder.client = seed({
+      consented_at: "2026-08-20T09:00:00Z", review_requested_at: null, approved_at: null,
+    }).client;
+    const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("not_yet_approved");
+    expect(body.error.message).toContain("reopen your link");
+  });
+});
+
 describe("the saved draft", () => {
   it("comes back with the link when there is nothing sensitive in it", async () => {
     holder.client = seedWithDraft({ first_name: "Susan" }).client;
