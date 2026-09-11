@@ -1,5 +1,10 @@
 # Handoff — the driver application, 2026-09-11
 
+> ⚠ **SUPERSEDED IN PART by `HANDOFF-2026-09-11-REVIEW.md` (same day, evening).** Everything here
+> about X1–X9 and about the wording blocker is still true; what changed after it is the carrier-owned
+> wording, the office's review surface, the two-visit application, and an audit of the whole hiring
+> flow against what is built. **Read that one first.**
+
 **Read this before touching the apply flow, the signing ceremony or the applicant's record page.**
 The plan is `APPLY-EXPERIENCE-PLAN.md`; its §6 progress log is the running record and its §7 holds the
 owner's feedback and the decisions it produced. This document is the state of play in one place.
