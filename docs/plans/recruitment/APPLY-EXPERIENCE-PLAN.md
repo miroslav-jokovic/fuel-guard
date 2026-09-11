@@ -491,4 +491,15 @@ adjacent table rows conflict every time.
   a column and its first reader ship in two merges, because Railway serves a merge before
   `migrate.yml` applies its schema. `application_edits` is deliberately NOT in this migration — a
   table with no writer fails `lint:table-producers`, and there is no code here to write it.
+- 2026-09-11 — **F4 (2/n) built.** 0337 `application_edits` + `applicationReview.ts` + three routes.
+  The edit window closes at **approval**, not at signing: it would be easy to leave it open while the
+  draft is still a draft, and it must not be — approval is what tells the driver *this document, now*,
+  and an answer moving underneath them between being asked and signing is what this flow exists to
+  stop. Every edit is applied to a COPY and the copy re-parsed with `driverApplicationObject.partial()`
+  before anything is written, so an office cannot leave a draft the driver is then unable to certify;
+  `.partial()` because a draft is allowed to be unfinished, and parsing it whole would refuse most of
+  the corrections an office actually wants to make.
+  ⚠ A cross-tenant test here was worthless as first written — `supabaseRecorder` records `.eq()` and
+  does not apply it, so a flat array answers another carrier's query with this carrier's row. It uses
+  a function fixture now, which is what [[supabase-recorder-does-not-filter]] has been saying.
 
