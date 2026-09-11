@@ -633,3 +633,8 @@ adjacent table rows conflict every time.
   has grown twice for the same reason (the consent in 2026-08-23, these two now), each time because a
   gate that had been inert became real, and each time the fixture started saying out loud what a
   lawful submission rests on.
+- 2026-09-11 — **Handoff written: `HANDOFF-2026-09-11-REVIEW.md`.** It carries the audit of the
+  owner's hiring flow against what is built (§3 there), the two "nothing is happening" defects and
+  their single root cause (§4), and the recommended queue (§5). ⚠ One correction on record: surfacing
+  `crossMatchEmployment` was described to the owner as cheap and it is not — P12's three derived PSP
+  tables do not exist in any migration, so the function has nothing to read.
