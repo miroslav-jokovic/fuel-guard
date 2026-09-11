@@ -2,17 +2,22 @@
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
+  AppCombobox as ComboSelect,
   AppInput as BaseInput,
   AppDateField,
   AppFormField as FormField,
+  AppMonthField,
   AppSelect as BaseSelect,
 } from "@silvicom/ui";
-import { EQUIPMENT_CLASSES, EQUIPMENT_CLASS_LABELS } from "@silvicom/shared";
+import { EQUIPMENT_CLASSES, EQUIPMENT_CLASS_LABELS, jurisdictionOptions } from "@silvicom/shared";
 import { emptyEmployer, emptyEquipment, type ApplicationDraft } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /** The classes §391.21(b)(6) and FMCSA's own form name, in the order that form lists them. */
 const EQUIPMENT_OPTIONS = EQUIPMENT_CLASSES.map((value) => ({ value, label: EQUIPMENT_CLASS_LABELS[value] }));
+
+/** One catalogue, three fields (D-AX5). */
+const JURISDICTIONS = jurisdictionOptions();
 
 /**
  * §391.21(b)(10) and (b)(11) — and the reason the instructions below are worded so carefully.
@@ -59,7 +64,7 @@ const copy = APPLY_COPY.employment;
             <BaseInput :id="id" v-model="employer.city" />
           </FormField>
           <FormField v-slot="{ id }" :label="copy.state">
-            <BaseInput :id="id" v-model="employer.state" maxlength="2" />
+            <ComboSelect :id="id" v-model="employer.state" :options="JURISDICTIONS" />
           </FormField>
           <FormField v-slot="{ id }" :label="copy.phone" :hint="copy.phoneHint">
             <BaseInput :id="id" v-model="employer.phone" type="tel" />
@@ -130,10 +135,10 @@ const copy = APPLY_COPY.employment;
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormField v-slot="{ id }" :label="copy.equipmentFrom" :hint="copy.equipmentMonthHint">
-            <BaseInput :id="id" v-model="row.from" placeholder="2021-03" />
+            <AppMonthField :id="id" v-model="row.from" />
           </FormField>
           <FormField v-slot="{ id }" :label="copy.equipmentTo" :hint="copy.equipmentToHint">
-            <BaseInput :id="id" v-model="row.to" placeholder="2024-08" />
+            <AppMonthField :id="id" v-model="row.to" />
           </FormField>
           <FormField v-slot="{ id }" :label="copy.equipmentMiles" :hint="copy.equipmentMilesHint">
             <BaseInput :id="id" v-model="row.approx_miles" inputmode="numeric" />

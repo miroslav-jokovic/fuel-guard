@@ -1,145 +1,35 @@
 /** US state/city/address normalization + wall-time-to-UTC approximation. */
 
-const US_STATES = new Set([
-  "AL",
-  "AK",
-  "AZ",
-  "AR",
-  "CA",
-  "CO",
-  "CT",
-  "DE",
-  "FL",
-  "GA",
-  "HI",
-  "ID",
-  "IL",
-  "IN",
-  "IA",
-  "KS",
-  "KY",
-  "LA",
-  "ME",
-  "MD",
-  "MA",
-  "MI",
-  "MN",
-  "MS",
-  "MO",
-  "MT",
-  "NE",
-  "NV",
-  "NH",
-  "NJ",
-  "NM",
-  "NY",
-  "NC",
-  "ND",
-  "OH",
-  "OK",
-  "OR",
-  "PA",
-  "RI",
-  "SC",
-  "SD",
-  "TN",
-  "TX",
-  "UT",
-  "VT",
-  "VA",
-  "WA",
-  "WV",
-  "WI",
-  "WY",
-  "DC",
-  "PR",
-  // Canadian provinces (EFS fleets often cross the border)
-  "AB",
-  "BC",
-  "MB",
-  "NB",
-  "NL",
-  "NS",
-  "NT",
-  "NU",
-  "ON",
-  "PE",
-  "QC",
-  "SK",
-  "YT",
-]);
+import { JURISDICTIONS, JURISDICTION_CODES } from "../jurisdictions.js";
+
+/**
+ * ⚠ **Both of these used to be written out here, and they are now DERIVED from the one catalogue.**
+ *
+ * This file held 65 two-letter codes and, below them, a 66-entry name-to-code map — the only list of
+ * US and Canadian jurisdictions in the repository, private to a vendor parser and unreachable from a
+ * browser app (`check-shared-contracts.mjs` forbids `apps/web` value-importing anything under
+ * `packages/shared/src/samsara`). When the driver application needed the same list for its three
+ * state fields, copying it would have been the cheapest change available and exactly the shape this
+ * repository's "no workarounds" rule names: a value copied instead of derived, with no way for
+ * anyone to notice the two drifting apart.
+ *
+ * `jurisdictions.ts` is that catalogue. Nothing about this parser's behaviour changes — the derived
+ * set is the same 65 codes and the derived map the same 65 names — which is pinned by
+ * "derives the same 65 codes and names the Samsara parser used to write out by hand".
+ */
+const US_STATES = JURISDICTION_CODES;
 
 /** Full state/province NAME → 2-letter code, so an EFS value that arrives as a full name ("Texas",
  *  "British Columbia") still compares equal to Samsara's 2-letter reverse-geo code and can't cause a
  *  false location mismatch. */
 const STATE_NAME_TO_CODE: Record<string, string> = {
-  ALABAMA: "AL",
-  ALASKA: "AK",
-  ARIZONA: "AZ",
-  ARKANSAS: "AR",
-  CALIFORNIA: "CA",
-  COLORADO: "CO",
-  CONNECTICUT: "CT",
-  DELAWARE: "DE",
-  FLORIDA: "FL",
-  GEORGIA: "GA",
-  HAWAII: "HI",
-  IDAHO: "ID",
-  ILLINOIS: "IL",
-  INDIANA: "IN",
-  IOWA: "IA",
-  KANSAS: "KS",
-  KENTUCKY: "KY",
-  LOUISIANA: "LA",
-  MAINE: "ME",
-  MARYLAND: "MD",
-  MASSACHUSETTS: "MA",
-  MICHIGAN: "MI",
-  MINNESOTA: "MN",
-  MISSISSIPPI: "MS",
-  MISSOURI: "MO",
-  MONTANA: "MT",
-  NEBRASKA: "NE",
-  NEVADA: "NV",
-  "NEW HAMPSHIRE": "NH",
-  "NEW JERSEY": "NJ",
-  "NEW MEXICO": "NM",
-  "NEW YORK": "NY",
-  "NORTH CAROLINA": "NC",
-  "NORTH DAKOTA": "ND",
-  OHIO: "OH",
-  OKLAHOMA: "OK",
-  OREGON: "OR",
-  PENNSYLVANIA: "PA",
-  "RHODE ISLAND": "RI",
-  "SOUTH CAROLINA": "SC",
-  "SOUTH DAKOTA": "SD",
-  TENNESSEE: "TN",
-  TEXAS: "TX",
-  UTAH: "UT",
-  VERMONT: "VT",
-  VIRGINIA: "VA",
-  WASHINGTON: "WA",
-  "WEST VIRGINIA": "WV",
-  WISCONSIN: "WI",
-  WYOMING: "WY",
-  "DISTRICT OF COLUMBIA": "DC",
-  "PUERTO RICO": "PR",
-  // Canadian provinces/territories
-  ALBERTA: "AB",
-  "BRITISH COLUMBIA": "BC",
-  MANITOBA: "MB",
-  "NEW BRUNSWICK": "NB",
-  "NEWFOUNDLAND AND LABRADOR": "NL",
+  ...Object.fromEntries(JURISDICTIONS.map((j) => [j.name.toUpperCase(), j.code])),
+  /**
+   * ⚠ The one entry that is NOT a canonical name and therefore cannot be derived. The province is
+   * "Newfoundland and Labrador"; EFS statements write "Newfoundland", and an alias dropped in a
+   * refactor would turn a matched location into an unknown one silently.
+   */
   NEWFOUNDLAND: "NL",
-  "NOVA SCOTIA": "NS",
-  "NORTHWEST TERRITORIES": "NT",
-  NUNAVUT: "NU",
-  ONTARIO: "ON",
-  "PRINCE EDWARD ISLAND": "PE",
-  QUEBEC: "QC",
-  SASKATCHEWAN: "SK",
-  YUKON: "YT",
 };
 
 /**

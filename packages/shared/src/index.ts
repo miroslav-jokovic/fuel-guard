@@ -130,6 +130,7 @@ export * from "./efsAccountContract.js";
 export * from "./returnToDuty.js";
 export * from "./applicantDisposition.js";
 export * from "./packetPlacements.js";
+export * from "./jurisdictions.js";
 export * from "./savedViewContract.js";
 export * from "./dqFleetFilter.js";
 export * from "./driverEditMeaning.js";

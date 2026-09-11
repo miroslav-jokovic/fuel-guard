@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCombobox as ComboSelect,
+  AppInput as BaseInput,
+  AppFormField as FormField,
+  AppMonthField,
+} from "@silvicom/ui";
+import { jurisdictionOptions } from "@silvicom/shared";
 import { emptyAddress, type ApplicationDraft } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /** §391.21(b)(3) — every address for the three years preceding the application. */
 const draft = defineModel<ApplicationDraft>({ required: true });
 const copy = APPLY_COPY.addresses;
+
+/** One catalogue, three fields (D-AX5). Computed once here rather than per address row. */
+const JURISDICTIONS = jurisdictionOptions();
 </script>
 
 <template>
@@ -30,7 +40,7 @@ const copy = APPLY_COPY.addresses;
           <BaseInput :id="id" v-model="address.city" />
         </FormField>
         <FormField v-slot="{ id }" :label="copy.state">
-          <BaseInput :id="id" v-model="address.state" maxlength="2" />
+          <ComboSelect :id="id" v-model="address.state" :options="JURISDICTIONS" />
         </FormField>
         <FormField v-slot="{ id }" :label="copy.postal_code">
           <BaseInput :id="id" v-model="address.postal_code" />
@@ -38,10 +48,10 @@ const copy = APPLY_COPY.addresses;
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField v-slot="{ id }" :label="copy.from" :hint="copy.fromHint">
-          <BaseInput :id="id" v-model="address.from" placeholder="2024-03" />
+          <AppMonthField :id="id" v-model="address.from" />
         </FormField>
         <FormField v-slot="{ id }" :label="copy.to" :hint="copy.toHint">
-          <BaseInput :id="id" v-model="address.to" placeholder="2026-01" />
+          <AppMonthField :id="id" v-model="address.to" />
         </FormField>
       </div>
       <div v-if="draft.addresses.length > 1" class="flex justify-end">
