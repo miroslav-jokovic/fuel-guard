@@ -17,14 +17,38 @@ const props = withDefaults(
     open: boolean;
     title: string;
     description?: string;
-    size?: "md" | "lg";
+    /**
+     * `xl` is for a drawer holding a WHOLE DOCUMENT rather than a form (added 2026-09-11 for the
+     * application review, which the owner asked for as a full-width drawer from the applicant's
+     * page). A §391.21 application is sixty answers and their corrections; at `max-w-lg` every
+     * label-and-value row wraps, which is how a reviewer stops reading and starts scrolling.
+     *
+     * ⚠ It is a SIZE on the shared primitive rather than a bespoke panel beside it. A second
+     * slide-over would be a second focus trap, a second transition and a second set of token
+     * decisions, and this repo has already paid for that lesson once.
+     */
+    size?: "md" | "lg" | "xl";
   }>(),
   { description: undefined, size: "md" },
 );
 const emit = defineEmits<{ close: [] }>();
 const slots = useSlots();
 
-const panelWidth = computed(() => (props.size === "lg" ? "max-w-lg" : "max-w-md"));
+/**
+ * ⚠ The panel also carries `min-w-0`, measured 2026-09-11. A flex item refuses to shrink below its
+ * MIN-CONTENT width, and `break-words` does not reduce min-content (only `overflow-wrap: anywhere`
+ * does) — so one long unbroken string inside a drawer (an email address, a licence number) held the
+ * whole panel wider than the phone it was open on, and the right-hand 36px of every row sat off the
+ * screen. `min-w-0` lets the panel take the width it is given, and the wrapping inside then folds
+ * the long string.
+ *
+ * ⚠⚠ And nothing may go between `TransitionChild` and `DialogPanel` — not even an HTML comment.
+ * `as="template"` requires exactly one child NODE, and a comment is a node: adding one there throws
+ * "Passing props on template!" and takes every drawer in the app down with it. This note is here
+ * rather than there for that reason.
+ */
+const WIDTHS = { md: "max-w-md", lg: "max-w-lg", xl: "max-w-4xl" } as const;
+const panelWidth = computed(() => WIDTHS[props.size]);
 </script>
 
 <template>
@@ -54,7 +78,7 @@ const panelWidth = computed(() => (props.size === "lg" ? "max-w-lg" : "max-w-md"
               leave-from="translate-x-0"
               leave-to="translate-x-full"
             >
-              <DialogPanel class="pointer-events-auto w-screen" :class="panelWidth">
+              <DialogPanel class="pointer-events-auto w-screen min-w-0" :class="panelWidth">
                 <div class="flex h-full flex-col bg-surface shadow-dialog">
                   <div
                     class="flex items-start justify-between gap-4 border-b border-edge px-4 py-4 sm:px-6"

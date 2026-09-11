@@ -31,6 +31,16 @@ import {
  * invitations too and the promise has to be identical in both places. Do not re-inline it here.
  */
 const props = defineProps<{ driverId: string; driverStatus: string }>();
+/**
+ * Opening one invitation's application for review (F4).
+ *
+ * ⚠ An EVENT rather than the drawer itself, and that is `lint:boundaries` working rather than being
+ * dodged: the review drawer belongs to `features/apply` — it renders an application, in the
+ * application's own vocabulary — and one feature may not import another's internals. The recruiter's
+ * PAGE mounts it, and a page may import any feature. So the row says which invitation, and the page
+ * says what to open.
+ */
+const emit = defineEmits<{ review: [invitationId: string] }>();
 const driverId = computed(() => props.driverId);
 
 const session = useSessionStore();
@@ -166,6 +176,13 @@ const columns: DataTableColumn[] = [
           </span>
         </template>
         <template #actions="{ row }">
+          <!-- Every invitation that has not been revoked, whatever state it is in. The drawer says
+               what state it is in — an application still being filled in is a thing a recruiter is
+               entitled to look at, and a button that appears only once it is finished is a button
+               nobody finds the first time they want it. -->
+          <BaseButton v-if="!row.revoked_at" size="sm" @click="emit('review', row.id)">
+            Review
+          </BaseButton>
           <BaseButton
             v-if="canInvite && stateOf(row) === 'open'"
             size="sm"
