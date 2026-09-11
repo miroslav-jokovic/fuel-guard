@@ -16,6 +16,7 @@
     "apps/api/src/modules/recruiting/applicationReview.ts"
   ],
   "application_invitations": [
+    "apps/api/src/modules/recruiting/applicationHandoff.ts",
     "apps/api/src/modules/recruiting/applicationReview.ts",
     "apps/api/src/modules/recruiting/routes/applicationInvites.ts"
   ],

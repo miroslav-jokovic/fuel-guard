@@ -561,3 +561,22 @@ adjacent table rows conflict every time.
   `min-w-0` on the flex item lets the panel take the width it is given.
   ⚠ And nothing may sit between `TransitionChild` and `DialogPanel`, not even an HTML comment:
   `as="template"` requires exactly one child node, and adding one took every drawer in the app down.
+- 2026-09-11 — **F4 (4a/n): the server side of the hand-off.** `POST /api/public/application/:token/review`
+  stamps `review_requested_at`, and `GET /:token` now serves all five phases plus what the office
+  corrected. Nothing changes for a driver yet — the applicant's page still submits directly — and that
+  ordering is deliberate: refusing an uncertified submission before the client knows to hand over first
+  would break the flow between two merges, so the refusal is F4 (4c), after the page moves.
+  ⚠ The hand-off endpoint takes NO body. The answers are already saved — the form autosaves after every
+  screen and the office opens that draft — and a body here would be a second copy of the application
+  arriving by a different road, with the two free to disagree. Completeness is not re-checked either:
+  the page runs `driverApplicationSchema` before calling, the binding parse is at certification, and a
+  second check here would have to be written against the DRAFT shape, which means restating the
+  contract in a second vocabulary.
+  ⚠ `applicantVisibleEdits` deliberately drops `edited_by`. The driver is owed what changed about their
+  own statement before they swear to it; which member of staff typed it is the carrier's internal
+  record, and naming an individual to an applicant is a different thing.
+  ⚠ Idempotent through the WRITE FILTER (`.is("review_requested_at", null)`), not the read above it:
+  a check-then-write has a gap and this is a button pressed twice on a phone with one bar.
+  `applicationIntake.ts` reached 506 lines with the two new phases, so the four-authorization ceremony
+  moved to `applicationReleases.ts` — a real seam (FCRA §604(b)(2) makes each instrument its own
+  document, signed on its own) rather than a cut made for the line count.
