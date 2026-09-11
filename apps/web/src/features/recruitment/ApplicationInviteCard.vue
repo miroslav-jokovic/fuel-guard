@@ -5,7 +5,8 @@ import { rolesThatManage } from "@silvicom/shared";
 import DataTable from "@/components/ui/DataTable.vue";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { applicationInviteBadge, BADGE_BASE, toneClass } from "@/lib/badges";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { applicationInviteBadge } from "@/lib/badges.recruiting";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import {
@@ -126,7 +127,9 @@ const columns: DataTableColumn[] = [
           {{ create.isPending.value ? "Creating…" : "Create an application link" }}
         </BaseButton>
       </div>
-      <p v-else-if="driverStatus !== 'applicant'" class="mt-4 text-sm text-ink-muted">
+      <!-- ⚠ `driverStatus &&` — the sentence renders before the driver query resolves otherwise, and
+           says "This driver is ." for a moment. Caught in the browser, not by a test. -->
+      <p v-else-if="driverStatus && driverStatus !== 'applicant'" class="mt-4 text-sm text-ink-muted">
         This driver is {{ driverStatus }}. An application is something somebody submits before they
         are hired.
       </p>

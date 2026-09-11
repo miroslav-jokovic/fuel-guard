@@ -14,9 +14,12 @@ const invite = (over: Partial<ApplicationInvitation> = {}): ApplicationInvitatio
   expires_at: "2026-09-01T00:00:00Z",
   consented_at: null,
   releases_completed_at: null,
+  review_requested_at: null,
+  approved_at: null,
   submitted_at: null,
   revoked_at: null,
   created_at: "2026-08-19T00:00:00Z",
+  has_draft: false,
   ...over,
 });
 
@@ -55,5 +58,66 @@ describe("an invitation's state", () => {
 
   it("is expired once the window has passed", () => {
     expect(inviteState(invite({ expires_at: "2026-08-19T00:00:00Z" }), NOW)).toBe("expired");
+  });
+});
+
+/**
+ * ⚠ The four situations this function used to call `open`, and the owner met three of them in one
+ * afternoon. It read `consented_at` — a stamp that is never set while the carrier's wording is draft,
+ * which is the state of every carrier today — so a driver six screens in, an application waiting on
+ * the office, and one already sent back to be signed all read the same as an untouched link.
+ */
+describe("what the office can now tell apart", () => {
+  it("says the driver is filling it in, the moment anything is typed", () => {
+    expect(inviteState(invite({ has_draft: true }), NOW)).toBe("filling");
+  });
+
+  it("stays open for a link nobody has opened", () => {
+    expect(inviteState(invite(), NOW)).toBe("open");
+  });
+
+  it("names the one state where the CARRIER owes the next move", () => {
+    expect(
+      inviteState(invite({ has_draft: true, review_requested_at: "2026-08-19T10:00:00Z" }), NOW),
+    ).toBe("awaiting_review");
+  });
+
+  it("and the one where the driver does", () => {
+    expect(
+      inviteState(
+        invite({
+          has_draft: true,
+          review_requested_at: "2026-08-19T10:00:00Z",
+          approved_at: "2026-08-19T11:00:00Z",
+        }),
+        NOW,
+      ),
+    ).toBe("approved");
+  });
+
+  it("⚠ lets the LINK's own state outrank the application's", () => {
+    // A revoked link is not an application in progress, whatever the draft says — and the draft row
+    // survives the revocation, so reading it without reading `revoked_at` would report a stopped
+    // application as live.
+    expect(
+      inviteState(invite({ has_draft: true, review_requested_at: "2026-08-19T10:00:00Z", revoked_at: "2026-08-19T12:00:00Z" }), NOW),
+    ).toBe("revoked");
+    expect(
+      inviteState(invite({ has_draft: true, expires_at: "2026-08-19T00:00:00Z" }), NOW),
+    ).toBe("expired");
+  });
+
+  it("is used once it is signed and filed, whatever came before", () => {
+    expect(
+      inviteState(
+        invite({
+          has_draft: true,
+          review_requested_at: "2026-08-19T10:00:00Z",
+          approved_at: "2026-08-19T11:00:00Z",
+          submitted_at: "2026-08-19T11:30:00Z",
+        }),
+        NOW,
+      ),
+    ).toBe("used");
   });
 });

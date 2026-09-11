@@ -638,3 +638,25 @@ adjacent table rows conflict every time.
   their single root cause (§4), and the recommended queue (§5). ⚠ One correction on record: surfacing
   `crossMatchEmployment` was described to the owner as cheap and it is not — P12's three derived PSP
   tables do not exist in any migration, so the function has nothing to read.
+- 2026-09-11 — **F5: the draft is visible.** The owner filled in their own test application and was
+  told **"Not started"** — on two screens, for two different reasons, with one cause: *nothing
+  staff-facing read the draft*. The applicant board computed its stage from `driver_employment_history`,
+  written only at SUBMISSION; the invitation row read `consented_at`, a stamp never set while the
+  carrier's wording is draft, which is the state of every carrier today. So a driver six screens in, an
+  application waiting on the office, and one already sent back to be signed all read the same as an
+  untouched link.
+  `applicationProgress(phases, hasDraft)` in shared is the one answer all three surfaces now give —
+  the office's drawer, the board and the invitation row — and the board gained `filling_in`,
+  `awaiting_review` and `awaiting_signature` between "not started" and the file's own stages. ⚠ The
+  application's state only leads UNTIL it is filed: after that the employment rows exist and what a
+  recruiter needs is what the FILE is missing, so `certified` falls through rather than being a stage.
+  ⚠ The "Waiting on" column answers WHO for those three stages. Listing "Employment history" beside
+  "Waiting for you" would tell a recruiter to chase a driver for something the carrier is sitting on.
+  ⚠ A revoked link is not an application in progress, and its draft row survives the revocation — both
+  the board and the row read `revoked_at` first, pinned by a test each.
+  ⚠ `has_draft` is the row's EXISTENCE, never its payload: a list endpoint carrying everybody's answers
+  would put dates of birth and licence numbers into a response nobody asked for.
+  Traps: a PostgREST `.select()` built by string concatenation loses its inferred types and every read
+  becomes `GenericStringError` — the column list must be one literal. And `apps/web/src/lib/badges.ts`
+  crossed the 500-line budget, so the recruiting badges moved to `badges.recruiting.ts` (one reader,
+  the recruiter; same policy, second file).

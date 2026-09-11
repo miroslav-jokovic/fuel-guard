@@ -106,8 +106,12 @@ export function recruitmentApplicationInvitesRouter(): Router {
   // stamps and kept `used_at` as a mirror for exactly three readers, of which this was one; the
   // column is dropped once this code is provably deployed (see A5's entry in the plan for why the
   // drop is its own step and not this migration).
+  // ⚠ The two phase columns the OFFICE owns are here since F5. Without them the invitation row could
+  // only say "Open" for an application waiting on the carrier, or already sent back to be signed.
+  // ⚠ ONE string literal, never a concatenation: PostgREST's types are inferred from the select text
+  // statically, and a `+` turns every read of it into `GenericStringError`.
   const INVITE_COLS =
-    "id, driver_id, email, expires_at, consented_at, releases_completed_at, submitted_at, revoked_at, created_at";
+    "id, driver_id, email, expires_at, consented_at, releases_completed_at, review_requested_at, approved_at, submitted_at, revoked_at, created_at";
 
   router.get(
     "/drivers/:driverId/application-invites",
@@ -115,19 +119,41 @@ export function recruitmentApplicationInvitesRouter(): Router {
     canView,
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
       const { data, error } = await admin
         .from("application_invitations")
         // Never `token_hash`: a hash is not a link, but it is also not something a UI has any use
         // for, and a column that leaves the database is a column somebody eventually logs.
         .select(INVITE_COLS)
-        .eq("org_id", req.auth!.orgId!)
+        .eq("org_id", orgId)
         .eq("driver_id", String(req.params.driverId ?? ""))
         .order("created_at", { ascending: false });
       if (error) {
         res.status(500).json(apiError("db_error", "Could not load the invitations"));
         return;
       }
-      res.json({ invitations: data ?? [] });
+
+      /**
+       * Whether anything has been typed against each link (F5).
+       *
+       * ⚠ The row itself, never its payload. The answer the screen needs is one boolean — has this
+       * driver started — and a list endpoint that carried everybody's §391.21 answers would put a
+       * date of birth and a licence number into a response nobody asked for. The answers have their
+       * own surface, behind `manage`, one application at a time.
+       */
+      const rows = (data ?? []) as Array<{ id: string }>;
+      const { data: drafts } = await admin
+        .from("application_drafts")
+        .select("invitation_id")
+        .eq("org_id", orgId)
+        .in("invitation_id", rows.map((r) => r.id));
+      const started = new Set(
+        ((drafts ?? []) as Array<{ invitation_id: string }>).map((d) => d.invitation_id),
+      );
+
+      res.json({
+        invitations: rows.map((r) => ({ ...r, has_draft: started.has(r.id) })),
+      });
     }),
   );
 

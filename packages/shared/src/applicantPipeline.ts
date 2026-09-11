@@ -1,4 +1,5 @@
 import { hasLiveAuthorization, type AuthorizationPurpose, type AuthorizationRow } from "./authorizationContract.js";
+import { applicationProgress, type ApplicationPhases } from "./applicationReviewContract.js";
 
 /**
  * Where an applicant has got to, and what they are waiting on (HIRING-PLAN.md H6).
@@ -44,8 +45,21 @@ const AUTHORIZATION_REQUIREMENTS: Partial<Record<ApplicantRequirement, Authoriza
 };
 
 export type ApplicantStage =
-  /** Nothing recorded yet. */
+  /** Invited, and the link has not been opened — or no link has been sent. */
   | "not_started"
+  /**
+   * The driver is part-way through the form (F5).
+   *
+   * ⚠ Added 2026-09-11 because its absence was a lie on screen. Everything below this line is derived
+   * from `driver_employment_history`, which is written **only at submission** — so a driver on screen
+   * six of eight was reported as "Not started", and a recruiter chasing them had no way to know they
+   * were already typing.
+   */
+  | "filling_in"
+  /** Sent to the office. ⚠ The only stage where the CARRIER owes the next move, not the applicant. */
+  | "awaiting_review"
+  /** The office approved it and asked for a signature; the driver has not signed yet. */
+  | "awaiting_signature"
   /** Employment declared, but the §391.21(b)(10) window has holes worth asking about. */
   | "history_incomplete"
   /** The history is there; the paperwork that makes a screening lawful is not. */
@@ -55,6 +69,9 @@ export type ApplicantStage =
 
 export const APPLICANT_STAGE_LABELS: Record<ApplicantStage, string> = {
   not_started: "Not started",
+  filling_in: "Filling it in",
+  awaiting_review: "Waiting for you",
+  awaiting_signature: "Waiting for signature",
   history_incomplete: "History incomplete",
   awaiting_releases: "Awaiting releases",
   ready_to_screen: "Ready to screen",
@@ -63,17 +80,29 @@ export const APPLICANT_STAGE_LABELS: Record<ApplicantStage, string> = {
 /** Stage order, for grouping a board left to right. */
 export const APPLICANT_STAGES: readonly ApplicantStage[] = [
   "not_started",
+  "filling_in",
+  "awaiting_review",
+  "awaiting_signature",
   "history_incomplete",
   "awaiting_releases",
   "ready_to_screen",
 ];
 
 export interface ApplicantInputs {
-  /** Employers declared, at any date. */
+  /** Employers declared, at any date. ⚠ Written only at SUBMISSION — see `application` below. */
   employerCount: number;
   /** Unexplained days inside the §391.21(b)(10) window — Segment A only, never Segment B. */
   gapDays: number;
   authorizations: readonly AuthorizationRow[];
+  /**
+   * The live invitation's phase stamps, if there is one (F5).
+   *
+   * ⚠ Optional so that every caller predating the application system keeps working unchanged — for
+   * a driver with no invitation this is null and the stages behave exactly as they did.
+   */
+  application?: ApplicationPhases | null;
+  /** Has the applicant typed anything? The only evidence that exists before they send it. */
+  hasDraft?: boolean;
 }
 
 export interface ApplicantProgress {
@@ -101,8 +130,21 @@ export function applicantProgress(input: ApplicantInputs): ApplicantProgress {
   // The stage is the first thing standing in the way, read in the order a recruiter works. A gap is
   // NOT an outstanding requirement — the applicant answered, the answer just needs a conversation —
   // so it names a stage without ever appearing on the chase list.
+  //
+  // ⚠ The APPLICATION's own state comes first, and only until it is filed. Before that moment no
+  // employment row exists, so the counting below can only ever answer "not started" — which is what
+  // it did for every driver mid-form until 2026-09-11. Once the application is certified the stamps
+  // stop being the interesting fact and the file itself takes over, which is why `certified` falls
+  // through rather than being a stage of its own.
+  const filed = input.application
+    ? applicationProgress(input.application, input.hasDraft === true)
+    : null;
+
   let stage: ApplicantStage;
-  if (input.employerCount === 0) stage = "not_started";
+  if (filed === "filling") stage = "filling_in";
+  else if (filed === "awaiting_review") stage = "awaiting_review";
+  else if (filed === "approved") stage = "awaiting_signature";
+  else if (input.employerCount === 0) stage = "not_started";
   else if (input.gapDays > 0) stage = "history_incomplete";
   else if (!releasesComplete) stage = "awaiting_releases";
   else stage = "ready_to_screen";

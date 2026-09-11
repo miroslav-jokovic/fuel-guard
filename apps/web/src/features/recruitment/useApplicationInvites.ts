@@ -1,5 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import { applicationProgress } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /** `/api/recruitment/application-invites` — the link that carries an applicant to the form (H5). */
@@ -12,9 +13,20 @@ export interface ApplicationInvitation {
   /** The three dated phases 0225 replaced the single-use fuse with (D-APP1). */
   consented_at: string | null;
   releases_completed_at: string | null;
+  /** The two the OFFICE owns (0336) — the application is with us, or back with the driver to sign. */
+  review_requested_at: string | null;
+  approved_at: string | null;
   submitted_at: string | null;
   revoked_at: string | null;
   created_at: string;
+  /**
+   * Has the applicant typed anything (F5)?
+   *
+   * ⚠ The row's existence, never its contents. One boolean is the whole of what this screen needs,
+   * and a list endpoint carrying everybody's §391.21 answers would put dates of birth and licence
+   * numbers into a response nobody asked for.
+   */
+  has_draft: boolean;
 }
 
 const inviteKey = (driverId: string) => ["recruitment", "application-invites", driverId] as const;
@@ -93,12 +105,47 @@ export function useRevokeApplicationInvite() {
  * agreed to sign electronically and started working through the authorizations. Before A5 nobody
  * could be in it, because nothing called the signing endpoint.
  */
-export type InviteState = "open" | "signing" | "used" | "revoked" | "expired";
+export type InviteState =
+  | "open"
+  | "signing"
+  | "filling"
+  | "awaiting_review"
+  | "approved"
+  | "used"
+  | "revoked"
+  | "expired";
 
+/**
+ * ── WHY THE APPLICATION'S OWN STATE IS READ FROM SHARED (F5) ──────────────────────────────────
+ * ⚠ This function used to answer `open` for four different situations, and the owner met three of
+ * them in one afternoon: a link nobody had opened, a driver six screens in, an application waiting on
+ * the office, and one already sent back to be signed. It read `consented_at` — a stamp that is never
+ * set while the carrier's wording is draft, which is the state of every carrier today.
+ *
+ * The fix is not more branches here. `applicationProgress` is the same function the office's drawer
+ * and the applicant board read, so all three surfaces name a state the same way; what stays local is
+ * the LINK's own liveness, which is this module's subject and nobody else's.
+ */
 export function inviteState(invite: ApplicationInvitation, now: Date): InviteState {
-  if (invite.submitted_at) return "used";
+  // The link first: revoked and expired are facts about the link, and they outrank anything the
+  // application behind it has got to.
   if (invite.revoked_at) return "revoked";
+  if (invite.submitted_at) return "used";
   if (Date.parse(invite.expires_at) <= now.getTime()) return "expired";
+
+  const progress = applicationProgress(
+    {
+      reviewRequestedAt: invite.review_requested_at,
+      approvedAt: invite.approved_at,
+      submittedAt: invite.submitted_at,
+    },
+    invite.has_draft === true,
+  );
+  if (progress === "awaiting_review") return "awaiting_review";
+  if (progress === "approved") return "approved";
+  if (progress === "filling") return "filling";
+  // Nothing typed. `signing` means they agreed to sign electronically and are working through the
+  // authorizations — a real state, and the only thing that distinguishes it from an untouched link.
   return invite.consented_at ? "signing" : "open";
 }
 

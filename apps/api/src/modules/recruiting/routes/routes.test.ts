@@ -60,7 +60,17 @@ const call = (path: string, init: RequestInit & { token?: string } = {}) => {
 };
 
 /** A driver hired 2026-01-01 whose only declared employer left a year-long hole before the hire. */
-const seed = (over: { drivers?: unknown[]; history?: unknown[]; auths?: unknown[] } = {}): SupabaseRecorder =>
+const seed = (
+  over: {
+    drivers?: unknown[];
+    history?: unknown[];
+    auths?: unknown[];
+    /** The live invitation, for the stages that exist before an application is filed (F5). */
+    invitations?: unknown[];
+    /** Whether anything has been typed — the only evidence a driver has started. */
+    drafts?: unknown[];
+  } = {},
+): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       drivers: over.drivers ?? [
@@ -90,6 +100,8 @@ const seed = (over: { drivers?: unknown[]; history?: unknown[]; auths?: unknown[
       // Same reason as the row above: the route reads its own insert back through `.select()`, and a
       // fixture-less table hands it null, which the route correctly treats as a failed write.
       applicant_dispositions: [{ id: ROW, driver_id: DRIVER, outcome: "declined", decided_on: "2026-08-20" }],
+      application_invitations: over.invitations ?? [],
+      application_drafts: over.drafts ?? [],
       audit_logs: [],
     },
   });
@@ -272,6 +284,82 @@ describe("the pipeline lists applicants, and derives their stage", () => {
     await call("/pipeline", { token: "admin" });
     const q = rec.forTable("drivers")[0]!;
     expect(q.filters()).toContainEqual({ col: "status", val: "applicant" });
+  });
+
+  /**
+   * ⚠ The defect the owner met by filling in their own test application: **"Not started"**, on a form
+   * they were half-way through. Every other input this endpoint has comes from
+   * `driver_employment_history`, which is written only at SUBMISSION — so for a driver still typing,
+   * the honest answer lived in the one place nothing was looking.
+   */
+  it("says they are filling it in, rather than that nothing has happened", async () => {
+    rec = seed({
+      history: [],
+      auths: [],
+      invitations: [{
+        id: "inv-1", driver_id: DRIVER, review_requested_at: null, approved_at: null,
+        submitted_at: null, revoked_at: null, created_at: "2026-09-09T09:00:00Z",
+      }],
+      drafts: [{ invitation_id: "inv-1" }],
+    });
+    holder.client = rec.client;
+    expect((await body()).applicants[0]!.stage).toBe("filling_in");
+  });
+
+  it("keeps 'not started' for a link nobody has opened", async () => {
+    rec = seed({
+      history: [],
+      auths: [],
+      invitations: [{
+        id: "inv-1", driver_id: DRIVER, review_requested_at: null, approved_at: null,
+        submitted_at: null, revoked_at: null, created_at: "2026-09-09T09:00:00Z",
+      }],
+      drafts: [],
+    });
+    holder.client = rec.client;
+    expect((await body()).applicants[0]!.stage).toBe("not_started");
+  });
+
+  it("names the stage where the CARRIER owes the next move", async () => {
+    rec = seed({
+      history: [],
+      auths: [],
+      invitations: [{
+        id: "inv-1", driver_id: DRIVER, review_requested_at: "2026-09-10T09:00:00Z", approved_at: null,
+        submitted_at: null, revoked_at: null, created_at: "2026-09-09T09:00:00Z",
+      }],
+      drafts: [{ invitation_id: "inv-1" }],
+    });
+    holder.client = rec.client;
+    expect((await body()).applicants[0]!.stage).toBe("awaiting_review");
+  });
+
+  it("⚠ ignores a revoked invitation, and a draft that belongs to one", async () => {
+    // A revoked link is not an application in progress. Its draft row survives the revocation, so
+    // reading drafts without reading `revoked_at` would report a stopped application as live.
+    rec = seed({
+      history: [],
+      auths: [],
+      invitations: [{
+        id: "inv-1", driver_id: DRIVER, review_requested_at: null, approved_at: null,
+        submitted_at: null, revoked_at: "2026-09-10T10:00:00Z", created_at: "2026-09-09T09:00:00Z",
+      }],
+      drafts: [{ invitation_id: "inv-1" }],
+    });
+    holder.client = rec.client;
+    expect((await body()).applicants[0]!.stage).toBe("not_started");
+  });
+
+  it("reads only this carrier's invitations and drafts", async () => {
+    // The service role bypasses RLS, so the filter is the only thing between two carriers.
+    rec = seed();
+    holder.client = rec.client;
+    await call("/pipeline", { token: "admin" });
+    for (const table of ["application_invitations", "application_drafts"]) {
+      const q = rec.forTable(table)[0];
+      expect(q, `${table} was never queried`).toBeDefined();
+      expect(q!.filters().some((f) => f.col === "org_id")).toBe(true);
+    }
   });
 
   it("goes looking for nothing when there are no applicants", async () => {
