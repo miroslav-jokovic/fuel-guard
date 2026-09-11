@@ -330,3 +330,9 @@ adjacent table rows conflict every time.
   audit did not predict: `AppFormField` was camelising its ARIA slot props, so every error was
   visible and inaudible; and `AppCombobox` inherited attributes onto its positioning `<div>`, so the
   same was true of every state field. Both fixed in `packages/ui` with their own tests.
+- 2026-09-11 — **X2 MERGED** (#738). Two `packages/ui` defects fixed along the way, both older than
+  the change: `AppFormField` camelised its ARIA slot props (every field error in the product was
+  visible and inaudible), and `AppCombobox` inherited attributes onto its positioning div.
+- 2026-09-11 — **X3 built.** The review screen is composed by `reviewSummary.ts`, a pure function, so
+  "everything the driver typed is on the page they certify" is an assertion that walks a filled draft
+  rather than a claim about markup. It found the omission it was written for on its first run.
