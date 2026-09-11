@@ -156,7 +156,7 @@ export const APPLY_COPY = {
     none: "I have not been employed during this period",
     employer: "Employer",
     usdot: "USDOT number",
-    usdotHint: "Optional — leave blank if you do not know it.",
+    usdotHint: "If you know it.",
     address: "Street address",
     addressHint: "We have to record where we wrote to.",
     city: "City",
@@ -164,13 +164,13 @@ export const APPLY_COPY = {
     phone: "Phone",
     phoneHint: "So we can contact them.",
     email: "Email",
-    emailHint: "Optional, if you know it.",
+    emailHint: "If you know it.",
     position: "Position",
     from: "From",
     to: "Until",
     toHint: "Blank if you work there now.",
     reason: "Reason for leaving",
-    reasonHint: "Asked for every job on this list.",
+    reasonHint: "Why you moved on.",
     operatedCmv: "I drove a commercial vehicle in this job",
     dotRegulated: "This employer was DOT-regulated",
     safetySensitive: "This job was safety-sensitive under DOT drug and alcohol rules",
@@ -217,6 +217,21 @@ export const APPLY_COPY = {
      */
     gap: (from: string, to: string): string =>
       `${from} to ${to} is not covered. If you were working then, add that job; if you were not, the carrier may ask you about it.`,
+    /**
+     * ⚠ Says the company name need not be exact. Owner, 2026-09-11: drivers do not remember the
+     * exact legal names of carriers they left years ago, and a form that looks like it wants one is
+     * a form they stop filling in. The office confirms the name at review; what it needs from the
+     * driver is enough to find the employer.
+     */
+    employerHint: "The name as you remember it is fine — we will confirm it.",
+    /**
+     * ⚠ "(optional)" is in the SUMMARY and not only in the hint below it. A `<details>` shows its
+     * hint only once opened, so a closed disclosure reading "More about this job" tells a driver
+     * nothing about whether they have to — which is the whole thing this change is for. Seen at
+     * 390px, 2026-09-11.
+     */
+    moreAboutJob: "More about this job (optional)",
+    moreAboutJobHint: "Add what you know. We will ask you later if we need the rest.",
     drawerNew: "Add a job",
     drawerIntro: "One job at a time. You can change it later.",
     drawerSave: "Save this job",

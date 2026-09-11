@@ -102,23 +102,19 @@ function save(): void {
 <template>
   <SlideOver :open="open" :title="title" :description="copy.drawerIntro" size="lg" @close="emit('close')">
     <div v-if="open" class="space-y-4">
-      <ApplyField v-slot="f" :path="['employers', index, 'employer_name']" :label="copy.employer">
+      <!-- ── WHAT THE REGULATION ACTUALLY NEEDS, AND NOTHING ELSE ABOVE THE FOLD ───────────────
+           Reported by the owner 2026-09-11: *"most of the drivers are not remembering all places
+           and exact company names, so this should be much simpler with company name, and dates from
+           to he worked there, all other things are optional."*
+
+           They were right, and the form was lying about itself: `applicationEmployerSchema` has only
+           ever required `employer_name` and `started_on`. Every other text field is already
+           `.nullish()`. Fifteen controls in one column simply LOOKED mandatory, so a driver who
+           could not remember a former dispatcher's phone number stalled on a question nothing was
+           asking them. Three fields now, and the rest behind a disclosure that says it is optional. -->
+      <ApplyField v-slot="f" :path="['employers', index, 'employer_name']" :label="copy.employer" :hint="copy.employerHint">
         <BaseInput v-bind="f" v-model="local.employer_name" />
       </ApplyField>
-
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <ApplyField v-slot="f" :path="['employers', index, 'position_held']" :label="copy.position">
-          <BaseInput v-bind="f" v-model="local.position_held" />
-        </ApplyField>
-        <ApplyField
-          v-slot="f"
-          :path="['employers', index, 'usdot_number']"
-          :label="copy.usdot"
-          :hint="copy.usdotHint"
-        >
-          <BaseInput v-bind="f" v-model="local.usdot_number" placeholder="Optional" />
-        </ApplyField>
-      </div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <ApplyField v-slot="f" :path="['employers', index, 'started_on']" :label="copy.from">
@@ -134,61 +130,89 @@ function save(): void {
         </ApplyField>
       </div>
 
-      <ApplyField
-        v-slot="f"
-        :path="['employers', index, 'address_line1']"
-        :label="copy.address"
-        :hint="copy.addressHint"
-      >
-        <BaseInput v-bind="f" v-model="local.address_line1" />
-      </ApplyField>
+      <!-- `<details>` is this product's disclosure — `VerdictDetails.vue` is the precedent — rather
+           than a new primitive for one screen. Closed by default: a driver who has nothing more to
+           add never opens it, and the panel is three fields long. -->
+      <details class="rounded-surface bg-surface-muted p-4">
+        <summary class="cursor-pointer text-sm font-medium text-ink">{{ copy.moreAboutJob }}</summary>
+        <p class="mt-1 text-xs text-ink-muted">{{ copy.moreAboutJobHint }}</p>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <ApplyField v-slot="f" :path="['employers', index, 'city']" :label="copy.city">
-          <BaseInput v-bind="f" v-model="local.city" />
-        </ApplyField>
-        <ApplyField v-slot="f" :path="['employers', index, 'state']" :label="copy.state">
-          <ComboSelect v-bind="f" v-model="local.state" :options="JURISDICTIONS" />
-        </ApplyField>
-      </div>
+        <div class="mt-4 space-y-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <ApplyField v-slot="f" :path="['employers', index, 'position_held']" :label="copy.position">
+              <BaseInput v-bind="f" v-model="local.position_held" />
+            </ApplyField>
+            <ApplyField
+              v-slot="f"
+              :path="['employers', index, 'usdot_number']"
+              :label="copy.usdot"
+              :hint="copy.usdotHint"
+            >
+              <BaseInput v-bind="f" v-model="local.usdot_number" />
+            </ApplyField>
+          </div>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <ApplyField
-          v-slot="f"
-          :path="['employers', index, 'phone']"
-          :label="copy.phone"
-          :hint="copy.phoneHint"
-        >
-          <BaseInput v-bind="f" v-model="local.phone" type="tel" />
-        </ApplyField>
-        <ApplyField
-          v-slot="f"
-          :path="['employers', index, 'email']"
-          :label="copy.email"
-          :hint="copy.emailHint"
-        >
-          <BaseInput v-bind="f" v-model="local.email" type="email" placeholder="Optional" />
-        </ApplyField>
-      </div>
+          <ApplyField
+            v-slot="f"
+            :path="['employers', index, 'address_line1']"
+            :label="copy.address"
+            :hint="copy.addressHint"
+          >
+            <BaseInput v-bind="f" v-model="local.address_line1" />
+          </ApplyField>
 
-      <ApplyField
-        v-slot="f"
-        :path="['employers', index, 'reason_for_leaving']"
-        :label="copy.reason"
-        :hint="copy.reasonHint"
-      >
-        <BaseInput v-bind="f" v-model="local.reason_for_leaving" />
-      </ApplyField>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <ApplyField v-slot="f" :path="['employers', index, 'city']" :label="copy.city">
+              <BaseInput v-bind="f" v-model="local.city" />
+            </ApplyField>
+            <ApplyField v-slot="f" :path="['employers', index, 'state']" :label="copy.state">
+              <ComboSelect v-bind="f" v-model="local.state" :options="JURISDICTIONS" />
+            </ApplyField>
+          </div>
 
-      <div class="space-y-2 rounded-surface bg-surface-muted p-4">
-        <p class="text-sm font-medium text-ink">{{ copy.aboutThisJob }}</p>
-        <BaseCheckbox v-model="local.operated_cmv">{{ copy.operatedCmv }}</BaseCheckbox>
-        <BaseCheckbox v-model="local.dot_regulated">{{ copy.dotRegulated }}</BaseCheckbox>
-        <!-- §40.25(j): asked of the applicant because the answer is theirs, and a yes changes what
-             §40.25 obliges the carrier to chase from that employer. -->
-        <BaseCheckbox v-model="local.safety_sensitive">{{ copy.safetySensitive }}</BaseCheckbox>
-        <BaseCheckbox v-model="local.subject_to_fmcsr">{{ copy.subjectToFmcsr }}</BaseCheckbox>
-      </div>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <ApplyField
+              v-slot="f"
+              :path="['employers', index, 'phone']"
+              :label="copy.phone"
+              :hint="copy.phoneHint"
+            >
+              <BaseInput v-bind="f" v-model="local.phone" type="tel" />
+            </ApplyField>
+            <ApplyField
+              v-slot="f"
+              :path="['employers', index, 'email']"
+              :label="copy.email"
+              :hint="copy.emailHint"
+            >
+              <BaseInput v-bind="f" v-model="local.email" type="email" />
+            </ApplyField>
+          </div>
+
+          <ApplyField
+            v-slot="f"
+            :path="['employers', index, 'reason_for_leaving']"
+            :label="copy.reason"
+            :hint="copy.reasonHint"
+          >
+            <BaseInput v-bind="f" v-model="local.reason_for_leaving" />
+          </ApplyField>
+
+          <!-- ⚠ `operated_cmv` and `dot_regulated` default TRUE and are in here rather than above.
+               The consequence is worth writing down: a warehouse job from six years ago left at the
+               default is counted as a §391.21(b)(11) employer it was not. That over-reports — the
+               paragraph asks only for CMV jobs, and listing one extra breaks nothing — where asking
+               every driver to classify every job they have ever had loses the job entirely. The
+               office corrects it at review. -->
+          <div class="space-y-2">
+            <p class="text-sm font-medium text-ink">{{ copy.aboutThisJob }}</p>
+            <BaseCheckbox v-model="local.operated_cmv">{{ copy.operatedCmv }}</BaseCheckbox>
+            <BaseCheckbox v-model="local.dot_regulated">{{ copy.dotRegulated }}</BaseCheckbox>
+            <BaseCheckbox v-model="local.safety_sensitive">{{ copy.safetySensitive }}</BaseCheckbox>
+            <BaseCheckbox v-model="local.subject_to_fmcsr">{{ copy.subjectToFmcsr }}</BaseCheckbox>
+          </div>
+        </div>
+      </details>
     </div>
 
     <template #footer>

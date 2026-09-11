@@ -3,9 +3,9 @@ import { computed } from "vue";
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
+  AppCombobox as ComboSelect,
   AppDateField,
   AppInput as BaseInput,
-  AppSelect as BaseSelect,
 } from "@silvicom/ui";
 import type { QuestionnaireQuestion } from "@silvicom/shared";
 import { emptyQuestionRow } from "@/features/apply/draft";
@@ -54,7 +54,8 @@ const options = (column: { options?: readonly string[] }) =>
           :model-value="row[column.id] === true"
           @update:model-value="set(index, column.id, $event)"
         />
-        <BaseSelect
+        <!-- The forms idiom, as above. -->
+        <ComboSelect
           v-else-if="column.kind === 'select'"
           :id="`q-${question.id}-${index}-${column.id}`"
           :model-value="(row[column.id] as string) ?? ''"
