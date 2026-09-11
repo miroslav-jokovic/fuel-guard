@@ -8,6 +8,7 @@ import {
   type DriverApplication,
   type QuestionnaireQuestion,
 } from "@silvicom/shared";
+import { certificate, purposeLabel } from "./certificate.js";
 import {
   CONTENT_WIDTH,
   MARGIN,
@@ -56,6 +57,8 @@ export interface ApplicationPdfInput {
   certifiedAt: string;
   signedName: string;
   applicantIp: string | null;
+  /** The browser the certification itself was made from. Stored since 0220 and never printed. */
+  applicantUserAgent: string | null;
   /**
    * The drawn mark, when the applicant gave one (A8b, D-APP8) — PNG bytes, or null.
    *
@@ -71,6 +74,15 @@ export interface ApplicationPdfInput {
     intent_statement: string;
     signed_name: string;
     accepted_at: string;
+    /**
+     * ⚠ The three columns `record_driver_release` has always written and this document never
+     * printed (X7). `driver_authorizations` stores eight facts per signature and `file.ts` was
+     * selecting five of them — so the carrier held a better evidentiary record than the document it
+     * files could show, which is the wrong way round for a §391.51 file.
+     */
+    method: string;
+    accepted_ip: string | null;
+    accepted_user_agent: string | null;
   }>;
   /** The 15 U.S.C. 7001(c) consent behind the whole electronic record (A4), when one was given. */
   esignConsent: {
@@ -78,6 +90,8 @@ export interface ApplicationPdfInput {
     disclosure_text: string;
     intent_statement: string;
     consented_at: string;
+    applicant_ip: string | null;
+    applicant_user_agent: string | null;
   } | null;
 }
 
@@ -397,7 +411,11 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
 
   for (const auth of input.authorizations) {
     doc.addPage();
-    heading(doc, `Authorization — ${auth.purpose}`);
+    // ⚠ The LABEL, not the token. This read `Authorization — fcra_disclosure` until X7: a machine
+    // vocabulary on a page whose reader is an auditor or a court, which is the same defect D-AX3
+    // fixed on the driver's screen. The map is `AUTHORIZATION_PURPOSE_LABELS`, and an unknown
+    // purpose falls back to what was stored rather than rendering nothing.
+    heading(doc, `Authorization — ${purposeLabel(auth.purpose)}`);
     muted(doc, `Version ${auth.disclosure_version}`);
     // The exact text that was signed, from the row, not from today's constant: a document showing
     // current wording beside an old signature would misrepresent what somebody agreed to.
@@ -412,6 +430,10 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
 
   // A9: last, under its own heading, after everything the regulation numbers.
   questionnaireSection(doc, input);
+
+  // ⚠ After the questionnaire and before the footers: the certificate is about the DOCUMENT, so it
+  // reads as an appendix rather than as another thing the applicant answered.
+  certificate(doc, input);
 
   stampFooters(doc, input.signedName, input.applicationId, digest);
   doc.end();

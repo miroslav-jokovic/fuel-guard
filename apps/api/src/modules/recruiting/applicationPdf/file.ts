@@ -37,6 +37,7 @@ interface ApplicationRow {
   signed_name: string;
   certified_at: string;
   applicant_ip: string | null;
+  applicant_user_agent: string | null;
 }
 
 export interface FiledApplicationPdf {
@@ -136,7 +137,14 @@ async function gather(
   // (A5): a rehire's older signatures belong to their own application, not to this document.
   const { data: auths } = await admin
     .from("driver_authorizations")
-    .select("purpose, disclosure_version, disclosure_text, intent_statement, signed_name, accepted_at")
+    // ⚠ Eight columns, not five (X7). `record_driver_release` has written `method`, `accepted_ip`
+    // and `accepted_user_agent` since 0215/0228 and this query left all three behind, so the filed
+    // document could show WHAT was signed and never HOW — which is the whole of the question a
+    // challenged signature raises.
+    .select(
+      "purpose, disclosure_version, disclosure_text, intent_statement, signed_name, accepted_at, "
+      + "method, accepted_ip, accepted_user_agent",
+    )
     .eq("org_id", application.org_id)
     .eq("invitation_id", application.invitation_id ?? "")
     .is("revokes", null)
@@ -144,7 +152,7 @@ async function gather(
 
   const { data: consent } = await admin
     .from("esign_consents")
-    .select("disclosure_version, disclosure_text, intent_statement, consented_at")
+    .select("disclosure_version, disclosure_text, intent_statement, consented_at, applicant_ip, applicant_user_agent")
     .eq("org_id", application.org_id)
     .eq("invitation_id", application.invitation_id ?? "")
     .maybeSingle();
@@ -160,8 +168,9 @@ async function gather(
     certifiedAt: application.certified_at,
     signedName: application.signed_name,
     applicantIp: application.applicant_ip,
-    authorizations: (auths ?? []) as ApplicationPdfInput["authorizations"],
-    esignConsent: (consent ?? null) as ApplicationPdfInput["esignConsent"],
+    applicantUserAgent: application.applicant_user_agent,
+    authorizations: (auths ?? []) as unknown as ApplicationPdfInput["authorizations"],
+    esignConsent: (consent ?? null) as unknown as ApplicationPdfInput["esignConsent"],
   };
 }
 
@@ -179,7 +188,9 @@ export async function ensureApplicationPdf(
 ): Promise<FiledApplicationPdf | null> {
   const { data: app } = await admin
     .from("driver_applications")
-    .select("id, org_id, driver_id, invitation_id, payload, signed_name, certified_at, applicant_ip")
+    .select(
+      "id, org_id, driver_id, invitation_id, payload, signed_name, certified_at, applicant_ip, applicant_user_agent",
+    )
     .eq("org_id", orgId)
     .eq("id", applicationId)
     .maybeSingle();
