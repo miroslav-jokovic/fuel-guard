@@ -55,17 +55,27 @@ const invitation = (over: Record<string, unknown> = {}) => ({
 });
 
 /**
- * A link whose driver has already consented to transact electronically.
+ * A link in the state a lawful submission is actually made from.
  *
- * ⚠ **Every submission is made from this state as of 2026-08-23, and it used not to be.** While
- * `ESIGN_CONSENT` was draft `esignConsentRequired()` returned false, so a submission needed no
- * consent stamp and these fixtures did not carry one. Publishing the wording (`publish()`) turns the
- * requirement on — which is the point — and the fixtures now say out loud what a lawful submission
- * rests on rather than passing because the gate was inert.
+ * ⚠ **It has grown twice, and each time because a gate that had been inert became real.**
+ *
+ * 2026-08-23 added the CONSENT. While `ESIGN_CONSENT` was draft `esignConsentRequired()` returned
+ * false, so a submission needed no consent stamp and these fixtures carried none; publishing the
+ * wording turns the requirement on, and the fixture now says out loud what the submission rests on.
+ *
+ * 2026-09-11 added the REVIEW and the APPROVAL (F4). The office reads the application before anybody
+ * certifies it, so an unapproved link can no longer file one — and a fixture without those two stamps
+ * would describe a world that has not existed since. The tests that pin the refusal itself
+ * deliberately build their own invitation without them.
  */
 const CONSENTED = "2026-08-21T09:00:00Z";
-const consentedInvitation = (over: Record<string, unknown> = {}) =>
-  invitation({ consented_at: CONSENTED, ...over });
+const submittableInvitation = (over: Record<string, unknown> = {}) =>
+  invitation({
+    consented_at: CONSENTED,
+    review_requested_at: "2026-08-21T09:20:00Z",
+    approved_at: "2026-08-21T10:00:00Z",
+    ...over,
+  });
 
 const seed = (inv: Record<string, unknown> | null = invitation()) =>
   createSupabaseRecorder({
@@ -197,11 +207,50 @@ describe("the link is a session, not a fuse", () => {
     // Published, so the answer is about the SPENT PHASE and not about the wording — the phase
     // refusals come first and this asserts that they still do.
     publish();
-    const rec = seed(consentedInvitation({ submitted_at: "2026-08-19T00:00:00Z" }));
+    const rec = seed(submittableInvitation({ submitted_at: "2026-08-19T00:00:00Z" }));
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("already_submitted");
     // And nothing reached the transaction — the refusal is before the write, not a rollback.
     expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  /**
+   * ⚠ The certification cannot be given before the office has approved the document (F4, D-AX11).
+   *
+   * §391.21(b)(12) has the applicant swear that every entry is true and complete, and the office can
+   * now change an entry between the driver sending the application and the driver signing it. A
+   * signature taken before the review is a signature on a document that may not be the one filed —
+   * and `submitted_at` spends the phase, so that file could never afterwards be corrected.
+   */
+  it("refuses a certification on an application nobody has approved", async () => {
+    publish();
+    const rec = seed(invitation({ consented_at: CONSENTED }));
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("not_yet_approved");
+    // Nothing reached the transaction: the refusal is before the write, not a rollback.
+    expect(rec.rpcs()).toHaveLength(0);
+    expect(rec.writtenRows("driver_applications")).toHaveLength(0);
+  });
+
+  it("refuses one the office is still reading", async () => {
+    // Handed over, not yet approved — the state a driver is in for most of the days this takes.
+    publish();
+    const rec = seed(invitation({ consented_at: CONSENTED, review_requested_at: "2026-08-21T09:20:00Z" }));
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("not_yet_approved");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("and says what to do about it, rather than that the link is broken", async () => {
+    publish();
+    const result = await submitApplication(
+      seed(invitation({ consented_at: CONSENTED })).client, env(), TOKEN, APPLICATION, CTX, NOW,
+    );
+    if (!isIntakeError(result)) throw new Error("expected a refusal");
+    expect(result.message).toContain("reopen your link");
+    // Never `invalid_link`: the link is perfectly good, and sending them back to the recruiter for a
+    // replacement would fix nothing.
+    expect(result.code).not.toBe("invalid_link");
   });
 
   it("refuses a release once the ceremony is complete, without touching the other phases", async () => {
@@ -215,7 +264,7 @@ describe("the link is a session, not a fuse", () => {
     // that is the only world in which a submission is lawful at all since 2026-08-23.
     publish();
     const submitted = await submitApplication(
-      seed(consentedInvitation({ releases_completed_at: "2026-08-19T00:00:00Z" })).client,
+      seed(submittableInvitation({ releases_completed_at: "2026-08-19T00:00:00Z" })).client,
       env(), TOKEN, APPLICATION, CTX, NOW,
     );
     expect(isIntakeError(submitted)).toBe(false);
@@ -232,10 +281,10 @@ describe("the rendered document never costs the submission", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("still files the application when the renderer throws", async () => {
-    const rec = seed(consentedInvitation());
+    const rec = seed(submittableInvitation());
     // No `organizations` fixture and no storage behind it: the render path will fail somewhere.
     const broken = createSupabaseRecorder({
-      tables: { application_invitations: [consentedInvitation()] },
+      tables: { application_invitations: [submittableInvitation()] },
       rpc: {
         submit_driver_application: { application_id: "app-1" },
         // The RPC the filing path finishes with — made to fail, so the whole tail is unhappy.
@@ -255,7 +304,7 @@ describe("submitting", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("hands the transaction the org and driver the TOKEN resolved to, never a client value", async () => {
-    const rec = seed(consentedInvitation());
+    const rec = seed(submittableInvitation());
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
@@ -273,7 +322,7 @@ describe("submitting", () => {
     ["DA022", "application_already_submitted", "already_submitted"],
   ])("turns the transaction's %s into %s", async (code, message, expected) => {
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [consentedInvitation()], organizations: [{ name: "S" }] },
+      tables: { application_invitations: [submittableInvitation()], organizations: [{ name: "S" }] },
       rpc: { submit_driver_application: { error: { code, message } } },
     });
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
@@ -299,7 +348,7 @@ describe("the photographs the application arrives with", () => {
   const withCaptures = () =>
     createSupabaseRecorder({
       tables: {
-        application_invitations: [consentedInvitation()],
+        application_invitations: [submittableInvitation()],
         organizations: [{ name: "Silvicom" }],
         application_captures: [{
           id: CAPTURE, slot: "medical_card",
@@ -324,7 +373,7 @@ describe("the photographs the application arrives with", () => {
   });
 
   it("omits the parameter entirely when nothing was staged", async () => {
-    const rec = seed(consentedInvitation());
+    const rec = seed(submittableInvitation());
     await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
     expect("p_captures" in args).toBe(false);
@@ -333,7 +382,7 @@ describe("the photographs the application arrives with", () => {
   it("refuses the submission rather than filing an application without its photographs", async () => {
     const rec = createSupabaseRecorder({
       tables: {
-        application_invitations: [consentedInvitation()],
+        application_invitations: [submittableInvitation()],
         application_captures: [{
           id: CAPTURE, slot: "cdl_front",
           storage_path: `${ORG}/inv-1/${CAPTURE}.webp`, content_type: "image/webp",
@@ -382,7 +431,7 @@ describe("the Social Security number", () => {
   });
 
   it("never sends the number to the transaction", async () => {
-    const rec = seed(consentedInvitation());
+    const rec = seed(submittableInvitation());
     await submitApplication(rec.client, env(), TOKEN, { ...APPLICATION, ssn: "123456789" }, CTX, NOW);
     expect(JSON.stringify(rec.rpcs()[0]!.args)).not.toContain("123456789");
   });
@@ -496,7 +545,10 @@ describe("signing a release", () => {
    * the phase, so that file could never afterwards acquire either.
    */
   it("refuses the SUBMISSION too while the wording is draft, before anything is written", async () => {
-    const rec = seed();
+    // ⚠ From an APPROVED link since F4, or the answer would be about the phase instead: the phase
+    // refusals come first by design (they are about this link and are cheap), so a fixture that had
+    // not been approved would pin the wrong gate and this test would stop being about the wording.
+    const rec = seed(submittableInvitation());
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("disclosure_not_final");
     expect(rec.rpcs()).toHaveLength(0);
@@ -505,7 +557,7 @@ describe("signing a release", () => {
 
   it("files the application the moment the wording is published, with nothing else changed", async () => {
     publish();
-    const rec = seed(invitation({ consented_at: "2026-08-21T09:00:00Z" }));
+    const rec = seed(submittableInvitation());
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
     vi.restoreAllMocks();

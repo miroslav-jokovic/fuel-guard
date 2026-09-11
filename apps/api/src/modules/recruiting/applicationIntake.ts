@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DISCLOSURES,
   ESIGN_CONSENT,
+  applicationAwaitsSignature,
   applicationWordingIsDraft,
   type CarrierWording,
   esignConsentRequired,
@@ -256,6 +257,28 @@ export function requireEsignConsent(
  * remembered, and what would need remembering is "start refusing to file records the regulation
  * will not recognise".
  */
+/**
+ * The office has not approved it yet (F4, D-AX11) — so there is nothing to certify.
+ *
+ * ── WHY THE SERVER REFUSES AND NOT ONLY THE PAGE ──────────────────────────────────────────────
+ * §391.21(b)(12) has the applicant certify that "all entries on it and information in it are true and
+ * complete", and since F4 the office can change an entry between the driver sending the application
+ * and the driver signing it. A certification taken before that review is a certification of a
+ * document that may not be the one filed — and `submitted_at` spends the phase, so the file it
+ * produces could never afterwards be corrected.
+ *
+ * ⚠ This refusal shipped in a SEPARATE merge from the page that hands the application over (F4 4b),
+ * and in that order deliberately: a gate landing first would have refused every submission from the
+ * client that was still live, which is the deploy-window rule applied to behaviour rather than to a
+ * column. By the time this is served, every page in the field sends for review first.
+ */
+export const NOT_YET_APPROVED: IntakeError = {
+  code: "not_yet_approved",
+  message:
+    "The carrier has not finished checking this application yet. Nothing is lost — reopen your link "
+    + "and it will ask you to sign as soon as they are done.",
+};
+
 export const WORDING_NOT_FINAL: IntakeError = {
   code: "disclosure_not_final",
   message:
@@ -294,6 +317,12 @@ export async function submitApplication(
   // "your link is not valid" for a link that plainly is would send them back to the recruiter for a
   // replacement they do not need.
   if (invitation.submitted_at) return ALREADY_SUBMITTED;
+  /**
+   * ⚠ Read through the shared predicate, not from `approved_at` directly. `applicationAwaitsSignature`
+   * is what the office's drawer and the applicant's page both read, and three readings of the same
+   * three timestamps are three chances for two screens to disagree about whether a driver may sign.
+   */
+  if (!applicationAwaitsSignature(phasesOf(invitation))) return NOT_YET_APPROVED;
   // Last of the refusals, in the same position `recordRelease` puts its own: the phase questions are
   // about THIS link and are cheap, the wording question is about the carrier. See WORDING_NOT_FINAL.
   if (applicationWordingIsDraft(wording)) return WORDING_NOT_FINAL;

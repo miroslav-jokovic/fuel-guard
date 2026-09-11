@@ -160,6 +160,10 @@ export function publicApplicationRouter(): Router {
             ? 404
             : result.code === "already_submitted"
               || result.code === "esign_consent_required"
+              // F4: the office has not approved it, so there is nothing to certify yet. A conflict
+              // with the state of the world around a perfectly good link — the same shape as the
+              // others here, and emphatically not a 500.
+              || result.code === "not_yet_approved"
               // The carrier has not published its wording, so this application cannot be filed yet
               // (WORDING_NOT_FINAL). 409 for the same reason as the others: the link is fine, the
               // request conflicts with the state of the world around it.
