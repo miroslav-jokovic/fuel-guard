@@ -1,4 +1,4 @@
-import { computed, reactive, ref, type Ref } from "vue";
+import { computed, onScopeDispose, reactive, ref, type Ref } from "vue";
 import {
   BUNDLED_DEFAULT_CONFIG,
   type CaptureProvider,
@@ -42,6 +42,16 @@ export interface CaptureSlotView {
   /** Why the gate refused, so the driver is told what to fix rather than that "it failed". */
   reason: RejectionReason | null;
   capturedAt: string | null;
+  /**
+   * What the driver just sent, to look at (X6). An object URL, or null.
+   *
+   * ⚠ **This session only, and that is the honest limit rather than a shortcut.** The server returns
+   * slots and dates, not pictures — re-serving them would mean a signed read URL per slot on an
+   * unauthenticated surface on every page load, which `applicationCaptureContract.ts` decided against
+   * for good reason. So a capture taken on a previous visit shows "Received" and no thumbnail, which
+   * is true: this is the photograph in this browser's hands, not a view of the bucket.
+   */
+  previewUrl: string | null;
 }
 
 export function useApplicationCaptures(
@@ -56,6 +66,31 @@ export function useApplicationCaptures(
   const local = reactive<Record<string, { state: CaptureSlotState; reason: RejectionReason | null; capturedAt: string | null }>>({});
   const busy = ref<ApplicationCaptureSlot | null>(null);
 
+  /**
+   * One object URL per slot, at most (X6).
+   *
+   * ⚠ The rule the revoke below already stated is unchanged: *a phone should not hold four
+   * hundred-kilobyte blobs alive because a driver re-took a licence four times.* Keeping one picture
+   * per slot does not break it — retaking REPLACES, and the one being replaced is revoked on the
+   * spot. What is held is exactly what is on the screen.
+   */
+  const previews = reactive<Record<string, string | null>>({});
+
+  const forget = (slot: ApplicationCaptureSlot): void => {
+    const held = previews[slot];
+    if (held) URL.revokeObjectURL(held);
+    previews[slot] = null;
+  };
+
+  // The screen can be left at any point — a driver who goes back to the licence step, or closes the
+  // tab. Nothing here outlives the component that asked for it.
+  onScopeDispose(() => {
+    for (const slot of Object.keys(previews)) {
+      const held = previews[slot];
+      if (held) URL.revokeObjectURL(held);
+    }
+  });
+
   const slots = computed<CaptureSlotView[]>(() =>
     APPLICATION_CAPTURE_REQUESTED.map((slot) => {
       const here = local[slot];
@@ -69,6 +104,7 @@ export function useApplicationCaptures(
         state,
         reason: here?.reason ?? null,
         capturedAt: here?.capturedAt ?? stored?.capturedAt ?? null,
+        previewUrl: previews[slot] ?? null,
       };
     }),
   );
@@ -111,6 +147,8 @@ export function useApplicationCaptures(
       // The provider hands back an object URL rather than the blob; reading it back is how the bytes
       // are recovered without widening the engine's contract for one consumer.
       const blob = await fetch(page.originalOfRecord.uri).then((r) => r.blob());
+      /** Whether the URL became this slot's preview, and so must outlive the block below. */
+      let kept = false;
       try {
         // The gate already hashed these exact bytes (A7), so the digest is passed through rather
         // than recomputed — the shared path takes an io whose `digest` is a function for the callers
@@ -120,10 +158,16 @@ export function useApplicationCaptures(
           digest: async () => page.integrityHash,
         });
         mark(slot, "done", null, confirmed.capturedAt);
+        // Kept, not revoked: this is the one the driver is now looking at (X6). The previous
+        // picture for this slot goes at the same moment, so the count never grows.
+        forget(slot);
+        previews[slot] = page.originalOfRecord.uri;
+        kept = true;
       } finally {
-        // The photograph is in the bucket (or it is not); either way a phone should not hold four
-        // hundred-kilobyte blobs alive because a driver re-took a licence four times.
-        URL.revokeObjectURL(page.originalOfRecord.uri);
+        // The photograph did not reach the bucket, so there is nothing to show and nothing to keep.
+        // A phone should not hold four hundred-kilobyte blobs alive because a driver re-took a
+        // licence four times.
+        if (!kept) URL.revokeObjectURL(page.originalOfRecord.uri);
       }
     } catch {
       // One state for every network failure, because the driver's action is the same for all of

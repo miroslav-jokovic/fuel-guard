@@ -395,4 +395,11 @@ adjacent table rows conflict every time.
   the regex's own sentence — so a blank date of birth produced two issues for one mistake, one of them
   phrased for whoever wrote the schema, arriving on the driver's screen as `code: "custom"` (which
   every caller treats as human-written). Guarded, and pinned in both packages.
+- 2026-09-11 — **X6 built, and the plan is complete but for counsel.** The thumbnail is this
+  session's object URL and nothing else: the server returns slots and dates rather than pictures on
+  purpose, and re-serving them would mean a signed read URL per slot on an unauthenticated surface on
+  every page load. A capture from a previous visit shows "Received" and no picture, which is true.
+  One URL per slot at most — retaking replaces and revokes, so the rule the existing revoke stated
+  ("a phone should not hold four hundred-kilobyte blobs alive because a licence was re-taken four
+  times") still holds. Both leak directions are mutation-proved.
 

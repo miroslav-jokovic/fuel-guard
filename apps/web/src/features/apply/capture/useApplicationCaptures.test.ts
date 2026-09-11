@@ -170,3 +170,82 @@ describe("coming back to a session that already photographed something", () => {
     expect(captures.slots.value.some((s) => s.slot === "signature_mark")).toBe(false);
   });
 });
+
+/**
+ * Seeing what was sent (X6).
+ *
+ * A driver who photographed the wrong side of a licence had no way to know: the slot said
+ * "Received" and nothing else. What is asserted here is the picture appearing — and, just as much,
+ * the two places it must NOT linger, because the rule the revoke already stated is that a phone
+ * should not hold four hundred-kilobyte blobs alive because a licence was re-taken four times.
+ */
+describe("the picture the driver just sent", () => {
+  const held = (c: ReturnType<typeof useApplicationCaptures>, slot: string) =>
+    c.slots.value.find((s) => s.slot === slot)?.previewUrl ?? null;
+
+  it("shows what was sent, once it is in the bucket", async () => {
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), {
+      provider: provider({ ok: true, pages: [page()] } as ScanResult),
+      io: spyIo(),
+    });
+    await captures.capture("cdl_front");
+
+    expect(held(captures, "cdl_front")).toBe("blob:fake");
+    // And only for the slot that was photographed.
+    expect(held(captures, "cdl_back")).toBeNull();
+  });
+
+  it("keeps the bytes alive for exactly as long as they are on the screen", async () => {
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), {
+      provider: provider({ ok: true, pages: [page()] } as ScanResult),
+      io: spyIo(),
+    });
+    await captures.capture("cdl_front");
+    // Not revoked while it is the thing being displayed — that was the bug the first version of
+    // this change would have had, and it shows as an empty box rather than an error.
+    expect(URL.revokeObjectURL).not.toHaveBeenCalledWith("blob:fake");
+  });
+
+  it("lets go of the old picture when the slot is re-taken", async () => {
+    // One per slot, at most. Retaking REPLACES; the count never grows.
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), {
+      provider: provider({ ok: true, pages: [page()] } as ScanResult),
+      io: spyIo(),
+    });
+    await captures.capture("cdl_front");
+    await captures.capture("cdl_front");
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:fake");
+    expect(held(captures, "cdl_front")).toBe("blob:fake");
+  });
+
+  it("holds nothing when the upload failed, because there is nothing to show", async () => {
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), {
+      provider: provider({ ok: true, pages: [page()] } as ScanResult),
+      io: spyIo({ upload: async () => { throw new Error("boom"); } }),
+    });
+    await captures.capture("cdl_front");
+
+    expect(held(captures, "cdl_front")).toBeNull();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:fake");
+  });
+
+  it("shows no picture for a capture taken on a previous visit", async () => {
+    /**
+     * ⚠ True rather than a limitation worked around. The server returns slots and dates, not
+     * pictures — re-serving them would mean a signed read URL per slot on an unauthenticated
+     * surface on every page load. "Received" with no thumbnail is the honest answer for a
+     * photograph this browser never held.
+     */
+    const already: ApplicationCaptureView[] = [
+      { slot: "cdl_front", contentType: "image/webp", bytes: 900, capturedAt: "2026-08-20T10:00:00Z" },
+    ];
+    const captures = useApplicationCaptures(ref(TOKEN), ref(already), {
+      provider: provider({ ok: true, pages: [page()] } as ScanResult),
+      io: spyIo(),
+    });
+
+    expect(slotState(captures.slots.value, "cdl_front")).toBe("done");
+    expect(held(captures, "cdl_front")).toBeNull();
+  });
+});

@@ -39,7 +39,21 @@ const anyBusy = computed(() => captures.busy.value !== null);
         :key="slot.slot"
         class="flex flex-wrap items-center justify-between gap-3 rounded-surface bg-surface-muted p-4"
       >
-        <div class="min-w-0">
+        <!-- ⚠ The picture, when this browser is the one that took it (X6). A driver who
+             photographed the wrong side of a licence had no way to know: the slot said "Received"
+             and nothing else, and the server returns slots and dates rather than pictures on
+             purpose — re-serving them would mean a signed read URL per slot on an unauthenticated
+             surface on every page load. So this is what is in THIS browser's hands, and a capture
+             from a previous visit correctly shows none. -->
+        <img
+          v-if="slot.previewUrl"
+          :src="slot.previewUrl"
+          :alt="slot.label"
+          class="h-14 w-20 shrink-0 rounded-detail object-cover ring-1 ring-inset ring-edge"
+        />
+        <!-- `flex-1` so the thumbnail and the label stay together on the left and the button keeps
+             the right; without it `justify-between` strands the text in the middle of the row. -->
+        <div class="min-w-0 flex-1">
           <p class="text-sm font-medium text-ink">{{ slot.label }}</p>
           <p v-if="slot.state === 'done'" class="mt-1 text-sm text-ink-muted">{{ copy.done }}</p>
           <!-- The gate's verdict, in the driver's words. `reason` is always one of the taxonomy's
