@@ -277,9 +277,16 @@ carrier filed, from the link they already have.
 roster, where a driver record may legitimately lack one — is `.nullish()` after a preprocess that
 turns `""` into `null`. So **an application with no date of birth validates and submits.**
 
-Two things break at once. §391.21(b)(2) names it, so the filed document is missing required content;
-and D-APP16's resume gate asks for the date of birth to unlock a saved draft, so a driver who leaves
-it blank creates a draft **nobody can ever unlock**, including them.
+Two things break at once, and ⚠ **the second is the opposite of what this plan first said.** It read
+"creates a draft nobody can ever unlock". Checked against `applicationDraft.ts` while building it:
+`draftIsLocked` withholds a draft's body **only once a date of birth is in it**, and `unlockDraft`
+returns early — "there is nothing gated" — when there is none. So a blank date of birth does not lock
+a driver out. It leaves the draft **ungated**: an address history and an employment history served in
+the clear by `GET /:token` to anyone holding the link. The second factor D-APP16 exists to add was
+contingent on an answer nothing required.
+
+The first is simpler: §391.21(b)(2) names the date of birth, so the filed document was missing
+required content.
 
 The fix is a required variant on the application contract only, leaving the roster's optional one
 alone. Safe to tighten: `driver_applications.payload` is never re-parsed on render (`file.ts` casts
@@ -378,4 +385,14 @@ adjacent table rows conflict every time.
   with `expectOrgScoped`, which `apps/api/CLAUDE.md` names for exactly this reason.
   **Q-AX3 stands as recommended: the download ships, the completion email does not** — its wording is
   counsel's material and nothing in this plan touches that.
+- 2026-09-11 — **X8 MERGED** (#743).
+- 2026-09-11 — **X9 built, and its own step text was wrong.** See the corrected §X9: a blank date of
+  birth left the draft UNGATED rather than un-unlockable. Requiring it in the contract closes that
+  at the first screen, because `APPLICATION_SECTION_KEYS.identity` owns the field and the wizard
+  validates each screen with the contract's own object.
+  ⚠ Doing it surfaced a second defect immediately, and **X2's totality test is what caught it**: Zod
+  runs a `superRefine` after a failed regex, and `dateOfBirthIssue`'s unparseable branch answers with
+  the regex's own sentence — so a blank date of birth produced two issues for one mistake, one of them
+  phrased for whoever wrote the schema, arriving on the driver's screen as `code: "custom"` (which
+  every caller treats as human-written). Guarded, and pinned in both packages.
 
