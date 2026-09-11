@@ -126,11 +126,12 @@ are real, two differ in ways worth knowing, and the last one is not close.
 
 ---
 
-## 4. ⚠ The two defects the owner hit, and their single root cause
+## 4. The two defects the owner hit — **FIXED 2026-09-11 in #757**
 
 The owner started an application themselves and reported: *"showing not started… and there is no
-process showing or data that is already filled in."* Both are real, and both are the same cause:
-**nothing staff-facing reads the draft.**
+process showing or data that is already filled in."* Both were real, and both had the same cause:
+**nothing staff-facing read the draft.** Kept here because the cause is worth recognising again — the
+fix is `applicationProgress(phases, hasDraft)` in shared, read by all three surfaces.
 
 1. **The applicant board says `not_started`.** `applicantProgress` computes the stage from
    `employerCount` (`applicantPipeline.ts:105`), which counts rows in `driver_employment_history` — a
@@ -151,10 +152,12 @@ exist is a printable preview before certification.
 
 ## 5. The queue, in the order recommended to the owner
 
-1. **Make the draft visible.** Both stage calculations read the draft and the two review phases, so
-   the board and the invitation row say "Filling it in · 6 of 8", "Waiting for you", "Sent to sign".
-   Small, self-contained, and it fixes what the owner hit. **Start here.**
+1. ~~**Make the draft visible.**~~ **DONE — #757.** The board and the invitation row read the draft
+   and the two review phases; the board gained `filling_in`, `awaiting_review` and
+   `awaiting_signature`, and its "Waiting on" column answers WHO for those three. One shared function
+   answers for all three surfaces.
 2. **A printable preview at any stage** — the existing renderer over the draft, watermarked.
+   **Start here.**
 3. **P12 then the cross-match panel.** ⚠ Not cheap, and it was described as cheap once before this
    was measured: the three derived PSP tables have to exist first. Then a panel that says *"PSP saw
    this DOT number and the application does not mention it"* — never *"unverified"*.
