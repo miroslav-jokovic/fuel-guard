@@ -5,8 +5,9 @@ import AppIcon from "./AppIcon.vue";
 import { CalendarIcon, XMarkIcon } from "../icons";
 
 /**
- * The one date control. Not exported from the barrel — `AppDateField` and `AppDateTimeField` are the
- * two shapes it comes in, and a third caller would be a third opinion about what a date looks like.
+ * The one date control. Not exported from the barrel — `AppDateField`, `AppDateTimeField` and
+ * `AppMonthField` are the three shapes it comes in, and a fourth caller would be a fourth opinion
+ * about what a date looks like.
  *
  * ── WHY THIS STOPPED BEING `<input type="date">` (D-DS17) ──────────────────────────────────────
  * Both fields were one line each: `AppInput` with a native type. That is not a component, it is a
@@ -69,20 +70,56 @@ const props = withDefaults(
     disabled?: boolean;
     /** Adds the time half — `AppDateTimeField`'s only difference. */
     withTime?: boolean;
+    /**
+     * Drops the day — `AppMonthField`'s only difference (APPLY-EXPERIENCE-PLAN D-AX4).
+     *
+     * A third shape rather than a third component: §391.21(b)(3) and (b)(6) both ask for periods in
+     * months, the driver application was collecting them as text boxes validated by
+     * `/^\d{4}-\d{2}$/`, and "a month" is the same concept as "a date" with one fewer part. Giving it
+     * its own picker would be the third opinion about what a date looks like that this file's header
+     * exists to prevent.
+     *
+     * ⚠ Mutually exclusive with `withTime`, and there is no shape that wants both: a month has no
+     * clock. `monthOnly` wins if both arrive, rather than rendering a time picker under a month grid.
+     */
+    monthOnly?: boolean;
     /** `yyyy-MM-dd`, inclusive. Both are passed straight through to the calendar. */
     minDate?: string | null;
     maxDate?: string | null;
   }>(),
-  { modelValue: "", invalid: false, disabled: false, withTime: false, minDate: null, maxDate: null },
+  {
+    modelValue: "",
+    invalid: false,
+    disabled: false,
+    withTime: false,
+    monthOnly: false,
+    minDate: null,
+    maxDate: null,
+  },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 
 const DATE = "MM/dd/yyyy";
 const DATE_TIME = "MM/dd/yyyy HH:mm";
+const MONTH = "MM/yyyy";
 
-const displayFormat = computed(() => (props.withTime ? DATE_TIME : DATE));
-const modelFormat = computed(() => (props.withTime ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd"));
-const placeholder = computed(() => (props.withTime ? "mm/dd/yyyy hh:mm" : "mm/dd/yyyy"));
+const displayFormat = computed(() =>
+  props.monthOnly ? MONTH : props.withTime ? DATE_TIME : DATE,
+);
+const modelFormat = computed(() =>
+  props.monthOnly ? "yyyy-MM" : props.withTime ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd",
+);
+const placeholder = computed(() =>
+  props.monthOnly ? "mm/yyyy" : props.withTime ? "mm/dd/yyyy hh:mm" : "mm/dd/yyyy",
+);
+
+/**
+ * What the two buttons say. The day field's wording is unchanged to the character — it is asserted
+ * by name in `AppDateField.test.ts` ("shows ONE clear control, not the library's as well"), and a
+ * screen reader announcing "choose a date" on a control that offers months is the kind of small lie
+ * that makes a form untrustworthy to the person who most depends on the label being true.
+ */
+const noun = computed(() => (props.monthOnly ? "month" : "date"));
 
 /** An empty string is not a date; VueDatePicker wants `null` for "nothing chosen". */
 const value = computed(() => props.modelValue || null);
@@ -107,7 +144,8 @@ const INPUT_CLASS =
     :model-value="value"
     :model-type="modelFormat"
     :formats="{ input: displayFormat }"
-    :time-config="{ enableTimePicker: withTime, is24: true }"
+    :time-config="{ enableTimePicker: !monthOnly && withTime, is24: true }"
+    :month-picker="monthOnly"
     :text-input="{ format: displayFormat }"
     :min-date="minDate || undefined"
     :max-date="maxDate || undefined"
@@ -160,7 +198,7 @@ const INPUT_CLASS =
           v-if="shown && !disabled"
           type="button"
           class="absolute inset-y-0 right-9 flex w-7 items-center justify-center rounded-control text-ink-tertiary hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-          aria-label="Clear date"
+          :aria-label="`Clear ${noun}`"
           @mousedown.prevent
           @click="onClear"
         >
@@ -172,7 +210,7 @@ const INPUT_CLASS =
           class="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-control text-ink-tertiary hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:text-ink-disabled"
           aria-haspopup="dialog"
           :aria-expanded="isMenuOpen"
-          aria-label="Choose a date"
+          :aria-label="`Choose a ${noun}`"
           @mousedown.prevent
           @click="toggleMenu"
         >

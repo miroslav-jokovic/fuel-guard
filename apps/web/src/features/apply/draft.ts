@@ -1,6 +1,7 @@
 import {
   questionnaireForApplicant,
   questionnaireRef,
+  toJurisdictionCode,
   type DriverApplication,
   type EquipmentClass,
   type QuestionnaireQuestion,
@@ -411,6 +412,22 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
   const rows = <T>(k: keyof ApplicationDraft, fallback: T[]): T[] =>
     Array.isArray(payload[k]) && (payload[k] as unknown[]).length > 0 ? (payload[k] as T[]) : fallback;
 
+  /**
+   * A stored state, as the code the picker can show (D-AX5).
+   *
+   * ⚠ **Without this, resuming a draft silently forgets where the driver lives.** These three fields
+   * were free-text boxes capped at two characters until the jurisdiction picker replaced them, so a
+   * saved draft can hold `il`, `Illinois` or `ILLINOIS` — none of which is an option value. A
+   * combobox handed one of those finds no match and renders an empty field, and the driver comes back
+   * to a form that has lost an answer they already gave, with nothing on screen saying so.
+   *
+   * A value that cannot be placed at all becomes `""` rather than travelling on invisibly: a blank
+   * field is a thing the driver can see and fix, and a value the control cannot display but would
+   * still submit is one nobody can.
+   */
+  const state = (v: unknown): string =>
+    toJurisdictionCode(typeof v === "string" ? v : null) ?? "";
+
   return {
     ...base,
     first_name: str("first_name"),
@@ -422,9 +439,9 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     date_of_birth: str("date_of_birth"),
     email: str("email"),
     phone: str("phone"),
-    addresses: rows<DraftAddress>("addresses", base.addresses),
+    addresses: rows<DraftAddress>("addresses", base.addresses).map((a) => ({ ...a, state: state(a.state) })),
     cdl_number: str("cdl_number"),
-    cdl_state: str("cdl_state"),
+    cdl_state: state(payload.cdl_state),
     cdl_class: str("cdl_class"),
     cdl_expires_at: str("cdl_expires_at"),
     experience: str("experience"),
@@ -435,7 +452,7 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     declares_no_violations: bool("declares_no_violations"),
     licence_ever_denied: bool("licence_ever_denied"),
     licence_denial_detail: str("licence_denial_detail"),
-    employers: rows<DraftEmployer>("employers", base.employers),
+    employers: rows<DraftEmployer>("employers", base.employers).map((e) => ({ ...e, state: state(e.state) })),
     declares_no_employment: bool("declares_no_employment"),
     additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),
     questionnaire:

@@ -256,3 +256,36 @@ describe("the questionnaire", () => {
     expect(restored.questionnaire).toEqual({});
   });
 });
+
+/**
+ * The jurisdiction picker's migration (D-AX5).
+ *
+ * ⚠ The failure this prevents is invisible, which is why it is worth its own describe block: a
+ * driver resumes, the state field is blank, and nothing on the page says an answer was dropped.
+ */
+describe("a draft saved before the state fields had a picker", () => {
+  const saved = (over: Record<string, unknown>) =>
+    fromDraftPayload({ ...toDraftPayload(complete()), ...over });
+
+  it("reads a full state name back as the code the picker can show", () => {
+    const restored = saved({
+      cdl_state: "Illinois",
+      addresses: [{ ...complete().addresses[0], state: "illinois" }],
+      employers: [{ ...complete().employers[0], state: "TEXAS" }],
+    });
+    expect(restored.cdl_state).toBe("IL");
+    expect(restored.addresses[0]!.state).toBe("IL");
+    expect(restored.employers[0]!.state).toBe("TX");
+  });
+
+  it("reads a lower-case code back as a code", () => {
+    expect(saved({ cdl_state: "il" }).cdl_state).toBe("IL");
+  });
+
+  it("blanks a value no picker could display, rather than carrying it invisibly", () => {
+    // A value the control cannot show but would still submit is one nobody can correct. An empty
+    // field is a thing the driver can see.
+    expect(saved({ cdl_state: "Bavaria" }).cdl_state).toBe("");
+    expect(saved({ cdl_state: "I1" }).cdl_state).toBe("");
+  });
+});

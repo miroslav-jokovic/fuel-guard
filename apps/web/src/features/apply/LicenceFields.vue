@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { AppButton as BaseButton, AppInput as BaseInput, AppDateField, AppFormField as FormField } from "@silvicom/ui";
+import {
+  AppButton as BaseButton,
+  AppCombobox as ComboSelect,
+  AppInput as BaseInput,
+  AppDateField,
+  AppFormField as FormField,
+} from "@silvicom/ui";
+import { jurisdictionOptions } from "@silvicom/shared";
 import { emptyLicence, type ApplicationDraft } from "@/features/apply/draft";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -17,6 +24,16 @@ import { APPLY_COPY } from "@/features/apply/strings";
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
 const copy = APPLY_COPY.licence;
+
+/**
+ * The issuing state, from the one catalogue (D-AX5).
+ *
+ * ⚠ This is the field with the most to lose from a typo. `cdl_state` is what a PSP request and an
+ * MVR pull are keyed on, so `Il` instead of `IL` is not a cosmetic defect — it is a screening
+ * request that comes back empty for a driver who is perfectly qualified, and nothing in the result
+ * says why.
+ */
+const JURISDICTIONS = jurisdictionOptions();
 </script>
 
 <template>
@@ -28,7 +45,7 @@ const copy = APPLY_COPY.licence;
         <BaseInput :id="id" v-model="draft.cdl_number" />
       </FormField>
       <FormField v-slot="{ id }" :label="copy.state" :hint="copy.stateHint">
-        <BaseInput :id="id" v-model="draft.cdl_state" maxlength="2" />
+        <ComboSelect :id="id" v-model="draft.cdl_state" :options="JURISDICTIONS" />
       </FormField>
       <FormField v-slot="{ id }" :label="copy.class" :hint="copy.optional">
         <BaseInput :id="id" v-model="draft.cdl_class" maxlength="10" />
