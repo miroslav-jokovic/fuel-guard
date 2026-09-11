@@ -404,7 +404,12 @@ async function send(): Promise<void> {
         :token="token"
         :captures="invitation.data.value.captures ?? []"
       />
-      <ReviewFields v-else-if="wizard.section.value === 'review'" :draft="draft" @go-to="wizard.goTo" />
+      <ReviewFields
+        v-else-if="wizard.section.value === 'review'"
+        :draft="draft"
+        :captures="invitation.data.value.captures ?? []"
+        @go-to="wizard.goTo"
+      />
       <CertifyFields v-else v-model="draft" />
     </BaseCard>
 
