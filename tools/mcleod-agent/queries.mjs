@@ -825,3 +825,144 @@ export const GL_ACCOUNTS = `
       NULLIF(LTRIM(RTRIM(a.type_id)), '')      AS type_id
       FROM dbo.gl_account AS a
      WHERE a.company_id = @companyId`;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Dispatchable loads — the live board (LIVE-MAP-PLAN.md LM1)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The loads a dispatcher is working right now, for the live board.
+ *
+ * Different from `MOVEMENT_FACTS` above in every way that matters: that one reads CLOSED trips in
+ * settlement windows to divide cost by; this one reads OPEN trips to put work on a screen. Same
+ * tables, opposite end of the lifecycle, so they do not share a query.
+ *
+ * Six things here were measured against the carrier's database on 2026-09-10 and each would produce
+ * a wrong board rather than an error:
+ *
+ *  · **The dispatcher is on the LOAD, not the truck** (D-LM3). `movement.dispatcher_user_id` is
+ *    populated on 109 of 109 active movements. `tractor.fleet_id` is a dispatcher-NAMED code
+ *    (KANE, PETE, IVO) that looks like the same answer and agrees with it on only 60 of 107 — a
+ *    truck belongs to a fleet nominally, but who dispatches it today is a property of the load.
+ *  · **Drivers are not 1:1 with a movement.** Teams put two on 176 movements, so 'D' is aggregated
+ *    rather than joined — the same reason and the same STUFF/FOR XML shape `MOVEMENT_FACTS` uses.
+ *    'T' and 'L' appear exactly once and are joined normally.
+ *  · **`ref` is `orders.id`, never `blnum`.** The BOL number is what a customer quotes, but it
+ *    collides 2,020 times across 134,315 orders and `loads` carries `unique (org_id, ref)`, so it
+ *    would fail the ingest on ~1.5% of loads. It travels as `bol_number` for searching instead.
+ *    `orders.id` is unique within a company — and collides 16,948 times ACROSS companies, so a
+ *    second company being swept into one org makes `ref` composite the way `external_id` already is.
+ *  · **Reefer is the trailer, because it is nowhere on the load** (D-LM13).
+ *    `orders.equipment_type_id` — the DAT code that would carry R and RZ — is populated on 0 orders
+ *    in 2023, 0 in 2024 and 5 in 2026. `trailer.trailer_type` classified 113 of 113 on the board.
+ *  · **`status = 'P'` is not "active".** Movement 11787 has been 'P' since March 2015 — 4,182 days —
+ *    and would sit on a dispatcher's map forever. The scheduled-date bound excludes exactly that one
+ *    row today; the worst REAL load is 7 days past its last scheduled arrival (D-LM14).
+ *  · **`move_distance` is the only usable distance.** `pay_distance` and both manifest columns sum
+ *    to exactly zero across the year (D-MC15).
+ */
+export const DISPATCH_LOADS = `
+    SELECT
+      LTRIM(RTRIM(m.company_id)) + ':' + LTRIM(RTRIM(m.id))  AS external_id,
+      NULLIF(LTRIM(RTRIM(o.id)), '')                         AS ref,
+      NULLIF(LTRIM(RTRIM(o.blnum)), '')                      AS bol_number,
+      NULLIF(LTRIM(RTRIM(m.dispatcher_user_id)), '')         AS dispatcher_external_id,
+      NULLIF(LTRIM(RTRIM(u.name)), '')                       AS dispatcher_name,
+      -- Teams: aggregated, never joined. A LEFT JOIN here duplicates 176 movements.
+      STUFF((
+        SELECT ',' + LTRIM(RTRIM(cd.equipment_id))
+          FROM dbo.continuity AS cd
+         WHERE cd.movement_id = m.id
+           AND cd.company_id = m.company_id
+           AND cd.equipment_type_id = 'D'
+         ORDER BY cd.equipment_id
+         FOR XML PATH('')), 1, 1, '')                        AS driver_codes,
+      NULLIF(LTRIM(RTRIM(ct.equipment_id)), '')              AS vehicle_unit,
+      NULLIF(LTRIM(RTRIM(cl.equipment_id)), '')              AS trailer_unit,
+      NULLIF(LTRIM(RTRIM(tr.trailer_type)), '')              AS trailer_type,
+      NULLIF(LTRIM(RTRIM(o.commodity)), '')                  AS commodity,
+      m.move_distance                                        AS total_miles,
+      NULLIF(LTRIM(RTRIM(m.status)), '')                     AS external_status
+      FROM dbo.movement AS m
+      LEFT JOIN dbo.users AS u
+        ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
+      LEFT JOIN dbo.movement_order AS mo
+        ON mo.movement_id = m.id AND mo.company_id = m.company_id
+      LEFT JOIN dbo.orders AS o
+        ON o.id = mo.order_id AND o.company_id = mo.company_id
+      LEFT JOIN dbo.continuity AS ct
+        ON ct.movement_id = m.id AND ct.company_id = m.company_id AND ct.equipment_type_id = 'T'
+      LEFT JOIN dbo.continuity AS cl
+        ON cl.movement_id = m.id AND cl.company_id = m.company_id AND cl.equipment_type_id = 'L'
+      LEFT JOIN dbo.trailer AS tr
+        ON tr.id = cl.equipment_id AND tr.company_id = m.company_id
+     WHERE m.company_id = @companyId
+       AND m.status IN ('P', 'A')
+       AND EXISTS (
+         SELECT 1 FROM dbo.stop AS sb
+          WHERE sb.movement_id = m.id
+            AND sb.company_id = m.company_id
+            AND sb.sched_arrive_early >= @staleBefore)
+     ORDER BY m.id`;
+
+/**
+ * The stops of those loads, flat, stitched back by `movement_id` — same shape as `MOVEMENT_STOPS`.
+ *
+ * ⚠ `longitude` is selected RAW and named for what it is. McLeod stores it **west-positive** at this
+ * carrier: 0 negative values across 119,962 rows in seven days, range 68.39–123.39 against latitudes
+ * 25.87–48.60, which is the continental US with the sign dropped. The negation happens in `loads.mjs`
+ * where a unit test can pin it; doing it in SQL would hide the single most dangerous line in this
+ * integration inside a string nothing asserts against.
+ *
+ * `location_id` travels so the shipper's own code is never lost, even though the stop NAME is
+ * currently composed from city and state — see the `name` note in `loads.mjs`.
+ */
+export const DISPATCH_LOAD_STOPS = `
+    SELECT
+      LTRIM(RTRIM(s.movement_id))                     AS movement_id,
+      s.movement_sequence                             AS seq,
+      LTRIM(RTRIM(s.stop_type))                       AS stop_type,
+      NULLIF(LTRIM(RTRIM(s.location_id)), '')         AS location_id,
+      NULLIF(LTRIM(RTRIM(s.city_name)), '')           AS city,
+      NULLIF(LTRIM(RTRIM(s.state)), '')               AS state,
+      NULLIF(LTRIM(RTRIM(s.address)), '')             AS address_line,
+      NULLIF(LTRIM(RTRIM(s.zip_code)), '')            AS postal_code,
+      s.latitude                                      AS lat,
+      s.longitude                                     AS lon_west_positive,
+      CONVERT(varchar(19), s.sched_arrive_early, 126) AS appointment_start,
+      CONVERT(varchar(19), s.sched_arrive_late, 126)  AS appointment_end,
+      NULLIF(LTRIM(RTRIM(s.status)), '')              AS stop_status
+      FROM dbo.stop AS s
+      JOIN dbo.movement AS m
+        ON m.id = s.movement_id AND m.company_id = s.company_id
+     WHERE s.company_id = @companyId
+       AND m.status IN ('P', 'A')
+       AND EXISTS (
+         SELECT 1 FROM dbo.stop AS sb
+          WHERE sb.movement_id = m.id
+            AND sb.company_id = m.company_id
+            AND sb.sched_arrive_early >= @staleBefore)
+     ORDER BY s.movement_id, s.movement_sequence`;
+
+/**
+ * Every dispatcher who owns a load on the current board, so the office can map them to a user.
+ *
+ * Scoped to the board rather than the whole `users` table (208 rows, most of them not dispatchers):
+ * the list exists to be mapped by hand, and a list nobody can finish is a list nobody starts.
+ * Measured 2026-09-10: 15 accounts, all `is_active = 'Y'`, of which two — `loadmaster` and `lmeadm`,
+ * both named "McLeod Administrator" — are not people and held 21 of the 109 active loads between
+ * them. `is_system` is decided by the agent from configuration, not guessed from the name here.
+ */
+export const DISPATCH_DISPATCHERS = `
+    SELECT
+      LTRIM(RTRIM(u.id))                AS external_id,
+      NULLIF(LTRIM(RTRIM(u.name)), '')  AS display_name,
+      CASE WHEN LTRIM(RTRIM(ISNULL(u.is_active, ''))) = 'Y' THEN 1 ELSE 0 END AS is_active
+      FROM dbo.users AS u
+     WHERE u.company_id = @companyId
+       AND EXISTS (
+         SELECT 1 FROM dbo.movement AS m
+          WHERE m.dispatcher_user_id = u.id
+            AND m.company_id = u.company_id
+            AND m.status IN ('P', 'A'))
+     ORDER BY u.id`;

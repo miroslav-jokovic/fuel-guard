@@ -565,6 +565,11 @@ SELECT HAS_DBACCESS('lme') AS can_read_lme, GETDATE() AS server_local,
 SELECT COUNT(*) AS active, SUM(CASE WHEN LTRIM(RTRIM(ISNULL(dispatcher_user_id,'')))<>'' THEN 1 ELSE 0 END) AS with_dispatcher
 FROM lme.dbo.movement WHERE company_id='TMS' AND status='P';
 
+-- P6 · does dbo.location carry a trade name, and what is the column called? (D-LM15's neighbour)
+--      The stop NAME is currently composed from city and state because `location` has never been
+--      read and its columns are unverified. If it carries one, stopName() becomes a join and the
+--      LM0 grant gains an eighth table.
+
 -- P5 · what ARE the VA / VP / SP stop types? (D-LM15, blocks LM2's vocabulary widening)
 --      Look at their location, appointment window and position in the sequence against the PU/SO
 --      around them. Decide whether they widen the enum or stay reported-and-unsent.
@@ -1135,6 +1140,15 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   documented upgrade path (D-LM1b), and the **Kafka Connector** — real 5-second GPS streaming — is
   named and rejected on architectural shape rather than left unmentioned (D-LM1c). Added D-LM9b
   (the freshness bound, added up) and traps 13–15.
+- 2026-09-10 — **LM1b built, NOT yet done** (PR pending): `queries.mjs` gains `DISPATCH_LOADS`,
+  `DISPATCH_LOAD_STOPS` and `DISPATCH_DISPATCHERS`; `loads.mjs` maps them; `--loads` is wired.
+  Fifteen unit tests, each proven able to fail — and the fourth mutation found a fixture that could
+  not distinguish `is_system` from configuration versus inferring it from a display name, because
+  both answers agreed on the data it used. **Its Done-when is NOT met**: the VPN is down, so the
+  query shape has never been exercised against real rows. `--loads --dry-run` against `lme` is the
+  first thing to run when the tunnel returns, alongside probes P4, P5 and P6. Also fixed while
+  wiring: `--dry-run` was hard-wired to the roster, so a loads dry-run silently ran the roster.
+  The dispatcher roster is read but not posted — `POST /api/tms/dispatchers` arrives at LM3.
 - 2026-09-10 — **Two corrections to this document, found while executing LM1b.** (1) Trap 16 and its
   decision bullet claimed `equipment_item` disagrees with `continuity`; **the comparison behind that
   was invalid** — wrong group join, plus a cartesian product over team drivers — and the claim is
