@@ -4,9 +4,9 @@ import {
   AppCheckbox as BaseCheckbox,
   AppInput as BaseInput,
   AppDateField,
-  AppFormField as FormField,
 } from "@silvicom/ui";
 import { emptyAccident, emptyViolation, type ApplicationDraft } from "@/features/apply/draft";
+import ApplyField from "@/features/apply/ApplyField.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -37,20 +37,20 @@ const copy = APPLY_COPY.safety;
           class="space-y-4 rounded-surface bg-surface-muted p-4"
         >
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField v-slot="{ id }" :label="copy.accidentDate">
-              <AppDateField :id="id" v-model="accident.occurred_on" />
-            </FormField>
-            <FormField v-slot="{ id }" :label="copy.accidentNature">
-              <BaseInput :id="id" v-model="accident.nature" />
-            </FormField>
+            <ApplyField v-slot="f" :path="['accidents', i, 'occurred_on']" :label="copy.accidentDate">
+              <AppDateField v-bind="f" v-model="accident.occurred_on" />
+            </ApplyField>
+            <ApplyField v-slot="f" :path="['accidents', i, 'nature']" :label="copy.accidentNature">
+              <BaseInput v-bind="f" v-model="accident.nature" />
+            </ApplyField>
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField v-slot="{ id }" :label="copy.fatalities">
-              <BaseInput :id="id" v-model="accident.fatalities" inputmode="numeric" />
-            </FormField>
-            <FormField v-slot="{ id }" :label="copy.injuries">
-              <BaseInput :id="id" v-model="accident.injuries" inputmode="numeric" />
-            </FormField>
+            <ApplyField v-slot="f" :path="['accidents', i, 'fatalities']" :label="copy.fatalities">
+              <BaseInput v-bind="f" v-model="accident.fatalities" inputmode="numeric" />
+            </ApplyField>
+            <ApplyField v-slot="f" :path="['accidents', i, 'injuries']" :label="copy.injuries">
+              <BaseInput v-bind="f" v-model="accident.injuries" inputmode="numeric" />
+            </ApplyField>
           </div>
           <BaseCheckbox v-model="accident.hazmat_spill">{{ copy.hazmatSpill }}</BaseCheckbox>
           <div class="flex justify-end">
@@ -72,20 +72,20 @@ const copy = APPLY_COPY.safety;
           class="space-y-4 rounded-surface bg-surface-muted p-4"
         >
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField v-slot="{ id }" :label="copy.violationDate">
-              <AppDateField :id="id" v-model="violation.occurred_on" />
-            </FormField>
-            <FormField v-slot="{ id }" :label="copy.offence">
-              <BaseInput :id="id" v-model="violation.offence" />
-            </FormField>
+            <ApplyField v-slot="f" :path="['violations', i, 'occurred_on']" :label="copy.violationDate">
+              <AppDateField v-bind="f" v-model="violation.occurred_on" />
+            </ApplyField>
+            <ApplyField v-slot="f" :path="['violations', i, 'offence']" :label="copy.offence">
+              <BaseInput v-bind="f" v-model="violation.offence" />
+            </ApplyField>
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField v-slot="{ id }" :label="copy.violationState" :hint="copy.violationStateHint">
-              <BaseInput :id="id" v-model="violation.state" placeholder="Optional" />
-            </FormField>
-            <FormField v-slot="{ id }" :label="copy.penalty" :hint="copy.penaltyHint">
-              <BaseInput :id="id" v-model="violation.penalty" placeholder="Optional" />
-            </FormField>
+            <ApplyField v-slot="f" :path="['violations', i, 'state']" :label="copy.violationState" :hint="copy.violationStateHint">
+              <BaseInput v-bind="f" v-model="violation.state" placeholder="Optional" />
+            </ApplyField>
+            <ApplyField v-slot="f" :path="['violations', i, 'penalty']" :label="copy.penalty" :hint="copy.penaltyHint">
+              <BaseInput v-bind="f" v-model="violation.penalty" placeholder="Optional" />
+            </ApplyField>
           </div>
           <div class="flex justify-end">
             <BaseButton variant="ghost" size="sm" @click="draft.violations.splice(i, 1)">{{ copy.remove }}</BaseButton>
@@ -98,14 +98,15 @@ const copy = APPLY_COPY.safety;
     <div class="space-y-3">
       <h3 class="text-sm font-semibold text-ink">{{ copy.licenceHeading }}</h3>
       <BaseCheckbox v-model="draft.licence_ever_denied">{{ copy.everDenied }}</BaseCheckbox>
-      <FormField
-        v-if="draft.licence_ever_denied"
-        v-slot="{ id }"
+      <ApplyField
+v-if="draft.licence_ever_denied"
+        v-slot="f"
+        :path="['licence_denial_detail']"
         :label="copy.denialDetail"
         :hint="copy.denialDetailHint"
       >
-        <BaseInput :id="id" v-model="draft.licence_denial_detail" />
-      </FormField>
+        <BaseInput v-bind="f" v-model="draft.licence_denial_detail" />
+      </ApplyField>
     </div>
 
     <!-- §40.25(j) (P8). The carrier's packet gives this a page of its own; here it is the last block

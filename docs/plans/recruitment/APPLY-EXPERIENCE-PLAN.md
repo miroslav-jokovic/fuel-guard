@@ -270,6 +270,24 @@ D-AX9.
 **Done when:** a driver who has sent their application can open their own copy of exactly what the
 carrier filed, from the link they already have.
 
+### X9 · A date of birth that is actually required
+
+⚠ **Found 2026-09-11 while building X2, and it is not a copy defect.**
+`driverApplicationSchema` takes `date_of_birth: dateOfBirthSchema`, and that schema — shared with the
+roster, where a driver record may legitimately lack one — is `.nullish()` after a preprocess that
+turns `""` into `null`. So **an application with no date of birth validates and submits.**
+
+Two things break at once. §391.21(b)(2) names it, so the filed document is missing required content;
+and D-APP16's resume gate asks for the date of birth to unlock a saved draft, so a driver who leaves
+it blank creates a draft **nobody can ever unlock**, including them.
+
+The fix is a required variant on the application contract only, leaving the roster's optional one
+alone. Safe to tighten: `driver_applications.payload` is never re-parsed on render (`file.ts` casts
+it), so no filed row can be made unreproducible by it.
+
+**Done when:** an application with no date of birth is refused, by the same schema on both sides, and
+the roster's own optional date of birth still is.
+
 ## 4. Open questions
 
 **Q-AX1 · Does the step rail survive at 320px?** The design is a rail; the fallback is the counter we
@@ -302,3 +320,13 @@ Append dated lines here. Do not edit the step headings to mark progress — para
 adjacent table rows conflict every time.
 
 - 2026-09-11 — plan written from the audit. Nothing built.
+- 2026-09-11 — **X1 MERGED** (#737). `AppMonthField` + `packages/shared/src/jurisdictions.ts`;
+  `samsara/location.ts` derives both of its lists rather than holding the only copy. Draft restore
+  normalises a stored state, which is what stops a resumed form silently losing one.
+- 2026-09-11 — **X9 added** from a defect found while building X2: the application accepts an empty
+  date of birth, which both omits §391.21(b)(2) content and creates a draft the resume gate can never
+  unlock. Recorded rather than smuggled into X2.
+- 2026-09-11 — **X2 built.** Labels, driver-readable messages, inline errors, focus. Two things the
+  audit did not predict: `AppFormField` was camelising its ARIA slot props, so every error was
+  visible and inaudible; and `AppCombobox` inherited attributes onto its positioning `<div>`, so the
+  same was true of every state field. Both fixed in `packages/ui` with their own tests.

@@ -5,12 +5,12 @@ import {
   AppCombobox as ComboSelect,
   AppInput as BaseInput,
   AppDateField,
-  AppFormField as FormField,
   AppMonthField,
   AppSelect as BaseSelect,
 } from "@silvicom/ui";
 import { EQUIPMENT_CLASSES, EQUIPMENT_CLASS_LABELS, jurisdictionOptions } from "@silvicom/shared";
 import { emptyEmployer, emptyEquipment, type ApplicationDraft } from "@/features/apply/draft";
+import ApplyField from "@/features/apply/ApplyField.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /** The classes §391.21(b)(6) and FMCSA's own form name, in the order that form lists them. */
@@ -45,48 +45,49 @@ const copy = APPLY_COPY.employment;
         class="space-y-4 rounded-surface bg-surface-muted p-4"
       >
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" :label="copy.employer">
-            <BaseInput :id="id" v-model="employer.employer_name" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.usdot" :hint="copy.usdotHint">
-            <BaseInput :id="id" v-model="employer.usdot_number" placeholder="Optional" />
-          </FormField>
+          <ApplyField v-slot="f" :path="['employers', i, 'employer_name']" :label="copy.employer">
+            <BaseInput v-bind="f" v-model="employer.employer_name" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['employers', i, 'usdot_number']" :label="copy.usdot" :hint="copy.usdotHint">
+            <BaseInput v-bind="f" v-model="employer.usdot_number" placeholder="Optional" />
+          </ApplyField>
         </div>
-        <FormField
-          v-slot="{ id }"
+        <ApplyField
+v-slot="f"
+          :path="['employers', i, 'address_line1']"
           :label="copy.address"
           :hint="copy.addressHint"
         >
-          <BaseInput :id="id" v-model="employer.address_line1" />
-        </FormField>
+          <BaseInput v-bind="f" v-model="employer.address_line1" />
+        </ApplyField>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
-          <FormField v-slot="{ id }" :label="copy.city">
-            <BaseInput :id="id" v-model="employer.city" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.state">
-            <ComboSelect :id="id" v-model="employer.state" :options="JURISDICTIONS" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.phone" :hint="copy.phoneHint">
-            <BaseInput :id="id" v-model="employer.phone" type="tel" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.email" :hint="copy.emailHint">
-            <BaseInput :id="id" v-model="employer.email" type="email" placeholder="Optional" />
-          </FormField>
+          <ApplyField v-slot="f" :path="['employers', i, 'city']" :label="copy.city">
+            <BaseInput v-bind="f" v-model="employer.city" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['employers', i, 'state']" :label="copy.state">
+            <ComboSelect v-bind="f" v-model="employer.state" :options="JURISDICTIONS" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['employers', i, 'phone']" :label="copy.phone" :hint="copy.phoneHint">
+            <BaseInput v-bind="f" v-model="employer.phone" type="tel" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['employers', i, 'email']" :label="copy.email" :hint="copy.emailHint">
+            <BaseInput v-bind="f" v-model="employer.email" type="email" placeholder="Optional" />
+          </ApplyField>
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormField v-slot="{ id }" :label="copy.position">
-            <BaseInput :id="id" v-model="employer.position_held" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.from">
-            <AppDateField :id="id" v-model="employer.started_on" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.to" :hint="copy.toHint">
-            <AppDateField :id="id" v-model="employer.ended_on" />
-          </FormField>
+          <ApplyField v-slot="f" :path="['employers', i, 'position_held']" :label="copy.position">
+            <BaseInput v-bind="f" v-model="employer.position_held" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['employers', i, 'started_on']" :label="copy.from">
+            <AppDateField v-bind="f" v-model="employer.started_on" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['employers', i, 'ended_on']" :label="copy.to" :hint="copy.toHint">
+            <AppDateField v-bind="f" v-model="employer.ended_on" />
+          </ApplyField>
         </div>
-        <FormField v-slot="{ id }" :label="copy.reason" :hint="copy.reasonHint">
-          <BaseInput :id="id" v-model="employer.reason_for_leaving" />
-        </FormField>
+        <ApplyField v-slot="f" :path="['employers', i, 'reason_for_leaving']" :label="copy.reason" :hint="copy.reasonHint">
+          <BaseInput v-bind="f" v-model="employer.reason_for_leaving" />
+        </ApplyField>
 
         <div class="space-y-2">
           <BaseCheckbox v-model="employer.operated_cmv">{{ copy.operatedCmv }}</BaseCheckbox>
@@ -110,9 +111,9 @@ const copy = APPLY_COPY.employment;
          he/she has operated". The narrative answers the first half; the rows below answer the second,
          laid out as FMCSA's own sample application lays it out. Either satisfies the paragraph, and
          a cross-field rule refuses a document with neither. -->
-    <FormField v-slot="{ id }" :label="copy.experience" :hint="copy.experienceHint">
-      <BaseInput :id="id" v-model="draft.experience" placeholder="Optional" />
-    </FormField>
+    <ApplyField v-slot="f" :path="['experience']" :label="copy.experience" :hint="copy.experienceHint">
+      <BaseInput v-bind="f" v-model="draft.experience" placeholder="Optional" />
+    </ApplyField>
 
     <div class="space-y-3">
       <div>
@@ -126,23 +127,23 @@ const copy = APPLY_COPY.employment;
         class="space-y-3 rounded-surface bg-surface-muted p-4"
       >
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" :label="copy.equipmentClass">
-            <BaseSelect :id="id" v-model="row.equipment_class" :options="EQUIPMENT_OPTIONS" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.equipmentType" :hint="copy.equipmentTypeHint">
-            <BaseInput :id="id" v-model="row.equipment_type" />
-          </FormField>
+          <ApplyField v-slot="f" :path="['equipment_experience', i, 'equipment_class']" :label="copy.equipmentClass">
+            <BaseSelect v-bind="f" v-model="row.equipment_class" :options="EQUIPMENT_OPTIONS" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['equipment_experience', i, 'equipment_type']" :label="copy.equipmentType" :hint="copy.equipmentTypeHint">
+            <BaseInput v-bind="f" v-model="row.equipment_type" />
+          </ApplyField>
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormField v-slot="{ id }" :label="copy.equipmentFrom" :hint="copy.equipmentMonthHint">
-            <AppMonthField :id="id" v-model="row.from" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.equipmentTo" :hint="copy.equipmentToHint">
-            <AppMonthField :id="id" v-model="row.to" />
-          </FormField>
-          <FormField v-slot="{ id }" :label="copy.equipmentMiles" :hint="copy.equipmentMilesHint">
-            <BaseInput :id="id" v-model="row.approx_miles" inputmode="numeric" />
-          </FormField>
+          <ApplyField v-slot="f" :path="['equipment_experience', i, 'from']" :label="copy.equipmentFrom" :hint="copy.equipmentMonthHint">
+            <AppMonthField v-bind="f" v-model="row.from" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['equipment_experience', i, 'to']" :label="copy.equipmentTo" :hint="copy.equipmentToHint">
+            <AppMonthField v-bind="f" v-model="row.to" />
+          </ApplyField>
+          <ApplyField v-slot="f" :path="['equipment_experience', i, 'approx_miles']" :label="copy.equipmentMiles" :hint="copy.equipmentMilesHint">
+            <BaseInput v-bind="f" v-model="row.approx_miles" inputmode="numeric" />
+          </ApplyField>
         </div>
         <div class="flex justify-end">
           <BaseButton variant="ghost" size="sm" @click="draft.equipment_experience.splice(i, 1)">

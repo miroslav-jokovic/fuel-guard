@@ -224,7 +224,7 @@ describe("the applicant's page", () => {
   });
 
   /** Forward is gated on the screen being complete; the driver is told what is missing. */
-  it("refuses to advance past an incomplete screen and names the field", async () => {
+  it("refuses to advance past an incomplete screen and names the field in words", async () => {
     fetchMock.mockResolvedValue(ok({
       carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
       phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
@@ -235,9 +235,56 @@ describe("the applicant's page", () => {
 
     await advance(w);
     expect(w.text()).toContain("Before you can go on");
-    expect(w.text()).toContain("first_name");
+    // ⚠ This asserted `first_name` until D-AX3 — the contract key, rendered to a driver as the name
+    // of the box they had not filled in. The field is now named the way the label above it names it,
+    // and the message is a sentence rather than "Too small: expected string to have >=1 characters".
+    expect(w.text()).toContain("First name");
+    expect(w.text()).toContain("This is needed.");
+    expect(w.text()).not.toContain("first_name");
+    expect(w.text()).not.toMatch(/Too small|expected string/);
     // And it did not move on.
     expect(w.text()).toContain(step(1));
+  });
+
+  /**
+   * ── WHERE THE ERROR IS, NOT JUST WHAT IT IS (D-AX3) ─────────────────────────────────────────
+   * These two need the component in the real document: `focusFirstIssue` resolves the control with
+   * `getElementById`, and `document.activeElement` means nothing for a detached tree. Every other
+   * test in this file mounts detached on purpose — it is faster and none of them care.
+   */
+  it("puts the cursor in the first box that needs an answer", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+    }));
+    const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin] }, attachTo: document.body });
+    await settle(w);
+    await advance(w);
+
+    // Not "the page scrolled to the top and printed a list" — on the employment screen the field a
+    // list names can be two thousand pixels below the fold.
+    expect(document.activeElement?.id).toBe("apply-first_name");
+    w.unmount();
+  });
+
+  it("marks the box itself, not only the summary", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+    }));
+    const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin] }, attachTo: document.body });
+    await settle(w);
+    await advance(w);
+
+    const input = document.getElementById("apply-first_name");
+    expect(input?.getAttribute("aria-invalid")).toBe("true");
+    // The message is rendered by the element `aria-describedby` points at, so a screen reader reads
+    // the same sentence the sighted driver sees rather than a different one, or none.
+    const described = document.getElementById(input?.getAttribute("aria-describedby") ?? "");
+    expect(described?.textContent).toBe("This is needed.");
+    w.unmount();
   });
 
   /** The saved section is where a resumed session opens. */
