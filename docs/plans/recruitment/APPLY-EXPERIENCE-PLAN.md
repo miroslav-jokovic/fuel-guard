@@ -358,4 +358,13 @@ adjacent table rows conflict every time.
   Two more defects found in the browser at 390px: the job list truncated its own dates
   ("Driver · 02/01/2025…"), and `Remove` sat a thumb's width from `Change` on a list row — it now
   lives in the panel, where the driver can see what they are deleting.
+- 2026-09-11 — **X5 MERGED** (#741).
+- 2026-09-11 — **X7 built.** The certificate of completion is a page of the filed application, and it
+  prints what the database has held all along: `file.ts` was selecting five of the eight columns
+  `record_driver_release` writes, so the carrier's evidentiary record was better than the document it
+  files. ⚠ Two things found while building it: the per-instrument pages were headed
+  `Authorization — fcra_disclosure`, a machine token on a page whose reader is an auditor — the same
+  defect D-AX3 fixed on the driver's screen; and `render.ts` crossed the 500-line budget, so the
+  certificate is its own module. The column list is pinned by a test of the QUERY, because that is
+  where the defect lived and no test of the renderer could ever have seen it.
 

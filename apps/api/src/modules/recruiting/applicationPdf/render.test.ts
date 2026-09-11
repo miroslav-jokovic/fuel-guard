@@ -41,6 +41,7 @@ const input = (over: Partial<ApplicationPdfInput> = {}): ApplicationPdfInput => 
   certifiedAt: "2026-08-21T18:00:00Z",
   signedName: "Susan Godfrey",
   applicantIp: "203.0.113.9",
+  applicantUserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
   // Null is the normal case and always will be — the mark is decoration (D-APP8).
   signatureMark: null,
   authorizations: [
@@ -49,12 +50,16 @@ const input = (over: Partial<ApplicationPdfInput> = {}): ApplicationPdfInput => 
       disclosure_text: "The wording that was actually signed.",
       intent_statement: "I authorize the preparation of consumer reports about me.",
       signed_name: "Susan Godfrey", accepted_at: "2026-08-21T17:50:00Z",
+      method: "esign", accepted_ip: "203.0.113.9",
+      accepted_user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
     },
     {
       purpose: "psp", disclosure_version: "v1",
       disclosure_text: "FMCSA's mandated PSP disclosure text.",
       intent_statement: "I authorize the carrier to obtain my PSP record.",
       signed_name: "Susan Godfrey", accepted_at: "2026-08-21T17:52:00Z",
+      method: "esign", accepted_ip: "203.0.113.9",
+      accepted_user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
     },
   ],
   esignConsent: {
@@ -62,6 +67,8 @@ const input = (over: Partial<ApplicationPdfInput> = {}): ApplicationPdfInput => 
     disclosure_text: "You can have these on paper instead.",
     intent_statement: "I agree to sign electronically.",
     consented_at: "2026-08-21T17:45:00Z",
+    applicant_ip: "203.0.113.9",
+    applicant_user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
   },
   ...over,
 });
@@ -382,5 +389,75 @@ describe("other names on the document", () => {
 
   it("prints nothing at all when they gave none, which is the normal case", async () => {
     expect(pdfText(await renderApplicationPdf(input()))).not.toContain("Also known as");
+  });
+});
+
+/**
+ * The certificate of completion (X7, D-AX8).
+ *
+ * ⚠ The point of this block is that the document can show HOW each act happened, not only what was
+ * signed. Every fact asserted below was already in the database when this file was written and was
+ * being left out of the query that feeds the renderer — so the carrier held a better evidentiary
+ * record than the document it files, which is the wrong way round for a §391.51 file.
+ */
+describe("the certificate of completion", () => {
+  it("gathers the whole ceremony onto one page, in the order it happened", async () => {
+    const pdf = pdfText(await renderApplicationPdf(input()));
+    expect(pdf).toContain("Certificate of completion");
+    // Numbered from the consent: the list reads as a sequence of acts, not an unordered set.
+    expect(pdf).toContain("1. Agreed to sign electronically");
+    expect(pdf).toContain("2. Consumer report disclosure and authorization");
+    expect(pdf).toContain("4. Certified the application");
+  });
+
+  it("prints the address and the browser each act came from", async () => {
+    // Stored by `record_driver_release` since 0228 and printed by nothing until now.
+    const pdf = pdfText(await renderApplicationPdf(input()));
+    expect(pdf).toContain("From address");
+    expect(pdf).toContain("203.0.113.9");
+    expect(pdf).toContain("Browser");
+    expect(pdf).toContain("iPhone");
+  });
+
+  it("stamps each act to the second, in UTC, and says which", async () => {
+    // A bare date cannot order two signatures a minute apart, and a local time cannot be compared
+    // to anything. §390.32(c) evidence is a moment, not a day.
+    const pdf = pdfText(await renderApplicationPdf(input()));
+    expect(pdf).toContain("2026-08-21 17:50:00 UTC");
+    expect(pdf).toContain("2026-08-21 18:00:00 UTC");
+  });
+
+  it("names each instrument, and never its database token", async () => {
+    // The same defect D-AX3 fixed on the driver's screen — here the reader is an auditor or a court.
+    const pdf = pdfText(await renderApplicationPdf(input()));
+    expect(pdf).toContain("FMCSA Pre-Employment Screening Program (PSP)");
+    expect(pdf).not.toContain("fcra_disclosure");
+    expect(pdf).not.toContain("psp\n");
+  });
+
+  it("renders for an application whose evidence rows are missing pieces", async () => {
+    // Every row filed before X7 selected these columns has null in them, and a derivative that
+    // throws on an old row is a qualification file that cannot be produced.
+    const pdf = pdfText(
+      await renderApplicationPdf(
+        input({
+          applicantIp: null,
+          applicantUserAgent: null,
+          esignConsent: null,
+          authorizations: [
+            {
+              purpose: "fcra_disclosure", disclosure_version: "v1",
+              disclosure_text: "text", intent_statement: "intent",
+              signed_name: "Susan Godfrey", accepted_at: "2026-08-21T17:50:00Z",
+              method: "esign", accepted_ip: null, accepted_user_agent: null,
+            },
+          ],
+        }),
+      ),
+    );
+    expect(pdf).toContain("Certificate of completion");
+    // With no consent the numbering starts at the first instrument, not at a phantom step one.
+    expect(pdf).toContain("1. Consumer report disclosure and authorization");
+    expect(pdf).toContain("2. Certified the application");
   });
 });

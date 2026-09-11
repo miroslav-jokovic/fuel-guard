@@ -186,3 +186,51 @@ describe("the drawn signature mark", () => {
     expect(filed?.rendered).toBe(true);
   });
 });
+
+/**
+ * The evidence the query has to ask for (X7).
+ *
+ * ⚠ This one asserts the QUERY and not the document, on purpose. `record_driver_release` has written
+ * `method`, `accepted_ip` and `accepted_user_agent` since 0215/0228, and this file selected five
+ * columns of the eight — so the renderer could not print what the database held however well it was
+ * written, and no test of the renderer could ever notice. The defect lived in the column list, so the
+ * pin is on the column list.
+ */
+describe("what the filed document is allowed to know", () => {
+  const selectFor = (rec: ReturnType<typeof seed>, table: string): string =>
+    String(
+      rec
+        .forTable(table)
+        .flatMap((q) => q.ops)
+        .find((op) => op.method === "select")?.args[0] ?? "",
+    );
+
+  it("asks for every fact stored about a signature, not five of the eight", async () => {
+    const rec = seed();
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+
+    const select = selectFor(rec, "driver_authorizations");
+    for (const column of [
+      "purpose", "disclosure_version", "disclosure_text", "intent_statement",
+      "signed_name", "accepted_at", "method", "accepted_ip", "accepted_user_agent",
+    ]) {
+      expect(select).toContain(column);
+    }
+  });
+
+  it("asks how the electronic-records consent was given, as well as that it was", async () => {
+    const rec = seed();
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+
+    const select = selectFor(rec, "esign_consents");
+    expect(select).toContain("applicant_ip");
+    expect(select).toContain("applicant_user_agent");
+  });
+
+  it("asks for the browser the certification itself was made in", async () => {
+    const rec = seed();
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+
+    expect(selectFor(rec, "driver_applications")).toContain("applicant_user_agent");
+  });
+});
