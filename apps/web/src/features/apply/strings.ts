@@ -193,6 +193,35 @@ export const APPLY_COPY = {
     equipmentMiles: "Approximate total miles",
     equipmentMilesHint: "A rough number is fine.",
     addEquipment: "Add equipment",
+
+    // ── X5: one job at a time ────────────────────────────────────────────────────────────────
+    /** The hub's own instruction, replacing the one that introduced a screen of ninety controls. */
+    jobsHeading: "Your jobs",
+    addFirstJob: "Add your first job",
+    addJob: "Add another job",
+    editJob: "Change",
+    removeJob: "Remove",
+    jobNoDates: "No dates yet",
+    /** A job still being driven. The list has to say something; a blank reads as a missing answer. */
+    jobToNow: "now",
+    coverageHeading: "How much you have accounted for",
+    coverage: (percent: number, years: number): string =>
+      `${percent}% of the last ${years} years is accounted for.`,
+    coverageComplete: (years: number): string => `The last ${years} years are accounted for.`,
+    coverageEmpty: (years: number): string =>
+      `Nothing yet. Add the jobs you have had over the last ${years} years.`,
+    /**
+     * ⚠ Says what is missing and what happens next — NOT "explain the gap". This form has no way to
+     * record "I was not working then", so telling somebody to explain one would point them at a box
+     * that does not exist.
+     */
+    gap: (from: string, to: string): string =>
+      `${from} to ${to} is not covered. If you were working then, add that job; if you were not, the carrier may ask you about it.`,
+    drawerNew: "Add a job",
+    drawerIntro: "One job at a time. You can change it later.",
+    drawerSave: "Save this job",
+    drawerCancel: "Cancel",
+    aboutThisJob: "About this job",
   },
 
   safety: {
