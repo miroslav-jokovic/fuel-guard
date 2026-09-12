@@ -405,6 +405,13 @@ the changes marked.
 **F5 · The copy is released, not served** — done when the driver's download answers "not yet" until
 the office releases it.
 
+**F6 · A printable preview at any stage** — done when an office reader can open the §391.21 document
+as a PDF while the driver is still filling it in, marked on every page as something nobody has
+signed. Raised by the owner's audit (`HANDOFF-2026-09-11-REVIEW.md` §5, queue item 2): the review
+drawer answers *what did they say*, and does not answer the things an office does with an application
+— read it away from the desk, print it, put it in front of somebody who has no login, post it to a
+terminal.
+
 ## 6. Progress log
 
 Append dated lines here. Do not edit the step headings to mark progress — parallel PRs marking
@@ -660,3 +667,39 @@ adjacent table rows conflict every time.
   becomes `GenericStringError` — the column list must be one literal. And `apps/web/src/lib/badges.ts`
   crossed the 500-line budget, so the recruiting badges moved to `badges.recruiting.ts` (one reader,
   the recruiter; same policy, second file).
+
+- 2026-09-11 — **F6: the application prints before it is signed.** The SAME renderer over
+  `application_drafts.payload` rather than a draft-shaped second one — the office is previewing the
+  document that will be FILED, and a second rendering of the same answers would be a second source of
+  truth about what a §391.21 application looks like, with the labels drifting first. `preview.ts`
+  gathers, `stamp.ts` marks, and one button in the review drawer opens it.
+  ⚠ **It refuses once the application is filed**, and that is the decision worth keeping. A certified
+  application already HAS a document: rendered at submit, hashed into `documents.sha256`, cited by its
+  §391.51(b)(1) `qualification_records` row and offered on the applicant's own page. Re-rendering it
+  here would hand somebody a second, uncited copy of a federal record whose bytes do not match the one
+  in the file — so the route answers 409 and says where the real one is, and the drawer's button is
+  not there to press.
+  ⚠ **Words, not a colour** — D-AVI22's ruling next door, applied before it could be re-learned: the
+  annual-inspection preview used to stamp its values in red and the office read that as the product
+  printing in red. The ink here is identical to the filing's and the band says "DRAFT - NOT A SIGNED
+  APPLICATION" across every sheet, once per page, because a preview gets printed and separated and a
+  loose page has to carry its own status. The §391.21(b)(12) block prints no name, no date and no
+  drawn mark — a signature beside an uncertified statement is the one thing on these pages that could
+  be mistaken for evidence — and a test pins that the applicant's name, which legitimately appears in
+  the (b)(2) block, in the footer and beside each release they really did sign, never appears there.
+  ⚠ **A blank page in the middle of the document, older than this plan and shared by every PDF this
+  repo draws.** The preview rendered 8 pages and page 2 read "DOT-regulated" and nothing else. A
+  label and its value are drawn at the same `y`, captured before either; close enough to the foot of
+  the sheet pdfkit turns the page under the label, and `field()` then advanced the NEW page's cursor
+  to a coordinate on the OLD one, pushing the next row off the sheet again. Fixed in `lib/pdfDraw.ts`
+  (turn the page before the row, and keep the cursor pdfkit actually left) with its own test; the same
+  document is now 5 pages. It was invisible to every gate and to the unit suite — it only shows up if
+  somebody rasterises the output and looks at it.
+  ⚠ `openInspectionPdf`/`downloadInspectionPdf` moved to `@/lib/documentDownload` and are re-exported
+  from where they were. `lint:boundaries` forbids `features/apply` importing `features/maintenance`,
+  correctly — and the choice was a copy of those twelve lines or a promotion. A copy is a workaround
+  with a delay fuse.
+  Measured in a real browser at 320/390/1280 against the built bundle: the footer's three buttons
+  stack with the primary at the bottom, nothing clips, no sideways scroll, and the button fetches
+  `/api/recruitment/applications/:id/preview.pdf` and opens the bytes as a blob.
+  **Q-AX4 is still open** — nothing yet tells the applicant they have been approved.

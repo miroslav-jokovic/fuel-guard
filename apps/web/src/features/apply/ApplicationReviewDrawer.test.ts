@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
+import { useToastStore } from "@/stores/toast";
 
 /**
  * The office's review of an application (F4, D-AX11–13).
@@ -14,6 +15,8 @@ import { createPinia, setActivePinia } from "pinia";
 
 const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch }));
+const openPdf = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/documentDownload", () => ({ openPdf, downloadPdf: vi.fn() }));
 
 /** Renders both slots inline, footer included — Approve lives in `#footer`. */
 const SlideOverStub = {
@@ -50,10 +53,17 @@ const review = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/**
+ * ⚠ The SAME pinia the test activates, not a fresh one per mount. A second instance gives the
+ * component its own toast store, so `useToastStore()` here would read an empty list forever and any
+ * assertion about what the office was told would pass while saying nothing.
+ */
+let pinia: ReturnType<typeof createPinia>;
+
 const drawer = () =>
   mount(ApplicationReviewDrawer, {
     props: { open: true, invitationId: "inv-1" },
-    global: { plugins: [VueQueryPlugin, createPinia()], stubs: { SlideOver: SlideOverStub } },
+    global: { plugins: [VueQueryPlugin, pinia], stubs: { SlideOver: SlideOverStub } },
   });
 
 const settle = async (w: ReturnType<typeof drawer>) => {
@@ -67,8 +77,11 @@ const button = (w: ReturnType<typeof drawer>, label: string) =>
   w.findAll("button").find((b) => b.text().trim().startsWith(label));
 
 beforeEach(() => {
-  setActivePinia(createPinia());
+  pinia = createPinia();
+  setActivePinia(pinia);
   apiFetch.mockReset();
+  openPdf.mockReset();
+  openPdf.mockResolvedValue(undefined);
   apiFetch.mockResolvedValue({ ok: true, data: review() });
 });
 
@@ -176,5 +189,54 @@ describe("approving it", () => {
 
     const call = apiFetch.mock.calls.find((c) => c[1]?.method === "POST");
     expect(call?.[0]).toBe("/api/recruitment/applications/inv-1/approve");
+  });
+});
+
+/**
+ * The printable preview (F6).
+ *
+ * ⚠ The one thing worth pinning is that it DISAPPEARS once the application is filed. The copy in the
+ * qualification file is hashed and cited by its §391.51(b)(1) record and is offered on this same page;
+ * a second, uncited rendering of a filed federal record is the thing this button must never produce.
+ */
+describe("printing it", () => {
+  it("opens the rendered application, at the invitation it belongs to", async () => {
+    const w = drawer();
+    await settle(w);
+    await button(w, "Open as a PDF")!.trigger("click");
+    await settle(w);
+    expect(openPdf).toHaveBeenCalledWith("/api/recruitment/applications/inv-1/preview.pdf");
+  });
+
+  it("offers it while the driver is still filling it in — that is what it is for", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ state: "filling", editable: false }) });
+    const w = drawer();
+    await settle(w);
+    expect(button(w, "Open as a PDF")).toBeDefined();
+  });
+
+  it("offers nothing to print on a link nobody has typed into", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ state: "filling", editable: false, payload: null }) });
+    const w = drawer();
+    await settle(w);
+    expect(button(w, "Open as a PDF")).toBeUndefined();
+  });
+
+  it("does not offer a preview of an application that is already filed", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ state: "certified", editable: false }) });
+    const w = drawer();
+    await settle(w);
+    expect(button(w, "Open as a PDF")).toBeUndefined();
+  });
+
+  it("says what went wrong rather than opening an empty tab", async () => {
+    openPdf.mockRejectedValueOnce(new Error("They have not filled anything in yet."));
+    const w = drawer();
+    await settle(w);
+    await button(w, "Open as a PDF")!.trigger("click");
+    await settle(w);
+    // The API's own sentence, as the toast TITLE — `push(variant, title)` is how this drawer reports
+    // every other failure, and a refusal phrased by the server is the one worth showing verbatim.
+    expect(useToastStore().toasts.some((t) => t.title.includes("filled anything in"))).toBe(true);
   });
 });

@@ -144,8 +144,29 @@ export function muted(doc: PDFKit.PDFDocument, text: string): void {
     .text(winAnsi(text), { width: CONTENT_WIDTH });
 }
 
-/** A label/value pair on one line — the shape every cover block on these pages is made of. */
+/** The vertical step one label/value row takes when its value is a single line. */
+const FIELD_ROW = 14;
+
+/**
+ * A label/value pair on one line — the shape every cover block on these pages is made of.
+ *
+ * ── ⚠ THE PAGE BREAK, AND THE BLANK PAGE IT USED TO LEAVE ─────────────────────────────────────
+ * Both halves are drawn at the SAME y, captured before either of them. Close enough to the foot of
+ * the sheet, pdfkit turns the page under the label — and then `Math.max(doc.y, y + 14)` advanced the
+ * NEW page's cursor to a coordinate belonging to the OLD one. Everything after it was pushed off the
+ * bottom, pdfkit turned the page again for the next row, and what came out was a sheet carrying one
+ * orphaned label and nothing else.
+ *
+ * Found on 2026-09-11 in a rendered application preview: page 2 of 8 read "DOT-regulated", alone,
+ * with its value nowhere. Older than that preview and shared by every document this module draws.
+ *
+ * So: turn the page BEFORE the row when it will not fit, which keeps a label with its value; and if
+ * the value wrapped across a break anyway, keep the cursor pdfkit actually left rather than a
+ * position measured on the sheet before it.
+ */
 export function field(doc: PDFKit.PDFDocument, label: string, value: string): void {
+  if (doc.y + FIELD_ROW > PAGE_HEIGHT - doc.page.margins.bottom) doc.addPage();
+  const startPage = doc.page;
   const y = doc.y;
   doc
     .fillColor(MUTED)
@@ -158,7 +179,7 @@ export function field(doc: PDFKit.PDFDocument, label: string, value: string): vo
     .fontSize(9.5)
     .text(winAnsi(value), MARGIN + 134, y, { width: CONTENT_WIDTH - 134 });
   doc.x = MARGIN;
-  doc.y = Math.max(doc.y, y + 14);
+  doc.y = doc.page === startPage ? Math.max(doc.y, y + FIELD_ROW) : doc.y;
 }
 
 export function rule(doc: PDFKit.PDFDocument): void {

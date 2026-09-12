@@ -10,6 +10,7 @@ import {
   editApplication,
   isReviewError,
 } from "../applicationReview.js";
+import { applicationPreviewPdf, isPreviewError } from "../applicationPdf/preview.js";
 
 /**
  * Reading, correcting and approving an applicant's answers (F4).
@@ -37,7 +38,8 @@ export function recruitmentApplicationReviewRouter(): Router {
       ? 404
       : code === "invalid_edit"
         ? 400
-        : code === "application_not_editable" || code === "application_not_reviewable" || code === "already_certified"
+        : code === "application_not_editable" || code === "application_not_reviewable"
+          || code === "already_certified" || code === "already_filed" || code === "nothing_to_preview"
           ? 409
           : 500;
 
@@ -58,6 +60,38 @@ export function recruitmentApplicationReviewRouter(): Router {
         return;
       }
       res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * The application as a printable document, at any stage before it is filed (F6).
+   *
+   * ⚠ `canView`, like the review read above it and NOT `canManage`. Printing an application changes
+   * nothing about it; anybody who may read the answers on the screen may read them on paper, and a
+   * recruiter who can open the drawer and not the PDF would simply photograph the screen.
+   *
+   * The bytes are streamed rather than filed. A preview is not evidence — nothing cites it, nothing
+   * hashes it, and it is superseded the moment the driver types another character — so storing one
+   * would put a document in `documents` that says DRAFT and outlives the draft it came from.
+   */
+  router.get(
+    "/applications/:invitationId/preview.pdf",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await applicationPreviewPdf(
+        admin,
+        req.auth!.orgId!,
+        String(req.params.invitationId ?? ""),
+      );
+      if (isPreviewError(result)) {
+        res.status(status(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      res.send(result.pdf);
     }),
   );
 

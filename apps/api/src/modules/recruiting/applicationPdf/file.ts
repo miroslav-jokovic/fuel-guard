@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  APPLICATION_CAPTURES_BUCKET,
   DOCUMENTS_BUCKET,
   documentStoragePath,
   type DriverApplication,
 } from "@silvicom/shared";
 import { renderApplicationPdf, type ApplicationPdfInput } from "./render.js";
+import { authorizationsFor, carrierOf, esignConsentFor, signatureMarkBytes } from "./sources.js";
 
 /**
  * Rendering the application and filing it (A6).
@@ -47,130 +47,28 @@ export interface FiledApplicationPdf {
   rendered: boolean;
 }
 
-/**
- * The drawn signature mark this session gave, if it gave one (A8b, D-APP8).
- *
- * ── HOW IT IS FOUND, WHICH IS NOT OBVIOUS ─────────────────────────────────────────────────────
- * The mark promotes into `documents` as kind `other`, which is indistinguishable from a promoted
- * `ssn_card` — so `documents` alone cannot answer "which of these is the signature". The index is the
- * staged row: `application_captures` names the slot, and A8a's identity property does the rest —
- * `documents.id` IS the capture id, so one lookup by slot gives the id of the filed copy.
- *
- * ── AND WHY THERE IS A FALLBACK ───────────────────────────────────────────────────────────────
- * This function runs in two situations that differ. Immediately after submit the promoted copy exists
- * in `compliance-docs`, which is where it should be read from — permanent, append-only, on the same
- * side of the evidence line as the document being drawn. On a re-render triggered before a submission
- * (there is no such path today, but `ensureApplicationPdf` is public and idempotent by design) only
- * the staged object exists. Both are tried, in that order.
- *
- * ⚠ EVERY FAILURE RETURNS NULL, INCLUDING "A11 PRUNED THE STAGING ROW". Once the retention rule lands,
- * a re-render years later will find no `application_captures` row and will draw the document with the
- * typed name alone — which is what D-APP8 says the signature of record has been the whole time. The
- * PDF filed on the day still carries the mark. If that is judged too lossy, A11's rule is one
- * exception away from keeping `signature_mark` rows; it is named in that step for exactly this reason.
- */
-async function signatureMarkBytes(
-  admin: SupabaseClient,
-  orgId: string,
-  invitationId: string | null,
-): Promise<Buffer | null> {
-  try {
-    return await readSignatureMark(admin, orgId, invitationId);
-  } catch (e) {
-    // The whole of D-APP8, as a catch block. Whatever went wrong reading an ornament, the
-    // §391.51(b)(1) document still has to be producible — and on the recruiter's download path there
-    // is no caller above this one that would forgive a throw.
-    console.warn("[application] could not read the drawn signature mark", {
-      error: e instanceof Error ? e.message : String(e),
-    });
-    return null;
-  }
-}
-
-async function readSignatureMark(
-  admin: SupabaseClient,
-  orgId: string,
-  invitationId: string | null,
-): Promise<Buffer | null> {
-  if (!invitationId) return null;
-  const { data: staged } = await admin
-    .from("application_captures")
-    .select("id, storage_path")
-    .eq("org_id", orgId)
-    .eq("invitation_id", invitationId)
-    .eq("slot", "signature_mark")
-    .maybeSingle();
-  const capture = staged as { id: string; storage_path: string } | null;
-  if (!capture) return null;
-
-  const { data: filed } = await admin
-    .from("documents")
-    .select("storage_path")
-    .eq("org_id", orgId)
-    .eq("id", capture.id)
-    .maybeSingle();
-  const promoted = (filed as { storage_path?: string } | null)?.storage_path ?? null;
-
-  const from: Array<[string, string]> = promoted
-    ? [[DOCUMENTS_BUCKET, promoted]]
-    : [[APPLICATION_CAPTURES_BUCKET, capture.storage_path]];
-  for (const [bucket, path] of from) {
-    const { data: blob } = await admin.storage.from(bucket).download(path);
-    if (blob) return Buffer.from(await blob.arrayBuffer());
-  }
-  return null;
-}
-
-
-/** Everything the document is drawn from, read in one place so the renderer stays pure. */
+/** Everything the document is drawn from — the shared reads in `sources.ts`, plus the certification. */
 async function gather(
   admin: SupabaseClient,
   application: ApplicationRow,
 ): Promise<ApplicationPdfInput> {
-  const { data: org } = await admin
-    .from("organizations")
-    .select("name, legal_address")
-    .eq("id", application.org_id)
-    .maybeSingle();
-
-  // The instruments THIS session collected, in the order they were signed. Keyed on the invitation
-  // (A5): a rehire's older signatures belong to their own application, not to this document.
-  const { data: auths } = await admin
-    .from("driver_authorizations")
-    // ⚠ Eight columns, not five (X7). `record_driver_release` has written `method`, `accepted_ip`
-    // and `accepted_user_agent` since 0215/0228 and this query left all three behind, so the filed
-    // document could show WHAT was signed and never HOW — which is the whole of the question a
-    // challenged signature raises.
-    .select(
-      "purpose, disclosure_version, disclosure_text, intent_statement, signed_name, accepted_at, "
-      + "method, accepted_ip, accepted_user_agent",
-    )
-    .eq("org_id", application.org_id)
-    .eq("invitation_id", application.invitation_id ?? "")
-    .is("revokes", null)
-    .order("accepted_at", { ascending: true });
-
-  const { data: consent } = await admin
-    .from("esign_consents")
-    .select("disclosure_version, disclosure_text, intent_statement, consented_at, applicant_ip, applicant_user_agent")
-    .eq("org_id", application.org_id)
-    .eq("invitation_id", application.invitation_id ?? "")
-    .maybeSingle();
-
+  const orgId = application.org_id;
+  const invitationId = application.invitation_id;
   return {
-    signatureMark: await signatureMarkBytes(admin, application.org_id, application.invitation_id),
-    carrier: {
-      name: (org as { name?: string } | null)?.name ?? "the carrier",
-      address: (org as { legal_address?: string | null } | null)?.legal_address ?? null,
-    },
+    signatureMark: await signatureMarkBytes(admin, orgId, invitationId),
+    carrier: await carrierOf(admin, orgId),
     application: application.payload,
     applicationId: application.id,
     certifiedAt: application.certified_at,
     signedName: application.signed_name,
     applicantIp: application.applicant_ip,
     applicantUserAgent: application.applicant_user_agent,
-    authorizations: (auths ?? []) as unknown as ApplicationPdfInput["authorizations"],
-    esignConsent: (consent ?? null) as unknown as ApplicationPdfInput["esignConsent"],
+    // Null: this is the FILED document. `preview.ts` is the other caller, and it is the only one
+    // allowed to draw the band — a filed §391.51(b)(1) record that said DRAFT across every page
+    // would be an auditor's first question.
+    preview: null,
+    authorizations: await authorizationsFor(admin, orgId, invitationId),
+    esignConsent: await esignConsentFor(admin, orgId, invitationId),
   };
 }
 
