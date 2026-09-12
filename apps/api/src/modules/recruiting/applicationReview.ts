@@ -9,6 +9,8 @@ import {
   type ApplicationReviewState,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
+import type { Env } from "../../env.js";
+import { notifyApplicationApproved, type ApprovalNotice } from "./applicationApprovalNotice.js";
 
 /**
  * The office's review of an application before the driver certifies it (F4, D-AX11–13).
@@ -53,6 +55,13 @@ const NOT_EDITABLE: ReviewError = {
   message: "This application can only be changed while it is waiting for review.",
 };
 
+/**
+ * What a REPEATED approval reports (Q-AX4). Not "we could not send" — nothing was attempted, because
+ * the first approval already told them. Naming it rather than inventing a reason keeps the drawer
+ * from telling a recruiter to phone somebody who has already been emailed.
+ */
+const ALREADY_TOLD: ApprovalNotice = { sent: false, email: null, reason: "already_notified", texted: false };
+
 const NOT_REVIEWABLE: ReviewError = {
   code: "application_not_reviewable",
   message: "This application has not been sent for review yet.",
@@ -62,6 +71,8 @@ interface InvitationRow {
   id: string;
   org_id: string;
   driver_id: string;
+  /** Where the approval notice goes (Q-AX4). Nullable: a recruiter may invite with a link alone. */
+  email: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
   submitted_at: string | null;
@@ -81,7 +92,7 @@ async function invitation(
   const { data } = await admin
     .from("application_invitations")
     // The service role bypasses RLS, so the org filter is the only thing between two carriers.
-    .select("id, org_id, driver_id, review_requested_at, approved_at, submitted_at")
+    .select("id, org_id, driver_id, email, review_requested_at, approved_at, submitted_at")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
@@ -258,11 +269,12 @@ export async function editApplication(
  */
 export async function approveApplication(
   admin: SupabaseClient,
+  env: Env,
   orgId: string,
   invitationId: string,
   ctx: EditContext,
   now: Date,
-): Promise<{ approvedAt: string } | ReviewError> {
+): Promise<{ approvedAt: string; notice: ApprovalNotice } | ReviewError> {
   const inv = await invitation(admin, orgId, invitationId);
   if (!inv) return NOT_FOUND;
   const state = applicationReviewState(phasesOf(inv));
@@ -270,7 +282,10 @@ export async function approveApplication(
   if (state === "certified") {
     return { code: "already_certified", message: "This application has already been signed and filed." };
   }
-  if (inv.approved_at) return { approvedAt: inv.approved_at };
+  // ⚠ The early return is also what makes the applicant's notice exactly-once. A second approval is a
+  // double-click, and a driver told twice in one second that their application is ready to sign
+  // learns nothing the first message did not already say — it just reads as a system that stutters.
+  if (inv.approved_at) return { approvedAt: inv.approved_at, notice: ALREADY_TOLD };
 
   const approvedAt = now.toISOString();
   const { error } = await admin
@@ -290,5 +305,15 @@ export async function approveApplication(
     meta: { driverId: inv.driver_id },
   });
 
-  return { approvedAt };
+  /**
+   * ⚠ AFTER the stamp and after the audit, and never allowed to change either (Q-AX4).
+   *
+   * The same ordering the invitation route uses, for the same reason: an approval that rolled back
+   * because a mail provider was rate-limited would leave a driver who is ALLOWED to sign sitting
+   * behind a state that says they are not, and `approved_at` is what the certification route reads.
+   * A notice that did not go is a sentence in the recruiter's drawer and a line in the log.
+   */
+  const notice = await notifyApplicationApproved(admin, env, orgId, inv.driver_id, inv.email, now);
+
+  return { approvedAt, notice };
 }

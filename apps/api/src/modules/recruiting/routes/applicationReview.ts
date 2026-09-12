@@ -124,9 +124,14 @@ export function recruitmentApplicationReviewRouter(): Router {
     requireOrg,
     canManage,
     asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { env } = getAppLocals(req);
+      const admin = getSupabaseAdmin(env);
+      // ⚠ `env` because approval is also what TELLS the applicant (Q-AX4). The notice is reported in
+      // this response and never raised — see `notifyApplicationApproved` for why a refused send must
+      // not undo an approval.
       const result = await approveApplication(
         admin,
+        env,
         req.auth!.orgId!,
         String(req.params.invitationId ?? ""),
         { actorId: req.auth!.userId },
