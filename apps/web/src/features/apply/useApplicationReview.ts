@@ -61,15 +61,31 @@ export function useEditApplicationAnswer(invitationId: Ref<string | null>) {
   });
 }
 
+/**
+ * What became of the message to the applicant (Q-AX4).
+ *
+ * ⚠ Reported, never thrown. The approval is committed before the notice is attempted, so a refused
+ * send is a sentence the recruiter reads and acts on — not a reason to tell them the approval failed,
+ * which would send them to press the button again on something that already happened.
+ */
+export interface ApprovalNotice {
+  sent: boolean;
+  email: string | null;
+  /** `no_address` | `mail_disabled` | `send_failed` | `already_notified`. null when it went. */
+  reason: string | null;
+  texted: boolean;
+}
+
 export function useApproveApplication(invitationId: Ref<string | null>) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<void> => {
-      const res = await apiFetch(
+    mutationFn: async (): Promise<ApprovalNotice> => {
+      const res = await apiFetch<{ approvedAt: string; notice: ApprovalNotice }>(
         `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/approve`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(res.error?.message ?? "That could not be approved.");
+      return res.data!.notice;
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: key(invitationId.value ?? "") }),
   });

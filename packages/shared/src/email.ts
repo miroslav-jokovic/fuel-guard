@@ -195,6 +195,17 @@ export function renderDigestEmail(
 }
 
 /**
+ * The subject line of the FIRST application email, as one string.
+ *
+ * ⚠ Extracted because `renderApplicationApprovedEmail` quotes it back to the applicant: the approval
+ * email carries no link and tells them to search their inbox for this exact phrase. Two literals
+ * would drift the first time somebody improved one of them, and the failure would be an applicant
+ * searching for words that were never sent.
+ */
+export const applicationInviteSubject = (carrier: string): string =>
+  `Your driver application for ${carrier}`;
+
+/**
  * The FIRST invitation to fill in a driver application (A11b's unshipped half, D-APP13).
  *
  * ── WHY THIS IS NOT `renderInviteEmail` BELOW ─────────────────────────────────────────────────
@@ -222,7 +233,7 @@ export function renderApplicationInviteEmail(
   applyUrl: string,
   expiresInDays: number,
 ): RenderedEmail {
-  const subject = `Your driver application for ${carrier}`;
+  const subject = applicationInviteSubject(carrier);
   const days = `${expiresInDays} ${expiresInDays === 1 ? "day" : "days"}`;
   const html =
     `<div style="font-family:system-ui,sans-serif;color:#111">`
@@ -243,6 +254,53 @@ export function renderApplicationInviteEmail(
     + `Start your application: ${applyUrl}\n\n`
     + `This link is yours alone and stops working in ${days}. If you were not expecting it, you can `
     + `ignore this email.`;
+  return { subject, html, text };
+}
+
+/**
+ * The applicant has been approved and is being asked back to sign (Q-AX4, D-AX14).
+ *
+ * ── ⚠ IT CARRIES NO LINK, AND THAT IS THE DECISION RATHER THAN AN OMISSION ────────────────────
+ * `application_invitations` stores a SHA-256 and nothing else (0220), so at approval time there is no
+ * link to put in an email — the plaintext was returned once, at mint, to the recruiter's screen and
+ * to the applicant's inbox. The nudge next door solves that by ROTATING the token (0232), and that
+ * move is wrong here: the waiting screen has already told this applicant "keep this link — it is
+ * where you will sign, and it still works", and approval is the exact moment they go and use it.
+ * Breaking the one promise the product made them, at the one moment it matters, to save them a search
+ * of their own inbox, is not a trade worth making.
+ *
+ * So the email names the EARLIER EMAIL'S SUBJECT LINE instead — which is why `renderApplicationInviteEmail`
+ * above and this function must keep saying the same words, and why `email.test.ts` pins that they do.
+ * A driver searching their mail for "Your driver application for Acme" finds the live link. If they
+ * cannot, the fallback is a human: the office can revoke and re-invite, and the copy points there.
+ *
+ * ── THE VOICE ─────────────────────────────────────────────────────────────────────────────────
+ * The carrier's name first, as every applicant-facing template in this file does — they applied to a
+ * trucking company. No deadline and no chase: the office has just made its decision, and this is
+ * news, not pressure.
+ */
+export function renderApplicationApprovedEmail(carrier: string): RenderedEmail {
+  const earlier = applicationInviteSubject(carrier);
+  const subject = `Your application for ${carrier} is ready to sign`;
+  const html =
+    `<div style="font-family:system-ui,sans-serif;color:#111">`
+    + `<h2 style="margin:0 0 8px">${esc(carrier)} has read your application</h2>`
+    + `<p style="color:#555">It is ready for your signature. Nothing you filled in has been lost — `
+    + `you will see the application as it now stands, and anything ${esc(carrier)} corrected is `
+    + `marked for you before you sign.</p>`
+    + `<p style="color:#555;margin:20px 0">Open the link from the earlier email &mdash; the one `
+    + `titled <strong>&quot;${esc(earlier)}&quot;</strong> &mdash; and you will be asked to sign.</p>`
+    + `<p style="color:#aaa;font-size:12px">If you cannot find that email, reply to this one or call `
+    + `${esc(carrier)} and they will send you a new link.</p>`
+    + `</div>`;
+  const text =
+    `${carrier} has read your application and it is ready for your signature.\n\n`
+    + `Nothing you filled in has been lost — you will see the application as it now stands, and `
+    + `anything ${carrier} corrected is marked for you before you sign.\n\n`
+    + `Open the link from the earlier email — the one titled "${earlier}" — and you will be asked to `
+    + `sign.\n\n`
+    + `If you cannot find that email, reply to this one or call ${carrier} and they will send you a `
+    + `new link.`;
   return { subject, html, text };
 }
 

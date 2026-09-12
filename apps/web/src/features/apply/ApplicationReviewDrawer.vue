@@ -19,6 +19,7 @@ import ApplicationAnswerList from "./ApplicationAnswerList.vue";
 import {
   useApplicationReviewQuery,
   useApproveApplication,
+  type ApprovalNotice,
   useEditApplicationAnswer,
 } from "./useApplicationReview";
 
@@ -122,10 +123,38 @@ async function openPreview(): Promise<void> {
   }
 }
 
+/**
+ * What the recruiter is told about the message to the applicant (Q-AX4).
+ *
+ * ⚠ The old copy read "Approved — the applicant has been asked to sign it" and nothing had asked them
+ * anything: until the approval notice shipped, the only thing carrying that news was the driver
+ * reopening their own link on the off-chance. So each outcome now gets its own sentence, and the two
+ * that need a human say so — `no_address` and `send_failed` leave a driver who is ALLOWED to sign
+ * with no way of knowing, which is the one state this two-visit flow exists to prevent.
+ *
+ * `already_notified` is a double-click, not a problem: the first approval sent it.
+ */
+function noticeToast(notice: ApprovalNotice): void {
+  if (notice.sent) {
+    const also = notice.texted ? " and texted" : "";
+    toast.push("success", `Approved — ${notice.email} has been emailed${also} and asked to sign it`);
+    return;
+  }
+  if (notice.reason === "already_notified") {
+    toast.push("success", "Approved — the applicant has already been asked to sign it");
+    return;
+  }
+  const chase = "Call them and ask them to reopen their application link — that is where they sign.";
+  if (notice.reason === "no_address") {
+    toast.push("warning", "Approved, but we have no email address for this applicant", chase);
+    return;
+  }
+  toast.push("warning", `Approved, but we could not email ${notice.email ?? "the applicant"}`, chase);
+}
+
 async function approveIt(): Promise<void> {
   try {
-    await approve.mutateAsync();
-    toast.push("success", "Approved — the applicant has been asked to sign it");
+    noticeToast(await approve.mutateAsync());
   } catch (e) {
     toast.push("error", e instanceof Error ? e.message : "That could not be approved.");
   }
