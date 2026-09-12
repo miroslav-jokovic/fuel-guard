@@ -1,19 +1,17 @@
 import { createHash } from "node:crypto";
 import {
+  APPLICATION_PROGRESS_LABELS,
   APPLICATION_SECTION_CITATIONS,
   EQUIPMENT_CLASS_LABELS,
-  questionnaireByRef,
-  readableAnswers,
+  type ApplicationDraftPayload,
   type ApplicationEmployer,
-  type DriverApplication,
-  type QuestionnaireQuestion,
+  type ApplicationProgressState,
 } from "@silvicom/shared";
 import { certificate, purposeLabel } from "./certificate.js";
+import { questionnaireSection } from "./questionnairePage.js";
+import { stampPages } from "./stamp.js";
 import {
-  CONTENT_WIDTH,
   MARGIN,
-  MUTED,
-  PAGE_HEIGHT,
   body,
   field,
   heading,
@@ -21,7 +19,6 @@ import {
   newDrawing,
   rule,
   title,
-  winAnsi,
 } from "../../../lib/pdfDraw.js";
 
 /**
@@ -51,10 +48,26 @@ import {
 
 export interface ApplicationPdfInput {
   carrier: { name: string; address: string | null };
-  application: DriverApplication;
+  /**
+   * The answers, as they are STORED — which is why the type is the draft's and not the certified
+   * document's (F6).
+   *
+   * ⚠ Widened deliberately, and it takes nothing away: every scalar on this page already goes through
+   * `blank()` and every list through `?? []`, because `driver_applications.payload` is historical
+   * jsonb and a row filed before some later field has none of it. A filed `DriverApplication` is
+   * assignable to this. What it BUYS is the office's preview: the same renderer over
+   * `application_drafts.payload`, which is the same document with fewer of its answers given yet.
+   */
+  application: ApplicationDraftPayload;
   applicationId: string;
-  /** Server-stamped, never client-supplied (D-APP9). This is §391.21(b)(4). */
-  certifiedAt: string;
+  /**
+   * Server-stamped, never client-supplied (D-APP9). This is §391.21(b)(4).
+   *
+   * Null on a preview: nothing has been submitted, and a date here would be the one fact on the page
+   * that is not true yet.
+   */
+  certifiedAt: string | null;
+  /** The name that was certified with. Empty on a preview — nobody has signed anything. */
   signedName: string;
   applicantIp: string | null;
   /** The browser the certification itself was made from. Stored since 0220 and never printed. */
@@ -84,6 +97,20 @@ export interface ApplicationPdfInput {
     accepted_ip: string | null;
     accepted_user_agent: string | null;
   }>;
+  /**
+   * What this rendering IS: the filed document (null), or the office's preview of one nobody has
+   * certified (F6).
+   *
+   * ── WHY THE PREVIEW IS THE SAME RENDERER AND NOT A SECOND ONE ─────────────────────────────────
+   * The office needs to read, print and post an application while the driver is still filling it in —
+   * and what they need to read is the document that will be filed, not a second rendering of the same
+   * answers that could drift from it. A separate draft renderer would be a second source of truth
+   * about what a §391.21 application looks like, and the labels would drift first.
+   *
+   * The `stage` is carried so the page can say where it has got to in the office's own words
+   * (`APPLICATION_PROGRESS_LABELS` — the reader of a preview is the recruiter who asked for it).
+   */
+  preview: { stage: ApplicationProgressState } | null;
   /** The 15 U.S.C. 7001(c) consent behind the whole electronic record (A4), when one was given. */
   esignConsent: {
     disclosure_version: string;
@@ -132,78 +159,9 @@ function equipmentExperience(doc: PDFKit.PDFDocument, rows: ReadonlyArray<Record
     field(doc, "Equipment", EQUIPMENT_CLASS_LABELS[cls] ?? String(row.equipment_class ?? "—"));
     field(doc, "Type", blank(row.equipment_type as string | null));
     field(doc, "From / to", `${blank(row.from as string)} — ${row.to ? String(row.to) : "present"}`);
-    field(doc, "Approximate miles", row.approx_miles == null ? "—" : String(row.approx_miles));
-    rule(doc);
-  }
-}
-
-/**
- * The carrier's own questions and what the driver answered (A9, D-APP12).
- *
- * ── WHY IT IS RENDERED AT ALL, GIVEN "PROJECTED NOWHERE" ──────────────────────────────────────
- * D-APP12 names three places the answers must not reach: `drivers`, `driver_employment_history`, and
- * the DQF item set. This document is none of them — it is a DERIVATIVE of the very payload the
- * answers live in. And it is the only place a recruiter ever sees them: the staff route serves this
- * PDF and nothing else of the application's content, so a questionnaire left out of it would be a
- * form collected and read by nobody.
- *
- * ── WHY IT IS ITS OWN SECTION, AFTER THE REGULATION'S ─────────────────────────────────────────
- * The pages above are numbered §391.21(b)(1)–(12) so a reader with the CFR open can check them line
- * by line. Carrier questions interleaved among them would break exactly that, and would imply the
- * regulation asks for a driver's personal references. So they come last, under the carrier's name,
- * and the heading says whose questions they are.
- *
- * ⚠ THE RESERVED `eeo` KEY NEVER APPEARS HERE. `readableAnswers` drops it, and a test pins that a
- * payload carrying one renders nothing from it: voluntary self-identification must not reach the
- * person deciding the hire, and this document is what that person reads.
- *
- * ⚠ A definition this build no longer carries renders NOTHING rather than throwing. `payload` is
- * historical jsonb — the same rule `blank()` exists for. Answers without their questions are not
- * worth printing anyway: a bare "true" beside no question is not evidence of anything.
- */
-function questionnaireSection(doc: PDFKit.PDFDocument, input: ApplicationPdfInput): void {
-  const definition = questionnaireByRef(input.application.questionnaire_version);
-  if (!definition) return;
-  const answers = readableAnswers(input.application.questionnaire_answers as Record<string, unknown>);
-  if (Object.keys(answers).length === 0) return;
-
-  doc.addPage();
-  heading(doc, `${input.carrier.name} — the carrier's own questions`);
-  muted(
-    doc,
-    `Questionnaire ${definition.id} version ${definition.version}. These questions are the carrier's `
-    + "and are not part of 49 CFR §391.21.",
-  );
-  doc.moveDown(0.3);
-
-  for (const question of definition.questions) {
-    const value = answers[question.id];
-    if (value === undefined || value === null || value === "") continue;
-    if (question.kind === "table") {
-      questionnaireTable(doc, question, value);
-      continue;
-    }
-    field(doc, question.label, scalarAnswer(value));
-  }
-}
-
-const scalarAnswer = (value: unknown): string => {
-  if (typeof value === "boolean") return yesNo(value);
-  return blank(String(value));
-};
-
-/** A table answer, one labelled block per row — a five-column grid on a 612pt sheet is unreadable. */
-function questionnaireTable(doc: PDFKit.PDFDocument, question: QuestionnaireQuestion, value: unknown): void {
-  const rows = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
-  if (rows.length === 0) return;
-  doc.moveDown(0.3);
-  heading(doc, question.label);
-  for (const row of rows) {
-    for (const column of question.columns ?? []) {
-      const cell = row[column.id];
-      if (cell === undefined || cell === null || cell === "") continue;
-      field(doc, column.label, scalarAnswer(cell));
-    }
+    // ⚠ `blank()` and not a null check: a DRAFT holds the unanswered number as an empty STRING (the
+    // form's own control value), which is not null and printed as nothing at all on the preview.
+    field(doc, "Approximate miles", blank(row.approx_miles == null ? null : String(row.approx_miles)));
     rule(doc);
   }
 }
@@ -240,7 +198,7 @@ function drawnMark(doc: PDFKit.PDFDocument, mark: Buffer | null): void {
 }
 
 /** The digest of what this page was drawn from — see the header on why it is not the file's own. */
-export const sourceDigest = (application: DriverApplication, applicationId: string): string =>
+export const sourceDigest = (application: ApplicationDraftPayload, applicationId: string): string =>
   createHash("sha256").update(`${applicationId}:${JSON.stringify(application)}`, "utf8").digest("hex");
 
 function paragraph(doc: PDFKit.PDFDocument, cite: string, label: string): void {
@@ -259,35 +217,6 @@ function employerBlock(doc: PDFKit.PDFDocument, e: ApplicationEmployer): void {
   rule(doc);
 }
 
-/**
- * Every page says who it is about and which application it belongs to.
- *
- * ⚠ The bottom margin is dropped to zero while these are written and restored afterwards. pdfkit
- * treats any text drawn below the bottom margin as content that has overflowed and AUTO-ADDS A PAGE
- * for it — so a footer stamped at the foot of the sheet silently doubles the document, and the new
- * blank pages arrive after `bufferedPageRange()` was read, so the count printed on them is wrong too.
- * It presents as "every page added two pages", which is how it was found.
- */
-function stampFooters(doc: PDFKit.PDFDocument, name: string, applicationId: string, digest: string): void {
-  const range = doc.bufferedPageRange();
-  for (let i = range.start; i < range.start + range.count; i++) {
-    doc.switchToPage(i);
-    const bottom = doc.page.margins.bottom;
-    doc.page.margins.bottom = 0;
-    doc
-      .fillColor(MUTED)
-      .font("Helvetica")
-      .fontSize(7.5)
-      .text(
-        winAnsi(`${name} · application ${applicationId} · source ${digest.slice(0, 16)} · page ${i - range.start + 1} of ${range.count}`),
-        MARGIN,
-        PAGE_HEIGHT - MARGIN - 6,
-        { width: CONTENT_WIDTH, lineBreak: false },
-      );
-    doc.page.margins.bottom = bottom;
-  }
-}
-
 export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<Buffer> {
   const a = input.application;
   // Buffered: the footer names the page number out of the total, which is not known until the last
@@ -296,7 +225,16 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   const digest = sourceDigest(a, input.applicationId);
 
   title(doc, "Driver employment application");
-  muted(doc, "49 CFR §391.21. Completed and certified by the applicant.");
+  // ⚠ The FIRST line a reader sees says which of the two documents this is. A preview that opened
+  // "Completed and certified by the applicant" would be a lie on the one page everybody reads.
+  muted(
+    doc,
+    input.preview
+      ? "49 CFR §391.21. A PREVIEW of an application in progress. Nothing on it has been certified, "
+        + "and it is not part of any qualification file. Where it has got to: "
+        + `${APPLICATION_PROGRESS_LABELS[input.preview.stage].toLowerCase()}.`
+      : "49 CFR §391.21. Completed and certified by the applicant.",
+  );
   rule(doc);
 
   // (b)(1) — the carrier. Not an applicant field: the server prints what the server knows (D-APP9).
@@ -334,7 +272,9 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
 
   // (b)(4) — the submission date, server-stamped. Never a field on the form (D-APP9).
   paragraph(doc, "§391.21(b)(4)", "Date submitted");
-  field(doc, "Submitted", date(input.certifiedAt));
+  // ⚠ "Not submitted yet" rather than the em dash `date(null)` would give. An empty date on a
+  // §391.21 form reads as a field somebody forgot to fill in; this one is not owed yet.
+  field(doc, "Submitted", input.preview ? "Not submitted yet" : date(input.certifiedAt));
 
   paragraph(doc, "§391.21(b)(5)", "Licences and permits held");
   field(doc, "Licence", blank(a.cdl_number ? `${a.cdl_number} (${blank(a.cdl_state)})` : null));
@@ -389,13 +329,20 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   );
   doc.moveDown(0.6);
   field(doc, "Signed", blank(input.signedName));
-  drawnMark(doc, input.signatureMark);
-  field(doc, "Date", date(input.certifiedAt));
+  // ⚠ The mark is the applicant's own and belongs only to an act they have performed. A preview has
+  // no certification, so it gets no squiggle beside one — a drawn signature under an uncertified
+  // statement is the one thing on this page that could be mistaken for evidence.
+  if (!input.preview) drawnMark(doc, input.signatureMark);
+  field(doc, "Date", input.preview ? "—" : date(input.certifiedAt));
   if (input.applicantIp) field(doc, "Signed from", input.applicantIp);
   muted(
     doc,
-    "Signed electronically under 49 CFR §390.32 and the ESIGN Act. The date is recorded by the "
-    + "carrier's system at the moment of signing and is not supplied by the signer.",
+    input.preview
+      ? "NOT SIGNED. The applicant makes this certification themselves, on their own device, after "
+        + "the office has approved the answers above — so this block is empty on a preview and will "
+        + "carry their name, the moment they signed and the address they signed from on the filing."
+      : "Signed electronically under 49 CFR §390.32 and the ESIGN Act. The date is recorded by the "
+        + "carrier's system at the moment of signing and is not supplied by the signer.",
   );
 
   // The 7001(c) consent, and then one page per instrument — each showing the text that was signed.
@@ -435,7 +382,21 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   // reads as an appendix rather than as another thing the applicant answered.
   certificate(doc, input);
 
-  stampFooters(doc, input.signedName, input.applicationId, digest);
+  stampPages(doc, {
+    // The applicant, not the signer — on a preview there is no signer, and a loose sheet still has to
+    // say who it is about. `first_name`/`last_name` are the same two fields the name block prints.
+    name: blank([a.first_name, a.last_name].filter(Boolean).join(" ")),
+    // ⚠ "invitation" on a preview, because that is what the id IS — there is no `driver_applications`
+    // row until the driver certifies. A footer calling it an application id would send whoever chased
+    // it to a table with no such row.
+    reference: input.preview
+      ? `preview of invitation ${input.applicationId}`
+      : `application ${input.applicationId}`,
+    digest,
+    // Said in words on every sheet, because a preview gets printed, photocopied and posted, and the
+    // sheet that ends up in somebody's hands has to carry its own status (D-AVI22's reasoning).
+    band: input.preview ? "DRAFT - NOT A SIGNED APPLICATION" : null,
+  });
   doc.end();
   return done;
 }

@@ -44,6 +44,8 @@ const input = (over: Partial<ApplicationPdfInput> = {}): ApplicationPdfInput => 
   applicantUserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
   // Null is the normal case and always will be — the mark is decoration (D-APP8).
   signatureMark: null,
+  // The FILED document. `preview: { stage }` is the other document this renderer draws (F6).
+  preview: null,
   authorizations: [
     {
       purpose: "fcra_disclosure", disclosure_version: "v1",
@@ -194,6 +196,94 @@ describe("the rendered application", () => {
     const sparse = { ...APPLICATION, cdl_expires_at: null, experience: null } as unknown as DriverApplication;
     const pdf = await renderApplicationPdf(input({ application: sparse }));
     expect(pdf.byteLength).toBeGreaterThan(1000);
+  });
+});
+
+/**
+ * The office's preview of an application nobody has signed (F6).
+ *
+ * ⚠ What is worth pinning is not the band's position but the two ways this document could LIE: by
+ * looking signed when it is not, and by looking like a draft when it is the filing. Both are one
+ * boolean away from each other, and a reader of the diff cannot see either.
+ */
+describe("the draft preview", () => {
+  /** A draft as `toDraftPayload` actually writes one: no certification, empty strings for blanks. */
+  const DRAFT = {
+    first_name: "Susan", middle_name: "", last_name: "Godfrey", date_of_birth: "1980-04-01",
+    email: "s@example.test", phone: "",
+    addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
+    cdl_number: "PA334554", cdl_state: "PA", cdl_class: "A", cdl_expires_at: "",
+    equipment_experience: [{ equipment_class: "tractor_semi_trailer", equipment_type: "Van", from: "2020-01", to: "", approx_miles: "" }],
+    employers: [], declares_no_employment: false,
+    accidents: [], declares_no_accidents: false,
+    violations: [], declares_no_violations: false,
+    licence_ever_denied: false, licence_denial_detail: "",
+    questionnaire: { proof_of_age: true },
+  } as unknown as ApplicationPdfInput["application"];
+
+  const preview = (over: Partial<ApplicationPdfInput> = {}): ApplicationPdfInput =>
+    input({
+      application: DRAFT,
+      certifiedAt: null,
+      signedName: "",
+      applicantIp: null,
+      preview: { stage: "filling" },
+      ...over,
+    });
+
+  it("says DRAFT on every page, in words", async () => {
+    const pdf = await renderApplicationPdf(preview());
+    const text = pdfText(pdf);
+    expect(text).toContain("DRAFT - NOT A SIGNED APPLICATION");
+    // Once per sheet: a preview gets printed and separated, and a loose page has to carry its status.
+    const band = text.split("DRAFT - NOT A SIGNED APPLICATION").length - 1;
+    expect(band).toBe(pageCount(pdf));
+  });
+
+  /** The band is the whole point, so a filing that carried it would be the worse of the two bugs. */
+  it("puts no band on the filed document", async () => {
+    expect(pdfText(await renderApplicationPdf(input()))).not.toContain("DRAFT");
+  });
+
+  /**
+   * ⚠ The assertion is scoped to the CERTIFICATION BLOCK, and it has to be. The applicant's name is
+   * all over a legitimate preview — the (b)(2) name block, the footer of every sheet, and each
+   * authorization they really did sign before the form. The only place it must not appear is under
+   * the §391.21(b)(12) statement, where it would read as a signature nobody has given.
+   */
+  it("prints no signature under the certification, and no submission date", async () => {
+    const text = pdfText(await renderApplicationPdf(preview()));
+    expect(text).toContain("Not submitted yet");
+    const block = text.slice(text.indexOf("§391.21(b)(12)"), text.indexOf("NOT SIGNED."));
+    expect(block).not.toContain("Susan Godfrey");
+    expect(block).not.toContain("2026-08-21");
+  });
+
+  it("says where it has got to, in the office's own words", async () => {
+    expect(pdfText(await renderApplicationPdf(preview()))).toContain("filling it in");
+    const waiting = await renderApplicationPdf(preview({ preview: { stage: "awaiting_review" } }));
+    expect(pdfText(waiting)).toContain("waiting for you");
+  });
+
+  /**
+   * ⚠ The releases come BEFORE the form (D-AX11), so they are signed while the application is still
+   * a draft — and which of them the carrier holds is half of what an office reads a draft for.
+   */
+  it("still shows the instruments that HAVE been signed", async () => {
+    const text = pdfText(await renderApplicationPdf(preview()));
+    expect(text).toContain("The wording that was actually signed.");
+    expect(text).toContain("Certificate of completion");
+    expect(text).toContain("Not signed yet.");
+  });
+
+  /**
+   * ⚠ A draft holds an unanswered number as the form's own empty STRING, which is not null. The
+   * null-check this line used to carry printed nothing at all beside the label.
+   */
+  it("renders a draft's empty answers as blanks rather than as nothing", async () => {
+    const text = pdfText(await renderApplicationPdf(preview()));
+    expect(text).toContain("Approximate miles");
+    expect(text).toContain("Not answered.");
   });
 });
 

@@ -156,6 +156,26 @@ describe("gating — the fleet section matrix decides, not a hand-written role l
     }
   });
 
+  /**
+   * ⚠ The preview is a READ, and its guard has to say so. Printing an application changes nothing
+   * about it, and an auditor who may read the answers in the drawer may read them on paper — a route
+   * gated `manage` here would have looked defensible and locked out the reader it is built for.
+   */
+  it("lets a viewer print the application, and refuses a section they cannot read", async () => {
+    for (const token of ["auditor", "recruiter"]) {
+      rec = seed();
+      holder.client = rec.client;
+      // 404, not 403: the guard passed and the service found no invitation in this fixture.
+      expect((await call(`/applications/${ROW}/preview.pdf`, { token })).status).toBe(404);
+    }
+    for (const token of ["dispatcher", "driver"]) {
+      rec = seed();
+      holder.client = rec.client;
+      expect((await call(`/applications/${ROW}/preview.pdf`, { token })).status).toBe(403);
+      expect(rec.queries).toHaveLength(0);
+    }
+  });
+
   it("lets the recruiter write — this is their section", async () => {
     rec = seed();
     holder.client = rec.client;

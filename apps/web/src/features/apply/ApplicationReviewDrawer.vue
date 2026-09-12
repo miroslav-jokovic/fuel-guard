@@ -7,6 +7,7 @@ import {
   type ApplicationPath,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
+import { openPdf } from "@/lib/documentDownload";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
@@ -94,6 +95,30 @@ async function save(path: ApplicationPath, value: string | boolean): Promise<voi
     toast.push("success", `${describeField(path)} corrected`);
   } catch (e) {
     toast.push("error", e instanceof Error ? e.message : "That change could not be saved.");
+  }
+}
+
+/**
+ * The application as a printable page, at any stage before it is filed (F6).
+ *
+ * ── WHY A BUTTON AND NOT THE BROWSER'S PRINT ──────────────────────────────────────────────────
+ * Printing this drawer would print a drawer. What the office needs is the §391.21 document — the one
+ * that will be filed, in the regulation's own order, with the releases already signed — which is what
+ * the API renders, watermarked DRAFT on every page. Printing what somebody will actually sign is also
+ * the only honest thing to put in front of a reader who has no login.
+ *
+ * ⚠ Hidden once the application is filed, and that is not tidiness. The filed PDF is the copy in the
+ * qualification file: hashed, cited by its §391.51(b)(1) record, and offered on this same page under
+ * "Application received". The server refuses a preview of it for the same reason, so a button here
+ * would only produce the API's refusal.
+ */
+const canPreview = computed(() => Boolean(payload.value) && state.value !== "certified");
+
+async function openPreview(): Promise<void> {
+  try {
+    await openPdf(`/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/preview.pdf`);
+  } catch (e) {
+    toast.push("error", e instanceof Error ? e.message : "That could not be opened.");
   }
 }
 
@@ -215,6 +240,9 @@ async function approveIt(): Promise<void> {
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
         <BaseButton variant="secondary" class="w-full sm:w-auto" @click="emit('close')">
           Close
+        </BaseButton>
+        <BaseButton v-if="canPreview" variant="secondary" class="w-full sm:w-auto" @click="openPreview">
+          Open as a PDF
         </BaseButton>
         <BaseButton
           v-if="editable"

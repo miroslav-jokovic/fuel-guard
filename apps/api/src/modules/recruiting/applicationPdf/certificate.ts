@@ -49,8 +49,15 @@ export function certificate(doc: PDFKit.PDFDocument, input: ApplicationPdfInput)
   );
   doc.moveDown(0.5);
 
-  field(doc, "Application", input.applicationId);
-  field(doc, "Signer", blank(input.signedName));
+  field(doc, input.preview ? "Invitation" : "Application", input.applicationId);
+  // ⚠ "Signer" is the person who made the §391.21(b)(12) certification, and on a preview nobody has.
+  // Naming the applicant under that label would be the one line on this page that asserts an act.
+  if (input.preview) {
+    const a = input.application;
+    field(doc, "Applicant", blank([a.first_name, a.last_name].filter(Boolean).join(" ")));
+  } else {
+    field(doc, "Signer", blank(input.signedName));
+  }
   rule(doc);
 
   if (input.esignConsent) {
@@ -76,16 +83,25 @@ export function certificate(doc: PDFKit.PDFDocument, input: ApplicationPdfInput)
 
   heading(doc, `${(input.esignConsent ? 2 : 1) + input.authorizations.length}. Certified the application`);
   muted(doc, "49 CFR §391.21(b)(12)");
-  field(doc, "Signed as", blank(input.signedName));
-  field(doc, "Signed", stamp(input.certifiedAt));
-  field(doc, "From address", blank(input.applicantIp));
-  field(doc, "Browser", blank(input.applicantUserAgent));
+  // ⚠ On a preview the acts ABOVE are real — the consent and the four authorizations are signed
+  // before the form — and this last one has not happened. Saying so in a sentence is the point of the
+  // page: four rows of em dashes would read as evidence that failed to record rather than as an act
+  // still owed.
+  if (input.preview) {
+    muted(doc, "Not signed yet. The applicant certifies the answers after the office has approved them.");
+  } else {
+    field(doc, "Signed as", blank(input.signedName));
+    field(doc, "Signed", stamp(input.certifiedAt));
+    field(doc, "From address", blank(input.applicantIp));
+    field(doc, "Browser", blank(input.applicantUserAgent));
+  }
 
   rule(doc);
   muted(
     doc,
     "Each act above is stored with the exact text that was shown at the time, not a reference to "
     + "wording that may since have changed. The identifier in the footer of every page is the digest "
-    + "of the certified answers this document was drawn from, so a page can be matched to its source.",
+    + `of the ${input.preview ? "answers" : "certified answers"} this document was drawn from, so a `
+    + "page can be matched to its source.",
   );
 }

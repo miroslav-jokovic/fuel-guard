@@ -156,9 +156,14 @@ exist is a printable preview before certification.
    and the two review phases; the board gained `filling_in`, `awaiting_review` and
    `awaiting_signature`, and its "Waiting on" column answers WHO for those three. One shared function
    answers for all three surfaces.
-2. **A printable preview at any stage** — the existing renderer over the draft, watermarked.
-   **Start here.**
-3. **P12 then the cross-match panel.** ⚠ Not cheap, and it was described as cheap once before this
+2. ~~**A printable preview at any stage**~~ — **DONE, F6.** The same renderer over the draft,
+   banded "DRAFT - NOT A SIGNED APPLICATION" on every sheet, opened from the review drawer. It
+   **refuses once the application is filed** — that copy is hashed, cited by its §391.51(b)(1) record
+   and already offered on the applicant's page, and a second uncited rendering of a federal record is
+   not a thing to hand anybody. ⚠ It also found a defect older than the whole plan: `field()` in
+   `lib/pdfDraw.ts` split a label from its value across a page break and left a sheet carrying one
+   orphaned word, in every PDF this repo draws.
+3. **P12 then the cross-match panel. Start here.** ⚠ Not cheap, and it was described as cheap once before this
    was measured: the three derived PSP tables have to exist first. Then a panel that says *"PSP saw
    this DOT number and the application does not mention it"* — never *"unverified"*.
 4. **P5/P6 — the packet becomes the carrier's workbook**, filled and signed. The largest piece and
