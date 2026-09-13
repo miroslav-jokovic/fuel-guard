@@ -12,13 +12,14 @@ The plan is `APPLY-EXPERIENCE-PLAN.md` (§6 is the running progress log, §4 the
 
 ---
 
-## 0. ⚠ First action: PR #760 is GREEN AND UNMERGED
+## 0. PR #760 is MERGED — main `8576d9c`, 2026-09-13
 
-https://github.com/miroslav-jokovic/fuel-guard/pull/760 — all eight CI jobs pass. It was not merged
-because the merge needed an approval this session did not have. **`main` is still `81c639f` and does
-not contain Q-AX4.** Merge it (`gh pr merge 760 --merge --delete-branch`) before starting anything
-else, and verify `main` actually moved afterwards — a stack is not involved here, but the habit is
-cheap and `docs/` has a note on why.
+Q-AX4 and this handoff are both on `main`. No migration rode with them, so there is no deploy window
+to wait out beyond Railway's usual ~3 minutes; `pnpm verify:live` answers "why don't I see my
+changes?" if anything looks stale.
+
+⚠ **Nothing else in this document is waiting on a merge.** Everything in §3 is either a decision for
+the owner (§3.1) or unstarted work (§3.2–§3.4).
 
 ---
 
