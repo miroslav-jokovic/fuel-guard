@@ -29,13 +29,18 @@ export const APPLY_FLOW_COPY = {
     waitingBody: (carrier: string): string =>
       `${carrier} is reading it now. When they are done you will be asked to sign it, and this same link is where you will do it.`,
     /**
-     * ⚠ It does NOT promise an email, and the omission is deliberate (Q-AX4). Nothing notifies the
-     * applicant when the office approves — that is real work nobody has done yet — and this page has
-     * promised a thing it could not deliver once already (A1's "you will be asked to sign", made on a
-     * link the page had just closed). Keep the link, come back: both are true today.
+     * ⚠ It promises an email SINCE Q-AX4 SHIPPED, and the promise is the reason the notice carries no
+     * link of its own. `notifyApplicationApproved` sends from the approval itself, and it deliberately
+     * does not rotate the token — because of this sentence. The applicant is being told to keep a link
+     * and is told again, in the email, to go and use it; a notice that replaced the link would make
+     * this line false at the exact moment the applicant acts on it.
+     *
+     * It stayed silent until then on purpose: this page promised something it could not deliver once
+     * already (A1's "you will be asked to sign", made on a link the page had just closed).
      */
     waitingNote:
-      "Nothing more to do for the moment. Keep this link — it is where you will sign, and it still works.",
+      "Nothing more to do for the moment. We will email you when they are done — keep this link, it is "
+      + "where you will sign, and it still works.",
   },
 
   /**

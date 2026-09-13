@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { renderApplicationInviteEmail, renderDigestEmail, renderInviteEmail } from "./email.js";
+import {
+  applicationInviteSubject,
+  renderApplicationApprovedEmail,
+  renderApplicationInviteEmail,
+  renderDigestEmail,
+  renderInviteEmail,
+} from "./email.js";
 
 describe("renderApplicationInviteEmail", () => {
   const mail = () =>
@@ -39,6 +45,58 @@ describe("renderApplicationInviteEmail", () => {
    */
   it("does not claim the applicant has already started", () => {
     expect(mail().text).not.toMatch(/still saved|started an application|pick up where/i);
+  });
+});
+
+describe("renderApplicationApprovedEmail", () => {
+  const mail = () => renderApplicationApprovedEmail("Silvicom Inc");
+
+  it("puts the CARRIER in the subject, not this product", () => {
+    expect(mail().subject).toBe("Your application for Silvicom Inc is ready to sign");
+    expect(`${mail().subject}${mail().html}${mail().text}`).not.toMatch(/Silvicom 360/);
+  });
+
+  /**
+   * ⚠ THE test in this file. `application_invitations` stores a SHA-256 and nothing else (0220), so
+   * there is no link to send at approval — and the answer the abandonment nudge uses (rotate the
+   * token, 0232) is refused here, because the waiting screen already told this applicant "keep this
+   * link — it is where you will sign, and it still works".
+   *
+   * A link appearing in this template later would therefore be a SILENT regression: the copy would
+   * point at something, and the applicant's own link would be the only thing that actually worked.
+   */
+  it("carries no link, and names the earlier email instead", () => {
+    expect(mail().text).not.toContain("/apply/");
+    expect(mail().html).not.toContain("/apply/");
+    expect(mail().text).toContain('"Your driver application for Silvicom Inc"');
+    expect(mail().html).toContain("Your driver application for Silvicom Inc");
+  });
+
+  /**
+   * The applicant is told to search their inbox for an exact phrase. Two literals would drift the
+   * first time somebody improved one of them, and the failure would be a driver searching for words
+   * that were never sent — so both templates read it from `applicationInviteSubject`.
+   */
+  it("quotes the subject line the invitation actually used", () => {
+    expect(mail().text).toContain(`"${applicationInviteSubject("Silvicom Inc")}"`);
+    expect(renderApplicationInviteEmail("Silvicom Inc", "u", 7).subject)
+      .toBe(applicationInviteSubject("Silvicom Inc"));
+  });
+
+  it("escapes the carrier name", () => {
+    const evil = renderApplicationApprovedEmail('Ac<script>me & Co"');
+    expect(evil.html).not.toContain("<script>");
+    expect(evil.html).toContain("&amp;");
+  });
+
+  /**
+   * The office may have corrected an answer, and §391.21(b)(12) has the applicant swear every entry
+   * is true. Telling them nothing was lost and that changes are marked is what makes the second visit
+   * something other than a surprise.
+   */
+  it("says their answers survived and that corrections are marked", () => {
+    expect(mail().text).toContain("Nothing you filled in has been lost");
+    expect(mail().text).toContain("marked for you before you sign");
   });
 });
 

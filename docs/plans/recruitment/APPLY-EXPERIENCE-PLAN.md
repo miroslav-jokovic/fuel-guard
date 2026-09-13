@@ -703,3 +703,68 @@ adjacent table rows conflict every time.
   stack with the primary at the bottom, nothing clips, no sideways scroll, and the button fetches
   `/api/recruitment/applications/:id/preview.pdf` and opens the bytes as a blob.
   **Q-AX4 is still open** — nothing yet tells the applicant they have been approved.
+
+- 2026-09-11 — **Q-AX4 ANSWERED and built (D-AX14): approval tells the applicant.** Candidate (a) as
+  recommended — sent from `approveApplication` itself rather than from a button a recruiter presses,
+  because the office has already made its decision by then and a step that can be forgotten is a step
+  that will be. Until now the only thing carrying the news that an application had been approved was
+  the driver reopening their own link on the off-chance, while the recruiter's drawer said "the
+  applicant has been asked to sign it" and nobody had asked them anything.
+  ⚠ **THE NOTICE CARRIES NO LINK, and that is the decision rather than an omission.**
+  `application_invitations` stores a SHA-256 and nothing else (0220) — the plaintext token is returned
+  once, at mint — so at approval there is no link to send. The abandonment sweep's answer is to ROTATE
+  the token and email the new one (0232), and that answer is refused here: `APPLY_FLOW_COPY.handoff`
+  has already told this applicant *"keep this link — it is where you will sign, and it still works"*,
+  and approval is the exact moment they act on it. Rotating would break the product's one promise to
+  them at the one moment it is load-bearing. It would also open a lockout this flow cannot afford —
+  a nudge that fails to send costs a driver an unfinished form; an approval that fails to send after
+  a rotation would cost them a COMPLETED application they can no longer reach, and a replacement
+  invitation resumes an EMPTY one.
+  So the email names the EARLIER EMAIL'S SUBJECT LINE and sends them to their own inbox. Both
+  templates now read that subject from one `applicationInviteSubject`, because two literals would
+  drift the first time somebody improved one of them and the failure would be an applicant searching
+  their mail for words that were never sent. A third option — a second `sign_token_hash` column so
+  both links work — is the honest fix and was costed and declined for now: a migration plus a change
+  to token lookup at intake, in two merges. It is the upgrade path if the inbox search proves to be a
+  real drop-off.
+  ⚠ **Sent AFTER the stamp and after the audit, and never able to change either.** Same ordering the
+  invitation route uses and for a sharper reason: `approved_at` is what the certification route reads,
+  so an approval rolled back because a mail provider was rate-limited would leave a driver who is
+  ALLOWED to sign sitting behind a state that says they are not. A refused send is a sentence in the
+  drawer and a line in the log — `no_address`, `mail_disabled`, `send_failed` — and the two that need
+  a human say so and name the chase.
+  ⚠ **Exactly-once falls out of the existing idempotence.** `approveApplication` already returned
+  early on `approved_at`, so a double-click reports `already_notified` and attempts nothing; a driver
+  told twice in one second that their application is ready learns nothing the second time and reads a
+  system that stutters. No new column was needed to get that.
+  A text goes first and the email goes regardless, as the nudge does — every gate that can refuse a
+  message leaves the email untouched, so a refusal is never an applicant hearing nothing. It stays
+  held on `no_consent` until 10DLC completes.
+  The waiting screen now promises the email; its comment explains that the promise is precisely why
+  the notice does not rotate the token.
+  Proved by mutation rather than asserted: removing the send fails three tests, notifying on a repeat
+  approval fails the double-click test, sneaking a link into the template fails "carries no link", and
+  changing the invitation's subject alone fails the drift pin.
+
+- 2026-09-13 — **Handoff written: `HANDOFF-2026-09-13-QUEUE.md`, and the queue is reordered by a
+  measurement rather than by an estimate.** Production was counted for the first time since the flow
+  was built: **`org_disclosures` holds 0 rows**, so no carrier has published any instrument, and
+  **4 real drafts are stuck against `WORDING_NOT_FINAL` — one of them on `certify`, the last screen.**
+  The blocker has been stated since §1.1 of this plan; what is new is that it is no longer
+  hypothetical, and that **only half of it is counsel**: #751 made publishing self-service, so a
+  carrier willing to adopt the text can unblock all four this afternoon without an engineer.
+  ⚠ The PSP side was counted too, and it reorders §5's item 3: **one** `psp_requests` row exists
+  (succeeded, 4 inspections, 4 crashes, 2 distinct inspection DOT numbers), and that driver has **zero**
+  `driver_employment_history` rows and **zero** invitations. `crossMatchEmployment` compares DECLARED
+  employment against PSP's carrier-date pairs, so the panel would today render for one driver and
+  report both DOT numbers as unlisted carriers — against somebody who never filled in an application.
+  P12 is still worth building (the violation index is a compliance artifact in its own right, and one
+  real report is a genuine fixture), but the panel on top of it must not be described as imminent
+  value; that error is already on record once, ten lines above.
+  ⚠ A trap recorded for whoever builds P12: **`response_raw` is a one-element ARRAY** and the records
+  sit at `response_raw[0].driverInformationResponse.driverRecord.{inspectionRecords, crashRecords}`,
+  not at the top level as §5b.1's table and the OpenAPI document both imply. Build the deriver's
+  fixture from the production row. Both 2026-09-11 defects were a fixture that did not resemble
+  production, and this is the same trap already loaded.
+  The lesson worth keeping beyond this feature: **ask the database before ordering a queue.** Two
+  items were ranked by size, and neither ranking survived one afternoon of counting rows.

@@ -1,6 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { loadEnv } from "../../env.js";
 import { applicationForReview, approveApplication, editApplication, isReviewError } from "./applicationReview.js";
+
+/**
+ * ⚠ Approval now SENDS (Q-AX4), so the mailer is stubbed here the way the nudge sweep stubs it. The
+ * property these tests exist for is the ORDER and the INDEPENDENCE: the stamp and the audit row are
+ * written before anything is sent, and a refused send never becomes a failed approval — an applicant
+ * who is allowed to sign must never be left behind a state that says they are not.
+ */
+const sent = vi.hoisted(() => ({ fn: vi.fn() }));
+vi.mock("../../lib/mailer.js", () => ({ sendEmail: sent.fn }));
 
 /**
  * The office's review of an application before the driver certifies it (F4).
@@ -17,6 +27,15 @@ const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
 const INV = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const ACTOR = "cccccccc-dddd-4eee-8fff-000000000000";
 const NOW = new Date("2026-09-11T12:00:00Z");
+
+/** A live mail provider, so the send is attempted rather than skipped as `mail_disabled`. */
+const env = () =>
+  loadEnv({
+    NODE_ENV: "test",
+    WEB_APP_URL: "https://app.test",
+    MAIL_PROVIDER: "resend",
+    RESEND_API_KEY: "re_test",
+  } as NodeJS.ProcessEnv);
 
 /**
  * A payload in the shape `toDraftPayload` actually writes — NOT a hand-made contract-shaped object.
@@ -69,6 +88,7 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   id: INV,
   org_id: ORG,
   driver_id: DRIVER,
+  email: "susan@example.test",
   review_requested_at: "2026-09-10T09:00:00Z",
   approved_at: null,
   submitted_at: null,
@@ -94,6 +114,9 @@ const seed = (over: { invitation?: Record<string, unknown> | null; payload?: unk
       application_drafts: over.payload === null ? [] : [{ payload: over.payload ?? PAYLOAD }],
       application_edits: [],
       audit_logs: [],
+      // Read by the approval notice (Q-AX4): the carrier's own name, and the applicant's SMS consent.
+      organizations: [{ name: "Silvicom Inc" }],
+      sms_consents: [],
     },
   });
 
@@ -227,9 +250,14 @@ describe("when an answer may be changed, and when it may not", () => {
 });
 
 describe("approving it", () => {
+  beforeEach(() => {
+    sent.fn.mockReset();
+    sent.fn.mockResolvedValue({ ok: true, provider: "resend", status: 200 });
+  });
+
   it("stamps who approved it and when, and records the act", async () => {
     const rec = seed();
-    const result = await approveApplication(rec.client, ORG, INV, { actorId: ACTOR }, NOW);
+    const result = await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
     expect(isReviewError(result)).toBe(false);
 
     const row = rec.writtenRows("application_invitations")[0] as Record<string, unknown>;
@@ -240,14 +268,14 @@ describe("approving it", () => {
 
   it("refuses an application the driver has not sent yet", async () => {
     const rec = seed({ invitation: invitation({ review_requested_at: null }) });
-    const result = await approveApplication(rec.client, ORG, INV, { actorId: ACTOR }, NOW);
+    const result = await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
     expect(isReviewError(result) && result.code).toBe("application_not_reviewable");
     expect(rec.writtenRows("application_invitations")).toHaveLength(0);
   });
 
   it("treats a second approval as the first, because a double-click is not an error", async () => {
     const rec = seed({ invitation: invitation({ approved_at: "2026-09-11T11:00:00Z" }) });
-    const result = await approveApplication(rec.client, ORG, INV, { actorId: ACTOR }, NOW);
+    const result = await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
     expect(isReviewError(result)).toBe(false);
     if (isReviewError(result)) return;
     // The FIRST approval is the one on record; nothing is written again.
@@ -259,7 +287,62 @@ describe("approving it", () => {
     const rec = seed({
       invitation: invitation({ approved_at: "2026-09-11T11:00:00Z", submitted_at: "2026-09-11T11:30:00Z" }),
     });
-    const result = await approveApplication(rec.client, ORG, INV, { actorId: ACTOR }, NOW);
+    const result = await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
     expect(isReviewError(result) && result.code).toBe("already_certified");
+    expect(sent.fn).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Q-AX4. Until this shipped, the ONLY thing that told an applicant their application had been
+   * approved was them reopening their own link on the off-chance — while the recruiter's drawer said
+   * "the applicant has been asked to sign it".
+   */
+  it("tells the applicant it is ready to sign, and sends them back to the link they already have", async () => {
+    const rec = seed();
+    const result = await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
+    expect(isReviewError(result)).toBe(false);
+    if (isReviewError(result)) return;
+
+    expect(result.notice).toMatchObject({ sent: true, email: "susan@example.test", reason: null });
+    const mail = sent.fn.mock.calls[0]![1] as { to: string[]; subject: string; text: string };
+    expect(mail.to).toEqual(["susan@example.test"]);
+    expect(mail.subject).toBe("Your application for Silvicom Inc is ready to sign");
+    // ⚠ The NAME of the earlier email, never a link of its own — see `renderApplicationApprovedEmail`
+    // for why rotating the token here would break the promise the waiting screen already made.
+    expect(mail.text).toContain('"Your driver application for Silvicom Inc"');
+    expect(mail.text).not.toContain("/apply/");
+  });
+
+  it("approves anyway when the message cannot be sent, and says so", async () => {
+    sent.fn.mockResolvedValue({ ok: false, provider: "resend", status: 422, detail: "bad address" });
+    const rec = seed();
+    const result = await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
+    expect(isReviewError(result)).toBe(false);
+    if (isReviewError(result)) return;
+
+    // ⚠ The approval is what the certification route reads. A mail provider refusing an address must
+    // never leave a driver who is ALLOWED to sign sitting behind a state that says they are not.
+    expect(result.notice).toMatchObject({ sent: false, reason: "send_failed" });
+    expect((rec.writtenRows("application_invitations")[0] as Record<string, unknown>).approved_at)
+      .toBe(NOW.toISOString());
+    expect((rec.writtenRows("audit_logs")[0] as Record<string, unknown>).action).toBe("application_approved");
+  });
+
+  it("does not tell the applicant twice when the recruiter double-clicks", async () => {
+    const rec = seed({ invitation: invitation({ approved_at: "2026-09-11T11:00:00Z" }) });
+    const result = await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
+    expect(isReviewError(result)).toBe(false);
+    if (isReviewError(result)) return;
+    expect(result.notice.reason).toBe("already_notified");
+    expect(sent.fn).not.toHaveBeenCalled();
+  });
+
+  it("says no_address rather than failing when the recruiter invited with a link alone", async () => {
+    const rec = seed({ invitation: invitation({ email: null }) });
+    const result = await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
+    expect(isReviewError(result)).toBe(false);
+    if (isReviewError(result)) return;
+    expect(result.notice).toMatchObject({ sent: false, reason: "no_address" });
+    expect(sent.fn).not.toHaveBeenCalled();
   });
 });

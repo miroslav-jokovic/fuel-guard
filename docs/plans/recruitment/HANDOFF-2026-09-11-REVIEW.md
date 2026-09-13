@@ -2,6 +2,11 @@
 
 **Read this before touching the apply flow, the review drawer, the applicant board or the packet.**
 
+> ⚠ **SUPERSEDED IN PART by `HANDOFF-2026-09-13-QUEUE.md`** — start there. Everything here is
+> still true, but §5's queue was ordered before anybody counted production: four drafts are stuck
+> against unpublished wording, and the cross-match has one PSP report and no declared employment
+> to check it against. Q-AX4 (item 5) is built.
+
 It continues `HANDOFF-2026-09-11-APPLY.md`, which is still true about X1–X9 and about the wording
 blocker. Everything below happened after it: the carrier-owned wording landed, the office got a
 review surface, the application became a two-visit document, and the owner audited the whole hiring
@@ -163,15 +168,21 @@ exist is a printable preview before certification.
    not a thing to hand anybody. ⚠ It also found a defect older than the whole plan: `field()` in
    `lib/pdfDraw.ts` split a label from its value across a page break and left a sheet carrying one
    orphaned word, in every PDF this repo draws.
-3. **P12 then the cross-match panel. Start here.** ⚠ Not cheap, and it was described as cheap once before this
+3. **P12 then the cross-match panel. ← START HERE.** ⚠ Not cheap, and it was described as cheap once before this
    was measured: the three derived PSP tables have to exist first. Then a panel that says *"PSP saw
    this DOT number and the application does not mention it"* — never *"unverified"*.
 4. **P5/P6 — the packet becomes the carrier's workbook**, filled and signed. The largest piece and
    the one that makes the owner's last step true. Less "from zero" than it reads: the text is
    transcribed, the geometry is measured (27 placements — 21 driver, 4 carrier, 2 witness), 5 pages
    render. What is missing is the signing interaction and the other 26 pages.
-5. **Q-AX4 — nothing tells the applicant they have been approved.** The waiting screen therefore
-   promises no email. Recommendation on record: send it from `approveApplication`.
+5. ~~**Q-AX4 — nothing tells the applicant they have been approved.**~~ **DONE.** Sent from
+   `approveApplication` itself, after the stamp and the audit and unable to change either. ⚠ **The
+   notice carries no link on purpose**: the token exists only as a SHA-256, and rotating it (the
+   nudge's answer, 0232) would break the waiting screen's own promise — *"keep this link, it is where
+   you will sign"* — at the moment the applicant acts on it, and would strand a COMPLETED application
+   behind a failed send. The email names the earlier email's subject line instead, read from one
+   `applicationInviteSubject` so the two cannot drift. A refused send is a sentence in the drawer
+   naming the chase, never a failed approval. The waiting screen now promises the email.
 
 **Not on the queue, and both procurement rather than build:** an MVR vendor, and a Clearinghouse
 query surface.
