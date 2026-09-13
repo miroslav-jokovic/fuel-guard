@@ -745,3 +745,26 @@ adjacent table rows conflict every time.
   Proved by mutation rather than asserted: removing the send fails three tests, notifying on a repeat
   approval fails the double-click test, sneaking a link into the template fails "carries no link", and
   changing the invitation's subject alone fails the drift pin.
+
+- 2026-09-13 — **Handoff written: `HANDOFF-2026-09-13-QUEUE.md`, and the queue is reordered by a
+  measurement rather than by an estimate.** Production was counted for the first time since the flow
+  was built: **`org_disclosures` holds 0 rows**, so no carrier has published any instrument, and
+  **4 real drafts are stuck against `WORDING_NOT_FINAL` — one of them on `certify`, the last screen.**
+  The blocker has been stated since §1.1 of this plan; what is new is that it is no longer
+  hypothetical, and that **only half of it is counsel**: #751 made publishing self-service, so a
+  carrier willing to adopt the text can unblock all four this afternoon without an engineer.
+  ⚠ The PSP side was counted too, and it reorders §5's item 3: **one** `psp_requests` row exists
+  (succeeded, 4 inspections, 4 crashes, 2 distinct inspection DOT numbers), and that driver has **zero**
+  `driver_employment_history` rows and **zero** invitations. `crossMatchEmployment` compares DECLARED
+  employment against PSP's carrier-date pairs, so the panel would today render for one driver and
+  report both DOT numbers as unlisted carriers — against somebody who never filled in an application.
+  P12 is still worth building (the violation index is a compliance artifact in its own right, and one
+  real report is a genuine fixture), but the panel on top of it must not be described as imminent
+  value; that error is already on record once, ten lines above.
+  ⚠ A trap recorded for whoever builds P12: **`response_raw` is a one-element ARRAY** and the records
+  sit at `response_raw[0].driverInformationResponse.driverRecord.{inspectionRecords, crashRecords}`,
+  not at the top level as §5b.1's table and the OpenAPI document both imply. Build the deriver's
+  fixture from the production row. Both 2026-09-11 defects were a fixture that did not resemble
+  production, and this is the same trap already loaded.
+  The lesson worth keeping beyond this feature: **ask the database before ordering a queue.** Two
+  items were ranked by size, and neither ranking survived one afternoon of counting rows.

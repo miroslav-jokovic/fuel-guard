@@ -2,6 +2,11 @@
 
 **Read this before touching the apply flow, the review drawer, the applicant board or the packet.**
 
+> ⚠ **SUPERSEDED IN PART by `HANDOFF-2026-09-13-QUEUE.md`** — start there. Everything here is
+> still true, but §5's queue was ordered before anybody counted production: four drafts are stuck
+> against unpublished wording, and the cross-match has one PSP report and no declared employment
+> to check it against. Q-AX4 (item 5) is built.
+
 It continues `HANDOFF-2026-09-11-APPLY.md`, which is still true about X1–X9 and about the wording
 blocker. Everything below happened after it: the carrier-owned wording landed, the office got a
 review surface, the application became a two-visit document, and the owner audited the whole hiring
