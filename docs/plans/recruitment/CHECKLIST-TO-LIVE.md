@@ -42,6 +42,71 @@ now armed) → four signature screens, one instrument each → the form, already
 `select purpose, disclosure_version from driver_authorizations where org_id = '86d6b3ea-…'` shows
 four rows with `fmcsa-2016-02-11` on the PSP one — i.e. she signed FMCSA's text, not a placeholder.
 
+#### A2 pre-flight — measured 2026-09-14, everything that can be checked without spending her token
+
+`GET /api/public/application/:token` only reads, so none of this cost anything. What is left is the
+part only the applicant can do.
+
+- **The walk will exercise exactly this code.** Production serves `9e557f8`, HEAD is `8086eef`, and
+  `git diff --stat` between them is five doc files and `CLAUDE.md` — no source. `/api/version`
+  reports schema `applied: 0338`, `state: current`, `drift: false`.
+- **She will be served the shipped defaults, not an override.** `org_disclosures` is **0 rows fleet
+  wide**, so `loadCarrierWording` falls through to `defaultWording("Silvicom Inc")`. Resolved from
+  the deployed build:
+
+  | instrument | version | body |
+  | --- | --- | --- |
+  | `fcra_disclosure` | `packet-2026-08-21` | 498 ch |
+  | `psp` | **`fmcsa-2016-02-11`** | 6,018 ch |
+  | `previous_employer` | `packet-2026-08-21` | 3,085 ch |
+  | `drug_alcohol` | `packet-2026-08-21` | 728 ch |
+  | `esignConsent` | `15usc7001c-2026-08-21` | — |
+
+  None is a draft, so `applicationWordingIsDraft` is false: the ceremony and the submission are both
+  open, and the consent gate is armed. **The done-when's `fmcsa-2016-02-11` is therefore already
+  determined by the code** — if she signs, that is the version the PSP row carries.
+- **The baseline is a clean zero.** Silvicom holds **0** `driver_authorizations`. All six `v0-draft`
+  rows are the QA org (3 `fcra_disclosure`, 3 `psp`) — D2's, not hers.
+
+#### ⚠ A2 trap — there are TWO live invitations for the same driver row
+
+Both point at driver `Marija Varmeda`, and only one carries her typing:
+
+| invitation | created | expires | nudged | draft |
+| --- | --- | --- | --- | --- |
+| `6e03a1e5-6fe0-4831-b017-9450f2635626` | 09-11 | **2026-09-27** | 09-13 19:28 | **`certify`** |
+| `3836e5a3-e4a8-49c6-b534-4bff9b2d22ce` | 09-04 | 2026-09-18 | never | **none** |
+
+The 09-04 link was never rotated, so **it still works** — and it opens an EMPTY form. Finishing on
+it produces the application row the done-when asks for while quietly costing her the whole form
+again. The link to use is the one in the **2026-09-13 19:28** email, not the 09-04 one.
+
+#### ⚠ A2 blocker — the working link exists in exactly one place, and it is not here
+
+`mintInvitationToken` (`applicationIntake.ts:44`) stores a SHA-256 and nothing else, so the
+plaintext is **not recoverable from the database, the audit log, or the API**. Her link exists only
+in that one nudge email. And nothing can mint a replacement for that invitation — see Q-AX5 in
+`APPLY-EXPERIENCE-PLAN.md` §4: the staff routes are list / create / revoke, the sweep is the only
+rotator and it fires once (`nudged_at` stamped; the copy says "we will not send another reminder").
+Creating a new invitation starts her from an empty form, which is D1's finding.
+
+**So A2 needs one of:** the link pasted out of that mailbox, or Marija opening it herself. The four
+signatures and the §391.21 certification are attestations by a named person about her own SSN, date
+of birth and employment history — they are hers to give, not something to type on her behalf.
+
+**When she finishes, verify with:**
+
+```sql
+select count(*) from driver_applications;                         -- expect 1
+select purpose, disclosure_version, signed_at
+  from driver_authorizations
+ where org_id = '86d6b3ea-4361-4f71-877f-e8373615769b'
+ order by purpose;                                                -- expect 4; psp = fmcsa-2016-02-11
+select consented_at, releases_completed_at, submitted_at
+  from application_invitations
+ where id = '6e03a1e5-6fe0-4831-b017-9450f2635626';               -- expect all three stamped
+```
+
 ### A3 · Document capture on a real phone
 Nine screens and a photo upload have never run on real hardware in production. The staging →
 promotion path (`applicationCapture.ts` → `documents` at submit) is tested and unexercised.
@@ -49,14 +114,22 @@ promotion path (`applicationCapture.ts` → `documents` at submit) is tested and
 **Done when:** a licence photographed on a phone appears as a `documents` row after submit, and the
 stored object is in `compliance-docs` rather than left in `application-captures`.
 
-### A4 · Check two production variables — 10 minutes, do it alongside A2
-- `TELNYX_FROM` or `TELNYX_MESSAGING_PROFILE_ID`: if neither is set, the approval notice's **SMS
-  half silently does not send**. The email always goes, so this degrades rather than breaks.
-- `APPLICATION_NUDGE_ENABLED`: unset means **true**, so the abandonment sweep is live and rotates
-  tokens when it fires (that is how A2's link moved). Fine — but know it before telling anyone to
-  reopen an old link.
+### A4 · Check two production variables — ✅ DONE 2026-09-14
+Read off the `@fleetguard/api` service, `production` environment (79 variables in all).
 
-**Done when:** both values are written down in this file.
+- **`TELNYX_FROM` = `+18333521766`**, and `TELNYX_MESSAGING_PROFILE_ID` =
+  `4001a077-1066-4b5d-b44e-50fdb9a96843`. **Both are set, so the approval notice's SMS half does
+  send.** ⚠ This corrects the standing note that SMS is "dark for want of a phone number" — a
+  number exists now, and the first approval notice will text as well as email.
+- **`APPLICATION_NUDGE_ENABLED` is absent from all 79.** `env.ts:191` defaults it to `"true"`, so
+  **the abandonment sweep is live** and rotates tokens when it fires. Confirmed in the data rather
+  than only in the schema: three of the five invitations carry a `nudged_at` stamp, which is how
+  A2's link moved.
+- Recorded alongside, because A1 turns on them: `MAIL_FROM` is still **`uncchicago85@gmail.com`**,
+  `MAIL_PROVIDER=brevo`, `WEB_APP_URL=https://fleetguardweb-production.up.railway.app` (so a link
+  is `https://fleetguardweb-production.up.railway.app/apply/<token>`).
+
+**Done when:** both values are written down in this file. ✅
 
 ---
 

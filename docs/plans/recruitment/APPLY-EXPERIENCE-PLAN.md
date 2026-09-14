@@ -322,6 +322,29 @@ recruiter phones them. Recommendation: **(a)**, because the office has already m
 then and a step that can be forgotten is a step that will be. It needs one sentence of copy about a
 signature, which is why it is a question rather than a step: the wording sits beside counsel's.
 
+**Q-AX5 · A rotated invitation cannot be re-sent, and the draft behind it is then unreachable.**
+Raised 2026-09-14 while pre-flighting A2. `mintInvitationToken` keeps a SHA-256 and nothing else
+(deliberately — `applicationIntake.ts`'s header argues it, and 0232 rejected sealing a copy), so the
+plaintext link lives only in the email that carried it. The nudge sweep can mint a replacement on the
+SAME invitation row — that is the one path that rotates without costing the driver their typing — but
+it fires **once** (`nudged_at`, and the copy promises no second reminder), and no staff route exposes
+it: `/application-invites` is list, create, revoke. So a driver who loses the nudge email has a draft
+nobody can reach, and the only remedy is a new invitation, which `application_drafts` keys separately
+and therefore opens EMPTY.
+
+That is not hypothetical. It is the state of the one finished draft in production: Marija Varmeda's
+`certify` draft on `6e03a1e5…`, reachable only through the 2026-09-13 19:28 email.
+
+Candidates: (a) a staff "re-send the link" action that rotates the hash on the existing invitation
+and returns the link the way create already does — the sweep's own mechanism, exposed and audited;
+(b) let the sweep fire more than once, which changes a promise made to the driver in writing;
+(c) carry the draft across invitations by keying it on `driver_id`, which is a bigger change and
+loses the per-invitation isolation D-APP16 leans on; (d) nothing, and re-type.
+Recommendation: **(a)** — it is the smallest change, it reuses a rotation the code already performs
+and documents, and it fixes the case where the driver has done the most work and is therefore owed
+the most. ⚠ It needs the same audit rule the create route follows: the id and the expiry, never the
+token or its hash.
+
 ## 5. What this plan deliberately does not do
 
 - It does not touch any disclosure, intent statement or version. (D-AX1.)
@@ -997,3 +1020,18 @@ adjacent table rows conflict every time.
   ⚠ And one obligation the product now MAKES and does not meet: FMCSA's disclosure promises the
   applicant an adverse-action sequence R10 does not perform. §604(b)(3)(B)'s trucking carve-out
   governs the timing, not this form's own undertaking — counsel, before the first PSP pull.
+
+- 2026-09-14 — **A4 answered and A2 pre-flighted; the walk itself is blocked on one email.**
+  `CHECKLIST-TO-LIVE.md` carries the measurements. A4: `TELNYX_FROM` and
+  `TELNYX_MESSAGING_PROFILE_ID` are BOTH set in production, so the approval notice's SMS half sends
+  after all; `APPLICATION_NUDGE_ENABLED` is absent from all 79 variables and therefore true, so the
+  sweep is live. A2, as far as it can go without spending her token: production `9e557f8` differs
+  from HEAD `8086eef` in doc files only, schema 0338 current; `org_disclosures` is 0 rows fleet-wide
+  so she is served `defaultWording("Silvicom Inc")`, measured as `psp` = **`fmcsa-2016-02-11`**
+  (6,018 ch) beside three `packet-2026-08-21` instruments and `15usc7001c-2026-08-21`, none of them
+  a draft — **the done-when's version string is already determined by the code.** Silvicom holds 0
+  `driver_authorizations`; all six `v0-draft` rows are the QA org's.
+  ⚠ Two traps found. There are **two live invitations for the same driver row** — the 2026-09-04
+  one was never nudged, so it still opens, and it opens an EMPTY form; finishing on it would satisfy
+  the done-when while costing her the whole application again. And the working link for the draft
+  that matters is **unrecoverable by any path we control** — hence Q-AX5 above.
