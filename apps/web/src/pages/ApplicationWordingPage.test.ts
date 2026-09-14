@@ -281,3 +281,59 @@ describe("the instrument's proper source", () => {
     expect(w.text()).not.toContain("of your application packet");
   });
 });
+
+/**
+ * The page has to stay readable now that the instruments are real (2026-09-13).
+ *
+ * ⚠ Measured against the live payload in a browser: FMCSA's PSP disclosure is **6,018** characters
+ * where our placeholder was 409, and the carrier's past-employment release is 3,085. Rendering all
+ * six bodies in full put the page at **5.2 screens**, with the one number anybody can act on at the
+ * top and the Publish buttons scattered somewhere below it. Clamped, it is **3.3**.
+ *
+ * ⚠ And the clamp is on the PREVIEW only. An office about to publish a legal instrument must be
+ * able to read the whole of it, so the editor is never clamped and its box grows instead — a
+ * textarea hiding two thirds of what is being published would be the worse defect by a distance.
+ */
+describe("a body long enough to bury the page", () => {
+  const long = "x".repeat(6_018);
+
+  it("clamps the preview and offers the whole thing, counted", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: view({ instruments: [instrument({ body: long })] }) });
+    const w = page();
+    await settle(w);
+    expect(w.find(".line-clamp-6").exists()).toBe(true);
+    expect(w.text()).toContain("Show all 6,018 characters");
+  });
+
+  it("opens and closes again — a disclosure, not a one-way door", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: view({ instruments: [instrument({ body: long })] }) });
+    const w = page();
+    await settle(w);
+    await button(w, "Show all")!.trigger("click");
+    await settle(w);
+    expect(w.find(".line-clamp-6").exists()).toBe(false);
+    await button(w, "Show less")!.trigger("click");
+    await settle(w);
+    expect(w.find(".line-clamp-6").exists()).toBe(true);
+  });
+
+  it("leaves a short body alone", async () => {
+    // The FCRA page is 498 characters and reads fine whole; a control over it is noise.
+    apiFetch.mockResolvedValue({ ok: true, data: view({ instruments: [instrument({ body: "Short enough." })] }) });
+    const w = page();
+    await settle(w);
+    expect(w.find(".line-clamp-6").exists()).toBe(false);
+    expect(button(w, "Show all")).toBeUndefined();
+  });
+
+  it("⚠ never clamps the editor, and grows the box for a long instrument", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: view({ instruments: [instrument({ body: long })] }) });
+    const w = page();
+    await settle(w);
+    await button(w, "Review and publish")!.trigger("click");
+    await settle(w);
+    const box = w.findAll("textarea").find((t) => (t.element as HTMLTextAreaElement).value.length === 6_018)!;
+    expect(box.attributes("rows")).toBe("28");
+    expect(box.classes()).not.toContain("line-clamp-6");
+  });
+});

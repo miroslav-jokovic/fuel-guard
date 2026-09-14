@@ -903,3 +903,24 @@ adjacent table rows conflict every time.
   `draft: false`, and that a half-published carrier still refuses. ⚠ That last case is the state an
   office is really in between the first Publish and the last. Mutation-proved: an overlay that
   silently dropped one instrument turns three of them red.
+
+- 2026-09-13 — **The real instruments made the office's own page unreadable, and only a browser could
+  show it.** Measured after #764: FMCSA's PSP disclosure is **6,018 characters** where the
+  placeholder it replaces was **409**, and the carrier's past-employment release is **3,085**. The
+  wording page renders every body in full, so publishing would have turned the one screen whose job
+  is to show a count somebody can act on into **5.2 screens** of dense legal text with the Publish
+  buttons somewhere inside it. ⚠ No unit test could see this and none did — it took `vite build` +
+  `vite preview` with the REAL payload and a Playwright measurement of `scrollHeight`.
+  A long preview is now clamped with a counted control (`Show all 6,018 characters`), which brings
+  the page to **3.3 screens**; the toggle is reversible. ⚠ **The clamp is on the PREVIEW only and
+  never on the editor** — an office about to publish a legal instrument must be able to read the
+  whole of it, so the textarea grows from 10 rows to 28 instead. A box hiding two thirds of what is
+  being published would be the worse defect by a distance, and that assertion is the one proved by
+  mutation.
+  ⚠ Two process notes worth keeping. The toggle was first written as a raw `<button>` and
+  `lint:ui-adoption` refused it — `AppButton`'s `variant="link"` already exists for exactly this,
+  and its own comment records that its absence was once faked with six `!important`s. And the
+  end-to-end check ran the true office flow in a real browser: open the PSP card, press **Use the
+  FMCSA wording**, and watch the textarea go from 409 characters at 10 rows to 6,018 at 28, opening
+  with *"In connection with your application for employment with Silvicom Inc"* and ending on the
+  49 C.F.R. 383.5 notice.
