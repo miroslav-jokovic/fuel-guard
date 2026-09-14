@@ -11,6 +11,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { isWordingError, loadCarrierWording, publishWording, wordingHistory } from "../carrierWording.js";
 import { packetWording } from "../packetWording.js";
+import { pspDisclosure } from "../pspDisclosure.js";
 
 /**
  * Publishing the carrier's own instrument wording (0338).
@@ -26,6 +27,35 @@ import { packetWording } from "../packetWording.js";
  * application.** Every instrument ships as `v0-draft`; until a carrier publishes all six, submission,
  * signing, the 7001(c) consent, PSP, §40.25 letters and Clearinghouse queries all refuse.
  */
+/** Where a better draft than our placeholder comes from, for the instruments that have one. */
+function wordingSource(
+  instrument: (typeof PUBLISHABLE_INSTRUMENTS)[number],
+  carrierName: string,
+): { kind: "packet" | "fmcsa"; title: string; body: string; intent: string; provenance: string } | null {
+  if (instrument === "psp") {
+    const doc = pspDisclosure(carrierName);
+    return {
+      kind: "fmcsa",
+      ...doc,
+      provenance:
+        "FMCSA publishes this disclosure and requires account holders to use it in whole, exactly "
+        + "as provided, as a stand-alone document. It is not the carrier's to reword, and "
+        + "publishing anything else here is refused.",
+    };
+  }
+  const packet = packetWording(instrument);
+  if (!packet) return null;
+  return {
+    kind: "packet",
+    title: packet.title,
+    body: packet.body,
+    intent: packet.intent,
+    provenance:
+      `Your own wording, from page ${packet.page} of your application packet, spelling corrected. `
+      + "Read it before you publish.",
+  };
+}
+
 export function recruitmentWordingRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -43,6 +73,14 @@ export function recruitmentWordingRouter(): Router {
       const orgId = req.auth!.orgId!;
       const wording = await loadCarrierWording(admin, orgId);
       const outstanding = unpublishedInstruments(wording);
+      // The carrier's name goes into the two blanks FMCSA's form leaves for it. Read here rather
+      // than typed by the office: an instrument authorising the wrong company authorises nobody.
+      const { data: org } = await admin
+        .from("organizations")
+        .select("name")
+        .eq("id", orgId)
+        .maybeSingle();
+      const carrierName = (org as { name?: string } | null)?.name ?? "";
 
       res.json({
         instruments: PUBLISHABLE_INSTRUMENTS.map((instrument) => {
@@ -58,14 +96,20 @@ export function recruitmentWordingRouter(): Router {
             clauses: instrument === "esign_consent" ? wording.esignConsent.clauses : null,
             published: !outstanding.includes(instrument),
             /**
-             * ⚠ The carrier's OWN wording for this instrument, out of their packet — offered as a
-             * starting draft so the office is not asked to choose between publishing an engineer's
-             * placeholder and retyping their lawyers' text (2026-09-13). Null for the three the
-             * packet has nothing for. Nothing publishes from here: it fills the editor, and
-             * somebody still reads it and presses Publish, because adopting an instrument is the
-             * carrier's act.
+             * ⚠ Where the right words for this instrument actually come from, when they come from
+             * somewhere better than our placeholder (2026-09-13). Two kinds, and the difference
+             * matters to the office reading it:
+             *
+             *   `packet` — the carrier's OWN lawyers, pages 14/19/21 of `APPLICATION.xlsx`. Theirs
+             *              to adopt or not.
+             *   `fmcsa`  — the regulator's, and NOT optional: FMCSA publishes the PSP disclosure
+             *              and requires it in whole, exactly as provided. Publishing anything else
+             *              for `psp` is refused.
+             *
+             * Null for the instruments neither answers for. ⚠ Nothing publishes from here — it
+             * fills the editor and somebody still reads it and presses Publish.
              */
-            packet: packetWording(instrument),
+            source: wordingSource(instrument, carrierName),
           };
         }),
         outstanding,

@@ -11,6 +11,7 @@ import {
   type PublishedWording,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
+import { missingPspParagraphs } from "./pspDisclosure.js";
 
 /**
  * Reading and publishing a carrier's own instrument wording (0338).
@@ -120,6 +121,32 @@ export async function publishWording(
   payload: PublishWording,
   ctx: PublishContext,
 ): Promise<{ instrument: PublishableInstrument; version: string } | WordingError> {
+  /**
+   * ⚠ **The one instrument a carrier does not get to word, and the only refusal of its kind here.**
+   *
+   * Everywhere else in this service the carrier's text wins, because the instruments are theirs.
+   * PSP is the regulator's: FMCSA publishes the disclosure and requires it "in whole, exactly as
+   * provided", as "one stand-alone document", and a report pulled behind an edited consent breaches
+   * the account-holder agreement the API token is issued under. An office that shortened it would
+   * lose their PSP access without anybody telling them, so this tells them — naming the paragraph
+   * that went missing rather than refusing in general terms.
+   *
+   * Filling the carrier's name into the form's own blank is not an edit and passes; see
+   * `missingPspParagraphs`.
+   */
+  if (payload.instrument === "psp") {
+    const missing = missingPspParagraphs(payload.body ?? "");
+    if (missing.length > 0) {
+      return {
+        code: "psp_wording_not_mandated",
+        message:
+          "FMCSA requires its own PSP disclosure to be used in whole, exactly as published — "
+          + `${missing.length} paragraph(s) are missing or altered, starting with “${missing[0]}…”. `
+          + "Use the FMCSA wording button to restore it.",
+      };
+    }
+  }
+
   const { count, error: countError } = await admin
     .from("org_disclosures")
     .select("id", { count: "exact", head: true })

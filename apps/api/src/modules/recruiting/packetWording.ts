@@ -194,11 +194,16 @@ export interface PacketInstrumentSource {
 /**
  * The four instruments the packet actually contains, mapped to what the applicant signs.
  *
- * ⚠ **Four, not six, and the gap is the whole finding.** `psp` and `clearinghouse` do not appear in
- * this packet in any form — no Pre-Employment Screening Program, no MCMIS, no §382.701, searched
- * across all 697 of the workbook's strings. The 7001(c) electronic-records consent is not there
- * either, and could not be: it exists because the driver signs on a phone, which a paper packet
- * never contemplated. See `WORDING-REVIEW-2026-09-13.md` §3 for what that leaves open.
+ * ⚠ **Three, not six.** `psp` and `clearinghouse` do not appear in this packet in any form — no
+ * Pre-Employment Screening Program, no MCMIS, no §382.701, searched across all 697 of the
+ * workbook's strings. The 7001(c) electronic-records consent is not there either, and could not be:
+ * it exists because the driver signs on a phone, which a paper packet never contemplated.
+ *
+ * ⚠ **PSP's absence turned out not to be a gap at all** — see `pspDisclosure.ts`. FMCSA publishes
+ * the disclosure and requires account holders to use it "in whole, exactly as provided", so there
+ * was never anything for the carrier's lawyers to draft. It is served from there rather than from
+ * here precisely because it is not the carrier's text: this module is what Silvicom wrote, and that
+ * one is what the regulator wrote.
  *
  * ⚠ **Page 18's `AUTHORIZATION FOR DRIVING RECORD CHECK` is transcribed nowhere below, and that is
  * not an oversight.** It is the MVR authorization, and this product has no MVR instrument to publish

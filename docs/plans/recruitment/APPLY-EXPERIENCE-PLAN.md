@@ -845,3 +845,39 @@ adjacent table rows conflict every time.
   which is why page 19 alone was adopted and page 3 was not merged into it.
   The workbook reader moved to `src/testing/packetWorkbook.ts`: `packetStatic.test.ts` and
   `packetWording.test.ts` now check their transcriptions against one parser rather than two.
+
+- 2026-09-13 — **PSP was never the carrier's to write: FMCSA publishes the disclosure and mandates
+  it word for word.** The entry above left `psp` as the one instrument nobody had text for, and put
+  three candidate answers to the owner. All three were wrong, because the owner knew where to look —
+  the form is on the official site. Downloaded from
+  `psp.fmcsa.dot.gov/PspApi/documents/PSPDisclosureandAuthorizationForm.pdf` (dated 2/11/2016), and
+  both the PDF and its `pdftotext` extraction are committed under
+  `docs/plans/recruitment/psp-disclosure/` so `pspDisclosure.test.ts` can compare every published
+  paragraph against them. Its own header: *"THE BELOW DISCLOSURE AND AUTHORIZATION LANGUAGE IS FOR
+  MANDATORY USE BY ALL ACCOUNT HOLDERS"*, and its closing notice: *"The language must be used in
+  whole, exactly as provided… must exist as one stand-alone document… may NOT be included with other
+  consent forms or any other language."*
+  ⚠ **So this one instrument gets NO repair register, and the absence is the design.** The carrier's
+  own pages get their typos fixed under D-PKT9; improving FMCSA's spelling would breach the
+  account-holder agreement the PSP API token is issued under. The only thing done to the text is
+  collapsing the PDF's hard line-wraps.
+  ⚠ **And publishing anything else for `psp` is REFUSED by name** — `missingPspParagraphs` compares
+  the submitted body against all 13 mandated paragraphs and the error says which one went missing.
+  This is the only place in the wording feature where a carrier is told what it may publish, and the
+  exception is argued where it lives: every other instrument is theirs, and this one is the
+  regulator's. An office that quietly shortened it would lose their PSP access with nobody telling
+  them. Proved by mutation — disabling the gate turns two tests red.
+  The carrier's name is substituted into the two blanks the form leaves (`___ ("Prospective
+  Employer")`), read from `organizations.name` rather than typed; an empty name renders visible
+  underscores rather than a sentence that proof-reads as fine and authorises nobody. The stand-alone
+  requirement was already satisfied by D-APP7's one-instrument-per-screen ceremony, which FCRA
+  §604(b)(2) had forced for a different reason.
+  ⚠ **One obligation the form creates that this product does not yet meet**, recorded in the review
+  rather than built: its disclosure paragraphs promise the applicant a copy of the report and a
+  written FCRA rights summary before final adverse action, and within three business days after it
+  for applications taken by mail, telephone or computer. R10 is deliberately unbuilt because
+  §604(b)(3)(B) carves out trucking — but that carve-out governs the TIMING, not this form's own
+  undertaking. Counsel's eye before the first PSP pull.
+  **All four instruments the applicant signs now have proper text.** What remains on our placeholders
+  is `clearinghouse` (no applicant signs it — §382.701(a)'s consent is given in the FMCSA portal) and
+  the 7001(c) consent, whose six clauses are quoted from the statute.
