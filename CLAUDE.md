@@ -127,10 +127,16 @@ every Read/Grep.
   relationship, `graphify explain "<concept>"` for one concept, `graphify affected "<X>"` for the
   blast radius of a change. They return a scoped subgraph, far smaller than `GRAPH_REPORT.md` or a
   repo-wide grep. Read `GRAPH_REPORT.md` only for broad architecture review.
-- ⚠ **It is a map, not the territory, and it is only as fresh as its last build.** Every result
-  carries `built_at_commit`; compare it against `git rev-parse HEAD` before trusting a negative
-  ("there is no such function") — a stale graph answers confidently and wrongly. Verify anything
-  load-bearing at the call site.
+- ⚠ **It is a map, not the territory.** Verify anything load-bearing at the call site, and be most
+  careful with a NEGATIVE — "there is no such function" is the answer a stale or partial graph
+  gives confidently and wrongly.
+- ⚠ **`built_at_commit` is NOT a staleness check, and reading it as one is the trap.** Measured
+  2026-09-14: it is the HEAD of the last build that CHANGED TOPOLOGY. Merge a docs-only PR, or edit
+  a function body, and graphify correctly leaves the graph untouched and the stamp behind — the
+  graph is current, the stamp is not. So `built_at_commit != HEAD` means "nothing structural has
+  landed since", not "out of date", and comparing the two produces a false alarm on most commits.
+  When in doubt just run `pnpm graph:update`: it is idempotent, ~30s, and no-ops when there is
+  nothing to do.
 - **Rebuild with `pnpm graph:update`, never a bare `graphify update .`** — `.git/hooks/post-commit`
   and `post-merge` already run it in the background, so it is usually current. ⚠ The reason for the
   wrapper is in `scripts/graphify-update.sh`: `tree_sitter_sql` is an OPTIONAL extra, and a
