@@ -61,27 +61,27 @@ export interface WordingRepair {
  */
 export const WORDING_SPELLING_REPAIRS: readonly WordingRepair[] = [
   // ── phrases, before the words they contain ──
-  { page: 14, packet: "infromation form previous emplyer(s)", corrected: "information from previous employer(s)" },
-  { page: 14, packet: "has not yer received", corrected: "has not yet received" },
-  { page: 14, packet: "withing 30 days", corrected: "within 30 days" },
+  { page: 15, packet: "infromation form previous emplyer(s)", corrected: "information from previous employer(s)" },
+  { page: 15, packet: "has not yer received", corrected: "has not yet received" },
+  { page: 15, packet: "withing 30 days", corrected: "within 30 days" },
   // ── single words ──
-  { page: 14, packet: "ahuthorize", corrected: "authorize" },
-  { page: 14, packet: "emplyer/school", corrected: "employer/school" },
-  { page: 14, packet: "emplyment", corrected: "employment" },
-  { page: 14, packet: "adultered", corrected: "adulterated" },
-  { page: 14, packet: "preivious", corrected: "previous" },
-  { page: 14, packet: "certy", corrected: "certify" },
-  { page: 14, packet: "prvious", corrected: "previous" },
-  { page: 14, packet: "emloyers", corrected: "employers" },
-  { page: 14, packet: "paragrafs", corrected: "paragraphs" },
-  { page: 14, packet: "emplyers", corrected: "employers" },
-  { page: 14, packet: "emplyer(s)", corrected: "employer(s)" },
-  { page: 14, packet: "requlated", corrected: "regulated" },
-  { page: 14, packet: "emplyed", corrected: "employed" },
-  { page: 14, packet: "infromation", corrected: "information" },
-  { page: 14, packet: "howerver", corrected: "however" },
+  { page: 15, packet: "ahuthorize", corrected: "authorize" },
+  { page: 15, packet: "emplyer/school", corrected: "employer/school" },
+  { page: 15, packet: "emplyment", corrected: "employment" },
+  { page: 15, packet: "adultered", corrected: "adulterated" },
+  { page: 15, packet: "preivious", corrected: "previous" },
+  { page: 15, packet: "certy", corrected: "certify" },
+  { page: 15, packet: "prvious", corrected: "previous" },
+  { page: 15, packet: "emloyers", corrected: "employers" },
+  { page: 15, packet: "paragrafs", corrected: "paragraphs" },
+  { page: 15, packet: "emplyers", corrected: "employers" },
+  { page: 15, packet: "emplyer(s)", corrected: "employer(s)" },
+  { page: 15, packet: "requlated", corrected: "regulated" },
+  { page: 15, packet: "emplyed", corrected: "employed" },
+  { page: 15, packet: "infromation", corrected: "information" },
+  { page: 15, packet: "howerver", corrected: "however" },
   // A defined term the same sentence capitalises correctly nowhere else on the page.
-  { page: 21, packet: "The medical Review Officer", corrected: "The Medical Review Officer" },
+  { page: 22, packet: "The medical Review Officer", corrected: "The Medical Review Officer" },
 ];
 
 /**
@@ -99,13 +99,13 @@ export interface TypographyRepair extends WordingRepair {
 
 export const WORDING_TYPOGRAPHY_REPAIRS: readonly TypographyRepair[] = [
   {
-    page: 19,
+    page: 20,
     packet: "applicants. T he purpose",
     corrected: "applicants. The purpose",
     why: "One word split by a stray space. No character added or removed but the space itself.",
   },
   {
-    page: 19,
+    page: 20,
     packet: "(15 U.S.C. 1681-168lu)",
     corrected: "(15 U.S.C. 1681-1681u)",
     why:
@@ -114,16 +114,16 @@ export const WORDING_TYPOGRAPHY_REPAIRS: readonly TypographyRepair[] = [
       + "legal citation and is listed first for counsel.",
   },
   {
-    page: 14,
+    page: 15,
     packet: "paragrafs (d) and € of Section 391.23",
     corrected: "paragraphs (d) and (e) of Section 391.23",
     why:
-      "A euro sign standing where `(e)` belongs — the same substitution appears on page 10 as "
+      "A euro sign standing where `(e)` belongs — the same substitution appears on page 11 as "
       + "`391.23(d) and €`. §391.23 has paragraphs (d) and (e), and (e) is the one that carries the "
       + "due-process rights the next sentence goes on to enumerate.",
   },
   {
-    page: 14,
+    page: 15,
     packet: "The applicanthas certain",
     corrected: "The applicant has certain",
     why:
@@ -141,39 +141,39 @@ export const WORDING_TYPOGRAPHY_REPAIRS: readonly TypographyRepair[] = [
  */
 export const WORDING_LEFT_ALONE: readonly { page: number; text: string; question: string }[] = [
   {
-    page: 14,
+    page: 15,
     text: "and with to review previous employer provided investigative information",
     question: "`with` almost certainly wants to be `wish`, but almost certainly is not certainly.",
   },
   {
-    page: 14,
+    page: 15,
     text: "which may be done at any including when applying",
     question: "A word is missing after `at any` — `time`, on any sensible reading. We are not the ones to add it.",
   },
   {
-    page: 14,
+    page: 15,
     text: "within 30 days SILVICOM INC making them available",
     question: "Reads as though `of` is missing after `days`.",
   },
   {
-    page: 14,
+    page: 15,
     text: "to furnish SILVICOM INC they above requested information",
     question: "`they` where `the` is meant, most likely — but it is inside the §40.25 authorization.",
   },
   {
-    page: 19,
+    page: 20,
     text: "may be used for employment /contract purposes",
     question:
       "A stray space before the slash. Repairing it would join two tokens into one and break the "
       + "word-count guard that makes every other repair on this page checkable.",
   },
   {
-    page: 21,
+    page: 22,
     text: "regarding pre-employment. contracted drivers / owners",
     question: "A full stop where a comma belongs. Punctuation is left alone throughout — see `packetText.ts`.",
   },
   {
-    page: 21,
+    page: 22,
     text: "I have been informed and understand. that should controlled substance testing produce a positive result. it will",
     question: "Two more sentence-ending periods mid-clause. Same rule.",
   },
@@ -182,7 +182,35 @@ export const WORDING_LEFT_ALONE: readonly { page: number; text: string; question
 /** One instrument, as the packet has it. Lines are workbook cells, trimmed and nothing else. */
 export interface PacketInstrumentSource {
   instrument: PublishableInstrument;
-  /** The carrier's own page number, from the footer — where a reviewer finds it on paper. */
+  /**
+   * The carrier's own page number, from the footer — where a reviewer finds it on paper.
+   *
+   * ⚠ **Every number in this file was one too low until 2026-09-14, and the test said otherwise.**
+   * The three instruments were recorded at 14 / 19 / 21; they are on 15 / 20 / 22. So were the four
+   * `WORDING_TYPOGRAPHY_REPAIRS`, the nineteen `WORDING_SPELLING_REPAIRS` and the seven
+   * `WORDING_LEFT_ALONE` entries, and three page references in the prose. Thirty-three numbers, all
+   * off by exactly one, sending a reviewer holding the paper to the page before the one they want —
+   * and `page 19` is a real page carrying a real instrument (`AUTHORIZATION FOR DRIVING RECORD
+   * CHECK`), so the wrong number does not announce itself by landing on something blank.
+   *
+   * **Measured, not re-counted.** `pdftotext -layout` over the carrier's `Application 11.pdf`,
+   * reading the number printed in each page's own footer beneath `THIS IS NOT AN EMPLOYMENT
+   * APPLICATION`. That footer number equals the PDF page index on all 31 pages, so either reading
+   * gives the same answer — which is what makes the old numbers a transcription slip rather than a
+   * disagreement about which numbering to use. Spot-checked per instrument against its heading
+   * (`PAST EMPLOYMENT VERIFICATION` p15, `FAIR CREDIT REPORTING ACT DISCLOSURE` p20,
+   * `URINALYSIS NOTIFICATION` p22) and per repair against its own fragment (`applicanthas` p15,
+   * `168lu` p20, `pre-employment. contracted` p22).
+   *
+   * ⚠ **The workbook cannot check this and never could.** `APPLICATION.xlsx` stores no page breaks,
+   * which is why `packetPlacements.ts` records the footer number by hand too — so the test that
+   * "named the page a reviewer holds in their hand" could only assert the constant against itself,
+   * and it passed for as long as the constant was wrong. What replaces it cross-checks against
+   * `PACKET_PLACEMENTS`, which is anchored to workbook lines and was measured separately; that
+   * catches a page carrying no driver signature at all, which is what 14 and 21 were. It does NOT
+   * catch a slide onto another signing page, and the check that would — reading the footers out of
+   * the carrier's PDF — needs that PDF in the repository, which arrives with the overlay template.
+   */
   page: number;
   /** The workbook's heading cell. Becomes the published title. */
   heading: string;
@@ -206,7 +234,7 @@ export interface PacketInstrumentSource {
  * here precisely because it is not the carrier's text: this module is what Silvicom wrote, and that
  * one is what the regulator wrote.
  *
- * ⚠ **Page 18's `AUTHORIZATION FOR DRIVING RECORD CHECK` is transcribed nowhere below, and that is
+ * ⚠ **Page 19's `AUTHORIZATION FOR DRIVING RECORD CHECK` is transcribed nowhere below, and that is
  * not an oversight.** It is the MVR authorization, and this product has no MVR instrument to publish
  * it into — `AUTHORIZATION_PURPOSES` has no `mvr` member, no vendor was ever bought, and
  * `SCREENING_PREREQUISITES.mvr_order` rides on `fcra_disclosure` and is called by nothing. The
@@ -216,15 +244,15 @@ export interface PacketInstrumentSource {
 export const PACKET_INSTRUMENTS: readonly PacketInstrumentSource[] = [
   {
     instrument: "fcra_disclosure",
-    page: 19,
+    page: 20,
     heading: "FAIR CREDIT REPORTING ACT DISCLOSURE",
     /**
-     * ⚠ Page 19 ALONE, deliberately. Page 3's `Independent Contractor Notification & Release` is
+     * ⚠ Page 20 ALONE, deliberately. Page 4's `Independent Contractor Notification & Release` is
      * also a consumer-report disclosure, and it is not merged in here: it combines the disclosure
      * with a general liability release and an ongoing procurement authorization, which is the exact
      * combination FCRA §604(b)(2) forbids by requiring a document that consists SOLELY of the
      * disclosure. Merging them would import that problem into the one instrument built to avoid it.
-     * Page 3 is raised in the review instead.
+     * Page 4 is raised in the review instead.
      */
     paragraphs: [[
       "The Federal Motor Carrier Safety Regulations (FMCSR) require motor carriers to investigate the",
@@ -241,7 +269,7 @@ export const PACKET_INSTRUMENTS: readonly PacketInstrumentSource[] = [
   },
   {
     instrument: "previous_employer",
-    page: 14,
+    page: 15,
     heading: "PAST EMPLOYMENT VERIFICATION",
     paragraphs: [
       [
@@ -292,7 +320,7 @@ export const PACKET_INSTRUMENTS: readonly PacketInstrumentSource[] = [
   },
   {
     instrument: "drug_alcohol",
-    page: 21,
+    page: 22,
     heading: "URINALYSIS NOTIFICATION",
     /**
      * ⚠ The page's `This test is required for:` tick-boxes (Pre-Employment Qualification /
