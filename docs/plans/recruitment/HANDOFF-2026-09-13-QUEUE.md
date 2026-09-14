@@ -1,5 +1,16 @@
 # Handoff — what is left of the application feature, 2026-09-13
 
+> # ⚠ SUPERSEDED by `HANDOFF-2026-09-14-WORDING.md`. Read that first.
+>
+> §3.1 below — "get one carrier's wording published" — **is no longer a thing anybody does.**
+> D-WORD1 (#767) made the product ship the wording from FMCSA's forms, the statute and the
+> carrier's own packet, and deleted `/settings/application-wording`. Every gate opens on deploy.
+>
+> §2's count is also wrong in the direction that matters: **one** of those four drafts sits on a
+> usable link, not four. §3.2–§3.4 (P12 → cross-match → P5/P6) are still correct and are carried
+> forward.
+
+
 **Read this before picking up the apply flow, the packet, or the PSP cross-match.**
 
 It continues `HANDOFF-2026-09-11-REVIEW.md`, which is still true about everything it describes. Two

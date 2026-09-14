@@ -983,3 +983,17 @@ adjacent table rows conflict every time.
   shipped catalogue", because what a blip now costs is the carrier's override rather than the
   ability to sign at all; and the A1 test that pinned a wording refusal on a submitted link now
   pins the signature the comment had always promised.
+
+- 2026-09-14 — **Handoff written: `HANDOFF-2026-09-14-WORDING.md`, and `HANDOFF-2026-09-13-QUEUE.md`
+  is marked superseded at its first line** so nobody starts from a queue whose top item no longer
+  exists. Eight PRs merged this session (#762–#769), no migration, `main` `2936c92`.
+  ⚠ **The top item is no longer a build.** Everything is proved by tests and by reading production
+  rows, and **nobody has opened a live link since the gates opened** — 8 PRs of behaviour change
+  ride on a walk-through nobody has done. Marija's `certify` draft is the one usable link (expires
+  2026-09-27), her `consented_at` is null so it opens on the 7001(c) screen, and ⚠ **her token was
+  rotated by the nudge on 2026-09-13 19:28 UTC** — only the link in that email works. Finishing it
+  would produce the first `driver_applications` row this product has ever had.
+  ⚠ `MAIL_FROM` is still a bare personal Gmail, raised at the start of 2026-09-13 and untouched.
+  ⚠ And one obligation the product now MAKES and does not meet: FMCSA's disclosure promises the
+  applicant an adverse-action sequence R10 does not perform. §604(b)(3)(B)'s trucking carve-out
+  governs the timing, not this form's own undertaking — counsel, before the first PSP pull.
