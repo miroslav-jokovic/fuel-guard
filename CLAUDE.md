@@ -119,10 +119,24 @@ So, when the honest fix is out of scope:
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+A knowledge graph of this repo at `graphify-out/` — 30,065 nodes, 62,858 edges, 1,427 communities,
+built from AST only at no API cost. Two `PreToolUse` hooks in `.claude/settings.json` say so on
+every Read/Grep.
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- For codebase questions, `graphify query "<question>"` first; `graphify path "<A>" "<B>"` for a
+  relationship, `graphify explain "<concept>"` for one concept, `graphify affected "<X>"` for the
+  blast radius of a change. They return a scoped subgraph, far smaller than `GRAPH_REPORT.md` or a
+  repo-wide grep. Read `GRAPH_REPORT.md` only for broad architecture review.
+- ⚠ **It is a map, not the territory, and it is only as fresh as its last build.** Every result
+  carries `built_at_commit`; compare it against `git rev-parse HEAD` before trusting a negative
+  ("there is no such function") — a stale graph answers confidently and wrongly. Verify anything
+  load-bearing at the call site.
+- **Rebuild with `pnpm graph:update`, never a bare `graphify update .`** — `.git/hooks/post-commit`
+  and `post-merge` already run it in the background, so it is usually current. ⚠ The reason for the
+  wrapper is in `scripts/graphify-update.sh`: `tree_sitter_sql` is an OPTIONAL extra, and a
+  graphify without it silently drops every `.sql` file — all 351 migrations, 1,144 nodes — leaving
+  a graph of this repo with no schema in it, announced only by a warning nobody reads. The script
+  exits non-zero rather than let that pass.
+- ⚠ `graphify-out/` is **gitignored on purpose**: `graph.json` is 37 MB and is rewritten on every
+  code change, and this repo's `.git` is already 275 MB. A fresh clone runs `pnpm graph:update`
+  once (~30s).
