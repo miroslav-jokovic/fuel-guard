@@ -1,5 +1,11 @@
 # Handoff — A2 is green, and the packet is the work now
 
+> ⚠ **SUPERSEDED by `HANDOFF-2026-09-14-OVERLAY.md`.** The architecture below and the owner's flow
+> are still right. Everything it calls "next" has since shipped: the ceremony is built (#781/#783),
+> the carrier's PDF is a repo asset with a test that reads it (#784), the coordinate system is
+> resolved (#786), the 22 marks are measured (#787) and the overlay draws (#788). Read the newer
+> document for what is left — Q-PKT8 (initials) and the field coordinates.
+
 **Supersedes `HANDOFF-2026-09-14-WORDING.md`** for the top of the queue. That document is still right
 about P12 and the cross-match; it is wrong that nobody has walked the flow. Somebody has.
 
