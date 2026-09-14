@@ -118,7 +118,9 @@
     "lint:chart-colors": "node scripts/check-chart-colors.mjs",
     "//lint:token-gamut": "Every colour token must name a colour an sRGB display can actually produce. 64 of 264 did not (2026-08-25) \u2014 ramp-caution-200 was 0.212 of linear overshoot, outside Display-P3 too. Chrome keeps oklch() all the way to PAINT rather than resolving it to rgb(), so an out-of-gamut token is mapped against the display profile: macOS colour-manages and can paint into P3, Windows does not, and the same dashboard came out visibly different on two machines driving the same monitor.",
     "lint:token-gamut": "node scripts/check-token-gamut.mjs",
-    "postinstall": "node scripts/apply-patches.mjs"
+    "postinstall": "node scripts/apply-patches.mjs",
+    "graph:update": "sh scripts/graphify-update.sh",
+    "//graph:update": "Rebuild the graphify knowledge graph (AST-only, no API cost, ~30s). Run after code changes; .git/hooks/post-commit also runs it in the background. graphify-out/ is gitignored \u2014 graph.json is 37MB and regenerates on every edit, so committing it would bloat a .git that is already 275MB. A fresh clone runs this once."
   },
   "pnpm": {
     "onlyBuiltDependencies": [
