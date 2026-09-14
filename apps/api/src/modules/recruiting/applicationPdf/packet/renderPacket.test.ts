@@ -1,7 +1,7 @@
 import { inflateSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
 import type { DriverApplication } from "@silvicom/shared";
-import { CORRECTIONS, P1, P2, P12, P16 } from "./packetText.js";
+import { P1, P2, P12, P16 } from "./packetText.js";
 import {
   RENDERED_PACKET_PAGES,
   renderApplicationPacketPdf,
@@ -136,40 +136,41 @@ describe("the rendered packet", () => {
   });
 
   /**
-   * ⚠ The assertion this file exists for.
+   * ⚠ The assertion this file exists for, and it now says the OPPOSITE of what it used to.
    *
-   * The owner asked for the packet's typos corrected (Q-PKT4 → D-PKT9), and a correction made
-   * silently is a correction nobody can audit. `CORRECTIONS` is the register; this proves the
-   * register is honoured in both directions — the corrupt string never reaches a page, and the
-   * repaired one does.
+   * It read "the packet's typos never print, and their corrections do" — the guarantee D-PKT9 asked
+   * for. D-PKT11 (owner, 2026-09-14) reverses it: the packet is counsel's work product and prints as
+   * written, so the carrier's own spelling has to survive all the way to the page. A renderer that
+   * quietly tidied "reisdency" would now be the defect, and this is what catches it.
    */
-  describe("the packet's typos", () => {
-    it("never print, and their corrections do", async () => {
+  describe("the carrier's own wording", () => {
+    it("reaches the page exactly as the carrier wrote it, typos and all", async () => {
       const text = pdfText(await renderApplicationPacketPdf(input()));
-      // Only the pages this step renders; p26's entry is transcribed but not drawn yet (P8).
-      const drawn = CORRECTIONS.filter((c) => (RENDERED_PACKET_PAGES as readonly number[]).includes(c.page));
-      expect(drawn.length).toBeGreaterThan(3);
-      for (const c of drawn) {
-        expect(text).not.toContain(c.packet.trim());
-      }
-      expect(text).toContain(P1.residency);
-      expect(text).toContain(P12.heading);
+      // Each of these is a spelling D-PKT9 used to repair, on a page this step actually draws.
+      expect(text).toContain("Previous Three years reisdency");
+      expect(text).toContain("maritial status");
+      expect(text).toContain("FORFEITTURES");
+      expect(text).toContain("BACKFROUNG");
+      expect(text).toContain("benfit");
+      expect(text).toContain("This references should not be people");
+      // And the repaired forms must NOT appear — a half-applied reversal is the likely regression.
+      expect(text).not.toContain("Previous three years residency");
+      expect(text).not.toContain("marital status");
+      expect(text).not.toContain("BACKGROUND VERIFICATION LOG");
     });
 
     /**
-     * The guard on the register itself: a "correction" that changed what the form ASKS would be a
-     * wording change wearing a spelling change's clothes, and that is counsel's act (D-PKT4). Word
-     * count is the cheapest honest proxy — it catches a deleted clause or an inserted qualifier while
-     * allowing "reisdency" → "residency" and punctuation repairs.
+     * ⚠ The one thing "as is" does NOT cover, measured 2026-09-14.
+     *
+     * The carrier's Numbers export drops `fi`/`ti`/`ffi` ligatures — ~65 broken fragments in that
+     * file and zero in the same document printed from Excel. Those words are not in the carrier's
+     * document, so transcribing them would put a defect into an instrument. If one ever reaches a
+     * page, the transcription was taken from the wrong export.
      */
-    it("are spelling repairs only — no correction changes the number of words", () => {
-      const words = (s: string): number => s.trim().split(/\s+/).filter(Boolean).length;
-      for (const c of CORRECTIONS) {
-        expect({ page: c.page, packet: words(c.packet), corrected: words(c.corrected) }).toEqual({
-          page: c.page,
-          packet: words(c.packet),
-          corrected: words(c.packet),
-        });
+    it("never prints a word broken by the Numbers export's dropped ligatures", async () => {
+      const text = pdfText(await renderApplicationPacketPdf(input()));
+      for (const broken of ["quali ed", "certi ed", "noti ed", "disquali ed", "no ca on", "Un ll"]) {
+        expect(text).not.toContain(broken);
       }
     });
   });

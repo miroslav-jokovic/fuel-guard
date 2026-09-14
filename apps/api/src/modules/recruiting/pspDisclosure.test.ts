@@ -72,7 +72,8 @@ describe("the transcription", () => {
 
   /**
    * ⚠ No repair register, deliberately — see the module header. The packet's typos are fixed under
-   * D-PKT9; this text gets nothing done to it, because "exactly as provided" came from the agency
+   * D-PKT9, and since D-PKT11 nothing is repaired anywhere; this text gets nothing done to it either,
+   * because "exactly as provided" came from the agency
    * whose system the report is pulled from.
    */
   it("reproduces the agency's own punctuation, including its curly quotes", () => {

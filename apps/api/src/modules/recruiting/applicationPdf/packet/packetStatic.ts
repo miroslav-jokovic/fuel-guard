@@ -28,11 +28,14 @@
  * The spreadsheet's dot-leaders (`$..........10.00`) and multi-space column padding are collapsed to
  * single spaces, because they are Excel's column geometry rather than the carrier's words.
  *
- * ── ⚠ THE POLICY PAGES ARE SPELL-CORRECTED. THE AGREEMENT IS NOT. ─────────────────────────────
- * D-PKT9 says the packet's typos are corrected in print, and pages 7 and 8 get that treatment
- * through the same `CORRECTIONS` register the fillable pages use.
+ * ── ⚠ EVERY PAGE IS VERBATIM NOW, INCLUDING THE POLICY PAGES ──────────────────────────────────
+ * ⚠ D-PKT9 said the packet's typos are corrected in print, and pages 7 and 8 got that treatment
+ * through a `CORRECTIONS` register applied on the way to the page. **D-PKT11 (owner, 2026-09-14)
+ * reverses it**: the carrier's text is counsel's work product and prints as written. The register
+ * and its applier are deleted, so **the text stored below is exactly what prints** — `IMPOREPER`,
+ * `OVERWIGHT`, `TEAR EXEPTED` and the rest reach the page as the carrier wrote them.
  *
- * **Pages 29–30 are reproduced VERBATIM, deliberately.** They are a contract — a driver signs it on
+ * **Pages 29–30 were reproduced VERBATIM even under D-PKT9, and the reason generalises.** They are a contract — a driver signs it on
  * page 31 — and "correcting" a contract is drafting one. `has red and understood` is a typo;
  * `shall not he appeasable` and `select a natural arbitrator` are a mangled arbitration clause, and
  * the difference between "natural" and "neutral" is the difference between two different agreements.
@@ -48,10 +51,11 @@ export interface PacketStaticPage {
 }
 
 /**
- * ⚠ **Verbatim from the workbook.** Corrections are applied at RENDER time by `correct()` rather than
- * stored here, which is the opposite of `packetText.ts`'s field labels and is deliberate: those are
- * short strings assembled by hand, these are long passages extracted from a source of truth that a
- * test re-reads. Keeping the extraction pristine is what makes that test meaningful.
+ * ⚠ **Verbatim from the workbook, and since D-PKT11 that is also exactly what prints.** Nothing is
+ * applied on the way to the page any more. Keeping the extraction pristine was what made
+ * `packetStatic.test.ts`'s comparison against the workbook meaningful while a correction step
+ * existed; now it is the simpler guarantee that what a test compares and what a driver reads are the
+ * same string.
  */
 export const STATIC_PAGES: readonly PacketStaticPage[] = [
   {

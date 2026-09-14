@@ -336,7 +336,8 @@ would be waste.
 | `whether or not signed for)` | an unmatched bracket in the service-of-process clause |
 | `has red and understood this contract` | "read" |
 
-⚠ **So D-PKT9 is NOT applied to pages 29–30.** Correcting a contract is drafting one, and the gap
+⚠ **So D-PKT9 was NOT applied to pages 29–30** — and since **D-PKT11 (2026-09-14)** it is not applied
+to any page: every page now behaves the way these two already did. Correcting a contract is drafting one, and the gap
 between *natural* and *neutral* arbitrator is the gap between two different agreements. The pages are
 reproduced exactly as the carrier wrote them, the defects travel with them, and counsel resolves them
 alongside P1's disclosure review. `packetStatic.test.ts` pins this in both directions: no correction
@@ -349,6 +350,45 @@ Pages 7 and 8 ARE spell-corrected — they are policy statements, not instrument
 statements, not instruments" is exactly the test page 24 fails: it carries a driver signature, an
 instructor signature and an affirmation of completed training. The rule was right and the page was
 on the wrong side of it — see D-PKT10.
+
+### 3.9 ⚠ The fourteen repairs D-PKT9 used to make, and why they are gone (2026-09-14)
+
+**D-PKT11 reverses D-PKT9.** The register that held these and the `correct()` applier that applied
+them are **deleted from the code**, not emptied — a register applied to nothing is something the
+next reader has to work out is inert. They are recorded here instead, because "what did you change
+on our form" must stay answerable after the constant is gone. The answer is now: *nothing.*
+
+| page | the carrier writes | D-PKT9 used to print | now |
+| --- | --- | --- | --- |
+| 1 | `Previous Three years reisdency` | Previous three years residency | as written |
+| 1 | `maritial status` | marital status | as written |
+| 2 | `FORFEITTURES` | FORFEITURES | as written |
+| 7 | `IMPOREPER` | IMPROPER | as written |
+| 7 | `OVERWIGHT` | OVERWEIGHT | as written |
+| 8 | `YOU WIL INSPECT` | YOU WILL INSPECT | as written |
+| 8 | `SAME CONDTION` | SAME CONDITION | as written |
+| 8 | `WHEN RECIVED` | WHEN RECEIVED | as written |
+| 8 | `TEAR EXEPTED` | TEAR EXCEPTED | as written |
+| 8 | `EQUIPMENT MANGER` | EQUIPMENT MANAGER | as written |
+| 12 | `BACKFROUNG` | BACKGROUND | as written |
+| 16 | `benfit` | benefit | as written |
+| 16 | `This references should not be people` | These references… | as written |
+| 26 | `administrated by an` | administered by an | as written |
+
+All fourteen were verified on 2026-09-14 against the carrier's own two PDF exports: thirteen appear
+in both, and `benfit` appears in the Excel print and is absent from the Numbers one **only because
+Numbers ate its `fi`**. So every one of them is the carrier's text, not an artefact.
+
+⚠ **The carve-out, which is not spelling.** The Numbers export drops `fi`/`ti`/`ffi` ligatures:
+`quali ed applicants`, `disquali ed from`, `certi ed copy`, `noti ed dispatcher`, `remain on le`,
+`Un ll`, `no ca on`. Measured the same day: **~65 distinct broken fragments in the Numbers export,
+zero in the same document printed from Excel.** Those words are not in the carrier's document — they
+are damage done on the way out — so transcribing them would put a defect INTO an instrument, which
+is the opposite of what "as is" asks for.
+
+**Therefore: `Application 11.pdf` (Excel print) is the TEXT authority. `APPLICATION.pdf` (Numbers) is
+consulted for CONTENT only.** Pinned by *"never prints a word broken by the Numbers export's dropped
+ligatures"*.
 
 ### 3.5 ⚠ Citations stay in print — task B does not reach this document
 
@@ -367,10 +407,11 @@ them in print for exactly this reason. Nothing in this plan strips a citation fr
 | **D-PKT3** | The static attachments are **one filed artifact per version**, not per applicant. They are identical for everybody; rendering them per submission would put 5 unchanging pages into every stored document and make a wording change invisible. Version them the way `DISCLOSURES` are versioned. |
 | **D-PKT4** | ⚠ **No packet wording is adopted verbatim without counsel.** §3.3 is the worked example, and it is not the only page with the problem — the packet is full of typographical corruption ("BACKFROUNG", "maritial", "whcihc", "typyes"), which is harmless in a scan and is *not* harmless in a document we generate and a person signs. Transcription is a review pass, not a copy. |
 | **D-PKT6** | **Twenty-one placements, one adopted mark, DocuSign-style** (owner, 2026-08-22). The driver types their name once and their initials once, then a Next button walks them to each place a mark is needed. ⚠ The FCRA authorization (p20) stays a screen of its own regardless — §604(b)(2), and it is the rule `SigningCeremony` was built around. ⚠ This is an extension of `useSigningCeremony`, not a replacement: see §2.3. |
-| **D-PKT9** | **The packet's typos are corrected in print** (owner, 2026-08-23). ⚠ **Spelling of WORDS only, and NOT AT ALL on the Owner-Operator Agreement** (§3.8) — correcting a contract is drafting one — the carrier's spacing and punctuation are reproduced as they are, because the guard that proves a correction is spelling-only is "same word count", and allowing re-spacing would loosen it until it could no longer tell a joined word from a deleted one. Every correction is a pair in `packetText.ts`'s `CORRECTIONS`, so the answer to "what did you change on our form" is a constant rather than a memory. |
+| **D-PKT9** | ~~The packet's typos are corrected in print (owner, 2026-08-23).~~ ⚠ **SUPERSEDED 2026-09-14 by D-PKT11 — do not re-apply.** The register and its applier are deleted, not emptied. Kept here because the reasoning it was narrowed by (spelling of WORDS only; never the Owner-Operator Agreement, because correcting a contract is drafting one) is the reasoning D-PKT11 generalises. |
 | **D-PKT7** | **The Seven Day Work Statement belongs to the HIRE, not the application** (owner, 2026-08-23). §395.8(j)(2) counts the seven days before work begins, so an application-time answer is stale on arrival. It leaves the packet PDF and becomes P7. |
 | **D-PKT8** | **The letterhead is per-org** (owner, 2026-08-23). ⚠ Already supported: `organizations.legal_address` shipped with 0229 and `ApplicationPdfInput.carrier` is already `{ name, address }` — the existing renderer takes both. This decision costs a data question, not a code one (§3.6). |
 | **D-PKT10** | **Page 24 is not a static page and is not the applicant's document** (Q-PKT5, 2026-08-23). Driver Safety Training is a post-hire training record carrying a driver signature, an instructor signature and a fill-in date. It leaves the packet the way p21 did under D-PKT7 and p23 never entered, and R7 owns it. ⚠ **It had already shipped** in P3's pack; the removal is a correction, not a scope change. The static pack goes 5 pages → 4 (128 transcribed lines → 101) and `CORRECTIONS` loses six entries. ⚠ `packetStatic.test.ts` now asserts the page's **absence** and names the three marks that gave it away, because the page LOOKS static and the mistake is re-makeable. |
+| **D-PKT11** | **The carrier's text prints exactly as written — typos included** (owner, 2026-09-14). Reverses D-PKT9. The owner's words, holding the carrier's own PDFs: *"use texts that we have on applications I have provided as is — these are created by lawyers and we will keep texts from this."* The packet is counsel's work product; a spelling that reads as wrong to an engineer may be the word that was negotiated, and the form a driver signs should be the form the carrier's lawyers wrote. The fourteen strings D-PKT9 repaired are listed in §3.9 so the history stays auditable after the code that held them is gone. ⚠ **One carve-out, and it is not spelling:** the carrier's Numbers export drops `fi`/`ti`/`ffi` ligatures (`quali ed`, `certi ed`, `remain on le`, `no ca on`) — measured 2026-09-14 as ~65 broken fragments in that export and **zero** in the same document printed from Excel. Those words are not in the carrier's document; reproducing them would put a defect INTO an instrument. The Excel print is the text authority; the Numbers export is consulted for content only. |
 | **D-PKT5** | The current §391.21-shaped PDF is **not deleted** when the packet PDF ships. It is what `qualification_records` points at today, it is regulation-correct, and an already-filed document must keep rendering. The packet becomes the document produced for NEW submissions. |
 
 ---
@@ -406,7 +447,7 @@ consent) first** — it gates every other write path, including the other seven.
 ### P2 · The owner answers §6 — no code
 
 ~~Q-PKT1~~ **answered 2026-08-22 → D-PKT6.** ~~Q-PKT2~~ and ~~Q-PKT3~~ **answered 2026-08-23 →
-D-PKT7 and D-PKT8; ~~Q-PKT4~~ **answered 2026-08-23 → D-PKT9.** **Every §6 question is now answered.**
+D-PKT7 and D-PKT8; ~~Q-PKT4~~ **answered 2026-08-23 → D-PKT9, reversed 2026-09-14 → D-PKT11.** **Every §6 question is now answered.**
 What remains blocking is P1 (counsel), which gates P5 and nothing else.
 
 ### P3 · The static attachments (D-PKT3) — DONE 2026-08-23 (no migrations)
@@ -466,7 +507,7 @@ the continuation starts with the row it displaced.
 tested constant rather than a habit. One "correction" was pure whitespace trimming — the assertion
 that no packet string reaches the page failed, because the trimmed form is what we print. The other
 pluralised `VIOLATION` → `VIOLATIONS`, a wording change wearing a spelling change's clothes. Both were
-removed and D-PKT9 was narrowed to say so.
+removed and D-PKT9 was narrowed to say so. (D-PKT9 itself was reversed by D-PKT11.)
 
 ⚠ **Not verified against the carrier's paper.** The tests prove the pages carry the right data, the
 right letterhead and no corrupt strings; only somebody holding the printed packet can say whether the
@@ -685,7 +726,8 @@ New submissions produce the packet; existing filed documents keep rendering as t
    IL 60160`. FuelGuard is multi-tenant. Is the letterhead per-org configuration, or is this packet
    Silvicom's alone? ⚠ The QA org is **FuelGuard EFS QA**, so this is answerable today by asking what
    its packet should say.
-4. ~~**Q-PKT4 — the typos.**~~ **ANSWERED 2026-08-23 → D-PKT9: corrected, and every correction
+4. ~~**Q-PKT4 — the typos.**~~ ⚠ **RE-ANSWERED 2026-09-14 → D-PKT11: NOT corrected — printed as the
+   carrier wrote them.** The 2026-08-23 answer was D-PKT9: corrected, and every correction
    listed.** ⚠ Narrowed during execution to spelling of WORDS only — see D-PKT9. Original question: D-PKT4 says transcription is a review pass. Does the owner want the errors
    corrected, or the packet reproduced exactly as the carrier's paper reads?
 5. ~~**Q-PKT5 — page 24 is classified STATIC and it is a signed post-hire training record.**~~

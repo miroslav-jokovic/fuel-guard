@@ -912,7 +912,8 @@ adjacent table rows conflict every time.
   whole, exactly as provided… must exist as one stand-alone document… may NOT be included with other
   consent forms or any other language."*
   ⚠ **So this one instrument gets NO repair register, and the absence is the design.** The carrier's
-  own pages get their typos fixed under D-PKT9; improving FMCSA's spelling would breach the
+  own pages had their typos fixed under D-PKT9 — ⚠ **reversed 2026-09-14 by D-PKT11, so nothing is
+  repaired anywhere now**; improving FMCSA's spelling would in any case breach the
   account-holder agreement the PSP API token is issued under. The only thing done to the text is
   collapsing the PDF's hard line-wraps.
   ⚠ **And publishing anything else for `psp` is REFUSED by name** — `missingPspParagraphs` compares

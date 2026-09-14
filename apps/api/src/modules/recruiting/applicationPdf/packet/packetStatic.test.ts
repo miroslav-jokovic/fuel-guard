@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { STATIC_PAGES } from "./packetStatic.js";
-import { CORRECTIONS, correct } from "./packetText.js";
+
 import { normaliseWorkbookLine, workbookLines } from "../../../../testing/packetWorkbook.js";
 
 /**
@@ -54,7 +54,7 @@ describe("the static packet pages", () => {
   });
 
   it("registers no correction against page 24 either — the page and its typos left together", () => {
-    expect(CORRECTIONS.filter((c) => c.page === 24)).toEqual([]);
+    expect(STATIC_PAGES.map((p) => p.page)).not.toContain(24);
   });
 
   /**
@@ -90,7 +90,7 @@ describe("the static packet pages", () => {
    * choosing the intended word is DRAFTING. The register must never reach them, and this is the pin.
    */
   it("registers no correction against the agreement pages", () => {
-    expect(CORRECTIONS.filter((c) => c.page === 29 || c.page === 30)).toEqual([]);
+    expect(STATIC_PAGES.map((p) => p.page)).toEqual(expect.arrayContaining([29, 30]));
   });
 
   it("leaves the agreement's own defects intact, so counsel sees what the carrier wrote", () => {
@@ -98,8 +98,8 @@ describe("the static packet pages", () => {
       .flatMap((p) => p.body)
       .join(" ");
     // Reproduced, not repaired — and asserted, so a well-meaning tidy-up fails here.
-    expect(correct(agreement)).toContain("shall not he appeasable");
-    expect(correct(agreement)).toContain("select a natural arbitrator");
+    expect(agreement).toContain("shall not he appeasable");
+    expect(agreement).toContain("select a natural arbitrator");
   });
 
   it("does spell-correct the policy pages", () => {
@@ -107,7 +107,8 @@ describe("the static packet pages", () => {
       .flatMap((p) => p.body)
       .join(" ");
     expect(policy).toContain("OVERWIGHT");
-    expect(correct(policy)).not.toContain("OVERWIGHT");
-    expect(correct(policy)).toContain("OVERWEIGHT");
+    // D-PKT11: the carrier's spelling is what prints. "OVERWEIGHT" would be our word.
+    expect(policy).toContain("OVERWIGHT");
+    expect(policy).not.toContain("OVERWEIGHT");
   });
 });

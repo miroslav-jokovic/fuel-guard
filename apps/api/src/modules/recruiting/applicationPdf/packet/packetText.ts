@@ -6,96 +6,27 @@
  * carrier's wording, it will be reviewed by somebody who is not an engineer, and a reviewer should be
  * able to read it without reading PDFKit calls.
  *
- * The second is `CORRECTIONS` below. The packet's own text is corrupt — "Previous Three years
- * reisdency", "BACKFROUNG VERIFICATION LOG", "maritial status" — and the owner's decision
- * (Q-PKT4, 2026-08-23, D-PKT9) is to print correct English. **A correction made silently is a
- * correction nobody can audit**, so every one of them is recorded here as a pair, the renderer draws
- * only the corrected side, and a test asserts that no original ever reaches the page. If the carrier
- * later asks "what did you change on our form", the answer is this constant.
+ * The second is D-PKT11. The packet's own text carries spellings no proofreader would pass —
+ * "Previous Three years reisdency", "BACKFROUNG VERIFICATION LOG", "maritial status", "IMPOREPER",
+ * "TEAR EXEPTED" — and **they are printed exactly as the carrier wrote them.**
  *
- * ⚠ **Spelling only. Not one question, instruction or legal sentence is reworded.** The distinction
- * is enforced by the shape of the data: a correction is a pair whose two halves differ ONLY in
- * spelling and capitalisation, and `renderPacket.test.ts` refuses a pair that changes word count.
- * Changing what the form ASKS is D-PKT4's other half and belongs to counsel, not to a copy pass.
- */
-
-/** One repaired string, with the packet's own version kept beside it. */
-export interface PacketCorrection {
-  /** Exactly as the workbook has it. Never printed. */
-  packet: string;
-  /** What we print instead. */
-  corrected: string;
-  /** Which page it appears on, so a reviewer can find it on their paper copy. */
-  page: number;
-}
-
-/**
- * The register. ⚠ Every entry is a SPELLING repair — see the header.
+ * ⚠ **This REVERSES D-PKT9** (owner, 2026-08-23), which had us print corrected English and keep a
+ * register of every repair. The owner's ruling on 2026-09-14, holding the carrier's own PDFs:
+ * *"use texts that we have on applications I have provided as is — these are created by lawyers and
+ * we will keep texts from this."* The document is counsel's work product; a spelling that looks
+ * wrong to an engineer may be the word that was negotiated, and the form the driver signs should be
+ * the form the carrier's lawyers wrote. The `CORRECTIONS` register and its `correct()` applier are
+ * therefore gone rather than emptied — a register applied to nothing is a thing the next reader has
+ * to work out is inert. The fourteen strings it held are listed in `APPLICATION-PACKET-PLAN.md`
+ * under D-PKT11, which is where a question about what we used to change belongs.
  *
- * Sourced by parsing `docs/plans/recruitment/APPLICATION.xlsx` (sheet1 against sharedStrings) rather
- * than by reading a summary of it, so the left column is the literal cell value.
- */
-export const CORRECTIONS: readonly PacketCorrection[] = [
-  { page: 1, packet: "Previous Three years reisdency", corrected: "Previous three years residency" },
-  { page: 1, packet: "maritial status", corrected: "marital status" },
-  { page: 2, packet: "FORFEITTURES", corrected: "FORFEITURES" },
-  { page: 12, packet: "BACKFROUNG", corrected: "BACKGROUND" },
-  { page: 16, packet: "benfit", corrected: "benefit" },
-  { page: 16, packet: "This references should not be people", corrected: "These references should not be people" },
-  { page: 26, packet: "administrated by an", corrected: "administered by an" },
-
-  // ── The static policy pages (P3). The AGREEMENT (29–30) is deliberately absent — see below.
-  { page: 7, packet: "IMPOREPER", corrected: "IMPROPER" },
-  { page: 7, packet: "OVERWIGHT", corrected: "OVERWEIGHT" },
-  { page: 8, packet: "YOU WIL INSPECT", corrected: "YOU WILL INSPECT" },
-  { page: 8, packet: "SAME CONDTION", corrected: "SAME CONDITION" },
-  { page: 8, packet: "WHEN RECIVED", corrected: "WHEN RECEIVED" },
-  { page: 8, packet: "TEAR EXEPTED", corrected: "TEAR EXCEPTED" },
-  { page: 8, packet: "EQUIPMENT MANGER", corrected: "EQUIPMENT MANAGER" },
-];
-
-/**
- * ⚠ **Six page-24 entries were removed on 2026-08-23 (Q-PKT5) and must not come back.**
- *
- * `familirize`, `requred`, `followign`, `informend`, `expalined` and `signatrure` were registered
- * when page 24 was classified STATIC. It is not: it is a post-hire training record carrying a driver
- * signature, an instructor signature and a fill-in date, and it left the packet with the same
- * argument that moved pages 21 and 23 out. The page is `DRIVER-TRAINING-PLAN.md` / R7's now, and its
- * spelling is that plan's problem on the day it renders the page — registering a correction here for
- * a page this renderer never draws would be a constant nobody could check against anything.
- *
- * ⚠ **`signatrure` in particular.** It is also on pages 22 and 23, neither of which we render, and
- * it is why the packet's placement inventory cannot be re-derived by searching for `signature`
- * (Q-PKT6). Deleting the correction does not delete the fact; the fact lives in the plan.
- */
-
-/**
- * ⚠ **Corruption that is NOT corrected, because the right word is a guess.**
- *
- * Recorded rather than silently skipped, so the next reader knows these were seen and left.
- *
- * ⚠ Every entry this list held was on page 24 — `available throught to company`, `a question-and-
- * answer period which eluded additional company illustrations` (included? alluded to?),
- * `company fues` (fines? fees?), `FMCR Handbook` (almost certainly FMCSR, but expanding an acronym
- * is not spelling), `I may come to the company und get further explanation`. They travelled with the
- * page to R7 on 2026-08-23 (Q-PKT5) and the plan carries them now. **The list is kept, empty, because
- * the rule it states outlives its entries:** a repair that guesses is a wording change, and D-PKT4
- * puts wording with counsel. The next page that needs one has somewhere to put it.
- */
-
-/**
- * Apply the register to one line of the packet's own text.
- *
- * ⚠ Used for the STATIC pages only, and never for pages 29–30. `packetStatic.ts` stores the workbook's
- * text pristine so a test can compare it against the source; the corrections are applied on the way to
- * the page instead of being baked in. The fillable pages in this file work the other way round —
- * short labels, assembled by hand, already correct — and the difference is explained there.
- */
-export function correct(source: string): string {
-  let out = source;
-  for (const c of CORRECTIONS) out = out.split(c.packet).join(c.corrected);
-  return out;
-}
+ * ⚠ **One class of defect is still NOT reproduced, and it is not spelling.** The carrier's Numbers
+ * export drops `fi`/`ti`/`ffi` ligatures — it writes "quali ed applicants", "certi ed copy",
+ * "remain on le", "no ca on". Measured 2026-09-14: ~65 distinct broken fragments in that export and
+ * **zero** in the same document printed from Excel. Those words are not in the carrier's document;
+ * they are damage done on the way out of Numbers. Transcribing them would put a defect INTO an
+ * instrument, which is the opposite of what "as is" asks for. The Excel print is therefore the text
+ * authority, and the Numbers export is consulted only for content. */
 
 /**
  * ⚠ **What is deliberately NOT corrected, and why the list is shorter than the packet's defects.**
@@ -121,7 +52,7 @@ export const P1 = {
   intro:
     "This transportation company is in compliance with all federal and state laws. Consideration of "
     + "qualified applicants is made without regard to applicant's sex, race, color, national origin, "
-    + "marital status, age, religion or non-job related disability.",
+    + "maritial status, age, religion or non-job related disability.",
   date: "Date",
   dob: "DOB",
   position: "Position",
@@ -130,7 +61,7 @@ export const P1 = {
   nameParts: "Last                First                Middle",
   address: "Address",
   addressParts: "Street                City                State                Zip",
-  residency: "Previous three years residency",
+  residency: "Previous Three years reisdency",
   cdl: "Cdl #",
   phone: "Phone #",
   legallyWork: "Can you legally work in USA?",
@@ -166,7 +97,7 @@ export const P2 = {
     "INJURIES NUMBER",
     "CHEMICAL SPILLS YES OR NO",
   ],
-  violationsHeading: "TRAFFIC CONVICTIONS AND FORFEITURES FOR THE PAST 3 YEARS ( OTHER THAN PARKING VIOLATION)",
+  violationsHeading: "TRAFFIC CONVICTIONS AND FORFEITTURES FOR THE PAST 3 YEARS ( OTHER THAN PARKING VIOLATION)",
   violationColumns: ["DATE CONVICTED", "VIOLATION", "STATE OF VIOLATION", "PENALTY"],
   deniedQuestion: "A. Have you ever been denied a license, permit or privilege to operate a motor vehicle?",
   revokedQuestion: "B. Has any license, permit or privilege ever been suspended or revoked?",
@@ -175,7 +106,7 @@ export const P2 = {
 
 /** Page 12 — the ten-year background verification log. */
 export const P12 = {
-  heading: "10 YEAR EMPLOYMENT HISTORY BACKGROUND VERIFICATION LOG",
+  heading: "10 YEAR EMPLOYMENT HISTORY BACKFROUNG VERIFICATION LOG",
   identityColumns: ["Last name", "First name", "Aliases", "DOB", "SS #"],
   logColumns: ["Date from / to", "Company name", "Address", "Position held", "Phone #"],
 } as const;
@@ -188,10 +119,10 @@ export const P16 = {
   military: "Have you ever served in the military?",
   militaryWhen: "If so, when?",
   training:
-    "Please list any training you have received that will benefit you for the position for which you "
+    "Please list any training you have received that will benfit you for the position for which you "
     + "are applying",
   referencesIntro:
-    "Please provide 3 personal references. These references should not be people related to you nor "
+    "Please provide 3 personal references. This references should not be people related to you nor "
     + "former supervisors:",
   referenceColumns: ["Full name", "Years known", "Phone number"],
 } as const;
