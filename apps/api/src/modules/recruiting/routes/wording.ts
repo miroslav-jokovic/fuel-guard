@@ -10,6 +10,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { isWordingError, loadCarrierWording, publishWording, wordingHistory } from "../carrierWording.js";
+import { packetWording } from "../packetWording.js";
 
 /**
  * Publishing the carrier's own instrument wording (0338).
@@ -56,6 +57,15 @@ export function recruitmentWordingRouter(): Router {
             body: instrument === "esign_consent" ? null : (doc as { body: string }).body,
             clauses: instrument === "esign_consent" ? wording.esignConsent.clauses : null,
             published: !outstanding.includes(instrument),
+            /**
+             * ⚠ The carrier's OWN wording for this instrument, out of their packet — offered as a
+             * starting draft so the office is not asked to choose between publishing an engineer's
+             * placeholder and retyping their lawyers' text (2026-09-13). Null for the three the
+             * packet has nothing for. Nothing publishes from here: it fills the editor, and
+             * somebody still reads it and presses Publish, because adopting an instrument is the
+             * carrier's act.
+             */
+            packet: packetWording(instrument),
           };
         }),
         outstanding,
