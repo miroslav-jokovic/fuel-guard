@@ -14,18 +14,36 @@ that a driver can complete the flow, and nobody has ever seen one do it.
 
 ## A. Prove it works at all — before any stranger gets a link
 
-### A1 · The sender address — ⏳ OWNER, in progress, expected 2026-09-15
-Currently `MAIL_FROM=uncchicago85@gmail.com`. Owner is setting up a verified domain sender.
+### A1 · The sender address — ⏳ OWNER, in progress, and it is now also a PROVIDER decision
+Currently `MAIL_FROM=uncchicago85@gmail.com`. Owner is setting up a verified domain sender;
+`silvicominc.com` was added to Brevo 2026-09-14 17:03 UTC and is `authenticated: false` so far.
+
+⚠ **Verify that domain at Resend, not at Brevo.** Measured 2026-09-14, and it is the reason the
+provider preference in `env.ts` was reversed:
+
+- **Brevo rewrites every link for click tracking and keeps the destination URL in its event log.**
+  An applicant's live invitation link was read straight out of `GET /v3/smtp/statistics/events` in
+  plaintext, and `sha256(token)` matched that invitation's `token_hash` byte for byte. Anyone with
+  `BREVO_API_KEY` can enumerate live applicant links — a 256-bit bearer token that
+  `applicationIntake.ts` deliberately keeps out of the database, out of later API responses and out
+  of the audit row.
+- **It cannot be turned off.** Brevo's staff say disabling transactional tracking is not planned and
+  is an Enterprise-plan request; this account reports `enterprise: false`. The `X-Mailin-Track`
+  headers that circulate as a workaround are absent from Brevo's API reference — do not ship one.
+- **Resend has open and click tracking off by default** on every domain, and per-domain via
+  `PATCH /domains/:id`. The mailer already supports it (`MAIL_PROVIDER=resend`, `RESEND_API_KEY`).
 
 **Our part once it lands** (not before):
-- Confirm `MAIL_FROM` and `MAIL_PROVIDER` in Railway, prod, on the `api` service.
+- Confirm `MAIL_FROM`, `MAIL_PROVIDER` and the key in Railway, prod, on the `api` service. The boot
+  log now warns on every start that lands on Brevo — `railway logs` is the check.
 - Send one real invitation and confirm it arrives — ⚠ `lib/mailer.ts` documents Brevo's
-  `422 Invalid from field`, which is what an unvalidated sender returns.
-- ⚠ Check the invite link survives the recipient's scanner. `invite-links-are-opened-by-Proofpoint`
-  is a live trap in this product's history: a scanner that follows the link can spend it.
+  `422 Invalid from field`; Resend's equivalent is a 403 "domain not verified".
+- ⚠ Confirm the link in it is NOT rewritten to a tracking host, and that no `clicks` event carries
+  the token.
 
 **Done when:** an invitation sent from the new address arrives in an external mailbox, the link in
-it opens the apply page, and nothing in the log says `send_failed`.
+it opens the apply page, nothing in the log says `send_failed`, and the token does not appear in any
+provider-side event log.
 
 ### A2 · ⚠ THE ONE THAT MATTERS — walk a real application end to end
 Nobody has. Eight PRs of behaviour change ride on it.
@@ -80,6 +98,30 @@ Both point at driver `Marija Varmeda`, and only one carries her typing:
 The 09-04 link was never rotated, so **it still works** — and it opens an EMPTY form. Finishing on
 it produces the application row the done-when asks for while quietly costing her the whole form
 again. The link to use is the one in the **2026-09-13 19:28** email, not the 09-04 one.
+
+#### A2 delivery — measured 2026-09-14, and "it stopped working" is not what happened
+
+Brevo's event log for `safety@silvicominc.com`, and a month of events besides:
+
+- **Today's invitation was delivered.** `requests` 16:39:20.944 UTC → `delivered` 16:39:22 UTC,
+  two seconds later. Across 2026-08-15 → 09-14: **60 requests, 60 delivered**, one deferred that
+  then delivered, and **zero** bounces, blocks or spam complaints. Delivery has never been broken.
+- **It worked on 09-11, and the trail proves it.** That invitation was delivered 17:42:30 UTC and
+  clicked at 17:51, 17:53, 18:59 and 19:50 — and the draft was saved at 18:00:23 UTC, between two
+  of them. That is a human using the link.
+- ⚠ **`opened` NEVER fires for an `@silvicominc.com` address.** Sixteen `opened` events in the
+  month, every one of them to an external mailbox (`admin@lorddigital.com`, `mike@fleetpal.io`,
+  `stalxdevelopment@gmail.com`). Their gateway strips the tracking pixel, so **we cannot tell from
+  the provider whether anyone at the carrier has read anything.**
+- ⚠ **Every link is machine-clicked within ~15 seconds of delivery**, on every alert, at 02:14 and
+  03:14 and 05:38, several IPs at once. On this domain **"delivered" is evidence and "clicked" is
+  not** — do not read a click as the applicant opening their link.
+- The scanner does no harm: `GET /:token` only reads, and the link returned HTTP 200 with all four
+  instruments after being scanned. It does mean the token reaches the scanner's operator too.
+
+So today's email is delivered and unread by a human. That is a mailbox question — junk or
+quarantine — not a product one, and ⚠ the `uncchicago85@11580692.brevosend.com` envelope sender is
+the likeliest reason a filter took it. **That is A1.**
 
 #### ⚠ A2 blocker — the working link exists in exactly one place, and it is not here
 

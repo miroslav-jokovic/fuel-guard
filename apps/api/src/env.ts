@@ -384,16 +384,50 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
 
   checkPspEnv(env, source);
 
-  // Auto-detect provider when MAIL_PROVIDER is left at the default "none". Brevo is preferred (it allows
-  // single-sender verification with no DNS), so its key wins if both happen to be set.
+  /**
+   * Auto-detect the provider when MAIL_PROVIDER is left at the default "none".
+   *
+   * ⚠ **RESEND WINS NOW, AND THIS USED TO BE THE OTHER WAY ROUND.** Brevo was preferred because it
+   * verifies a single sender with no DNS, which is the cheaper start. That reasoning weighed setup
+   * effort and missed the thing that matters more: **Brevo rewrites every link for click tracking
+   * and keeps the destination URL in its event log**, and the links this product emails are
+   * credentials. Measured 2026-09-14 — an applicant's live invitation token was read back out of
+   * `GET /v3/smtp/statistics/events` in plaintext, and its SHA-256 matched `token_hash` in the
+   * database exactly. `applicationIntake.ts` keeps that token out of the database, out of the API
+   * response after the first show, and out of the audit row on the argument that "an audit log is
+   * the last place a credential should be recoverable from". A third-party analytics log is worse.
+   *
+   * It cannot be turned off on Brevo: their staff have said disabling transactional tracking is not
+   * planned and is offered to Enterprise plans on request, and this account reports
+   * `enterprise: false`. Resend disables open and click tracking by default on every domain and
+   * exposes it per-domain (`PATCH /domains/:id`), which is why the preference is now reversed
+   * rather than a warning being bolted onto the old order.
+   */
   if (env.MAIL_PROVIDER === "none") {
-    if (env.BREVO_API_KEY) {
-      console.info("[env] MAIL_PROVIDER auto-set to 'brevo' (BREVO_API_KEY is present)");
-      (env as { MAIL_PROVIDER: string }).MAIL_PROVIDER = "brevo";
-    } else if (env.RESEND_API_KEY) {
+    if (env.RESEND_API_KEY) {
       console.info("[env] MAIL_PROVIDER auto-set to 'resend' (RESEND_API_KEY is present)");
       (env as { MAIL_PROVIDER: string }).MAIL_PROVIDER = "resend";
+    } else if (env.BREVO_API_KEY) {
+      console.info("[env] MAIL_PROVIDER auto-set to 'brevo' (BREVO_API_KEY is present)");
+      (env as { MAIL_PROVIDER: string }).MAIL_PROVIDER = "brevo";
     }
+  }
+
+  /**
+   * Say it in the deploy log, every boot, for as long as it is true.
+   *
+   * A warning rather than a refusal on purpose: refusing would stop invitations going out at all,
+   * and an applicant who never receives a link is worse off than one whose link is also sitting in
+   * an analytics log we control the account for. But it is not a silent trade — no gate can see a
+   * Railway variable, and the person who needs to read this is reading `railway logs` anyway.
+   */
+  if (env.MAIL_PROVIDER === "brevo") {
+    console.warn(
+      "[env] ⚠ MAIL_PROVIDER=brevo — Brevo rewrites links for click tracking and stores the "
+      + "destination URL in its event log, so every emailed invitation token is recoverable from "
+      + "the Brevo API. Tracking cannot be disabled below an Enterprise plan. Move to Resend "
+      + "(tracking off by default) before sending links to people outside the company.",
+    );
   }
 
   return env;
