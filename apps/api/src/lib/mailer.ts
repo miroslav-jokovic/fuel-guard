@@ -32,6 +32,30 @@ export function parseSender(from: string): { name?: string; email: string } {
  *   403 "domain not verified" → go to resend.com/domains, add silvicominc.com and verify DNS records.
  *   422 "Invalid `from` field" → MAIL_FROM must be "Name <email@verified-domain.com>".
  *   401 "Unauthorized" → RESEND_API_KEY is wrong or not set.
+ *
+ * ── ⚠ THE PROVIDER CHOICE IS A SECURITY DECISION, NOT A PRICING ONE (2026-09-14) ───────────────
+ * **Brevo rewrites every link in every message for click tracking, and keeps the destination URL in
+ * its event log.** Some of the links this file carries are credentials — an application invitation
+ * is a 256-bit bearer token in a URL, and `applicationIntake.ts` goes to some trouble to keep it out
+ * of the database, out of every later API response, and out of the audit row, on the stated ground
+ * that "an audit log is the last place a credential should be recoverable from".
+ *
+ * Measured, not suspected: on 2026-09-14 a live invitation link was read back out of
+ * `GET /v3/smtp/statistics/events` in plaintext, and `sha256(token)` matched that invitation's
+ * `token_hash` byte for byte. Anyone holding `BREVO_API_KEY` can enumerate live applicant links.
+ *
+ * It cannot be switched off here: Brevo's staff have said disabling transactional tracking is not
+ * planned and is offered to Enterprise plans on request, and this account reports
+ * `enterprise: false`. The `X-Mailin-Track` headers that circulate as a workaround are not in
+ * Brevo's API reference and are not confirmed by them — do not ship one on the strength of a forum
+ * post. **Resend disables open and click tracking by default on every domain**, which is why
+ * `env.ts` now prefers it and warns on every boot that chooses Brevo.
+ *
+ * ⚠ The same measurement explains why mail to this carrier looks unread: across a month of events
+ * NOT ONE `opened` was recorded for any `@silvicominc.com` address while external mailboxes opened
+ * normally, and every link is machine-clicked within ~15 seconds of delivery, at any hour. Their
+ * gateway strips the pixel and follows the links. On that domain "delivered" is evidence and
+ * "clicked" is not.
  */
 /** Send one email and return the provider's outcome (status + error detail) for diagnostics. */
 export async function sendEmail(env: Env, email: OutgoingEmail): Promise<SendResult> {
