@@ -1087,3 +1087,45 @@ each fail by name. ⚠ The width guard (>28pt) is what catches the heuristic's o
 
 **Still to do:** draw the marks and the field values onto the template with `pdf-lib`, and wire
 `renderPacket` into `file.ts`. The geometry is no longer the blocker.
+
+**2026-09-14 — the overlay draws, and it found a defect in the ceremony that shipped this morning.**
+
+`packetOverlay.ts` loads `application-11.pdf` and draws the marks on top. Verified by rendering a
+fully-signed packet and looking at p20, p4, p25 and p13 — all four of the packet's layouts — each
+signature sitting on its own line. The carrier's letterhead, tables, `168lu` and `signatrure` all
+survive, because nothing rewrites the page they are on.
+
+### ⚠ Q-PKT8 — THE INITIALS ARE NOT COLLECTED, AND THE SERVER WOULD REFUSE THEM
+
+`p05`, `p06` and `p09` are `mark: "initials"`. D-PKT6 has always been explicit: initials are a SECOND
+adopted mark, *"not an abbreviation of the first… a ceremony that derived them from the typed name
+would be inventing a mark the signer never made"*, and `adoptedMarkKinds()` returns two.
+
+**The ceremony shipped in #783 adopts one.** So the renderer is handed a full name for the three
+places that ask for initials — which are also the three narrowest lines in the table, at 89–141pt,
+where no type size rescues a long name.
+
+⚠ **And it is worse than cosmetic.** `record_packet_mark` pins one `signed_name` per link (DR035), so
+a client that correctly sent initials would be **refused at the third stop**. The ceremony only works
+today because it sends the same string everywhere.
+
+**The fix is three parts:** a migration making the pin per (invitation, mark kind) rather than per
+invitation; the adoption screen collecting initials as well; and the walk sending the right mark for
+the stop it is on. The renderer needs no change — it draws `signed_name`, which becomes the initials.
+
+### Two bugs the overlay found in the reader
+
+- ⚠ **`streamOf` inflated the CONCATENATED bytes of a multi-stream page**, which yields only the first
+  stream. Every page of the carrier's file has exactly one, so it was invisible until `pdf-lib` drew
+  on a page — it brackets the original in `q … Q` and appends its own, making four — and the page read
+  back completely empty, which looks exactly like a renderer that produced nothing. Each stream is now
+  inflated separately and the results joined, which is what the spec says.
+- ⚠ **A font with no `ToUnicode` decoded to nothing.** `pdf-lib`'s standard-14 faces carry none and it
+  writes hex strings even for those, so everything this repository draws vanished from a read-back.
+  One byte per code is the fallback.
+- ⚠ **A regex alternative added in the MIDDLE renumbered every capture group after it**, silently
+  turning `l` into an operator the reader ignored and emptying every ruled line on every page. They
+  are appended now, with a comment saying why.
+
+⚠ **Still not wired into `file.ts`**, and deliberately: the field values for pages 1, 2, 12, 15 and 16
+are not drawn, so wiring it today would file a signed form with empty answers.

@@ -128,16 +128,9 @@ function cmapFor(doc: PDFDocument, font: PDFDict): Map<number, string> {
   return map;
 }
 
-/** The page's content stream, decompressed and concatenated. */
-function streamOf(doc: PDFDocument, page: ReturnType<PDFDocument["getPage"]>): string {
-  const contents = page.node.Contents();
-  if (!contents) return "";
-  const raw =
-    contents instanceof PDFArray
-      ? Buffer.concat(
-          contents.asArray().map((r) => Buffer.from(doc.context.lookup(r, PDFStream).getContents())),
-        )
-      : Buffer.from((contents as PDFStream).getContents());
+/** One stream, decompressed. */
+function inflateStream(stream: PDFStream): string {
+  const raw = Buffer.from(stream.getContents());
   try {
     return inflateSync(raw).toString("latin1");
   } catch {
@@ -146,7 +139,34 @@ function streamOf(doc: PDFDocument, page: ReturnType<PDFDocument["getPage"]>): s
 }
 
 /**
+ * The page's content, decompressed and concatenated.
+ *
+ * ⚠ **Each stream is inflated SEPARATELY and the results joined — never the other way round.** A page
+ * may carry an array of content streams and the PDF spec concatenates them *after* decoding; joining
+ * the compressed bytes and inflating once yields only the first stream and silently drops the rest.
+ *
+ * ⚠ **The carrier's own file hid this for a day.** Every one of its pages has exactly one stream, so
+ * the bug was invisible until `packetOverlay.ts` drew on a page: `pdf-lib` wraps the original in
+ * `q … Q` and appends its own, making four streams, and the page read back as completely empty —
+ * no text, no rules — which looks exactly like a renderer that produced nothing.
+ */
+function streamOf(doc: PDFDocument, page: ReturnType<PDFDocument["getPage"]>): string {
+  const contents = page.node.Contents();
+  if (!contents) return "";
+  return contents instanceof PDFArray
+    ? contents.asArray().map((r) => inflateStream(doc.context.lookup(r, PDFStream))).join("\n")
+    : inflateStream(contents as PDFStream);
+}
+
+/**
  * The page's own transform, read off the stream rather than assumed.
+ *
+ * ⚠ **This models THE CARRIER'S document, not PDFs in general.** It reads one transform for a whole
+ * page and applies it to everything, which is true of every page of `application-11.pdf` and is not
+ * true of a page something has drawn on: `pdf-lib` brackets the original in `q … Q` and appends its
+ * own operators in absolute page coordinates, which this would wrongly transform. Reading back a
+ * document this repository has DRAWN on is therefore good for text and page structure and not for
+ * coordinates — `packetOverlay.test.ts` says so where it relies on it.
  *
  * ⚠ **One `cm`, and the reader refuses to guess if that stops being true.** Every page of this
  * document opens with `0.75 0 0 -0.75 0 792 cm` and never touches the matrix again, so a single
@@ -182,11 +202,14 @@ const OPERATORS = new RegExp(
     String.raw`([\d.-]+)\s+([\d.-]+)\s+(Td|TD)`, // 10,11,12 move
     String.raw`(T\*)`, // 13 next line
     String.raw`([\d.-]+)\s+(TL)`, // 14,15 leading
-    String.raw`\[((?:[^\]\\]|\\.)*)\]\s*(TJ)`, // 16,17 show with kerning
-    String.raw`<([0-9a-fA-F]+)>\s*(Tj)`, // 18,19 show
+    String.raw`\[((?:[^\]\\]|\\.)*)\]\s*(TJ)`, // 16,17 show with kerning (hex or literal)
+    String.raw`<([0-9a-fA-F]+)>\s*(Tj)`, // 18,19 show, hex
     String.raw`(BT)`, // 20 begin text
     String.raw`([\d.-]+)\s+([\d.-]+)\s+(m)`, // 21,22,23 moveto
     String.raw`([\d.-]+)\s+([\d.-]+)\s+(l)`, // 24,25,26 lineto
+    // ⚠ Any alternative added here is APPENDED, never inserted. These are read by capture-group
+    // NUMBER, so adding one in the middle renumbers every operator after it — which, measured, turned
+    // `l` into something the reader ignored and emptied every ruled line on every page.
   ].join("|"),
   "g",
 );
@@ -267,6 +290,18 @@ function readPage(doc: PDFDocument, index: number): TemplatePage {
       let text = "";
       for (const hex of hexes) {
         for (const cid of hex.match(/.{4}/g) ?? []) text += cmap.get(parseInt(cid, 16)) ?? "";
+      }
+      /**
+       * ⚠ **A font with no `ToUnicode` decodes to nothing above, and silence is not an error here.**
+       * The carrier's two faces both carry one; `pdf-lib`'s standard-14 faces carry none, and it
+       * writes hex strings even for those — so everything THIS repository draws would vanish from a
+       * read-back without this, and `packetOverlay.test.ts` would report a perfectly good PDF as
+       * empty. One byte per code, which is what those faces use.
+       */
+      if (!text && hexes.length) {
+        for (const hex of hexes) {
+          for (const byte of hex.match(/.{2}/g) ?? []) text += String.fromCharCode(parseInt(byte, 16));
+        }
       }
       if (text.trim()) runs.push({ ...toPage(x, y), text });
     }
