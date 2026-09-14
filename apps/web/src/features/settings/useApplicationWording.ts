@@ -12,6 +12,20 @@ import { apiFetch } from "@/lib/api";
 
 const KEY = ["recruitment", "wording"] as const;
 
+/**
+ * The carrier's own wording for this instrument, transcribed from their packet.
+ *
+ * ⚠ Offered, never applied. It fills the editor when the office asks for it; publishing is still a
+ * deliberate act, because adopting a legal instrument is the carrier's and not a button's.
+ */
+export interface PacketWordingView {
+  title: string;
+  body: string;
+  intent: string;
+  /** The page number in the carrier's own packet, so they can check it against the paper. */
+  page: number;
+}
+
 export interface WordingInstrumentView {
   instrument: PublishableInstrument;
   version: string;
@@ -22,6 +36,8 @@ export interface WordingInstrumentView {
   /** The consent's six statutory clauses. Null for the five authorizations. */
   clauses: Record<string, string> | null;
   published: boolean;
+  /** Null for the instruments the carrier's packet has nothing for — PSP among them. */
+  packet: PacketWordingView | null;
 }
 
 export interface WordingHistoryRow {

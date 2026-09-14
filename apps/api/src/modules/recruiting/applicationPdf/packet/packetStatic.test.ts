@@ -1,10 +1,7 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { inflateRawSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
 import { STATIC_PAGES } from "./packetStatic.js";
 import { CORRECTIONS, correct } from "./packetText.js";
+import { normaliseWorkbookLine, workbookLines } from "../../../../testing/packetWorkbook.js";
 
 /**
  * The static pages, checked against the workbook they came from (P3).
@@ -16,69 +13,13 @@ import { CORRECTIONS, correct } from "./packetText.js";
  * by re-reading `APPLICATION.xlsx` at test time and comparing — so a transcription drift fails the
  * build rather than reaching a signed page.
  *
- * ⚠ **It reads the .xlsx with no dependency.** A workbook is a zip of XML; the two entries this needs
- * are found by scanning for local file headers and inflated with `zlib.inflateRawSync`. Reaching for
- * `jszip` would mean depending on a package that is present only because something else hoisted it,
- * which is how a test starts failing on a machine that resolved differently.
+ * ⚠ The zip-and-XML reader moved to `src/testing/packetWorkbook.ts` on 2026-09-13, when
+ * `packetWording.test.ts` needed the same source for the same reason. One reader, two callers — a
+ * second copy of it would be a second thing able to drift from the file it is checking.
  */
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const WORKBOOK = join(HERE, "../../../../../../../docs/plans/recruitment/APPLICATION.xlsx");
-
-/** One entry out of a zip, by name. Returns null when the archive does not hold it. */
-function zipEntry(archive: Buffer, name: string): Buffer | null {
-  for (let i = 0; i < archive.length - 30; i++) {
-    if (archive.readUInt32LE(i) !== 0x04034b50) continue;
-    const nameLen = archive.readUInt16LE(i + 26);
-    if (archive.subarray(i + 30, i + 30 + nameLen).toString() !== name) continue;
-    const method = archive.readUInt16LE(i + 8);
-    const compressed = archive.readUInt32LE(i + 18);
-    const start = i + 30 + nameLen + archive.readUInt16LE(i + 28);
-    const raw = archive.subarray(start, start + compressed);
-    return method === 8 ? inflateRawSync(raw) : Buffer.from(raw);
-  }
-  return null;
-}
-
-/**
- * The workbook's rows as text, in the same normalisation `packetStatic.ts` was generated with: the
- * spreadsheet's dot-leaders and column padding collapsed, because those are Excel's geometry rather
- * than the carrier's words.
- */
-function workbookLines(): string[] {
-  const archive = readFileSync(WORKBOOK);
-  const strings = (zipEntry(archive, "xl/sharedStrings.xml") ?? Buffer.alloc(0)).toString("utf8");
-  const sheet = (zipEntry(archive, "xl/worksheets/sheet1.xml") ?? Buffer.alloc(0)).toString("utf8");
-
-  const shared: string[] = [];
-  for (const si of strings.split("<si>").slice(1)) {
-    shared.push(
-      [...si.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)]
-        .map((m) => m[1] ?? "")
-        .join("")
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'"),
-    );
-  }
-
-  const out: string[] = [];
-  for (const row of sheet.split("<row ").slice(1)) {
-    const values: string[] = [];
-    for (const cell of row.split("<c ").slice(1)) {
-      const v = /<v>([\s\S]*?)<\/v>/.exec(cell);
-      if (!v?.[1]) continue;
-      values.push(/t="s"/.test(cell) ? (shared[Number(v[1])] ?? "") : v[1]);
-    }
-    if (values.length > 0) out.push(values.join(" | "));
-  }
-  return out;
-}
 
 /** Applied to every line on both sides — the generator did the same. */
-const normalise = (s: string): string => s.replace(/\.{3,}/g, " ").replace(/\s+/g, " ").trim();
+const normalise = normaliseWorkbookLine;
 
 describe("the static packet pages", () => {
   const lines = workbookLines().map(normalise);

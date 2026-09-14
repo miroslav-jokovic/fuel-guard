@@ -810,3 +810,38 @@ adjacent table rows conflict every time.
   later): the link she was originally sent is dead and the one in the nudge email works, which is
   the risk the handoff named the day before it happened. Every invitation in production went to a
   `@silvicominc.com` office mailbox rather than to the applicant.
+
+- 2026-09-13 — **The wording to publish is the CARRIER'S, not ours — and their lawyers already wrote
+  three of the six.** The owner asked whether the text behind `/settings/application-wording` was the
+  Excel application they supplied. It was not: it was `authorizationContract.ts`, six placeholders an
+  engineer typed. Meanwhile `docs/plans/recruitment/APPLICATION.xlsx` — already in the repo, already
+  the source of truth for the printed packet — carries counsel's own version of the same
+  instruments. Publishing ours beside their paper packet would have given one driver's file **two
+  texts for one instrument**, with nothing afterwards able to say which they read. That is the defect
+  this entry exists to have avoided rather than to have fixed.
+  `packetWording.ts` transcribes **pages 19 (FCRA), 14 (past-employment / §40.25 / §391.23(d)(e)) and
+  21 (urinalysis)**, with the carrier's own affirmation sentence off each page as the `intent`. The
+  route serves it, and the page offers **"Use our packet's wording"** — ⚠ which fills the editor and
+  stops. Nothing publishes without somebody reading it and pressing Publish, because adopting a legal
+  instrument is the carrier's act and not a button's; both halves of that restraint are pinned and
+  mutation-proved (pre-loading it silently, or showing the button where the packet has no text, each
+  turn a test red).
+  ⚠ **Two registers, because one rule does not cover both kinds of repair.** 19 spelling repairs
+  under `packetText.ts`'s existing guard — the word count may not change, which is the cheap check
+  that catches a clause deleted under cover of a typo fix. And **four that change characters**, each
+  carrying its own argument: `1681-168lu`→`1681-1681u` (⚠ a statutory citation — an OCR L for a 1),
+  `paragrafs (d) and €`→`paragraphs (d) and (e)`, and two split/joined words. Seven further defects
+  are recorded and **left standing** (`with` for `wish`, a missing `time`, a missing `of`, `they` for
+  `the`), with a test asserting they are still there so a tidy-up cannot quietly redraft an
+  instrument. `WORDING-REVIEW-2026-09-13.md` is the sheet counsel reads.
+  ⚠ **The packet answers for three of the four instruments the applicant signs, and has NOTHING for
+  `psp`** — searched, not assumed: no Pre-Employment Screening Program, no MCMIS, no §382.701
+  anywhere in the workbook's 697 strings, and a test pins that. So the applicant's path stays blocked
+  on one instrument, and §5 of the review puts three candidate answers to the owner with a
+  recommendation (ask counsel for one page — the smallest ask, and the only one of the six gating a
+  live vendor call). Also recorded: page 18 IS an MVR authorization the carrier's lawyers wrote and
+  this product has nowhere to put, and **page 3 combines a consumer-report disclosure with a general
+  liability release**, which is the combination FCRA §604(b)(2)'s "solely" requirement is about —
+  which is why page 19 alone was adopted and page 3 was not merged into it.
+  The workbook reader moved to `src/testing/packetWorkbook.ts`: `packetStatic.test.ts` and
+  `packetWording.test.ts` now check their transcriptions against one parser rather than two.

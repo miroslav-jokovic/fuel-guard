@@ -104,7 +104,7 @@ describe("publishing", () => {
     const w = page();
     await settle(w);
     // The consent's own editor — opened from its card.
-    const open = w.findAll("button").filter((b) => b.text().includes("Publish our wording"));
+    const open = w.findAll("button").filter((b) => b.text().includes("Review and publish"));
     await open[1]!.trigger("click");
     await settle(w);
 
@@ -120,7 +120,7 @@ describe("publishing", () => {
   it("sends the body for an authorization and the clauses for the consent", async () => {
     const w = page();
     await settle(w);
-    await button(w, "Publish our wording")!.trigger("click");
+    await button(w, "Review and publish")!.trigger("click");
     await settle(w);
 
     apiFetch.mockResolvedValueOnce({ ok: true, data: { version: "v1" } });
@@ -140,7 +140,7 @@ describe("publishing", () => {
   it("never sends a version — the server assigns it", async () => {
     const w = page();
     await settle(w);
-    await button(w, "Publish our wording")!.trigger("click");
+    await button(w, "Review and publish")!.trigger("click");
     await settle(w);
     apiFetch.mockResolvedValueOnce({ ok: true, data: { version: "v1" } });
     await button(w, "Publish")!.trigger("click");
@@ -153,7 +153,7 @@ describe("publishing", () => {
   it("leaves what is live alone when the editor is cancelled", async () => {
     const w = page();
     await settle(w);
-    await button(w, "Publish our wording")!.trigger("click");
+    await button(w, "Review and publish")!.trigger("click");
     await settle(w);
     await button(w, "Cancel")!.trigger("click");
     await settle(w);
@@ -166,7 +166,7 @@ describe("publishing", () => {
     // The refusal that matters: a consent missing one of its six parts, named.
     const w = page();
     await settle(w);
-    const open = w.findAll("button").filter((b) => b.text().includes("Publish our wording"));
+    const open = w.findAll("button").filter((b) => b.text().includes("Review and publish"));
     await open[1]!.trigger("click");
     await settle(w);
 
@@ -179,5 +179,77 @@ describe("publishing", () => {
 
     // The editor stays open — the office has something to fix, not something to retry blindly.
     expect(w.findAll("textarea").length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The carrier's own wording, offered rather than applied (2026-09-13).
+ *
+ * ⚠ What is worth pinning is the RESTRAINT. Three of these instruments were written by the carrier's
+ * lawyers and sit on pages 14, 19 and 21 of their own packet; publishing our placeholder beside that
+ * packet would give one driver's file two texts for one instrument. So the button exists — and it
+ * fills the editor and stops, because adopting a legal instrument is the carrier's act. A version of
+ * this that published on click, or that pre-loaded the packet text silently, would be the defect.
+ */
+describe("the carrier's own packet wording", () => {
+  const packet = {
+    title: "FAIR CREDIT REPORTING ACT DISCLOSURE",
+    body: "The Federal Motor Carrier Safety Regulations (FMCSR) require motor carriers to investigate.",
+    intent: "I hereby authorize SILVICOM, INC to obtain consumer reports.",
+    page: 19,
+  };
+  const withPacket = () =>
+    view({ instruments: [instrument({ instrument: "fcra_disclosure", packet })], outstanding: ["fcra_disclosure"], outstandingCount: 1 });
+
+  it("tells the office their own text exists, and which page it is on", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: withPacket() });
+    const w = page();
+    await settle(w);
+    expect(w.text()).toContain("page 19 of your application packet");
+  });
+
+  it("does NOT pre-load it — the editor still opens on what is live", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: withPacket() });
+    const w = page();
+    await settle(w);
+    await button(w, "Review and publish")!.trigger("click");
+    await settle(w);
+    expect((w.find("textarea").element as HTMLTextAreaElement).value).toContain("Our placeholder PSP wording.");
+  });
+
+  it("loads the packet text on request, and publishes THAT", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: withPacket() });
+    const w = page();
+    await settle(w);
+    await button(w, "Review and publish")!.trigger("click");
+    await settle(w);
+    await button(w, "Use our packet's wording")!.trigger("click");
+    await settle(w);
+
+    apiFetch.mockResolvedValueOnce({ ok: true, data: { version: "v1" } });
+    await button(w, "Publish")!.trigger("click");
+    await settle(w);
+
+    const post = apiFetch.mock.calls.find((c) => c[1]?.method === "POST")!;
+    expect(post[1].body).toMatchObject({
+      instrument: "fcra_disclosure",
+      title: packet.title,
+      body: packet.body,
+      intent: packet.intent,
+    });
+    // ⚠ Still no version. The server assigns it — the packet does not get to name one either.
+    expect(post[1].body).not.toHaveProperty("version");
+  });
+
+  it("offers nothing for an instrument the packet has no text for", async () => {
+    // PSP is the one that matters: the carrier's lawyers never wrote it, and a button implying they
+    // had would be the product telling a comfortable lie about where the words came from.
+    apiFetch.mockResolvedValue({ ok: true, data: view({ instruments: [instrument({ packet: null })] }) });
+    const w = page();
+    await settle(w);
+    await button(w, "Review and publish")!.trigger("click");
+    await settle(w);
+    expect(button(w, "Use our packet's wording")).toBeUndefined();
+    expect(w.text()).not.toContain("of your application packet");
   });
 });
