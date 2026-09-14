@@ -146,19 +146,36 @@ that ships:
 one-instrument-per-screen rule is what implements that. It stays a separate stop even in a
 walk-me-through queue, and the queue must not be allowed to render it alongside anything else.
 
-### 2.4 ⚠ Five pages are not the applicant's document, and must not be in this PDF
+### 2.4 ⚠ Four pages are not the applicant's document, and one is half theirs
 
 Three were found while classifying — each would have been reproduced by mistake under a naive "print
 all 31 pages" reading of fork (a) — and two more were moved here by the owner on 2026-08-23, the
 second of them **after it had already shipped as a static page** (Q-PKT5).
+
+⚠ **One of the five came back out on 2026-09-14 (D-PKT12).** p17 is half the applicant's, and the
+classification had read only its other half. **That is the second page in this plan classified by one
+of its halves**, after p24 — and the lesson §2.2 drew from p24 (*"no test in this repository can check
+a classification"*) is now measurably wrong in one specific way, which §2.5 records.
 
 - **p14 — previous-employer verification request.** This is the form the carrier **sends to a former
   employer**, with `Sent to`, `Requested by Silvicom Inc`, and the §391.23 / Part 40 questions the
   employer answers. We already own this act: `employer_inquiries` (0223) and `EmployerInquirySection`.
   It belongs to that surface, and putting it in the applicant's packet would produce a blank form in
   a signed document.
-- **p17 — interview / disposition record.** `Contracted or Rejected?`, `Interviewer`, `Date to start`,
-  `Termination date`, `Why?` — carrier-filled, after the application, by somebody else.
+- **p17 — ⚠ NOT EXCLUDED. RECLASSIFIED 2026-09-14 (D-PKT12) as the packet's first SPLIT page.**
+  The description below was written from the page's bottom half and was true of it: `INTERVIEW NOTES`,
+  `APPLICATION RESULTS`, `Contracted or Rejected?`, `Interviewer`, `Date to start`,
+  `Termination date`, `Why?` — carrier-filled, after the application, by somebody else. **That half
+  stays out.**
+  ⚠ **Its TOP half is the applicant's, and excluding the page dropped it.** Workbook lines 3–19:
+  *"CAREFULLY READ THE FOLLOWING AND SIGN BELOW — By signing this statement, I certify that this
+  application has been completed by me, and all of the entries provided are true, and accurate… I
+  also authorize this company to make such in[quiries] to my employment history. financial, personal,
+  or medical history as might be needed to make a decision"*, plus the contractor, tax and fuel-card
+  acknowledgements, over `Signature of applicant | Date`. That is the certification the whole packet
+  exists to carry, and an authorization with FCRA reach.
+  **So the page is reproduced from line 3 to line 19 and stops.** The split is at the `INTERVIEW
+  NOTES` heading, which is a line in the workbook and therefore checkable.
 - **p21 — Seven Day Work Statement. ⚠ MOVED HERE 2026-08-23 by the owner** (Q-PKT2), and it is the
   one page that left the application rather than never having belonged to it. §395.8(j)(2) asks for
   the seven days preceding the day the driver **begins work**, so an answer given during an
@@ -182,6 +199,27 @@ second of them **after it had already shipped as a static page** (Q-PKT5).
   ⚠ **The transcription was never wrong** — `packetStatic.test.ts` proved it verbatim against the
   workbook every time it ran. **The classification was wrong, and no test in this repository can
   check a classification.** That is the finding worth more than the page.
+
+### 2.5 ⚠ The check that DOES catch a wrong classification, found 2026-09-14
+
+p24's lesson was "no test in this repository can check a classification". True of the tests that
+existed. **Not true in general**, and the method that found p17 is cheap enough to keep:
+
+1. Rasterise each page of the carrier's PDF at 72dpi, where one pixel is one point.
+2. Find its ruled lines as contiguous dark runs, and pair each with the label to its left.
+3. Diff that measured inventory against `packetPlacements.ts`.
+
+Any page carrying a signature or initial line that the constant does not claim comes out. On
+2026-09-14 exactly one did: **p17**. Every other difference was a page excluded on purpose (14, 21,
+23, 24), and each of those re-checked as correctly excluded.
+
+⚠ **`packetPlacements.test.ts` already had an assertion for this — *"leaves no mark line on a rendered
+page unclaimed"* — and it could not see p17, because a page excluded from the render is not a rendered
+page.** A guard scoped to the output cannot catch an error in deciding what the output contains. That
+is the general shape of the p24/p17 failure, and it is why the scan above runs against the CARRIER'S
+paper rather than against ours.
+
+---
 
 ---
 
@@ -412,6 +450,7 @@ them in print for exactly this reason. Nothing in this plan strips a citation fr
 | **D-PKT8** | **The letterhead is per-org** (owner, 2026-08-23). ⚠ Already supported: `organizations.legal_address` shipped with 0229 and `ApplicationPdfInput.carrier` is already `{ name, address }` — the existing renderer takes both. This decision costs a data question, not a code one (§3.6). |
 | **D-PKT10** | **Page 24 is not a static page and is not the applicant's document** (Q-PKT5, 2026-08-23). Driver Safety Training is a post-hire training record carrying a driver signature, an instructor signature and a fill-in date. It leaves the packet the way p21 did under D-PKT7 and p23 never entered, and R7 owns it. ⚠ **It had already shipped** in P3's pack; the removal is a correction, not a scope change. The static pack goes 5 pages → 4 (128 transcribed lines → 101) and `CORRECTIONS` loses six entries. ⚠ `packetStatic.test.ts` now asserts the page's **absence** and names the three marks that gave it away, because the page LOOKS static and the mistake is re-makeable. |
 | **D-PKT11** | **The carrier's text prints exactly as written — typos included** (owner, 2026-09-14). Reverses D-PKT9. The owner's words, holding the carrier's own PDFs: *"use texts that we have on applications I have provided as is — these are created by lawyers and we will keep texts from this."* The packet is counsel's work product; a spelling that reads as wrong to an engineer may be the word that was negotiated, and the form a driver signs should be the form the carrier's lawyers wrote. The fourteen strings D-PKT9 repaired are listed in §3.9 so the history stays auditable after the code that held them is gone. ⚠ **One carve-out, and it is not spelling:** the carrier's Numbers export drops `fi`/`ti`/`ffi` ligatures (`quali ed`, `certi ed`, `remain on le`, `no ca on`) — measured 2026-09-14 as ~65 broken fragments in that export and **zero** in the same document printed from Excel. Those words are not in the carrier's document; reproducing them would put a defect INTO an instrument. The Excel print is the text authority; the Numbers export is consulted for content only. |
+| **D-PKT12** | **Page 17 is a SPLIT page: its top half is the applicant's, its bottom half the carrier's** (owner, 2026-09-14). §2.4 had excluded the whole page as the "interview / disposition record", which describes only `INTERVIEW NOTES` / `APPLICATION RESULTS` below the fold. Above it sits the applicant's certification that the application is true and complete and an authorization to inquire into employment, financial, personal and medical history, over `Signature of applicant | Date`. The packet reproduces workbook lines 3–19 and stops at the `INTERVIEW NOTES` heading. ⚠ **The driver's mark count moves 21 → 22, across 19 pages not 18**, and `driverPlacements()` — the ceremony's queue — gains a stop. ⚠ **Second page classified by one of its halves, after p24 (D-PKT10).** Found by the §2.5 scan, not by a test; the existing "no unclaimed mark line" assertion could not see it, because an excluded page is not a rendered page. |
 | **D-PKT5** | The current §391.21-shaped PDF is **not deleted** when the packet PDF ships. It is what `qualification_records` points at today, it is regulation-correct, and an already-filed document must keep rendering. The packet becomes the document produced for NEW submissions. |
 
 ---
@@ -524,7 +563,7 @@ The 18 SIGN pages and the 21 placements on them, as three extensions of `useSign
 a placement queue, initials as a second adopted mark, and the drawn mark re-applied per placement.
 
 ⚠ **Q-PKT6 is DONE and P5 no longer has to derive anything.** `packages/shared/src/packetPlacements.ts`
-is the measured inventory — 27 placements, each labelled `driver` / `carrier` / `witness`, each
+is the measured inventory — 28 placements, each labelled `driver` / `carrier` / `witness`, each
 anchored to the workbook line it sits on and pinned by a test that re-reads the file.
 `driverPlacements()` IS the queue: 21 stops, in the packet's own page order, and
 `adoptedMarkKinds()` says there are exactly two marks to adopt. What is left for P5 is the
@@ -748,7 +787,7 @@ New submissions produce the packet; existing filed documents keep rendering as t
 6. ~~**Q-PKT6 — the 21 placements were never split into driver marks and carrier marks.**~~
    **ANSWERED 2026-08-23 by MEASUREMENT — `packages/shared/src/packetPlacements.ts`.**
    ⚠ **The number was right by coincidence and its composition was wrong.** Re-derived line by line
-   against the workbook: **21 marks are the driver's, across EIGHTEEN pages, and six more are not** —
+   against the workbook: **22 marks are the driver's, across NINETEEN pages, and six more are not** —
    four the carrier's countersignature and two a witness's. The plan's "21 across 17" counted company
    lines as the driver's AND predated page 26 being known to take a mark (§3.7); two errors of the
    same size in opposite directions, which is the most expensive kind of correct number because

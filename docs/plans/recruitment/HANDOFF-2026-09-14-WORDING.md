@@ -141,7 +141,8 @@ of production, for a driver with zero declared employers and zero invitations.
 
 ### 5.3 P5/P6 — the packet
 The largest piece. `packages/shared/src/packetPlacements.ts` is the measured inventory — 27
-placements, 21 the driver's — each pinned by a test that re-reads the workbook. 5 of 31 pages
+placements, 22 the driver's across 19 pages (p17 added 2026-09-14, D-PKT12) — each pinned by a test
+that re-reads the workbook. 5 of 31 pages
 render. **`driverPlacements()` IS the queue**; P5 has no arithmetic left, only interaction.
 
 ⚠ P5's old blocker ("would be built twice against `v0-draft`") is **gone** — the wording is final.

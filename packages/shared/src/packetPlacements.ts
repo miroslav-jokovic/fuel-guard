@@ -15,11 +15,25 @@
  * `APPLICATION.xlsx` and fails if the line is not there — so this is a measurement, not a memory.
  *
  * ── WHAT THE MEASUREMENT SAYS ─────────────────────────────────────────────────────────────────
- * **21 marks are the driver's, across 18 pages. Six are not: four the carrier's and two a
+ * **22 marks are the driver's, across 19 pages. Six are not: four the carrier's and two a
  * witness's.** The plan's 21 was numerically right and structurally wrong — it was reached before
  * page 26 was known to take a signature at all (§3.7), and it counted company lines to get there.
  * Two errors of the same size in opposite directions is the most expensive kind of correct number,
  * because nothing about it looks wrong.
+ *
+ * ⚠ **The 22nd arrived on 2026-09-14 (D-PKT12), and it was missing for the page-24 reason.** Page 17
+ * was classified in the plan's §2.4 as "interview / disposition record — carrier-filled, after the
+ * application, by somebody else" and excluded whole. That describes its BOTTOM half. Its top half is
+ * the applicant's certification — *"I certify that this application has been completed by me, and
+ * all of the entries provided are true"* — plus an authorization to inquire into employment,
+ * financial, personal and medical history, over `Signature of applicant | Date`. Excluding the page
+ * dropped the most load-bearing signature in the packet.
+ *
+ * ⚠ **This is the second page classified by one of its halves**, after p24 (D-PKT10). The plan wrote
+ * its own warning after the first one — *"no test in this repository can check a classification"* —
+ * and p24 was only caught because it had shipped. This one never shipped, so nothing flagged it; it
+ * was found by measuring the rendered PDF's ruled lines and comparing that inventory against this
+ * constant. **That comparison is the check the plan said did not exist.**
  *
  * ── WHAT IT DOES NOT DECIDE ───────────────────────────────────────────────────────────────────
  * Nothing here adopts any wording. The pages these marks sit under are instruments and go to counsel
@@ -82,6 +96,12 @@ export const PACKET_PLACEMENTS: readonly PacketPlacement[] = [
     what: "That your answers are true, and this stays open for 45 days" },
   { page: 15, party: "driver", mark: "signature", anchor: "Signature of applicant | Date | Sent to",
     what: "Release of your past employment and testing history" },
+  // ⚠ Page 17 is a SPLIT page (D-PKT12): the top half is the applicant's and the bottom half —
+  // `INTERVIEW NOTES`, `APPLICATION RESULTS`, `Contracted or Rejected?`, `Termination date` — is the
+  // carrier's, filled in after a decision by somebody else. Only the top half is reproduced, and this
+  // is its mark. The whole page was excluded until 2026-09-14 on a reading of the bottom half alone.
+  { page: 17, party: "driver", mark: "signature", anchor: "Signature of applicant | Date",
+    what: "That this application is true, and that we may check your history" },
   { page: 18, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
     what: "That the licence you gave us is the only one you hold" },
   { page: 18, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative:",

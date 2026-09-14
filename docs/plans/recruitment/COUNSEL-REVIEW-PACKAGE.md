@@ -440,7 +440,9 @@ it amends D-PKT1's inventory. — **Accepted and executed 2026-08-23 as D-PKT10.
 ### 5.2 ~~Q-PKT6~~ — the placements are now measured and labelled · **DONE 2026-08-23**
 
 ⚠ **Re-derived after this document was written**, into `packages/shared/src/packetPlacements.ts`, and
-the answer sharpens the finding: **21 marks are the driver's across EIGHTEEN pages, and six are not**
+the answer sharpens the finding: **22 marks are the driver's across NINETEEN pages, and six are not**
+⚠ (p17 added 2026-09-14 — D-PKT12; counsel now also reads its certification and history-inquiry
+authorization, which the excluded classification had kept out of this package)
 — four the carrier's, and **two a witness's**, a third party the plan never contemplated (p22's
 `Witness by`, p31's `Witness Name`). Every anchor is checked against the workbook on every test run.
 Nothing about wording is settled by it; §3 is still counsel's. The finding as raised:
