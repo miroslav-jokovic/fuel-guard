@@ -56,6 +56,14 @@ contiguous dark runs, pair each with the label to its left, draw the value 3pt a
 **274 fillable segments located across all 31 pages.** Page 1 is mapped and rendered with Marija's
 real data; it is right.
 
+⚠ **NONE OF THAT IS IN THE REPOSITORY (checked 2026-09-14, main `1df9a5c`).** The measuring pass and
+the page-1 render were scratch work in a session directory and were never committed. What is in the
+tree: `packetPlacements.ts` carries `page`, `party`, `mark`, `anchor` and `what` and **no `x`/`y`**;
+`Application 11.pdf` and `APPLICATION.pdf` are in `~/Downloads` and are **not repo assets**; and the
+only packet renderer is still the PDFKit **redraw** the owner rejected. So the architecture above is
+a settled DECISION, not shipped code, and the overlay step begins by committing the PDF and
+re-running the measurement. Do not go looking for a coordinate table — there is not one.
+
 ⚠ `renderPacket.ts` was **never wired in** — its only importer is its own test. `file.ts` calls
 `render.ts`. That is the whole reason the packet work never reached a PDF anybody opened.
 
@@ -88,9 +96,19 @@ contains. The scan that does catch it runs against the CARRIER'S paper.
    ⚠ **Appends only** — `application_edits` stores an index-addressed path, so a splice re-points every
    recorded correction. Removal is **Q-AX7**.
 2. **The signing ceremony over the 22 driver marks** — stop to stop, one instrument per screen,
-   signatures and initials, progress visible. Coordinates exist for every mark.
-   ⚠ **Open question for the owner: typed name applied to all 22 stops, or a drawn signature at each?**
-   Recommendation: type once, apply to all, each stop showing what is being agreed.
+   signatures and initials, progress visible.
+   ⚠ **Coordinates do NOT exist for any mark** — see §3. The queue does: `driverPlacements()` is 22
+   stops in the packet's own page order, each with the sentence the driver is shown. That is enough
+   to build the ceremony, and the marks reach no page until the overlay lands.
+   ✅ **The SERVER half shipped 2026-09-14 (PR #781, migration 0339)** — `application_packet_marks`,
+   `record_packet_mark`, `POST /:token/mark`, the queue on `GET /:token`, and a stable `id` per
+   placement. What is left is the web ceremony. See `APPLICATION-PACKET-PLAN.md` §8.
+   ⚠ ~~**Open question for the owner: typed name applied to all 22 stops, or a drawn signature at each?**~~
+   **ANSWERED 2026-09-14 → D-PKT13: the driver adopts ONE mark, drawn OR typed, once, and it is
+   applied at every stop.** *"Driver can draw or type name once, but he needs to be directed to each
+   spot and apply saved signature form."* The choice between drawing and typing is the driver's;
+   `record_packet_mark` refuses (DR035) any stop whose name differs from the one adopted first, so
+   "once" is a database fact rather than a UI promise.
 3. **Send-for-signing with chosen timing** — generalised so the **seven-day statement** uses the same
    machinery. Today `SevenDayStatementSection.vue` is a TRANSCRIPTION surface ("Record one from the
    paper the driver signed") on the driver's page, deliberately — it refuses to let an office user
@@ -104,7 +122,12 @@ contains. The scan that does catch it runs against the CARRIER'S paper.
 - ⚠ **No wizard gap after all.** I twice claimed education and three references were not collected.
   `questionnaireContract.ts` defines all nine carrier questions including both, and
   `QuestionnaireTable.vue` renders tables. They are **optional** — there is deliberately no `required`
-  flag — so Marija left them blank and page 16 would print empty. **Owner decision needed.**
+  flag — so Marija left them blank and page 16 would print empty. ⚠ ~~**Owner decision needed.**~~
+  **ANSWERED 2026-09-14 → D-PKT14: they stay OPTIONAL, and the PRINT fills the empty lines.** The
+  owner's words: *"leave them optional but in print we should add something like N/A or something
+  that will fill there so we dont have empty lines printed."* Not built yet, deliberately — the only
+  code drawing page 16 is `page16()` inside the renderer the overlay replaces, so the filler lands
+  with the page fill (§5.4) against the carrier's own page.
 - ⚠ **Brevo keeps every emailed invitation link in its click-tracking log.** A live token was read out
   of `GET /v3/smtp/statistics/events` and its SHA-256 matched `token_hash` exactly. Cannot be disabled
   below Enterprise. `env.ts` now prefers Resend and warns on every boot that lands on Brevo (#774).
@@ -126,8 +149,11 @@ contains. The scan that does catch it runs against the CARRIER'S paper.
 
 ## 7. Owner actions
 
-1. **A1 at Resend** (domain added to Brevo 2026-09-14 17:03, still `authenticated: false`).
-2. **Decide:** typed vs drawn signatures for the ceremony (§5.2).
-3. **Decide:** should page 16's education/references be required (§6)?
+1. **A1 at Resend** (domain added to Brevo 2026-09-14 17:03, still `authenticated: false`). **STILL
+   OPEN** — until it is, every invitation goes through Brevo, which keeps the live token in a
+   click-tracking log that can be read back.
+2. ~~**Decide:** typed vs drawn signatures for the ceremony (§5.2).~~ **ANSWERED → D-PKT13.**
+3. ~~**Decide:** should page 16's education/references be required (§6)?~~ **ANSWERED → D-PKT14:**
+   optional, with a printed filler.
 4. **A3 is still unexercised** — Marija filed with **zero** document captures, so phone capture has
-   never run.
+   never run. **STILL OPEN.**

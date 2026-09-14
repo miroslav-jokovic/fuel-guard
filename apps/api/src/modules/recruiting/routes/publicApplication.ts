@@ -4,12 +4,14 @@ import {
   applicationCaptureStartSchema,
   applicationDraftSaveSchema,
   applicationDraftUnlockSchema,
+  applicationPacketMarkSchema,
   applicationReleaseSchema,
   applicationSubmitSchema,
   type ApplicationCaptureConfirm,
   type ApplicationCaptureStart,
   type ApplicationDraftSave,
   type ApplicationDraftUnlock,
+  type ApplicationPacketMark,
   type ApplicationRelease,
   type ApplicationSubmit,
 } from "@silvicom/shared";
@@ -29,6 +31,7 @@ import {
   submitApplication,
 } from "../applicationIntake.js";
 import { recordRelease, releasesForApplicant, signedReleases } from "../applicationReleases.js";
+import { packetStops, recordPacketMark } from "../applicationPacketMarks.js";
 
 /**
  * The public application surface — H5, and the only unauthenticated write path in the product that
@@ -119,6 +122,10 @@ export function publicApplicationRouter(): Router {
       // What the office corrected while it had it (F4, D-AX12). The driver is about to certify that
       // every entry is true — they are owed the changes somebody else made to their statement.
       const edits = await applicantVisibleEdits(admin, invitation.org_id, invitation.id);
+      // The twenty-two places on the carrier's packet, in its own page order, each saying whether
+      // this link has collected it yet (P5). Served on every load rather than behind the approval,
+      // so a driver who opens the link early sees what is still coming instead of an empty screen.
+      const packet = await packetStops(admin, invitation.org_id, invitation.id);
 
       res.json({
         // The carrier's name and nothing else about them. An application link is not a directory.
@@ -138,6 +145,9 @@ export function publicApplicationRouter(): Router {
         captures,
         // Empty for every application nobody has corrected, which is most of them.
         edits,
+        // The signing ceremony's queue. Empty of signatures until the office approves — the stops
+        // themselves are the carrier's paper and do not depend on anything the driver has done.
+        packet,
       });
     }),
   );
@@ -368,6 +378,49 @@ export function publicApplicationRouter(): Router {
       }
       // How far the ceremony got, so the page can move to the next instrument without refetching.
       res.status(201).json({ ok: true, signedCount: result.signedCount, completed: result.completed });
+    }),
+  );
+
+  /**
+   * One place on the carrier's packet, one call (P5, D-PKT6).
+   *
+   * The same shape as `/release` above, and for a related reason rather than the same one: there it
+   * is §604(b)(2) forbidding two instruments in one document; here it is that twenty-two marks made
+   * by one request would be one act, and the owner asked for a driver walked to each place. A body
+   * carrying several stops would be a "sign everything" button wearing a queue's clothes.
+   *
+   * ⚠ `packet_not_yet_approved` is a 409 for the reason every other phase refusal here is: the link
+   * is fine and the answer is "not yet". The office is still reading the application, and a driver
+   * who opened their link early has done nothing wrong.
+   */
+  router.post(
+    "/:token/mark",
+    validateBody(applicationPacketMarkSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await recordPacketMark(
+        admin, String(req.params.token ?? ""),
+        res.locals.body as ApplicationPacketMark, context(req), new Date(),
+      );
+      if (isIntakeError(result)) {
+        const status =
+          result.code === "invalid_link"
+            ? 404
+            : result.code === "packet_not_yet_approved"
+                || result.code === "already_submitted"
+                || result.code === "packet_mark_already_made"
+                || result.code === "packet_mark_name_changed"
+                || result.code === "esign_consent_required"
+              ? 409
+              // A stop that is not the driver's is a bad request rather than a conflict: nothing
+              // about the state of the world would make `p18c` signable by an applicant.
+              : result.code === "packet_mark_not_the_drivers"
+                ? 400
+                : 500;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json({ ok: true, signedCount: result.signedCount, complete: result.complete });
     }),
   );
 
