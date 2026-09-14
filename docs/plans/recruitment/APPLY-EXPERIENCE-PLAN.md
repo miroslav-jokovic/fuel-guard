@@ -924,3 +924,62 @@ adjacent table rows conflict every time.
   FMCSA wording**, and watch the textarea go from 409 characters at 10 rows to 6,018 at 28, opening
   with *"In connection with your application for employment with Silvicom Inc"* and ending on the
   49 C.F.R. 383.5 notice.
+
+- 2026-09-14 — **D-WORD1: the product ships the wording, and the settings page is gone.** The owner
+  ruled that being asked to choose legal text was the wrong shape — *"let's not rely on me choosing
+  wording; research and implement proper wording, you can decide"* — and that the page should come
+  off the dashboard. Both done, in that order, because removing the page first would have stranded
+  the product with no way to publish anything.
+  ⚠ **The research finding was not that better text needed writing. It was that four of the six
+  already had an authoritative source and nobody had gone and got it.** PSP is FMCSA's mandated
+  form (#764). The 7001(c) consent is the statute's own six clauses. The other two the applicant
+  signs, plus the drug-and-alcohol one, are the carrier's counsel, off packet pages 19/14/21 (#763).
+  That left `clearinghouse`, and researching it turned up a defect rather than a gap: **the
+  placeholder described the wrong query type.** It talked about the FULL query, whose consent is
+  given inside the FMCSA portal — but the instrument a carrier actually holds is the **limited**
+  query consent, §382.701(b), required at least annually, obtained by the employer directly.
+  FMCSA publishes a sample for it, committed under `docs/plans/recruitment/clearinghouse-consent/`.
+  ⚠ **The sample is NOT mandatory** — *"Employers may, however, use or adapt the content as they
+  see fit"* — which is why `clearinghouseConsent.ts` has no refusal gate and `pspDisclosure.ts`
+  does. Inventing an obligation the agency declined to impose would be as wrong as ignoring one it
+  did. The sample also hands back one decision in a bracket (single or multiple queries? fixed
+  period or duration? limited number or unlimited?), and the answer is **forced rather than
+  chosen**: §382.701(b) requires a query at least annually for as long as the driver is employed,
+  so anything narrower expires into a compliance failure. That scope paragraph is OURS, is exported
+  separately from FMCSA's three, and a test asserts it does **not** appear in the sample — so
+  nobody can later mistake our drafting for the agency's.
+  ⚠ **Two candidates were considered and rejected**, recorded so they are not re-proposed: writing
+  model FCRA and §40.25 text ourselves (worse than the carrier's counsel, and the exact thing the
+  owner said not to do), and adopting FMCSA's Safety Performance History Records Request as the
+  previous-employer release (it is a per-employer fill-in form with blanks, not a single electronic
+  release — it does not fit the instrument).
+  **`defaultWording(carrierName)` is now the base** that `org_disclosures` overlays, so
+  `carrierWording()` takes its base as a required argument and `loadCarrierWording` reads the
+  carrier's NAME to fill the "I authorize ___" blanks in FMCSA's two forms. ⚠ **Versions are
+  provenance, not counters** — `fmcsa-2016-02-11`, `fmcsa-sample-2026-09-13`, `packet-2026-08-21`,
+  `15usc7001c-2026-08-21`. `driver_authorizations.disclosure_version` is what an auditor reads years
+  later, and `v1` only means something if you also hold this repository at the right commit. They
+  are a separate namespace from the `v1, v2, …` `publishWording` assigns to overrides, so the two
+  can never be confused.
+  **Deleted:** `ApplicationWordingPage.vue`, its test, `useApplicationWording.ts`, the route, the
+  Settings tile and the `admin.settings.application-wording` nav surface. ⚠ **The API router
+  stays**, and deleting it would be the mistake: `org_disclosures` is append-only and
+  `driver_authorizations` rows point into it, and this is the only code that writes it correctly —
+  assigning the version, refusing a non-mandated PSP body, auditing the act. A capability with no
+  button is not dead code; an evidence table with no safe writer is a liability.
+  ⚠ **The test fallout was the real work and it is worth knowing why: 39 tests failed, and almost
+  all of them were correct failures.** Two causes. Every applicant fixture carried
+  `consented_at: null`, which was harmless while the catalogue was draft and is now a driver who
+  has not started — §390.32(d)'s gate refuses every write before the consent exists, so the default
+  fixtures now consent and the gate's own tests override back to null. And a dozen tests asserted
+  refusals that are no longer reachable by doing nothing. Those were not deleted: `disclosure_not_final`
+  and `WORDING_NOT_FINAL` are the floor under an instrument whose text is not final, so the tests
+  now reach that state the only two ways a real carrier still can — a draft OVERRIDE row in
+  `org_disclosures`, or `withDraftWording()`, a narrow opt-in mock. A floor nobody stands on is a
+  floor nobody notices has gone.
+  Three assertions turned over rather than being patched, and each turn is the change stated out
+  loud: "leaves every unpublished instrument a draft" became "leaves it on the shipped wording,
+  which is not a draft"; "fails CLOSED when the table cannot be read" became "degrades to the
+  shipped catalogue", because what a blip now costs is the carrier's override rather than the
+  ability to sign at all; and the A1 test that pinned a wording refusal on a submitted link now
+  pins the signature the comment had always promised.

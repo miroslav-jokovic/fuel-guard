@@ -1,5 +1,21 @@
 # Publishing the application wording — runbook
 
+> # ⚠ SUPERSEDED 2026-09-14 by D-WORD1. There is nothing to publish and nothing to press.
+>
+> The owner ruled that asking a carrier to approve six legal documents before their product works
+> was the wrong shape. The product now **ships** the wording — FMCSA's mandated PSP form, FMCSA's
+> Clearinghouse sample with the scope §382.701(b) forces, the 7001(c) statute, and the carrier's own
+> counsel off packet pages 19/14/21 — at versions that are not drafts, so every gate is open on
+> deploy. `/settings/application-wording` was deleted with the same change.
+>
+> **Read `WORDING-REVIEW-2026-09-13.md` and `defaultWording.ts` instead.** What survives below is
+> the production measurement in §1, which is still true about which applicants can be reached, and
+> §2, which records three defects that were fixed on the way here.
+>
+> ⚠ Publishing still EXISTS, as an override for a carrier whose counsel wants different text — but
+> it has no UI by deliberate choice, and `POST /api/recruitment/wording` is the only safe writer.
+
+
 **The owner ruled path (b) on 2026-09-13**: rather than wait for `COUNSEL-REVIEW-PACKAGE.md` to come
 back, the carrier publishes now at `/settings/application-wording`.
 `HANDOFF-2026-09-13-QUEUE.md` §3.1 is the decision this closes.

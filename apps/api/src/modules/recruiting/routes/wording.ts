@@ -10,11 +10,24 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { isWordingError, loadCarrierWording, publishWording, wordingHistory } from "../carrierWording.js";
-import { packetWording } from "../packetWording.js";
-import { pspDisclosure } from "../pspDisclosure.js";
 
 /**
- * Publishing the carrier's own instrument wording (0338).
+ * Publishing a carrier's OWN instrument wording, over the top of the catalogue we ship (0338).
+ *
+ * ── ⚠ THIS ROUTER HAS NO UI, DELIBERATELY, SINCE D-WORD1 (2026-09-14) ─────────────────────────
+ * `/settings/application-wording` was deleted the day the product started shipping researched
+ * wording. The page existed for one reason — every instrument was `v0-draft` and a carrier had to
+ * publish something before an applicant could do anything — and `defaultWording()` removed that
+ * reason. Asking a customer to approve six legal documents before their product works was the
+ * wrong shape, and the owner said so.
+ *
+ * ⚠ **The router stays, and deleting it would be the mistake.** `org_disclosures` is a shipped,
+ * append-only table that `driver_authorizations` rows point back into, and this is the only code
+ * that writes it correctly: it assigns the version rather than accepting one, refuses a PSP body
+ * that is not FMCSA's mandated language, and audits every publish. Without it the next carrier
+ * that genuinely needs its own counsel's text gets rows written by hand, in a SQL editor, against
+ * an evidence table. A capability with no button is not dead code; a table with no safe writer is
+ * a liability.
  *
  * ── WHY PUBLISHING TAKES `settings` AND NOT `recruitment` ─────────────────────────────────────
  * This is the text a driver legally signs. Changing it is not a day-to-day recruiting act — a
@@ -27,35 +40,6 @@ import { pspDisclosure } from "../pspDisclosure.js";
  * application.** Every instrument ships as `v0-draft`; until a carrier publishes all six, submission,
  * signing, the 7001(c) consent, PSP, §40.25 letters and Clearinghouse queries all refuse.
  */
-/** Where a better draft than our placeholder comes from, for the instruments that have one. */
-function wordingSource(
-  instrument: (typeof PUBLISHABLE_INSTRUMENTS)[number],
-  carrierName: string,
-): { kind: "packet" | "fmcsa"; title: string; body: string; intent: string; provenance: string } | null {
-  if (instrument === "psp") {
-    const doc = pspDisclosure(carrierName);
-    return {
-      kind: "fmcsa",
-      ...doc,
-      provenance:
-        "FMCSA publishes this disclosure and requires account holders to use it in whole, exactly "
-        + "as provided, as a stand-alone document. It is not the carrier's to reword, and "
-        + "publishing anything else here is refused.",
-    };
-  }
-  const packet = packetWording(instrument);
-  if (!packet) return null;
-  return {
-    kind: "packet",
-    title: packet.title,
-    body: packet.body,
-    intent: packet.intent,
-    provenance:
-      `Your own wording, from page ${packet.page} of your application packet, spelling corrected. `
-      + "Read it before you publish.",
-  };
-}
-
 export function recruitmentWordingRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -75,12 +59,6 @@ export function recruitmentWordingRouter(): Router {
       const outstanding = unpublishedInstruments(wording);
       // The carrier's name goes into the two blanks FMCSA's form leaves for it. Read here rather
       // than typed by the office: an instrument authorising the wrong company authorises nobody.
-      const { data: org } = await admin
-        .from("organizations")
-        .select("name")
-        .eq("id", orgId)
-        .maybeSingle();
-      const carrierName = (org as { name?: string } | null)?.name ?? "";
 
       res.json({
         instruments: PUBLISHABLE_INSTRUMENTS.map((instrument) => {
@@ -95,21 +73,6 @@ export function recruitmentWordingRouter(): Router {
             body: instrument === "esign_consent" ? null : (doc as { body: string }).body,
             clauses: instrument === "esign_consent" ? wording.esignConsent.clauses : null,
             published: !outstanding.includes(instrument),
-            /**
-             * ⚠ Where the right words for this instrument actually come from, when they come from
-             * somewhere better than our placeholder (2026-09-13). Two kinds, and the difference
-             * matters to the office reading it:
-             *
-             *   `packet` — the carrier's OWN lawyers, pages 14/19/21 of `APPLICATION.xlsx`. Theirs
-             *              to adopt or not.
-             *   `fmcsa`  — the regulator's, and NOT optional: FMCSA publishes the PSP disclosure
-             *              and requires it in whole, exactly as provided. Publishing anything else
-             *              for `psp` is refused.
-             *
-             * Null for the instruments neither answers for. ⚠ Nothing publishes from here — it
-             * fills the editor and somebody still reads it and presses Publish.
-             */
-            source: wordingSource(instrument, carrierName),
           };
         }),
         outstanding,

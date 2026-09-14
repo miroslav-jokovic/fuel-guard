@@ -12,6 +12,7 @@ import {
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import { missingPspParagraphs } from "./pspDisclosure.js";
+import { defaultWording } from "./defaultWording.js";
 
 /**
  * Reading and publishing a carrier's own instrument wording (0338).
@@ -78,20 +79,28 @@ export async function wordingHistory(
 /**
  * The six documents this carrier's applicants are shown.
  *
- * ⚠ A failed read returns the placeholders rather than throwing, and that is deliberate. This is
- * called on the applicant's page load; a database blip must not take the form down, and the state it
- * degrades to is the one where nothing can be signed.
+ * ⚠ A failed read returns the shipped catalogue rather than throwing, and that is still deliberate:
+ * this is called on the applicant's page load and a database blip must not take the form down.
+ * What changed on 2026-09-14 (D-WORD1) is what it degrades TO. It used to be the `v0-draft`
+ * placeholders — "nothing can be signed" — which was the only safe direction while the shipped text
+ * was an engineer's guess. The shipped text is now FMCSA's forms, the statute and the carrier's own
+ * counsel, so degrading to it is degrading to the right words rather than to a locked door.
+ *
+ * ⚠ The carrier's NAME is read here, not passed in. Two of the six instruments authorise a named
+ * company — FMCSA's PSP form and its Clearinghouse sample both read "I authorize ___" — and a
+ * caller that could forget to supply it is a caller that could file an instrument authorising
+ * nobody. Same argument `submitApplication` makes for loading the wording itself.
  */
 export async function loadCarrierWording(
   admin: SupabaseClient,
   orgId: string,
 ): Promise<CarrierWording> {
-  const { data } = await admin
-    .from("org_disclosures")
-    .select(COLS)
-    .eq("org_id", orgId)
-    .order("published_at", { ascending: false });
-  return carrierWording(((data ?? []) as WordingRow[]).map(toPublished));
+  const [{ data }, { data: org }] = await Promise.all([
+    admin.from("org_disclosures").select(COLS).eq("org_id", orgId).order("published_at", { ascending: false }),
+    admin.from("organizations").select("name").eq("id", orgId).maybeSingle(),
+  ]);
+  const base = defaultWording((org as { name?: string } | null)?.name ?? "");
+  return carrierWording(((data ?? []) as WordingRow[]).map(toPublished), base);
 }
 
 /** What the office still owes before any applicant of theirs can sign anything. */

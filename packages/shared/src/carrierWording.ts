@@ -1,8 +1,6 @@
 import { z } from "zod";
 import {
   AUTHORIZATION_PURPOSES,
-  DISCLOSURES,
-  ESIGN_CONSENT,
   ESIGN_CONSENT_CLAUSES,
   isDraftDisclosure,
   type AuthorizationPurpose,
@@ -135,25 +133,35 @@ export interface CarrierWording {
 }
 
 /**
- * The six documents this carrier's applicants are shown, given what it has published.
+ * The six documents this carrier's applicants are shown: `base`, with anything they have published
+ * laid over the top.
  *
- * Anything unpublished keeps the code's placeholder — which is `v0-draft`, which is what keeps every
- * downstream refusal in place for a carrier that has not finished. There is no third state and no
- * flag: published or not, read off the version, exactly as before.
+ * ⚠ **`base` is a required argument since 2026-09-14, and the reason is the whole D-WORD1 change.**
+ * It used to default to `DISCLOSURES` — the engineer's `v0-draft` placeholders — so "unpublished"
+ * and "unusable" were the same state, and the settings page existed to get a carrier out of it.
+ * The api now passes `defaultWording(carrierName)`: the researched, sourced catalogue, which is not
+ * draft, so an applicant works on deploy and `org_disclosures` becomes a genuine OVERRIDE rather
+ * than the only way to have any wording at all.
+ *
+ * It is a parameter rather than an import because this package must not know about the carrier's
+ * packet or FMCSA's forms — those are api concerns, and `lint:boundaries` is right to care.
  */
-export function carrierWording(published: readonly PublishedWording[]): CarrierWording {
+export function carrierWording(
+  published: readonly PublishedWording[],
+  base: CarrierWording,
+): CarrierWording {
   /** Newest wins. Rows arrive newest-first from the api, but sorting here makes that not matter. */
   const live = new Map<PublishableInstrument, PublishedWording>();
   for (const row of [...published].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))) {
     live.set(row.instrument, row);
   }
 
-  const disclosures = { ...DISCLOSURES } as Record<AuthorizationPurpose, DisclosureDocument>;
+  const disclosures = { ...base.disclosures } as Record<AuthorizationPurpose, DisclosureDocument>;
   for (const purpose of AUTHORIZATION_PURPOSES) {
     const row = live.get(purpose);
     if (!row || !row.body) continue;
     disclosures[purpose] = {
-      ...DISCLOSURES[purpose],
+      ...base.disclosures[purpose],
       version: row.version,
       title: row.title,
       body: row.body,
@@ -164,7 +172,7 @@ export function carrierWording(published: readonly PublishedWording[]): CarrierW
   const consentRow = live.get(ESIGN_CONSENT_INSTRUMENT);
   const esignConsent: EsignConsentDocument = consentRow?.clauses
     ? {
-      ...ESIGN_CONSENT,
+      ...base.esignConsent,
       version: consentRow.version,
       title: consentRow.title,
       intent: consentRow.intent,
@@ -173,10 +181,10 @@ export function carrierWording(published: readonly PublishedWording[]): CarrierW
         // carrying an extra key must not add a clause, and one missing a key falls back to the
         // placeholder rather than rendering an empty paragraph. Publishing already refuses a row
         // with a gap; this is the floor under a row written before that rule existed.
-        ESIGN_CONSENT_CLAUSES.map((c) => [c, consentRow.clauses?.[c]?.trim() || ESIGN_CONSENT.clauses[c]]),
+        ESIGN_CONSENT_CLAUSES.map((c) => [c, consentRow.clauses?.[c]?.trim() || base.esignConsent.clauses[c]]),
       ) as Record<EsignConsentClause, string>,
     }
-    : ESIGN_CONSENT;
+    : base.esignConsent;
 
   return { disclosures, esignConsent };
 }
