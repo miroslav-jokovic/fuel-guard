@@ -120,7 +120,7 @@ const columns: DataTableColumn[] = [
       </div>
 
       <div v-if="canInvite && driverStatus === 'applicant'" class="mt-4 flex flex-wrap items-end gap-3">
-        <FormField v-slot="{ id }" label="Their email" hint="Optional — recorded so you can see who was invited.">
+        <FormField v-slot="{ id }" label="Their email" hint="Optional — the link is emailed to this address. Leave it blank and you send the link yourself.">
           <BaseInput :id="id" v-model="email" type="email" placeholder="Optional" />
         </FormField>
         <BaseButton variant="primary" :disabled="create.isPending.value" @click="invite">
