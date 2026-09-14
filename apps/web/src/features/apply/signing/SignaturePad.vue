@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, shallowRef } from "vue";
+import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -21,7 +21,27 @@ import { APPLY_COPY } from "@/features/apply/strings";
  */
 const emit = defineEmits<{ change: [Blob | null] }>();
 
+/**
+ * ⚠ **The label and the hint are overridable because this pad is no longer always optional.**
+ *
+ * It was written for A5, where drawing is decoration on top of a typed signature, and it said so in
+ * its own words: *"Draw it too, if you like"* / *"Optional."* The packet ceremony (D-PKT13) lets the
+ * driver choose to sign BY drawing, and there the drawing is the mark — `usePacketCeremony.adopt()`
+ * refuses without one. The pad kept telling them it was optional while the button stayed disabled,
+ * which is a control arguing with the screen it is on.
+ *
+ * Defaulted to A5's copy so its caller is unchanged. ⚠ Overriding the words does NOT make the pad
+ * required — whether a drawing is needed is the caller's rule, and D-APP8 still says a PNG that will
+ * not upload may never block a signature.
+ */
+const props = withDefaults(
+  defineProps<{ label?: string; hint?: string }>(),
+  { label: undefined, hint: undefined },
+);
+
 const copy = APPLY_COPY.signing;
+const label = computed(() => props.label ?? copy.drawLabel);
+const hint = computed(() => props.hint ?? copy.drawHint);
 const canvas = ref<HTMLCanvasElement | null>(null);
 const drawn = ref(false);
 const ctx = shallowRef<CanvasRenderingContext2D | null>(null);
@@ -106,7 +126,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="space-y-2">
     <div class="flex items-baseline justify-between gap-4">
-      <p class="text-sm text-ink">{{ copy.drawLabel }}</p>
+      <p class="text-sm text-ink">{{ label }}</p>
       <BaseButton v-if="drawn" variant="ghost" @click="clear">{{ copy.drawClear }}</BaseButton>
     </div>
     <canvas
@@ -118,7 +138,7 @@ onBeforeUnmount(() => {
       @pointercancel="up"
       @pointerleave="up"
     />
-    <p class="text-xs text-ink-muted">{{ copy.drawHint }}</p>
+    <p class="text-xs text-ink-muted">{{ hint }}</p>
   </div>
 </template>
 

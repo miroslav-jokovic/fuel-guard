@@ -155,6 +155,49 @@ export const APPLY_FLOW_COPY = {
       "This carrier has not published its final wording for this document yet, so it cannot be signed today. They have been told. You can still fill in your application.",
   },
 
+  /**
+   * The walk through the carrier's own packet (P5, D-PKT6, D-PKT13).
+   *
+   * ⚠ **Names no regulation and no page of ours** (D-UI9). What a stop says is the carrier's own
+   * `what` sentence out of `packetPlacements.ts`, and the only number shown is THEIR page number —
+   * which is the number printed at the foot of the paper the driver will be handed, so it is the one
+   * thing on the screen they could check against the document itself.
+   *
+   * ⚠ **"Initials" is said as initials.** Three pages take them and nothing else, and the packet
+   * treats them as a distinct mark rather than an abbreviation of the signature — a screen that said
+   * "sign" on a page asking for initials would be describing a different act.
+   */
+  packet: {
+    adoptHeading: "Your signature on the application",
+    adoptIntro: (carrier: string, count: number): string =>
+      `${carrier} has approved your application. It now needs your signature in ${count} places on their own form. Give your signature once below — then we take you to each place, one at a time, and show you what you are signing.`,
+    styleLabel: "How would you like to sign?",
+    styleTyped: "Type my name",
+    styleDrawn: "Draw my signature",
+    adoptLabel: "Type your full name",
+    adoptHint: "Type it as it appears on your licence. This is what goes on the form.",
+    drawLabel: "Draw your signature",
+    drawHint: "Use your finger. This is what goes on the form — your typed name goes on it as well.",
+    drawClear: "Clear",
+    drawNeeded: "Draw your signature above, or choose to type it instead.",
+    adoptAction: "Use this and start",
+    counter: (n: number, total: number): string => `Place ${n} of ${total}`,
+    page: (n: number): string => `Page ${n} of the application`,
+    /** The two marks, named as the packet names them (`adoptedMarkKinds()`). */
+    signAction: "Sign here",
+    initialAction: "Initial here",
+    working: "Saving…",
+    /** What is about to be put on the page, so the act is never ambiguous. */
+    applyingTyped: "We will put this on the page:",
+    applyingDrawn: "We will put your signature on the page:",
+    resumed: (n: number): string =>
+      n === 1 ? "You have already signed 1 place." : `You have already signed ${n} places.`,
+    doneHeading: "That is every place signed",
+    doneBody:
+      "Your signature is now on every place the form asks for it. One last step below and your application is in.",
+    failed: "That did not go through. Check your signal and try again.",
+  },
+
   unlock: {
     heading: "Pick up where you left off",
     body: (carrier: string): string =>

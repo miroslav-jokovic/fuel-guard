@@ -902,3 +902,60 @@ That catches 14 and 21, which carry none. ⚠ **It does not catch 19, which carr
 that would reads the footers out of the carrier's PDF and needs that PDF in the repository. This is
 §2.5 a third time, after p24 and p17: a guard scoped to our own files cannot check a fact about the
 carrier's paper.
+
+**2026-09-14 — P5's web half: the driver is walked to all twenty-two places.**
+
+`PacketCeremony.vue` + `usePacketCeremony.ts`, inside a new `SignOffScreen.vue` that owns the whole
+approved phase. Adoption is one screen — a segmented control for D-PKT13's choice, the typed name
+always, the pad when the driver picks drawn — then one place per screen: the carrier's page number,
+their own sentence for that place, the mark about to be applied, one button.
+
+- ⚠ **The order of the approved screen is forced, and by two rules pulling the same way.** D-AX12
+  puts the office's corrections above anything the driver affirms; `record_packet_mark` refuses a
+  mark once `submitted_at` is set (0339). Corrections → the document → the packet → Send, and there
+  is no "sign it afterwards" available even if somebody wanted one.
+- ⚠ **Progress counts the PACKET, not the work left.** "Place 3 of 22" for a driver who signed two
+  yesterday. Counting only what is outstanding would renumber the places under somebody watching the
+  number, which is how a progress indicator stops being believed.
+- ⚠ **Completion is the server's count, never the end of the client's array.** A place collected in
+  another tab means the list this tab holds is not the document's.
+- ⚠ **`ApplyPage.vue` hit 528 lines and was SPLIT, not waived** (`lint:filesize`). The seam is real:
+  everything in `SignOffScreen` belongs to one phase of the link and is unreachable in any other.
+
+**Two defects the browser found that no test could, and one that was not a defect:**
+
+- ⚠ **`SignaturePad` carried its own copy, and it contradicted the screen.** Written for A5, where
+  drawing is decoration, it says *"Draw it too, if you like"* / *"Optional."* — while the packet's
+  adopt button stayed disabled until a drawing existed. **The control was fixed, not forked**: its
+  `label` and `hint` are now props defaulting to A5's words. ⚠ Overriding the words does not make the
+  pad required; whether a drawing is needed stays the caller's rule, and D-APP8 still says a PNG that
+  will not upload may never block a signature.
+- ⚠ **The first screenshot said "21 places".** Not a product defect — the screenshot script built its
+  fixture from `packages/shared/dist`, which is produced only by `build:rn` for the React Native app
+  and was four commits stale (no p17, no `id` field). The package's own `exports` points at
+  `./src/index.ts`, which is what apps/web compiles against. **A fixture read from `dist` is a
+  fixture from a different commit**; generate it with `tsx` from `src`.
+- The `@/api` mocks must be raw JSON, and Playwright matches the LAST registered route — catch-alls
+  go first. Both already recorded; both bit again.
+
+### ⚠ Q-PKT7 — is the certification tick still the driver's second one? **OWNER / COUNSEL**
+
+`CertifyFields` sits directly above the walk on the same screen: *"I certify that all entries on this
+application are true and complete"*, plus a second "Your full name". The driver therefore types their
+name twice in a row and certifies twice — because **packet pages 11, 13 and 17 are certifications of
+the same fact, in the carrier's own words** (`p11b` *"That everything on this application is true"*,
+`p13`, `p17` *"That this application is true, and that we may check your history"*).
+
+Two sources of truth for one act is the shape the no-workarounds rule names. It is **not** resolved
+here, and deliberately: removing a certification from a regulated filing path is not a UI tidy-up.
+
+Candidates: **(a)** the walk replaces the tick, since the carrier's own pages carry the certification
+— fewest acts, and the one the packet's own design implies; **(b)** the tick stays as OUR §391.21(b)(12)
+record and the walk is the carrier's paper, with the duplicate name field removed at least;
+**(c)** leave both. **Recommendation: (a)**, subject to counsel confirming the packet's own
+certification language satisfies §391.21(b)(12).
+
+⚠ **Related and also open: nothing in `submitApplication` counts marks.** The Send button is held in
+the UI until every place is signed, and the SERVER would accept a submission with none of them — so a
+packet can still be filed with blank signature lines by anything that is not this screen. Fixing that
+is the same decision as Q-PKT7, because both change what a filing requires.

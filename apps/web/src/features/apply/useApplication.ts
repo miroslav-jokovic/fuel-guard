@@ -6,6 +6,7 @@ import type {
   ApplicationCaptureView,
   AuthorizationPurpose,
   DriverApplication,
+  PacketPlacement,
 } from "@silvicom/shared";
 
 /**
@@ -115,6 +116,26 @@ export interface ApplyInvitation {
   captures: ApplicationCaptureView[];
   /** What the office changed while it had the application. Empty for almost every one of them. */
   edits: ApplyEdit[];
+  /**
+   * The carrier's packet, stop by stop (P5, D-PKT6) — the driver's twenty-two marks in the packet's
+   * own page order, each saying whether this link has collected it yet.
+   *
+   * ⚠ Served on every load, not only after approval. The stops are the CARRIER'S PAPER and do not
+   * depend on anything the driver has done; what the approval gates is whether one may be signed.
+   */
+  packet: ApplyPacketStop[];
+}
+
+/**
+ * One place the packet asks the driver to sign or initial.
+ *
+ * Extends the shared inventory rather than restating it: `page`, `mark`, `anchor` and `what` are
+ * `PacketPlacement`'s, measured off the carrier's own document, and the only thing this session adds
+ * is whether it has been collected. A second shape here would be a second opinion about what the
+ * carrier's paper says.
+ */
+export interface ApplyPacketStop extends PacketPlacement {
+  signedAt: string | null;
 }
 
 async function publicFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -277,4 +298,26 @@ export const signRelease = (
   publicFetch<{ signedCount: number; completed: boolean }>(`/${token}/release`, {
     method: "POST",
     body: JSON.stringify({ purpose, signed_name: signedName, esign_consent: true }),
+  });
+
+/**
+ * Apply the adopted mark at one stop (P5, D-PKT6).
+ *
+ * The body names the STOP and carries the mark — never the page, the line or the sentence. Those the
+ * server reads out of `PACKET_PLACEMENTS` and writes onto the row, so what the driver agreed to at
+ * each place is a fact the server can prove rather than something their browser composed.
+ *
+ * ⚠ `signed_name` travels on every stop even though it is adopted once, and the server pins it: the
+ * first mark on a link fixes the name and any later one that disagrees is refused. That is what makes
+ * "the driver signs once and is directed to each place" a property of the filed document rather than
+ * of this file.
+ */
+export const applyPacketMark = (
+  token: string,
+  placementId: string,
+  signedName: string,
+): Promise<{ signedCount: number; complete: boolean }> =>
+  publicFetch<{ signedCount: number; complete: boolean }>(`/${token}/mark`, {
+    method: "POST",
+    body: JSON.stringify({ placement_id: placementId, signed_name: signedName, esign_consent: true }),
   });
