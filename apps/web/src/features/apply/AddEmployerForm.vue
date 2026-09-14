@@ -92,9 +92,14 @@ function submit(): void {
 </script>
 
 <template>
-  <div class="space-y-3 rounded-lg border border-line bg-surface-muted p-3">
+  <div class="space-y-3 rounded-surface border border-edge bg-surface-muted p-3">
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <FormField id="apply-add-employer-name" v-slot="{ id }" label="Employer">
+      <FormField
+        id="apply-add-employer-name"
+        v-slot="{ id }"
+        label="Employer"
+        :error="form.employer_name.trim() !== '' ? (problem ?? undefined) : undefined"
+      >
         <BaseInput :id="id" v-model="form.employer_name" autocomplete="off" />
       </FormField>
       <FormField id="apply-add-employer-position" v-slot="{ id }" label="Position held">
@@ -125,7 +130,6 @@ function submit(): void {
         <BaseInput :id="id" v-model="form.reason_for_leaving" autocomplete="off" />
       </FormField>
     </div>
-    <p v-if="problem && form.employer_name.trim() !== ''" class="text-xs text-danger">{{ problem }}</p>
     <BaseButton size="sm" :disabled="Boolean(problem) || pending" @click="submit">
       Add this employer
     </BaseButton>
