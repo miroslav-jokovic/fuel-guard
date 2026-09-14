@@ -102,6 +102,19 @@ describe("inviting an applicant from the board", () => {
     expect(posts[1]!.init?.body).toEqual({ driver_id: "d-new", email: null });
   });
 
+  /**
+   * ⚠ This pins COPY against BEHAVIOUR, which is not normally worth a test — it is here because the
+   * two drifted apart and stayed apart. The hint read "The link is not sent from here" while
+   * `deliverApplicationInvite` was emailing through Brevo, and the success headline this same
+   * component renders has always said "Emailed to …". A recruiter who believed the field was a note
+   * to the office would send the link twice or not at all. Corrected 2026-09-14.
+   */
+  it("tells the recruiter the address is emailed, not merely recorded", () => {
+    const w = mountWith("recruiter");
+    expect(w.text()).toContain("the link is emailed to this address");
+    expect(w.text()).not.toContain("not sent from here");
+  });
+
   it("shows the link once, and says it cannot be shown again", async () => {
     const w = mountWith("recruiter");
     await fillAndSubmit(w);

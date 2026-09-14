@@ -345,6 +345,37 @@ and documents, and it fixes the case where the driver has done the most work and
 the most. ⚠ It needs the same audit rule the create route follows: the id and the expiry, never the
 token or its hash.
 
+**Q-AX6 · Re-inviting an applicant from the board silently creates a second them.**
+Measured 2026-09-14: Silvicom holds **three** `drivers` rows named Marija Varmeda, same email, all
+`identity_source: manual`, created 09-04, 09-11 and 09-14 — one per invitation, each with its own
+`application_invitations` row and therefore its own draft.
+
+The cause is not a bug in either component, it is the pair of them. `InviteApplicantDrawer` is the
+board's "Invite an applicant" action and it always runs `useCreateApplicant` before
+`useCreateApplicationInvite` — by design, and its header argues why (an applicant IS a `drivers` row
+with `status = 'applicant'`, and there is no endpoint that makes one and mints the link together).
+The re-invite path exists and is correct: `ApplicationInviteCard`, on the applicant's own page, mints
+a link against the driver already there. Nothing on the board points at it, and nothing in the drawer
+notices that a person with this name and address is already on the board.
+
+So the trap is the entry point, not the code: the obvious button on the applicant board is the only
+one a recruiter will find, and using it twice for one person is how a roster acquires duplicates that
+`merge_driver` then has to reconcile — against a cascade rule no gate checks.
+
+Candidates: (a) the drawer looks for an existing `applicant` with the same name + email and offers
+"invite them again" instead of creating a second row; (b) the applicant board grows a re-invite action
+per row, pointing at the card's path, and the drawer stays strictly for people who are new;
+(c) a uniqueness constraint on (`org_id`, lower(`email`), `status='applicant'`), which refuses rather
+than guides and would have to say something useful when it fires; (d) nothing, and merge the
+duplicates when they appear.
+Recommendation: **(b) then (a)** — (b) is small, removes the reason to misuse the drawer, and needs no
+new matching rule; (a) is the guard for the recruiter who reaches for the drawer anyway. ⚠ Do not do
+(c) alone: an applicant with no email is legal here (the field is optional), so the constraint cannot
+cover the case that actually produced these three.
+
+⚠ Whatever is chosen, the two orphan Marija rows need deciding before the roster is trusted — see
+`merge_driver`'s cascade rule, which no gate enforces.
+
 ## 5. What this plan deliberately does not do
 
 - It does not touch any disclosure, intent statement or version. (D-AX1.)
@@ -1035,3 +1066,12 @@ adjacent table rows conflict every time.
   one was never nudged, so it still opens, and it opens an EMPTY form; finishing on it would satisfy
   the done-when while costing her the whole application again. And the working link for the draft
   that matters is **unrecoverable by any path we control** — hence Q-AX5 above.
+
+- 2026-09-14 — **Two defects found while pre-flighting A2, both in how an invitation reaches a person.**
+  The drawer's email hint said "The link is not sent from here" and its header said there was no
+  email transport, while `deliverApplicationInvite` has been sending through Brevo and
+  `ApplicationLinkOnce` — rendered by that same drawer — headlines the success case "Emailed to …".
+  A recruiter who believed the hint would send the link twice, or not at all. Both hints now say the
+  link is emailed and that a blank field means they carry it themselves. And ⚠ **Q-AX6**: three
+  duplicate `Marija Varmeda` applicant rows, one per invitation, because the board's only invite
+  action always creates a driver and nothing points at the re-invite path that already exists.

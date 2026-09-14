@@ -30,11 +30,21 @@ import {
  * Application card mints the link. A drawer that reported "could not invite" and left a person on
  * the board unexplained would be the worse of the two lies.
  *
- * ── THE LINK IS NOT EMAILED FROM HERE ──────────────────────────────────────────────────────────
- * A11b's SMS delivery is inert until 10DLC registration completes, and there is no email transport
- * behind this page either. The email field is what `ApplicationInviteCard` has always meant by it —
- * recorded so the office can see who was invited — and the recruiter still sends the link. Saying so
- * is the whole reason the copy block spells out that the link is shown once.
+ * ── THE LINK *IS* EMAILED FROM HERE, AND THIS SAID OTHERWISE FOR LONGER THAN IT WAS TRUE ──────
+ * When this drawer was written there was no email transport, so the field was a note to the office
+ * and the recruiter carried the link themselves. `deliverApplicationInvite` (applicationInvites.ts)
+ * sends it now, and production has had `MAIL_PROVIDER=brevo` set throughout — so an address typed
+ * here has been producing a real email while the hint beside it said the opposite.
+ *
+ * ⚠ The contradiction was visible on this very screen: `ApplicationLinkOnce`, rendered a few lines
+ * below, has always headlined the success case "Emailed to …". A recruiter who read the hint and
+ * believed it would send the link a second time by hand — or, worse, not send it at all on the
+ * assumption somebody else would. Corrected 2026-09-14, found while pre-flighting A2.
+ *
+ * The field stays OPTIONAL, and that part was always right: the link is shown once here and is
+ * copyable whatever happened to the email, because `delivery.sent === false` is an outcome the
+ * recruiter acts on rather than an error — see `ApplicationLinkOnce`'s header for the three
+ * different people the three failure reasons belong to.
  */
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: []; created: [] }>();
@@ -129,7 +139,7 @@ async function submit(): Promise<void> {
         <FormField
           v-slot="{ id }"
           label="Their email"
-          hint="Optional — recorded so you can see who was invited. The link is not sent from here."
+          hint="Optional — the link is emailed to this address. Leave it blank and you send the link yourself."
         >
           <BaseInput :id="id" v-model="email" type="email" placeholder="Optional" autocomplete="off" />
         </FormField>
