@@ -163,10 +163,17 @@ the sentence a driver disputes.
    repaired per §2.1, with §2.2's four character repairs and §2.3's seven defects left standing.
 2. **PSP is answered** (§3a) — FMCSA's form, verbatim, with the refusal to publish anything else.
    Nothing to decide; worth reading once because of the adverse-action promise it carries.
-3. **Page 3** — §4.1. Does it stay in the paper packet as it is?
-4. **The two closing NOTICEs on the FMCSA form** are shown to the driver along with everything else,
-   because "in whole" is not a sentence to be clever about — but they read as addressed to the
-   account holder, and on paper they sit below the signature. Ruling welcome.
+3. ~~**Page 3** — §4.1. Does it stay in the paper packet as it is?~~
+   **RULED 2026-09-13: it stays, unchanged.** ⚠ The §604(b)(2) concern is not withdrawn by that
+   ruling — it is accepted as a known exposure on the PAPER packet, while the electronic path is
+   built on page 19 alone and is clean. Re-raise it whenever counsel next reads the packet, and do
+   not let a future step merge page 3 into `fcra_disclosure` on the grounds that it is also a
+   consumer-report disclosure. It is, and that is precisely the problem.
+4. ~~**The two closing NOTICEs on the FMCSA form**~~
+   **RULED 2026-09-13: they display.** "In whole, exactly as provided" is not a sentence to be
+   clever about, and over-inclusion cannot breach it where an omission could. They read as addressed
+   to the account holder rather than the driver, and on paper they sit below the signature rather
+   than above it — both accepted.
 
 **All four instruments the applicant signs now have proper text**, so publishing unblocks the path.
 The two that remain on our placeholders are `clearinghouse` — which no applicant signs, because

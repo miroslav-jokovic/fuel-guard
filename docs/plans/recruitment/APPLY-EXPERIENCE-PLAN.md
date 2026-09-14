@@ -881,3 +881,25 @@ adjacent table rows conflict every time.
   **All four instruments the applicant signs now have proper text.** What remains on our placeholders
   is `clearinghouse` (no applicant signs it — §382.701(a)'s consent is given in the FMCSA portal) and
   the 7001(c) consent, whose six clauses are quoted from the statute.
+
+- 2026-09-13 — **Owner ruled the two open questions, and the runbook was corrected before anybody
+  followed it.** Page 3 **stays unchanged** — ⚠ the §604(b)(2) exposure is accepted on the PAPER
+  packet, not withdrawn, and the review now says in as many words that a future step must NOT merge
+  page 3 into `fcra_disclosure` on the grounds that it is also a consumer-report disclosure. It is,
+  and that is the problem. The FMCSA form's two closing NOTICEs **display**, because "in whole,
+  exactly as provided" is not a sentence to be clever about and over-inclusion cannot breach it
+  where an omission could.
+  ⚠ **`WORDING-PUBLISH-RUNBOOK.md` was stale in the one way that mattered**: it was written for
+  adopting OUR placeholders and said "two clicks per document, nothing to type". Followed as
+  written, after #763 and #764, it would have published the engineer's text for all six — including
+  a PSP body the API now refuses, which is the only reason the error would have been noticed at all.
+  It now says to press the source button first, and §4's verification query prints the first 60
+  characters of each published body with the two openings to check them against.
+  **And the end of the chain is finally pinned.** Publishing was proved at every layer except the
+  one the feature exists for: nothing opened the applicant's link and read what came back.
+  `publicApplication.test.ts` now seeds `org_disclosures` with the REAL composed text — packet pages
+  19/14/21 and FMCSA's PSP form — and asserts the applicant is served the carrier's words and not
+  the placeholder, that every mandated PSP paragraph survives the read path, that all four report
+  `draft: false`, and that a half-published carrier still refuses. ⚠ That last case is the state an
+  office is really in between the first Publish and the last. Mutation-proved: an overlay that
+  silently dropped one instrument turns three of them red.

@@ -13,6 +13,8 @@ import {
   ESIGN_CONSENT,
   esignConsentBody,
 } from "@silvicom/shared";
+import { packetWording } from "../packetWording.js";
+import { PSP_DISCLOSURE_TITLE, PSP_MANDATED_INTENT, missingPspParagraphs, pspDisclosure } from "../pspDisclosure.js";
 
 /**
  * The public surface, end to end and unauthenticated.
@@ -842,5 +844,118 @@ describe("with the carrier's wording published as rows, and no consent given", (
     // And the signature carries the CARRIER's version and text, not the code's placeholder.
     const release = rec.rpcs().find((r) => r.fn === "record_driver_release")!.args as Record<string, unknown>;
     expect(release.p_version).toBe("v1");
+  });
+});
+
+/**
+ * ⚠ **What the driver is actually SHOWN once the office publishes — the end of the chain.**
+ *
+ * Everything else about publishing is pinned somewhere: the service assigns the version
+ * (`carrierWording.test.ts`), the transcriptions match their sources (`packetWording.test.ts`,
+ * `pspDisclosure.test.ts`), the office's screen offers them (`ApplicationWordingPage.test.ts`). None
+ * of that proves the one thing the whole feature exists for — that the words which reach the
+ * applicant's phone are the carrier's and the regulator's rather than the placeholders an engineer
+ * wrote. This is the only test that opens the link and reads what comes back.
+ *
+ * It matters because the failure would be silent and total: `carrierWording()` overlays published
+ * rows onto the code's constants, and an overlay that quietly did nothing would leave every screen
+ * looking exactly as it does today, still working, still signing — against the wrong text.
+ */
+describe("what the applicant is served once the carrier has published", () => {
+  /** The real thing: page 19/14/21 out of the packet, and FMCSA's own PSP form. */
+  const LIVE = [
+    ...(["fcra_disclosure", "previous_employer", "drug_alcohol"] as const).map((instrument) => {
+      const w = packetWording(instrument)!;
+      return {
+        instrument, version: "v1", title: w.title, body: w.body, clauses: null, intent: w.intent,
+        published_at: "2026-09-13T10:00:00Z", published_by: null,
+      };
+    }),
+    (() => {
+      const w = pspDisclosure("Silvicom Inc");
+      return {
+        instrument: "psp", version: "v1", title: w.title, body: w.body, clauses: null,
+        intent: w.intent, published_at: "2026-09-13T10:00:00Z", published_by: null,
+      };
+    })(),
+    {
+      instrument: "esign_consent", version: "v1", title: ESIGN_CONSENT.title,
+      body: esignConsentBody(), clauses: ESIGN_CONSENT.clauses, intent: ESIGN_CONSENT.intent,
+      published_at: "2026-09-13T10:00:00Z", published_by: null,
+    },
+  ];
+
+  const open = async (): Promise<{
+    releases: Array<{ purpose: string; version: string; title: string; body: string; intent: string; draft: boolean }>;
+    esignConsent: { draft: boolean; required: boolean };
+  }> => {
+    holder.client = createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: "inv-1", org_id: ORG, driver_id: DRIVER,
+          token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+          consented_at: "2026-09-13T11:00:00Z", releases_completed_at: null, submitted_at: null,
+        }],
+        organizations: [{ name: "Silvicom Inc" }],
+        org_disclosures: LIVE,
+        application_drafts: [],
+      },
+    }).client;
+    const res = await call(`/${TOKEN}`);
+    expect(res.status).toBe(200);
+    return res.json() as never;
+  };
+
+  it("serves the carrier's own wording, not the placeholder we ship", async () => {
+    const { releases } = await open();
+    const fcra = releases.find((r) => r.purpose === "fcra_disclosure")!;
+    expect(fcra.title).toBe("FAIR CREDIT REPORTING ACT DISCLOSURE");
+    expect(fcra.body).toContain("The Federal Motor Carrier Safety Regulations (FMCSR) require motor carriers");
+    // The placeholder's opening words. If these ever come back, the overlay has stopped working.
+    expect(fcra.body).not.toContain("In connection with your application for employment, and throughout");
+  });
+
+  it("serves FMCSA's PSP language in whole, with the carrier named in it", async () => {
+    const { releases } = await open();
+    const psp = releases.find((r) => r.purpose === "psp")!;
+    expect(psp.title).toBe(PSP_DISCLOSURE_TITLE);
+    expect(psp.body).toContain("application for employment with Silvicom Inc (\u201cProspective Employer\u201d)");
+    // Every mandated paragraph reaches the phone — the whole point of the refusal at publish time
+    // is worth nothing if the read path drops one.
+    expect(missingPspParagraphs(psp.body)).toEqual([]);
+    expect(psp.intent).toBe(PSP_MANDATED_INTENT);
+  });
+
+  it("opens every gate it was holding shut", async () => {
+    const { releases, esignConsent } = await open();
+    // `draft: false` is what `ApplyPage` reads to stop skipping the signing ceremony, and
+    // `applicationWordingIsDraft()` reads the same versions to stop refusing the submission.
+    expect(releases.map((r) => r.draft)).toEqual([false, false, false, false]);
+    expect(releases.map((r) => r.version)).toEqual(["v1", "v1", "v1", "v1"]);
+    expect(esignConsent.draft).toBe(false);
+    expect(esignConsent.required).toBe(true);
+  });
+
+  it("still refuses while only some of it is published", async () => {
+    // The half-finished state an office will really be in, between the first Publish and the last.
+    holder.client = createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: "inv-1", org_id: ORG, driver_id: DRIVER,
+          token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+          consented_at: "2026-09-13T11:00:00Z", releases_completed_at: null, submitted_at: null,
+          review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
+        }],
+        organizations: [{ name: "Silvicom Inc" }],
+        org_disclosures: LIVE.filter((r) => r.instrument !== "psp"),
+        application_drafts: [],
+      },
+      rpc: { submit_driver_application: { application_id: "app-1" } },
+    }).client;
+    const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
   });
 });
