@@ -3,7 +3,9 @@ import {
   ESIGN_CONSENT,
   ESIGN_CONSENT_CLAUSES,
   ESIGN_CONSENT_CLAUSE_CITATIONS,
+  carrierWording,
   esignConsentBody,
+  type CarrierWording,
 } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { hashInvitationToken, isIntakeError, requireEsignConsent } from "./applicationIntake.js";
@@ -45,6 +47,31 @@ const seed = (inv: Record<string, unknown> | null = invitation()) =>
 
 /** Publish counsel's wording, for one test. The gate opens by itself when the version changes. */
 const published = () => vi.spyOn(ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
+
+/**
+ * The same thing, as PRODUCTION does it: a row in `org_disclosures`, through the overlay the api
+ * reads it with.
+ *
+ * ⚠ Both helpers exist on purpose and they are not interchangeable. `published()` mocks the code
+ * constant, which is right for `esignConsentForApplicant()` and `recordEsignConsent` because those
+ * read the constant. `requireEsignConsent` reads the CARRIER's documents, and since 0338 a carrier
+ * publishes rows — the constant stays `v0-draft` for ever. Mocking it for this gate would pin a path
+ * production cannot take, which is exactly how the gate came to be a no-op on three write paths from
+ * A4 until 2026-09-13.
+ */
+const publishedWording = (): CarrierWording =>
+  carrierWording([{
+    instrument: "esign_consent",
+    version: "v1",
+    title: ESIGN_CONSENT.title,
+    body: esignConsentBody(),
+    clauses: ESIGN_CONSENT.clauses,
+    intent: ESIGN_CONSENT.intent,
+    publishedAt: "2026-09-13T10:00:00Z",
+  }]);
+
+/** A carrier that has published nothing — six placeholders, which is every carrier today. */
+const draftWording = (): CarrierWording => carrierWording([]);
 afterEach(() => vi.restoreAllMocks());
 
 describe("the document says what the statute requires", () => {
@@ -88,20 +115,22 @@ describe("the document says what the statute requires", () => {
  */
 describe("the gate is armed by A0, not by A4", () => {
   it("lets the link work while the wording is draft", () => {
-    expect(requireEsignConsent(invitation())).toBeNull();
+    expect(requireEsignConsent(invitation(), draftWording())).toBeNull();
     expect(esignConsentForApplicant().required).toBe(false);
   });
 
   it("closes on every write path the moment the text is published", () => {
     published();
-    const refusal = requireEsignConsent(invitation());
+    const refusal = requireEsignConsent(invitation(), publishedWording());
     expect(refusal?.code).toBe("esign_consent_required");
     expect(esignConsentForApplicant().required).toBe(true);
   });
 
   it("lets a driver who has consented carry on", () => {
     published();
-    expect(requireEsignConsent(invitation({ consented_at: "2026-08-21T09:00:00Z" }))).toBeNull();
+    expect(
+      requireEsignConsent(invitation({ consented_at: "2026-08-21T09:00:00Z" }), publishedWording()),
+    ).toBeNull();
   });
 });
 

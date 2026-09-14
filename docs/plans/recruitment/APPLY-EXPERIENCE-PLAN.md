@@ -768,3 +768,45 @@ adjacent table rows conflict every time.
   production, and this is the same trap already loaded.
   The lesson worth keeping beyond this feature: **ask the database before ordering a queue.** Two
   items were ranked by size, and neither ranking survived one afternoon of counting rows.
+
+- 2026-09-13 — **The owner ruled §3.1 path (b): the carrier adopts the drafted text and publishes it
+  itself, rather than waiting for counsel.** The runbook is `WORDING-PUBLISH-RUNBOOK.md`; the publish
+  is six pairs of clicks and no typing, because the editor pre-fills with whatever is live and for an
+  unpublished instrument that is our placeholder. What this entry records is everything that had to
+  be true before those clicks were safe, because **publishing is what arms the defects below** —
+  every one of them was invisible while `org_disclosures` held zero rows.
+  ⚠ **The §390.32(d) consent gate was a no-op on three of the four write paths, and the release path
+  wrote a signature.** `requireEsignConsent(invitation, wording)` carried a default — the code's
+  placeholders — under a comment asserting that a forgetful caller therefore failed CLOSED. That is
+  true of every other function reading a version string and **exactly backwards for this one**: the
+  gate refuses only while the consent CAN be given, so `v0-draft` means "do not ask". `saveDraft`,
+  `openSession` and `recordRelease` all took the default. Measured against a seeded `org_disclosures`
+  with no consent given: draft save **200**, capture **201**, release **201 with a
+  `driver_authorizations` row written** — an electronic signature from somebody who had never agreed
+  to sign electronically, which is the precise gap A4 exists to close. Submit was the only one that
+  passed the carrier's wording and the only one that refused. The parameter is now required, so the
+  type system asks the question instead of a comment; the same misleading sentence over
+  `applicationWordingIsDraft`'s default (where the polarity genuinely is safe) is corrected in place
+  rather than left as the trap's instruction manual.
+  ⚠ **The cause is a test idiom, and it is worth more than the bug.** Every existing test publishes
+  by mocking `ESIGN_CONSENT.version` or `DISCLOSURES[p].version`. Since 0338, production publishes a
+  ROW and the constants stay `v0-draft` for ever — so a function that reads the constant is a
+  function no such test can question. `publicApplication.test.ts` now has a block that seeds
+  `org_disclosures` instead; all five of its assertions were proved by mutating the call sites back.
+  ⚠ Two more the publish would have armed, both in `routes/authorizations.ts`. The office recording a
+  wet signature composed from the code catalogue, so the same instrument for the same carrier would
+  read `v1` on the driver's phone and `v0-draft` on the paper copy — one file, two texts. And a
+  revocation named the CURRENT catalogue's version rather than the grant's, which the route's own
+  comment had ruled out in writing; revoking a `v1` grant would have filed it under `v0-draft` and the
+  append-only history would stop joining up. Both now read what they claimed to. The staff path still
+  has no draft refusal, deliberately: whether the office may record a wet signature on placeholder
+  text is counsel's question, and adding the refusal would withdraw a capability rather than fix one.
+  ⚠ **And the count in `HANDOFF-2026-09-13-QUEUE.md` §2.1 needs correcting: publishing frees ONE
+  application, not four.** Measured 2026-09-14 00:34 UTC — of the four drafts, Vince's link expired
+  2026-09-12 and Tanja's 2026-09-09, and the fourth is revoked in the QA org. Only Marija's
+  `certify` draft sits on a live link. A replacement invitation resumes an EMPTY form, so the other
+  two drafts do not follow their drivers to a new link. ⚠ That live link **was rotated by the
+  abandonment sweep at 2026-09-13 19:28 UTC** (`nudged_at` set, `expires_at` exactly fourteen days
+  later): the link she was originally sent is dead and the one in the nudge email works, which is
+  the risk the handoff named the day before it happened. Every invitation in production went to a
+  `@silvicominc.com` office mailbox rather than to the applicant.

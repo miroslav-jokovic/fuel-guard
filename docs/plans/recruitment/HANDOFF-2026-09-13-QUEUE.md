@@ -87,6 +87,13 @@ How far the four got, by `furthest_section`:
 | `licence` | 2026-08-27 |
 | `addresses` | 2026-08-24 |
 
+⚠ **Re-measured 2026-09-14 00:34 UTC and the reading above is too optimistic: only ONE of these
+four links is still usable.** Two expired (2026-09-09, 2026-09-12) and the fourth is the QA org's
+revoked one. The survivor is the `certify` draft — and the abandonment sweep **rotated its token on
+2026-09-13 19:28 UTC**, so the link that driver was originally sent is dead and only the one in the
+nudge email works. That is §2.2's own warning, arriving the next day. See
+`WORDING-PUBLISH-RUNBOOK.md` §1.
+
 **Somebody reached the last screen and could not press the button.** `org_disclosures` being empty
 means no carrier has published any instrument, so every one is still the `v0-draft` code placeholder
 and `submitApplication` answers `WORDING_NOT_FINAL`. That has been the stated blocker since the plan
@@ -158,6 +165,18 @@ Two candidate paths, and they are not exclusive:
 
 **Recommendation: ask the owner which, and say that four drafts are waiting on the answer.** Do not
 start (b) on the owner's behalf.
+
+> ⚠ **RULED (b), 2026-09-13.** The owner chose to adopt and publish rather than wait for counsel.
+> `WORDING-PUBLISH-RUNBOOK.md` is the five-minute procedure, what it frees, and the **three defects
+> that publishing arms** — all fixed before the runbook was written, because the §390.32(d) consent
+> gate turned out to be a no-op on three write paths and one of them **wrote a signature** (measured:
+> `POST /:token/release` answered 201 with no consent behind it). Counsel's eventual text lands as
+> `v2`; that is what the version numbering is for.
+>
+> ⚠ **And §2.1's count below is wrong in the direction that matters: publishing frees ONE
+> application, not four.** Two of the four links expired (2026-09-09 and 2026-09-12) and the fourth
+> is revoked in the QA org. The runbook §1 has the table. A replacement invitation resumes an EMPTY
+> form, so the expired drafts do not travel.
 
 ### 3.2 Then P12 — but know what you are building it for
 

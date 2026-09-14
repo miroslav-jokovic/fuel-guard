@@ -1,8 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  DISCLOSURES,
-  ESIGN_CONSENT,
   applicationAwaitsSignature,
   applicationWordingIsDraft,
   type CarrierWording,
@@ -157,17 +155,6 @@ export async function resolveInvitation(
   return row;
 }
 
-/** The instruments an applicant is asked to sign, with the exact wording, composed server-side. */
-/**
- * The code's placeholders, as a `CarrierWording`.
- *
- * ⚠ The default for every function below, and the default is the SAFE one: a caller that forgets to
- * load the carrier's published documents gets `v0-draft` and therefore a refusal. Failing closed is
- * the only acceptable direction for a function that decides whether a signature may be taken.
- */
-const CODE_WORDING: CarrierWording = { disclosures: DISCLOSURES, esignConsent: ESIGN_CONSENT };
-
-
 /**
  * Seal the SSN, or decline to hold it (D-HIRE6).
  *
@@ -215,9 +202,27 @@ export const CONSENT_REQUIRED: IntakeError = {
   message: "Agree to sign and receive these documents electronically before you go on.",
 };
 
+/**
+ * ⚠ **No default, and the absence is load-bearing (2026-09-13).** There was one: `CODE_WORDING`,
+ * the placeholders, under a comment asserting that a forgetful caller therefore failed CLOSED. That
+ * is true of every other function that reads a version string — `releasesForApplicant`,
+ * `recordRelease`'s own draft check, `applicationWordingIsDraft` — and it is exactly BACKWARDS here.
+ * This gate refuses only while the consent CAN be given, so `v0-draft` means "do not ask", and a
+ * caller that forgot the carrier's wording got no gate at all.
+ *
+ * It was not theoretical. `saveDraft`, `openSession` and `recordRelease` all forgot, and the tests
+ * could not see it because they published by mocking `ESIGN_CONSENT.version` — a route production
+ * cannot take, since 0338 publishes ROWS and leaves the constant at `v0-draft` for ever. Measured on
+ * 2026-09-13 against a seeded `org_disclosures`: the draft save answered 200, and the release
+ * signature answered **201** — a `driver_authorizations` row written for somebody who had never
+ * agreed to sign electronically, which is the §390.32(d) hole A4 was built to close. Pinned by
+ * "with the carrier's wording published as rows, and no consent given".
+ *
+ * So the parameter is required, and the type system is what now asks the question.
+ */
 export function requireEsignConsent(
   invitation: { consented_at: string | null },
-  wording: CarrierWording = CODE_WORDING,
+  wording: CarrierWording,
 ): IntakeError | null {
   return esignConsentRequired(invitation.consented_at, wording.esignConsent) ? CONSENT_REQUIRED : null;
 }

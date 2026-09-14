@@ -486,6 +486,75 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
     expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
   });
 
+  /**
+   * The office's own signature, once the carrier has published (0338).
+   *
+   * ⚠ The test above asserts `DISCLOSURES.psp.*` and passes whatever this route reads, because no
+   * carrier in that fixture has published anything and the overlay falls back to the placeholders.
+   * This is the case that can tell them apart — and until 2026-09-13 this route read the code
+   * catalogue, so the same instrument for the same carrier was `v1` when the applicant signed it on
+   * their phone and `v0-draft` when the office recorded the paper copy.
+   */
+  it("composes the CARRIER's published wording, not the code's placeholder", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        drivers: [{ id: DRIVER }],
+        driver_authorizations: [{ id: ROW, driver_id: DRIVER, purpose: "psp", revokes: null }],
+        org_disclosures: [{
+          instrument: "psp", version: "v3", title: "PSP release",
+          body: "Counsel's own PSP wording.", clauses: null,
+          intent: "I authorize the PSP pull.",
+          published_at: "2026-09-13T10:00:00Z", published_by: null,
+        }],
+        audit_logs: [],
+      },
+    });
+    holder.client = rec.client;
+    const res = await call("/authorizations", {
+      method: "POST",
+      token: "recruiter",
+      body: JSON.stringify(grant),
+    });
+    expect(res.status).toBe(201);
+    const written = rec.writtenRows("driver_authorizations")[0]!;
+    expect(written.disclosure_version).toBe("v3");
+    expect(written.disclosure_text).toBe("Counsel's own PSP wording.");
+    expect(written.intent_statement).toBe("I authorize the PSP pull.");
+    // And the audit names the version that was actually signed, not the catalogue's.
+    expect(rec.writtenRows("audit_logs")[0]!.meta).toMatchObject({ disclosureVersion: "v3" });
+  });
+
+  /**
+   * ⚠ A revocation names the version it WITHDRAWS. The comment in the route always said so; the code
+   * read the current catalogue instead, which is indistinguishable while everything is `v0-draft`
+   * and wrong from the first publish — a `v1` grant would have been revoked under `v0-draft`, and
+   * the append-only history would no longer join up.
+   */
+  it("names the version of the grant it revokes, not the catalogue's", async () => {
+    rec = createSupabaseRecorder({
+      tables: {
+        drivers: [{ id: DRIVER }],
+        driver_authorizations: [{
+          id: ROW, driver_id: DRIVER, purpose: "psp", revokes: null, disclosure_version: "v2",
+        }],
+        org_disclosures: [{
+          instrument: "psp", version: "v7", title: "Newer PSP release",
+          body: "A later revision nobody signed.", clauses: null, intent: "…",
+          published_at: "2026-09-13T10:00:00Z", published_by: null,
+        }],
+        audit_logs: [],
+      },
+    });
+    holder.client = rec.client;
+    const res = await call("/authorizations/revoke", {
+      method: "POST",
+      token: "admin",
+      body: JSON.stringify({ revokes: ROW, reason: "Applicant withdrew" }),
+    });
+    expect(res.status).toBe(201);
+    expect(rec.writtenRows("driver_authorizations")[0]!.disclosure_version).toBe("v2");
+  });
+
   it("records a revocation as a ROW naming the grant, never as an edit", async () => {
     rec = createSupabaseRecorder({
       tables: {

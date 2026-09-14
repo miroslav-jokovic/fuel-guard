@@ -13,6 +13,7 @@ import {
   resolveInvitation,
   type IntakeError,
 } from "./applicationIntake.js";
+import { loadCarrierWording } from "./carrierWording.js";
 
 /**
  * The applicant's saved draft (A2) — the other half of what 0225 started.
@@ -124,7 +125,12 @@ export async function saveDraft(
   // A4: the consent is the first act on the link, so nothing writes before it. A draft holds a date
   // of birth, and storing one for somebody who has not agreed to transact electronically is the
   // thing §390.32(d) asks us to be able to disprove.
-  const consent = requireEsignConsent(invitation);
+  //
+  // ⚠ The carrier's PUBLISHED wording, read per save, and the read is the point rather than an
+  // overhead: 0338 publishes rows, so the code constant stays `v0-draft` for ever and this gate
+  // asked it until 2026-09-13 — which is to say it did not gate. One indexed select against
+  // `org_disclosures` is the price of the gate being real.
+  const consent = requireEsignConsent(invitation, await loadCarrierWording(admin, invitation.org_id));
   if (consent) return consent;
   // Nothing to draft once the application is filed: the certified payload is the record from then
   // on, and a draft written afterwards could only ever disagree with it.
