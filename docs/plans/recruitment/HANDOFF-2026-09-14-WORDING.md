@@ -4,6 +4,9 @@
 `HANDOFF-2026-09-13-QUEUE.md`, which is still correct about P12 and the cross-match but wrong about
 the top of the queue: publishing wording is no longer a thing anybody does.
 
+> **➜ Working through it? `CHECKLIST-TO-LIVE.md` is this handoff turned into ordered items with
+> done-whens.** Read this document for the why; work from that one.
+
 Plans: `APPLY-EXPERIENCE-PLAN.md` (§6 is the running log — read it, not the step headings),
 `APPLICATION-PACKET-PLAN.md`, `docs/plans/safety-dqf/PSP-PLAN.md`.
 Research: **`WORDING-REVIEW-2026-09-13.md`** is the sheet counsel reads.
