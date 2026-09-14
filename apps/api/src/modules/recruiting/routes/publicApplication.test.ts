@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
@@ -15,6 +15,7 @@ import {
 } from "@silvicom/shared";
 import { packetWording } from "../packetWording.js";
 import { PSP_DISCLOSURE_TITLE, PSP_MANDATED_INTENT, missingPspParagraphs, pspDisclosure } from "../pspDisclosure.js";
+import { ESIGN_VERSION } from "../defaultWording.js";
 
 /**
  * The public surface, end to end and unauthenticated.
@@ -26,6 +27,38 @@ import { PSP_DISCLOSURE_TITLE, PSP_MANDATED_INTENT, missingPspParagraphs, pspDis
 
 const holder = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder.client }));
+
+/**
+ * ⚠ **A carrier whose wording is still draft — a state the product no longer ships (D-WORD1).**
+ *
+ * `defaultWording()` resolves every instrument to FMCSA's forms, the statute or the carrier's own
+ * packet, none of which is `v0-draft`, so `disclosure_not_final` and `WORDING_NOT_FINAL` became
+ * unreachable through the shipped catalogue on 2026-09-14.
+ *
+ * They are NOT dead code and the tests below are not obsolete. The fallback is still there for the
+ * one branch that can reach it — an instrument whose source module returns nothing — and it is the
+ * branch that fails CLOSED, which is the only acceptable direction for a function deciding whether
+ * a signature may be taken. Mocking is the only way to stand in that state now, so the mock is
+ * narrow and opt-in: flip `draftWording.on` for the tests that are about the refusal, and leave it
+ * alone everywhere else.
+ */
+const draftWording = vi.hoisted(() => ({ on: false }));
+vi.mock("../defaultWording.js", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../defaultWording.js")>();
+  const shared = await import("@silvicom/shared");
+  return {
+    ...real,
+    defaultWording: (name: string) =>
+      draftWording.on
+        ? { disclosures: shared.DISCLOSURES, esignConsent: shared.ESIGN_CONSENT }
+        : real.defaultWording(name),
+  };
+});
+/** Opt in for one describe, and always back off — a leak would open every gate after it. */
+const withDraftWording = (): void => {
+  beforeEach(() => { draftWording.on = true; });
+  afterEach(() => { draftWording.on = false; });
+};
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
@@ -90,7 +123,14 @@ const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
             id: "inv-1", org_id: ORG, driver_id: DRIVER,
             token_hash: hashInvitationToken(TOKEN),
             expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-            consented_at: null, releases_completed_at: null, submitted_at: null,
+            /**
+             * ⚠ Consented, since D-WORD1 (2026-09-14). The shipped catalogue is no longer draft, so
+             * `esignConsentRequired` is armed on every link and §390.32(d)'s gate refuses every
+             * write path before the consent exists. A fixture with `consented_at: null` is now a
+             * fixture of a driver who has not started, not of an ordinary one — the consent is the
+             * first act on the link. The tests that are ABOUT the gate override it back to null.
+             */
+            consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
             // F4: submitting requires an approved application, so the default link is one the office
             // has read and approved. A test about a phase refusal overrides these two.
             review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
@@ -116,7 +156,7 @@ const seedWithDraft = (payload: Record<string, unknown>): SupabaseRecorder =>
         id: "inv-1", org_id: ORG, driver_id: DRIVER,
         token_hash: hashInvitationToken(TOKEN),
         expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-        consented_at: null, releases_completed_at: null, submitted_at: null,
+        consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
       }],
       organizations: [{ name: "Silvicom Inc" }],
       application_drafts: [{ payload, furthest_section: "identity", updated_at: "2026-08-21T09:00:00Z" }],
@@ -160,14 +200,20 @@ describe("opening the link", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { carrier: string; releases: Array<{ purpose: string; body: string; draft: boolean }> };
     expect(body.carrier).toBe("Silvicom Inc");
+    // ⚠ Since D-WORD1 none of them is draft on a fresh carrier: the four are FMCSA's PSP form and
+    // the carrier's own packet pages, and the applicant can sign on the day the product deploys.
+    expect(body.releases.map((r) => r.draft)).toEqual([false, false, false, false]);
     // The wording is SERVED, so what somebody signed is a fact the server can prove — never shipped
     // in the client bundle where a build could change it.
     expect(body.releases.map((r) => r.purpose)).toEqual([
       "fcra_disclosure", "psp", "previous_employer", "drug_alcohol",
     ]);
     expect(body.releases.every((r) => r.body.length > 0)).toBe(true);
-    // Q-H3: every instrument still ships as draft, and the applicant's page is told so.
-    expect(body.releases.every((r) => r.draft)).toBe(true);
+    // ⚠ Q-H3 was "every instrument still ships as draft, and the applicant's page is told so".
+    // D-WORD1 answered it: they ship sourced and final. The PSP one is FMCSA's own form, which is
+    // the sharpest check that the served text is not our placeholder.
+    expect(body.releases.find((r) => r.purpose === "psp")!.body)
+      .toContain("Federal Motor Carrier Safety Administration (FMCSA)");
   });
 
   it("hands back the phase stamps, and nothing else about the session", async () => {
@@ -292,12 +338,11 @@ describe("sending it to the carrier to read", () => {
 });
 
 describe("submitting", () => {
-  // publishAll() is per-test here, so it has to be undone per-test — a leak would silently open the
-  // wording gate for every case after it, which is exactly the refusal two of them are pinning.
   afterEach(() => vi.restoreAllMocks());
 
   it("accepts a certified application without any credential", async () => {
-    publishAll();
+    // ⚠ No `publishAll()` any more — the shipped catalogue is already final (D-WORD1), which is
+    // the whole change: a carrier that has done nothing at all can take a signed application.
     const rec = seed({ consented_at: "2026-08-21T09:00:00Z" });
     holder.client = rec.client;
     const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
@@ -311,16 +356,22 @@ describe("submitting", () => {
   });
 
   /**
-   * ⚠ The §390.32(d) window at the edge of the API (2026-08-23).
+   * ⚠ The §390.32(d) window at the edge of the API (2026-08-23), kept after D-WORD1.
    *
    * 409, not 500: the link is perfectly good and the request conflicts with the state of the world
-   * around it — the carrier has not published its wording — which is what that status is for.
+   * around it. The state is no longer reachable through the shipped catalogue — see
+   * `withDraftWording` — but the refusal is the floor under an instrument whose source ever comes
+   * back empty, and a floor nobody stands on is a floor nobody notices has gone.
    */
-  it("refuses the submission with a 409 while the carrier's wording is draft", async () => {
-    holder.client = seed().client;
-    const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
-    expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
+  describe("with a catalogue that is somehow still draft", () => {
+    withDraftWording();
+
+    it("refuses the submission with a 409, aimed at the carrier", async () => {
+      holder.client = seed().client;
+      const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
+    });
   });
 
   it("refuses an application that is not certified", async () => {
@@ -482,7 +533,6 @@ describe("the saved draft", () => {
  * offline. Both branches are pinned below, the closed one against a published version.
  */
 describe("the ESIGN consent", () => {
-  const publish = () => vi.spyOn(ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
   afterEach(() => vi.restoreAllMocks());
 
   it("is served with the link, as text the server composed", async () => {
@@ -492,23 +542,42 @@ describe("the ESIGN consent", () => {
     // Six clauses, in the statute's order — the disclosure 7001(c)(1) actually enumerates.
     expect(body.esignConsent.body).toContain("You can have these on paper instead");
     expect(body.esignConsent.body).toContain("What you need to read and keep these records");
-    expect(body.esignConsent.draft).toBe(true);
-    // Not asked for while it cannot be recorded.
-    expect(body.esignConsent.required).toBe(false);
+    // ⚠ Final and asked for, since D-WORD1. The clauses were always the statute's own words; what
+    // changed is that the version stopped calling them a draft, which is what `required` reads.
+    expect(body.esignConsent.draft).toBe(false);
+    expect(body.esignConsent.required).toBe(true);
   });
 
-  it("leaves every write path open while the wording is draft", async () => {
-    holder.client = seed().client;
-    const saved = await call(`/${TOKEN}/draft`, {
-      method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+  /**
+   * ⚠ The branch that used to be the live one: while the catalogue was draft, requiring a consent
+   * nobody could record would have taken the application offline, so every write path stayed open.
+   * D-WORD1 ended that state; the test stays because the REASONING is still load-bearing for any
+   * instrument whose source ever comes back empty.
+   */
+  describe("while the catalogue is somehow still draft", () => {
+    withDraftWording();
+
+    it("leaves every write path open, rather than locking a door nobody can pass", async () => {
+      holder.client = seed({ consented_at: null }).client;
+      const saved = await call(`/${TOKEN}/draft`, {
+        method: "PUT",
+        body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      });
+      expect(saved.status).toBe(200);
     });
-    expect(saved.status).toBe(200);
+
+    it("refuses to record a consent against it", async () => {
+      const rec = seed();
+      holder.client = rec.client;
+      const res = await call(`/${TOKEN}/consent`, { method: "POST", body: "{}" });
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
+      expect(rec.rpcs()).toHaveLength(0);
+    });
   });
 
-  it("closes every write path the moment the text is published", async () => {
-    publish();
-    holder.client = seed().client;
+  it("closes every write path until the driver has consented", async () => {
+    holder.client = seed({ consented_at: null }).client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
       body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
@@ -525,7 +594,6 @@ describe("the ESIGN consent", () => {
   });
 
   it("opens them again once the driver has consented", async () => {
-    publish();
     holder.client = seed({ consented_at: "2026-08-21T09:00:00Z" }).client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
@@ -534,29 +602,20 @@ describe("the ESIGN consent", () => {
     expect(saved.status).toBe(200);
   });
 
-  it("refuses to record a consent to draft wording", async () => {
-    const rec = seed();
-    holder.client = rec.client;
-    const res = await call(`/${TOKEN}/consent`, { method: "POST", body: "{}" });
-    expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
-    expect(rec.rpcs()).toHaveLength(0);
-  });
-
-  it("records one against published wording, composed server-side", async () => {
-    publish();
-    const rec = seed();
+  it("records one against the shipped wording, composed server-side", async () => {
+    const rec = seed({ consented_at: null });
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/consent`, { method: "POST", body: "{}" });
     expect(res.status).toBe(201);
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
-    expect(args.p_version).toBe("v1");
+    // ⚠ The version names the statute and the date it was read, not a counter — so the row says
+    // what was consented to without needing this repository at the right commit to decode it.
+    expect(args.p_version).toBe(ESIGN_VERSION);
     // The request said nothing about what was consented to, and could not have.
     expect(String(args.p_text)).toContain("You can have these on paper instead");
   });
 
   it("tells an anonymous caller with a bad token nothing", async () => {
-    publish();
     holder.client = seed(null).client;
     const res = await call(`/${TOKEN}/consent`, { method: "POST", body: "{}" });
     expect(res.status).toBe(404);
@@ -586,10 +645,11 @@ describe("the link survives its own submission", () => {
       method: "POST",
       body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
     });
-    // 409 for DRAFT WORDING — the carrier's outstanding act (Q-H3) — and not 404 for a dead link,
-    // which is the whole difference A1 makes. A0 turns this same call into a signature.
-    expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
+    // ⚠ 201, and not 404 for a dead link — which is the whole difference A1 makes, now shown at
+    // full strength. This used to be a 409 for draft wording: the endpoint was proved REACHABLE
+    // but the call could not actually produce anything, so what the test pinned was a refusal
+    // standing in for the behaviour. Since D-WORD1 the same call after a submission is a signature.
+    expect(res.status).toBe(201);
   });
 
   it("refuses a fifth signature once the ceremony is closed", async () => {
@@ -605,6 +665,8 @@ describe("the link survives its own submission", () => {
 
 /** Q-H3, at the edge: no real signature lands on wording no lawyer has read. */
 describe("signing a release", () => {
+  withDraftWording();
+
   it("refuses while the disclosure is draft, with a message aimed at the carrier", async () => {
     const rec = seed();
     holder.client = rec.client;
@@ -643,8 +705,11 @@ describe("photographing a document from the link", () => {
           id: "inv-1", org_id: ORG, driver_id: DRIVER,
           token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-          consented_at: null, releases_completed_at: null, submitted_at: null,
+          // Consented — see `seed`. Since D-WORD1 a capture is a write like any other and the
+          // §390.32(d) gate refuses it before the consent exists.
+          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
         }],
+        organizations: [{ name: "Silvicom Inc" }],
       },
       rpc: { stage_application_capture: { capture_id: "cap-1", captured_at: "2026-08-21T12:00:00Z", replaced_path: null } },
       storage,
@@ -937,25 +1002,45 @@ describe("what the applicant is served once the carrier has published", () => {
     expect(esignConsent.required).toBe(true);
   });
 
-  it("still refuses while only some of it is published", async () => {
-    // The half-finished state an office will really be in, between the first Publish and the last.
+  it("takes an override for one instrument and the shipped catalogue for the rest", async () => {
+    /**
+     * ⚠ The state the old version of this test imagined — "half published, so still refuses" — is
+     * gone with D-WORD1, and its absence is the change worth pinning. `org_disclosures` is now an
+     * OVERRIDE laid over a catalogue that is already final, so a carrier that publishes one
+     * instrument gets their words for that one and FMCSA's or their packet's for the other five.
+     * Partial publishing can no longer half-break an applicant, which is exactly what it used to do.
+     */
     holder.client = createSupabaseRecorder({
       tables: {
         application_invitations: [{
           id: "inv-1", org_id: ORG, driver_id: DRIVER,
           token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-          consented_at: "2026-09-13T11:00:00Z", releases_completed_at: null, submitted_at: null,
+          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
           review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
         }],
         organizations: [{ name: "Silvicom Inc" }],
-        org_disclosures: LIVE.filter((r) => r.instrument !== "psp"),
+        org_disclosures: [{
+          instrument: "drug_alcohol", version: "v1", title: "Our own testing consent",
+          body: "The carrier's replacement wording.", clauses: null, intent: "I agree.",
+          published_at: "2026-09-14T10:00:00Z", published_by: null,
+        }],
         application_drafts: [],
       },
       rpc: { submit_driver_application: { application_id: "app-1" } },
     }).client;
-    const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
-    expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
+
+    const res = await call(`/${TOKEN}`);
+    const { releases } = (await res.json()) as { releases: Array<{ purpose: string; version: string; body: string; draft: boolean }> };
+    const overridden = releases.find((r) => r.purpose === "drug_alcohol")!;
+    expect(overridden.version).toBe("v1");
+    expect(overridden.body).toBe("The carrier's replacement wording.");
+    // And the other three are untouched — still FMCSA's and the packet's, still not draft.
+    expect(releases.every((r) => !r.draft)).toBe(true);
+    expect(missingPspParagraphs(releases.find((r) => r.purpose === "psp")!.body)).toEqual([]);
+
+    // Which means the submission goes through rather than meeting `disclosure_not_final`.
+    const sent = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
+    expect(sent.status).toBe(201);
   });
 });

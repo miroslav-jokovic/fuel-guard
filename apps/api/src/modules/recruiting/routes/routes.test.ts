@@ -3,6 +3,8 @@ import type { Server } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@silvicom/shared";
 import { DISCLOSURES } from "@silvicom/shared";
+import { PSP_VERSION } from "../defaultWording.js";
+import { PSP_MANDATED_INTENT, pspDisclosure } from "../pspDisclosure.js";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
@@ -100,6 +102,9 @@ const seed = (
       // Same reason as the row above: the route reads its own insert back through `.select()`, and a
       // fixture-less table hands it null, which the route correctly treats as a failed write.
       applicant_dispositions: [{ id: ROW, driver_id: DRIVER, outcome: "declined", decided_on: "2026-08-20" }],
+      // The name FMCSA's "I authorize ___" blanks are filled from (D-WORD1). Without it the
+      // instrument renders underscores — which is the safe failure, and not what this suite is about.
+      organizations: [{ name: "Silvicom Inc" }],
       application_invitations: over.invitations ?? [],
       application_drafts: over.drafts ?? [],
       audit_logs: [],
@@ -421,9 +426,13 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
     });
     expect(res.status).toBe(201);
     const written = rec.writtenRows("driver_authorizations")[0]!;
-    expect(written.disclosure_text).toBe(DISCLOSURES.psp.body);
-    expect(written.intent_statement).toBe(DISCLOSURES.psp.intent);
-    expect(written.disclosure_version).toBe(DISCLOSURES.psp.version);
+    // ⚠ FMCSA's own PSP form, since D-WORD1 — not the placeholder this used to assert. The office
+    // recording a paper signature files exactly what the applicant signs on their phone, which is
+    // the property #763 added and this is the staff-side half of it.
+    expect(written.disclosure_text).toBe(pspDisclosure("Silvicom Inc").body);
+    expect(written.disclosure_text).not.toBe(DISCLOSURES.psp.body);
+    expect(written.intent_statement).toBe(PSP_MANDATED_INTENT);
+    expect(written.disclosure_version).toBe(PSP_VERSION);
     expect(written.org_id).toBe(ORG);
   });
 
@@ -470,8 +479,10 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
     await call("/authorizations", { method: "POST", token: "admin", body: JSON.stringify(grant) });
     const meta = rec.writtenRows("audit_logs")[0]!.meta as Record<string, unknown>;
     expect(meta.purpose).toBe("psp");
-    expect(meta.disclosureVersion).toBe(DISCLOSURES.psp.version);
-    expect(JSON.stringify(meta)).not.toContain(DISCLOSURES.psp.body.slice(0, 40));
+    expect(meta.disclosureVersion).toBe(PSP_VERSION);
+    // The version, never the text — and the version now names the federal form, so the audit row
+    // says what was signed without needing this repository to decode it.
+    expect(JSON.stringify(meta)).not.toContain(pspDisclosure("Silvicom Inc").body.slice(0, 40));
   });
 
   it("refuses to hang an authorization off another org's driver", async () => {

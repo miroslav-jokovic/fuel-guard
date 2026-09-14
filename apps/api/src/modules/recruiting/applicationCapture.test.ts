@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import { hashInvitationToken } from "./applicationIntake.js";
 import {
@@ -42,7 +42,10 @@ function seed(
         id: INVITATION, org_id: ORG, driver_id: DRIVER,
         token_hash: hashInvitationToken(TOKEN),
         expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-        consented_at: null, releases_completed_at: null, submitted_at: null,
+        // ⚠ Consented, since D-WORD1 (2026-09-14). The shipped catalogue is no longer draft, so
+        // §390.32(d)'s gate is armed on every link and refuses every write before the consent
+        // exists. An unconsented fixture now models a driver who has not started.
+        consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
         ...over,
       }],
       application_captures: [],
@@ -84,14 +87,13 @@ describe("asking for somewhere to put a photograph", () => {
   });
 
   it("refuses before the 7001(c) consent, like every other write on this link", async () => {
-    const rec = seed();
-    // A4's gate is armed by the disclosure version; a published one is what makes it bite.
-    const consent = await import("@silvicom/shared");
-    const spy = vi.spyOn(consent.ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
+    // ⚠ No version spy any more. A4's gate used to need one, because the catalogue was draft and a
+    // draft consent cannot gate anything; since D-WORD1 the shipped wording is final and the gate
+    // is simply live, so the only thing this test has to arrange is a driver who has not consented.
+    const rec = seed({ consented_at: null });
     const result = await startCapture(
       rec.client, TOKEN, { slot: "cdl_front", content_type: "image/webp" }, NOW,
     );
-    spy.mockRestore();
     expect(result).toMatchObject({ code: "esign_consent_required" });
     expect(rec.storageCalls()).toEqual([]);
   });
@@ -145,7 +147,7 @@ describe("confirming that the bytes landed", () => {
           id: INVITATION, org_id: ORG, driver_id: DRIVER,
           token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-          consented_at: null, releases_completed_at: null, submitted_at: null,
+          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
         }],
       },
       rpc: {

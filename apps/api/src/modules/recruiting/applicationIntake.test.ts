@@ -12,6 +12,8 @@ import {
   submitApplication,
 } from "./applicationIntake.js";
 import { recordRelease } from "./applicationReleases.js";
+import { PSP_VERSION } from "./defaultWording.js";
+import { PSP_MANDATED_INTENT, pspDisclosure } from "./pspDisclosure.js";
 
 /**
  * The unauthenticated intake. The token is the ENTIRE access-control story here, so most of what is
@@ -48,7 +50,13 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   token_hash: hashInvitationToken(TOKEN),
   expires_at: "2026-09-01T00:00:00Z",
   revoked_at: null,
-  consented_at: null,
+  /**
+   * ⚠ Consented, since D-WORD1 (2026-09-14). The shipped catalogue stopped being draft, so
+   * §390.32(d)'s gate is armed on every link and refuses every write before the consent exists —
+   * `esign_consent_required` would otherwise be the answer to every test in this file, standing in
+   * front of whatever each one was actually about. The gate's own tests override it back to null.
+   */
+  consented_at: CONSENTED,
   releases_completed_at: null,
   submitted_at: null,
   ...over,
@@ -194,13 +202,15 @@ describe("the link is a session, not a fuse", () => {
   });
 
   it("lets a driver sign a release on the link they already submitted through", async () => {
-    // The point of A1: this reaches the WORDING gate (Q-H3) instead of a dead-link refusal. When A0
-    // publishes the v1 text this same call records a signature.
+    // ⚠ The point of A1, now shown at full strength. This used to assert the WORDING refusal
+    // (Q-H3) because that was as far as the call could get — the endpoint was proved reachable by
+    // the error it returned. Since D-WORD1 the same call is what the comment always promised:
+    // a recorded signature on a link the applicant has already submitted through.
     const inv = invitation({ submitted_at: "2026-08-19T00:00:00Z" });
     const result = await recordRelease(
       seed(inv).client, TOKEN, { purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW,
     );
-    expect(isIntakeError(result) && result.code).toBe("disclosure_not_final");
+    expect(isIntakeError(result)).toBe(false);
   });
 
   it("refuses a second submission, and says so rather than pretending the link is broken", async () => {
@@ -453,12 +463,16 @@ describe("the signing ceremony", () => {
 
   const ceremonyRec = (inv = consented(), rpc: Record<string, unknown> = { authorization_id: "auth-1", signed_count: 1, completed: false }) =>
     createSupabaseRecorder({
-      tables: { application_invitations: [inv], driver_authorizations: [{ id: "auth-1" }] },
+      tables: {
+        application_invitations: [inv],
+        driver_authorizations: [{ id: "auth-1" }],
+        // The name FMCSA's "I authorize ___" blanks are filled from.
+        organizations: [{ name: "Silvicom" }],
+      },
       rpc: { record_driver_release: rpc },
     });
 
   it("hands the transaction the SERVER's text, version and intent — never the client's", async () => {
-    publish();
     const rec = ceremonyRec();
     const result = await recordRelease(
       rec.client, TOKEN,
@@ -469,9 +483,13 @@ describe("the signing ceremony", () => {
     expect(isIntakeError(result)).toBe(false);
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
     expect(args.p_purpose).toBe("psp");
-    expect(args.p_version).toBe("v1");
-    expect(args.p_text).toBe(DISCLOSURES.psp.body);
-    expect(args.p_intent).toBe(DISCLOSURES.psp.intent);
+    // ⚠ FMCSA's own form and its revision date, not our placeholder and not a counter (D-WORD1).
+    // `p_text` is what `driver_authorizations.disclosure_text` keeps for ever, so this is the
+    // assertion that says a driver signed the federal language rather than an engineer's summary.
+    expect(args.p_version).toBe(PSP_VERSION);
+    expect(args.p_text).toBe(pspDisclosure("Silvicom").body);
+    expect(args.p_text).not.toBe(DISCLOSURES.psp.body);
+    expect(args.p_intent).toBe(PSP_MANDATED_INTENT);
     expect(args.p_signed_name).toBe("Susan Godfrey");
     // The count comes from the shared vocabulary, so a fifth instrument is one array entry.
     expect(args.p_expected_count).toBe(APPLICATION_RELEASE_ORDER.length);
@@ -503,9 +521,9 @@ describe("the signing ceremony", () => {
   });
 
   it("refuses to sign at all before the electronic-records consent", async () => {
-    publish();
-    // No `consented_at`: §390.32(d) is not satisfied, so there is nothing to sign electronically yet.
-    const rec = ceremonyRec(invitation());
+    // ⚠ `consented_at: null` explicitly — the fixture carries a consent by default since D-WORD1,
+    // because the gate is live on every link and every other test would otherwise stop here.
+    const rec = ceremonyRec(invitation({ consented_at: null }));
     const result = await recordRelease(
       rec.client, TOKEN, { purpose: "psp", signed_name: "S", esign_consent: true }, CTX, NOW,
     );
@@ -514,7 +532,6 @@ describe("the signing ceremony", () => {
   });
 
   it("refuses once the ceremony is closed, before it reaches the database", async () => {
-    publish();
     const rec = ceremonyRec(invitation({
       consented_at: "2026-08-21T09:00:00Z",
       releases_completed_at: "2026-08-21T09:05:00Z",
@@ -527,9 +544,34 @@ describe("the signing ceremony", () => {
   });
 });
 
+/**
+ * ⚠ The wording refusals, kept after D-WORD1 and now reached the only way a real carrier can.
+ *
+ * The shipped catalogue is never draft, so `disclosure_not_final` and `WORDING_NOT_FINAL` cannot be
+ * provoked by doing nothing any more. They CAN still be provoked by a carrier publishing a draft
+ * override of their own into `org_disclosures` — which is what these seed. The refusals are the
+ * floor under an instrument whose text is not final, and a floor nobody stands on is a floor
+ * nobody notices has gone.
+ */
 describe("signing a release", () => {
+  /** A carrier that has overridden the shipped PSP wording with something still marked draft. */
+  const draftOverride = (inv = invitation()) =>
+    createSupabaseRecorder({
+      tables: {
+        application_invitations: [inv],
+        organizations: [{ name: "Silvicom" }],
+        driver_authorizations: [{ id: "auth-1" }],
+        org_disclosures: [{
+          instrument: "psp", version: "v0-draft", title: "Draft PSP", body: "Draft body.",
+          clauses: null, intent: "Draft intent.",
+          published_at: "2026-09-14T09:00:00Z", published_by: null,
+        }],
+      },
+      rpc: { record_driver_release: { authorization_id: "auth-1", signed_count: 1, completed: false } },
+    });
+
   it("refuses while the disclosure is draft wording, and says why", async () => {
-    const rec = seed();
+    const rec = draftOverride();
     const result = await recordRelease(
       rec.client, TOKEN, { purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW,
     );
@@ -548,7 +590,9 @@ describe("signing a release", () => {
     // ⚠ From an APPROVED link since F4, or the answer would be about the phase instead: the phase
     // refusals come first by design (they are about this link and are cheap), so a fixture that had
     // not been approved would pin the wrong gate and this test would stop being about the wording.
-    const rec = seed(submittableInvitation());
+    // ⚠ And with a DRAFT OVERRIDE, since D-WORD1 — the shipped catalogue is final, so the only
+    // carrier who can still reach this refusal is one who published draft text of their own.
+    const rec = draftOverride(submittableInvitation());
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("disclosure_not_final");
     expect(rec.rpcs()).toHaveLength(0);

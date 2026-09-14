@@ -5,6 +5,7 @@ import {
 } from "./applicationIntake.js";
 import {
   AUTHORIZATION_PURPOSES,
+  DISCLOSURES,
   ESIGN_CONSENT,
   ESIGN_CONSENT_CLAUSES,
   esignConsentBody,
@@ -17,8 +18,20 @@ import {
   nextWordingVersion,
   publishWordingSchema,
   unpublishedInstruments,
+  type CarrierWording,
   type PublishedWording,
 } from "./carrierWording.js";
+
+/**
+ * The base this file overlays onto: the code's `v0-draft` placeholders.
+ *
+ * ⚠ Explicit since D-WORD1 (2026-09-14), and it has to stay draft. The api now passes
+ * `defaultWording()`, which is deliberately NOT draft — every assertion below about a refusal
+ * staying in place for an unpublished instrument would become vacuous against that base. The two
+ * bases test two different things: this one that the OVERLAY works, and
+ * `defaultWording.test.ts` that the shipped catalogue is not draft in the first place.
+ */
+const DRAFT_BASE: CarrierWording = { disclosures: DISCLOSURES, esignConsent: ESIGN_CONSENT };
 
 /**
  * The carrier's own wording (2026-09-11).
@@ -87,14 +100,14 @@ describe("the version, which is assigned and never typed", () => {
 
 describe("overlaying what the carrier published", () => {
   it("uses the carrier's text for what it published", () => {
-    const w = carrierWording([row()]);
+    const w = carrierWording([row()], DRAFT_BASE);
     expect(w.disclosures.fcra_disclosure.version).toBe("v1");
     expect(w.disclosures.fcra_disclosure.body).toContain("We may obtain consumer reports");
     expect(isDraftDisclosure(w.disclosures.fcra_disclosure.version)).toBe(false);
   });
 
   it("⚠ leaves everything else a draft, so every other refusal stays exactly where it was", () => {
-    const w = carrierWording([row()]);
+    const w = carrierWording([row()], DRAFT_BASE);
     for (const purpose of AUTHORIZATION_PURPOSES.filter((p) => p !== "fcra_disclosure")) {
       expect(isDraftDisclosure(w.disclosures[purpose].version)).toBe(true);
     }
@@ -107,7 +120,7 @@ describe("overlaying what the carrier published", () => {
     const w = carrierWording([
       row({ version: "v1", body: "the old wording", publishedAt: "2026-09-01T10:00:00Z" }),
       row({ version: "v2", body: "the corrected wording", publishedAt: "2026-09-11T10:00:00Z" }),
-    ]);
+    ], DRAFT_BASE);
     expect(w.disclosures.fcra_disclosure.version).toBe("v2");
     expect(w.disclosures.fcra_disclosure.body).toBe("the corrected wording");
   });
@@ -115,12 +128,12 @@ describe("overlaying what the carrier published", () => {
   it("does not care what order the rows arrive in", () => {
     const newest = row({ version: "v2", body: "newer", publishedAt: "2026-09-11T10:00:00Z" });
     const oldest = row({ version: "v1", body: "older", publishedAt: "2026-09-01T10:00:00Z" });
-    expect(carrierWording([newest, oldest]).disclosures.fcra_disclosure.body).toBe("newer");
-    expect(carrierWording([oldest, newest]).disclosures.fcra_disclosure.body).toBe("newer");
+    expect(carrierWording([newest, oldest], DRAFT_BASE).disclosures.fcra_disclosure.body).toBe("newer");
+    expect(carrierWording([oldest, newest], DRAFT_BASE).disclosures.fcra_disclosure.body).toBe("newer");
   });
 
   it("changes nothing at all for a carrier that has published nothing", () => {
-    const w = carrierWording([]);
+    const w = carrierWording([], DRAFT_BASE);
     expect(w.esignConsent).toEqual(ESIGN_CONSENT);
     for (const purpose of AUTHORIZATION_PURPOSES) {
       expect(isDraftDisclosure(w.disclosures[purpose].version)).toBe(true);
@@ -128,7 +141,7 @@ describe("overlaying what the carrier published", () => {
   });
 
   it("composes the published consent in statutory order, like the placeholder", () => {
-    const w = carrierWording([consentRow()]);
+    const w = carrierWording([consentRow()], DRAFT_BASE);
     const body = esignConsentBody(w.esignConsent);
     for (const clause of ESIGN_CONSENT_CLAUSES) expect(body).toContain(`Our own ${clause} wording.`);
     // Statutory ORDER, not object order: the first clause in the list appears before the last.
@@ -139,21 +152,22 @@ describe("overlaying what the carrier published", () => {
     // Publishing refuses a row with an empty clause. This is the floor under a row written before
     // that rule existed — an empty paragraph in a statutory consent is worse than the placeholder.
     const partial = consentRow({ clauses: { paper_option: "Ours." } });
-    const w = carrierWording([partial]);
+    const w = carrierWording([partial], DRAFT_BASE);
     expect(w.esignConsent.clauses.paper_option).toBe("Ours.");
     expect(w.esignConsent.clauses.withdrawal_right).toBe(ESIGN_CONSENT.clauses.withdrawal_right);
   });
 
   it("ignores a key the statute does not name", () => {
-    const w = carrierWording([consentRow({ clauses: { ...Object.fromEntries(ESIGN_CONSENT_CLAUSES.map((c) => [c, "x"])), invented: "y" } })]);
+    const clauses = { ...Object.fromEntries(ESIGN_CONSENT_CLAUSES.map((c) => [c, "x"])), invented: "y" };
+    const w = carrierWording([consentRow({ clauses })], DRAFT_BASE);
     expect(Object.keys(w.esignConsent.clauses).sort()).toEqual([...ESIGN_CONSENT_CLAUSES].sort());
   });
 });
 
 describe("what is still owed", () => {
   it("names every instrument the carrier has not published", () => {
-    expect(unpublishedInstruments(carrierWording([]))).toHaveLength(PUBLISHABLE_INSTRUMENTS.length);
-    const some = carrierWording([row(), consentRow()]);
+    expect(unpublishedInstruments(carrierWording([], DRAFT_BASE))).toHaveLength(PUBLISHABLE_INSTRUMENTS.length);
+    const some = carrierWording([row(), consentRow()], DRAFT_BASE);
     expect(unpublishedInstruments(some).sort()).toEqual(
       AUTHORIZATION_PURPOSES.filter((p) => p !== "fcra_disclosure").sort(),
     );
@@ -163,7 +177,7 @@ describe("what is still owed", () => {
     const all = carrierWording([
       ...AUTHORIZATION_PURPOSES.map((p) => row({ instrument: p })),
       consentRow(),
-    ]);
+    ], DRAFT_BASE);
     expect(unpublishedInstruments(all)).toEqual([]);
     // And the four the applicant's path collects are all live.
     for (const p of APPLICATION_RELEASE_ORDER) expect(isDraftDisclosure(all.disclosures[p].version)).toBe(false);

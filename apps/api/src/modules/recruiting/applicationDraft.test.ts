@@ -25,7 +25,8 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   token_hash: hashInvitationToken(TOKEN),
   expires_at: "2026-09-01T00:00:00Z",
   revoked_at: null,
-  consented_at: null,
+  // ⚠ Consented since D-WORD1 — the §390.32(d) gate is armed on every link now.
+  consented_at: "2026-09-14T08:00:00Z",
   releases_completed_at: null,
   submitted_at: null,
   ...over,
@@ -134,7 +135,13 @@ describe("the read gate", () => {
  * one from the request is exactly what `publicApplication.ts` refuses to do.
  */
 describe("tenant scoping", () => {
-  const EXEMPT = { exempt: ["application_invitations"] };
+  /**
+   * ⚠ `organizations` joined this list on 2026-09-14 (D-WORD1). `loadCarrierWording` reads the
+   * carrier's NAME to fill FMCSA's "I authorize ___" blanks, and it filters on `organizations.id`
+   * — which IS the org id. The recorder looks for a literal `org_id` column and cannot see that a
+   * primary-key lookup on the tenant table is the tightest possible scoping there is.
+   */
+  const EXEMPT = { exempt: ["application_invitations", "organizations"] };
 
   it("holds on the read", async () => {
     const rec = seed({ draft: draftRow({ first_name: "Susan" }) });

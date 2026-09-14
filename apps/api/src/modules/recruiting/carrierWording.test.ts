@@ -42,36 +42,54 @@ describe("reading what a carrier has published", () => {
     expect(isDraftDisclosure(wording.disclosures.fcra_disclosure.version)).toBe(false);
   });
 
-  it("⚠ leaves every unpublished instrument a draft, so its refusal stays put", async () => {
+  /**
+   * ⚠ **This assertion turned over on 2026-09-14 (D-WORD1) and the turn is the change.** It used to
+   * read "leaves every unpublished instrument a draft, so its refusal stays put" — correct while
+   * the base was the engineer's placeholders and the only way to a usable instrument was a carrier
+   * publishing one. The base is now `defaultWording()`: FMCSA's forms, the statute, the carrier's
+   * own packet. An unpublished instrument is no longer an unusable one.
+   */
+  it("⚠ leaves every unpublished instrument on the SHIPPED wording, which is not a draft", async () => {
     const rec = seed([published()]);
     const wording = await loadCarrierWording(rec.client, ORG);
-    expect(isDraftDisclosure(wording.disclosures.psp.version)).toBe(true);
-    expect(isDraftDisclosure(wording.esignConsent.version)).toBe(true);
+    expect(isDraftDisclosure(wording.disclosures.psp.version)).toBe(false);
+    expect(isDraftDisclosure(wording.esignConsent.version)).toBe(false);
+    // And it is really FMCSA's form behind it, not our placeholder wearing a new version string.
+    expect(wording.disclosures.psp.body).toContain("Pre-Employment Screening Program (PSP)");
   });
 
-  it("⚠ fails CLOSED when the table cannot be read", async () => {
-    // A database blip on the applicant's page load must not take the form down, and the state it
-    // degrades to has to be "nothing may be signed" — never the other one. So the error is not
-    // thrown: it produces the placeholders, which are `v0-draft`, which every refusal already reads.
+  /**
+   * ⚠ **Fails safe, and "safe" has a new meaning.** A database blip on the applicant's page load
+   * must not take the form down. It used to degrade to the placeholders — `v0-draft`, nothing may
+   * be signed — because the shipped text was a guess and a locked door was the only safe direction.
+   * It now degrades to the shipped catalogue, which is the right words. The carrier's OVERRIDE is
+   * what is lost, and losing an override to a blip is recoverable; serving text nobody approved was
+   * not.
+   */
+  it("⚠ degrades to the shipped catalogue when the table cannot be read", async () => {
     const rec = createSupabaseRecorder({
       tables: { org_disclosures: { data: null, error: { message: "db is down" } } },
     });
     const wording = await loadCarrierWording(rec.client, ORG);
     for (const purpose of ["fcra_disclosure", "psp", "previous_employer", "clearinghouse", "drug_alcohol"] as const) {
-      expect(isDraftDisclosure(wording.disclosures[purpose].version)).toBe(true);
+      expect(isDraftDisclosure(wording.disclosures[purpose].version)).toBe(false);
     }
-    expect(isDraftDisclosure(wording.esignConsent.version)).toBe(true);
+    expect(isDraftDisclosure(wording.esignConsent.version)).toBe(false);
   });
 
   it("scopes the read to the carrier asking", async () => {
     const rec = seed([published()]);
     await loadCarrierWording(rec.client, ORG);
-    expectOrgScoped(rec, ORG);
+    // ⚠ `organizations` is exempt because it is filtered on `id` — the tenant's own primary key,
+    // which is tighter than an `org_id` column and which the recorder cannot recognise as scoping.
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
   });
 
-  it("names everything still owed, and that is six for a carrier that has published nothing", async () => {
-    expect(await outstandingWording(seed([]).client, ORG)).toHaveLength(6);
-    expect(await outstandingWording(seed([published()]).client, ORG)).not.toContain("fcra_disclosure");
+  it("owes nothing for a carrier that has published nothing", async () => {
+    // The number `/settings/application-wording` used to lead with, before the page was deleted:
+    // six outstanding on day one. It is zero now, which is why the page had nothing left to do.
+    expect(await outstandingWording(seed([]).client, ORG)).toEqual([]);
+    expect(await outstandingWording(seed([published()]).client, ORG)).toEqual([]);
   });
 });
 

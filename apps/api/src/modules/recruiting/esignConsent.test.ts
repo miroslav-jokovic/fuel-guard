@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  DISCLOSURES,
   ESIGN_CONSENT,
   ESIGN_CONSENT_CLAUSES,
   ESIGN_CONSENT_CLAUSE_CITATIONS,
@@ -10,6 +11,7 @@ import {
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { hashInvitationToken, isIntakeError, requireEsignConsent } from "./applicationIntake.js";
 import { esignConsentForApplicant, recordEsignConsent } from "./esignConsent.js";
+import { ESIGN_VERSION } from "./defaultWording.js";
 
 /**
  * The 15 U.S.C. 7001(c) consent (A4).
@@ -41,7 +43,9 @@ const invitation = (over: Record<string, unknown> = {}) => ({
 
 const seed = (inv: Record<string, unknown> | null = invitation()) =>
   createSupabaseRecorder({
-    tables: { application_invitations: inv ? [inv] : [] },
+    // ⚠ `organizations` since D-WORD1: `loadCarrierWording` reads the carrier's name to fill the
+    // "I authorize ___" blanks in FMCSA's forms, so a fixture without one is a carrier with no name.
+    tables: { application_invitations: inv ? [inv] : [], organizations: [{ name: "Silvicom Inc" }] },
     rpc: { record_esign_consent: { consent_id: "c-1" } },
   });
 
@@ -59,6 +63,14 @@ const published = () => vi.spyOn(ESIGN_CONSENT, "version", "get").mockReturnValu
  * production cannot take, which is exactly how the gate came to be a no-op on three write paths from
  * A4 until 2026-09-13.
  */
+/**
+ * ⚠ The code's `v0-draft` placeholders, kept as this file's base on purpose. Since D-WORD1 the api
+ * passes `defaultWording()` — which is not draft — so a test built on that base could no longer
+ * exercise the "gate is armed by A0" branch at all. Here the base stays draft, and the two tests
+ * below keep proving both sides of the gate.
+ */
+const CODE_BASE: CarrierWording = { disclosures: DISCLOSURES, esignConsent: ESIGN_CONSENT };
+
 const publishedWording = (): CarrierWording =>
   carrierWording([{
     instrument: "esign_consent",
@@ -68,10 +80,10 @@ const publishedWording = (): CarrierWording =>
     clauses: ESIGN_CONSENT.clauses,
     intent: ESIGN_CONSENT.intent,
     publishedAt: "2026-09-13T10:00:00Z",
-  }]);
+  }], CODE_BASE);
 
 /** A carrier that has published nothing — six placeholders, which is every carrier today. */
-const draftWording = (): CarrierWording => carrierWording([]);
+const draftWording = (): CarrierWording => carrierWording([], CODE_BASE);
 afterEach(() => vi.restoreAllMocks());
 
 describe("the document says what the statute requires", () => {
@@ -135,20 +147,37 @@ describe("the gate is armed by A0, not by A4", () => {
 });
 
 describe("recording it", () => {
+  /**
+   * ⚠ The refusal is still here and still reachable — `recordEsignConsent` reads the CARRIER's
+   * wording, so it refuses whenever that resolves to a draft. Since D-WORD1 the shipped catalogue
+   * never does, so the state has to be built rather than found: this seeds an `org_disclosures`
+   * override that is itself draft, which is the one way a real carrier could still get there.
+   */
   it("refuses to put a real consent under draft wording", async () => {
-    const rec = seed();
+    const rec = createSupabaseRecorder({
+      tables: {
+        application_invitations: [invitation()],
+        organizations: [{ name: "Silvicom Inc" }],
+        org_disclosures: [{
+          instrument: "esign_consent", version: "v0-draft", title: "Draft consent",
+          body: "draft", clauses: Object.fromEntries(ESIGN_CONSENT_CLAUSES.map((c) => [c, "draft"])),
+          intent: "draft", published_at: "2026-09-14T09:00:00Z", published_by: null,
+        }],
+      },
+      rpc: { record_esign_consent: { consent_id: "c-1" } },
+    });
     const result = await recordEsignConsent(rec.client, TOKEN, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("disclosure_not_final");
     expect(rec.rpcs()).toHaveLength(0);
   });
 
   it("composes the version, the text and the intent server-side", async () => {
-    published();
     const rec = seed();
     const result = await recordEsignConsent(rec.client, TOKEN, CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
-    expect(args.p_version).toBe("v1");
+    // Provenance, not a counter — the statute and the date it was read off it.
+    expect(args.p_version).toBe(ESIGN_VERSION);
     expect(args.p_text).toBe(esignConsentBody());
     expect(args.p_intent).toBe(ESIGN_CONSENT.intent);
     // The org and driver come from the TOKEN, never from a client value.
@@ -184,11 +213,11 @@ describe("recording it", () => {
   });
 
   it("scopes its queries to the org the token resolved to", async () => {
-    published();
     const rec = seed();
     await recordEsignConsent(rec.client, TOKEN, CTX, NOW);
     // The invitation lookup is BY HASH — there is no org to filter by until it resolves, which is the
-    // point of the design (`publicApplication.ts` never accepts an org from a request).
-    expectOrgScoped(rec, ORG, { exempt: ["application_invitations"] });
+    // point of the design (`publicApplication.ts` never accepts an org from a request). And
+    // `organizations` is filtered on its own primary key, which the recorder cannot see as scoping.
+    expectOrgScoped(rec, ORG, { exempt: ["application_invitations", "organizations"] });
   });
 });

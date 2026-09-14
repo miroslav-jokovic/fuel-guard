@@ -331,7 +331,6 @@ export const SURFACES: readonly Surface[] = [
    * `recruitment view` for the same reason in reverse — a recruiter does need to find out that an
    * unpublished instrument is what is stopping every applicant they invite.
    */
-  { key: "admin.settings.application-wording", label: "Application wording", path: "/settings/application-wording", group: "admin", gate: manage("settings"), parent: "admin.settings" },
   // `roster` and not `settings`: this console decides what DRIVERS see, and `driverAppSettings.ts`
   // gates on rolesThatManage("roster"). The card, the route and the endpoint ask one question —
   // before R0 all three asked the same global boolean and agreed by accident rather than by design.
