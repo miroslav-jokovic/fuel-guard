@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DRIVER_STATUSES } from "@silvicom/shared";
+import { writeAudit } from "../../lib/audit.js";
 
 /**
  * Retirement (M6) — the only operation in this module that takes capability away from a person, and
@@ -145,4 +146,67 @@ export async function retireFromTms(
     if (!upErr) out.retired++;
   }
   return out;
+}
+
+/**
+ * Reconcile a COMPLETE active McLeod roster. Unlike `retireFromTms`, this also handles legacy rows
+ * that have no McLeod link because they were created by Samsara or EFS before McLeod became authoritative.
+ * The caller must opt into `reconcile` mode; a normal identity sweep never infers retirement from absence.
+ */
+export async function reconcileAbsentFromTms(
+  admin: SupabaseClient,
+  orgId: string,
+  entity: Entity,
+  activeExternalIds: string[],
+): Promise<{ retired: number; archived: number; refused?: string }> {
+  if (activeExternalIds.length < 50) {
+    return { retired: 0, archived: 0, refused: `refused roster reconciliation with only ${activeExternalIds.length} rows` };
+  }
+
+  const link = LINK[entity];
+  const select = entity === "drivers" ? `id, ${link}, status, archived_at, termination_date` : `id, ${link}, status`;
+  const { data, error } = await admin.from(entity).select(select).eq("org_id", orgId);
+  if (error) throw new Error(error.message);
+
+  const activeSet = new Set(activeExternalIds);
+  const candidates = ((data ?? []) as unknown as Record<string, unknown>[]).filter(
+    (row) => !activeSet.has(String(row[link] ?? "")),
+  );
+  const changes: string[] = [];
+  let retired = 0;
+  let archived = 0;
+
+  for (const row of candidates) {
+    const patch: Record<string, unknown> = {};
+    if (entity === "drivers") {
+      if (row.status === "active") {
+        patch.status = "terminated";
+        if (!row.termination_date) patch.termination_date = new Date().toISOString().slice(0, 10);
+        retired++;
+      }
+      if (!row.archived_at) {
+        patch.archived_at = new Date().toISOString();
+        archived++;
+      }
+    } else if (row.status === "active") {
+      patch.status = "retired";
+      retired++;
+    }
+    if (Object.keys(patch).length === 0) continue;
+    const { error: updateError } = await admin.from(entity).update(patch).eq("id", row.id).eq("org_id", orgId);
+    if (updateError) throw new Error(updateError.message);
+    changes.push(String(row.id));
+  }
+
+  if (changes.length > 0) {
+    const recorded = await writeAudit(admin, {
+      orgId,
+      actorId: null,
+      action: "mcleod.roster_reconciled",
+      entity,
+      meta: { retired, archived, entityIds: changes, source: "mcleod_active_roster" },
+    });
+    if (!recorded) throw new Error(`Could not audit McLeod reconciliation for ${entity}`);
+  }
+  return { retired, archived };
 }

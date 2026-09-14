@@ -50,7 +50,7 @@ import {
  * The API reads with the service role, which bypasses RLS, so every query here org-filters itself.
  */
 
-export type RosterMode = "report" | "link" | "identity" | "create";
+export type RosterMode = "report" | "link" | "identity" | "create" | "reconcile";
 
 /**
  * Does this mode touch the database at all?
@@ -65,10 +65,16 @@ export type RosterMode = "report" | "link" | "identity" | "create";
  * (162 / 175 / 201, computed by hand before any code existed) gets reproduced BY THE PIPELINE, which
  * is what M3's Done-when actually asks for and what no run has ever demonstrated.
  */
-const WRITES: Record<RosterMode, boolean> = { report: false, link: true, identity: true, create: true };
+const WRITES: Record<RosterMode, boolean> = {
+  report: false,
+  link: true,
+  identity: true,
+  create: true,
+  reconcile: true,
+};
 
 /** Identity is written only by the two modes that own it; `report` and `link` never touch a field. */
-const writesIdentity = (mode: RosterMode): boolean => mode === "identity" || mode === "create";
+const writesIdentity = (mode: RosterMode): boolean => mode === "identity" || mode === "create" || mode === "reconcile";
 
 export interface RosterIngestResult {
   received: number;

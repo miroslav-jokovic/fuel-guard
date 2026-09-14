@@ -15,12 +15,12 @@ import {
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../tmsIngest.js";
 import { ingestLoads } from "../tmsLoadIngest.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.js";
-import { retireFromTms } from "../rosterRetire.js";
+import { reconcileAbsentFromTms, retireFromTms } from "../rosterRetire.js";
 import { isTmsRosterMaster } from "../rosterMastery.js";
 import type { RosterMode } from "../rosterIngest.js";
 
 /** The modes this build understands, safest first. Anything else is refused — see the route below. */
-const ROSTER_MODES = ["report", "link", "identity", "create"] as const;
+const ROSTER_MODES = ["report", "link", "identity", "create", "reconcile"] as const;
 
 /**
  * Writing identity, creating rows and retiring them are all claims on WHO OWNS THE ROSTER, and that
@@ -141,10 +141,28 @@ export function tmsIngestRouter(): Router {
         // gating them would make that decision impossible to inform.
         if (mode !== "link" && mode !== "report" && (await refuseUnlessRosterMaster(admin, orgId, res))) return;
         const result = await run(admin, orgId, rows, mode);
-        // A REPORT is not a sync. `last_synced_at` drives the "as of HH:MM" freshness the operator
-        // reads (D-MR2), and a rehearsal that deliberately moved no data must not claim the roster
-        // was just refreshed — that would make the one indicator of staleness lie in the direction
-        // nobody checks.
+        // Reconciliation is a separate explicit mode because absence is destructive. It is only safe
+        // after the complete active roster has been received and the matcher has processed it.
+        if (mode === "reconcile") {
+          const reconciliation = await reconcileAbsentFromTms(
+            admin,
+            orgId,
+            key as "drivers" | "vehicles" | "trailers",
+            (rows as Array<{ external_id: string }>).map((row) => row.external_id),
+          );
+          if (reconciliation.refused) {
+            res.status(409).json(apiError("reconciliation_refused", reconciliation.refused));
+            return;
+          }
+          if (reconciliation.retired || reconciliation.archived) {
+            res.json({ ...result, reconciliation });
+            await touchLastSynced(admin, orgId, provider);
+            return;
+          }
+        }
+        // A REPORT is not a sync. `last_synced_at` drives the "as of HH:MM" freshness
+        // the operator reads (D-MR2), and a rehearsal that deliberately moved no data must not
+        // claim the roster was just refreshed.
         if (mode !== "report") await touchLastSynced(admin, orgId, provider);
         res.json(result);
       }),
