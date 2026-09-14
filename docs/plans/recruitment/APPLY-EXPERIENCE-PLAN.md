@@ -376,6 +376,25 @@ cover the case that actually produced these three.
 ⚠ Whatever is chosen, the two orphan Marija rows need deciding before the roster is trusted — see
 `merge_driver`'s cascade rule, which no gate enforces.
 
+**Q-AX7 · The office can add an employer but cannot remove one, and that is on purpose for now.**
+Shipped 2026-09-14 with the add. The reason is `application_edits`: it stores a contract PATH, so
+`["employers", 2, "city"]` names a row by its INDEX. Appending is the only mutation that leaves every
+already-recorded path pointing at the row it was written against — an insert or a splice silently
+re-points all of them, and the driver's "what changed" list then describes the wrong employer.
+
+The case that needs it is narrow but real: a duplicate, or a job the driver names and then corrects
+to a different company. Today both are handled by editing the row's fields.
+
+Candidates: (a) a `removed_at` marker on the row, so the array never shifts and the renderer skips
+it — needs a contract field on `applicationEmployerSchema`, which is counsel-adjacent since the
+packet prints from it; (b) store edits against a stable row id rather than an index, which is the
+right long-term shape and re-writes 0337's `path` semantics; (c) let the office blank the employer's
+name and treat an unnamed row as absent, which is a workaround wearing a feature's clothes and would
+put an empty row in a signed document; (d) nothing.
+Recommendation: **(b), when something else forces 0337 open** — it fixes the cause rather than the
+symptom. Until then (d), because the add is what the office visit actually needs and a remove built
+on indexes would be a correctness bug the driver signs.
+
 ## 5. What this plan deliberately does not do
 
 - It does not touch any disclosure, intent statement or version. (D-AX1.)
@@ -1076,3 +1095,18 @@ adjacent table rows conflict every time.
   link is emailed and that a blank field means they carry it themselves. And ⚠ **Q-AX6**: three
   duplicate `Marija Varmeda` applicant rows, one per invitation, because the board's only invite
   action always creates a driver and nothing points at the re-invite path that already exists.
+
+- 2026-09-14 — **The office can add an employer the applicant left out.** The owner's account of what
+  an office visit is for: *"the only critical part is previous companies he has worked and they
+  usually don't remember companies or dates, so we can go together and update this."* `editableFields`
+  offers only paths the payload already carries and calls creating one "an invention" — right for a
+  field nobody is looking at, wrong for a driver across the desk naming a job that §391.21(b)(10) and
+  (b)(11) require listed.
+  ⚠ **No new endpoint and no migration.** `applicationPathSchema` already takes a two-segment path and
+  `withValueAt` already extends an array when the index is its length, so an add is one `{path, value}`
+  write, one `application_edits` row, one thing the driver is shown before certifying. The server
+  support was pinned by test BEFORE any UI was written, rather than assumed.
+  ⚠ **Appends only** — never inserts, never removes; see Q-AX7 for why an index-addressed ledger makes
+  a splice a correctness bug. And the form collects a WHOLE employer before saving, because the draft
+  schema is `.partial()` at the top level only: an element present must satisfy
+  `applicationEmployerSchema` in full, so a blank row saved now and filled in later would be refused.

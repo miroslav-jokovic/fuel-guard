@@ -167,6 +167,70 @@ describe("correcting one answer", () => {
     expect(edit.edited_by).toBe(ACTOR);
   });
 
+  /**
+   * ⚠ The office visit's real correction, and it is an ADDITION (2026-09-14).
+   *
+   * The owner's account of what an office visit is for: *"the only critical part is previous
+   * companies he has worked and they usually don't remember companies or dates, so we can go
+   * together and update this."* That is not correcting a field the driver filled in — it is adding
+   * an employer they left out entirely, which §391.21(b)(10)/(b)(11) require in full.
+   *
+   * `editableFields.ts` offers only paths the payload already carries, on the argument that creating
+   * one would be "an invention". Right for a field nobody is looking at; wrong for a driver sitting
+   * across the desk naming a job. The transport already allows it — `applicationPathSchema` takes a
+   * two-segment path and `withValueAt` extends an array when the index is its length — so this pins
+   * the behaviour the UI is about to depend on rather than adding a second way to write.
+   */
+  it("appends an employer the driver left out, at the end of the list", async () => {
+    const rec = seed();
+    const added = {
+      employer_name: "Werner", usdot_number: "", address_line1: "", city: "Omaha", state: "NE",
+      phone: "", email: "", position_held: "Driver", started_on: "2019-03-01", ended_on: "2021-06-01",
+      operated_cmv: true, dot_regulated: true, reason_for_leaving: "", subject_to_fmcsr: true,
+      safety_sensitive: true,
+    };
+    const result = await editApplication(
+      rec.client, ORG, INV,
+      { path: ["employers", 1], value: added },
+      { actorId: ACTOR },
+    );
+    expect(isReviewError(result)).toBe(false);
+
+    const saved = rec.writtenRows("application_drafts")[0] as { payload: typeof PAYLOAD };
+    expect(saved.payload.employers).toHaveLength(2);
+    // ⚠ APPENDED. The driver's own entry keeps index 0, so every path already recorded in
+    // `application_edits` still points at the row it was written against.
+    expect(saved.payload.employers[0]!.employer_name).toBe("Old Carrier");
+    expect(saved.payload.employers[1]!.employer_name).toBe("Werner");
+
+    const edit = rec.writtenRows("application_edits")[0] as Record<string, unknown>;
+    expect(edit.path).toEqual(["employers", 1]);
+    // A null `before` at a whole-row path is the row not having existed — which 0337's own header
+    // already allows for ("Changed to nothing is a change"), read in the other direction.
+    expect(edit.before).toBeNull();
+    expect((edit.after as { employer_name: string }).employer_name).toBe("Werner");
+  });
+
+  /**
+   * ⚠ Half an employer is not an employer.
+   *
+   * The draft schema is `.partial()` at the TOP level only: `employers` may be absent, but every
+   * element present must satisfy `applicationEmployerSchema` in full. So an "add" that writes a blank
+   * row to be filled in later cannot work, and the office's form has to collect a whole employer
+   * before it saves one. Pinned here because the failure is otherwise a validation error at the far
+   * end of a UI somebody has already typed into.
+   */
+  it("refuses an employer that is missing the fields the regulation needs", async () => {
+    const rec = seed();
+    const result = await editApplication(
+      rec.client, ORG, INV,
+      { path: ["employers", 1], value: { employer_name: "Werner" } },
+      { actorId: ACTOR },
+    );
+    expect(isReviewError(result)).toBe(true);
+    expect(rec.writtenRows("application_drafts")).toEqual([]);
+  });
+
   it("leaves the draft untouched when the correction is not a legal answer", async () => {
     // An office typing a word into a number must get a refusal, not a draft the driver then cannot
     // certify — and the refusal must not have written half of itself first.
