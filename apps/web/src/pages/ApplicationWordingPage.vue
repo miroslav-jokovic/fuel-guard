@@ -57,6 +57,17 @@ import {
  * they had no hand in. The two instruments with no source show no button, which is the honest
  * rendering of the fact rather than a gap to be papered over.
  *
+ * ── WHY THE PREVIEW COLLAPSES ─────────────────────────────────────────────────────────────────
+ * Measured 2026-09-13, once the real instruments replaced the placeholders: FMCSA's PSP disclosure
+ * is **6,018 characters** where our placeholder was 409, and the carrier's past-employment release
+ * is 3,085. Six cards rendering every body in full is roughly eleven thousand characters of dense
+ * legal text with the Publish buttons scattered somewhere inside it — a page whose one job is to
+ * show a count somebody can act on, buried under fifteen screens of scrolling.
+ *
+ * So a long body is clamped with a control to open it. ⚠ The clamp is on the PREVIEW only and never
+ * on the editor: an office about to publish a legal instrument must be able to read the whole of it,
+ * and a textarea that hides two thirds of what is being published would be the worse defect by far.
+ *
  * ── AND WHY THE CONSENT LOOKS DIFFERENT ───────────────────────────────────────────────────────
  * It is six statutory disclosures — 7001(c)(1)(B)(i)(I) through (c)(1)(C)(i) — not one block of
  * text, so it is published as six fields. A consent missing one of them is not a consent, and the
@@ -68,6 +79,17 @@ const toast = useToastStore();
 
 /** Which instrument's editor is open. One at a time — publishing is not a thing to do in a hurry. */
 const editing = ref<PublishableInstrument | null>(null);
+
+/** Which long previews the office has opened. Collapsed again whenever the page reloads. */
+const expanded = ref<Set<string>>(new Set());
+/** Past this, a body is a wall rather than a paragraph. The FCRA page is 498 characters; PSP is 6,018. */
+const PREVIEW_LIMIT = 700;
+const isLong = (row: WordingInstrumentView): boolean => (row.body?.length ?? 0) > PREVIEW_LIMIT;
+function toggle(instrument: string): void {
+  const next = new Set(expanded.value);
+  if (!next.delete(instrument)) next.add(instrument);
+  expanded.value = next;
+}
 
 /** The working copy, per instrument, so opening an editor and closing it changes nothing. */
 const draft = reactive<Record<string, { title: string; intent: string; body: string; clauses: Record<string, string> }>>({});
@@ -156,7 +178,21 @@ async function save(instrument: PublishableInstrument): Promise<void> {
             <p class="text-sm whitespace-pre-line text-ink-muted">{{ row.clauses[clause] }}</p>
           </div>
         </div>
-        <p v-else class="text-sm whitespace-pre-line text-ink-muted">{{ row.body }}</p>
+        <!-- ⚠ Clamped, not truncated: the full text is in the DOM and one control away, because
+             "read this before you publish it" is the whole instruction on this page. -->
+        <div v-else>
+          <p
+            class="text-sm whitespace-pre-line text-ink-muted"
+            :class="{ 'line-clamp-6': isLong(row) && !expanded.has(row.instrument) }"
+          >{{ row.body }}</p>
+          <!-- `variant="link"` and not a raw <button>: the primitive already has the inline
+               action this needs, and re-styling one is what `lint:ui-adoption` exists to catch. -->
+          <BaseButton v-if="isLong(row)" variant="link" class="mt-2 text-sm" @click="toggle(row.instrument)">
+            {{ expanded.has(row.instrument)
+              ? "Show less"
+              : `Show all ${row.body?.length.toLocaleString()} characters` }}
+          </BaseButton>
+        </div>
         <p class="text-sm text-ink-secondary">{{ row.intent }}</p>
         <div class="flex flex-wrap items-center gap-3">
           <BaseButton variant="secondary" @click="open(row)">
@@ -183,8 +219,15 @@ async function save(instrument: PublishableInstrument): Promise<void> {
             <AppTextarea :id="id" v-model="draft[row.instrument]!.clauses[clause as EsignConsentClause]" :rows="3" />
           </FormField>
         </div>
+        <!-- ⚠ Never clamped, and scaled to what is in it. FMCSA's PSP disclosure is 6,018
+             characters; proof-reading that through a ten-row window is how a missing paragraph
+             gets published. -->
         <FormField v-else v-slot="{ id }" label="The wording" hint="Exactly as the applicant will read it.">
-          <AppTextarea :id="id" v-model="draft[row.instrument]!.body" :rows="10" />
+          <AppTextarea
+            :id="id"
+            v-model="draft[row.instrument]!.body"
+            :rows="draft[row.instrument]!.body.length > PREVIEW_LIMIT ? 28 : 10"
+          />
         </FormField>
 
         <!-- The proper source, one press away. Only where one exists: two of the six have neither
