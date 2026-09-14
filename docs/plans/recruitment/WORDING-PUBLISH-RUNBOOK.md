@@ -1,8 +1,15 @@
 # Publishing the application wording — runbook
 
 **The owner ruled path (b) on 2026-09-13**: rather than wait for `COUNSEL-REVIEW-PACKAGE.md` to come
-back, the carrier adopts the drafted text and publishes it at `/settings/application-wording`.
+back, the carrier publishes now at `/settings/application-wording`.
 `HANDOFF-2026-09-13-QUEUE.md` §3.1 is the decision this closes.
+
+> ⚠ **REVISED the same day, and the revision changes what you press.** The original plan was to
+> adopt OUR placeholder text, and §0 below was written for that. It is no longer the plan. Four of
+> the six instruments now have a proper source — three from your own packet and one from FMCSA — so
+> **the editor must be loaded from that source before you publish**, not published as it opens.
+> `WORDING-REVIEW-2026-09-13.md` is the sheet that says where each one comes from and what was
+> changed on the way. §3 below is the corrected procedure.
 
 This document is what that costs, what it frees, and the three defects that had to be fixed first —
 because **publishing is what arms them**. Every one was invisible while `org_disclosures` was empty.
@@ -11,13 +18,20 @@ because **publishing is what arms them**. Every one was invisible while `org_dis
 
 ## 0. Read this before you press Publish
 
-Adopting means the carrier becomes the author of record for six legal instruments whose text was
-written by an engineer as a placeholder (`authorizationContract.ts`, marked `v0-draft` for exactly
-this reason). Publishing does not make the text reviewed; it makes it **the carrier's**, and every
-signature taken afterwards is taken under it.
+Publishing makes a text **the one every applicant signs from then on**, numbered and kept for ever.
+Where it comes from now differs by instrument:
 
-That is the trade the owner has already weighed. What follows assumes it, and only records the parts
-an engineer can measure.
+| Instrument | Whose words | Yours to change? |
+| --- | --- | --- |
+| Consumer reports (FCRA) | your lawyers, packet page 19 | yes |
+| Previous employer | your lawyers, packet page 14 | yes |
+| Drug & alcohol | your lawyers, packet page 21 | yes |
+| **PSP** | **FMCSA, mandatory** | **no — publishing anything else is refused** |
+| Clearinghouse | ours (placeholder) | yes — and no applicant signs it |
+| Electronic-records consent | ours, quoted from 15 U.S.C. 7001(c) | yes |
+
+⚠ For the two still on our placeholders you are becoming the author of record for text an engineer
+wrote. That is the trade the owner has weighed; counsel's eventual wording lands as `v2`.
 
 ⚠ **It is per-carrier, and there are two organisations.** Publishing in one does nothing for the
 other. `Silvicom Inc` (`86d6b3ea-4361-4f71-877f-e8373615769b`) is the one that matters;
@@ -105,20 +119,26 @@ revoked under `v0-draft` and the append-only history would stop joining up. It n
 
 ---
 
-## 3. The runbook — about five minutes
+## 3. The runbook — about ten minutes
 
-Nothing needs typing. The editor pre-fills with whatever is live, which for an unpublished
-instrument is the placeholder, so **adopting the drafted text is two clicks per document.**
+Nothing needs typing. The editor opens on whatever is live, and where a proper source exists a
+second button loads it.
 
 1. Sign in to the production web app as a user with **manage `settings`** in **Silvicom Inc**.
    Reading the page needs only `recruitment view`; publishing needs `settings`.
 2. **Settings → Application wording** (`/settings/application-wording`). The callout at the top reads
    *"6 of 6 documents still use our placeholder wording."* That number is the only thing on the page
    worth watching.
-3. For each of the six cards: **Publish our wording** → read what is in the boxes → **Publish**.
-   A toast names the assigned version, which will be `v1`.
-   ⚠ The electronic-records consent is six fields, not one — 15 U.S.C. 7001(c)(1)(B)(i)(I) through
-   (c)(1)(C)(i). Publishing refuses a gap and names the empty clause.
+3. For each card: **Review and publish** → ⚠ **if the card offers "Use our packet's wording" or
+   "Use the FMCSA wording", press it first** → read what is now in the boxes → **Publish**. A toast
+   names the assigned version, which will be `v1`.
+   - Four cards offer that button. The sentence beside it says where the text comes from.
+   - ⚠ **PSP is the one you cannot get wrong quietly.** Press **Use the FMCSA wording**; if you
+     publish anything else the API refuses and names the paragraph that is missing. FMCSA requires
+     its language *"in whole, exactly as provided"*, and a report pulled behind an edited consent
+     breaches the account-holder agreement your API token is issued under.
+   - ⚠ The electronic-records consent is six fields, not one — 15 U.S.C. 7001(c)(1)(B)(i)(I) through
+     (c)(1)(C)(i). It has no source button; publishing refuses a gap and names the empty clause.
 4. Stop when the callout turns green: *"All 6 documents are published. Applicants can sign and send."*
 
 ⚠ **Publish all six even though only five gate the applicant.** `clearinghouse` is deliberately
@@ -132,10 +152,13 @@ There is no migration and no deploy. The rows take effect on the next page load.
 
 ```sql
 -- 1. Six rows, all v1, for Silvicom Inc and nobody else.
-select instrument, version, published_at
+select instrument, version, published_at, left(body, 60) as opens_with
   from org_disclosures
  where org_id = '86d6b3ea-4361-4f71-877f-e8373615769b'
  order by instrument;
+-- ⚠ `psp` must open with "In connection with your application for employment with Silvicom Inc".
+-- `fcra_disclosure` with "The Federal Motor Carrier Safety Regulations (FMCSR) require". If either
+-- opens with anything else, our placeholder was published instead of the real thing.
 
 -- 2. The audit says who, and names the instrument rather than copying the text.
 select action, meta, created_at from audit_logs
@@ -157,5 +180,8 @@ select action, meta, created_at from audit_logs
   first**: it gates every other write path.
 - **It does not resurrect the two expired drafts.** Vince and Tanja need new invitations and will
   find empty forms.
+- **It does not settle page 3 of your packet**, which combines a consumer-report disclosure with a
+  liability release — `WORDING-REVIEW-2026-09-13.md` §4.1. Page 3 keeps printing as it is; the
+  owner ruled on 2026-09-13 that it stays unchanged for now.
 - **It does not fix `MAIL_FROM`.** It is still a bare personal Gmail address in production, which is
   the sender an applicant will see on the approval notice Q-AX4 now sends.
