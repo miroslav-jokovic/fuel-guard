@@ -1,0 +1,251 @@
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { inflateSync } from "node:zlib";
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFStream } from "pdf-lib";
+
+/**
+ * The carrier's own 31-page packet, as bytes this repository can read (§2.5, D-PKT1).
+ *
+ * ── WHY THE PDF IS NOW A REPO ASSET ───────────────────────────────────────────────────────────
+ * §2.5 of `APPLICATION-PACKET-PLAN.md` states the lesson three separate defects taught — p24
+ * (D-PKT10), p17 (D-PKT12) and `packetWording.ts`'s thirty-three page numbers (2026-09-14):
+ *
+ *   **A guard scoped to our own files cannot check a fact about the carrier's paper.**
+ *
+ * Every constant in this module's neighbourhood is a measurement of somebody else's document —
+ * which page an instrument is on, which line a signature sits over, whether a page is the
+ * applicant's at all — and until today the only copy of that document lived in somebody's
+ * Downloads folder. So the measurements could be restated, and were, and a test agreed with them.
+ * `packetWording.test.ts` says in its own comment that the check which would have caught its
+ * off-by-one "needs that PDF in the repository". This is that PDF.
+ *
+ * `assets/keller-14834-rev0122.pdf` is the precedent and the shape: ship the blank document, and
+ * let a test assert against the BYTES rather than against a belief in a comment.
+ *
+ * ── WHY IT READS THE PDF ITSELF RATHER THAN SHELLING OUT ──────────────────────────────────────
+ * `pdftotext` is how these pages were measured by hand, and it is the wrong thing for a gate: it is
+ * a system dependency that CI's runners do not carry, and a gate that silently skips when a binary
+ * is missing is worse than no gate. Everything below comes out of the file with `pdf-lib` and
+ * `node:zlib`, both already dependencies.
+ *
+ * ⚠ **The text is not ASCII in the file.** Microsoft Print To PDF subsets its fonts, so the content
+ * stream carries glyph IDs — `<0022><00CD>` — and not characters. Both fonts ship a `ToUnicode`
+ * CMap, which is what makes them readable at all; `cmapFor` below is that map, and without it every
+ * text assertion in `packetTemplate.test.ts` would be comparing against mojibake.
+ */
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+/** ⚠ The carrier's EXCEL print, which D-PKT11 names the text authority — never the Numbers export. */
+export const PACKET_TEMPLATE_PATH = join(HERE, "assets", "application-11.pdf");
+
+/**
+ * One run of text, with the point it starts at **in raw text space**.
+ *
+ * ⚠ **`x`/`y` are NOT page coordinates yet, and nothing here may treat them as such.** They are the
+ * text matrix's translation as the operators set it, with the page's own CTM not applied — this
+ * producer wraps blocks in transforms, and measured 2026-09-14 the letterhead (visually at the top of
+ * page 1) reports `y` 88 while the footer line reports 149, which no single consistent axis explains.
+ *
+ * Every assertion in `packetTemplate.test.ts` is therefore about TEXT and about the ORDER runs appear
+ * in, never about where they sit. Resolving the CTM is the overlay step's first job, because drawing
+ * a value 3pt above its rule needs a coordinate system that has been proved rather than assumed —
+ * and the whole point of this module is to stop shipping measurements nobody checked.
+ */
+export interface TemplateTextRun {
+  x: number;
+  y: number;
+  text: string;
+}
+
+/**
+ * One ruled line — the geometry a signature or a value will eventually be drawn onto.
+ *
+ * ⚠ Same caveat as `TemplateTextRun`: these are the path operators' own numbers, with no CTM
+ * applied. They are exposed because counting them is already useful (a page with no rules takes no
+ * marks), and they are not yet positions.
+ */
+export interface TemplateRule {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface TemplatePage {
+  /**
+   * 1-based index into the file. ⚠ Believed to equal the number the carrier prints in that page's
+   * footer — every page reference in this area is written that way — but NOT proved here; see the
+   * note at the foot of this file about why there is no `footerNumber()`. What the test proves
+   * instead is page IDENTITY, by the headings that appear on exactly one page each.
+   */
+  page: number;
+  width: number;
+  height: number;
+  runs: TemplateTextRun[];
+  rules: TemplateRule[];
+}
+
+/**
+ * A font's glyph-id → text map, out of its `ToUnicode` CMap.
+ *
+ * Only `bfchar` is read, because only `bfchar` is present — this file carries no `bfrange`. A
+ * `bfrange` would silently contribute nothing rather than throw, so `packetTemplate.test.ts` asserts
+ * the decoded text of known lines instead of trusting the decoder.
+ */
+function cmapFor(doc: PDFDocument, font: PDFDict): Map<number, string> {
+  const map = new Map<number, string>();
+  const toUnicode = font.get(PDFName.of("ToUnicode"));
+  if (!toUnicode) return map;
+  let raw = Buffer.from(doc.context.lookup(toUnicode, PDFStream).getContents());
+  try {
+    raw = inflateSync(raw);
+  } catch {
+    /* already flat */
+  }
+  const text = raw.toString("latin1");
+  for (const block of text.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
+    for (const entry of block[1]!.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g)) {
+      const units = entry[2]!.match(/.{4}/g) ?? [];
+      map.set(
+        parseInt(entry[1]!, 16),
+        units.map((u) => String.fromCharCode(parseInt(u, 16))).join(""),
+      );
+    }
+  }
+  return map;
+}
+
+/** The page's content stream, decompressed and concatenated. */
+function streamOf(doc: PDFDocument, page: ReturnType<PDFDocument["getPage"]>): string {
+  const contents = page.node.Contents();
+  if (!contents) return "";
+  const raw =
+    contents instanceof PDFArray
+      ? Buffer.concat(
+          contents.asArray().map((r) => Buffer.from(doc.context.lookup(r, PDFStream).getContents())),
+        )
+      : Buffer.from((contents as PDFStream).getContents());
+  try {
+    return inflateSync(raw).toString("latin1");
+  } catch {
+    return raw.toString("latin1");
+  }
+}
+
+/** Every operator this reader understands, in one pass, in source order. */
+const OPERATORS = new RegExp(
+  [
+    String.raw`\/(\w+)\s+[\d.]+\s+(Tf)`, // 1,2  select font
+    String.raw`([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+(Tm)`, // 3-9 set matrix
+    String.raw`([\d.-]+)\s+([\d.-]+)\s+(Td|TD)`, // 10,11,12 move
+    String.raw`(T\*)`, // 13 next line
+    String.raw`([\d.-]+)\s+(TL)`, // 14,15 leading
+    String.raw`\[((?:[^\]\\]|\\.)*)\]\s*(TJ)`, // 16,17 show with kerning
+    String.raw`<([0-9a-fA-F]+)>\s*(Tj)`, // 18,19 show
+    String.raw`(BT)`, // 20 begin text
+    String.raw`([\d.-]+)\s+([\d.-]+)\s+(m)`, // 21,22,23 moveto
+    String.raw`([\d.-]+)\s+([\d.-]+)\s+(l)`, // 24,25,26 lineto
+  ].join("|"),
+  "g",
+);
+
+/**
+ * Read one page: its text, positioned, and its ruled lines.
+ *
+ * ⚠ **`Td`/`TD`/`T*`/`TL` are implemented and, in THIS document, contribute nothing.** Measured
+ * 2026-09-14 by disabling the branch: pages 19, 20 and 22 come back 776, 1011 and 1482 characters
+ * either way — byte-identical. Microsoft Print To PDF positions every block here with an absolute
+ * `Tm`.
+ *
+ * They stay because they are how text is positioned in general and the carrier may re-export from
+ * something else, and they are called out as unexercised because the alternative is a reader whose
+ * untested half nobody knows is untested. ⚠ **Nothing in `packetTemplate.test.ts` depends on them,
+ * and no comment here may claim they are load-bearing** — an earlier draft of this one did, on the
+ * strength of a throwaway prototype that had a different bug.
+ */
+function readPage(doc: PDFDocument, index: number): TemplatePage {
+  const page = doc.getPage(index);
+  const fonts = page.node.Resources()?.lookup(PDFName.of("Font"), PDFDict);
+  const maps = new Map<string, Map<number, string>>();
+  if (fonts) {
+    for (const [key, ref] of fonts.entries()) {
+      maps.set(key.toString(), cmapFor(doc, doc.context.lookup(ref, PDFDict)));
+    }
+  }
+
+  const stream = streamOf(doc, page);
+  const runs: TemplateTextRun[] = [];
+  const rules: TemplateRule[] = [];
+  let cmap = new Map<number, string>();
+  // The text line matrix: where this line started, and where the next one goes.
+  let lineX = 0;
+  let lineY = 0;
+  let x = 0;
+  let y = 0;
+  let leading = 0;
+  let penX = 0;
+  let penY = 0;
+
+  for (const m of stream.matchAll(OPERATORS)) {
+    if (m[2] === "Tf") {
+      cmap = maps.get(`/${m[1]}`) ?? new Map();
+    } else if (m[9] === "Tm") {
+      lineX = x = Number(m[7]);
+      lineY = y = Number(m[8]);
+    } else if (m[12] === "Td" || m[12] === "TD") {
+      if (m[12] === "TD") leading = -Number(m[11]);
+      lineX = x = lineX + Number(m[10]);
+      lineY = y = lineY + Number(m[11]);
+    } else if (m[13] === "T*") {
+      lineY = y = lineY - leading;
+      x = lineX;
+    } else if (m[15] === "TL") {
+      leading = Number(m[14]);
+    } else if (m[20] === "BT") {
+      lineX = lineY = x = y = 0;
+    } else if (m[23] === "m") {
+      penX = Number(m[21]);
+      penY = Number(m[22]);
+    } else if (m[26] === "l") {
+      rules.push({ x1: penX, y1: penY, x2: Number(m[24]), y2: Number(m[25]) });
+      penX = Number(m[24]);
+      penY = Number(m[25]);
+    } else if (m[17] === "TJ" || m[19] === "Tj") {
+      const hexes =
+        m[17] === "TJ"
+          ? [...m[16]!.matchAll(/<([0-9a-fA-F]+)>/g)].map((h) => h[1]!)
+          : [m[18]!];
+      let text = "";
+      for (const hex of hexes) {
+        for (const cid of hex.match(/.{4}/g) ?? []) text += cmap.get(parseInt(cid, 16)) ?? "";
+      }
+      if (text.trim()) runs.push({ x, y, text });
+    }
+  }
+
+  return { page: index + 1, width: page.getWidth(), height: page.getHeight(), runs, rules };
+}
+
+/** The whole packet, read once. */
+export async function readPacketTemplate(path = PACKET_TEMPLATE_PATH): Promise<TemplatePage[]> {
+  const doc = await PDFDocument.load(await readFile(path), { ignoreEncryption: true });
+  return Array.from({ length: doc.getPageCount() }, (_, i) => readPage(doc, i));
+}
+
+/** Everything on one page as a single string, in the order the operators appear. */
+export const pageText = (page: TemplatePage): string => page.runs.map((r) => r.text).join(" ");
+
+/**
+ * ⚠ **There is deliberately no `footerNumber()` here, and the reason is worth keeping.**
+ *
+ * It was written, and it returned null on all 31 pages, because it looked for the digits "below the
+ * footer rule" — a position, in a coordinate system this module has just finished saying it has not
+ * established. The honest options were to resolve the CTM first or to assert on something that does
+ * not need one, and PAGE IDENTITY does not: `PAST EMPLOYMENT VERIFICATION` appears on exactly one
+ * page of this document, and that it is page 15 is the same fact the footer digit would have carried.
+ *
+ * Shipping the positional version would have meant a gate that passes by finding nothing — the
+ * precise failure §2.5 exists to warn about, re-made inside the file written to close it.
+ */
