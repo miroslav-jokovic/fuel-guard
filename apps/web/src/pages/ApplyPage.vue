@@ -14,12 +14,12 @@ import SafetyHistoryFields from "@/features/apply/SafetyHistoryFields.vue";
 import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
 import DocumentCaptureFields from "@/features/apply/DocumentCaptureFields.vue";
 import ReviewFields from "@/features/apply/ReviewFields.vue";
-import SignOffFields from "@/features/apply/SignOffFields.vue";
 import ApplicationFiledCard from "@/features/apply/ApplicationFiledCard.vue";
 import DraftUnlockGate from "@/features/apply/DraftUnlockGate.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
 import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
+import SignOffScreen from "@/features/apply/SignOffScreen.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
 import { emptyDraft, fromDraftPayload, toApplication, type ApplicationDraft } from "@/features/apply/draft";
@@ -119,6 +119,16 @@ const awaitingReview = computed(
     && !awaitingSignature.value
     && (handedOver.value || Boolean(invitation.data.value?.phases?.reviewRequestedAt)),
 );
+
+/**
+ * The carrier's own packet, stop by stop (P5, D-PKT6), as the server served it.
+ *
+ * Passed through and not interpreted here: whether the walk is finished, and what holds the Send
+ * button, belong to `SignOffScreen` — the only phase in which either question can be asked. ⚠ Empty
+ * for a page loaded against an API older than 0339, which is what lets that screen tell "no packet
+ * to walk" apart from "a packet nobody has walked yet".
+ */
+const packetStops = computed(() => invitation.data.value?.packet ?? []);
 
 // ── Resuming (A2) ─────────────────────────────────────────────────────────────────────────────
 const released = ref<Record<string, unknown> | null>(null);
@@ -373,18 +383,17 @@ async function send(): Promise<void> {
        before it: this screen prints the whole application, and D-APP16 exists because an application
        link is forwarded in email and read on a shared phone. -->
   <BaseCard v-else-if="awaitingSignature">
-    <AppCallout v-if="sendError" tone="caution" class="mb-4">{{ sendError }}</AppCallout>
-    <SignOffFields
+    <SignOffScreen
       v-model="draft"
+      :token="token"
       :carrier="invitation.data.value?.carrier ?? ''"
       :edits="invitation.data.value?.edits ?? []"
       :captures="invitation.data.value?.captures ?? []"
+      :stops="packetStops"
+      :sending="submit.isPending.value"
+      :error="sendError"
+      @send="send"
     />
-    <div class="mt-6 flex justify-end">
-      <BaseButton variant="primary" :disabled="submit.isPending.value" @click="send">
-        {{ submit.isPending.value ? APPLY_COPY.signOff.signing : APPLY_COPY.signOff.sign }}
-      </BaseButton>
-    </div>
   </BaseCard>
 
   <div v-else-if="invitation.data.value" class="space-y-6">
