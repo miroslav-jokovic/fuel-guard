@@ -33,6 +33,10 @@
       "module": "recruiting",
       "layer": "core"
     },
+    "application_packet_marks": {
+      "module": "recruiting",
+      "layer": "core"
+    },
     "asset_movements": {
       "module": "maintenance",
       "layer": "core"

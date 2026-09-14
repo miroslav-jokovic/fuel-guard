@@ -48,6 +48,33 @@ export const PACKET_MARK_KINDS = ["signature", "initials"] as const;
 export type PacketMarkKind = (typeof PACKET_MARK_KINDS)[number];
 
 export interface PacketPlacement {
+  /**
+   * What a recorded mark names, and the only field here that is ours rather than the carrier's.
+   *
+   * ⚠ **Nothing else on a placement identifies it.** Page 19's two driver lines are identical in
+   * every other field — same page, same party, same mark, same anchor, same sentence — because the
+   * carrier's page really does carry its heading and its signature line twice. Page 11's two differ
+   * only in `what`, and page 31's likewise. A stored signature that said "page 19, driver" would not
+   * say which of the two the driver was standing on, and the ceremony's own queue could not tell
+   * which stop it had already collected.
+   *
+   * ⚠ **Written out rather than derived from the array's order, and that is deliberate.** An index
+   * is the obvious id and it is the wrong one: `PACKET_PLACEMENTS` has already gained an entry in
+   * the middle once (p17, D-PKT12, 2026-09-14) and will again if counsel rules on page 19's
+   * duplicate. Derived ids would have silently re-pointed every signature filed before that merge at
+   * a different line of the carrier's paper. These do not move, and a new placement takes a new
+   * letter rather than shifting its neighbours.
+   *
+   * `p{page, zero-padded}` plus a letter when a page carries more than one of the same party's
+   * marks, and `c`/`w` for the carrier's and the witness's. Zero-padded so the ids sort the way the
+   * packet reads: `p03` before `p10`, which `p3` would not.
+   *
+   * ⚠ **The id is a convenience for the queue, never the record of what was signed.** A filed mark
+   * stores this page, anchor and sentence verbatim beside it, for the reason 0215 stores
+   * `disclosure_text`: §390.32(d) asks that a filed electronic record stay reproducible, and this
+   * constant is edited whenever the carrier's paper is re-measured.
+   */
+  id: string;
   /** The carrier's own page number, from the footer — the workbook stores no page breaks. */
   page: number;
   party: PacketMarkParty;
@@ -73,78 +100,78 @@ export interface PacketPlacement {
  * be reproducible.
  */
 export const PACKET_PLACEMENTS: readonly PacketPlacement[] = [
-  { page: 3, party: "driver", mark: "signature", anchor: "Date | Signature",
+  { id: "p03", page: 3, party: "driver", mark: "signature", anchor: "Date | Signature",
     what: "Orientation and the drug test it includes" },
-  { page: 4, party: "driver", mark: "signature", anchor: "Applicant's Signature | Date",
+  { id: "p04", page: 4, party: "driver", mark: "signature", anchor: "Applicant's Signature | Date",
     what: "Permission to obtain background reports" },
-  { page: 5, party: "driver", mark: "initials", anchor: "Initials",
+  { id: "p05", page: 5, party: "driver", mark: "initials", anchor: "Initials",
     what: "The minimum qualifications for the job" },
-  { page: 6, party: "driver", mark: "initials", anchor: "Initials",
+  { id: "p06", page: 6, party: "driver", mark: "initials", anchor: "Initials",
     what: "The documents required, and the criminal-history rules" },
-  { page: 9, party: "driver", mark: "initials", anchor: "Initials",
+  { id: "p09", page: 9, party: "driver", mark: "initials", anchor: "Initials",
     what: "Company rules and regulations, part three" },
-  { page: 10, party: "driver", mark: "signature", anchor: "Signature | Date",
+  { id: "p10", page: 10, party: "driver", mark: "signature", anchor: "Signature | Date",
     what: "Company rules and regulations, part four" },
   // ⚠ Two on one page, and they say different things. The first releases previous employers to
   // answer; the second certifies that the application itself is true. The packet gives each its own
   // line and its own sentence, so the ceremony gives each its own stop.
-  { page: 11, party: "driver", mark: "signature", anchor: "Date | Applicant signature",
+  { id: "p11a", page: 11, party: "driver", mark: "signature", anchor: "Date | Applicant signature",
     what: "Permission to ask previous employers about you" },
-  { page: 11, party: "driver", mark: "signature", anchor: "Date | Applicant signature",
+  { id: "p11b", page: 11, party: "driver", mark: "signature", anchor: "Date | Applicant signature",
     what: "That everything on this application is true" },
-  { page: 13, party: "driver", mark: "signature", anchor: "Signature of applicant | Date",
+  { id: "p13", page: 13, party: "driver", mark: "signature", anchor: "Signature of applicant | Date",
     what: "That your answers are true, and this stays open for 45 days" },
-  { page: 15, party: "driver", mark: "signature", anchor: "Signature of applicant | Date | Sent to",
+  { id: "p15", page: 15, party: "driver", mark: "signature", anchor: "Signature of applicant | Date | Sent to",
     what: "Release of your past employment and testing history" },
   // ⚠ Page 17 is a SPLIT page (D-PKT12): the top half is the applicant's and the bottom half —
   // `INTERVIEW NOTES`, `APPLICATION RESULTS`, `Contracted or Rejected?`, `Termination date` — is the
   // carrier's, filled in after a decision by somebody else. Only the top half is reproduced, and this
   // is its mark. The whole page was excluded until 2026-09-14 on a reading of the bottom half alone.
-  { page: 17, party: "driver", mark: "signature", anchor: "Signature of applicant | Date",
+  { id: "p17", page: 17, party: "driver", mark: "signature", anchor: "Signature of applicant | Date",
     what: "That this application is true, and that we may check your history" },
-  { page: 18, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
+  { id: "p18", page: 18, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
     what: "That the licence you gave us is the only one you hold" },
-  { page: 18, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative:",
+  { id: "p18c", page: 18, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative:",
     what: "Countersigned by the carrier" },
   // ⚠ Page 19 carries its heading twice and two identical driver signature lines. It reads as two
   // forms merged by accident, and until counsel says which one survives, both are placements: a
   // renderer that dropped one would produce a page the carrier's paper does not have.
-  { page: 19, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
+  { id: "p19a", page: 19, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
     what: "Permission to check your driving record" },
-  { page: 19, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative: | Date:",
+  { id: "p19ac", page: 19, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative: | Date:",
     what: "Countersigned by the carrier" },
-  { page: 19, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
+  { id: "p19b", page: 19, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
     what: "Permission to check your driving record" },
-  { page: 19, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative:",
+  { id: "p19bc", page: 19, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative:",
     what: "Countersigned by the carrier" },
   // ⚠ FCRA §604(b)(2). This one can never share a screen with anything else, whatever the queue
   // does around it — `SigningCeremony`'s one-instrument-per-screen rule is what implements that.
-  { page: 20, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
+  { id: "p20", page: 20, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
     what: "Consumer reports for employment purposes" },
   // ⚠ `signatrure`. Reproduced exactly, because the anchor's job is to be findable in the workbook.
-  { page: 22, party: "driver", mark: "signature", anchor: "Driver name Print | Driver signatrure",
+  { id: "p22", page: 22, party: "driver", mark: "signature", anchor: "Driver name Print | Driver signatrure",
     what: "Agreement to give a urine sample" },
-  { page: 22, party: "witness", mark: "signature", anchor: "Witness by",
+  { id: "p22w", page: 22, party: "witness", mark: "signature", anchor: "Witness by",
     what: "Witnessed" },
-  { page: 22, party: "carrier", mark: "signature", anchor: "Company reprsentative's signature | Date",
+  { id: "p22c", page: 22, party: "carrier", mark: "signature", anchor: "Company reprsentative's signature | Date",
     what: "Countersigned by the carrier" },
-  { page: 25, party: "driver", mark: "signature", anchor: "Driver/Owner Signature",
+  { id: "p25", page: 25, party: "driver", mark: "signature", anchor: "Driver/Owner Signature",
     what: "Receipt of the driver handbooks" },
-  { page: 26, party: "driver", mark: "signature", anchor: "Driver/Owner Signature",
+  { id: "p26", page: 26, party: "driver", mark: "signature", anchor: "Driver/Owner Signature",
     what: "Your answer about any earlier failed or refused test" },
-  { page: 27, party: "driver", mark: "signature", anchor: "Signature",
+  { id: "p27", page: 27, party: "driver", mark: "signature", anchor: "Signature",
     what: "Who may ride with you, and how off-duty time is logged" },
-  { page: 28, party: "driver", mark: "signature", anchor: "Signature",
+  { id: "p28", page: 28, party: "driver", mark: "signature", anchor: "Signature",
     what: "The alcohol and drug abuse policy" },
   // ⚠ Page 31 takes THREE marks and they are three different people: the driver, the owner-operator
   // and a witness. They are frequently the same person for the first two and the packet does not
   // assume it, so neither does this. The witness is neither the applicant nor the carrier, which is
   // why `party` has three values rather than two.
-  { page: 31, party: "driver", mark: "signature", anchor: "Signature | Date",
+  { id: "p31a", page: 31, party: "driver", mark: "signature", anchor: "Signature | Date",
     what: "The owner-operator and leased-driver agreement, as the driver" },
-  { page: 31, party: "driver", mark: "signature", anchor: "Signature | Date",
+  { id: "p31b", page: 31, party: "driver", mark: "signature", anchor: "Signature | Date",
     what: "The owner-operator and leased-driver agreement, as the owner-operator" },
-  { page: 31, party: "witness", mark: "signature", anchor: "Signature | Date",
+  { id: "p31w", page: 31, party: "witness", mark: "signature", anchor: "Signature | Date",
     what: "Witnessed" },
 ];
 
@@ -162,3 +189,29 @@ export const driverPlacements = (): PacketPlacement[] =>
 export const adoptedMarkKinds = (): PacketMarkKind[] => [
   ...new Set(driverPlacements().map((p) => p.mark)),
 ];
+
+/**
+ * How many marks the ceremony has to collect before the packet is signed through.
+ *
+ * ⚠ **Derived, and deliberately not a column, a constant or a stamp.** The obvious alternative was a
+ * `packet_signing_completed_at` on `application_invitations`, matching `releases_completed_at` — and
+ * it would be a second place the number 22 lives, going stale the next time counsel rules on page
+ * 19's duplicate. "Complete" is a count against this array, computed everywhere it is asked for,
+ * which is the shape `record_driver_release`'s `p_expected_count` already established: the
+ * vocabulary lives in TypeScript and the migration applies what it produced.
+ */
+export const packetDriverMarkCount = (): number => driverPlacements().length;
+
+/** One stop, by the id a recorded mark names. Null for an id no longer in the inventory. */
+export const packetPlacementById = (id: string): PacketPlacement | null =>
+  PACKET_PLACEMENTS.find((p) => p.id === id) ?? null;
+
+/**
+ * The ids the ceremony may collect — the driver's stops and nothing else.
+ *
+ * ⚠ The set exists so the server can refuse `p18c` and `p22w` rather than trusting the client to
+ * offer only the driver's stops. A ceremony bug that walked an applicant onto the carrier's
+ * countersignature or a witness's line would put their name where somebody else's belongs, on a
+ * page that is evidence — and the request that did it would look exactly like every other one.
+ */
+export const driverPlacementIds = (): string[] => driverPlacements().map((p) => p.id);

@@ -72,6 +72,38 @@ export const applicationReleaseSchema = z.object({
 export type ApplicationRelease = z.infer<typeof applicationReleaseSchema>;
 
 /**
+ * One mark on the carrier's packet, applied at one stop (P5, D-PKT6).
+ *
+ * ── WHY THIS IS A SECOND SCHEMA AND NOT A PURPOSE ON THE ONE ABOVE ────────────────────────────
+ * The four releases are INSTRUMENTS: each carries its own disclosure text, its own version and its
+ * own §604(b)(2) obligation to be the only thing in its document. A packet mark is a PLACE on paper
+ * the carrier's lawyers drew — twenty-two of them, six of which sit on pages whose instrument the
+ * applicant has already signed on their phone. Putting them in `AUTHORIZATION_PURPOSES` would grow
+ * a legal vocabulary with twenty-two entries that are not legal bases for anything.
+ *
+ * ── WHAT THE REQUEST MAY SAY, AND WHAT IT MAY NOT ─────────────────────────────────────────────
+ * `placement_id` names a stop and `signed_name` is the mark being applied. Everything else about
+ * what was signed — the page, the line on it, the sentence the driver was shown — is composed
+ * server-side from `PACKET_PLACEMENTS`, which is 0092's rule for `hazmat_reviews.attestation` and
+ * 0215's for `disclosure_text`, applied again: a client-authored account of what somebody agreed to
+ * is worth nothing in the audit it exists for.
+ *
+ * ⚠ **`signed_name` travels on every stop even though the driver adopts it once.** The adoption is
+ * a screen, and a screen is not a guarantee — a second tab, a replayed request or a rebuilt client
+ * could each send a different name. The server pins it instead: the first mark on a link fixes the
+ * name, and `record_packet_mark` refuses any later one that disagrees. "Adopted once" is then a fact
+ * about the filed document rather than a promise about the UI, which is what the owner asked for
+ * when he said the driver signs once and is directed to each place.
+ */
+export const applicationPacketMarkSchema = z.object({
+  placement_id: z.string().min(1).max(20),
+  signed_name: z.string().min(1).max(200),
+  /** ESIGN intent, affirmed at the stop — the same rule the releases follow. */
+  esign_consent: z.literal(true),
+});
+export type ApplicationPacketMark = z.infer<typeof applicationPacketMarkSchema>;
+
+/**
  * ── THE SAVED DRAFT (A2, D-APP2) ──────────────────────────────────────────────────────────────
  *
  * A partial, unvalidated snapshot of the form. Deliberately NOT `driverApplicationSchema.partial()`:

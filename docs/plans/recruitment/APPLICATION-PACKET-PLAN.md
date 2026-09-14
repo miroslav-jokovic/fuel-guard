@@ -818,3 +818,87 @@ New submissions produce the packet; existing filed documents keep rendering as t
   reaches back into the form is §3.1's equipment grid, and the design canvas already owns that.
 - **No deletion of the existing PDF** (D-PKT5).
 - **No wording adopted from the packet without review** (D-PKT4), and none at all before P1.
+
+---
+
+## 8. Progress log
+
+Dated lines, appended. ⚠ Not table rows: parallel PRs marking adjacent rows BUILT conflict every
+time, and the conflict is always in the one column that says whether something shipped.
+
+**2026-09-14 — owner rules on the ceremony's two open questions, and P5's server half ships.**
+
+- **D-PKT13 — the driver adopts ONE mark, drawn or typed, and it is applied at every stop** (owner).
+  His words: *"Driver can draw or type name once, but he needs to be directed to each spot and apply
+  saved signature form beginning at each place where needed."* So the choice between typing and
+  drawing is the DRIVER'S and is made once; what the ceremony then does at each of the twenty-two
+  places is apply what they already gave, not ask again.
+  ⚠ **This does not reverse D-APP8**, and the distinction is worth stating because it looks like it
+  might. D-APP8 says the typed name is the signature of RECORD and the drawn mark is decoration that
+  must never block a signature — a driver on a cracked screen who cannot draw must still be able to
+  sign. That stays true: `application_packet_marks.signed_name` is the record on every row, and
+  `signature_mark` (A8a's capture slot, already plumbed end to end) is what gets drawn onto the page
+  when the driver chose to draw. What D-PKT13 adds is that the driver picks which one appears on the
+  paper, and that the pick happens once.
+  ⚠ **"Adopted once" is now a database fact rather than a UI promise.** `record_packet_mark` refuses
+  (DR035) any mark whose name differs from the one the first stop on that link recorded — so a second
+  tab, a replayed request or a rebuilt client cannot produce a packet carrying two different
+  signatures on pages meant to carry one person's.
+- **D-PKT14 — page 16's empty education and reference lines print a filler, not blank paper**
+  (owner). Education and three references are collected and are deliberately optional
+  (`questionnaireContract.ts` gives neither a `required` flag), so an applicant may leave them blank
+  — Marija did. The owner's ruling is that they stay optional and the PRINT fills the lines:
+  *"leave them optional but in print we should add something like N/A or something that will fill
+  there so we dont have empty lines printed."*
+  ⚠ **Not built yet, and deliberately.** The only code that draws page 16 is `packetPages.ts`'s
+  `page16()`, inside the PDFKit renderer that §3's overlay architecture replaces and that has no
+  production importer. Applying the filler there is work thrown away. It lands with the page fill
+  (queue item 4), against the carrier's own page.
+- **Order: the ceremony before the overlay** (owner), with the coordinates not yet in the tree.
+
+**What shipped — P5's server half** (migration 0339, no web surface yet):
+
+- `packetPlacements.ts` gains a stable `id` per placement (`p03`, `p11a`, `p19b`), plus
+  `packetDriverMarkCount()`, `packetPlacementById()` and `driverPlacementIds()`.
+  ⚠ **Written out rather than derived from array position.** The array has already gained an entry in
+  the middle once (p17, D-PKT12) and will again if counsel rules on p19's duplicate; derived ids
+  would silently re-point every signature filed before that merge at a different line of the
+  carrier's paper.
+  ⚠ **The id is the only thing telling p19's two driver stops apart** — they share page, party, mark,
+  anchor AND sentence, because the carrier's page really does carry its heading and its signature
+  line twice.
+- `application_packet_marks` + `record_packet_mark` (0339). Append-only, keyed on the INVITATION
+  rather than the driver (0337's reasoning: a rehire signs their own packet), carrying its own copy
+  of the page, the anchor and the sentence so §390.32(d) reproduction does not depend on today's
+  constant.
+  ⚠ **No phase column.** The releases stamp `releases_completed_at`; this does not. "Complete" is a
+  count against `driverPlacements().length`, passed in as `p_expected_count` — so counsel ruling on
+  p19 moves one array rather than an array and a column that has to agree with it.
+  ⚠ **The signing window is `approved_at` → `submitted_at`.** Six of the twenty-two stops certify
+  that the answers are true, and D-AX11 split the signing precisely because *"a certification of
+  answers the office has since corrected certifies something else."*
+- `POST /api/public/application/:token/mark`, and the queue served on `GET /:token` as `packet`.
+- ⚠ **The server refuses a stop that is not the driver's** (`p18c`, `p19ac`, `p19bc`, `p22c`, `p22w`,
+  `p31w`). The transaction takes the page and the anchor as arguments and would file the carrier's
+  countersignature under the applicant's name without complaint, so the refusal exists in
+  `applicationPacketMarks.ts` or nowhere.
+
+**Still open on P5:** the web ceremony — adoption, the walk, progress, resume. And the marks reach
+no PDF until the overlay lands, because there are still no coordinates in the tree.
+
+**2026-09-14 — `packetWording.ts` sent counsel to the wrong page, and its test agreed with it.**
+
+Every page number in that file was one too low: the three published instruments recorded at 14/19/21
+are on **15/20/22**, and so were nineteen spelling repairs, four typography repairs, seven
+left-alone entries and three prose references. Thirty-three numbers. Measured with `pdftotext
+-layout` over `Application 11.pdf`, reading the number printed in each page's own footer — which
+equals the PDF page index on all 31 pages, so both readings agree and this was a transcription slip
+rather than a disagreement about numbering. `packetPlacements.ts` was right throughout.
+
+⚠ **The test asserted the constant against itself** (`expect(page).toBe(19)`) and passed for as long
+as the constant was wrong. Replaced by a cross-check against `PACKET_PLACEMENTS`, which was measured
+separately: a published instrument must sit on a page that inventory says carries a driver signature.
+That catches 14 and 21, which carry none. ⚠ **It does not catch 19, which carries two** — the check
+that would reads the footers out of the carrier's PDF and needs that PDF in the repository. This is
+§2.5 a third time, after p24 and p17: a guard scoped to our own files cannot check a fact about the
+carrier's paper.
