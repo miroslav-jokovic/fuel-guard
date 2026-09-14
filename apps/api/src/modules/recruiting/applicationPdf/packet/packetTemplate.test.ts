@@ -18,11 +18,18 @@ import { pageText, readPacketTemplate, type TemplatePage } from "./packetTemplat
  * `assets/application-11.pdf` and compares it against a constant somewhere else in the tree, so a
  * constant that drifts from the carrier's document fails the build by name.
  *
- * ⚠ **Text only, never position.** `packetTemplate.ts` says why: the producer wraps blocks in
- * transforms this reader does not yet apply, so `x`/`y` are raw text space and not page coordinates.
- * Asserting on them would be asserting on something unproved — and the first version of this file
- * did exactly that, looked for the footer digits "below the footer rule", and found null on all 31
- * pages. A gate that passes by finding nothing is the failure §2.5 exists to warn about.
+ * ⚠ **Position is asserted now, and was not until the CTM was resolved (2026-09-14).** Every page
+ * opens with one `0.75 0 0 -0.75 0 792 cm` and never touches the matrix again, so
+ * `pageY = 792 − 0.75·y`, and the landmarks below prove it at both ends of the sheet rather than
+ * trusting the arithmetic.
+ *
+ * ⚠ The earlier note claimed the axis was unexplained because the letterhead read 88 and
+ * `FOR DEPARTMENT` read 149. Both readings were right: **that line is printed twice on page 1**, as a
+ * sub-header and again in the footer. The landmark below is therefore the line that occurs ONCE.
+ *
+ * ⚠ What has NOT come back is `footerNumber()`. The first one looked for digits "below the footer
+ * rule", found null on all 31 pages, and would have been a gate passing by finding nothing. Page
+ * identity is still asserted by headings, which needs no coordinate system at all.
  */
 
 const pages: TemplatePage[] = await readPacketTemplate();
@@ -199,5 +206,73 @@ describe("the excluded pages still read as somebody else's", () => {
 
   it("page 21 is the Seven Day Work Statement that left under D-PKT7", () => {
     expect(flat(textOf(21))).toMatch(/seven|7 day|last relieved/i);
+  });
+});
+
+/**
+ * The coordinate system, proved at both ends of the sheet.
+ *
+ * ⚠ **Landmarks, not arithmetic.** `pageY = 792 − 0.75·y` is easy to write down and easy to get
+ * backwards, and a y-flip that is inverted still produces numbers inside the page — so what is
+ * asserted is that things known to be at the TOP of the carrier's paper come out near 792 and things
+ * known to be at the BOTTOM come out near 0. An inverted transform fails both.
+ */
+describe("the page coordinate system", () => {
+  const p1 = pages[0]!;
+  const find = (needle: string): number => {
+    const run = p1.runs.find((r) => r.text.includes(needle));
+    expect(run, needle).toBeDefined();
+    return run!.y;
+  };
+
+  it("puts the letterhead at the top of the page and the footer at the bottom", () => {
+    // Both occur exactly once on page 1, which is what makes them usable as landmarks at all.
+    const letterhead = find("SILVICOM INC");
+    const disclaimer = find("THIS IS NOT AN EMPLOYMENT");
+
+    expect(letterhead).toBeGreaterThan(700);
+    expect(disclaimer).toBeLessThan(100);
+    // An inverted flip still yields numbers inside the page; only the ORDER catches it.
+    expect(disclaimer).toBeLessThan(letterhead);
+  });
+
+  /**
+   * ⚠ The line that misled the earlier note, pinned so the next reader meets the fact rather than
+   * re-deriving it: page 1 prints `FOR DEPARTMENT OF TRANSPORTATION` twice, top and bottom.
+   */
+  it("prints the department line twice on page 1 — a sub-header and a footer", () => {
+    const ys = p1.runs
+      .filter((r) => r.text.includes("FOR DEPARTMENT OF TRANSPORTATION"))
+      .map((r) => r.y)
+      .sort((a, b) => a - b);
+    expect(ys).toHaveLength(2);
+    expect(ys[0]).toBeLessThan(100);
+    expect(ys[1]).toBeGreaterThan(600);
+  });
+
+  it("keeps every page's content inside the page box", () => {
+    for (const page of pages) {
+      for (const run of page.runs) {
+        expect(run.y, `p${page.page} "${run.text.slice(0, 20)}"`).toBeGreaterThanOrEqual(0);
+        expect(run.y, `p${page.page} "${run.text.slice(0, 20)}"`).toBeLessThanOrEqual(page.height);
+        expect(run.x, `p${page.page} x`).toBeGreaterThanOrEqual(0);
+        expect(run.x, `p${page.page} x`).toBeLessThanOrEqual(page.width);
+      }
+    }
+  });
+
+  /**
+   * ⚠ The rules are what the overlay draws onto, so their geometry has to survive the flip. A
+   * horizontal line in the source is still horizontal here — only `d` is negative, so y mirrors and
+   * x scales — and a rule whose ends disagree in y would mean the transform had been applied to one
+   * end and not the other.
+   */
+  it("keeps the ruled lines horizontal and on the page", () => {
+    const horizontal = pages.flatMap((p) => p.rules).filter((r) => Math.abs(r.y1 - r.y2) < 0.01);
+    expect(horizontal.length).toBeGreaterThan(200);
+    for (const rule of horizontal) {
+      expect(rule.y1).toBeGreaterThanOrEqual(0);
+      expect(rule.y1).toBeLessThanOrEqual(792);
+    }
   });
 });

@@ -41,17 +41,28 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const PACKET_TEMPLATE_PATH = join(HERE, "assets", "application-11.pdf");
 
 /**
- * One run of text, with the point it starts at **in raw text space**.
+ * One run of text, with the point it starts at **in PDF page coordinates** — origin bottom-left,
+ * y counting UP, the space `pdf-lib` draws in.
  *
- * ⚠ **`x`/`y` are NOT page coordinates yet, and nothing here may treat them as such.** They are the
- * text matrix's translation as the operators set it, with the page's own CTM not applied — this
- * producer wraps blocks in transforms, and measured 2026-09-14 the letterhead (visually at the top of
- * page 1) reports `y` 88 while the footer line reports 149, which no single consistent axis explains.
+ * ⚠ **This was raw text space until the CTM was resolved (2026-09-14), and the note that said so drew
+ * the wrong conclusion from a correct reading.** It observed the letterhead at raw `y` 88 and
+ * `FOR DEPARTMENT OF TRANSPORTATION` at 149, and concluded "no single consistent axis explains" it.
+ * Both numbers were right. **That line is simply printed TWICE on page 1** — once as a sub-header
+ * under the letterhead (page-Y 680) and once in the footer (page-Y 86) — so the reading was never
+ * evidence of a broken axis, and one axis explains the whole document.
  *
- * Every assertion in `packetTemplate.test.ts` is therefore about TEXT and about the ORDER runs appear
- * in, never about where they sit. Resolving the CTM is the overlay step's first job, because drawing
- * a value 3pt above its rule needs a coordinate system that has been proved rather than assumed —
- * and the whole point of this module is to stop shipping measurements nobody checked.
+ * Worth keeping because the mistake is not the arithmetic: it was reaching for "the model is wrong"
+ * when the data was unremarkable and the SEARCH was ambiguous. `find()` on a string that occurs twice
+ * answers with whichever comes first.
+ *
+ * The page carries exactly ONE `cm`, first thing in the stream:
+ *
+ *     0.75 0 0 -0.75 0 792 cm
+ *
+ * — the content is authored in a 816×1056 top-down space (letter at 96dpi) and mapped into points
+ * with a y-flip. So `pageX = 0.75·x`, `pageY = 792 − 0.75·y`, which `toPage` applies and
+ * "puts the letterhead at the top of the page and the footer at the bottom" proves — by landmark
+ * rather than by arithmetic, because an inverted flip still lands inside the page.
  */
 export interface TemplateTextRun {
   x: number;
@@ -60,11 +71,11 @@ export interface TemplateTextRun {
 }
 
 /**
- * One ruled line — the geometry a signature or a value will eventually be drawn onto.
+ * One ruled line, in page coordinates — the geometry a signature or a value is drawn onto.
  *
- * ⚠ Same caveat as `TemplateTextRun`: these are the path operators' own numbers, with no CTM
- * applied. They are exposed because counting them is already useful (a page with no rules takes no
- * marks), and they are not yet positions.
+ * ⚠ The y-flip means a rule's `y1`/`y2` come out EQUAL for a horizontal line, as they should, but a
+ * line drawn left-to-right in the source is still left-to-right here: only `d` is negative in the
+ * CTM, so x is scaled and y is mirrored.
  */
 export interface TemplateRule {
   x1: number;
@@ -134,6 +145,35 @@ function streamOf(doc: PDFDocument, page: ReturnType<PDFDocument["getPage"]>): s
   }
 }
 
+/**
+ * The page's own transform, read off the stream rather than assumed.
+ *
+ * ⚠ **One `cm`, and the reader refuses to guess if that stops being true.** Every page of this
+ * document opens with `0.75 0 0 -0.75 0 792 cm` and never touches the matrix again, so a single
+ * mapping is correct — but "correct because I looked once" is how a coordinate system quietly goes
+ * wrong when a carrier re-exports. If a page carries no `cm`, or more than one, this returns null and
+ * the caller leaves the numbers untransformed rather than applying a transform that may not hold.
+ */
+interface PageTransform {
+  a: number;
+  d: number;
+  e: number;
+  f: number;
+}
+
+function transformOf(stream: string): PageTransform | null {
+  const cms = [
+    ...stream.matchAll(
+      /([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+cm\b/g,
+    ),
+  ];
+  if (cms.length !== 1) return null;
+  const [, a, b, c, d, e, f] = cms[0]!.map(Number) as unknown as number[];
+  // Rotation or skew would need the full matrix and a reader that does more than scale-and-flip.
+  if (b !== 0 || c !== 0) return null;
+  return { a: a!, d: d!, e: e!, f: f! };
+}
+
 /** Every operator this reader understands, in one pass, in source order. */
 const OPERATORS = new RegExp(
   [
@@ -176,6 +216,11 @@ function readPage(doc: PDFDocument, index: number): TemplatePage {
   }
 
   const stream = streamOf(doc, page);
+  const ctm = transformOf(stream);
+  /** Raw authoring space → PDF page points. Identity when the transform could not be established. */
+  const toPage = (px: number, py: number): { x: number; y: number } =>
+    ctm ? { x: ctm.a * px + ctm.e, y: ctm.d * py + ctm.f } : { x: px, y: py };
+
   const runs: TemplateTextRun[] = [];
   const rules: TemplateRule[] = [];
   let cmap = new Map<number, string>();
@@ -209,7 +254,9 @@ function readPage(doc: PDFDocument, index: number): TemplatePage {
       penX = Number(m[21]);
       penY = Number(m[22]);
     } else if (m[26] === "l") {
-      rules.push({ x1: penX, y1: penY, x2: Number(m[24]), y2: Number(m[25]) });
+      const from = toPage(penX, penY);
+      const to = toPage(Number(m[24]), Number(m[25]));
+      rules.push({ x1: from.x, y1: from.y, x2: to.x, y2: to.y });
       penX = Number(m[24]);
       penY = Number(m[25]);
     } else if (m[17] === "TJ" || m[19] === "Tj") {
@@ -221,7 +268,7 @@ function readPage(doc: PDFDocument, index: number): TemplatePage {
       for (const hex of hexes) {
         for (const cid of hex.match(/.{4}/g) ?? []) text += cmap.get(parseInt(cid, 16)) ?? "";
       }
-      if (text.trim()) runs.push({ x, y, text });
+      if (text.trim()) runs.push({ ...toPage(x, y), text });
     }
   }
 
