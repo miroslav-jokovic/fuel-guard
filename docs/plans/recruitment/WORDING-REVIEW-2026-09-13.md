@@ -72,14 +72,13 @@ well-meaning tidy-up fails the build rather than quietly redrafting an instrumen
 | 21 | "regarding pre-employment**.** contracted drivers" | A full stop where a comma belongs. |
 | 21 | "informed and understand**.** that should … a positive result**.** it will" | Two more. Punctuation is left alone throughout. |
 
-## 3. ⚠ What the packet does NOT contain — the finding
+## 3. ⚠ What the packet does NOT contain
 
 Searched across all 697 strings in the workbook, not assumed:
 
-- **No PSP authorization.** No *Pre-Employment Screening Program*, no *MCMIS*. **This is the
-  blocker**: `psp` is one of the four instruments the applicant signs, and the carrier's lawyers
-  never wrote it. The FMCSA PSP account-holder agreement requires the driver's written
-  authorization before a report may be pulled.
+- **No PSP authorization** — and it turns out there was never supposed to be one. See §3a: FMCSA
+  publishes the language and requires it, so this was not a gap in the carrier's packet but a form
+  that belongs to the regulator.
 - **No Clearinghouse consent.** Expected, and fine — §382.701(a)'s full-query consent is given
   inside the FMCSA portal, and `clearinghouse` is deliberately absent from the applicant's path.
 - **No electronic-records consent.** It could not be there: 15 U.S.C. 7001(c) exists because the
@@ -91,7 +90,50 @@ Searched across all 697 strings in the workbook, not assumed:
   `SCREENING_PREREQUISITES.mvr_order` is called by nothing. Recorded so nobody concludes it was
   missed.
 
-**So publishing from the packet gets three of the four. The fourth needs a decision** — §5.
+**So publishing from the packet gets three of the four. The fourth comes from FMCSA** — §3a.
+
+## 3a. ⚠ PSP: FMCSA writes this one, and mandates it word for word
+
+The owner's instinct was right — it is on the official site. Downloaded 2026-09-13 from
+[psp.fmcsa.dot.gov/PspApi/documents/PSPDisclosureandAuthorizationForm.pdf](https://www.psp.fmcsa.dot.gov/PspApi/documents/PSPDisclosureandAuthorizationForm.pdf),
+form dated `LAST UPDATED 2/11/2016`. The PDF and its text extraction are committed under
+`docs/plans/recruitment/psp-disclosure/`, and a test compares every published paragraph against
+them.
+
+Its own header reads **"THE BELOW DISCLOSURE AND AUTHORIZATION LANGUAGE IS FOR MANDATORY USE BY ALL
+ACCOUNT HOLDERS"**, and its closing notice is unambiguous:
+
+> Account holders are required by FMCSA to use the language contained in this Disclosure and
+> Authorization form to obtain an Applicant's consent. **The language must be used in whole, exactly
+> as provided.** Further, **the language on this form must exist as one stand-alone document. The
+> language may NOT be included with other consent forms or any other language.**
+
+Three consequences, all implemented:
+
+1. **No repair register for this text.** The carrier's own pages get their typos fixed under §2.1's
+   rule. This one gets nothing — "exactly as provided" is an instruction from the agency whose
+   system the report comes from, and improving its spelling would breach the account-holder
+   agreement the API token is issued under. Only the PDF's hard line-wraps are collapsed.
+2. **Publishing anything else for `psp` is refused**, by name: the API compares the submitted body
+   against all 13 mandated paragraphs and tells the office which one went missing. This is the only
+   place in the whole wording feature where a carrier is told what it may publish, and the reason is
+   that this instrument is not theirs.
+3. **The stand-alone requirement is already satisfied** by the signing ceremony — one instrument per
+   screen, four screens, which FCRA §604(b)(2) had already forced (D-APP7). ⚠ Worth a look on the
+   day it renders: the screen also carries the carrier's name and a step counter, which are UI
+   chrome rather than consent language, but somebody should agree that reading is right.
+
+The carrier's name is substituted into the two blanks the form leaves for it (`___ ("Prospective
+Employer")`) — the form's own fill-in field, not an edit to the language. A carrier with no name on
+file gets visible underscores rather than a sentence that proof-reads as fine and authorises nobody.
+
+⚠ **One thing the form obliges that this product does not yet do.** Its disclosure paragraphs
+promise the applicant a specific adverse-action sequence — a copy of the report and a written
+summary of FCRA rights *before* final adverse action, and within three business days after it for
+applications taken by mail, telephone or computer. Publishing this text is a promise the carrier
+makes. `R10` in the recruiting plan is the unbuilt adverse-action step, deliberately deferred
+because §604(b)(3)(B) carves out trucking; that carve-out governs the *timing*, not this form's own
+undertaking. Worth counsel's eye before the first PSP pull.
 
 ## 4. Two things worth counsel's eye beyond the typing
 
@@ -119,16 +161,14 @@ the sentence a driver disputes.
 
 1. **Adopt pages 14, 19 and 21 as the published wording?** They are your lawyers' words, spelling
    repaired per §2.1, with §2.2's four character repairs and §2.3's seven defects left standing.
-2. **What happens to `psp`?** Three candidate answers, and the second is the recommendation:
-   - Publish our placeholder for PSP alone — then one of the four instruments in a driver's file is
-     an engineer's text sitting beside three of counsel's. Cheap, and visible for ever in the
-     version history.
-   - **Ask counsel for one page.** It is the smallest possible ask — a single authorization,
-     modelled on page 19 — and it is the only one of the six that gates a live vendor call.
-   - Drop PSP from the applicant's path and order the report later against a separately signed
-     authorization. Largest change; touches `APPLICATION_RELEASE_ORDER` and the signing ceremony.
-3. **Page 3** — §4.1.
+2. **PSP is answered** (§3a) — FMCSA's form, verbatim, with the refusal to publish anything else.
+   Nothing to decide; worth reading once because of the adverse-action promise it carries.
+3. **Page 3** — §4.1. Does it stay in the paper packet as it is?
+4. **The two closing NOTICEs on the FMCSA form** are shown to the driver along with everything else,
+   because "in whole" is not a sentence to be clever about — but they read as addressed to the
+   account holder, and on paper they sit below the signature. Ruling welcome.
 
-Until 2 is answered the applicant's path stays blocked, because `applicationWordingIsDraft()` reads
-all four. Publishing the three now is still worth doing: they are three fewer things to do later,
-and the version history will show they were adopted before PSP was settled.
+**All four instruments the applicant signs now have proper text**, so publishing unblocks the path.
+The two that remain on our placeholders are `clearinghouse` — which no applicant signs, because
+§382.701(a)'s consent is given inside the FMCSA portal — and the 7001(c) electronic-records consent,
+whose six clauses are quoted from the statute.

@@ -43,14 +43,18 @@ import {
  * act on: until it is zero, nothing an applicant does works. Every other thing here is detail.
  *
  * ── WHY THERE IS A SECOND BUTTON, AND WHY IT IS NOT THE DEFAULT ───────────────────────────────
- * Three of these instruments already exist, written by the carrier's lawyers, on pages 14, 19 and 21
- * of their own packet (`docs/plans/recruitment/APPLICATION.xlsx`). Publishing our placeholder beside
- * that packet would give one driver's file two different texts for the same instrument, with nothing
- * afterwards able to say which they read — so "Use our packet's wording" loads theirs instead.
+ * Four of these instruments have a better source than our placeholder, and they are better in two
+ * different ways. Three were written by the carrier's own lawyers, on pages 14, 19 and 21 of their
+ * packet (`docs/plans/recruitment/APPLICATION.xlsx`) — publishing ours beside that packet would give
+ * one driver's file two texts for one instrument, with nothing afterwards able to say which they
+ * read. The fourth, PSP, is the regulator's: FMCSA publishes the disclosure and requires it in
+ * whole, exactly as provided, so it is not the carrier's to word at all and the API refuses
+ * anything else.
  *
- * ⚠ It fills the editor and stops there. Nothing publishes without somebody reading it and pressing
- * Publish, because adopting a legal instrument is the carrier's act and not a button's. The three
- * instruments the packet has nothing for — PSP above all — show no such button, which is the honest
+ * ⚠ Both still fill the editor and stop. Nothing publishes without somebody reading it and pressing
+ * Publish, because adopting a legal instrument is the carrier's act and not a button's — and for
+ * PSP, reading it is the point, since the office is agreeing to show a driver four hundred words
+ * they had no hand in. The two instruments with no source show no button, which is the honest
  * rendering of the fact rather than a gap to be papered over.
  *
  * ── AND WHY THE CONSENT LOOKS DIFFERENT ───────────────────────────────────────────────────────
@@ -74,14 +78,17 @@ const outstanding = computed(() => wording.data.value?.outstandingCount ?? 0);
 const labelFor = (i: PublishableInstrument): string => PUBLISHABLE_INSTRUMENT_LABELS[i];
 const isConsent = (i: PublishableInstrument): boolean => i === "esign_consent";
 
-/** Load the carrier's own packet text into the open editor, replacing whatever is in it. */
-function usePacket(row: WordingInstrumentView): void {
+/** Load the instrument's proper source into the open editor, replacing whatever is in it. */
+function useSource(row: WordingInstrumentView): void {
   const d = draft[row.instrument];
-  if (!d || !row.packet) return;
-  d.title = row.packet.title;
-  d.body = row.packet.body;
-  d.intent = row.packet.intent;
+  if (!d || !row.source) return;
+  d.title = row.source.title;
+  d.body = row.source.body;
+  d.intent = row.source.intent;
 }
+
+const sourceAction = (row: WordingInstrumentView): string =>
+  row.source?.kind === "fmcsa" ? "Use the FMCSA wording" : "Use our packet's wording";
 
 function open(row: WordingInstrumentView): void {
   draft[row.instrument] = {
@@ -155,9 +162,7 @@ async function save(instrument: PublishableInstrument): Promise<void> {
           <BaseButton variant="secondary" @click="open(row)">
             {{ row.published ? "Publish a correction" : "Review and publish" }}
           </BaseButton>
-          <p v-if="row.packet" class="text-sm text-ink-muted">
-            Your own wording for this is on page {{ row.packet.page }} of your application packet.
-          </p>
+          <p v-if="row.source" class="text-sm text-ink-muted">{{ row.source.provenance }}</p>
         </div>
       </div>
 
@@ -182,15 +187,11 @@ async function save(instrument: PublishableInstrument): Promise<void> {
           <AppTextarea :id="id" v-model="draft[row.instrument]!.body" :rows="10" />
         </FormField>
 
-        <!-- The carrier's own text, one press away. Only shown where their packet actually has this
-             instrument — three of the six do not exist on paper, and PSP is one of them. -->
-        <div v-if="row.packet" class="flex flex-wrap items-center gap-3">
-          <BaseButton variant="secondary" @click="usePacket(row)">
-            Use our packet's wording
-          </BaseButton>
-          <p class="text-sm text-ink-muted">
-            From page {{ row.packet.page }} of your packet, spelling corrected. Read it before you publish.
-          </p>
+        <!-- The proper source, one press away. Only where one exists: two of the six have neither
+             a page in the carrier's packet nor a form from the regulator. -->
+        <div v-if="row.source" class="flex flex-wrap items-center gap-3">
+          <BaseButton variant="secondary" @click="useSource(row)">{{ sourceAction(row) }}</BaseButton>
+          <p class="text-sm text-ink-muted">{{ row.source.provenance }}</p>
         </div>
 
         <FormField

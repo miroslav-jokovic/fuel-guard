@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { isDraftDisclosure, ESIGN_CONSENT_CLAUSES } from "@silvicom/shared";
+import { isDraftDisclosure, DISCLOSURES, ESIGN_CONSENT_CLAUSES } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { isWordingError, loadCarrierWording, outstandingWording, publishWording } from "./carrierWording.js";
+import { pspDisclosure } from "./pspDisclosure.js";
 
 /**
  * Publishing the carrier's own wording (0338).
@@ -79,7 +80,7 @@ describe("publishing", () => {
     const rec = seed([], { rpc: {} });
     const result = await publishWording(
       rec.client, ORG,
-      { instrument: "psp", title: "PSP", intent: "I authorize it.", body: "The PSP wording." },
+      { instrument: "fcra_disclosure", title: "Consumer reports", intent: "I authorize it.", body: "The carrier's wording." },
       { actorId: ACTOR },
     );
     expect(isWordingError(result)).toBe(false);
@@ -95,7 +96,7 @@ describe("publishing", () => {
     expect(audit.action).toBe("disclosure_published");
     // ⚠ The instrument and version, never the text. An audit row is not a second copy of a legal
     // instrument — `org_disclosures` is, and it is append-only.
-    expect(JSON.stringify(audit)).not.toContain("The PSP wording.");
+    expect(JSON.stringify(audit)).not.toContain("The carrier's wording.");
   });
 
   it("⚠ never takes a version from the request", async () => {
@@ -104,7 +105,7 @@ describe("publishing", () => {
     const rec = seed([], { rpc: {} });
     await publishWording(
       rec.client, ORG,
-      { instrument: "psp", title: "PSP", intent: "i", body: "b", version: "v99" } as never,
+      { instrument: "fcra_disclosure", title: "t", intent: "i", body: "b", version: "v99" } as never,
       { actorId: ACTOR },
     );
     expect((rec.writtenRows("org_disclosures")[0] as Record<string, unknown>).version).toBe("v1");
@@ -141,9 +142,58 @@ describe("publishing", () => {
     });
     const result = await publishWording(
       rec.client, ORG,
-      { instrument: "psp", title: "t", intent: "i", body: "b" },
+      { instrument: "fcra_disclosure", title: "t", intent: "i", body: "b" },
       { actorId: ACTOR },
     );
     expect(isWordingError(result) && result.code).toBe("publish_raced");
+  });
+});
+
+/**
+ * ⚠ The one instrument a carrier does not get to word (2026-09-13).
+ *
+ * Every other publish in this file proves the carrier's own text wins. This proves the exception,
+ * and the exception is not ours: FMCSA publishes the PSP disclosure and requires it "in whole,
+ * exactly as provided", so a report pulled behind an edited consent breaches the account-holder
+ * agreement the API token is issued under. An office that shortened it would lose their PSP access
+ * without anybody telling them — so the refusal happens here, at the publish, and names what went.
+ */
+describe("publishing the PSP disclosure", () => {
+  const mandated = pspDisclosure("Silvicom Inc");
+
+  it("accepts FMCSA's own language, with the carrier's name filled in", async () => {
+    const rec = seed([], { rpc: {} });
+    const result = await publishWording(
+      rec.client, ORG,
+      { instrument: "psp", title: mandated.title, intent: mandated.intent, body: mandated.body },
+      { actorId: ACTOR },
+    );
+    expect(isWordingError(result)).toBe(false);
+    expect(rec.writtenRows("org_disclosures")).toHaveLength(1);
+  });
+
+  it("refuses a shortened one, names the paragraph, and writes nothing", async () => {
+    const rec = seed([], { rpc: {} });
+    const short = mandated.body.split("\n\n").filter((p) => !p.startsWith("Any crash")).join("\n\n");
+    const result = await publishWording(
+      rec.client, ORG,
+      { instrument: "psp", title: mandated.title, intent: mandated.intent, body: short },
+      { actorId: ACTOR },
+    );
+    expect(isWordingError(result) && result.code).toBe("psp_wording_not_mandated");
+    expect(isWordingError(result) && result.message).toContain("Any crash");
+    // Nothing published, and — just as important — nothing audited as though it had been.
+    expect(rec.writtenRows("org_disclosures")).toEqual([]);
+    expect(rec.writtenRows("audit_logs")).toEqual([]);
+  });
+
+  it("refuses our own placeholder, which is what an untouched editor would have sent", async () => {
+    const rec = seed([], { rpc: {} });
+    const result = await publishWording(
+      rec.client, ORG,
+      { instrument: "psp", title: "PSP", intent: "I authorize it.", body: DISCLOSURES.psp.body },
+      { actorId: ACTOR },
+    );
+    expect(isWordingError(result) && result.code).toBe("psp_wording_not_mandated");
   });
 });

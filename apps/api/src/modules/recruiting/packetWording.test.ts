@@ -161,9 +161,11 @@ describe("what gets published", () => {
  * MCMIS, no §382.701, no Clearinghouse. The 7001(c) electronic-records consent could not be there —
  * it exists because the driver signs on a phone.
  *
- * This test fails the day somebody adds a fourth entry without also answering the question in
- * `WORDING-REVIEW-2026-09-13.md` §3, which is the point: it should not be possible to quietly
- * decide that a PSP authorization the carrier's lawyers never wrote is fine.
+ * ⚠ PSP is now served from `pspDisclosure.ts` instead, because FMCSA mandates its own language and
+ * there was never anything for the carrier to draft. That is exactly why this test stays: the
+ * instruments must not silently migrate between the two modules. What Silvicom's lawyers wrote
+ * lives here; what the regulator wrote lives there; and a PSP entry appearing in THIS list would
+ * mean somebody had put words in the carrier's mouth that FMCSA requires to be its own.
  */
 describe("what the packet does NOT contain", () => {
   it("has no PSP authorization, and none of the applicant's four may be assumed", () => {

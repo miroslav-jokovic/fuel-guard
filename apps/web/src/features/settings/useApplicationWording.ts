@@ -13,17 +13,22 @@ import { apiFetch } from "@/lib/api";
 const KEY = ["recruitment", "wording"] as const;
 
 /**
- * The carrier's own wording for this instrument, transcribed from their packet.
+ * Where better words than our placeholder come from, for the instruments that have a source.
  *
- * ⚠ Offered, never applied. It fills the editor when the office asks for it; publishing is still a
+ * ⚠ Two kinds, and the difference is not cosmetic. `packet` is the carrier's own lawyers and is
+ * theirs to adopt or not; `fmcsa` is the regulator's PSP disclosure, which FMCSA requires in whole
+ * and exactly as provided, and which the API refuses to publish in any other form.
+ *
+ * ⚠ Offered, never applied. It fills the editor when the office asks for it; publishing stays a
  * deliberate act, because adopting a legal instrument is the carrier's and not a button's.
  */
-export interface PacketWordingView {
+export interface WordingSourceView {
+  kind: "packet" | "fmcsa";
   title: string;
   body: string;
   intent: string;
-  /** The page number in the carrier's own packet, so they can check it against the paper. */
-  page: number;
+  /** One sentence saying where it came from and what it obliges. Rendered beside the button. */
+  provenance: string;
 }
 
 export interface WordingInstrumentView {
@@ -36,8 +41,8 @@ export interface WordingInstrumentView {
   /** The consent's six statutory clauses. Null for the five authorizations. */
   clauses: Record<string, string> | null;
   published: boolean;
-  /** Null for the instruments the carrier's packet has nothing for — PSP among them. */
-  packet: PacketWordingView | null;
+  /** Null for the instruments neither the packet nor the regulator answers for. */
+  source: WordingSourceView | null;
 }
 
 export interface WordingHistoryRow {

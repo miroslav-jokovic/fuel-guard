@@ -183,29 +183,57 @@ describe("publishing", () => {
 });
 
 /**
- * The carrier's own wording, offered rather than applied (2026-09-13).
+ * A proper source, offered rather than applied (2026-09-13).
  *
  * ⚠ What is worth pinning is the RESTRAINT. Three of these instruments were written by the carrier's
- * lawyers and sit on pages 14, 19 and 21 of their own packet; publishing our placeholder beside that
- * packet would give one driver's file two texts for one instrument. So the button exists — and it
- * fills the editor and stops, because adopting a legal instrument is the carrier's act. A version of
- * this that published on click, or that pre-loaded the packet text silently, would be the defect.
+ * lawyers and sit on pages 14, 19 and 21 of their own packet; the fourth, PSP, is FMCSA's own
+ * mandatory form. Publishing our placeholder instead would give one driver's file two texts for one
+ * instrument, or — for PSP — breach the account-holder agreement. So the button exists, and it fills
+ * the editor and stops. A version of this that published on click, or that pre-loaded the text
+ * silently, would be the defect.
  */
-describe("the carrier's own packet wording", () => {
+describe("the instrument's proper source", () => {
   const packet = {
+    kind: "packet" as const,
     title: "FAIR CREDIT REPORTING ACT DISCLOSURE",
     body: "The Federal Motor Carrier Safety Regulations (FMCSR) require motor carriers to investigate.",
     intent: "I hereby authorize SILVICOM, INC to obtain consumer reports.",
-    page: 19,
+    provenance: "Your own wording, from page 19 of your application packet, spelling corrected.",
   };
   const withPacket = () =>
-    view({ instruments: [instrument({ instrument: "fcra_disclosure", packet })], outstanding: ["fcra_disclosure"], outstandingCount: 1 });
+    view({ instruments: [instrument({ instrument: "fcra_disclosure", source: packet })], outstanding: ["fcra_disclosure"], outstandingCount: 1 });
 
   it("tells the office their own text exists, and which page it is on", async () => {
     apiFetch.mockResolvedValue({ ok: true, data: withPacket() });
     const w = page();
     await settle(w);
     expect(w.text()).toContain("page 19 of your application packet");
+  });
+
+  /**
+   * ⚠ PSP reads differently on purpose. The carrier's packet pages are theirs to adopt; FMCSA's
+   * disclosure is not theirs at all, and an office that thinks it is optional will eventually
+   * shorten it and lose their PSP access. The label and the sentence beside it have to say so.
+   */
+  it("says out loud that the PSP wording is the regulator's and not optional", async () => {
+    const fmcsa = {
+      kind: "fmcsa" as const,
+      title: "IMPORTANT DISCLOSURE REGARDING BACKGROUND REPORTS FROM THE PSP Online Service",
+      body: "In connection with your application for employment with Silvicom Inc…",
+      intent: "I have read the above Disclosure Regarding Background Reports…",
+      provenance:
+        "FMCSA publishes this disclosure and requires account holders to use it in whole, exactly "
+        + "as provided, as a stand-alone document.",
+    };
+    apiFetch.mockResolvedValue({ ok: true, data: view({ instruments: [instrument({ source: fmcsa })] }) });
+    const w = page();
+    await settle(w);
+    expect(w.text()).toContain("in whole, exactly as provided");
+    await button(w, "Review and publish")!.trigger("click");
+    await settle(w);
+    expect(button(w, "Use the FMCSA wording")).toBeDefined();
+    // And never dressed up as the carrier's own choice.
+    expect(button(w, "Use our packet's wording")).toBeUndefined();
   });
 
   it("does NOT pre-load it — the editor still opens on what is live", async () => {
@@ -244,7 +272,7 @@ describe("the carrier's own packet wording", () => {
   it("offers nothing for an instrument the packet has no text for", async () => {
     // PSP is the one that matters: the carrier's lawyers never wrote it, and a button implying they
     // had would be the product telling a comfortable lie about where the words came from.
-    apiFetch.mockResolvedValue({ ok: true, data: view({ instruments: [instrument({ packet: null })] }) });
+    apiFetch.mockResolvedValue({ ok: true, data: view({ instruments: [instrument({ source: null })] }) });
     const w = page();
     await settle(w);
     await button(w, "Review and publish")!.trigger("click");
