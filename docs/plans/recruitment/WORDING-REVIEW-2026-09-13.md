@@ -38,7 +38,8 @@ Nothing was reworded. Two registers, both in code, both checked by tests.
 
 A test refuses any entry whose two halves differ in **word count**, which is the cheap check that
 catches a dropped clause or an inserted qualifier wearing a typo fix as a disguise. The same rule
-`packetText.ts` has applied to the printed packet since D-PKT9.
+`packetText.ts` applied to the printed packet from D-PKT9 until **D-PKT11 (2026-09-14) reversed it**;
+the packet now prints the carrier's wording verbatim and the register has been deleted.
 
 `ahuthorize`→`authorize` · `emplyer/school`→`employer/school` · `emplyment`→`employment` ·
 `adultered`→`adulterated` · `preivious`→`previous` · `certy`→`certify` · `prvious`→`previous` ·

@@ -426,6 +426,8 @@ it. Reading the page:
 
 `packetStatic.ts` lines 126–128 reproduce those three lines as inert labels inside a document nobody
 signs, and D-PKT9's spelling repairs were applied to the page on the ground that pages 7, 8 and 24
+⚠ **(D-PKT9 was reversed on 2026-09-14 by D-PKT11 — nothing is repaired now; counsel reads the
+carrier's own wording, typos included.)**
 are "policy statements, not instruments". **On this reading page 24 is an instrument, and a post-hire
 one** — an applicant cannot truthfully affirm training they have not had, which is the same argument
 that moved pages 21 and 23 out of the application.

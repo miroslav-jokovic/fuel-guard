@@ -1,7 +1,6 @@
 import { CONTENT_WIDTH, INK, MARGIN, newDrawing, winAnsi } from "../../../../lib/pdfDraw.js";
 import { letterhead, packetFooter, sectionHeading, type PacketCarrier } from "./packetDraw.js";
 import { STATIC_PAGES } from "./packetStatic.js";
-import { correct } from "./packetText.js";
 
 /**
  * The packet's policy and agreement pages, as one attachable document (P3, D-PKT3).
@@ -26,22 +25,21 @@ export interface StaticPackInput {
 }
 
 /**
- * Pages the corrections register is applied to.
+ * ⚠ **Nothing is corrected on the way to the page any more (D-PKT11, owner, 2026-09-14).**
  *
- * ⚠ **29 and 30 are absent, and that is the point.** They are the Owner Operator & Leased Driver
- * Agreement — a contract the driver signs on page 31 — and its corruption is not spelling:
- * `shall not he appeasable`, `each party shall appoint one arbitration`, `select a natural
- * arbitrator`, and a severability clause whose middle is missing (`If any one or more of the
- * provisions contained in the Agreement but the Agreement will be enforceable`). Picking the intended
- * words there is drafting, not proofreading. The pages are reproduced exactly as the carrier wrote
- * them and the defects are counsel's to resolve (D-PKT4, plan §3.8).
+ * There was a `SPELL_CORRECTED_PAGES` set here, holding 7 and 8, and a `correct()` applier that
+ * repaired `IMPOREPER`, `OVERWIGHT`, `TEAR EXEPTED` and four more as the static pack was drawn.
+ * Both are gone. The owner's ruling is that the packet's text is counsel's work product and prints
+ * as written, so the pack now draws `page.body` exactly as `packetStatic.ts` parsed it out of the
+ * workbook — which is what that file already stored, pristine, for the test to compare against.
  *
- * ⚠ **24 was here until 2026-08-23 and is not a page of this pack any more** (Q-PKT5) — it is a
- * post-hire training record with a driver signature on it, and R7 owns it. The set stays a set rather
- * than collapsing to "not the agreement", because the reason 29–30 are excluded is a statement about
- * those two pages and would be lost by an inverted test.
+ * ⚠ The reason pages 29–30 were excluded from correction is worth keeping even though the exclusion
+ * is now universal: the Owner Operator & Leased Driver Agreement's corruption was never spelling.
+ * `shall not he appeasable`, `select a natural arbitrator`, and a severability clause whose middle
+ * is missing are drafting defects, and they are counsel's to resolve (D-PKT4, plan §3.8). D-PKT11
+ * makes every page behave the way those two already did; it does not make their defects any less
+ * counsel's problem.
  */
-const SPELL_CORRECTED_PAGES = new Set([7, 8]);
 
 /** A body line, wrapped to the content width. */
 function paragraph(doc: PDFKit.PDFDocument, text: string): void {
@@ -58,8 +56,7 @@ export async function renderStaticPackPdf(input: StaticPackInput): Promise<Buffe
     if (i > 0) doc.addPage();
     letterhead(doc, input.carrier);
     sectionHeading(doc, page.heading);
-    const fix = SPELL_CORRECTED_PAGES.has(page.page) ? correct : (s: string): string => s;
-    for (const bodyLine of page.body) paragraph(doc, fix(bodyLine));
+    for (const bodyLine of page.body) paragraph(doc, bodyLine);
     // The carrier's own page number, so this pack interleaves with their paper copy.
     packetFooter(doc, page.page);
   });

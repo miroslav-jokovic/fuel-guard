@@ -49,7 +49,8 @@ export interface WordingRepair {
  * ⚠ Spelling only. Not one clause, obligation or citation is reworded.
  *
  * The packet is an OCR-grade document — `emplyer` appears eight times, `infromation` twice — and
- * D-PKT9 (owner, 2026-08-23) already ruled that we print correct English and record every repair so
+ * D-PKT11 (owner, 2026-09-14) rules that the carrier's own text prints exactly as written, reversing
+ * D-PKT9 (2026-08-23), which had us print correct English and record every repair so
  * the answer to "what did you change on our form" is a constant somebody can read.
  *
  * ⚠ **Order matters, and the phrases come first.** Each entry is matched against the workbook's own

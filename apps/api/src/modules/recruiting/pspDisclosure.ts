@@ -25,7 +25,8 @@
  * form fails the build, exactly as `packetWording.test.ts` does for the carrier's own packet.
  *
  * ⚠ **No repair register, and the absence is the point.** The packet's wording gets its typos fixed
- * under a recorded, word-count-guarded rule (D-PKT9). This text gets nothing: "exactly as provided"
+ * under a recorded, word-count-guarded rule (D-PKT9 — itself reversed by D-PKT11, so nothing is
+ * repaired anywhere now). This text gets nothing either: "exactly as provided"
  * is an instruction from the agency whose system we are about to query, and a spelling improvement
  * to it would be a breach of the account-holder agreement rather than a courtesy. The only thing
  * done to these strings is collapsing the PDF's hard line-wraps, which are the renderer's geometry
