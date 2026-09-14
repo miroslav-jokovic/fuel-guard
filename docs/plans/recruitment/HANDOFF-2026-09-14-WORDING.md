@@ -1,5 +1,8 @@
 # Handoff — the wording ships, the gates are open, nobody has walked the flow yet
 
+> ⚠ **SUPERSEDED 2026-09-14 by `HANDOFF-2026-09-14-PACKET.md`.** §2's top item is done: the
+> first application was filed at 18:12:51 that day. Still correct on P12 and the cross-match.
+
 **Read this before touching the apply flow, the packet, or the PSP work.** It supersedes
 `HANDOFF-2026-09-13-QUEUE.md`, which is still correct about P12 and the cross-match but wrong about
 the top of the queue: publishing wording is no longer a thing anybody does.
