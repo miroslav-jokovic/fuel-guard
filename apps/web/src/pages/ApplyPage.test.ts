@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { APPLICATION_FILLING_SECTIONS } from "@silvicom/shared";
+import { driverPlacements, APPLICATION_FILLING_SECTIONS } from "@silvicom/shared";
 import ApplyPage from "@/pages/ApplyPage.vue";
 
 /**
@@ -64,6 +64,9 @@ const COMPLETE_DRAFT = {
  * Read off the vocabulary rather than typed in, so adding a screen — A8 added `documents` — moves
  * these assertions instead of breaking six of them for a reason that is not the reason under test.
  */
+/** The real inventory, so "the walk is the certification" is asserted against the shipped queue. */
+const PACKET = driverPlacements().map((p) => ({ ...p, signedAt: null }));
+
 const TOTAL = APPLICATION_FILLING_SECTIONS.length;
 const step = (n: number): string => `Step ${n} of ${TOTAL}`;
 
@@ -372,6 +375,7 @@ describe("the applicant's page", () => {
       edits: [
         { path: ["employers", 0, "city"], before: "Jolliet", after: "Joliet", editedAt: "2026-09-11T08:00:00Z" },
       ],
+      packet: PACKET,
     }));
     const w = mountPage();
     await settle(w);
@@ -381,8 +385,22 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("Employer 1 · City");
     expect(w.text()).toContain("Jolliet");
     expect(w.text()).toContain("Joliet");
-    expect(w.text()).toContain("I certify that all entries");
     expect(w.text()).toContain("Sign and send it");
+
+    /**
+     * ⚠ **The certification is the WALK now (D-PKT15)**, so this no longer looks for "I certify that
+     * all entries" — the tick and its second name box are gone, and packet pages 11, 13 and 17 carry
+     * that sentence in the carrier's own words instead.
+     *
+     * What the title of this test is really about survives and is asserted directly: the corrections
+     * come ABOVE whatever the driver is about to affirm. D-AX12 is the reason, and it does not care
+     * which of the two the affirmation is.
+     */
+    const text = w.text();
+    expect(text).toContain("Your signature on the application");
+    expect(text.indexOf("Employer 1 · City")).toBeLessThan(
+      text.indexOf("Your signature on the application"),
+    );
   });
 
   it("says plainly when the carrier changed nothing", async () => {

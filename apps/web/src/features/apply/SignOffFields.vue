@@ -3,7 +3,6 @@ import { computed } from "vue";
 import { AppCallout, AppInput as BaseInput } from "@silvicom/ui";
 import { questionnaireForApplicant, type ApplicationCaptureView } from "@silvicom/shared";
 import ApplyField from "./ApplyField.vue";
-import CertifyFields from "./CertifyFields.vue";
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField } from "./fieldLabels";
 import { APPLY_COPY } from "./strings";
@@ -123,6 +122,15 @@ const shown = (value: unknown): string => {
       <p class="text-xs text-ink-muted">{{ copy.ssnNote }}</p>
     </section>
 
-    <CertifyFields v-model="draft" />
+    <!-- ⚠ `CertifyFields` used to sit here and does not any more (D-PKT15, owner 2026-09-14).
+         It asked the driver to tick §391.21(b)(12) and type their name — directly above a walk that
+         then asked for the name again and took their signature onto packet pages 11, 13 and 17,
+         each of which certifies THE SAME FACT in the carrier's own words. Two acts, one obligation,
+         and the driver typing their name twice in a row on one screen.
+         The walk is the certification now. `certified` and `signed_name` are still written into the
+         filed payload — they are contract fields on an append-only table — but they are DERIVED from
+         the adopted mark in `SignOffScreen`, and the server refuses a submission whose name does not
+         match what the marks recorded. ⚠ Subject to counsel on whether the packet's own certification
+         language satisfies §391.21(b)(12); the owner ruled the duplication out on 2026-09-14. -->
   </section>
 </template>

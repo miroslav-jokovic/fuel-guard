@@ -39,7 +39,8 @@ const props = defineProps<{
   stops: ApplyPacketStop[];
   carrier: string;
 }>();
-const emit = defineEmits<{ done: [] }>();
+/** Carries the adopted mark, because it is the §391.21(b)(12) signature now (D-PKT15). */
+const emit = defineEmits<{ done: [signedName: string] }>();
 
 const copy = APPLY_COPY.packet;
 const ceremony = usePacketCeremony(
@@ -64,12 +65,12 @@ const nameReady = computed(() => ceremony.adoptedName.value.trim().length >= 2);
 const drawReady = computed(() => style.value !== "drawn" || ceremony.markBlob.value !== null);
 
 async function adoptAndStart(): Promise<void> {
-  if ((await ceremony.adopt()) && ceremony.complete.value) emit("done");
+  if ((await ceremony.adopt()) && ceremony.complete.value) emit("done", ceremony.adoptedName.value.trim());
 }
 
 async function signCurrent(): Promise<void> {
   await ceremony.sign();
-  if (ceremony.complete.value) emit("done");
+  if (ceremony.complete.value) emit("done", ceremony.adoptedName.value.trim());
 }
 </script>
 

@@ -8,6 +8,8 @@ import {
   planApplicationIntake,
   ssnLast4,
   type ApplicationSubmit,
+  driverPlacementIds,
+  packetDriverMarkCount,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { loadCarrierWording } from "./carrierWording.js";
@@ -297,6 +299,57 @@ export interface SubmitContext {
   userAgent: string | null;
 }
 
+export const PACKET_NOT_SIGNED: IntakeError = {
+  code: "packet_not_signed",
+  message: "Sign every place on the application form before sending it.",
+};
+
+export const PACKET_NAME_MISMATCH: IntakeError = {
+  code: "packet_name_mismatch",
+  message: "The name on this application is not the one the form was signed with.",
+};
+
+/**
+ * May this session file? — the packet's half of the answer (D-PKT15).
+ *
+ * ⚠ **Here, in the SESSION module, and NOT imported from `applicationPacketMarks.ts`.** That module
+ * imports this one, and `applicationReleases.ts` states the rule its own split was made under: the
+ * ceremony knows about the session, the session knows nothing about the ceremony, and a cycle is the
+ * first symptom of a seam drawn for line count rather than for meaning. "Is this document complete
+ * enough to file" is a question about the SESSION, so it is answered where the session lives — and
+ * it reads the table directly, which is one query and no dependency.
+ *
+ * ⚠ The expected count comes from `packetDriverMarkCount()` rather than a literal, the same division
+ * `record_packet_mark` already draws: the vocabulary lives in TypeScript, and counsel ruling on page
+ * 19's duplicated line moves one array rather than an array and a number nobody remembers to change.
+ */
+export async function packetIsSignedThrough(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationId: string,
+  signedName: string,
+): Promise<IntakeError | null> {
+  const { data } = await admin
+    .from("application_packet_marks")
+    .select("placement_id, signed_name")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId);
+  const rows = (data ?? []) as Array<{ placement_id: string; signed_name: string }>;
+
+  // ⚠ DISTINCT placements, not rows. The unique index makes a duplicate impossible today; counting
+  // rows would still be the wrong question, because what has to be true is that every PLACE carries
+  // a mark, and a count is only a proxy for that while nothing can be marked twice.
+  const marked = new Set(rows.map((r) => r.placement_id));
+  const missing = driverPlacementIds().filter((id) => !marked.has(id));
+  if (missing.length > 0) return PACKET_NOT_SIGNED;
+  if (marked.size < packetDriverMarkCount()) return PACKET_NOT_SIGNED;
+
+  // The mark the driver adopted, which `record_packet_mark` has already pinned to one value per link.
+  const adopted = rows[0]?.signed_name?.trim();
+  if (!adopted || adopted !== signedName.trim()) return PACKET_NAME_MISMATCH;
+  return null;
+}
+
 /** File the application — one transaction, in `submit_driver_application` (0220). */
 export async function submitApplication(
   admin: SupabaseClient,
@@ -331,6 +384,26 @@ export async function submitApplication(
   // Last of the refusals, in the same position `recordRelease` puts its own: the phase questions are
   // about THIS link and are cheap, the wording question is about the carrier. See WORDING_NOT_FINAL.
   if (applicationWordingIsDraft(wording)) return WORDING_NOT_FINAL;
+
+  /**
+   * ⚠ **The packet must be signed through before anything is filed (D-PKT15, owner 2026-09-14).**
+   *
+   * Until today the Send button was held in the UI and the SERVER would file happily with none of the
+   * twenty-two marks — so a packet with blank signature lines was reachable by anything that was not
+   * that one screen: a replayed request, a second tab on an older bundle, curl. The one outcome the
+   * whole walk exists to prevent had no floor under it.
+   *
+   * ⚠ **And the signature of record is CHECKED, not accepted.** §391.21(b)(12)'s `signed_name` still
+   * travels in the payload, because `driver_applications` is append-only and every historical row
+   * must keep re-parsing — but it is no longer a second thing the driver types. It is the mark they
+   * adopted, and this refuses a submission whose name disagrees with the one
+   * `application_packet_marks` recorded. Deriving beats restating: the name on the filed document and
+   * the name on the pages are now the same fact, and the database is what says so.
+   */
+  const packet = await packetIsSignedThrough(
+    admin, invitation.org_id, invitation.id, body.application.signed_name,
+  );
+  if (packet) return packet;
 
   const { driverPatch, employment } = planApplicationIntake(body.application);
   const ssn = sealSsn(env, invitation.org_id, body.ssn);
