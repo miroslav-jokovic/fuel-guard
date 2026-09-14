@@ -239,8 +239,9 @@ drivers who drive cleanly. Also: there is still **one** `psp_requests` row in al
 
 ### C3 · P5/P6 — the packet, 26 of 31 pages
 The largest piece, and the one that makes "complete, ready to print" true.
-`packages/shared/src/packetPlacements.ts` is the measured inventory — 27 placements, 21 the
-driver's — each pinned by a test that re-reads the workbook. **`driverPlacements()` IS the queue**;
+`packages/shared/src/packetPlacements.ts` is the measured inventory — **28 placements, 22 the
+driver's across 19 pages** (p17 added 2026-09-14, D-PKT12) — each pinned by a test that re-reads the
+workbook. **`driverPlacements()` IS the queue**;
 there is no arithmetic left, only interaction. ⚠ Its old blocker (would be built twice against
 `v0-draft`) is **gone** — the wording is final.
 
