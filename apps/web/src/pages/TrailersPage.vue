@@ -37,7 +37,7 @@ const toast = useToastStore();
 
 // ── filters ─────────────────────────────────────────────────────────────────────
 const search = ref("");
-const statusFilter = ref("");
+const statusFilter = ref("active");
 const reeferFilter = ref(""); // "" | "reefer" | "non"
 const statusOptions = [
   { value: "", label: "All statuses" },

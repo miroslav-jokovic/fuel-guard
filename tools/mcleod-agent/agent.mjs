@@ -83,6 +83,7 @@ const CFG = {
   // 'link'     — match keys only; no date of birth or home address is READ, let alone sent.
   // 'identity' — adds the fields FuelGuard writes onto rows it has already matched.
   // 'create'   — identity, plus: a McLeod record matching nothing becomes a new FuelGuard row.
+  // 'reconcile' — identity plus archive/retire every legacy row absent from this COMPLETE roster.
   rosterMode: (process.env.ROSTER_MODE ?? "link").toLowerCase(),
   lookbackDays: Number(process.env.LOOKBACK_DAYS ?? 35),
   intervalMinutes: Number(process.env.INTERVAL_MINUTES ?? 0), // 0 = run once and exit; >0 = loop forever
@@ -152,8 +153,8 @@ if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial || CF
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
-  if (!["report", "link", "identity", "create"].includes(CFG.rosterMode)) {
-    fail("ROSTER_MODE must be 'report', 'link', 'identity' or 'create'.");
+  if (!["report", "link", "identity", "create", "reconcile"].includes(CFG.rosterMode)) {
+    fail("ROSTER_MODE must be 'report', 'link', 'identity', 'create' or 'reconcile'.");
   }
 }
 if (!Number.isInteger(CFG.mcleod.pageSize) || CFG.mcleod.pageSize < 1) {

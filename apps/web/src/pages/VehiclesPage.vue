@@ -32,7 +32,7 @@ const { data: vehicles, isLoading, isError, error, refetch, isFetching } = useVe
 const { data: drivers } = useDriversQuery();
 
 const search = ref("");
-const statusFilter = ref<string>("");
+const statusFilter = ref<string>("active");
 const statusOptions = [
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),

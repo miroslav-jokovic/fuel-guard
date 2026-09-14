@@ -112,7 +112,7 @@ export function rosterQueries(mode = "link") {
   // alone, so a create sweep would have selected match keys only and inserted drivers carrying a name
   // and a status and nothing else: no licence, no medical expiry, no hire date, no address. It was
   // never caught because no create sweep has ever run — the whole point of M-R.
-  const full = mode === "identity" || mode === "create";
+  const full = mode === "identity" || mode === "create" || mode === "reconcile";
   return {
     drivers: `
     SELECT${DRIVER_MATCH}${full ? "," + DRIVER_IDENTITY : ""}
@@ -130,7 +130,10 @@ export function rosterQueries(mode = "link") {
       FROM dbo.trailer AS r
      WHERE r.company_id = @companyId
        AND r.is_active = 'A'
-       AND r.outservice_date IS NULL`,
+       AND r.outservice_date IS NULL
+       -- Sandbox-only fixture trailers are not carrier equipment and must never enter the roster.
+       AND LTRIM(RTRIM(r.id)) NOT LIKE 'TEST%'
+       AND LTRIM(RTRIM(r.id)) <> 'TSTROMAN'`,
   };
 }
 
@@ -738,7 +741,9 @@ export const ROSTER_COUNTS = `
     UNION ALL
     SELECT 'vehicles', COUNT(*) FROM dbo.tractor WHERE company_id = @companyId AND service_status = 'A' AND outservice_date IS NULL
     UNION ALL
-    SELECT 'trailers', COUNT(*) FROM dbo.trailer WHERE company_id = @companyId AND is_active = 'A' AND outservice_date IS NULL`;
+    SELECT 'trailers', COUNT(*) FROM dbo.trailer
+     WHERE company_id = @companyId AND is_active = 'A' AND outservice_date IS NULL
+       AND LTRIM(RTRIM(id)) NOT LIKE 'TEST%' AND LTRIM(RTRIM(id)) <> 'TSTROMAN'`;
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // Billing — P3.3, the earnings side (unblocked by recon F1/F2, answered 2026-08-27)
