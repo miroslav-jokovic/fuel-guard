@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { APPLICATION_RELEASE_ORDER, DISCLOSURES, ESIGN_CONSENT } from "@silvicom/shared";
+import {
+  APPLICATION_RELEASE_ORDER,
+  DISCLOSURES,
+  ESIGN_CONSENT,
+  driverPlacementIds,
+} from "@silvicom/shared";
 import { loadEnv } from "../../env.js";
 import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import {
@@ -85,12 +90,32 @@ const submittableInvitation = (over: Record<string, unknown> = {}) =>
     ...over,
   });
 
-const seed = (inv: Record<string, unknown> | null = invitation()) =>
+/**
+ * Every place on the carrier's packet, marked with the name this fixture files under.
+ *
+ * ⚠ **A submission is refused without these since D-PKT15**, so the default seed carries a packet
+ * that IS signed through — the alternative is fifteen existing tests failing for a reason none of
+ * them is about. `signedPacket(...)` varies it where a test is about the gate itself.
+ *
+ * Built from `driverPlacements()` rather than hand-listed: a fixture that named its own stops would
+ * keep passing after the inventory changed, which is the one thing this gate must not do.
+ */
+const signedPacket = (
+  name = "Susan Godfrey",
+  ids: string[] = driverPlacementIds(),
+): Array<{ placement_id: string; signed_name: string }> =>
+  ids.map((placement_id) => ({ placement_id, signed_name: name }));
+
+const seed = (
+  inv: Record<string, unknown> | null = invitation(),
+  packet = signedPacket(),
+) =>
   createSupabaseRecorder({
     tables: {
       application_invitations: inv ? [inv] : [],
       organizations: [{ name: "Silvicom" }],
       driver_authorizations: [{ id: "auth-1" }],
+      application_packet_marks: packet,
     },
     rpc: { submit_driver_application: { application_id: "app-1" } },
   });
@@ -294,7 +319,10 @@ describe("the rendered document never costs the submission", () => {
     const rec = seed(submittableInvitation());
     // No `organizations` fixture and no storage behind it: the render path will fail somewhere.
     const broken = createSupabaseRecorder({
-      tables: { application_invitations: [submittableInvitation()] },
+      tables: {
+        application_invitations: [submittableInvitation()],
+        application_packet_marks: signedPacket(),
+      },
       rpc: {
         submit_driver_application: { application_id: "app-1" },
         // The RPC the filing path finishes with — made to fail, so the whole tail is unhappy.
@@ -332,11 +360,81 @@ describe("submitting", () => {
     ["DA022", "application_already_submitted", "already_submitted"],
   ])("turns the transaction's %s into %s", async (code, message, expected) => {
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [submittableInvitation()], organizations: [{ name: "S" }] },
+      tables: {
+        application_invitations: [submittableInvitation()],
+        organizations: [{ name: "S" }],
+        application_packet_marks: signedPacket(),
+      },
       rpc: { submit_driver_application: { error: { code, message } } },
     });
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe(expected);
+  });
+});
+
+/**
+ * ⚠ **The packet has to be signed through before anything is filed (D-PKT15, owner 2026-09-14).**
+ *
+ * The Send button was held in the UI from the day the walk shipped, and the SERVER would file happily
+ * with none of the twenty-two marks — so a packet with blank signature lines was reachable by
+ * anything that was not that one screen. These are the floor under it.
+ */
+describe("the carrier's form has to be signed through", () => {
+  it("refuses a submission with no marks at all, and opens no transaction", async () => {
+    const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), []);
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("packet_not_signed");
+    expect(rec.rpcs().filter((r) => r.fn === "submit_driver_application")).toHaveLength(0);
+  });
+
+  /**
+   * ⚠ One short of the full set, which is the case a count alone would wave through if it were
+   * counting rows rather than asking whether every PLACE carries a mark.
+   */
+  it("refuses a packet missing a single place, and names which kind of refusal it is", async () => {
+    const all = driverPlacementIds();
+    const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), signedPacket("Susan Godfrey", all.slice(0, -1)));
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("packet_not_signed");
+  });
+
+  /**
+   * ⚠ The right NUMBER of marks, on the wrong places. A count would accept this; the set does not.
+   * It is the shape a client bug produces — walking the same stop twice — and the one a row count
+   * cannot see.
+   */
+  it("refuses the right number of marks made on the wrong places", async () => {
+    const all = driverPlacementIds();
+    const doubled = [...all.slice(0, -1), all[0]!];
+    const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), signedPacket("Susan Godfrey", doubled));
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("packet_not_signed");
+  });
+
+  /**
+   * ⚠ **The signature of record is checked, not accepted.** `signed_name` still travels in the
+   * payload — it is a contract field on an append-only table — but it is no longer a second thing the
+   * driver types, and a payload claiming a name the form was not signed with is refused.
+   */
+  it("refuses a payload whose signature is not the mark the form was signed with", async () => {
+    const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), signedPacket("S. Godfrey"));
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("packet_name_mismatch");
+    expect(rec.rpcs().filter((r) => r.fn === "submit_driver_application")).toHaveLength(0);
+  });
+
+  it("files when every place carries the adopted mark", async () => {
+    const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }));
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result)).toBe(false);
+  });
+
+  it("scopes the packet read to the org the token resolved to", async () => {
+    const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }));
+    await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    const q = rec.forTable("application_packet_marks")[0]!;
+    expect(q.filters()).toContainEqual({ col: "org_id", val: ORG });
+    expect(q.filters()).toContainEqual({ col: "invitation_id", val: "inv-1" });
   });
 });
 
@@ -360,6 +458,7 @@ describe("the photographs the application arrives with", () => {
       tables: {
         application_invitations: [submittableInvitation()],
         organizations: [{ name: "Silvicom" }],
+        application_packet_marks: signedPacket(),
         application_captures: [{
           id: CAPTURE, slot: "medical_card",
           storage_path: `${ORG}/inv-1/${CAPTURE}.webp`, content_type: "image/webp",
@@ -393,6 +492,7 @@ describe("the photographs the application arrives with", () => {
     const rec = createSupabaseRecorder({
       tables: {
         application_invitations: [submittableInvitation()],
+        application_packet_marks: signedPacket(),
         application_captures: [{
           id: CAPTURE, slot: "cdl_front",
           storage_path: `${ORG}/inv-1/${CAPTURE}.webp`, content_type: "image/webp",

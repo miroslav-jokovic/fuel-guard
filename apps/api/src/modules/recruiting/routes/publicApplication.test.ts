@@ -12,6 +12,7 @@ import {
   DISCLOSURES,
   ESIGN_CONSENT,
   esignConsentBody,
+  driverPlacementIds,
 } from "@silvicom/shared";
 import { packetWording } from "../packetWording.js";
 import { PSP_DISCLOSURE_TITLE, PSP_MANDATED_INTENT, missingPspParagraphs, pspDisclosure } from "../pspDisclosure.js";
@@ -140,6 +141,16 @@ const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
       organizations: [{ name: "Silvicom Inc" }],
       driver_authorizations: [{ id: "auth-1" }],
       application_drafts: [],
+      /**
+       * ⚠ Signed through, since D-PKT15 (2026-09-14). Submitting now requires a mark at every one of
+       * the twenty-two places on the carrier's form and a payload whose `signed_name` is the mark
+       * they were signed with — so the default link is one whose packet is complete, the way it is
+       * already one the office has approved. A test ABOUT that gate overrides this.
+       */
+      application_packet_marks: driverPlacementIds().map((placement_id) => ({
+        placement_id,
+        signed_name: "Susan Godfrey",
+      })),
     },
     rpc: {
       submit_driver_application: { application_id: "app-1" },
@@ -1026,6 +1037,11 @@ describe("what the applicant is served once the carrier has published", () => {
           published_at: "2026-09-14T10:00:00Z", published_by: null,
         }],
         application_drafts: [],
+        // D-PKT15: submitting needs the carrier's form signed through, which this test is not about.
+        application_packet_marks: driverPlacementIds().map((placement_id) => ({
+          placement_id,
+          signed_name: "Susan Godfrey",
+        })),
       },
       rpc: { submit_driver_application: { application_id: "app-1" } },
     }).client;
