@@ -959,3 +959,39 @@ certification language satisfies §391.21(b)(12).
 the UI until every place is signed, and the SERVER would accept a submission with none of them — so a
 packet can still be filed with blank signature lines by anything that is not this screen. Fixing that
 is the same decision as Q-PKT7, because both change what a filing requires.
+
+**2026-09-14 — Q-PKT7 ANSWERED. D-PKT15: the walk IS the certification.**
+
+The owner ruled the duplication out: *"proceed with updates as recommended"*, against the
+recommendation in Q-PKT7 — **(a)**, the walk replaces the tick.
+
+`CertifyFields` is gone from the applicant's screen. It asked the driver to tick §391.21(b)(12) and
+type their name, directly above a walk that asked for the name again and then took their signature
+onto packet pages 11, 13 and 17 — each of which certifies the same fact in the carrier's own words.
+Two acts, one obligation, and a driver typing their name twice in a row on one screen.
+
+⚠ **`certified` and `signed_name` are still written into the filed payload, and must be.** They are
+`driverApplicationSchema` fields on an append-only table: every application filed before today
+carries them, and a payload that stopped doing so would stop re-parsing — the §390.32(d)
+reproducibility failure the renderer exists to prevent. What changed is that the driver no longer
+TYPES them. They are derived from the adopted mark.
+
+⚠ **And the server checks rather than accepts.** `packetIsSignedThrough` refuses a submission that
+does not carry a mark at every one of the twenty-two places, and refuses one whose `signed_name`
+disagrees with the name `application_packet_marks` recorded. The name on the filed document and the
+name on the pages are now the same fact, and the database is what says so.
+
+- ⚠ **It asks for the SET of places, not a count.** The right number of marks made on the wrong
+  places — a client walking one stop twice — passes a count and fails this. Proved by mutation.
+- ⚠ **It lives in `applicationIntake.ts`, not in `applicationPacketMarks.ts`.** That module imports
+  this one, and `applicationReleases.ts` states the rule its own split was made under: the ceremony
+  knows about the session, the session knows nothing about the ceremony. "May this be filed" is the
+  session's question.
+- ⚠ **This closes the hole named in the same breath as Q-PKT7**: nothing in `submitApplication`
+  counted marks, so a packet with blank signature lines was reachable by anything that was not the
+  one screen holding the button — a replayed request, a second tab on an older bundle, curl.
+
+⚠ **Still counsel's to confirm**, and recorded as such rather than treated as settled: whether the
+packet's own certification language (pages 11, 13, 17) satisfies §391.21(b)(12) on its own. The owner
+ruled on the DUPLICATION; the sufficiency of the carrier's wording is a legal question, and if the
+answer is no, the tick comes back as OUR record beside the walk rather than above it.

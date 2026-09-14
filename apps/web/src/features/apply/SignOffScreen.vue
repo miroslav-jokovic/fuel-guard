@@ -53,6 +53,25 @@ const copy = APPLY_COPY.signOff;
  * is enough; neither alone is.
  */
 const packetSignedHere = ref(false);
+
+/**
+ * The walk finishing IS the certification (D-PKT15, owner 2026-09-14).
+ *
+ * ⚠ **`certified` and `signed_name` are still written, and must be.** They are `driverApplicationSchema`
+ * fields on an APPEND-ONLY table: every application filed before today carries them, and a payload
+ * that stopped doing so would stop re-parsing, which is the §390.32(d) reproducibility failure the
+ * whole renderer exists to prevent. What changed is that the driver no longer TYPES them a second
+ * time — they are the mark adopted for the packet, applied to the document the packet is.
+ *
+ * ⚠ The server does not take this on trust: `packetIsSignedThrough` refuses a submission whose
+ * `signed_name` disagrees with the name `application_packet_marks` recorded. This fills the payload;
+ * the database is what says the payload is honest.
+ */
+function packetSigned(signedName: string): void {
+  packetSignedHere.value = true;
+  draft.value.certified = true;
+  draft.value.signed_name = signedName;
+}
 const packetDone = computed(
   () =>
     packetSignedHere.value
@@ -79,7 +98,7 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
       :token="token"
       :stops="[...stops]"
       :carrier="carrier"
-      @done="packetSignedHere = true"
+      @done="packetSigned"
     />
   </div>
 

@@ -178,6 +178,11 @@ export function publicApplicationRouter(): Router {
               // (WORDING_NOT_FINAL). 409 for the same reason as the others: the link is fine, the
               // request conflicts with the state of the world around it.
               || result.code === "disclosure_not_final"
+              // D-PKT15: the carrier's form is not signed through, or the name on the payload is not
+              // the mark the form was signed with. Same shape again — a good link, a state of the
+              // world the request conflicts with, and something the driver can still put right.
+              || result.code === "packet_not_signed"
+              || result.code === "packet_name_mismatch"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));
