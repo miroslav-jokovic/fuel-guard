@@ -15,6 +15,7 @@ import { fromDraftPayload } from "./draft";
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField } from "./fieldLabels";
 import { editableFields, pathKey } from "./editableFields";
+import AddEmployerForm from "./AddEmployerForm.vue";
 import ApplicationAnswerList from "./ApplicationAnswerList.vue";
 import {
   useApplicationReviewQuery,
@@ -74,6 +75,30 @@ const summary = computed(() => {
 });
 
 const fields = computed(() => editableFields(payload.value, questionnaireForApplicant()));
+
+/**
+ * How many employers the driver declared — the index an added one takes.
+ *
+ * ⚠ Read from the payload rather than counted from `fields`, which lists FIELDS and would give the
+ * number of editable boxes rather than the number of rows.
+ */
+const employerCount = computed(() => {
+  const list = (payload.value as { employers?: unknown[] } | null)?.employers;
+  return Array.isArray(list) ? list.length : 0;
+});
+
+/**
+ * Adding a row, on the same transport as correcting a field: one `{path, value}` write, one
+ * `application_edits` line, one thing for the driver to see before they certify.
+ */
+async function addEmployer(path: (string | number)[], value: Record<string, unknown>): Promise<void> {
+  try {
+    await edit.mutateAsync({ path: path as ApplicationPath, value });
+    toast.push("success", `${String(value.employer_name)} added`);
+  } catch (e) {
+    toast.push("error", e instanceof Error ? e.message : "That employer could not be added.");
+  }
+}
 
 /**
  * The paths already corrected, for the answer list's mark.
@@ -237,6 +262,24 @@ async function approveIt(): Promise<void> {
           :corrected="corrected"
           :pending="edit.isPending.value"
           @save="save"
+        />
+      </section>
+
+      <!-- ⚠ Adding an employer the driver left out — the correction an office visit is actually for.
+           Separate from "Correct an answer" above because it CREATES a row rather than changing one,
+           and `editableFields` refuses to create by design. See AddEmployerForm's header. -->
+      <section v-if="editable" class="space-y-3">
+        <div>
+          <h3 class="text-sm font-semibold text-ink">Add an employer</h3>
+          <p class="mt-1 text-xs text-ink-muted">
+            For a job the applicant did not list. It is added at the end and the applicant is shown it
+            before they sign. §391.21 asks for three years of all work, and ten years of driving work.
+          </p>
+        </div>
+        <AddEmployerForm
+          :next-index="employerCount"
+          :pending="edit.isPending.value"
+          @add="addEmployer"
         />
       </section>
 

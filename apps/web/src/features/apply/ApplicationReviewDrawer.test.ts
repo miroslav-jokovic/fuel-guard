@@ -102,6 +102,54 @@ describe("what the office reads", () => {
   });
 });
 
+/**
+ * ⚠ The correction an office visit is actually for, and it is an ADDITION.
+ *
+ * The owner, 2026-09-14: *"the only critical part is previous companies he has worked and they
+ * usually don't remember companies or dates, so we can go together and update this."* Correcting a
+ * field the driver filled in was never the hard case; the hard case is a job they left out, which
+ * `editableFields` refuses to offer because creating a path it cannot see would be an invention.
+ * Creating a ROW is offered separately, and these pin that it appends rather than overwrites.
+ */
+describe("adding an employer the applicant left out", () => {
+  it("appends at the end of the list, on the same transport as a correction", async () => {
+    const w = drawer();
+    await settle(w);
+
+    await w.find("input#apply-add-employer-name").setValue("Werner");
+    // ⚠ `From` is an AppDateField wrapping DatePickerBase, not a native <input type="date">, so it is
+    // driven by its own event rather than by setValue on an input that does not exist.
+    await w.findAllComponents({ name: "AppDateField" })[0]!.vm.$emit("update:modelValue", "2019-03-01");
+    await settle(w);
+    apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });
+    await button(w, "Add this employer")!.trigger("click");
+    await settle(w);
+
+    const call = apiFetch.mock.calls.find((c) => c[1]?.method === "PATCH");
+    expect(call?.[0]).toBe("/api/recruitment/applications/inv-1/answer");
+    // ⚠ Index 1, because the fixture's driver declared one. Appending is what keeps every path
+    // already recorded in `application_edits` pointing at the row it was written against.
+    expect(call?.[1].body.path).toEqual(["employers", 1]);
+    expect(call?.[1].body.value.employer_name).toBe("Werner");
+    expect(typeof call?.[1].body).toBe("object");
+  });
+
+  it("will not send half an employer", async () => {
+    // The draft schema is partial at the TOP level only: an element present must be a whole employer.
+    // Refusing here rather than at the API is the difference between a field-level message and a toast.
+    const w = drawer();
+    await settle(w);
+    expect(button(w, "Add this employer")!.attributes("disabled")).toBeDefined();
+  });
+
+  it("offers nothing to add once the application has gone back for signature", async () => {
+    apiFetch.mockResolvedValue({ ok: true, data: review({ state: "approved", editable: false }) });
+    const w = drawer();
+    await settle(w);
+    expect(w.find("input#apply-add-employer-name").exists()).toBe(false);
+  });
+});
+
 describe("correcting one answer", () => {
   it("sends the contract path and the new value, and nothing else", async () => {
     const w = drawer();
