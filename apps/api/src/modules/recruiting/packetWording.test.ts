@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AUTHORIZATION_PURPOSES } from "@silvicom/shared";
+import { AUTHORIZATION_PURPOSES, PACKET_PLACEMENTS } from "@silvicom/shared";
 import { normaliseWorkbookLine, workbookLines } from "../../testing/packetWorkbook.js";
 import {
   PACKET_INSTRUMENTS,
@@ -146,10 +146,55 @@ describe("what gets published", () => {
     );
   });
 
-  it("names the page a reviewer holds in their hand", () => {
-    expect(packetWording("fcra_disclosure")!.page).toBe(19);
-    expect(packetWording("previous_employer")!.page).toBe(14);
-    expect(packetWording("drug_alcohol")!.page).toBe(21);
+  /**
+   * ⚠ **This replaces an assertion that could not fail, and had been passing over a wrong answer.**
+   *
+   * It read `expect(packetWording("fcra_disclosure")!.page).toBe(19)` — the constant restated. Every
+   * page number in `packetWording.ts` was one too low (see the `page` field's own comment for the
+   * measurement), and thirty-three wrong numbers sat under a green test for as long as the test only
+   * ever asked the file what the file said.
+   *
+   * `PACKET_PLACEMENTS` is the cross-check because it was measured SEPARATELY and from the other
+   * direction: each entry carries the workbook line its signature sits on, and `packetPlacements.test.ts`
+   * re-reads `APPLICATION.xlsx` to prove the line is there. An instrument the applicant signs must
+   * therefore be on a page that inventory says carries a driver signature — which 15, 20 and 22 do,
+   * and which 14 and 21 do not: p14 is the verification request the CARRIER sends (§2.4 of the plan)
+   * and p21 is the Seven Day Work Statement, which left the packet under D-PKT7.
+   *
+   * ⚠ **It would not have caught the third one.** p19 carries two driver signatures, so `fcra_disclosure`
+   * at 19 passes this check while being wrong. Stated rather than papered over: the check that closes
+   * it reads the footers out of the carrier's PDF, and needs that PDF in the repository.
+   */
+  it("puts every published instrument on a page the placement inventory says a driver signs", () => {
+    const driverSignsOn = new Set(
+      PACKET_PLACEMENTS.filter((p) => p.party === "driver" && p.mark === "signature").map((p) => p.page),
+    );
+    for (const instrument of PACKET_WORDING_INSTRUMENTS) {
+      const doc = packetWording(instrument);
+      expect(doc, instrument).not.toBeNull();
+      expect(driverSignsOn, `${instrument} is published as packet page ${doc!.page}`).toContain(
+        doc!.page,
+      );
+    }
+  });
+
+  /**
+   * The repair registers name pages too, and they drifted together with the instruments — nineteen
+   * spelling entries, four typography entries and seven left-alone entries, all one low. Nothing
+   * cross-checks a repair's page against a second source the way the instruments' can be, so what is
+   * pinned instead is the weaker true thing: a repair belongs to a page one of the three published
+   * instruments is on, because those are the only pages this module transcribes.
+   */
+  it("keeps every recorded repair on a page this module actually transcribes", () => {
+    const transcribed = new Set(PACKET_INSTRUMENTS.map((i) => i.page));
+    for (const entry of [
+      ...WORDING_SPELLING_REPAIRS,
+      ...WORDING_TYPOGRAPHY_REPAIRS,
+      ...WORDING_LEFT_ALONE,
+    ]) {
+      const shown = "packet" in entry ? entry.packet : entry.text;
+      expect(transcribed, `page ${entry.page}: ${shown}`).toContain(entry.page);
+    }
   });
 });
 
