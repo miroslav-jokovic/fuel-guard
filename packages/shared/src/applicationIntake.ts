@@ -171,8 +171,16 @@ export const APPLICATION_RELEASE_ORDER: readonly AuthorizationPurpose[] = [
  * electronic record a record at all, and the four releases the ceremony collects.
  *
  * ⚠ **The carrier's own published wording is passed IN** (0338). The default is the code's
- * placeholders, and that default is the safe one: a caller that forgets to pass the carrier's
- * documents gets `v0-draft` and therefore a refusal, never an accidental opening.
+ * placeholders, and that default is safe HERE — a caller that forgets gets `v0-draft` and therefore
+ * a refusal, never an accidental opening.
+ *
+ * ⚠⚠ **Do not read that as a general rule; it was, and it cost a §390.32(d) hole.** The same
+ * sentence stood over the same default in `requireEsignConsent`, where the polarity is inverted:
+ * that gate refuses only while the consent CAN be given, so a placeholder version means "do not
+ * ask" and a forgetful caller got no gate at all. Three write paths were in exactly that position
+ * from A4 until 2026-09-13, invisible because the tests published by mocking the constant rather
+ * than by inserting the `org_disclosures` row production writes. A default is safe or open
+ * depending on which way the predicate points, and every one of them has to be argued on its own.
  *
  * ⚠ **It lives here rather than beside `DISCLOSURES` because of the direction of the imports.**
  * `APPLICATION_RELEASE_ORDER` is application vocabulary; `authorizationContract.ts` knows nothing

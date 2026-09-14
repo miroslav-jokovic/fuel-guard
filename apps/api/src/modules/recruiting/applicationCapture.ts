@@ -20,6 +20,7 @@ import {
   resolveInvitation,
   type IntakeError,
 } from "./applicationIntake.js";
+import { loadCarrierWording } from "./carrierWording.js";
 
 /**
  * The applicant's photographs, staged and promoted (A8, D-APP10).
@@ -70,7 +71,9 @@ async function openSession(
 ): Promise<{ id: string; org_id: string; driver_id: string } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
-  const consent = requireEsignConsent(invitation);
+  // The carrier's published wording, not the code's placeholders — see `requireEsignConsent`, whose
+  // default made this line a no-op from A4 until 2026-09-13.
+  const consent = requireEsignConsent(invitation, await loadCarrierWording(admin, invitation.org_id));
   if (consent) return consent;
   if (invitation.submitted_at) return ALREADY_SUBMITTED;
   return invitation;

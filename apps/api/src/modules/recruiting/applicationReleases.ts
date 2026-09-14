@@ -1,8 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICATION_RELEASE_ORDER,
-  DISCLOSURES,
-  ESIGN_CONSENT,
   isDraftDisclosure,
   type ApplicationRelease,
   type AuthorizationPurpose,
@@ -33,15 +31,12 @@ import {
  */
 
 /**
- * The code's placeholders, as a `CarrierWording`.
- *
- * ⚠ The default for every function below, and the default is the SAFE one: a caller that forgets to
- * load the carrier's published documents gets `v0-draft` and therefore a refusal. Failing closed is
- * the only acceptable direction for a function that decides whether a signature may be taken.
+ * ⚠ The wording is a required argument, here and in `requireEsignConsent`. There was a
+ * `CODE_WORDING` default — the placeholders — defended as failing closed, which it does for THIS
+ * function and did not for that one. One shared default that is safe in one direction and open in
+ * the other is not a default worth keeping; 2026-09-13's §390.32(d) hole is what it cost.
  */
-const CODE_WORDING: CarrierWording = { disclosures: DISCLOSURES, esignConsent: ESIGN_CONSENT };
-
-export function releasesForApplicant(wording: CarrierWording = CODE_WORDING): Array<{
+export function releasesForApplicant(wording: CarrierWording): Array<{
   purpose: AuthorizationPurpose;
   version: string;
   title: string;
@@ -96,7 +91,11 @@ export async function recordRelease(
   const wording = await loadCarrierWording(admin, invitation.org_id);
   // A signature given electronically by somebody who never agreed to sign electronically is the
   // gap §390.32(d) exists to close (A4).
-  const consent = requireEsignConsent(invitation);
+  //
+  // ⚠ `wording` — the carrier's published rows, loaded on the line above — and NOT the code's
+  // placeholders. This call omitted it until 2026-09-13 and therefore recorded a release for an
+  // applicant with no consent behind it: measured, 201, against a published `org_disclosures`.
+  const consent = requireEsignConsent(invitation, wording);
   if (consent) return consent;
   // This path's own phase (D-APP1). The transaction checks it again under a lock; this is the cheap
   // refusal that keeps a finished ceremony from reaching the database at all.

@@ -6,7 +6,13 @@ import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { hashInvitationToken } from "../applicationIntake.js";
-import { APPLICATION_RELEASE_ORDER, DISCLOSURES, ESIGN_CONSENT } from "@silvicom/shared";
+import {
+  APPLICATION_RELEASE_ORDER,
+  AUTHORIZATION_PURPOSES,
+  DISCLOSURES,
+  ESIGN_CONSENT,
+  esignConsentBody,
+} from "@silvicom/shared";
 
 /**
  * The public surface, end to end and unauthenticated.
@@ -60,6 +66,12 @@ const callFromOneAddress = (path: string, init: RequestInit = {}) =>
  * ⚠ Distinct from the `publish` further down, which mocks only `ESIGN_CONSENT` because that is all
  * the consent endpoint reads. Submitting reads all five (`applicationWordingIsDraft()`), so a test
  * that publishes half of them is testing the refusal it meant to bypass.
+ *
+ * ⚠⚠ And BOTH of them publish by mocking a module constant, which is a route production cannot
+ * take. Since 0338 a carrier publishes ROWS into `org_disclosures` and the constants stay
+ * `v0-draft` for ever, so a function reading the constant is a function that never notices. That
+ * substitution hid a live §390.32(d) hole for the whole of A4's lifetime — see "with the carrier's
+ * wording published as rows" at the end of this file, which seeds the table instead.
  */
 const publishAll = (): void => {
   for (const purpose of APPLICATION_RELEASE_ORDER) {
@@ -695,5 +707,140 @@ describe("photographing a document from the link", () => {
     });
     expect(res.status).toBe(201);
     expect((await res.json()) as { slot: string }).toMatchObject({ ok: true, slot: "cdl_front" });
+  });
+});
+
+/**
+ * The gate, against the only publishing mechanism production has (2026-09-13).
+ *
+ * ── WHY THIS BLOCK EXISTS AND THE ONE ABOVE WAS NOT ENOUGH ────────────────────────────────────
+ * "closes every write path the moment the text is published" pins exactly the right property and
+ * proved nothing, because it published by mocking `ESIGN_CONSENT.version`. 0338 moved publishing
+ * into `org_disclosures`: a real carrier's rows overlay the constants, which stay `v0-draft`. So
+ * every caller that asked the CONSTANT went on seeing a draft, and `requireEsignConsent` refuses
+ * only while the consent can actually be given — meaning those callers had no gate at all.
+ *
+ * Measured before the fix, with the rows below in place and `consented_at` null: the draft save
+ * answered 200, the capture 201, and the release **201** — a `driver_authorizations` row written,
+ * electronically, for somebody who had never agreed to sign electronically. That is the §390.32(d)
+ * gap A4 exists to close, and it would have opened the instant the first carrier pressed Publish on
+ * `/settings/application-wording`.
+ *
+ * Mutate any one of the four `requireEsignConsent(invitation, …)` call sites back to the code's
+ * placeholders and that path returns to 200/201 here.
+ */
+describe("with the carrier's wording published as rows, and no consent given", () => {
+  /** Exactly what the publish service writes: one row per instrument, v1, newest wins. */
+  const PUBLISHED = [
+    ...AUTHORIZATION_PURPOSES.map((purpose) => ({
+      instrument: purpose,
+      version: "v1",
+      title: DISCLOSURES[purpose].title,
+      body: DISCLOSURES[purpose].body,
+      clauses: null,
+      intent: DISCLOSURES[purpose].intent,
+      published_at: "2026-09-13T10:00:00Z",
+      published_by: null,
+    })),
+    {
+      instrument: "esign_consent",
+      version: "v1",
+      title: ESIGN_CONSENT.title,
+      // Composed at publish time by `publishWording`, and stored — never recomposed on read.
+      body: esignConsentBody(),
+      clauses: ESIGN_CONSENT.clauses,
+      intent: ESIGN_CONSENT.intent,
+      published_at: "2026-09-13T10:00:00Z",
+      published_by: null,
+    },
+  ];
+
+  const seedPublished = (over: Record<string, unknown> = {}): SupabaseRecorder =>
+    createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: "inv-1", org_id: ORG, driver_id: DRIVER,
+          token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+          consented_at: null, releases_completed_at: null, submitted_at: null,
+          review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
+          ...over,
+        }],
+        organizations: [{ name: "Silvicom Inc" }],
+        org_disclosures: PUBLISHED,
+        application_drafts: [],
+        driver_authorizations: [],
+      },
+      rpc: {
+        save_application_draft: { draft_id: "d-1", updated_at: "2026-09-13T10:05:00Z" },
+        record_driver_release: { id: "rel-1", signed_count: 1, completed: false },
+        submit_driver_application: { application_id: "app-1" },
+      },
+    });
+
+  const refusal = async (res: Response): Promise<string> =>
+    ((await res.json()) as { error: { code: string } }).error.code;
+
+  it("refuses to save a draft", async () => {
+    const rec = seedPublished();
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+    });
+    expect(res.status).toBe(409);
+    expect(await refusal(res)).toBe("esign_consent_required");
+    // A draft holds a date of birth. Nothing may be written before the consent exists.
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("refuses to open a capture session", async () => {
+    const res = await (async () => {
+      holder.client = seedPublished().client;
+      return call(`/${TOKEN}/capture`, {
+        method: "POST",
+        body: JSON.stringify({ slot: "cdl_front", content_type: "image/jpeg" }),
+      });
+    })();
+    expect(res.status).toBe(409);
+    expect(await refusal(res)).toBe("esign_consent_required");
+  });
+
+  it("refuses to record a release, and writes nothing", async () => {
+    const rec = seedPublished();
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/release`, {
+      method: "POST",
+      body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
+    });
+    expect(res.status).toBe(409);
+    expect(await refusal(res)).toBe("esign_consent_required");
+    // The one that was answering 201: a signature on published wording with no consent behind it.
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("refuses the submission — the path that was always right, kept honest", async () => {
+    holder.client = seedPublished().client;
+    const res = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
+    expect(res.status).toBe(409);
+    expect(await refusal(res)).toBe("esign_consent_required");
+  });
+
+  it("opens all four again once the driver has consented", async () => {
+    const rec = seedPublished({ consented_at: "2026-09-13T11:00:00Z" });
+    holder.client = rec.client;
+    const saved = await call(`/${TOKEN}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+    });
+    const signed = await call(`/${TOKEN}/release`, {
+      method: "POST",
+      body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
+    });
+    expect(saved.status).toBe(200);
+    expect(signed.status).toBe(201);
+    // And the signature carries the CARRIER's version and text, not the code's placeholder.
+    const release = rec.rpcs().find((r) => r.fn === "record_driver_release")!.args as Record<string, unknown>;
+    expect(release.p_version).toBe("v1");
   });
 });

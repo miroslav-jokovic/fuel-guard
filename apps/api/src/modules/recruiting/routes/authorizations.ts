@@ -1,6 +1,5 @@
 import { Router } from "express";
 import {
-  DISCLOSURES,
   authorizationGrantSchema,
   authorizationRevokeSchema,
   type AuthorizationGrant,
@@ -11,6 +10,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { loadCarrierWording } from "../carrierWording.js";
 
 /**
  * Driver authorizations (0215, H1) — the legal basis for every screening pull.
@@ -81,7 +81,19 @@ export function recruitmentAuthorizationsRouter(): Router {
       // THE SERVER COMPOSES THE INSTRUMENT. The request carries who signed and how, never what they
       // signed — a client-authored disclosure is worth nothing in an audit, and the contract has no
       // field to send one in. Same rule as `hazmat_reviews.attestation` (0092, D8).
-      const doc = DISCLOSURES[body.purpose];
+      //
+      // ⚠ From the CARRIER's published wording (0338), not from the code catalogue. It read
+      // `DISCLOSURES[body.purpose]` until 2026-09-13, which was invisibly correct while no carrier
+      // had published anything and wrong the moment one did: the applicant's own signature would
+      // carry `v1` and this one — the same instrument, the same carrier, recorded by the office
+      // because the driver signed on paper — would carry the `v0-draft` placeholder. One driver's
+      // file, two texts, and no way to tell afterwards which the driver actually read.
+      //
+      // Unpublished instruments still fall back to the placeholder, so nothing changes for a
+      // carrier that has published nothing. ⚠ Note this path still has NO draft refusal, unlike the
+      // applicant's: whether the office may record a wet signature on placeholder text is a policy
+      // question, and adding the refusal here would withdraw a capability rather than correct one.
+      const doc = (await loadCarrierWording(admin, orgId)).disclosures[body.purpose];
 
       const { data, error } = await admin
         .from("driver_authorizations")
@@ -142,7 +154,7 @@ export function recruitmentAuthorizationsRouter(): Router {
 
       const { data: grant } = await admin
         .from("driver_authorizations")
-        .select("id, driver_id, purpose, revokes")
+        .select("id, driver_id, purpose, revokes, disclosure_version")
         .eq("id", body.revokes)
         .eq("org_id", orgId)
         .maybeSingle();
@@ -151,7 +163,6 @@ export function recruitmentAuthorizationsRouter(): Router {
         return;
       }
 
-      const doc = DISCLOSURES[grant.purpose as keyof typeof DISCLOSURES];
       const { data, error } = await admin
         .from("driver_authorizations")
         .insert({
@@ -159,7 +170,13 @@ export function recruitmentAuthorizationsRouter(): Router {
           driver_id: grant.driver_id,
           purpose: grant.purpose,
           // Carried from the grant so the revocation names what was withdrawn, not a newer wording.
-          disclosure_version: doc?.version ?? "unknown",
+          //
+          // ⚠ It now does what that sentence says. Until 2026-09-13 it read the CODE catalogue's
+          // current version for the purpose — which is the newer wording, and is the one thing the
+          // comment ruled out. Both were `v0-draft` so nothing could show it; once a carrier
+          // publishes (0338), revoking a `v1` grant would have filed the revocation against
+          // `v0-draft` and the append-only history would no longer join up.
+          disclosure_version: grant.disclosure_version ?? "unknown",
           disclosure_text: "",
           intent_statement: "",
           method: "verbal_documented",
