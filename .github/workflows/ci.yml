@@ -370,7 +370,28 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # ⚠ `packages:` is set because the ACTION'S DEFAULT STOPPED WORKING on 2026-09-14, and it
+      # stopped working server-side rather than here — nothing in this repository changed.
+      #
+      # `setup-android@v3` defaults to `packages: tools platform-tools` and runs `sdkmanager tools`.
+      # `tools` is the obsolete SDK Tools package, superseded by cmdline-tools years ago, and Google
+      # withdrew it from the SDK repository between 20:23 and 20:30 UTC that day. Measured, because a
+      # break this abrupt looks like a flake and would otherwise be retried for ever:
+      #
+      #   · run 34892559413 (main, 20:22) ran `sdkmanager tools` and PASSED
+      #   · run 34893180351 (20:30) ran the identical command on the identical runner image
+      #     (ubuntu-24.04 20260907.300.1, cmdline-tools 16.0) and failed with
+      #     `Warning: Failed to find package 'tools'`
+      #   · `curl https://dl.google.com/android/repository/repository2-3.xml` returns ZERO
+      #     `path="tools"` entries; `platform-tools` is still there
+      #
+      # So the retry that usually fixes a setup step cannot fix this one, and every repository using
+      # this action's default is broken until it names its packages. We name the half that still
+      # exists. Nothing here needed `tools`: the job prebuilds, compiles `:capture-native` and runs a
+      # plain JVM test, and AGP resolves build-tools and platforms by itself.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       # `android/` is generated and never committed, so it has to be produced before it can be
       # built. --no-install because the workspace is already installed; --clean because a cached
