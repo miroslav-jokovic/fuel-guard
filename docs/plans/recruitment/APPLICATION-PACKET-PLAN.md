@@ -1404,3 +1404,109 @@ for fields fails 3; drawing a blank value fails the byte case; hard-coding page 
 ⚠ **Still not wired into `file.ts`, and now Q-PKT10 is the only thing in the way.** A filed form that
 drops a fourth accident is materially false, so the overflow has to have somewhere to go before this
 replaces the §391.21 summary (D-PKT5: `render.ts` is NOT deleted).
+
+---
+
+## 2026-09-14 — Q-PKT10 and Q-PKT11 ANSWERED, and the packet is WIRED IN
+
+Researched against the primary sources rather than decided by preference. Sources at the foot.
+
+### D-PKT16 — Q-PKT10 ANSWERED: **(a), a continuation sheet, and the carrier already asked for one**
+
+**The carrier answered their own question.** Page 11 of their packet heads the employment section
+`EMPLOYMENT RECORD ( ATTACH SHEET IF MORE SPACE IS NEEDED)`. Nothing else in 31 pages says it, and it
+is the only instruction about what to do when an answer will not fit.
+
+**The regulation leaves the format to them.** §391.21(a): the application "shall be made on a form
+furnished by the motor carrier". §391.21(c) lets the carrier ask for more than the minimum on it. So
+a continuation sheet is not us adding a page to somebody else's instrument — it is the format the
+form's owner set.
+
+**And truncating was never available.** §391.21(b)(7) asks for every accident in the preceding three
+years and (b)(8) for every conviction other than parking. **A driver with four convictions in three
+years is an ordinary driver**, and the carrier's grid holds three. A form that drew three and dropped
+the fourth would be signed, filed and materially false — and would look exactly like a correct one.
+
+**Built, with three properties that are the whole of the ruling:**
+
+1. ⚠ **APPENDED after page 31, never inserted.** `packetMarkGeometry.ts` records the carrier's FOOTER
+   page number and `packetOverlay.ts` uses it directly as the PDF index. A sheet inserted after page 2
+   would shift every later page by one and silently move **nineteen of the driver's twenty-two
+   signatures onto the wrong pages.** This is the trap, and it is the reason the sheet is at the back
+   rather than beside what it continues.
+2. ⚠ **The grid that continues says so.** `3 more entries are on the continuation sheet attached to
+   this application.`, drawn under the grid on the carrier's own page. Without it the sheet is a place
+   the answer was *hidden* rather than continued — a page-2 grid showing three convictions misleads
+   anybody who stops reading there.
+3. ⚠ **It carries NO signature line.** `packetDriverMarkCount()` is derived from `driverPlacements()`,
+   a measurement of the carrier's paper; a signature here would make the count vary per applicant,
+   which 0339's header says it must not. A paper form saying "attach sheet if more space is needed"
+   does not ask the applicant to sign the sheet either. **Counsel owns whether the pages 11/13/17
+   certification carries the attachment; the question is below.**
+
+**Rejected, restated so nobody re-opens it:** shrinking to fit (two convictions on one ruled line is a
+document that misrepresents what the driver said) and silent truncation (see above).
+
+### D-PKT17 — Q-PKT11 ANSWERED: **(a), `Sent to` stays blank, and the addressed copy is the INQUIRY's**
+
+§391.23 requires a written record **per previous employer contacted**, and the applicant's consent
+must **accompany each request** that goes out. So the release genuinely does need to reach four
+employers for a driver with four.
+
+**But that is not the packet's job.** The packet is the signed application; the addressed release is
+an artifact of the inquiry, and `employer_inquiries` is the table that already models "a request sent
+to one previous employer". Rendering four copies of page 15 into the filed application would put four
+near-identical pages into the §391.51(b)(1) document and still not address the ones sent later, when
+the office finds a fifth employer.
+
+So: **the filed packet keeps ONE page 15, signed, with `Sent to` blank** — which is what an applicant
+signing a release on paper produces. Addressing a copy per employer belongs with the inquiry and is
+not built. ⚠ Recorded here rather than left implicit, because "the field is blank" and "the field was
+forgotten" look identical in a PDF.
+
+### The packet is now what a new submission files (D-PKT5 honoured)
+
+`file.ts` renders the carrier's own packet when the application has packet marks, and `render.ts`'s
+§391.21 summary when it has none.
+
+⚠ **The MARKS decide, not a flag.** A submission the server accepted since D-PKT15 carries all
+twenty-two, because `submitApplication` refuses one that is not signed through. An application from
+before the ceremony has none, `driver_applications` is append-only so it can never gain any, and
+drawing it as the packet would produce the carrier's 31 pages **with every signature line blank** — a
+document that looks like a form nobody signed, which is worse than the summary it replaced. A feature
+flag would be a thing somebody has to remember; the fact it would stand for is already in the table.
+
+### ⚠ Still counsel's, and now with the measurement done
+
+**Does the packet's own certification satisfy §391.21(b)(12)?** The regulation wants, at the end of
+the form: *"This certifies that this application was completed by me, and that all entries on it and
+information in it are true and complete to the best of my knowledge."*
+
+Measured against the carrier's pages:
+
+| page | their words |
+|---|---|
+| **11** | "This certifies that I completed this application, and that all entries on it and information in it are true and complete to the best of my knowledge." |
+| **13** | "I certify that the answers given herein are true and complete to the best of my knowledge." |
+| **17** | "By signing this statement, I certify that this application has been completed by me, and that all…" |
+
+**Page 11 is the regulation's sentence in the active voice; page 17 is closer to its passive form.**
+Both are present, both are signed. The two questions left are counsel's and neither is a measurement:
+whether the active-voice substitution matters, and whether page 11 of 31 is "the end of the form" —
+which turns on where the *application* ends and the releases and policies begin.
+
+**The adverse-action sequence the FMCSA disclosure promises and R10 does not perform** is unchanged
+and unaddressed. See `adverse-action-position`.
+
+**Sources:** [49 CFR 391.21](https://www.law.cornell.edu/cfr/text/49/391.21) ·
+[49 CFR 391.23](https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-391/subpart-C/section-391.23) ·
+[FMCSA on §391.21(b)(11)](https://www.fmcsa.dot.gov/registration/commercial-drivers-license/ss39121b11-requires-application-employment-contain-10-years) ·
+[FMCSA sample driver application](https://csa.fmcsa.dot.gov/safetyplanner/documents/Forms/Drivers_Employment_Application_508.pdf)
+
+**Proved by mutation:** inserting the sheet at the front fails 7 cases; carrying only the first
+overflowed row fails 2; never starting a second sheet fails 1; dropping the notice fails 1; adding a
+sheet when nothing overflowed fails 2; reverting the row-width guard fails the margin case — which
+had to be asserted on the run's **x position**, because a value drawn off the paper still extracts as
+text and the first version of that assertion passed with the guard removed. On the switch: always
+rendering the summary fails 2, always rendering the packet fails 3, and querying marks with no
+invitation fails 1.
