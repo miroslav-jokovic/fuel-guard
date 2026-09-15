@@ -129,6 +129,8 @@ const awaitingReview = computed(
  * to walk" apart from "a packet nobody has walked yet".
  */
 const packetStops = computed(() => invitation.data.value?.packet ?? []);
+/** Q-PKT9: what this link already adopted, so a resumed walk does not ask the driver to retype it. */
+const packetAdopted = computed(() => invitation.data.value?.packetAdopted ?? null);
 
 // ── Resuming (A2) ─────────────────────────────────────────────────────────────────────────────
 const released = ref<Record<string, unknown> | null>(null);
@@ -390,6 +392,7 @@ async function send(): Promise<void> {
       :edits="invitation.data.value?.edits ?? []"
       :captures="invitation.data.value?.captures ?? []"
       :stops="packetStops"
+      :adopted-marks="packetAdopted"
       :sending="submit.isPending.value"
       :error="sendError"
       @send="send"

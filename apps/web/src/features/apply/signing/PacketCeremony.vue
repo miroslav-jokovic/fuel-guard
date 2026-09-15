@@ -42,6 +42,8 @@ const props = defineProps<{
   token: string;
   stops: ApplyPacketStop[];
   carrier: string;
+  /** What this link has already adopted (Q-PKT9). Null before the first mark, which is the norm. */
+  adoptedMarks?: { signature: string | null; initials: string | null } | null;
 }>();
 /** Carries the adopted mark, because it is the §391.21(b)(12) signature now (D-PKT15). */
 const emit = defineEmits<{ done: [signedName: string] }>();
@@ -50,6 +52,7 @@ const copy = APPLY_COPY.packet;
 const ceremony = usePacketCeremony(
   computed(() => props.token),
   computed(() => props.stops),
+  { adopted: computed(() => props.adoptedMarks ?? null) },
 );
 
 const STYLES = [
@@ -87,8 +90,42 @@ async function signCurrent(): Promise<void> {
 </script>
 
 <template>
+  <!--
+    A RESUMED walk (Q-PKT9): the server already pinned these, so there is nothing to type. Shown
+    rather than skipped, because a driver coming back deserves to see which mark is going on the
+    remaining pages before they carry on putting it there.
+  -->
+  <section
+    v-if="ceremony.state.value === 'adopting' && ceremony.alreadyAdopted.value"
+    class="space-y-4"
+  >
+    <div>
+      <h2 class="text-lg font-semibold text-ink">{{ copy.resumedHeading }}</h2>
+      <p class="mt-2 text-sm text-ink-muted">{{ copy.resumedBody }}</p>
+      <p v-if="ceremony.collected.value.length" class="mt-2 text-sm text-ink-secondary">
+        {{ copy.resumed(ceremony.collected.value.length) }}
+      </p>
+    </div>
+
+    <div>
+      <p class="text-sm text-ink-muted">{{ copy.applyingTyped }}</p>
+      <p class="signature-preview text-2xl text-ink">{{ ceremony.adoptedName.value }}</p>
+    </div>
+
+    <div v-if="ceremony.needsInitials.value">
+      <p class="text-sm text-ink-muted">{{ copy.resumedInitialsLabel }}</p>
+      <p class="signature-preview text-2xl text-ink">{{ ceremony.adoptedInitials.value }}</p>
+    </div>
+
+    <div class="flex justify-end">
+      <BaseButton variant="primary" :disabled="ceremony.working.value" @click="adoptAndStart">
+        {{ ceremony.working.value ? copy.working : copy.resumedAction }}
+      </BaseButton>
+    </div>
+  </section>
+
   <!-- Adoption: once, before any place is shown. -->
-  <section v-if="ceremony.state.value === 'adopting'" class="space-y-4">
+  <section v-else-if="ceremony.state.value === 'adopting'" class="space-y-4">
     <div>
       <h2 class="text-lg font-semibold text-ink">
         {{ ceremony.needsInitials.value ? copy.adoptHeadingWithInitials : copy.adoptHeading }}

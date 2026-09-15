@@ -111,6 +111,48 @@ export async function packetStops(
 }
 
 /**
+ * The marks this link has already adopted, one per kind (Q-PKT9, answered 2026-09-14).
+ *
+ * ── ⚠ WHY THE SERVER SERVES THESE BACK ────────────────────────────────────────────────────────
+ * A link is a SESSION and a driver who loses signal finishes tomorrow — 0339's header is explicit
+ * that a half-signed packet is a state to resume from. But the adoption screen is where the driver
+ * types their mark, so a resumed walk asked them to **type their name again**, and
+ * `record_packet_mark` has already pinned the first one (DR035). `Marija Varmeda` and
+ * `M. Varmeda` are the same person on two days and a refusal at the ninth stop, with a message —
+ * *"start again if you need to change it"* — naming something the ceremony does not offer and that
+ * a half-signed packet could not do anyway.
+ *
+ * Serving the pinned marks back removes the retyping rather than trying to guess when two spellings
+ * mean the same mark. ⚠ That guess is the alternative that was rejected: comparing client-side would
+ * put the judgement DR035 exists to make into the browser.
+ *
+ * ⚠ **No new disclosure.** This hands the token-holder a string the token-holder supplied, on a
+ * response that already carries their whole draft application.
+ */
+export interface AdoptedPacketMarks {
+  signature: string | null;
+  initials: string | null;
+}
+
+export async function adoptedPacketMarks(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationId: string,
+): Promise<AdoptedPacketMarks> {
+  const { data } = await admin
+    .from("application_packet_marks")
+    .select("mark, signed_name")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId);
+  const rows = (data ?? []) as Array<{ mark: string; signed_name: string }>;
+  // ⚠ `find`, not `[0]`: the pin is per KIND since 0340, so the first row of ANY kind is not the
+  // signature — which is the bug `packetIsSignedThrough` had until Q-PKT8.
+  const of = (kind: string): string | null =>
+    rows.find((r) => r.mark === kind)?.signed_name?.trim() || null;
+  return { signature: of("signature"), initials: of("initials") };
+}
+
+/**
  * Record one mark.
  *
  * NOT part of the submit transaction, for `applicationReleases.ts`'s reason: twenty-two acts on

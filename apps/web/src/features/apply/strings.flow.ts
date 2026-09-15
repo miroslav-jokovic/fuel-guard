@@ -195,6 +195,16 @@ export const APPLY_FLOW_COPY = {
     drawClear: "Clear",
     drawNeeded: "Draw your signature above, or choose to type it instead.",
     adoptAction: "Use this and start",
+    /**
+     * ⚠ What a RESUMED walk sees instead of the fields (Q-PKT9). The driver adopted these on a
+     * previous visit and the server pinned them; asking again and then refusing a different spelling
+     * at the next stop is the defect this replaces.
+     */
+    resumedHeading: "The mark you are signing with",
+    resumedBody:
+      "You adopted this when you started. We will keep using it for the places that are left.",
+    resumedInitialsLabel: "Your initials",
+    resumedAction: "Carry on signing",
     counter: (n: number, total: number): string => `Place ${n} of ${total}`,
     page: (n: number): string => `Page ${n} of the application`,
     /** The two marks, named as the packet names them (`adoptedMarkKinds()`). */

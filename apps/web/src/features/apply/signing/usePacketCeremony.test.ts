@@ -303,3 +303,72 @@ describe("coming back to a half-signed packet", () => {
     expect(c.state.value).toBe("done");
   });
 });
+
+/**
+ * Coming back to a link that already adopted its marks (Q-PKT9, answered 2026-09-14).
+ *
+ * ⚠ **This is not a convenience.** `record_packet_mark` pinned the marks at the first stop, so a
+ * resumed walk that asked the driver to type their name again and got `M. Varmeda` where
+ * `Marija Varmeda` was pinned would be refused at the NEXT stop — with a message telling them to
+ * "start again", which the ceremony does not offer and a half-signed packet could not do.
+ */
+describe("a resumed walk whose marks the server has already pinned", () => {
+  const withAdopted = (
+    adopted: { signature: string | null; initials: string | null } | null,
+    signed: Record<string, string> = {},
+  ) => usePacketCeremony(ref(TOKEN), ref(stopsFrom(signed)), { adopted: ref(adopted) });
+
+  it("does not ask for anything the server has already pinned", async () => {
+    const c = withAdopted({ signature: "Marija Varmeda", initials: "MV" });
+    expect(c.adoptedName.value).toBe("Marija Varmeda");
+    expect(c.adoptedInitials.value).toBe("MV");
+    expect(c.alreadyAdopted.value).toBe(true);
+    // And it starts without the driver typing a character.
+    expect(await c.adopt()).toBe(true);
+  });
+
+  it("applies the pinned marks at the stops, each to its own kind", async () => {
+    const c = withAdopted({ signature: "Marija Varmeda", initials: "MV" });
+    await c.adopt();
+    for (let i = 0; i < 22; i++) await c.sign();
+    expect(marked.find((m) => m.placementId === "p03")!.signedName).toBe("Marija Varmeda");
+    expect(marked.find((m) => m.placementId === "p05")!.signedName).toBe("MV");
+  });
+
+  /** A link nobody has signed on yet — the ordinary case — still asks for everything. */
+  it("asks for both marks when nothing has been pinned", () => {
+    const c = withAdopted(null);
+    expect(c.adoptedName.value).toBe("");
+    expect(c.alreadyAdopted.value).toBe(false);
+  });
+
+  it("asks for both when the server serves nulls", () => {
+    const c = withAdopted({ signature: null, initials: null });
+    expect(c.alreadyAdopted.value).toBe(false);
+  });
+
+  /**
+   * ⚠ **A signature pinned with no initials yet is NOT fully adopted**, while an initials stop is
+   * still outstanding. It is the state of a driver who got two stops in and stopped, and the screen
+   * has to ask for the one mark that is missing rather than carry on without it.
+   */
+  it("still asks for initials when only the signature is pinned", () => {
+    const c = withAdopted({ signature: "Marija Varmeda", initials: null });
+    expect(c.needsInitials.value).toBe(true);
+    expect(c.alreadyAdopted.value).toBe(false);
+  });
+
+  /**
+   * ⚠ ...and is fully adopted once no initials stop is LEFT. A driver whose three initials places
+   * were collected yesterday never has to produce initials again — holding them on the adoption
+   * screen for a mark the packet no longer asks for would be the opposite of the fix.
+   */
+  it("is fully adopted with no initials when every initials stop is already collected", () => {
+    const done = Object.fromEntries(
+      driverPlacements().filter((p) => p.mark === "initials").map((p) => [p.id, "2026-09-14T11:00:00Z"]),
+    );
+    const c = withAdopted({ signature: "Marija Varmeda", initials: null }, done);
+    expect(c.needsInitials.value).toBe(false);
+    expect(c.alreadyAdopted.value).toBe(true);
+  });
+});

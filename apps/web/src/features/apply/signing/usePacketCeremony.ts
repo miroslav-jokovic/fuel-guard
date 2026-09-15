@@ -51,9 +51,20 @@ export type AdoptedMarkStyle = "typed" | "drawn";
 export function usePacketCeremony(
   token: Ref<string>,
   stops: Ref<ApplyPacketStop[]>,
-  options: { stage?: typeof stageCapture; io?: CaptureIo } = {},
+  options: {
+    stage?: typeof stageCapture;
+    io?: CaptureIo;
+    /**
+     * What this link has already adopted, served by `GET /:token` (Q-PKT9).
+     *
+     * ⚠ **A resumed walk must not ask for these again.** `record_packet_mark` pinned them at the
+     * first stop, so a second spelling is refused at the next one with advice the driver cannot act
+     * on. Given them, the adoption screen shows the mark rather than an empty field.
+     */
+    adopted?: Ref<{ signature: string | null; initials: string | null } | null | undefined>;
+  } = {},
 ) {
-  const adoptedName = ref("");
+  const adoptedName = ref(options.adopted?.value?.signature ?? "");
   /**
    * The second adopted mark (D-PKT6, Q-PKT8). Typed, always — never derived from `adoptedName`.
    *
@@ -62,7 +73,7 @@ export function usePacketCeremony(
    * the overlay puts on `p05` is this string. A second drawing pad would collect an image nothing
    * reads.
    */
-  const adoptedInitials = ref("");
+  const adoptedInitials = ref(options.adopted?.value?.initials ?? "");
   const style = ref<AdoptedMarkStyle>("typed");
   /** The drawn mark, when the driver chose to draw one. */
   const markBlob = ref<Blob | null>(null);
@@ -107,6 +118,17 @@ export function usePacketCeremony(
 
   const state = computed<PacketCeremonyState>(() =>
     complete.value ? "done" : adopted.value ? "signing" : "adopting",
+  );
+
+  /**
+   * Whether the server has already pinned everything this walk still needs (Q-PKT9).
+   *
+   * ⚠ Read against `needsInitials`, not against "both are set": a driver whose three initials stops
+   * are already collected never adopted any initials and never will, and holding them on the
+   * adoption screen for a mark the packet no longer asks for would be the opposite of the fix.
+   */
+  const alreadyAdopted = computed(
+    () => Boolean(adoptedName.value.trim()) && (!needsInitials.value || Boolean(adoptedInitials.value.trim())),
   );
 
   /** The stops already collected, for a resumed session to show as done rather than hide. */
@@ -189,6 +211,7 @@ export function usePacketCeremony(
     adoptedName,
     adoptedInitials,
     needsInitials,
+    alreadyAdopted,
     markFor,
     style,
     markBlob,

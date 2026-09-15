@@ -1510,3 +1510,34 @@ had to be asserted on the run's **x position**, because a value drawn off the pa
 text and the first version of that assertion passed with the guard removed. On the switch: always
 rendering the summary fails 2, always rendering the packet fails 3, and querying marks with no
 invitation fails 1.
+
+---
+
+### D-PKT18 — Q-PKT9 ANSWERED: **(a), the server serves the adopted marks back**
+
+A link is a session and a driver who loses signal finishes tomorrow. But the adoption screen is where
+the driver TYPES their mark, so a resumed walk asked them to type their name again — and
+`record_packet_mark` pinned the first one. `Marija Varmeda` and `M. Varmeda` are the same person on
+two days and **a refusal at the ninth stop**, carrying advice — *"start again if you need to change
+it"* — that names something the ceremony does not offer and that a half-signed packet could not do.
+
+`GET /:token` now serves `packetAdopted: { signature, initials }`, read by KIND (the pin is per kind
+since 0340, so the first row of any kind is not the signature — the bug Q-PKT8 fixed elsewhere). A
+resumed walk SHOWS the marks and offers *Carry on signing*; there is no field to retype.
+
+**Rejected:** comparing the two spellings client-side and warning. That puts the judgement DR035
+exists to make into the browser. And letting a resumed session re-adopt, which is the failure DR035
+was written for.
+
+⚠ **Two states that are not the same, and the tests say so:** a signature pinned with no initials yet
+while an initials stop is still outstanding is **not** fully adopted — it is a driver who got two
+stops in and stopped, and the screen must ask for the one mark that is missing. A signature pinned
+with no initials and no initials stop LEFT **is** fully adopted, because that driver will never be
+asked for initials again.
+
+⚠ No new disclosure: this hands the token-holder a string the token-holder supplied, on a response
+that already carries their whole draft application.
+
+**Proved by mutation:** reading the first row of any kind instead of by kind fails 2; ignoring the
+served marks and starting empty fails 3; and calling a signature-only link fully adopted regardless
+of `needsInitials` fails the half-adopted case.
