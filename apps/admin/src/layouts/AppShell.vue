@@ -8,6 +8,26 @@ import { useImpersonationStore } from "@/stores/impersonation";
 const session = useSessionStore();
 const imp = useImpersonationStore();
 const router = useRouter();
+/**
+ * Where "Silvicom 360" in the console's nav sends an operator — the customer-facing app.
+ *
+ * ⚠ **The default is the Railway host and NOT `silvicom360.silvicominc.com`, deliberately.** That
+ * custom domain IS configured on the `@fleetguard/web` service, so it is the right destination
+ * eventually — but measured 2026-09-15 it has no DNS record at all (no A, no CNAME, against Google's
+ * resolver), while the Railway host answers 200. Shipping the branded domain today would put a dead
+ * link in every operator's sidebar.
+ *
+ * ⚠ And it would not self-heal quietly: `import.meta.env.VITE_*` is inlined at BUILD time, so this
+ * value is baked into the bundle and changing it needs a redeploy either way.
+ *
+ * The default also matches `WEB_APP_URL` on the api service, which is what every application
+ * invitation link already points at — so an operator following this lands on the same host an
+ * applicant does, rather than on a second name for the same app.
+ *
+ * **Flip the default to the branded domain in the same change that points its DNS at Railway.**
+ */
+const customerAppUrl =
+  import.meta.env.VITE_CUSTOMER_APP_URL ?? "https://fleetguardweb-production.up.railway.app";
 
 onMounted(() => {
   void imp.load().catch(() => {});
@@ -16,8 +36,10 @@ onMounted(() => {
 interface NavItem {
   label: string;
   to?: RouteLocationRaw;
+  href?: string;
 }
 const NAV: NavItem[] = [
+  { label: "Silvicom 360", href: customerAppUrl },
   { label: "Customers", to: { name: "customers" } },
   { label: "Users & access" },
   { label: "Billing" },
@@ -68,8 +90,17 @@ async function signOut() {
     <div class="flex min-h-[calc(100vh-3rem)] flex-col md:flex-row">
       <nav class="flex shrink-0 gap-1 overflow-x-auto border-b border-edge-subtle bg-canvas p-3 md:w-60 md:flex-col md:border-r md:border-b-0 md:p-4">
         <template v-for="item in NAV" :key="item.label">
+          <a
+            v-if="item.href"
+            :href="item.href"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block min-h-9 whitespace-nowrap rounded-control px-3 py-2 text-sm font-medium text-ink-secondary hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            {{ item.label }}
+          </a>
           <RouterLink
-            v-if="item.to"
+            v-else-if="item.to"
             :to="item.to"
             class="block min-h-9 whitespace-nowrap rounded-control px-3 py-2 text-sm font-medium text-ink-secondary hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             active-class="bg-selected-surface text-ink shadow-[inset_3px_0_var(--brand-accent-strong)]"
