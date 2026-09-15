@@ -37,6 +37,8 @@ const props = defineProps<{
   edits: readonly ApplyEdit[];
   captures: readonly ApplicationCaptureView[];
   stops: readonly ApplyPacketStop[];
+  /** What this link has already adopted, so a resumed walk does not ask for it again (Q-PKT9). */
+  adoptedMarks?: { signature: string | null; initials: string | null } | null;
   sending: boolean;
   error: string | null;
 }>();
@@ -98,6 +100,7 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
       :token="token"
       :stops="[...stops]"
       :carrier="carrier"
+      :adopted-marks="adoptedMarks ?? null"
       @done="packetSigned"
     />
   </div>

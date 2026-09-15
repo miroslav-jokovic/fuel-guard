@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { driverPlacements, packetPlacementById } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
-import { packetStops, recordPacketMark } from "./applicationPacketMarks.js";
+import { adoptedPacketMarks, packetStops, recordPacketMark } from "./applicationPacketMarks.js";
 
 /**
  * The twenty-two marks on the carrier's packet (P5, D-PKT6).
@@ -239,6 +239,54 @@ describe("the queue the ceremony walks", () => {
     await packetStops(rec.client, ORG, "inv-1");
     expectOrgScoped(rec, ORG);
     const q = rec.forTable("application_packet_marks")[0]!;
+    expect(q.filters()).toContainEqual({ col: "invitation_id", val: "inv-1" });
+  });
+});
+
+/**
+ * The marks this link has already adopted (Q-PKT9, answered 2026-09-14).
+ *
+ * ⚠ Served back to the token-holder so a RESUMED walk does not ask them to retype a mark the
+ * database has pinned and then refuse them at the next stop with DR035.
+ */
+describe("what this link has already adopted", () => {
+  const seedMarks = (marks: Array<{ mark: string; signed_name: string }>) =>
+    createSupabaseRecorder({ tables: { application_packet_marks: marks } });
+
+  it("answers null on both for a link nobody has signed on", async () => {
+    const rec = seedMarks([]);
+    expect(await adoptedPacketMarks(rec.client, ORG, "inv-1")).toEqual({ signature: null, initials: null });
+  });
+
+  /**
+   * ⚠ **Read by KIND, never by position.** The pin is per (invitation, mark kind) since 0340, so the
+   * first row of ANY kind is not the signature — this fixture puts an INITIALS row first, which is
+   * the arrangement that made `packetIsSignedThrough` answer wrongly before Q-PKT8.
+   */
+  it("finds the signature even when an initials row comes back first", async () => {
+    const rec = seedMarks([
+      { mark: "initials", signed_name: "MV" },
+      { mark: "signature", signed_name: "Marija Varmeda" },
+    ]);
+    expect(await adoptedPacketMarks(rec.client, ORG, "inv-1")).toEqual({
+      signature: "Marija Varmeda",
+      initials: "MV",
+    });
+  });
+
+  it("answers null for a kind this link has not adopted yet", async () => {
+    const rec = seedMarks([{ mark: "signature", signed_name: "Marija Varmeda" }]);
+    const adopted = await adoptedPacketMarks(rec.client, ORG, "inv-1");
+    expect(adopted.signature).toBe("Marija Varmeda");
+    expect(adopted.initials).toBeNull();
+  });
+
+  /** ⚠ The service role bypasses RLS, so the scope has to be in the query. */
+  it("scopes the read to the org and the invitation", async () => {
+    const rec = seedMarks([{ mark: "signature", signed_name: "Marija Varmeda" }]);
+    await adoptedPacketMarks(rec.client, ORG, "inv-1");
+    const q = rec.forTable("application_packet_marks")[0]!;
+    expect(q.filters()).toContainEqual({ col: "org_id", val: ORG });
     expect(q.filters()).toContainEqual({ col: "invitation_id", val: "inv-1" });
   });
 });

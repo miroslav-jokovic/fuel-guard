@@ -31,7 +31,7 @@ import {
   submitApplication,
 } from "../applicationIntake.js";
 import { recordRelease, releasesForApplicant, signedReleases } from "../applicationReleases.js";
-import { packetStops, recordPacketMark } from "../applicationPacketMarks.js";
+import { adoptedPacketMarks, packetStops, recordPacketMark } from "../applicationPacketMarks.js";
 
 /**
  * The public application surface — H5, and the only unauthenticated write path in the product that
@@ -126,6 +126,9 @@ export function publicApplicationRouter(): Router {
       // this link has collected it yet (P5). Served on every load rather than behind the approval,
       // so a driver who opens the link early sees what is still coming instead of an empty screen.
       const packet = await packetStops(admin, invitation.org_id, invitation.id);
+      // ⚠ What this link has already adopted, so a RESUMED walk does not ask the driver to retype a
+      // mark the server has pinned and then refuse them at the next stop (Q-PKT9).
+      const packetAdopted = await adoptedPacketMarks(admin, invitation.org_id, invitation.id);
 
       res.json({
         // The carrier's name and nothing else about them. An application link is not a directory.
@@ -148,6 +151,9 @@ export function publicApplicationRouter(): Router {
         // The signing ceremony's queue. Empty of signatures until the office approves — the stops
         // themselves are the carrier's paper and do not depend on anything the driver has done.
         packet,
+        // Null on both until the first mark lands, which is every application nobody has started
+        // signing — the ordinary case.
+        packetAdopted,
       });
     }),
   );

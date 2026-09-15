@@ -124,6 +124,14 @@ export interface ApplyInvitation {
    * depend on anything the driver has done; what the approval gates is whether one may be signed.
    */
   packet: ApplyPacketStop[];
+  /**
+   * The marks this link has already adopted, one per kind (Q-PKT9).
+   *
+   * ⚠ Optional, and that is not defensiveness for its own sake: a bundle cached from before the
+   * server served this field would otherwise read `undefined.signature` on a resumed walk — the one
+   * screen this exists to fix.
+   */
+  packetAdopted?: { signature: string | null; initials: string | null } | null;
 }
 
 /**
