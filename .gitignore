@@ -41,6 +41,16 @@ _tmp_*
 # Claude Code local (machine-specific tool-permission cache; shared .claude config is still tracked)
 .claude/settings.local.json
 
+# Working artifacts of the globally installed claude-setup pipelines (/build, /debug-workflow, /qa,
+# /refactor write task files, QA reports and browser snapshots into the repo root). This repo is
+# PUBLIC, so they must never ride along in a `git add -A`. Same list `init-claude-setup` would add,
+# which never ran here because .claude/settings.local.json already existed and it stops on that.
+tasks/**
+qa-output/**
+debug-output/
+.playwright-cli/
+.claude-worktrees/
+
 # "Pending delete" holding folder for retired files (delete manually — not part of the project)
 _to_delete/
 
