@@ -14,10 +14,20 @@ import {
 import type { Env } from "../../env.js";
 import { loadSamsaraToken } from "./lib/samsaraToken.js";
 import { makeSamsaraStatsFeedFetcher, type SamsaraStatsFeedFetcher } from "./lib/samsara.js";
+import {
+  readFeedCursor,
+  persistFeedCursorQuietly,
+  VEHICLE_STATS_FEED,
+} from "./lib/feedCursor.js";
 import { NoSamsaraTokenError, writeVehicleTelematics } from "./samsaraVehicleSync.js";
 
-/** The feed this tier owns. One row per (org, feed) in `samsara_feed_cursors` (migration 0288). */
-export const VEHICLE_STATS_FEED = "vehicle_stats";
+/**
+ * The feed this tier owns. One row per (org, feed) in `samsara_feed_cursors` (migration 0288).
+ *
+ * Re-exported rather than redeclared: LM4's positions tier needs its own name from the same
+ * vocabulary, so both now live in `lib/feedCursor.ts` beside the read/advance pair that uses them.
+ */
+export { VEHICLE_STATS_FEED };
 
 /**
  * Runaway guard on pages per run — NOT a completeness bound.
@@ -68,51 +78,6 @@ const num = (v: unknown): number | null => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
-
-/**
- * Read this org's cursor for a feed. A MISSING TABLE is not an error here.
- *
- * 0288 and this reader ship in two merges, and Railway serves a merge ~9 minutes before `migrate.yml`
- * applies its migration (docs/MIGRATION-DISCIPLINE.md §the-deploy-window). During that window the
- * table does not exist, and the correct behaviour is precisely "no cursor" — the tier seeds from the
- * feed's head, which returns every vehicle's current value and is therefore exactly as complete as the
- * snapshot tier it replaces. The window costs one wide read per tick and loses nothing.
- */
-async function readCursor(admin: SupabaseClient, orgId: string): Promise<string | null> {
-  const { data, error } = await admin
-    .from("samsara_feed_cursors")
-    .select("end_cursor")
-    .eq("org_id", orgId)
-    .eq("feed", VEHICLE_STATS_FEED)
-    .maybeSingle();
-  if (error) return null;
-  const cur = (data as { end_cursor?: string } | null)?.end_cursor;
-  return typeof cur === "string" && cur.trim() ? cur : null;
-}
-
-/**
- * Advance the cursor, AFTER its page has been applied (D-SAM4: at-least-once, never at-most-once).
- *
- * Deliberately an INSERT-or-UPDATE pair rather than `.upsert()`. A partial upsert into a table with
- * NOT NULL columns fails on rows that already exist, because Postgres evaluates NOT NULL on the
- * proposed tuple BEFORE conflict arbitration — the defect that shipped three times and took the Idling
- * and HOS syncs down (incident 2026-08-10, `lint:upserts`). This payload happens to be complete, but
- * the pair is also what makes a failure to persist NON-FATAL: losing a cursor write costs a repeated
- * page next tick, and must never lose the samples this run already applied.
- */
-async function advanceCursor(admin: SupabaseClient, orgId: string, cursor: string): Promise<void> {
-  const { data, error } = await admin
-    .from("samsara_feed_cursors")
-    .update({ end_cursor: cursor })
-    .eq("org_id", orgId)
-    .eq("feed", VEHICLE_STATS_FEED)
-    .select("org_id");
-  if (error) throw error;
-  if ((data ?? []).length > 0) return;
-  await admin
-    .from("samsara_feed_cursors")
-    .insert({ org_id: orgId, feed: VEHICLE_STATS_FEED, end_cursor: cursor });
-}
 
 function vehicleView(r: VehicleRow): VehicleView {
   return {
@@ -190,7 +155,7 @@ export async function syncVehicleStatsFromSamsara(
   if (!token) throw new NoSamsaraTokenError();
   const fetch = opts.fetcher ?? makeSamsaraStatsFeedFetcher(env, token);
 
-  const startCursor = await readCursor(admin, orgId);
+  const startCursor = await readFeedCursor(admin, orgId, VEHICLE_STATS_FEED);
   const result: VehicleStatsFeedResult = {
     updated: 0, pages: 0, samples: 0, pagesCapped: false,
     resumed: startCursor != null, dropsFiled: 0, dropsSuppressedUnreliableSensor: 0,
@@ -199,7 +164,7 @@ export async function syncVehicleStatsFromSamsara(
   // ── Walk the delta, accumulating across pages ─────────────────────────────────────────────────
   // A descent that straddles a page boundary is one event, so pages are merged before anything is
   // judged. The cursor advances per page — the unit the vendor gives us — but the APPLY happens once
-  // at the end, which is why `advanceCursor` is only reached after `applySeries` below.
+  // at the end, which is why `persistFeedCursorQuietly` is only reached after `applySeries` below.
   const series = new Map<string, VehicleFeedSeries>();
   let cursor = startCursor;
   for (let page = 0; page < STATS_FEED_MAX_PAGES; page++) {
@@ -219,7 +184,7 @@ export async function syncVehicleStatsFromSamsara(
   }
 
   if (series.size === 0) {
-    if (cursor && cursor !== startCursor) await persistQuietly(admin, orgId, cursor);
+    if (cursor && cursor !== startCursor) await persistFeedCursorQuietly(admin, orgId, VEHICLE_STATS_FEED, cursor);
     return result;
   }
 
@@ -227,7 +192,7 @@ export async function syncVehicleStatsFromSamsara(
 
   // Only now — a cursor that moved past samples we failed to apply would lose them silently, which is
   // the exact failure this whole step exists to end.
-  if (cursor && cursor !== startCursor) await persistQuietly(admin, orgId, cursor);
+  if (cursor && cursor !== startCursor) await persistFeedCursorQuietly(admin, orgId, VEHICLE_STATS_FEED, cursor);
   return result;
 }
 
@@ -235,18 +200,6 @@ function countSamples(series: Map<string, VehicleFeedSeries>): number {
   let n = 0;
   for (const s of series.values()) n += s.fuel.length + s.odometer.length;
   return n;
-}
-
-/** A cursor we could not store costs a repeated page next tick. It must never fail the run. */
-async function persistQuietly(admin: SupabaseClient, orgId: string, cursor: string): Promise<void> {
-  try {
-    await advanceCursor(admin, orgId, cursor);
-  } catch (e) {
-    console.error(
-      `[samsara-stats-feed] cursor write failed for org ${orgId} — the page will be re-read:`,
-      e instanceof Error ? e.message : e,
-    );
-  }
 }
 
 /**

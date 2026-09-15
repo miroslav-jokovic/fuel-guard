@@ -66,6 +66,19 @@ const EnvSchema = z.object({
   SAMSARA_SYNC_HOURS: z.coerce.number().min(0).default(6),
   // Tier 1 — live stats (current odometer + fuel level): cheap, refresh often. Minutes.
   SAMSARA_STATS_SYNC_MINUTES: z.coerce.number().min(1).default(20),
+  // Tier 9 — live positions for the map (LM4, D-LM1). SECONDS, and the only tier measured in them.
+  //
+  // 5 is Samsara's own stated floor — "You should not request updates more frequently than 5 seconds"
+  // — and the bottom of the 5–30 s range their TMS integration guide recommends for live tracking.
+  // At one request per tick that is 0.2 req/s against a 50 req/s per-org limit, so the freshest board
+  // the API can produce costs 0.4% of the budget. The minimum below is the vendor's floor expressed as
+  // a constraint rather than a comment: a well-meaning "make the map smoother" edit to 1 second would
+  // otherwise get us rate-limited across every other tier that shares the token.
+  //
+  // 0 disables the tier outright, the same kill switch shape as IFTA and odometer.
+  SAMSARA_POSITIONS_SYNC_SECONDS: z.coerce.number().min(0).refine((n) => n === 0 || n >= 5, {
+    message: "SAMSARA_POSITIONS_SYNC_SECONDS must be 0 (off) or at least 5 — Samsara's stated floor",
+  }).default(5),
   // Tier 5 — per-fill telematics (SAM-S3). The tier that makes collection independent of scoring.
   //
   // Before this existed, per-fill Samsara data was fetched only as a SIDE EFFECT of scoring, and the

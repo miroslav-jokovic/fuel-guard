@@ -37,6 +37,8 @@ const seed = (opts: {
   enabled?: boolean;
   emails?: string[];
   reconAt?: string;
+  /** The positions tier's stamp — its cursor's advance, since it writes no job rows (LM4). */
+  positionsAt?: string | null;
 } = {}) => {
   const jobs: Record<string, Job[]> = {
     sync_stats: [done(ago(5 * MIN))],
@@ -57,6 +59,8 @@ const seed = (opts: {
         return { data: rows.slice(0, 1), error: null };
       },
       fuel_transactions: [{ samsara_recon_checked_at: opts.reconAt ?? ago(10 * MIN) }],
+      samsara_feed_cursors:
+        opts.positionsAt === null ? { data: [] } : { data: [{ updated_at: opts.positionsAt ?? ago(MIN) }] },
       samsara_feed_alerts: opts.alerts ?? [],
       organizations: {
         data: {

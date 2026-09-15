@@ -411,7 +411,7 @@
     "apps/api/src/modules/samsara/samsaraFeedAlarm.ts"
   ],
   "samsara_feed_cursors": [
-    "apps/api/src/modules/samsara/samsaraStatsFeed.ts"
+    "apps/api/src/modules/samsara/lib/feedCursor.ts"
   ],
   "samsara_ifta_fetches": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"

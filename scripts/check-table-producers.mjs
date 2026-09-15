@@ -32,12 +32,9 @@ const MIGRATIONS = join(ROOT, "supabase", "migrations");
 // justification in the commit that adds them.
 const WAIVERS = new Map([
   // import_rows left this list on 2026-09-03: efsIngestRejects.ts writes it (D-FIN2).
-  // vehicle_positions (0341, LIVE-MAP-PLAN.md LM2). Schema-only ON PURPOSE: LM2 ships the table and
-  // LM4 — the 5-second Samsara positions tier — is the step that owes it a producer. Splitting them
-  // is the plan's own sequencing and the owner's "one step at a time", not an oversight. This entry
-  // must be REMOVED in the PR that lands LM4; the gate will say so itself, because a waiver whose
-  // table gained a producer is reported as stale and has to ratchet down.
-  ["vehicle_positions", "LIVE-MAP-PLAN.md LM4 (Samsara positions tier) owes the producer"],
+  // vehicle_positions left it on 2026-09-15: migration 0342's `record_vehicle_positions` writes it,
+  // driven by the LM4 positions tier (samsaraPositionsFeed.ts). The gate found the waiver stale by
+  // itself, exactly as the entry said it would.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

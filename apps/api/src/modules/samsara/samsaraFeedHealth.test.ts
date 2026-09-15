@@ -25,9 +25,18 @@ const ENV = testEnv();
 type Job = { status: string; error: string | null; created_at: string; finished_at: string | null; skipped?: boolean };
 
 /** A job row per kind, newest first. The fixture answers by kind because the recorder does not filter. */
-const seed = (jobs: Record<string, Job[]>, opts: { reconAt?: string | null; fail?: true | "latest" | "delivered" | "fills" } = {}) =>
+const seed = (
+  jobs: Record<string, Job[]>,
+  opts: { reconAt?: string | null; positionsAt?: string | null; fail?: true | "latest" | "delivered" | "fills" } = {},
+) =>
   createSupabaseRecorder({
     tables: {
+      // The positions tier writes no job rows at all (17k a day would be the cost), so its stamp is
+      // the cursor's own `updated_at` — a column that moves when SAMSARA ANSWERED, not when we ran.
+      samsara_feed_cursors:
+        opts.positionsAt === null
+          ? { data: [] }
+          : { data: [{ updated_at: opts.positionsAt ?? ago(MIN) }] },
       jobs: (q) => {
         const kind = q.filters().find((f) => f.col === "kind")?.val as string;
         const wantsDone = q.ops.some((o) => o.method === "eq" && o.args[0] === "status" && o.args[1] === "done");
@@ -133,6 +142,35 @@ describe("readSamsaraFeedHealth", () => {
   it("reports a carrier whose fills have never been reconciled as never, not as fresh", async () => {
     const r = await readSamsaraFeedHealth(seed(healthy(), { reconAt: null }).client, ENV, ORG, NOW);
     expect(feed(r, "telematics").state).toBe("never");
+  });
+
+  it("judges the positions tier by its cursor's advance, not by a job row it never writes", async () => {
+    // The 5-second tier deliberately skips the jobs ledger, so there is no `sync_positions` kind to
+    // read. 0288's `updated_at` is the better stamp anyway: Samsara mints a fresh endCursor on every
+    // call, including one that returns no samples, so the column moves when the VENDOR answered.
+    const rec = seed(healthy(), { positionsAt: ago(40 * MIN) });
+    const r = await readSamsaraFeedHealth(rec.client, ENV, ORG, NOW);
+    expect(feed(r, "positions").state).toBe("late"); // ruled 15 minutes
+    expect(feed(r, "positions").ageMinutes).toBe(40);
+    expect(rec.forTable("samsara_feed_cursors").length).toBeGreaterThan(0);
+    const kinds = rec.forTable("jobs").map((q) => q.filters().find((f) => f.col === "kind")?.val);
+    expect(kinds).not.toContain("sync_positions");
+  });
+
+  it("reports a carrier whose positions cursor has never advanced as never, not as fresh", async () => {
+    // What the deploy window, an org with no token, and a tier switched off all look like.
+    const r = await readSamsaraFeedHealth(seed(healthy(), { positionsAt: null }).client, ENV, ORG, NOW);
+    expect(feed(r, "positions").state).toBe("never");
+  });
+
+  it("holds the positions feed to fifteen minutes rather than to three ticks of its cadence", async () => {
+    // Absent from SAMSARA_RULED_TARGET_HOURS the bound would be `cadence × 3` — FIFTEEN SECONDS for a
+    // 5-second tier — and one slow tick would paint the card amber forever. The ruling is what keeps
+    // the freshness surface from becoming wallpaper.
+    const r = await readSamsaraFeedHealth(seed(healthy(), { positionsAt: ago(3 * MIN) }).client, ENV, ORG, NOW);
+    expect(feed(r, "positions").targetMinutes).toBe(15);
+    expect(feed(r, "positions").targetSource).toBe("ruling");
+    expect(feed(r, "positions").state).toBe("fresh");
   });
 
   it("lets only a ruled, meetable, breached bound page somebody", async () => {

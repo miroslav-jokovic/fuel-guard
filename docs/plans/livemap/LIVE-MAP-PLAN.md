@@ -1481,3 +1481,60 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   a legal longitude for a carrier east of Greenwich. **LM4 is next**, and its PR must delete the
   producer waiver `check-table-producers.mjs` now carries for `vehicle_positions`. Full context in
   `docs/HANDOFF-2026-09-15.md`.
+- 2026-09-15 — **LM4 built: the 5-second positions tier, and `vehicle_positions` has a producer.**
+  Migration **0342** carries `record_vehicle_positions(p_org, p_rows)` and the producer waiver is
+  deleted from `check-table-producers.mjs`, as that entry said it would be. The collector is
+  `samsaraPositionsFeed.ts`, polling `GET /fleet/vehicles/stats/feed?types=gps` on its OWN cursor row
+  (`feed = 'vehicle_positions'`), terminating on an empty page with a 50-page cap, accumulating across
+  pages before reducing each truck to its newest fix, and writing the whole tick in one call.
+  `SAMSARA_POSITIONS_SYNC_SECONDS` defaults to **5** and the schema refuses anything between 1 and 4 —
+  the vendor's floor as a constraint rather than a comment.
+
+  **Five deviations from this step as written, each a decision rather than a shortcut:**
+
+  1. **An RPC with an only-go-forward guard, not just "an RPC for volume".** The step said
+     `record_vehicle_positions(jsonb)` without saying why a function. The decisive reason turned out
+     to be one line PostgREST cannot express: `where excluded.sampled_at > vp.sampled_at`. The feed is
+     at-least-once by design (D-SAM4), so a cursor write that fails after its page was applied
+     re-delivers that page — and with no history in this table, an older fix written over a newer one
+     is unrecoverable and makes a live truck look stale. The matrix proves it, and proves it by
+     failing when the guard is removed.
+  2. **The tier does NOT run through the jobs ledger**, contrary to every other collecting tier. At 12
+     ticks a minute it would write ~17,000 `jobs` rows per org per day against a 90-day retention, to
+     record that a poll ran. Its freshness stamp is `samsara_feed_cursors.updated_at`, which 0288
+     created for exactly this — Samsara mints a fresh endCursor on every call, including one returning
+     no samples, so the column moves when the VENDOR ANSWERED rather than when we ran. Precedent:
+     `readTelematicsStamp` already judges the per-fill tier by its own stamp. **Cost, stated:** with no
+     job rows there is no error text, so `positions` can read `fresh`, `late` or `never` but never
+     `failing` — a refusal looks like a stop, and the server log is where it is legible.
+  3. **`positions` is a RULED bound of 15 minutes** (`SAMSARA_RULED_TARGET_HOURS`, the first fractional
+     entry). Leaving it out was the tempting non-decision and has the worse failure: the fallback is
+     `cadence × 3`, which for a 5-second tier is **fifteen seconds**, so one slow tick paints the card
+     amber and the freshness surface becomes the wallpaper that module's header argues against. 15
+     minutes is what a person should react to. It says nothing about PER-TRUCK staleness — that is
+     D-LM10, drawn on the map itself. **Owner may retune; this is the number to argue with.**
+  4. **The feed alarm's first delay went 5 → 7 minutes.** `never` is alertable for any ruled feed, and
+     a collector that has not had its first tick yet is indistinguishable from one that has never
+     delivered — so an alarm evaluating at the same instant as the positions tier's first run was a
+     coin flip on mailing a carrier about a cold start. Costs two minutes once per process start.
+  5. **No snapshot bootstrap.** Samsara prescribes "snapshot once, then deltas" and
+     `makeSamsaraGpsSnapshotFetcher` exists, but a cursorless call to the feed already returns every
+     vehicle's current value — the stats tier has relied on that since SAM-S2. One mechanism that
+     seeds and resumes beats two that have to agree.
+
+  **Two refactors the file-size gate forced, both splits rather than waivers:** `lib/tierRunner.ts`
+  (`orgsToSync` / `runOrgTier` / `startTier`, moved unchanged out of a 556-line `samsaraScheduler.ts`)
+  and `lib/samsaraDeltaFeeds.ts` (both feed fetchers, re-exported from `lib/samsara.ts` so no importer
+  moved). `lib/feedCursor.ts` is a third extraction and the only one that is not about line count: the
+  stats tier's private cursor helpers became shared so the two tiers cannot drift apart on
+  at-least-once semantics — a copy of that would be a workaround with a delay fuse.
+
+  **Every assertion added here was proven able to fail by mutating the implementation** (five mutants
+  against the shared reducer, two against the migration). The second migration mutant — tenant scope
+  read from the payload instead of the argument — **survived the first draft of the matrix**, because
+  no fixture row had ever carried an `org_id` at all. The test that now catches it says so in place.
+
+  **Nothing has been seen in production.** The table is still empty until this merges and the tier's
+  first tick lands ~5 minutes after the release boots; the first deploy may log one
+  `record_vehicle_positions is not in the database yet` warning while `migrate.yml` catches up, which
+  is the deploy window behaving as designed. **LM5 is next** (the pure layer), then LM6.

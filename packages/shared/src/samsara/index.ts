@@ -4,8 +4,17 @@ export {
   parseSamsaraSamples,
   matchFuelingMoment,
   sampleNearestTime,
+  accumulateGpsFeedPage,
+  latestGpsFix,
 } from "./core.js";
-export type { SamsaraSample, OdometerSource, SourcedOdometer, FuelingMatch } from "./core.js";
+export type {
+  SamsaraSample,
+  OdometerSource,
+  SourcedOdometer,
+  FuelingMatch,
+  RawGpsPoint,
+  GpsFix,
+} from "./core.js";
 export {
   normalizeStateCode,
   stateFromAddress,

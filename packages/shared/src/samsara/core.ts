@@ -1,5 +1,6 @@
 /** Samsara samples + odometer/fueling-moment matching (docs/10). */
 import { parseAsUtcMs } from "./location.js";
+import type { StatsFeedPage } from "./statsFeed.js";
 
 const METERS_PER_MILE = 1609.344;
 export const metersToMiles = (m: number): number => Math.round((m / METERS_PER_MILE) * 10) / 10;
@@ -26,11 +27,28 @@ export interface SourcedOdometer {
   source: OdometerSource;
 }
 
-interface RawGpsPoint {
+/**
+ * One GPS ping exactly as Samsara sends it, under `types=gps` on both `/fleet/vehicles/stats` and
+ * `/fleet/vehicles/stats/feed`.
+ *
+ * `headingDegrees` and `isEcuSpeed` were added for the live map (LIVE-MAP-PLAN.md LM4). They have been
+ * arriving on every one of these pings since the stats tier was built and were being discarded with the
+ * rest of the fix — the collector for the map was, literally, already running (§0, "one thing nobody
+ * had noticed we already own"). Neither is a second integration and neither costs a request.
+ *
+ * ⚠ `accuracyMeters` is NOT here, and asking for it is the one thing that would force a second
+ * integration: it exists only on `/fleet/assets/location-and-speed/stream`. Nothing in the map needs
+ * it, so nothing in the map reaches for that endpoint.
+ */
+export interface RawGpsPoint {
   time?: string;
   latitude?: number;
   longitude?: number;
   speedMilesPerHour?: number;
+  /** Degrees clockwise from true north. Samsara reports `[0, 360)`; the column checks the same range. */
+  headingDegrees?: number;
+  /** Samsara's own flag for "this speed came from the ECU, not from GPS". Absent is not `false`. */
+  isEcuSpeed?: boolean;
   reverseGeo?: { formattedLocation?: string };
   decorations?: { obdOdometerMeters?: { value?: number }; gpsOdometerMeters?: { value?: number } };
 }
@@ -157,6 +175,108 @@ export function matchFuelingMoment(
 // and to compare (unlike fuzzy city names), so this is reliable and low-false-positive. City is kept
 // as evidence for the reviewer; a same-state city difference is NOT flagged (needs distance/geocoding).
 // ---------------------------------------------------------------------------
+
+// ── The live map's fix: where a truck is RIGHT NOW (LIVE-MAP-PLAN.md LM4) ───────────────────────
+
+/**
+ * One position, cleaned. The shape `vehicle_positions` stores and the map draws.
+ *
+ * A fix is only ever the LATEST one per truck — this product keeps no history of positions and
+ * `vehicle_positions` has no way to store a second row (0341's header is the owner's ruling and the
+ * reasoning). So there is no `GpsFix[]` anywhere downstream of `latestGpsFix`, deliberately.
+ */
+export interface GpsFix {
+  /** Vendor `gps.time` — when the truck was THERE, never when we heard about it. */
+  time: string;
+  lat: number;
+  lng: number;
+  headingDegrees: number | null;
+  speedMph: number | null;
+  /** Samsara's flag. `null` when the ping carried no speed at all — absent is not "not from the ECU". */
+  isEcuSpeed: boolean | null;
+  /** `reverseGeo.formattedLocation`, verbatim. No external geocoder is involved anywhere in this path. */
+  formattedLocation: string | null;
+}
+
+/** A heading Samsara could actually have meant: `[0, 360)`, matching the column's own check. */
+const isHeading = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 360;
+
+/**
+ * Merge one `types=gps` FEED page into an accumulator keyed by Samsara vehicle id.
+ *
+ * ⚠ This reads the FEED shape, where `gps` is an ARRAY of pings. The SNAPSHOT
+ * (`GET /fleet/vehicles/stats?types=gps`) returns `gps` as a SINGULAR object, and
+ * `parseVehicleGpsSnapshots` in `entities.ts` is the parser for that one. Pointing either at the
+ * other's payload yields `undefined` for every truck, silently — which is precisely why
+ * `statsFeed.ts`'s header argues for two functions rather than one defensive one, and why this is a
+ * third function rather than a flag on an existing one.
+ *
+ * A page carrying several pings for one truck is normal and is the point of a delta feed: they are all
+ * kept here and resolved once, by `latestGpsFix`, after every page has been merged. Discarding all but
+ * the last within a page would be wrong at a page boundary, where the newest ping for a truck can sit
+ * on the earlier page.
+ */
+export function accumulateGpsFeedPage(
+  page: StatsFeedPage,
+  into: Map<string, GpsFix[]>,
+): Map<string, GpsFix[]> {
+  const rows = Array.isArray(page.data) ? (page.data as { id?: string | number; gps?: unknown }[]) : [];
+  for (const v of rows) {
+    if (v?.id == null || !Array.isArray(v.gps)) continue;
+    const key = String(v.id);
+    let fixes = into.get(key);
+    if (!fixes) {
+      fixes = [];
+      into.set(key, fixes);
+    }
+    for (const p of v.gps as RawGpsPoint[]) {
+      // A ping without a time or a coordinate is not a position. Dropped rather than coerced: a fix
+      // defaulted to (0, 0) draws a truck in the Gulf of Guinea, and a fix defaulted to `now` makes a
+      // stale one look live — the two failures the map is least able to survive.
+      if (!p || typeof p.time !== "string" || !Number.isFinite(Date.parse(p.time))) continue;
+      if (typeof p.latitude !== "number" || typeof p.longitude !== "number") continue;
+      if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) continue;
+      const speed = typeof p.speedMilesPerHour === "number" && Number.isFinite(p.speedMilesPerHour)
+        ? p.speedMilesPerHour
+        : null;
+      fixes.push({
+        time: p.time,
+        lat: p.latitude,
+        lng: p.longitude,
+        headingDegrees: isHeading(p.headingDegrees) ? p.headingDegrees : null,
+        speedMph: speed,
+        // Tied to the speed on purpose: the flag is a statement ABOUT a speed, so claiming `false`
+        // for a ping that carried no speed would invent a measurement (the D-LM12 lesson, and the
+        // reason the column is nullable in 0341).
+        isEcuSpeed: speed == null ? null : p.isEcuSpeed === true,
+        formattedLocation:
+          typeof p.reverseGeo?.formattedLocation === "string" && p.reverseGeo.formattedLocation.trim()
+            ? p.reverseGeo.formattedLocation
+            : null,
+      });
+    }
+  }
+  return into;
+}
+
+/**
+ * The one fix a truck's row should carry: the NEWEST by vendor time, across every page of the run.
+ *
+ * Ties go to the fix seen last. Samsara does not mint two pings for one truck at one instant, so the
+ * rule only has to be deterministic, not clever.
+ */
+export function latestGpsFix(fixes: readonly GpsFix[]): GpsFix | null {
+  let best: GpsFix | null = null;
+  let bestMs = -Infinity;
+  for (const f of fixes) {
+    const t = Date.parse(f.time);
+    if (!Number.isFinite(t) || t < bestMs) continue;
+    best = f;
+    bestMs = t;
+  }
+  return best;
+}
 
 /** The Samsara sample closest in time to `targetIso`, within `windowMin` minutes. Null if none. */
 export function sampleNearestTime(

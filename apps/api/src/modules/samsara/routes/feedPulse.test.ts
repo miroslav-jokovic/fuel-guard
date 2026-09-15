@@ -98,6 +98,9 @@ async function ask(role: string, jobs: JobFixture[] = HEALTHY, opts: { jobsError
       },
       // The per-fill tier is measured by its own stamp on the fills, not by a job row.
       fuel_transactions: [{ samsara_recon_checked_at: minsAgo(5) }],
+      // Nor is the positions tier: it writes no job rows at all, and its stamp is the advance of its
+      // own cursor row (LM4). Absent, every test here would read `positions` as never-arrived.
+      samsara_feed_cursors: { data: [{ updated_at: minsAgo(1) }] },
     },
   });
   holder.client = rec.client;
@@ -129,7 +132,7 @@ describe("GET /api/integrations/samsara/feed-pulse", () => {
     // permission the Dashboard itself does not ask for.
     const { status, body } = await ask("driver");
     expect(status).toBe(200);
-    expect(body.feeds).toHaveLength(8);
+    expect(body.feeds).toHaveLength(9);
   });
 
   it("refuses an unauthenticated caller", async () => {
