@@ -723,17 +723,106 @@ use. **Do not** branch on `session.role` (D-DW6's ⚠) and **do not** merely hid
 tile still fetched the money. The query that reads `total_cost` must not run for a caller who cannot
 see it, or the figures are in the browser's network tab regardless of what is painted.
 
-**Open question this step must settle rather than assume — `Q-LM-F1`.** Which section gates fuel
-*spend*? `finance` is the obvious answer and `fuel` is the tempting one, and they are not the same
-question: a dispatcher plausibly needs fuel **planning** (`dispatch.fuel-planning`, already
-`manage("dispatch")`) without fuel **spend**. Read the live section × role matrix before choosing;
-if the two do not separate cleanly under the current sections, say so and bring the cost back rather
-than inventing a section in this step.
+**`Q-LM-F1` — RULED 2026-09-15, and the answer is "neither section, split the data instead".**
+There is no `finance` section; the sidebar *group* is `finance` and the *section* is `accounting`.
+Read against the live matrix:
+
+| role | `fuel` | `accounting` |
+|---|---|---|
+| admin | manage | manage |
+| **fleet_manager** | **manage** | **none** |
+| **dispatcher** | **view** | none |
+| safety_manager | view | none |
+| auditor | view | view |
+| **accountant** | **view** | manage |
+| technician / driver | none | none |
+
+**`fuel` fails outright** — the dispatcher holds `fuel: view` by design, so gating spend there leaves
+the exact figure the owner wants hidden. **`accounting` overshoots and contradicts a recorded
+ruling**: `fleet_manager` has `accounting: none` deliberately (D-SEP7 — books access "does not ride
+along fleet or dispatch"), and the `accountant` role was granted `fuel: "view"` with the stated
+reason that *"fuel spend IS the largest expense line and accounting surfaces cite it"*. That grant
+only makes sense if spend is reachable under `fuel: view`; moving spend to `accounting` would make it
+pointless. **The sections do not separate fuel volume from fuel cost, because the matrix does not
+model that distinction at all.**
+
+**So the split is per ELEMENT, not per section.** Operational figures stay on `fuel`; money moves
+behind `accounting`:
+
+| Stays on `fuel` (dispatcher keeps) | Moves behind `accounting` |
+|---|---|
+| Fleet avg MPG stat + MPG trend chart | "Fuel spend" stat + its sparkline |
+| Active alerts stat, both risk lists | "Fuel spend" daily chart |
+| **idle HOURS** (`${idleHours} idle hrs`) | "Where fuel dollars go" donut |
+| | the **dollar half** of the Idle waste tile |
+
+The Idle waste tile already carries its own operational twin in its sub-label, so a dispatcher keeps
+*"Idle waste — 412 idle hrs"* and loses the *"$8.2k"*. Same tile, same position, no new section, no
+matrix change, no migration.
+
+**Owner ruling on the side effect, 2026-09-15: option (a).** `fleet_manager` loses the spend figures
+too, because they hold `accounting: none`. That is D-SEP7 working as designed. An org that wants its
+ops lead to see money grants it **per-org** through the sparse section overrides (D-PERM4) rather
+than by widening the shipped matrix for everybody.
 
 **Done when.** A dispatcher session renders the Dashboard with no cost figure **and issues no request
 that returns one** — asserted against the network layer, not against the DOM. An admin session is
 unchanged. `pnpm lint:surfaces` green; the permissions preview page shows the same answer the real
 page does for both roles.
+
+⚠ **What this step does NOT do, measured 2026-09-15 — read before describing it to anyone.**
+`DashboardPage` reads **PostgREST directly from the browser under RLS**, not through our API. The
+governing policy has never been narrowed:
+
+```sql
+-- supabase/migrations/0004_rls.sql:60 — the only definition of ftxn_select, never superseded
+create policy ftxn_select on fuel_transactions
+  for select using (org_id = auth_org_id());
+```
+
+**Any authenticated member of the org can select every column of `fuel_transactions`, including
+`total_cost`, with no section check at all.** So LM-F is a **product boundary, not a security
+boundary**: it stops the dispatcher's browser rendering money and stops it fetching money, which is
+what the owner asked for, and it does not make the figure unreachable to someone who calls PostgREST
+directly. Saying otherwise would be false.
+
+Closing the second half is **LM-F2**, recorded below rather than folded in here, because it is a
+different size of change and pretending otherwise is how a blocker becomes debt nobody can find.
+
+---
+
+### LM-F2 · Make the cost boundary real in the database — **scoped, not scheduled**
+
+**Why it is separate.** LM-F stops the product showing money to a dispatcher. `ftxn_select` still
+lets any org member read `total_cost` straight from PostgREST (see LM-F's ⚠). Until this step, "a
+dispatcher cannot see fuel spend" is true of the product and false of the data.
+
+**Why it is not a one-line fix, stated so nobody scopes it from the sentence above.** Postgres RLS is
+**row**-level. Hiding one *column* from one role needs either column-level `GRANT SELECT (…)` or a
+view that omits it — and `fuel_transactions` is read by the Fuel Log, the Transactions page and the
+reconciliation surfaces, all of which a dispatcher legitimately reaches under `fuel: view`. So the
+blast radius is every browser reader of that table, not the dashboard.
+
+**Three candidate shapes, to be chosen with a measurement rather than a preference:**
+
+1. **Column-level grants** — revoke `total_cost` from the authenticated role and re-grant per
+   section. Narrowest, but PostgREST error behaviour on a denied column is a 400 the callers do not
+   currently handle.
+2. **A cost-free view** for the operational readers, with the base table reserved for
+   `accounting`. Cleanest boundary; renames every call site that currently reads the table.
+3. **Move the dashboard off PostgREST onto an API endpoint** that org-filters and section-filters in
+   the service, which is what D-LM11 already rules for `livemap` and for the same reason. Largest
+   change, and the only one that also fixes `idle_rollup_days` and anything added later.
+
+**Recommendation: (3)**, because it is the direction D-LM11 already commits the newer surfaces to and
+because (1) and (2) both leave the next browser-side reader to rediscover the rule. But it is a
+genuine piece of work and it is **not** part of LM-F.
+
+**Open until ruled — `Q-LM-F2`:** does the owner want the database boundary at all, or is the
+product boundary the actual requirement? Both are legitimate answers. A carrier whose dispatchers are
+employees with org logins may reasonably decide that hiding money in the UI is the whole ask; a
+carrier onboarding outside dispatchers would not. **This question is recorded rather than assumed,
+and LM-F ships either way.**
 
 ---
 
@@ -1353,3 +1442,27 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   New step **LM-T** carries D-DW6's tabs. Execution order for this ask is recorded at the top of §5:
   LM-F → LM2 → LM4 → LM5/LM6 → LM7 → LM8 → LM-T, none of which needs McLeod.
   No code written this session.
+- 2026-09-15 — **`Q-LM-F1` ruled, and LM-F's honest bound found while ruling it.** There is no
+  `finance` section — the sidebar *group* is `finance`, the *section* is `accounting`. Neither
+  candidate works alone: **`fuel` fails outright** because the dispatcher holds `fuel: view` by
+  design, and **`accounting` overshoots** because `fleet_manager` holds `accounting: none`
+  deliberately (D-SEP7) *and* because the `accountant` role was granted `fuel: "view"` on the
+  recorded reasoning that "fuel spend IS the largest expense line" — a grant that only makes sense
+  if spend is readable under `fuel`. **The matrix does not model the volume/cost distinction at
+  all**, so the split is per ELEMENT: MPG, alerts, risk lists and **idle hours** stay on `fuel`; the
+  spend stat, the spend chart, the dollars donut and the **dollar half of the Idle waste tile** move
+  behind `accounting`. The Idle waste tile already carries `${idleHours} idle hrs` as its sub-label,
+  so the dispatcher keeps the operational number and loses only the money — no new section, no
+  matrix change, no migration. Owner ruled **(a)** on the side effect: `fleet_manager` loses the
+  figures too, and an org that wants otherwise grants it per-org through the sparse overrides
+  (D-PERM4) rather than by widening the shipped matrix.
+
+  ⚠ **And the bound, which changes what LM-F may be described as.** `DashboardPage` reads
+  **PostgREST directly under RLS**, and `ftxn_select` (`0004_rls.sql:60`, never superseded) is
+  `using (org_id = auth_org_id())` with **no section check** — so any org member can select
+  `total_cost` directly. LM-F is therefore a **product boundary, not a security boundary**: it stops
+  the browser rendering and fetching money, which is what was asked, and it does not make the figure
+  unreachable. Recorded as new step **LM-F2** with three candidate shapes and a recommendation (move
+  the dashboard onto an API endpoint, the direction D-LM11 already commits newer surfaces to), plus
+  **`Q-LM-F2`** — whether the database boundary is wanted at all, which is a real question rather
+  than an oversight, and which LM-F does not wait on. No code written this session.
