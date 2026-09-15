@@ -1224,3 +1224,90 @@ outstanding ones fails the resumed case.
 
 ⚠ **Merged only after 0340 was applied to production**, per the migration-ordering note on the PR
 before it.
+
+---
+
+**2026-09-14 — the field coordinates for pages 1, 2, 12, 15 and 16, measured by the §8 method.**
+
+`packetFieldGeometry.ts`, the field table's counterpart to `packetMarkGeometry.ts`. Every position was
+established the same way: draw a sample value onto the carrier's own page in colour, `pdftoppm -r 110`,
+**look at it**. Five pages, five loops. Pages 1, 12, 15 and 16 landed on the first pass; page 2 took
+two, because its A/B answers have no ruled line at all.
+
+**What the pages turned out to be:**
+
+| page | what it takes |
+|---|---|
+| **1** | nine standalone rules (date, DOB, position, CDL, phone, three yes/no, heard-from), one name rule and four address/residency rules |
+| **2** | four bordered grids — licences, driving experience, accidents, convictions — plus the A/B licence-history questions |
+| **12** | the identity row, and the employment log |
+| **15** | the release's six-cell footer; the first cell is the signature and stays in the MARK table |
+| **16** | education, military, three training rules, references |
+
+**Three findings that are not coordinates:**
+
+1. ⚠ **The carrier's row counts are not ours.** Page 2's licence grid has **one** row and page 12's
+   employment log has **fifteen**. `renderPacket.ts` drew three into both, because it was drawing its
+   own tables onto blank paper and could add a continuation block. On the carrier's form there is no
+   continuation. Fifteen is what §391.21(b)(10)'s ten years actually needs; one is a real ceiling.
+   **See Q-PKT10.**
+2. ⚠ **Page 2's A and B answers have no rule.** `Yes______` / `No_______` are printed words whose own
+   trailing underscores are the blank. The mark sits on the printed word's baseline, which is a
+   different drawing rule from every other entry, and is recorded as such.
+3. ⚠ **Page 15's `Sent to` has no answer in the contract.** It names the previous employer the release
+   is addressed to, and the packet carries ONE copy of the page. **See Q-PKT11.**
+
+**What the test can and cannot hold still.** Every row, column boundary and standalone rule is
+asserted to exist in `application-11.pdf` at the recorded position. Page 1's `Last / First / Middle`
+and `Street / City / State / Zip` boundaries **cannot be** — they are one space-padded caption run
+over one long rule, with nothing ruled beneath a column — and the test says so in a named case rather
+than omitting them. The page-2 Yes/No entries are pinned to the printed words instead.
+
+**Proved by mutation:** shifting a table row, a column boundary, a standalone field or a Yes/No mark
+by 5pt each fails exactly one test, and a different one each time; cutting the employment log back to
+three rows fails the row-count case; adding an SSN field fails the D-HIRE6 absence case; and making
+`fieldCell` clamp overflow to the last row instead of returning null fails the overflow case.
+
+⚠ **Still not wired into `file.ts`.** This PR is the measurement; DRAWING the values from a
+`DriverApplication` is the next step, and it is the one Q-PKT10 and Q-PKT11 have to be answered for.
+
+### Q-PKT10 — the carrier's tables are shorter than the applicant's history
+
+**OPEN, found 2026-09-14 while measuring the field coordinates. Owner's call.**
+
+The licence grid on page 2 has **one** row; a driver with a second licence has nowhere to put it —
+though §383.21, printed at the top of that very page, says they should not have one. The accident and
+conviction grids have **three** each. The education grid has four, the references grid three. Page
+12's employment log has fifteen, which is generous.
+
+`renderPacket.ts` solved this by drawing a `CONTINUED (n more)` block beneath its own table. The
+overlay cannot: it draws on somebody else's page and there is no room.
+
+- **(a) Fill the rows that exist and append a continuation PAGE** to the 31, carrying the overflow
+  under a heading that says which grid it continues. ⚠ It adds a page the carrier's lawyers did not
+  write, which is the thing D-PKT1 fork (b) was chosen to avoid — but it is additive and nothing on
+  their pages changes. **Recommended.**
+- **(b) Shrink to fit.** Rejected: `fieldCell` already shrinks a value to its column, and stacking two
+  accidents on one ruled line is a document that misrepresents what the driver said.
+- **(c) Truncate, silently.** Rejected on sight — §391.21(b)(10) is a ten-year history and a form that
+  drops the eleventh employer is a false statement the applicant signed.
+
+⚠ `fieldCell` returns **null** for a row the form does not have, so nothing can take (c) by accident.
+The caller must decide, which is the point.
+
+### Q-PKT11 — page 15's `Sent to` names an employer the packet does not know
+
+**OPEN, found 2026-09-14. Owner and counsel.**
+
+The past-employment verification release is addressed: its footer has `Sent to`, beside the applicant's
+signature. But the packet carries **one** copy of page 15, and a driver with four previous employers
+needs the release sent to four of them.
+
+- **(a) Leave it blank** and let the office write the employer in when it sends each copy. What the
+  field table does today. Honest, and it makes the filed PDF an unaddressed template.
+- **(b) Render one copy of page 15 per employer**, each addressed. Faithful to what the page is for,
+  and it changes the packet's page count per applicant.
+- **(c) Print the first employer's name.** Rejected: it would make the other three copies wrong.
+
+⚠ This is the same page whose signature stop (`p15`) the driver already walks, so whichever way it
+goes, the mark and the address are collected at different times by different people.
