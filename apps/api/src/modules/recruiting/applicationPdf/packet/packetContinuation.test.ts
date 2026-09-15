@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { appendContinuationSheet, continuationNoticeFor } from "./packetContinuation.js";
 import { PACKET_TEMPLATE_PATH, pageText, readPacketTemplate } from "./packetTemplate.js";
 import { renderPacketOverlay } from "./packetOverlay.js";
-import type { PacketFieldOverflow } from "./packetFieldValues.js";
+import type { PacketFieldOverflow } from "./packetGrid.js";
 
 /**
  * The continuation sheet (Q-PKT10, answered 2026-09-14).

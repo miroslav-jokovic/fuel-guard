@@ -283,3 +283,111 @@ describe("a payload from before half these fields existed", () => {
     for (const p of r.placed) expect(p.text.trim()).not.toBe("");
   });
 });
+
+/**
+ * D-PKT14 — the filler on page 16's two optional lists.
+ *
+ * ⚠ **What these hold still is WHERE IT STOPS.** That an empty education grid prints `N/A` is the
+ * owner's ruling and is easy; that page 12's employment log and the accident and conviction grids
+ * do NOT is the part a future tidy-up would helpfully "fix", and it is the part that would put a
+ * second assertion on a regulated page beside the declaration the applicant actually ticked.
+ */
+describe("page 16's unused lines (D-PKT14)", () => {
+  const cells = (r: ReturnType<typeof fill>, tableId: string): string[] =>
+    r.placed.filter((p) => p.line.id.startsWith(`${tableId}.r`)).map((p) => p.text);
+
+  const rowsOfTable = (r: ReturnType<typeof fill>, tableId: string): Set<string> =>
+    new Set(
+      r.placed
+        .filter((p) => p.line.id.startsWith(`${tableId}.r`))
+        .map((p) => p.line.id.split(".")[2]!),
+    );
+
+  it("fills every cell of every unused education and reference row", () => {
+    const r = fill({ questionnaire_answers: {} });
+    // Four printed rows × five columns, three printed rows × three columns — the carrier's counts.
+    expect(cells(r, "p16.education")).toEqual(Array(fieldTableRowCount("p16.education") * 5).fill("N/A"));
+    expect(cells(r, "p16.references")).toEqual(Array(fieldTableRowCount("p16.references") * 3).fill("N/A"));
+  });
+
+  it("leaves a used row alone and fills only the rows after it", () => {
+    const r = fill({
+      questionnaire_answers: {
+        references: [{ full_name: "Ivan Kovac", years_known: "6", phone: "(555) 010-2000" }],
+      },
+    });
+    expect(cells(r, "p16.references").slice(0, 3)).toEqual(["Ivan Kovac", "6", "(555) 010-2000"]);
+    // Two rows left, three cells each.
+    expect(cells(r, "p16.references").slice(3)).toEqual(Array(6).fill("N/A"));
+  });
+
+  /**
+   * ⚠ Counted from the number of rows the applicant supplied, not from the last row carrying text.
+   * A reference with a name and no phone is a row they USED, and `N/A` in the phone cell would
+   * contradict the name beside it.
+   */
+  it("does not fill the empty cells of a row the applicant part-filled", () => {
+    const r = fill({
+      questionnaire_answers: { references: [{ full_name: "Ivan Kovac", years_known: "", phone: "" }] },
+    });
+    const firstRow = r.placed.filter((p) => p.line.id.startsWith("p16.references.r0"));
+    expect(firstRow.map((p) => p.text)).toEqual(["Ivan Kovac"]);
+  });
+
+  /**
+   * ⚠ **The case that found the defect, and it is the shape the web form actually produces.**
+   * `emptyReference()` opens the list with one blank row, so an applicant who types into the second
+   * one sends `[blank, filled]`. Neither index rule survives it: counting from `rows.length` prints
+   * row 0 blank, and counting from the rows that carry text writes `N/A` over the name in row 1.
+   * The filler is decided per row for this reason.
+   */
+  it("fills a blank row the applicant skipped, without touching the filled row after it", () => {
+    const r = fill({
+      questionnaire_answers: {
+        references: [
+          { full_name: "", years_known: "", phone: "" },
+          { full_name: "Ivan Kovac", years_known: "6", phone: "(555) 010-2000" },
+        ],
+      },
+    });
+    const row = (n: number) =>
+      r.placed.filter((p) => p.line.id.startsWith(`p16.references.r${n}.`)).map((p) => p.text);
+    expect(row(0)).toEqual(["N/A", "N/A", "N/A"]);
+    expect(row(1)).toEqual(["Ivan Kovac", "6", "(555) 010-2000"]);
+    expect(row(2)).toEqual(["N/A", "N/A", "N/A"]);
+  });
+
+  it("prints no filler when the applicant used every printed row", () => {
+    const refs = Array.from({ length: fieldTableRowCount("p16.references") }, (_, i) => ({
+      full_name: `Referee ${i + 1}`, years_known: "5", phone: "(555) 010-0000",
+    }));
+    const r = fill({ questionnaire_answers: { references: refs } });
+    expect(cells(r, "p16.references")).not.toContain("N/A");
+  });
+
+  /**
+   * ⚠ **The refusal, and the reason this describe block exists.** Every one of these grids answers a
+   * §391.21(b)(7)–(10) question that has its OWN declaration — `declares_no_accidents`,
+   * `declares_no_violations`, `declares_no_employment` — all three of which `BASE` ticks. An empty
+   * grid here is already answered on the paper; `N/A` across it would be a second answer.
+   */
+  it("prints no filler on any regulated grid, even with every one of them empty", () => {
+    const r = fill({ questionnaire_answers: {} });
+    // ⚠ Asserted as "carries no filler" rather than "is empty": `BASE` holds a CDL, so p02's
+    // one-row licence table is legitimately full. Emptiness is a fact about this fixture; the
+    // absence of `N/A` is the fact about the rule.
+    for (const tableId of ["p12.employment", "p02.licences", "p02.accidents", "p02.violations"]) {
+      expect({ tableId, filler: cells(r, tableId).filter((t) => t === "N/A") }).toEqual({
+        tableId,
+        filler: [],
+      });
+    }
+  });
+
+  /** The filler must not invent rows the carrier did not print. */
+  it("never fills past the rows the carrier's form has", () => {
+    const r = fill({ questionnaire_answers: {} });
+    expect(rowsOfTable(r, "p16.education").size).toBe(fieldTableRowCount("p16.education"));
+    expect(rowsOfTable(r, "p16.references").size).toBe(fieldTableRowCount("p16.references"));
+  });
+});

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage } from "pdf-lib";
 import { MARK_BASELINE_LIFT, PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { FIELD_BASELINE_LIFT, fieldTableFor } from "./packetFieldGeometry.js";
-import type { PacketFieldOverflow, PlacedFieldValue } from "./packetFieldValues.js";
+import type { PacketFieldOverflow, PlacedFieldValue } from "./packetGrid.js";
 import { appendContinuationSheet, continuationNoticeFor } from "./packetContinuation.js";
 import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
 

@@ -2,6 +2,12 @@ import type { DriverApplication, EquipmentClass } from "@silvicom/shared";
 import { PACKET_ROW_OF, blank, date, foldedType, yesNo } from "./packetDraw.js";
 import { P1, P2, P12, P16 } from "./packetText.js";
 import {
+  fillGrid,
+  type PacketFieldFill,
+  type PacketFieldOverflow,
+  type PlacedFieldValue,
+} from "./packetGrid.js";
+import {
   PACKET_FIELD_LINES,
   PACKET_MARK_SIDE_LINES,
   PAGE_1_ADDRESS_COLUMNS,
@@ -9,7 +15,6 @@ import {
   PAGE_1_NAME_COLUMNS,
   fieldCell,
   fieldLineFor,
-  fieldTableRowCount,
   type PacketFieldLine,
 } from "./packetFieldGeometry.js";
 
@@ -41,36 +46,6 @@ import {
  * `driver_applications.payload` is historical jsonb, a row filed before a field existed has none of
  * it, and a derivative that throws on an old payload is a qualification file that cannot be produced.
  */
-
-export interface PlacedFieldValue {
-  line: PacketFieldLine;
-  text: string;
-}
-
-/**
- * A grid's leftovers, in that grid's own column order.
- *
- * ⚠ **Carries the carrier's OWN heading and column names, not ours** (Q-PKT10, answered 2026-09-14).
- * The continuation sheet is part of the application the driver certifies, so a reader comparing it
- * against the page it continues has to see the same words: §391.21(a) makes the application "a form
- * furnished by the motor carrier", and a sheet that renamed `DATE CONVICTED` to "Date" would be a
- * different form appended to theirs.
- */
-export interface PacketFieldOverflow {
-  tableId: string;
-  /** The carrier's own heading for the grid, verbatim. */
-  label: string;
-  /** The carrier's own column headings, verbatim and in their order. */
-  columns: readonly string[];
-  /** The carrier's own page number, so the sheet can say which page it continues. */
-  page: number;
-  rows: string[][];
-}
-
-export interface PacketFieldFill {
-  placed: PlacedFieldValue[];
-  overflow: PacketFieldOverflow[];
-}
 
 export interface PacketFieldInput {
   application: DriverApplication;
@@ -119,29 +94,6 @@ const columnLine = (
   source: "seen",
   note: "Page 1 caption-aligned column — measured off the printed caption, not a ruled boundary.",
 });
-
-/** Fill a grid from formatted rows, and hand back whatever the carrier left no room for. */
-function fillGrid(
-  tableId: string,
-  label: string,
-  columns: readonly string[],
-  page: number,
-  rows: string[][],
-  into: PlacedFieldValue[],
-  overflow: PacketFieldOverflow[],
-): void {
-  const capacity = fieldTableRowCount(tableId);
-  rows.slice(0, capacity).forEach((cells, r) => {
-    cells.forEach((raw, c) => {
-      const text = raw.trim();
-      if (!text) return;
-      const line = fieldCell(tableId, r, c);
-      if (line) into.push({ line, text });
-    });
-  });
-  const left = rows.slice(capacity).filter((cells) => cells.some((t) => t.trim()));
-  if (left.length > 0) overflow.push({ tableId, label, columns, page, rows: left });
-}
 
 /**
  * ⚠ **Trim-checked, not truthy-checked.** A questionnaire answer of `"   "` is truthy and would be
@@ -377,6 +329,25 @@ function page15(input: PacketFieldInput, into: PlacedFieldValue[]): void {
   // four previous employers needs it sent to four of them. Q-PKT11, open.
 }
 
+/**
+ * ⚠ **D-PKT14 — what page 16's unused education and reference lines print.**
+ *
+ * The owner's ruling, 2026-09-14: *"leave them optional but in print we should add something like
+ * N/A or something that will fill there so we dont have empty lines printed."* Both lists are
+ * genuinely optional — `questionnaireContract.ts` marks neither `required` — and the first
+ * application ever filed, on 2026-09-14, left both empty, so blank rows are the common case rather
+ * than the exceptional one.
+ *
+ * ⚠ **`N/A` and not a dash or a ruled strike.** The page is read by a DOT auditor and by whoever
+ * files it, and an em-dash on a ruled line is a mark somebody has to interpret. `N/A` is the
+ * answer the carrier's own forms use elsewhere for the same thing.
+ *
+ * ⚠ **It goes to these two grids and nowhere else** — `packetGrid.ts` has the reasoning, and the
+ * short version is that an empty row on a REGULATED grid is already answered by a declaration the
+ * applicant ticked, and filling it would put a second assertion beside the one they made.
+ */
+const PAGE_16_FILLER = "N/A";
+
 function page16(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFieldOverflow[]): void {
   const a = input.application;
   fillGrid(
@@ -393,6 +364,8 @@ function page16(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketF
     ]),
     into,
     over,
+ 
+    PAGE_16_FILLER,
   );
 
   push(into, "p16.military", yesNo(bool(a, "military_service")));
@@ -428,6 +401,8 @@ function page16(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketF
     ]),
     into,
     over,
+ 
+    PAGE_16_FILLER,
   );
 }
 

@@ -1,5 +1,5 @@
 import { StandardFonts, rgb, type PDFDocument, type PDFFont, type PDFPage } from "pdf-lib";
-import type { PacketFieldOverflow } from "./packetFieldValues.js";
+import type { PacketFieldOverflow } from "./packetGrid.js";
 
 /**
  * The continuation sheet — the answers the carrier's own grids had no room for (Q-PKT10).
