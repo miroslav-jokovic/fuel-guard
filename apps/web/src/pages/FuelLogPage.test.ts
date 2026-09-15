@@ -38,7 +38,7 @@ const rows = [
   },
 ];
 
-vi.mock("@/features/fuel/useFuelLog", async (orig) => {
+vi.mock("@/composables/useFuelLog", async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return {
     ...actual,
@@ -53,14 +53,13 @@ vi.mock("@/features/fuel/useFuelLog", async (orig) => {
     useFuelRangeTotals: () => ({
       data: ref({ flagged: 0, clear: 1, totalGallons: 100, totalCost: 400, hasCost: true }),
     }),
-    useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
   };
 });
 
 // Avg MPG comes from `GET /api/fueling/fleet-mpg` since M4, so the tab holds a vue-query call for it.
 // Stubbed for the same reason `useEfsFacets` is: this suite is about a column that is not there, and a
 // live query would make it depend on a network stub with nothing to do with the decision it pins.
-vi.mock("@/features/fuel/useFleetMpg", () => ({
+vi.mock("@/composables/useFleetMpg", () => ({
   useFleetMpg: () => ({ data: ref(undefined) }),
   useFleetMpgSeries: () => ({ data: ref(undefined) }),
 }));
@@ -124,6 +123,9 @@ async function mountPage() {
   return w;
 }
 
+vi.mock("@/features/fuel/useCreateFillUp", () => ({
+  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
+}));
 describe("FuelLogPage — the Trailer column is gone, and stays gone (D-FUI14)", () => {
   it("shows no Trailer column header", async () => {
     const headers = (await mountPage()).findAll("th").map((h) => h.text().trim());

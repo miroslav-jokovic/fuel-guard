@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fuelTileDestinations, FUEL_TILE_LABELS, type FuelTileLabel } from "./dashboardFuelLinks";
+import { fuelTileDestinations, FUEL_TILE_LABELS, type FuelTileLabel } from "@/composables/dashboardFuelLinks";
 
 /**
  * WHY THIS SUITE EXISTS. All five Dashboard fuel tiles linked to a bare `/fuel-log` — the strip asked

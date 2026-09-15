@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { unwrapFleetMpgResponse } from "./useFleetMpg";
+import { unwrapFleetMpgResponse } from "@/composables/useFleetMpg";
 
 const period = { mpg: 6.92, from: "2026-08-10", to: "2026-09-09" };
 

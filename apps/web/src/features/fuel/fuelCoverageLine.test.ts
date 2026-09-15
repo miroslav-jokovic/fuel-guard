@@ -44,11 +44,13 @@ const rangeTotals = ref<Record<string, unknown> | null>({
   fillUps: 1000, fillsWithVehicle: 900, totalMiles: 5, totalGallons: 5, totalCost: 5,
   hasCost: true, flagged: 0, clear: 1000, fleetMpg: 7,
 });
-vi.mock("./useFuelLog", () => ({
+vi.mock("@/composables/useFuelLog", () => ({
   FUEL_PAGE_SIZE: 20,
   useFuelTransactions: () => ({ data: { value: { rows: [], total: 0 } }, isLoading: { value: false }, isError: { value: false }, error: { value: null }, refetch: () => {}, isFetching: { value: false } }),
   useFuelRangeTotals: () => ({ data: rangeTotals }),
-  useCreateFillUp: () => ({ mutateAsync: async () => {}, isPending: { value: false } }),
+}));
+vi.mock("@/features/fuel/useCreateFillUp", () => ({
+  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
 }));
 vi.mock("vue-router", () => ({ useRouter: () => ({ push: () => {} }) }));
 vi.mock("@/composables/useCardAssignments", () => ({

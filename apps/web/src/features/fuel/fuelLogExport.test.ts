@@ -69,7 +69,7 @@ vi.mock("./useEfsData", () => ({
   useEfsFacets: () => ({ data: ref(undefined) }),
   useEfsRowCoverage: () => ({ data: ref(null) }),
 }));
-vi.mock("./useFuelLog", () => ({
+vi.mock("@/composables/useFuelLog", () => ({
   FUEL_PAGE_SIZE: 20,
   useFuelTransactions: () => listOf(),
   useFuelRangeTotals: () => ({ data: ref(null) }),

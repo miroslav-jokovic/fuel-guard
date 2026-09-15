@@ -55,7 +55,7 @@ import FillsTab from "@/features/fuel/FillsTab.vue";
 import DeclinesTab from "@/features/fuel/DeclinesTab.vue";
 import SourceRecordsTab from "@/features/fuel/SourceRecordsTab.vue";
 import { useFuelLogFilters, DEFAULT_FUEL_LOG_TAB, type FuelLogTab } from "@/features/fuel/useFuelLogFilters";
-import { useCreateFillUp } from "@/features/fuel/useFuelLog";
+import { useCreateFillUp } from "@/features/fuel/useCreateFillUp";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

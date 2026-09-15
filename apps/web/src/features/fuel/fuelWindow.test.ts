@@ -53,7 +53,7 @@ vi.mock("@/lib/supabase", () => ({
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ orgId: "org-1" }) }));
 
-import { useFuelTransactions, useFuelRangeTotals, type FuelFilters } from "./useFuelLog";
+import { useFuelTransactions, useFuelRangeTotals, type FuelFilters } from "@/composables/useFuelLog";
 
 async function run(composable: "list" | "totals", filters: FuelFilters) {
   const Host = defineComponent({

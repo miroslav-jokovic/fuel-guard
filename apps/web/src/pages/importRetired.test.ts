@@ -46,11 +46,10 @@ const emptyList = {
   data: ref({ rows: [], total: 0 }),
   isLoading: ref(false), isError: ref(false), error: ref(null), refetch: vi.fn(), isFetching: ref(false),
 };
-vi.mock("@/features/fuel/useFuelLog", () => ({
+vi.mock("@/composables/useFuelLog", () => ({
   FUEL_PAGE_SIZE: 20,
   useFuelTransactions: () => emptyList,
   useFuelRangeTotals: () => ({ data: ref(null) }),
-  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
 }));
 vi.mock("@/features/fuel/useEfsData", () => ({
   EFS_PAGE_SIZE: 20,
@@ -111,6 +110,9 @@ const button = (w: Mounted, label: string) =>
 
 beforeEach(async () => { await asRole("admin"); });
 
+vi.mock("@/features/fuel/useCreateFillUp", () => ({
+  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
+}));
 describe("the EFS backfill moved to the Fuel Log's header (D-FUI3)", () => {
   it("offers it to a role that may manage fuel, and mounts the drawer behind the button", async () => {
     const w = await mountAt(FuelLogPage, "/fuel-log", "Fuel Log");

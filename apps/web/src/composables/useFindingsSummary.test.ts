@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { quarterLabel, ledgerTiles } from "./useFindingsSummary";
+import { quarterLabel, ledgerTiles } from "@/composables/useFindingsSummary";
 
 /**
  * The quarter a recovered figure covers, said on the tile.
