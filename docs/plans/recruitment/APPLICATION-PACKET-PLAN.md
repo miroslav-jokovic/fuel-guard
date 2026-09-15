@@ -807,6 +807,40 @@ New submissions produce the packet; existing filed documents keep rendering as t
    ⚠ **And it cannot be re-derived by searching for "signature":** the packet spells it `signatrure`
    on pages 22, 23 and 24, so a grep misses three pages — which is very likely how 21 was reached.
 
+### Q-PKT9 — a resumed walk asks the driver to reproduce a mark the server has already pinned
+
+**OPEN, found 2026-09-14 while closing Q-PKT8. Not introduced by it — it has been true of the
+signature since #783, and Q-PKT8's fix now makes it true of the initials as well.**
+
+The adoption screen is where the driver types their mark, and a link is a session that survives lost
+signal. So a driver who signed eight places yesterday and comes back today is asked to **type their
+name again** — and `record_packet_mark` pinned the first one (DR035). `Marija Varmeda` yesterday and
+`Marija Varmeda ` today is the same mark after `.trim()`; `M. Varmeda` is not, and the ninth stop is
+refused with *"This packet is already being signed with a different name. Start again if you need to
+change it."* — advice the driver cannot act on, because starting again is not a thing the ceremony
+offers and the packet is half signed.
+
+Nothing has hit it: production holds zero packet marks and the only filed application was signed in
+one sitting. It is a matter of time, though, because resuming is the normal case the session was
+built for.
+
+**The candidates:**
+
+- **(a) Serve the adopted marks back.** `GET /:token` already serves the stops with `signedAt`; it
+  could serve the pinned `signed_name` per kind alongside them, and the adoption screen would show
+  *"You are signing as Marija Varmeda"* with no field to retype. ⚠ It puts a name the token-holder
+  supplied back over the wire to the token-holder — no new disclosure — and it makes "adopted once"
+  visible rather than merely enforced. **Recommended.**
+- **(b) Compare client-side and warn before the first stop.** Cheaper, and wrong: the client would be
+  deciding whether two marks are the same mark, which is the judgement DR035 exists to make.
+- **(c) Let a resumed session re-adopt, replacing the pin.** Rejected on sight — it is the failure
+  DR035 was written for, and it would let a packet come out carrying two signatures on pages meant
+  to carry one person's.
+
+⚠ Whichever way it goes, `needsInitials` already avoids **half** of the problem by deriving from the
+OUTSTANDING stops: a driver with all three initials places collected is not asked for initials at
+all. That is a narrowing, not a fix — a driver with `p09` left still retypes them.
+
 ---
 
 ## 7. What this plan deliberately does not do
@@ -1159,3 +1193,34 @@ invitation links. Adoption and the walk are the next merge, after this is applie
 (DR035); sending the full name at the initials stops fails 4 assertions; deleting the DR035 raise
 fails 6; reverting `packetIsSignedThrough` to `rows[0]` fails the initials-first case; and accepting
 "any row whose name matches the payload" — the plausible wrong fix — fails the wrong-signature case.
+
+---
+
+**2026-09-14 — Q-PKT8 CLOSED, the client half. The ceremony adopts two marks and applies each where
+the paper asks for it.**
+
+`usePacketCeremony` gains `adoptedInitials`, typed and never derived from the name — D-PKT6's
+*"a ceremony that derived them from the typed name would be inventing a mark the signer never made"*
+is now a property of the code rather than a sentence about it. `markFor(stop)` reads the stop's own
+`mark`, which is `PacketPlacement`'s and came off the carrier's paper; nothing in the client
+classifies a page.
+
+- **The field appears only while a stop that takes initials is still outstanding.** Derived from the
+  stops, not from the constant `3` — the inventory has gained an entry mid-array once already (p17,
+  D-PKT12). It also spares a resumed driver from retyping a mark the server has pinned, which is
+  half of **Q-PKT9** (§6, opened by this work and recommending (a)).
+- **One character is a valid set of initials.** `applicationPacketMarkSchema` says `min(1)`, and a
+  client refusing a mononym's single initial would be inventing a rule the contract has not got.
+- **The stop's preview shows the mark that lands there**, not the signature — `applying` reads
+  `markFor` so the screen and the request cannot disagree.
+- **No second drawing pad.** The drawn blob is a staged decoration and `signed_name` is the record on
+  every row (D-APP8), so what the overlay puts on p05 is the typed initials. A pad there would
+  collect an image nothing reads.
+
+**Proved by mutation:** sending the name everywhere (the #783 bug) fails 2; deriving the initials
+from the name's word-initials fails the one test whose fixture shares no letter with the name;
+dropping the adoption gate fails 2; and reading `needsInitials` off all stops rather than the
+outstanding ones fails the resumed case.
+
+⚠ **Merged only after 0340 was applied to production**, per the migration-ordering note on the PR
+before it.

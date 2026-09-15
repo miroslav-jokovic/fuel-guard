@@ -169,6 +169,12 @@ export const APPLY_FLOW_COPY = {
    */
   packet: {
     adoptHeading: "Your signature on the application",
+    /**
+     * ⚠ Said only when a stop that takes initials is still outstanding (Q-PKT8). A driver resuming a
+     * link that already collected `p05`, `p06` and `p09` is asked for a signature and nothing else,
+     * because that is all they have left to give.
+     */
+    adoptHeadingWithInitials: "Your signature and initials on the application",
     adoptIntro: (carrier: string, count: number): string =>
       `${carrier} has approved your application. It now needs your signature in ${count} places on their own form. Give your signature once below — then we take you to each place, one at a time, and show you what you are signing.`,
     styleLabel: "How would you like to sign?",
@@ -176,6 +182,14 @@ export const APPLY_FLOW_COPY = {
     styleDrawn: "Draw my signature",
     adoptLabel: "Type your full name",
     adoptHint: "Type it as it appears on your licence. This is what goes on the form.",
+    /**
+     * ⚠ The hint says what the initials are FOR, not how to make them. The packet asks for initials
+     * on three pages and for a signature on the rest, and a driver told "your initials" without
+     * being told where they go has been asked for a second thing for no visible reason.
+     */
+    initialsLabel: "Type your initials",
+    initialsHint: "Three pages ask for your initials instead of your full name. These go on those three.",
+    initialsNeeded: "Type your initials above to carry on.",
     drawLabel: "Draw your signature",
     drawHint: "Use your finger. This is what goes on the form — your typed name goes on it as well.",
     drawClear: "Clear",
@@ -190,6 +204,8 @@ export const APPLY_FLOW_COPY = {
     /** What is about to be put on the page, so the act is never ambiguous. */
     applyingTyped: "We will put this on the page:",
     applyingDrawn: "We will put your signature on the page:",
+    /** ⚠ A stop taking initials says so here too, not only on its button. */
+    applyingInitials: "We will put your initials on the page:",
     resumed: (n: number): string =>
       n === 1 ? "You have already signed 1 place." : `You have already signed ${n} places.`,
     doneHeading: "That is every place signed",
