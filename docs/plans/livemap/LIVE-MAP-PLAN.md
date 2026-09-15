@@ -85,7 +85,7 @@ for this feature is, in the literal sense, already running.
   COLLECTORS                     CORE STORE                    HARNESS
   ──────────                     ──────────                    ───────
   samsara  ──── positions ────▶  vehicle_positions  ─┐
-          (stats/feed, 30 s)     (1 row per vehicle) │
+          (stats/feed, 5 s)      (1 row per vehicle) │
                                                       ├──▶  livemap  ──▶  web: features/livemap
   mcleod   ──── loads ────────▶  loads / load_stops  │      (API module)      · LiveMapPanel
            (on-prem agent push)  + dispatcher_ext_id  │                       · /live-map page
@@ -120,7 +120,9 @@ citation, so none was renumbered.)*
 
 ### The collector
 
-- **D-LM1 — positions come from the Samsara vehicle-stats cursor feed, at a 30-second tier.**
+- **D-LM1 — positions come from the Samsara vehicle-stats cursor feed, at a 5-second tier.**
+  *(Amended 2026-09-15: was 30 s. See the amendment block at the end of §2 — the vendor's floor is
+  5 s and the owner asked for near-real-time, and the rate cost of the change is 0.4% of the limit.)*
   Not a webhook (none exists, §0.1). Not McLeod's `mc_position` (D-LM2). Not
   `/fleet/vehicles/locations/feed`, which Samsara's own reference deprecates: *"an older API that
   does not combine GPS data with onboard diagnostics. Try our new Vehicle Stats API instead."*
@@ -130,14 +132,16 @@ citation, so none was renumbered.)*
   **The interval is the vendor's own recommendation, not a guess.** Samsara's TMS integration guide
   says to poll this endpoint **every 5–30 seconds** for live tracking, and their Kafka
   documentation states the underlying GPS updates **every 5 seconds while a vehicle is on** — so
-  there is real data underneath a fast poll, not a repeated identical answer. 30s is the
-  conservative end of the vendor's range and is what ships; the env var makes it tunable without a
-  deploy of new code.
+  there is real data underneath a fast poll, not a repeated identical answer. **5 s is the floor of
+  the vendor's own range and is what ships** — their Telematics Sync guide states it as a rule:
+  *"You should not request updates more frequently 5 seconds."* The env var makes it tunable
+  without a deploy of new code.
 
   Rate cost is settled arithmetic: the published limit is **50 requests per second per
   organization**, and a steady-state re-poll of the whole fleet drains in **one page** (measured
-  2026-09-01, 192 vehicles). A 30-second tier therefore runs at **0.033 req/s — 0.067% of the
-  limit**. The seed costs 12 pages, once.
+  2026-09-01, 192 vehicles). A **5-second** tier therefore runs at **0.2 req/s — 0.4% of the
+  limit**. The seed costs 12 pages, once. (At the old 30 s it was 0.033 req/s; neither figure is
+  anywhere near binding, which is why the interval is a product choice and not a budget one.)
 
 - **D-LM1b — `/assets/location-and-speed` is the documented upgrade path, and is deliberately not
   v1.** It is Samsara's purpose-built live-tracking endpoint and it is better on paper: UTC RFC-3339
@@ -300,8 +304,10 @@ citation, so none was renumbered.)*
   **never shipped the animation** — the transport was not what a user could see. No WebSocket, no
   SSE, no Supabase realtime channel is added: the office freshness model in this product is
   polling (`useMessages` polls at 30s and writes down why), and a store refreshed every 30 seconds
-  by D-LM1's tier cannot justify a socket to read it. The map polls at 20s with vue-query and
-  pauses when the tab is hidden — see D-LM9b for how the three intervals add up.
+  by D-LM1's tier cannot justify a socket to read it. The map polls at **5 s** with vue-query and
+  pauses when the tab is hidden — see D-LM9b for how the three intervals add up. *(Amended
+  2026-09-15: was 20 s. With the collector at 5 s, a 20 s browser poll would have been the binding
+  constraint on freshness, and the interpolation would have been easing toward a stale target.)*
 
 - **D-LM9 — the map's vehicle states are `moving | stopped | parked | offline`, and the word
   `idle` is deliberately not among them.** The `idle` module owns an evidence-backed definition of
@@ -314,7 +320,7 @@ citation, so none was renumbered.)*
 
 - **D-LM9b — the freshness bound is stated, added up, and shown.** Three intervals stack:
   the vendor's own GPS ping (**≤5 s while moving**, 5 min when parked), the collector tier
-  (**30 s**), and the browser poll (**20 s**). Worst case a moving truck's dot is **~55 seconds**
+  (**5 s**), and the browser poll (**5 s**). Worst case a moving truck's dot is **~15 seconds**
   behind reality, typical case about half that. That number is the panel's stated bound, it is what
   `offline` is measured against, and it is the figure to re-derive — not re-guess — if any of the
   three intervals changes. A parked truck legitimately reports every 5 minutes, so the bound for
@@ -368,6 +374,82 @@ citation, so none was renumbered.)*
 - **D-DW5 — the live map ships as both a widget and a full page.** `dispatch.live-map` is a real
   surface at `/live-map`, separately grantable, and the dashboard widget links to it. A dispatcher
   works a map full-screen; a fleet manager glances at one. One is not a substitute for the other.
+
+---
+
+### Amendments — 2026-09-15
+
+Six rulings and two vendor-sourced corrections, taken after the owner set the near-term scope
+("dispatch page with a map showing every truck at its real location; admin sees it as a tab"). The
+decisions above are edited in place where a stale *number* would otherwise be implemented; everything
+that changes *shape* is recorded here rather than by rewriting the decision it supersedes.
+
+- **D-LM1d — Samsara's own pagination advice does not hold on this organisation, and our measurement
+  wins.** Their Telematics Sync sample sleeps only when `hasNextPage` is `false`, and the TMS guide
+  warns *"pagination must be drained per poll, or you'll silently lag."* Both assume the flag flips.
+  **It does not here**: re-measured 2026-09-01, twelve pages deep, including on a single-sample page
+  and an immediate re-poll of an idle fleet, `hasNextPage` was **always `true`**. Following the
+  vendor's sample literally hangs a scheduler tick forever. LM4 terminates on an empty page
+  (`feedPageHasData`) with a page cap, exactly as `STATS_FEED_MAX_PAGES` already does. This is
+  written down because a future reader will check the vendor docs, find them to disagree with our
+  code, and "fix" it.
+
+- **D-LM1e — `/assets/location-and-speed/stream` is now a *co-equal* vendor recommendation, not
+  merely an upgrade path, and D-LM1b's ruling survives anyway.** Samsara's TMS GPS guide names it
+  beside `/fleet/vehicles/stats/feed` for the same job. D-LM1b's three reasons to stay on the stats
+  feed for v1 are unchanged — same token scope, 50 req/s against 10, and no second cursor. Two facts
+  added: the stats feed's `types=gps` **does carry `headingDegrees`, `speedMilesPerHour` and
+  `isEcuSpeed`** (confirmed against the vendor's own sample payload), so nothing about marker
+  rotation requires the stream; and **`accuracyMeters` exists only on the stream and Kafka
+  responses**, never on vehicle stats. If GPS jitter turns out to need filtering, that is the reason
+  we move, and it is the only one.
+
+- **D-LM16 — `vehicle_positions` holds the CURRENT fix only. No history, ever.** Owner ruling,
+  2026-09-15: *"We dont need to have history here, Samsara have history."* This confirms LM2's
+  `PK (org_id, vehicle_id)` rather than changing it, and it is recorded as a decision because the
+  shape is a one-way door — a current-only table cannot be given a past retroactively, and the first
+  person to want a breadcrumb trail will propose widening this table. The answer is that the trail
+  lives in Samsara, reachable through `GET /fleet/vehicles/stats/history`, which is also the vendor's
+  own prescribed gap-recovery path. Widening this table is a new decision, not an implementation
+  detail.
+
+- **D-LM17 — trailers are not on the map.** Owner ruling, 2026-09-15. Tractors only. This also drops
+  `/beta/fleet/trailers/stats` from scope, which is just as well: it is a beta path, so its contract
+  is explicitly subject to change. `trailerPairingSync` continues to do its own unrelated job.
+
+- **D-LM18 — v1 draws EVERY truck. "My assigned trucks" waits for McLeod, and that is a sequencing
+  fact, not a gap.** The owner's goal is a dispatcher seeing their own trucks, and that scope comes
+  from `movement.dispatcher_user_id` (100% populated on active movements) resolved through
+  `tms_dispatchers` — i.e. from LM1b/LM3/LM11, all of which wait on a McLeod grant the carrier has
+  not issued (`MCLEOD-COLLECTOR-PLAN.md` MC0, still denied as of 2026-09-15). **The tempting
+  substitute is measured and rejected:** `tractor.dispatcher` agrees with the load's actual
+  dispatcher on only **56%** of the live board, so half of every dispatcher's list would be wrong —
+  worse than showing everything. So the map ships fleet-wide, the scope filter arrives with the
+  McLeod feed, and nothing about the surface has to be restructured when it does.
+
+- **D-DW6 — the Dashboard gets gated TABS, and each tab declares a gate exactly as a widget would.**
+  Owner ruling, 2026-09-15: an admin wants Dashboard with an **Admin** tab and a **Dispatch** tab;
+  a dispatcher wants the dispatch map. This does **not** overturn D-DW1 — there is still one
+  `DashboardPage.vue`, and it still must not branch on `session.role`. A tab is gated the same way a
+  sidebar entry and a route guard already are, which means the three properties D-DW1 was protecting
+  all survive: an org that grants `dispatch` to its safety manager gets the Dispatch tab **free**;
+  the permissions preview page keeps telling the truth about what a role sees; and admin sees every
+  tab by passing every gate rather than by being named in a list. Tabs are a coarser-grained
+  `DASHBOARD_WIDGETS` — LM9's catalogue and LM10's per-user layout remain the finer-grained finish,
+  and are no longer on the critical path for the owner's ask.
+
+  ⚠ The failure this rules out by name: `v-if="session.role === 'admin'"` on a tab. That is
+  `session.canManage` again, it is the worked example in the root `CLAUDE.md`, and it is the one
+  review note that should block this step.
+
+- **D-LM19 — the Dashboard is `gate: ALWAYS` and renders cost today; that is a live exposure and it
+  is fixed FIRST, independently of the map.** Measured 2026-09-15:
+  `{ key: "dashboard", label: "Dashboard", path: "/", group: "top", gate: ALWAYS }` in
+  `surfaces.ts:105`, and `features/dashboard/useDashboard.ts` selects `total_cost` on fuel fills and
+  runs an idle **cost basis**. So every role that can sign in — dispatcher included — lands on a page
+  showing fuel spend and idle cost. This is the owner's stated reason for wanting a separate
+  dispatch surface at all, it is real, and it does not need the map, Samsara or McLeod to fix. It
+  becomes step LM-F and ships alone.
 
 ---
 
@@ -612,6 +694,67 @@ WHERE m.company_id='TMS' AND m.status='P' GROUP BY cd.equipment_type_id;
 ---
 
 ## 5. Steps — each stands alone; execute in order
+
+> **Execution order for the owner's 2026-09-15 ask** ("dispatch page with a map showing every truck
+> at its real location; admin sees it as a tab"), which is a different order from the numbering.
+> The numbering is allocation order and is never renumbered; this is the route through it:
+>
+> **LM-F** (close the cost exposure — stands alone, ships first) → **LM2** (migration) → **LM4**
+> (the 5 s positions tier) → **LM5/LM6** (pure layer + API) → **LM7** (extract `useMapLibre`) →
+> **LM8** (the `/live-map` surface) → **LM-T** (the Dashboard tabs, D-DW6).
+>
+> **None of those seven needs McLeod.** LM0/LM1b/LM3/LM11 — the dispatcher-scope half — stay blocked
+> on the grant (D-LM18), and the map is fleet-wide until they land. LM9/LM10 (the widget catalogue
+> and per-user layout) come off the critical path entirely, superseded for now by LM-T.
+
+---
+
+### LM-F · Stop showing fuel spend and idle cost to every role that can sign in
+
+**Why, measured 2026-09-15 and not recalled.** `surfaces.ts:105` gates the Dashboard `ALWAYS`, and
+`features/dashboard/useDashboard.ts` selects `total_cost` on fuel fills and runs an idle cost basis
+(`useIdleCostBasis`). A dispatcher therefore lands on `/` and reads fuel spend. This is D-LM19, it is
+the owner's actual reason for asking for a dispatch surface, and it needs neither the map nor any
+integration — so it ships on its own, first, and the map work does not inherit it.
+
+**The fix is a gate, not a `v-if` on a role.** The cost-bearing elements move behind a
+`SurfaceGate`, evaluated by the same `session.can(...)` path the sidebar and the route guard already
+use. **Do not** branch on `session.role` (D-DW6's ⚠) and **do not** merely hide the tiles — a hidden
+tile still fetched the money. The query that reads `total_cost` must not run for a caller who cannot
+see it, or the figures are in the browser's network tab regardless of what is painted.
+
+**Open question this step must settle rather than assume — `Q-LM-F1`.** Which section gates fuel
+*spend*? `finance` is the obvious answer and `fuel` is the tempting one, and they are not the same
+question: a dispatcher plausibly needs fuel **planning** (`dispatch.fuel-planning`, already
+`manage("dispatch")`) without fuel **spend**. Read the live section × role matrix before choosing;
+if the two do not separate cleanly under the current sections, say so and bring the cost back rather
+than inventing a section in this step.
+
+**Done when.** A dispatcher session renders the Dashboard with no cost figure **and issues no request
+that returns one** — asserted against the network layer, not against the DOM. An admin session is
+unchanged. `pnpm lint:surfaces` green; the permissions preview page shows the same answer the real
+page does for both roles.
+
+---
+
+### LM-T · The Dashboard's gated tabs (D-DW6)
+
+**What.** `DashboardPage.vue` renders a tab strip whose entries come from a catalogue with the same
+`SurfaceGate` shape `SURFACES` uses — **Admin** and **Dispatch** to begin with. Admin passes both and
+sees both; a dispatcher passes one and sees one; an org that grants `dispatch` to a safety manager
+gets the tab without anybody editing a list.
+
+The Dispatch tab embeds the same `LiveMapPanel` LM8 puts at `/live-map` — D-DW5 stands: the tab is
+the glance, the full page is the work surface, and neither substitutes for the other.
+
+⚠ **The review note that blocks this step:** any `session.role === 'admin'` (or `'dispatcher'`) test
+in the component. The gate is the mechanism; the role is not.
+
+**Done when.** A dispatcher and an admin session each render the correct tab set **derived from the
+matrix**, proven by a test that flips a *section grant* rather than a role and watches the tab set
+change; a single-tab role sees no tab chrome; `pnpm lint:surfaces` green.
+
+---
 
 ### LM0 · A production read-only login scoped to the dispatch tables — owner action, no code
 
@@ -894,15 +1037,15 @@ dispatcher leaves `user_id` untouched; a test proves `is_system` is set for `loa
 The tier reuses `startTier()`, takes **its own cursor row** in `samsara_feed_cursors`
 (`feed = 'vehicle_positions'`, distinct from the existing `vehicle_stats`), and registers with
 `samsaraFeedHealth` so the staleness alarm covers it (D-SAM6). Interval
-`SAMSARA_POSITIONS_SYNC_SECONDS`, default **30** (D-LM1 — the vendor's own recommended range is
-5–30 s). It runs in the `api` service only — every other service from `railway.json` gets
+`SAMSARA_POSITIONS_SYNC_SECONDS`, default **5** (D-LM1 — the vendor's floor, and the bottom of
+their recommended 5–30 s range). It runs in the `api` service only — every other service from `railway.json` gets
 `RUN_SCHEDULERS_IN_PROCESS=false` before its first deploy, and no gate can see a Railway variable
 (`docs/WORKER-DEPLOYMENT.md`).
 
 **Two failure modes this step must not reproduce, both already paid for:**
 
 - **Separate cursor rows are not optional.** Two tiers reading one feed need two cursors. Sharing
-  one would let the 30-second positions tier consume the deltas the 20-minute stats tier needs, and
+  one would let the 5-second positions tier consume the deltas the 20-minute stats tier needs, and
   the loss would be *silent* — fuel-drop detection would simply stop seeing intermediate samples.
 - **`hasNextPage` is always `true`** on a delta feed (re-measured 2026-09-01, twelve pages deep,
   including on a single-sample page and an immediate re-poll of an idle fleet). It means "this
@@ -975,7 +1118,7 @@ workaround with a delay fuse.
 ### LM8 · `LiveMapPanel.vue` and the `/live-map` surface
 
 GeoJSON source + symbol layer (D-LM7), `icon-rotate` from `heading_degrees`, colour by a `match` on
-state. `requestAnimationFrame` interpolation between 20s polls, paused on hidden tab. Per-truck
+state. `requestAnimationFrame` interpolation between 5 s polls, paused on hidden tab. Per-truck
 staleness (D-LM10). Filters: dispatcher, state, load status. Click → the load, the truck, the driver.
 
 **Clustering is available but off by default at this fleet size.** A dispatcher wants to see each of
@@ -1173,3 +1316,40 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   gains `VIEW CHANGE TRACKING`; LM1 defers its change detection to MC1/MC2. `continuity`, the one
   table this plan needs that CT does not cover, is handled by a 420-row re-read rather than an
   ALTER on production.
+- 2026-09-15 — **scope set by the owner, vendor guidance re-read at source, and one live exposure
+  found.** Six rulings recorded as the amendment block at the end of §2, and the interval figures
+  edited in place in D-LM1 / D-LM8 / D-LM9b / LM4 / LM8 rather than left for a reader to reconcile.
+
+  **From Samsara's own documentation** (TMS GPS tracking guide + Telematics Sync guide, read
+  2026-09-15, not recalled): the recommended live-tracking cadence is **5–30 s**, and the floor is a
+  stated rule — *"You should not request updates more frequently 5 seconds."* **D-LM1 drops from 30 s
+  to 5 s**, which costs 0.2 req/s against a 50 req/s per-org limit — **0.4%**. D-LM8's browser poll
+  drops 20 s → 5 s for the same reason: at a 5 s collector, a 20 s poll was the binding constraint
+  and the interpolation would have eased toward a stale target. **D-LM9b's stated bound therefore
+  goes from ~55 s to ~15 s** worst case for a moving truck. Two corrections fell out: the stats feed's
+  `types=gps` **does** carry `headingDegrees`, `speedMilesPerHour` and `isEcuSpeed`, so nothing about
+  marker rotation needs a second integration (D-LM1e); and `accuracyMeters` exists **only** on
+  `/assets/location-and-speed/stream` and Kafka, which is now the sole reason to move. ⚠ **Samsara's
+  own pagination advice is wrong for this org** — their sample drains while `hasNextPage` is true,
+  and ours is *always* true (re-measured 2026-09-01, twelve pages deep). D-LM1d writes that down so a
+  future reader does not "fix" our code to match their docs and hang the tick.
+  **Samsara documents nothing about map smoothing or interpolation** — searched for it specifically.
+  D-LM8's animation is our design, not a copied spec.
+
+  **Owner rulings:** no position history — Samsara holds it, so `vehicle_positions` stays
+  current-only and LM2's PK is confirmed rather than changed (D-LM16); no trailers on the map
+  (D-LM17); the map draws **every** truck in v1, with "my assigned trucks" sequenced behind the
+  McLeod grant, because the available substitute `tractor.dispatcher` matches the real dispatcher on
+  only **56%** of the live board (D-LM18); and the Dashboard gets **gated tabs**, Admin and Dispatch,
+  rather than a second dashboard page (D-DW6 — one `DashboardPage.vue`, no `session.role` branch, so
+  D-DW1 survives intact and LM9/LM10 come off the critical path).
+
+  ⚠ **Found while checking whether the owner's concern was real: it is, and it is live.** The
+  Dashboard is `gate: ALWAYS` (`surfaces.ts:105`) and `useDashboard.ts` selects `total_cost` on fuel
+  fills and runs an idle cost basis — so **every role that can sign in, dispatcher included, lands on
+  a page showing fuel spend and idle cost**. That is D-LM19 and new step **LM-F**, which ships alone
+  and first because it needs neither the map nor any integration. Its one open question, `Q-LM-F1`,
+  is which section owns fuel *spend*, given a dispatcher plausibly needs fuel *planning* without it.
+  New step **LM-T** carries D-DW6's tabs. Execution order for this ask is recorded at the top of §5:
+  LM-F → LM2 → LM4 → LM5/LM6 → LM7 → LM8 → LM-T, none of which needs McLeod.
+  No code written this session.
