@@ -2238,6 +2238,16 @@ async function main() {
       // constraint that exists to stop a month landing in year zero.
       samsara_ifta_fetches: (org) =>
         `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
+      // 0341: `(vehicle_id, org_id) references vehicles (id, org_id)` — a COMPOSITE FK, which the
+      // generic synthesiser cannot follow (it reads single-column foreign keys only), so it invents a
+      // vehicle id belonging to nobody and the insert fails. Same shape, and the same reason, as the
+      // ifta seed directly below and the membership-scoped ones above: hand it a real parent rather
+      // than weaken the constraint to suit the harness. The composite key is the guarantee that a
+      // position can never name another org's truck.
+      vehicle_positions: (org) =>
+        `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-pos', 150) returning id) ` +
+        `insert into vehicle_positions (org_id, vehicle_id, lat, lng, sampled_at) ` +
+        `select '${org}', id, 44.5, -88.0, now() from v`,
       samsara_ifta_jurisdiction_miles: (org) =>
         `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ifta', 240) returning id) ` +
         `insert into samsara_ifta_jurisdiction_miles ` +
