@@ -14,7 +14,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 import { apiFetch } from "@/lib/api";
-import { compressToWebp } from "./imageCompress";
+import { compressToWebp } from "@/features/fuel/imageCompress";
 
 // Note: payment_method (migration 0067) is intentionally NOT selected here — it isn't shown in the table,
 // and selecting a not-yet-migrated column would break the whole read path. It's written on insert only.

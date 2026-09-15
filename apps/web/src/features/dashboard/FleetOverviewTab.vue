@@ -6,6 +6,17 @@
  * dashboard a caller gets from their section grants; this file is one of them, and the split is what
  * let the page stop being 501 lines of every role's dashboard at once.
  *
+ * ⚠ **Its data sources were PROMOTED out of `features/fuel/` to get here, and that was the ruled
+ * fix rather than my first choice.** `lint:boundaries` refuses one feature reaching into another's
+ * internals, and this tab needs fuel totals, fleet MPG, findings and the dashboard's fuel links. Two
+ * wrong answers were tried first: putting this file under `pages/` (which `lint:ui-adoption` rejects,
+ * because everything under `pages/` is a ROUTED page and must carry a `PageHeader`), and the gate's
+ * own ALLOW list — which `check-feature-boundaries.mjs` keeps deliberately EMPTY for web, with a
+ * comment recording that the intended fix for every entry that tries to land there is to promote the
+ * shared thing out of `features/`, not to allow-list the leak. So the four modules now live in
+ * `@/composables/`, which is where `apps/web/CLAUDE.md` says shared code goes. `dashboardFuelLinks`
+ * was the tell: it was named for this screen and used only by it, while living in the fuel feature.
+ *
  * ⚠ Every currency figure on this tab passes through `applyMoneyGate` against
  * `session.canView("accounting")`. The tab itself is gated on `fuel`, deliberately — `fleet_manager`
  * holds `accounting: none`, so gating the whole tab on money would take their own main screen away
@@ -32,10 +43,10 @@ import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import type { ChartConfiguration } from "chart.js";
 import { useDashboard } from "@/features/dashboard/useDashboard";
-import { useFuelRangeTotals, type FuelFilters } from "@/features/fuel/useFuelLog";
-import { useFleetMpgSeries } from "@/features/fuel/useFleetMpg";
-import { fuelTileDestinations } from "@/features/fuel/dashboardFuelLinks";
-import { useFindingsSummaryQuery, ledgerTiles } from "@/features/fuel/useFindingsSummary";
+import { useFuelRangeTotals, type FuelFilters } from "@/composables/useFuelLog";
+import { useFleetMpgSeries } from "@/composables/useFleetMpg";
+import { fuelTileDestinations } from "@/composables/dashboardFuelLinks";
+import { useFindingsSummaryQuery, ledgerTiles } from "@/composables/useFindingsSummary";
 import { useSessionStore } from "@/stores/session";
 import { applyMoneyGate } from "@/features/dashboard/moneyGate";
 import BaseChart from "@/components/BaseChart.vue";

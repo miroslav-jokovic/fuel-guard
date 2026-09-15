@@ -80,7 +80,7 @@ vi.mock("@/lib/supabase", () => ({
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ orgId: "org-1" }) }));
 
 import { MPG_PLAUSIBLE_MIN, MPG_PLAUSIBLE_MAX } from "@silvicom/shared";
-import { useFuelRangeTotals, type FuelFilters } from "./useFuelLog";
+import { useFuelRangeTotals, type FuelFilters } from "@/composables/useFuelLog";
 
 async function totals(filters: FuelFilters = {}) {
   let out: unknown;

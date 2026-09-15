@@ -46,7 +46,7 @@ const emptyList = {
   data: ref({ rows: [], total: 0 }),
   isLoading: ref(false), isError: ref(false), error: ref(null), refetch: vi.fn(), isFetching: ref(false),
 };
-vi.mock("@/features/fuel/useFuelLog", () => ({
+vi.mock("@/composables/useFuelLog", () => ({
   FUEL_PAGE_SIZE: 20,
   useFuelTransactions: () => emptyList,
   useFuelRangeTotals: () => ({ data: ref(null) }),

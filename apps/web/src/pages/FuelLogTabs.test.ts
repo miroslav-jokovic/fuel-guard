@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { ref } from "vue";
 import type { EfsFilters } from "@/features/fuel/useEfsData";
-import type { FuelFilters } from "@/features/fuel/useFuelLog";
+import type { FuelFilters } from "@/composables/useFuelLog";
 
 /**
  * FUEL-C2 — the Fuel Log absorbs Transactions and Rejections, and nothing is lost in the merge.
@@ -82,7 +82,7 @@ vi.mock("@/features/fuel/useEfsData", () => ({
   useEfsFacets: () => ({ data: ref(undefined) }),
   useEfsRowCoverage: () => ({ data: ref(null) }),
 }));
-vi.mock("@/features/fuel/useFuelLog", () => ({
+vi.mock("@/composables/useFuelLog", () => ({
   FUEL_PAGE_SIZE: 20,
   useFuelTransactions: (f: { value: FuelFilters }) => {
     seen.fuel = f;

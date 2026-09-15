@@ -38,7 +38,7 @@ const rows = [
   },
 ];
 
-vi.mock("@/features/fuel/useFuelLog", async (orig) => {
+vi.mock("@/composables/useFuelLog", async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return {
     ...actual,
@@ -60,7 +60,7 @@ vi.mock("@/features/fuel/useFuelLog", async (orig) => {
 // Avg MPG comes from `GET /api/fueling/fleet-mpg` since M4, so the tab holds a vue-query call for it.
 // Stubbed for the same reason `useEfsFacets` is: this suite is about a column that is not there, and a
 // live query would make it depend on a network stub with nothing to do with the decision it pins.
-vi.mock("@/features/fuel/useFleetMpg", () => ({
+vi.mock("@/composables/useFleetMpg", () => ({
   useFleetMpg: () => ({ data: ref(undefined) }),
   useFleetMpgSeries: () => ({ data: ref(undefined) }),
 }));
