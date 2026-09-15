@@ -1,5 +1,17 @@
 # Checklist — from here to drivers actually using it
 
+> ⚠ **SUPERSEDED 2026-09-15 by `HANDOFF-2026-09-15.md` for the QUEUE.** Its method — one item at a
+> time, each with a checkable done-when — is still right, and its measurements of Brevo's event log,
+> the two-invitations-per-driver trap and the unrecoverable token are still the record. **Three of
+> its items are stale:** A2 went green on 2026-09-14 (an application has been filed), A4 is done, and
+> C3's "26 of 31 pages" is complete — the packet renders end to end and is wired into `file.ts`.
+>
+> ⚠ Its rule *"do not start B, C or D before A2 is green"* is also gone, and for a reason worth
+> carrying: A2 was blocked because the only live link sat unrecoverable in a mailbox. It never
+> needed email — `applicationInvites.ts:222` returns the link in the create response. A self-walk
+> with a test driver was available the whole time.
+
+
 **One item at a time, in this order.** Each has a done-when that is checkable, because "looks
 right" is how the last four defects in this feature reached production.
 
