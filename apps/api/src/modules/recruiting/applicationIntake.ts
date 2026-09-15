@@ -331,10 +331,10 @@ export async function packetIsSignedThrough(
 ): Promise<IntakeError | null> {
   const { data } = await admin
     .from("application_packet_marks")
-    .select("placement_id, signed_name")
+    .select("placement_id, mark, signed_name")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId);
-  const rows = (data ?? []) as Array<{ placement_id: string; signed_name: string }>;
+  const rows = (data ?? []) as Array<{ placement_id: string; mark: string; signed_name: string }>;
 
   // ⚠ DISTINCT placements, not rows. The unique index makes a duplicate impossible today; counting
   // rows would still be the wrong question, because what has to be true is that every PLACE carries
@@ -344,8 +344,19 @@ export async function packetIsSignedThrough(
   if (missing.length > 0) return PACKET_NOT_SIGNED;
   if (marked.size < packetDriverMarkCount()) return PACKET_NOT_SIGNED;
 
-  // The mark the driver adopted, which `record_packet_mark` has already pinned to one value per link.
-  const adopted = rows[0]?.signed_name?.trim();
+  /**
+   * The SIGNATURE the driver adopted, which `record_packet_mark` has pinned to one value per link
+   * per kind since 0340.
+   *
+   * ⚠ **`mark === "signature"`, and the filter is the whole point (Q-PKT8).** There are two adopted
+   * marks, not one: `p05`, `p06` and `p09` take initials, which D-PKT6 calls *"a SECOND adopted mark
+   * and not an abbreviation of the first"*. §391.21(b)(12)'s `signed_name` is the applicant's
+   * signature, so a comparison that happened to land on an initials row would refuse a packet that
+   * was signed through correctly — and which row `rows[0]` is, is PostgREST's choice, so it would
+   * refuse intermittently. The three initials rows are evidence of the same ceremony; they are just
+   * not the name the filed application is signed with.
+   */
+  const adopted = rows.find((r) => r.mark === "signature")?.signed_name?.trim();
   if (!adopted || adopted !== signedName.trim()) return PACKET_NAME_MISMATCH;
   return null;
 }

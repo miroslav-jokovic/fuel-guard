@@ -1,4 +1,5 @@
-// Silvicom 360 — packet signing matrix (migration 0339, APPLICATION-PACKET-PLAN P5 / D-PKT6).
+// Silvicom 360 — packet signing matrix (migrations 0339 and 0340, APPLICATION-PACKET-PLAN P5 /
+// D-PKT6).
 //
 // The owner's flow ends with the driver being walked to every place the carrier's lawyers drew a
 // line: *"the driver needs to be navigated precisely from place to place and sign all places."*
@@ -11,7 +12,9 @@
 //   · nothing can be signed before the office approves, or after the application is filed —
 //     the window D-AX11 opened when it split the signing (0336), because six of these stops are
 //     certifications that the answers are true and the office may still be correcting them
-//   · one adopted mark: the first row fixes the name and a later stop disagreeing is refused
+//   · TWO adopted marks (D-PKT6): the first `signature` row fixes the signature and the first
+//     `initials` row fixes the initials, each refusing a later stop of its own kind that disagrees —
+//     and NEITHER refusing the other, which is the whole of 0340 (Q-PKT8)
 //   · no phase column is stamped, because "complete" is a count against the TypeScript array
 //
 // Applies EVERY migration, same as rls.test.mjs.
@@ -149,7 +152,14 @@ const STOPS = [
   ["p31b", 31, "signature", "Signature | Date", "The owner-operator and leased-driver agreement, as the owner-operator"],
 ];
 
-const mark = (invitation, stop, name = "Marija Varmeda", expected = STOPS.length) =>
+// ⚠ The driver adopts TWO marks, not one (D-PKT6), and which one a stop takes is the stop's own
+// `mark` kind — never anything derived from the other. `MV` is not an abbreviation the ceremony
+// computed; it is a second thing the driver typed.
+const SIGNATURE = "Marija Varmeda";
+const INITIALS = "MV";
+const markFor = (stop) => (stop[2] === "initials" ? INITIALS : SIGNATURE);
+
+const mark = (invitation, stop, name = markFor(stop), expected = STOPS.length) =>
   db.query(
     `select public.record_packet_mark($1,$2,$3,$4,$5,$6,$7,$8,'203.0.113.9','UA',$9) as r`,
     [ORG, invitation, stop[0], stop[1], stop[2], stop[3], stop[4], name, expected],
@@ -170,6 +180,9 @@ ok("an unapproved packet refuses every stop (DR032)", tooSoon?.code === "DR032",
 ok("and nothing was written", (await count(`select count(*)::int as n from application_packet_marks where invitation_id = $1`, [EARLY])) === 0);
 
 // ── the walk itself ────────────────────────────────────────────────────────────────────────────
+// ⚠ This loop is itself the regression test for Q-PKT8. It sends the initials at p05, the fifth
+// stop, having sent the signature at the four before it — and under 0339's pin that raised DR035 and
+// threw out of the matrix here. Twenty-two stops completing in one pass is 0340's whole claim.
 const INV = await invite("marija");
 await approve(INV);
 const results = [];
@@ -203,7 +216,18 @@ ok("and the sentence the driver was shown", new Set(rows.map((r) => r.affirmed))
 // Postgres renders it `203.0.113.9`, so the cast would assert a difference between the two
 // engines rather than anything about the signature.
 ok("with the attribution every signature in this product carries", rows.every((r) => r.ip === "203.0.113.9" && r.signed_user_agent === "UA"));
-ok("all carrying the one adopted mark", new Set(rows.map((r) => r.signed_name)).size === 1);
+// ⚠ TWO adopted marks, applied by kind — and the three that take initials are the three narrowest
+// lines in the packet (89–141pt), which is where a full name drawn by the overlay had nowhere to go.
+ok(
+  "every signature line carries the adopted signature",
+  rows.filter((r) => r.mark === "signature").every((r) => r.signed_name === SIGNATURE),
+);
+ok(
+  "and every initials line the adopted initials, which are not derived from it",
+  rows.filter((r) => r.mark === "initials").length === 3
+    && rows.filter((r) => r.mark === "initials").every((r) => r.signed_name === INITIALS),
+);
+ok("so the packet carries exactly two marks, not one and not twenty-two", new Set(rows.map((r) => r.signed_name)).size === 2);
 
 // ⚠ Page 19's two stops are identical in every field but the id, because the carrier's page really
 // does carry its heading and its signature line twice. Nothing else could tell them apart.
@@ -215,15 +239,42 @@ const twice = await raised(() => mark(INV, STOPS[0]));
 ok("the same stop cannot be marked twice on one link (DR034)", twice?.code === "DR034", String(twice?.code));
 ok("and nothing was added", (await count(`select count(*)::int as n from application_packet_marks where invitation_id = $1`, [INV])) === 22);
 
-// ── one adopted mark, enforced where a second tab meets it ─────────────────────────────────────
+// ── two adopted marks, each enforced where a second tab meets it ───────────────────────────────
+// ⚠ The pin is per (invitation, mark kind) since 0340. Both halves matter and they pull opposite
+// ways: it must still refuse a second SIGNATURE as hard as 0339 did, and it must stop reading the
+// driver's initials as one.
 const PAIR = await invite("pair");
 await approve(PAIR);
 await mark(PAIR, STOPS[0]);
 const renamed = await raised(() => mark(PAIR, STOPS[1], "M. Varmeda"));
-ok("a second name on the same packet is refused (DR035)", renamed?.code === "DR035", String(renamed?.code));
+ok("a second signature on the same packet is refused (DR035)", renamed?.code === "DR035", String(renamed?.code));
 ok("leaving the first mark alone", (await count(`select count(*)::int as n from application_packet_marks where invitation_id = $1`, [PAIR])) === 1);
 const sameName = await raised(() => mark(PAIR, STOPS[1]));
-ok("while the adopted name carries on being accepted", sameName === null, String(sameName?.code));
+ok("while the adopted signature carries on being accepted", sameName === null, String(sameName?.code));
+
+// ⚠ Q-PKT8, at the stop that used to fail: p05 takes initials, and they differ from the signature
+// pinned two stops ago by every character. 0339 raised DR035 here.
+ok("the stop below is the initials one it claims to be", STOPS[2][0] === "p05" && STOPS[2][2] === "initials");
+const firstInitials = await raised(() => mark(PAIR, STOPS[2]));
+ok("initials are NOT read as a second signature (Q-PKT8)", firstInitials === null, String(firstInitials?.code));
+ok(
+  "and they are filed as themselves rather than as the name",
+  (await one(`select signed_name from application_packet_marks where invitation_id = $1 and placement_id = 'p05'`, [PAIR])).signed_name === INITIALS,
+);
+
+// ...and the initials are adopted ONCE in their own right, which is the half that would be lost by
+// simply dropping DR035.
+const reinitialled = await raised(() => mark(PAIR, STOPS[3], "MJV"));
+ok("a second set of initials on the same packet is refused (DR035)", reinitialled?.code === "DR035", String(reinitialled?.code));
+const sameInitials = await raised(() => mark(PAIR, STOPS[3]));
+ok("while the adopted initials carry on being accepted", sameInitials === null, String(sameInitials?.code));
+ok(
+  "so the link holds one signature and one set of initials, and no third mark",
+  (await count(
+    `select count(distinct signed_name)::int as n from application_packet_marks where invitation_id = $1`,
+    [PAIR],
+  )) === 2,
+);
 
 // ── and nothing is signable once the application is filed ──────────────────────────────────────
 const FILED = await invite("filed");

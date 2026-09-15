@@ -94,6 +94,11 @@ export type ApplicationRelease = z.infer<typeof applicationReleaseSchema>;
  * name, and `record_packet_mark` refuses any later one that disagrees. "Adopted once" is then a fact
  * about the filed document rather than a promise about the UI, which is what the owner asked for
  * when he said the driver signs once and is directed to each place.
+ *
+ * ⚠ **Per KIND since 0340, because there are two adopted marks and not one** (Q-PKT8, D-PKT6).
+ * `p05`, `p06` and `p09` take initials, which are *"a SECOND adopted mark and not an abbreviation of
+ * the first"* — so the pin reads the first row of the kind being filed. Under 0339 it read the first
+ * row of any kind, and a client correctly sending initials was refused at its third stop.
  */
 export const applicationPacketMarkSchema = z.object({
   placement_id: z.string().min(1).max(20),

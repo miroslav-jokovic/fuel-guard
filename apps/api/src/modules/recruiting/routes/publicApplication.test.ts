@@ -13,6 +13,7 @@ import {
   ESIGN_CONSENT,
   esignConsentBody,
   driverPlacementIds,
+  packetPlacementById,
 } from "@silvicom/shared";
 import { packetWording } from "../packetWording.js";
 import { PSP_DISCLOSURE_TITLE, PSP_MANDATED_INTENT, missingPspParagraphs, pspDisclosure } from "../pspDisclosure.js";
@@ -116,6 +117,21 @@ const publishAll = (): void => {
   vi.spyOn(ESIGN_CONSENT, "version", "get").mockReturnValue("v1");
 };
 
+/**
+ * A packet signed through, as the database holds one.
+ *
+ * ⚠ **Every row carries its placement's `mark`, and the three that take initials carry initials**
+ * (Q-PKT8, 0340). `packetIsSignedThrough` reads the first `signature` row to find the name the form
+ * was signed with; a fixture that omitted the column looked to it like a packet with no signature on
+ * it at all, and a fixture that put the full name on `p05` would agree with a gate that could not
+ * tell D-PKT6's two adopted marks apart.
+ */
+const signedPacket = (name = "Susan Godfrey", initials = "SG") =>
+  driverPlacementIds().map((placement_id) => {
+    const mark = packetPlacementById(placement_id)?.mark ?? "signature";
+    return { placement_id, mark, signed_name: mark === "initials" ? initials : name };
+  });
+
 const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
@@ -147,10 +163,7 @@ const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
        * they were signed with — so the default link is one whose packet is complete, the way it is
        * already one the office has approved. A test ABOUT that gate overrides this.
        */
-      application_packet_marks: driverPlacementIds().map((placement_id) => ({
-        placement_id,
-        signed_name: "Susan Godfrey",
-      })),
+      application_packet_marks: signedPacket(),
     },
     rpc: {
       submit_driver_application: { application_id: "app-1" },
@@ -1038,10 +1051,7 @@ describe("what the applicant is served once the carrier has published", () => {
         }],
         application_drafts: [],
         // D-PKT15: submitting needs the carrier's form signed through, which this test is not about.
-        application_packet_marks: driverPlacementIds().map((placement_id) => ({
-          placement_id,
-          signed_name: "Susan Godfrey",
-        })),
+        application_packet_marks: signedPacket(),
       },
       rpc: { submit_driver_application: { application_id: "app-1" } },
     }).client;

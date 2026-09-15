@@ -4,6 +4,7 @@ import {
   DISCLOSURES,
   ESIGN_CONSENT,
   driverPlacementIds,
+  packetPlacementById,
 } from "@silvicom/shared";
 import { loadEnv } from "../../env.js";
 import { createSupabaseRecorder } from "../../testing/supabaseRecorder.js";
@@ -99,12 +100,21 @@ const submittableInvitation = (over: Record<string, unknown> = {}) =>
  *
  * Built from `driverPlacements()` rather than hand-listed: a fixture that named its own stops would
  * keep passing after the inventory changed, which is the one thing this gate must not do.
+ *
+ * ⚠ **Each row carries the KIND its placement asks for, and the initials are their own string**
+ * (Q-PKT8, 0340). `p05`, `p06` and `p09` take initials, which D-PKT6 calls a second adopted mark
+ * rather than an abbreviation of the first — so a fixture that put the full name on all twenty-two
+ * would agree with a gate that could not tell the two apart.
  */
 const signedPacket = (
   name = "Susan Godfrey",
   ids: string[] = driverPlacementIds(),
-): Array<{ placement_id: string; signed_name: string }> =>
-  ids.map((placement_id) => ({ placement_id, signed_name: name }));
+  initials = "SG",
+): Array<{ placement_id: string; mark: string; signed_name: string }> =>
+  ids.map((placement_id) => {
+    const mark = packetPlacementById(placement_id)?.mark ?? "signature";
+    return { placement_id, mark, signed_name: mark === "initials" ? initials : name };
+  });
 
 const seed = (
   inv: Record<string, unknown> | null = invitation(),
@@ -427,6 +437,44 @@ describe("the carrier's form has to be signed through", () => {
     const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }));
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
+  });
+
+  /**
+   * ⚠ **The three sets of initials are not the signature, and must not be mistaken for it (Q-PKT8).**
+   *
+   * This gate compares the payload's `signed_name` against the mark on the paper, and it used to
+   * take whichever row came back first. `p05`, `p06` and `p09` carry initials — a second adopted
+   * mark, not an abbreviation (D-PKT6) — so the row it landed on decided the answer, and which row
+   * that is, is PostgREST's choice rather than ours. The fixture below puts an initials row FIRST,
+   * which is the arrangement that refuses a correctly signed packet.
+   */
+  it("files a packet whose initials differ from the signature, whichever row comes back first", async () => {
+    const ids = driverPlacementIds();
+    const initialsFirst = [
+      ...ids.filter((id) => packetPlacementById(id)?.mark === "initials"),
+      ...ids.filter((id) => packetPlacementById(id)?.mark !== "initials"),
+    ];
+    const packet = signedPacket("Susan Godfrey", initialsFirst, "SG");
+    expect(packet[0]!.mark).toBe("initials");
+    expect(packet[0]!.signed_name).toBe("SG");
+
+    const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), packet);
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result)).toBe(false);
+  });
+
+  /**
+   * ⚠ The other half of the same filter, so it is not passing because the name check went away. A
+   * packet whose SIGNATURE rows disagree with the payload is still refused, however agreeable its
+   * initials are.
+   */
+  it("still refuses a wrong signature even when the initials would have matched", async () => {
+    const rec = seed(
+      invitation({ approved_at: "2026-09-11T09:00:00Z" }),
+      signedPacket("S. Godfrey", driverPlacementIds(), "Susan Godfrey"),
+    );
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("packet_name_mismatch");
   });
 
   it("scopes the packet read to the org the token resolved to", async () => {
