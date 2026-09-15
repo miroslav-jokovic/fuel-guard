@@ -188,3 +188,20 @@ graphify-out/
 
 # Backup graphify's installer left behind when it added its hooks to .claude/settings.json.
 .claude/settings.json.graphify-bak
+
+# Generated per-machine by the claude-mem plugin for OTHER AI assistants — Roo, Windsurf, Warp and
+# Copilot each get the same `<claude-mem-context>` block written into their own rules file.
+#
+# ⚠ Ignored rather than committed for two reasons, and the first is disqualifying on its own:
+# `.roo/mcp.json` holds ABSOLUTE MACHINE PATHS (`/opt/homebrew/Cellar/node/<version>/bin/node`, a
+# path under `$HOME`), so a committed copy is broken for every other clone and for CI the moment
+# anybody upgrades node. The second is that the files carry no shared content — all four say
+# "*No context yet*", because the context they wrap is per-developer session memory that lives
+# outside the repo by design.
+#
+# Same category as the Claude Code artifacts ignored in #796; kept separate so the reason stays
+# readable.
+.roo/
+.windsurf/
+WARP.md
+.github/copilot-instructions.md
