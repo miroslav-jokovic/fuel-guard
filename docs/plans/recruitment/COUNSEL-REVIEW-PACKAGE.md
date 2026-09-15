@@ -13,6 +13,55 @@ addressed to counsel; the owner reads §1 and §5.
 
 ---
 
+## ⚠ 0a. Correction, 2026-09-15 — the status block above is history, and the ask has NARROWED
+
+**Read this before §0.** The status block was written on 2026-08-23 and every load-bearing sentence
+in it is now false. Leaving it uncorrected would send counsel to draft eight instruments, four of
+which have since been replaced by *their own firm's packet pages* and by a form FMCSA mandates
+verbatim — which is the most expensive mistake available here, because counsel's calendar is the one
+part of this programme that does not go faster when we work harder.
+
+**What changed, and when:**
+
+- **D-WORD1 (#767, main `4e935e0`, 2026-09-14) — the product SHIPS the wording and the settings page
+  is deleted.** The owner ruled that being asked to approve six legal documents before the product
+  worked was the wrong shape. `defaultWording(carrierName)` is now the base that `org_disclosures`
+  overlays, and **every gate opens on deploy**. Versions are PROVENANCE, not counters
+  (`fmcsa-2016-02-11`, `packet-2026-08-21`), so `isDraftDisclosure()` — §6's whole mechanism — has
+  already fired. Nothing in production is `v0-draft`.
+- **Measured on production 2026-09-15**, not estimated: `org_disclosures` holds **0 rows** in both
+  orgs, so the shipped defaults are what an applicant is served; `applicationWordingIsDraft` is
+  false; the §390.32(d) consent gate is armed.
+- **One application has been filed** — 2026-09-14 18:12:51, with four `driver_authorizations` and
+  **`psp` on `fmcsa-2016-02-11`**. So *"no applicant can sign anything"* is not merely stale; a named
+  person has now signed four instruments under the wording described below.
+
+**What that does to §2 and Appendix A.** Four of the eight instruments are no longer ours to draft,
+and asking for drafting on them would be asking counsel to rewrite counsel:
+
+| instrument | what it carries now | what we need from you |
+| --- | --- | --- |
+| `psp` | **FMCSA's mandated form, verbatim** — its notice requires the language "must be used in whole, exactly as provided… as one stand-alone document" | confirmation of the transcription and of the stand-alone condition (see §7.2) — **never a redraft**; publishing other PSP wording is refused by name |
+| `fcra_disclosure` | **your firm's packet page 20**, transcribed | confirmation of electronic use — §7.2 |
+| `previous_employer` | **your firm's packet page 15**, transcribed | confirmation of electronic use — §7.2 |
+| `drug_alcohol` | **your firm's packet page 22**, transcribed | confirmation of electronic use — §7.2 |
+| `clearinghouse` | FMCSA's *sample* (explicitly not mandatory) plus the scope §382.701(b) forces | **still yours to draft** |
+| `ESIGN_CONSENT` (A6) | ours, 15 U.S.C. 7001(c)'s six clauses | **still yours to draft** |
+| `SMS_CONSENT` (A7) | ours | **still yours to draft** |
+| §40.25 letter (A8) | ours | **still yours to draft** |
+
+⚠ **The page numbers in this table are 15/20/22, not 14/19/21.** `packetWording.ts` recorded all
+three one page low and its test asserted the constant against itself; corrected 2026-09-14 by reading
+each page's own printed footer out of `Application 11.pdf` with `pdftotext -layout`. Anything quoting
+14/19/21 predates that fix.
+
+**So the ask in §0 stands, minus the drafting on those four, plus §7.** Everything in §3 (the
+carrier's own signed pages) and §4 (the four questions that are not about wording) is unchanged and
+still open — including **C1/Q7, which has been waiting since 2026-08-20 and is now the item blocking
+the most work.**
+
+---
+
 ## 0. What is being asked
 
 Eight instruments were written by an engineer as placeholders and shipped deliberately marked as
@@ -510,12 +559,122 @@ Done-when requires it to land in the `FuelGuard EFS QA` org, never against Silvi
 
 ---
 
+## 7. Five questions opened since this package was written · **added 2026-09-15**
+
+§0–§6 above are unchanged and still open. These five were opened by work done between 2026-08-23 and
+2026-09-14 — the carrier's own 31-page packet becoming the filed document, FMCSA's PSP form being
+adopted verbatim, and the 22-place signing ceremony being built. **7.1 and 7.2 are the two that
+decide whether what a driver signed on 2026-09-14 is sound.**
+
+### 7.1 ⚠ Does the packet's own certification satisfy §391.21(b)(12)? · **COUNSEL**
+
+**Why this is now a question.** Until 2026-09-14 the applicant ticked **our** certification box,
+carrying the regulation's sentence, and the carrier's packet was a separate paper exercise. **D-PKT15
+removed that tick** (the owner's ruling): the applicant's certification is now made by signing the
+carrier's own pages, because asking a driver to type their name into our box and then into three of
+the carrier's, each certifying the same fact, was two acts for one obligation. **So the packet's
+words are now the only certification a filed application carries.** If they do not satisfy
+(b)(12), nothing else does.
+
+**The regulation's sentence**, as our own §391.21 renderer still prints it:
+
+> This certifies that **this application was completed by me**, and that all entries on it and
+> information in it are true and complete to the best of my knowledge.
+
+**The three places your packet certifies**, measured off `Application 11.pdf` by reading each page's
+own printed footer:
+
+| page | the packet's words |
+| --- | --- |
+| **11** | "This certifies that **I completed this application**, and that all entries on it and information in it are true and complete to the best of my knowledge." |
+| **13** | "I certify that the answers given herein are true and complete to the best of my knowledge." |
+| **17** | "By signing this statement, I certify that this application **has been completed by me**, and that all…" |
+
+**The two things we cannot answer, and would be guessing at:**
+
+1. **Page 11 is the regulation's sentence in the ACTIVE voice.** It differs from (b)(12) in exactly
+   four words — *"I completed this application"* for *"this application was completed by me"* — and
+   is otherwise word for word. Page 17 is closer to the passive original but sits behind a different
+   preamble. Does the substitution matter?
+2. **Is page 11 of 31 "the end of the form"?** (b)(12) places the certification at the end. Page 11
+   is the end of the *application* as your packet lays it out; pages 12–31 are releases, notices and
+   policies. That reading is ours and it is the one the ceremony now depends on. **If the answer is
+   that the certification must sit at the end of the whole 31-page instrument, the ceremony's order
+   changes** — that is a build, and we would rather do it once.
+
+⚠ **This is not academic.** All three pages are signed in the live ceremony, so whichever answer is
+right, the marks already exist on the one filed application.
+
+### 7.2 ⚠ Are your packet pages 15, 20 and 22 fit to be signed ELECTRONICALLY, with our repairs? · **COUNSEL**
+
+Three of the four instruments an applicant signs are now **your firm's own text**, transcribed out of
+`APPLICATION.xlsx` into `packetWording.ts` — page 20 (FCRA), page 15 (past employment / §40.25 /
+§391.23(d)(e)), page 22 (urinalysis). Nobody has asked you whether that is acceptable, and there are
+two distinct questions inside it:
+
+- **They were written for paper.** They are now served on a phone and signed with a typed name plus
+  an optional drawn mark, under a 15 U.S.C. 7001(c) consent the applicant gives first.
+- ⚠ **We changed characters in them.** `WORDING-REVIEW-2026-09-13.md` §2 lists every repair.
+  Nineteen are spelling and must not change the word count (a gate enforces this); **four change
+  characters in ways that carry an argument, and one of those is a STATUTORY CITATION** —
+  `1681-168lu` → `1681-1681u`, an `l` for a `1`. §2.3 lists **seven defects we deliberately LEFT**
+  (`with` for `wish`, a missing `time`), with a test asserting they are still there, so that a future
+  tidy-up cannot silently redraft an instrument your firm wrote.
+
+**What we need back is a yes, a no, or a list.** A yes on our repairs, or your corrected text — either
+lands as a new version string and every signature taken afterwards carries it.
+
+### 7.3 ⚠ FMCSA's PSP form PROMISES an adverse-action sequence we do not perform · **COUNSEL — amends §4.1**
+
+§4.1 deferred R10 on the reasoning that **§604(b)(3)(B) carves trucking out** of the pre-adverse
+copy requirement. **That reasoning is now incomplete, and the change is ours, not the law's.**
+
+Since #764 every applicant reads and signs **FMCSA's mandated PSP disclosure**, whose paragraphs 2
+and 3 *promise them* a copy of the report and a written summary of their FCRA rights before final
+adverse action — and within three business days after it for applications taken by mail, telephone
+or computer. The exact words are at `docs/plans/recruitment/psp-disclosure/`.
+
+**Our reading, which we want confirmed or corrected:** the carve-out governs the **timing** of a
+statutory duty; it does not release the carrier from an undertaking it made in its own signed
+instrument. If that is right, R10 is owed regardless of how §4.1's channel question resolves, and the
+question becomes only *when*, not *whether*.
+
+⚠ **Nothing is sent today.** `applicant_dispositions` (migration 0238) records the decline and
+whether it rested on a purchased report, and the recruiter is told at the moment they tick the box
+that no notice goes out. There is a decision for a notice to attach to and no timeline to
+reconstruct — but there is no notice.
+
+### 7.4 ⚠ §4.1's third question — is a PSP record an FCRA consumer report? — has been open since 2026-08-20 · **COUNSEL, ESCALATED**
+
+Not a new question. It is recorded in §4.1 and was recorded before that in
+`HANDOFF-2026-08-20-UAT.md`, where it blocked nothing. **It now blocks the most work of anything in
+this package**, because with 7.3 it decides whether most declines owe a notice or few do — which is
+the difference between R10 being a small sequence and a large one.
+
+**Our fallback if it stays open:** assume yes and send. Over-inclusive is never wrong, and it is what
+we will build if we have to build before you answer.
+
+### 7.5 Does the carrier send these notices from Silvicom 360 at all? · **OWNER, not counsel** (Q-REC8)
+
+Recorded here so the package is complete, not because counsel answers it. If the carrier's practice
+is that declines go out from somewhere else, R10 is a smaller piece of work — an export and a record
+— and 7.3's answer changes what that export has to contain, not whether it exists.
+
+---
+
 ## Appendix A — the eight instruments, verbatim
 
 Reproduced from `packages/shared/src/authorizationContract.ts`,
 `packages/shared/src/smsConsentContract.ts` and
 `packages/shared/src/employerInquiryContract.ts` as of 2026-08-23. `{{carrier}}`, `{{driver}}` and
 `{{window}}` are filled in server-side when the document is served.
+
+⚠ **Every `v0-draft` label in this appendix is now HISTORY — see §0a.** Four of the eight carry real
+text in production as of 2026-09-14: `psp` is FMCSA's mandated form, and `fcra_disclosure`,
+`previous_employer` and `drug_alcohol` are your firm's own packet pages 20, 15 and 22. The bodies
+reproduced below are the placeholders those replaced, kept so the review has a record of what was
+shipped marked-as-placeholder and what superseded it. **A4, A6, A7 and A8 below are still the live
+text and are still yours to draft.**
 
 ### A1 · Consumer report disclosure and authorization — `fcra_disclosure`, `v0-draft`
 *Title:* Disclosure regarding background reports
