@@ -3,12 +3,16 @@ import {
   FIELD_BASELINE_LIFT,
   PACKET_FIELD_LINES,
   PACKET_FIELD_TABLES,
+  PACKET_MARK_SIDE_LINES,
   PAGE_1_ADDRESS_COLUMNS,
   PAGE_1_ADDRESS_ROWS,
   PAGE_1_NAME_COLUMNS,
   fieldCell,
   fieldTableRowCount,
+  markSideLinesFor,
 } from "./packetFieldGeometry.js";
+import { driverPlacements } from "@silvicom/shared";
+import { markLineFor } from "./packetMarkGeometry.js";
 import { readPacketTemplate, type TemplatePage } from "./packetTemplate.js";
 
 /**
@@ -199,5 +203,70 @@ describe("reading a cell out of a grid", () => {
     // 5 boundaries is 4 columns, so column 4 is off the right edge.
     expect(fieldCell("p02.convictions", 0, 4)).toBeNull();
     expect(fieldCell("p99.nothing", 0, 0)).toBeNull();
+  });
+});
+
+/**
+ * The lines beside the signatures — thirteen dates and one printed name.
+ *
+ * ⚠ **Nothing drew any of these until 2026-09-14**, and the reason they were missed is worth
+ * keeping: they sit on the SIGNING pages, so "the pages that carry applicant data" did not list them
+ * and `packetOverlay.ts` drew the mark and stopped. A packet signed twenty-two times with every date
+ * line blank is not a filed form.
+ */
+describe("the lines beside the marks", () => {
+  it("puts every one of them on a rule the carrier really drew", () => {
+    for (const l of PACKET_MARK_SIDE_LINES) {
+      expect(ruleCovering(l.page, l.y, l.x1, l.x2), `${l.id} at (${l.x1}..${l.x2}, ${l.y})`).toBe(true);
+    }
+  });
+
+  /**
+   * ⚠ On the same band as its own mark, always. A date on the row above its signature is the failure
+   * this catches, and it is invisible in a coordinate list because both numbers look plausible.
+   */
+  it("keeps each one on the same band as the mark it belongs to", () => {
+    for (const l of PACKET_MARK_SIDE_LINES) {
+      const mark = markLineFor(l.placementId);
+      expect(mark, l.id).not.toBeNull();
+      expect(l.page, l.id).toBe(mark!.page);
+      expect(Math.abs(l.y - mark!.y), `${l.id} y=${l.y} vs mark y=${mark!.y}`).toBeLessThanOrEqual(1.5);
+    }
+  });
+
+  /** ⚠ And never OVERLAPPING it — p10 drew its date through the printed `Date` on the first pass. */
+  it("never overlaps the mark's own span", () => {
+    for (const l of PACKET_MARK_SIDE_LINES) {
+      const mark = markLineFor(l.placementId)!;
+      const overlaps = l.x1 < mark.x2 - 0.5 && mark.x1 < l.x2 - 0.5;
+      expect(overlaps, `${l.id} (${l.x1}..${l.x2}) vs mark (${mark.x1}..${mark.x2})`).toBe(false);
+    }
+  });
+
+  /**
+   * ⚠ **Derived from the carrier's own anchors, not from a hand-written list.** Every placement whose
+   * anchor says `Date` must have one, and no placement whose anchor does not may. That is the
+   * assertion that would have caught this gap the day the mark table shipped.
+   */
+  it("gives a date to exactly the placements whose anchor asks for one", () => {
+    const wantsDate = driverPlacements().filter((p) => /\bdate\b/i.test(p.anchor)).map((p) => p.id);
+    const hasDate = PACKET_MARK_SIDE_LINES.filter((l) => l.kind === "date").map((l) => l.placementId);
+    // ⚠ p15's date is a cell of its own six-field grid and lives in PACKET_FIELD_LINES, so it is
+    // expected here by name rather than silently tolerated.
+    expect([...hasDate, "p15"].sort()).toEqual([...wantsDate].sort());
+  });
+
+  it("gives a printed name to the one placement whose anchor asks for one", () => {
+    const wantsPrint = driverPlacements().filter((p) => /print/i.test(p.anchor)).map((p) => p.id);
+    expect(wantsPrint).toEqual(["p22"]);
+    expect(PACKET_MARK_SIDE_LINES.filter((l) => l.kind === "printed_name").map((l) => l.placementId))
+      .toEqual(["p22"]);
+  });
+
+  it("finds a placement's lines, and answers empty for one that has none", () => {
+    expect(markSideLinesFor("p18").map((l) => l.id)).toEqual(["p18.date"]);
+    expect(markSideLinesFor("p22").map((l) => l.kind)).toEqual(["printed_name"]);
+    // The three initials stops carry nothing beside them, and p27 carries the signature alone.
+    for (const id of ["p05", "p06", "p09", "p27", "p28"]) expect(markSideLinesFor(id), id).toEqual([]);
   });
 });
