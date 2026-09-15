@@ -1129,3 +1129,33 @@ the stop it is on. The renderer needs no change — it draws `signed_name`, whic
 
 ⚠ **Still not wired into `file.ts`**, and deliberately: the field values for pages 1, 2, 12, 15 and 16
 are not drawn, so wiring it today would file a signed form with empty answers.
+
+---
+
+**2026-09-14 — Q-PKT8, the server half. Migration 0340: the adopted mark is pinned per KIND.**
+
+`record_packet_mark`'s pin becomes `… where invitation_id = … and mark = p_mark limit 1`. One line;
+no table change, no column, no backfill — `mark` has been on every row since 0339, because
+§390.32(d) asks that a filed record reproduce what was signed. The refusal keeps both halves: a
+second SIGNATURE is refused exactly as hard as before, and a second set of INITIALS now is too.
+
+**Rejected on the way:** an `adopted_marks` table, and two columns on `application_invitations`.
+Both make the adoption a thing held separately from the marks, which the marks can then disagree
+with. The pin works because it reads the evidence rather than a summary of it — the same reasoning
+that made `packetDriverMarkCount()` a count rather than a `packet_signing_completed_at` stamp.
+
+⚠ **`packetIsSignedThrough` was a second casualty of the same assumption, and shipped in this PR
+with the migration.** It compared the payload's `signed_name` against `rows[0].signed_name` — an
+arbitrary row. Once three of the twenty-two carry initials, whether a correctly signed packet may be
+filed depends on which row PostgREST returns first. It now reads the first `mark === "signature"`
+row, which is what §391.21(b)(12) means by the applicant's signature.
+
+⚠ **The walk does NOT ship here, on purpose.** `lint:migration-ordering` cannot see functions, so the
+ordering is held by hand: a client sending initials at p05 alongside this migration would be refused
+for the ~2m44s deploy window (`docs/MIGRATION-DISCIPLINE.md` §the-deploy-window), on four live
+invitation links. Adoption and the walk are the next merge, after this is applied.
+
+**Proved by mutation, not by passing:** reverting `and mark = p_mark` throws the matrix out at p05
+(DR035); sending the full name at the initials stops fails 4 assertions; deleting the DR035 raise
+fails 6; reverting `packetIsSignedThrough` to `rows[0]` fails the initials-first case; and accepting
+"any row whose name matches the payload" — the plausible wrong fix — fails the wrong-signature case.
