@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { ensureApplicationPdf } from "./file.js";
+import { driverPlacements } from "@silvicom/shared";
+import { PDFDocument } from "pdf-lib";
 
 /**
  * Filing the rendered application (A6, D-APP9).
@@ -34,10 +36,25 @@ const APPLICATION_ROW = {
   applicant_ip: "203.0.113.9",
 };
 
+/**
+ * A packet signed through, as `application_packet_marks` holds one.
+ *
+ * ⚠ Built from `driverPlacements()` rather than hand-listed — a fixture naming its own stops would
+ * keep passing after the inventory changed, and the inventory is a measurement of somebody else's
+ * paper that has been corrected twice.
+ */
+const signedPacket = () =>
+  driverPlacements().map((pl) => ({
+    placement_id: pl.id,
+    signed_name: pl.mark === "initials" ? "SG" : "Susan Godfrey",
+    signed_at: "2026-08-21T18:00:00Z",
+  }));
+
 const seed = (over: {
   application?: Record<string, unknown> | null;
   record?: Record<string, unknown> | null;
   document?: Record<string, unknown> | null;
+  marks?: Array<Record<string, unknown>>;
 } = {}) =>
   createSupabaseRecorder({
     tables: {
@@ -47,6 +64,9 @@ const seed = (over: {
       esign_consents: [],
       qualification_records: over.record === undefined ? [{ document_id: null }] : over.record ? [over.record] : [],
       documents: over.document ? [over.document] : [],
+      // ⚠ Empty by default, which is an application from BEFORE the ceremony — the case that keeps
+      // rendering `render.ts`'s summary (D-PKT5). The tests about the packet pass their own.
+      application_packet_marks: over.marks ?? [],
     },
     rpc: { attach_application_document: true },
   });
@@ -232,5 +252,77 @@ describe("what the filed document is allowed to know", () => {
     await ensureApplicationPdf(rec.client, ORG, APP_ID);
 
     expect(selectFor(rec, "driver_applications")).toContain("applicant_user_agent");
+  });
+});
+
+
+/**
+ * ⚠ **Which document gets filed, and what decides it** (D-PKT1, D-PKT5, wired 2026-09-14).
+ *
+ * The owner asked for the carrier's own form. `render.ts`'s §391.21 summary is regulation-correct
+ * and is not that document, so a submission that came through the ceremony now files the packet.
+ * What it must NOT do is draw the packet for an application that has no marks: that produces the
+ * carrier's 31 pages with every signature line blank, which looks like a form nobody signed and is
+ * worse than the summary. `driver_applications` is append-only, so those applications can never gain
+ * marks and must keep rendering the way they always did.
+ */
+describe("which document an application files", () => {
+  const bytesOf = async (rec: ReturnType<typeof seed>): Promise<Buffer> => {
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    const upload = rec.storageCalls().find((c) => c.fn === "upload")!;
+    return upload.args[1] as Buffer;
+  };
+
+  /**
+   * ⚠ Thirty-one pages is the carrier's packet; the summary is a handful. Counted by LOADING the
+   * document rather than by grepping for `/Type /Page`: pdf-lib writes object streams, so the
+   * pattern finds nothing in the packet and everything in PDFKit's uncompressed summary — which
+   * makes the packet look like a zero-page document and the assertion fail for the wrong reason.
+   */
+  const pageCount = async (pdf: Buffer): Promise<number> =>
+    (await PDFDocument.load(pdf, { ignoreEncryption: true })).getPageCount();
+
+  it("files the carrier's own packet when the application was signed through", async () => {
+    const pdf = await bytesOf(seed({ marks: signedPacket() }));
+    expect(await pageCount(pdf)).toBeGreaterThanOrEqual(31);
+    // The carrier's own letterhead is on it, because nothing redrew their pages.
+    expect(pdf.length).toBeGreaterThan(50_000);
+  });
+
+  it("files the §391.21 summary when the application carries no marks", async () => {
+    const pdf = await bytesOf(seed({ marks: [] }));
+    expect(await pageCount(pdf)).toBeLessThan(31);
+  });
+
+  /**
+   * ⚠ The two really are different documents. Asserted by comparing them rather than by trusting the
+   * page counts, because a switch that silently rendered the same thing both ways would satisfy two
+   * plausible-looking count assertions.
+   */
+  it("produces genuinely different documents for the two paths", async () => {
+    const signed = await bytesOf(seed({ marks: signedPacket() }));
+    const summary = await bytesOf(seed({ marks: [] }));
+    expect(signed.equals(summary)).toBe(false);
+    expect(signed.length).toBeGreaterThan(summary.length);
+  });
+
+  /** ⚠ Org-scoped like every other read here: the service role bypasses RLS. */
+  it("scopes the packet-mark read to the org and the invitation", async () => {
+    const rec = seed({ marks: signedPacket() });
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    const q = rec.forTable("application_packet_marks")[0]!;
+    expect(q.filters()).toContainEqual({ col: "org_id", val: ORG });
+    expect(q.filters()).toContainEqual({ col: "invitation_id", val: "inv-1" });
+  });
+
+  /**
+   * ⚠ An application with no invitation at all — a path `invitation_id` is nullable for — must not
+   * query for marks and must not throw. It files the summary.
+   */
+  it("files the summary for an application with no invitation, without asking for marks", async () => {
+    const rec = seed({ application: { ...APPLICATION_ROW, invitation_id: null }, marks: signedPacket() });
+    const filed = await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    expect(filed?.rendered).toBe(true);
+    expect(rec.forTable("application_packet_marks")).toHaveLength(0);
   });
 });

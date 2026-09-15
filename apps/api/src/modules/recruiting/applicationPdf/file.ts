@@ -6,6 +6,7 @@ import {
   type DriverApplication,
 } from "@silvicom/shared";
 import { renderApplicationPdf, type ApplicationPdfInput } from "./render.js";
+import { packetMarksFor, renderPacketDocument } from "./packetDocument.js";
 import { authorizationsFor, carrierOf, esignConsentFor, signatureMarkBytes } from "./sources.js";
 
 /**
@@ -73,6 +74,35 @@ async function gather(
 }
 
 /**
+ * Which document this application files — the carrier's own packet, or the §391.21 summary.
+ *
+ * ⚠ **The MARKS decide, and nothing else** (D-PKT5). A submission the server accepted since D-PKT15
+ * carries all twenty-two of them, because `submitApplication` refuses one that is not signed
+ * through; so "has marks" is "was filed through the ceremony". An application from before it has
+ * none, `driver_applications` is append-only so it can never gain any, and drawing it as the packet
+ * would produce the carrier's 31 pages with every signature line BLANK — a document that looks like
+ * a form nobody signed, which is worse than the summary it replaced.
+ *
+ * ⚠ Not a feature flag, and deliberately: a flag is a thing somebody has to remember to turn on, and
+ * the fact it would stand for is already in the database.
+ */
+async function renderFiledDocument(
+  admin: SupabaseClient,
+  application: ApplicationRow,
+): Promise<Buffer> {
+  const invitationId = application.invitation_id;
+  const marks = invitationId ? await packetMarksFor(admin, application.org_id, invitationId) : [];
+  if (marks.length === 0) return renderApplicationPdf(await gather(admin, application));
+  return renderPacketDocument({
+    marks,
+    application: application.payload,
+    certifiedAt: application.certified_at,
+    signedName: application.signed_name,
+    drawnMark: await signatureMarkBytes(admin, application.org_id, invitationId),
+  });
+}
+
+/**
  * File the rendered application, or hand back the one already filed.
  *
  * Idempotent by the `qualification_records` citation: `attach_application_document` sets
@@ -116,7 +146,7 @@ export async function ensureApplicationPdf(
     if (filed) return { documentId: filed.id, storagePath: filed.storage_path, rendered: false };
   }
 
-  const pdf = await renderApplicationPdf(await gather(admin, application));
+  const pdf = await renderFiledDocument(admin, application);
   const documentId = randomUUID();
   const path = documentStoragePath(orgId, "driver", application.driver_id, documentId, "application/pdf");
   const { error: uploadError } = await admin.storage

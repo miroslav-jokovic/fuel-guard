@@ -1,6 +1,6 @@
 import type { DriverApplication, EquipmentClass } from "@silvicom/shared";
 import { PACKET_ROW_OF, blank, date, foldedType, yesNo } from "./packetDraw.js";
-import { P2 } from "./packetText.js";
+import { P1, P2, P12, P16 } from "./packetText.js";
 import {
   PACKET_FIELD_LINES,
   PACKET_MARK_SIDE_LINES,
@@ -47,11 +47,23 @@ export interface PlacedFieldValue {
   text: string;
 }
 
-/** A grid's leftovers, in that grid's own column order, ready for whatever Q-PKT10 rules. */
+/**
+ * A grid's leftovers, in that grid's own column order.
+ *
+ * ⚠ **Carries the carrier's OWN heading and column names, not ours** (Q-PKT10, answered 2026-09-14).
+ * The continuation sheet is part of the application the driver certifies, so a reader comparing it
+ * against the page it continues has to see the same words: §391.21(a) makes the application "a form
+ * furnished by the motor carrier", and a sheet that renamed `DATE CONVICTED` to "Date" would be a
+ * different form appended to theirs.
+ */
 export interface PacketFieldOverflow {
   tableId: string;
-  /** The carrier's own heading for the grid, so a continuation sheet can say what it continues. */
+  /** The carrier's own heading for the grid, verbatim. */
   label: string;
+  /** The carrier's own column headings, verbatim and in their order. */
+  columns: readonly string[];
+  /** The carrier's own page number, so the sheet can say which page it continues. */
+  page: number;
   rows: string[][];
 }
 
@@ -112,6 +124,8 @@ const columnLine = (
 function fillGrid(
   tableId: string,
   label: string,
+  columns: readonly string[],
+  page: number,
   rows: string[][],
   into: PlacedFieldValue[],
   overflow: PacketFieldOverflow[],
@@ -126,7 +140,7 @@ function fillGrid(
     });
   });
   const left = rows.slice(capacity).filter((cells) => cells.some((t) => t.trim()));
-  if (left.length > 0) overflow.push({ tableId, label, rows: left });
+  if (left.length > 0) overflow.push({ tableId, label, columns, page, rows: left });
 }
 
 /**
@@ -190,7 +204,13 @@ function page1(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
   });
   const spare = addressRows.slice(PAGE_1_ADDRESS_ROWS.length);
   if (spare.length > 0) {
-    over.push({ tableId: "p01.residency", label: "Previous three years residency", rows: spare });
+    over.push({
+      tableId: "p01.residency",
+      label: P1.residency,
+      columns: ["Street", "City", "State", "Zip"],
+      page: 1,
+      rows: spare,
+    });
   }
 }
 
@@ -199,7 +219,12 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
 
   fillGrid(
     "p02.licences",
-    "Licences",
+    // ⚠ The one grid on the carrier's page with NO printed heading — the §383.21 sentence above it
+    // is a legal preamble, not a title, and reads as nonsense over a continuation block. This label
+    // is OURS, and it is the only one on the sheet that is.
+    "Licenses",
+    P2.licenceColumns,
+    2,
     [
       [blank(a.cdl_state), blank(a.cdl_number), blank(a.cdl_class), date(a.cdl_expires_at)],
       ...(a.additional_licences ?? []).map((l) => [
@@ -221,6 +246,8 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
   for (const e of a.equipment_experience ?? []) {
     const cls = (e.equipment_class ?? "other") as EquipmentClass;
     const idx = PACKET_ROW_OF[cls] ?? 3;
+    const from = blank(e.from);
+    const to = e.to ? String(e.to) : e.from ? "present" : "";
     const cells = [
       // ⚠ The class NAME, even though the carrier already printed it in column 0 and the loop below
       // skips writing it. It is here for the OVERFLOW rows: a second tractor-semi-trailer entry goes
@@ -228,8 +255,8 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
       // four printed classes it continues.
       P2.experienceRows[idx] ?? "OTHER",
       foldedType(cls, e.equipment_type),
-      blank(e.from),
-      e.to ? String(e.to) : e.from ? "present" : "",
+      from,
+      to,
       e.approx_miles == null ? "" : String(e.approx_miles),
     ];
     if (byRow.has(idx)) spare.push(cells);
@@ -246,12 +273,29 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
     });
   }
   if (spare.length > 0) {
-    over.push({ tableId: "p02.experience", label: "Driving experience", rows: spare });
+    over.push({
+      tableId: "p02.experience",
+      label: P2.experienceHeading,
+      columns: P2.experienceColumns,
+      page: 2,
+      // ⚠ FIVE placed cells become FOUR on the sheet. The carrier's `DATES FROM / TO` is ONE bordered
+      // column with two captions inside it, so the page takes `from` and `to` at two x positions and
+      // the sheet — which has four columns because their grid has four — takes them joined. A row
+      // longer than its own column list drew off the right edge of the page once.
+      rows: spare.map((cells) => [
+        cells[0]!,
+        cells[1]!,
+        [cells[2], cells[3]].filter(Boolean).join(" — "),
+        cells[4]!,
+      ]),
+    });
   }
 
   fillGrid(
     "p02.accidents",
-    "Accident record for past 3 years",
+    P2.accidentsHeading,
+    P2.accidentColumns,
+    2,
     a.declares_no_accidents
       ? []
       : (a.accidents ?? []).map((x) => [
@@ -267,7 +311,9 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
 
   fillGrid(
     "p02.convictions",
-    "Traffic convictions and forfeitures for the past 3 years",
+    P2.violationsHeading,
+    P2.violationColumns,
+    2,
     a.declares_no_violations
       ? []
       : (a.violations ?? []).map((x) => [
@@ -294,14 +340,18 @@ function page12(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketF
   const a = input.application;
   fillGrid(
     "p12.identity",
-    "Identity",
+    P12.heading,
+    P12.identityColumns,
+    12,
     [[blank(a.last_name), blank(a.first_name), (a.other_names ?? []).join(", "), date(a.date_of_birth), ""]],
     into,
     over,
   );
   fillGrid(
     "p12.employment",
-    "10 year employment history",
+    P12.heading,
+    P12.logColumns,
+    12,
     a.declares_no_employment
       ? []
       : (a.employers ?? []).map((e) => [
@@ -331,7 +381,9 @@ function page16(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketF
   const a = input.application;
   fillGrid(
     "p16.education",
-    "Education",
+    P16.heading,
+    P16.educationColumns,
+    16,
     rowsOf(a, "education").map((r) => [
       blank(str(r.school)),
       blank(str(r.years_completed)),
@@ -354,13 +406,21 @@ function page16(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketF
     const lines = wrapToLines(training, 3, 96);
     lines.slice(0, 3).forEach((text, i) => push(into, `p16.training.${i + 1}`, text));
     if (lines.length > 3) {
-      over.push({ tableId: "p16.training", label: "Other training", rows: lines.slice(3).map((l) => [l]) });
+      over.push({
+        tableId: "p16.training",
+        label: P16.training,
+        columns: [""],
+        page: 16,
+        rows: lines.slice(3).map((l) => [l]),
+      });
     }
   }
 
   fillGrid(
     "p16.references",
-    "Personal references",
+    P16.referencesIntro,
+    P16.referenceColumns,
+    16,
     rowsOf(a, "references").map((r) => [
       blank(str(r.full_name ?? r.name)),
       blank(str(r.years_known)),

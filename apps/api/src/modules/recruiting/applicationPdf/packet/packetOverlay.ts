@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage } from "pdf-lib";
 import { MARK_BASELINE_LIFT, PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
-import { FIELD_BASELINE_LIFT } from "./packetFieldGeometry.js";
-import type { PlacedFieldValue } from "./packetFieldValues.js";
+import { FIELD_BASELINE_LIFT, fieldTableFor } from "./packetFieldGeometry.js";
+import type { PacketFieldOverflow, PlacedFieldValue } from "./packetFieldValues.js";
+import { appendContinuationSheet, continuationNoticeFor } from "./packetContinuation.js";
 import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
 
 /**
@@ -70,6 +71,18 @@ export interface PacketOverlayInput {
    */
   fields?: readonly PlacedFieldValue[];
   /**
+   * Answers the carrier's grids had no room for (Q-PKT10).
+   *
+   * ⚠ Passing them appends a continuation sheet AND draws a notice under each grid that continues.
+   * Passing an empty array is "there was no overflow"; NOT passing them at all is "this caller is
+   * not filing" — the office previewing the marks. ⚠ `file.ts` must always pass them: §391.21(b)(7)
+   * and (b)(8) ask for every accident and conviction in the period, and a filed form missing the
+   * fourth is materially false.
+   */
+  overflow?: readonly PacketFieldOverflow[];
+  /** The applicant, so a continuation sheet separated from the packet can be put back with it. */
+  applicantName?: string;
+  /**
    * The driver's drawn signature, when they chose to draw one (D-PKT13).
    *
    * ⚠ PNG bytes, and optional forever. A8b's rule holds here too: a mark that will not render must
@@ -87,6 +100,9 @@ const TYPED_MARK_SIZE = 11;
 const TYPED_MARK_MIN_SIZE = 6;
 /** Ink, matching the carrier's own black rather than a theme colour. */
 const INK = rgb(0.1, 0.1, 0.1);
+/** How far below a grid's last rule its continuation notice sits, and how small it is. */
+const CONTINUATION_NOTICE_DROP = 9;
+const CONTINUATION_NOTICE_SIZE = 6.5;
 
 /** The largest size at or below `TYPED_MARK_SIZE` whose text fits the line, floored so it stays readable. */
 function fittedSize(font: PDFFont, text: string, width: number): number {
@@ -175,6 +191,35 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
       size: fittedSize(font, name, width - 4),
       font,
       color: INK,
+    });
+  }
+
+  /**
+   * ⚠ **The notice goes on the carrier's page, under the grid it belongs to.** A conviction grid
+   * showing three rows with a fourth on an unreferenced sheet at the back is a page that misleads
+   * anybody who stops reading there — the attachment becomes a place the answer was hidden rather
+   * than a place it was continued.
+   */
+  for (const over of input.overflow ?? []) {
+    const table = fieldTableFor(over.tableId);
+    if (!table) continue;
+    const lastRow = table.rows[table.rows.length - 1];
+    if (lastRow === undefined) continue;
+    const page = doc.getPage(table.page - 1);
+    page.drawText(continuationNoticeFor(over), {
+      x: table.columns[0]! + 2,
+      // ⚠ BELOW the grid's last rule, not in its last row — that row may hold an answer.
+      y: lastRow - CONTINUATION_NOTICE_DROP,
+      size: CONTINUATION_NOTICE_SIZE,
+      font: fieldFont,
+      color: INK,
+    });
+  }
+
+  if ((input.overflow ?? []).length > 0) {
+    await appendContinuationSheet(doc, {
+      overflow: input.overflow ?? [],
+      applicantName: input.applicantName ?? "",
     });
   }
 
