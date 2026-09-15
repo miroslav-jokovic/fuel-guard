@@ -1466,3 +1466,18 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   the dashboard onto an API endpoint, the direction D-LM11 already commits newer surfaces to), plus
   **`Q-LM-F2`** — whether the database boundary is wanted at all, which is a real question rather
   than an oversight, and which LM-F does not wait on. No code written this session.
+- 2026-09-15 — **LM-F, LM-T and LM2 all merged; handoff written.** `#803` split the Dashboard into a
+  shell plus gated tabs (D-DW6): tabs derive from the section matrix, `defaultFor` is the only place a
+  role is named, and there is no `session.role` test in the rendering path. `moneyGate.ts` carries
+  Q-LM-F1's per-element ruling. Two live behaviour changes to watch: **`fleet_manager` lost the spend
+  figures** (holds `accounting: none` — owner ruled correct, org overrides are the remedy) and
+  **drivers lost the dashboard** for an empty state (`Q-LM-T1` still open). ⚠ LM-F shipped as a
+  PRODUCT boundary only — `ftxn_select` has no section check, so `total_cost` is still reachable from
+  PostgREST; **LM-F2** is scoped and `Q-LM-F2` asks whether the database boundary is wanted at all.
+  `#804` shipped LM2: `vehicle_positions`, PK `(org_id, vehicle_id)`, current-only, RLS deny-all,
+  **applied to production**. Two plan assertions were wrong and are corrected in place — `vehicles`
+  had **no** `(id, org_id)` unique (0341 adds it, as 0148 did for `loads`), and the migration header's
+  claim that a west-positive longitude would be refused was false and has been removed, because +88 is
+  a legal longitude for a carrier east of Greenwich. **LM4 is next**, and its PR must delete the
+  producer waiver `check-table-producers.mjs` now carries for `vehicle_positions`. Full context in
+  `docs/HANDOFF-2026-09-15.md`.
