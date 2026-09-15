@@ -1541,3 +1541,59 @@ that already carries their whole draft application.
 **Proved by mutation:** reading the first row of any kind instead of by kind fails 2; ignoring the
 served marks and starting empty fails 3; and calling a signature-only link fully adopted regardless
 of `needsInitials` fails the half-adopted case.
+
+**2026-09-15 — D-PKT14 BUILT: page 16's unused lines print `N/A`, and the grid machinery moves out.**
+
+The owner's ruling of 2026-09-14 was deliberately not built then, because the only code drawing page
+16 was `packetPages.ts`'s PDFKit renderer that §3's overlay architecture replaced. The overlay has
+since landed with `p16.education` and `p16.references` measured, so the deferral has expired.
+
+- `fillGrid` gains an **opt-in** `filler`, applied to those two grids and to nothing else.
+  ⚠ **The opt-in is the decision, not the filler.** An empty row does not mean the same thing on
+  every grid: page 16's two lists are optional by contract (`questionnaireContract.ts` marks neither
+  `required`, and the first application ever filed left both empty), whereas page 12's employment
+  log and the accident and conviction grids answer §391.21(b)(7)–(10) and already carry the
+  applicant's OWN declaration — `declares_no_accidents` and its siblings. `N/A` across a regulated
+  grid would put a second assertion on the paper beside the one they actually made.
+- **Extracted to `packetGrid.ts`**: `fillGrid`, `PlacedFieldValue`, `PacketFieldOverflow` and
+  `PacketFieldFill`. `packetFieldValues.ts` was 492 lines against a 500 budget and the rule being
+  added is about the PAPER, not about the applicant's answers — it reviews next to `fieldCell`'s
+  refusal, not next to page 12's column order. The file is 467 now and still shrinking.
+
+**⚠ The defect mutation testing found, because both obvious rules are wrong.** The filler is decided
+**per row**, not from a starting index. Against a payload whose first reference row is blank and
+whose second carries a name — which is exactly what the web form produces, since the list opens with
+one empty row and an applicant may type into the second:
+
+| rule | result |
+| --- | --- |
+| from `rows.length` | fills row 2 only — **row 0 prints blank**, the very thing D-PKT14 is for |
+| from the count of rows carrying text | fills rows 1 and 2 — **row 1 overwrites the name** |
+| per row, empty rows only | correct |
+
+The first version shipped the first rule and every test passed. Pinned now by "fills a blank row the
+applicant skipped, without touching the filled row after it".
+
+**Proved by mutation:** removing the filler fails 4; starting from `rows.length` fails 1; starting
+from the rows carrying text fails 1; defaulting the filler on for every grid fails 3; filling only
+the first column fails 3; filling rows the applicant used fails 4. ⚠ One mutation is INERT and is
+recorded in the code rather than pinned by a contrived test: `r <= capacity` passes, because
+`fieldCell` refuses a row the form does not have.
+
+### ⚠ Q-PKT12 — should the filler extend to the REGULATED grids? **OWNER / COUNSEL, open**
+
+Deliberately not taken while building D-PKT14, because it is a larger claim than the owner made.
+
+**The argument for.** An empty ruled line on a signed form is a place a fourth reference, a third
+accident or a fifth employer can be written in AFTER the driver signed it. Filling every grid closes
+that, and §390.32(d) asks the filed document to stay reproducible.
+
+**The argument against**, and why it was not done here: those rows answer §391.21(b)(7)–(10), the
+applicant has already answered them with a declaration (`declares_no_accidents`,
+`declares_no_violations`, `declares_no_employment`), and `N/A` across the grid restates it in a
+second place on a document somebody signs. Two sources of truth for one declaration.
+
+**Candidates:** **(a)** leave as built — page 16 only; **(b)** extend to every grid, on the
+tamper argument; **(c)** extend only where the applicant made no declaration to restate.
+**Recommendation: (a) until counsel rules**, because (b) changes what a regulated page asserts and
+the mechanism is now one argument away whichever way it goes.
