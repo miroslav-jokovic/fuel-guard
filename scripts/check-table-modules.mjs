@@ -67,7 +67,13 @@ const GRANDFATHERED_WRITERS = new Set([
   "fuel_transactions <- apps/api/src/modules/efs/services/efsIngestShared.ts",
   "fuel_transactions <- apps/api/src/modules/efs/services/efsSync.ts",
   "fuel_transactions <- apps/api/src/modules/org/routes/audit.ts",
-  "fuel_transactions <- apps/web/src/features/fuel/useFuelLog.ts",
+  // The fuel log creates a fill straight from the browser. Pre-existing debt, not new: the owner of
+  // `fuel_transactions` is the API `fuel` MODULE, so no folder inside `apps/web` satisfies it and
+  // routing this through an endpoint is its own step. Repointed when the read half of `useFuelLog`
+  // was promoted to `@/composables/` (the dashboard needed the reads without a cross-feature import).
+  // Moving the write back under `features/fuel/` does NOT discharge the entry — I assumed it would,
+  // and the gate corrected me.
+  "fuel_transactions <- apps/web/src/features/fuel/useCreateFillUp.ts",
   "geocode_cache <- apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
   "geocode_cache <- apps/api/src/modules/posted-prices/roadRangerIngest.ts",
   // fuel_stations: collector->core direct writes, same posture as mcleod's load ingest today.
