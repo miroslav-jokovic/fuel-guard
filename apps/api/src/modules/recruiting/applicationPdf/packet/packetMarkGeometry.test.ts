@@ -43,9 +43,15 @@ describe("the mark table", () => {
    * coordinate that has drifted.
    */
   it.each(
-    // ⚠ p04 excluded BY NAME, not by a filter that could quietly grow: its `x2` is not a rule's end,
-    // because the signature shares a full-width rule with the date. It has its own assertion below.
-    PACKET_MARK_LINES.filter((l) => l.id !== "p04").map((l) => [l.id, l] as const),
+    // ⚠ p04 and p10 excluded BY NAME, not by a filter that could quietly grow: their `x2` is not a
+    // rule's end, because on both pages the signature SHARES its rule with the date and stops short
+    // of the `Date` caption. They have their own assertion below.
+    //
+    // ⚠ p10 joined this list on 2026-09-14, as a correction. It recorded the shared rule's full
+    // width (102..464) and so allowed a long name to be drawn through the printed `Date` at x310.8
+    // and through the date value beside it. `packetFieldGeometry.test.ts`'s "never overlaps the
+    // mark's own span" is what found it; this file could not, because 102..464 IS a real rule.
+    PACKET_MARK_LINES.filter((l) => l.id !== "p04" && l.id !== "p10").map((l) => [l.id, l] as const),
   )(
     "%s sits on a ruled line the carrier's page actually has",
     (_id, line) => {
@@ -63,10 +69,20 @@ describe("the mark table", () => {
   );
 
   /**
-   * ⚠ p04 is the one entry whose `x2` is NOT a rule's own end: the signature and the date share one
-   * full-width rule, and the signature stops short of the `Date` caption at x311. So it is checked
-   * differently — the rule must exist and must CONTAIN the recorded span.
+   * ⚠ p04 and p10 are the two entries whose `x2` is NOT a rule's own end: on both, the signature and
+   * the date share one rule and the signature stops short of the `Date` caption at x311. So they are
+   * checked differently — the rule must exist and must CONTAIN the recorded span.
    */
+  it("keeps page 10's signature inside the rule it shares with the date", () => {
+    const line = markLineFor("p10")!;
+    const rule = rulesOn(10).find((r) => Math.abs(r.y - line.y) < 1 && r.x2 - r.x1 > 300);
+    expect(rule, "page 10's shared rule").toBeDefined();
+    expect(line.x1).toBeGreaterThanOrEqual(rule!.x1 - 1);
+    expect(line.x2).toBeLessThanOrEqual(rule!.x2 - 1);
+    // ⚠ And short of the `Date` caption, which is the whole of the 2026-09-14 correction.
+    expect(line.x2).toBeLessThan(310.8);
+  });
+
   it("keeps page 4's signature inside the rule it shares with the date", () => {
     const line = markLineFor("p04")!;
     const containing = rulesOn(4).find(

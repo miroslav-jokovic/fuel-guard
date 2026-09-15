@@ -234,6 +234,83 @@ export const PACKET_FIELD_TABLES: readonly PacketFieldTable[] = [
   },
 ];
 
+/**
+ * The line that sits BESIDE a signature — its date, or on page 22 the printed name.
+ *
+ * ── ⚠ WHY THIS EXISTS, AND WHY IT WAS NOT IN THE FIRST PASS ───────────────────────────────────
+ * Found 2026-09-14, after the field coordinates for pages 1, 2, 12, 15 and 16 were already measured.
+ * Thirteen of the driver's twenty-two stops carry a `Date` line beside the signature line — the
+ * anchors in `packetPlacements.ts` say so in as many words, `Date | Signature`, `Signature of
+ * applicant | Date`, `Driver signature: | Date:` — and page 22 carries `Driver name Print` beside
+ * `Driver signatrure`. **Nothing drew any of them.** A packet signed twenty-two times with every
+ * date line blank is not a filed form, and the handoff's list of "the pages that carry applicant
+ * data" did not include pages 3, 4, 10, 11, 13, 17, 18, 19, 20, 22 or 31 because those are the
+ * SIGNING pages and the date was assumed to be part of the mark. It is not: `packetOverlay.ts` draws
+ * `signed_name` on one line and stops.
+ *
+ * ── WHERE THE VALUE COMES FROM, AND WHY IT IS NOT ONE DATE ────────────────────────────────────
+ * ⚠ **Each stop's own `application_packet_marks.signed_at`, never a single "signed on" stamp.** The
+ * walk is twenty-two separate acts and a driver who loses signal finishes tomorrow — 0339's header
+ * is explicit that a half-signed packet is a real state to resume from. Printing one date on all
+ * thirteen lines would be asserting that thirteen signatures were made at a moment twelve of them
+ * were not, on a document whose whole purpose is to be reproducible (§390.32(d)).
+ *
+ * ── HOW EACH ONE WAS ESTABLISHED ──────────────────────────────────────────────────────────────
+ * The §8 loop, same as everything else here. ⚠ `p10` took two passes and is the reason the loop is
+ * not optional: its `Date` caption is printed ON the value's own baseline rather than beneath it, so
+ * the first candidate drew the date straight through the printed word. Four of the packet's layouts
+ * appear again here — caption beneath a shared rule (p04), caption inline before its own rule (p10,
+ * p18), caption beneath its own rule (p13, p31), and label boxed to the left (p03, p11).
+ */
+export interface PacketMarkSideLine extends PacketFieldLine {
+  /** The placement whose mark this line sits beside — `packetPlacements.ts`'s id. */
+  placementId: string;
+  /** What the carrier asks for there. */
+  kind: "date" | "printed_name";
+}
+
+export const PACKET_MARK_SIDE_LINES: readonly PacketMarkSideLine[] = [
+  { id: "p03.date", placementId: "p03", kind: "date", page: 3, x1: 102.5, x2: 205.8, y: 381.7,
+    source: "seen", note: "`Date ____ Signature ____` — the date's own rule, left of the signature's." },
+  { id: "p04.date", placementId: "p04", kind: "date", page: 4, x1: 310.8, x2: 553.2, y: 158.4,
+    source: "seen", note: "One full-width rule shared with the signature; `Date` is captioned beneath it at x311, so the date takes the right portion." },
+  { id: "p10.date", placementId: "p10", kind: "date", page: 10, x1: 336.0, x2: 463.8, y: 155.2,
+    source: "seen", note: "⚠ `Date` is printed ON this baseline rather than beneath it, so the value starts AFTER the word. The first candidate drew straight through it." },
+  { id: "p11a.date", placementId: "p11a", kind: "date", page: 11, x1: 50.9, x2: 154.2, y: 219.3,
+    source: "seen", note: "`Date` captioned beneath its own rule, LEFT of the signature — the reverse of p03." },
+  { id: "p11b.date", placementId: "p11b", kind: "date", page: 11, x1: 50.9, x2: 154.2, y: 127.5,
+    source: "sibling", note: "p11a's layout; the page carries the pair twice." },
+  { id: "p13.date", placementId: "p13", kind: "date", page: 13, x1: 360.5, x2: 463.8, y: 341.5,
+    source: "seen", note: "`Date` captioned beneath its own rule, right of the signature's." },
+  { id: "p17.date", placementId: "p17", kind: "date", page: 17, x1: 360.5, x2: 412.2, y: 352.5,
+    source: "seen", note: "p13's layout on the top half of the split page (D-PKT12), in a shorter box." },
+  { id: "p18.date", placementId: "p18", kind: "date", page: 18, x1: 463.7, x2: 553.2, y: 140.9,
+    source: "seen", note: "`Driver signature: ____ Date: ____` — label boxed inline, rule to its right." },
+  { id: "p19a.date", placementId: "p19a", kind: "date", page: 19, x1: 463.7, x2: 553.2, y: 538.5,
+    source: "sibling", note: "p18's layout; upper of page 19's two identical driver rows." },
+  { id: "p19b.date", placementId: "p19b", kind: "date", page: 19, x1: 463.7, x2: 553.2, y: 279.0,
+    source: "sibling", note: "p18's layout; lower of the pair the page carries twice." },
+  { id: "p20.date", placementId: "p20", kind: "date", page: 20, x1: 463.7, x2: 553.2, y: 355.7,
+    source: "sibling", note: "p18's layout, under the FCRA disclosure." },
+  { id: "p22.printed_name", placementId: "p22", kind: "printed_name", page: 22, x1: 50.9, x2: 309.0, y: 233.5,
+    source: "seen", note: "⚠ NOT a date. `Driver name Print` left, `Driver signatrure` right — the packet asks for the name in block capitals beside the mark, which is what D-APP8 calls the printed name." },
+  { id: "p31a.date", placementId: "p31a", kind: "date", page: 31, x1: 360.5, x2: 463.8, y: 554.5,
+    source: "seen", note: "First of the page's three Signature/Date pairs — the driver's." },
+  { id: "p31b.date", placementId: "p31b", kind: "date", page: 31, x1: 360.5, x2: 463.8, y: 234.5,
+    source: "sibling", note: "Second pair — the owner-operator's. The third is the witness's and is not ours." },
+];
+
+/**
+ * The lines that sit beside one placement's mark.
+ *
+ * ⚠ Returns an empty array for the nine stops that have none — `p05`, `p06` and `p09` take initials
+ * and nothing else, and `p25`, `p26`, `p27`, `p28` and `p15` carry the signature alone (p15's date
+ * is a cell of its own six-field grid and lives in `PACKET_FIELD_LINES` as `p15.date`). An empty
+ * answer here is the carrier's paper, not a gap in the table.
+ */
+export const markSideLinesFor = (placementId: string): PacketMarkSideLine[] =>
+  PACKET_MARK_SIDE_LINES.filter((l) => l.placementId === placementId);
+
 export const fieldLineFor = (id: string): PacketFieldLine | null =>
   PACKET_FIELD_LINES.find((l) => l.id === id) ?? null;
 

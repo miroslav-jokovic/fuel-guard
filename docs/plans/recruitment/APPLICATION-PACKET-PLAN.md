@@ -1311,3 +1311,52 @@ needs the release sent to four of them.
 
 ⚠ This is the same page whose signature stop (`p15`) the driver already walks, so whichever way it
 goes, the mark and the address are collected at different times by different people.
+
+---
+
+**2026-09-14 — ⚠ the date beside every signature was never drawn, and nothing was looking for it.**
+
+Found while starting the field-value drawing, by searching the carrier's PDF for the
+`ATTACH SHEET IF MORE SPACE IS NEEDED` instruction `packetDraw.ts` quotes. It is on **page 11**, a
+page that was not on anybody's list of pages carrying applicant data — and page 11 turns out to carry
+**two dated signature lines**.
+
+Pulling that thread: **thirteen of the driver's twenty-two stops have a `Date` line beside the
+signature line**, and page 22 has `Driver name Print` beside `Driver signatrure`. The anchors in
+`packetPlacements.ts` have said so in as many words since the inventory was written — `Date |
+Signature`, `Signature of applicant | Date`, `Driver signature: | Date:` — and **nothing drew any of
+them.** `packetOverlay.ts` draws `signed_name` on one line and stops.
+
+⚠ **A packet signed twenty-two times with every date line blank is not a filed form.** This was
+about to be wired into `file.ts`.
+
+**Why it was missed.** The list of pages to fill was *"pages 1, 2, 12, 15 and 16"* — the pages that
+carry the applicant's ANSWERS. The dates sit on the SIGNING pages, where the assumption was that the
+mark was the whole of what goes there. `packetMarkGeometry.test.ts` could not see it either: it
+asserts that every mark sits on a real rule, and each of those pages has more real rules than marks.
+
+**The fix is `PACKET_MARK_SIDE_LINES`** — fourteen entries, measured by the §8 loop like everything
+else, keyed by placement id.
+
+⚠ **Each date is its own stop's `application_packet_marks.signed_at`, never one "signed on" stamp.**
+The walk is twenty-two acts and a driver who loses signal finishes tomorrow; 0339's header is
+explicit that a half-signed packet is a state to resume from. One date on thirteen lines would assert
+that thirteen signatures were made at a moment twelve of them were not.
+
+**And it found a defect in the merged mark table.** `p10`'s signature was recorded as the full span
+of its rule, `102..464` — but that rule is **shared with the page's `Date`**, whose caption is printed
+inline at x310.8. A name long enough to need the span would have been drawn straight through the
+printed word and through the date beside it. `p04` got this right from the start (*"the signature
+takes the left portion and stops short of the date's"*) and `p10` did not, and nothing could notice,
+because `102..464` **is** a real rule. It is now `102..305`, and it joins `p04` in the mark test's
+containment case. ⚠ Nothing filed changes: production holds zero packet marks and the overlay has no
+production importer.
+
+**The assertion that would have caught the whole thing, now written:** every placement whose anchor
+says `Date` must have a date line, and no placement whose anchor does not may — derived from the
+carrier's own anchors rather than from a hand-written list.
+
+**Proved by mutation:** moving p18's date to the row above fails two cases; letting p10's date
+overlap its signature fails the overlap case; deleting p20's date fails the anchor-derived case;
+reverting p10's mark span fails the containment case AND the overlap case; and calling p22's printed
+name a date fails three.

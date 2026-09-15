@@ -33,6 +33,12 @@ import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
  * `packetFieldGeometry.ts`, measured the same way this file's were — and drawing them is the next
  * step.
  *
+ * ⚠ **And so is the DATE beside each signature.** Thirteen of the twenty-two stops carry a `Date`
+ * line and page 22 carries `Driver name Print`; this file draws the mark and stops, so a packet
+ * rendered today comes out signed twenty-two times and dated none. `PACKET_MARK_SIDE_LINES` holds
+ * those fourteen coordinates. Each one takes its OWN stop's `signed_at`, never one stamp for all of
+ * them — the walk is twenty-two acts and a driver who loses signal finishes tomorrow.
+ *
  * ⚠ **The initials defect this renderer found is CLOSED** (Q-PKT8, 2026-09-14). `p05`, `p06` and
  * `p09` are `mark: "initials"`, D-PKT6 calls those a second adopted mark, and until that day the
  * ceremony adopted one and `record_packet_mark` pinned one `signed_name` per link — so a client

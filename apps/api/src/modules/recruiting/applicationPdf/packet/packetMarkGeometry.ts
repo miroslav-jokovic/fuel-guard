@@ -64,8 +64,15 @@ export const PACKET_MARK_LINES: readonly PacketMarkLine[] = [
     note: "p05's layout: `Initials` captioned under its line, in a narrower box." },
   { id: "p09", page: 9, x1: 464, x2: 553, y: 108.5, source: "sibling",
     note: "p05's layout: `Initials` captioned under its line, in a narrower box." },
-  { id: "p10", page: 10, x1: 102, x2: 464, y: 155.2, source: "seen",
-    note: "`Signature` boxed by two short rules; the long line runs to its right." },
+  // ⚠ **Stops at 305, not at the rule's own end (463.8), and that is a CORRECTION made 2026-09-14.**
+  // The rule is shared with the page's `Date`, whose caption is printed inline at x310.8 — so a name
+  // long enough to need the full span would have been drawn straight through the printed word and
+  // through the date beside it. p04 got this right from the start ("stops short of the date's") and
+  // p10 did not; nothing noticed until `packetFieldGeometry.test.ts` asserted that no line beside a
+  // mark may overlap the mark's own span. Nothing filed changes: production holds zero packet marks
+  // and the overlay has no production importer.
+  { id: "p10", page: 10, x1: 102, x2: 305, y: 155.2, source: "seen",
+    note: "`Signature` boxed by two short rules; the long line runs to its right and is SHARED with `Date`, whose caption is inline at x310.8." },
   { id: "p11a", page: 11, x1: 257, x2: 553, y: 219.3, source: "seen",
     note: "Upper of the page's two `Applicant signature` lines, captioned beneath." },
   { id: "p11b", page: 11, x1: 257, x2: 553, y: 127.5, source: "seen",
