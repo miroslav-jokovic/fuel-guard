@@ -26,22 +26,18 @@ import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
  * is filed evidence that has to reproduce in ten years. A signature's job on this page is to be
  * legibly the signer's name in the place the form asks for it, which oblique does.
  *
- * ── ⚠ NOT WIRED IN, AND ONE REASON IS A DEFECT UPSTREAM OF IT ─────────────────────────────────
- * `file.ts` still renders the §391.21 summary. Two things are outstanding before this replaces it,
- * and the second was found BY this renderer:
+ * ── ⚠ NOT WIRED IN YET, AND WHAT IS LEFT ──────────────────────────────────────────────────────
+ * `file.ts` still renders the §391.21 summary. One thing is outstanding before this replaces it:
+ * **the field values are not drawn here.** Pages 1, 2, 12, 15 and 16 carry applicant data, so wiring
+ * this in today would file a signed form with empty answers. Their coordinates now exist —
+ * `packetFieldGeometry.ts`, measured the same way this file's were — and drawing them is the next
+ * step.
  *
- *   1. The field values — pages 1, 2, 12, 15 and 16 carry applicant data and nothing here draws it,
- *      so wiring this in today would file a signed form with empty answers.
- *   2. ⚠ **THE INITIALS ARE NOT COLLECTED.** `p05`, `p06` and `p09` are `mark: "initials"`, and
- *      D-PKT6 is explicit that initials are a SECOND adopted mark — *"not an abbreviation of the
- *      first… a ceremony that derived them from the typed name would be inventing a mark the signer
- *      never made"*. `adoptedMarkKinds()` has said there are two since the inventory was written.
- *      The ceremony shipped in #783 adopts ONE, so this renderer is handed a full name for the three
- *      places that ask for initials — which is why they are also the three narrowest lines in the
- *      table and no type size rescues them.
- *      ⚠ **And it is worse than cosmetic: `record_packet_mark` pins one `signed_name` per link
- *      (DR035), so the moment a client correctly sends initials the ceremony is REFUSED at the third
- *      stop.** Supporting two marks needs the pin to be per mark KIND, which is a migration.
+ * ⚠ **The initials defect this renderer found is CLOSED** (Q-PKT8, 2026-09-14). `p05`, `p06` and
+ * `p09` are `mark: "initials"`, D-PKT6 calls those a second adopted mark, and until that day the
+ * ceremony adopted one and `record_packet_mark` pinned one `signed_name` per link — so a client
+ * sending initials was refused at its third stop. Migration 0340 pins per kind and the walk collects
+ * both. Nothing here changed: it draws `signed_name`, which for those three is now the initials.
  *
  * ⚠ **Every mark is scaled to fit its line and never overruns it.** The lines are between 90 and 413
  * points wide and a long name at a fixed size would run into the printed text beside it — on page 4
