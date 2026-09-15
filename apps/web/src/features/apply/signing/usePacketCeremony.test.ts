@@ -70,6 +70,7 @@ describe("adopting the mark", () => {
     const stage = vi.fn().mockResolvedValue(undefined);
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
     c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = new Blob(["x"], { type: "image/png" });
     expect(await c.adopt()).toBe(true);
@@ -86,6 +87,7 @@ describe("adopting the mark", () => {
     const stage = vi.fn().mockRejectedValue(new Error("offline"));
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
     c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = new Blob(["x"], { type: "image/png" });
     expect(await c.adopt()).toBe(true);
@@ -95,8 +97,67 @@ describe("adopting the mark", () => {
     const stage = vi.fn();
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
     c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
     expect(await c.adopt()).toBe(true);
     expect(stage).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ⚠ **The second adopted mark (D-PKT6, Q-PKT8).** Until 2026-09-14 this composable adopted one and
+ * sent the full name to `p05`, `p06` and `p09`; the server would have refused a client that got it
+ * right, because `record_packet_mark` pinned one name per link until migration 0340.
+ */
+describe("adopting the initials", () => {
+  it("will not start while a stop that takes initials has none", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    c.adoptedName.value = "Marija Varmeda";
+    expect(await c.adopt()).toBe(false);
+    expect(c.adopted.value).toBe(false);
+  });
+
+  it("starts once the initials are typed", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    expect(await c.adopt()).toBe(true);
+  });
+
+  /**
+   * ⚠ One character, not two. `applicationPacketMarkSchema` accepts `min(1)`, and somebody with one
+   * legal name has one initial — a client refusing it would be inventing a rule the contract has not
+   * got.
+   */
+  it("accepts a single initial", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "M";
+    expect(await c.adopt()).toBe(true);
+  });
+
+  /**
+   * ⚠ **Asked for only while one of the three is still outstanding**, and this is the case that says
+   * why: a driver resuming a link that collected `p05`, `p06` and `p09` yesterday would be asked to
+   * reproduce a mark the server has pinned, and a different keystroke would be refused (DR035).
+   */
+  it("does not ask for initials when every place that takes them is already collected", async () => {
+    const done = Object.fromEntries(
+      driverPlacements().filter((p) => p.mark === "initials").map((p) => [p.id, "2026-09-14T11:00:00Z"]),
+    );
+    expect(Object.keys(done)).toHaveLength(3);
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(done)));
+    expect(c.needsInitials.value).toBe(false);
+    c.adoptedName.value = "Marija Varmeda";
+    expect(await c.adopt()).toBe(true);
+  });
+
+  it("asks for them while a single one is left", async () => {
+    const initials = driverPlacements().filter((p) => p.mark === "initials");
+    const done = Object.fromEntries(initials.slice(1).map((p) => [p.id, "2026-09-14T11:00:00Z"]));
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(done)));
+    expect(c.needsInitials.value).toBe(true);
+    c.adoptedName.value = "Marija Varmeda";
+    expect(await c.adopt()).toBe(false);
   });
 });
 
@@ -104,6 +165,7 @@ describe("the walk", () => {
   const started = (signed: Record<string, string> = {}) => {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(signed)));
     c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
     return c;
   };
 
@@ -125,12 +187,35 @@ describe("the walk", () => {
     expect(c.complete.value).toBe(true);
   });
 
-  /** D-PKT13: one mark, adopted once, applied at every place. */
-  it("sends the same adopted name to every place", async () => {
+  /**
+   * D-PKT13: the marks are adopted once and applied at every place — and there are TWO of them
+   * (D-PKT6, Q-PKT8), each going only where the carrier's paper asks for it.
+   */
+  it("sends the signature to the nineteen places that take one, and the initials to the three", async () => {
     const c = started();
     await c.adopt();
     for (let i = 0; i < 22; i++) await c.sign();
-    expect(new Set(marked.map((m) => m.signedName))).toEqual(new Set(["Marija Varmeda"]));
+
+    const byKind = (kind: string) =>
+      marked.filter((m) => driverPlacements().find((p) => p.id === m.placementId)!.mark === kind);
+    expect(byKind("initials").map((m) => m.placementId)).toEqual(["p05", "p06", "p09"]);
+    expect(new Set(byKind("initials").map((m) => m.signedName))).toEqual(new Set(["MV"]));
+    expect(byKind("signature")).toHaveLength(19);
+    expect(new Set(byKind("signature").map((m) => m.signedName))).toEqual(new Set(["Marija Varmeda"]));
+  });
+
+  /**
+   * ⚠ The initials are not derived from the name ANYWHERE — D-PKT6's *"a ceremony that derived them
+   * from the typed name would be inventing a mark the signer never made"*. Initials that share no
+   * letter with the name make a derivation impossible to mistake for a pass.
+   */
+  it("sends exactly what the driver typed, never an abbreviation of the name", async () => {
+    const c = started();
+    c.adoptedInitials.value = "ZQ";
+    await c.adopt();
+    for (let i = 0; i < 22; i++) await c.sign();
+    const p05 = marked.find((m) => m.placementId === "p05")!;
+    expect(p05.signedName).toBe("ZQ");
   });
 
   /**
@@ -188,6 +273,7 @@ describe("coming back to a half-signed packet", () => {
       ref(stopsFrom({ p03: "2026-09-14T11:00:00Z", p04: "2026-09-14T11:01:00Z" })),
     );
     c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
     await c.adopt();
     expect(c.current.value!.id).toBe("p05");
   });
@@ -203,6 +289,7 @@ describe("coming back to a half-signed packet", () => {
       ref(stopsFrom({ p03: "2026-09-14T11:00:00Z", p04: "2026-09-14T11:01:00Z" })),
     );
     c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
     await c.adopt();
     expect(c.position.value).toBe(3);
     expect(c.total.value).toBe(22);

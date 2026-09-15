@@ -10,8 +10,17 @@ import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapt
  * DocuSign."* And, on how the mark is made: *"Driver can draw or type name once, but he needs to be
  * directed to each spot and apply saved signature form beginning at each place where needed."*
  *
- * So: adopt ONE mark — drawn or typed, the driver's choice — and then twenty-two stops, each showing
+ * So: adopt the mark — drawn or typed, the driver's choice — and then twenty-two stops, each showing
  * what is being agreed at that place, each one tap.
+ *
+ * ⚠ **"One mark" is TWO marks, and that was a defect here until 2026-09-14 (Q-PKT8).** `p05`, `p06`
+ * and `p09` ask for initials, and D-PKT6 has always been explicit that initials are *"a SECOND
+ * adopted mark and not an abbreviation of the first… a ceremony that derived them from the typed name
+ * would be inventing a mark the signer never made"*. This file sent the full name to all twenty-two
+ * stops — onto the three narrowest lines in the packet, at 89–141pt — and the server would have
+ * refused a client that got it right, because `record_packet_mark` pinned one name per link until
+ * migration 0340 made the pin per kind. The initials are typed, like the name; they are not derived
+ * from it anywhere, and there is no keystroke in this file that turns one into the other.
  *
  * ── WHY THIS IS NOT `useSigningCeremony` WITH A DIFFERENT LIST ────────────────────────────────
  * That one walks four INSTRUMENTS, each its own document with its own served text and its own
@@ -45,6 +54,15 @@ export function usePacketCeremony(
   options: { stage?: typeof stageCapture; io?: CaptureIo } = {},
 ) {
   const adoptedName = ref("");
+  /**
+   * The second adopted mark (D-PKT6, Q-PKT8). Typed, always — never derived from `adoptedName`.
+   *
+   * ⚠ Typed even when the driver DRAWS their signature, and for the same reason the name is: the
+   * drawn blob is a staged decoration and `signed_name` is the record on every row (D-APP8), so what
+   * the overlay puts on `p05` is this string. A second drawing pad would collect an image nothing
+   * reads.
+   */
+  const adoptedInitials = ref("");
   const style = ref<AdoptedMarkStyle>("typed");
   /** The drawn mark, when the driver chose to draw one. */
   const markBlob = ref<Blob | null>(null);
@@ -67,6 +85,20 @@ export function usePacketCeremony(
   const outstanding = computed(() => stops.value.filter((s) => !s.signedAt));
 
   const current = computed<ApplyPacketStop | null>(() => outstanding.value[index.value] ?? null);
+
+  /**
+   * Whether this link still has a stop that takes initials, and therefore whether to ask for them.
+   *
+   * ⚠ **Derived from the stops rather than from a constant `3`.** `driverPlacements()` is the
+   * inventory of somebody else's paper and it has already gained an entry mid-array once (p17,
+   * D-PKT12); a hard-coded count is a second place the packet's shape would live.
+   *
+   * ⚠ **`outstanding`, not every stop.** A driver resuming a link that already collected `p05`,
+   * `p06` and `p09` has nothing left to initial, and asking again would be asking them to reproduce
+   * a mark the server has already pinned — which a different keystroke would get refused for
+   * (DR035). See Q-PKT9: the same hazard exists for a resumed SIGNATURE and is not solved here.
+   */
+  const needsInitials = computed(() => outstanding.value.some((s) => s.mark === "initials"));
   /** The whole packet, so the driver sees what they are part-way through rather than what is left. */
   const total = computed(() => stops.value.length);
   const alreadySigned = computed(() => stops.value.length - outstanding.value.length);
@@ -94,6 +126,10 @@ export function usePacketCeremony(
    */
   async function adopt(): Promise<boolean> {
     if (adoptedName.value.trim().length < 2) return false;
+    // ⚠ One character, not two. A signature has a first name and a surname behind it; a single
+    // initial is what somebody with one legal name has, and `applicationPacketMarkSchema` accepts
+    // `min(1)`. Refusing it here would be this client inventing a rule the contract does not have.
+    if (needsInitials.value && adoptedInitials.value.trim().length < 1) return false;
     if (style.value === "drawn" && !markBlob.value) return false;
     const blob = markBlob.value;
     if (blob) {
@@ -110,6 +146,18 @@ export function usePacketCeremony(
     return true;
   }
 
+  /**
+   * Which of the two adopted marks a stop takes.
+   *
+   * ⚠ **The STOP's own kind decides, and it comes off the carrier's paper.** `mark` is
+   * `PacketPlacement`'s, measured from the packet and served by the API; nothing here classifies a
+   * page. A ceremony that guessed — from the page number, from the anchor text — would be a second
+   * opinion about a document the inventory already describes.
+   */
+  function markFor(stop: ApplyPacketStop): string {
+    return stop.mark === "initials" ? adoptedInitials.value.trim() : adoptedName.value.trim();
+  }
+
   /** Apply the adopted mark at the stop the driver is standing on. */
   async function sign(): Promise<void> {
     const stop = current.value;
@@ -117,7 +165,7 @@ export function usePacketCeremony(
     working.value = true;
     error.value = null;
     try {
-      const result = await applyPacketMark(token.value, stop.id, adoptedName.value.trim());
+      const result = await applyPacketMark(token.value, stop.id, markFor(stop));
       filed.value = result.signedCount;
       // ⚠ The SERVER decides this, not the end of our array. A resumed link, a second tab or a stop
       // collected elsewhere all mean the client's list is not the document's.
@@ -139,6 +187,9 @@ export function usePacketCeremony(
 
   return {
     adoptedName,
+    adoptedInitials,
+    needsInitials,
+    markFor,
     style,
     markBlob,
     adopted: computed(() => adopted.value),

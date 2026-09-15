@@ -25,9 +25,13 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * number shown. It is printed at the foot of the sheet the driver will be handed, so it is the only
  * thing here they can check against the document itself.
  *
- * ⚠ **A stop asking for INITIALS says initials.** The packet treats them as a second mark rather
- * than an abbreviation of the first — three pages take them and nothing else — so a screen that said
- * "sign" there would be describing a different act from the one being performed.
+ * ⚠ **A stop asking for INITIALS says initials, and applies the initials.** The packet treats them
+ * as a second mark rather than an abbreviation of the first — three pages take them and nothing else
+ * — so a screen that said "sign" there would be describing a different act from the one being
+ * performed, and a screen that previewed the full name there would be describing the right act with
+ * the wrong mark. Until 2026-09-14 (Q-PKT8) the adoption collected one mark and this screen did
+ * exactly that; the second field is on the adoption screen now, shown while any of the three is
+ * still outstanding.
  *
  * ── PROGRESS COUNTS THE PACKET, NOT THE WORK LEFT ─────────────────────────────────────────────
  * "Place 7 of 22" counts against the whole document, including stops a previous session collected.
@@ -63,6 +67,14 @@ const style = computed({
 
 const nameReady = computed(() => ceremony.adoptedName.value.trim().length >= 2);
 const drawReady = computed(() => style.value !== "drawn" || ceremony.markBlob.value !== null);
+/** ⚠ The same length the composable enforces, and the same reason: one initial is a real one. */
+const initialsReady = computed(
+  () => !ceremony.needsInitials.value || ceremony.adoptedInitials.value.trim().length >= 1,
+);
+/** What this stop puts on the page — read from the composable so the preview cannot disagree. */
+const applying = computed(() =>
+  ceremony.current.value ? ceremony.markFor(ceremony.current.value) : "",
+);
 
 async function adoptAndStart(): Promise<void> {
   if ((await ceremony.adopt()) && ceremony.complete.value) emit("done", ceremony.adoptedName.value.trim());
@@ -78,7 +90,9 @@ async function signCurrent(): Promise<void> {
   <!-- Adoption: once, before any place is shown. -->
   <section v-if="ceremony.state.value === 'adopting'" class="space-y-4">
     <div>
-      <h2 class="text-lg font-semibold text-ink">{{ copy.adoptHeading }}</h2>
+      <h2 class="text-lg font-semibold text-ink">
+        {{ ceremony.needsInitials.value ? copy.adoptHeadingWithInitials : copy.adoptHeading }}
+      </h2>
       <p class="mt-2 text-sm text-ink-muted">{{ copy.adoptIntro(carrier, ceremony.total.value) }}</p>
       <!-- A resumed link says so, rather than silently opening part-way through. -->
       <p v-if="ceremony.collected.value.length" class="mt-2 text-sm text-ink-secondary">
@@ -93,6 +107,16 @@ async function signCurrent(): Promise<void> {
     <FormField v-slot="{ id }" :label="copy.adoptLabel" :hint="copy.adoptHint">
       <BaseInput :id="id" v-model="ceremony.adoptedName.value" autocomplete="name" />
     </FormField>
+
+    <!-- ⚠ The SECOND adopted mark (D-PKT6, Q-PKT8), not an abbreviation of the first. Typed by the
+         driver even when they draw their signature, because `signed_name` is what goes on p05, p06
+         and p09 — and shown only while one of those three is still outstanding. -->
+    <template v-if="ceremony.needsInitials.value">
+      <FormField v-slot="{ id }" :label="copy.initialsLabel" :hint="copy.initialsHint">
+        <BaseInput :id="id" v-model="ceremony.adoptedInitials.value" autocomplete="off" />
+      </FormField>
+      <p v-if="!initialsReady" class="text-sm text-ink-secondary">{{ copy.initialsNeeded }}</p>
+    </template>
 
     <template v-if="style === 'typed'">
       <p v-if="nameReady" class="text-sm text-ink-muted">{{ copy.applyingTyped }}</p>
@@ -119,7 +143,7 @@ async function signCurrent(): Promise<void> {
     <div class="flex justify-end">
       <BaseButton
         variant="primary"
-        :disabled="ceremony.working.value || !nameReady || !drawReady"
+        :disabled="ceremony.working.value || !nameReady || !initialsReady || !drawReady"
         @click="adoptAndStart"
       >
         {{ ceremony.working.value ? copy.working : copy.adoptAction }}
@@ -143,11 +167,19 @@ async function signCurrent(): Promise<void> {
       {{ ceremony.current.value.what }}
     </p>
 
+    <!-- ⚠ The mark this stop takes, not the signature. A page asking for initials that previewed the
+         full name would be showing the driver something other than what lands on the paper. -->
     <div>
       <p class="text-sm text-ink-muted">
-        {{ style === 'drawn' ? copy.applyingDrawn : copy.applyingTyped }}
+        {{
+          ceremony.current.value.mark === "initials"
+            ? copy.applyingInitials
+            : style === 'drawn'
+              ? copy.applyingDrawn
+              : copy.applyingTyped
+        }}
       </p>
-      <p class="signature-preview text-2xl text-ink">{{ ceremony.adoptedName.value }}</p>
+      <p class="signature-preview text-2xl text-ink">{{ applying }}</p>
     </div>
 
     <p v-if="ceremony.error.value" class="text-sm text-ink-secondary">{{ copy.failed }}</p>

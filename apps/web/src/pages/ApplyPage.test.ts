@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { driverPlacements, APPLICATION_FILLING_SECTIONS } from "@silvicom/shared";
 import ApplyPage from "@/pages/ApplyPage.vue";
+import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
  * The applicant's page (H5b). Three things are pinned, and all three are about what a person with no
@@ -396,11 +397,14 @@ describe("the applicant's page", () => {
      * come ABOVE whatever the driver is about to affirm. D-AX12 is the reason, and it does not care
      * which of the two the affirmation is.
      */
+    // ⚠ The landmark is READ from the copy, not restated. This assertion is about ORDER; a literal
+    // here makes a copy edit look like a layout regression, which is what happened when the adoption
+    // screen started naming the initials as well (Q-PKT8). The fixture's packet is untouched, so the
+    // heading is the one that says both marks.
+    const heading = APPLY_COPY.packet.adoptHeadingWithInitials;
     const text = w.text();
-    expect(text).toContain("Your signature on the application");
-    expect(text.indexOf("Employer 1 · City")).toBeLessThan(
-      text.indexOf("Your signature on the application"),
-    );
+    expect(text).toContain(heading);
+    expect(text.indexOf("Employer 1 · City")).toBeLessThan(text.indexOf(heading));
   });
 
   it("says plainly when the carrier changed nothing", async () => {
