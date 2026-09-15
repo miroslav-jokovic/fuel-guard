@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage } from "pdf-lib";
 import { MARK_BASELINE_LIFT, PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
+import { FIELD_BASELINE_LIFT } from "./packetFieldGeometry.js";
+import type { PlacedFieldValue } from "./packetFieldValues.js";
 import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
 
 /**
@@ -60,6 +62,14 @@ export interface PacketMark {
 export interface PacketOverlayInput {
   marks: readonly PacketMark[];
   /**
+   * The applicant's answers, already matched to measured positions by `packetFieldValues.ts`.
+   *
+   * ⚠ Optional, and empty is a legitimate call: a caller that wants only the marks — the office
+   * previewing what the driver has signed so far — asks for only the marks. What is NOT legitimate is
+   * FILING one without them, which is why `file.ts` is still not wired to this.
+   */
+  fields?: readonly PlacedFieldValue[];
+  /**
    * The driver's drawn signature, when they chose to draw one (D-PKT13).
    *
    * ⚠ PNG bytes, and optional forever. A8b's rule holds here too: a mark that will not render must
@@ -98,6 +108,13 @@ function fittedSize(font: PDFFont, text: string, width: number): number {
 export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Buffer> {
   const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
   const font = await doc.embedFont(StandardFonts.HelveticaOblique);
+  /**
+   * ⚠ **Upright, not the signature's oblique.** A mark is a person's hand and reads as one; an
+   * ANSWER is a fact somebody typed into a form. Drawing a date of birth in italic would make every
+   * filled field look like a signature, on a document whose whole point is that the signatures are
+   * distinguishable from everything else on it.
+   */
+  const fieldFont = await doc.embedFont(StandardFonts.Helvetica);
 
   let drawn: PDFImage | null = null;
   if (input.drawnMark) {
@@ -107,6 +124,25 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
       // Decoration that failed to decode. The typed name below is the signature of record (D-APP8).
       drawn = null;
     }
+  }
+
+  /**
+   * ⚠ Values first, marks second, so that if a coordinate is ever wrong enough for the two to
+   * collide the SIGNATURE is the one on top. A date drawn over a signature is a document whose
+   * signature is obscured; a signature drawn over a date is a legible signature and a smudged date.
+   */
+  for (const field of input.fields ?? []) {
+    const text = field.text.trim();
+    if (!text) continue;
+    const page = doc.getPage(field.line.page - 1);
+    const width = field.line.x2 - field.line.x1;
+    page.drawText(text, {
+      x: field.line.x1 + 2,
+      y: field.line.y + FIELD_BASELINE_LIFT,
+      size: fittedSize(fieldFont, text, width - 4),
+      font: fieldFont,
+      color: INK,
+    });
   }
 
   for (const mark of input.marks) {

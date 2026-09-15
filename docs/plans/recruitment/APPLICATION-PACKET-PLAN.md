@@ -1360,3 +1360,47 @@ carrier's own anchors rather than from a hand-written list.
 overlap its signature fails the overlap case; deleting p20's date fails the anchor-derived case;
 reverting p10's mark span fails the containment case AND the overlap case; and calling p22's printed
 name a date fails three.
+
+---
+
+**2026-09-14 — the answers are drawn. `packetFieldValues.ts` + the overlay's field pass.**
+
+`packetFieldValues.ts` is a pure mapping: a stored `DriverApplication` in, `{ placed, overflow }` out.
+It draws nothing — `packetOverlay.ts` puts `placed` on the carrier's own pages. It will not merge with
+`packetPages.ts`, which composes headings and tables of its OWN onto blank paper: one owns a layout,
+the other owns a mapping onto somebody else's.
+
+**Verified by rendering a full application and looking** at pages 1, 2, 11, 12, 16 and 22 — 91 values
+placed, the carrier's letterhead, grid, `reisdency`, `maritial` and `signatrure` untouched.
+
+- ⚠ **Values are drawn UPRIGHT, marks stay oblique.** A mark is a person's hand; an answer is a fact
+  somebody typed. Both faces are in the file (`pdffonts` shows `Helvetica` and `Helvetica-Oblique`).
+  ⚠ Note for anyone checking by rasterising: **poppler does not synthesise the slant** for
+  non-embedded standard-14 faces, so `pdftoppm` shows both upright. The distinction is in the PDF.
+- ⚠ **Values first, marks second.** If a coordinate is ever wrong enough for two to collide, the
+  SIGNATURE is on top: a document whose signature is obscured is worse than one whose date is.
+- ⚠ **Overflow is RETURNED, never truncated** — Q-PKT10 stays the owner's. `fieldCell` refuses a row
+  the form does not have, so nothing can drop an answer by accident, and the overflow rows carry the
+  equipment CLASS so a continuation sheet can say what it continues.
+- `Sent to` stays blank (Q-PKT11) and the SSN is absent in all three places (D-HIRE6), both asserted.
+
+**Two defects the tests found in code written this session:**
+
+1. **A whitespace-only questionnaire answer was placed.** `blank()` collapses `"   "` for contract
+   fields; `answer()` reads free-form jsonb and does not, and the guard was a truthiness check. Now
+   trim-checked everywhere, including inside the grids.
+2. ⚠ **Two of my own assertions were vacuous, caught by mutating.** "Never writes into the carrier's
+   printed class column" passed with the guard removed, because the fixture's column 0 was empty
+   anyway — fixed by putting the class name there, which the OVERFLOW rows needed regardless. And
+   "puts a value on the page its line belongs to" used a page-1 field, so it passed with the page
+   hard-coded to 1. A third, "draws nothing for a blank value", could not fail either: whitespace is
+   invisible in both the raster and the extracted text, so it is asserted over the BYTES now.
+
+**Proved by mutation:** truncating overflow fails 2; one `certifiedAt` on every signature line fails
+the undated-stop case; printing an SSN fails 2; ignoring `declares_no_accidents` fails 1; wrapping
+free text by character slice fails 2; writing into the printed class column fails 1; drawing nothing
+for fields fails 3; drawing a blank value fails the byte case; hard-coding page 1 fails the page case.
+
+⚠ **Still not wired into `file.ts`, and now Q-PKT10 is the only thing in the way.** A filed form that
+drops a fourth accident is materially false, so the overflow has to have somewhere to go before this
+replaces the §391.21 summary (D-PKT5: `render.ts` is NOT deleted).

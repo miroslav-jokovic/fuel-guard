@@ -8,6 +8,7 @@ import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
 import { renderPacketOverlay } from "./packetOverlay.js";
 import { PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { pageText, readPacketTemplate } from "./packetTemplate.js";
+import { fieldLineFor } from "./packetFieldGeometry.js";
 
 /**
  * The marks, drawn onto the carrier's packet.
@@ -178,5 +179,80 @@ describe("drawing the driver's marks on the carrier's packet", () => {
       }),
     );
     expect(pageText(pages[19]!)).toContain(NAME);
+  });
+});
+
+/**
+ * The applicant's answers, drawn alongside the marks.
+ *
+ * ⚠ Read back out of the produced PDF rather than asserted over the input, for the reason the rest
+ * of this file exists: `streamOf` inflating only the first stream of a multi-stream page made a page
+ * read back completely empty once, which is indistinguishable from a renderer that drew nothing.
+ */
+describe("drawing the field values", () => {
+  /**
+   * ⚠ The fixture uses a field on page 16, NOT page 1. With a page-1 field this passes whether the
+   * renderer reads `line.page` or hard-codes the first page — which is exactly what it did for one
+   * round.
+   */
+  it("puts a value on the page its line belongs to, and on no other", async () => {
+    const line = fieldLineFor("p16.military")!;
+    expect(line.page).toBe(16);
+    const pages = await readBack(
+      await renderPacketOverlay({ marks: [], fields: [{ line, text: "NOTAWORD" }] }),
+    );
+    expect(pageText(pages[15]!)).toContain("NOTAWORD");
+    for (const i of [0, 1, 11, 14, 30]) expect(pageText(pages[i]!), `page ${i + 1}`).not.toContain("NOTAWORD");
+  });
+
+  /** ⚠ The carrier's own page survives a value being drawn on it, byte for byte. */
+  it("does not disturb the carrier's text on a page it fills", async () => {
+    const line = fieldLineFor("p01.dob")!;
+    const before = pageText((await readPacketTemplate())[0]!);
+    const pages = await readBack(
+      await renderPacketOverlay({ marks: [], fields: [{ line, text: "1980-04-01" }] }),
+    );
+    for (const phrase of ["Commercial driver information", "Previous Three years reisdency", "Cdl #"]) {
+      expect(before, `fixture: ${phrase}`).toContain(phrase);
+      expect(pageText(pages[0]!), phrase).toContain(phrase);
+    }
+  });
+
+  /**
+   * ⚠ Asserted over the BYTES, not over the read-back text. Whitespace drawn onto a page is
+   * invisible in both the rasterised page and the extracted text, so "the page reads the same" is
+   * true whether the value was skipped or drawn — that assertion passed with the guard removed and
+   * proved nothing. What changes is the content stream: a drawn `"   "` emits its own Tj.
+   */
+  it("draws nothing at all for a blank value, down to the bytes", async () => {
+    const line = fieldLineFor("p01.heard_from")!;
+    const none = await renderPacketOverlay({ marks: [], fields: [] });
+    const blank = await renderPacketOverlay({ marks: [], fields: [{ line, text: "   " }] });
+    const real = await renderPacketOverlay({ marks: [], fields: [{ line, text: "Indeed" }] });
+    expect(blank.length).toBe(none.length);
+    expect(real.length).not.toBe(none.length);
+    expect(pageText((await readBack(real))[0]!)).toContain("Indeed");
+  });
+
+  /**
+   * ⚠ Both on one page and both legible. The marks are drawn AFTER the values on purpose — if a
+   * coordinate is ever wrong enough for two to collide, the signature is the one on top, because a
+   * document whose signature is obscured is worse than one whose date is.
+   */
+  it("draws a mark and a value on the same page without either replacing the other", async () => {
+    const line = fieldLineFor("p01.dob")!;
+    const pages = await readBack(
+      await renderPacketOverlay({
+        marks: [{ placementId: "p03", signedName: NAME }],
+        fields: [{ line, text: "1980-04-01" }],
+      }),
+    );
+    expect(pageText(pages[0]!)).toContain("1980-04-01");
+    expect(pageText(pages[2]!)).toContain(NAME);
+  });
+
+  it("files a packet with no fields at all, which is the office previewing the marks", async () => {
+    const pages = await readBack(await renderPacketOverlay({ marks: allMarks() }));
+    expect(pages).toHaveLength(31);
   });
 });
