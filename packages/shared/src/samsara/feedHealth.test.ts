@@ -27,6 +27,8 @@ const CADENCES: Record<SamsaraFeedId, number> = {
   odometer: 24 * HOUR,
   hos: 6 * HOUR,
   idle: 6 * HOUR,
+  // The only tier configured in SECONDS — Samsara's own stated floor for live tracking (LM4).
+  positions: 5_000,
 };
 
 const specs = (over: Partial<Record<SamsaraFeedId, number>> = {}) =>
@@ -53,7 +55,10 @@ describe("the catalogue", () => {
       expect(s.what.length, s.id).toBeGreaterThan(0);
     }
     const ruled = specs().filter((s) => s.targetSource === "ruling").map((s) => s.id).sort();
-    expect(ruled).toEqual(["driver_scores", "identity", "ifta", "stats", "telematics"]);
+    // `positions` joined this list with LM4 and is the reason the entry is a FRACTION of an hour:
+    // left off, a 5-second tier would take a `cadence × 3` bound of fifteen SECONDS and be amber
+    // forever. A feed leaves this list only when somebody decides it should stop paging anybody.
+    expect(ruled).toEqual(["driver_scores", "identity", "ifta", "positions", "stats", "telematics"]);
   });
 
   it("takes the ruled bound verbatim where Q-SAM1 gave one", () => {

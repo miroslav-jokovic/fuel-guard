@@ -1,8 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { syncVehiclesFromSamsara, NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 import { syncVehicleStatsFromSamsara } from "./samsaraStatsFeed.js";
+import { syncVehiclePositionsFromSamsara } from "./samsaraPositionsFeed.js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
 import { syncRecentDriverScoreWeeks } from "../performance/index.js";
 import { snapshotSettledWeeks } from "../performance/index.js";
@@ -11,123 +10,15 @@ import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
 import { syncIdleRollup } from "../idle/index.js";
 import { syncIdleDutyEvidence } from "../idle/index.js";
 import { runDataRetention } from "../org/index.js";
-import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "../org/index.js";
+// The machinery every tier shares — which orgs, which slot, which loop. Moved out when LM4's tier
+// pushed this file past the 500-line budget; see `lib/tierRunner.ts` for why it is a split and not a
+// waiver.
+import { orgsToSync, runOrgTier, startTier } from "./lib/tierRunner.js";
 import { runSamsaraFeedAlarm } from "./samsaraFeedAlarm.js";
 import { samsaraFeedCadences } from "./samsaraFeedHealth.js";
-import { enqueueJob } from "../../queue/enqueue.js";
 import { dispatchJob } from "../../queue/dispatch.js";
 import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
 import { syncVehicleOdometerReadings } from "./samsaraOdometerSync.js";
-
-/** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —
- *  the OLDEST org only (2026-08 incident: the fallback used to include EVERY org row, so a stray org
- *  created by dev seed data started syncing the entire real fleet in parallel — duplicate vehicles,
- *  doubled DB load. An env token is single-tenant by definition; it belongs to exactly one org, and
- *  the oldest row is the real tenant by construction — strays are always created later). */
-async function orgsToSync(admin: SupabaseClient, env: Env): Promise<string[]> {
-  const set = new Set<string>();
-  const { data: creds } = await admin
-    .from("integration_credentials")
-    .select("org_id, samsara_api_token, enabled");
-  for (const c of creds ?? []) {
-    if (c.enabled !== false && c.samsara_api_token) set.add(c.org_id as string);
-  }
-  if (env.SAMSARA_API_TOKEN) {
-    const { data: oldest } = await admin
-      .from("organizations")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1);
-    for (const o of oldest ?? []) set.add(o.id as string);
-  }
-  return [...set];
-}
-
-/**
- * Run one org's tier through the jobs ledger, honoring the execution mode (plan WQ1c):
- *  - **queue** — ENQUEUE the kind for the worker pool and return. The worker runs the handler under the
- *    bounded Samsara lane (Q7), so vendor RPS holds globally instead of N-per-scheduler-process. The
- *    handler reconstructs the work from the kind (empty payload); `work` is unused in this mode.
- *  - **inprocess** (default today) — claim the (org, kind) slot and run `work` inline, recording
- *    done/failed with stats, exactly as before this migration.
- * A conflict (a manual run or a still-running prior tick owns the slot) just means "already running" →
- * skip quietly. NoSamsaraToken records as done+skipped, not a failure.
- */
-async function runOrgTier(
-  admin: SupabaseClient,
-  env: Env,
-  orgId: string,
-  kind: JobKind,
-  work: () => Promise<Record<string, unknown>>,
-): Promise<void> {
-  if (env.JOB_EXECUTION_MODE === "queue") {
-    try {
-      await enqueueJob(admin, kind, { orgId }); // scheduler runs carry no actor + an empty payload
-    } catch (e) {
-      if (e instanceof JobConflictError) return; // already queued/running for this (org, kind)
-      console.error(
-        `[samsara-sched] ${kind} enqueue failed for org ${orgId}:`,
-        e instanceof Error ? e.message : e,
-      );
-    }
-    return;
-  }
-  let jobId: string;
-  try {
-    jobId = await startJob(admin, orgId, kind); // scheduler runs have no requested_by
-  } catch (e) {
-    if (e instanceof JobConflictError) return; // a run of this kind is already active for the org
-    console.error(
-      `[samsara-sched] ${kind} start failed for org ${orgId}:`,
-      e instanceof Error ? e.message : e,
-    );
-    return;
-  }
-  const stopHeartbeat = startJobHeartbeat(admin, jobId); // P0-4: big-fleet stat syncs can outlive one lease
-  try {
-    const stats = await work();
-    await finishJob(admin, jobId, { status: "done", stats });
-  } catch (e) {
-    if (e instanceof NoSamsaraTokenError) {
-      await finishJob(admin, jobId, { status: "done", stats: { skipped: "no token" } });
-      return;
-    }
-    await finishJob(admin, jobId, {
-      status: "failed",
-      error: e instanceof Error ? e.message : String(e),
-    });
-    console.error(
-      `[samsara-sched] ${kind} failed for org ${orgId}:`,
-      e instanceof Error ? e.message : e,
-    );
-  } finally {
-    stopHeartbeat();
-  }
-}
-
-/** A generic tier loop: first run shortly after boot, then on its own interval; never overlaps itself. */
-function startTier(
-  env: Env,
-  label: string,
-  firstDelayMs: number,
-  intervalMs: number,
-  runAllOrgs: (admin: SupabaseClient) => Promise<void>,
-): void {
-  let running = false;
-  const run = async () => {
-    if (running) return;
-    running = true;
-    try {
-      await runAllOrgs(getSupabaseAdmin(env));
-    } catch (e) {
-      console.error(`[samsara-sched] ${label} run failed:`, e instanceof Error ? e.message : e);
-    } finally {
-      running = false;
-    }
-  };
-  setTimeout(run, firstDelayMs);
-  setInterval(run, intervalMs);
-}
 
 /**
  * Tier 5 — PER-FILL TELEMATICS (SAM-S3, D-SAM1). The tier that stops the collection hole growing.
@@ -200,6 +91,58 @@ function startStatsTier(env: Env, intervalMs: number): void {
           dropsSuppressedUnreliableSensor: r.dropsSuppressedUnreliableSensor,
         };
       });
+    }
+  });
+}
+
+/**
+ * Tier 9 — LIVE POSITIONS for the map (LM4, D-LM1). The fastest tier here by two orders of magnitude.
+ *
+ * ── IT DOES NOT RUN THROUGH `runOrgTier`, AND THAT IS THE POINT ──────────────────────────────────
+ * Every other collecting tier claims a (org, kind) slot in the `jobs` ledger. At 12 ticks a minute
+ * this one would write ~17,000 job rows per org per day against a 90-day retention, to record that a
+ * five-second poll ran. The ledger's gifts do not apply either: `startTier` already refuses to overlap
+ * itself, the schedulers run in exactly one process fleet-wide (docs/WORKER-DEPLOYMENT.md), and there
+ * is no manual "sync positions" button for a tick to race. Its freshness stamp is the cursor's own
+ * `updated_at`, which `samsaraFeedHealth` reads and 0288 created for exactly this — a column that moves
+ * when SAMSARA ANSWERED rather than when we ran.
+ *
+ * ── THE FIRST DELAY IS FIVE MINUTES, AND THAT NUMBER IS THE DEPLOY WINDOW ────────────────────────
+ * Railway serves a merge about three minutes in while `migrate.yml` waits for CI green, so a release
+ * carrying 0342 is SERVED before its function EXISTS (docs/MIGRATION-DISCIPLINE.md §the-deploy-window;
+ * 2m44s measured on 0316, 2026-09-05). The odometer tier takes 15 minutes for the same reason, but it
+ * runs daily and can afford them; a map that stays dark for a quarter of an hour after every deploy
+ * cannot. Five is a shade under twice the measured window, and a tick that lands inside it anyway is
+ * handled rather than lost: `writerMissing` comes back true, no cursor is stored, and the next tick
+ * five seconds later re-reads the same page.
+ */
+function startPositionsTier(env: Env): void {
+  startTier(env, "positions", 300_000, env.SAMSARA_POSITIONS_SYNC_SECONDS * 1_000, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      try {
+        const r = await syncVehiclePositionsFromSamsara(admin, env, orgId);
+        // Logged only when something is worth saying. A tier that printed a line every five seconds
+        // would bury every other message in the service log inside a day, which is the same failure as
+        // writing 17,000 job rows, spelt differently.
+        if (r.writerMissing) {
+          console.warn(
+            `[samsara-sched] positions: record_vehicle_positions is not in the database yet for org ${orgId} — ` +
+              "this is the deploy window (0342); the next tick will re-read the same page.",
+          );
+        } else if (r.pagesCapped || r.unmappedVehicles > 0) {
+          console.log(
+            `[samsara-sched] positions org ${orgId}: wrote ${r.written} of ${r.fixes} fixes over ${r.pages} page(s)` +
+              (r.unmappedVehicles > 0 ? `, ${r.unmappedVehicles} unmapped truck(s)` : "") +
+              (r.pagesCapped ? ", PAGE CAP HIT" : ""),
+          );
+        }
+      } catch (e) {
+        if (e instanceof NoSamsaraTokenError) continue; // an unconfigured org is not a failure
+        console.error(
+          `[samsara-sched] positions failed for org ${orgId}:`,
+          e instanceof Error ? e.message : e,
+        );
+      }
     }
   });
 }
@@ -441,11 +384,19 @@ function startRetentionTier(env: Env): void {
  * SHORTEST configured cadence. Clamped at both ends for reasons that are about the clamp and not
  * about a preference: below a minute is pointless for bounds measured in hours, and above an hour
  * would delay a one-hour bound's alert by as much as the bound itself.
+ *
+ * ── THE FIRST DELAY IS THE SLOWEST COLLECTOR'S FIRST DELAY, PLUS HEADROOM ────────────────────────
+ * Raised from 5 to 7 minutes when LM4 landed. `never` is an ALERTABLE state for any ruled feed, and a
+ * feed whose tier has not had its first tick yet is indistinguishable from one that has never
+ * delivered — so an alarm that evaluates at the same instant as a collector's first run is a coin
+ * flip on mailing a carrier about an outage that is really a cold start. The positions tier's first
+ * tick is at 5 minutes (it waits out the deploy window); this waits for it. It costs two minutes once
+ * per process start and nothing else, and the cadence-derived interval below is unchanged.
  */
 function startFeedAlarmTier(env: Env): void {
   const cadences = Object.values(samsaraFeedCadences(env)).filter((ms) => ms > 0);
   const interval = Math.min(Math.max(Math.min(...cadences), 60_000), 3_600_000);
-  startTier(env, "feed-alarm", 300_000, interval, async (admin) => {
+  startTier(env, "feed-alarm", 420_000, interval, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
       try {
         const r = await runSamsaraFeedAlarm(admin, env, orgId);
@@ -477,12 +428,16 @@ export function startSamsaraScheduler(env: Env): void {
   if (env.SAMSARA_IFTA_SYNC_HOURS > 0) startIftaTier(env);
   if (env.SAMSARA_ODOMETER_SYNC_HOURS > 0) startOdometerTier(env);
   if (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0) startReconTier(env);
+  if (env.SAMSARA_POSITIONS_SYNC_SECONDS > 0) startPositionsTier(env);
   startRetentionTier(env);
-  // Reads what the seven tiers above recorded and says so when one of them has stopped delivering.
+  // Reads what the tiers above recorded and says so when one of them has stopped delivering.
   startFeedAlarmTier(env);
 
   console.log(
     `[samsara-sched] tiered sync enabled — stats every ${env.SAMSARA_STATS_SYNC_MINUTES}m, identity every ${env.SAMSARA_IDENTITY_SYNC_HOURS}h` +
+      (env.SAMSARA_POSITIONS_SYNC_SECONDS > 0
+        ? `, live positions every ${env.SAMSARA_POSITIONS_SYNC_SECONDS}s`
+        : ", live positions DISABLED") +
       (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0
         ? `, per-fill telematics ${env.SAMSARA_RECON_BATCH} fills every ${env.SAMSARA_RECON_SYNC_MINUTES}m`
         : ", per-fill telematics DISABLED"),

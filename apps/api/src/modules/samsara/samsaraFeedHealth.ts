@@ -22,6 +22,22 @@
  * use, so a `backfill` row proves nothing about telematics. `fuel_transactions.samsara_recon_checked_at`
  * is the stamp the recon path itself writes, and it is what S4's coverage card already judges attempts
  * by — the same predicate, so the two surfaces cannot disagree about whether we asked.
+ *
+ * ── 4. NEITHER IS THE POSITIONS TIER, AND FOR A THIRD REASON (LM4) ───────────────────────────────
+ * It does not run through the jobs ledger at all. At 12 ticks a minute a 5-second tier would write
+ * ~17,000 `jobs` rows per org per day against a 90-day retention — 1.5M rows recording that a poll ran,
+ * in a ledger built for runs a human waits on and a card polls. It does not need the ledger's other
+ * gift either: `startTier` already prevents a tier overlapping itself, the schedulers run in exactly
+ * one process fleet-wide, and unlike the stats tier there is no manual "sync now" button for it to
+ * race. So its stamp is `samsara_feed_cursors.updated_at`, which 0288 created for precisely this —
+ * "Samsara mints a fresh endCursor on every call, including one that returns no samples", so the
+ * column moves when the VENDOR ANSWERED rather than when we ran. That is a strictly better success
+ * stamp than a job row, and the distinction is the whole of the `*_last_polled_at` trap above.
+ *
+ * ⚠ The cost of that choice, stated rather than discovered: with no job rows there is no error text,
+ * so `positions` can read `fresh`, `late` or `never` but never `failing`. A tier refused by Samsara
+ * looks exactly like a tier that stopped. `telematics` has carried the same limitation since S5 for
+ * the same structural reason, and in both cases the server log is where the refusal is legible.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -33,6 +49,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import type { JobKind } from "../org/index.js";
+import { VEHICLE_POSITIONS_FEED } from "./lib/feedCursor.js";
 
 const MIN_MS = 60_000;
 const HOUR_MS = 3_600_000;
@@ -42,7 +59,7 @@ const HOUR_MS = 3_600_000;
  * tier LABELS ("identity", "driver-scores") are not job kinds, and identity deliberately runs under
  * `sync_vehicles` so a manual vehicle sync and the tier share one slot.
  *
- * `telematics` is absent on purpose: see the header.
+ * `telematics` and `positions` are absent on purpose: see the header.
  */
 const FEED_JOB_KIND: Partial<Record<SamsaraFeedId, JobKind>> = {
   stats: "sync_stats",
@@ -76,6 +93,8 @@ export function samsaraFeedCadences(env: Env): Record<SamsaraFeedId, number> {
     idle: perf,
     ifta: env.SAMSARA_IFTA_SYNC_HOURS * HOUR_MS,
     odometer: env.SAMSARA_ODOMETER_SYNC_HOURS * HOUR_MS,
+    // The only tier configured in seconds (LM4). `startSamsaraScheduler` gates it on the same zero.
+    positions: env.SAMSARA_POSITIONS_SYNC_SECONDS * 1_000,
   };
 }
 
@@ -141,6 +160,31 @@ async function readTelematicsStamp(
   return { lastSuccessAt: at, lastAttemptAt: at, lastError: null };
 }
 
+/**
+ * The positions tier's own stamp: when its cursor last advanced (LM4, header §4).
+ *
+ * A missing row is `never`, not an error — it is also what the deploy window looks like, and what an
+ * org with the tier switched off looks like. As with `readTelematicsStamp` the attempt and the success
+ * are the same instant, because the cursor moves only when Samsara answered; there is nothing here
+ * that can distinguish "tried and refused" from "not tried", which the header states as the cost.
+ */
+async function readPositionsStamp(
+  admin: SupabaseClient,
+  orgId: string,
+): Promise<Omit<SamsaraFeedObservation, "id">> {
+  const { data, error } = await admin
+    .from("samsara_feed_cursors")
+    .select("updated_at")
+    .eq("org_id", orgId)
+    .eq("feed", VEHICLE_POSITIONS_FEED)
+    .maybeSingle();
+  // 0288's table and this reader can be a merge apart; a refused read here would otherwise paint the
+  // whole freshness surface with an error about one feed.
+  if (error) return { lastSuccessAt: null, lastAttemptAt: null, lastError: null };
+  const at = (data as { updated_at?: string } | null)?.updated_at ?? null;
+  return { lastSuccessAt: at, lastAttemptAt: at, lastError: null };
+}
+
 export interface SamsaraFeedHealthResult {
   feeds: SamsaraFeedHealth[];
   /** Feeds whose bound was ruled, is meetable, and is breached — the ones allowed to page somebody. */
@@ -163,7 +207,11 @@ export async function readSamsaraFeedHealth(
     const observations = await Promise.all(
       specs.map(async (s): Promise<SamsaraFeedObservation> => {
         const kind = FEED_JOB_KIND[s.id];
-        const stamps = kind ? await readJobStamps(admin, orgId, kind) : await readTelematicsStamp(admin, orgId);
+        const stamps = kind
+          ? await readJobStamps(admin, orgId, kind)
+          : s.id === "positions"
+            ? await readPositionsStamp(admin, orgId)
+            : await readTelematicsStamp(admin, orgId);
         return { id: s.id, ...stamps };
       }),
     );

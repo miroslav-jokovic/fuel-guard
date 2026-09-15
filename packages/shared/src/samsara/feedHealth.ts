@@ -59,6 +59,7 @@ export const SAMSARA_FEED_IDS = [
   "odometer",
   "hos",
   "idle",
+  "positions",
 ] as const;
 export type SamsaraFeedId = (typeof SAMSARA_FEED_IDS)[number];
 
@@ -74,6 +75,20 @@ export const SAMSARA_RULED_TARGET_HOURS: Partial<Record<SamsaraFeedId, number>> 
   identity: 24,
   driver_scores: 12,
   ifta: 48,
+  // The first FRACTIONAL entry, and the first bound on a sub-hour feed: 15 minutes (LM4).
+  //
+  // This one is a RULING and is recorded as such, because leaving it out has a worse failure than
+  // getting the number slightly wrong. Absent from this map, a feed takes a cadence-derived bound of
+  // `cadence × 3` — which for a 5-second tier is 15 SECONDS, so a single slow tick paints the card
+  // amber and the freshness surface becomes wallpaper. That is the exact outcome this module's header
+  // argues against, arrived at by declining to decide.
+  //
+  // 15 minutes is what a person should react to: a dispatcher watching a board of trucks that has not
+  // moved in a quarter of an hour is looking at an outage, and three minutes of nothing on a fleet
+  // where some trucks are parked overnight is not. PER-TRUCK staleness is a different question with a
+  // different answer — D-LM10 draws it on the map itself, per vehicle, and this bound says nothing
+  // about it. Owner may retune; the plan's LM4 log records the reasoning so it can be argued with.
+  positions: 0.25,
 };
 
 /** Plain word first, industry term behind it — the register `finance-reader-is-a-non-native-speaker` sets. */
@@ -86,6 +101,7 @@ const COPY: Record<SamsaraFeedId, { label: string; what: string }> = {
   odometer: { label: "Daily odometer readings", what: "One reading per truck per day. Late here weakens cost per mile." },
   hos: { label: "Hours of service", what: "Duty status. Late here dates the driver-home checks." },
   idle: { label: "Idle time", what: "Engine idling by truck. Late here dates the idle report." },
+  positions: { label: "Live truck positions", what: "Where each truck is, every few seconds. Late here freezes the live map." },
 };
 
 export interface SamsaraFeedSpec {
