@@ -13,25 +13,38 @@ import type { ChartConfiguration } from "chart.js";
 import BaseChart from "@/components/BaseChart.vue";
 import ChartCard from "../ChartCard.vue";
 import { useFleetWidgetData, type FleetRange } from "../fleetWidgetData";
-import { viz, areaFill, trendOptions, fmtDay, fmtMoney } from "@/lib/chartTheme";
+import { viz, BAR_GEOMETRY, trendOptions, fmtDay, fmtMoney } from "@/lib/chartTheme";
 
 const props = defineProps<{ range: FleetRange }>();
 const { s } = useFleetWidgetData(computed(() => props.range));
 
-// Zero-filled and org-tz-bucketed upstream; a withheld day is a gap, not a zero.
+/**
+ * ── BARS, NOT A LINE (DR3) ───────────────────────────────────────────────────────────────────────
+ * Both dashboard comps draw this card as bars, and the data agrees with them: `spendTrend` is a
+ * DISCRETE daily total, and `dashboard.ts` zero-fills it — `round2(spendByDay.get(date) ?? 0)`,
+ * commented "a no-spend day is a real $0 day". So every point is a real number, the series can
+ * never contain a null, and a line's implication that Tuesday flows into Wednesday was never true
+ * of it. `spanGaps: false` was doing nothing here; it stays on the MPG card, where the nulls are.
+ *
+ * That zero-fill is also why bars lose nothing. A bar chart cannot tell "no data" from "zero" — both
+ * draw no bar — which would be a real objection on a series that could be withheld, and is not one
+ * on a series that cannot.
+ */
 const spendChart = computed<ChartConfiguration>(() => ({
-  type: "line",
+  type: "bar",
   data: {
     labels: s.value?.spendTrend.map((p) => p.date) ?? [],
     datasets: [{
       label: "Spend",
       data: s.value?.spendTrend.map((p) => p.value) ?? [],
-      borderColor: viz.spend,
-      backgroundColor: areaFill("--viz-spend") as unknown as string,
-      fill: true, tension: 0.4, spanGaps: false, borderWidth: 2.5,
-      borderCapStyle: "round", borderJoinStyle: "round",
-      pointRadius: 0, pointHitRadius: 12, pointHoverRadius: 4,
-      pointHoverBackgroundColor: viz.spend, pointHoverBorderColor: viz.pointHalo, pointHoverBorderWidth: 2,
+      backgroundColor: viz.spend,
+      // The palette's own hover step, rather than an alpha invented here. ⚠ The comps draw these
+      // bars VIOLET, like everything else on the page, and that is the generator being a generator:
+      // `--viz-spend` is emerald because the visualisation palette is a validated set rather than
+      // brand decoration, and DR1 already paid for that lesson when rotating `--viz-cost-reefer`
+      // failed `lint:chart-colors`.
+      hoverBackgroundColor: viz.spendHover,
+      ...BAR_GEOMETRY,
     }],
   },
   options: trendOptions({ series: "Spend", format: (v) => fmtMoney(v) }),

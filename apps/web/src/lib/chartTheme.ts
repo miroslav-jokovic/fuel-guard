@@ -206,8 +206,20 @@ export interface AreaFillOptions {
  * The defaults draw the wash to the baseline. A chart with several lines gives every series but
  * the headline one an early `fadeAt` — the fleet trend fades earned and spent out within the top
  * third — so three washes never overlap into a band nobody can read (D-FRUI7).
+ *
+ * ── THE DEFAULTS WERE HALVED AT DR3, AND THE NUMBER CAME OFF THE COMP ────────────────────────────
+ * Sampled out of comp (3)'s Fleet MPG card, 2026-09-16 (`docs/design examples/…11_08_55 PM (3)`),
+ * reading the PNG a pixel at a time rather than looking at it: the wash is `rgba` ≈ 0.047 directly
+ * under the line, still 0.047 at 59% of the plot height, 0.026 at 71% and 0.012 at 95%. The old
+ * defaults compute to 0.128 / 0.077 / 0.052 / 0.009 at those same depths — a little over twice the
+ * comp everywhere but the very bottom. `top` 0.3 → 0.14 and `mid` 0.08 → 0.045 reproduce the comp
+ * to within a couple of hundredths across the whole band.
+ *
+ * ⚠ `FleetTrendChart` is NOT affected and that is deliberate rather than lucky: all three of its
+ * series pass an explicit wash, including the headline one, which spells out the old defaults
+ * in full. D-FRUI7's three-wash tuning survives untouched.
  */
-export function areaFill(varName: string, { top = 0.3, mid = 0.08, midAt = 0.55, fadeAt = 1 }: AreaFillOptions = {}) {
+export function areaFill(varName: string, { top = 0.14, mid = 0.045, midAt = 0.55, fadeAt = 1 }: AreaFillOptions = {}) {
   const topColor = resolveAlpha(varName, top);
   const midColor = resolveAlpha(varName, mid);
   const bottom = resolveAlpha(varName, 0);
@@ -221,6 +233,48 @@ export function areaFill(varName: string, { top = 0.3, mid = 0.08, midAt = 0.55,
     if (fadeAt < 1) g.addColorStop(1, bottom);
     return g;
   };
+}
+
+/**
+ * The bar geometry the comps draw (DR3, DESIGN-REFRESH-2026-09.md §3).
+ *
+ * Both dashboard comps render "Fuel spend · daily total across the fleet" as BARS, and measured off
+ * comp (3): a bar is 9–10px wide with a 1–2px gap, so it fills ~85% of its band, and its top corners
+ * carry an arc that drops 2px over about 3 — a radius of roughly a third of the bar's width. The
+ * bottom corners are square, sitting on the axis.
+ *
+ * `borderSkipped: "bottom"` is what keeps them square: Chart.js rounds every corner NOT adjacent to
+ * the skipped edge, so without it a bar floats on four rounded corners and stops reading as a
+ * quantity standing on a baseline.
+ *
+ * `maxBarThickness` exists because this dashboard's range is an arbitrary from/to, not a menu of
+ * fixed windows: a seven-day range across a 900px card would otherwise draw 120px slabs, where a
+ * 4px radius reads as square and the chart reads as a diagram of nothing.
+ *
+ * Exported as one object rather than spelled out at the call site so the second bar chart is a
+ * second reference and not a second set of five numbers.
+ */
+export const BAR_GEOMETRY = {
+  borderRadius: 4,
+  borderSkipped: "bottom" as const,
+  maxBarThickness: 28,
+  categoryPercentage: 0.95,
+  barPercentage: 0.9,
+};
+
+/**
+ * A dot on the LAST point only, which is where a trend's value is read (D-FRUI7's R5 ruling).
+ *
+ * ⚠ Comp (3) appears to put a dot on every point and does not: measured 2026-09-16, the MPG line is
+ * a uniform 1–3 dark pixels per column for its whole length and 4 only at the final point. What
+ * reads as a row of dots in an upscaled screenshot is the antialiasing of a 2px stroke. The comp and
+ * the existing ruling agree, and only counting pixels showed it — the same lesson as D-DR17.
+ *
+ * `FleetTrendChart` had this inline for three series; it is here so a fourth caller reuses the
+ * decision instead of the number.
+ */
+export function lastPointRadius(lastIndex: number, radius = 4) {
+  return (ctx: { dataIndex: number }) => (ctx.dataIndex === lastIndex ? radius : 0);
 }
 
 const FONT = {

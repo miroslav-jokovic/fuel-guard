@@ -1,7 +1,7 @@
 # Design refresh 2026-09 — the comps, and what it actually takes to reach them
 
-**Status:** DR1, DR2, DR4, DR6, D-DR17 shipped (`main` `6104de9`); **DR5 built** — see §7.
-**Next:** DR2b, DR3, DR4b, DR7, and DR5's own follow-ups named at the end of §7.
+**Status:** DR1, DR2, DR4, DR6, D-DR17 and DR5 shipped (`main` `96efd06`); **DR3 built** — see §7.
+**Next:** DR2b, DR4b, DR7, and DR5's own follow-ups named at the end of §7.
 Handoff: `HANDOFF-2026-09-16-DESIGN-REFRESH.md` — read it, then §7 below.
 **Owner:** Miki. **Opened:** 2026-09-16.
 **Source of the direction:** seven comps in `docs/design examples/`, commissioned by the owner and
@@ -553,3 +553,59 @@ conflict every time (`plan-progress-log-not-table-rows`).
      environments a banner appears in. Not traded for that.
   3. **Fuel Planning is `fullBleed`'s obvious second consumer** and was left alone on purpose: one
      step per PR, and a shell flag with one consumer is easier to review than with two.
+
+- **2026-09-16 — DR3 BUILT (the chart theme), and two thirds of its description turned out to be
+  wrong.** The row in §3 reads "gradient area fills, rounded bars, softer grid". Measured against
+  comp (3) before writing anything — by reading the PNG a pixel at a time, not by looking at it:
+
+  - **"Gradient area fills" already existed.** `areaFill` has drawn a three-stop vertical gradient
+    since G9, on five charts. What was actually wrong was its STRENGTH: the comp's wash reads 0.047
+    directly under the line, 0.047 at 59% of the plot height, 0.026 at 71% and 0.012 at 95%; the old
+    defaults compute to 0.128 / 0.077 / 0.052 / 0.009 at the same depths — a little over twice the
+    comp everywhere but the very bottom. `top` 0.3 → 0.14 and `mid` 0.08 → 0.045 land within a
+    couple of hundredths across the band. `FleetTrendChart` is untouched: all three of its series
+    pass an explicit wash, so D-FRUI7's three-wash tuning survives by construction, not by luck.
+  - **"Rounded bars" had no subject until the FORM changed.** There is not one Chart.js bar chart in
+    `apps/web`. Both dashboard comps draw "Fuel spend · daily total across the fleet" as bars, and
+    the data agrees: `spendTrend` is a discrete daily total that `dashboard.ts` ZERO-FILLS
+    (`round2(spendByDay.get(date) ?? 0)`, commented "a no-spend day is a real $0 day"), so it can
+    never contain a null and a line's implication that Tuesday flows into Wednesday was never true
+    of it. That zero-fill is also what makes bars safe: a bar chart cannot tell "no data" from
+    "zero", which would be a real objection on a series that could be withheld and is not one here.
+    ⚠ The MPG card keeps its line for exactly the opposite reason — `mpgWeeks[].mpg` IS nullable and
+    `spanGaps: false` draws the hole.
+  - **"Softer grid" had no substance at all.** Our `--viz-grid` is `--ramp-neutral-100`, which
+    computes to `rgb(238, 240, 243)` — 17/15/12 below white. The comp's gridline measures
+    `rgb(246, 248, 250)`, 9/7/5 below, which looks like ours being twice as heavy. It is not: the
+    comp's line occupies TWO adjacent rows at that value, which is a 1px stroke antialiased across a
+    half-pixel boundary. Summed, the ink is one row 17 below white — `--ramp-neutral-100` exactly.
+    **No change, and that is the finding rather than an omission.**
+
+  **The same antialiasing trap cost a second wrong answer, and it is the one worth remembering.**
+  Comp (3)'s MPG line appears to carry a dot on every point at 3× magnification. It does not: the
+  line is a uniform 1–3 dark pixels per column for its whole length and 4 only at the final point.
+  What reads as dots is a 2px stroke's own edges. So the comp AGREES with D-FRUI7's existing R5
+  ruling — "no points along the line; one ringed dot on the last month" — and `MpgTrendWidget`,
+  which had no dot at all, gains the terminal one through a shared `lastPointRadius` rather than a
+  third copy of `FleetTrendChart`'s inline ternary. **Reading a picture gave the wrong answer twice
+  and counting pixels gave the right one both times** — D-DR17's lesson in a different medium.
+
+  **Colour is unchanged, deliberately.** Both comps draw the spend bars violet, like everything else
+  on their page, and `--viz-spend` is emerald. DR1 already paid for this: rotating `--viz-cost-reefer`
+  to match the comps failed `lint:chart-colors`, because the visualisation palette is a validated set
+  — lightness band, chroma floor, colour-vision separation, 3:1 on surface — and a member of it is
+  not a brand colour. Measured while deciding: the comp's own bars sit at **1.9:1 against white**, and
+  our emerald lightened to the comp's tint ratio would sit at **1.66:1**. The comps are not accessible
+  on that mark; ours stays at full strength, which is the only mark on that chart.
+
+  ⚠ **The bars therefore read heavier than the comp**, and that is a visible deviation rather than a
+  detail: a card of 30 saturated emerald bars beside the MPG card's airy wash is not the balance
+  comp (3) draws. It is the price of a mark that clears 3:1. Flagged for the owner rather than
+  traded away quietly.
+
+  1,847 web tests; `lint:chart-colors` and five other gates green; three assertions **proved by
+  mutation** (reverting the wash defaults, rounding all four bar corners, and a dot on every point
+  each fail exactly one). Rendered and looked at with synthetic data at 1512 and 1280 — the
+  dev-bypass dashboard is all zeros, so the browser check ran behind Playwright route mocks of
+  `rest/v1/fuel_transactions` and `/api/fueling/fleet-mpg`. Hover verified: the index tooltip reads
+  "Aug 29 · Spend: $13,222" and the hovered bar takes `--viz-spend-hover`.
