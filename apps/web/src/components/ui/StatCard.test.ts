@@ -56,12 +56,33 @@ describe("StatCard anatomy", () => {
     const spark = { spark: [1, 2, 3], sparkColor: "#000", size: "hero" as const };
 
     const below = mountCard(spark);
-    expect(below.find(".w-2\\/5").exists()).toBe(false);
     expect(below.find(".mt-3 svg").exists()).toBe(true);
 
     const inline = mountCard({ ...spark, sparkInline: true });
-    expect(inline.find(".w-2\\/5 svg").exists()).toBe(true);
+    expect(inline.find(".w-20 svg").exists()).toBe(true);
     expect(inline.find(".mt-3 svg").exists()).toBe(false);
+  });
+
+  /**
+   * The inline spark must YIELD when the tile is too narrow for both it and the label (D-DR17).
+   *
+   * ⚠ This asserts the two classes that produce the behaviour rather than the behaviour itself,
+   * because jsdom has no layout engine — every width here is 0, so a wrap cannot be observed in a
+   * unit test. The behaviour was measured in a real browser instead, and the numbers are worth
+   * keeping: at a 220px tile (the `xl:grid-cols-4` case at 1280px viewport) the label needed 91px
+   * and the old fixed `w-2/5` reservation left it 61, so "Fleet avg MPG" rendered as "Fleet a…".
+   * With `flex-wrap` and the `min-w-32` floor the spark drops to its own line and the label gets
+   * the full 128px; at a 325px tile it stays inline. Remove either class and the truncation
+   * returns silently, because the label wears `truncate`.
+   */
+  it("lets the inline spark wrap instead of squeezing the label", () => {
+    const inline = mountCard({ spark: [1, 2, 3], sparkColor: "#000", size: "hero", sparkInline: true });
+    const row = inline.get(".flex-wrap");
+    expect(row.classes()).toContain("flex");
+    // The label column keeps a floor, which is what forces the wrap rather than a squeeze.
+    expect(row.find(".min-w-32").exists()).toBe(true);
+    // And the spark is allowed to grow into the space when it does fit beside the number.
+    expect(inline.get(".w-20").classes()).toContain("grow");
   });
 
   /**

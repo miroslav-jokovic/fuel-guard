@@ -193,14 +193,7 @@ const valueClass = computed(() =>
       @click="isToggle ? emit('toggle') : undefined"
     >
       <!--
-        `size-10` and `gap-3` because the comp's chip measures ~40px, not because they fix anything.
-        ⚠ Worth writing down, since it nearly became a wrong fix: at 1280px the hero labels truncate
-        to "Fuel sp…", and that is NOT this component's doing. `main` truncates identically at that
-        width — so do "Telematics co…" and "Declined atte…" in `OperatingMetricsWidget`, which this
-        change never touched. The cause is the four-up grid at the `xl` breakpoint being too tight
-        for the labels it carries, it predates the design refresh, and it is recorded in
-        DESIGN-REFRESH-2026-09.md §3.1 rather than papered over here. Recovering 12px of text column
-        moves that threshold slightly and fixes nothing.
+        `size-10` and `gap-3` because the comp's chip measures ~40px.
       -->
       <div :class="hero ? 'flex items-start gap-3' : 'flex items-start justify-between gap-3'">
         <!-- D-DR2: the hero chip leads the tile from the left and is bigger; the KPI chip keeps its
@@ -213,8 +206,25 @@ const valueClass = computed(() =>
           <AppIcon :icon="icon" class="size-6" />
         </span>
         <div class="min-w-0 flex-1">
-          <div :class="inlineSpark ? 'flex items-start justify-between gap-4' : ''">
-            <div class="min-w-0">
+          <!--
+            ⚠ `flex-wrap` and `min-w-32`, and both are load-bearing (D-DR17).
+
+            Shipped without them, the inline spark reserved `w-2/5` of the tile unconditionally, and
+            at 1280px — where `xl:grid-cols-4` makes each tile 220px — that left the label 61px to
+            render "Fleet avg MPG", which needs 91. It truncated to "Fleet a…". Measured, not
+            guessed: pre-DR2 every label reported `scrollWidth - clientWidth === 0`, and after it
+            "Fuel spend" was 7px short and "Fleet avg MPG" 30px.
+
+            The fix is wrapping rather than a viewport breakpoint, because this is a CONTAINER
+            question and a viewport rule gets it backwards: the very same tile is 410px wide in the
+            two-up grid at 900px and 220px in the four-up at 1280px, so "inline above `xl`" would
+            enable it exactly where it does not fit and disable it where it does. `min-w-32` is the
+            floor the label needs; when the spark's 80px cannot also fit, it wraps onto its own line
+            — which is the layout it had before going inline. The tile decides from its own width
+            and no breakpoint has to know the grid it is sitting in.
+          -->
+          <div :class="inlineSpark ? 'flex flex-wrap items-center gap-x-4 gap-y-3' : ''">
+            <div :class="inlineSpark ? 'min-w-32 flex-1' : 'min-w-0'">
           <p :class="labelClass">{{ label }}</p>
           <template v-if="loading">
             <div class="mt-2.5 h-8 w-24 animate-pulse rounded-control bg-surface-muted" />
@@ -243,7 +253,7 @@ const valueClass = computed(() =>
             </div>
             <!-- Vertically centred against the value, not the tile: the caption sits below and a
                  spark centred on the whole tile floats visibly low beside it. -->
-            <div v-if="inlineSpark && !loading" class="w-2/5 shrink-0 self-center">
+            <div v-if="inlineSpark && !loading" class="w-20 grow">
               <SparkLine :points="spark!" :color="sparkColor ?? 'currentColor'" />
             </div>
           </div>
