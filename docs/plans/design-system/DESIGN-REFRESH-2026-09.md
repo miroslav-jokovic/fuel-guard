@@ -999,3 +999,49 @@ conflict every time (`plan-progress-log-not-table-rows`).
   (`mapProxies.ts`, `Buffer.from(await upstream.arrayBuffer())`). Streaming it is a separate change
   with its own failure mode — once bytes are flowing, a 502 JSON can no longer be sent — and at
   ~30 KB a jpeg tile it is worth less than it was at 260 KB.
+
+- **2026-09-16 — D-DR24: the two live maps become one, and the Dispatch tab is the survivor.** Owner's
+  ruling, and it **overrules D-DW5**, which held that the map was "both a widget and a full page, and
+  neither substitutes for the other". Two surfaces onto one board meant two shapes to keep honest and
+  two places to fix a defect — and the glance was the weaker half, because nobody glances at a map:
+  they look for a truck, which is work. So `/live-map`, `LiveMapPage.vue`, the sidebar entry and
+  `LiveMapPanel.vue` (the card-in-a-grid reading) are all deleted, and the workspace shape is what the
+  Dashboard's Dispatch tab renders.
+
+  **The design decision §3.4 of the perf handoff named as unsettled — "the tab is a widget in a grid,
+  the workspace is full-bleed, something has to give" — is settled as `span: "workspace"`.** A third
+  value beside `full` and `half`, in the widget catalogue, meaning *this widget IS its tab*: no card,
+  no gutters, no neighbours, the height of the viewport under the tab strip.
+
+  ⚠ **It is declared in the CATALOGUE and not at the render site, because two processes need the
+  answer**: `TabWidgets` reads it to decide whether to draw a grid, and the dashboard ROUTE reads it —
+  before the page exists — to decide whether the shell drops its gutters. A boolean in the web app
+  would have been the copy with the delay fuse the same file already warns about.
+
+  **So `meta.fullBleed` now takes a predicate, and the dashboard keeps `?tab=` in the URL.** The
+  dashboard is a document on Fleet and a workspace on Dispatch, which a static boolean cannot say.
+  The tab had to be somewhere the ROUTER could read it, and the URL is the only place it already
+  belonged — which closes a gap that was there before: a reload used to drop the reader back on their
+  role's default tab however long they had been on another one. ⚠ The signal is NOT a store the page
+  writes into: the shell decides its outlet while the page is still being constructed, so a page-sent
+  signal arrives a frame late and the map is built at the document's width and then resized.
+
+  ⚠ **`defaultFor: ["dispatcher"]` went with the card**, and that is part of the ruling rather than
+  tidying. "The dispatcher sees the map first, an admin adds it if they want it" is sensible about one
+  card among nine and absurd about a tab whose only content is that map: an admin opening Dispatch got
+  an empty state offering a Customize menu of exactly the thing they had come for. A workspace is not
+  arrangeable, so a stored layout hiding it is ignored rather than obeyed — there would be no way back.
+
+  **Measured in a browser at 1512×900**, dev-bypass, real tiles: the map canvas is **1240×731, 67% of
+  the viewport**, against **71%** for the `/live-map` page it replaces. ⚠ **That is 4 points WORSE on
+  the owner's own complaint**, and it is stated rather than buried: the tab strip costs ~60px the page
+  did not spend. The answer is §4's — collapse the sidebar on a full-bleed surface, which measured
+  83% — and it lands with the left-rail layout rather than here, because a rail and a sidebar have to
+  be decided together.
+
+  `lint:surfaces` gained two detectors rather than one: a workspace widget may not SHARE its tab (the
+  card would be catalogued, gated, reachable in the permissions preview and never drawn — the silent
+  class this gate exists for) and a tab may hold only one. Both proved to fire.
+
+  ⚠ A bookmarked `/live-map` now lands on not-found. Accepted with the ruling; a redirect to
+  `/?tab=dispatch` is the two-line answer if bookmarks turn out to matter.

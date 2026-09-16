@@ -45,8 +45,12 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/assignments",
   },
   {
-    "name": "live-map",
-    "params": {},
+    "name": "not-found",
+    "params": {
+      "pathMatch": [
+        "live-map",
+      ],
+    },
     "url": "/live-map",
   },
   {
@@ -511,6 +515,7 @@ exports[`the route table survives being split by area > route table 1`] = `
 [
   {
     "meta": {
+      "fullBleed": [Function],
       "requiresAuth": true,
       "title": "Dashboard",
     },
@@ -850,16 +855,6 @@ exports[`the route table survives being split by area > route table 1`] = `
     "name": "",
     "path": "/import",
     "redirect": "/fuel-log",
-  },
-  {
-    "meta": {
-      "fullBleed": true,
-      "requiresAuth": true,
-      "title": "Live map",
-    },
-    "name": "live-map",
-    "path": "/live-map",
-    "redirect": null,
   },
   {
     "meta": {

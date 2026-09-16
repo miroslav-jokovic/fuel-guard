@@ -94,10 +94,34 @@ const emptyByChoice = computed(() => drawable.value.length === 0 && allowed.valu
  * on no rows and a Save that saves nothing.
  */
 const nothingAvailable = computed(() => allowed.value.length === 0);
+
+/**
+ * A WORKSPACE tab is one surface filling the tab, not a grid of cards (D-DR24).
+ *
+ * ⚠ It skips `resolveDashboardLayout` entirely, and that is the point rather than an omission. The
+ * per-user layout exists to pair, reorder and hide cards; a tab with one surface on it has nothing to
+ * pair it with, and hiding it would leave a tab holding an empty state and no way back — the
+ * Customize button that would restore it is the very thing being hidden. So a workspace is not
+ * arrangeable and says so here, once, instead of every consumer guarding against a stored key.
+ *
+ * The GATE still applies: `allowed` is computed above from `canReachSurface` exactly as for a card,
+ * so an org without the dispatch module still gets the "nothing to show here" panel.
+ */
+const workspaceWidget = computed(() =>
+  allowed.value.find((w) => w.span === "workspace" && WIDGET_COMPONENTS[w.key] !== undefined),
+);
 </script>
 
 <template>
-  <div class="space-y-4">
+  <!-- A workspace IS the tab: no Customize row, no card, no grid, and the height it was given. -->
+  <component
+    :is="WIDGET_COMPONENTS[workspaceWidget.key]"
+    v-if="workspaceWidget"
+    :data-test="`widget-${workspaceWidget.key}`"
+    class="h-full"
+  />
+
+  <div v-else class="space-y-4">
     <div v-if="!nothingAvailable" class="flex justify-end">
       <BaseButton type="button" variant="ghost" @click="editing = true">
         <AppIcon :icon="AdjustmentsHorizontalIcon" class="size-4" aria-hidden="true" />

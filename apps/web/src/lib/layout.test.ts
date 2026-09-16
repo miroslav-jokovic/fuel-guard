@@ -27,15 +27,18 @@ describe("resolveLayout (G1)", () => {
   });
 });
 
-describe("isFullBleed (D-DR5)", () => {
-  it("is false for a route that says nothing, which is every route but the live map", () => {
-    expect(isFullBleed({ requiresAuth: true, title: "Dashboard" })).toBe(false);
-    expect(isFullBleed({})).toBe(false);
+describe("isFullBleed (D-DR5, extended by D-DR24)", () => {
+  /** A route, as much of one as this function reads. */
+  const at = (meta: Record<string, unknown>, query: Record<string, unknown> = {}) => ({ meta, query });
+
+  it("is false for a route that says nothing, which is every route but the dashboard", () => {
+    expect(isFullBleed(at({ requiresAuth: true, title: "Dashboard" }))).toBe(false);
+    expect(isFullBleed(at({}))).toBe(false);
   });
 
   it("is true only for the literal `true`", () => {
-    expect(isFullBleed({ fullBleed: true })).toBe(true);
-    expect(isFullBleed({ fullBleed: false })).toBe(false);
+    expect(isFullBleed(at({ fullBleed: true }))).toBe(true);
+    expect(isFullBleed(at({ fullBleed: false }))).toBe(false);
   });
 
   it("is independent of `layout`, which is the whole reason it is a separate flag", () => {
@@ -43,6 +46,23 @@ describe("isFullBleed (D-DR5)", () => {
     // value of it replaces `AppShell` and its navigation. A full-bleed page keeps the shell and
     // changes only the outlet, so the two questions have to be answerable separately.
     expect(resolveLayout({ fullBleed: true, requiresAuth: true }, true)).toBeUndefined();
-    expect(isFullBleed({ layout: "shop", fullBleed: true })).toBe(true);
+    expect(isFullBleed(at({ layout: "shop", fullBleed: true }))).toBe(true);
+  });
+
+  /**
+   * D-DR24. The dashboard is a document on the Fleet tab and a workspace on the one holding the live
+   * map, so the answer depends on the URL rather than on the route alone.
+   */
+  it("asks a predicate, so one route can be a document on one tab and a workspace on another", () => {
+    const meta = { fullBleed: (route: { query?: Record<string, unknown> }) => route.query?.tab === "dispatch" };
+    expect(isFullBleed(at(meta, { tab: "dispatch" }))).toBe(true);
+    expect(isFullBleed(at(meta, { tab: "fleet" }))).toBe(false);
+    expect(isFullBleed(at(meta))).toBe(false);
+  });
+
+  // ⚠ A predicate returning something truthy-but-not-true is a bug in the predicate, not permission
+  // to drop the gutters. The `=== true` in both branches is what this holds.
+  it("takes only `true` from a predicate, the same as from a literal", () => {
+    expect(isFullBleed(at({ fullBleed: () => "yes" as unknown as boolean }))).toBe(false);
   });
 });

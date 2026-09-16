@@ -275,7 +275,25 @@ export function findWidgetViolations({ list, components, tabs, sections, roles, 
     if (w.module && !modules.has(w.module)) errors.push(`widget "${w.key}" needs module "${w.module}", which is not a ModuleKey.`);
     // 5. and it must render into a tab that exists
     if (w.tab && !tabs.has(w.tab)) errors.push(`widget "${w.key}" renders into tab "${w.tab}", which is not in DASHBOARD_TABS.`);
-    if (w.span && w.span !== "full" && w.span !== "half") errors.push(`widget "${w.key}" has span "${w.span}" — only full|half lay out.`);
+    if (w.span && !["full", "half", "workspace"].includes(w.span))
+      errors.push(`widget "${w.key}" has span "${w.span}" — only full|half|workspace lay out.`);
+  }
+  /**
+   * 6. D-DR24: a `workspace` widget IS its tab, so it cannot share one.
+   *
+   * The failure it prevents is silent rather than loud. `TabWidgets` renders the workspace and
+   * returns, so a card added to that tab would simply never appear — catalogued, gated, reachable in
+   * the permissions preview, and invisible on the page. Nothing else in this file or the suite would
+   * notice, because every other check asks whether a widget is WELL FORMED and not whether it is
+   * drawn. The tab is also full-bleed by then, so there is nowhere for a card to go.
+   */
+  const workspaceTabs = new Set(list.filter((w) => w.span === "workspace").map((w) => w.tab));
+  for (const tab of workspaceTabs) {
+    const sharing = list.filter((w) => w.tab === tab && w.span !== "workspace");
+    if (sharing.length > 0)
+      errors.push(`tab "${tab}" holds a workspace widget and ${sharing.length} other widget(s) (${sharing.map((w) => w.key).join(", ")}) — a workspace IS its tab, so those would never render.`);
+    if (list.filter((w) => w.tab === tab && w.span === "workspace").length > 1)
+      errors.push(`tab "${tab}" holds more than one workspace widget — only one surface can fill a tab.`);
   }
   // ...and the other direction, which is how `navIcons.ts` drift is caught for surfaces.
   for (const key of components) if (!seen.has(key)) errors.push(`WIDGET_COMPONENTS has "${key}", which is not in DASHBOARD_WIDGETS — the split has drifted.`);
@@ -335,7 +353,11 @@ function selfTest() {
     [[{ ...wBase, defaultFor: ["wizard"] }], new Set(["t.w"]), /not a UserRole/],
     [[{ ...wBase, module: "teleport" }], new Set(["t.w"]), /not a ModuleKey/],
     [[{ ...wBase, tab: "nowhere" }], new Set(["t.w"]), /not in DASHBOARD_TABS/],
-    [[{ ...wBase, span: "third" }], new Set(["t.w"]), /only full\|half/],
+    [[{ ...wBase, span: "third" }], new Set(["t.w"]), /only full\|half\|workspace/],
+    // D-DR24: a workspace sharing its tab, and two workspaces on one tab. Both render nothing and
+    // say nothing, which is exactly the class of defect this file exists for.
+    [[{ ...wBase, key: "t.ws", span: "workspace" }, wBase], new Set(["t.w", "t.ws"]), /would never render/],
+    [[{ ...wBase, key: "t.ws", span: "workspace" }, { ...wBase, key: "t.ws2", span: "workspace" }], new Set(["t.ws", "t.ws2"]), /more than one workspace/],
     [[wBase, wBase], new Set(["t.w"]), /declared twice/],
     [[wBase], new Set(["t.w", "t.ghost"]), /split has drifted/],
   ];
@@ -358,7 +380,7 @@ function selfTest() {
 if (process.argv.includes("--self-test")) {
   const fails = selfTest();
   if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
-  console.log("✓ surfaces self-test — all seventeen detectors fire, and none fires on a clean catalogue.");
+  console.log("✓ surfaces self-test — all nineteen detectors fire, and none fires on a clean catalogue.");
   process.exit(0);
 }
 

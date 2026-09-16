@@ -34,7 +34,7 @@ const queryClient = useQueryClient();
 /**
  * D-DR5: the outlet varies, the shell does not. See `isFullBleed` for why this is not a `layout`.
  */
-const fullBleed = computed(() => isFullBleed(route.meta));
+const fullBleed = computed(() => isFullBleed(route));
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const modules = useModulesQuery();

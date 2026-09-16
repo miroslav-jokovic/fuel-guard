@@ -27,8 +27,13 @@ declare module "vue-router" {
      * Render this route's content edge to edge inside `AppShell` (D-DR5). Read through
      * `isFullBleed` in `lib/layout.ts`, never here — see that function for why it is not a sixth
      * `layout`. Absent means "a document", which is what every other route in this table is.
+     *
+     * ⚠ A PREDICATE is allowed since D-DR24, for a route whose answer depends on where inside it the
+     * reader is: the dashboard is a document on the Fleet tab and a workspace on Dispatch. It is
+     * handed the route so it can read `query`, and it must be pure — the shell evaluates it on every
+     * navigation while deciding the outlet.
      */
-    fullBleed?: boolean;
+    fullBleed?: boolean | ((route: { query?: Record<string, unknown> }) => boolean);
   }
 }
 import { authRoutes } from "./routes/auth";

@@ -2054,3 +2054,14 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   test; ignoring heading in it fails the turning-on-the-spot test. ⚠ A round trip slower than the
   budget brings the stutter back for the excess — the fix for that is measuring the board inside
   Railway, not a bigger constant.
+
+- **2026-09-16 — D-DW5 IS OVERRULED: one live map, on the Dashboard's Dispatch tab.** `/live-map` is
+  gone — the route, `LiveMapPage.vue`, the `dispatch.live-map` SURFACE entry and its sidebar icon, and
+  `LiveMapPanel.vue`, which was the card-in-a-grid reading of this board. The widget catalogue keeps
+  the key (same key, different catalogue: it names the entitlement the tab gates on) and carries
+  `span: "workspace"`, a third value meaning the widget IS its tab. The full entry, the measurements
+  and the two new `lint:surfaces` detectors are in `DESIGN-REFRESH-2026-09.md` §7 under **D-DR24**.
+
+  ⚠ For this plan the consequence worth carrying forward is that **LM8's page and LM-T's tab are now
+  one surface**: a defect in the board has one place to be fixed, `useLiveMapView` has one consumer
+  rather than two, and anything written here about "the page" means the Dispatch tab.

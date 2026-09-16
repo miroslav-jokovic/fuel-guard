@@ -181,16 +181,17 @@ export const SURFACES: readonly Surface[] = [
 
   // ── dispatch ──────────────────────────────────────────────────────────────────────────────────
   /**
-   * The live map (LIVE-MAP-PLAN.md LM8). First in the group because it is the screen a dispatcher
-   * starts their shift on.
+   * ⚠ THE LIVE MAP IS NOT IN THIS CATALOGUE ANY MORE (D-DR24, 2026-09-16). It was the first entry in
+   * this group — `/live-map`, the screen a dispatcher started their shift on. The owner ruled the two
+   * live maps into one and kept the Dashboard's Dispatch tab, so the page, the route and this
+   * sidebar entry went together: a nav link to a deleted route is the exact defect `lint:surfaces`
+   * exists to catch, and leaving the entry pointed at `/?tab=dispatch` would have put a tab of the
+   * dashboard in the sidebar as if it were a page of its own.
    *
-   * `section("dispatch")` and deliberately not `manage("dispatch")`: the endpoint behind it is gated
-   * `requireSection("dispatch", "view")`, which an auditor holds, and a surface stricter than its
-   * own endpoint hides a page from somebody the API will answer. `module: "dispatch"` matches the
-   * router's `requireModule("dispatch")`, so a tenant without the module gets no entry rather than a
-   * board it cannot load.
+   * The widget catalogue still carries `dispatch.live-map` — same key, different catalogue, and that
+   * is not a leftover: the key names the SURFACE ENTITLEMENT, which is what the dashboard widget
+   * gates on. Its gate and module live in `dashboardWidgets.ts` and say exactly what this entry said.
    */
-  { key: "dispatch.live-map", label: "Live map", path: "/live-map", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   { key: "dispatch.loads", label: "Loads", path: "/loads", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   // Phase 7 (D-PM4): the dispatch inbox — participation-scoped, module-gated, badge = unread.
   { key: "dispatch.messages", label: "Messages", path: "/messages", group: "dispatch", gate: section("dispatch"), module: "messages", badge: "messagesUnread" },

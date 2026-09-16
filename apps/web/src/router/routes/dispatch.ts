@@ -1,19 +1,21 @@
 import type { RouteRecordRaw } from "vue-router";
 
-/** Assignments, loads and the live map, including the `/dispatch/loads` aliases (LD2). */
+/**
+ * Assignments and loads, including the `/dispatch/loads` aliases (LD2).
+ *
+ * ── `/live-map` IS GONE, AND IT IS NOT AN OVERSIGHT (D-DR24, 2026-09-16) ─────────────────────────
+ * It was here, full-bleed, rendering the same board the Dashboard's Dispatch tab renders. Owner's
+ * ruling: one live map, and the tab is the survivor — so the route, its page and its sidebar entry
+ * went with it rather than being left as a second door onto one surface. `fullBleed` did not go with
+ * them: the Dispatch tab is a `workspace` widget and the dashboard route asks the catalogue for the
+ * same treatment, which is why `meta.fullBleed` now takes a predicate.
+ *
+ * ⚠ Anyone arriving on a bookmarked `/live-map` lands on the router's not-found handling. That is
+ * the accepted cost of the ruling and not a defect to "fix" with a redirect that would keep the URL
+ * alive for another year — but if bookmarks turn out to matter, a redirect to `/?tab=dispatch` is
+ * the two-line answer.
+ */
 export const dispatchRoutes: RouteRecordRaw[] = [
-  {
-    // LM8. `section("dispatch")` in the catalogue, not `manage` — the API gates
-    // `requireSection("dispatch", "view")` and an auditor holds it, so a stricter surface would hide
-    // a page from somebody the endpoint will happily answer.
-    path: "/live-map",
-    name: "live-map",
-    component: () => import("@/pages/LiveMapPage.vue"),
-    // D-DR5: the map IS the page, so the shell's padded document outlet would be a frame around a
-    // workspace. `fullBleed` drops the gutters and gives `<main>` a height; the sidebar, top bar and
-    // bell are untouched. It is NOT `layout`, which means "a different shell entirely".
-    meta: { requiresAuth: true, title: "Live map", fullBleed: true },
-  },
   {
     path: "/assignments",
     name: "assignments",

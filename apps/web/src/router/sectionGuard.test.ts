@@ -124,7 +124,10 @@ describe("the section gates on the navigation guard", () => {
     ["/ifta", "fuel", "accountant", "recruiter"],
     ["/loads", "dispatch", "dispatcher", "recruiter"],
     ["/truck-stops", "dispatch", "auditor", "recruiter"],
-    ["/live-map", "dispatch", "auditor", "recruiter"],
+    // ⚠ `/live-map` was here and is gone with the route (D-DR24 — the Dashboard's Dispatch tab is
+    // the one live map now). `/assignments` is the dispatch section's other `view`-level screen and
+    // asks the guard exactly the same question, so the section keeps a case rather than losing one.
+    ["/assignments", "dispatch", "auditor", "recruiter"],
     ["/anomalies", "safety", "safety_manager", "technician"],
     ["/driver-performance", "safety", "auditor", "technician"],
     ["/drivers", "roster", "recruiter", "technician"],

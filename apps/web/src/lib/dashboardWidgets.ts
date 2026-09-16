@@ -32,7 +32,7 @@ import CostCompositionWidget from "@/features/dashboard/widgets/CostCompositionW
 import SeverityWidget from "@/features/dashboard/widgets/SeverityWidget.vue";
 import TopVehiclesWidget from "@/features/dashboard/widgets/TopVehiclesWidget.vue";
 import TopDriversWidget from "@/features/dashboard/widgets/TopDriversWidget.vue";
-import LiveMapPanel from "@/features/livemap/LiveMapPanel.vue";
+import LiveMapWorkspace from "@/features/livemap/LiveMapWorkspace.vue";
 
 export const WIDGET_COMPONENTS: Record<string, Component> = {
   "fleet.feed-freshness": FeedFreshnessWidget,
@@ -45,14 +45,17 @@ export const WIDGET_COMPONENTS: Record<string, Component> = {
   "fleet.top-vehicles": TopVehiclesWidget,
   "fleet.top-drivers": TopDriversWidget,
   /**
-   * D-DW5 — the same panel `/live-map` renders, embedded rather than reimplemented. The tab is the
-   * glance and the page is the work surface; neither substitutes for the other, and a second
-   * "dashboard version" of the map would be a second thing to keep correct.
+   * ── D-DR24: THE WORKSPACE, NOT THE CARD ─────────────────────────────────────────────────────────
+   * D-DW5 had two shapes of one board — `LiveMapWorkspace` at `/live-map` and `LiveMapPanel` here,
+   * "the tab is the glance and the page is the work". The owner ruled them into one on 2026-09-16
+   * and kept THIS surface, so the work shape is what the tab renders and `LiveMapPanel.vue` is
+   * deleted rather than left unreferenced.
    *
-   * It replaces a placeholder card that read "Not connected yet — vehicle positions are still being
-   * wired up to the Samsara feed", which had been false since LM8 merged.
+   * ⚠ It is catalogued `span: "workspace"`, so `TabWidgets` renders it without a card and the route
+   * drops the shell's gutters. Putting a floating-panel workspace inside a dashboard grid cell is
+   * exactly what DR5 refused, and this is the other resolution of that: the cell is gone.
    */
-  "dispatch.live-map": LiveMapPanel,
+  "dispatch.live-map": LiveMapWorkspace,
 };
 
 /** Widgets that need the page's date range. The live map is live — it has no window to scope. */

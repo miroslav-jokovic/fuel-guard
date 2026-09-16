@@ -19,9 +19,10 @@
  */
 import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
 import { ArrowDownTrayIcon, ChevronDownIcon, CsvIcon, PdfIcon } from "@silvicom/ui/icons";
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import { tabIsWorkspace } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
@@ -33,6 +34,7 @@ import { visibleTabs, initialTab, showsTabStrip } from "@/features/dashboard/das
 
 const session = useSessionStore();
 const route = useRoute();
+const router = useRouter();
 
 // Date range scoping the whole page (YYYY-MM-DD | undefined). Default window: the last 30 days.
 const from = ref<string>();
@@ -61,6 +63,34 @@ const showsStrip = computed(() => showsTabStrip(tabs.value));
  */
 const activeKey = ref(initialTab(tabs.value, session.role, String(route.query.tab ?? "") || undefined)?.key ?? "");
 
+/**
+ * The open tab is written back into `?tab=`, which it never was before D-DR24.
+ *
+ * ⚠ This is not tidiness. `AppShell` decides whether its outlet is a document or a workspace from
+ * the route, and the tab is what that answer depends on now that the live map is the Dispatch tab —
+ * so the tab has to be somewhere the ROUTER can read it, before the page has rendered. The URL is
+ * that place, it costs nothing, and it fixes a gap that was already there: a reload used to drop the
+ * reader back on their role's default tab however long they had been on another one.
+ *
+ * `replace` and not `push`: switching tabs is not a navigation a Back button should have to undo,
+ * and `initialTab` already treats the query as a seed rather than an instruction.
+ */
+watch(
+  activeKey,
+  (key) => {
+    if (!key || route.query.tab === key) return;
+    void router.replace({ query: { ...route.query, tab: key } });
+  },
+  { immediate: true },
+);
+
+/**
+ * Is the open tab a workspace (D-DR24)? Asked of the widget catalogue, which is the same answer the
+ * route's `fullBleed` predicate gets — one fact, two readers, no chance of a page that is a document
+ * inside a shell that has gone edge to edge.
+ */
+const workspace = computed(() => tabIsWorkspace(activeKey.value));
+
 // Exports
 const toast = useToastStore();
 const exporting = ref(false);
@@ -84,14 +114,24 @@ const EXPORTS = [
 </script>
 
 <template>
-  <div class="space-y-6">
+  <!--
+    D-DR24: the dashboard is a DOCUMENT on most tabs and a WORKSPACE on the one holding the live map.
+    A workspace tab drops the greeting and the page's vertical rhythm and becomes a flex column that
+    fills the height `AppShell` gave it, so the map ends at the bottom of the viewport instead of
+    starting a scroll. `min-h-0` on the child is what lets it shrink inside that column — without it
+    a canvas in a flex parent grows to its content and pushes the strip off screen.
+  -->
+  <div :class="workspace ? 'flex h-full flex-col gap-4' : 'space-y-6'">
     <!--
       D-DR14/D-DR15: the dashboard greets its reader instead of captioning itself "Dashboard". The
       sidebar already says which page this is and `route.meta.title` still does for the browser tab,
       so the h1 was spending the most prominent line on the page repeating the nav. The plate behind
       it is decorative (`alt=""`) and its contrast over the text zone is measured, not assumed.
     -->
-    <PageHeader :title="greetingLine" hero="/hero/highway-dawn.webp" hero-dark="/hero/highway-night.webp">
+    <!-- ⚠ Not rendered on a workspace tab: the hero plate and the greeting are 200px of scenery in
+         front of a surface whose whole complaint was that it is not tall enough. The greeting is a
+         property of the DASHBOARD, and on this tab the dashboard is a map. -->
+    <PageHeader v-if="!workspace" :title="greetingLine" hero="/hero/highway-dawn.webp" hero-dark="/hero/highway-night.webp">
       Here's what's happening with your fleet today.
       <template #actions>
         <div v-if="activeKey === 'fleet'" class="flex flex-wrap items-center gap-3">
@@ -153,7 +193,7 @@ const EXPORTS = [
       templates this replaced were two roles' dashboards written out by hand; a new widget is now a
       row of data and a component, and adding one needs no edit here at all.
     -->
-    <TabWidgets v-if="activeKey" :tab="activeKey" :range="range" />
+    <TabWidgets v-if="activeKey" :tab="activeKey" :range="range" :class="workspace ? 'min-h-0 flex-1' : ''" />
     <!-- Q-LM-T1: a driver holds every section at `none`, so they match no tab. They still reach this
          route, because `surfaces.ts` gates it ALWAYS and the matrix treats the Dashboard as an
          ungated nav item for them. An honest empty state is the answer until somebody decides what a

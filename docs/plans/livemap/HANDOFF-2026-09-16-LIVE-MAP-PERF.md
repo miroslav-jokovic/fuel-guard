@@ -132,7 +132,19 @@ Also here, and separate: the proxy does `Buffer.from(await upstream.arrayBuffer(
 (`mapProxies.ts:71`) — it buffers each whole tile before responding, so the browser's TTFB is HERE's
 full download plus a re-send. Streaming the response is a small change with its own measurable win.
 
-### 3.4 The consolidation (a) + the Samsara layout
+### 3.4 The consolidation (a) + the Samsara layout · **HALF SHIPPED as D-DR24**
+
+✅ **The consolidation is done, 2026-09-16.** `/live-map` and `LiveMapPanel.vue` are deleted and the
+Dispatch tab renders the workspace. The unsettled design decision below ("something has to give") is
+settled as a catalogue value: `span: "workspace"` means the widget IS its tab, `meta.fullBleed` takes
+a predicate, and the dashboard keeps `?tab=` in the URL so the shell can read the tab before the page
+exists. Full entry: **D-DR24** in `DESIGN-REFRESH-2026-09.md` §7.
+
+⚠ **Measured after: the map is 67% of the viewport, against 71% for the page it replaces** — the tab
+strip costs ~60px. That is 4 points the wrong way on the complaint that started this, and the answer
+is §4's sidebar collapse, which belongs with the rail below rather than with the route deletion.
+
+⬜ **The layout — the left rail and the popover — is still to do**, and it is the next step.
 
 Do these together. Collapsing to the Dispatch tab is the moment to fix the layout, not after.
 

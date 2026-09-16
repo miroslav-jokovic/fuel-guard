@@ -30,9 +30,17 @@ const sessionMock = {
 };
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => sessionMock }));
+/**
+ * ⚠ `useRouter` is mocked as well as `useRoute` since D-DR24: the page writes the open tab back into
+ * `?tab=`, because the SHELL reads the tab from the URL to decide whether its outlet is a document or
+ * a workspace. `replace` is recorded rather than stubbed away — "renders the dispatch tab after the
+ * admin picks it" asserts that the URL followed the strip.
+ */
+const replaced: { query?: Record<string, unknown> }[] = [];
 vi.mock("vue-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("vue-router")>()),
   useRoute: () => ({ query: {} }),
+  useRouter: () => ({ replace: (to: { query?: Record<string, unknown> }) => { replaced.push(to); } }),
 }));
 
 import DashboardPage from "@/pages/DashboardPage.vue";
@@ -92,6 +100,13 @@ describe("which dashboard a caller gets", () => {
     const w = mountShell();
     expect(w.find('[data-test="dispatch-tab"]').exists()).toBe(true);
     expect(w.find('[data-test="fleet-tab"]').exists()).toBe(false);
+
+    /**
+     * ⚠ D-DR24: and the URL followed, which is not cosmetic. `AppShell` reads `?tab=` to decide
+     * whether its outlet is a document or an edge-to-edge workspace, so a strip that changed the
+     * tab without changing the URL would leave the live map in a padded document column.
+     */
+    expect(replaced.at(-1)?.query).toMatchObject({ tab: "dispatch" });
   });
 
   it("shows no tab chrome when the caller may see one dashboard", () => {
@@ -141,6 +156,13 @@ describe("the tab strip actually switches the dashboard", () => {
 
     expect(w.find('[data-test="dispatch-tab"]').exists()).toBe(true);
     expect(w.find('[data-test="fleet-tab"]').exists()).toBe(false);
+
+    /**
+     * ⚠ D-DR24: and the URL followed, which is not cosmetic. `AppShell` reads `?tab=` to decide
+     * whether its outlet is a document or an edge-to-edge workspace, so a strip that changed the
+     * tab without changing the URL would leave the live map in a padded document column.
+     */
+    expect(replaced.at(-1)?.query).toMatchObject({ tab: "dispatch" });
   });
 });
 
