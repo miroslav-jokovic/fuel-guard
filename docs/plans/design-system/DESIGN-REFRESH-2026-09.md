@@ -1,7 +1,8 @@
 # Design refresh 2026-09 — the comps, and what it actually takes to reach them
 
-**Status:** DR1, DR2, DR4, DR6, D-DR17 and DR5 shipped (`main` `96efd06`); **DR3 built** — see §7.
-**Next:** DR2b, DR4b, DR7, and DR5's own follow-ups named at the end of §7.
+**Status:** DR1, DR2, DR3, DR4, DR5, DR6 and D-DR17 all shipped (`main` `7e7842c`).
+**Next:** DR7, `OperatingMetricsWidget`'s truncation, D-DR8, DR5's three §7 follow-ups; then DR2b
+and DR4b, which are blocked on data and on a feature rather than on design.
 Handoff: `HANDOFF-2026-09-16-DESIGN-REFRESH.md` — read it, then §7 below.
 **Owner:** Miki. **Opened:** 2026-09-16.
 **Source of the direction:** seven comps in `docs/design examples/`, commissioned by the owner and
