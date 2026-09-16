@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { toMapColor } from "./useMapLibre";
 
 /**
@@ -73,5 +73,83 @@ describe("toMapColor", () => {
     expect(toMapColor("oklch(0.6 0.2 25)")).toBe("rgb(222, 59, 61)");
     expect(toMapColor("oklch(0.6 0.2 145)")).toBe("rgb(0, 157, 30)");
     expect(toMapColor("oklch(0.6 0.2 250)")).toBe("rgb(0, 129, 241)");
+  });
+});
+
+/**
+ * Swapping the basemap without rebuilding the map (D-DR8).
+ *
+ * ⚠ The camera is what this is protecting, and it cannot be asserted from a screenshot. If the tiles
+ * changed by tearing the map down and constructing a new one, everything visible would still be
+ * correct — the right basemap, the right markers — and a dispatcher who had zoomed into a corridor
+ * would silently be thrown back to the fleet bounds every time the theme flipped. So the assertion
+ * is that `setTiles` was called and the constructor was NOT called a second time.
+ */
+describe("useMapLibre swaps a reactive basemap in place", () => {
+  it("calls setTiles on the existing source instead of constructing a second map", async () => {
+    vi.resetModules();
+    const constructed: unknown[] = [];
+    const setTiles = vi.fn();
+    const source = { setTiles };
+
+    vi.doMock("maplibre-gl", () => {
+      class FakeMap {
+        constructor(opts: unknown) {
+          constructed.push(opts);
+        }
+        addControl() {}
+        on() {}
+        remove() {}
+        getSource() {
+          return source;
+        }
+      }
+      return {
+        default: {
+          Map: FakeMap,
+          NavigationControl: class {},
+        },
+      };
+    });
+    vi.doMock("@/lib/supabase", () => ({
+      supabase: {
+        auth: {
+          getSession: async () => ({ data: { session: { access_token: "t" } } }),
+          onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+        },
+      },
+    }));
+
+    const { ref, defineComponent, h, nextTick } = await import("vue");
+    const { mount } = await import("@vue/test-utils");
+    const { useMapLibre: subject } = await import("./useMapLibre");
+
+    const tiles = ref("/api/fueling/map-tiles/{z}/{x}/{y}?style=explore.day");
+    const Host = defineComponent({
+      setup() {
+        const container = ref<HTMLElement | null>(null);
+        subject({ container, tiles, authPathFragment: "/api/fueling/map-tiles/", attribution: "© HERE" });
+        return () => h("div", { ref: container });
+      },
+    });
+
+    const wrapper = mount(Host, { attachTo: document.body });
+    // `onMounted` awaits the session before constructing, so one microtask flush is not enough.
+    await nextTick();
+    await Promise.resolve();
+    await nextTick();
+    expect(constructed).toHaveLength(1);
+
+    tiles.value = "/api/fueling/map-tiles/{z}/{x}/{y}?style=explore.night";
+    await nextTick();
+
+    expect(setTiles).toHaveBeenCalledWith([
+      "/api/fueling/map-tiles/{z}/{x}/{y}?style=explore.night",
+    ]);
+    // The map itself was never rebuilt — which is the pan and zoom surviving the toggle.
+    expect(constructed).toHaveLength(1);
+    wrapper.unmount();
+    vi.doUnmock("maplibre-gl");
+    vi.doUnmock("@/lib/supabase");
   });
 });

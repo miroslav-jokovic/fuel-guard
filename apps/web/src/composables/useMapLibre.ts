@@ -19,7 +19,7 @@
  * maplibre issues its first tile request during construction and a map built without a token gets a
  * screen of 401s. Do not "tidy" that into a non-blocking fetch.
  */
-import { onBeforeUnmount, onMounted, shallowRef, type Ref } from "vue";
+import { onBeforeUnmount, onMounted, shallowRef, toValue, watch, type Ref } from "vue";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { supabase } from "@/lib/supabase";
@@ -82,8 +82,16 @@ export function tokenColor(cls: string): string {
 export interface UseMapLibreOptions {
   /** The element the map mounts into. Read on `onMounted`; nothing happens if it is still null. */
   container: Ref<HTMLElement | null>;
-  /** Raster tile template, served by our own authenticated proxy. */
-  tiles: string;
+  /**
+   * Raster tile template, served by our own authenticated proxy.
+   *
+   * ⚠ A `Ref` here means "this map can change basemap without being rebuilt" (D-DR8). Passing a plain
+   * string is still the common case and behaves exactly as before — `RouteMapGL` does, because a
+   * route preview has one basemap. The live map passes a ref so the tiles can follow the reader's
+   * colour scheme, and the alternative was tearing the map down and constructing a new one on every
+   * toggle, which would throw away the dispatcher's pan and zoom to change a colour.
+   */
+  tiles: string | Ref<string>;
   /**
    * The path fragment marking a request that needs our Bearer token. maplibre fetches tiles from a
    * worker with no auth header of its own, so `transformRequest` is the only place to attach one —
@@ -106,6 +114,9 @@ export interface UseMapLibreOptions {
    */
   onBeforeTeardown?: (map: maplibregl.Map | null) => void;
 }
+
+/** The one raster source/layer this composable owns. Private — see the `watch` at the end. */
+const TILE_SOURCE = "here";
 
 export function useMapLibre(options: UseMapLibreOptions): {
   map: Ref<maplibregl.Map | null>;
@@ -140,14 +151,14 @@ export function useMapLibre(options: UseMapLibreOptions): {
       style: {
         version: 8,
         sources: {
-          here: {
+          [TILE_SOURCE]: {
             type: "raster",
-            tiles: [options.tiles],
+            tiles: [toValue(options.tiles)],
             tileSize: 512,
             attribution: options.attribution,
           },
         },
-        layers: [{ id: "here", type: "raster", source: "here" }],
+        layers: [{ id: TILE_SOURCE, type: "raster", source: TILE_SOURCE }],
       },
       attributionControl: { compact: true },
       dragRotate: false,
@@ -156,6 +167,28 @@ export function useMapLibre(options: UseMapLibreOptions): {
     instance.on("load", () => options.onLoad?.(instance));
     map.value = instance;
   });
+
+  /**
+   * Swap the basemap in place when a reactive `tiles` changes (D-DR8).
+   *
+   * ⚠ `setTiles` and not a rebuilt map. maplibre keeps the raster source's tiles editable for exactly
+   * this, and the difference is the whole point: rebuilding would reset the camera, so a dispatcher
+   * who had zoomed into a corridor would be thrown back to the fleet bounds for changing a colour —
+   * the same reasoning `LiveMapCanvas.flyTo` already applies to selecting a truck.
+   *
+   * ⚠ The source id is a module constant rather than the string `"here"` typed three times. It is
+   * private to this composable on purpose: a caller reaching for `getSource("here")` to do this
+   * itself would be the copy that drifts, and the ref is the supported way to ask.
+   */
+  watch(
+    () => toValue(options.tiles),
+    (next) => {
+      const source = map.value?.getSource(TILE_SOURCE);
+      // `getSource` returns the union of every source type, and only a raster one has `setTiles`. The
+      // guard is a type narrowing rather than defensiveness — this composable only ever adds a raster.
+      if (source && "setTiles" in source) (source as maplibregl.RasterTileSource).setTiles([next]);
+    },
+  );
 
   onBeforeUnmount(() => {
     // The caller's own attachments go first, while the map they were added to still exists.

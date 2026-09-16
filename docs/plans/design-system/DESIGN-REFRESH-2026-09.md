@@ -703,3 +703,66 @@ conflict every time (`plan-progress-log-not-table-rows`).
   passing on a uniform one. 1,850 web tests (1,847 before); nine gates plus the design-token check and
   both typechecks green; looked at in a browser at 1512, 1440, 1280, 1100, 1024, 900, 800, 768, 700, 640,
   500 and 390.
+
+- **2026-09-16 — D-DR8 SHIPPED (the basemap follows the reader's colour scheme).** The handoff had
+  this as "one parameter, but the parameter is hardcoded server-side, so it is an API change with its
+  own deploy window". Both halves held; what the plan had NOT recorded is that this was fixing a
+  defect already in production rather than only matching comp (7).
+
+  - **Dark mode gave the live map dark markers over a LIGHT basemap.** `LiveMapCanvas` has watched
+    `isDark` since LM8 and re-installs the truck icons when the scheme flips, so the markers follow
+    the theme and the vendor tiles never did. That watcher's own comment reads "leaves a dark map
+    wearing light-mode markers" — a sentence describing a map this product did not have. It was true
+    about the markers and wrong about the map, and both halves are true from here.
+  - **It is DERIVED, not a new control, and that is the whole design decision.** Comp (7) draws a
+    basemap switcher and §4.2 already declined the four-way `Map/Satellite/Traffic/Weather` version
+    for want of the overlay layers. A two-way Day/Night toggle was the tempting smaller version of it
+    — and it would be a second place where "is this reader in dark mode" gets decided, when D-DS2b
+    settled that once and this file already reads the answer. A toggle here asks the dispatcher a
+    question the app knows the answer to.
+  - **The style allowlist lives in `@silvicom/shared` (`basemap.ts`), not beside either caller.** Two
+    processes have to agree on the same two vendor strings, and the failure mode of disagreeing is
+    SILENT: the proxy falls back rather than erroring, so a misspelling on the web side produces a
+    light map in dark mode and nothing in any log. This is the repo's own "never redefine a contract
+    per app" applied to a two-word enum, which felt like ceremony until the failure mode was written
+    down.
+  - **The proxy FALLS BACK where its neighbour four lines up answers `400`.** `mapProxies.ts` rejects
+    an invalid tile coordinate, and copying that strictness here would be wrong: a bad coordinate is
+    one broken tile, an unlisted style is every tile in the viewport at once. A basemap in the wrong
+    scheme is cosmetic; a grid of failed tiles reads as an outage.
+  - **`setTiles`, not a rebuilt map.** `useMapLibre` now accepts `string | Ref<string>` and swaps the
+    raster source's tiles in place. Rebuilding would reset the camera, so a dispatcher who had zoomed
+    into a corridor would be thrown back to the fleet bounds for changing a colour — the same
+    reasoning `flyTo` already applies to selecting a truck. `RouteMapGL` passes a plain string and is
+    unchanged. ⚠ That is also the assertion no screenshot can make: with a rebuild everything visible
+    is still correct, so the test asserts the constructor ran ONCE.
+  - **⚠ THE TWO-MERGE RULE DOES NOT APPLY, and it was checked rather than assumed.** The reflex from
+    `lint:migration-ordering` is right to reach for — Railway can serve the two services from
+    different commits (`deployed-is-a-per-service-question`) — but neither order breaks here. New web
+    against old api: the old proxy has no `style` handling, ignores an unknown query parameter and
+    serves `explore.day`, so the map is light until the api catches up. Old web against new api: no
+    parameter, and `resolveBasemapStyle(undefined)` returns the same default. Both degrade to exactly
+    today's behaviour, and the old-client case is a named test rather than a claim.
+  - **`Cache-Control: public, max-age=86400` is unchanged and stays correct** — the style is in the
+    query string, so the two basemaps occupy different cache keys and a reader toggling schemes is
+    not served yesterday's day tiles in dark mode.
+
+  **Verified in a browser, and the limits of that check are stated.** At 1440px on `/live-map` with a
+  three-truck board: the profile menu's radiogroup read `Light checked=true`, clicking **Dark** flipped
+  `color-scheme` and issued three fresh `?style=explore.night` tile requests with zero day requests,
+  and the canvas measured 1153×499 before and after — the map was not rebuilt. ⚠ Those tiles were
+  STUBBED: the local preview has no API and no HERE key, so what the browser proved is the requested
+  URL, not the picture. The picture was confirmed separately by fetching one real tile of Michigan at
+  both styles straight from HERE — `explore.night` answers `200` with a genuinely dark basemap on this
+  plan, looked at rather than assumed. *Satellite* remains Q-DR2 and is a different resource.
+
+  Twelve new tests — six in `shared`, five in `api`, one in `web` — and five **proved by mutation**:
+  hardcoding `explore.day` back into the upstream URL, dropping the allowlist check, swapping the
+  light/dark strings, deleting the tiles watcher, and replacing `setTiles` with a no-op each fail
+  exactly the assertions that pin them. Full `pnpm test` green (api 3,784 · web 1,851 · shared 2,913),
+  `pnpm typecheck` and `pnpm lint` green, six UI gates green.
+
+  **Follow-up, named rather than smuggled in:** `RouteMapGL` (Fuel Planning) uses the same tile proxy
+  and still passes a plain string, so its basemap stays light in dark mode. One line and the same
+  `basemapStyleFor` call — left out because Fuel Planning is not in this step's scope and a second
+  consumer is easier to review on its own than bundled into the change that created the seam.

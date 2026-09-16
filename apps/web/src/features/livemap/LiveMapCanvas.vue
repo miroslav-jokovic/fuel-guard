@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
-import type { LiveMapVehicle } from "@silvicom/shared";
+import { basemapStyleFor, type LiveMapVehicle } from "@silvicom/shared";
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import { useColorScheme } from "@/composables/useColorScheme";
 import { installLiveMapIcons } from "./liveMapIcons";
@@ -101,9 +101,35 @@ function fitToFleet(instance: maplibregl.Map): void {
   fitted = true;
 }
 
+/**
+ * The basemap follows the colour scheme the reader already chose (D-DR8).
+ *
+ * ── IT IS DERIVED, NOT A NEW CONTROL ─────────────────────────────────────────────────────────────
+ * Comp (7) draws a dark map and the temptation was a basemap switcher to match it — which §4.2
+ * already declined for the four-way `Map/Satellite/Traffic/Weather` version, and which would be a
+ * second place where "is this reader in dark mode" gets decided. D-DS2b settled that question once,
+ * this file has read `isDark` since LM8, and the answer costs one query parameter. A toggle would
+ * ask the dispatcher a question the app already knows the answer to.
+ *
+ * ⚠ AND IT FIXES A DEFECT THAT WAS ALREADY SHIPPING, not only a comp mismatch. The watcher further
+ * down re-installs the truck markers when the scheme flips, so dark mode gave this page dark-mode
+ * markers over an `explore.day` basemap — the vendor's light tiles under our dark chrome. That
+ * watcher's own comment says "leaves a dark map wearing light-mode markers", which describes a map
+ * this product did not have until now; the sentence was true about the markers and wrong about the
+ * map. Both halves are true from here.
+ *
+ * ⚠ The style STRING is never spelled in this file. `basemapStyleFor` and the allowlist the API
+ * validates against are one list in `@silvicom/shared` — the two processes cannot drift, and a
+ * misspelling here would otherwise be invisible, because the proxy falls back to the light basemap
+ * rather than erroring.
+ */
+const tiles = computed(
+  () => `/api/fueling/map-tiles/{z}/{x}/{y}?style=${basemapStyleFor(isDark.value)}`,
+);
+
 const { map } = useMapLibre({
   container: mapEl,
-  tiles: "/api/fueling/map-tiles/{z}/{x}/{y}",
+  tiles,
   authPathFragment: "/api/fueling/map-tiles/",
   attribution: "© HERE",
   onBeforeTeardown: stopMotion,
