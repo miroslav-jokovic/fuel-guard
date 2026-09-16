@@ -14,6 +14,7 @@ import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessu
 import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
+import { isFullBleed } from "@/lib/layout";
 import { useModulesQuery } from "@/composables/useModules";
 import NotificationBell from "@/components/NotificationBell.vue";
 import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
@@ -29,6 +30,11 @@ const session = useSessionStore();
 const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
+
+/**
+ * D-DR5: the outlet varies, the shell does not. See `isFullBleed` for why this is not a `layout`.
+ */
+const fullBleed = computed(() => isFullBleed(route.meta));
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const modules = useModulesQuery();
@@ -367,9 +373,28 @@ async function signOut() {
           <NotificationBell />
         </div>
       </header>
-      <main class="py-6">
+      <!--
+        Two outlets, one shell (D-DR5). A full-bleed route keeps the sidebar, the top bar and the
+        bell, and changes only what is inside `<main>`: no vertical rhythm, no gutters, and a
+        HEIGHT, so a page that wants to fill the viewport can — `h-full` inside a `<main>` with no
+        height resolves to nothing at all, which is the failure this class exists to prevent.
+
+        `100dvh` rather than `100vh`: on mobile Safari `vh` is the tallest the viewport ever gets,
+        so a map sized against it hides its bottom edge under the browser's own chrome. `4rem` is
+        the header above, which is `h-16` and sticky — a literal, because a CSS variable for a
+        number that appears twice in one file would be indirection rather than derivation.
+
+        ⚠ KNOWN, MEASURED, AND LEFT: `EnvironmentBanner` and `UpdateBanner` are siblings of this
+        whole shell in `App.vue`, above it in the document, so when either is showing the page
+        scrolls by exactly that banner's height — 28px, measured 2026-09-16 on the UAT banner. The
+        map is not clipped and nothing is lost; the document simply gains a short scrollbar. Fixing
+        it properly means a flex chain from `#app` down, which would restyle the layout container
+        of every page in the product to buy 28px in the two environments a banner appears in. Named
+        in DESIGN-REFRESH-2026-09.md §7 rather than traded for that.
+      -->
+      <main :class="fullBleed ? 'h-[calc(100dvh-4rem)] overflow-hidden' : 'py-6'">
         <!-- Full-width content: tables use the whole screen; small gutters only. -->
-        <div class="w-full px-4 sm:px-6 lg:px-8">
+        <div :class="fullBleed ? 'h-full' : 'w-full px-4 sm:px-6 lg:px-8'">
           <slot />
         </div>
       </main>

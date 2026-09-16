@@ -853,6 +853,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
+      "fullBleed": true,
       "requiresAuth": true,
       "title": "Live map",
     },

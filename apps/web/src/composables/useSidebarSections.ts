@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { createDeviationSet } from "@/composables/useDeviationSet";
 
 /**
  * Which sidebar sections are collapsed (phase 6).
@@ -9,60 +9,35 @@ import { computed, ref } from "vue";
  * is structural rather than cosmetic: a list long enough to scroll asks the reader to hold its shape
  * in their head.
  *
- * ── Why this stores what is CLOSED, not what is open ────────────────────────────────────────────
- * The first draft stored open sections, and it was wrong in a way worth recording. Nothing is stored
- * until someone expresses a preference, so the set starts empty — but the sidebar starts fully
- * expanded, which is the opposite. Clicking a section to close it would ADD it to the "open" set and
- * leave it open. The displayed state and the stored state disagreed at exactly the moment the two
- * first had to meet.
- *
- * Storing the closed ones removes the contradiction rather than patching it: empty means nothing is
- * collapsed, which is precisely today's behaviour, and every toggle after that is symmetric.
+ * ── Why the stored set is what CHANGED, not what is open ────────────────────────────────────────
+ * The first draft stored open sections, and it was wrong in a way worth recording. That argument now
+ * lives in `useDeviationSet`, which the live map's floating panels share (D-DR6) — it had already
+ * been transcribed once into `useTableColumns` before anybody noticed it was a mechanism rather than
+ * a remark. Every section here defaults to OPEN, so this set is exactly the collapsed ones and the
+ * behaviour is unchanged from the draft that shipped.
  *
  * ── One rule overrides the preference ───────────────────────────────────────────────────────────
  * The section containing the CURRENT route is always open, whatever was stored. Otherwise a deep
  * link, a redirect after sign-in, or a notification lands you on a page whose own section is
  * collapsed, and the nav is actively lying about where you are. Remembered state decides what else
  * is open; it never decides to hide the page you are on.
+ *
+ * ⚠ That override is why this file still exists rather than the sidebar calling `createDeviationSet`
+ * directly: it is a rule about the CURRENT ROUTE, which a generic set of changed things has no
+ * business knowing.
  */
 const STORAGE_KEY = "fg.sidebar-collapsed";
 
-function read(): Set<string> {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
-    return new Set(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : []);
-  } catch {
-    // No storage — Safari private mode throws, and this project's own jsdom has none at all.
-    return new Set();
-  }
-}
-
 /** Module-level: one sidebar, one set of collapsed sections, however many components ask. */
-const collapsed = ref<Set<string>>(read());
-
-function persist() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...collapsed.value]));
-  } catch {
-    // A preference that cannot be stored still applies for this session.
-  }
-}
+const sections = createDeviationSet(STORAGE_KEY);
 
 export function useSidebarSections(currentSection: () => string | null) {
-  const isOpen = (label: string) => label === currentSection() || !collapsed.value.has(label);
-
-  function toggle(label: string) {
-    const next = new Set(collapsed.value);
-    if (next.has(label)) next.delete(label);
-    else next.add(label);
-    collapsed.value = next;
-    persist();
-  }
+  const isOpen = (label: string) => label === currentSection() || !sections.has(label);
 
   return {
     isOpen,
-    toggle,
+    toggle: sections.toggle,
     /** Exposed for tests and for a future "expand all" affordance. */
-    collapsedCount: computed(() => collapsed.value.size),
+    collapsedCount: sections.count,
   };
 }

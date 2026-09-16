@@ -23,6 +23,12 @@ declare module "vue-router" {
     requiresAuditAccess?: boolean;
     title?: string;
     parent?: string;
+    /**
+     * Render this route's content edge to edge inside `AppShell` (D-DR5). Read through
+     * `isFullBleed` in `lib/layout.ts`, never here — see that function for why it is not a sixth
+     * `layout`. Absent means "a document", which is what every other route in this table is.
+     */
+    fullBleed?: boolean;
   }
 }
 import { authRoutes } from "./routes/auth";

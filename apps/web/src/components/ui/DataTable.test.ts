@@ -319,3 +319,50 @@ describe("DataTable pinned lead column", () => {
     expect(w.find("tbody tr").attributes("class") ?? "").not.toContain("group");
   });
 });
+
+/**
+ * `fill` — the table takes its parent's height instead of the viewport's (DR5, D-DR5).
+ *
+ * The default scroll ceiling is `max-h-[70vh]`, which is a VIEWPORT measurement: 630px on a 900px
+ * screen. DR5's live-map fleet dock is a fixed 18rem band, so the default puts a 630px scroll area
+ * inside a 288px box, and every row past the first 288px is clipped and unreachable — sticky header
+ * and all. Nothing throws and nothing warns, which is exactly why it is pinned here.
+ */
+describe("DataTable fill (DR5)", () => {
+  beforeEach(() => setViewport(true));
+
+  const mountFill = (fill: boolean) =>
+    mount(DataTable, {
+      props: {
+        columns: [{ key: "unit", label: "Unit" }] as DataTableColumn[],
+        rows: [{ unit: "Unit 204" }],
+        rowKey: "unit",
+        fill,
+      },
+      global: {
+        stubs: { RouterLink: true, AppIcon: true, TableSkeleton: true, ErrorState: true },
+      },
+    });
+
+  const scrollArea = (wrapper: ReturnType<typeof mountFill>) =>
+    wrapper.find("table").element.parentElement?.className ?? "";
+
+  it("defaults to the viewport ceiling, which is what every page table wants", () => {
+    expect(scrollArea(mountFill(false))).toContain("max-h-[70vh]");
+    expect(scrollArea(mountFill(false))).not.toContain("h-full");
+  });
+
+  it("swaps that ceiling for the parent's height when asked", () => {
+    const area = scrollArea(mountFill(true));
+    expect(area).toContain("h-full");
+    expect(area).not.toContain("max-h-[70vh]");
+    // …and it still scrolls. A box that filled its parent without scrolling would clip in silence,
+    // which is the defect this prop exists to prevent rather than a different shape of it.
+    expect(area).toContain("overflow-y-auto");
+  });
+
+  it("gives the card a height too, because `h-full` inside a box with none is nothing", () => {
+    expect(mountFill(true).attributes("class")).toContain("h-full");
+    expect(mountFill(false).attributes("class") ?? "").not.toContain("h-full");
+  });
+});

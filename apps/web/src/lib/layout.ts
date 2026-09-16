@@ -26,3 +26,24 @@ export function resolveLayout(meta: RouteMeta, isAuthenticated: boolean): Layout
   if (!isAuthenticated && meta.layoutWhenSignedOut) return meta.layoutWhenSignedOut as LayoutName;
   return meta.layout as LayoutName;
 }
+
+/**
+ * Does this route want the shell's content area edge to edge (D-DR5, DESIGN-REFRESH-2026-09.md §4)?
+ *
+ * ⚠ It is deliberately NOT a value of `LayoutName`, and the plan records why: the first draft of
+ * D-DR5 said the live map gets `layout: "canvas"`, and `layout` already means *which shell
+ * entirely*. Every name in `LayoutName` REPLACES `AppShell` — sidebar, top bar, notification bell
+ * and all — so a sixth one would have had to re-declare the navigation, which is a second source of
+ * truth for the nav and exactly what the root `CLAUDE.md` names as a workaround.
+ *
+ * A full-bleed page still wants the whole shell. Only the outlet changes: the padded container
+ * drops its gutters and `<main>` is given a height, so a map, a canvas or a board can fill what is
+ * left of the viewport instead of scrolling a document. One shell, one navigation.
+ *
+ * Reading it through a function rather than `route.meta.fullBleed` at the call site keeps the
+ * default in ONE place: a route that says nothing is a document, which is what every route but one
+ * is today.
+ */
+export function isFullBleed(meta: RouteMeta): boolean {
+  return meta.fullBleed === true;
+}

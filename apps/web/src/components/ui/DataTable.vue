@@ -134,6 +134,21 @@ const props = withDefaults(
      * the offset is the change to make rather than a second class string.
      */
     pinFirstColumn?: boolean;
+    /**
+     * Take the HEIGHT of the parent instead of the default `max-h-[70vh]` ceiling.
+     *
+     * Added 2026-09-16 for DR5's live-map fleet dock, which is a fixed 18rem band at the bottom of a
+     * full-bleed page. Without it the table's own scroll area is sized against the VIEWPORT — 70vh
+     * is 630px on a 900px screen — so inside an 18rem box it silently overflows and the rows past
+     * the first 288px are clipped and unreachable, sticky header and all. Nothing errors; the table
+     * simply stops holding some of the fleet.
+     *
+     * A prop rather than a class at the call site, for the reason `AppButton`'s `ghost` variant
+     * records from the other direction: `class="!max-h-72"` on a primitive is the sign that a
+     * variant is missing, and `lint:ui-adoption` refuses it anyway. The parent must have a height of
+     * its own — `h-full` inside a box with no height resolves to nothing.
+     */
+    fill?: boolean;
   }>(),
   {
     rowKey: "id",
@@ -151,6 +166,7 @@ const props = withDefaults(
     embedded: false,
     expanded: undefined,
     pinFirstColumn: false,
+    fill: false,
   },
 );
 
@@ -257,7 +273,11 @@ const isWide = useMediaQuery("(min-width: 768px)");
 </script>
 
 <template>
-  <component :is="embedded ? 'div' : BaseCard" :padding="embedded ? undefined : 'none'">
+  <component
+    :is="embedded ? 'div' : BaseCard"
+    :padding="embedded ? undefined : 'none'"
+    :class="fill ? 'h-full' : ''"
+  >
     <TableSkeleton v-if="loading" :cols="skeletonCols" />
     <ErrorState v-else-if="error" :message="error" :retrying="retrying" @retry="emit('retry')" />
     <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-ink-muted">
@@ -285,7 +305,10 @@ const isWide = useMediaQuery("(min-width: 768px)");
     </DataTableCards>
 
     <template v-else>
-      <div class="overflow-x-auto" :class="stickyHeader ? 'max-h-[70vh] overflow-y-auto' : ''">
+      <div
+        class="overflow-x-auto"
+        :class="stickyHeader ? [fill ? 'h-full' : 'max-h-[70vh]', 'overflow-y-auto'] : ''"
+      >
         <table
           class="min-w-full"
           :class="[dense ? 'text-xs' : 'text-sm', nowrap ? 'whitespace-nowrap' : '']"

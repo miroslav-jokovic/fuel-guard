@@ -1,28 +1,24 @@
 <script setup lang="ts">
-import PageHeader from "@/components/ui/PageHeader.vue";
-import LiveMapPanel from "@/features/livemap/LiveMapPanel.vue";
-import { LIVE_MAP_POLL_MS } from "@/features/livemap/useLiveMapBoard";
+import LiveMapWorkspace from "@/features/livemap/LiveMapWorkspace.vue";
 
 /**
- * `/live-map` — the dispatcher's board (LIVE-MAP-PLAN.md LM8).
+ * `/live-map` — the dispatcher's board (LIVE-MAP-PLAN.md LM8, DESIGN-REFRESH-2026-09.md §4).
  *
- * The page is the shell; `LiveMapPanel` is the surface, because LM-T embeds the same component as
- * the Dashboard's Dispatch tab (D-DW5). Keeping the page thin is what makes that a second call
- * rather than a second copy.
+ * ── THERE IS NO `PageHeader` HERE ANY MORE, AND THAT IS D-DR5 ────────────────────────────────────
+ * The page used to be `PageHeader` + `LiveMapPanel` inside the shell's padded document outlet, and
+ * the header spent the top 6rem of a workspace restating what the sidebar already said. The route
+ * now carries `meta.fullBleed`, so `AppShell` gives `<main>` a height and drops its gutters, and the
+ * page is one component filling it. Everything the header used to carry moved to where it belongs:
+ * the title is `route.meta.title` (which is where the browser tab already read it from), the
+ * description was scenery, and the freshness sentence is a property of the DATA, so it now lives
+ * beside the data — see `LiveMapWorkspace`'s dock bar and D-LM18's scope sentence next to it.
  *
- * ── THE FRESHNESS SENTENCE IS DERIVED, NOT TYPED ─────────────────────────────────────────────────
- * D-LM9b stacks three intervals — the vendor's ping, the collector tier and this poll — and the
- * browser only owns the last one. It is read from `LIVE_MAP_POLL_MS` so that the day somebody
- * retunes the poll, the sentence on the page changes with it instead of quietly becoming false.
+ * The page stays this thin on purpose. `LiveMapWorkspace` is the surface, and `LiveMapPanel` is the
+ * other reading of the same board that the Dashboard's Dispatch tab embeds (D-DW5): the tab is the
+ * glance, the page is the work, and neither substitutes for the other.
  */
-const pollSeconds = Math.round(LIVE_MAP_POLL_MS / 1000);
 </script>
 
 <template>
-  <div class="space-y-6">
-    <PageHeader description="Where every truck is right now, and what it is doing.">
-      <template #freshness>Positions refresh every {{ pollSeconds }} seconds while this tab is open.</template>
-    </PageHeader>
-    <LiveMapPanel />
-  </div>
+  <LiveMapWorkspace />
 </template>

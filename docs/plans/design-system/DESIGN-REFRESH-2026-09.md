@@ -1,6 +1,7 @@
 # Design refresh 2026-09 — the comps, and what it actually takes to reach them
 
-**Status:** DR1, DR2, DR4, DR6, D-DR17 shipped (`main` `6104de9`). **DR5 next.**
+**Status:** DR1, DR2, DR4, DR6, D-DR17 shipped (`main` `6104de9`); **DR5 built** — see §7.
+**Next:** DR2b, DR3, DR4b, DR7, and DR5's own follow-ups named at the end of §7.
 Handoff: `HANDOFF-2026-09-16-DESIGN-REFRESH.md` — read it, then §7 below.
 **Owner:** Miki. **Opened:** 2026-09-16.
 **Source of the direction:** seven comps in `docs/design examples/`, commissioned by the owner and
@@ -269,12 +270,41 @@ is `<main class="py-6"><div class="w-full px-4 sm:px-6 lg:px-8">` (`AppShell.vue
 bleed is dropping that padding and giving `<main>` a height. One shell, one navigation. Live map is
 the first consumer; Fuel Planning is the obvious second.
 
-**D-DR6 — panel open/closed state is `user_dashboard_layout`, not a new mechanism.** LM10 already
-shipped per-user, per-tab widget layout with a merge function that preserves decisions across tabs
-(`mergeTabLayout`). A floating map panel is a widget with a position. Reusing it means the
-dispatcher's "I always close the weather card" survives a reload on day one, and we do not get a
-second source of truth for "what is on my screen" — the exact failure mode the no-workarounds rule
-names. **This is a derivation, not a copy.**
+**D-DR6 — panel open/closed state is remembered per device, and it is NOT `user_dashboard_layout`.**
+
+⚠ **Corrected TWICE, and both corrections are recorded because a wrong ruling left sitting in a
+canonical document is worse than no ruling.** As first written this said "a floating map panel is a
+widget with a position", reusing LM10's per-user row.
+
+1. **Position was wrong** (found before DR5 started). `StoredDashboardLayout` holds `widgetKeys` and
+   `hiddenKeys` and nothing else, and migration 0343 has no column for a position. Comp (7) pins
+   every panel to a corner anyway, so panels get FIXED corners and only open/closed is remembered.
+2. **The ROW was wrong too** (found while building DR5, 2026-09-16, and the first correction had
+   left it standing). `PUT /api/dashboard-layout` refuses any key outside `DASHBOARD_WIDGETS` —
+   `unknownKeys` in `apps/api/src/modules/org/routes/dashboardLayout.ts`, a deliberate asymmetry
+   with the tolerant read path — and `check-surfaces.mjs` asserts in both directions that every
+   catalogue entry names a real `DASHBOARD_TABS` tab and a real component. A `livemap.*` key can
+   only get past both by inventing a widget, a tab and a component that nothing renders, and the
+   permissions preview page would then list those three fictions as things a role can be granted.
+   Three lies to store one boolean.
+
+So: `localStorage`, exactly where the sidebar's own collapsed sections already live. This is chrome
+state — "is this panel shut" is the same class of question as "is the sidebar collapsed" — not a
+preference about what a person may see, which is what that table holds.
+
+**And the mechanism IS shared, which is the part that keeps this a derivation.**
+`useSidebarSections` worked out in phase 6 that a stored set must hold what somebody CHANGED, never
+what is open: nothing is stored until a preference is expressed, so an empty set has to mean the
+default. That argument had already been transcribed by hand into `useTableColumns` before anybody
+noticed it was a mechanism rather than a remark. DR5 extracts it as
+`composables/useDeviationSet.ts` and puts the sidebar on it — and the generalisation is FORCED, not
+tidy-mindedness: the sidebar's sections all default to open, so "store the closed ones" works there,
+while the live map's fleet dock defaults to SHUT and the two corner panels to open. Storing the
+deviation is the only form of the rule that reproduces two opposite defaults from one empty set.
+
+⚠ `useTableColumns` is the third caller of the argument and is NOT on the composable — it carries an
+ordering and a ruling about which columns a reader may hide. Folding it in is its own step, named at
+the end of §7.
 
 **D-DR7 — the fleet list does not disappear; it becomes a panel that opens to a dock.** The table
 is load-bearing twice over and `LiveMapPanel`'s own comment says why: markers carry no unit number
@@ -459,3 +489,67 @@ conflict every time (`plan-progress-log-not-table-rows`).
   decision. Measured after: inline at a 325px tile, wrapped at 220px, nothing truncated at either.
   `OperatingMetricsWidget`'s truncation at that width is a separate, genuinely pre-existing defect
   and is left for its own step.
+- **2026-09-16 — DR5 BUILT (the live map is a workspace).** `meta.fullBleed` read inside `AppShell`,
+  `LiveMapWorkspace.vue` as the page, floating panels over the map, the fleet list as a dock. The
+  step cost four corrections and one new primitive prop, and each of them is here because none was
+  visible from the plan:
+  - **D-DR6 was wrong a second time** (§4.1 now carries both corrections). The panels cannot use
+    LM10's row at all — the write path refuses a key the widget catalogue does not know. They use
+    `localStorage` through a new `useDeviationSet`, which the sidebar now shares. Seven tests, two
+    **proved by mutation**: opening the fleet dock by default, and replacing the deviation XOR with
+    the sidebar's "store the closed ones", each fail five assertions.
+  - **`LiveMapPanel` had to SPLIT, not move.** It is the Dashboard's Dispatch-tab widget as well as
+    the page (D-DW5), and floating panels over a card inside a dashboard grid would be a workspace
+    in a 400px box. The two shapes now share their STATE (`useLiveMapView`) and their facts
+    (`LiveMapVehicleFacts`, extracted out of the drawer) and nothing else. The state is what would
+    have drifted: the two different empty sentences, the filters, the selection.
+  - **`DataTable` was missing a variant, and it would have clipped the fleet silently.** Its scroll
+    area is `max-h-[70vh]` — a VIEWPORT measurement, 630px on a 900px screen — and the dock is a
+    fixed 18rem band. Inside it the default puts a 630px scroller in a 288px box, so every row past
+    the first 288px is unreachable, sticky header and all, with nothing thrown and nothing warned. A
+    `fill` prop, on `AppButton`'s `ghost`/`link` reasoning: an `!important` at the call site is the
+    sign that a variant is missing. Three tests, two proved by mutation.
+  - **`FilterBar` does not fit in a floating panel, and that is D-DR17's lesson arriving again.** Its
+    search is `lg:w-64 lg:shrink-0` beside a wrapping row of triggers — viewport breakpoints, all of
+    which fire inside a 288px panel on a 1512px screen, so the bar lays itself out for a full-width
+    page inside a fifth of one and grows a horizontal scrollbar (seen, 2026-09-16). The panel
+    composes the same two primitives `FilterBar` itself composes, stacked. Not a clone: the toolbar's
+    contents at the grain that fits.
+  - **The corners do not survive a phone, measured rather than guessed.** At 390px the two top
+    panels overlap by 193px at their desktop widths, and no trimming fixes 256 + 288 in 390. Below
+    `sm` the panel layer is a single scrolling column and each panel is `static`; at `sm` and up they
+    take their corners. Measured after: no overlap at 390, and 57px of clearance at exactly 640,
+    which is the worst case above the breakpoint.
+
+  Also settled while building, each with its reason: the **scope sentence (D-LM18) moved to the dock
+  bar** — a callout floating over a map is either dismissible, which would let the disclosure be
+  switched off, or undismissible, which is a panel lying about being a panel; the **freshness
+  sentence (D-LM9b) moved with it** rather than being dropped with the `PageHeader`; the **truck card
+  is not a remembered panel** — it is present because a truck is selected, so its dismiss clears the
+  selection, and remembering it shut would mean clicking a truck one day and getting nothing back.
+  **`bottom-right` does not exist** as a corner: comp (7) puts "Recent alerts" there and this board
+  has no alert feed, which is D-DR12's mistake in a third costume.
+
+  `lint:ui-adoption` fired on the missing `PageHeader`, correctly, and the exemption is **derived
+  from `meta.fullBleed`** rather than typed into the hand-written list beside it — removing the flag
+  from the route brings the failure straight back, which is how it was checked. 1,840 web tests,
+  fourteen gates and both typechecks green; looked at in a browser at 1512, 1280, 640 and 390.
+
+- **2026-09-16 — what DR5 did NOT do, named so it is a decision.** **D-DR8's dark basemap** is not in
+  it: `explore.night` is one parameter but the parameter is hardcoded server-side in
+  `apps/api/src/modules/routing/routes/mapProxies.ts`, so it is an API change with its own deploy
+  window and it gets its own step. Satellite stays Q-DR2. The **weather card**, the **basemap
+  switcher** and the **ETA rows** are §4.2's existing rulings, unchanged.
+
+- **2026-09-16 — three DR5 follow-ups, each small and each deliberately not smuggled in.**
+  1. **`useTableColumns` onto `useDeviationSet`.** The third copy of the stored-preference argument.
+     It carries an ordering and a ruling about which columns a reader may hide, so it is not a
+     mechanical move.
+  2. **A banner and a full-bleed page cost 28px of scroll.** `EnvironmentBanner` and `UpdateBanner`
+     are siblings of the whole shell in `App.vue`, so `calc(100dvh - 4rem)` is short by exactly the
+     banner's height whenever one is showing — measured 28px on the UAT banner, 2026-09-16. Nothing
+     is clipped; the document gains a short scrollbar. The proper fix is a flex chain from `#app`
+     down, which restyles the layout container of every page in the product to buy 28px in the two
+     environments a banner appears in. Not traded for that.
+  3. **Fuel Planning is `fullBleed`'s obvious second consumer** and was left alone on purpose: one
+     step per PR, and a shell flag with one consumer is easier to review than with two.
