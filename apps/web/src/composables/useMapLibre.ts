@@ -120,7 +120,11 @@ export interface UseMapLibreOptions {
   onBeforeTeardown?: (map: maplibregl.Map | null) => void;
 }
 
-/** The one raster source/layer this composable owns. Private — see the `watch` at the end. */
+/**
+ * The FIRST raster source/layer this composable owns; later basemaps get `here-1`, `here-2`, …
+ *
+ * Private, and see the `watch` at the end for why there is more than one of them now (D-DR23).
+ */
 const TILE_SOURCE = "here";
 
 export function useMapLibre(options: UseMapLibreOptions): {
@@ -131,6 +135,13 @@ export function useMapLibre(options: UseMapLibreOptions): {
   const map = shallowRef<maplibregl.Map | null>(null);
   let accessToken: string | null = null;
   let authSub: { unsubscribe(): void } | null = null;
+  /**
+   * Every basemap this map has shown, by its tile URL — the cache D-DR23 is about.
+   *
+   * At most four entries (three choices × a night variant of one), each added the first time the
+   * reader asks for it and kept for the life of the map.
+   */
+  const rasterLayers = new Map<string, string>();
 
   function attachAuth(url: string): maplibregl.RequestParameters {
     if (accessToken && url.includes(options.authPathFragment)) {
@@ -168,6 +179,10 @@ export function useMapLibre(options: UseMapLibreOptions): {
       attributionControl: { compact: true },
       dragRotate: false,
     });
+    // The style above declares the first basemap, so it is registered here rather than added again —
+    // otherwise the first switch would build a second layer for a basemap already on screen, and
+    // every id would be off by one.
+    rasterLayers.set(toValue(options.tiles), TILE_SOURCE);
     /**
      * ⚠ `navControl: false` exists because maplibre only knows FOUR corners, and on the live map all
      * four are taken (D-DR21). Measured 2026-09-16: the built-in control lands at 1458,92 (39×68)
@@ -190,24 +205,86 @@ export function useMapLibre(options: UseMapLibreOptions): {
   });
 
   /**
-   * Swap the basemap in place when a reactive `tiles` changes (D-DR8).
+   * Add the raster layer for a basemap the reader has not seen yet, hidden, beneath everything.
    *
-   * ⚠ `setTiles` and not a rebuilt map. maplibre keeps the raster source's tiles editable for exactly
-   * this, and the difference is the whole point: rebuilding would reset the camera, so a dispatcher
-   * who had zoomed into a corridor would be thrown back to the fleet bounds for changing a colour —
-   * the same reasoning `LiveMapCanvas.flyTo` already applies to selecting a truck.
+   * ⚠ `beforeId` is not optional politeness. A layer added with no `beforeId` goes on TOP, so the
+   * second basemap would be painted over the truck markers `onLoad` added — a map with no trucks on
+   * it, reported as "the markers disappeared when I changed the theme". The new raster goes directly
+   * above the rasters we already own and below the first layer that is anybody else's.
+   */
+  function addBasemapLayer(instance: maplibregl.Map, tiles: string): string {
+    const id = rasterLayers.size === 0 ? TILE_SOURCE : `${TILE_SOURCE}-${rasterLayers.size}`;
+    instance.addSource(id, {
+      type: "raster",
+      tiles: [tiles],
+      tileSize: 512,
+      // ⚠ Only the first source carries it: maplibre concatenates the attribution of every source
+      // with a visible layer, and four sources naming HERE would print "© HERE" four times.
+      ...(rasterLayers.size === 0 ? { attribution: options.attribution } : {}),
+    });
+    const ours = new Set([...rasterLayers.values(), id]);
+    const firstForeign = instance.getStyle().layers.find((l) => !ours.has(l.id));
+    instance.addLayer({ id, type: "raster", source: id, layout: { visibility: "none" } }, firstForeign?.id);
+    rasterLayers.set(tiles, id);
+    return id;
+  }
+
+  /**
+   * Swap the basemap when a reactive `tiles` changes (D-DR8, rebuilt by D-DR23).
    *
-   * ⚠ The source id is a module constant rather than the string `"here"` typed three times. It is
-   * private to this composable on purpose: a caller reaching for `getSource("here")` to do this
-   * itself would be the copy that drifts, and the ref is the supported way to ask.
+   * ── WHY THIS IS NO LONGER `setTiles`, MEASURED RATHER THAN ASSUMED (2026-09-16) ─────────────────
+   * D-DR8 swapped the ONE raster source's tiles in place, which kept the camera — the thing that
+   * mattered — but threw away maplibre's tiles for the basemap being left, so every flip re-requested
+   * the whole viewport and re-decoded it. Measured on the live map at 1512×900 (9 tiles in view, the
+   * API stand-in serving real HERE bytes with the proxy's own headers):
+   *
+   *   flip to an unseen scheme   9 requests · 262 KB on the wire · last repaint at 722 ms
+   *   flip BACK to a seen scheme 9 requests · **0 KB — every one served by the browser's HTTP cache**
+   *                              · last repaint still at ~400–440 ms
+   *
+   * ⚠ **The second line is why the fix is not the one the queue assumed.** The handoff read this as a
+   * network cost; `Cache-Control: public, max-age=86400` on the proxy had already solved that half.
+   * What is left is maplibre re-requesting, re-decoding and re-uploading nine textures it had a
+   * moment ago — ~0.4 s of work to show a picture the GPU has already been given. A fix aimed at the
+   * bytes would have moved a number that was already zero.
+   *
+   * So each basemap keeps its OWN source and layer, and a switch is a visibility toggle: nothing is
+   * fetched, decoded or uploaded twice, and a return to a basemap this map has shown before is one
+   * frame. ⚠ Nothing is added up front — a reader who never opens the switcher never pays for
+   * satellite. This is also why D-DR22 (jpeg) had to land first: holding two viewports of tiles is
+   * cheap at ~260 KB a scheme and would not have been at ~2.4 MB.
+   *
+   * ⚠ The old basemap stays visible until the new source has finished loading, so a first switch
+   * fades between two maps instead of flashing the empty canvas. On a repeat switch the source is
+   * already loaded and `isSourceLoaded` is true on the spot, so there is no delay to pay.
+   *
+   * ⚠ Source ids stay private to this composable. A caller reaching for `getSource("here")` to do
+   * this itself would be the copy that drifts — the ref is the supported way to ask.
    */
   watch(
     () => toValue(options.tiles),
     (next) => {
-      const source = map.value?.getSource(TILE_SOURCE);
-      // `getSource` returns the union of every source type, and only a raster one has `setTiles`. The
-      // guard is a type narrowing rather than defensiveness — this composable only ever adds a raster.
-      if (source && "setTiles" in source) (source as maplibregl.RasterTileSource).setTiles([next]);
+      const instance = map.value;
+      if (!instance) return;
+      const known = rasterLayers.get(next);
+      const id = known ?? addBasemapLayer(instance, next);
+      const reveal = () => {
+        for (const [tiles, layerId] of rasterLayers) {
+          if (!instance.getLayer(layerId)) continue;
+          instance.setLayoutProperty(layerId, "visibility", tiles === next ? "visible" : "none");
+        }
+      };
+      // A layer must be visible before maplibre will load its tiles, so the new one is revealed
+      // first and the old ones are only hidden once the new source reports itself loaded.
+      instance.setLayoutProperty(id, "visibility", "visible");
+      if (instance.isSourceLoaded(id)) return reveal();
+      const onData = (e: maplibregl.MapSourceDataEvent) => {
+        if (e.sourceId !== id || !instance.isSourceLoaded(id)) return;
+        instance.off("sourcedata", onData);
+        // The reader may have switched again while this one loaded; the last choice wins.
+        if (toValue(options.tiles) === next) reveal();
+      };
+      instance.on("sourcedata", onData);
     },
   );
 

@@ -950,3 +950,52 @@ conflict every time (`plan-progress-log-not-table-rows`).
   png fails rather than passing a list it was never on), **proved by mutation**: reverting `map` to
   png fails both it and the table assertion. The four proxy tests are untouched and still right — the
   API's own default is unchanged.
+
+- **2026-09-16 — D-DR23: each basemap keeps its own layer, and the measurement says why the obvious
+  fix would have missed.** The owner reported the map being slow to change between light and dark.
+  The perf handoff §3.3 read that as a NETWORK cost — D-DR8's `setTiles` discards maplibre's tiles for
+  the basemap being left, so every flip refetches the viewport — and the candidate fix was to stop the
+  refetch. Measured first, on the live map at 1512×900 (nine tiles in view) against a stand-in API
+  serving real HERE bytes with the proxy's own headers:
+
+  | | tile requests | reached the server | bytes on the wire | last repaint |
+  |---|---|---|---|---|
+  | flip to an unseen scheme | 9 | 9 | 262 KB | 722 ms |
+  | flip BACK to a seen scheme | 9 | **0** | **0 KB** | ~400–440 ms |
+  | …and again | 9 | **0** | **0 KB** | ~400–440 ms |
+
+  ⚠ **The second row is the finding.** `Cache-Control: public, max-age=86400` on the tile proxy had
+  already solved the network half: every one of those nine requests was served by the browser's HTTP
+  cache, zero bytes, ~1 ms each. A fix aimed at the bytes would have moved a number that was already
+  zero and been declared a success. What actually costs ~0.4 s is maplibre re-requesting, re-decoding
+  and re-uploading nine textures it had a moment earlier.
+
+  **So the fix is a layer per basemap and a visibility toggle**, not a cleverer fetch. Measured after,
+  same rig: a flip back to a seen basemap issues **zero tile requests** (was nine) and repaints within
+  one sample of the click — **107–117 ms against a 94 ms sampling floor**, i.e. at the resolution
+  limit, where it was ~400–440 ms. The first flip to an unseen scheme also improved, 722 → 419 ms,
+  because the outgoing basemap now stays on screen until the incoming source reports itself loaded
+  rather than blanking the canvas while it arrives.
+
+  ⚠ **Nothing is added up front**, which is the difference from the handoff's sketch: a layer is built
+  the first time the reader asks for that basemap, so somebody who never opens the switcher never pays
+  for satellite. At most four exist (three choices plus the road map's night variant).
+
+  ⚠ **`beforeId` is load-bearing, not politeness.** maplibre appends a layer with no `beforeId` to the
+  TOP of the style, so the second basemap would be painted over the truck markers — a defect that
+  would be reported as "the trucks disappeared when I changed the theme". Pinned by "puts a new
+  basemap under the layers the caller added, not over them".
+
+  ⚠ **D-DR22 had to land first and this is the proof of that ordering**: holding two viewports of
+  tiles is cheap at ~260 KB a scheme and would not have been at the ~2.4 MB png was charging.
+
+  Four new tests, **all four proved by mutation** (dropping `beforeId`, always adding a layer instead
+  of reusing one, hiding the old basemap before the new one loads, and forgetting to register the
+  style-declared first layer). ⚠ The existing `setTiles` test was REWRITTEN rather than added to — it
+  asserted the mechanism this replaces — and the invariant it was really protecting, that the map is
+  never rebuilt and the dispatcher's camera survives, is asserted in every case that replaced it.
+
+  **Still open and deliberately not done here:** the proxy buffers each whole tile before responding
+  (`mapProxies.ts`, `Buffer.from(await upstream.arrayBuffer())`). Streaming it is a separate change
+  with its own failure mode — once bytes are flowing, a 502 JSON can no longer be sent — and at
+  ~30 KB a jpeg tile it is worth less than it was at 260 KB.
