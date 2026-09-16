@@ -46,7 +46,15 @@ All merged, gate-green, looked at in a browser.
 The order is by measured value over cost, and the last item is last for a reason: the consolidation is
 the right moment to do the layout, rather than doing the layout twice.
 
-### 3.1 Tile format — the biggest measured win and the smallest change
+### 3.1 Tile format — the biggest measured win and the smallest change · **SHIPPED as D-DR22**
+
+✅ **Done 2026-09-16.** All four basemaps are jpeg; the trade was looked at before it shipped and the
+label contrast measured either side of it (within ±0.2 over six label runs). The estimates below were
+low by a third on the png side — re-measured across five tiles from z5 to z14, `explore.day` is
+**286 KB → 47 KB** on a dense city tile and 270 KB → 29 KB at the national view, i.e. 84–91% rather
+than the 87% guessed from one tile. The full entry, including where the loss actually lands, is
+`DESIGN-REFRESH-2026-09.md` §7 under **D-DR22**. ⚠ `RouteMapGL` still sends no format and still gets
+png — deliberately left for the colour-scheme fix it is already queued for in §7.
 
 `apps/api/.../mapProxies.ts` already takes a `format` parameter (D-DR20 added it for satellite).
 The road styles still ask for **png**, and png is the wrong container for these tiles:

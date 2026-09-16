@@ -12,22 +12,28 @@ import { BASEMAPS, BASEMAP_CHOICES, basemapFor, resolveBasemapStyle, resolveBase
 describe("which basemap a map may ask for", () => {
   it("names the HERE basemaps the proxy will serve, each with its format", () => {
     expect(BASEMAPS).toEqual({
-      map: { style: "explore.day", format: "png" },
-      mapNight: { style: "explore.night", format: "png" },
+      map: { style: "explore.day", format: "jpeg" },
+      mapNight: { style: "explore.night", format: "jpeg" },
       satellite: { style: "satellite.day", format: "jpeg" },
-      terrain: { style: "topo.day", format: "png" },
+      terrain: { style: "topo.day", format: "jpeg" },
     });
   });
 
   /**
-   * ⚠ The format assertion is the one that would have caught the defect worth catching. Measured on
-   * one tile: `satellite.day` is 41 KB as jpeg and 488 KB as png. A satellite basemap that quietly
-   * reverted to png would look identical and cost 12× the bytes on the slowest part of the page.
+   * ⚠ The format assertion is the one that would have caught the defect worth catching, and D-DR22
+   * widened it from satellite to every style. Measured with the production key: `satellite.day` is
+   * 41 KB as jpeg against 488 KB as png, and the ROAD styles are 84–91% cheaper too — `explore.day`
+   * 286 KB → 47 KB on a dense city tile, 269 KB → 29 KB at the national zoom. A basemap that quietly
+   * reverted to png would look identical and cost 6–12× the bytes on the slowest part of the page,
+   * which is precisely why a test and not an eye has to hold it.
+   *
+   * ⚠ Written as a loop over the table rather than four literals: the point is that NO basemap is
+   * png, so a fifth one added in png should fail here rather than pass a list it was never added to.
    */
-  it("serves satellite as jpeg, because a photograph is not a lossless image", () => {
-    expect(BASEMAPS.satellite.format).toBe("jpeg");
-    expect(BASEMAPS.map.format).toBe("png");
-    expect(BASEMAPS.terrain.format).toBe("png");
+  it("serves every basemap as jpeg, because png pays lossless prices for a rendered photograph", () => {
+    for (const [key, basemap] of Object.entries(BASEMAPS)) {
+      expect(basemap.format, `${key} must be served as jpeg`).toBe("jpeg");
+    }
   });
 
   it("moves only the road map with the reader's scheme", () => {
