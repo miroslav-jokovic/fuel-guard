@@ -1586,3 +1586,43 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   **LM6 is next** — `GET /api/livemap/positions`, gated `dispatch:view`. ⚠ It must be correct with
   **zero loads**, which is still production's state, and its `mine` scope stays unreachable until the
   McLeod grant lands (D-LM18 ships the board fleet-wide).
+- 2026-09-15 — **LM6 built: `GET /api/livemap/positions`, gated `dispatch:view`, WITHOUT the
+  dispatcher join.** New module `apps/api/src/modules/livemap/` + `livemapContract.ts`. Owner-directed
+  deviation, and it is the right one: LM6 as written resolves the `mine` scope through
+  `tms_dispatchers`, and **that table does not exist in this database** — it is downstream of the
+  McLeod `VIEW CHANGE TRACKING` grant, which is still refused. Building the join against a table that
+  is not there would have been a branch no test could exercise. The board ships fleet-wide per D-LM18,
+  `scope` is `"all"` for everybody, and `scopeReason` carries the banner in plain words, because a
+  dispatcher who believes they are seeing only their own trucks will read an empty column as "nothing
+  of mine is late".
+
+  **It owns no table and reads all four through their owners.** Only `vehicle_positions` is
+  machine-sealed (`layer=raw`; a direct select fails `lint:table-access`, and that was verified by
+  making one and watching the gate fire). `vehicles`, `drivers`, `loads` and `load_stops` are core and
+  could legally have been selected from here — three new reader functions exist instead
+  (`readVehiclePositions`, `readFleetIdentities`, `readLiveLoadContext`), because reaching past an
+  owner because no gate happens to stop you is how `drivers` came to be written from 54 files. Three
+  `API_ALLOW` edges added with that reasoning attached.
+
+  **Verified against the real fleet, not only fixtures.** 199 vehicles assembled, untruncated:
+  42 moving, 12 stopped, 93 parked, 52 offline; 188 with a driver, 199 with a heading, **0 with a
+  load**, 0 with a placeholder unit number. A sample marker: unit 670, 60.3 mph, heading 16°, fix
+  **2 seconds old**. The zero-load case is the one LM6 most had to get right and it is now observed
+  rather than assumed.
+
+  ⚠ **Assembly measured at ~1.0 s — from a laptop, over three sequential round trips to Supabase.**
+  That is not the production number (the API runs in Railway beside the database) but it is the only
+  one measured, and the browser polls this at 5 s per D-LM8. **Re-measure in Railway before LM8 ships**
+  rather than assuming it shrinks. If it does not, the reads are independent and can go concurrent —
+  the sequential choice is recorded in `liveMapBoard.ts` with its reason, so changing it is an edit to
+  a decision rather than a discovery.
+
+  **Six service mutants and three gate mutants, all caught**, including the two the test fake
+  structurally cannot catch by filtering: `supabaseRecorder` RECORDS predicates without APPLYING them,
+  so dropping the live-status filter entirely would have left every assembly test green. Two tests
+  read the recorded filters directly for exactly that reason. The gate mutants prove the section gate
+  is present, is `view` and not `manage` (an auditor must not be locked out of a read-only board), and
+  that the module entitlement layer is separate.
+
+  **LM7 is next** (extract `useMapLibre` from the working fuel-planning map, no behaviour change),
+  then LM8 draws this.

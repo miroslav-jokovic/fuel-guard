@@ -20,6 +20,13 @@
  *    `idle`) with that carve-out — the writer manifest, not this comment, is the enforcement.
  */
 export { syncDriversFromSamsara } from "./samsaraDriverSync.js";
+// The owner's read for `vehicle_positions` — a raw table `check-table-access.mjs` seals to this
+// module, so the live map reaches it through here rather than selecting from it (LM6, D-ARC3).
+export {
+  readVehiclePositions,
+  type VehiclePositionRow,
+  type VehiclePositionsResult,
+} from "./vehiclePositionReads.js";
 export {
   syncVehiclesFromSamsara,
   NoSamsaraTokenError,
