@@ -42,13 +42,63 @@ function routerFor(path: string) {
   return router.push(path).then(() => router);
 }
 
-async function mountAt(path: string, attach = false) {
+async function mountAt(path: string, attach = false, props: Record<string, unknown> = {}) {
   const router = await routerFor(path);
   return mount(PageHeader, {
+    props,
     global: { plugins: [router] },
     ...(attach ? { attachTo: document.body } : {}),
   });
 }
+
+/**
+ * The hero plate (D-DR15) — the dashboard's greeting band.
+ *
+ * The plate is DECORATION, and the whole accessibility claim rests on it saying so: an empty `alt`
+ * plus `aria-hidden`, so a screen reader reaches the greeting rather than describing a photograph of
+ * a truck first. That is the kind of attribute a later "tidy-up" adds a helpful description to, so
+ * it is asserted rather than trusted.
+ */
+describe("PageHeader hero plate (D-DR15)", () => {
+  afterEach(() => document.body.replaceChildren());
+
+  it("renders no plate at all for the ordinary header", async () => {
+    const w = await mountAt("/");
+    expect(w.find("img").exists()).toBe(false);
+    // The plain header keeps its rule; the hero variant replaces it with a card edge.
+    expect(w.get("header").classes()).toContain("border-b");
+  });
+
+  it("carries the plate as decoration, never as content", async () => {
+    const w = await mountAt("/", false, { hero: "/hero/highway-dawn.webp" });
+    const img = w.get("img");
+    expect(img.attributes("src")).toBe("/hero/highway-dawn.webp");
+    expect(img.attributes("alt")).toBe("");
+    expect(img.attributes("aria-hidden")).toBe("true");
+    expect(w.get("header").classes()).not.toContain("border-b");
+  });
+
+  /**
+   * The greeting has to sit ON the band rather than beside it, so the plate is pinned behind the
+   * text with a negative z-index and is not clickable. A plate that captured pointer events would
+   * swallow clicks on the header's own action buttons, which sit over it on a wide screen.
+   */
+  it("keeps the plate behind the text and out of the way of the actions", async () => {
+    const w = await mountAt("/", false, { hero: "/hero/highway-dawn.webp" });
+    const classes = w.get("img").classes();
+    expect(classes).toContain("-z-10");
+    expect(classes).toContain("pointer-events-none");
+    expect(w.get("header").classes()).toContain("isolate");
+  });
+
+  it("has no axe violations with a plate behind it", async () => {
+    const w = await mountAt("/", true, { hero: "/hero/highway-dawn.webp", title: "Good morning, Miki" });
+    const result = await axe.run(w.element as HTMLElement, {
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(result.violations.map((v) => v.id)).toEqual([]);
+  });
+});
 
 describe("PageHeader breadcrumbs (G2)", () => {
   afterEach(() => document.body.replaceChildren());

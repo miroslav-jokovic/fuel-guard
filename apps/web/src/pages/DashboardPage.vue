@@ -27,6 +27,7 @@ import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { greeting } from "@/lib/greeting";
 import TabWidgets from "@/features/dashboard/TabWidgets.vue";
 import { visibleTabs, initialTab, showsTabStrip } from "@/features/dashboard/dashboardTabs";
 
@@ -44,6 +45,13 @@ const range = computed(() => {
 });
 
 // ── Which dashboards this caller may see ─────────────────────────────────────────────────────────
+/**
+ * Read once per mount rather than from a ticking clock (D-DR14). Nobody keeps a dashboard open
+ * across the 12:00 boundary and needs the word to change under them, and a timer here would be a
+ * re-render every minute of the day for a single adjective.
+ */
+const greetingLine = computed(() => greeting(new Date(), session.fullName));
+
 const tabs = computed(() => visibleTabs((s) => session.canView(s)));
 const tabItems = computed<TabItem[]>(() => tabs.value.map((t) => ({ value: t.key, label: t.label })));
 const showsStrip = computed(() => showsTabStrip(tabs.value));
@@ -77,7 +85,14 @@ const EXPORTS = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader title="Dashboard">
+    <!--
+      D-DR14/D-DR15: the dashboard greets its reader instead of captioning itself "Dashboard". The
+      sidebar already says which page this is and `route.meta.title` still does for the browser tab,
+      so the h1 was spending the most prominent line on the page repeating the nav. The plate behind
+      it is decorative (`alt=""`) and its contrast over the text zone is measured, not assumed.
+    -->
+    <PageHeader :title="greetingLine" hero="/hero/highway-dawn.webp">
+      Here's what's happening with your fleet today.
       <template #actions>
         <div v-if="activeKey === 'fleet'" class="flex flex-wrap items-center gap-3">
           <DateRangeFilter v-model:from="from" v-model:to="to" />

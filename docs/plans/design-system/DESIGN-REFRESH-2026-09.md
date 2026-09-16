@@ -1,6 +1,6 @@
 # Design refresh 2026-09 — the comps, and what it actually takes to reach them
 
-**Status:** DR1 in progress. **Owner:** Miki. **Opened:** 2026-09-16.
+**Status:** DR1, DR2, DR4, DR6 shipped. DR5 next. **Owner:** Miki. **Opened:** 2026-09-16.
 **Source of the direction:** seven comps in `docs/design examples/`, commissioned by the owner and
 approved as the target on 2026-09-16.
 
@@ -128,7 +128,8 @@ browser — DR1 exists because a unit test cannot see a radius.
 | **DR2** | `StatCard` hero anatomy — chip left, bold value, optional inline spark | 1 component, 2 hero consumers | `lint:comment-claims`, `lint:ui-adoption` |
 | **DR2b** | The delta pill, **and the previous-period data it needs** | `useDashboard` + a new primitive | performance — see below |
 | **DR3** | Chart theme: gradient area fills, rounded bars, softer grid | `features/dashboard/chartTheme.ts` | `lint:chart-colors` |
-| **DR4** | Dashboard hero band + greeting; top-bar ⌘K search | `AppShell`, `DashboardPage` | `lint:filesize` |
+| **DR4** | Sidebar chevron; dashboard greeting + hero band | `SidebarNavSection`, `PageHeader`, `DashboardPage` | `lint:ui-adoption`, design-tokens |
+| **DR4b** | Top-bar global search (⌘K) | **a feature, not a style** — see D-DR16 | — |
 | **DR5** | **Live map → full-bleed workspace** (§4) | `LiveMapPage`, `LiveMapPanel`, `AppShell` | accessibility, `lint:funcsize` |
 | **DR6** | Imagery: hero plates via Higgsfield (§5) | `apps/web/public/` | none |
 | **DR7** | Roll the DR1–DR3 anatomy across the other pages | broad | `lint:ui-adoption` |
@@ -166,6 +167,48 @@ and a tone, it does not infer one.
 
 ---
 
+### 3.1 DR4's rulings
+
+**D-DR13 — the section chevron trails its label instead of leading it** (owner's ruling,
+2026-09-16). Leading, it sat in the same column as the nav items' *icons* one row below — two
+different meanings sharing a column, so the eye read it as a section icon rather than as a control.
+The collapsed-section badge stays *before* the chevron: when a section is shut the badge is the only
+thing still reporting from inside it, and a count that jumps outboard when the section closes is a
+moving target. One component serves both the desktop rail and the mobile drawer, so this is one edit.
+
+**D-DR14 — the dashboard greets its reader rather than captioning itself "Dashboard".** The sidebar
+already says which page this is and `route.meta.title` still does for the browser tab, so the h1 was
+spending the most prominent line on the page repeating the navigation. `lib/greeting.ts` is pure and
+separate because it depends on the clock, which is the one thing a rendered test cannot pin without
+freezing time. Two details that are decisions rather than defaults: **only the first name** is used
+(a greeting that reads "Good morning, Miroslav Jokovic" is addressing a record, not a person), and
+**the comma belongs to the name branch** — `session.fullName` is legitimately null before `/api/me`
+returns, and "Good morning," with a trailing comma reads as a bug where "Good morning" does not.
+Midnight–04:59 counts as evening rather than earning a fourth day-part: dispatch runs overnight and
+someone reading this at 02:00 is finishing a day, not starting one.
+
+**D-DR15 — the hero plate is a PROPERTY of `PageHeader`, not a second header component.** The comps
+draw breadcrumbs, an h1, a subtitle and right-aligned actions over the plate — which is
+`PageHeader`'s exact existing anatomy, already carrying G2's breadcrumb trail. A `HeroBanner`
+beside it would re-derive the trail and re-declare the actions slot, and would become a second place
+where "what a page header is" gets decided. The plate is a background, so it is a property of the
+header rather than a different kind of header.
+
+⚠ The plate is **masked, not overlaid with a gradient**. A gradient needs a *colour*, which would
+have to be `--surface` and would be wrong the moment the band sat on anything else; a mask fades the
+image to transparent and lets whatever is behind show through. It also means no colour token is
+involved, so the band cannot drift from the palette. The `black` inside the mask's gradient is an
+alpha stop, not a colour — nothing paints it.
+
+**D-DR16 — the comps' ⌘K search bar is a FEATURE, and is not in DR4.** Checked 2026-09-16: there is
+no command palette, no global search component and no search endpoint anywhere in `apps/web`. The
+comps put "Search drivers, trucks, loads, or anything…" across the top of every screen, which means
+a cross-entity index and a ranking decision — not a header layout. Drawing a search box that opens
+nothing would be the same mistake as a delta over data we do not have (D-DR12). It becomes DR4b,
+sequenced on its own merits rather than smuggled in behind a design refresh.
+
+---
+
 ## 4. DR5 — the live map becomes a workspace, not a document
 
 This is the step that deserves the most design and the least hurry, because it changes a page
@@ -181,11 +224,21 @@ route strip bottom-centre, zoom/layers/locate on a right rail, basemap switcher 
 
 ### 4.1 The rulings this needs
 
-**D-DR5 — the full-bleed page is a shell variant, not a page that fights the shell.** The standard
-page is `PageHeader` + `space-y-6` inside a padded container. A page that cancels that with negative
-margins is the textbook workaround. `AppShell` gains an explicit `layout: "document" | "canvas"`
-route flag; `canvas` drops the padding and the max-width and gives the outlet the full viewport
-minus the rail and top bar. Live map is the first consumer; Fuel Planning is the obvious second.
+**D-DR5 — the full-bleed page varies the OUTLET, and must not become a sixth layout.** The standard
+page is `PageHeader` + `space-y-6` inside a padded container, and a page that cancels that with
+negative margins is the textbook workaround.
+
+⚠ **Amended 2026-09-16, before building.** This first read "`AppShell` gains a `layout: "canvas"`
+route flag", which was wrong. `meta.layout` already exists and already means *which shell entirely*
+— `auth`, `public`, `apply`, `lab`, `shop`, each resolved by `lib/layout.ts`'s `resolveLayout`, each
+REPLACING `AppShell`. The live map still wants the sidebar and the top bar; only the content area
+changes. Adding `canvas` to that enum would have forced a sixth layout file duplicating the whole
+navigation — a second source of truth for the nav, which is exactly what §"No workarounds" names.
+
+The correct shape is a separate `meta.fullBleed` flag read **inside** `AppShell`. Its outlet today
+is `<main class="py-6"><div class="w-full px-4 sm:px-6 lg:px-8">` (`AppShell.vue:370`), so full
+bleed is dropping that padding and giving `<main>` a height. One shell, one navigation. Live map is
+the first consumer; Fuel Planning is the obvious second.
 
 **D-DR6 — panel open/closed state is `user_dashboard_layout`, not a new mechanism.** LM10 already
 shipped per-user, per-tab widget layout with a merge function that preserves decisions across tabs
@@ -333,3 +386,23 @@ conflict every time (`plan-progress-log-not-table-rows`).
   so it cannot have a delta even in principle. Shipping a component with no honest values would have
   been the workaround. The drafted `DeltaPill.vue` and its `changePillTone`/`changeArrow` helpers
   are ready to land with the query that feeds them.
+- **2026-09-16 — DR4 SHIPPED (chevron, greeting, hero band).** Reordered ahead of DR5 at the owner's
+  prompt, and the prompt was right: after DR1 and DR2 the only changes a person could SEE were the
+  active nav tint and some elevation. That is what front-loading the token layer buys — foundation
+  first, payoff later — and three merged PRs with no visible payoff is a fair thing to push back on.
+  DR4 is where the screen starts looking like the comps: the greeting replaces the "Dashboard" h1,
+  the generated plate finally has a consumer (DR6 shipped the files three PRs before anything
+  displayed them, which was the sequencing error behind the complaint), and the section chevrons
+  move right. `min-h-36` + `object-position: center 62%` were arrived at by looking — the first
+  attempt cropped the truck to a thin slice, which no test could have told me. Four new
+  `PageHeader` tests and nine `greeting` tests; the two load-bearing ones **proved by mutation**
+  (a helpful `alt` on the decorative plate, and dropping `pointer-events-none`, each fail exactly
+  one assertion). 1,816 tests pass, six gates plus the design-token gate green.
+- **2026-09-16 — DR4b OPENED (D-DR16).** The comps' ⌘K search bar is a feature, not a header
+  layout: there is no command palette, no global search component and no search endpoint in the app.
+  Drawing a box that opens nothing is D-DR12's mistake in a different costume.
+- **2026-09-16 — D-DR5 AMENDED before any of DR5 was built.** The plan had said the live map gets
+  `layout: "canvas"`; `meta.layout` turns out to already mean "which shell entirely", so that would
+  have forced a sixth layout file duplicating the navigation. Corrected to a `meta.fullBleed` flag
+  read inside `AppShell`. Recorded here because a wrong ruling left sitting in a canonical document
+  is worse than no ruling.
