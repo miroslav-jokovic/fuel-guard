@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { CurrencyDollarIcon, InvoiceIcon } from "@silvicom/ui/icons";
 import { quarterLabel, ledgerTiles } from "@/composables/useFindingsSummary";
 
 /**
@@ -25,7 +26,10 @@ describe("naming the quarter a recovery figure covers", () => {
  * row and the page renders what it is given. `null` and `0` are the two answers that must not be
  * confused: one means "nothing you may see" and the other means "nothing".
  */
-const ICONS = { open: "open-icon", money: "money-icon" };
+// The two the production caller passes. They were string sentinels until DR7a typed `LedgerTile.icon`
+// as `Icon` — which the sentinels could not satisfy, and which is the point: `unknown` let this file
+// stand in anything at all for a value the strip is now required to be able to hand to `AppIcon`.
+const ICONS = { open: InvoiceIcon, money: CurrencyDollarIcon };
 const FMT = {
   int: (n: number) => String(n),
   compact: (n: number) => String(n),

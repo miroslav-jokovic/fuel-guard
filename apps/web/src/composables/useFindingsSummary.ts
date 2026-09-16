@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/vue-query";
+import { type Icon } from "@silvicom/ui/icons";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -54,7 +55,15 @@ export interface LedgerTile {
   value: string;
   valueTitle?: string;
   sub: string;
-  icon: unknown;
+  /**
+   * ⚠ Was `unknown` until DR7a, and the weaker type was hiding dead data rather than protecting
+   * anything. Every tile this helper builds carries an icon and a `tone` to paint its chip with,
+   * `applyMoneyGate` preserves both, and the strip that consumes them rendered NEITHER — eight
+   * glyphs resolved on every range change and dropped on the floor. `unknown` is why nobody noticed:
+   * it cannot be handed to `AppIcon`, so the only way to draw one was a cast, and the absent cast
+   * read as a deliberate omission instead of an oversight. Typed properly the chip is one `v-if`.
+   */
+  icon: Icon;
   tone: string;
   to: { path: string; query?: Record<string, string> };
   /**
@@ -77,7 +86,7 @@ export interface LedgerTile {
 
 export function ledgerTiles(
   summary: FindingsSummary | null | undefined,
-  icons: { open: unknown; money: unknown },
+  icons: { open: Icon; money: Icon },
   fmt: { int: (n: number) => string; compact: (n: number) => string; money: (n: number) => string },
 ): LedgerTile[] {
   if (!summary) return [];
