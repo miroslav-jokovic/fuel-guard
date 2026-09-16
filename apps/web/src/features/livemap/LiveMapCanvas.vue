@@ -131,7 +131,9 @@ function fitToFleet(instance: maplibregl.Map): void {
  * comp's four.
  *
  * ⚠ FORMAT travels with the style. `satellite.day` is 41 KB as jpeg and 488 KB as png on the same
- * tile, so the basemap is a style AND a format, and the proxy takes both.
+ * tile, so the basemap is a style AND a format, and the proxy takes both. D-DR22 then found the same
+ * trade on the ROAD styles — `explore.day` is 286 KB as png and 47 KB as jpeg with the label contrast
+ * unchanged — so every basemap this file can ask for is now jpeg.
  *
  * ⚠ The SCHEME still moves only the road map, which is why there is no Day/Night button: HERE
  * publishes no `satellite.night` or `topo.night`, and D-DR8 already ruled that the reader is not

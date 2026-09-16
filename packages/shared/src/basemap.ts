@@ -45,18 +45,66 @@
  * 488 KB as png** — a photograph does not belong in a lossless format. So a basemap is a STYLE AND A
  * FORMAT together, which is why this is a table of objects rather than a table of strings.
  */
+/**
+ * ── D-DR22: EVERY BASEMAP IS JPEG, INCLUDING THE ROAD STYLES (2026-09-16) ────────────────────────
+ * D-DR20 took the format win on satellite alone, on the reasoning that "a photograph does not belong
+ * in a lossless format". That reasoning was too narrow: HERE renders these road tiles as photographs
+ * too — anti-aliased type over gradient fills at 512px — and png pays full price for it. Measured
+ * with the production key on five tiles spanning a dense city (Chicago z13), a metro (Dallas z11), an
+ * interstate (Iowa z9), the national view (z5) and open country (Texas z14):
+ *
+ *   explore.day    286 KB png → 47 KB jpeg   ·  269 KB → 29 KB (z5)  ·  57 KB → 8.6 KB (z14)
+ *   explore.night  286 KB png → 41 KB jpeg   ·  278 KB → 26 KB (z5)
+ *   topo.day       278 KB png → 38 KB jpeg   ·  288 KB → 25 KB (z5)
+ *
+ * That is **84–91% of the bytes, on every style at every zoom**, and a 12-tile viewport therefore
+ * pulls ~0.4 MB where it pulled ~3.2 MB. HERE itself was never slow (150–210 ms round trip,
+ * 100–170 ms TTFB): the payload was.
+ *
+ * ⚠ **THE TRADE WAS LOOKED AT, NOT TAKEN ON TRUST, because jpeg is lossy exactly where these tiles
+ * carry road labels.** Both renders of the same tile were opened side by side at 1:1 in day and night
+ * and are indistinguishable; the damage is real but sub-threshold, and it was measured where it
+ * lands rather than as one average:
+ *
+ *   - **Label legibility does not move.** Contrast ratio over six label runs (3rd vs 97th percentile
+ *     luminance): `Chicago Union Station` 3.44:1 png / 3.48:1 jpeg, `W Harrison St` 3.21 / 3.39, the
+ *     same runs at night 6.89 / 6.97 and 8.08 / 7.94. Every pair is within ±0.2 — noise, and in both
+ *     directions, so it is not a loss being rounded away.
+ *   - **Where the loss IS: flat colour fields.** Neighbour-to-neighbour luminance noise in the map's
+ *     uniform areas rises from 0.12 (png, i.e. genuinely flat) to 2.47 of 255 — ~1%, jpeg's block
+ *     mottle. On high-contrast edges the mean luminance shift is 9.1 of 255 with a p95 of 25.
+ *
+ * A mean over the whole tile (8.33) would have reported this as worse than it is, which is the
+ * D-DR19 lesson arriving again: quote the percentile over the zone the eye picks out.
+ *
+ * ⚠ This lands BEFORE the theme-switch caching step deliberately. That step's candidate fix is to
+ * hold both schemes' raster sources in memory at once, and holding two sets of tiles is cheap at
+ * 33 KB each and not at 260 KB. The order is the reason it is affordable.
+ */
 export const BASEMAPS = {
   /** The default road map. The only basemap with a night variant, so the only one the scheme moves. */
-  map: { style: "explore.day", format: "png" },
-  mapNight: { style: "explore.night", format: "png" },
+  map: { style: "explore.day", format: "jpeg" },
+  mapNight: { style: "explore.night", format: "jpeg" },
   satellite: { style: "satellite.day", format: "jpeg" },
-  terrain: { style: "topo.day", format: "png" },
+  terrain: { style: "topo.day", format: "jpeg" },
 } as const;
 
 export type BasemapKey = keyof typeof BASEMAPS;
 export type Basemap = (typeof BASEMAPS)[BasemapKey];
 export type BasemapStyle = Basemap["style"];
-export type BasemapFormat = Basemap["format"];
+
+/**
+ * The formats the PROXY will put in a HERE URL, which is deliberately not `Basemap["format"]`.
+ *
+ * ⚠ D-DR22 made every basemap jpeg and the compiler immediately rejected `resolveBasemapFormat`'s
+ * `png` fallback — which was the derived type telling the truth about a conflation rather than an
+ * inconvenience. Two different sets were sharing one name: what OUR basemaps ask for (now jpeg, all
+ * four) and what the proxy will HONOUR off the wire (still both, because an older web bundle mid
+ * deploy window and `RouteMapGL` send no format at all and must keep getting a tile). Deriving the
+ * wire allowlist from the table would have silently switched every no-format caller to jpeg the
+ * moment the table moved — a cross-surface behaviour change hidden inside a fallback.
+ */
+export type BasemapFormat = "png" | "jpeg";
 
 /**
  * What a reader may CHOOSE, which is not the same list as what exists.
@@ -111,6 +159,12 @@ export function resolveBasemapStyle(raw: unknown): BasemapStyle {
  * and the proxy is the wrong place for it: the client already knows which basemap it asked for, and
  * a server that second-guesses the format would have to be edited every time the vendor adds a style.
  * The allowlist here is what keeps the freedom from becoming an open redirect of formats.
+ *
+ * ⚠ The fallback stays `png` after D-DR22 made every basemap jpeg, so it is now reached by exactly
+ * two callers and both want it: a request from the deploy window's older web bundle, which has no
+ * `format` on the URL, and `RouteMapGL` (Fuel Planning), which does not use `basemapFor` at all.
+ * png is the format every HERE style answers, so the fallback keeps being the one that cannot be
+ * wrong — it is the fat one, and giving the route preview the win is its own step (§7, still open).
  */
 export function resolveBasemapFormat(raw: unknown): BasemapFormat {
   return typeof raw === "string" && FORMATS.includes(raw) ? (raw as BasemapFormat) : "png";

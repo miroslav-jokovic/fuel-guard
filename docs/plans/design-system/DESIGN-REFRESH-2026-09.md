@@ -896,3 +896,57 @@ conflict every time (`plan-progress-log-not-table-rows`).
   asserted `satellite.day` was refused, which is now the opposite of the shipped behaviour. That is
   the suite doing its job at a deliberate behaviour change, and `hybrid.day` is the honest replacement
   for "a style we do not have". Full `pnpm test` green (web 1,862 · api 3,788 · shared 2,916).
+
+- **2026-09-16 — D-DR22: every basemap is jpeg, and the road map was the one that mattered.** D-DR20
+  took the format win on satellite alone and gave a reason — "a photograph does not belong in a
+  lossless format" — that turned out to be too narrow. HERE renders the ROAD styles as photographs
+  too: anti-aliased type over gradient fills at 512px, which is the worst case png was designed for.
+  Measured with the production key across five tiles chosen to span what a dispatcher actually looks
+  at — a dense city (Chicago z13), a metro (Dallas z11), an interstate (Iowa z9), the national view
+  (z5) and open country (Texas z14):
+
+  | style | png | jpeg | saving |
+  |---|---|---|---|
+  | `explore.day` (z13) | 286 KB | **47 KB** | 84% |
+  | `explore.night` (z13) | 286 KB | **41 KB** | 86% |
+  | `topo.day` (z13) | 278 KB | **38 KB** | 86% |
+  | `explore.day` (z5) | 270 KB | **29 KB** | 89% |
+  | `explore.day` (z14, rural) | 57 KB | **8.6 KB** | 85% |
+
+  A 12-tile viewport at 1512×787 therefore pulls **~0.4 MB where it pulled ~3.2 MB**. HERE was never
+  the slow part — round trip 150–210 ms, TTFB 100–170 ms — the payload was.
+
+  ⚠ **The trade was LOOKED AT, because this is exactly where jpeg is meant to be ugly.** These tiles
+  carry small road labels and flat colour fields; both renders of the same tile were opened side by
+  side at 1:1 in day and night and are indistinguishable. The loss is real and it was measured where
+  it lands rather than as one average:
+
+  - **Label legibility does not move.** Contrast ratio over six label runs (3rd vs 97th percentile
+    luminance): `Chicago Union Station` **3.44:1 png → 3.48:1 jpeg**, `W Harrison St` 3.21 → 3.39,
+    the same two at night 6.89 → 6.97 and 8.08 → 7.94. Every pair is within ±0.2 and the sign goes
+    both ways, so it is measurement noise rather than a loss being rounded off.
+  - **Where the loss IS: flat colour fields.** Neighbour-to-neighbour luminance noise in the map's
+    uniform areas rises from **0.12 (png — genuinely flat) to 2.47 of 255**, jpeg's block mottle, and
+    high-contrast edges shift by a mean of 9.1 with a p95 of 25.
+
+  A single mean over the tile reads 8.33 and would have made this sound worse than it is — the D-DR19
+  lesson arriving a second time: quote the percentile over the zone the eye picks out, not the mean
+  over everything.
+
+  ⚠ **A derived type caught a conflation the moment the table moved.** `BasemapFormat` was
+  `Basemap["format"]`, so making all four jpeg made `png` uninhabitable and `resolveBasemapFormat`'s
+  fallback stopped compiling. Two different sets were sharing one name: what OUR basemaps ask for, and
+  what the proxy will HONOUR off the wire. The second still includes png, because a request with no
+  `format` comes from an older web bundle mid deploy window or from `RouteMapGL`, and deriving the
+  allowlist from the table would have silently switched both to jpeg. `BasemapFormat` is now written
+  out, with the reason.
+
+  ⚠ **Ordered before the theme-switch caching step on purpose.** That step's candidate fix holds both
+  schemes' raster sources in memory at once; two sets of tiles is cheap at 33 KB each and not at
+  260 KB. `RouteMapGL` (Fuel Planning) still sends no format and keeps png — one line, and it belongs
+  with the colour-scheme fix it is already queued for.
+
+  One test rewritten to loop the table rather than name three literals (so a fifth basemap added in
+  png fails rather than passing a list it was never on), **proved by mutation**: reverting `map` to
+  png fails both it and the table assertion. The four proxy tests are untouched and still right — the
+  API's own default is unchanged.
