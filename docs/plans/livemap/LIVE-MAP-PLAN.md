@@ -1626,3 +1626,47 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
 
   **LM7 is next** (extract `useMapLibre` from the working fuel-planning map, no behaviour change),
   then LM8 draws this.
+- 2026-09-15 — **LM7 built: `useMapLibre` extracted, and Fuel Planning proven byte-identical.**
+  `apps/web/src/composables/useMapLibre.ts` now owns the four things LM8 was about to need twice: the
+  oklch→sRGB token conversion, the Bearer token on every tile request, the style pointing at our
+  authenticated proxy, and a teardown that unsubscribes as well as disposing the map. `RouteMapGL.vue`
+  keeps only what is about a ROUTE — the line, the markers, the fit — and drops from 191 lines to 107.
+
+  **The Done-when is met exactly rather than approximately.** Same fixture, same browser, same
+  viewport, built before and after the change: the rendered map is **7,861 bytes with an identical
+  SHA-256 both times**. Not "looks the same" — the same pixels. 1 canvas, 4 markers, 0 error
+  boundaries, no console errors, on both builds. `lint:tokens-parity` and `lint:token-gamut` green, and
+  no hex literal was introduced.
+
+  **One API addition, and it is about ordering.** `onBeforeTeardown` exists because Vue runs
+  `onBeforeUnmount` hooks in REGISTRATION order: a component that registered its own teardown after
+  calling this composable would find the map already disposed and be calling `Marker.remove()` into a
+  dead object. The original removed markers first. Rather than depend on where a line happens to sit in
+  a setup block, the hook makes the order explicit.
+
+  **The extraction bought a test that could not previously exist.** `toMapColor` lived inside a `.vue`
+  file that needs a WebGL canvas to mount, so the only way to exercise it was to look at a map — and
+  its failure mode is silent (maplibre throws `color expected, 'oklch(…)'` and the line is simply not
+  drawn; it shipped broken on Edge once for that reason). It now has 8 assertions and 7 mutants.
+  ⚠ **One mutant survived the first draft**: feeding the hue to `Math.cos` in DEGREES instead of
+  radians left every assertion green, because 25 and 250 radians wrap to angles with the same dominant
+  channel — "the red channel dominates for a red hue" reads like an assertion and is not one. The test
+  now pins three exact sRGB triples, which is the only version that can tell a correct conversion from
+  a plausible one.
+
+  **Three traps met on the way, all recorded because the next person meets them too:**
+  1. `vite build` fails locally with "Production web build is missing: VITE_SUPABASE_*" even though
+     `apps/web/.env` defines them — `vite.config.ts` reads `process.env` directly, not Vite's `loadEnv`.
+     **Use `pnpm --filter @silvicom/web preview:local`**, which loads the file itself. The handoff
+     recorded this as unresolved local setup; it is not, the script already solves it.
+  2. **Every preview server serves the one `apps/web/dist`.** Ports 4173–4175 were all serving the same
+     bundle, so an A/B by port proves nothing — the tree must be rebuilt between arms. One measurement
+     in this session was invalidated exactly that way before it was caught.
+  3. **The error boundary swallows the cause and logs nothing.** A `PlanResult` fixture missing
+     `status` puts the page in "Something went wrong" with an empty console, because
+     `PlanStatusBanner` does `META[props.status]`. The way out was not to defeat the boundary: it was
+     to run the SAME fixture against the pre-change tree, see it fail identically, and know the fault
+     was the fixture. That comparison is cheaper than any debugging and is the one to reach for first.
+
+  **LM8 is next** — the real map. It inherits this composable and D-LM7's GeoJSON-source design, and
+  it is the step that finally draws what LM4 collects and LM6 serves.
