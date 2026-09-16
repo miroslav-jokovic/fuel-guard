@@ -9,7 +9,10 @@ export const dispatchRoutes: RouteRecordRaw[] = [
     path: "/live-map",
     name: "live-map",
     component: () => import("@/pages/LiveMapPage.vue"),
-    meta: { requiresAuth: true, title: "Live map" },
+    // D-DR5: the map IS the page, so the shell's padded document outlet would be a frame around a
+    // workspace. `fullBleed` drops the gutters and gives `<main>` a height; the sidebar, top bar and
+    // bell are untouched. It is NOT `layout`, which means "a different shell entirely".
+    meta: { requiresAuth: true, title: "Live map", fullBleed: true },
   },
   {
     path: "/assignments",

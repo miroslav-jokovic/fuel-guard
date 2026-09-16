@@ -17,10 +17,19 @@ import { MAP_STATES, STATE_LABEL, offlineBoundSentence, engineOnBoundSentence } 
  * component that hard-coded "offline after 15 minutes" would be telling the user something the
  * response can already prove, and would be wrong the day the bound is retuned.
  */
-defineProps<{
-  counts: Record<VehicleMapState, number>;
-  bounds: LiveMapBoard["bounds"];
-}>();
+withDefaults(
+  defineProps<{
+    counts: Record<VehicleMapState, number>;
+    bounds: LiveMapBoard["bounds"];
+    /**
+     * `strip` is the row under the card in the document form. `stacked` is the same census one state
+     * per line, for DR5's top-left floating panel, which is 16rem wide — the strip wraps to four
+     * ragged lines in that box and stops reading as a legend.
+     */
+    layout?: "strip" | "stacked";
+  }>(),
+  { layout: "strip" },
+);
 
 /** Matches the symbol layer's `icon-opacity`, so grey-and-faded means the same thing in both places. */
 const DOT_CLASS: Record<VehicleMapState, string> = {
@@ -39,17 +48,28 @@ const HINT: Record<VehicleMapState, (b: LiveMapBoard["bounds"]) => string> = {
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-edge px-4 py-2.5">
+  <div
+    :class="
+      layout === 'stacked'
+        ? 'flex flex-col gap-1.5'
+        : 'flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-edge px-4 py-2.5'
+    "
+  >
     <span
       v-for="state in MAP_STATES"
       :key="state"
       class="inline-flex items-center gap-1.5 text-xs text-ink-secondary"
+      :class="layout === 'stacked' && 'justify-between'"
       :title="HINT[state](bounds)"
     >
-      <span class="size-2.5 rounded-full" :class="DOT_CLASS[state]" />
-      {{ STATE_LABEL[state] }}
+      <span class="inline-flex items-center gap-1.5">
+        <span class="size-2.5 rounded-full" :class="DOT_CLASS[state]" />
+        {{ STATE_LABEL[state] }}
+      </span>
       <span class="font-semibold tabular-nums text-ink">{{ counts[state] }}</span>
     </span>
-    <span class="text-2xs text-ink-tertiary">{{ offlineBoundSentence(bounds) }} counts as offline</span>
+    <span class="text-2xs text-ink-tertiary" :class="layout === 'stacked' && 'pt-1'"
+      >{{ offlineBoundSentence(bounds) }} counts as offline</span
+    >
   </div>
 </template>

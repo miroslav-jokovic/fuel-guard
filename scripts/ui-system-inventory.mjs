@@ -61,9 +61,43 @@ const pagesAndFeatures = webVue.filter(
     item.relativePath.startsWith("apps/web/src/features/"),
 );
 
+/**
+ * Pages whose ROUTE asks for the full-bleed outlet (D-DR5, DESIGN-REFRESH-2026-09.md §4).
+ *
+ * They are exempt from the `PageHeader` rule below, and the exemption is DERIVED rather than typed
+ * into the hand-written list beside it. `meta.fullBleed` already decides that `AppShell` gives the
+ * page the whole content area with no gutters and a height; a page with no gutters has nowhere to
+ * put a header, and naming the file in two places would let the route and the gate disagree the
+ * first time a second page went full bleed.
+ *
+ * ⚠ The window trick is exact rather than approximate: every route record in `router/routes/*.ts`
+ * writes `component:` before `meta:` (checked across all 78 of them, 2026-09-16), so the text from
+ * one `component:` to the next is one route and nothing else. If that ever stops being true this
+ * reads a neighbour's meta, so the shape is asserted here rather than assumed — a record whose meta
+ * precedes its component is a parse failure, not a silent exemption.
+ */
+function fullBleedPages() {
+  const pages = new Set();
+  for (const path of filesUnder(join(webSrc, "router/routes"), new Set([".ts"]))) {
+    const source = stripComments(readFileSync(path, "utf8"));
+    const records = source.split(/component:/).slice(1);
+    for (const record of records) {
+      const component = record.match(/import\("@\/pages\/([^"]+)"\)/);
+      if (!component) continue;
+      const meta = record.match(/meta:\s*\{([\s\S]*?)\}/);
+      if (meta && /\bfullBleed:\s*true\b/.test(meta[1])) pages.add(component[1]);
+    }
+  }
+  return pages;
+}
+
+const fullBleed = fullBleedPages();
+
 const pageAdoption = webPages.map((item) => ({
   page: item.relativePath.replace("apps/web/src/pages/", ""),
   pageHeader: /<PageHeader\b/.test(item.source),
+  /** D-DR5: the shell gives this page the whole outlet, so there is no band for a header. */
+  fullBleed: fullBleed.has(item.relativePath.replace("apps/web/src/pages/", "")),
   baseCardCount: countMatches(item.source, /<BaseCard\b/g),
   rawButtonCount: countMatches(item.source, /<button\b/g),
   rawInputCount: countMatches(item.source, /<input\b/g),
@@ -155,7 +189,7 @@ function verifyAdoption() {
   ]);
   const failures = [];
   const missingHeaders = pageAdoption
-    .filter((page) => !page.pageHeader && !allowedHeaderExceptions.has(page.page))
+    .filter((page) => !page.pageHeader && !page.fullBleed && !allowedHeaderExceptions.has(page.page))
     .map((page) => page.page);
   if (missingHeaders.length)
     failures.push(`routed pages without PageHeader: ${missingHeaders.join(", ")}`);

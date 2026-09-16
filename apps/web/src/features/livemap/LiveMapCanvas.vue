@@ -22,12 +22,23 @@ import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMo
  * same server that drew the last frame. `deriveVehicleState` exists in `@silvicom/shared` for the
  * places that genuinely need it locally; this is not one.
  */
-const props = defineProps<{
-  vehicles: LiveMapVehicle[];
-  /** Changes once per poll. It is the ANIMATION's clock: a new board starts a new tween. */
-  generatedAt: string;
-  selectedId: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    vehicles: LiveMapVehicle[];
+    /** Changes once per poll. It is the ANIMATION's clock: a new board starts a new tween. */
+    generatedAt: string;
+    selectedId: string | null;
+    /**
+     * `card` is the figure-in-a-report height the dashboard widget wants; `fill` takes whatever the
+     * parent gives it (D-DR5). A prop rather than a class passed in, because the two differ in the
+     * corner radius as well as the height — a canvas filling a full-bleed page has no card to round
+     * itself to, and rounding it anyway leaves four slivers of canvas showing through at the
+     * corners.
+     */
+    fit?: "card" | "fill";
+  }>(),
+  { fit: "card" },
+);
 
 const emit = defineEmits<{ select: [vehicleId: string | null] }>();
 
@@ -193,14 +204,28 @@ function flyTo(vehicleId: string): void {
   });
 }
 
-defineExpose({ flyTo });
+/**
+ * Tell maplibre its box changed.
+ *
+ * The workspace's fleet dock is a sibling of the map rather than an overlay, so opening it makes the
+ * map SHORTER instead of covering it — and a WebGL canvas does not notice that by itself. maplibre's
+ * own `trackResize` listens to the window, which never fired here: the window is exactly the size it
+ * was. Without this the map keeps rendering at its old height and the bottom band of it sits behind
+ * the dock, which looks like a rendering bug and is really a missing call.
+ */
+function resize(): void {
+  map.value?.resize();
+}
+
+defineExpose({ flyTo, resize });
 </script>
 
 <template>
   <div
     ref="mapEl"
-    class="h-[28rem] w-full overflow-hidden rounded-t-surface"
+    class="w-full overflow-hidden"
+    :class="props.fit === 'fill' ? 'h-full' : 'h-[28rem] rounded-t-surface'"
     role="img"
-    :aria-label="`Live map showing ${props.vehicles.length} trucks. The table below lists the same trucks.`"
+    :aria-label="`Live map showing ${props.vehicles.length} trucks. The fleet list gives the same trucks as a table.`"
   />
 </template>

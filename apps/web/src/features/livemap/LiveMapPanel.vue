@@ -1,32 +1,30 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import { AppCard as BaseCard, AppCallout } from "@silvicom/ui";
 import type { LiveMapVehicle, VehicleMapState } from "@silvicom/shared";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataTable from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { BADGE_BASE, vehicleStateTone } from "@/lib/badges";
 import LiveMapCanvas from "./LiveMapCanvas.vue";
 import LiveMapLegend from "./LiveMapLegend.vue";
 import LiveMapVehicleDrawer from "./LiveMapVehicleDrawer.vue";
-import { useLiveMapBoard } from "./useLiveMapBoard";
-import {
-  MAP_STATES,
-  STATE_LABEL,
-  EMPTY_FILTERS,
-  filterVehicles,
-  formatAge,
-  stateCounts,
-  type LiveMapFilters,
-} from "./liveMapLayer";
+import { useLiveMapView, LIVE_MAP_COLUMNS } from "./useLiveMapView";
+import { STATE_LABEL, formatAge } from "./liveMapLayer";
 
 /**
  * Where the fleet is (LIVE-MAP-PLAN.md LM8).
  *
- * ── A PANEL RATHER THAN A PAGE, BECAUSE IT IS ABOUT TO HAVE TWO HOMES ────────────────────────────
- * `/live-map` is the work surface; LM-T embeds this same component as the Dashboard's Dispatch tab
- * (D-DW5 — the tab is the glance, the page is the work, and neither substitutes for the other). It
- * is written as a panel now so the second caller is a second call and not a second copy.
+ * ── IT IS NOW THE DASHBOARD'S READING OF THE BOARD, AND ONLY THAT (D-DR5) ────────────────────────
+ * It was both: `/live-map` rendered it and LM-T embeds it as the Dashboard's Dispatch tab (D-DW5 —
+ * the tab is the glance, the page is the work, and neither substitutes for the other). DR5 gave the
+ * PAGE a second shape — a full-bleed workspace with floating panels, `LiveMapWorkspace.vue` — and
+ * the widget kept this one, because floating panels over a card inside a dashboard grid would be a
+ * workspace in a 400px box.
+ *
+ * ⚠ The two shapes share their STATE, not their markup: `useLiveMapView` holds the filters, the
+ * selection, the census and the two different empty sentences, so there is one answer to each of
+ * those and not two that can drift. Do not re-derive any of them here.
  *
  * ── THE MAP AND THE TABLE ARE ONE SURFACE, NOT A MAP WITH A LIST UNDER IT ────────────────────────
  * The markers carry no unit number and cannot: a maplibre `text-field` needs the style to declare a
@@ -41,65 +39,26 @@ import {
  * header pinned. If this fleet ever reached a size where that stopped being true, the endpoint's
  * `truncated` flag is the honest place to notice it.
  */
-const board = useLiveMapBoard();
+const {
+  board,
+  filters,
+  selectedId,
+  counts,
+  filtered,
+  selected,
+  stateFilter,
+  stateOptions,
+  emptyText,
+  errorMessage,
+  setSearch,
+} = useLiveMapView();
 
-const filters = ref<LiveMapFilters>({ ...EMPTY_FILTERS });
-const selectedId = ref<string | null>(null);
 const canvas = ref<InstanceType<typeof LiveMapCanvas> | null>(null);
-
-const vehicles = computed<LiveMapVehicle[]>(() => board.data.value?.vehicles ?? []);
-const filtered = computed(() => filterVehicles(vehicles.value, filters.value));
-const counts = computed(() => stateCounts(vehicles.value));
-const selected = computed(() => vehicles.value.find((v) => v.vehicleId === selectedId.value) ?? null);
-
-/**
- * The state filter, with the census in the option labels.
- *
- * ⚠ The dispatcher and load-status filters LM8 first listed are NOT here. `tms_dispatchers` does not
- * exist in this database — it is downstream of the McLeod `VIEW CHANGE TRACKING` grant the carrier
- * has not given — and `loads` holds 0 rows until LM12. An empty dropdown does not read as "not yet";
- * it reads as "this page is broken", and a dispatcher who concluded that would be right.
- */
-const stateOptions = computed(() =>
-  MAP_STATES.map((state) => ({ value: state, label: `${STATE_LABEL[state]} (${counts.value[state]})` })),
-);
-
-const stateFilter = computed<string[]>({
-  get: () => [...filters.value.states],
-  set: (value) => { filters.value = { ...filters.value, states: value as VehicleMapState[] }; },
-});
-
-const COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", sortable: true, width: "xs" },
-  { key: "driver", label: "Driver", sortable: true, width: "md" },
-  { key: "state", label: "Status", width: "sm" },
-  { key: "speed", label: "Speed", numeric: true, width: "xs" },
-  { key: "age", label: "Last fix", numeric: true, width: "sm" },
-  { key: "location", label: "Location", width: "lg" },
-  { key: "load", label: "Load", width: "md" },
-];
 
 function select(vehicle: LiveMapVehicle): void {
   selectedId.value = vehicle.vehicleId;
   canvas.value?.flyTo(vehicle.vehicleId);
 }
-
-/**
- * Two different empty boards, said differently.
- *
- * "No trucks match these filters" in front of a dispatcher who has set no filters sends them looking
- * for a filter to clear. An empty board before the collector has stored anything is a waiting state,
- * and naming the thing they are waiting for is the difference between the two.
- */
-const emptyText = computed(() =>
-  vehicles.value.length === 0
-    ? "No truck positions yet. Positions appear within a few minutes of a truck reporting to Samsara."
-    : "No trucks match these filters.",
-);
-
-const errorMessage = computed(() =>
-  board.isError.value ? (board.error.value as Error | null)?.message ?? "Could not read the live map" : "",
-);
 </script>
 
 <template>
@@ -120,7 +79,7 @@ const errorMessage = computed(() =>
       search-placeholder="Unit or driver"
       :count="filtered.length"
       count-label="trucks"
-      @update:search="filters = { ...filters, search: $event }"
+      @update:search="setSearch($event)"
     >
       <template #filters>
         <FilterSelect v-model="stateFilter" multiple label="Status" :options="stateOptions" />
@@ -139,7 +98,7 @@ const errorMessage = computed(() =>
     </BaseCard>
 
     <DataTable
-      :columns="COLUMNS"
+      :columns="LIVE_MAP_COLUMNS"
       :rows="filtered"
       row-key="vehicleId"
       :loading="board.isLoading.value"

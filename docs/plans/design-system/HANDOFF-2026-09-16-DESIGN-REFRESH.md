@@ -19,6 +19,7 @@ status board. Where it names a position, `git log` and the plan's §7 outrank it
 | **DR2** | `StatCard` hero anatomy — chip left at `size-10`, `font-bold` value, opt-in inline spark | #819 | `f7b6ad2` |
 | **DR4** | Section chevron moved right; dashboard greeting + hero band; actions moved to top of band | #820 | `c8fd02d` |
 | **D-DR17** | Inline spark wraps instead of squeezing the label (fixes a DR2 regression) | #821 | `6104de9` |
+| **DR5** | Live map → full-bleed workspace: `meta.fullBleed`, floating panels, fleet dock | *see `git log`* | *see `git log`* |
 
 Everything above is merged, gate-green, and was looked at in a browser. The visible result: violet
 brand, 12px card radii, shadow-defined cards, a near-white rail, a greeting over a photograph, and
@@ -28,24 +29,17 @@ KPI tiles that lead with their icon.
 
 ## 2. What is next
 
-**DR5 — the live map becomes a workspace.** Largest remaining piece; the plan's §4 carries its
-rulings. Two of them were CORRECTED before any code was written, and the corrections are the
-important part:
+**DR5 is built** — the live map is a full-bleed workspace. Read the plan's §7 entry for it before
+touching any of it; D-DR6 turned out to be wrong a SECOND time (the panels cannot use
+`user_dashboard_layout` at all — `PUT /api/dashboard-layout` refuses a key outside
+`DASHBOARD_WIDGETS`) and §4.1 now carries both corrections.
 
-- **D-DR5 (amended).** Do NOT add `layout: "canvas"` to `meta.layout`. That field already means
-  *which shell entirely* — `auth`, `public`, `apply`, `lab`, `shop` each REPLACE `AppShell`
-  (`apps/web/src/lib/layout.ts`, `resolveLayout`). The live map still wants the sidebar and top bar.
-  Use a separate `meta.fullBleed` read INSIDE `AppShell`; its outlet is
-  `<main class="py-6"><div class="w-full px-4 sm:px-6 lg:px-8">` (`AppShell.vue:370`).
-- **D-DR6 (half wrong as written).** `StoredDashboardLayout` holds `widgetKeys` + `hiddenKeys` only
-  — **no position field**, and migration 0343 has no column for one. Open/closed reuses perfectly;
-  placement does not. Give panels FIXED corners (which comp (7) draws anyway) so only open/closed
-  persists and no migration is needed.
-
-Also queued, each its own step: **DR2b** (delta pill + the previous-period query it needs — the
-dashboard has NO period comparison today), **DR3** (chart gradients), **DR4b** (global ⌘K search —
-a feature; no palette, component or endpoint exists), **DR7** (roll the anatomy across other pages),
-and **`OperatingMetricsWidget`'s 1280px truncation** (genuinely pre-existing, eight-up grid).
+Queued, each its own step: **DR2b** (delta pill + the previous-period query it needs — the dashboard
+has NO period comparison today), **DR3** (chart gradients), **DR4b** (global ⌘K search — a feature;
+no palette, component or endpoint exists), **DR7** (roll the anatomy across other pages),
+**`OperatingMetricsWidget`'s 1280px truncation** (genuinely pre-existing, eight-up grid), **D-DR8's
+dark basemap** (an API change — the HERE style is hardcoded in `mapProxies.ts`), and DR5's own three
+follow-ups at the end of §7.
 
 ---
 
