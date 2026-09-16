@@ -57,7 +57,16 @@ const trail = computed(() =>
 <template>
   <header
     :class="[
-      'flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between',
+      'flex flex-col gap-4 sm:flex-row sm:justify-between',
+      /*
+       * The actions sit at the TOP of a hero band and at the BOTTOM of a plain header.
+       * Measured at 1280px: bottom-aligned, they landed squarely on the truck's cab — the busiest,
+       * highest-contrast corner of every plate — because the cab is bottom-right and so were they.
+       * The sky is the quiet part of the frame, and the comps put the date range and Export up
+       * there for the same reason. The plain header keeps `items-end`, where actions should line up
+       * with the baseline of the title rather than float above it.
+       */
+      hero ? 'sm:items-start' : 'sm:items-end',
       hero
         ? 'relative isolate min-h-36 overflow-hidden rounded-surface bg-surface px-5 py-6 shadow-card ring-1 ring-edge-subtle sm:px-6'
         : 'border-b border-edge-subtle pb-5',

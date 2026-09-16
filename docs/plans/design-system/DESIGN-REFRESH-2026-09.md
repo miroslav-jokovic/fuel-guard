@@ -200,6 +200,19 @@ image to transparent and lets whatever is behind show through. It also means no 
 involved, so the band cannot drift from the palette. The `black` inside the mask's gradient is an
 alpha stop, not a colour — nothing paints it.
 
+**Found while building DR4, and NOT caused by it — the four-up KPI grid truncates at 1280px.**
+"Fuel spend" renders as "Fuel sp…", and so do "Telematics co…" and "Declined atte…" in
+`OperatingMetricsWidget`. It was nearly recorded here as a DR2 regression, on the theory that the
+hero chip moving left had cost the text column its margin. **It had not.** `main` at the same
+viewport truncates identically, including in widgets the refresh has never touched — checked by
+building `main` and rendering it at 1280 side by side, after an earlier comparison turned out to
+have been taken at two different viewport widths and proved nothing.
+
+The real cause is the `xl:grid-cols-4` KPI row being too tight for its labels at exactly the width
+where `xl` engages, and it predates all of this. It is left alone deliberately: fixing a
+pre-existing responsive defect inside a design-refresh PR would hide it in a diff about something
+else. **Its own step, or a deliberate decision to accept `truncate` at that width.**
+
 **D-DR16 — the comps' ⌘K search bar is a FEATURE, and is not in DR4.** Checked 2026-09-16: there is
 no command palette, no global search component and no search endpoint anywhere in `apps/web`. The
 comps put "Search drivers, trucks, loads, or anything…" across the top of every screen, which means
@@ -406,3 +419,15 @@ conflict every time (`plan-progress-log-not-table-rows`).
   have forced a sixth layout file duplicating the navigation. Corrected to a `meta.fullBleed` flag
   read inside `AppShell`. Recorded here because a wrong ruling left sitting in a canonical document
   is worse than no ruling.
+- **2026-09-16 — DR4 follow-up, found by resizing the browser.** Two defects the first pass missed
+  because it was only ever looked at on one wide viewport. (a) The header's actions were
+  bottom-aligned, which put "Dates" and "Export" squarely on the truck's cab — the busiest corner of
+  every plate — because the cab is bottom-right and so were they. A hero header now aligns its
+  actions to the TOP, over the sky, which is also where the comps put them; the plain header keeps
+  `items-end`, where actions should sit on the title's baseline. (b) The hero chip went `size-11` →
+  `size-10`, matching the comp's ~40px more closely.
+  ⚠ **(b) was very nearly shipped with a false justification.** It was written up as fixing a
+  truncation regression; `main` turned out to truncate identically at 1280px, in widgets this work
+  has never touched. The first comparison that suggested otherwise had been taken at two different
+  viewport widths. The truncation is pre-existing and is §3.1's own paragraph now — not this PR's to
+  fix, and not this PR's to claim credit for.
