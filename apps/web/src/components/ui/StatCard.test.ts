@@ -36,8 +36,50 @@ describe("StatCard anatomy", () => {
     const ps = mountCard({ size: "hero" }).findAll("p");
     expect(ps[0]!.classes()).toEqual(expect.arrayContaining(["text-sm", "font-medium", "text-ink-muted"]));
     expect(ps[0]!.classes()).not.toContain("uppercase");
-    expect(ps[1]!.classes()).toEqual(expect.arrayContaining(["text-3xl", "font-semibold"]));
+    // D-DR2 moved this from font-semibold to font-bold. Not a drift: §2.3 reserves font-bold for
+    // KPI numbers and font-semibold for headings, and this is a KPI number that wore the heading's
+    // weight until 2026-09-16.
+    expect(ps[1]!.classes()).toEqual(expect.arrayContaining(["text-3xl", "font-bold"]));
     expect(ps[1]!.classes()).not.toContain("text-2xl");
+    expect(ps[1]!.classes()).not.toContain("font-semibold");
+  });
+
+  /**
+   * The two hero layouts, kept apart on purpose (D-DR2).
+   *
+   * `spark-inline` is what the dashboard's glance tiles opt into; `FleetHeadlines` deliberately does
+   * not, because its captions are sentences (D-FRUI3) and a halved text column wraps them. If those
+   * two ever collapse into one layout, one of those two pages is being badly served — so the
+   * difference is asserted rather than left to whoever edits the template next.
+   */
+  it("puts the spark beside the value only when the caller asks, and under the tile otherwise", () => {
+    const spark = { spark: [1, 2, 3], sparkColor: "#000", size: "hero" as const };
+
+    const below = mountCard(spark);
+    expect(below.find(".w-2\\/5").exists()).toBe(false);
+    expect(below.find(".mt-3 svg").exists()).toBe(true);
+
+    const inline = mountCard({ ...spark, sparkInline: true });
+    expect(inline.find(".w-2\\/5 svg").exists()).toBe(true);
+    expect(inline.find(".mt-3 svg").exists()).toBe(false);
+  });
+
+  /**
+   * The chip changes SIDE as well as size between the two anatomies, and the KPI side is the one
+   * fourteen surfaces depend on. Asserting the hero chip precedes the label — and the KPI chip
+   * follows it — is what stops a future tidy-up from unifying them and silently reflowing all
+   * fourteen.
+   */
+  it("leads with the icon chip in hero and trails with it in kpi", () => {
+    const icon = { icon: TruckIcon, tone: "text-success-600 bg-success-50" };
+
+    const heroHtml = mountCard({ ...icon, size: "hero" }).html();
+    expect(heroHtml.indexOf("size-11")).toBeGreaterThan(-1);
+    expect(heroHtml.indexOf("size-11")).toBeLessThan(heroHtml.indexOf("Files with work left"));
+
+    const kpiHtml = mountCard(icon).html();
+    expect(kpiHtml.indexOf("size-9")).toBeGreaterThan(kpiHtml.indexOf("Files with work left"));
+    expect(kpiHtml).not.toContain("size-11");
   });
 
   it("omits the icon chip entirely when no icon is given", () => {
