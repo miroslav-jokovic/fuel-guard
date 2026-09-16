@@ -766,3 +766,28 @@ conflict every time (`plan-progress-log-not-table-rows`).
   and still passes a plain string, so its basemap stays light in dark mode. One line and the same
   `basemapStyleFor` call — left out because Fuel Planning is not in this step's scope and a second
   consumer is easier to review on its own than bundled into the change that created the seam.
+
+- **2026-09-16 — DR7b SHIPPED (the dashboard's last hand-rolled panel header).** `RiskList` — the
+  container behind both `Top vehicles by risk` and `Top drivers by risk` — rendered
+  `<h3 class="text-sm font-semibold text-ink">` inside a `BaseCard`, which is `ChartCard`'s header
+  spelled out a fourth time. It now goes through `ChartCard`, and with it every titled panel on the
+  fleet tab is one component: the dashboard has no hand-rolled tile or panel chrome left.
+
+  **Nothing here is a chart, and that is the finding rather than an objection.** What `ChartCard`
+  actually owns is "a titled panel on the dashboard grid" — it is misnamed, not misused, and the two
+  risk lists sit in that grid beside the three charts that already use it. Renaming it would touch
+  five files for no behaviour and was not done; the mismatch is recorded here instead so the next
+  reader does not take the name as a reason to write a fifth header.
+
+  ⚠ **The card's `flex h-full flex-col` now arrives as a FALLTHROUGH attribute**, which works because
+  `ChartCard`'s root IS the `BaseCard`. It is load-bearing: the empty state centres itself with
+  `flex-1`, and `flex-1` fills nothing without a column to fill. That is also the half no existing
+  test could see — `dashboardEquivalence` pins the `h3` text and a populated list looks identical
+  either way, so only an EMPTY card beside a full one in the same row would have shown the collapse.
+  Hence `RiskList.test.ts`, whose load-bearing assertion is the empty state rather than the title.
+
+  Measured after, in a browser at 1440px: the `h3` of `Open cases by severity`, `Top vehicles by risk`
+  and `Top drivers by risk` all sit **20px from their card's top edge at 14px/600** — identical
+  geometry, which is what the de-duplication was for. Looked at in both schemes. Three new tests, two
+  **proved by mutation**: dropping the fallthrough class fails the empty-state assertion, and
+  restoring a hand-rolled header fails the header assertion.
