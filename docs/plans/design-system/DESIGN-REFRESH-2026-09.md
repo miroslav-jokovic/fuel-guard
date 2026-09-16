@@ -1,6 +1,8 @@
 # Design refresh 2026-09 — the comps, and what it actually takes to reach them
 
-**Status:** DR1, DR2, DR4, DR6 shipped. DR5 next. **Owner:** Miki. **Opened:** 2026-09-16.
+**Status:** DR1, DR2, DR4, DR6, D-DR17 shipped (`main` `6104de9`). **DR5 next.**
+Handoff: `HANDOFF-2026-09-16-DESIGN-REFRESH.md` — read it, then §7 below.
+**Owner:** Miki. **Opened:** 2026-09-16.
 **Source of the direction:** seven comps in `docs/design examples/`, commissioned by the owner and
 approved as the target on 2026-09-16.
 
