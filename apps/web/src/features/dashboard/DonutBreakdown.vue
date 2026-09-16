@@ -29,7 +29,17 @@ const shareLabel = (value: number) => {
   return share < 1 ? "<1%" : `${Math.round(share)}%`;
 };
 
-const chart = computed<ChartConfiguration<"doughnut">>(() => {
+/**
+ * ⚠ `ChartConfiguration` and NOT `ChartConfiguration<"doughnut">`, since LM9.
+ *
+ * `BaseChart` declares `config: ChartConfiguration` — the union over every chart type — and a
+ * doughnut-specific configuration is not assignable to it (its `data` is `number[]` where the union
+ * admits `null` and point objects). The mismatch was always here; it began FAILING when LM9 moved
+ * this component's only caller into its own widget, which is the kind of latent error a refactor
+ * surfaces rather than causes. The object literal below still narrows on `type: "doughnut"`, so
+ * nothing inside it loses checking.
+ */
+const chart = computed<ChartConfiguration>(() => {
   const slices = hasData.value
     ? visibleSlices.value
     : [{ key: "empty", label: "No data", value: 1, valueLabel: "0", color: resolve("--edge-subtle") }];

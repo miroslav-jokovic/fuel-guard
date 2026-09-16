@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { computed, ref } from "vue";
+import { callerCanView, type AppSection, type UserRole } from "@silvicom/shared";
 
 /**
  * The equivalence harness for LM9's widget-catalogue refactor
@@ -49,6 +50,9 @@ const MPG_SERIES = {
   periods: [{ from: "2026-09-01", to: "2026-09-07", mpg: 7.4 }],
 };
 
+vi.mock("@/composables/useModules", () => ({
+  useModulesQuery: () => ({ data: computed(() => new Set(["dispatch", "navigation"])) }),
+}));
 vi.mock("./useDashboard", () => ({
   useDashboard: () => ({ data: computed(() => SUMMARY), isLoading: ref(false), isFetching: ref(false) }),
 }));
@@ -67,13 +71,38 @@ vi.mock("@/composables/useFindingsSummary", async (importOriginal) => ({
   }),
 }));
 
-const canView = ref<(section: string) => boolean>(() => true);
+/**
+ * ⚠ ONE FIXTURE DRIVES BOTH PATHS, AND THE FIRST DRAFT DID NOT — WHICH IS THE BUG THIS COMMENT IS
+ * FOR.
+ *
+ * Since LM9 there are two mechanisms that answer "may this caller see money", and in production they
+ * agree because both resolve `accounting` through the same shared functions:
+ *
+ *   1. the WIDGET gate — `canReachSurface(widget, role, modules, sections)`, which decides whether
+ *      the spend chart and the cost donut render at all;
+ *   2. `applyMoneyGate` — `session.canView("accounting")`, which decides whether a TILE inside a
+ *      surviving strip shows its dollars.
+ *
+ * A fixture that stubbed only (2) left (1) answering from the shipped matrix, so the no-money case
+ * rendered both money charts and the diff read as a money-gate regression. It was not; the fixture
+ * was. The ROLE is therefore the single input and `canView` is DERIVED from it by the real
+ * `callerCanView`, so the two paths cannot disagree here in a way they could not disagree in
+ * production.
+ *
+ * ⚠ And the no-money role is `fleet_manager` rather than an admin carrying an `accounting: "none"`
+ * override, because `resolveSectionAccess` IGNORES a claim on a non-editable role — an admin cannot
+ * be denied, by design. The second draft of this fixture tried exactly that and rendered every
+ * dollar. `fleet_manager` holds `accounting: none` in the shipped matrix, which is the real case
+ * LM-F was written for and the one whose dashboard actually changed when #803 landed.
+ */
+const role = ref<UserRole>("admin");
 vi.mock("@/stores/session", () => ({
   useSessionStore: () => ({
-    canView: (s: string) => canView.value(s),
+    canView: (s: string) => callerCanView(role.value, s as AppSection, null),
     can: () => true,
     readOnly: false,
-    role: "admin" as const,
+    role: role.value,
+    sections: null,
   }),
 }));
 
@@ -123,10 +152,16 @@ function elements(html: string): string[] {
   return out;
 }
 
+/**
+ * ⚠ SINCE LM9 THIS MOUNTS `TabWidgets`, THE CATALOGUE RENDERER, AND NOT `FleetOverviewTab` — WHICH
+ * NO LONGER EXISTS. That substitution is not a weakening of the harness, it is the point of it: the
+ * snapshots below were captured from the hand-written tab template, and a different renderer
+ * producing them byte for byte is exactly the evidence LM9's "changes no behaviour" needs.
+ */
 async function renderFleetTab() {
-  const { default: FleetOverviewTab } = await import("./FleetOverviewTab.vue");
-  const wrapper = mount(FleetOverviewTab, {
-    props: { range: { from: "2026-09-01", to: "2026-09-15" } },
+  const { default: TabWidgets } = await import("./TabWidgets.vue");
+  const wrapper = mount(TabWidgets, {
+    props: { tab: "fleet", range: { from: "2026-09-01", to: "2026-09-15" } },
     global: { stubs: STUBS },
   });
   return elements(wrapper.html());
@@ -134,7 +169,7 @@ async function renderFleetTab() {
 
 describe("the Dashboard renders the same elements before and after the widget catalogue (LM9)", () => {
   it("fleet overview · a caller who may see money", async () => {
-    canView.value = () => true;
+    role.value = "admin"; // holds `accounting`, so every dollar on the tab is theirs to see
     expect(await renderFleetTab()).toMatchSnapshot();
   });
 
@@ -144,7 +179,7 @@ describe("the Dashboard renders the same elements before and after the widget ca
    * the dollars here would pass every other assertion in this file.
    */
   it("fleet overview · a caller who may not see money", async () => {
-    canView.value = (s) => s !== "accounting";
+    role.value = "fleet_manager"; // holds `fuel` but `accounting: none` — the real LM-F case
     expect(await renderFleetTab()).toMatchSnapshot();
   });
 
@@ -161,10 +196,10 @@ describe("the Dashboard renders the same elements before and after the widget ca
    * nothing gated them. Each was individually invisible; all three were one `$` away from obvious.
    */
   it("shows a caller without accounting no currency figure anywhere on the tab", async () => {
-    canView.value = (s) => s !== "accounting";
-    const { default: FleetOverviewTab } = await import("./FleetOverviewTab.vue");
-    const wrapper = mount(FleetOverviewTab, {
-      props: { range: { from: "2026-09-01", to: "2026-09-15" } },
+    role.value = "fleet_manager";
+    const { default: TabWidgets } = await import("./TabWidgets.vue");
+    const wrapper = mount(TabWidgets, {
+      props: { tab: "fleet", range: { from: "2026-09-01", to: "2026-09-15" } },
       global: { stubs: STUBS },
     });
     // The whole rendered text, not just the elements the snapshot extracts — a hover title or an
@@ -172,9 +207,26 @@ describe("the Dashboard renders the same elements before and after the widget ca
     expect(wrapper.html()).not.toMatch(/\$/);
   });
 
-  it("dispatch tab", async () => {
-    const { default: DispatchTab } = await import("./DispatchTab.vue");
-    const wrapper = mount(DispatchTab, { global: { stubs: STUBS } });
-    expect(elements(wrapper.html())).toMatchSnapshot();
+  /**
+   * ⚠ THE ONE INTENDED BEHAVIOUR CHANGE IN LM9, and it is stated rather than absorbed.
+   *
+   * This tab used to render a placeholder card headed "Live map" whose body read "Not connected yet
+   * — vehicle positions are still being wired up to the Samsara feed." That was true when LM-T wrote
+   * it and false from the moment LM8 merged. It is now the real `LiveMapPanel`, the same one
+   * `/live-map` renders (D-DW5). The snapshot therefore CHANGES here, on purpose, while every fleet
+   * snapshot above stays identical — which is how a deliberate change is told from a regression.
+   */
+  it("dispatch tab renders the real live map, not the placeholder it shipped with", async () => {
+    role.value = "dispatcher";
+    const { default: TabWidgets } = await import("./TabWidgets.vue");
+    const wrapper = mount(TabWidgets, {
+      props: { tab: "dispatch", range: { from: "2026-09-01", to: "2026-09-15" } },
+      // Stubbed rather than mounted: the panel needs vue-query and a router, and what is being
+      // asserted here is that the catalogue reaches it at all.
+      global: { stubs: { ...STUBS, LiveMapPanel: true } },
+    });
+    expect(wrapper.html()).toContain("live-map-panel-stub");
+    // The sentence that was false from the moment LM8 merged. It must not come back.
+    expect(wrapper.text()).not.toContain("Not connected yet");
   });
 });

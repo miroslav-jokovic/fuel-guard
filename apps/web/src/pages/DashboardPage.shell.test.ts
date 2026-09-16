@@ -46,8 +46,14 @@ function mountShell() {
       stubs: {
         // Both tabs are stubbed: their contents have their own tests, and mounting the real fleet
         // tab would drag vue-query and Supabase into a test about which tab is chosen.
-        FleetOverviewTab: { template: '<div data-test="fleet-tab" />' },
-        DispatchTab: { template: '<div data-test="dispatch-tab" />' },
+        /**
+         * ⚠ ONE stub since LM9, where there were two. `FleetOverviewTab` and `DispatchTab` are gone:
+         * the shell now renders `TabWidgets` for whichever tab is active, and the catalogue decides
+         * what goes inside it. The marker is built from the `tab` PROP, so every assertion below
+         * still reads `fleet-tab` / `dispatch-tab` and still asserts the same thing — which tab's
+         * content the shell chose to render.
+         */
+        TabWidgets: { props: ["tab"], template: '<div :data-test="tab + \'-tab\'" />' },
         DateRangeFilter: { template: '<div data-test="range-filter" />' },
         PageHeader: { template: "<div><slot /><slot name=\"actions\" /></div>" },
         Menu: { template: '<div data-test="export-menu"><slot /></div>' },

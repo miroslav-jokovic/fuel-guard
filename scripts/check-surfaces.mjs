@@ -26,7 +26,10 @@
  * this repo does: a gate that needs the workspace built cannot run before the build. Parse failure
  * IS failure — a detector that silently matches nothing is worse than no detector.
  *
- * `--self-test` proves all five detectors fire.
+ * Since LM9 it checks a SECOND catalogue the same way — `DASHBOARD_WIDGETS` and its web-side
+ * component registry (D-DW4) — because the failure mode is identical and so is the remedy.
+ *
+ * `--self-test` proves every detector fires.
  */
 import { readFileSync, readdirSync } from "node:fs";
 
@@ -36,6 +39,12 @@ const ICONS = `${ROOT}apps/web/src/lib/navIcons.ts`;
 const ROUTE_SNAPSHOT = `${ROOT}apps/web/src/router/__snapshots__/routeTable.test.ts.snap`;
 const AUTH = `${ROOT}packages/shared/src/auth.ts`;
 const API_SRC = `${ROOT}apps/api/src`;
+/** LM9's widget catalogue, its web-side component registry, and the tab catalogue they render into. */
+const WIDGETS = `${ROOT}packages/shared/src/dashboardWidgets.ts`;
+const WIDGET_COMPONENTS_FILE = `${ROOT}apps/web/src/lib/dashboardWidgets.ts`;
+const TABS = `${ROOT}apps/web/src/features/dashboard/dashboardTabs.ts`;
+const CONSTANTS = `${ROOT}packages/shared/src/constants.ts`;
+const ENTITLEMENTS = `${ROOT}packages/shared/src/entitlements.ts`;
 
 /**
  * Every declared route, read from the snapshot the live router produces, with the two facts this
@@ -201,6 +210,78 @@ export function findViolations({ cat, icons, routes, sections, authRoutes = null
   return errors;
 }
 
+/**
+ * D-DW4 — the widget catalogue is gate-backed on the day it ships.
+ *
+ * A catalogue without a gate drifts, and this repo has the receipt: `nav.ts` hand-listed its entries
+ * until S1, and 28 URLs stayed reachable for roles whose menu entry was hidden. `DASHBOARD_WIDGETS`
+ * is a second catalogue with a second web-side half, so it gets the same treatment on day one rather
+ * than after the first thing goes missing.
+ */
+export function widgets(src) {
+  const block = src.match(/export const DASHBOARD_WIDGETS: readonly DashboardWidget\[\] = \[([\s\S]*?)\n\];/);
+  if (!block) throw new Error("DASHBOARD_WIDGETS literal not found — the gate cannot check anything; fix the parser with the file");
+  const out = [];
+  for (const line of block[1].split("\n")) {
+    const key = line.match(/key:\s*"([^"]+)"/)?.[1];
+    if (!key) continue;
+    out.push({
+      key,
+      tab: line.match(/tab:\s*"([^"]+)"/)?.[1] ?? null,
+      section: line.match(/gate:\s*(?:section|manage)\("(\w+)"/)?.[1] ?? null,
+      module: line.match(/module:\s*"([^"]+)"/)?.[1] ?? null,
+      span: line.match(/span:\s*"([^"]+)"/)?.[1] ?? null,
+      defaultFor: [...(line.match(/defaultFor:\s*\[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]),
+    });
+  }
+  if (out.length === 0) throw new Error("widget parse found nothing — parser or catalogue shape changed; fix together");
+  return out;
+}
+
+/** The keys of the web-side `Record<key, Component>`. */
+export function widgetComponentKeys(src) {
+  const block = src.match(/export const WIDGET_COMPONENTS: Record<string, Component> = \{([\s\S]*?)\n\};/);
+  if (!block) throw new Error("WIDGET_COMPONENTS literal not found — the icon-style split cannot be checked; fix the parser with the file");
+  return new Set([...block[1].matchAll(/^\s*"([^"]+)":/gm)].map((m) => m[1]));
+}
+
+/** Tab keys, from the web app's own catalogue (LM-T). */
+export function tabKeys(src) {
+  const block = src.match(/export const DASHBOARD_TABS: readonly DashboardTab\[\] = \[([\s\S]*?)\n\];/);
+  if (!block) throw new Error("DASHBOARD_TABS literal not found; fix the parser with the file");
+  return new Set([...block[1].matchAll(/key:\s*"([^"]+)"/g)].map((m) => m[1]));
+}
+
+/** A `["a", "b"] as const` literal by name — USER_ROLES, MODULE_KEYS. */
+export function stringArray(src, name) {
+  const block = src.match(new RegExp(`export const ${name} = \\[([\\s\\S]*?)\\] as const;`));
+  if (!block) throw new Error(`${name} literal not found; fix the parser with the file`);
+  return new Set([...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]));
+}
+
+export function findWidgetViolations({ list, components, tabs, sections, roles, modules }) {
+  const errors = [];
+  const seen = new Set();
+  for (const w of list) {
+    if (seen.has(w.key)) errors.push(`widget "${w.key}" is declared twice — a key is what LM10 stores a layout against.`);
+    seen.add(w.key);
+    // 1. a widget with no component is a blank square in a grid
+    if (!components.has(w.key)) errors.push(`widget "${w.key}" has no component in WIDGET_COMPONENTS — it would render nothing.`);
+    // 2. its gate must name a real section
+    if (w.section && !sections[w.section]) errors.push(`widget "${w.key}" gates on "${w.section}", which is not in SECTION_ACCESS.`);
+    // 3. every defaultFor names a real role
+    for (const r of w.defaultFor) if (!roles.has(r)) errors.push(`widget "${w.key}" has defaultFor "${r}", which is not a UserRole.`);
+    // 4. every module names a real module
+    if (w.module && !modules.has(w.module)) errors.push(`widget "${w.key}" needs module "${w.module}", which is not a ModuleKey.`);
+    // 5. and it must render into a tab that exists
+    if (w.tab && !tabs.has(w.tab)) errors.push(`widget "${w.key}" renders into tab "${w.tab}", which is not in DASHBOARD_TABS.`);
+    if (w.span && w.span !== "full" && w.span !== "half") errors.push(`widget "${w.key}" has span "${w.span}" — only full|half lay out.`);
+  }
+  // ...and the other direction, which is how `navIcons.ts` drift is caught for surfaces.
+  for (const key of components) if (!seen.has(key)) errors.push(`WIDGET_COMPONENTS has "${key}", which is not in DASHBOARD_WIDGETS — the split has drifted.`);
+  return errors;
+}
+
 function selfTest() {
   const routes = new Set(["/real", "/parent"]);
   const sections = { fuel: { admin: "manage", auditor: "view" }, ghost: { admin: "view" } };
@@ -245,6 +326,26 @@ function selfTest() {
   if (!redundant.some((e) => /IS catalogued/.test(e)))
     fails.push(`detector did not fire for a redundant waiver: ${JSON.stringify(redundant)}`);
 
+  // ── D-DW4: the widget detectors, each proven to fire ──────────────────────────────────────────
+  const wBase = { key: "t.w", tab: "fleet", section: "fuel", module: null, span: "half", defaultFor: [] };
+  const wEnv = { tabs: new Set(["fleet"]), sections, roles: new Set(["admin"]), modules: new Set(["dispatch"]) };
+  const wCases = [
+    [[wBase], new Set(), /has no component/],
+    [[{ ...wBase, section: "nowhere" }], new Set(["t.w"]), /not in SECTION_ACCESS/],
+    [[{ ...wBase, defaultFor: ["wizard"] }], new Set(["t.w"]), /not a UserRole/],
+    [[{ ...wBase, module: "teleport" }], new Set(["t.w"]), /not a ModuleKey/],
+    [[{ ...wBase, tab: "nowhere" }], new Set(["t.w"]), /not in DASHBOARD_TABS/],
+    [[{ ...wBase, span: "third" }], new Set(["t.w"]), /only full\|half/],
+    [[wBase, wBase], new Set(["t.w"]), /declared twice/],
+    [[wBase], new Set(["t.w", "t.ghost"]), /split has drifted/],
+  ];
+  for (const [list, components, expected] of wCases) {
+    const found = findWidgetViolations({ list, components, ...wEnv });
+    if (!found.some((e) => expected.test(e))) fails.push(`widget detector did not fire for ${expected}: got ${JSON.stringify(found)}`);
+  }
+  const wClean = findWidgetViolations({ list: [wBase], components: new Set(["t.w"]), ...wEnv });
+  if (wClean.length) fails.push(`false positive on a clean widget catalogue: ${JSON.stringify(wClean)}`);
+
   // A clean catalogue must produce nothing — a gate that always fires is a gate nobody keeps.
   const clean = findViolations({
     cat: [{ key: "a", path: "/real", kind: "section", section: "fuel", level: "manage" }],
@@ -257,7 +358,7 @@ function selfTest() {
 if (process.argv.includes("--self-test")) {
   const fails = selfTest();
   if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
-  console.log("✓ surfaces self-test — all nine detectors fire, and none fires on a clean catalogue.");
+  console.log("✓ surfaces self-test — all seventeen detectors fire, and none fires on a clean catalogue.");
   process.exit(0);
 }
 
@@ -283,7 +384,16 @@ function apiFiles(dir) {
 }
 const apiGates = requireSurfaceKeys(apiFiles(API_SRC));
 
-const errors = findViolations({ cat, icons, routes, sections, authRoutes, apiGates });
+const widgetList = widgets(readFileSync(WIDGETS, "utf8"));
+const widgetComponents = widgetComponentKeys(readFileSync(WIDGET_COMPONENTS_FILE, "utf8"));
+const tabs = tabKeys(readFileSync(TABS, "utf8"));
+const roles = stringArray(readFileSync(CONSTANTS, "utf8"), "USER_ROLES");
+const modules = stringArray(readFileSync(ENTITLEMENTS, "utf8"), "MODULE_KEYS");
+
+const errors = [
+  ...findViolations({ cat, icons, routes, sections, authRoutes, apiGates }),
+  ...findWidgetViolations({ list: widgetList, components: widgetComponents, tabs, sections, roles, modules }),
+];
 if (errors.length) {
   console.error(`✗ ${errors.length} surface-catalogue violation(s):`);
   for (const e of errors) console.error(`   ${e}`);
@@ -294,5 +404,6 @@ console.log(
     `${cat.filter((s) => s.parent).length} detail routes) all resolve to real routes; ` +
     `${icons.size} icons match the nav surfaces exactly; ` +
     `all ${authRoutes.length} authenticated routes are catalogued or waived; ` +
-    `${apiGates.length} requireSurface gates name real screens.`,
+    `${apiGates.length} requireSurface gates name real screens; ` +
+    `${widgetList.length} dashboard widgets across ${tabs.size} tabs all gate on real sections and have components.`,
 );
