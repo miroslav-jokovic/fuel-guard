@@ -57,6 +57,22 @@ export interface LedgerTile {
   icon: unknown;
   tone: string;
   to: { path: string; query?: Record<string, string> };
+  /**
+   * Marks a tile that renders a CURRENCY figure, so `applyMoneyGate` can remove it for a caller
+   * without `accounting` (LM-F, Q-LM-F1).
+   *
+   * ⚠ Added 2026-09-15 because it was missing, and the omission was invisible: `applyMoneyGate`
+   * only acts on tiles that carry this flag, so "Recovered · $12,500" rendered untouched on the
+   * same strip from which "Fuel spend" and "Reefer fuel" had just been removed. Found by the LM9
+   * equivalence harness, which snapshots what a no-money caller actually sees — not by review, and
+   * not by any gate, because no gate can see a missing optional property.
+   *
+   * This does not disturb the 2026-09-06 ruling that the LEDGER's own visibility is gated per row by
+   * the API rather than by this page. That ruling is about whether a caller has findings at all;
+   * this flag is about whether their value is shown in dollars. Two different questions, and a
+   * caller can legitimately be answered yes to the first and no to the second.
+   */
+  money?: true;
 }
 
 export function ledgerTiles(
@@ -79,6 +95,10 @@ export function ledgerTiles(
   if (summary.recoveredThisQuarter != null) {
     tiles.push({
       label: "Recovered",
+      // Money with no honest operational twin — a quarter's recovered dollars have no non-currency
+      // form — so `applyMoneyGate` removes the tile rather than blanking it. A dash where money used
+      // to be invites the reader to go looking for a bug.
+      money: true as const,
       value: `$${fmt.compact(summary.recoveredThisQuarter)}`,
       valueTitle: fmt.money(summary.recoveredThisQuarter),
       sub: quarterLabel(summary.quarterFrom),

@@ -1746,3 +1746,61 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   but that is a floor and not the measurement.
 
   **LM9 is next** (the `DASHBOARD_WIDGETS` catalogue), and LM-T after it embeds this panel.
+- 2026-09-15 — **LM9 begun with an equivalence harness, which immediately found four LM-F leaks.**
+  The harness (`features/dashboard/dashboardEquivalence.test.ts`) snapshots the elements each caller
+  sees on the Dashboard, in document order, parameterised on `accounting` — captured against the
+  pre-change tree so that LM9's "changes no behaviour for any existing role" can be *proved* rather
+  than asserted. Third use of this shape, after `routeTable.test.ts` (route split) and
+  `navEquivalence.test.ts` (sidebar catalogue). Three mutants prove it discriminates: a dropped hero
+  tile, a dropped chart card, and a defeated money gate, the last killed only by the no-money snapshot.
+
+  ⚠ **Two drafts of its `StatCard` stub were blind before the third**, and both are recorded in the
+  file because the failure is silent: the real card renders its label in a `<p>`, so the first capture
+  missed all four hero tiles; the second carried label and sub but not value, which reads
+  "Idle waste — idle hrs" whether or not the number survived the gate. A harness that quietly covers
+  half a screen is worse than no harness, because it is believed.
+
+  **What it found, on the first run: LM-F leaked money in four places on the very tab it was written
+  for.** A caller without `accounting` — `fleet_manager` holds exactly that — saw:
+
+  1. **`Recovered · $12,500`**, because `LedgerTile` had no `money` field and `applyMoneyGate` only
+     acts on tiles that carry one. It sat on the same strip from which "Fuel spend" and "Reefer fuel"
+     had just been correctly removed, so the screen was internally inconsistent rather than uniformly
+     permissive.
+  2. **The `Fuel spend` chart** — a daily currency figure across the whole range, ungated.
+  3. **The `Where fuel dollars go` donut** — every slice in dollars plus a dollar centre total. Its
+     own title said so while the gate above it said the opposite.
+  4. **`total_cost` is still SELECTED for every caller** (`useDashboard.ts:87`), so the figures reach
+     the browser regardless of what is painted — which is LM-F's own stated rule ("a hidden tile still
+     fetched the money"), unmet.
+
+  **1–3 are fixed here. 4 is NOT, and is recorded rather than routed around:** withholding the column
+  means `aggregateDashboard` must tolerate a fill with no cost, and `totalSpend`, `spendTrend`,
+  `movingSpend` and `idleCostUsd` all derive from it. That is a real change with knock-ons and it
+  belongs beside **LM-F2**, which already owns the other half of this boundary (`ftxn_select` has no
+  section check, so the API answers the same question directly). Scoped, not done.
+
+  **And the mechanism for 2–3 had been written and never connected.** `hasMoney` carried the comment
+  "used by the page to decide whether a whole chart card is worth rendering" and had **no production
+  caller from the day it shipped**. It is deleted rather than wired: the charts now read
+  `canSeeMoney` (`session.canView("accounting")`) directly, which is the same fact `applyMoneyGate`
+  is handed and the one every other gate in the app reads — deciding a chart's fate from whether a
+  *tile strip* still contains money would be an answer by proxy to a question we can ask outright.
+  ⚠ `lint:comment-claims` did not catch the false claim and cannot: it validates comments quoting a
+  TEST TITLE, not ones asserting a call site exists.
+
+  **A standing assertion now states the rule** rather than recording it — "a caller without
+  `accounting` sees no currency figure anywhere on the tab", matched against the full rendered HTML
+  so a dollar figure in a hover title or an aria-label fails it too. A snapshot run with `-u` will
+  happily record a regression; this will not. Both leak fixes were mutation-tested and each mutant is
+  killed twice, by the snapshot and by the guard.
+
+  **Two things found while reading, not yet acted on:**
+  - `DispatchTab.vue` still renders a placeholder reading "Not connected yet — vehicle positions are
+    still being wired up to the Samsara feed." That has been false since LM8 merged. It becomes the
+    live-map widget in LM9's second PR (D-DW5), which is also why it was not patched in isolation:
+    cataloguing a placeholder would freeze the wrong thing.
+  - Embedding `LiveMapPanel` in `features/dashboard` is a cross-feature import and `WEB_ALLOW` is
+    deliberately empty. **Where widget components live is therefore a question LM9 must answer**, and
+    the answer this plan will take is the documented one: the registry lives OUTSIDE `features/`, so a
+    widget may come from any feature without a leak.

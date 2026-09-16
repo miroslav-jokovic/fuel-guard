@@ -1,0 +1,87 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the Dashboard renders the same elements before and after the widget catalogue (LM9) > dispatch tab 1`] = `
+[
+  "h2: Live map",
+]
+`;
+
+exports[`the Dashboard renders the same elements before and after the widget catalogue (LM9) > fleet overview · a caller who may not see money 1`] = `
+[
+  "dt: Fleet avg MPG = 7.4 — 82% of fuel measured",
+  "dt: Idle waste = 412 — idle hrs",
+  "dt: Active alerts = 5 — 7 open cases",
+  "h2: Operating metrics · Sep 1 – Sep 15",
+  "dt: Fill-ups",
+  "dd: 210",
+  "dd: in selected range",
+  "dt: Gallons",
+  "dd: 34,100",
+  "dd: total fuel",
+  "dt: Miles driven",
+  "dd: 251,000",
+  "dd: odometer span in range",
+  "dt: Avg MPG",
+  "dd: 7.4",
+  "dd: 82% of fuel measured",
+  "dt: Open findings",
+  "dd: 4",
+  "dd: need somebody",
+  "dt: Telematics coverage",
+  "dd: 95%",
+  "dd: 23% all time",
+  "dt: Declined attempts",
+  "dd: 3",
+  "dd: blocked at the pump",
+  "h3: Fleet MPG trend",
+  "h3: Open cases by severity",
+  "h3: Top vehicles by risk",
+  "h3: Top drivers by risk",
+]
+`;
+
+exports[`the Dashboard renders the same elements before and after the widget catalogue (LM9) > fleet overview · a caller who may see money 1`] = `
+[
+  "dt: Fuel spend = $128.4K — Sep 1 – Sep 15",
+  "dt: Fleet avg MPG = 7.4 — 82% of fuel measured",
+  "dt: Idle waste = $8,211 — 412 idle hrs",
+  "dt: Active alerts = 5 — 7 open cases",
+  "h2: Operating metrics · Sep 1 – Sep 15",
+  "dt: Fill-ups",
+  "dd: 210",
+  "dd: in selected range",
+  "dt: Gallons",
+  "dd: 34,100",
+  "dd: total fuel",
+  "dt: Miles driven",
+  "dd: 251,000",
+  "dd: odometer span in range",
+  "dt: Fuel spend",
+  "dd: $128.4K",
+  "dd: total cost",
+  "dt: Avg MPG",
+  "dd: 7.4",
+  "dd: 82% of fuel measured",
+  "dt: Open findings",
+  "dd: 4",
+  "dd: need somebody",
+  "dt: Recovered",
+  "dd: $12,500",
+  "dd: Q3 2026",
+  "dt: Telematics coverage",
+  "dd: 95%",
+  "dd: 23% all time",
+  "dt: Reefer fuel",
+  "dd: $9,100",
+  "dd: refrigerated tank",
+  "dt: Declined attempts",
+  "dd: 3",
+  "dd: blocked at the pump",
+  "h3: Fuel spend",
+  "h3: Fleet MPG trend",
+  "h3: Where fuel dollars go",
+  "h3: Open cases by severity",
+  "h3: Top vehicles by risk",
+  "h3: Top drivers by risk",
+]
+`;

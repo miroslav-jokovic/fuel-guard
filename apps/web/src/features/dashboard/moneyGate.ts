@@ -77,7 +77,19 @@ export function applyMoneyGate<T extends MoneyGateable>(tiles: readonly T[], can
 }
 
 /**
- * Does this strip still contain a currency figure? Used by the page to decide whether a whole
- * chart card is worth rendering, and by the test that pins the rule.
+ * ── `hasMoney` WAS HERE, AND WAS DELETED 2026-09-15 ──────────────────────────────────────────────
+ *
+ * Its comment said it was "used by the page to decide whether a whole chart card is worth
+ * rendering". It never was: it had no production caller from the day it shipped, while the two chart
+ * cards it describes — the daily spend line and the cost-composition donut — rendered their dollars
+ * to every caller. A helper that exists, claims a call site and has none is worse than its absence,
+ * because a reader checking whether the charts are gated finds it and stops looking.
+ *
+ * The charts now test `canSeeMoney` (`session.canView("accounting")`) directly, at the point of use.
+ * That is the same fact `applyMoneyGate` is handed and the same one every other gate in this app
+ * reads; deciding a chart's fate from whether a *tile strip* still contains money would have been an
+ * answer by proxy to a question we can ask outright.
+ *
+ * ⚠ `lint:comment-claims` did not catch the false claim, and could not: it validates comments that
+ * quote a TEST TITLE, not ones that assert a call site exists.
  */
-export const hasMoney = (tiles: readonly MoneyGateable[]): boolean => tiles.some((t) => t.money === true);
