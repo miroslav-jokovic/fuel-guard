@@ -2,11 +2,13 @@ import { describe, it, expect } from "vitest";
 import type { LiveMapVehicle } from "@silvicom/shared";
 import {
   MOTION_DURATION_MS,
+  MOTION_LATENCY_BUDGET_MS,
   SNAP_DISTANCE_DEGREES,
   planTweens,
   sampleTweens,
   tweensSettled,
 } from "./liveMapMotion";
+import { LIVE_MAP_POLL_MS } from "./useLiveMapBoard";
 import type { RenderedPlace } from "./liveMapLayer";
 
 /**
@@ -120,6 +122,32 @@ describe("sampleTweens", () => {
   });
 });
 
+/**
+ * The relationship between the two intervals, which is the whole of the stutter defect.
+ *
+ * ⚠ These assert the RELATIONSHIP and never the literals. `MOTION_DURATION_MS` was `5_000` next to a
+ * `LIVE_MAP_POLL_MS` of `5_000` for as long as the live map has existed, and a test reading
+ * `expect(MOTION_DURATION_MS).toBe(5_000)` would have passed on every one of those days while the
+ * markers froze once a cycle. A test that cannot fail on the defect it is named after is decoration.
+ */
+describe("the tween and the poll it covers", () => {
+  it("outlasts the poll interval by the latency budget, whatever the poll interval becomes", () => {
+    expect(MOTION_DURATION_MS).toBe(LIVE_MAP_POLL_MS + MOTION_LATENCY_BUDGET_MS);
+    expect(MOTION_DURATION_MS).toBeGreaterThan(LIVE_MAP_POLL_MS);
+  });
+
+  /**
+   * The defect itself, stated as the frame loop sees it: at the instant the next poll FIRES, the
+   * current tween must still be in flight — because the board it asks for does not land until the
+   * round trip after that. An equal duration made this `true`, `step()` stopped requesting frames,
+   * and the dot stood still for the length of the request.
+   */
+  it("is still animating when the next poll fires, so there is no gap to freeze in", () => {
+    const tweens = planTweens(new Map([["veh-1", place(44.0, -88.0)]]), [at(44.02, -88.0)], 0);
+    expect(tweensSettled(tweens, LIVE_MAP_POLL_MS)).toBe(false);
+  });
+});
+
 describe("tweensSettled", () => {
   it("is false while anything is still moving and true once everything has arrived", () => {
     const tweens = planTweens(new Map([["veh-1", place(44.0, -88.0)]]), [at(44.02, -88.0)], 0);
@@ -131,5 +159,24 @@ describe("tweensSettled", () => {
   // drawing nothing.
   it("is true for an empty board", () => {
     expect(tweensSettled(new Map(), 0)).toBe(true);
+  });
+
+  /**
+   * ⚠ The second half of the fix, and the half that is easy to miss. Once the tween outlasts the
+   * poll, no tween is ever finished when the next board re-bases it — so a settled test made of the
+   * clock alone would keep the rAF loop running forever, including over a fleet that is parked.
+   * `step()`'s comment ("a permanent rAF loop over a parked fleet would keep a laptop's GPU awake for
+   * a picture that is not changing") is the requirement, and this is what now holds it.
+   */
+  it("settles a parked truck immediately rather than interpolating it towards itself", () => {
+    const tweens = planTweens(new Map([["veh-1", place(44.0, -88.0, 90)]]), [at(44.0, -88.0, 90)], 0);
+    expect(tweensSettled(tweens, 0)).toBe(true);
+  });
+
+  // Somewhere to go includes a bearing: a truck turning on the spot in a yard has not moved and is
+  // still changing on screen.
+  it("keeps drawing a truck that is only turning", () => {
+    const tweens = planTweens(new Map([["veh-1", place(44.0, -88.0, 90)]]), [at(44.0, -88.0, 180)], 0);
+    expect(tweensSettled(tweens, 0)).toBe(false);
   });
 });
