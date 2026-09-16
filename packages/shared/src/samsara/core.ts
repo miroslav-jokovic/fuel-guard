@@ -1,6 +1,7 @@
 /** Samsara samples + odometer/fueling-moment matching (docs/10). */
 import { parseAsUtcMs } from "./location.js";
 import type { StatsFeedPage } from "./statsFeed.js";
+import { STOPPED_SPEED_MPH } from "../livemap.js";
 
 const METERS_PER_MILE = 1609.344;
 export const metersToMiles = (m: number): number => Math.round((m / METERS_PER_MILE) * 10) / 10;
@@ -138,7 +139,10 @@ export function matchFuelingMoment(
   efs: { city: string | null; state: string | null; stationName?: string | null },
   opts: { stoppedSpeedMph?: number } = {},
 ): FuelingMatch | null {
-  const stoppedMax = opts.stoppedSpeedMph ?? 3;
+  // Was a bare `?? 3`. It is the same judgement the live map makes about the same fleet — a parked
+  // truck's GPS speed jitters — so it now reads the one constant rather than keeping a second copy
+  // that would drift the first time either was tuned (LM5).
+  const stoppedMax = opts.stoppedSpeedMph ?? STOPPED_SPEED_MPH;
   const city = efs.city ? norm(efs.city) : null;
   if (!city) return null;
 
