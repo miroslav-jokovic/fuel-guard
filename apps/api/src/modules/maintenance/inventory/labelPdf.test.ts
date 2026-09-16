@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { LABEL_PRESETS } from "@silvicom/qr";
 import type { LabelFaceDto } from "@silvicom/shared";
 import { renderLabelSheet } from "./labelPdf.js";
@@ -56,13 +56,44 @@ function mediaBox(pdf: Buffer): [number, number] {
  * entirely still passed it. Normalised, the comparison is about the drawn content, and the
  * "identical inputs render identically" case below is what proves the normalisation is doing its
  * job rather than hiding the difference it was meant to expose.
+ *
+ * ── ⚠ AND IT WAS STRIPPING NO DATE AT ALL UNTIL 2026-09-16 ───────────────────────────────────────
+ * The two date rules here read `/CreationDate\s*\([^)]*\)` — a dictionary key followed by an inline
+ * string. pdfkit does not write one. It writes the key as an INDIRECT REFERENCE and puts the date in
+ * an object of its own:
+ *
+ *     /CreationDate 13 0 R        …and, elsewhere in the file:        13 0 obj
+ *                                                                     (D:20260916193257Z)
+ *                                                                     endobj
+ *
+ * So the regex never matched, the normaliser only ever removed `/ID`, and "identical inputs render
+ * identically" passed for one reason: both renders usually land in the same second. When they
+ * straddle one — `…1929Z` against `…1930Z` — it fails, on whatever unrelated PR happens to be in CI
+ * at the time. It did exactly that to #828, whose diff was one `.vue` and two `.md` files.
+ *
+ * The rule below matches the DATE rather than the key, which covers the indirect form and an inline
+ * one alike; the two old rules were strictly redundant once it existed and are gone rather than left
+ * to read as load-bearing. The clock tick is now INJECTED by the test below instead of being waited
+ * for, so the case that used to fail once in a while fails every time when this is wrong.
  */
-const normalize = (pdf: Buffer): string =>
-  pdf
-    .toString("latin1")
-    .replace(/\/CreationDate\s*\([^)]*\)/g, "")
-    .replace(/\/ModDate\s*\([^)]*\)/g, "")
-    .replace(/\/ID\s*\[[^\]]*\]/g, "");
+const PDF_DATE = /\(D:\d{14}[^)]*\)/g;
+
+const normalize = (pdf: Buffer): string => {
+  const raw = pdf.toString("latin1");
+  /**
+   * ⚠ The normaliser must PROVE it removed something. Its predecessor did not, which is the entire
+   * reason this file failed CI at random: a normaliser that strips nothing is indistinguishable from
+   * one that works, right up until two renders straddle a second boundary. Throwing here turns the
+   * next shape change into a loud failure on every run instead of a 1-in-N one on somebody else's PR.
+   */
+  if (!raw.match(PDF_DATE)) {
+    throw new Error(
+      "labelPdf normalize(): found no `(D:…)` date to strip. pdfkit has changed its metadata shape, " +
+        "and this normaliser is now hiding nothing — fix it rather than deleting this check.",
+    );
+  }
+  return raw.replace(PDF_DATE, "(D:REDACTED)").replace(/\/ID\s*\[[^\]]*\]/g, "");
+};
 
 describe("rendering a label sheet", () => {
   it("produces a PDF", async () => {
@@ -121,6 +152,37 @@ describe("rendering a label sheet", () => {
     const a = await renderLabelSheet(faces(2), { presetId: "avery-22805", startPosition: 3 });
     const b = await renderLabelSheet(faces(2), { presetId: "avery-22805", startPosition: 3 });
     expect(normalize(b)).toBe(normalize(a));
+  });
+
+  /**
+   * The same claim, with the clock tick INJECTED rather than waited for.
+   *
+   * ⚠ This is the case that was failing CI at random, made deterministic. The assertion above only
+   * exercises the normaliser when the two renders happen to straddle a second boundary — which is
+   * rare, so a normaliser that stripped no date at all passed it for months and then failed on an
+   * unrelated PR (#828, 2026-09-16). Moving the system clock a second between the two renders
+   * reproduces that every run, on every machine, in ~40ms.
+   *
+   * `toFake: ["Date"]` and nothing else, deliberately: pdfkit reads `new Date()` for `/CreationDate`,
+   * and faking timers wholesale would also capture the `setTimeout`/`setImmediate` its stream
+   * plumbing uses — which hangs the render rather than dating it.
+   */
+  it("still matches when the clock ticks between the two renders", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-09-16T19:19:29Z"));
+      const a = await renderLabelSheet(faces(2), { presetId: "avery-22805", startPosition: 3 });
+      vi.setSystemTime(new Date("2026-09-16T19:19:30Z"));
+      const b = await renderLabelSheet(faces(2), { presetId: "avery-22805", startPosition: 3 });
+
+      // The premise: the raw bytes genuinely differ, so the assertion below is about the normaliser
+      // and not about two identical buffers. Without this the test would pass if the clock were
+      // ignored entirely.
+      expect(b.equals(a)).toBe(false);
+      expect(normalize(b)).toBe(normalize(a));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("draws a label somewhere different when the start position moves", async () => {
