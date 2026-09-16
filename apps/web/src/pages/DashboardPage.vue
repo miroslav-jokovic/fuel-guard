@@ -91,7 +91,7 @@ const EXPORTS = [
       so the h1 was spending the most prominent line on the page repeating the nav. The plate behind
       it is decorative (`alt=""`) and its contrast over the text zone is measured, not assumed.
     -->
-    <PageHeader :title="greetingLine" hero="/hero/highway-dawn.webp">
+    <PageHeader :title="greetingLine" hero="/hero/highway-dawn.webp" hero-dark="/hero/highway-night.webp">
       Here's what's happening with your fleet today.
       <template #actions>
         <div v-if="activeKey === 'fleet'" class="flex flex-wrap items-center gap-3">

@@ -155,3 +155,57 @@ describe("PageHeader breadcrumbs (G2)", () => {
     expect(result.violations.map((v) => v.id)).toEqual([]);
   });
 });
+
+/**
+ * The night plate (D-DR19) — dark mode gets a different photograph, not the same one dimmed.
+ *
+ * ⚠ These drive the scheme through `useColorScheme().set()` rather than stubbing the composable.
+ * It is module-level state writing one CSS property on `<html>`, so it is honest to exercise in a
+ * test — and stubbing it would leave the thing under test (that `PageHeader` reads the SAME answer
+ * the rest of the app reads) unasserted, which is the whole point of deriving rather than asking.
+ */
+describe("PageHeader night plate (D-DR19)", () => {
+  const DAY = "/hero/highway-dawn.webp";
+  const NIGHT = "/hero/highway-night.webp";
+
+  afterEach(async () => {
+    const { useColorScheme } = await import("@/composables/useColorScheme");
+    useColorScheme().set("light");
+  });
+
+  const setScheme = async (value: "light" | "dark") => {
+    const { useColorScheme } = await import("@/composables/useColorScheme");
+    useColorScheme().set(value);
+  };
+
+  it("hangs the day plate in light mode and the night plate in dark", async () => {
+    await setScheme("light");
+    const day = await mountAt("/", false, { hero: DAY, heroDark: NIGHT });
+    expect(day.find("img").attributes("src")).toBe(DAY);
+
+    await setScheme("dark");
+    const night = await mountAt("/", false, { hero: DAY, heroDark: NIGHT });
+    expect(night.find("img").attributes("src")).toBe(NIGHT);
+  });
+
+  /**
+   * ⚠ The compromise, asserted so it is a decision rather than a surprise. `prairie-dusk` and
+   * `coast-mist` have no night variant yet, and a caller passing only `hero` must keep rendering
+   * its plate — not nothing. It also documents the cost: that caller keeps the 6.54:1 band in dark
+   * mode until its own night plate exists.
+   */
+  it("falls back to the day plate when a caller has no night variant", async () => {
+    await setScheme("dark");
+    const w = await mountAt("/", false, { hero: DAY });
+    expect(w.find("img").attributes("src")).toBe(DAY);
+  });
+
+  // The plate stays DECORATION in either scheme — the D-DR15 claim must not survive only in light.
+  it("keeps the night plate decorative", async () => {
+    await setScheme("dark");
+    const w = await mountAt("/", false, { hero: DAY, heroDark: NIGHT });
+    const img = w.find("img");
+    expect(img.attributes("alt")).toBe("");
+    expect(img.attributes("aria-hidden")).toBe("true");
+  });
+});

@@ -369,6 +369,7 @@ quality `high`, resolution `2k`, downscaled to 1920 wide:
 | `highway-dawn.webp` | dawn, mountains, pine — closest to comps (1)/(3)/(5) | 51 KB | 10.16:1 | 0.00% |
 | `prairie-dusk.webp` | golden-hour plains, warm | 84 KB | 9.88:1 | 0.00% |
 | `coast-mist.webp` | cool blue-violet haze — sits best beside the rotated brand | 52 KB | 9.22:1 | 0.00% |
+| `highway-night.webp` | **the dark-mode plate (D-DR19)** — same highway at night | 21 KB | 16.02:1 | 0.00% |
 
 ⚠ **The contrast figure is measured over the zone the greeting actually occupies** — the left 45% ×
 top 62% — not over the left half. The bottom-left of every plate is road surface, and measuring
@@ -791,3 +792,48 @@ conflict every time (`plan-progress-log-not-table-rows`).
   geometry, which is what the de-duplication was for. Looked at in both schemes. Three new tests, two
   **proved by mutation**: dropping the fallthrough class fails the empty-state assertion, and
   restoring a hand-rolled header fails the header assertion.
+
+- **2026-09-16 — D-DR19 SHIPPED (dark mode gets a night plate, not the day one dimmed).** Raised by
+  the owner looking at the dashboard in dark mode, and the complaint measured out exactly as stated.
+
+  **The defect, measured on the RENDERED band rather than the source.** `highway-dawn.webp` served
+  both schemes. In light mode it sits at **1.85:1** against the page it fades into; in dark mode the
+  same plate sat at **6.54:1** — the page moved from L≈1.0 to L≈0.014 and the photograph did not
+  follow, so a dawn sky became a luminous slab on a near-black page.
+
+  ⚠ **The mean was hiding the real number, and the percentiles are what to quote.** Averaged over
+  the plate's right two-thirds the new plate reads 1.01:1, which sounds like it vanished. It has not:
+  the median is 1.04:1 and the **brightest 1% — the trailer and the headlights, which is what a
+  reader actually sees as glare — went from 14.22:1 against the page to 2.09:1**, landing just beside
+  light mode's 1.85:1 band. A mean over a mostly-black frame averages the subject away, which is the
+  `higgsfield-image-generation` lesson ("measure the zone the subject occupies") arriving in the
+  opposite direction from DR6, where it was the TEXT zone that mattered.
+
+  **A `brightness()` filter was the cheap answer and is the wrong one.** Dimming a dawn sky produces
+  a grey dawn sky, not a night: the sky's hue, the headlights, the fall of light on the trailer and
+  the stars are a different photograph, not the same one turned down. So `highway-night.webp` is
+  generated from DR6's own prompt family (`gpt_image_2_5`, 21:9, quality high, 2k, downscaled to
+  1920, `cwebp -q 82`) with the same composition contract — truck in the right third moving left,
+  left two-thirds near-empty for the greeting. 21 KB, the smallest of the four, because a night sky
+  compresses.
+
+  **The text contrast had to be re-measured, not inherited.** In dark mode `--ink` is
+  `oklch(0.944 0.004 286.3)` — near-white — so DR6's figures for dark ink over a pale plate say
+  nothing about it. Over the same left-45% × top-62% zone, near-white ink on the night plate measures
+  **16.02:1 mean, 17.70:1 worst, 0.00% of the zone below AA** — the best of the four plates.
+
+  ⚠ **And the greeting DOES sit over the plate below 1440px**, which a first measurement at 1512 said
+  it did not. Overlap is 0px at 1512, 25px at 1280, 89px at 1024, 134px at 768 and **237px at 390**,
+  where the greeting is almost entirely over the image. So the zone figure above is load-bearing on a
+  phone rather than theoretical, and "the text never touches the picture" would have been a wrong
+  ruling written into a canonical document.
+
+  **D-DR19 — the plate is DERIVED from the colour scheme, like D-DR8's basemap.** `PageHeader` reads
+  `useColorScheme().isDark` itself rather than taking a resolved URL, because that composable is the
+  one place that answers "is this reader in dark mode" and a prop would make the dashboard the second.
+  ⚠ `heroDark` FALLS BACK to `hero` when absent, which is a named compromise and not a feature:
+  `prairie-dusk` and `coast-mist` have no night variant and keep the 6.54:1 band in dark mode until
+  they get one. Asserted, so it is a decision rather than a surprise.
+
+  Three new tests, two **proved by mutation** (ignoring `isDark`, and dropping the fallback). 1,857
+  web tests; seven gates plus the design-token check green; looked at in both schemes at 1440.
