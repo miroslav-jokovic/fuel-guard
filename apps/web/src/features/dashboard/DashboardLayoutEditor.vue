@@ -162,16 +162,29 @@ async function onReset() {
     </p>
 
     <template #footer>
-      <BaseButton type="button" variant="ghost" :disabled="saving" @click="onReset">
-        Restore the default
-      </BaseButton>
-      <div class="flex-1"></div>
-      <BaseButton type="button" variant="secondary" :disabled="saving" @click="emit('close')">
-        Cancel
-      </BaseButton>
-      <BaseButton type="button" :disabled="saving" @click="onSave">
-        {{ saving ? "Saving…" : "Save" }}
-      </BaseButton>
+      <!--
+        ⚠ The footer slot is a plain `div` with no display of its own, so the layout has to be here.
+        A bare `flex-1` spacer between the buttons does NOT work: it is a block element among inline
+        ones and takes a line to itself, which put "Restore the default" on its own row above a
+        left-aligned Cancel/Save. Seen in the browser, not in a test — the unit tests find these
+        buttons by label and are perfectly happy with them stacked wrongly.
+
+        Restore sits apart from the pair because it is the destructive-ish one: it discards an
+        arrangement rather than declining to change it. Stacked on a phone with Save at the bottom
+        where a thumb is, the same call `ApplicationReviewDrawer` records.
+      -->
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <BaseButton type="button" variant="ghost" :disabled="saving" @click="onReset">
+          Restore the default
+        </BaseButton>
+        <div class="hidden sm:block sm:flex-1"></div>
+        <BaseButton type="button" variant="secondary" :disabled="saving" @click="emit('close')">
+          Cancel
+        </BaseButton>
+        <BaseButton type="button" variant="primary" :disabled="saving" @click="onSave">
+          {{ saving ? "Saving…" : "Save" }}
+        </BaseButton>
+      </div>
     </template>
   </SlideOver>
 </template>

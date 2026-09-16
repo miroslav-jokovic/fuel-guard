@@ -1970,5 +1970,24 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   with no library, and nine cards is a list somebody reorders once), and a per-tab reset ("Restore the
   default" deletes the whole row, which is what D-DW3 defines the default to be).
 
+  **Two defects the unit tests could not have found, and the browser did.** Built with
+  `VITE_DEV_BYPASS=true pnpm --filter @silvicom/web preview:local` and driven with the route mocks the
+  LM8 traps prescribe (catch-all registered FIRST; `**/rest/v1/org_modules**` answered as a RAW array):
+  1. **The drawer's footer wrapped.** `SlideOver`'s footer slot is a plain `div` with no display of
+     its own, so a bare `flex-1` spacer between the buttons is a block element among inline ones and
+     takes a line to itself — "Restore the default" sat on its own row above a left-aligned
+     Cancel/Save. The layout now lives in the call site, as `ApplicationReviewDrawer` already does.
+  2. **"Save" was rendering as a secondary button**, because that is `AppButton`'s default variant and
+     the first draft passed none. The primary action of a drawer has to look like one.
+
+  ⚠ Both are invisible to the unit tests ON PURPOSE-ish: those find buttons by label and are perfectly
+  happy with them stacked wrongly and styled flat. This is the case for looking at the thing.
+
+  **Walked end to end in the browser, not only asserted:** hiding "Fuel spend trend" and moving "Top
+  drivers by risk" up produced exactly
+  `{"widgetKeys":[…,"fleet.top-drivers","fleet.top-vehicles"],"hiddenKeys":["fleet.spend-trend"]}` —
+  singly encoded (the double-encoded-body trap), in the moved order, and the drawer
+  closed on the 204.
+
   **Q-LM-F2 is untouched and still open** — `useDashboard.ts` still SELECTs `total_cost` for every
   caller, so the figures reach the browser whatever the page paints. It is LM-F2's, not LM10's.
