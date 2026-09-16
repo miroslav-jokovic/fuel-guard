@@ -1670,3 +1670,79 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
 
   **LM8 is next** — the real map. It inherits this composable and D-LM7's GeoJSON-source design, and
   it is the step that finally draws what LM4 collects and LM6 serves.
+- 2026-09-15 — **LM8 built: `/live-map` draws the board, and `Q-LM8a` is ruled.**
+  The surface is a page (`LiveMapPage.vue`) over a panel (`features/livemap/LiveMapPanel.vue`), because
+  LM-T embeds the same panel as the Dashboard's Dispatch tab (D-DW5) and a second caller written now is
+  a second call rather than a second copy. Five files carry the work: the pure layer
+  (`liveMapLayer.ts`), the pure animation (`liveMapMotion.ts`), the canvas-drawn markers
+  (`liveMapIcons.ts`), the poll (`useLiveMapBoard.ts`) and the map component (`LiveMapCanvas.vue`).
+  `LiveLocationIcon` was added to `packages/ui/src/icons.ts`; the surface, the icon map, the route and
+  both committed snapshots moved together.
+
+  **`Q-LM8a` — should the live map draw RETIRED trucks? Ruled (a): no, and the predicate is
+  `<> 'retired'` rather than `= 'active'`.** The handoff's candidate (a) was spelled "filters to
+  `status = 'active'`", and that spelling is wrong for a reason only the enum shows: `vehicle_status`
+  is `active | maintenance | retired` (migration 0001), so `= 'active'` would also drop every truck
+  sitting in the shop — which is exactly a truck a dispatcher goes to a map to find. This carrier has
+  no `maintenance` rows today (**235 active, 37 retired**, measured on production 2026-09-16), so the
+  two spellings are indistinguishable right now and would have stayed that way until the first truck
+  went into the shop and quietly vanished. 28 of the 199 rows the collector held were retired vehicles.
+  The predicate lives in `liveMapBoard.ts` and not in `readFleetIdentities`: the ruling is the live
+  map's, not the roster's, and `FleetIdentity.status` crosses that interface precisely so this module
+  can apply its own. A null status is DRAWN — "we do not know" is not "retired".
+
+  **Deviations from the step as written, each with its reason:**
+  1. **Two of the three filters are not built.** LM8 lists "dispatcher, state, load status".
+     `tms_dispatchers` does not exist in this database (downstream of the McLeod `VIEW CHANGE TRACKING`
+     grant) and `loads` holds 0 rows until LM12, so two of the three would have shipped permanently
+     empty. An empty dropdown does not read as "not yet", it reads as "this page is broken". Only the
+     **state** filter is built, and it carries the census in its option labels.
+  2. **The markers carry no unit number, and cannot.** A maplibre `symbol` layer renders `text-field`
+     only if the style declares a `glyphs` endpoint; this product's style is one RASTER source pointed
+     at our own authenticated tile proxy, and adding glyphs would mean sending users to a third party
+     for fonts. That is why the table beneath the map is part of this surface rather than a decoration
+     on it — it is where a truck is identified, searched and sorted, and it is the accessible reading
+     of a canvas a screen reader cannot enter.
+  3. **The table does not paginate.** 199 rows that rewrite themselves every five seconds; a page 2
+     that reshuffled under the reader on every poll would be worse than a scroll, and `DataTable`
+     already scrolls its own body with the header pinned.
+
+  **What is new and deliberate.** The animation snaps instead of interpolating past
+  `SNAP_DISTANCE_DEGREES` (0.05°, ~3.4 mi — a truck at 100 mph covers 0.14 mi between polls, so nothing
+  driving comes near it). The case it exists for is a FEED EVENT: telematics that went quiet in Oregon
+  and reported again in Idaho, or a tab hidden for an hour. Without it the map draws a dot gliding
+  across three states in five seconds, which is a picture of something that did not happen. The
+  interpolation's own cost is stated rather than hidden: a dot travels TOWARD the newest fix, so it
+  lags by up to one poll on top of D-LM9b's ~15 s — accepted because a five-second teleport at 199
+  trucks reads as a broken map, and because the per-truck age beside it comes from the server and is
+  unaffected.
+
+  **The pause on a hidden tab is TanStack's, not a hand-rolled listener**, and the distinction matters:
+  in query-core 5.101 "focused" is defined as `document.visibilityState !== "hidden"` — visibility, not
+  window focus. A poll that stopped on BLUR would stop exactly when a dispatcher has the board on a
+  second monitor beside their TMS.
+
+  **Nine mutants, all caught.** Two on the API (deleting the retired predicate; and narrowing it to
+  `= 'active'`, which the maintenance test exists to kill), three on the animation (`lerpAngle` →
+  `lerp`, the snap guard removed, `<` → `<=` in the settle check), and four on the layer. ⚠ **One test
+  FIXTURE was wrong before the code was**: the first "halfway at half the interval" assertion moved a
+  truck a whole degree, the snap guard correctly fired, and the test failed against a correct
+  implementation. Recorded because it is the mirror image of the usual failure — a fixture can be too
+  extreme as well as too uniform.
+
+  **Verified in a browser, both themes**, via `VITE_DEV_BYPASS=true pnpm --filter @silvicom/web
+  preview:local` and Playwright route mocks: page, markers, legend census, drawer, fly-to on row click,
+  the empty board, and the nav entry. No console errors in either theme. Two mock traps cost time and
+  are worth writing down: **Playwright matches the most recently added route FIRST**, so a
+  `**/api/**` catch-all registered last shadows every specific mock and the page renders "Something
+  went wrong" with nothing in the console; and **`useModulesQuery` goes straight to PostgREST**, not
+  through `/api`, so the whole Dispatch nav group stays hidden — which looks like a missing nav entry
+  and is not one.
+
+  ⚠ **The measurement §3 of the handoff owed is STILL OWED.** Board assembly has not been timed inside
+  Railway — `railway ssh` into the API service was refused by this session's permissions. ~1.0 s from a
+  laptop remains the only figure, against a 5 s poll. vue-query dedupes by key rather than stacking
+  requests, so a slow board degrades to "as fast as the server answers" instead of building a queue,
+  but that is a floor and not the measurement.
+
+  **LM9 is next** (the `DASHBOARD_WIDGETS` catalogue), and LM-T after it embeds this panel.

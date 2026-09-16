@@ -215,6 +215,30 @@ describe("the live map board", () => {
     expect(q.ops.find((o) => o.method === "in" && o.args[0] === "id")?.args[1]).toEqual(["drv-1", "drv-2"]);
   });
 
+  // ── Q-LM8a: 28 of 199 production rows were retired trucks the collector still hears from ────────
+  it("leaves a retired truck off the board", async () => {
+    const rec = recorder({
+      positions: [position(), position({ vehicle_id: "veh-2" })],
+      vehicles: [vehicle(), vehicle({ id: "veh-2", unit_number: "1208", status: "retired" })],
+    });
+    const b = await board(rec);
+    expect(b.vehicles.map((v) => v.unitNumber)).toEqual(["1207"]);
+  });
+
+  // ⚠ The assertion that stops `= active` being written here by somebody tidying up. A truck in the
+  // shop is exactly the kind of truck a dispatcher goes looking for on a map.
+  it("draws a truck in maintenance, and one whose status was never set", async () => {
+    const rec = recorder({
+      positions: [position({ vehicle_id: "veh-2" }), position({ vehicle_id: "veh-3" })],
+      vehicles: [
+        vehicle({ id: "veh-2", unit_number: "1208", status: "maintenance" }),
+        vehicle({ id: "veh-3", unit_number: "1209", status: null }),
+      ],
+    });
+    const b = await board(rec);
+    expect(b.vehicles.map((v) => v.unitNumber)).toEqual(["1208", "1209"]);
+  });
+
   it("returns an empty board, not an error, before the collector has stored anything", async () => {
     const rec = recorder({ positions: [] });
     const b = await board(rec);

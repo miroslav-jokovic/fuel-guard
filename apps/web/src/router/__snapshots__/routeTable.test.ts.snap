@@ -45,6 +45,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/assignments",
   },
   {
+    "name": "live-map",
+    "params": {},
+    "url": "/live-map",
+  },
+  {
     "name": "loads",
     "params": {},
     "url": "/loads",
@@ -845,6 +850,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     "name": "",
     "path": "/import",
     "redirect": "/fuel-log",
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Live map",
+    },
+    "name": "live-map",
+    "path": "/live-map",
+    "redirect": null,
   },
   {
     "meta": {

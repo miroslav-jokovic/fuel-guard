@@ -15,6 +15,7 @@ import {
   IftaLedgerIcon,
   ExclamationTriangleIcon,
   HomeIcon,
+  LiveLocationIcon,
   LoadsIcon,
   PaperAirplaneIcon,
   MapIcon,
@@ -66,6 +67,10 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "fuel.exceptions": ExceptionLedgerIcon,
   "fuel.ifta": IftaLedgerIcon,
 
+  // LM8. Neither MapIcon (Fuel Planning wears it, three rows down and in this same group) nor
+  // RadarIcon (Detection coverage wears it on the Settings index) — U5/D-UI6 is the record of what
+  // one glyph on two unrelated items costs a reader.
+  "dispatch.live-map": LiveLocationIcon,
   "dispatch.loads": LoadsIcon,
   "dispatch.messages": PaperAirplaneIcon,
   "dispatch.assignments": ClipboardDocumentCheckIcon,

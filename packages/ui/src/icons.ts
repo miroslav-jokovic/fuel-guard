@@ -84,6 +84,11 @@ export {
   TruckIcon                   as TruckIcon,
   Location04Icon              as MapPinIcon,                     // ⚠ verify (pin vs. dropped-pin)
   MapsIcon                    as MapIcon,
+  // LM8's live map. A pin with signal waves, and deliberately neither MapIcon (Fuel Planning
+  // wears it, and both would sit in the Dispatch group at once) nor RadarIcon (Detection
+  // coverage wears that on the Settings index). U5/D-UI6 is the record of what one glyph on two
+  // unrelated items costs a reader.
+  GpsSignal01Icon             as LiveLocationIcon,
   Flag01Icon                  as FlagIcon,
   FlashIcon                   as BoltIcon,
   Fire02Icon                  as FireIcon,                       // ⚠ verify (01/02/03 stylistic pick)

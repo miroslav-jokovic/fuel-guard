@@ -154,6 +154,17 @@ export const SURFACES: readonly Surface[] = [
   { key: "fuel.ifta", label: "IFTA", path: "/ifta", group: "fuel", gate: section("fuel") },
 
   // ── dispatch ──────────────────────────────────────────────────────────────────────────────────
+  /**
+   * The live map (LIVE-MAP-PLAN.md LM8). First in the group because it is the screen a dispatcher
+   * starts their shift on.
+   *
+   * `section("dispatch")` and deliberately not `manage("dispatch")`: the endpoint behind it is gated
+   * `requireSection("dispatch", "view")`, which an auditor holds, and a surface stricter than its
+   * own endpoint hides a page from somebody the API will answer. `module: "dispatch"` matches the
+   * router's `requireModule("dispatch")`, so a tenant without the module gets no entry rather than a
+   * board it cannot load.
+   */
+  { key: "dispatch.live-map", label: "Live map", path: "/live-map", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   { key: "dispatch.loads", label: "Loads", path: "/loads", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   // Phase 7 (D-PM4): the dispatch inbox — participation-scoped, module-gated, badge = unread.
   { key: "dispatch.messages", label: "Messages", path: "/messages", group: "dispatch", gate: section("dispatch"), module: "messages", badge: "messagesUnread" },
