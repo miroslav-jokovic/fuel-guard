@@ -12,7 +12,7 @@ import type { ChartConfiguration } from "chart.js";
 import BaseChart from "@/components/BaseChart.vue";
 import ChartCard from "../ChartCard.vue";
 import { useFleetWidgetData, type FleetRange } from "../fleetWidgetData";
-import { viz, areaFill, trendOptions, fmtDay } from "@/lib/chartTheme";
+import { viz, areaFill, lastPointRadius, trendOptions, fmtDay } from "@/lib/chartTheme";
 
 const props = defineProps<{ range: FleetRange }>();
 const { mpgWeeks, mpgTotal } = useFleetWidgetData(computed(() => props.range));
@@ -30,7 +30,12 @@ const mpgChart = computed<ChartConfiguration>(() => ({
       backgroundColor: areaFill("--viz-brand") as unknown as string,
       fill: true, tension: 0.4, spanGaps: false, borderWidth: 2.5,
       borderCapStyle: "round", borderJoinStyle: "round",
-      pointRadius: 0, pointHitRadius: 12, pointHoverRadius: 4,
+      // DR3: a dot on the LAST week, where the current figure is read — the treatment
+      // `FleetTrendChart` already uses, now shared rather than transcribed. Still no dots along the
+      // line: comp (3) has none either, which took counting pixels to see (`lastPointRadius`).
+      pointRadius: lastPointRadius(mpgWeeks.value.length - 1),
+      pointBackgroundColor: viz.brand, pointBorderColor: viz.pointHalo, pointBorderWidth: 2,
+      pointHitRadius: 12, pointHoverRadius: 5,
       pointHoverBackgroundColor: viz.brand, pointHoverBorderColor: viz.pointHalo, pointHoverBorderWidth: 2,
     }],
   },
