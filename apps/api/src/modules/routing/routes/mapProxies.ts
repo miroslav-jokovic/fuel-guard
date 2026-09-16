@@ -1,4 +1,5 @@
 import type { Router } from "express";
+import { resolveBasemapStyle } from "@silvicom/shared";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -36,8 +37,23 @@ export function registerMapRoutes(router: Router): void {
         res.status(400).json(apiError("bad_request", "invalid tile coordinate"));
         return;
       }
+      /**
+       * D-DR8: the basemap follows the reader's colour scheme, so the style is a parameter rather
+       * than the `explore.day` that was hardcoded here.
+       *
+       * ⚠ The allowlist lives in `@silvicom/shared` and NOT beside this line, because the web client
+       * has to spell the same two vendor strings and a copy here is how the two would come to
+       * disagree. It falls back to the light basemap rather than answering `400` — the reasoning is
+       * in `basemap.ts`, and it is not the same call as the coordinate check above: a bad coordinate
+       * is one broken tile, a rejected style is every tile in the viewport at once.
+       *
+       * ⚠ `Cache-Control` below is unchanged and stays correct: the style is part of the query
+       * string, so the two basemaps occupy different cache keys and a reader toggling schemes does
+       * not serve themselves yesterday's day tiles in dark mode.
+       */
+      const style = resolveBasemapStyle(req.query.style);
       const url =
-        `https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/png?style=explore.day&size=512` +
+        `https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/png?style=${style}&size=512` +
         `&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
       try {
         const upstream = await fetch(url);
