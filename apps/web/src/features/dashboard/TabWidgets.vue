@@ -83,18 +83,38 @@ const drawable = computed(() => widgets.value.filter((w) => WIDGET_COMPONENTS[w.
  * never reach a tab whose gate they fail.
  */
 const emptyByChoice = computed(() => drawable.value.length === 0 && allowed.value.length > 0);
+
+/**
+ * …and NOTHING they could draw, which is a different sentence and must not offer a Customize button.
+ *
+ * Reachable, and not hypothetically: the Dispatch TAB is gated on the `dispatch` section alone, while
+ * `dispatch.live-map` additionally requires the `dispatch` MODULE. An org that has not bought the
+ * module, whose user holds the section, passes the tab gate with no widget behind it. Offering to
+ * rearrange an empty set there is the sort of small dishonesty that adds up — the drawer would open
+ * on no rows and a Save that saves nothing.
+ */
+const nothingAvailable = computed(() => allowed.value.length === 0);
 </script>
 
 <template>
   <div class="space-y-4">
-    <div class="flex justify-end">
+    <div v-if="!nothingAvailable" class="flex justify-end">
       <BaseButton type="button" variant="ghost" @click="editing = true">
         <AppIcon :icon="AdjustmentsHorizontalIcon" class="size-4" aria-hidden="true" />
         Customize
       </BaseButton>
     </div>
 
-    <div v-if="emptyByChoice" class="flex min-h-64 flex-col items-center justify-center gap-2 rounded-control bg-surface px-6 text-center ring-1 ring-edge ring-inset">
+    <!-- Nothing exists for them here — see `nothingAvailable`. No Customize, because there is
+         nothing to customize, and no suggestion that they have done something they can undo. -->
+    <div v-if="nothingAvailable" class="flex min-h-64 flex-col items-center justify-center gap-2 rounded-control bg-surface px-6 text-center ring-1 ring-edge ring-inset">
+      <h2 class="text-lg font-semibold text-ink">Nothing to show here</h2>
+      <p class="max-w-md text-sm text-ink-muted">
+        This view has no cards available to your organization yet.
+      </p>
+    </div>
+
+    <div v-else-if="emptyByChoice" class="flex min-h-64 flex-col items-center justify-center gap-2 rounded-control bg-surface px-6 text-center ring-1 ring-edge ring-inset">
       <h2 class="text-lg font-semibold text-ink">No cards on this tab</h2>
       <p class="max-w-md text-sm text-ink-muted">
         Nothing is turned on here yet. Choose what you want to see, or restore the default.

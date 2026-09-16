@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { computed, ref } from "vue";
 import { callerCanView, type AppSection, type StoredDashboardLayout, type UserRole } from "@silvicom/shared";
@@ -40,8 +40,10 @@ const MPG_SERIES = {
   periods: [{ from: "2026-09-01", to: "2026-09-07", mpg: 7.4 }],
 };
 
+const modules = ref(new Set(["dispatch", "navigation"]));
+const withModules = (next: Set<string>) => { modules.value = next; };
 vi.mock("@/composables/useModules", () => ({
-  useModulesQuery: () => ({ data: computed(() => new Set(["dispatch", "navigation"])) }),
+  useModulesQuery: () => ({ data: computed(() => modules.value) }),
 }));
 vi.mock("./useDashboard", () => ({
   useDashboard: () => ({ data: computed(() => SUMMARY), isLoading: ref(false), isFetching: ref(false) }),
@@ -121,8 +123,25 @@ async function renderTab(tab: string) {
     props: { tab, range: { from: "2026-09-01", to: "2026-09-15" } },
     global: { stubs: STUBS },
   });
-  return { cards: cards(wrapper.html()), html: wrapper.html() };
+  return {
+    cards: cards(wrapper.html()),
+    html: wrapper.html(),
+    /**
+     * ⚠ Whether a CONTROL is offered is a question about buttons, not about the source text.
+     * `html.includes("Customize")` looked equivalent and is not: Vue keeps HTML comments in its
+     * output, and the comment explaining why there is no Customize button contains the word
+     * "Customize". The assertion failed on correct markup — which is the lucky direction. The same
+     * mistake inverted would have passed on a page that really did offer the button.
+     */
+    buttons: wrapper.findAll("button").map((b) => b.text().trim()),
+  };
 }
+
+beforeEach(() => {
+  // ⚠ Reset, or the module arm below leaks into whichever test vitest happens to run after it —
+  // the kind of order dependence that reads as a flake rather than as a missing line.
+  withModules(new Set(["dispatch", "navigation"]));
+});
 
 describe("TabWidgets applies the caller's own layout", () => {
   it("renders every fleet card in catalogue order when there is no row", async () => {
@@ -192,11 +211,11 @@ describe("TabWidgets applies the caller's own layout", () => {
         "fleet.top-drivers",
       ],
     };
-    const { cards: out, html } = await renderTab("fleet");
+    const { cards: out, html, buttons } = await renderTab("fleet");
     expect(all).toHaveLength(9);
     expect(out).toEqual([]);
     expect(isEmptyState(html)).toBe(true);
-    expect(html).toContain("Customize");
+    expect(buttons).toContain("Customize");
   });
 
   /**
@@ -214,11 +233,30 @@ describe("TabWidgets applies the caller's own layout", () => {
     const asAdmin = await renderTab("dispatch");
     expect(asAdmin.cards).toEqual([]);
     expect(isEmptyState(asAdmin.html)).toBe(true);
-    expect(asAdmin.html).toContain("Customize");
+    expect(asAdmin.buttons).toContain("Customize");
 
     // …and asking for it is one stored key.
     layout.value = { widgetKeys: ["dispatch.live-map"], hiddenKeys: [] };
     expect((await renderTab("dispatch")).cards).toEqual(["dispatch.live-map"]);
+  });
+
+  /**
+   * ⚠ A DIFFERENT empty from the one above, and it must not offer a Customize button: the Dispatch
+   * TAB is gated on the `dispatch` section alone while `dispatch.live-map` also needs the `dispatch`
+   * MODULE, so an org that has not bought the module passes the tab gate with nothing behind it.
+   * Offering to rearrange an empty set would open a drawer on no rows and a Save that saves nothing.
+   */
+  it("says so plainly, and offers no Customize, when the org has no cards for this tab at all", async () => {
+    role.value = "dispatcher";
+    layout.value = null;
+    withModules(new Set(["navigation"])); // no `dispatch` module
+
+    const { cards: out, html, buttons } = await renderTab("dispatch");
+    expect(out).toEqual([]);
+    expect(html).toContain("Nothing to show here");
+    expect(buttons).not.toContain("Customize");
+    // …and it is not the other empty state, which would imply they had turned something off.
+    expect(isEmptyState(html)).toBe(false);
   });
 
   /**

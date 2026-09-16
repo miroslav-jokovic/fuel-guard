@@ -1989,5 +1989,19 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   singly encoded (the double-encoded-body trap), in the moved order, and the drawer
   closed on the 204.
 
+  **A THIRD empty state, found by reading the gates rather than the screen.** The Dispatch TAB is
+  gated on the `dispatch` section alone while `dispatch.live-map` additionally requires the `dispatch`
+  MODULE, so an org that has not bought the module, whose user holds the section, passes the tab gate
+  with nothing behind it. The first draft offered them a Customize button that opened a drawer on no
+  rows and a Save that saved nothing. "Nothing to show here" now says so, with no control — and it is
+  deliberately a different sentence from "No cards on this tab", which implies something they turned
+  off and can turn back on.
+
+  ⚠ **And its assertion was measuring the wrong thing.** `expect(html).not.toContain("Customize")`
+  failed on CORRECT markup, because Vue keeps HTML comments in its output and the comment explaining
+  why there is no Customize button contains the word "Customize". That is the lucky direction; the
+  same mistake inverted passes on a page that really does offer the button. Whether a CONTROL exists
+  is a question about buttons, and the helper now reads `wrapper.findAll("button")`.
+
   **Q-LM-F2 is untouched and still open** — `useDashboard.ts` still SELECTs `total_cost` for every
   caller, so the figures reach the browser whatever the page paints. It is LM-F2's, not LM10's.
