@@ -129,12 +129,52 @@ describe("the style parameter reaches the upstream URL", () => {
     expect(hereUrl()).toContain("style=explore.day");
   });
 
+  /**
+   * ⚠ The rejected example had to CHANGE, and that is the test doing its job rather than a nuisance.
+   * This read `satellite.day` until Q-DR2 was answered by asking HERE with our own key: satellite is
+   * on the plan, so asserting it is refused would now assert the opposite of the shipped behaviour.
+   * `hybrid.day` — satellite WITH labels — is the one comp (7) draws that HERE answers 400 for, so it
+   * is the honest stand-in for "a style we do not have".
+   */
   it("falls back to the light basemap rather than passing an unlisted style upstream", async () => {
     stubUpstream();
-    await tile("?style=satellite.day");
+    await tile("?style=hybrid.day");
     const url = hereUrl();
     expect(url).toContain("style=explore.day");
     // The interesting half: the rejected value must not reach the vendor at all, in any position.
-    expect(url).not.toContain("satellite");
+    expect(url).not.toContain("hybrid");
+  });
+
+  it("serves the satellite and terrain basemaps Q-DR2 turned out to allow", async () => {
+    stubUpstream();
+    await tile("?style=satellite.day&format=jpeg");
+    expect(hereUrl()).toContain("style=satellite.day");
+
+    upstream.length = 0;
+    await tile("?style=topo.day");
+    expect(hereUrl()).toContain("style=topo.day");
+  });
+
+  /**
+   * ⚠ The FORMAT is in the PATH, not the query string, which is why it needs its own assertions: a
+   * regression here does not produce a wrong-looking map, it produces the right map at 12× the bytes.
+   * Measured on one tile: `satellite.day` is 41 KB as jpeg and 488 KB as png.
+   */
+  it("puts the requested format in the upstream path, defaulting to png", async () => {
+    stubUpstream();
+    await tile("?style=satellite.day&format=jpeg");
+    expect(hereUrl()).toContain("/5/8/9/jpeg?");
+
+    upstream.length = 0;
+    await tile("?style=explore.day");
+    expect(hereUrl()).toContain("/5/8/9/png?");
+  });
+
+  it("refuses a format that is not on the allowlist rather than putting it in a URL path", async () => {
+    stubUpstream();
+    await tile("?style=explore.day&format=../../etc/passwd");
+    const url = hereUrl();
+    expect(url).toContain("/5/8/9/png?");
+    expect(url).not.toContain("passwd");
   });
 });
