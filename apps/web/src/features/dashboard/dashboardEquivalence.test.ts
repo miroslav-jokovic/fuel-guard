@@ -53,6 +53,26 @@ const MPG_SERIES = {
 vi.mock("@/composables/useModules", () => ({
   useModulesQuery: () => ({ data: computed(() => new Set(["dispatch", "navigation"])) }),
 }));
+/**
+ * LM10 put a vue-query call in `TabWidgets`'s setup, which this harness does not provide a client
+ * for. Mocked rather than provided, and the VALUE is the interesting part: `null` is D-DW3's "no
+ * row", so every arm below renders the ROLE DEFAULT — which is what it rendered before LM10 existed.
+ * The snapshots being byte-identical across that change is therefore LM10's equivalence claim as
+ * well as LM9's: a caller who has never touched the editor sees exactly what they saw.
+ *
+ * ⚠ It follows that this file cannot fail on a layout defect. That is `tabWidgetsLayout.test.ts`'s
+ * job, and the split is deliberate — a harness that answered both questions would have to choose one
+ * layout to call correct, and there is no such thing here.
+ */
+vi.mock("@/composables/useDashboardLayout", () => ({
+  useDashboardLayout: () => ({
+    layout: computed(() => null),
+    loading: computed(() => false),
+    saving: computed(() => false),
+    save: async () => {},
+    reset: async () => {},
+  }),
+}));
 vi.mock("./useDashboard", () => ({
   useDashboard: () => ({ data: computed(() => SUMMARY), isLoading: ref(false), isFetching: ref(false) }),
 }));
@@ -114,6 +134,13 @@ vi.mock("@/stores/session", () => ({
 const STUBS = {
   BaseChart: true,
   SamsaraFeedLine: true,
+  /**
+   * LM10's drawer. It is mounted closed on every tab render, so its `setup` runs and reaches for a
+   * Pinia store this harness has no app for. Stubbed for the same reason as the two above — it
+   * reaches outside the component under test — and safely, because `elements()` reads only
+   * `dt`/`dd`/`h2`/`h3` and a closed drawer contributes none of them either way.
+   */
+  DashboardLayoutEditor: true,
   RouterLink: { template: "<a><slot /></a>" },
   /**
    * ⚠ `StatCard` is stubbed to a `dt` ON PURPOSE, and this is the fix for a harness that silently

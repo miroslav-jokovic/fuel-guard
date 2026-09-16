@@ -1926,3 +1926,49 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   **Left for the second half:** `TabWidgets` reading the layout, the editor (reorder + show/hide +
   reset), a `useDashboardLayout` composable, and an empty state for a tab whose widgets are all
   hidden. `span` stays in the catalogue — a stored layout is an ORDER, not a geometry.
+- 2026-09-15 — **LM10, second half: the Dashboard reads the layout, and a person can change it. LM10 COMPLETE.**
+  `TabWidgets` resolves the stored row over the gate-admitted widgets;
+  `features/dashboard/DashboardLayoutEditor.vue` is the drawer; `composables/useDashboardLayout.ts`
+  is the data layer. The rendering switch and the editor shipped in ONE merge on purpose — the
+  previous entry has the argument, and it is that `defaultFor: ["dispatcher"]` empties an admin's
+  Dispatch tab the moment defaults are respected.
+
+  **The equivalence snapshots did not move, and that is LM10's own claim as well as LM9's.**
+  `dashboardEquivalence.test.ts` holds the layout at `null` — D-DW3's "no row" — and reproduces both
+  fleet snapshots byte for byte. A caller who has never opened the editor sees exactly what they saw.
+  ⚠ It follows that that harness cannot fail on a layout defect, so the varying half is a separate
+  file, `tabWidgetsLayout.test.ts`. A harness cannot both hold a value fixed and vary it, and one
+  that tried would have to pick a layout to call correct.
+
+  **The layout is applied strictly AFTER the gate, and the test that matters proves it cannot widen.**
+  "Cannot show a card the caller's gates refused, however the layout names it" renders a
+  `fleet_manager` naming both money cards in their `widget_keys` and asserts no dollar reaches the
+  page. Mutating `TabWidgets` to resolve against the CATALOGUE instead of the admitted list kills it.
+
+  **`mergeTabLayout` exists because the drawer edits one tab and the row spans every tab.** A save
+  that sent only what it was showing would erase the other tab's decisions, invisibly, until somebody
+  next opened it. ⚠ And it is handed the keys the editor actually OFFERED, not every catalogue key on
+  the tab: a widget whose gate the caller has temporarily lost is not on screen, cannot be ruled on,
+  and must not have its existing decision deleted.
+
+  **`AppButton` gained `size="icon"`**, because the drawer's move/hide controls are square icon
+  buttons and `lint:ui-adoption` refuses `class="!h-8 !w-8 !p-0"` on a primitive — correctly, and the
+  `ghost` variant's own comment already records the same lesson from the other direction. The caller
+  still owns the accessible name; the primitive cannot enforce that and says so.
+
+  **`data-test="widget-<key>"` on each grid item.** The cards do not agree on how they announce
+  themselves — most carry an `h3`, the hero strip carries none — and the first draft of the layout
+  test matched `h2` and captured ONE card out of nine. It failed loudly; a variant matching `h3` would
+  have passed while ignoring the two widgets with no heading at all.
+
+  **Mutation-tested, 13 more mutants, all killed:** 3 against `TabWidgets` (ignore the layout, suppress
+  the empty state, resolve before the gate), 4 against the editor (reset becomes an empty save, save
+  forgets the other tab, seed ignores the on-screen order, move is a no-op), 2 against
+  `mergeTabLayout`, 4 against the resolver in the first half.
+
+  **Deliberately not built:** drag-and-drop (move-up/down is keyboard- and screen-reader-reachable
+  with no library, and nine cards is a list somebody reorders once), and a per-tab reset ("Restore the
+  default" deletes the whole row, which is what D-DW3 defines the default to be).
+
+  **Q-LM-F2 is untouched and still open** — `useDashboard.ts` still SELECTs `total_cost` for every
+  caller, so the figures reach the browser whatever the page paints. It is LM-F2's, not LM10's.
