@@ -23,7 +23,9 @@ status board. Where it names a position, `git log` and the plan's §7 outrank it
 | **DR3** | Fuel spend becomes bars; MPG gains its terminal dot; the washes halved | #824 | `7e7842c` |
 | **DR7a** | Operating-metrics strip: the chip it always carried, a grid its captions fit in | #826 | `5512601` |
 | **D-DR8** | The live map's basemap follows the reader's colour scheme | #827 | `2a00371` |
-| **DR7b** | `RiskList` takes `ChartCard`'s header — the dashboard's last hand-rolled panel | #828 | *see `git log`* |
+| **DR7b** | `RiskList` takes `ChartCard`'s header — the dashboard's last hand-rolled panel | #828 | `e6a88ae` |
+| **D-DR19** | A night hero plate for dark mode, instead of dimming the dawn | #830 | `be830a3` |
+| **D-DR20/21** | Basemap switcher (Map/Satellite/Terrain) + our own control rail | #831 | `545ae58` |
 
 Everything above is merged, gate-green, and was looked at in a browser. The visible result: violet
 brand, 12px card radii, shadow-defined cards, a near-white rail, a greeting over a photograph, and
@@ -32,6 +34,12 @@ KPI tiles that lead with their icon.
 ---
 
 ## 2. What is next
+
+> ⚠ **THE LIVE MAP HAS MOVED TO ITS OWN HANDOFF.** Performance (tile format, the marker stutter,
+> theme-switch caching) and the consolidation onto the Dispatch tab are queued in
+> `docs/plans/livemap/HANDOFF-2026-09-16-LIVE-MAP-PERF.md`. **Start there for anything map-shaped.**
+> The owner ruled option **(a)** on 2026-09-16: `/live-map` goes and the dashboard's Dispatch tab is
+> the survivor, which **overrules D-DW5**.
 
 **DR7 was measured and it is NOT ~60 pages of work** — the plan's §3 row sizes it by the wrong unit.
 83 route records → **77 page components**, of which **67 already render `PageHeader`** and the other
