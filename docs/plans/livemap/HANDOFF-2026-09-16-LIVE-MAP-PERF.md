@@ -76,7 +76,15 @@ and flat colour fields, which is where jpeg artefacts are ugliest. Render both a
 label edges — if `explore.*` looks bad, `lite.*` may compress better, or keep png for the road map and
 take the win on terrain only. **Do not take the 87% on trust; it is a real trade, not a free lunch.**
 
-### 3.2 The marker stutter — arithmetic, and a comment that is wrong
+### 3.2 The marker stutter — arithmetic, and a comment that is wrong · **SHIPPED as D-LM8a**
+
+✅ **Done 2026-09-16.** `MOTION_DURATION_MS` is now `LIVE_MAP_POLL_MS + MOTION_LATENCY_BUDGET_MS`
+(1.5 s), derived rather than restated. Measured in a browser before and after with the board delayed
+800 ms: the longest gap between animation frames went from **599.9 ms (4 freezes in 30 s) to 9.4 ms
+(none)**. ⚠ The part this section did not anticipate: the frame loop's stop condition had to change
+with it, or a tween that outlasts the poll never settles and the rAF loop runs forever over a parked
+fleet — **3,107 frames to 117 over 15 parked seconds** once "settled" also meant "nowhere to go". The
+full entry is the dated log at the end of `LIVE-MAP-PLAN.md`.
 
 The owner reports markers freezing and restarting every 5–6 seconds. They are right, and it is exact:
 

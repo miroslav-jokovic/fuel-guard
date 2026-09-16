@@ -2005,3 +2005,52 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
 
   **Q-LM-F2 is untouched and still open** — `useDashboard.ts` still SELECTs `total_cost` for every
   caller, so the figures reach the browser whatever the page paints. It is LM-F2's, not LM10's.
+
+- **2026-09-16 — D-LM8 AMENDED: the tween must OUTLAST the poll, not match it.** The owner reported
+  markers "freezing and restarting every 5–6 seconds". They were right and the arithmetic was exact:
+  `MOTION_DURATION_MS` was `5_000` and `LIVE_MAP_POLL_MS` is `5_000`, under a comment reading *"the
+  tween is exactly as long as the gap it fills, so motion is continuous"*. **"Exactly" is the word
+  that was wrong.** The poll timer fires at T+5000 and the board LANDS at T+5000+latency, so the
+  tween ended in front of a dot that then had nothing to do until the response arrived;
+  `tweensSettled` went true, `step()` stopped requesting frames, and the dead window every cycle was
+  the round trip itself.
+
+  **Measured in a browser rather than argued, before and after, 30 s each with the board delayed
+  800 ms** (24 moving trucks, dev-bypass preview, `requestAnimationFrame` wrapped to record every
+  frame):
+
+  | | max gap between frames | freezes > 300 ms | time frozen | animating |
+  |---|---|---|---|---|
+  | duration == poll (the defect) | **599.9 ms** | 4 in 30 s | 2,300 ms | 91.6% |
+  | duration == poll + budget | **9.4 ms** | **0** | **0 ms** | **100%** |
+
+  Four freezes in 30 seconds is one per poll cycle, which is exactly what the owner described.
+
+  **D-LM8a — the budget is 1.5 s, and the cost of it is exactly the budget.** The transport floor to
+  the production host measured 97–168 ms over eight requests (`/api/version`, which does no work),
+  and the board itself is three sequential queries that `useLiveMapBoard` records as ~1.0 s from a
+  laptop — still never measured inside Railway, which remains the open item. ⚠ Simulated over 400
+  cycles, a tween of `P + B` re-based every `P` settles where the dot trails the newest fix by
+  precisely `B` of travel: **1.5 s, or 143 ft at 65 mph**, on top of the up-to-one-poll lag D-LM8
+  already accepted. That is sub-pixel below zoom 14, while a dot that stops dead once a cycle is
+  visible at every zoom. It also means the budget is not free and must not be inflated "to be safe".
+
+  **The constants are now DERIVED** — `MOTION_DURATION_MS = LIVE_MAP_POLL_MS + MOTION_LATENCY_BUDGET_MS`
+  — because the defect was two literals that agreed with each other and with nothing else. The test
+  asserts the RELATIONSHIP; one asserting `6_500` would have passed on every day the map stuttered.
+
+  ⚠ **AND THE FRAME LOOP'S STOP CONDITION HAD TO CHANGE WITH IT, which is the part that is easy to
+  miss.** Once the tween outlasts the poll, no tween is ever finished when the next board re-bases
+  it — so the clock-only `tweensSettled` would mean the rAF loop NEVER stops, and `step()`'s own
+  comment ("a permanent rAF loop over a parked fleet would keep a laptop's GPU awake for a picture
+  that is not changing") would have quietly become false. A tween is now settled when it has run its
+  course **or has nowhere to go** (same place, same bearing). Measured over a PARKED fleet, 15 s:
+  **3,107 frames before, 117 after — 96% fewer.** The old code interpolated a parked truck towards
+  itself for five seconds out of every five, so this is strictly better than what it replaced rather
+  than a cost of the fix.
+
+  Four new tests, all four **proved by mutation**: reverting the duration to the poll interval fails
+  the relationship test and the in-flight test; dropping the "nowhere to go" check fails the parked
+  test; ignoring heading in it fails the turning-on-the-spot test. ⚠ A round trip slower than the
+  budget brings the stutter back for the excess — the fix for that is measuring the board inside
+  Railway, not a bigger constant.

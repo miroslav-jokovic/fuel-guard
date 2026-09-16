@@ -21,9 +21,49 @@
  */
 import { lerp, lerpAngle, type LiveMapVehicle } from "@silvicom/shared";
 import type { RenderedPlace } from "./liveMapLayer";
+import { LIVE_MAP_POLL_MS } from "./useLiveMapBoard";
 
-/** One poll interval. The tween is exactly as long as the gap it fills, so motion is continuous. */
-export const MOTION_DURATION_MS = 5_000;
+/**
+ * How long the board takes to ARRIVE after the poll timer fires, which the tween has to cover.
+ *
+ * ⚠ This constant exists because the thing it budgets for was missed entirely. `MOTION_DURATION_MS`
+ * was `5_000` beside a `LIVE_MAP_POLL_MS` of `5_000`, under a comment reading "the tween is exactly
+ * as long as the gap it fills, so motion is continuous" — and **exactly** is the word that was wrong.
+ * The timer fires at T+5000 and the board lands at T+5000+latency, so a tween that ends at T+5000
+ * ends in front of a dot that then has nothing to do until the response arrives. The owner reported
+ * markers "freezing and restarting every 5–6 seconds"; the freeze IS the round trip, once per cycle,
+ * for as long as the page is open.
+ *
+ * **1.5 s, and here is the arithmetic rather than a round number.** The transport floor to the
+ * production host measured from this machine on 2026-09-16 is 97–168 ms over eight requests
+ * (`/api/version`, which does no work). The board itself is three sequential queries and
+ * `useLiveMapBoard` records ~1.0 s from a laptop, never yet measured inside Railway. 1.5 s covers
+ * that with about half again in hand.
+ *
+ * ⚠ **THE BUDGET IS NOT FREE, AND THE COST IS EXACTLY THE BUDGET.** Simulated over 400 cycles: a
+ * tween of `P + B` re-based every `P` settles at a steady state where the dot trails the newest fix
+ * by precisely `B` of travel — 1.5 s, which is **143 ft at 65 mph**. That is on top of the up-to-one-
+ * poll lag D-LM8 already accepted and states, and it is the right side of the trade at this scale:
+ * 143 ft is sub-pixel below zoom 14, while a dot that stops dead once a cycle is visible at every
+ * zoom. ⚠ It also means a budget is not something to inflate "to be safe" — doubling it doubles the
+ * distance the map lies by.
+ *
+ * ⚠ A round trip SLOWER than the budget brings the stutter back for the excess. The honest fix for
+ * that is measuring the board inside Railway (the open item in `useLiveMapBoard`), not a bigger
+ * number here.
+ */
+export const MOTION_LATENCY_BUDGET_MS = 1_500;
+
+/**
+ * One poll interval PLUS the round trip that follows it — DERIVED, so the two cannot drift apart.
+ *
+ * ⚠ Written as an expression and not as `6_500`, because the defect being fixed was two literals
+ * that agreed with each other and with nothing else. Change `LIVE_MAP_POLL_MS` and this follows;
+ * pinned by "outlasts the poll interval by the latency budget, whatever the poll interval becomes",
+ * which asserts the RELATIONSHIP — a test asserting `6_500` would teach the next reader nothing and
+ * would have passed just as happily on the broken pair.
+ */
+export const MOTION_DURATION_MS = LIVE_MAP_POLL_MS + MOTION_LATENCY_BUDGET_MS;
 
 /**
  * Further than this in one poll and we SNAP rather than animate.
@@ -117,12 +157,43 @@ function sampleHeading(tween: Tween, t: number): number | null {
   return lerpAngle(tween.from.heading, tween.to.heading, t);
 }
 
-/** True once every dot has reached its target — the signal to stop asking for frames. */
+/**
+ * True once there is nothing left to draw — the signal to stop asking for frames.
+ *
+ * ⚠ **"Nothing left to draw" is now two conditions, and the second one had to be added the moment
+ * the tween outlasted the poll.** This used to be the clock alone: a tween was over when
+ * `MOTION_DURATION_MS` had elapsed. With the duration deliberately longer than the poll interval, no
+ * tween is ever over when the next board re-bases it — so the clock alone would mean the frame loop
+ * NEVER stops, over a parked fleet as much as a moving one, and `step()`'s own comment ("a permanent
+ * rAF loop over a parked fleet would keep a laptop's GPU awake for a picture that is not changing")
+ * would have quietly become false. That comment is the requirement; the timer was only ever a proxy
+ * for it.
+ *
+ * So a tween is settled when it has run its course OR when it has nowhere to go. A truck parked at
+ * the same coordinates with the same bearing settles on the first frame, which is strictly better
+ * than the old behaviour — a parked fleet used to animate for five seconds out of every five,
+ * interpolating between a position and itself.
+ *
+ * ⚠ Heading counts as somewhere to go. A truck rotating on the spot in a yard has `from.lat/lng ===
+ * to.lat/lng` and is still moving on screen.
+ */
 export function tweensSettled(
   tweens: ReadonlyMap<string, Tween>,
   now: number,
   durationMs: number = MOTION_DURATION_MS,
 ): boolean {
-  for (const tween of tweens.values()) if (now - tween.startedAt < durationMs) return false;
+  for (const tween of tweens.values()) {
+    if (now - tween.startedAt >= durationMs) continue;
+    if (!isStill(tween)) return false;
+  }
   return true;
+}
+
+/** A tween with nowhere to go: same place, same bearing. Nothing to interpolate, nothing to draw. */
+function isStill(tween: Tween): boolean {
+  return (
+    tween.from.lat === tween.to.lat &&
+    tween.from.lng === tween.to.lng &&
+    tween.from.heading === tween.to.heading
+  );
 }
