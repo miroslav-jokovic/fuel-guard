@@ -58,8 +58,22 @@ export interface DashboardWidget {
    *
    * The values below are transcribed from the grids the fleet tab renders TODAY: the two trend
    * charts pair, the donut pairs with severity, the two risk lists pair, and the three strips span.
+   *
+   * ── `workspace` IS NOT A THIRD WIDTH, IT IS THE ABSENCE OF A GRID (D-DR24) ──────────────────────
+   * A `workspace` widget IS its tab: no card around it, no gutters, no neighbours, and the height of
+   * the viewport under the tab strip. The live map is the one, and it earned it by being the only
+   * widget on its tab that a person stares at for an hour rather than glances at.
+   *
+   * ⚠ It is declared HERE rather than at the render site because the layout of a tab must be
+   * answerable without mounting it: the route reads this to decide whether the shell drops its
+   * gutters (`isFullBleed`), and `TabWidgets` reads it to decide whether to draw a grid at all. A
+   * boolean in the web app would have been the copy with the delay fuse this comment already warns
+   * about one paragraph up.
+   *
+   * ⚠ A workspace widget is NOT arrangeable and offers no Customize control: there is nothing to
+   * pair it with and hiding it would leave a tab that cannot be restored.
    */
-  span: "full" | "half";
+  span: "full" | "half" | "workspace";
   /**
    * Roles whose DEFAULT layout includes this widget (D-DW2), for LM10.
    *
@@ -99,14 +113,46 @@ export const DASHBOARD_WIDGETS: readonly DashboardWidget[] = [
 
   // ── dispatch ──────────────────────────────────────────────────────────────────────────────────
   /**
-   * D-DW5 — the live map is both a widget and a full page, and neither substitutes for the other: a
-   * dispatcher works a map full-screen at `/live-map`, a fleet manager glances at one here.
+   * ── D-DR24 OVERRULES D-DW5: THERE IS ONE LIVE MAP AND THIS IS IT ────────────────────────────────
+   * D-DW5 said the map was "both a widget and a full page, and neither substitutes for the other" —
+   * a dispatcher worked one full-screen at `/live-map`, a fleet manager glanced at one here. Owner's
+   * ruling, 2026-09-16: `/live-map` goes and the Dispatch tab is the survivor. Two surfaces onto one
+   * board meant two shapes to keep honest, two places to fix a defect, and a sidebar entry competing
+   * with a tab for the same job — and the glance was the weaker half, because nobody glances at a
+   * map: they look for a truck, which is work.
+   *
+   * So this is `workspace` and not `full`. The card-in-a-grid reading (`LiveMapPanel.vue`) is gone
+   * rather than kept beside it; the workspace shape is what a dispatcher had at `/live-map` and it
+   * now fills the tab.
+   *
+   * ⚠ `defaultFor: ["dispatcher"]` WENT WITH THE CARD, and dropping it is part of the ruling rather
+   * than tidying. It meant "the dispatcher sees the live map first, an admin adds it if they want
+   * it" — a sensible thing to say about one card among nine, and an absurd one to say about a tab
+   * whose only content is that surface: an admin opening Dispatch got an empty state offering a
+   * Customize button whose entire menu was the thing they had come for. A workspace is not
+   * arrangeable (see `span`), so a default layout has nothing left to decide here.
    *
    * `module: "dispatch"` matches the endpoint behind it (`requireModule("dispatch")`), so a tenant
    * without the module gets no widget rather than a panel that 403s.
    */
-  { span: "full" as const, key: "dispatch.live-map", label: "Live map", tab: "dispatch", gate: section("dispatch"), module: "dispatch", defaultFor: ["dispatcher"] },
+  { span: "workspace" as const, key: "dispatch.live-map", label: "Live map", tab: "dispatch", gate: section("dispatch"), module: "dispatch" },
 ];
+
+/**
+ * Is this tab a WORKSPACE rather than a grid of cards (D-DR24)?
+ *
+ * ⚠ Deliberately asked of the CATALOGUE and not of a mounted component, because the two readers are
+ * in different processes' worth of the app: the router asks it to decide whether the shell drops its
+ * gutters before the page exists, and `TabWidgets` asks it to decide whether to draw a grid. A
+ * second answer anywhere would be a tab that is full-bleed in the shell and a card on the page.
+ *
+ * ⚠ It ignores gates on purpose. A caller who fails the map's gate still gets the workspace SHAPE
+ * for the Dispatch tab and then the "nothing to show here" panel inside it — which is right: the
+ * shape of a tab is a property of the product, and what is on it is a property of the person.
+ */
+export function tabIsWorkspace(tab: string): boolean {
+  return DASHBOARD_WIDGETS.some((w) => w.tab === tab && w.span === "workspace");
+}
 
 /** Every widget on one tab that this caller's gates admit, in catalogue order. */
 export function widgetsForTab(

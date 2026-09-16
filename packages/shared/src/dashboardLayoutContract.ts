@@ -77,8 +77,12 @@ export interface StoredDashboardLayout {
  *
  * Absent `defaultFor` means "everyone whose gate passes" — the common case, and the reason the field
  * is optional rather than every widget carrying a list of every role. A present list names the roles
- * that get it without asking; `dispatch.live-map` names `dispatcher`, which is the whole of "the
- * dispatcher sees the live map first".
+ * that get it without asking.
+ *
+ * ⚠ The example this comment used to give was `dispatch.live-map` naming `dispatcher`. D-DR24 removed
+ * that list when the map became a `workspace` tab — a tab with one surface has no default layout to
+ * decide — so today no widget in the catalogue carries `defaultFor` at all. The field stays because
+ * the question it answers is real the moment two widgets share a tab and only one suits a role.
  *
  * ⚠ This reads a role, and it is the only thing in the rendering path that does. It decides what
  * somebody sees BEFORE they have arranged anything, never what they MAY see — the catalogue's own

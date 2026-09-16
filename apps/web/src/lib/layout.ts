@@ -43,7 +43,20 @@ export function resolveLayout(meta: RouteMeta, isAuthenticated: boolean): Layout
  * Reading it through a function rather than `route.meta.fullBleed` at the call site keeps the
  * default in ONE place: a route that says nothing is a document, which is what every route but one
  * is today.
+ *
+ * ── WHY IT TAKES A ROUTE AND NOT JUST `meta` NOW (D-DR24, 2026-09-16) ───────────────────────────
+ * `/live-map` was the one full-bleed route and `meta.fullBleed: true` was enough. With the map
+ * consolidated onto the Dashboard's Dispatch tab, full-bleed became a property of WHICH TAB is open
+ * — the dashboard is a document on Fleet and a workspace on Dispatch — and a static boolean cannot
+ * say that.
+ *
+ * ⚠ The tab is read from the URL (`?tab=`) rather than from a layout store the page writes into,
+ * and that ordering is the reason: the shell decides its outlet while the page is still being
+ * constructed, so a signal the page emits arrives a frame late and the map would be built at the
+ * document's width and then resized. The URL is also the only place the tab already survives a
+ * reload — `DashboardPage` keeps `?tab=` in sync for exactly these two readers.
  */
-export function isFullBleed(meta: RouteMeta): boolean {
-  return meta.fullBleed === true;
+export function isFullBleed(route: { meta: RouteMeta; query?: Record<string, unknown> }): boolean {
+  const declared = route.meta.fullBleed;
+  return typeof declared === "function" ? declared(route) === true : declared === true;
 }

@@ -98,7 +98,7 @@ const STUBS = {
   RouterLink: { template: "<a><slot /></a>" },
   StatCard: { props: ["label"], template: "<dt>{{ label }}</dt>" },
   // Needs vue-query and a router of its own, and what is under test is whether it was CHOSEN.
-  LiveMapPanel: true,
+  LiveMapWorkspace: true,
 };
 
 /**
@@ -223,20 +223,28 @@ describe("TabWidgets applies the caller's own layout", () => {
    * `dispatch.live-map` defaults to `dispatcher` alone, so an admin's Dispatch tab is empty until
    * they ask for the map. Empty with a way out — never empty with none.
    */
-  it("gives a dispatcher the map by default and an admin the way to ask for it", async () => {
+  /**
+   * ⚠ REWRITTEN BY D-DR24, and the old expectation is worth stating because it was deliberate too.
+   * This used to assert that a dispatcher got the map by default and an ADMIN got an empty tab with
+   * a Customize button — `defaultFor: ["dispatcher"]`, D-DW2. That is a reasonable thing to say
+   * about one card among nine and an absurd one about a tab whose only content is the map: the admin
+   * was shown an empty state offering a menu of exactly the thing they had come for.
+   *
+   * The Dispatch tab is now a `workspace`, so the per-user layout does not apply to it at all: every
+   * role whose gate passes gets the map, and nobody is offered a way to hide it.
+   */
+  it("gives the map to every role that can open the Dispatch tab, and offers nobody a way to hide it", async () => {
     layout.value = null;
 
-    role.value = "dispatcher";
-    expect((await renderTab("dispatch")).cards).toEqual(["dispatch.live-map"]);
+    for (const who of ["dispatcher", "admin"] as const) {
+      role.value = who;
+      const tab = await renderTab("dispatch");
+      expect(tab.cards, `${who} should get the map`).toEqual(["dispatch.live-map"]);
+      expect(tab.buttons, `${who} should not be offered Customize`).not.toContain("Customize");
+    }
 
-    role.value = "admin";
-    const asAdmin = await renderTab("dispatch");
-    expect(asAdmin.cards).toEqual([]);
-    expect(isEmptyState(asAdmin.html)).toBe(true);
-    expect(asAdmin.buttons).toContain("Customize");
-
-    // …and asking for it is one stored key.
-    layout.value = { widgetKeys: ["dispatch.live-map"], hiddenKeys: [] };
+    // A stored layout that hides it is ignored rather than obeyed: a workspace tab has no way back.
+    layout.value = { widgetKeys: [], hiddenKeys: ["dispatch.live-map"] };
     expect((await renderTab("dispatch")).cards).toEqual(["dispatch.live-map"]);
   });
 

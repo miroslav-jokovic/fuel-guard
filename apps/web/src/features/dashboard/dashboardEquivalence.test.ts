@@ -239,20 +239,24 @@ describe("the Dashboard renders the same elements before and after the widget ca
    *
    * This tab used to render a placeholder card headed "Live map" whose body read "Not connected yet
    * — vehicle positions are still being wired up to the Samsara feed." That was true when LM-T wrote
-   * it and false from the moment LM8 merged. It is now the real `LiveMapPanel`, the same one
-   * `/live-map` renders (D-DW5). The snapshot therefore CHANGES here, on purpose, while every fleet
-   * snapshot above stays identical — which is how a deliberate change is told from a regression.
+   * it and false from the moment LM8 merged. It is now the real map. The snapshot therefore CHANGES
+   * here, on purpose, while every fleet snapshot above stays identical — which is how a deliberate
+   * change is told from a regression.
+   *
+   * ⚠ The component it reaches changed again with D-DR24: `LiveMapPanel` (a card in a grid) is gone
+   * and the tab renders `LiveMapWorkspace`, the shape `/live-map` used to have. What this test
+   * asserts is unchanged — that the catalogue reaches the real map and never the placeholder.
    */
   it("dispatch tab renders the real live map, not the placeholder it shipped with", async () => {
     role.value = "dispatcher";
     const { default: TabWidgets } = await import("./TabWidgets.vue");
     const wrapper = mount(TabWidgets, {
       props: { tab: "dispatch", range: { from: "2026-09-01", to: "2026-09-15" } },
-      // Stubbed rather than mounted: the panel needs vue-query and a router, and what is being
-      // asserted here is that the catalogue reaches it at all.
-      global: { stubs: { ...STUBS, LiveMapPanel: true } },
+      // Stubbed rather than mounted: the workspace needs vue-query, WebGL and a router, and what is
+      // being asserted here is that the catalogue reaches it at all.
+      global: { stubs: { ...STUBS, LiveMapWorkspace: true } },
     });
-    expect(wrapper.html()).toContain("live-map-panel-stub");
+    expect(wrapper.html()).toContain("live-map-workspace-stub");
     // The sentence that was false from the moment LM8 merged. It must not come back.
     expect(wrapper.text()).not.toContain("Not connected yet");
   });

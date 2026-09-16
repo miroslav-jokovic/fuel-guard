@@ -230,7 +230,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Messages → /messages",
       "Assignments → /assignments",
@@ -316,7 +315,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Assignments → /assignments",
       "Fuel Planning → /fuel-planning",
@@ -478,7 +476,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Messages → /messages",
       "Assignments → /assignments",
@@ -561,7 +558,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Assignments → /assignments",
       "Truck Stops → /truck-stops",
@@ -719,7 +715,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Messages → /messages [7]",
       "Assignments → /assignments",
@@ -804,7 +799,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Messages → /messages",
       "Assignments → /assignments",
@@ -853,7 +847,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Assignments → /assignments",
       "Fuel Planning → /fuel-planning",
@@ -976,7 +969,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Messages → /messages",
       "Assignments → /assignments",
@@ -1054,7 +1046,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Assignments → /assignments",
       "Fuel Planning → /fuel-planning",
@@ -1562,7 +1553,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
   {
     "group": "Dispatch",
     "items": [
-      "Live map → /live-map",
       "Loads → /loads",
       "Messages → /messages",
       "Assignments → /assignments",
