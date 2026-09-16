@@ -116,6 +116,20 @@ const API_ALLOW = new Set([
   "maintenance -> evidence",
   "maintenance -> roster",
   "maintenance -> org",
+  // ── the live map's three reads-through-owners (LM6, D-LM11) ──────────────────────────────────
+  // `livemap` owns NO table. Its whole job is to answer one question the four tables behind it
+  // cannot answer separately — where is my fleet and what is it doing — and to answer it on the
+  // server, because D-LM11 rules that shipping six table shapes and the scoping rule into a browser
+  // bundle is the thing to avoid. All three edges go through the owner's index:
+  //   · samsara — `vehicle_positions` is `layer=raw` and `check-table-access.mjs` SEALS it to its
+  //     collector, so this edge is not a preference; a direct select fails the build.
+  //   · roster  — `vehicles` and `drivers` are core, so this one COULD have been a direct select.
+  //     It is not, deliberately: reaching past an owner because no gate happens to stop you is how
+  //     `drivers` came to be written from 54 files (docs/ARCHITECTURE.md §3).
+  //   · loads   — same, and it returns nothing until LM12 turns the TMS feed on.
+  "livemap -> samsara",
+  "livemap -> roster",
+  "livemap -> loads",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of

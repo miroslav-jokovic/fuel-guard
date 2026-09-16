@@ -155,3 +155,4 @@ export * from "./inventoryLabelContract.js";
 export * from "./inventoryRules.js";
 export * from "./fleetpalContract.js";
 export * from "./livemap.js";
+export * from "./livemapContract.js";

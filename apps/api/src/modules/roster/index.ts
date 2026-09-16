@@ -23,6 +23,9 @@
  * because it is driver-scoped roster UI; the write is manifest-pinned for the recruiting
  * carve-out to claim.
  */
+// Unit number + assigned driver for a whole fleet, for the live map's board (LM6). Narrow on
+// purpose: `vehicles` and `drivers` are roster's, and one question is what this answers.
+export { readFleetIdentities, type FleetIdentity } from "./fleetIdentityReads.js";
 export { rosterDriversRouter } from "./routes/drivers.js";
 export { rosterArchiveRouter } from "./routes/archive.js";
 export { rosterCredentialsRouter } from "./routes/credentials.js";
