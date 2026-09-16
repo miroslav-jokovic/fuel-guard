@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   dashboardLayoutSetSchema,
   inDefaultLayout,
+  mergeTabLayout,
   resolveDashboardLayout,
   type StoredDashboardLayout,
 } from "./dashboardLayoutContract.js";
@@ -139,6 +140,56 @@ describe("resolveDashboardLayout — a stored row", () => {
       stored({ widgetKeys: ["fleet.alpha", "fleet.alpha", "fleet.beta"], hiddenKeys: ["dispatch.map"] }),
     );
     expect(keys(out)).toEqual(["fleet.alpha", "fleet.beta"]);
+  });
+});
+
+describe("mergeTabLayout — rearranging one tab must not erase another", () => {
+  const OFFERED = ["fleet.alpha", "fleet.beta"];
+
+  it("keeps the other tab's decisions verbatim, in their own order", () => {
+    const out = mergeTabLayout(
+      { widgetKeys: ["dispatch.map", "fleet.alpha"], hiddenKeys: ["fleet.beta"] },
+      OFFERED,
+      ["fleet.beta"],
+      ["fleet.alpha"],
+    );
+    expect(out.widgetKeys).toEqual(["dispatch.map", "fleet.beta"]);
+    expect(out.hiddenKeys).toEqual(["fleet.alpha"]);
+  });
+
+  /**
+   * The case the `offered` argument exists for: `fleet.beta` is on this tab but the caller lost its
+   * gate, so the editor never showed it and cannot have a decision about it. Dropping it would
+   * delete one they had already made.
+   */
+  it("preserves a decision about a widget the editor could not offer", () => {
+    const out = mergeTabLayout(
+      { widgetKeys: [], hiddenKeys: ["fleet.beta"] },
+      ["fleet.alpha"],
+      ["fleet.alpha"],
+      [],
+    );
+    expect(out.hiddenKeys).toEqual(["fleet.beta"]);
+  });
+
+  it("builds a first row for somebody who had none", () => {
+    expect(mergeTabLayout(null, OFFERED, ["fleet.beta", "fleet.alpha"], [])).toEqual({
+      widgetKeys: ["fleet.beta", "fleet.alpha"],
+      hiddenKeys: [],
+    });
+  });
+
+  it("round-trips through the resolver, so what was saved is what renders", () => {
+    const saved = mergeTabLayout(null, OFFERED, ["fleet.beta"], ["fleet.alpha"]);
+    expect(keys(resolveDashboardLayout(ALLOWED, "dispatcher", saved))).toEqual([
+      "fleet.beta",
+      "dispatch.map",
+    ]);
+  });
+
+  it("produces a body the schema accepts", () => {
+    const saved = mergeTabLayout(null, OFFERED, ["fleet.alpha"], ["fleet.beta"]);
+    expect(dashboardLayoutSetSchema.safeParse(saved).success).toBe(true);
   });
 });
 

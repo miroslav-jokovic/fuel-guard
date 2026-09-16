@@ -129,3 +129,33 @@ export function resolveDashboardLayout(
 
   return [...kept, ...untouched];
 }
+
+/**
+ * The row to store after somebody rearranges ONE tab.
+ *
+ * ── WHY THE EDITOR CANNOT JUST SEND WHAT IT IS SHOWING ──────────────────────────────────────────
+ * The stored row is one flat pair of arrays across every tab — order only ever means anything within
+ * a tab, because rendering filters by tab first, so a single list costs nothing and a column per tab
+ * would be a schema that grows with the product. The consequence is that an editor working on the
+ * Fleet tab must not send Fleet's arrangement as the whole row, or it silently erases what the
+ * person decided about Dispatch.
+ *
+ * ⚠ And `offered` is the keys the editor actually SHOWED — not every catalogue key on that tab.
+ * The difference matters for a widget whose gate the caller has temporarily lost: it is not on
+ * screen, the editor cannot offer a decision about it, and dropping it here would delete a decision
+ * they already made. Untouched keys survive by being left alone, which is the same property
+ * `resolveDashboardLayout` gives a widget nobody has ruled on.
+ */
+export function mergeTabLayout(
+  stored: StoredDashboardLayout | null,
+  offered: readonly string[],
+  kept: readonly string[],
+  hidden: readonly string[],
+): StoredDashboardLayout {
+  const thisTab = new Set(offered);
+  const elsewhere = (keys: readonly string[]) => keys.filter((k) => !thisTab.has(k));
+  return {
+    widgetKeys: [...elsewhere(stored?.widgetKeys ?? []), ...kept],
+    hiddenKeys: [...elsewhere(stored?.hiddenKeys ?? []), ...hidden],
+  };
+}

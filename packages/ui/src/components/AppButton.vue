@@ -6,7 +6,7 @@ import { RouterLink, type RouteLocationRaw } from "vue-router";
 const props = withDefaults(
   defineProps<{
     variant?: "primary" | "secondary" | "danger" | "soft" | "ghost" | "link";
-    size?: "sm" | "md";
+    size?: "sm" | "md" | "icon";
     type?: "button" | "submit" | "reset";
     block?: boolean;
     disabled?: boolean;
@@ -47,6 +47,18 @@ const VARIANTS: Record<NonNullable<typeof props.variant>, string> = {
 const SIZES: Record<NonNullable<typeof props.size>, string> = {
   sm: "h-8 gap-x-1 px-2.5 text-sm",
   md: "h-9 gap-x-1.5 px-3 text-sm",
+  /**
+   * A SQUARE button holding one icon and no label — a row's move-up, a row's hide.
+   *
+   * Added 2026-09-15 for the Dashboard layout editor (LM10), and added HERE rather than written as
+   * `class="!h-8 !w-8 !p-0"` at the call site because `lint:ui-adoption` refuses that and is right
+   * to: the `ghost` variant's own comment above records the same lesson from the other direction —
+   * an `!important` override is the sign that a variant is missing, not that the rule is wrong.
+   *
+   * The caller still owns the ACCESSIBLE NAME. A button with no text has none, so every call site
+   * passes `aria-label`; there is no way for this file to enforce that, which is why it is said here.
+   */
+  icon: "size-8 p-0",
 };
 
 /** The link variant sits in running text, so it takes the surrounding size and no box at all. */
