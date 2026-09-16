@@ -200,18 +200,32 @@ image to transparent and lets whatever is behind show through. It also means no 
 involved, so the band cannot drift from the palette. The `black` inside the mask's gradient is an
 alpha stop, not a colour — nothing paints it.
 
-**Found while building DR4, and NOT caused by it — the four-up KPI grid truncates at 1280px.**
-"Fuel spend" renders as "Fuel sp…", and so do "Telematics co…" and "Declined atte…" in
-`OperatingMetricsWidget`. It was nearly recorded here as a DR2 regression, on the theory that the
-hero chip moving left had cost the text column its margin. **It had not.** `main` at the same
-viewport truncates identically, including in widgets the refresh has never touched — checked by
-building `main` and rendering it at 1280 side by side, after an earlier comparison turned out to
-have been taken at two different viewport widths and proved nothing.
+**D-DR17 — the 1280px truncation WAS a DR2 regression, and this entry is the second correction of
+it.** Worth reading in full, because the process failure is more instructive than the CSS.
 
-The real cause is the `xl:grid-cols-4` KPI row being too tight for its labels at exactly the width
-where `xl` engages, and it predates all of this. It is left alone deliberately: fixing a
-pre-existing responsive defect inside a design-refresh PR would hide it in a diff about something
-else. **Its own step, or a deliberate decision to accept `truncate` at that width.**
+At 1280px `xl:grid-cols-4` makes each KPI tile 220px. DR2's inline sparkline reserved `w-2/5` of the
+tile unconditionally, leaving the label 61px to render "Fleet avg MPG", which needs 91 — so it
+truncated to "Fleet a…".
+
+What went wrong twice:
+
+1. It was first written up as a regression, correctly, on a hunch about the bigger left chip.
+2. It was then **withdrawn** as pre-existing, on the strength of building `main` and seeing the same
+   truncation. That comparison was worthless: `main` had contained DR2 since #819 merged, so both
+   sides of the "comparison" had the defect. Rebuilding at `8275964` — the commit *before* DR2 —
+   settles it: every label reports `scrollWidth - clientWidth === 0` there, and 7px and 30px short
+   after. **Comparing against `main` proves nothing once the change you are testing is in `main`.**
+3. Only measuring the DOM, rather than reading a screenshot, produced a number anybody could check.
+
+The fix is `flex-wrap` plus a `min-w-32` floor on the label column, **not a viewport breakpoint**.
+This is a CONTAINER question and a viewport rule inverts it: the same tile is 410px wide in the
+two-up grid at 900px and 220px in the four-up at 1280px, so "inline above `xl`" would switch the
+inline layout on exactly where it does not fit and off where it does. Measured after: inline at a
+325px tile, wrapped at 220px, no truncation at either.
+
+⚠ `OperatingMetricsWidget`'s own "Telematics co…" truncation at the same width **is** genuinely
+pre-existing and is NOT fixed here — that one is an eight-up grid with no sparkline in it, a
+different defect that happens to share a viewport. Its own step.
 
 **D-DR16 — the comps' ⌘K search bar is a FEATURE, and is not in DR4.** Checked 2026-09-16: there is
 no command palette, no global search component and no search endpoint anywhere in `apps/web`. The
@@ -431,3 +445,15 @@ conflict every time (`plan-progress-log-not-table-rows`).
   has never touched. The first comparison that suggested otherwise had been taken at two different
   viewport widths. The truncation is pre-existing and is §3.1's own paragraph now — not this PR's to
   fix, and not this PR's to claim credit for.
+- **2026-09-16 — D-DR17 SHIPPED, and a withdrawal withdrawn.** The 1280px label truncation was
+  written up as a DR2 regression, then withdrawn as pre-existing, and is a DR2 regression after all.
+  The withdrawal rested on building `main` and seeing identical truncation — but `main` had held DR2
+  since #819 merged, so both sides of that comparison carried the defect. Rebuilding at `8275964`,
+  the commit before DR2, gives `scrollWidth - clientWidth === 0` on every label; after DR2 it is 7px
+  and 30px short. **A comparison against `main` is worthless once the change under test is in
+  `main`** — and a screenshot was never going to settle it, where reading the DOM did it in one
+  call. Fixed by `flex-wrap` + a `min-w-32` floor rather than a viewport breakpoint, because the
+  same tile is 410px wide at 900px viewport and 220px at 1280px, so a viewport rule would invert the
+  decision. Measured after: inline at a 325px tile, wrapped at 220px, nothing truncated at either.
+  `OperatingMetricsWidget`'s truncation at that width is a separate, genuinely pre-existing defect
+  and is left for its own step.
