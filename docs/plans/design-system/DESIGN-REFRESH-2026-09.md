@@ -212,11 +212,28 @@ is the one asset in the comps we cannot write in CSS, and `higgsfield-generate` 
 
 **D-DR11 — hero plates are generated once, committed as static assets, and never generated at
 runtime.** They are decoration with a brand voice, not content. Requirements, so a regeneration
-years from now matches: ~1600×280 landscape, the truck entering from the right third, a
-low-contrast dawn/mountain background that a greeting can sit on at the left, and enough empty sky
-at the top-left that `text-ink` clears WCAG AA over it without a scrim. Every plate ships with a
-`.webp` and an empty `alt` — it is decorative, and a screen reader reading "a truck on a highway"
-before the day's numbers is noise.
+years from now matches: the truck entering from the right third, a low-contrast background that a
+greeting can sit on at the left, and enough empty sky at the top-left that `text-ink` clears WCAG AA
+over it without a scrim. Every plate ships as `.webp` with an empty `alt` — it is decorative, and a
+screen reader reading "a truck on a highway" before the day's numbers is noise.
+
+**Shipped 2026-09-16** — three plates in `apps/web/public/hero/`, `gpt_image_2_5` at `21:9`,
+quality `high`, resolution `2k`, downscaled to 1920 wide:
+
+| plate | mood | size | `--ink` over the text zone | zone below AA |
+|---|---|---|---|---|
+| `highway-dawn.webp` | dawn, mountains, pine — closest to comps (1)/(3)/(5) | 51 KB | 10.16:1 | 0.00% |
+| `prairie-dusk.webp` | golden-hour plains, warm | 84 KB | 9.88:1 | 0.00% |
+| `coast-mist.webp` | cool blue-violet haze — sits best beside the rotated brand | 52 KB | 9.22:1 | 0.00% |
+
+⚠ **The contrast figure is measured over the zone the greeting actually occupies** — the left 45% ×
+top 62% — not over the left half. The bottom-left of every plate is road surface, and measuring
+there produced a misleading 3.11:1 worst-case for text that never lands on it. The generator prompts
+are in the DR6 commit message so a fourth plate can match the three.
+
+**21:9 is the widest ratio `gpt_image_2_5` offers** (≈2.33:1) and the comps' band is ≈6.7:1, so the
+plate is shipped whole and the band is taken in CSS with `object-fit: cover` + `object-position`.
+Cropping to a fixed band at build time would have to be redone at every breakpoint.
 
 ---
 
@@ -248,3 +265,24 @@ conflict every time (`plan-progress-log-not-table-rows`).
   in a browser; the prototype confirmed §2 — tokens alone reach roughly a third of comp (3), and
   `StatCard`'s anatomy is the rest. `apple-design` skill installed at `.claude/skills/apple-design/`
   and used for D-DR9/D-DR10.
+- **2026-09-16 — DR1 SHIPPED.** Brand hue +21°, shape ladder doubled, `elevation-card` given its
+  second layer, `surface-navigation` lifted above the canvas. Web only — the driver app's colours
+  come from its own `apps/driver/src/theme/theme.roles.json`, not `packages/tokens`, so Q-DR1 is
+  genuinely open rather than silently answered. Eight gates green including `lint:ui-contrast`,
+  which is what makes D-DR1's "a rotation at constant L and C cannot break a contrast ratio" a
+  measurement rather than a claim; 1,883 web + ui tests pass; rendered and looked at.
+  **One thing the prototype got wrong and the gate caught:** the first pass rotated
+  `viz-cost-reefer` along with everything else and `lint:chart-colors` failed it. The D-FRUI8 cost
+  palette is a validated SET — lightness band, chroma floor, colour-vision separation, 3:1 on
+  surface — and a member of it is not a brand colour. Restored, and charts deferred to DR3 on
+  purpose.
+- **2026-09-16 — DR6 SHIPPED (ahead of DR4, which consumes it).** Three hero plates generated and
+  committed (§5). Deliberately landed early: DR4 cannot be judged in a browser without the image
+  behind the greeting, and an asset with a measured contrast figure is a smaller thing to review on
+  its own than bundled into a layout change.
+- **2026-09-16 — DR5 pre-work.** Confirmed at the call site rather than assumed: the basemap in
+  comp (7) is reachable. `apps/api/src/modules/routing/routes/mapProxies.ts` hardcodes
+  `style=explore.day` on HERE's v3 base path, and `explore.night` is the same path with a different
+  parameter, so a **dark** map is a one-line change. *Satellite* is a different resource and stays
+  Q-DR2. Also confirmed the live-map page is currently a vertical document (`AppCallout` →
+  `FilterBar` → map in a `BaseCard` → `DataTable` → drawer), which is what D-DR5 replaces.
