@@ -1538,3 +1538,51 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   first tick lands ~5 minutes after the release boots; the first deploy may log one
   `record_vehicle_positions is not in the database yet` warning while `migrate.yml` catches up, which
   is the deploy window behaving as designed. **LM5 is next** (the pure layer), then LM6.
+- 2026-09-15 — **LM5 built: `packages/shared/src/livemap.ts`, and its thresholds are measured rather
+  than chosen.** `deriveVehicleState`, `positionAgeSeconds`, `lerp`, `lerpAngle`, `lerpPosition`.
+  Pure, `now` is always a parameter.
+
+  **The thresholds came off production, an hour after LM4's first tick, not off a preference.** 171
+  active trucks: speed was exactly 0 for 120, between 0 and 3 mph for 9, between 3 and 5 for **one**,
+  and ≥5 mph for 41 — so `STOPPED_SPEED_MPH = 3` sits in a GAP rather than through a cluster. Age was
+  ≤30 s for 60, ≤5 min for 140, ≤15 min for 142, beyond for 29 — **bimodal, with only two trucks
+  anywhere between 5 and 15 minutes**, which is what makes `OFFLINE_BOUND_SECONDS = 900` robust
+  instead of tuned. It is also the same 15 minutes the feed's own staleness bound uses, so a
+  dispatcher and the freshness card cannot call one outage by two names.
+
+  **How `stopped` is told from `parked` with no history at all.** `vehicle_positions` holds one row
+  per truck, so nothing here can read a series — and it does not need to. The vendor's PING RATE is
+  the signal: Samsara pings every ≤5 s while a vehicle is on and drops to ~one every 5 minutes when it
+  is off (D-LM9b), so the AGE of the newest fix says which regime the truck is in. A truck at 0 mph
+  heard from seconds ago is at a dock with the engine running; one heard from four minutes ago has
+  been switched off. `ENGINE_ON_BOUND_SECONDS = 30` is twice D-LM9b's 15-second stack, so one missed
+  tick does not flip a truck at a dock to `parked`.
+
+  **Verified against the real fleet, at the DATABASE's clock.** All four states are reachable:
+  45 moving, 14 stopped, 87 parked, 53 offline across 199 trucks (43/14/85/29 over the 171 active).
+  ⚠ The first run of that check said **zero `stopped`** — an artefact of measuring a minutes-old
+  snapshot against wall-clock `now`, which aged every truck past the 30-second bound. Re-run against
+  `now()` as the export saw it, `stopped` is 14 and matches an independent SQL count of 13 taken
+  minutes earlier. Recorded because a state nothing ever produces is dead code that looks like a
+  feature, and the first measurement would have said exactly that.
+
+  **`STOPPED_SPEED_MPH` was promoted out of `matchFuelingMoment`**, which had carried it as a bare
+  `?? 3` since the fuel matcher was written. Same judgement about the same fleet; two copies would
+  have drifted the first time either was tuned.
+
+  **Ten mutants run; nine caught.** ⚠ The survivor is recorded in place rather than hidden: deleting
+  the `Number.isFinite` guard in `deriveVehicleState` changes nothing, because `NaN > 3` is already
+  false. The guard is kept as documentation — and because it stops being redundant the moment somebody
+  rewrites the branch as `speed <= stoppedSpeed` — and both the function and its test now say so, so
+  no reader mistakes it for the thing that handles a missing speed.
+
+  **Two limits stated rather than discovered.** `lerpAngle` resolves an exact 180° opposition
+  counter-clockwise; either answer is equally right, so the tie is pinned by a test only to stop it
+  changing silently. `lerpPosition` does NOT handle the antimeridian — a road fleet cannot cross it,
+  and a branch no test could exercise against anything real is worse than a stated gap. Note this is
+  the opposite question from 0341's, which refused to encode a hemisphere in the SCHEMA: a schema must
+  admit any legal coordinate, while an animation may say where it stops being right.
+
+  **LM6 is next** — `GET /api/livemap/positions`, gated `dispatch:view`. ⚠ It must be correct with
+  **zero loads**, which is still production's state, and its `mine` scope stays unreachable until the
+  McLeod grant lands (D-LM18 ships the board fleet-wide).
