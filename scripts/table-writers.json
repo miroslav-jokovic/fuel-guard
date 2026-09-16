@@ -462,6 +462,9 @@
     "apps/api/src/modules/org/inviteRedemption.ts",
     "apps/api/src/modules/org/routes/members.ts"
   ],
+  "user_dashboard_layout": [
+    "apps/api/src/modules/org/routes/dashboardLayout.ts"
+  ],
   "user_section_access": [
     "apps/api/src/modules/org/routes/sectionAccess.ts"
   ],

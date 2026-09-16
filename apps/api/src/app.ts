@@ -3,11 +3,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express, { type Express, type Request, type Response, type NextFunction, type RequestHandler } from "express";
 import cors from "cors";
-import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import * as Sentry from "@sentry/node";
 import { APP_NAME, type UserRole, type SurfaceClaim } from "@silvicom/shared";
 import type { Env } from "./env.js";
+import { securityMiddleware, mountBodyParsers } from "./appHttp.js";
 import { setAppLocals } from "./lib/appLocals.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { apiError, asyncHandler } from "./lib/http.js";
@@ -19,7 +19,7 @@ import { registerAllHandlers } from "./queue/handlers/index.js";
 import { invitesRouter, publicInvitesRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
-import { savedViewsRouter } from "./modules/org/index.js";
+import { dashboardLayoutRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
 import { anomaliesRouter } from "./modules/anomalies/index.js";
 import { reportsRouter, aiRouter } from "./modules/insights/index.js";
@@ -71,38 +71,6 @@ import { authStepUpRouter } from "./routes/authStepUp.js";
 import { versionRouter } from "./routes/version.js";
 
 /**
- * CSP tuned for the single-service deploy where this server also serves the SPA: the browser talks
- * directly to Supabase (REST + realtime websockets + storage images), so those origins must be
- * allowed in connect/img. Harmless for API-only responses (JSON carries no CSP-restricted content).
- */
-function securityMiddleware(env: Env) {
-  const apiConnectSrc = env.VITE_API_URL ? [env.VITE_API_URL] : [];
-  return helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        // maplibre-gl runs its tile decoder in a Worker created from a blob: URL.
-        workerSrc: ["'self'", "blob:"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
-        connectSrc: [
-          "'self'",
-          ...apiConnectSrc,
-          "https://*.supabase.co",
-          "wss://*.supabase.co",
-          "https://*.sentry.io",
-        ],
-        fontSrc: ["'self'", "data:"],
-        objectSrc: ["'none'"],
-        baseUri: ["'self'"],
-        frameAncestors: ["'self'"],
-      },
-    },
-  });
-}
-
-/**
  * Everything that guards `/api/fuel-cards`, before the routers on that prefix run.
  *
  * ── Step 5.10: the web host stops pretending it can reach EFS ───────────────────────────────────
@@ -138,45 +106,6 @@ function mountFuelCardPrefix(app: Express, env: Env, vendorLimiter: RequestHandl
     return;
   }
   app.use("/api/fuel-cards", requireAuth, vendorLimiter);
-}
-
-/**
- * Build the Express app. Factory with no side effects so tests can construct it freely and inject
- * app.locals.verifyToken to bypass real JWKS verification.
- */
-/**
- * The three body parsers, in the order they have to be mounted.
- *
- * Extracted from `createApp` when A11b's form parser took it past the 200-line function budget —
- * `mountPublic` below is the same move for the same reason. Order is the whole content of this
- * function: `express.json` skips a body something earlier already parsed, so each narrow parser has
- * to come before the general one, and the general one has to keep the raw bytes for signature checks.
- */
-function mountBodyParsers(app: Express): void {
-  // Browser report upload (P0-1): a month of EFS rows as JSON can exceed the general 1mb cap — give
-  // ONLY this route a bigger parser (mounted first; express.json skips bodies already parsed).
-  app.use("/api/transactions/import-report", express.json({ limit: "25mb" }));
-  app.use("/api/transactions/import-preview", express.json({ limit: "25mb" }));
-  // A weekly Pilot statement is ~30k positioned words plus the source PDF (~370 KB → ~500 KB base64),
-  // which the 1 MB default below rejects. Same exception, same reason, as the import report above.
-  app.use("/api/fueling/statements", express.json({ limit: "25mb" }));
-
-  // ⚠ The `express.urlencoded` mount that used to sit here was for Twilio, which posts
-  // `application/x-www-form-urlencoded`. Telnyx posts JSON and signs the RAW BYTES, so the parser
-  // below is now the only one inbound SMS needs — and the urlencoded mount had to go rather than be
-  // left harmless, because it would have consumed the stream ahead of the `verify` hook and left
-  // `rawBody` undefined for a form-encoded request, which the route reads as unverifiable (A11b).
-
-  // Capture the exact raw body so provider webhooks (Samsara HMAC, Telnyx Ed25519) can be verified
-  // byte-for-byte against what was actually sent.
-  app.use(
-    express.json({
-      limit: "1mb",
-      verify: (req, _res, buf) => {
-        (req as unknown as { rawBody?: Buffer }).rawBody = buf;
-      },
-    }),
-  );
 }
 
 /**
@@ -252,6 +181,9 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/surface-access", surfaceAccessRouter());
   // A bookmark belonging to the caller — no role gate; see the router's header.
   app.use("/api/saved-views", savedViewsRouter());
+  // The caller's own Dashboard arrangement (LM10, D-DW3). A preference, not a permission, so it sits
+  // beside saved views rather than beside the two access routers above: no role gate, no audit row.
+  app.use("/api/dashboard-layout", dashboardLayoutRouter());
   app.use("/api/auth", authRouter()); // PUBLIC driver-login exchange (its own throttles + uniform errors)
   // Step-up password re-verification (audit P0-4). Behind requireAuth internally; shares the
   // /api/auth strictLimiter above, which is the right budget for a password oracle.
@@ -310,6 +242,10 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 }
 
+/**
+ * Build the Express app. Factory with no side effects so tests can construct it freely and inject
+ * app.locals.verifyToken to bypass real JWKS verification.
+ */
 export function createApp(env: Env): Express {
   const app = express();
   setAppLocals(app, { env });

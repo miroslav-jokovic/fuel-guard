@@ -38,6 +38,20 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   // the table for PostgREST. A section gate here would invent a capability nobody needs: a recruiter
   // who may read the roster may certainly name a view of it.
   ["/api/saved-views", "a bookmark belonging to the caller — grants nothing and reveals nothing; isolated by org_id + user_id on every query and by 0278's RLS"],
+  // LM10, and the argument is the saved-views argument one step stronger. A dashboard layout is a
+  // list of widget KEYS belonging to the caller. It grants nothing by construction, not merely by
+  // intention: `resolveDashboardLayout` is never handed the catalogue, only the widgets this
+  // caller's gates already admitted, so a stored key naming a widget they may not see renders
+  // nothing at all (pinned by "drops a stored key the caller's gates do not admit, and does not let
+  // it hide anything" in dashboardLayoutContract.test.ts). It reveals nothing either: a key is a
+  // name in a catalogue every browser downloads in the web bundle.
+  //
+  // What isolates the rows is that every query filters on BOTH org_id and user_id (asserted in
+  // dashboardLayout.test.ts, "returns the caller's own row, scoped by both org and user"), plus
+  // 0343's own-row RLS policy for PostgREST — which is TIGHTER than 0278's, because an arrangement
+  // is nobody else's business. A section gate here would invent a capability nobody needs: whichever
+  // widgets a caller may see, they may certainly decide which of them to look at.
+  ["/api/dashboard-layout", "the caller's own Dashboard arrangement — a list of widget keys that grants nothing (the resolver never sees the catalogue) and reveals nothing; isolated by org_id + user_id on every query and by 0343's own-row RLS"],
 ]);
 
 /**
