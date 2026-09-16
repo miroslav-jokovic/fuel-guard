@@ -66,6 +66,18 @@ const props = withDefaults(
      */
     spark?: (number | null)[];
     sparkColor?: string;
+    /**
+     * Put the sparkline beside the value instead of under the whole tile (D-DR2, `size="hero"` only).
+     *
+     * ⚠ Opt-in rather than the hero default, and the reason is the caption. Comp (3)'s tile pairs an
+     * inline spark with a SHORT caption — "Aug 17 – Sep 16", "97% of fuel measured" — and gives the
+     * text column about half the tile. `FleetHeadlines` is the other hero caller and its captions are
+     * deliberately sentences ("−47.7% vs June $123,456", D-FRUI3, written long because that page's
+     * reader is a non-native speaker). Halving that column wraps them into ragged columns, which is
+     * the thing D-FRUI3's own comment says it fixed. So the dashboard's glance tiles opt in and the
+     * report's headlines do not, rather than one layout being forced to serve both.
+     */
+    sparkInline?: boolean;
     loading?: boolean;
     /** When set, the whole tile is a link — an interactive drill-down into the detail page. */
     to?: string;
@@ -111,6 +123,7 @@ const props = withDefaults(
     tone: undefined,
     spark: undefined,
     sparkColor: undefined,
+    sparkInline: false,
     subTone: undefined,
     to: undefined,
   },
@@ -121,15 +134,37 @@ const emit = defineEmits<{ toggle: [] }>();
 const isToggle = computed(() => props.pressed !== undefined);
 const hero = computed(() => props.size === "hero");
 
+/**
+ * The hero chip: bigger than the KPI one and leading from the left (D-DR2, comp (3)).
+ *
+ * `rounded-surface` rather than a hand-picked radius, so it tracks the shape scale DR1 doubled
+ * instead of freezing at whatever looked right the day it was written.
+ */
+const chipClass = computed(() => [
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-surface",
+  props.tone,
+]);
+
+/** Inline only when there is a spark to put there, and only in the hero anatomy. */
+const inlineSpark = computed(() => hero.value && props.sparkInline && Boolean(props.spark));
+
 const labelClass = computed(() =>
   hero.value
     ? "truncate text-sm font-medium text-ink-muted"
     : "text-xs font-medium uppercase tracking-wide text-ink-muted",
 );
-/** §2.4's KPI value, or §2.2's sanctioned StatCard `text-3xl`. */
+/**
+ * §2.4's KPI value, or §2.2's sanctioned StatCard `text-3xl`.
+ *
+ * ⚠ The hero value went `font-semibold` → `font-bold` at D-DR2. That is not a drift away from the
+ * contract but a correction TOWARD it: §2.3 says in as many words that `font-bold` is reserved for
+ * KPI numbers and headings are `font-semibold`, and this is a KPI number that had been wearing the
+ * heading's weight. Comp (3) draws it bold too, so the comp and the contract agreed with each other
+ * against the code.
+ */
 const valueClass = computed(() =>
   hero.value
-    ? "mt-1.5 text-3xl font-semibold tracking-tight"
+    ? "mt-1.5 text-3xl font-bold tracking-tight"
     : "mt-1 text-2xl font-bold",
 );
 </script>
@@ -157,8 +192,19 @@ const valueClass = computed(() =>
       ]"
       @click="isToggle ? emit('toggle') : undefined"
     >
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
+      <div :class="hero ? 'flex items-start gap-4' : 'flex items-start justify-between gap-3'">
+        <!-- D-DR2: the hero chip leads the tile from the left and is bigger; the KPI chip keeps its
+             place on the right. Two elements rather than one with a reordering class, because the
+             KPI anatomy is what fourteen surfaces render and the cheapest way to keep it
+             byte-identical is to not touch its branch at all. Both sides are pinned by
+             StatCard.test.ts's "leads with the icon chip in hero and trails with it in kpi", and the
+             KPI classes themselves by "renders the contract's KPI row by default". -->
+        <span v-if="icon && hero" :class="chipClass" aria-hidden="true">
+          <AppIcon :icon="icon" class="size-6" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <div :class="inlineSpark ? 'flex items-start justify-between gap-4' : ''">
+            <div class="min-w-0">
           <p :class="labelClass">{{ label }}</p>
           <template v-if="loading">
             <div class="mt-2.5 h-8 w-24 animate-pulse rounded-control bg-surface-muted" />
@@ -176,17 +222,31 @@ const valueClass = computed(() =>
               <slot name="sub">{{ sub }}</slot>
               <span v-if="to" class="text-brand-500 opacity-0 transition group-hover:opacity-100">&rarr;</span>
             </p>
+            <!-- A delta belongs under the value and above the caption: the caption is what the
+                 delta is measured AGAINST ("vs previous 30 days"), so reading downward gives the
+                 figure, its movement, then its anchor. D-DR4 keeps it a slot rather than a prop —
+                 only the caller knows whether up is good news. -->
+            <div v-if="$slots.delta" class="mt-2">
+              <slot name="delta" />
+            </div>
           </template>
+            </div>
+            <!-- Vertically centred against the value, not the tile: the caption sits below and a
+                 spark centred on the whole tile floats visibly low beside it. -->
+            <div v-if="inlineSpark && !loading" class="w-2/5 shrink-0 self-center">
+              <SparkLine :points="spark!" :color="sparkColor ?? 'currentColor'" />
+            </div>
+          </div>
         </div>
         <span
-          v-if="icon"
+          v-if="icon && !hero"
           :class="['inline-flex size-9 shrink-0 items-center justify-center rounded-surface', tone]"
           aria-hidden="true"
         >
           <AppIcon :icon="icon" class="size-5" />
         </span>
       </div>
-      <div v-if="spark && !loading" class="mt-3">
+      <div v-if="spark && !loading && !inlineSpark" class="mt-3">
         <SparkLine :points="spark" :color="sparkColor ?? 'currentColor'" />
       </div>
     </BaseCard>

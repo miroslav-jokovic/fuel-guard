@@ -105,8 +105,15 @@ because **comp (3)'s KPI tile is a different anatomy**, not a differently-colour
 
 The good news, and the reason the owner's "we can do this relatively easily" instinct was right:
 `StatCard.vue` already carries `icon`, `tone`, `spark`, `sparkColor` and `subTone`. The sparklines
-are absent from our screenshots only because dev-bypass data is all zeros. What is missing is the
-delta **pill** and the horizontal arrangement — one file, five consumers.
+are absent from our screenshots only because dev-bypass data is all zeros, and `SparkLine.vue`
+already draws the gradient area fill and the terminal dot the comp shows — that part of the comp is
+**positional only**. What is missing is the delta **pill** and the horizontal arrangement.
+
+⚠ **Correction, 2026-09-16 — "one file, five consumers" was wrong. `StatCard` has 17.** Counted:
+`size="hero"` is used by exactly **two** (`KpiHeroWidget`, `FleetHeadlines`) and the default
+`size="kpi"` by **fourteen**. That is what makes DR2 safe: the comp's anatomy is the *hero* anatomy,
+so changing it touches two surfaces, and the fourteen are not in the blast radius at all. Had the
+count gone the other way this step would have needed a different shape.
 
 ---
 
@@ -118,12 +125,37 @@ browser — DR1 exists because a unit test cannot see a radius.
 | # | step | scope | gate risk |
 |---|---|---|---|
 | **DR1** | Tokens: brand hue, shape scale, card elevation, sidebar lift | `packages/tokens/src/*.json` + regen | `lint:token-gamut`, `lint:tokens-parity`, `lint:token-schema`, `lint:codegen` |
-| **DR2** | `StatCard` anatomy + a delta pill in `lib/badges.ts` | 1 component, 5 consumers | `lint:ui-adoption` (a pill is not a badge — see below) |
+| **DR2** | `StatCard` hero anatomy — chip left, bold value, optional inline spark | 1 component, 2 hero consumers | `lint:comment-claims`, `lint:ui-adoption` |
+| **DR2b** | The delta pill, **and the previous-period data it needs** | `useDashboard` + a new primitive | performance — see below |
 | **DR3** | Chart theme: gradient area fills, rounded bars, softer grid | `features/dashboard/chartTheme.ts` | `lint:chart-colors` |
 | **DR4** | Dashboard hero band + greeting; top-bar ⌘K search | `AppShell`, `DashboardPage` | `lint:filesize` |
 | **DR5** | **Live map → full-bleed workspace** (§4) | `LiveMapPage`, `LiveMapPanel`, `AppShell` | accessibility, `lint:funcsize` |
 | **DR6** | Imagery: hero plates via Higgsfield (§5) | `apps/web/public/` | none |
 | **DR7** | Roll the DR1–DR3 anatomy across the other pages | broad | `lint:ui-adoption` |
+
+**D-DR12 — the delta pill is split out as DR2b, because the data it displays does not exist.**
+Discovered while building it, 2026-09-16. Every KPI tile in comp (3) carries a delta — `↓ 6.4%`,
+`↑ 2.1%` — and **the dashboard has no period comparison of any kind**: `useDashboard` runs eight
+range-scoped queries and never fetches a previous window, and `fleetWidgetData.ts` has no
+`previous`/`prior`/`delta` anywhere. Shipping a pill against invented or blank values is the same
+mistake as D-DR7's always-empty ETA field, so the pill waits for the data rather than the data
+waiting for the pill.
+
+Two things make DR2b more than plumbing, and they are why it is not folded back into DR2:
+
+- **Cost.** A previous-period delta means running that eight-query composite a second time, per
+  range change. Whether that is one more round trip or a server-side aggregate is DR2b's first
+  decision, not an afterthought.
+- **"Active alerts" cannot have one at all.** `useDashboard`'s own comment says the alert figures
+  are CURRENT-STATE, not range-scoped. A delta on that tile is not a missing feature, it is a
+  category error — comp (3) draws one anyway, which is the clearest single proof that these comps
+  are illustrations (§0).
+
+`FleetHeadlines` is the only surface today holding real change data (`lib/periodChange.ts`,
+`percentChange`/`changeTone`), and it is deliberately **not** being converted: its captions are
+sentences — "−47.7% vs June $123,456", plus honest fallbacks for a quarter or a missing month —
+written long at D-FRUI3 because that page's reader is a non-native speaker. Flattening those into a
+terse chip would throw away the work, not finish it.
 
 **D-DR4 — the delta pill is NOT a badge.** `lib/badges.ts` is the STATUS vocabulary and D-UI5
 already ruled that a badge used as something other than a status teaches the badge to mean two
@@ -286,3 +318,18 @@ conflict every time (`plan-progress-log-not-table-rows`).
   parameter, so a **dark** map is a one-line change. *Satellite* is a different resource and stays
   Q-DR2. Also confirmed the live-map page is currently a vertical document (`AppCallout` →
   `FilterBar` → map in a `BaseCard` → `DataTable` → drawer), which is what D-DR5 replaces.
+- **2026-09-16 — DR2 SHIPPED (hero anatomy).** Chip leads from the left at `size-11`, hero value
+  `font-semibold` → `font-bold`, and a `spark-inline` opt-in that puts the sparkline beside the
+  number. The dashboard's four glance tiles opt in; `FleetHeadlines` does not, because its captions
+  are sentences and a halved column wraps them — that difference is now asserted rather than left to
+  the next person editing the template. Corrected a wrong number in §2 while building: `StatCard`
+  has **17** consumers, not five, but only **two** use `size="hero"`, which is what kept the blast
+  radius to two surfaces. Two new tests, both **proved by mutation** — forcing `inlineSpark` false
+  and moving the hero chip to the right each fail exactly one assertion. `lint:comment-claims`
+  caught a "pinned by" claim that named a test file without quoting a scenario, which is the gate
+  doing precisely its job. 1,807 tests pass; rendered and looked at.
+- **2026-09-16 — DR2b OPENED, not deferred quietly (D-DR12).** The delta pill was built and then
+  held back: the dashboard has no previous-period data at all, and "Active alerts" is current-state
+  so it cannot have a delta even in principle. Shipping a component with no honest values would have
+  been the workaround. The drafted `DeltaPill.vue` and its `changePillTone`/`changeArrow` helpers
+  are ready to land with the query that feeds them.

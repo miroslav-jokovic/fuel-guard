@@ -63,6 +63,20 @@ const stats = computed(() => applyMoneyGate(statsRaw.value, canSeeMoney.value));
 
 <template>
   <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    <StatCard v-for="stat in stats" :key="stat.label" v-bind="stat" size="hero" :loading="isLoading" />
+    <!--
+      `spark-inline` is the glance anatomy (D-DR2): the chip leads from the left and the sparkline
+      sits beside the number rather than under the tile. It is opt-in per caller rather than the
+      hero default because the other hero caller, `FleetHeadlines`, writes captions as sentences
+      (D-FRUI3) that a halved text column would wrap into ragged columns. These four captions are
+      short — "Aug 17 – Sep 16", "97% of fuel measured" — which is the case the layout is for.
+    -->
+    <StatCard
+      v-for="stat in stats"
+      :key="stat.label"
+      v-bind="stat"
+      size="hero"
+      spark-inline
+      :loading="isLoading"
+    />
   </dl>
 </template>
