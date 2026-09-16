@@ -19,7 +19,11 @@ status board. Where it names a position, `git log` and the plan's §7 outrank it
 | **DR2** | `StatCard` hero anatomy — chip left at `size-10`, `font-bold` value, opt-in inline spark | #819 | `f7b6ad2` |
 | **DR4** | Section chevron moved right; dashboard greeting + hero band; actions moved to top of band | #820 | `c8fd02d` |
 | **D-DR17** | Inline spark wraps instead of squeezing the label (fixes a DR2 regression) | #821 | `6104de9` |
-| **DR5** | Live map → full-bleed workspace: `meta.fullBleed`, floating panels, fleet dock | *see `git log`* | *see `git log`* |
+| **DR5** | Live map → full-bleed workspace: `meta.fullBleed`, floating panels, fleet dock | #823 | `96efd06` |
+| **DR3** | Fuel spend becomes bars; MPG gains its terminal dot; the washes halved | #824 | `7e7842c` |
+| **DR7a** | Operating-metrics strip: the chip it always carried, a grid its captions fit in | #826 | `5512601` |
+| **D-DR8** | The live map's basemap follows the reader's colour scheme | #827 | `2a00371` |
+| **DR7b** | `RiskList` takes `ChartCard`'s header — the dashboard's last hand-rolled panel | #828 | *see `git log`* |
 
 Everything above is merged, gate-green, and was looked at in a browser. The visible result: violet
 brand, 12px card radii, shadow-defined cards, a near-white rail, a greeting over a photograph, and
@@ -29,17 +33,51 @@ KPI tiles that lead with their icon.
 
 ## 2. What is next
 
-**DR5 is built** — the live map is a full-bleed workspace. Read the plan's §7 entry for it before
-touching any of it; D-DR6 turned out to be wrong a SECOND time (the panels cannot use
-`user_dashboard_layout` at all — `PUT /api/dashboard-layout` refuses a key outside
-`DASHBOARD_WIDGETS`) and §4.1 now carries both corrections.
+**DR7 was measured and it is NOT ~60 pages of work** — the plan's §3 row sizes it by the wrong unit.
+83 route records → **77 page components**, of which **67 already render `PageHeader`** and the other
+ten are each already gate-exempt for a reason that survives this programme. DR1 is tokens, so it
+reached all 77 the moment #818 merged. What is left is four specific things touching ~12 pages, and
+the full measurement is in the plan's §7.
 
-Queued, each its own step: **DR2b** (delta pill + the previous-period query it needs — the dashboard
-has NO period comparison today), **DR3** (chart gradients), **DR4b** (global ⌘K search — a feature;
-no palette, component or endpoint exists), **DR7** (roll the anatomy across other pages),
-**`OperatingMetricsWidget`'s 1280px truncation** (genuinely pre-existing, eight-up grid), **D-DR8's
-dark basemap** (an API change — the HERE style is hardcoded in `mapProxies.ts`), and DR5's own three
-follow-ups at the end of §7.
+**The owner narrowed DR7 to the Dashboard and the Dispatch live map on 2026-09-16, and both are now
+finished.** The dashboard has no hand-rolled tile or panel chrome left, and the live map's one
+remaining DR item (D-DR8) shipped. **Q-DR1 is RULED: the driver app takes no change** — so
+`apps/driver/src/theme/theme.roles.json` stays where it is, and a later step that rotates it is
+changing identity and should say so rather than treating it as a leftover.
+
+Queued, each its own step, in rough order of value:
+
+- **DR7e — the two MPG detail charts are outside the chart theme's OPTIONS layer entirely.**
+  `DriverDetailPage` and `VehicleDetailPage` take `viz.brand` and `areaFill`, so DR3's wash
+  recalibration reached them for free, but they build `options: { responsive, maintainAspectRatio }`
+  and get no `trendOptions`: no themed gridline, no tick font, no inverse-surface tooltip,
+  `pointRadius: 0` and no terminal dot. **This is DR3's one real miss**, and the only item in the
+  DR7 group with a visible payoff rather than a de-duplication.
+- **DR7d — `ChartCard` is trapped in `features/dashboard/`**; the three charts outside that feature
+  each hand-roll its header. ⚠ It is also MISNAMED — what it owns is "a titled panel on the
+  dashboard grid", not "a chart" (DR7b, §7). Do not read the name as a reason to write a fifth header.
+- **DR7c — the KPI tile still has three sources of truth outside the dashboard.** `StatCard` (38 call
+  sites, only two files using `size="hero"`), `features/fueling/FuelStatTile.vue` (a near-copy with
+  one consumer) and **19 files hand-rolling ~47 `<dl>` tiles**. ⚠ Most already match `StatCard`'s
+  `kpi` anatomy by coincidence, so this is de-dup and **not** a visible change — do not budget it as
+  a redesign.
+- **DR7f — `StatCard` has no `valueTone`.** `CoveragePage` and `IdlingPage` colour the VALUE by
+  threshold and `tone`/`subTone`/`muted` cannot express it, so neither can convert without the
+  variant. DR5's `DataTable fill` reasoning: the `:class` at the call site is the sign.
+- **`RouteMapGL` (Fuel Planning) does not follow the colour scheme.** One line and the same
+  `basemapStyleFor` call D-DR8 added — left out of #827 on purpose as a second consumer.
+- **DR5's three follow-ups**, at the end of the plan's §7: `useTableColumns` onto `useDeviationSet`;
+  the 28px of scroll a banner costs a full-bleed page; Fuel Planning as `fullBleed`'s second consumer.
+- **DR2b — the delta pill.** ⚠ Still blocked on DATA, not design: `useDashboard` runs eight
+  range-scoped queries and never fetches a previous window, and "Active alerts" is current-state so it
+  cannot have a delta even in principle. `DeltaPill.vue` and its helpers are drafted and waiting.
+- **DR4b — the global ⌘K search.** A feature, not a style: no command palette, no global search
+  component and no search endpoint anywhere in `apps/web`.
+- **Q-DR2 — is `satellite.day` in our HERE plan?** Still open, and now the ONLY basemap question:
+  `explore.night` was confirmed by fetching a real tile (200, genuinely dark) while building D-DR8.
+- **Q-DR4 — should the operating-metrics strip stay a strip?** Raised by DR7a. It is the one dashboard
+  surface that is not a card, which is either the point of it or the last thing left to convert.
+
 
 ---
 
