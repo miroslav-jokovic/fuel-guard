@@ -37,10 +37,13 @@
     },
     "surface-navigation": {
       "$type": "color",
-      "$value": "oklch(95.6% 0.0027 286.3)",
+      "$value": "oklch(98.4% 0.0045 286.3)",
       "$description": "OMNIA's low-emphasis region #F0F0F2 — persistent app navigation",
       "$extensions": {
-        "silvicom.expose": "color"
+        "silvicom.expose": "color",
+        "silvicom.section": [
+          "D-DR3 (DESIGN-REFRESH-2026-09.md): the rail sits ABOVE the canvas, not below it. It was 95.6% against a 97.6% canvas — a darker rail beside a lighter page — and every one of the 2026-09-15 comps draws it the other way round, measured at #f8fafd = 98.4%. A rail that is darker than the page reads as a permanently-selected region; a rail that is lighter reads as chrome the page floats past."
+        ]
       }
     },
     "surface-inverse": {
@@ -172,9 +175,10 @@
     },
     "elevation-card": {
       "$type": "dimension",
-      "$value": "0 1px 2px var(--shadow-tint-1)",
+      "$value": "0 1px 2px var(--shadow-tint-1), 0 4px 12px var(--shadow-tint-1)",
       "$extensions": {
         "silvicom.section": [
+          "D-DR2: a card's edge is its SHADOW, not a drawn line. `0 1px 2px` at 5% ink is invisible at arm's length, which left `ring-edge-subtle` doing all the work and made every card read as outlined rather than lifted. The second, wider layer is what the comps use to separate a white card from a near-white canvas without a line. The ring stays — it is the fallback under `prefers-contrast: more`, where shadows carry nothing.",
           "elevation — shadows carry depth so cards and overlays do not need dark perimeters"
         ],
         "silvicom.expose": "shadow"
@@ -237,14 +241,14 @@
     },
     "action-primary": {
       "$type": "color",
-      "$value": "oklch(55.2% 0.224 264.2)",
+      "$value": "oklch(55.2% 0.224 285.2)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "action-primary-hover": {
       "$type": "color",
-      "$value": "oklch(48.8% 0.217 264.4)",
+      "$value": "oklch(48.8% 0.217 285.4)",
       "$extensions": {
         "silvicom.expose": "color"
       }
@@ -258,35 +262,35 @@
     },
     "link": {
       "$type": "color",
-      "$value": "oklch(48.8% 0.217 264.4)",
+      "$value": "oklch(48.8% 0.217 285.4)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "link-hover": {
       "$type": "color",
-      "$value": "oklch(42.4% 0.18 265)",
+      "$value": "oklch(42.4% 0.18 286.0)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "focus-ring": {
       "$type": "color",
-      "$value": "oklch(55.2% 0.224 264.2)",
+      "$value": "oklch(55.2% 0.224 285.2)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "selected-surface": {
       "$type": "color",
-      "$value": "oklch(93.5% 0.0312 258)",
+      "$value": "oklch(93.5% 0.0312 279.0)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "selected-strong": {
       "$type": "color",
-      "$value": "oklch(55.2% 0.224 264.2)",
+      "$value": "oklch(55.2% 0.224 285.2)",
       "$extensions": {
         "silvicom.expose": "color"
       }
@@ -324,9 +328,10 @@
     },
     "shape-detail": {
       "$type": "dimension",
-      "$value": "0.1875rem",
+      "$value": "0.375rem",
       "$extensions": {
         "silvicom.section": [
+          "── shape scale, doubled (D-DR2, 2026-09-16) ──────────────────────────────────────────────────\nMeasured off the comps at 10x rather than estimated: a KPI card corner arcs over ~10-12px where ours arced over 6. The whole scale moves together and not just `shape-surface`, because a 12px card holding 4px buttons looks like a bug rather than a decision — the ladder was 3/4/6/8/10 and is now 6/8/12/14/16. Anything that needs a corner smaller than `shape-detail` is asking for a square.",
           "semantic geometry and density"
         ],
         "silvicom.expose": "radius"
@@ -334,28 +339,28 @@
     },
     "shape-control": {
       "$type": "dimension",
-      "$value": "0.25rem",
+      "$value": "0.5rem",
       "$extensions": {
         "silvicom.expose": "radius"
       }
     },
     "shape-surface": {
       "$type": "dimension",
-      "$value": "0.375rem",
+      "$value": "0.75rem",
       "$extensions": {
         "silvicom.expose": "radius"
       }
     },
     "shape-overlay": {
       "$type": "dimension",
-      "$value": "0.5rem",
+      "$value": "0.875rem",
       "$extensions": {
         "silvicom.expose": "radius"
       }
     },
     "shape-dialog": {
       "$type": "dimension",
-      "$value": "0.625rem",
+      "$value": "1rem",
       "$extensions": {
         "silvicom.expose": "radius"
       }

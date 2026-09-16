@@ -86,11 +86,11 @@
     },
     "action-primary": {
       "$type": "color",
-      "$value": "oklch(62% 0.19 264.2)"
+      "$value": "oklch(62.0% 0.19 285.2)"
     },
     "action-primary-hover": {
       "$type": "color",
-      "$value": "oklch(70% 0.1561 264.4)"
+      "$value": "oklch(70.0% 0.1561 285.4)"
     },
     "action-primary-foreground": {
       "$type": "color",
@@ -98,23 +98,23 @@
     },
     "link": {
       "$type": "color",
-      "$value": "oklch(74% 0.1332 264.4)"
+      "$value": "oklch(74.0% 0.1332 285.4)"
     },
     "link-hover": {
       "$type": "color",
-      "$value": "oklch(82% 0.0893 265)"
+      "$value": "oklch(82.0% 0.0893 286.0)"
     },
     "focus-ring": {
       "$type": "color",
-      "$value": "oklch(72% 0.1446 264.2)"
+      "$value": "oklch(72.0% 0.1446 285.2)"
     },
     "selected-surface": {
       "$type": "color",
-      "$value": "oklch(33.5% 0.045 258)"
+      "$value": "oklch(33.5% 0.045 279.0)"
     },
     "selected-strong": {
       "$type": "color",
-      "$value": "oklch(68% 0.1678 264.2)"
+      "$value": "oklch(68.0% 0.1678 285.2)"
     },
     "danger-solid": {
       "$type": "color",

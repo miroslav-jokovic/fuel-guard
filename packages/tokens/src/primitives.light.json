@@ -5,7 +5,7 @@
       "$value": "oklch(98.7% 0.002 258)",
       "$extensions": {
         "silvicom.section": [
-          "\u2500\u2500 1. Primitive ramps (Tailwind v4 values \u2014 do not use directly) \u2500\u2500",
+          "── 1. Primitive ramps (Tailwind v4 values — do not use directly) ──",
           "neutral = gray"
         ],
         "silvicom.expose": "color"
@@ -79,6 +79,7 @@
       "$value": "oklch(98.7% 0.0061 258)",
       "$extensions": {
         "silvicom.section": [
+          "── brand hue, rotated +21 degrees (D-DR1, 2026-09-16) ────────────────────────────────────────\nThe 2026-09-15 comps were sampled and converted to OKLCH before anything was changed, and the finding was that the ENTIRE colour gap between this product and those comps is one number. Lightness and chroma already matched to within a rounding error (`action-primary` ours 55.2%/0.224 against the comp's 52.1%/0.2295); only the hue differed, 264 against 285. So this is a rotation at constant L and C, which is the reason it is safe: no WCAG pair that passes today can fail afterwards, and `lint:ui-contrast` is what proves it rather than this comment. A second thing falls out of the same measurement — the NEUTRALS here have always sat at hue 286. Brand at 264 was the odd one out, and brand and neutral now share a hue family for the first time.\n\nDeliberately NOT rotated: `viz-cost-reefer` and the rest of the D-FRUI8 cost palette. Those were tuned as a validated SET (lightness band, chroma floor, colour-vision separation, 3:1 on surface) and rotating one member broke it — `lint:chart-colors` caught it the same afternoon. Charts are DR3's business, on purpose.",
           "brand = warm gold identity. Interactive actions use their own graphite role."
         ],
         "silvicom.expose": "color"
@@ -86,56 +87,56 @@
     },
     "ramp-brand-100": {
       "$type": "color",
-      "$value": "oklch(95.7% 0.0205 258)",
+      "$value": "oklch(95.7% 0.0205 279.0)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ramp-brand-200": {
       "$type": "color",
-      "$value": "oklch(90.4% 0.0466 259)",
+      "$value": "oklch(90.4% 0.0466 280.0)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ramp-brand-300": {
       "$type": "color",
-      "$value": "oklch(80.5% 0.098 260)",
+      "$value": "oklch(80.5% 0.098 281.0)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ramp-brand-400": {
       "$type": "color",
-      "$value": "oklch(71.2% 0.1496 262)",
+      "$value": "oklch(71.2% 0.1496 283.0)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ramp-brand-500": {
       "$type": "color",
-      "$value": "oklch(63.7% 0.192 263)",
+      "$value": "oklch(63.7% 0.192 284.0)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ramp-brand-600": {
       "$type": "color",
-      "$value": "oklch(57.5% 0.224 264.2)",
+      "$value": "oklch(57.5% 0.224 285.2)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ramp-brand-700": {
       "$type": "color",
-      "$value": "oklch(49.2% 0.217 264.4)",
+      "$value": "oklch(49.2% 0.217 285.4)",
       "$extensions": {
         "silvicom.expose": "color"
       }
     },
     "ramp-brand-800": {
       "$type": "color",
-      "$value": "oklch(41.2% 0.18 265)",
+      "$value": "oklch(41.2% 0.18 286.0)",
       "$extensions": {
         "silvicom.expose": "color"
       }
@@ -343,7 +344,7 @@
       "$value": "oklch(98.6% 0.0177 90)",
       "$extensions": {
         "silvicom.section": [
-          "warning = muted golden amber \u2014 same hue family as before but far lower chroma, so badges read as calm gold (Radix/Linear-style) instead of neon lemon; stays clearly distinct from caution-orange."
+          "warning = muted golden amber — same hue family as before but far lower chroma, so badges read as calm gold (Radix/Linear-style) instead of neon lemon; stays clearly distinct from caution-orange."
         ],
         "silvicom.expose": "color"
       }
