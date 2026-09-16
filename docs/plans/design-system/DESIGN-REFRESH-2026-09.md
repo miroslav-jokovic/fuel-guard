@@ -609,3 +609,97 @@ conflict every time (`plan-progress-log-not-table-rows`).
   dev-bypass dashboard is all zeros, so the browser check ran behind Playwright route mocks of
   `rest/v1/fuel_transactions` and `/api/fueling/fleet-mpg`. Hover verified: the index tooltip reads
   "Aug 29 · Spend: $13,222" and the hovered bar takes `--viz-spend-hover`.
+
+- **2026-09-16 — DR7 SCOPED, and it is much smaller than "the other ~60 pages".** Measured before
+  proposing anything, because the §3 row ("roll the DR1–DR3 anatomy across the other pages") sizes the
+  step by page count and page count is the wrong unit here. There are **83 route records → 77 distinct
+  page components** in 13 route files. **67 of the 77 already render `PageHeader`**, and the 10 that do
+  not are each already gate-exempt for a reason that survives this programme: five auth/apply screens,
+  four public documents, `CountSessionPage` (its body owns the header, D-INV17) and `ScanPage`. DR1 is
+  tokens, so it reached all 77 the moment #818 merged, and DR4's chevron did too. **What has not rolled
+  out is four specific things touching ~12 pages, not sixty:**
+  1. **The KPI tile has three sources of truth.** `StatCard` (38 call sites over 16 files, but only
+     **two** files use `size="hero"`, so DR2's anatomy has reached exactly two surfaces);
+     `features/fueling/FuelStatTile.vue`, a near-copy with one consumer; and **19 files hand-rolling
+     ~47 `<dl>` tiles**. ⚠ Most of those hand-rolls are already `text-2xl font-bold` under an uppercase
+     `text-xs` label — i.e. they MATCH `StatCard`'s `kpi` anatomy by coincidence, so converting them is
+     de-dup and not a visible change. Said plainly here so a later reader does not budget it as a redesign.
+  2. **`ChartCard` is trapped in `features/dashboard/`** and the three charts outside that feature
+     (`DriverDetailPage`, `VehicleDetailPage`, `FleetTrendChart`) each hand-roll its header.
+  3. **The two MPG detail charts are outside the chart theme's OPTIONS layer entirely** — they take
+     `viz.brand` and `areaFill`, so DR3's wash recalibration reached them for free, but they build
+     `options: { responsive, maintainAspectRatio }` and get no `trendOptions`: no themed gridline, no
+     tick font, no inverse-surface tooltip, and `pointRadius: 0` with no terminal dot. They are the same
+     species of chart as `MpgTrendWidget`, which gained all of that in DR3. **This is DR3's one real miss.**
+  4. **`StatCard` has no `valueTone`.** `CoveragePage` and `IdlingPage` colour the VALUE by threshold
+     (`covTone`), and `tone`/`subTone`/`muted` cannot express it — so those pages cannot convert without
+     the variant. DR5's `DataTable fill` reasoning again: the `:class` at the call site is the sign.
+
+  **Q-DR1 RULED by the owner, 2026-09-16: the driver app takes NO change.** The hue rotation stays
+  web-only. `apps/driver/src/theme/theme.roles.json` is untouched and no gate couples the two, so this
+  is a standing decision rather than a deferral — a later step that rotates it is changing identity and
+  should say so.
+
+  **Scope narrowed by the owner to the Dashboard and the Dispatch live map.** The live map was audited
+  and is CLEAN: DR5 rebuilt it and left no hand-rolled stat tile, no raw `<h3>` and no un-themed chart
+  in any of its seven components. Its remaining DR item is **D-DR8, the dark basemap**, which is an API
+  change with its own deploy window. The dashboard has three gaps —`OperatingMetricsWidget` (below),
+  `RiskList`'s raw `<h3>` header (a fourth copy of `ChartCard`'s), and nothing else: every other widget
+  already goes through `StatCard` or `ChartCard`.
+
+- **2026-09-16 — DR7a SHIPPED (the operating-metrics strip).** The handoff listed this as
+  "`OperatingMetricsWidget`'s 1280px truncation · small and self-contained". The truncation was worse
+  than recorded and the widget had a second defect nobody had named.
+
+  - **`xl:grid-cols-8` never fitted at ANY width it existed at.** Eight columns switch on at 1280px,
+    which is also their worst case: a 116px cell, "Telematics coverage" 27px over and "odometer span in
+    range" 44px over. Widening does not rescue it — 1440px still clipped a label and three captions, and
+    1512px, the widest laptop this is read on, left two short. The handoff had it as a 1280px defect; it
+    was an every-width defect, and only measuring at four widths instead of one showed that.
+  - **The strip is up to TEN tiles, not eight.** Five fuel + two ledger + three trust for a caller who
+    holds `accounting`. Eight columns therefore also left a two-tile orphan row in the common case. The
+    browser check missed this at first because dev-bypass returns no findings summary, so `ledgerTiles`
+    returned `[]` and the strip rendered eight — the count only appeared when the component test mounted
+    it with real data. ⚠ **A dev-bypass render is not the full surface**, and this is the second way that
+    has bitten this programme after the all-zero charts in DR3.
+  - **Every tile carried an `icon` and a `tone` and the template drew NEITHER.** Eight glyphs resolved
+    on every range change and dropped on the floor. `LedgerTile.icon` was typed `unknown`, which is what
+    hid it: `unknown` cannot be handed to `AppIcon`, so drawing one needed a cast, and the absent cast
+    read as a deliberate omission rather than an oversight. Typed as `Icon`, the chip is one `v-if` —
+    and `useFindingsSummary.test.ts` then failed to compile, because it had been standing in the strings
+    `"open-icon"`/`"money-icon"` for a value the strip must be able to render.
+  - **The chip re-created the truncation, and the two numbers that fixed it are the point.** A `size-9`
+    chip plus its gap reserves 48px, so a four-up capped grid — which had measured clean — started
+    clipping at 1024 again. **The four-up cell at a 1024px viewport is 168px; the two-up cell at a 390px
+    viewport is 172px.** Nearly the same tile at viewports 634px apart, so "narrow phone" and "roomy
+    laptop" are the SAME layout problem here and any viewport rule gets one of them backwards. That is
+    **D-DR17's lesson for the third time** in this programme, after `FilterBar` in DR5. The column counts
+    are now derived from a measured tile width — caption 128 + chip 48 + padding 32 = a 208px floor — and
+    the grid may only take a count that leaves one: 1-up to 700px, 3-up at `md`, 4-up at `xl`.
+  - **`sm:grid-cols-3` then clipped at exactly 640px** and nowhere else — a 192px cell, 16px under the
+    floor. The second worst-case-at-its-own-breakpoint in the same widget. Every breakpoint is now
+    checked AT its boundary rather than in the middle of its range; ten widths measured clean after.
+  - **`font-semibold` → `font-bold` on the value**, DESIGN-SYSTEM-CONTRACT.md §2.3 ("`font-bold` is
+    reserved for KPI numbers; headings are `font-semibold`") — the identical correction D-DR2 made to
+    `StatCard`'s hero value, for the identical reason. ⚠ The SIZE deliberately stays `text-lg` rather
+    than following the contract's `text-2xl font-bold` pairing: that pairing describes a KPI row leading
+    a page, and this strip sits under four `text-3xl` hero tiles that are meant to outrank it. The weight
+    was wrong, the scale was not.
+
+  **What DR7a did NOT do, named so it is a decision.** The strip was not bound to `StatCard`, though it
+  would compile — `moneyGate.ts`'s `MoneyGateable` is documented as structurally compatible with it. Doing
+  so renders an elevated card per tile, and ten of those directly beneath `KpiHeroWidget`'s four `text-3xl`
+  tiles is precisely the "competing as hero cards" this widget's own first paragraph exists to prevent.
+  The DR2 anatomy was rolled ONTO the strip instead, each detail derived from `StatCard` rather than
+  restated — the chip's `size-9`/`size-5`/`rounded-surface` and its TRAILING position are copied from that
+  primitive's `size="kpi"` branch, because D-DR2 moved the chip left in the HERO anatomy only.
+  **Q-DR4 — should the strip archetype survive the refresh at all?** It is the one dashboard surface that
+  is not a card, and that is either the point of it or the last thing left to convert. Owner's call, not
+  a question this step should answer quietly in either direction.
+
+  Three new tests, all three **proved by mutation**: deleting the chip span, re-adding `xl:grid-cols-8`,
+  and reverting `font-bold` each fail exactly one assertion — plus a fourth mutation, painting every chip
+  one tone, which fails the tone assertion and is what proves the fixture discriminates rather than
+  passing on a uniform one. 1,850 web tests (1,847 before); nine gates plus the design-token check and
+  both typechecks green; looked at in a browser at 1512, 1440, 1280, 1100, 1024, 900, 800, 768, 700, 640,
+  500 and 390.
