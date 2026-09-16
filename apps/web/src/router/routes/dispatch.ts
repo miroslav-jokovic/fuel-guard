@@ -1,7 +1,16 @@
 import type { RouteRecordRaw } from "vue-router";
 
-/** Assignments and loads, including the `/dispatch/loads` aliases (LD2). */
+/** Assignments, loads and the live map, including the `/dispatch/loads` aliases (LD2). */
 export const dispatchRoutes: RouteRecordRaw[] = [
+  {
+    // LM8. `section("dispatch")` in the catalogue, not `manage` — the API gates
+    // `requireSection("dispatch", "view")` and an auditor holds it, so a stricter surface would hide
+    // a page from somebody the endpoint will happily answer.
+    path: "/live-map",
+    name: "live-map",
+    component: () => import("@/pages/LiveMapPage.vue"),
+    meta: { requiresAuth: true, title: "Live map" },
+  },
   {
     path: "/assignments",
     name: "assignments",

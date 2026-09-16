@@ -36,6 +36,9 @@ const PROBES = [
   "/login", "/placard-calculator", "/apply/tok_123", "/accept-invite", "/pending", "/use-the-app",
   "/",
   "/assignments",
+  // LM8. In `routes/dispatch.ts` beside Loads, and catalogued at `section("dispatch")` — an
+  // auditor reaches it, because the endpoint behind it admits one.
+  "/live-map",
   // The pairs a specificity regression would break first: a static segment must beat a param.
   "/loads", "/loads/new", "/loads/ld_1",
   "/dispatch/loads", "/dispatch/loads/new", "/dispatch/loads/ld_1",

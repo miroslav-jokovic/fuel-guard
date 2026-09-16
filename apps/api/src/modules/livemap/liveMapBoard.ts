@@ -48,6 +48,29 @@ export const FLEET_WIDE_SCOPE_REASON =
   "Showing every truck in the fleet. Per-dispatcher scoping needs the dispatcher on each load from " +
   "McLeod, which this carrier has not granted yet.";
 
+/**
+ * `Q-LM8a` RULED, 2026-09-15 (LM8): a RETIRED truck is not on the dispatcher's board.
+ *
+ * LM6 deliberately left this undecided rather than guess it inside a reader — "should a
+ * decommissioned truck appear on the live map" is a product question, and 28 of the 199 rows
+ * `vehicle_positions` held that day were retired vehicles the collector still hears from. The board
+ * is a dispatcher's answer to "where is my fleet and what is it doing", not an inventory: a truck
+ * that has been sold or scrapped is not work anybody can dispatch, and a seventh of the markers
+ * being un-actionable is how a map stops being read.
+ *
+ * ⚠ THE PREDICATE IS `<> retired`, NOT `= active`, and the difference is not pedantry. `vehicle_status`
+ * is `active | maintenance | retired` (migration 0001), so filtering to `active` would ALSO drop every
+ * truck sitting in the shop — which is precisely a thing a dispatcher wants to see on a map. This
+ * carrier happens to have no `maintenance` rows today (235 active, 37 retired, measured on production
+ * 2026-09-16), so the two spellings are indistinguishable right now and would stay that way until the
+ * first truck went into the shop and quietly vanished from the board.
+ *
+ * It lives HERE and not in `readFleetIdentities` for the same reason that reader exists at all: the
+ * ruling is the live map's, not the roster's, and `FleetIdentity.status` is carried across that
+ * interface exactly so this module can apply its own. Widening it later is deleting this predicate.
+ */
+const HIDDEN_VEHICLE_STATUS = "retired";
+
 export interface LiveMapBoardOptions {
   /** Injected by tests; production takes the clock once, here. */
   now?: Date;
@@ -74,6 +97,9 @@ export async function readLiveMapBoard(
     // dot: a marker with no unit number is something a dispatcher cannot act on, and the collector
     // already counts the unmapped case where it can be fixed (`unmappedVehicles`, LM4).
     if (!identity) continue;
+    // Q-LM8a, above. A null status is drawn: it means the roster row predates the column or was
+    // written by something that did not set it, and "we do not know" is not "retired".
+    if (identity.status === HIDDEN_VEHICLE_STATUS) continue;
 
     const state = deriveVehicleState({ sampledAt: p.sampled_at, speedMph: p.speed_mph }, now);
     vehicles.push({

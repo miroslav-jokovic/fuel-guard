@@ -55,6 +55,23 @@ export function inviteTone(status: string): string {
 }
 
 /**
+ * What a truck is doing on the live map: moving | stopped | parked | offline (LM8, D-LM9).
+ *
+ * Descriptive rather than a severity ramp, and the two greys are deliberate. `offline` is not amber:
+ * 54 of 199 trucks rendered offline the day the board first had data, and a page that is a fifth
+ * alarm-coloured teaches its reader to stop reading colour. `stopped` is `info` and not `warning` for
+ * the reason D-LM9 refuses the word `idle` — an instantaneous "engine on, speed 0" is not a
+ * judgement about a driver, and the `idle` module owns the judgement that is.
+ *
+ * ⚠ The map's marker colours are the SAME four decisions in a different medium and live in
+ * `features/livemap/liveMapLayer.ts`, because a maplibre layer needs a concrete colour string rather
+ * than a class. They are token classes there too, and they must be changed together.
+ */
+export function vehicleStateTone(state: string): string {
+  return toneClass(state === "moving" ? "success" : state === "stopped" ? "info" : "neutral");
+}
+
+/**
  * A near-miss fill's timeline marker (G3) — a fill whose case stayed CLEAR but whose combined score
  * reached `entityRisk.ts`'s NEAR_THRESHOLD_SCORE.
  *

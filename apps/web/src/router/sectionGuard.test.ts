@@ -124,6 +124,7 @@ describe("the section gates on the navigation guard", () => {
     ["/ifta", "fuel", "accountant", "recruiter"],
     ["/loads", "dispatch", "dispatcher", "recruiter"],
     ["/truck-stops", "dispatch", "auditor", "recruiter"],
+    ["/live-map", "dispatch", "auditor", "recruiter"],
     ["/anomalies", "safety", "safety_manager", "technician"],
     ["/driver-performance", "safety", "auditor", "technician"],
     ["/drivers", "roster", "recruiter", "technician"],
