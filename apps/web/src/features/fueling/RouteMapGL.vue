@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import { supabase } from "@/lib/supabase";
+import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import type { PlanResult, PlanStopView } from "./useFuelPlan";
 
+/**
+ * The planned route, drawn on our own tiles.
+ *
+ * Map plumbing — the token colour conversion, the Bearer token on every tile request, the style, and
+ * the teardown — moved to `@/composables/useMapLibre` with LM7. What is left here is the only part
+ * that is about a ROUTE: the line, the four markers, and fitting the view to them.
+ */
 const props = defineProps<{
   route: NonNullable<PlanResult["route"]>;
   stops: PlanStopView[];
@@ -14,60 +20,7 @@ const props = defineProps<{
 }>();
 
 const mapEl = ref<HTMLElement | null>(null);
-let map: maplibregl.Map | null = null;
 let markers: maplibregl.Marker[] = [];
-let authSub: { unsubscribe(): void } | null = null;
-
-// Resolve a semantic token to a concrete color at runtime (no hex literals in source): render a hidden
-// element with the token class and read its computed color, then normalize to rgb() for maplibre.
-function tokenColor(cls: string): string {
-  const el = document.createElement("span");
-  el.className = cls;
-  el.style.display = "none";
-  document.body.appendChild(el);
-  const raw = window.getComputedStyle(el).color;
-  el.remove();
-  return toMapColor(raw);
-}
-
-// The design tokens are authored in oklch(), which maplibre's style parser rejects. getComputedStyle returns
-// either rgb()/rgba() (older engines) or oklch() (Chromium/Edge ≥ ~120). Convert oklch → sRGB rgb()
-// DETERMINISTICALLY in JS — the previous canvas round-trip left oklch untouched on some engines (Edge), which
-// is exactly why maplibre threw "color expected, 'oklch(…)'" and the route line failed to render.
-function toMapColor(color: string): string {
-  const s = color.trim();
-  const m = /^oklch\(\s*([\d.]+%?)\s+([\d.]+%?)\s+([\d.]+)/i.exec(s);
-  if (!m) return s || "rgb(37, 99, 235)"; // already rgb()/rgba()/hex (maplibre-safe); literal only guards empty
-  const L = m[1]!.endsWith("%") ? parseFloat(m[1]!) / 100 : parseFloat(m[1]!);
-  const C = m[2]!.endsWith("%") ? (parseFloat(m[2]!) / 100) * 0.4 : parseFloat(m[2]!); // 100% chroma = 0.4 (CSS)
-  const h = (parseFloat(m[3]!) * Math.PI) / 180;
-  const a = C * Math.cos(h);
-  const b = C * Math.sin(h);
-  // OKLab → LMS (cubed) → linear sRGB (Björn Ottosson's matrices) → gamma-encoded sRGB byte.
-  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
-  const m2 = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
-  const s2 = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
-  const lin = [
-    4.0767416621 * l - 3.3077115913 * m2 + 0.2309699292 * s2,
-    -1.2684380046 * l + 2.6097574011 * m2 - 0.3413193965 * s2,
-    -0.0041960863 * l - 0.7034186147 * m2 + 1.707614701 * s2,
-  ];
-  const toByte = (u: number) => {
-    const v = u <= 0.0031308 ? 12.92 * u : 1.055 * Math.pow(u, 1 / 2.4) - 0.055;
-    return Math.round(Math.min(1, Math.max(0, v)) * 255);
-  };
-  return `rgb(${toByte(lin[0]!)}, ${toByte(lin[1]!)}, ${toByte(lin[2]!)})`;
-}
-
-// The tile proxy is authenticated (Bearer JWT). maplibre fetches tiles from a worker with no auth header,
-// so we attach the current Supabase access token via transformRequest. Kept fresh on token refresh.
-let accessToken: string | null = null;
-function attachAuth(url: string): maplibregl.RequestParameters {
-  if (accessToken && url.includes("/api/fueling/map-tiles/")) {
-    return { url, headers: { Authorization: `Bearer ${accessToken}` } };
-  }
-  return { url };
-}
 
 function markerEl(dotClass: string): HTMLElement {
   const el = document.createElement("div");
@@ -99,61 +52,45 @@ function boundsOfRoute(): maplibregl.LngLatBounds | null {
 function drawMarkers() {
   for (const m of markers) m.remove();
   markers = [];
-  if (!map) return;
+  if (!map.value) return;
   const pts = props.route.polyline;
   const start = props.origin ?? pts[0];
   const end = props.destination ?? pts[pts.length - 1];
-  if (start) markers.push(new maplibregl.Marker({ element: markerEl("bg-success-600") }).setLngLat([start.lng, start.lat]).addTo(map));
-  if (end) markers.push(new maplibregl.Marker({ element: markerEl("bg-brand-accent-strong") }).setLngLat([end.lng, end.lat]).addTo(map));
+  if (start) markers.push(new maplibregl.Marker({ element: markerEl("bg-success-600") }).setLngLat([start.lng, start.lat]).addTo(map.value));
+  if (end) markers.push(new maplibregl.Marker({ element: markerEl("bg-brand-accent-strong") }).setLngLat([end.lng, end.lat]).addTo(map.value));
   for (const s of props.stops) {
     if (s.stationLng == null || s.stationLat == null) continue;
     markers.push(
       new maplibregl.Marker({ element: markerEl(s.isEmergency ? "bg-warning-500" : "bg-info-500") })
         .setLngLat([s.stationLng, s.stationLat])
-        .addTo(map),
+        .addTo(map.value),
     );
   }
 }
 
 function syncRoute() {
-  if (!map) return;
-  const src = map.getSource("route") as maplibregl.GeoJSONSource | undefined;
+  if (!map.value) return;
+  const src = map.value.getSource("route") as maplibregl.GeoJSONSource | undefined;
   if (src) src.setData(routeGeoJson());
   drawMarkers();
   const b = boundsOfRoute();
-  if (b) map.fitBounds(b, { padding: 48, duration: 0 });
+  if (b) map.value.fitBounds(b, { padding: 48, duration: 0 });
 }
 
-onMounted(async () => {
-  if (!mapEl.value) return;
-  const { data: sess } = await supabase.auth.getSession();
-  accessToken = sess.session?.access_token ?? null;
-  authSub = supabase.auth.onAuthStateChange((_e, session) => {
-    accessToken = session?.access_token ?? null;
-  }).data.subscription;
-  map = new maplibregl.Map({
-    container: mapEl.value,
-    transformRequest: attachAuth,
-    style: {
-      version: 8,
-      sources: {
-        here: {
-          type: "raster",
-          tiles: ["/api/fueling/map-tiles/{z}/{x}/{y}"],
-          tileSize: 512,
-          attribution: "© HERE",
-        },
-      },
-      layers: [{ id: "here", type: "raster", source: "here" }],
-    },
-    attributionControl: { compact: true },
-    dragRotate: false,
-  });
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-  map.on("load", () => {
-    if (!map) return;
-    map.addSource("route", { type: "geojson", data: routeGeoJson() });
-    map.addLayer({
+const { map } = useMapLibre({
+  container: mapEl,
+  tiles: "/api/fueling/map-tiles/{z}/{x}/{y}",
+  authPathFragment: "/api/fueling/map-tiles/",
+  attribution: "© HERE",
+  // Markers are this component's; maplibre does not remove them for you when the map goes, and they
+  // must go while it is still there — which is what `onBeforeTeardown` guarantees.
+  onBeforeTeardown: () => {
+    for (const m of markers) m.remove();
+    markers = [];
+  },
+  onLoad: (instance) => {
+    instance.addSource("route", { type: "geojson", data: routeGeoJson() });
+    instance.addLayer({
       id: "route-line",
       type: "line",
       source: "route",
@@ -162,20 +99,11 @@ onMounted(async () => {
     });
     drawMarkers();
     const b = boundsOfRoute();
-    if (b) map.fitBounds(b, { padding: 48, duration: 0 });
-  });
+    if (b) instance.fitBounds(b, { padding: 48, duration: 0 });
+  },
 });
 
 watch(() => props.route, syncRoute);
-
-onBeforeUnmount(() => {
-  authSub?.unsubscribe();
-  authSub = null;
-  for (const m of markers) m.remove();
-  markers = [];
-  map?.remove();
-  map = null;
-});
 </script>
 
 <template>
