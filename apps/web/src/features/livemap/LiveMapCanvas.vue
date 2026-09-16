@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
-import { basemapStyleFor, type LiveMapVehicle } from "@silvicom/shared";
+import { basemapFor, type BasemapChoice, type LiveMapVehicle } from "@silvicom/shared";
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import { useColorScheme } from "@/composables/useColorScheme";
+import LiveMapControls from "./LiveMapControls.vue";
 import { installLiveMapIcons } from "./liveMapIcons";
 import { toFeatureCollection, type RenderedPlace } from "./liveMapLayer";
 import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
@@ -118,18 +119,36 @@ function fitToFleet(instance: maplibregl.Map): void {
  * this product did not have until now; the sentence was true about the markers and wrong about the
  * map. Both halves are true from here.
  *
- * ⚠ The style STRING is never spelled in this file. `basemapStyleFor` and the allowlist the API
- * validates against are one list in `@silvicom/shared` — the two processes cannot drift, and a
- * misspelling here would otherwise be invisible, because the proxy falls back to the light basemap
- * rather than erroring.
+ * ⚠ The style STRING is never spelled in this file. `basemapFor` and the allowlist the API validates
+ * against are one list in `@silvicom/shared` — the two processes cannot drift, and a misspelling here
+ * would otherwise be invisible, because the proxy falls back to the light basemap rather than
+ * erroring.
+ *
+ * ── D-DR20: THE READER MAY ALSO CHOOSE SATELLITE OR TERRAIN ──────────────────────────────────────
+ * Q-DR2 was answered by asking HERE with our own key rather than by reading its documentation:
+ * `satellite.day` and `topo.day` both answer 200 on this plan, and `hybrid.day` — satellite WITH
+ * labels, which comp (7) draws — answers 400. So the switcher offers three real basemaps and not the
+ * comp's four.
+ *
+ * ⚠ FORMAT travels with the style. `satellite.day` is 41 KB as jpeg and 488 KB as png on the same
+ * tile, so the basemap is a style AND a format, and the proxy takes both.
+ *
+ * ⚠ The SCHEME still moves only the road map, which is why there is no Day/Night button: HERE
+ * publishes no `satellite.night` or `topo.night`, and D-DR8 already ruled that the reader is not
+ * asked a question the app can answer.
  */
-const tiles = computed(
-  () => `/api/fueling/map-tiles/{z}/{x}/{y}?style=${basemapStyleFor(isDark.value)}`,
-);
+const basemap = ref<BasemapChoice>("map");
+const tiles = computed(() => {
+  const { style, format } = basemapFor(basemap.value, isDark.value);
+  return `/api/fueling/map-tiles/{z}/{x}/{y}?style=${style}&format=${format}`;
+});
 
 const { map } = useMapLibre({
   container: mapEl,
   tiles,
+  // D-DR21: our own rail draws the zoom buttons, because maplibre's corner system has no free corner
+  // left on this workspace and its control sat under the filters panel. See `useMapLibre`.
+  navControl: false,
   authPathFragment: "/api/fueling/map-tiles/",
   attribution: "© HERE",
   onBeforeTeardown: stopMotion,
@@ -239,6 +258,15 @@ function flyTo(vehicleId: string): void {
  * was. Without this the map keeps rendering at its old height and the bottom band of it sits behind
  * the dock, which looks like a rendering bug and is really a missing call.
  */
+/** Our rail's zoom, replacing maplibre's own control (D-DR21). */
+function zoomBy(delta: 1 | -1): void {
+  const m = map.value;
+  if (!m) return;
+  // `easeTo` rather than `zoomIn()`, so a held click does not queue a stack of animations the map
+  // then works through after the reader has stopped pressing.
+  m.easeTo({ zoom: m.getZoom() + delta, duration: 200 });
+}
+
 function resize(): void {
   map.value?.resize();
 }
@@ -248,10 +276,30 @@ defineExpose({ flyTo, resize });
 
 <template>
   <div
-    ref="mapEl"
-    class="w-full overflow-hidden"
+    class="relative w-full overflow-hidden"
     :class="props.fit === 'fill' ? 'h-full' : 'h-[28rem] rounded-t-surface'"
-    role="img"
-    :aria-label="`Live map showing ${props.vehicles.length} trucks. The fleet list gives the same trucks as a table.`"
-  />
+  >
+    <div
+      ref="mapEl"
+      class="size-full"
+      role="img"
+      :aria-label="`Live map showing ${props.vehicles.length} trucks. The fleet list gives the same trucks as a table.`"
+    />
+    <!--
+      ⚠ The rail is pinned to the right edge and VERTICALLY CENTRED, which is the one placement that
+      needs no knowledge of the floating panels (D-DR21). The panels take the corners — fleet status
+      top-left, filters top-right, the truck card bottom-left, HERE's attribution bottom-right — so a
+      control in any corner collides with one of them, which is exactly how maplibre's own zoom
+      buttons came to sit under the filters panel by 27×56px at every width. The middle of an edge is
+      the only real estate this workspace does not otherwise spend, and it is where comp (7) draws its
+      controls too.
+
+      It lives inside the CANVAS rather than the workspace's panel layer so both shapes of this map —
+      the full workspace and the dashboard widget — get the same controls without either re-declaring
+      them, which is the split D-DR5 made when it separated the two.
+    -->
+    <div class="pointer-events-none absolute inset-y-0 right-3 z-sticky flex items-center">
+      <LiveMapControls v-model:basemap="basemap" @zoom="zoomBy" />
+    </div>
+  </div>
 </template>

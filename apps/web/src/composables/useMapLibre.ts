@@ -100,6 +100,11 @@ export interface UseMapLibreOptions {
    */
   authPathFragment: string;
   attribution: string;
+  /**
+   * Add maplibre's own zoom control. Defaults to true; see the `addControl` call for why a caller
+   * would ever say no.
+   */
+  navControl?: boolean;
   /** Run once the style has loaded, with the live map. Sources and layers are added here. */
   onLoad?: (map: maplibregl.Map) => void;
   /**
@@ -163,7 +168,23 @@ export function useMapLibre(options: UseMapLibreOptions): {
       attributionControl: { compact: true },
       dragRotate: false,
     });
-    instance.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    /**
+     * ⚠ `navControl: false` exists because maplibre only knows FOUR corners, and on the live map all
+     * four are taken (D-DR21). Measured 2026-09-16: the built-in control lands at 1458,92 (39×68)
+     * and DR5's Filters panel at 1197,104 (288×142), so the panel sat ON the zoom buttons by
+     * **27×56px — at 1512, 1280, 1024 and 768 alike**, because both are pinned to the right edge
+     * with fixed insets. It is a constant defect, not a breakpoint one.
+     *
+     * ⚠⚠ And the overlap check that shipped with DR5 could not see it: it compared our floating
+     * panels to EACH OTHER and never to maplibre's own DOM. A control this composable adds is still
+     * something on the screen — an owner spotted it before any of our measurements did.
+     *
+     * A caller that turns this off takes on drawing its own zoom affordance. `RouteMapGL` does not
+     * and is unchanged.
+     */
+    if (options.navControl !== false) {
+      instance.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    }
     instance.on("load", () => options.onLoad?.(instance));
     map.value = instance;
   });

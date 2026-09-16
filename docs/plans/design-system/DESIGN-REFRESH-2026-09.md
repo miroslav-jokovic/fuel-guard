@@ -837,3 +837,62 @@ conflict every time (`plan-progress-log-not-table-rows`).
 
   Three new tests, two **proved by mutation** (ignoring `isDark`, and dropping the fallback). 1,857
   web tests; seven gates plus the design-token check green; looked at in both schemes at 1440.
+
+- **2026-09-16 — Q-DR2 ANSWERED, and D-DR20/D-DR21 SHIPPED (the basemap switcher, and the corner it
+  had to fight for).** The owner asked whether maplibre offers terrain or satellite. maplibre is only
+  the renderer — it draws whatever raster it is handed — so the real question was always our HERE
+  plan, and it was answered by asking HERE with the production key rather than by reading its docs:
+
+  | style | format | result |
+  |---|---|---|
+  | `explore.day` · `explore.night` · `lite.day` · `lite.night` · `topo.day` | png | **200** |
+  | `satellite.day` | jpeg | **200 — 41 KB** |
+  | `satellite.day` | png | 200 — **488 KB** |
+  | `hybrid.day` (satellite WITH labels) | either | **400, "not currently supported"** |
+
+  Both tiles were opened and looked at rather than counted: `satellite.day` is real imagery,
+  `topo.day` is the terrain style. **So comp (7)'s Map/Satellite switcher is real**; its *Traffic* and
+  *Weather* tabs remain overlay layers we do not buy, and a labelled hybrid is not on the plan at all.
+  §4.2's ruling stands for the four-way switcher and is now WRONG for the two-way one.
+
+  ⚠ **FORMAT IS A SECOND DIMENSION, and missing it would have cost 12× the bytes.** The proxy
+  hardcoded `/png` in the path. A satellite photograph in a lossless format is 488 KB against 41 KB as
+  jpeg — on the slowest part of this page. So `BASEMAPS` is a table of `{ style, format }` objects
+  rather than strings, and `resolveBasemapFormat` has its own allowlist: the format lands in a URL
+  **path**, so an unvalidated one is a path-injection shape rather than a cosmetic bug. Pinned by
+  "refuses a format that is not on the allowlist rather than putting it in a URL path".
+
+  **D-DR20 — the switcher offers three basemaps and never a Day/Night button.** `BASEMAP_CHOICES`
+  deliberately omits `mapNight`: it is not a fourth choice beside satellite and terrain, it is what
+  `map` BECOMES in dark mode. Offering it would put the colour scheme on screen twice and let the two
+  disagree — the toggle D-DR8 refused, arriving through a different door. ⚠ Only the road map moves
+  with the scheme, and that asymmetry is a vendor fact: HERE publishes no `satellite.night` or
+  `topo.night`, and a satellite photograph of the earth at night is a picture of city lights.
+
+- **2026-09-16 — D-DR21: the zoom buttons are OURS now, because DR5 left maplibre nowhere to stand.**
+  Reported by the owner, then measured: maplibre's `NavigationControl` sat at 1458,92 (39×68) and
+  DR5's Filters panel at 1197,104 (288×142), so **the panel covered the zoom buttons by 27×56px — at
+  1512, 1280, 1024 and 768 alike.** Both are pinned to the same edge with fixed insets, so it is a
+  constant defect rather than a breakpoint one, and it has been shipping since DR5.
+
+  ⚠ **The overlap check written during DR5 could not have caught it: it compared our floating panels
+  to EACH OTHER and never to maplibre's own DOM.** A control a composable adds is still something on
+  the screen. The first re-run of that check during this step reported "no overlaps" and was wrong for
+  exactly the same reason — the owner saw it before any of our measurements did. When a gate and a
+  pair of eyes disagree, the eyes are reporting on the product.
+
+  maplibre knows four corners and this workspace spends all four (fleet status, filters, truck card,
+  HERE attribution), so there was no corner to move it to. `useMapLibre` gained `navControl: false`
+  and the rail is ours: pinned to the right edge and **vertically centred**, the one placement that
+  needs no knowledge of which panels exist, and where comp (7) draws its controls too. It lives inside
+  `LiveMapCanvas` rather than the workspace's panel layer so both shapes of the map — the workspace and
+  the dashboard widget — get it without either re-declaring it. `RouteMapGL` keeps maplibre's control
+  and is untouched. Measured after: **zero real overlaps** at 1512, 1280, 1024 and 768, and the
+  native control is gone from the DOM.
+
+  Five new tests on the rail and four on the proxy, four **proved by mutation**: a Night button, the
+  rail holding its own choice, hardcoding `/png` back into the path, and dropping the format allowlist
+  each fail exactly what pins them. ⚠ Two EXISTING tests had to change rather than be added to — both
+  asserted `satellite.day` was refused, which is now the opposite of the shipped behaviour. That is
+  the suite doing its job at a deliberate behaviour change, and `hybrid.day` is the honest replacement
+  for "a style we do not have". Full `pnpm test` green (web 1,862 · api 3,788 · shared 2,916).

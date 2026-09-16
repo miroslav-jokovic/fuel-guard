@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BASEMAP_STYLES, basemapStyleFor, resolveBasemapStyle } from "./basemap.js";
+import { BASEMAPS, BASEMAP_CHOICES, basemapFor, resolveBasemapStyle, resolveBasemapFormat } from "./basemap.js";
 
 /**
  * The basemap allowlist (D-DR8).
@@ -10,13 +10,51 @@ import { BASEMAP_STYLES, basemapStyleFor, resolveBasemapStyle } from "./basemap.
  * so a style the two ends spell differently produces a light map in dark mode and nothing in any log.
  */
 describe("which basemap a map may ask for", () => {
-  it("names the two HERE styles the proxy will serve", () => {
-    expect(BASEMAP_STYLES).toEqual({ light: "explore.day", dark: "explore.night" });
+  it("names the HERE basemaps the proxy will serve, each with its format", () => {
+    expect(BASEMAPS).toEqual({
+      map: { style: "explore.day", format: "png" },
+      mapNight: { style: "explore.night", format: "png" },
+      satellite: { style: "satellite.day", format: "jpeg" },
+      terrain: { style: "topo.day", format: "png" },
+    });
   });
 
-  it("derives the style from the reader's resolved scheme", () => {
-    expect(basemapStyleFor(true)).toBe("explore.night");
-    expect(basemapStyleFor(false)).toBe("explore.day");
+  /**
+   * ⚠ The format assertion is the one that would have caught the defect worth catching. Measured on
+   * one tile: `satellite.day` is 41 KB as jpeg and 488 KB as png. A satellite basemap that quietly
+   * reverted to png would look identical and cost 12× the bytes on the slowest part of the page.
+   */
+  it("serves satellite as jpeg, because a photograph is not a lossless image", () => {
+    expect(BASEMAPS.satellite.format).toBe("jpeg");
+    expect(BASEMAPS.map.format).toBe("png");
+    expect(BASEMAPS.terrain.format).toBe("png");
+  });
+
+  it("moves only the road map with the reader's scheme", () => {
+    expect(basemapFor("map", true)).toEqual(BASEMAPS.mapNight);
+    expect(basemapFor("map", false)).toEqual(BASEMAPS.map);
+    // ⚠ HERE publishes no `satellite.night` or `topo.night`, so these do NOT follow the scheme. A
+    // satellite photograph of the earth at night is a picture of city lights, not a basemap.
+    expect(basemapFor("satellite", true)).toEqual(BASEMAPS.satellite);
+    expect(basemapFor("terrain", true)).toEqual(BASEMAPS.terrain);
+  });
+
+  /**
+   * The night basemap must not appear as a fourth button. It is what `map` BECOMES in dark mode, and
+   * offering it beside the others would put the colour scheme on screen twice and let the two
+   * disagree — which is the toggle D-DR8 refused to build, arriving through a different door.
+   */
+  it("offers three choices and never the night map as one of them", () => {
+    expect(BASEMAP_CHOICES.map((c) => c.key)).toEqual(["map", "satellite", "terrain"]);
+    expect(BASEMAP_CHOICES.map((c) => c.key)).not.toContain("mapNight");
+  });
+
+  it("validates a format off the wire and falls back to png", () => {
+    expect(resolveBasemapFormat("jpeg")).toBe("jpeg");
+    expect(resolveBasemapFormat("png")).toBe("png");
+    expect(resolveBasemapFormat("webp")).toBe("png");
+    expect(resolveBasemapFormat(undefined)).toBe("png");
+    expect(resolveBasemapFormat(["jpeg"])).toBe("png");
   });
 
   /**
@@ -26,7 +64,9 @@ describe("which basemap a map may ask for", () => {
    * where a light map reads as a cosmetic defect.
    */
   it("falls back to the light basemap for anything not on the list", () => {
-    expect(resolveBasemapStyle("satellite.day")).toBe("explore.day");
+    // ⚠ `satellite.day` is now ON the list (Q-DR2 answered), so the rejected examples had to change
+    // — a test asserting it is refused would now be asserting the opposite of the shipped behaviour.
+    expect(resolveBasemapStyle("hybrid.day")).toBe("explore.day");
     expect(resolveBasemapStyle("lite.night")).toBe("explore.day");
     expect(resolveBasemapStyle("")).toBe("explore.day");
     expect(resolveBasemapStyle(undefined)).toBe("explore.day");
@@ -35,6 +75,8 @@ describe("which basemap a map may ask for", () => {
   it("passes both listed styles through unchanged", () => {
     expect(resolveBasemapStyle("explore.day")).toBe("explore.day");
     expect(resolveBasemapStyle("explore.night")).toBe("explore.night");
+    expect(resolveBasemapStyle("satellite.day")).toBe("satellite.day");
+    expect(resolveBasemapStyle("topo.day")).toBe("topo.day");
   });
 
   /**

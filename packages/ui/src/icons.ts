@@ -43,6 +43,9 @@ export type Icon = readonly (readonly [string, { readonly [key: string]: string 
 export {
   // ── Actions ─────────────────────────────────────────────────────────────
   PlusSignIcon                as PlusIcon,
+  // The zoom-out half of the live map's control rail (D-DR21). Hugeicons spells a bare minus
+  // `Remove01Icon`; the name is the vendor's, the meaning here is "minus".
+  Remove01Icon                as MinusIcon,
   Cancel01Icon                as XMarkIcon,
   Delete02Icon                as TrashIcon,
   Download04Icon              as ArrowDownTrayIcon,

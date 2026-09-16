@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { resolveBasemapStyle } from "@silvicom/shared";
+import { resolveBasemapStyle, resolveBasemapFormat } from "@silvicom/shared";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -52,8 +52,15 @@ export function registerMapRoutes(router: Router): void {
        * not serve themselves yesterday's day tiles in dark mode.
        */
       const style = resolveBasemapStyle(req.query.style);
+      /**
+       * ⚠ FORMAT IS A PARAMETER TOO, AND `/png` WAS HARDCODED HERE (D-DR20). Satellite is a
+       * photograph: measured on one tile, `satellite.day` is 41 KB as jpeg and 488 KB as png. Serving
+       * imagery through the lossless branch would have cost 12× the bytes per tile on the slowest
+       * part of this page, so the switcher could not have shipped without this line.
+       */
+      const format = resolveBasemapFormat(req.query.format);
       const url =
-        `https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/png?style=${style}&size=512` +
+        `https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/${format}?style=${style}&size=512` +
         `&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
       try {
         const upstream = await fetch(url);
