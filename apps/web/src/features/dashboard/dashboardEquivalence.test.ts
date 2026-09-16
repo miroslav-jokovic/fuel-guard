@@ -148,6 +148,30 @@ describe("the Dashboard renders the same elements before and after the widget ca
     expect(await renderFleetTab()).toMatchSnapshot();
   });
 
+  /**
+   * ⚠ THE ASSERTION THAT WOULD HAVE CAUGHT LM-F'S LEAKS, and the reason it is not a snapshot.
+   *
+   * A snapshot records whatever the code does; run with `-u` it will happily record a regression.
+   * This states the RULE — a caller without `accounting` sees no currency figure on this tab at all
+   * — so a new money tile or a new money chart fails it on the day it is added rather than on the
+   * day somebody reads a diff carefully.
+   *
+   * It is what the three leaks found on 2026-09-15 had in common: "Recovered · $12,500" survived
+   * because `LedgerTile` had no `money` flag, and the spend line and the cost donut survived because
+   * nothing gated them. Each was individually invisible; all three were one `$` away from obvious.
+   */
+  it("shows a caller without accounting no currency figure anywhere on the tab", async () => {
+    canView.value = (s) => s !== "accounting";
+    const { default: FleetOverviewTab } = await import("./FleetOverviewTab.vue");
+    const wrapper = mount(FleetOverviewTab, {
+      props: { range: { from: "2026-09-01", to: "2026-09-15" } },
+      global: { stubs: STUBS },
+    });
+    // The whole rendered text, not just the elements the snapshot extracts — a hover title or an
+    // aria-label carrying a dollar figure is the same leak somewhere harder to see.
+    expect(wrapper.html()).not.toMatch(/\$/);
+  });
+
   it("dispatch tab", async () => {
     const { default: DispatchTab } = await import("./DispatchTab.vue");
     const wrapper = mount(DispatchTab, { global: { stubs: STUBS } });

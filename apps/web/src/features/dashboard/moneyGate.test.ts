@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyMoneyGate, hasMoney, type MoneyGateable } from "./moneyGate";
+import { applyMoneyGate, type MoneyGateable } from "./moneyGate";
 
 /**
  * LM-F / Q-LM-F1. These pin the two behaviours that are easy to get subtly wrong: a money tile with
@@ -72,11 +72,3 @@ describe("applyMoneyGate", () => {
   });
 });
 
-describe("hasMoney", () => {
-  it("is true when a strip still carries a currency tile", () => {
-    expect(hasMoney([spend, mpg])).toBe(true);
-  });
-  it("is false for a purely operational strip", () => {
-    expect(hasMoney([mpg])).toBe(false);
-  });
-});

@@ -364,13 +364,16 @@ const costTotal = computed(() => costSlices.value.reduce((n, x) => n + x.value, 
       <!-- Trends -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <template v-if="isLoading">
-          <BaseCard v-for="i in 2" :key="i">
+          <BaseCard v-for="i in (canSeeMoney ? 2 : 1)" :key="i">
             <div class="h-4 w-32 animate-pulse rounded-control bg-surface-muted" />
             <div class="mt-4 h-60 animate-pulse rounded-surface bg-surface-subtle" />
           </BaseCard>
         </template>
         <template v-else>
-          <ChartCard title="Fuel spend" subtitle="Daily total across the fleet">
+          <!-- LM-F, fixed 2026-09-15: gated, because it was not. This card is a currency figure per
+               day across the whole range, and it rendered in full for a caller from whose tile strip
+               the very same number had just been removed. -->
+          <ChartCard v-if="canSeeMoney" title="Fuel spend" subtitle="Daily total across the fleet">
             <BaseChart :config="spendChart" :height="260" />
             <table class="sr-only">
               <caption>Fuel spend by day</caption>
@@ -405,7 +408,9 @@ const costTotal = computed(() => costSlices.value.reduce((n, x) => n + x.value, 
 
       <!-- Cost composition + severity -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartCard title="Where fuel dollars go" subtitle="Moving fuel vs idle waste vs reefer · this range">
+        <!-- Same fix, and the larger of the two leaks: every slice is dollars and so is the centre
+             total. Its title said so out loud while the gate above it said the opposite. -->
+        <ChartCard v-if="canSeeMoney" title="Where fuel dollars go" subtitle="Moving fuel vs idle waste vs reefer · this range">
           <DonutBreakdown
             :items="costSlices"
             :center-value="`$${fmtCompact(costTotal)}`"
