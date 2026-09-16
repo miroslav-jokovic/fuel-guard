@@ -1864,3 +1864,65 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
 
   **LM10 is next** — role defaults and the per-user layout, which is the step that carries a migration
   (`user_dashboard_layout`, row-or-no-row for D-DW3's three states).
+- 2026-09-15 — **LM10, first half: the table, the resolver and the endpoint. Deliberately dark.**
+  Migration **0343** `user_dashboard_layout`, `packages/shared/src/dashboardLayoutContract.ts`, and
+  `/api/dashboard-layout` (GET/PUT/DELETE, in the `org` module beside saved views). Nothing on screen
+  changes yet — `TabWidgets` still renders every gate-admitted widget — and that is a decision, not an
+  omission. See "why this did not ship in one PR" below.
+
+  ⚠ **`hidden_keys` is a DEVIATION from this plan's schema, and this plan's own Done-when forces it.**
+  LM10 §5 specifies one array, `widget_keys`, "the visible set, in order", and then requires that "a
+  user who hides a widget still inherits a later default change to widgets they did not touch". Those
+  cannot both hold. With a visible set alone, a widget added to the catalogue AFTER somebody saved is
+  absent from their array, is therefore hidden, and is hidden from a person who never ruled on it —
+  every user who once opened the editor frozen at the catalogue as it stood that day, which is
+  exactly the failure D-DW3's third state exists to prevent, arriving by the back door. So the row
+  records the DECISION: `widget_keys` (kept, in order) and `hidden_keys` (turned off). A key in
+  neither is one nobody has ruled on and it follows the role default. "Show me nothing" survives
+  intact and stays distinct from silence — empty `widget_keys`, with a row. Rejected: a `known_keys`
+  column holding the catalogue as it stood at save time, which carries the same information but
+  states it as a UI artefact rather than as something a person decided.
+
+  **The three-state promise is now a constraint, not a convention.** `not (widget_keys && hidden_keys)`
+  is the only CHECK in 0343 that encodes a rule rather than a ceiling: without it the resolver would
+  have to invent a winner in TypeScript for a state the database was happy to store.
+
+  **The read is OWN-ROW, and that is tighter than 0298 on purpose.** What a role may REACH is not a
+  secret from the org that configured it. How somebody arranged their own screen is not the org's
+  business — `saved_views` (0278) and `notification_events` (0089) made the same call. An admin of
+  the org is asserted to read nothing, which is the assertion most likely to be deleted by somebody
+  building a support tool; the matrix says so at the assertion.
+
+  **A layout cannot grant a widget, by construction rather than by intention.**
+  `resolveDashboardLayout` is never handed `DASHBOARD_WIDGETS` — only the widgets the caller's gates
+  already admitted — so a stored key naming a widget they may not see has nothing to resolve to. That
+  is what licenses `/api/dashboard-layout` being pinned in `AUTH_ONLY_MOUNTS` with no section gate,
+  and the argument is written there beside saved views'.
+
+  **Mutation-tested, because that is the only thing that made any of it true.** Four mutants against
+  the resolver (collapse the third state, ignore `hidden_keys`, prepend instead of append, ignore
+  `defaultFor`), four against the router (drop either user filter, flatten `null` into an empty
+  layout, accept unknown keys), five against the migration. ⚠ **One assertion passed proving
+  nothing**: "an update cannot move a layout to another org" was refused by the composite FK, not by
+  the trigger, so deleting `forbid_org_change` left the matrix green. Rewritten the way
+  `user-surface-access.test.mjs` already had to — the row moves between two orgs the person really
+  belongs to, and the error message is checked. Same trap, same file, second time.
+
+  **One unrelated change, forced and stated rather than absorbed:** `app.ts` reached **503 lines**
+  against the 500 budget when this step added one router mount, so `securityMiddleware` and
+  `mountBodyParsers` moved to `apps/api/src/appHttp.ts` (435 lines now). ⚠ The router MOUNTS could
+  not move: `routeAuth.test.ts`, `routeGates.test.ts` and `routeGateLedger.test.ts` discover every
+  mounted router by reading `app.ts`'s SOURCE, and they would go on passing while covering less. The
+  new file's header says so, and `app.ts`'s own comment already said squeezing back under by deleting
+  a comment is the wrong move. All 3,779 api tests pass, including the three that read that source.
+
+  **Why this did not ship in one PR.** Applying the defaults without an editor is a REGRESSION, not a
+  partial feature: `dispatch.live-map` declares `defaultFor: ["dispatcher"]`, so the moment
+  `TabWidgets` respects defaults, an admin's Dispatch tab renders EMPTY and they have no way to get
+  the map back. D-DW2 intends the default; it does not intend the dead end. So the rendering switch
+  and the editor ship together, next, and no deploy ever sits in the state where a default applies and
+  nothing can change it.
+
+  **Left for the second half:** `TabWidgets` reading the layout, the editor (reorder + show/hide +
+  reset), a `useDashboardLayout` composable, and an empty state for a tab whose widgets are all
+  hidden. `span` stays in the catalogue — a stored layout is an ORDER, not a geometry.

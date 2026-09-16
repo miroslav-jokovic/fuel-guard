@@ -2315,6 +2315,16 @@ async function main() {
         `     m as (insert into memberships (org_id, user_id, role) select '${org}', id, 'technician' from u returning user_id) ` +
         `insert into user_surface_access (org_id, user_id, surface_key, allowed) ` +
         `select '${org}', user_id, 'maintenance.inspectors', false from m`,
+      // 0343 carries the same composite membership FK as 0298 and 0299 above, and cannot be built by
+      // the generic synthesiser for the same reason. ⚠ Unlike those two it is read OWN-ROW, not
+      // org-wide, so this row is invisible even to a member of its own org — which is the answer
+      // this harness's cross-tenant check wants anyway, and `user-dashboard-layout.test.mjs` is
+      // where the own-row policy is actually proved.
+      user_dashboard_layout: (org) =>
+        `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-udl@example.com') returning id), ` +
+        `     m as (insert into memberships (org_id, user_id, role) select '${org}', id, 'dispatcher' from u returning user_id) ` +
+        `insert into user_dashboard_layout (org_id, user_id, widget_keys, hidden_keys) ` +
+        `select '${org}', user_id, array['dispatch.live-map'], '{}'::text[] from m`,
     },
   });
   console.log(

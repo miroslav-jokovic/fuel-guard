@@ -90,6 +90,7 @@ export * from "./loadsLifecycle.js";
 export * from "./dispatchContract.js";
 export * from "./entitlements.js";
 export * from "./surfaces.js";
+export * from "./dashboardLayoutContract.js";
 export * from "./dashboardWidgets.js";
 export * from "./featureCatalog.js";
 export * from "./sentryScrub.js";

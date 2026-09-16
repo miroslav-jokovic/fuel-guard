@@ -16,6 +16,7 @@ export { publicInvitesRouter } from "./routes/publicInvites.js";
 export { deliverInvite, type InviteDelivery } from "./inviteDelivery.js";
 export { membersRouter } from "./routes/members.js";
 export { savedViewsRouter } from "./routes/savedViews.js";
+export { dashboardLayoutRouter } from "./routes/dashboardLayout.js";
 export { auditRouter } from "./routes/audit.js";
 export { sectionAccessRouter, toOverrides } from "./routes/sectionAccess.js";
 export { surfaceAccessRouter, toSurfaceOverrides, surfaceClaimFor } from "./routes/surfaceAccess.js";
