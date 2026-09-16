@@ -106,7 +106,17 @@ are watched for 30 seconds in a browser. ⚠ `planTweens` already re-bases from 
 `places`, so lengthening the tween does not make motion lag the data — it keeps the tween in flight
 when the next board lands, which is the point.
 
-### 3.3 Theme-switch caching — and this one is ours to own
+### 3.3 Theme-switch caching — and this one is ours to own · **SHIPPED as D-DR23**
+
+✅ **Done 2026-09-16, and the diagnosis below was half wrong — measure before building.** The refetch
+is real (nine tiles per flip) but **every one of them was already served by the browser's HTTP cache**:
+zero bytes, ~1 ms each, because the proxy sends `Cache-Control: public, max-age=86400`. The ~0.4 s a
+reader feels is maplibre re-decoding and re-uploading nine textures, not the network — so a fix aimed
+at the bytes would have moved a number that was already zero. The shipped fix is a layer per basemap
+with a visibility toggle: a flip back to a seen basemap now issues **zero requests** and repaints
+within one sample of the click (107–117 ms against a 94 ms sampling floor, from ~400–440 ms). Full
+entry under **D-DR23** in `DESIGN-REFRESH-2026-09.md` §7. The streaming-proxy note below is still
+open, and is worth less now that a tile is ~30 KB.
 
 D-DR8's `setTiles` (`useMapLibre.ts:210`) swaps the raster source's tiles in place, which is right for
 the camera — but it **discards maplibre's entire tile cache**, so every light/dark flip refetches the
