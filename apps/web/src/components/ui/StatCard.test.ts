@@ -72,14 +72,18 @@ describe("StatCard anatomy", () => {
    */
   it("leads with the icon chip in hero and trails with it in kpi", () => {
     const icon = { icon: TruckIcon, tone: "text-success-600 bg-success-50" };
+    // The claim is ORDER, so the marker is the icon itself rather than the chip's size class.
+    // Asserting `size-11` here made this fail the day the chip became `size-10` for fidelity to the
+    // comp — a test reporting a deliberate resize as a broken layout is a test measuring the wrong
+    // thing. `<svg>` is the icon and it renders only inside the chip.
+    const posOf = (html: string) => ({ icon: html.indexOf("<svg"), label: html.indexOf("Files with work left") });
 
-    const heroHtml = mountCard({ ...icon, size: "hero" }).html();
-    expect(heroHtml.indexOf("size-11")).toBeGreaterThan(-1);
-    expect(heroHtml.indexOf("size-11")).toBeLessThan(heroHtml.indexOf("Files with work left"));
+    const hero = posOf(mountCard({ ...icon, size: "hero" }).html());
+    expect(hero.icon).toBeGreaterThan(-1);
+    expect(hero.icon).toBeLessThan(hero.label);
 
-    const kpiHtml = mountCard(icon).html();
-    expect(kpiHtml.indexOf("size-9")).toBeGreaterThan(kpiHtml.indexOf("Files with work left"));
-    expect(kpiHtml).not.toContain("size-11");
+    const kpi = posOf(mountCard(icon).html());
+    expect(kpi.icon).toBeGreaterThan(kpi.label);
   });
 
   it("omits the icon chip entirely when no icon is given", () => {

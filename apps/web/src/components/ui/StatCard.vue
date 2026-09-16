@@ -141,7 +141,7 @@ const hero = computed(() => props.size === "hero");
  * instead of freezing at whatever looked right the day it was written.
  */
 const chipClass = computed(() => [
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-surface",
+  "inline-flex size-10 shrink-0 items-center justify-center rounded-surface",
   props.tone,
 ]);
 
@@ -192,7 +192,17 @@ const valueClass = computed(() =>
       ]"
       @click="isToggle ? emit('toggle') : undefined"
     >
-      <div :class="hero ? 'flex items-start gap-4' : 'flex items-start justify-between gap-3'">
+      <!--
+        `size-10` and `gap-3` because the comp's chip measures ~40px, not because they fix anything.
+        ⚠ Worth writing down, since it nearly became a wrong fix: at 1280px the hero labels truncate
+        to "Fuel sp…", and that is NOT this component's doing. `main` truncates identically at that
+        width — so do "Telematics co…" and "Declined atte…" in `OperatingMetricsWidget`, which this
+        change never touched. The cause is the four-up grid at the `xl` breakpoint being too tight
+        for the labels it carries, it predates the design refresh, and it is recorded in
+        DESIGN-REFRESH-2026-09.md §3.1 rather than papered over here. Recovering 12px of text column
+        moves that threshold slightly and fixes nothing.
+      -->
+      <div :class="hero ? 'flex items-start gap-3' : 'flex items-start justify-between gap-3'">
         <!-- D-DR2: the hero chip leads the tile from the left and is bigger; the KPI chip keeps its
              place on the right. Two elements rather than one with a reordering class, because the
              KPI anatomy is what fourteen surfaces render and the cheapest way to keep it

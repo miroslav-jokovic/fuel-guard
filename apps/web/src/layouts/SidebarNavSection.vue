@@ -44,12 +44,6 @@ const hiddenBadgeTotal = computed(() =>
       :aria-controls="listId"
       @click="emit('toggle')"
     >
-      <AppIcon
-        :icon="ChevronDownIcon"
-        class="size-3.5 shrink-0 transition-transform"
-        :class="open ? '' : '-rotate-90'"
-        aria-hidden="true"
-      />
       <span class="flex-1">{{ group.label }}</span>
       <span
         v-if="!open && hiddenBadgeTotal > 0"
@@ -57,6 +51,23 @@ const hiddenBadgeTotal = computed(() =>
         :aria-label="`${hiddenBadgeTotal} in ${group.label}`"
         >{{ hiddenBadgeTotal }}</span
       >
+      <!--
+        D-DR13: the chevron trails the label rather than leading it (owner's ruling, 2026-09-16).
+        It led the label until then, which put the disclosure control in the same column as the nav
+        items' ICONS one row below — two different meanings sharing a column, so the eye read the
+        chevron as a section "icon" rather than as a control. On the right it sits in its own column
+        with nothing to be confused with, which is also what every comp draws.
+
+        The badge stays BEFORE it: when a section is collapsed the badge is the only thing still
+        reporting from inside it, and a count that jumps outboard of the chevron when the section
+        closes is a moving target.
+      -->
+      <AppIcon
+        :icon="ChevronDownIcon"
+        class="size-3.5 shrink-0 transition-transform"
+        :class="open ? '' : '-rotate-90'"
+        aria-hidden="true"
+      />
     </button>
   </li>
 
