@@ -1804,3 +1804,63 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
     deliberately empty. **Where widget components live is therefore a question LM9 must answer**, and
     the answer this plan will take is the documented one: the registry lives OUTSIDE `features/`, so a
     widget may come from any feature without a leak.
+- 2026-09-15 — **LM9 built: `DASHBOARD_WIDGETS`, and the Dashboard renders from it.**
+  `packages/shared/src/dashboardWidgets.ts` holds ten widgets; `apps/web/src/lib/dashboardWidgets.ts`
+  maps each key to a component; `features/dashboard/TabWidgets.vue` renders one tab from the
+  catalogue. `FleetOverviewTab.vue` and `DispatchTab.vue` are DELETED — there is one renderer now,
+  and adding a widget is a row of data plus a component rather than an edit to a template.
+
+  **The gate is reused, not re-implemented.** `surfaceGateAllows` / `canReachSurface` were typed to
+  `Surface`, which demands `path` and `group`; they now take a structural `Gated` that both `Surface`
+  and `DashboardWidget` satisfy. One external caller existed (`nav.ts`) and it did not change. The
+  gate builders `section`/`manage`/`ALWAYS`/`STAFF`/`ADMIN` are exported for the same reason — a
+  copied `section()` reads identically and drifts the first time either learns a new kind.
+
+  **`Q-LM9a` — a widget is a CARD, not a tile. Ruled.** Read literally, "every tile and chart becomes
+  a widget" is fifteen entries on the fleet tab, four of them cells in one four-column grid — and a
+  grid with one cell hidden is still a grid. D-DW3's promise is reorder-and-hide, which only means
+  something at the grain a user could move. Nine cards, and the finer per-tile question (which show
+  money) stays where it was already answered correctly, in `applyMoneyGate`.
+
+  **`span: "full" | "half"` carries layout in a permissions catalogue**, which is a compromise named
+  as one: the alternative was a third home for a fact about a widget, and LM10's per-user layout has
+  to read it from somewhere. The values are transcribed from the grids the tab renders today.
+
+  **The equivalence claim is PROVED, not asserted.** `dashboardEquivalence.test.ts` now mounts
+  `TabWidgets` — a different renderer — and reproduces both fleet snapshots, captured from the
+  hand-written template, byte for byte. The no-currency guard still passes.
+
+  ⚠ **Two fixture defects found, and both are the interesting part of this step:**
+  1. **The refactor created a SECOND path to "may this caller see money".** The widget gate resolves
+     `accounting` through `canReachSurface`; `applyMoneyGate` reads `session.canView`. In production
+     they agree — both go through the same shared functions — but the harness stubbed only the second,
+     so the no-money case passed the gate and the diff read as a money-gate regression. It was the
+     fixture. The ROLE is now the single input and `canView` is derived from it by the real
+     `callerCanView`.
+  2. **An `accounting: "none"` override on an ADMIN does nothing**, by design: `resolveSectionAccess`
+     ignores a claim on a non-editable role, because an admin cannot be denied. The second draft of
+     the fixture tried exactly that and rendered every dollar. The no-money case is now
+     `fleet_manager`, which is the real role LM-F was written for.
+
+  **One intended behaviour change, stated rather than absorbed:** the dispatch tab renders the real
+  `LiveMapPanel` (D-DW5). It had shown a placeholder reading "Not connected yet — vehicle positions
+  are still being wired up to the Samsara feed", true when LM-T wrote it and false from the moment
+  LM8 merged. A test asserts that sentence cannot come back.
+
+  **Where widget components live is answered:** `apps/web/src/lib/`, OUTSIDE `features/`.
+  `check-feature-boundaries.mjs` refuses `features/dashboard → features/livemap` and `WEB_ALLOW` is
+  deliberately empty; a registry outside `features/` is the promotion its comment prescribes, and it
+  is the composition root for the Dashboard exactly as a page is for a route. `lint:boundaries` green.
+
+  **D-DW4 shipped with the catalogue**, as it required: `check-surfaces.mjs` grows eight widget
+  detectors — missing component, unknown section, unknown role in `defaultFor`, unknown module,
+  unknown tab, bad span, duplicate key, and drift in either direction between catalogue and registry
+  — each proven to fire by the self-test, which now covers seventeen. Mutation-checked against the
+  real catalogue by deleting a component from the registry.
+
+  ⚠ **One unrelated latent type error surfaced and was fixed**: `DonutBreakdown` typed its config
+  `ChartConfiguration<"doughnut">` while `BaseChart` declares the union, which is not assignable. The
+  mismatch was always there and began failing when this step moved the component's only caller.
+
+  **LM10 is next** — role defaults and the per-user layout, which is the step that carries a migration
+  (`user_dashboard_layout`, row-or-no-row for D-DW3's three states).

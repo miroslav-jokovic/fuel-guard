@@ -1,11 +1,5 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`the Dashboard renders the same elements before and after the widget catalogue (LM9) > dispatch tab 1`] = `
-[
-  "h2: Live map",
-]
-`;
-
 exports[`the Dashboard renders the same elements before and after the widget catalogue (LM9) > fleet overview · a caller who may not see money 1`] = `
 [
   "dt: Fleet avg MPG = 7.4 — 82% of fuel measured",

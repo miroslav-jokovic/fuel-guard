@@ -27,8 +27,7 @@ import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import FleetOverviewTab from "@/features/dashboard/FleetOverviewTab.vue";
-import DispatchTab from "@/features/dashboard/DispatchTab.vue";
+import TabWidgets from "@/features/dashboard/TabWidgets.vue";
 import { visibleTabs, initialTab, showsTabStrip } from "@/features/dashboard/dashboardTabs";
 
 const session = useSessionStore();
@@ -134,8 +133,12 @@ const EXPORTS = [
       id-prefix="dashboard"
     />
 
-    <FleetOverviewTab v-if="activeKey === 'fleet'" :range="range" />
-    <DispatchTab v-else-if="activeKey === 'dispatch'" />
+    <!--
+      LM9: one renderer over `DASHBOARD_WIDGETS`, not a component per tab. The two hand-written tab
+      templates this replaced were two roles' dashboards written out by hand; a new widget is now a
+      row of data and a component, and adding one needs no edit here at all.
+    -->
+    <TabWidgets v-if="activeKey" :tab="activeKey" :range="range" />
     <!-- Q-LM-T1: a driver holds every section at `none`, so they match no tab. They still reach this
          route, because `surfaces.ts` gates it ALWAYS and the matrix treats the Dashboard as an
          ungated nav item for them. An honest empty state is the answer until somebody decides what a

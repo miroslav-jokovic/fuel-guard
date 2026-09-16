@@ -71,6 +71,21 @@ export interface Surface {
   badge?: "hazmatReview" | "messagesUnread";
 }
 
+/**
+ * Anything gated the way a screen is gated (LM9, D-DW1).
+ *
+ * `Surface` satisfies it and so does `DashboardWidget`, which is the point: the switch in
+ * `surfaceGateAllows` is the product's one answer to "may this caller see this thing", and a widget
+ * catalogue that re-implemented it would be a second answer to a question the API, the database and
+ * the sidebar already agree on. Typed structurally rather than by inheritance so neither catalogue
+ * has to know about the other.
+ */
+export interface Gated {
+  gate: SurfaceGate;
+  /** AND-ed with the gate — the org must have bought the module as well as be allowed the section. */
+  module?: ModuleKey;
+}
+
 export interface SurfaceGroup {
   key: string;
   /** `null` renders ungrouped, above every labelled group — Dashboard and Ask AI. */
@@ -90,11 +105,22 @@ export const SURFACE_GROUPS: readonly SurfaceGroup[] = [
   { key: "admin", label: "Admin" },
 ];
 
-const section = (s: AppSection, level: SectionAccess = "view"): SurfaceGate => ({ kind: "section", section: s, level });
-const manage = (s: AppSection): SurfaceGate => section(s, "manage");
-const ALWAYS: SurfaceGate = { kind: "always" };
-const STAFF: SurfaceGate = { kind: "staff" };
-const ADMIN: SurfaceGate = { kind: "admin" };
+/**
+ * The gate builders, EXPORTED since LM9 so `DASHBOARD_WIDGETS` builds its gates with these rather
+ * than with a second set of its own. A copied `section()` would read identically and drift silently
+ * the first time either one learnt a new kind — which is the shape this repo's register calls a
+ * workaround with a delay fuse.
+ *
+ * ⚠ They are used unqualified inside the `SURFACES` literal below, and `check-surfaces.mjs` PARSES
+ * that literal looking for `gate: section("…")`. Exporting them does not move a call site, so the
+ * parser is unaffected; moving their DEFINITIONS to another file would be fine too, but renaming
+ * them at the call site would not.
+ */
+export const section = (s: AppSection, level: SectionAccess = "view"): SurfaceGate => ({ kind: "section", section: s, level });
+export const manage = (s: AppSection): SurfaceGate => section(s, "manage");
+export const ALWAYS: SurfaceGate = { kind: "always" };
+export const STAFF: SurfaceGate = { kind: "staff" };
+export const ADMIN: SurfaceGate = { kind: "admin" };
 
 /**
  * Array order IS item order within a group. Every `path` is a real route — `lint:surfaces` checks
@@ -396,7 +422,7 @@ export const isEditableSurface = (s: Surface): boolean => s.gate.kind === "secti
  * permissions. Module entitlement is enforced where it can be known: the sidebar (which has the
  * query) and the API (`requireModule`, which has the org).
  */
-export function surfaceGateAllows(s: Surface, role: UserRole | null, sections: SectionClaim | null = null): boolean {
+export function surfaceGateAllows(s: Gated, role: UserRole | null, sections: SectionClaim | null = null): boolean {
   switch (s.gate.kind) {
     // No role requirement whatsoever — see the SurfaceGate comment for why this is not `staff`.
     case "always":
@@ -416,7 +442,7 @@ export function surfaceGateAllows(s: Surface, role: UserRole | null, sections: S
 
 /** Both halves — the role gate AND the org's modules. The sidebar uses this one. */
 export function canReachSurface(
-  s: Surface,
+  s: Gated,
   role: UserRole | null,
   modules: ModuleSet | null,
   sections: SectionClaim | null = null,
