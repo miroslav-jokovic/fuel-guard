@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { buildTrail } from "@/lib/breadcrumbs";
+import { useColorScheme } from "@/composables/useColorScheme";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
 
 const props = withDefaults(
@@ -26,16 +27,48 @@ const props = withDefaults(
      * is why there is no scrim under the words.
      */
     hero?: string;
+    /**
+     * The same plate photographed at NIGHT, shown when the reader is in dark mode (D-DR19).
+     *
+     * ── WHY A SECOND FILE AND NOT A FILTER ON THE FIRST ───────────────────────────────────────
+     * Measured 2026-09-16, on the rendered band rather than the source: in light mode the dawn
+     * plate sits at **1.85:1** against the page it fades into, and in dark mode the SAME plate sits
+     * at **6.54:1** — 3.5× the separation, because the page went from L≈1.0 to L≈0.014 and the
+     * photograph did not follow. That is a luminous slab on a near-black page, and it is what a
+     * reader means by "too much contrast".
+     *
+     * A CSS `brightness()` filter was the cheap answer and is the wrong one: dimming a dawn sky
+     * produces a grey dawn sky, not a night. The sky's HUE, the headlights, the fall of light on
+     * the trailer and the stars are all different photographs, not the same one turned down.
+     *
+     * ⚠ It FALLS BACK to `hero` when absent, so the two plates that have no night variant
+     * (`prairie-dusk`, `coast-mist`) behave exactly as before rather than failing to render. That
+     * fallback is a known compromise, not a feature: those two keep the 6.54:1 problem in dark mode
+     * and need their own night plate before they are used on this band. Recorded in §5 rather than
+     * left for somebody to rediscover.
+     */
+    heroDark?: string;
   }>(),
   {
     title: undefined,
     description: undefined,
     hero: undefined,
+    heroDark: undefined,
   },
 );
 const route = useRoute();
 const router = useRouter();
 const resolvedTitle = computed(() => props.title ?? (route.meta.title as string) ?? "Silvicom 360");
+
+/**
+ * Which plate to hang behind the header (D-DR19).
+ *
+ * Derived from the scheme the reader already chose, exactly as D-DR8 derives the live map's
+ * basemap — `useColorScheme` is the one place that answers "is this reader in dark mode", and a
+ * prop asking the CALLER to decide would make the dashboard the second.
+ */
+const { isDark } = useColorScheme();
+const plate = computed(() => (isDark.value && props.heroDark ? props.heroDark : props.hero));
 
 /**
  * The breadcrumb trail (G2, UI-GAPS-PLAN.md), walked from `meta.parent` by `lib/breadcrumbs.ts`.
@@ -80,8 +113,8 @@ const trail = computed(() =>
       It also means no colour token is involved, so nothing here can drift from the palette.
     -->
     <img
-      v-if="hero"
-      :src="hero"
+      v-if="plate"
+      :src="plate"
       alt=""
       aria-hidden="true"
       class="pointer-events-none absolute inset-y-0 right-0 -z-10 h-full w-3/4 select-none object-cover
