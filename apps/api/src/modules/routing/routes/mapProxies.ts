@@ -1,4 +1,7 @@
 import type { Router } from "express";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { resolveBasemapStyle, resolveBasemapFormat } from "@silvicom/shared";
 import { requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
@@ -36,6 +39,30 @@ import { hereReverseGeocode } from "../../../lib/hereGeocode.js";
  * direction is one grey square, and the cost of being wrong in the other is the map.
  */
 const TILE_UPSTREAM_TIMEOUT_MS = 8_000;
+
+/**
+ * ── WHY THE TILE IS STREAMED AND NOT BUFFERED (B2) ───────────────────────────────────────────────
+ * This handler read `Buffer.from(await upstream.arrayBuffer())` and then `res.send(buf)`, which
+ * cannot emit a status line until the LAST byte of the tile is in this process's memory. So the
+ * browser's time-to-headers was HERE's TTFB *plus* HERE's entire body transfer, and every tile was
+ * held twice — once as the `ArrayBuffer`, once as the `Buffer` copied from it.
+ *
+ * Measured on the route itself, against a stand-in HERE answering headers in 120 ms and dribbling a
+ * 47 KB body over the next 50 ms (D-DR22's measured shape: 100-170 ms TTFB, 150-210 ms round trip),
+ * ten runs after a warm-up:
+ *
+ *   buffered   time-to-headers 181.6 · 181.0 · 180.9 ms    complete ~181.4 ms
+ *   streamed   time-to-headers 129.9 · 129.2 · 129.7 ms    complete ~181.1 ms
+ *
+ * The headers now arrive on HERE's clock instead of after the download — **~52 ms earlier per
+ * tile**, which is very nearly the whole body transfer — and the completion time is unchanged,
+ * because the bytes still take as long as they take. This is a latency and allocation change, not a
+ * bandwidth one, and a viewport is dozens of tiles deep.
+ *
+ * ⚠ It also stops paying for a tile nobody is waiting for. `pipeline` destroys its source when the
+ * destination closes, so a reader who pans away mid-tile now aborts the upstream body instead of
+ * leaving this process to finish downloading it into a buffer it will never send.
+ */
 
 /** Map + geocoding proxies: keep the HERE key / vendor rate server-side, never in the browser. */
 export function registerMapRoutes(router: Router): void {
@@ -96,10 +123,20 @@ export function registerMapRoutes(router: Router): void {
           res.status(502).json(apiError("tile_upstream_error", `HERE tile HTTP ${upstream.status}`));
           return;
         }
-        const buf = Buffer.from(await upstream.arrayBuffer());
         res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "image/png");
         res.setHeader("Cache-Control", "public, max-age=86400");
-        res.send(buf);
+        /**
+         * Passed through so the browser gets a determinate body rather than a chunked one — and so a
+         * truncated tile is a truncated tile to the browser rather than a short-but-valid one. HERE
+         * sends it; the branch is here because nothing in this handler should require that it does.
+         */
+        const length = upstream.headers.get("content-length");
+        if (length) res.setHeader("Content-Length", length);
+        if (!upstream.body) {
+          res.end();
+          return;
+        }
+        await pipeline(Readable.fromWeb(upstream.body as NodeReadableStream<Uint8Array>), res);
       } catch (e) {
         /**
          * A timeout answers 504 and not 502, and the distinction is for the logs rather than for
@@ -112,6 +149,32 @@ export function registerMapRoutes(router: Router): void {
          * and neither is an error worth 502's "the upstream said something wrong".
          */
         const aborted = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+        /**
+         * ⚠ ONCE THE TILE IS STREAMING THERE IS NO STATUS LEFT TO SEND, AND THE SOCKET IS ALREADY GONE.
+         *
+         * `pipeline` destroys BOTH of its streams when either end fails, so by the time a mid-body
+         * upstream error reaches this catch the response is already torn down — measured rather than
+         * assumed, with a probe in this block: `headersSent=true destroyed=true writableEnded=false`.
+         * That teardown is what the browser sees as a network error, and it is the outcome we want:
+         * ending the response cleanly instead would hand it a SHORT PNG that looks complete, which
+         * `Cache-Control: public, max-age=86400` above would then keep on the reader's disk for a day.
+         * maplibre re-asks for a failed tile on the next pan, the same cheap recovery the 8 s deadline
+         * is priced against.
+         *
+         * ⚠⚠ SO THE `destroy` BELOW IS BELT AND BRACES — IT IS THE `return` THAT EARNS THIS BRANCH.
+         * Without it the handler falls through to `res.status(502).json(...)`, whose `setHeader` throws
+         * ERR_HTTP_HEADERS_SENT on a response whose headers left minutes ago; that throw reaches
+         * `errorResponder`, which logs `[api] unhandled error` and reports it to Sentry. A HERE outage
+         * would arrive in our own alerting as a bug in this route, which is the misattribution the 504
+         * above exists to prevent. The `destroy` is kept for the case `pipeline` did not cause (a
+         * future writer here that fails before it pipes) and costs nothing on an already-dead socket.
+         *
+         * Pinned by "does not report a mid-tile upstream failure as an unhandled route error".
+         */
+        if (res.headersSent) {
+          res.destroy(e instanceof Error ? e : undefined);
+          return;
+        }
         if (aborted) {
           res
             .status(504)

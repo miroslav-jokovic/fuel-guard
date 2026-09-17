@@ -1,5 +1,6 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
+import { Readable } from "node:stream";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
@@ -85,6 +86,47 @@ function stubUpstream() {
 const hereUrl = () => upstream.find((u) => u.startsWith("https://maps.hereapi.com/"));
 
 /**
+ * An async generator as a `Response` body.
+ *
+ * ⚠ THE SHAPE IS CHOSEN BY A FITNESS FUNCTION, NOT BY TASTE. The obvious way to write these stubs is
+ * a hand-built `ReadableStream` whose `pull` ends the stream by calling the controller's terminator —
+ * and `testServerTeardown.test.ts` fails any test file that both starts a listener and names that
+ * same method, because a suite tearing its own server down that way hangs `afterAll` on keep-alive
+ * sockets. On a stream controller it is a false positive, but the honest fix is this side rather than
+ * loosening the scan: an async generator ends by returning, so it never names the method, reads
+ * better, and leaves a gate that catches a real defect exactly as strict as it was.
+ *
+ * ⚠ That is also why this comment talks around the method name instead of quoting it — the scan reads
+ * the file, not the code, and the first draft of this very note tripped it.
+ */
+function webBody(chunks: AsyncIterable<Uint8Array>): ReadableStream<Uint8Array> {
+  return Readable.toWeb(Readable.from(chunks, { objectMode: false })) as ReadableStream<Uint8Array>;
+}
+
+/**
+ * A tile delivered in several chunks, the way a real body arrives off a socket.
+ *
+ * ⚠ It matters that this is MULTI-CHUNK and that the assertions count bytes. The stub above answers
+ * one byte in a single chunk, which is the shape that cannot tell buffering from streaming apart —
+ * every assertion in this file passed against both implementations, which is exactly why B2 needed
+ * tests of its own rather than trusting the ones that were already green.
+ */
+function stubChunkedUpstream(chunks: number, chunkBytes: number, opts: { contentLength?: boolean } = {}) {
+  const total = chunks * chunkBytes;
+  async function* tileChunks() {
+    for (let i = 1; i <= chunks; i += 1) yield Buffer.alloc(chunkBytes, i);
+  }
+  vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+    upstream.push(String(input));
+    upstreamInit.push(init);
+    const headers: Record<string, string> = { "content-type": "image/png" };
+    if (opts.contentLength) headers["content-length"] = String(total);
+    return new Response(webBody(tileChunks()), { status: 200, headers });
+  });
+  return total;
+}
+
+/**
  * ⚠ The route sits behind `requireAuth` on the `/api/fueling` router, so an unauthenticated request
  * never reaches the handler. These tests are about which URL the handler builds, so they assert on
  * the STYLE only in the authenticated case and use the refusal below to prove the gate is still
@@ -139,6 +181,119 @@ describe("the tile proxy's upstream timeout", () => {
     expect(res.status).toBe(502);
     const body = (await res.json()) as { error?: { code?: string } };
     expect(body.error?.code).toBe("tile_upstream_error");
+  });
+});
+
+/**
+ * An upstream that answers its headers, hands over one chunk, and then fails.
+ *
+ * ⚠ The pause before the error is load-bearing, and the first draft did not have it. Erroring on the
+ * very next pull killed the socket before the client had read the status line, so `tile()` ITSELF
+ * rejected and the assertions never ran — the test failed while the code under it was working. The
+ * delay lets the headers and the first chunk land, which is the only way to reach the `headersSent`
+ * branch these two tests exist to cover.
+ */
+function stubBrokenBodyUpstream() {
+  async function* dyingBody() {
+    yield Buffer.alloc(16, 7);
+    await new Promise((r) => setTimeout(r, 25));
+    throw new Error("HERE stopped mid-body");
+  }
+  vi.stubGlobal("fetch", async () =>
+    new Response(webBody(dyingBody()), { status: 200, headers: { "content-type": "image/png" } }),
+  );
+}
+
+/**
+ * The tile the route streams is the tile HERE sent — whole, and typed as an image.
+ *
+ * These are the assertions B2 turns on. Before it, the handler read the upstream into a `Buffer` and
+ * `res.send` set the length for us; now the bytes pass through a `pipeline` and the length is copied
+ * off the upstream, so "did all of it arrive" and "is it still declared correctly" are both things
+ * that can now be got wrong without any other test noticing.
+ */
+describe("the tile proxy streams the body through intact (B2)", () => {
+  it("delivers every chunk, not just the first one", async () => {
+    const total = stubChunkedUpstream(8, 4_096);
+    const res = await tile("");
+    expect(res.status).toBe(200);
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body.byteLength, "a streamed tile must arrive whole").toBe(total);
+    // The fill values are the chunk ordinals, so this also proves they arrived in order.
+    expect(body[0]).toBe(1);
+    expect(body[total - 1]).toBe(8);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(res.headers.get("cache-control")).toBe("public, max-age=86400");
+  });
+
+  it("passes the upstream's content-length through rather than re-chunking the tile", async () => {
+    const total = stubChunkedUpstream(4, 1_024, { contentLength: true });
+    const res = await tile("");
+    expect(res.headers.get("content-length")).toBe(String(total));
+    expect(Buffer.from(await res.arrayBuffer()).byteLength).toBe(total);
+  });
+
+  /**
+   * ⚠⚠ THE ONE THAT PROTECTS THE READER'S DISK, AND THE REASON THE CATCH BLOCK CHECKS `headersSent`.
+   *
+   * Once bytes are flowing the status line is gone, so a body that dies mid-flight cannot be reported
+   * as 504 or 502 — but ending the response cleanly would be worse than either: the browser would
+   * receive a SHORT PNG that looks complete, under the `Cache-Control: public, max-age=86400` this
+   * route sets, and keep that corrupt tile for a day. Destroying the socket makes it a network error
+   * instead, and maplibre re-asks on the next pan.
+   *
+   * So what is asserted is that the client's own body read REJECTS. A truncated-but-clean response
+   * would resolve, which is precisely the bug.
+   *
+   * ⚠ MEASURED WHILE WRITING THIS, AND IT CHANGED WHAT THE SECOND TEST HAD TO BE. A probe inside the
+   * handler's catch reported `headersSent=true destroyed=true` — `pipeline` tears down BOTH streams
+   * when either fails, so the socket is already gone and the client's network error is `pipeline`'s
+   * doing, not the `res.destroy()` in the catch. Swapping that `destroy` for `end()` therefore did
+   * not fail this test, and neither did deleting the guard outright. What the guard actually buys is
+   * the `return`, and that is what the second test below pins.
+   */
+  it("breaks the connection when the body dies mid-tile, rather than serving half a PNG", async () => {
+    stubBrokenBodyUpstream();
+    const res = await tile("");
+    // The headers were already on the wire when the body failed, so the status cannot say otherwise.
+    expect(res.status).toBe(200);
+    await expect(
+      res.arrayBuffer(),
+      "a half-downloaded tile must reach the browser as a network error, not as a short image",
+    ).rejects.toThrow();
+  });
+
+  /**
+   * ⚠⚠ WHAT THE `headersSent` GUARD IS ACTUALLY FOR, AND THE ONLY TEST THAT CAN SEE IT.
+   *
+   * The client-visible outcome is identical with or without the guard, because `pipeline` has already
+   * destroyed the socket — which is why the test above stayed green through both mutations. What
+   * changes is what the SERVER says about it. Without the guard the handler falls through to
+   * `res.status(502).json(...)`, whose `setHeader` throws ERR_HTTP_HEADERS_SENT; that reaches
+   * `errorResponder`, which logs `[api] unhandled error` and hands it to Sentry.
+   *
+   * So a HERE body that dies mid-tile — a vendor outage, on the one request in this app that is
+   * cheapest to retry — would page us as a defect in our own route. That is exactly the
+   * misattribution the 504-vs-502 split above exists to prevent, arriving by a different door.
+   */
+  it("does not report a mid-tile upstream failure as an unhandled route error", async () => {
+    const logged: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      logged.push(args.map(String).join(" "));
+    });
+    try {
+      stubBrokenBodyUpstream();
+      const res = await tile("");
+      await expect(res.arrayBuffer()).rejects.toThrow();
+      // The failure travels through Express asynchronously; give it a turn to arrive before judging.
+      await new Promise((r) => setTimeout(r, 100));
+    } finally {
+      spy.mockRestore();
+    }
+    expect(
+      logged.filter((l) => l.includes("unhandled error")),
+      "a vendor body failure must not be logged as a bug in this route",
+    ).toEqual([]);
   });
 });
 

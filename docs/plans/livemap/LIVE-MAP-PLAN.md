@@ -2677,3 +2677,61 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
 
   **Proved by mutation**, each run and reverted: dropping the signal fails 1, reporting a timeout as
   502 fails 1, reporting every upstream error as a timeout fails 1.
+- **2026-09-17 — B2: the tile is streamed, not buffered, and the mid-body failure path turned out to
+  be owned by `pipeline` rather than by us.** `mapProxies.ts` read
+  `Buffer.from(await upstream.arrayBuffer())` and then `res.send(buf)`, which cannot put a status
+  line on the wire until the LAST byte of the tile is in this process's memory. So the browser's
+  time-to-headers was HERE's TTFB *plus* HERE's whole body transfer, and every tile was held twice —
+  once as the `ArrayBuffer`, once as the `Buffer` copied from it. Open since
+  `HANDOFF-2026-09-16-LIVE-MAP-PERF.md` §3.3.
+
+  **Measured on the route itself rather than argued.** The rig drives the REAL handler — real Express,
+  real middleware, `verifyToken` overridden, global `fetch` stubbed — against a stand-in HERE that
+  answers its headers in 120 ms and then dribbles a 47 KB body over 50 ms, which is D-DR22's measured
+  shape (100–170 ms TTFB, 150–210 ms round trip). Ten requests after a warm-up, three runs each way:
+
+  | | time-to-headers | time-to-complete |
+  |---|---|---|
+  | buffered | 181.6 · 181.0 · 180.9 ms | ~181.4 ms |
+  | streamed | 129.9 · 129.2 · 129.7 ms | ~181.1 ms |
+
+  **~52 ms earlier per tile, which is very nearly the whole body transfer**, and a viewport is dozens
+  of tiles deep. Completion is unchanged, because the bytes still take as long as they take — this is
+  a latency and allocation change, not a bandwidth one. It also stops paying for a tile nobody wants:
+  `pipeline` destroys its source when the destination closes, so a reader who pans away mid-tile now
+  aborts the upstream body instead of leaving this process to finish downloading it into a buffer it
+  will never send.
+
+  ⚠ **THE INTERESTING PART IS THE ERROR PATH, AND THE FIRST VERSION OF THIS ENTRY WOULD HAVE BEEN
+  WRONG ABOUT IT.** The new `if (res.headersSent) res.destroy(…)` branch was written believing it was
+  what saves the reader from a half-downloaded tile: ending the response cleanly would hand the
+  browser a SHORT PNG that looks complete, and `Cache-Control: public, max-age=86400` would keep that
+  corrupt tile on their disk for a day. The branch is right; the reason was not. A probe inside the
+  catch measured `headersSent=true destroyed=true writableEnded=false` — **`pipeline` tears down BOTH
+  streams when either end fails**, so the socket is already gone and the browser's network error is
+  `pipeline`'s doing. Swapping the `destroy` for `end()` changed nothing a client could see.
+
+  **So what the guard actually buys is the `return`.** Without it the handler falls through to
+  `res.status(502).json(…)`, whose `setHeader` throws ERR_HTTP_HEADERS_SENT on a response whose
+  headers left long ago; that throw reaches `errorResponder`, which logs `[api] unhandled error` and
+  reports it to Sentry. **A HERE body that dies mid-tile would page us as a defect in our own route**
+  — the same misattribution the 504-vs-502 split was added to prevent, arriving by a different door.
+  That is now pinned by "does not report a mid-tile upstream failure as an unhandled route error",
+  which is the only assertion that can see the difference.
+
+  **Proved by mutation**, each run and reverted: never piping the body fails 4, dropping the
+  `Content-Length` passthrough fails 1, removing the `headersSent` guard fails 1 — and swapping
+  `destroy` for `end()` fails NONE, which is recorded here as a result rather than hidden, because it
+  is the measurement that corrected the reasoning above.
+
+  ⚠ **A fitness function chose the shape of the test stubs.** The natural way to write a chunked body
+  is a hand-built `ReadableStream` whose `pull` ends the stream via the controller's terminator —
+  and `testServerTeardown.test.ts` fails any test file that both starts a listener and names that
+  method, because a suite tearing its own server down that way hangs `afterAll` on keep-alive sockets.
+  On a stream controller it is a false positive. The stubs use async generators instead (they end by
+  returning, so they never name it) rather than loosening a scan that catches a real defect — and the
+  comment explaining this had to talk *around* the method name, because the first draft of that very
+  note tripped the gate it was describing.
+
+  ⚠ **None of this touches item 3.** B2 is a latency fix. The deadline merged as #852 removed item 3's
+  last live mechanism; the next move there is still the owner's answer, not more measuring.
