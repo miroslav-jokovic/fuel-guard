@@ -89,6 +89,11 @@ const canvasStub = {
   methods: {
     flyTo: () => undefined,
     resize: () => undefined,
+    // ⚠ Added with D-LM28, and the omission FAILED LOUDLY rather than silently — an unhandled
+    // rejection, `canvas.value?.focusPopover is not a function`, from the rail's selection path.
+    // That is this stub's whole job: it answers what the component answers, so a method the
+    // workspace calls but the canvas has stopped exposing is a red test rather than a dead gesture.
+    focusPopover: () => undefined,
   },
 };
 const router = createRouter({
@@ -250,6 +255,37 @@ describe("LiveMapWorkspace (DR5)", () => {
     expect(card.text()).toContain("Fix 12s ago");
   });
 
+  /**
+   * D-LM28: the card opens over its marker, and WHICH GESTURE opened it decides where focus goes.
+   *
+   * ⚠ This is the half that cannot be seen by looking at the map. The rail is the keyboard's only
+   * route onto this surface — the canvas is a surface a screen reader cannot enter (D-DR7) — so a
+   * keyboard user who picks a truck from the list must land in the card. A mouse user clicking a
+   * marker has not asked for their focus to move off whatever they were doing, which is why
+   * `Popup` is built with `focusAfterOpen: false` and the rail asks for the exception.
+   *
+   * The canvas is stubbed, so what is asserted is the CALL: the workspace asks the canvas to focus
+   * its popover on a rail selection and does not ask on a marker selection.
+   */
+  it("sends focus into the card when the rail chose the truck, and not when the map did", async () => {
+    const wrapper = await mountWorkspace();
+    const canvas = wrapper.findComponent({ name: "LiveMapCanvas" });
+    const focusPopover = vi.spyOn(canvas.vm as unknown as { focusPopover: () => void }, "focusPopover");
+
+    // The map's gesture: a marker click. Nobody's focus moves.
+    await canvas.vm.$emit("select", "veh-1");
+    await wrapper.vm.$nextTick();
+    expect(focusPopover).not.toHaveBeenCalled();
+
+    // The keyboard's gesture: the rail's own row.
+    const row = wrapper.findAll("aside button").find((b) => b.text().includes("47"));
+    expect(row, "the rail must carry a row for unit 47, or this proves nothing").toBeDefined();
+    await row!.trigger("click");
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+    expect(focusPopover).toHaveBeenCalled();
+  });
+
   it("derives the freshness sentence from the poll interval rather than typing it (D-LM9b)", async () => {
     const wrapper = await mountWorkspace();
     expect(wrapper.text()).toContain("refreshes every 5s");
@@ -271,12 +307,13 @@ describe("LiveMapWorkspace (DR5)", () => {
     expect(card.text()).toContain("Gary, IN");
     expect(card.text()).toContain("Jordan Ellis");
 
-    // The card's pill IS its dismiss control, labelled with the unit it dismisses — and dismissing
-    // it clears the SELECTION rather than remembering a closed panel. A dispatcher who shut it once
-    // must still get a card the next time they click a truck.
-    const pill = wrapper.findAll("button").find((b) => b.text().includes("Unit 47"));
-    expect(pill).toBeDefined();
-    await pill!.trigger("click");
+    // D-LM28 moved the card onto its marker, so its dismiss is the card's own close button rather
+    // than the corner panel's pill. The PROPERTY is unchanged and is what this asserts: dismissing
+    // clears the SELECTION rather than remembering a closed panel, so a dispatcher who shut it once
+    // still gets a card the next time they click a truck.
+    const close = wrapper.find('[aria-label="Close truck card"]');
+    expect(close.exists()).toBe(true);
+    await close.trigger("click");
     expect(wrapper.find('[aria-label="Unit 47"]').exists()).toBe(false);
 
     await wrapper.findComponent({ name: "LiveMapCanvas" }).vm.$emit("select", "veh-1");

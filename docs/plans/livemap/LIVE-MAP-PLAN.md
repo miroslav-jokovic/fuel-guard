@@ -2594,3 +2594,57 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   Nothing in the words file knows what a marker is; nothing in the layer formats a string a person
   reads. The tests moved with their module rather than staying in one file that covers two — 334 and
   209 lines of source, 276 and 237 of test.
+- **2026-09-17 — D-LM28: the truck card moved onto its marker, and three things fell out of doing
+  it.** The last piece of the Samsara pattern `HANDOFF-2026-09-16-LIVE-MAP-PERF.md` §3.4 left open
+  ("the marker POPOVER is the one piece still outstanding… it is small"). It was not small, and the
+  three discoveries below are why.
+
+  **The card is rendered by the workspace and DRAWN by the canvas.** `maplibregl.Popup.setDOMContent`
+  MOVES a node into the popup's container, so the element stays the workspace's — Vue keeps rendering
+  into it — and only where the browser paints it changes. The alternative was reproducing
+  `LiveMapVehicleFacts` inside the canvas, which is the copy that component was extracted to prevent.
+
+  ⚠ **It follows the TWEEN, not the board.** `setLngLat` is called from the frame loop: a popup
+  pinned to the last fix would sit still for five seconds while the truck slid out from under it. One
+  `setLngLat` per frame for one popup is nothing beside the `setData` next to it.
+
+  ⚠ **Focus is decided by the GESTURE, and that is the half no screenshot can check.** `Popup` is
+  built with `focusAfterOpen: false` and the RAIL asks for the exception. The rail is the keyboard's
+  only route onto this surface (D-DR7 — the canvas cannot be entered by a screen reader), so a
+  keyboard user who picks a truck there must land in the card; a mouse user clicking a marker has not
+  asked for their focus to move at all. Pinned in both directions by mutation.
+
+  ⚠ **`LiveMapFloatingPanel.vue`, its test and `liveMapPanels.ts` are DELETED.** The card was the
+  panel's last caller — D-DR25's rail had already taken the other two — so the component, the corner
+  catalogue and the type went with it. This is the third deletion in three steps (the drawer in
+  D-LM27, this here), and the pattern is worth naming: a surface that is being consolidated leaves
+  components alive but unreachable, and each one goes on carrying a comment claiming it is in use.
+
+  **Three measured defects, none of which a test could have caught, all found by looking:**
+
+  | | measured | after |
+  |---|---|---|
+  | the glass never applied | `.maplibregl-popup-content` still `rgb(255,255,255)`, `15px 10px` padding | transparent, 0 |
+  | the tip in dark mode | `rgb(255,255,255)` — a white spike under a dark card | the dark surface token |
+  | the card at 390×844 | **94px below the fold**, then overlapping the top strip by 40 | 330px of clearance, no overlap |
+
+  ⚠⚠ **The first two are ONE lesson and it is D-LM22's, arriving from a new direction: VENDOR CSS IS
+  UNLAYERED, AND UNLAYERED BEATS EVERY CASCADE LAYER.** The overrides were written inside
+  `@layer components` beside `.map-panel`, which is where they belong by topic and where they did
+  nothing at all. Moving them out fixed the content; the TIP still lost, because maplibre colours it
+  per anchor (`.maplibregl-popup-anchor-top .maplibregl-popup-tip`, 0-2-0) and a two-class override
+  only ties. Both were read back from the rendered DOM rather than looked at, which is the only
+  reason they were found — a white card on a white basemap is invisible until somebody opens dark
+  mode.
+
+  ⚠ **maplibre chooses a popup's side ONCE and never revises it.** Measured: a popup opened while the
+  camera was still flying kept `anchor-top` through a pan, hanging the card below the fold. The side
+  is now computed from the marker's projected position — a truck in the bottom half of the map gets
+  its card above it — and re-decided on each open rather than inherited from whichever truck was
+  picked first. Deliberately NOT per frame: a card that flipped sides mid-tween is a card nobody can
+  read.
+
+  ⚠ Below `sm` the card stops at 320px and scrolls inside itself, because the top of a card anchored
+  above a truck is `marker − offset − height`, and 360px of card put that under the map's own Fleet
+  button and scope sentence. That is the vendor-DOM overlap trap the other way round — our element,
+  inside maplibre's popup, hitting our own overlay — and neither side's collision check can see it.

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
-import { TruckIcon } from "@silvicom/ui/icons";
+import { TruckIcon, XMarkIcon } from "@silvicom/ui/icons";
 import type { LiveMapVehicle } from "@silvicom/shared";
 import { type MapBounds } from "./liveMapLayer";
 import { boardSummarySentence } from "./liveMapWords";
 import LiveMapCanvas from "./LiveMapCanvas.vue";
-import LiveMapFloatingPanel from "./LiveMapFloatingPanel.vue";
 import LiveMapRail from "./LiveMapRail.vue";
 import LiveMapVehicleFacts from "./LiveMapVehicleFacts.vue";
 import { useLiveMapView } from "./useLiveMapView";
@@ -76,6 +75,26 @@ const {
 const pollSeconds = Math.round(LIVE_MAP_POLL_MS / 1000);
 
 const canvas = ref<InstanceType<typeof LiveMapCanvas> | null>(null);
+
+/**
+ * The truck card's own element, handed to the canvas so its marker popover can show it (D-LM28).
+ */
+const cardEl = ref<HTMLElement | null>(null);
+
+/**
+ * Select a truck FROM THE RAIL, which is a different gesture from clicking its marker.
+ *
+ * ⚠ The difference is focus, and it is the whole reason this is not just `select`. The rail is the
+ * keyboard's only route onto this surface (D-DR7 — the canvas is a surface a screen reader cannot
+ * enter), so a keyboard user who picks a truck there must land IN the card; leaving them in the list
+ * while the facts open over the map is a card they cannot reach without hunting. A mouse user
+ * clicking a marker has not asked for their focus to move at all, which is why `Popup` is built with
+ * `focusAfterOpen: false` and the rail asks for the exception rather than everyone paying for it.
+ */
+function selectFromRail(vehicle: LiveMapVehicle): void {
+  select(vehicle);
+  void nextTick(() => canvas.value?.focusPopover());
+}
 
 /**
  * Whether the rail is showing BELOW `lg`, where it covers the map instead of standing beside it.
@@ -149,7 +168,7 @@ watch(railVisible, async () => {
         @update:search="setSearch($event)"
         @update:states="stateFilter = $event"
         @update:viewport-only="viewportOnly = $event"
-        @select="select"
+        @select="selectFromRail"
         @close="railOpen = false"
       />
     </div>
@@ -163,6 +182,7 @@ watch(railVisible, async () => {
         :vehicles="filtered"
         :generated-at="board.data.value.generatedAt"
         :selected-id="selectedId"
+        :card-el="cardEl"
         @select="selectedId = $event"
         @viewport="onViewport"
       />
@@ -234,29 +254,61 @@ watch(railVisible, async () => {
       </div>
 
       <!--
-        The selected truck. Still a floating panel rather than the drawer the owner ruled out, and
-        still not one of the remembered ones: it is present because a truck is selected, so its
-        dismiss clears the SELECTION rather than storing a preference. Otherwise a dispatcher who
-        closed it once would click a truck on some later day and get nothing back.
+        The selected truck (D-LM28). This element is rendered HERE and drawn over its own marker:
+        `LiveMapCanvas` hands it to a `maplibregl.Popup`, which moves the node into the map. It is
+        always in the tree — `v-if` is on its CONTENTS — because an element that comes and goes
+        cannot be handed to a popup that outlives one selection, and because the rail, which is the
+        keyboard's route here, needs something to send focus to.
+
+        ⚠ `.map-panel` is the corner panels' own glass, measured at 82% surface over HERE's tiles and
+        already answered for by three media queries in `style.css`. A popover with a background of
+        its own would be a second answer to the same question.
+
+        ⚠ **THE HEIGHT CAP IS A MEASURED OVERLAP FIX, NOT A ROUND NUMBER.** Anchored above a truck in
+        the lower half of the map, the card's top is `marker − offset − height`; at 390×844 a
+        360px-tall card put that at **y=154, under the map's own top strip** — the Fleet button and
+        the scope sentence sitting on the card's first two lines. Anything at or under 335px clears
+        the strip, so below `sm` the card stops at `max-h-80` (320px) and scrolls inside itself.
+        Above `sm` there is room and the cap is the `60vh` the corner panels used.
+
+        ⚠⚠ That overlap is the one `overlap-checks-must-include-vendor-DOM` warns about, the other way
+        round: OUR element inside MAPLIBRE's popup, colliding with our own overlay. Neither side's
+        collision check could see it — it was found by looking at a phone-sized screenshot.
       -->
-      <LiveMapFloatingPanel
-        v-if="selected"
-        :title="`Unit ${selected.unitNumber}`"
-        corner="top-right"
-        :open="true"
-        width="sm:w-80"
-        @update:open="selectedId = null"
+      <div
+        ref="cardEl"
+        tabindex="-1"
+        class="map-panel w-80 max-w-full overflow-y-auto p-3 focus:outline-none max-h-80 sm:max-h-[60vh]"
+        :class="selected ? '' : 'hidden'"
+        :aria-label="selected ? `Unit ${selected.unitNumber}` : undefined"
       >
-        <p
-          class="mb-2 truncate text-xs"
-          :class="selected.driver ? 'text-ink-secondary' : 'text-ink-muted'"
-        >
-          {{ selected.driver?.name ?? "No driver assigned" }}
-        </p>
-        <!-- `board.data.value` is non-null here: `selected` resolves against the board, so there is
-             no card without one. -->
-        <LiveMapVehicleFacts :vehicle="selected" :board="board.data.value!" density="compact" />
-      </LiveMapFloatingPanel>
+        <template v-if="selected">
+          <div class="mb-2 flex items-start gap-2">
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-semibold text-ink">Unit {{ selected.unitNumber }}</p>
+              <p
+                class="truncate text-xs"
+                :class="selected.driver ? 'text-ink-secondary' : 'text-ink-muted'"
+              >
+                {{ selected.driver?.name ?? "No driver assigned" }}
+              </p>
+            </div>
+            <!-- Dismiss clears the SELECTION rather than hiding a panel: a shut card over a truck the
+                 rail still shows as selected is a state with no way out of it. -->
+            <BaseButton
+              variant="ghost"
+              size="sm"
+              aria-label="Close truck card"
+              @click="selectedId = null"
+            >
+              <AppIcon :icon="XMarkIcon" class="size-4" aria-hidden="true" />
+            </BaseButton>
+          </div>
+          <!-- `board.data.value` is non-null here: `selected` resolves against the board, so there is
+               no card without one. -->
+          <LiveMapVehicleFacts :vehicle="selected" :board="board.data.value!" density="compact" />
+        </template>
+      </div>
     </div>
   </div>
 </template>
