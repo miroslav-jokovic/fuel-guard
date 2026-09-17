@@ -6,6 +6,10 @@ The UI companion to `HIRING-MODULE-PLAN.md`, which owns the process, the regulat
 This document owns **what a person sees and touches**. The split follows this repo's own precedent —
 `RECRUITING-UI-SURFACE-PLAN.md` is the same companion to `RECRUITING-SYSTEM-PLAN.md`.
 
+**`HIRING-MOCKUP.html` renders every screen below.** Open it in a browser — nothing needs to be
+running. ⚠ It `<link>`s the real `packages/ui/src/tokens.generated.css`, so its colours, radii,
+shadows and typeface are the product's rather than a mockup author's, and it contains no hex value.
+
 It exists because the owner's words on 2026-09-17 were *"our application pages and flow and other
 pages in recruitment are confusing, not really user friendly"*, and then *"make this checklist/wizard
 modern and advanced"*. Those are two different asks — one is a repair, one is a new object — and §3
@@ -408,23 +412,14 @@ Each of these is something this repo, or the research, has already paid for once
 
 ## 9. Queue
 
-Ordered so that each step is visible to a human when it lands. Maps onto the parent plan's waves.
+⚠ **There is no queue here. `HIRING-MODULE-PLAN.md` §9 is the single ordering**, and it already
+carries these steps as **B4–B8** (board, checklist, record page, wizard additions, viewer) and
+**C1–C2** (signing surface, adoption dialog).
 
-| Step | What | Depends on |
-|---|---|---|
-| **HU1** | `/recruitment` becomes the board; screening + inquiries become tabs (D-HUI8, `surfaces.ts` + routes) | parent HM7 |
-| **HU2** | The checklist component in `features/recruitment/`, over the steps that exist today (D-HUI2/3/4/5) | HM7 |
-| **HU3** | `/recruitment/:id` rebuilt as checklist + `SlideOver`; the five existing sections become drawer bodies | HU2 |
-| **HU4** | The applicant wizard's two additions — expectations screen, per-step estimates (§4.3) | — |
-| **HU5** | The document viewer, read-only (§4.5) | parent HM6 |
-| **HU6** | The signing surface: PDF + page rail + START/NEXT/FINISH, full-bleed (§4.4, D-HUI6) | HU5, **Q-HUI2** |
-| **HU7** | The adoption dialog's three tabs, separate marks, changeable (§4.4) | HU6 |
-
-⚠ **HU6 must land before any real ceremony walk.** A filed packet is rendered once and frozen
-(parent plan §6.1); production holds 0 marks today, and the first walk closes that window for the
-driver who walks it.
-
----
+A second ordered list in this document would be a second answer to *"what do I do next"*, which is
+the failure this repo names as a workaround: a copy is a workaround with a delay fuse. What lives
+here is the **reasoning** each of those steps needs — §3's decisions, §5's anatomy, §6's list of what
+not to build — and `HIRING-MOCKUP.html` is what they look like.
 
 ## 10. Progress log
 
@@ -433,6 +428,16 @@ Append dated lines. Never edit a table row above.
 - **2026-09-17** — Created. NN/g wizard and complex-application guidance read (§2.1); product-adoption
   literature read (§2.2); `ApplyProgress.vue`'s three Q-AX1 rulings recovered from the code (§2.3).
   D-HUI1–D-HUI8 proposed, none ruled; Q-HUI1–Q-HUI5 open. **Nothing built.**
+- **2026-09-17, later** — `HIRING-MOCKUP.html` added and rendered in a browser at 1440 and 390.
+  ⚠ **Rendering it found two things reading it could not.** (a) `tokens.generated.css` has **two
+  layers**: `:root` carries the primitives (`--surface`, `--ink*`, `--edge*`, `--ramp-*`, `--shape-*`,
+  `--elevation-*`) and a `@theme` block carries the Tailwind aliases (`--radius-*`, `--color-*`,
+  `--font-sans`, `--text-*`, `--shadow-*`) that only exist after a Tailwind build. Outside one,
+  `getPropertyValue` returns empty and every `var()` **silently falls back** — measured: the whole
+  document rendered in Times and nothing warned. Anything outside the app build must read the
+  primitives. (b) A clock **emoji** had been used as a step marker, against the repo's own
+  SVG-icons-no-emoji rule, and it was invisible in the source. §9's queue moved to the parent plan so
+  there is one ordering.
 
 ---
 

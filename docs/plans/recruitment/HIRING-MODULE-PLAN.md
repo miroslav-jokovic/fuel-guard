@@ -27,6 +27,64 @@ where they are marketing copy rather than a measurement.
 
 ---
 
+## 0. Picking this up in a new chat — read this first, it takes two minutes
+
+This programme runs across several chats. Nothing below assumes you remember the previous one.
+
+**The three documents, and which owns what.**
+
+| Document | Owns |
+|---|---|
+| **this one** | the process, the regulation, the order, **and the single queue (§9)** |
+| `HIRING-UI-PLAN.md` | the surfaces — D-HUI1–8, the anatomy, what not to build |
+| `HIRING-MOCKUP.html` | what it looks like. Open it in a browser; it links the real token file |
+
+**The protocol, and every line of it exists because something went wrong without it.**
+
+1. **Read §9, find the first step with no `DONE` line in §10.** That is your step. The queue is the
+   only ordering; do not infer one from the section headings.
+2. **One step, one PR, one branch off `origin/main`.** ⚠ Several chats share this working tree, so
+   `git branch --show-current` before every commit and push — and branch from `origin/main`, never
+   from whatever is checked out.
+3. ⚠ **Record progress by APPENDING a dated line to §10. Never edit a table row in §9.** Parallel
+   PRs editing adjacent table rows conflict every single time; append-only lines never do.
+4. **Steps marked ∥ may run in different chats at the same time.** Steps not marked ∥ touch a file an
+   earlier step is also touching, and must wait.
+5. **Run the gates before pushing**, not after: `pnpm lint`, `pnpm typecheck`, `pnpm test`. ⚠ For web
+   changes also `pnpm --filter web lint:tokens` — it is an `apps/web` script and a bare root call
+   fails misleadingly. ⚠ A migration must commit its regenerated `schema.generated.sql`; that check
+   hides inside `lint:table-writers`.
+6. **A migration and its first reader ship in two separate PRs** (`lint:migration-ordering`). New
+   tables are exempt and may ship with their reader. The deploy window is ~2m44s and cannot be
+   watched for — see `docs/MIGRATION-DISCIPLINE.md`.
+7. **Prove a test can fail.** Mutate the line it covers and watch it go red. This repo has had ten
+   green assertions that proved nothing in a single session; the cause each time was a fixture too
+   uniform to discriminate.
+8. **If the honest fix is out of scope, stop and say so.** Write the blocker into §8 with candidates
+   and a recommendation. Do not ship the detour. `CLAUDE.md`'s *No workarounds* section is the
+   standard, and §1.6 of this document is what the aggregate looks like.
+
+**The four facts that will otherwise cost you an hour each.**
+
+- ⚠ **A filed packet is frozen.** `file.ts:140–146` renders once, hashes, and returns storage bytes
+  for ever. Production holds **0** `application_packet_marks`, so how the packet prints is still free
+  to change — until the first ceremony walk. Any step that changes printing must land before HU6.
+- ⚠ **"Deployed" is a per-service question.** Two Railway services run `apps/api` and routinely sit at
+  different commits. **Applicants reach `@fleetguard/web`; `pnpm verify:live` checks
+  `@fleetguard/api`.** Curl the web host's `/api/version` when an applicant-facing change matters.
+- ⚠ **The nav is generated from `NAV_SURFACES`** in `packages/shared/src/surfaces.ts`. Nav paths are
+  not in `apps/web/src`, and looking for them there is the hour.
+- ⚠ **`pnpm dev` crashes** on this machine inside vite's dependency optimiser. It is environmental and
+  is not your change. Use `pnpm --filter @silvicom/web preview:local` (:4173) to see anything.
+
+**Definition of done for every step below:** the gates are green, the PR is merged into `main` by a
+merge commit, a `DONE` line is appended to §10, and **the done-when sentence is true of a person**,
+not of an endpoint. ⚠ That last clause is not decoration — A11b was marked done while the first
+invitation had no send path at all, because every test asserted what the route DID and nothing
+asserted what it did not do.
+
+---
+
 ## 1. The application audit, 2026-09-17
 
 The owner walked the live application and reported six problems. All six reproduce in the code. This
@@ -481,39 +539,73 @@ Nothing in §6 or §9 assumes an answer here.
 
 ## 9. The queue
 
-Three tracks. Wave A is not optional and does not wait for anything.
+**One queue. `HIRING-UI-PLAN.md` holds the design reasoning for the `U`-prefixed steps but no
+separate ordering — this is the ordering.**
 
-### Wave A · repair the application (blocks trust in everything after it)
+Each step is one PR. `∥` means it may run in a different chat at the same time as its neighbours,
+because it touches no file an unfinished neighbour touches. Sizes are a rough half-day / day / more.
 
-| Step | What | Size |
-|---|---|---|
-| **HM1** | Stop the nudge sweep rotating a live link — exclude `review_requested_at` / `approved_at` from `candidates()` | one file |
-| **HM2** | Mint and email a fresh link at approval; keep the old hash valid (Q-HM6) | migration + route |
-| **HM3** | Point `preview.pdf` at the packet renderer, and pin *"the office's preview and the driver's filing are the same renderer"* | one file + a test that can fail |
-| **HM4** | The four drawn-signature defects (§1.3 a–d) | client + overlay |
-| **HM5** | Initials: confirm before pinning, editable until the first mark lands | client + contract |
+⚠ **Read §0 before starting any of them**, and append to §10 rather than ticking a row here.
 
-### Wave B · the artifacts and the surface
+### The sequencing insight, which is what makes this fast
 
-| Step | What | Depends on |
-|---|---|---|
-| **HM6** | The step-one permissions PDF — four instruments + e-sign consent + certificate of completion, previewable and printable the moment step one completes (D-HM4) | — |
-| **HM7** | The derived hiring checklist (D-HM1/D-HM2) over the steps that exist today | HM6 |
-| **HM8** | Recruitment nav collapses to the checklist; screening-readiness and inquiries become panels on the applicant record | HM7 |
-| **HM9** | The DocuSign-model signing surface (D-HM8) | HM3; **before any real ceremony walk** (§6.1) |
+**`hiringChecklist.ts` (B1) is a pure function in `packages/shared` with no dependencies, no schema
+and no network.** It can be written on day one, in its own chat, in parallel with every repair in
+Wave A — and everything in Waves B and C consumes it. Build it first and the UI work has something
+to render against; build it last and four steps queue behind it.
 
-### Wave C · the steps that are designed and unbuilt
+The second-order effect is the one worth planning around: **each step in Wave D extends that one fold
+and nothing else.** So Wave D parallelises almost completely, which is the pattern
+`RECRUITING-SYSTEM-PLAN.md` §1 established for the requirement list and the reason no cross-PR type
+coupling accumulates.
 
-| Step | What | Gated on |
-|---|---|---|
-| **HM10** | Recorded acts + artifacts for MVR review, Clearinghouse query, drug test (D-HM6) | Q-HM2, Q-HM4 |
-| **HM11** | Road test — §391.31(c) form, examiner, §391.31(e) certificate (D-HM7 / R8) | **Q-HM1** |
-| **HM12** | Orientation sessions + attendance + per-instrument acknowledgements (R8, §5.2) | **Q-HM7** |
-| **HM13** | Re-found `DRIVER-TRAINING-PLAN.md`, then its Phases 0–3 (D-HM5) | Q-HM3, Q-HM8 |
-| **HM14** | Live-session attendance with auto-assignment of the recording to absentees (§4.4) | HM12, HM13 |
+---
 
-⚠ Each step extends the checklist's fold in its own PR — the pattern `RECRUITING-SYSTEM-PLAN.md` §1
-already established for the requirement list, so no cross-PR type coupling accumulates.
+### Wave A · repair the application — nothing waits for this, and it is live damage
+
+| | Step | Build | Verify | Done when |
+|---|---|---|---|---|
+| **A1** ∥ | **Stop the nudge rotating a live link** · half day | `applicationNudgeSweep.ts` `candidates()` — exclude `review_requested_at`/`approved_at`. ⚠ The rule belongs in `packages/shared/src/applicationNudge.ts`'s `planApplicationNudges`, beside `STALE_DRAFT_HOURS`, not in the query, so it is testable without a database | `pnpm --filter @silvicom/shared test`; mutate the new predicate and watch a test go red | **An applicant whose application has been with the office for a week still has a working link.** Pin it with a candidate whose `draft_updated_at` is 10 days old and `approved_at` set |
+| **A2** ∥ | **One document, not two** · half day | `applicationPdf/preview.ts` → `renderPacketDocument`. ⚠ Keep `render.ts` (D-PKT5): an application with **0 marks** must still render as the summary, or the preview is 31 blank signature lines | `pnpm --filter @silvicom/api test`; then render both and `pdftoppm -r 110 -png` — **look at them** | **The office's preview and the driver's filing are the same document.** Pinned by a test that renders both paths from one payload and compares page counts |
+| **A3** ∥ | **The drawn mark's four defects** · day | `packetOverlay.ts:172` — read `mark.signedName` for `mark === "initials"` **before** the `if (drawn)` branch; `usePacketCeremony.ts:158–165` — surface the staging failure instead of swallowing it; `PacketCeremony.vue` — preview the drawing in drawn mode | `pnpm --filter @silvicom/web test`; rasterise a packet signed by drawing and look at p05/p06/p09 | **A driver who draws gets their drawing on the signature lines and their typed initials on the initials lines, and is told if the drawing did not upload** |
+| **A4** | **Initials stop pinning on one keystroke** · half day | `usePacketCeremony.ts` — confirm step before the first mark, editable until it lands. ⚠ Do not raise the contract's `min(1)`: somebody with one legal name has one initial. The defect is the **pin**, not the minimum | web tests; mutate the confirm gate | **A driver can correct a mistyped initial before it is fixed for the document** · *after A3 — same files* |
+| **A5a** ∥ | **Migration: a second sign-token hash** · half day | Next-numbered migration adding `sign_token_hash` to `application_invitations`. ⚠ Column only — **no reader in this PR** (`lint:migration-ordering`). Commit the regenerated `schema.generated.sql` | `pnpm lint`; the PGlite matrix | **The column exists in production and nothing reads it** |
+| **A5b** | **A fresh link in the approval email** · day | `applicationApprovalNotice.ts` mints a new token into `sign_token_hash` and sends it; `applicationIntake.ts` `resolveInvitation` accepts **either** hash. ⚠ Q-AX4's objection dissolves here — the old link keeps working, so nothing is stranded | api tests; a refused-send test asserting the approval still commits | **An approved applicant gets an email with a link that opens the signing screen, and their old link still works** · *after A5a, separate merge* |
+
+### Wave B · the fold, the artifact, the surface
+
+| | Step | Build | Verify | Done when |
+|---|---|---|---|---|
+| **B1** ∥ | **`hiringChecklist.ts` — the fold** · day. **START THIS FIRST** | `packages/shared/src/hiringChecklist.ts`. Pure. In: invitation phases, authorizations, packet marks, applications, qualification records, documents, PSP rows. Out per step: `blocked \| waiting_on_them \| waiting_on_us \| done`, the artifact, and the blocker's name. ⚠ **Only steps that exist today.** A step with no artifact cannot be a step (D-HM1) | shared tests; a fixture per state, and one asserting a step is **not** emitted when its evidence table is empty | **The fold answers "where is this applicant" for the five steps that have evidence today, and refuses to invent a sixth** |
+| **B2** ∥ | **The step-one permissions PDF** · day | The four instruments + the e-sign consent + the certificate of completion, as one banded interim document. ⚠ It does **not** touch D-AX8: the filed record stays single and hashed; this is banded exactly as `preview.pdf` bands a draft | api tests; rasterise it and read it | **The office can print what an applicant signed on the day they signed it, without waiting for the application to be filed** |
+| **B3** | **Serve the fold** · half day | `GET /api/recruitment/applicants/:driverId/checklist`. ⚠ Service role bypasses RLS — org-filter every read and assert it with `supabaseRecorder`'s `expectOrgScoped` | api tests | **The endpoint returns the same answer the fold returns for the same rows** · *after B1* |
+| **B4** | **The board** · day | `/recruitment` per `HIRING-UI-PLAN.md` §4.1 and mockup screen 1. `surfaces.ts`: screening + inquiries become tabs, not nav items (D-HUI8) | `pnpm --filter web lint:tokens`, `lint:ui-adoption`, `check-surfaces.mjs`; `preview:local` and look | **A recruiter opening Recruitment sees who is waiting on them, first, without choosing a page** · *after B3* |
+| **B5** | **The checklist component** · day | `features/recruitment/`, per §5 of the UI plan and mockup screen 2. ⚠ Not shared yet (D-DS18/D-HUI2). States are badges from `@/lib/badges` — icon **and** word, never colour alone | web tests; render at 1440 and 390 | **Every row states what it is, who owes the move, and the document that proves it** · *after B4* |
+| **B6** | **The applicant record rebuilt** · day | `/recruitment/:id` = checklist + `SlideOver`. The five existing sections become drawer bodies — none is rewritten | web tests; walk it in `preview:local` | **A recruiter can do the next thing for an applicant without leaving the page** · *after B5* |
+| **B7** ∥ | **The wizard's two additions** · half day | An expectations screen (NN/g: say how many steps and how long) and per-step time estimates on `ApplyProgress`'s list. ⚠ Do not touch the bar or the high-water fence — Q-AX1 settled both | web tests at 390px | **An applicant knows what the whole thing involves before they start it** |
+| **B8** ∥ | **The document viewer** · day | Read-only, beside the data rather than a new browser tab. Shared with C1 — same viewer, one of them read-only | render at 1440 and 390 | **An office reviewer can read a filed PDF without losing the record they are reading it against** |
+
+### Wave C · signing — ⚠ before any real ceremony walk
+
+| | Step | Build | Verify | Done when |
+|---|---|---|---|---|
+| **C1** | **The signing surface** · more than a day | Mockup screen 5. PDF + page rail + START/NEXT, FINISH gated on all 22. `meta.fullBleed` (D-HUI6) — ⚠ **not** a new `meta.layout`. Server half is entirely reusable: `packetTemplate`, `packetMarkGeometry`, `packetFieldGeometry`, `packetOverlay`, `packetGrid` | render at 1440; **and at 390 to answer Q-HUI2 with a measurement** | **A driver can read the page they are about to sign, on the page they are about to sign it** · *after B8, **Q-HUI2*** |
+| **C2** | **The adoption dialog** · day | Choose a style / Draw / Upload; signature and initials adopted **separately**; changeable while the envelope is open | web tests; rasterise a packet signed each way | **A driver can adopt a signature, see it, and change it before it is on 22 pages** · *after C1* |
+
+### Wave D · the designed-and-unbuilt steps — each extends B1's fold and nothing else
+
+| | Step | Gated on | Done when |
+|---|---|---|---|
+| **D1** ∥ | Recorded acts + artifacts for MVR, Clearinghouse and the drug test (D-HM6) | Q-HM2, Q-HM4 | **An MVR obtained anywhere files the same way and turns its step green** |
+| **D2** ∥ | Road test — §391.31(c) form, examiner, §391.31(e) certificate (D-HM7 / R8). ⚠ No schema widening: 0217 already carries `road_test` | **Q-HM1** | **A passed road test produces a certificate in the driver's file** |
+| **D3** ∥ | Orientation sessions, attendance, per-instrument acknowledgements (R8, §5.2). ⚠ **Separate signature block per instrument** — an omnibus "I received orientation" does not prove §382.601 | **Q-HM7** | **An orientation day is schedulable and who attended is auditable** |
+| **D4** | Re-found `DRIVER-TRAINING-PLAN.md` against the current gate set, then its Phases 0–3 | Q-HM3, Q-HM8 | **An applicant watches nine videos, answers the questions, and fails back to the video when they get them wrong** |
+| **D5** | Live sessions with auto-assignment of the recording to absentees (§4.4) | D3, D4 | **Somebody who missed the live session is assigned the recording without anybody remembering to do it** |
+
+### Not in the queue, because they are not builds
+
+Send the counsel package · buy a Clearinghouse query plan + IDEMIA verification · choose an MVR
+vendor · three Railway variables for Resend · point `silvicom360.silvicominc.com` at Railway.
 
 ---
 
@@ -534,6 +626,12 @@ every time.
   also recovers three rulings already written into `ApplyProgress.vue` (Q-AX1) that nobody should
   re-derive: the bar indicates and a list navigates, forward is fenced at the high-water mark, and a
   30px step target is what a phone actually gives you.
+- **2026-09-17, evening** — §0 (chat-continuity protocol) and §9 (the single execution-grade queue,
+  A1–D5) written. `HIRING-MOCKUP.html` added, rendered and corrected twice from the render. The
+  sequencing decision worth keeping: **`hiringChecklist.ts` is a pure function with no dependencies,
+  so it is buildable on day one in its own chat**, in parallel with every repair in Wave A, and
+  everything in Waves B–C consumes it. Wave D then parallelises almost completely because each of
+  its steps extends that one fold and nothing else. **Nothing built.**
 
 ---
 

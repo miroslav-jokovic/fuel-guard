@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hiring module — surface mockup</title>
+
+<!--
+  HIRING-UI-PLAN.md, rendered. Open this file directly in a browser; nothing needs to be running.
+
+  ⚠ IT LINKS THE REAL TOKEN FILE. Every colour, radius, shadow and typeface below comes from
+  `packages/ui/src/tokens.generated.css` through `var(--…)`. There is not one hex value in this
+  document, and there must never be one — the point of the mockup is to show what the design system
+  actually produces, not what a mockup author thinks it looks like. If the refresh moves the brand
+  hue again, this file moves with it.
+
+  ⚠ IT IS NOT THE IMPLEMENTATION AND IS NOT A COMPONENT LIBRARY. The classes below imitate the
+  primitives; the real screens compose `@silvicom/ui` + `@/components/ui`, and `lint:ui-adoption`
+  fails a local clone. Read this to decide the LAYOUT and the WORDS, then build with the real
+  primitives.
+-->
+<link rel="stylesheet" href="../../../packages/ui/src/tokens.generated.css">
+
+<style>
+  :root { color-scheme: light; }
+
+  /*
+    ⚠ THE BRIDGE, AND THE FINDING THAT MADE IT NECESSARY — measured in a browser 2026-09-17.
+
+    `tokens.generated.css` has TWO layers and only one of them is real CSS at runtime:
+
+      · `:root` carries the PRIMITIVES — `--surface`, `--ink*`, `--edge*`, `--ramp-*`, `--shape-*`,
+        `--elevation-*`. These resolve in any browser, and everything below uses them.
+      · a `@theme` block carries the Tailwind ALIASES — `--radius-*`, `--color-*`, `--font-sans`,
+        `--text-*`, `--shadow-*`. Tailwind consumes those at BUILD time. Outside a Tailwind build
+        they do not exist, `getPropertyValue` returns empty, and every `var()` silently falls back.
+
+    Measured: `--radius-surface`, `--font-sans` and `--text-2xs` all returned "" and the whole
+    document rendered in Times. ⚠ **Nothing warned.** A missing custom property is not an error —
+    it is a fallback — which is why this was invisible until the page was rasterised and looked at.
+
+    So the two below are re-declared here with the same values the `@theme` block gives them, and
+    every radius below reads `--shape-*` (the primitive) rather than `--radius-*` (the alias).
+    This is a MOCKUP concern only: inside the app Tailwind emits the aliases and `lint:tokens`
+    polices their use.
+  */
+  :root {
+    --font-sans: "Hanken Grotesk", system-ui, sans-serif;
+    --text-2xs: 0.6875rem;
+  }
+
+
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;              /* text-sm is the app default */
+    line-height: 1.5;
+    color: var(--ink);
+    background: var(--surface-subtle);
+  }
+
+  /* ── the seven text sizes, named as the contract names them ───────────────────────────────── */
+  .t-2xs  { font-size: var(--text-2xs); }      /* glanced at only — D-DS6 */
+  .t-xs   { font-size: 0.75rem; }
+  .t-base { font-size: 1rem; }
+  .t-lg   { font-size: 1.125rem; }
+  .t-2xl  { font-size: 1.5rem; }
+  .t-3xl  { font-size: 1.875rem; }
+
+  .ink-secondary { color: var(--ink-secondary); }
+  .ink-muted     { color: var(--ink-muted); }
+  .ink-tertiary  { color: var(--ink-tertiary); }
+  .semibold { font-weight: 600; }
+  .bold     { font-weight: 700; }          /* KPI numbers only */
+  .mono     { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* ── surfaces ─────────────────────────────────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border-radius: var(--shape-surface);
+    box-shadow: var(--elevation-card);
+  }
+  .card-pad { padding: 1rem 1.25rem; }
+  .divide > * + * { border-top: 1px solid var(--edge-subtle); }
+
+  /* ── badges — BADGE_BASE + the seven SOFT tones, transcribed ──────────────────────────────── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    border-radius: var(--shape-detail);
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem; font-weight: 500;
+    white-space: nowrap;
+  }
+  .tone-success { background: var(--ramp-success-50); color: var(--ramp-success-700); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ramp-success-600) 20%, transparent); }
+  .tone-warning { background: var(--ramp-warning-50); color: var(--ramp-warning-700); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ramp-warning-600) 20%, transparent); }
+  .tone-caution { background: var(--ramp-caution-50); color: var(--ramp-caution-700); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ramp-caution-600) 20%, transparent); }
+  .tone-danger  { background: var(--ramp-danger-50);  color: var(--ramp-danger-700);  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ramp-danger-600) 20%, transparent); }
+  .tone-info    { background: var(--ramp-info-50);    color: var(--ramp-info-700);    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ramp-info-600) 20%, transparent); }
+  .tone-brand   { background: var(--ramp-brand-50);   color: var(--ramp-brand-700);   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ramp-brand-600) 20%, transparent); }
+  .tone-neutral { background: var(--surface-subtle);  color: var(--ink-muted);        box-shadow: inset 0 0 0 1px var(--edge); }
+
+  /* ── buttons ──────────────────────────────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem;
+    min-height: 2.25rem; padding: 0 0.875rem;
+    border: 0; border-radius: var(--shape-control);
+    font: inherit; font-weight: 500; cursor: pointer;
+  }
+  .btn-primary { background: var(--ramp-brand-600); color: var(--ink-inverse); }
+  .btn-primary:disabled { background: var(--surface-muted); color: var(--ink-disabled); cursor: not-allowed; }
+  .btn-secondary { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--edge-strong); }
+  .btn-ghost { background: transparent; color: var(--ink-secondary); }
+  .btn:focus-visible { outline: 2px solid var(--ramp-brand-600); outline-offset: 2px; }
+
+  /* ── layout ───────────────────────────────────────────────────────────────────────────────── */
+  .shell { display: grid; grid-template-columns: 15rem 1fr; min-height: 100vh; }
+  .sidebar { background: var(--surface-navigation); border-right: 1px solid var(--edge); padding: 1rem 0.75rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.625rem; padding: 0.5rem 0.625rem; border-radius: var(--shape-control); color: var(--ink-secondary); }
+  .nav-item.is-current { background: var(--ramp-brand-50); color: var(--ramp-brand-700); font-weight: 600; }
+  .main { padding: 1.5rem 2rem 4rem; }
+  .stack-6 > * + * { margin-top: 1.5rem; }
+  .stack-4 > * + * { margin-top: 1rem; }
+  .stack-2 > * + * { margin-top: 0.5rem; }
+  .row { display: flex; align-items: center; gap: 0.75rem; }
+  .between { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .grow { flex: 1 1 auto; min-width: 0; }   /* ⚠ min-width:0 is what lets a drawer fit a phone */
+
+  /* ── table ────────────────────────────────────────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--ink-muted);
+    padding: 0.625rem 1rem; border-bottom: 1px solid var(--edge); background: var(--surface);
+  }
+  tbody td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--edge-subtle); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--surface-subtle); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ── filter bar ───────────────────────────────────────────────────────────────────────────── */
+  .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .select, .search {
+    min-height: 2.25rem; padding: 0 0.75rem;
+    border-radius: var(--shape-control);
+    border: 1px solid var(--edge-strong); background: var(--surface); color: var(--ink);
+    font: inherit;
+  }
+  .search { min-width: 16rem; }
+
+  /* ── the checklist ────────────────────────────────────────────────────────────────────────── */
+  .step {
+    display: grid;
+    grid-template-columns: 1.75rem 1fr 10rem 13rem;
+    align-items: center; gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    width: 100%; text-align: left; background: none; border: 0; font: inherit; color: inherit;
+    cursor: pointer;
+  }
+  .step:hover { background: var(--surface-subtle); }
+  .step:focus-visible { outline: 2px solid var(--ramp-brand-600); outline-offset: -2px; }
+  .step.is-mine { box-shadow: inset 3px 0 0 0 var(--ramp-brand-600); }
+  .step.is-blocked .step-name { color: var(--ink-subtle); }
+  .mark {
+    width: 1.5rem; height: 1.5rem; border-radius: 999px;
+    display: grid; place-items: center; font-size: 0.75rem; font-weight: 700;
+  }
+  .mark-done    { background: var(--ramp-success-600); color: var(--ink-inverse); }
+  .mark-mine    { background: var(--ramp-brand-600);   color: var(--ink-inverse); }
+  .mark-them    { background: var(--surface-muted);    color: var(--ink-secondary); }
+  .mark-blocked { background: var(--surface-subtle);   color: var(--ink-subtle); box-shadow: inset 0 0 0 1px var(--edge); }
+  .artifact { color: var(--ramp-brand-700); text-decoration: none; }
+  .artifact:hover { text-decoration: underline; }
+
+  /* ── progress ─────────────────────────────────────────────────────────────────────────────── */
+  .meter { height: 0.5rem; border-radius: 999px; background: var(--surface-muted); overflow: hidden; }
+  .meter > i { display: block; height: 100%; background: var(--ramp-brand-600); border-radius: 999px; }
+
+  /* ── drawer (SlideOver) ───────────────────────────────────────────────────────────────────── */
+  .scrim { position: absolute; inset: 0; background: color-mix(in oklab, var(--ink) 35%, transparent); }
+  .drawer {
+    position: absolute; top: 0; right: 0; bottom: 0; width: min(30rem, 100%);
+    background: var(--surface); box-shadow: var(--elevation-dialog);
+    display: flex; flex-direction: column;
+  }
+  .drawer-head, .drawer-foot { padding: 1rem 1.25rem; }
+  .drawer-head { border-bottom: 1px solid var(--edge); }
+  .drawer-foot { border-top: 1px solid var(--edge); display: flex; justify-content: flex-end; gap: 0.5rem; }
+  .drawer-body { padding: 1.25rem; overflow: auto; flex: 1; }
+
+  /* ── phone frame ──────────────────────────────────────────────────────────────────────────── */
+  .phone {
+    width: 390px; height: 760px; margin: 0 auto;
+    border-radius: var(--shape-dialog); background: var(--surface);
+    box-shadow: var(--elevation-dialog); overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .phone-body { flex: 1; overflow: auto; padding: 1.25rem; }
+  .field { display: block; }
+  .field > span { display: block; font-size: 0.75rem; font-weight: 500; color: var(--ink-secondary); margin-bottom: 0.25rem; }
+  .field > input {
+    width: 100%; min-height: 2.75rem; padding: 0 0.75rem;   /* 44px — touch minimum */
+    border: 1px solid var(--edge-strong); border-radius: var(--shape-control);
+    background: var(--surface); color: var(--ink); font: inherit;
+  }
+
+  /* ── signing surface ──────────────────────────────────────────────────────────────────────── */
+  .sign { display: grid; grid-template-columns: 1fr 7.5rem; height: 46rem; background: var(--surface-muted); }
+  .sheet-scroll { overflow: auto; padding: 1.5rem; }
+  .sheet {
+    width: 44rem; max-width: 100%; margin: 0 auto 1.25rem; aspect-ratio: 8.5 / 11;
+    background: var(--surface); box-shadow: var(--elevation-card-raised);
+    padding: 2.5rem; position: relative;
+  }
+  .ruled { border-bottom: 1px solid var(--edge-strong); height: 1.5rem; margin-top: 1rem; }
+  .tag {
+    position: absolute; display: inline-flex; align-items: center; gap: 0.375rem;
+    background: var(--ramp-brand-600); color: var(--ink-inverse);
+    padding: 0.25rem 0.625rem; border-radius: var(--shape-detail);
+    font-size: 0.75rem; font-weight: 600;
+  }
+  .tag::after { content: ""; position: absolute; left: -0.375rem; border: 0.375rem solid transparent; border-right-color: var(--ramp-brand-600); }
+  .rail { border-left: 1px solid var(--edge); background: var(--surface); overflow: auto; padding: 0.75rem; }
+  .thumb { border: 1px solid var(--edge); border-radius: var(--shape-detail); aspect-ratio: 8.5/11; background: var(--surface); margin-bottom: 0.5rem; display: grid; place-items: center; color: var(--ink-subtle); font-size: var(--text-2xs); }
+  .thumb.is-current { border-color: var(--ramp-brand-600); box-shadow: 0 0 0 2px color-mix(in oklab, var(--ramp-brand-600) 30%, transparent); }
+  .thumb.is-signed { border-color: var(--ramp-success-600); color: var(--ramp-success-700); }
+  .signbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1.25rem; background: var(--surface); border-bottom: 1px solid var(--edge); }
+
+  /* ── mockup chrome (not part of the product) ──────────────────────────────────────────────── */
+  .chrome { position: sticky; top: 0; z-index: 10; background: var(--surface-inverse); color: var(--ink-inverse); padding: 0.625rem 1.25rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .chrome button { background: transparent; color: inherit; border: 1px solid color-mix(in oklab, var(--ink-inverse) 35%, transparent); border-radius: var(--shape-control); padding: 0.25rem 0.75rem; font: inherit; cursor: pointer; }
+  .chrome button[aria-current="true"] { background: var(--ink-inverse); color: var(--ink); font-weight: 600; }
+  .note { max-width: 62rem; margin: 1.5rem auto 0; padding: 0 1.25rem; color: var(--ink-secondary); }
+  .note code { background: var(--surface-muted); padding: 0.0625rem 0.25rem; border-radius: var(--shape-detail); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="chrome">
+  <strong class="t-xs" style="letter-spacing:.04em;text-transform:uppercase;opacity:.75">Hiring module · mockup</strong>
+  <button data-go="board" aria-current="true">1 · Board</button>
+  <button data-go="record">2 · Applicant record</button>
+  <button data-go="drawer">3 · Step drawer</button>
+  <button data-go="wizard">4 · Applicant wizard (390px)</button>
+  <button data-go="sign">5 · Signing surface</button>
+</div>
+
+
+<!-- ══ 1 · THE BOARD ═══════════════════════════════════════════════════════════════════════════ -->
+<section id="board">
+<div class="shell">
+  <nav class="sidebar stack-2">
+    <div class="t-2xs semibold ink-tertiary" style="padding:.25rem .625rem .5rem;letter-spacing:.06em;text-transform:uppercase">Recruitment</div>
+    <div class="nav-item is-current"><span>◧</span> Hiring</div>
+    <div class="t-2xs semibold ink-tertiary" style="padding:.75rem .625rem .5rem;letter-spacing:.06em;text-transform:uppercase">Fleet</div>
+    <div class="nav-item"><span>◔</span> Drivers</div>
+    <div class="nav-item"><span>◎</span> Compliance</div>
+  </nav>
+
+  <main class="main stack-6">
+    <!-- PageHeader: description only. The title comes from route.meta.title. -->
+    <header class="stack-2">
+      <h1 class="t-2xl semibold" style="margin:0">Hiring</h1>
+      <p class="ink-secondary" style="margin:0">Everyone you are hiring, and the one thing each is waiting on.</p>
+      <!-- ExplainerPanel — method behind a native <details>, never in front of the work -->
+      <details style="margin-top:.25rem">
+        <summary class="t-xs ink-muted" style="cursor:pointer">How this list is worked out</summary>
+        <p class="t-xs ink-secondary" style="max-width:52rem">
+          Every row is read from the paperwork itself — the signed forms, the records on file, the
+          training finished. Nothing here is ticked by hand, so this list cannot disagree with the
+          driver's file. A step turns green the moment its document exists, even if the work was done
+          outside this system.
+        </p>
+      </details>
+    </header>
+
+    <div class="filterbar">
+      <input class="search" placeholder="Search applicants">
+      <select class="select"><option>Waiting on us (7)</option><option>Everyone (23)</option><option>Waiting on them (14)</option><option>Blocked (2)</option></select>
+      <select class="select"><option>All stages</option><option>Application</option><option>Screening</option><option>Orientation</option><option>Ready to hire</option></select>
+      <span class="grow"></span>
+      <button class="btn btn-primary">Invite an applicant</button>
+    </div>
+
+    <div class="card" style="overflow:hidden">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:22%">Applicant</th>
+            <th style="width:16%">Stage</th>
+            <th style="width:30%">Next action</th>
+            <th style="width:18%">Waiting on</th>
+            <th class="num" style="width:14%">Days in stage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="semibold">Marija Petrović</div><div class="t-2xs ink-tertiary">Invited 3 Sep</div></td>
+            <td><span class="badge tone-brand">Screening</span></td>
+            <td><span class="semibold">Order the driving record</span></td>
+            <td><span class="badge tone-brand">You</span></td>
+            <td class="num">4</td>
+          </tr>
+          <tr>
+            <td><div class="semibold">Daniel Okafor</div><div class="t-2xs ink-tertiary">Invited 11 Sep</div></td>
+            <td><span class="badge tone-brand">Application</span></td>
+            <td><span class="semibold">Read the application and approve it</span></td>
+            <td><span class="badge tone-brand">You</span></td>
+            <td class="num">2</td>
+          </tr>
+          <tr>
+            <td><div class="semibold">Tanja Ilić</div><div class="t-2xs ink-tertiary">Invited 9 Sep</div></td>
+            <td><span class="badge tone-neutral">Orientation</span></td>
+            <td>Finish the safety videos <span class="t-2xs ink-tertiary">· 4 of 9 done</span></td>
+            <td><span class="badge tone-neutral">Them</span></td>
+            <td class="num">6</td>
+          </tr>
+          <tr>
+            <td><div class="semibold">Vince Barnard</div><div class="t-2xs ink-tertiary">Invited 1 Sep</div></td>
+            <td><span class="badge tone-neutral">Blocked</span></td>
+            <td>Driving test — <span class="ink-secondary">needs the drug test result first</span></td>
+            <td><span class="badge tone-neutral">Nobody</span></td>
+            <td class="num">11</td>
+          </tr>
+          <tr>
+            <td><div class="semibold">Amina Yusuf</div><div class="t-2xs ink-tertiary">Invited 14 Sep</div></td>
+            <td><span class="badge tone-success">Ready to hire</span></td>
+            <td><span class="semibold">Hire and open the driver file</span></td>
+            <td><span class="badge tone-brand">You</span></td>
+            <td class="num">1</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="between card-pad t-xs ink-muted" style="border-top:1px solid var(--edge)">
+        <span>5 of 23</span>
+        <span class="row"><button class="btn btn-secondary t-xs" style="min-height:1.875rem">Previous</button><button class="btn btn-secondary t-xs" style="min-height:1.875rem">Next</button></span>
+      </div>
+    </div>
+
+    <p class="t-xs ink-tertiary" style="margin:0">
+      ⚠ One table per page. Fleet-wide screening readiness and the safety-history inquiry queue become
+      tabs above this table — not sidebar items (D-HUI8).
+    </p>
+  </main>
+</div>
+</section>
+
+
+<!-- ══ 2 · THE APPLICANT RECORD ════════════════════════════════════════════════════════════════ -->
+<section id="record" hidden>
+<div class="shell">
+  <nav class="sidebar stack-2">
+    <div class="t-2xs semibold ink-tertiary" style="padding:.25rem .625rem .5rem;letter-spacing:.06em;text-transform:uppercase">Recruitment</div>
+    <div class="nav-item is-current"><span>◧</span> Hiring</div>
+  </nav>
+
+  <main class="main stack-6">
+    <header class="stack-2">
+      <div class="t-xs ink-muted">Hiring · <span class="ink-secondary">Marija Petrović</span></div>
+      <h1 class="t-2xl semibold" style="margin:0">Marija Petrović</h1>
+      <p class="ink-secondary" style="margin:0">Everything needed before she can drive, and who owes the next move.</p>
+    </header>
+
+    <!-- The checklist. Header, the one action, then the rows. -->
+    <div class="card">
+      <div class="card-pad" style="border-bottom:1px solid var(--edge)">
+        <div class="between">
+          <div>
+            <!-- ⚠ The words carry it; the meter below is aria-hidden because it repeats them -->
+            <div class="t-lg semibold" role="status" aria-atomic="true">6 of 14 steps done</div>
+            <div class="t-xs ink-muted" style="margin-top:.125rem">Started 3 September · 4 days in screening</div>
+          </div>
+          <div style="width:12rem">
+            <div class="meter" aria-hidden="true"><i style="width:43%"></i></div>
+            <div class="t-2xs ink-tertiary num" style="margin-top:.25rem">43%</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:.875rem;padding:.625rem .75rem;background:var(--ramp-brand-50);border-radius:var(--shape-control)">
+          <span class="badge tone-brand">Next</span>
+          <span class="semibold grow">Order her driving record from Illinois and Indiana</span>
+          <button class="btn btn-primary">Order it</button>
+        </div>
+      </div>
+
+      <div class="divide">
+        <!-- done -->
+        <button class="step">
+          <span class="mark mark-done" aria-hidden="true">✓</span>
+          <span class="grow"><span class="step-name semibold">Permissions signed</span>
+            <span class="t-2xs ink-tertiary" style="display:block">Background check, driving record, past employers, drug &amp; alcohol</span></span>
+          <span><span class="badge tone-success">Done</span></span>
+          <span class="t-xs"><a class="artifact" href="#">4 signed forms (PDF)</a> <span class="ink-tertiary">· 3 Sep</span></span>
+        </button>
+
+        <button class="step">
+          <span class="mark mark-done" aria-hidden="true">✓</span>
+          <span class="grow"><span class="step-name semibold">Application filled in</span>
+            <span class="t-2xs ink-tertiary" style="display:block">10 years of work history, no gaps to explain</span></span>
+          <span><span class="badge tone-success">Done</span></span>
+          <span class="t-xs"><a class="artifact" href="#">Application (31 pages)</a> <span class="ink-tertiary">· 8 Sep</span></span>
+        </button>
+
+        <button class="step">
+          <span class="mark mark-done" aria-hidden="true">✓</span>
+          <span class="grow"><span class="step-name semibold">Application read and approved</span></span>
+          <span><span class="badge tone-success">Done</span></span>
+          <span class="t-xs ink-tertiary">by Miki · 12 Sep</span>
+        </button>
+
+        <!-- waiting on us — the only loud row -->
+        <button class="step is-mine">
+          <span class="mark mark-mine" aria-hidden="true">●</span>
+          <span class="grow"><span class="step-name semibold">Driving record</span>
+            <span class="t-2xs ink-tertiary" style="display:block" title="49 CFR §391.23(a)(1)">Every state she has been licensed in for the last 3 years</span></span>
+          <span><span class="badge tone-brand">Waiting on you</span></span>
+          <span class="t-xs ink-tertiary">Not ordered · ~5 min</span>
+        </button>
+
+        <button class="step is-mine">
+          <span class="mark mark-mine" aria-hidden="true">●</span>
+          <span class="grow"><span class="step-name semibold">Drug &amp; alcohol database check</span>
+            <span class="t-2xs ink-tertiary" style="display:block" title="FMCSA Clearinghouse — 49 CFR §382.701(a)">Run it in the FMCSA portal, then record the result here</span></span>
+          <span><span class="badge tone-brand">Waiting on you</span></span>
+          <span class="t-xs ink-tertiary">Not recorded</span>
+        </button>
+
+        <!-- waiting on them -->
+        <button class="step">
+          <span class="mark mark-them" aria-hidden="true"><svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.6"/></svg></span>
+          <span class="grow"><span class="step-name semibold">Safety videos</span>
+            <span class="t-2xs ink-tertiary" style="display:block">Nine short videos, a few questions after each</span></span>
+          <span><span class="badge tone-neutral">Waiting on her</span></span>
+          <span class="t-xs"><span class="ink-secondary">4 of 9 done</span> <span class="ink-tertiary">· ~25 min left</span></span>
+        </button>
+
+        <button class="step">
+          <span class="mark mark-them" aria-hidden="true"><svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.6"/></svg></span>
+          <span class="grow"><span class="step-name semibold">Drug test</span>
+            <span class="t-2xs ink-tertiary" style="display:block">Booked at Quest, Elgin · 19 Sep 09:00</span></span>
+          <span><span class="badge tone-neutral">Waiting on her</span></span>
+          <span class="t-xs ink-tertiary">Result not in</span>
+        </button>
+
+        <!-- blocked — names its blocker, never a silent grey row -->
+        <button class="step is-blocked">
+          <span class="mark mark-blocked" aria-hidden="true">⊘</span>
+          <span class="grow"><span class="step-name semibold">Driving test</span>
+            <span class="t-2xs ink-tertiary" style="display:block">Cannot start until the drug test result is in</span></span>
+          <span><span class="badge tone-neutral">Blocked</span></span>
+          <span class="t-xs ink-tertiary">—</span>
+        </button>
+
+        <button class="step is-blocked">
+          <span class="mark mark-blocked" aria-hidden="true">⊘</span>
+          <span class="grow"><span class="step-name semibold">Sign the application</span>
+            <span class="t-2xs ink-tertiary" style="display:block">Sent for signing once everything above is done</span></span>
+          <span><span class="badge tone-neutral">Blocked</span></span>
+          <span class="t-xs ink-tertiary">—</span>
+        </button>
+      </div>
+    </div>
+
+    <p class="t-xs ink-tertiary" style="margin:0">
+      ⚠ Three questions per row and nothing else: what it is, who owes the move, the document that
+      proves it (D-HUI3). Everything else lives in the drawer. The regulation is in the
+      <code>title</code> attribute, never on screen (D-UI9).
+    </p>
+  </main>
+</div>
+</section>
+
+
+<!-- ══ 3 · THE STEP DRAWER ═════════════════════════════════════════════════════════════════════ -->
+<section id="drawer" hidden>
+<div class="shell" style="position:relative">
+  <nav class="sidebar"></nav>
+  <main class="main" style="filter:saturate(.7)">
+    <div class="card" style="height:30rem;opacity:.5"></div>
+  </main>
+  <div class="scrim"></div>
+  <aside class="drawer" role="dialog" aria-label="Driving record">
+    <div class="drawer-head between">
+      <div>
+        <div class="t-lg semibold">Driving record</div>
+        <div class="t-xs ink-muted" title="49 CFR §391.23(a)(1)">Every state she has been licensed in for the last 3 years</div>
+      </div>
+      <button class="btn btn-ghost" aria-label="Close">✕</button>
+    </div>
+
+    <div class="drawer-body stack-4">
+      <div class="row"><span class="badge tone-brand">Waiting on you</span><span class="t-xs ink-tertiary">Nothing ordered yet</span></div>
+
+      <div>
+        <div class="t-xs semibold ink-secondary" style="margin-bottom:.5rem">States to check</div>
+        <div class="card" style="box-shadow:none;outline:1px solid var(--edge)">
+          <div class="divide">
+            <div class="between card-pad" style="padding:.625rem 1rem"><span>Illinois <span class="t-2xs ink-tertiary">· licensed 2019–now</span></span><span class="badge tone-neutral">Not ordered</span></div>
+            <div class="between card-pad" style="padding:.625rem 1rem"><span>Indiana <span class="t-2xs ink-tertiary">· licensed 2016–2019</span></span><span class="badge tone-neutral">Not ordered</span></div>
+          </div>
+        </div>
+        <p class="t-2xs ink-tertiary" style="margin:.5rem 0 0">Read from the licence history she gave on the application. Add a state if one is missing.</p>
+      </div>
+
+      <div>
+        <div class="t-xs semibold ink-secondary" style="margin-bottom:.5rem">Or record one you already have</div>
+        <div style="border:1px dashed var(--edge-strong);border-radius:var(--shape-control);padding:1.25rem;text-align:center">
+          <div class="t-xs ink-secondary">Drop a PDF here, or <a class="artifact" href="#">choose a file</a></div>
+          <div class="t-2xs ink-tertiary" style="margin-top:.25rem">A record pulled anywhere else still counts — it files the same way.</div>
+        </div>
+      </div>
+
+      <details>
+        <summary class="t-xs ink-muted" style="cursor:pointer">What happens to this afterwards</summary>
+        <p class="t-xs ink-secondary">It is filed in her driver file and reviewed again every year. The yearly review is created automatically on the anniversary.</p>
+      </details>
+    </div>
+
+    <div class="drawer-foot">
+      <button class="btn btn-secondary">Cancel</button>
+      <button class="btn btn-primary">Order both records</button>
+    </div>
+  </aside>
+</div>
+<p class="note t-xs">⚠ <code>SlideOver</code>, actions in <code>#footer</code> — the repo's non-negotiable. The five sections on today's applicant page become drawer bodies here; none of that work is thrown away.</p>
+</section>
+
+
+<!-- ══ 4 · THE APPLICANT WIZARD ════════════════════════════════════════════════════════════════ -->
+<section id="wizard" hidden style="padding:2rem 1rem 4rem">
+  <div style="display:flex;gap:2rem;flex-wrap:wrap;justify-content:center;align-items:flex-start">
+
+    <!-- 4a — set expectations up front (NN/g) -->
+    <div>
+      <p class="t-xs semibold ink-muted" style="text-align:center;margin:0 0 .75rem">4a · Before it starts</p>
+      <div class="phone">
+        <div class="phone-body stack-4">
+          <div class="t-2xs semibold ink-tertiary" style="letter-spacing:.06em;text-transform:uppercase">Silvicom Inc</div>
+          <h2 class="t-2xl semibold" style="margin:0">Your driver application</h2>
+          <p class="ink-secondary" style="margin:0">About 25 minutes. You can stop and come back — everything you type is saved.</p>
+          <div class="card" style="box-shadow:none;outline:1px solid var(--edge)">
+            <div class="divide">
+              <div class="between card-pad" style="padding:.75rem 1rem"><span><span class="semibold">1 · Permissions</span><br><span class="t-2xs ink-tertiary">Four forms to read and sign</span></span><span class="t-2xs ink-tertiary">5 min</span></div>
+              <div class="between card-pad" style="padding:.75rem 1rem"><span><span class="semibold">2 · About you</span><br><span class="t-2xs ink-tertiary">Name, address, licence</span></span><span class="t-2xs ink-tertiary">8 min</span></div>
+              <div class="between card-pad" style="padding:.75rem 1rem"><span><span class="semibold">3 · Where you have worked</span><br><span class="t-2xs ink-tertiary">The last 10 years</span></span><span class="t-2xs ink-tertiary">10 min</span></div>
+              <div class="between card-pad" style="padding:.75rem 1rem"><span><span class="semibold">4 · Photos</span><br><span class="t-2xs ink-tertiary">Licence and medical card</span></span><span class="t-2xs ink-tertiary">2 min</span></div>
+            </div>
+          </div>
+          <p class="t-2xs ink-tertiary" style="margin:0">We will read it and come back to you before anything is signed for good.</p>
+        </div>
+        <div class="drawer-foot" style="justify-content:stretch"><button class="btn btn-primary" style="width:100%">Start</button></div>
+      </div>
+    </div>
+
+    <!-- 4b — a step, with the bar that indicates and the control that navigates -->
+    <div>
+      <p class="t-xs semibold ink-muted" style="text-align:center;margin:0 0 .75rem">4b · A step</p>
+      <div class="phone">
+        <div style="padding:.875rem 1.25rem;border-bottom:1px solid var(--edge)">
+          <div class="between">
+            <span class="t-xs semibold">Where you have worked</span>
+            <button class="btn btn-ghost t-xs" style="min-height:1.75rem;padding:0 .5rem">Step 3 of 4 ▾</button>
+          </div>
+          <!-- aria-hidden: the counter above already says it in words -->
+          <div class="meter" style="margin-top:.5rem;height:.25rem" aria-hidden="true"><i style="width:62%"></i></div>
+        </div>
+        <div class="phone-body stack-4">
+          <p class="ink-secondary" style="margin:0">Start with the job you have now, or the last one you had.</p>
+          <label class="field"><span>Company</span><input value="Midwest Freight Lines"></label>
+          <label class="field"><span>From</span><input value="March 2021"></label>
+          <label class="field"><span>To</span><input placeholder="Still there"></label>
+          <label class="field"><span>Why you left</span><input placeholder="Optional"></label>
+          <div class="row" style="padding:.625rem .75rem;background:var(--ramp-info-50);border-radius:var(--shape-control)">
+            <span class="t-xs" style="color:var(--ramp-info-700)">2 years 6 months covered. We need 10 years — keep going.</span>
+          </div>
+          <button class="btn btn-secondary" style="width:100%">Add another job</button>
+        </div>
+        <div class="drawer-foot" style="justify-content:space-between">
+          <button class="btn btn-secondary">Back</button>
+          <span class="t-2xs ink-tertiary" style="align-self:center">Saved</span>
+          <button class="btn btn-primary">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4c — the list that navigates, fenced at the high-water mark -->
+    <div>
+      <p class="t-xs semibold ink-muted" style="text-align:center;margin:0 0 .75rem">4c · The step list (Q-AX1)</p>
+      <div class="phone">
+        <div style="padding:.875rem 1.25rem;border-bottom:1px solid var(--edge)"><span class="t-xs semibold">Go to a step</span></div>
+        <div class="phone-body">
+          <div class="card" style="box-shadow:none;outline:1px solid var(--edge)">
+            <div class="divide">
+              <div class="between card-pad" style="padding:.875rem 1rem"><span class="row"><span class="mark mark-done t-2xs">✓</span><span>Permissions</span></span><span class="t-2xs ink-tertiary">Done</span></div>
+              <div class="between card-pad" style="padding:.875rem 1rem"><span class="row"><span class="mark mark-done t-2xs">✓</span><span>About you</span></span><span class="t-2xs ink-tertiary">Done</span></div>
+              <div class="between card-pad" style="padding:.875rem 1rem;background:var(--ramp-brand-50)"><span class="row"><span class="mark mark-mine t-2xs">●</span><span class="semibold">Where you have worked</span></span><span class="t-2xs" style="color:var(--ramp-brand-700)">You are here</span></div>
+              <div class="between card-pad" style="padding:.875rem 1rem;opacity:.5"><span class="row"><span class="mark mark-blocked t-2xs">·</span><span>Photos</span></span><span class="t-2xs ink-tertiary">Not yet</span></div>
+            </div>
+          </div>
+          <p class="t-2xs ink-tertiary" style="margin:.75rem 0 0">
+            Every row is a full-height button with a real label. Rows past the furthest step you have
+            reached are closed — that fence is what stops the list skipping a check.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note t-xs">
+    ⚠ 390px, the width this is actually used at. The bar indicates and the LIST navigates — nine
+    tappable bar segments would be ~30px each, and a driver aiming for step 3 in a moving truck hits
+    step 4 (Q-AX1, measured). Inputs are 44px tall.
+  </p>
+</section>
+
+
+<!-- ══ 5 · THE SIGNING SURFACE ═════════════════════════════════════════════════════════════════ -->
+<section id="sign" hidden>
+  <div class="signbar">
+    <div class="row">
+      <span class="t-xs semibold">Silvicom Inc · driver application</span>
+      <span class="badge tone-brand">7 of 22 places signed</span>
+    </div>
+    <div class="row">
+      <button class="btn btn-secondary">Finish later</button>
+      <button class="btn btn-primary">Next place →</button>
+      <button class="btn btn-primary" disabled title="Every place has to be signed first">Finish</button>
+    </div>
+  </div>
+
+  <div class="sign">
+    <div class="sheet-scroll">
+      <div class="sheet">
+        <div class="t-2xs ink-tertiary" style="text-align:right">Page 15 of 31</div>
+        <h3 class="t-base semibold" style="margin:.5rem 0 1rem">Release — previous employers</h3>
+        <p class="t-xs ink-secondary" style="max-width:38rem">
+          I authorise the release of information about my safety performance history from my previous
+          employers, including any accident register entries and any drug and alcohol testing records
+          required to be released under the applicable federal rules.
+        </p>
+        <div style="margin-top:3rem;display:grid;grid-template-columns:1fr 12rem;gap:2rem">
+          <div>
+            <div class="ruled" style="position:relative">
+              <span class="tag" style="left:0;top:-.125rem">✎ Sign here</span>
+            </div>
+            <div class="t-2xs ink-tertiary" style="margin-top:.25rem">Applicant signature</div>
+          </div>
+          <div>
+            <div class="ruled"></div>
+            <div class="t-2xs ink-tertiary" style="margin-top:.25rem">Date</div>
+          </div>
+        </div>
+        <div style="margin-top:2rem">
+          <div class="ruled" style="width:16rem"></div>
+          <div class="t-2xs ink-tertiary" style="margin-top:.25rem">Print name</div>
+        </div>
+      </div>
+
+      <div class="sheet" style="height:12rem;aspect-ratio:auto;display:grid;place-items:center">
+        <span class="t-xs ink-subtle">Page 16 · continues below</span>
+      </div>
+    </div>
+
+    <div class="rail" aria-label="Pages">
+      <div class="t-2xs semibold ink-tertiary" style="margin-bottom:.5rem;letter-spacing:.05em;text-transform:uppercase">Pages</div>
+      <div class="thumb is-signed">13 ✓</div>
+      <div class="thumb is-signed">14 ✓</div>
+      <div class="thumb is-current">15</div>
+      <div class="thumb">16</div>
+      <div class="thumb">17</div>
+      <div class="thumb">18</div>
+    </div>
+  </div>
+
+  <p class="note t-xs">
+    ⚠ The carrier's own page is on screen — that is the whole point of the rebuild. Today's ceremony
+    shows a page number and one sentence and no document at all. Full-bleed via
+    <code>meta.fullBleed</code>, never a new shell (D-HUI6, D-DR5).<br>
+    ⚠ <strong>Q-HUI2 is open and this picture does not answer it:</strong> at 390px this sheet is 8pt
+    type. Measure it on a real phone before choosing pinch-zoom, a focused-field mode, or
+    desktop-only.
+  </p>
+</section>
+
+
+<script>
+  const ids = ["board", "record", "drawer", "wizard", "sign"];
+  document.querySelector(".chrome").addEventListener("click", (e) => {
+    const go = e.target.closest("button")?.dataset.go;
+    if (!go) return;
+    ids.forEach((id) => { document.getElementById(id).hidden = id !== go; });
+    document.querySelectorAll(".chrome button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.go === go)));
+    window.scrollTo(0, 0);
+  });
+</script>
+</body>
+</html>
