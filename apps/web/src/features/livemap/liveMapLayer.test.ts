@@ -9,6 +9,7 @@ import {
   offlineBoundSentence,
   stateCounts,
   toFeatureCollection,
+  sortVehicles,
 } from "./liveMapLayer";
 
 /**
@@ -160,5 +161,59 @@ describe("offlineBoundSentence", () => {
       offlineBoundSeconds: 1_800,
     };
     expect(offlineBoundSentence(bounds)).toBe("No fix for over 30 min");
+  });
+});
+
+/**
+ * The orderings the rail offers instead of the dock's sortable column headers (D-DR25).
+ *
+ * ⚠ Each case is a number a dispatcher would notice getting this wrong, not a property of a sort.
+ */
+describe("sortVehicles", () => {
+  const unit = (unitNumber: string, o: Partial<LiveMapVehicle> = {}) => vehicle({ unitNumber, ...o });
+
+  /**
+   * ⚠ THE CASE THE OBVIOUS IMPLEMENTATION FAILS. This fleet's unit numbers are strings — "1207",
+   * "204", "47" — and `localeCompare` without `numeric` puts 1207 first, then 204, then 47, which
+   * reads as a broken list rather than as a sorting rule.
+   */
+  it("orders unit numbers the way a person counts, not the way a string sorts", () => {
+    const sorted = sortVehicles([unit("1207"), unit("204"), unit("47")], "unit");
+    expect(sorted.map((v) => v.unitNumber)).toEqual(["47", "204", "1207"]);
+  });
+
+  it("orders statuses moving → stopped → parked → offline, never alphabetically", () => {
+    const sorted = sortVehicles(
+      [unit("1", { state: "offline" }), unit("2", { state: "parked" }), unit("3", { state: "moving" }), unit("4", { state: "stopped" })],
+      "state",
+    );
+    // Alphabetical would be moving, offline, parked, stopped — putting the trucks nobody can see in
+    // the middle of the ones that are driving.
+    expect(sorted.map((v) => v.state)).toEqual(["moving", "stopped", "parked", "offline"]);
+  });
+
+  it("puts the oldest fix first, because that is the truck a dispatcher is looking for", () => {
+    const sorted = sortVehicles([unit("1", { ageSeconds: 5 }), unit("2", { ageSeconds: 900 }), unit("3", { ageSeconds: 60 })], "age");
+    expect(sorted.map((v) => v.ageSeconds)).toEqual([900, 60, 5]);
+  });
+
+  /** ⚠ A truck with no speed reading is not a slow truck — `null` sorts last, not as zero. */
+  it("sorts a missing speed last rather than treating it as standing still", () => {
+    const withSpeed = (mph: number | null, unitNumber: string) =>
+      vehicle({ unitNumber, position: { ...vehicle().position, speedMph: mph } });
+    const sorted = sortVehicles([withSpeed(null, "1"), withSpeed(0, "2"), withSpeed(55, "3")], "speed");
+    expect(sorted.map((v) => v.unitNumber)).toEqual(["3", "2", "1"]);
+  });
+
+  /**
+   * ⚠ The board's array is replaced by vue-query every five seconds and handed to every other
+   * reader, the map's feature collection included. Sorting it in place would reorder what the map is
+   * drawing from under it.
+   */
+  it("copies rather than sorting the board's own array in place", () => {
+    const source = [unit("9"), unit("2")];
+    const sorted = sortVehicles(source, "unit");
+    expect(source.map((v) => v.unitNumber)).toEqual(["9", "2"]);
+    expect(sorted.map((v) => v.unitNumber)).toEqual(["2", "9"]);
   });
 });

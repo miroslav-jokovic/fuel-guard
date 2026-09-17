@@ -5,15 +5,16 @@ import { createRouter, createMemoryHistory } from "vue-router";
 import type { LiveMapBoard } from "@silvicom/shared";
 
 /**
- * The full-bleed live-map workspace (DR5, DESIGN-REFRESH-2026-09.md §4).
+ * The full-bleed live-map workspace (DR5 §4, relaid out by D-DR25).
  *
  * Three of its rulings are only checkable in a mounted tree, and all three are the kind that fail
  * SILENTLY — nothing errors, nothing warns, the page simply stops being usable for somebody:
  *
- * · **D-DR7** — the fleet table stays MOUNTED when the dock is collapsed. The map canvas is a
- *   surface a screen reader cannot enter and the markers carry no unit number, so the table is the
- *   only route to a named truck. `v-if` on the dock would delete it and leave a page whose entire
- *   content is a canvas.
+ * · **D-DR7, as D-DR25 rewrote it** — the fleet list stays MOUNTED and reachable at every width. The
+ *   map canvas is a surface a screen reader cannot enter and the markers carry no unit number, so
+ *   the list is the only route to a named truck. It used to be a dock that `v-show` kept alive while
+ *   collapsed; it is now a rail that is a permanent column at `lg` and an overlay below it, and the
+ *   property to hold is the same one: the trucks are in the DOM whether or not they are on screen.
  * · **D-LM18** — the scope sentence is always on screen and has no dismiss control. The document
  *   form said it in an `AppCallout`; a dismissible panel would let a dispatcher switch off the
  *   disclosure that they are looking at the whole fleet, which is the one thing D-LM18 forbids.
@@ -140,43 +141,73 @@ describe("LiveMapWorkspace (DR5)", () => {
     board.isError.value = false;
   });
 
-  it("keeps the fleet table mounted while the dock is collapsed (D-DR7)", async () => {
+  /**
+   * ⚠ REWRITTEN BY D-DR25 with the dock it described. The property is unchanged and is the reason
+   * either shape has to be tested at all: a truck must be findable by NAME without the canvas, which
+   * nothing but this list offers. A rail rendered with `v-if` behind a media query would satisfy
+   * every visual check and leave a keyboard user a page containing one canvas.
+   */
+  it("keeps every truck in the fleet list, mounted, at every width (D-DR7)", async () => {
     const wrapper = await mountWorkspace();
-    const dock = wrapper.find("#live-map-fleet-list");
+    const rail = wrapper.findComponent({ name: "LiveMapRail" });
 
-    // Collapsed is the default — see `liveMapPanels.ts` for why the dock, alone, starts shut.
-    expect(wrapper.find('[aria-controls="live-map-fleet-list"]').attributes("aria-expanded")).toBe("false");
-    expect(dock.exists()).toBe(true);
-    expect(dock.attributes("style")).toContain("display: none");
-    // The truck is reachable in the accessibility tree even though nobody can see the dock.
-    expect(dock.text()).toContain("47");
-    expect(dock.text()).toContain("Jordan Ellis");
+    expect(rail.exists()).toBe(true);
+    expect(rail.text()).toContain("47");
+    expect(rail.text()).toContain("Jordan Ellis");
+    // The rail's own box is never `v-if`'d away — only the wrapper's visibility classes change.
+    expect(wrapper.html()).toContain("lg:block");
   });
 
-  it("opens the dock on the first click and reveals the same table", async () => {
+  it("selects a truck from the rail, which is the keyboard's way onto the map", async () => {
     const wrapper = await mountWorkspace();
-    await wrapper.find('[aria-controls="live-map-fleet-list"]').trigger("click");
+    const row = wrapper.findAll("button").find((b) => b.text().includes("Jordan Ellis"));
+    expect(row, "a row for the truck should be in the rail").toBeDefined();
 
-    const dock = wrapper.find("#live-map-fleet-list");
-    expect(wrapper.find('[aria-controls="live-map-fleet-list"]').attributes("aria-expanded")).toBe("true");
-    expect(dock.attributes("style") ?? "").not.toContain("display: none");
+    await row!.trigger("click");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[aria-label="Unit 47"]').exists()).toBe(true);
   });
 
-  it("states the board's scope with no way to dismiss it (D-LM18)", async () => {
+  /**
+   * The census IS the status filter (D-DR25): the counts used to be stated twice, once in a "Fleet
+   * status" panel and once inside the Status dropdown's option labels. Pressing one filters.
+   */
+  it("filters from the census button rather than from a second control that repeats it", async () => {
     const wrapper = await mountWorkspace();
-    expect(wrapper.text()).toContain("Showing every truck: loads carry no dispatcher yet.");
+    const moving = wrapper.findAll("button").find((b) => b.text().startsWith("Moving"));
+    expect(moving, "the census should be pressable").toBeDefined();
+    expect(moving!.attributes("aria-pressed")).toBe("false");
 
-    // Every dismissible thing on this page is a button. The scope sentence must not be one of them,
-    // and must not be inside a panel that has one.
-    const scope = wrapper.findAll("p").find((p) => p.text().startsWith("Showing every truck"));
-    expect(scope).toBeDefined();
-    expect(scope!.element.closest("button")).toBeNull();
-    expect(scope!.element.closest("[aria-label]")).toBeNull();
+    await moving!.trigger("click");
+    expect(wrapper.findAll("button").find((b) => b.text().startsWith("Moving"))!.attributes("aria-pressed")).toBe("true");
+    // …and the map is drawing the filtered set, not the whole board.
+    expect(wrapper.findComponent({ name: "LiveMapCanvas" }).props("vehicles")).toHaveLength(1);
+  });
+
+  /**
+   * D-LM18, and the assertion had to change with the layout rather than be deleted.
+   *
+   * ⚠ It used to read `closest("[aria-label]") === null`, which was a proxy for "not inside a
+   * dismissible floating panel" — every one of those carried a label. The rail is a labelled
+   * landmark (`<aside aria-label="Fleet">`), so that proxy now fails on correct markup, which is the
+   * failure mode a proxy assertion always has. The property itself is unchanged and is asserted
+   * directly: the sentence is on screen, it is not a control, and it appears in BOTH places the
+   * board can be read from — the rail at `lg`, and beside the Fleet button below it, where the rail
+   * is shut most of the time.
+   */
+  it("states the board's scope with no way to dismiss it, at every width (D-LM18)", async () => {
+    const wrapper = await mountWorkspace();
+    const said = wrapper.findAll("p").filter((p) => p.text().startsWith("Showing every truck"));
+
+    expect(said.length, "the scope must be stated in the rail and beside the map's fleet button").toBe(2);
+    for (const p of said) expect(p.element.closest("button")).toBeNull();
+    // One of the two is the small-screen copy, and it is the one that must survive a shut rail.
+    expect(said.some((p) => p.classes().includes("truncate"))).toBe(true);
   });
 
   it("derives the freshness sentence from the poll interval rather than typing it (D-LM9b)", async () => {
     const wrapper = await mountWorkspace();
-    expect(wrapper.text()).toContain("Positions refresh every 5 seconds while this tab is open.");
+    expect(wrapper.text()).toContain("refreshes every 5s");
   });
 
   it("shows the truck card only once a truck is selected, and its dismiss clears the selection", async () => {

@@ -1045,3 +1045,70 @@ conflict every time (`plan-progress-log-not-table-rows`).
 
   ⚠ A bookmarked `/live-map` now lands on not-found. Accepted with the ruling; a redirect to
   `/?tab=dispatch` is the two-line answer if bookmarks turn out to matter.
+
+- **2026-09-16 — D-DR25: the fleet moves into a left rail, and three controls become one.** The last
+  step of the live-map queue, and the shape is Samsara's rather than ours: their Fleet Overview Map
+  was read on 2026-09-16 and it puts search, filters and the asset list in one left rail with the map
+  beside it. DR5 had the same three jobs spread over a "Fleet status" panel in one corner, a "Filters"
+  panel in another and a fleet dock across the bottom — three positions, three remembered open/closed
+  states, one question: *which truck, and where?*
+
+  **What the rail costs the map, measured at 1512×900 and worth stating plainly:**
+
+  | | map canvas | % of viewport | fleet list |
+  |---|---|---|---|
+  | `/live-map` page, dock shut (DR5) | 1225×787 | 71% | not on screen |
+  | Dispatch tab, dock shut (D-DR24) | 1240×731 | 67% | not on screen |
+  | **Dispatch tab with the rail** | **1132×780** | **65%** | **always on screen** |
+  | …and the old dock OPEN, for the real comparison | ~1240×394 | **~36%** | on screen |
+
+  So the fleet list went from costing **31 points of map to costing 2**. The headline percentage is
+  slightly lower than DR5's and that is the wrong number to optimise: a map with no way to find unit
+  1207 is not a better map for being 6% larger.
+
+  **D-DR25a — the sidebar collapses on a full-bleed surface and that is NOT written to
+  `localStorage`.** 67% → 79% at 1512, for free, and the reader can expand it back. The rule is
+  `sidebarIsCollapsed(stored, fullBleed, override)` in `lib/layout.ts`: what is on screen is derived,
+  so leaving the workspace restores their own preference with no restore step existing at all. ⚠ If
+  the automatic collapse were stored, one visit here would leave every page in the product collapsed
+  with nothing the reader did to explain it — a surface rewriting a global preference as a side
+  effect. Pinned by "returns to the stored preference the moment the surface stops being a workspace",
+  and by a case proving `false` is a real override rather than "no override" (the bug a `||` gives).
+
+  **D-DR25b — the census IS the filter.** DR5 stated the same four counts twice: a Fleet status panel
+  listing Moving 24 / Stopped 0 / Parked 0 / Offline 0, and a Status dropdown whose option labels
+  repeated them. Now the counts are the buttons. One fact, one control.
+
+  **D-DR25c — what the dock's seven sortable columns became.** A 320px rail cannot carry seven columns
+  (D-DR17's lesson, the fourth time this programme has paid it), so a row is unit · status · age ·
+  driver · location, and the ORDERINGS survive as a select: unit, status, oldest fix, fastest. That is
+  the deliberate part — "which truck has the oldest fix" is the question a dispatcher actually asks
+  and it would otherwise have been dropped silently with the columns. Speed, load and the exact fix
+  age live on the truck card and `/vehicles/:id`, which is where `LiveMapVehicleFacts` already says
+  depth belongs. ⚠ Unit numbers sort NUMERICALLY: this fleet's units are strings, and
+  `localeCompare` without `numeric` puts 1207 before 204, which reads as a broken list.
+
+  **D-DR6's panel MEMORY is deleted with the panels it remembered.** Not just unused — `localStorage`
+  panel state is what made a "45% of viewport" measurement wrong during this programme (leftover
+  clicking from an earlier run), and a stored "closed" outlives its reason: a dispatcher who shut the
+  filters once came back to a map with no visible way to search it. The corner TYPE survives, because
+  the selected-truck card is still a floating panel.
+
+  ⚠ **D-LM18 needed a second home, and this is the kind of thing a layout change loses.** The scope
+  sentence lived in the dock bar, which was always on screen. The rail carries it at `lg`, but below
+  `lg` the rail is a shut overlay — so a dispatcher could work a whole shift on a phone without ever
+  reading that the board is fleet-wide. It is now beside the map's own Fleet button too, `lg:hidden`,
+  and asserted in both places. ⚠ Its old test asserted `closest("[aria-label]") === null` as a proxy
+  for "not inside a dismissible panel"; the rail is a labelled landmark, so the proxy failed on
+  correct markup. The property is now asserted directly.
+
+  **Overlap re-measured at 1512, 1280 and 390, including the vendor's DOM** (the DR5 trap): none.
+  ⚠ The first run of that check reported four, every one a false positive — a `pointer-events-none`
+  full-height wrapper and an SVG's `className` object. A check that counts boxes which paint nothing
+  is as useless as one that ignores maplibre; it now compares only elements that paint.
+
+  ⚠ The mobile bar is pinned TOP, not bottom, and the second reason is a measurement worth keeping:
+  `<main>` is `100dvh-4rem` and the environment banner is a sibling ABOVE the shell, so the document
+  scrolls by the banner's height — 28px at 1512 and **64px at 390, where it wraps to two lines** —
+  and anything on the bottom edge is under the fold. That is DR5 follow-up 2, still open, and it is
+  the banner alone: this tab's strip lives inside `<main>` and takes its height from the same box.

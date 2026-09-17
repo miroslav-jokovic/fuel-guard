@@ -218,3 +218,64 @@ export function offlineBoundSentence(bounds: LiveMapBoard["bounds"]): string {
 export function engineOnBoundSentence(bounds: LiveMapBoard["bounds"]): string {
   return `Not moving, heard from within ${bounds.engineOnBoundSeconds}s`;
 }
+
+/**
+ * How the fleet list may be ordered (D-DR25).
+ *
+ * ── WHY A SORT CONTROL EXISTS AT ALL, WHEN THE OLD LIST HAD SORTABLE COLUMNS ─────────────────────
+ * The fleet list used to be a seven-column `DataTable` docked across the bottom of the map, and its
+ * headers sorted. A 320px rail cannot carry seven columns — D-DR17's lesson twice over — so the
+ * columns went and the capability had to be kept somewhere or admitted as a loss. "Which truck has
+ * the oldest fix" is the one a dispatcher actually asks, and it would have been the one lost, so the
+ * orderings survive as four options in a select rather than as headers to click.
+ *
+ * ⚠ The state order is `MAP_STATES` — moving, stopped, parked, offline — and NOT alphabetical, which
+ * would read "moving, offline, parked, stopped" and put the trucks nobody can see in the middle of
+ * the ones that are driving.
+ */
+export type LiveMapSort = "unit" | "state" | "age" | "speed";
+
+export const LIVE_MAP_SORTS: { value: LiveMapSort; label: string }[] = [
+  { value: "unit", label: "Unit number" },
+  { value: "state", label: "Status" },
+  { value: "age", label: "Oldest fix first" },
+  { value: "speed", label: "Fastest first" },
+];
+
+/**
+ * A copy of the list in the chosen order.
+ *
+ * ⚠ It COPIES rather than sorting in place, because the array it is handed is the board's own and a
+ * poll replaces that array every five seconds: sorting the source would mutate a value vue-query
+ * hands out to every other reader, including the map's own feature collection.
+ *
+ * ⚠ Unit number sorts NUMERICALLY where it can. This fleet's units are "1207" and "204" as strings,
+ * and a lexicographic sort puts 1207 before 204 — which reads as a bug in the list rather than as a
+ * sorting rule, and is the reason `localeCompare` alone was not enough.
+ */
+export function sortVehicles(
+  vehicles: readonly LiveMapVehicle[],
+  sort: LiveMapSort,
+): LiveMapVehicle[] {
+  const byUnit = (a: LiveMapVehicle, b: LiveMapVehicle) =>
+    a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true });
+  const copy = [...vehicles];
+  switch (sort) {
+    case "state":
+      // Within a status, unit order — so the list is stable to read rather than shuffling by whatever
+      // order the board happened to return.
+      return copy.sort(
+        (a, b) => MAP_STATES.indexOf(a.state) - MAP_STATES.indexOf(b.state) || byUnit(a, b),
+      );
+    case "age":
+      return copy.sort((a, b) => b.ageSeconds - a.ageSeconds || byUnit(a, b));
+    case "speed":
+      // ⚠ A truck with no speed reading is not a slow truck. `null` sorts last in a "fastest first"
+      // list rather than being coerced to 0 and mixed in with the parked ones.
+      return copy.sort(
+        (a, b) => (b.position.speedMph ?? -1) - (a.position.speedMph ?? -1) || byUnit(a, b),
+      );
+    default:
+      return copy.sort(byUnit);
+  }
+}

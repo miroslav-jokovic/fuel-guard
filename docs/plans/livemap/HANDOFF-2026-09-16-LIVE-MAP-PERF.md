@@ -144,7 +144,16 @@ exists. Full entry: **D-DR24** in `DESIGN-REFRESH-2026-09.md` §7.
 strip costs ~60px. That is 4 points the wrong way on the complaint that started this, and the answer
 is §4's sidebar collapse, which belongs with the rail below rather than with the route deletion.
 
-⬜ **The layout — the left rail and the popover — is still to do**, and it is the next step.
+✅ **The layout shipped too, as D-DR25** — the left rail (search + census-as-filter + ordering + the
+fleet list) replaces both corner panels and the dock, and the sidebar collapses on a full-bleed
+surface. Measured: the fleet list went from costing **31 points of map (the dock, open) to 2**, and
+the sidebar collapse hands back 12. Full entry in `DESIGN-REFRESH-2026-09.md` §7.
+
+⬜ **The marker POPOVER is the one piece of the Samsara pattern still outstanding.** The selected
+truck is still a floating card in a corner rather than a popover anchored to its marker; the research
+below argues for the popover and the owner has already ruled the DRAWER out. It is the next step, and
+it is small — `maplibregl.Popup` takes a DOM element, so it is a teleport target and a position, not
+a new information design.
 
 Do these together. Collapsing to the Dispatch tab is the moment to fix the layout, not after.
 
