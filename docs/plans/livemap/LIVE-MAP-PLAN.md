@@ -2360,3 +2360,55 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   Three tests, two **proved by mutation** — putting `parked` back on a grey fails the one-ramp-per-state
   test, and making `offline` amber fails the population test. Rendered and looked at in BOTH schemes
   over a flat basemap, which is how the keyline's job in each was checked.
+- **2026-09-17 — Item 8's blocking question, ANSWERED with measurements: fuel level exists, and it is
+  not a live fact. `Q-LM20` is what to do about that.**
+
+  The handoff said "fuel level may not be on the board at all" and asked for a fact-check before any
+  hover card was designed. The fact-check:
+
+  **It exists, and not where the handoff looked.** `LiveMapPosition` carries no fuel and neither does
+  `vehicle_positions` — its columns are org, vehicle, lat, lng, heading, speed, is_ecu_speed,
+  formatted_location, sampled_at, received_at, source. But `vehicles` carries
+  **`samsara_fuel_percent`** and **`samsara_fuel_at`**, written by the live stats tier
+  (`samsaraStatsFeed.ts` → `syncVehicleStatsFromSamsara`), which is running: **85 `sync_stats` jobs in
+  the last 24 hours**, the most recent minutes before this was written.
+
+  **But it is nothing like as fresh as a position.** Production, 2026-09-17, 272 vehicles:
+
+  | | vehicles |
+  |---|---|
+  | have ever had a fuel reading | 207 of 272 (76%) |
+  | reading is under 15 minutes old | **6** |
+  | under an hour | 88 (32%) |
+  | under 24 hours | 145 (53%) |
+  | no reading at all | 65 (24%) |
+  | oldest reading | **492 days** |
+
+  So the other two facts item 8 asks for are already on the board — `speedMph` and
+  `formattedLocation` are both on `LiveMapPosition` — and the third is a slow, patchy one sitting
+  beside two live ones.
+
+  ⚠ **That is the whole of the problem, and it is the same one D-LM10 and D-LM20 have already been
+  paid for twice.** "68%" rendered beside a position measured six seconds ago reads as a fuel level
+  measured six seconds ago. For two-thirds of this fleet it would be a day or more old, for a quarter
+  there is nothing to render, and for one truck it would be sixteen months old. A number that looks
+  live and is not is worse than no number.
+
+  **`Q-LM20`, for the owner:**
+
+  | | what the hover card shows | costs |
+  |---|---|---|
+  | (a) fuel with its age, always | "68% · 3 days ago", and nothing at all for the 65 with no reading | honest; the card is three lines where two are live and one is not, and the reader has to notice which |
+  | (b) **fuel only when it is fresh, its age when it is not** | "68%" under an hour, "fuel last read 3 days ago" beyond | one rule, and it is already this surface's rule — `rowMetric` (D-LM20) does exactly this for speed vs fix age |
+  | (c) fuel with no age | "68%" | the lie above. Not recommended under any reading |
+  | (d) no fuel on the card; speed and location only | ships item 8's other two facts today, with no API change at all | the owner asked for fuel, and it does exist |
+
+  **Recommended: (b)**, with the freshness bound read from the response rather than typed — the board
+  already sends `bounds` for exactly this reason (LM6).
+
+  ⚠ **It is two merges, not one, and that is not optional.** The API must ship
+  `LiveMapVehicle.fuel { percent, at } | null` before any web code reads it: the two Railway services
+  can sit at DIFFERENT commits, so a web build that reads a field the API has not shipped renders the
+  blank line the handoff warned about. The board's query already selects from `vehicles`, so the API
+  half is two columns and a contract field; no migration, no new writer, and `lint:table-writers` is
+  not engaged because nothing writes.
