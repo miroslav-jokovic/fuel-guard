@@ -12,3 +12,4 @@
  */
 export { liveMapRouter } from "./routes/index.js";
 export { readLiveMapBoard, FLEET_WIDE_SCOPE_REASON } from "./liveMapBoard.js";
+export { readLiveMapBoardCached, BOARD_CACHE_TTL_MS } from "./liveMapBoardCache.js";

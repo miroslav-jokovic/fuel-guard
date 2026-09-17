@@ -5,7 +5,11 @@ today's deploy*), but the board must hold up "enterprise grade" when **20–30 d
 the same time", and the remaining live-map work needs listing.
 
 This document is the measurement and the queue. Decisions land at the end of `LIVE-MAP-PLAN.md` as
-usual; nothing here is built yet.
+usual.
+
+⚠ **§0–§6 are the measurement as it stood before anything was built, and are left that way on
+purpose** — they are what the numbers in §7 are measured against. **§7 is the current position:
+C1, C2 and C3 have shipped, and `Q-LM22` is what the last of them exposed.** Read §7 first.
 
 ---
 
@@ -186,3 +190,60 @@ at 30 users, and C5 waits on HERE's quota page.
 
 ⚠ **Re-run the rig after each, not at the end.** The 30-user office scenario is the one that fails
 today, and it is a two-minute test.
+
+---
+
+## 7. Built, and re-measured after each — 2026-09-17
+
+C1 → C2 → C3 shipped in that order, each with the 30-user office scenario re-run against it. The
+scenario is the one that **failed** before any of this: thirty dispatchers, one office address, the
+real 5 s poll, 171-truck fixture.
+
+| | served / refused | p50 | upstream round trips per poll | board on the wire |
+|---|---|---|---|---|
+| **before** | 600 / **149 × 429** | 58.7 ms | 5.0 | 68.2 KB |
+| after **C1** (#856) | 748 / **0** | 53.1 ms | 5.0 | 68.2 KB |
+| after **C2** (#857) | 568 / 0 | 55.3 ms | 5.0 | **5.1 KB** |
+| after **C3** | 748 / **0** | **24.0 ms** | **1.13** | 5.1 KB |
+
+- **C1** — the budget counts against the caller, not the address. The refusals are gone; that was the
+  defect.
+- **C2** — `compression`, mounted above the routers. **92.5%** off the board, measured on raw socket
+  bytes rather than a header. 24 MB/min of egress at 30 users becomes 1.8.
+- **C3** — one board per org per 2.5 s, cached as a **promise** so simultaneous callers coalesce onto
+  one read and later ones are served from it. The four board reads fell from 4.0 to **0.03 per poll —
+  30×** — and p50 more than halved.
+
+### ⚠ What the C3 measurement then exposed: `Q-LM22`
+
+With the board reads gone, the remaining database traffic is almost entirely one call:
+
+| upstream call | per poll | share of what is left |
+|---|---|---|
+| `rpc/org_module_enabled` | **1.00** | **88%** |
+| `vehicle_positions` · `vehicles` · `drivers` · `loads` | 0.03 each | 12% together |
+
+`requireModule("dispatch")` asks the database whether the org has the module **on every request**, and
+nothing caches it. It was invisible while the board cost five round trips; now it *is* the cost.
+
+**It is not this queue's to fix, and that is the point of writing it down.** That RPC guards every
+gated router in the product, not the live map — so caching it is a decision about the entitlement
+system's staleness (how long may a module stay enabled after it is switched off?), with an audit and
+a billing consequence, and it belongs to whoever owns `requireModule`. Candidates: (a) a short
+per-org TTL exactly like C3's, (b) resolve modules once per request rather than once per gate, (c)
+carry entitlements on the auth context the way `sections` already are — **(c) is the one that matches
+how this codebase already answers "what may this caller do"**, and it costs a token-shape change.
+
+**Recommended: raise it with the entitlement owner, do not fold it into the map.**
+
+### Not done, and still correctly gated
+
+- **C4** (ETag / `304`) — compounds with C2; cheap now that C3 makes the board a shared snapshot.
+- **C5** (B3 tile coalescing) — still waiting on **HERE's quota console**, per `Q-LM21`.
+- **C6** (the five sequential round trips) — **largely mooted by C3**: they now run ~0.03 times per
+  poll instead of once, so parallelising them would speed up a call that has become rare.
+- **C7** (request observability) — unchanged, and now the largest remaining gap: none of the numbers
+  in this table can be seen in production.
+- **C8** (replicas) — not needed on this evidence. ⚠ Note C3 caches **in process**, so a second
+  replica means two caches and two reads per TTL rather than one. That is correct but halves the
+  saving, and is a reason to price C8 against C7 rather than reach for it first.

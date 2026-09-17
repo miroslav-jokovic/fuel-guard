@@ -4,7 +4,7 @@ import { requireModule } from "../../../middleware/requireModule.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { readLiveMapBoard } from "../liveMapBoard.js";
+import { readLiveMapBoardCached } from "../liveMapBoardCache.js";
 
 /**
  * The live map's read surface (LM6).
@@ -30,7 +30,7 @@ export function liveMapRouter(): Router {
     requireSection("dispatch", "view"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const board = await readLiveMapBoard(admin, req.auth!.orgId!);
+      const board = await readLiveMapBoardCached(admin, req.auth!.orgId!);
       res.json({ ok: true, data: board });
     }),
   );
