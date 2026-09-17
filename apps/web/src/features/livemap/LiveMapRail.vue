@@ -11,7 +11,8 @@ import {
   MAP_STATES,
   STATE_COLOR_CLASS,
   STATE_LABEL,
-  formatAge,
+  fleetTotalSentence,
+  rowMetric,
   sortVehicles,
   type LiveMapSort,
 } from "./liveMapLayer";
@@ -84,7 +85,16 @@ const sortModel = computed<string>({
   get: () => sort.value,
   set: (value) => { sort.value = (value as LiveMapSort) || "state"; },
 });
-const rows = computed(() => sortVehicles(props.filtered, sort.value));
+/**
+ * The list, in order, each row carrying the one fact its right-hand slot shows (D-LM20).
+ *
+ * ⚠ The metric is computed HERE and not in the template. `rowMetric` would otherwise be called twice
+ * per row — once for the text and once for the tone — which is four hundred calls a render on this
+ * fleet to answer the same question twice.
+ */
+const rows = computed(() =>
+  sortVehicles(props.filtered, sort.value).map((vehicle) => ({ vehicle, metric: rowMetric(vehicle) })),
+);
 
 /** Pressing a census button filters to that status; pressing the active one clears it. */
 function toggleState(state: VehicleMapState): void {
@@ -157,7 +167,7 @@ function toggleState(state: VehicleMapState): void {
       <p v-else-if="rows.length === 0" class="p-3 text-sm text-ink-muted">{{ emptyText }}</p>
 
       <ul v-else class="divide-y divide-edge-subtle">
-        <li v-for="v in rows" :key="v.vehicleId">
+        <li v-for="{ vehicle: v, metric } in rows" :key="v.vehicleId">
           <!--
             A row is a button, not a `<tr>` with a click handler: it is the keyboard's way into the
             map, and the canvas cannot be entered by one at all. `aria-current` is what tells a screen
@@ -175,7 +185,17 @@ function toggleState(state: VehicleMapState): void {
               <span class="flex items-center gap-2">
                 <span class="font-medium text-ink">{{ v.unitNumber }}</span>
                 <span :class="[BADGE_BASE, vehicleStateTone(v.state)]">{{ STATE_LABEL[v.state] }}</span>
-                <span class="ml-auto shrink-0 text-2xs tabular-nums text-ink-tertiary">{{ formatAge(v.ageSeconds) }}</span>
+                <!--
+                  D-LM20: the speed while the feed is keeping up, the fix age the moment it is not.
+                  `rowMetric` decides which and says why; the two are styled apart because they are
+                  different KINDS of fact — a speed is the truck's, an age is ours, and a reader
+                  scanning two hundred rows for the one that has gone quiet should not have to read
+                  the units to find it.
+                -->
+                <span
+                  class="ml-auto shrink-0 text-2xs tabular-nums"
+                  :class="metric.kind === 'speed' ? 'text-ink-secondary' : 'text-ink-tertiary'"
+                >{{ metric.text }}</span>
               </span>
               <span class="truncate text-xs" :class="v.driver ? 'text-ink-secondary' : 'text-ink-muted'">
                 {{ v.driver?.name ?? "Unassigned" }}
@@ -197,8 +217,15 @@ function toggleState(state: VehicleMapState): void {
         RESPONSE, so it stops appearing by itself on the day the scope becomes real.
       -->
       <p v-if="board && board.scope === 'all'" class="text-2xs text-ink-secondary">{{ board.scopeReason }}</p>
+      <!--
+        ⚠ The owner's item 6 was "replace the scope paragraph AND '171 of 171 shown' with a plain
+        total". The COUNT is done here and is plainly better; the scope PARAGRAPH above is D-LM18 and
+        is not this step's to delete — it is a required disclosure with a stated reason, and the
+        freshness clause below it is D-LM9b. Both are recorded as Q-LM19 in `LIVE-MAP-PLAN.md` with a
+        recommendation, because a decision removed quietly is one nobody can find again.
+      -->
       <p class="text-2xs text-ink-tertiary">
-        {{ filtered.length }} of {{ vehicles.length }} shown · refreshes every {{ pollSeconds }}s
+        {{ fleetTotalSentence(filtered.length, vehicles.length) }} · refreshes every {{ pollSeconds }}s
       </p>
     </div>
   </aside>

@@ -4,9 +4,11 @@ import {
   ICON_NAMES,
   MAP_STATES,
   filterVehicles,
+  fleetTotalSentence,
   formatAge,
   iconNameFor,
   offlineBoundSentence,
+  rowMetric,
   stateCounts,
   toFeatureCollection,
   sortVehicles,
@@ -215,5 +217,55 @@ describe("sortVehicles", () => {
     const sorted = sortVehicles(source, "unit");
     expect(source.map((v) => v.unitNumber)).toEqual(["9", "2"]);
     expect(sorted.map((v) => v.unitNumber)).toEqual(["2", "9"]);
+  });
+});
+
+describe("rowMetric", () => {
+  /**
+   * The rail's right-hand slot (D-LM20). The owner's item 2 was "show SPEED per truck, not '3s ago'",
+   * and D-LM10 requires the fix age to stay visible per truck — these are the cases where the two
+   * meet, so neither can be quietly traded for the other later.
+   */
+  it("shows the speed while the feed is keeping up, which is what a reader can act on", () => {
+    expect(rowMetric(vehicle({ ageSeconds: 5 }))).toEqual({ text: "62 mph", kind: "speed" });
+  });
+
+  it("shows a stopped truck's nought, because the badge says stopped and the number says how stopped", () => {
+    expect(rowMetric(vehicle({ state: "stopped", ageSeconds: 8, position: { ...vehicle().position, speedMph: 0 } })))
+      .toEqual({ text: "0 mph", kind: "speed" });
+  });
+
+  it("shows the AGE once the fix is stale, because a speed read off an old fix is a lie with a number on it", () => {
+    // `moving` only asks that the fix is inside the fifteen-minute offline bound, so a truck can be
+    // moving with a fix nobody has refreshed in twenty minutes. That row must not read "62 mph".
+    expect(rowMetric(vehicle({ state: "moving", ageSeconds: 1_200 }))).toEqual({ text: "20m ago", kind: "age" });
+  });
+
+  it("shows the age for a ping that carried no speed, rather than inventing a nought", () => {
+    // `speedMph` is nullable in `vehicle_positions` and absent is NOT zero (0341's column is nullable
+    // for exactly this).
+    expect(rowMetric(vehicle({ ageSeconds: 4, position: { ...vehicle().position, speedMph: null } })))
+      .toEqual({ text: "4s ago", kind: "age" });
+  });
+
+  it("puts the seam at twice the worst fix interval measured on this fleet, not at a round minute", () => {
+    expect(rowMetric(vehicle({ ageSeconds: 30 })).kind).toBe("speed");
+    expect(rowMetric(vehicle({ ageSeconds: 31 })).kind).toBe("age");
+  });
+});
+
+describe("fleetTotalSentence", () => {
+  /** The owner's item 6: "171 of 171 shown" is a fraction whose halves are equal. */
+  it("says a plain total when nothing is filtered out", () => {
+    expect(fleetTotalSentence(171, 171)).toBe("171 trucks");
+  });
+
+  it("keeps the fraction when the list IS narrowed, which is the case it was written for", () => {
+    expect(fleetTotalSentence(42, 171)).toBe("42 of 171 trucks");
+  });
+
+  it("does not say '1 trucks'", () => {
+    expect(fleetTotalSentence(1, 1)).toBe("1 truck");
+    expect(fleetTotalSentence(1, 171)).toBe("1 of 171 trucks");
   });
 });
