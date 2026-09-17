@@ -199,7 +199,7 @@ describe("the style parameter reaches the upstream URL", () => {
     expect(hereUrl()).toContain("style=satellite.day");
 
     upstream.length = 0;
-  upstreamInit.length = 0;
+    upstreamInit.length = 0;
     await tile("?style=topo.day");
     expect(hereUrl()).toContain("style=topo.day");
   });
@@ -215,7 +215,7 @@ describe("the style parameter reaches the upstream URL", () => {
     expect(hereUrl()).toContain("/5/8/9/jpeg?");
 
     upstream.length = 0;
-  upstreamInit.length = 0;
+    upstreamInit.length = 0;
     await tile("?style=explore.day");
     expect(hereUrl()).toContain("/5/8/9/png?");
   });
