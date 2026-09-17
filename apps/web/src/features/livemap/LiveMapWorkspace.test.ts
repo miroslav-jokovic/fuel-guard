@@ -30,7 +30,7 @@ const BOARD: LiveMapBoard = {
   generatedAt: "2026-09-16T12:00:00.000Z",
   scope: "all",
   scopeReason: "Showing every truck: loads carry no dispatcher yet.",
-  bounds: { stoppedSpeedMph: 3, engineOnBoundSeconds: 900, offlineBoundSeconds: 5400 },
+  bounds: { stoppedSpeedMph: 3, engineOnBoundSeconds: 900, offlineBoundSeconds: 5400, fuelFreshSeconds: 900 },
   truncated: false,
   vehicles: [
     {
@@ -40,6 +40,7 @@ const BOARD: LiveMapBoard = {
       state: "moving",
       ageSeconds: 12,
       load: null,
+      fuel: { percent: 68, at: "2026-09-16T11:58:00.000Z" },
       position: {
         lat: 41.5,
         lng: -87.5,

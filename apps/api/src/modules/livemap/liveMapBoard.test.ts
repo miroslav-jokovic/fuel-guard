@@ -24,6 +24,10 @@ const vehicle = (o: Record<string, unknown> = {}) => ({
   unit_number: "1207",
   status: "active",
   assigned_driver_id: "drv-1",
+  // ⚠ A STRING, because that is what PostgREST sends for `numeric(5,1)` — a fixture holding `68`
+  // would test a row shape production never produces and would leave `toFuel`'s coercion unproven.
+  samsara_fuel_percent: "68.0",
+  samsara_fuel_at: agoSec(120),
   ...o,
 });
 
@@ -148,7 +152,65 @@ describe("the live map board", () => {
 
   it("sends the bounds its states were computed with, so a legend needs no second copy", async () => {
     const b = await board(recorder());
-    expect(b.bounds).toEqual({ stoppedSpeedMph: 3, engineOnBoundSeconds: 30, offlineBoundSeconds: 900 });
+    expect(b.bounds).toEqual({
+      stoppedSpeedMph: 3,
+      engineOnBoundSeconds: 30,
+      offlineBoundSeconds: 900,
+      fuelFreshSeconds: 900,
+    });
+  });
+
+  // ── `Q-LM20`, the owner's item 8 — the tank, and when the vendor read it ─────────────────────────
+  describe("fuel", () => {
+    /**
+     * ⚠ The assertion is `68` and not `"68.0"`, and that is the whole test. `samsara_fuel_percent`
+     * is `numeric(5,1)`, PostgREST serialises `numeric` as a JSON string, and the fixture above
+     * holds the string production actually sends. Deleting `Number(...)` from `toFuel` fails here.
+     */
+    it("carries the tank as a number, from the string the database sends", async () => {
+      const b = await board(recorder());
+      expect(b.vehicles[0]!.fuel).toEqual({ percent: 68, at: agoSec(120) });
+    });
+
+    /**
+     * ⚠ An empty tank and an unknown tank are opposite facts. 65 of 272 vehicle rows have never
+     * carried a reading (2026-09-17), and a `0` there would send a dispatcher to a truck that is
+     * full.
+     */
+    it("says null for a truck that has never reported a level, never zero", async () => {
+      const rec = recorder({
+        vehicles: [vehicle({ samsara_fuel_percent: null, samsara_fuel_at: null })],
+      });
+      expect((await board(rec)).vehicles[0]!.fuel).toBeNull();
+    });
+
+    /**
+     * Neither half is usable alone: a percent with no reading time cannot be aged, which is the one
+     * thing `Q-LM20` refuses to put on the board. Production has no such row today — this pins the
+     * behaviour before it does.
+     */
+    it("refuses a half pair rather than inventing the missing half", async () => {
+      const noTime = recorder({ vehicles: [vehicle({ samsara_fuel_at: null })] });
+      expect((await board(noTime)).vehicles[0]!.fuel).toBeNull();
+      const noPercent = recorder({ vehicles: [vehicle({ samsara_fuel_percent: null })] });
+      expect((await board(noPercent)).vehicles[0]!.fuel).toBeNull();
+    });
+
+    /**
+     * ⚠ The fuel clock is NOT the fix clock, and the board must not let one stand in for the other.
+     * On 2026-09-17, 35 of the 146 trucks with a fresh fix carried fuel over an hour old, the worst
+     * 5.6 days — so a live position with a stale tank is a quarter of the board, not an edge case.
+     */
+    it("leaves a stale tank on a live truck exactly as stale as it is", async () => {
+      const rec = recorder({
+        positions: [position({ sampled_at: agoSec(5) })],
+        vehicles: [vehicle({ samsara_fuel_at: agoSec(5 * 86_400) })],
+      });
+      const b = await board(rec);
+      expect(b.vehicles[0]!.ageSeconds).toBe(5);
+      expect(b.vehicles[0]!.state).toBe("moving");
+      expect(b.vehicles[0]!.fuel!.at).toBe(agoSec(5 * 86_400));
+    });
   });
 
   // A dot with no unit number is something a dispatcher cannot act on. LM4 already counts this case

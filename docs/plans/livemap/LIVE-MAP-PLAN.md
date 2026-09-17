@@ -2483,3 +2483,59 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   fails seven tests across two files, making `inline` render the card fails its variant test,
   `<details open>` fails three (the foot's and two of the panel's own), and deleting `scopeReason`
   from the disclosure fails the Q-LM19 test. Walked at 1512 and 390, in light and dark.
+- **2026-09-17 — the Q-LM20 fuel measurement was WRONG, re-measured, and the contract half shipped
+  (D-LM26).** The entry above reports "6 of 272 fresh within 15 minutes, average 17.6 days old, 65
+  with no reading at all" and treats that as a property of the FEED. It is not. It was measured at
+  **22:20 CDT over a fleet that was asleep**, against a denominator of all 272 `vehicles` rows —
+  including 37 retired trucks and every vehicle with no position, none of which the board draws.
+
+  Re-measured 2026-09-17 at 08:55 CDT over the **171 trucks the board actually draws** (non-retired,
+  holding a `vehicle_positions` row):
+
+  | | trucks |
+  |---|---|
+  | have a fuel reading | **171 of 171** |
+  | fresh within 15 min | 101 (59%) |
+  | within 1 h · 6 h · 24 h | 111 · 123 · 144 |
+  | oldest on the board | 202 days |
+
+  **Fuel freshness is ENGINE-GATED, which is why the hour mattered**, measured at the same instant:
+
+  | state | trucks | fresh < 15 min | mean age |
+  |---|---|---|---|
+  | moving | 67 | **67 (100%)** | 0.0 h |
+  | stopped / parked | 79 | 35 (44%) | 9.7 h |
+  | offline | 25 | 0 | 655 h |
+
+  ⚠ **The hazard survived the correction and is bigger than the first measurement implied.** Of the
+  **146 trucks whose POSITION was fresh, 35 (24%) carried a fuel reading over an hour old, the worst
+  5.6 days.** A live marker with a stale tank is a quarter of the trucks a dispatcher clicks — so the
+  fuel clock must never be inherited from the fix clock, which is what `LiveMapVehicle.fuel` carrying
+  its own `at` enforces at the type level.
+
+  **The recommendation moves from (b) to (b′), and the reason is physical.** (b) said "fuel when
+  fresh, its age when not", copying `rowMetric` exactly — the number disappears past the bound.
+  Fuel only changes while the engine burns it, so an hours-old reading on a parked truck is still
+  TRUE, unlike an hours-old speed; hiding it would blank the number on 24% of live trucks and on
+  every parked one, which is most of the reason to look. **(b′): always the percentage, with its age
+  appended past `bounds.fuelFreshSeconds`** — same rule, same source of the bound, no truncation.
+  The card has room for a qualifier; the rail's one metric slot does not, which is why fuel is not
+  in the rail (D-LM20 keeps that slot).
+
+  **Shipped here is the API half only, and the two-merge rule is the point.** `FUEL_FRESH_SECONDS`
+  (900, its own constant beside `OFFLINE_BOUND_SECONDS` rather than derived from it — two vendor
+  feeds that happen to agree today), `LiveMapFuel`, `LiveMapVehicle.fuel`, `LiveMapBounds
+  .fuelFreshSeconds`, two more columns on the roster's existing `vehicles` select, and the mapping.
+  No migration, no writer, nothing rendered. A3 reads it only after this is DEPLOYED — the two
+  Railway services can sit at different commits.
+
+  ⚠ **`samsara_fuel_percent` is `numeric(5,1)`, and PostgREST sends `numeric` as a JSON STRING** —
+  production answers `"100.0"` and `"3.0"`, verified against the live database. `toFuel`'s `Number()`
+  is load-bearing, not defensive: without it a browser would receive `"68.0"` and render "68.0%".
+  `samsaraStatsFeed.ts` already carries its own `num()` for the same column.
+
+  **Proved by mutation**, each run and reverted: removing the coercion fails two tests, accepting a
+  percent with no reading time fails one, and dropping `fuelFreshSeconds` from `bounds` fails one.
+  The contract change is also its own impact report — making `fuel` REQUIRED and nullable (rather
+  than optional) turned every board fixture in the repo into a compile error, which is the list of
+  everybody who constructs one.

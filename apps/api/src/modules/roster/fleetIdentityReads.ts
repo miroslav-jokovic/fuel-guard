@@ -17,6 +17,15 @@ export interface FleetIdentity {
   unitNumber: string;
   status: string | null;
   driver: { id: string; name: string } | null;
+  /**
+   * The tank and when the vendor read it, or null when this truck has never reported one
+   * (`Q-LM20`, the live map's item 8).
+   *
+   * It is on the ROSTER's interface because `vehicles` is the roster's table — the same reason
+   * `unitNumber` and `status` come through here rather than the live map selecting two more columns
+   * off a table it does not own (D-ARC3, and the file header above).
+   */
+  fuel: { percent: number; at: string } | null;
 }
 
 const PAGE_CAP = 1000;
@@ -26,6 +35,9 @@ type VehicleRow = {
   unit_number: string | null;
   status: string | null;
   assigned_driver_id: string | null;
+  /** `numeric(5,1)` (migration 0138), so PostgREST sends it as a STRING — see `toFuel`. */
+  samsara_fuel_percent: number | string | null;
+  samsara_fuel_at: string | null;
 };
 type DriverRow = { id: string; first_name: string | null; last_name: string | null };
 
@@ -42,6 +54,29 @@ function displayName(d: DriverRow): string {
 }
 
 /**
+ * The fuel pair, or null — the ONE place the vendor's two columns become one fact.
+ *
+ * ⚠ THE `Number(...)` IS LOAD-BEARING AND NOT DEFENSIVE. `samsara_fuel_percent` is
+ * `numeric(5,1)` (migration 0138) and PostgREST serialises `numeric` as a JSON **string** to keep
+ * arbitrary precision — production answers `"100.0"` and `"3.0"`, verified against the live database
+ * on 2026-09-17. Passed through untouched it would reach a browser as `"68.0"`, where it would
+ * render as "68.0%" and compare as a string. `samsaraStatsFeed.ts` already carries its own `num()`
+ * for the same column and the same reason.
+ *
+ * ⚠ BOTH HALVES OR NEITHER. A percent with no reading time cannot be aged, and an unaged percent is
+ * precisely what `Q-LM20` refuses to put on the board; a time with no percent describes nothing. On
+ * production neither mismatch exists — 207 rows carry both and 65 carry neither, 2026-09-17 — so
+ * this is the case the data does not have yet rather than one it has, and it is written down rather
+ * than left to `undefined` leaking through the contract.
+ */
+function toFuel(v: VehicleRow): FleetIdentity["fuel"] {
+  if (v.samsara_fuel_percent == null || !v.samsara_fuel_at) return null;
+  const percent = Number(v.samsara_fuel_percent);
+  if (!Number.isFinite(percent)) return null;
+  return { percent, at: v.samsara_fuel_at };
+}
+
+/**
  * Identity for every vehicle in an org, keyed by vehicle id.
  *
  * Org-scoped on BOTH reads: `admin` is the service role and bypasses RLS, so these filters are the
@@ -54,7 +89,7 @@ export async function readFleetIdentities(
 ): Promise<{ byVehicleId: Map<string, FleetIdentity>; truncated: boolean }> {
   const { data: vData, error: vErr } = await admin
     .from("vehicles")
-    .select("id, unit_number, status, assigned_driver_id")
+    .select("id, unit_number, status, assigned_driver_id, samsara_fuel_percent, samsara_fuel_at")
     .eq("org_id", orgId)
     .limit(PAGE_CAP);
   if (vErr) throw new Error(vErr.message);
@@ -83,6 +118,7 @@ export async function readFleetIdentities(
       unitNumber: v.unit_number?.trim() || "—",
       status: v.status,
       driver: d ? { id: d.id, name: displayName(d) } : null,
+      fuel: toFuel(v),
     });
   }
   return { byVehicleId, truncated: vehicles.length >= PAGE_CAP };

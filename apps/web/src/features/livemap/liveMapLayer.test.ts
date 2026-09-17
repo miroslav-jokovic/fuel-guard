@@ -40,6 +40,9 @@ const vehicle = (o: Partial<LiveMapVehicle> = {}): LiveMapVehicle => ({
   },
   state: "moving",
   ageSeconds: 5,
+  // A fresh tank by default (`Q-LM20`). The cases that matter set their own — a stale reading on a
+  // live truck is a quarter of this fleet, not an edge case.
+  fuel: { percent: 68, at: "2026-09-15T17:58:00.000Z" },
   load: null,
   ...o,
 });
@@ -164,6 +167,7 @@ describe("offlineBoundSentence", () => {
       stoppedSpeedMph: 3,
       engineOnBoundSeconds: 30,
       offlineBoundSeconds: 1_800,
+      fuelFreshSeconds: 900,
     };
     expect(offlineBoundSentence(bounds)).toBe("No fix for over 30 min");
   });
@@ -178,6 +182,7 @@ describe("offlineBoundSentence", () => {
       stoppedSpeedMph: 3,
       engineOnBoundSeconds: 45,
       offlineBoundSeconds: 900,
+      fuelFreshSeconds: 900,
     };
     expect(engineOnBoundSentence(bounds)).toBe("Not moving, heard from within 45s");
   });

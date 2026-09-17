@@ -29,6 +29,7 @@ const POLL = 5_000, FIX_EVERY = 11_000, FPS = 60, WATCH = 60_000;
 function vehicleAt(lat: number, sampledAt: string): LiveMapVehicle {
   return {
     vehicleId: "veh-1", unitNumber: "1207", driver: null, state: "moving", ageSeconds: 2, load: null,
+    fuel: null,
     position: { lat, lng: -88, headingDegrees: 90, speedMph: 62, isEcuSpeed: true,
       formattedLocation: null, sampledAt, receivedAt: sampledAt },
   };
