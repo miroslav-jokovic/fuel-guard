@@ -35,6 +35,20 @@ const WAIVERS = new Map([
   // vehicle_positions left it on 2026-09-15: migration 0342's `record_vehicle_positions` writes it,
   // driven by the LM4 positions tier (samsaraPositionsFeed.ts). The gate found the waiver stale by
   // itself, exactly as the entry said it would.
+  //
+  // ⚠ This entry exists because two rules of this repository genuinely pull against each other, and
+  // the tension is real rather than a way round the gate. `lint:migration-ordering` forbids shipping
+  // `loads.dispatcher_external_id` in the same merge as its first writer, because Railway serves a
+  // merge ~2m44s before `migrate.yml` applies the schema — so 0344 has to land schema-only. This
+  // gate then correctly observes that nothing writes the new table yet. One of them has to give for
+  // exactly one merge, and it is this one, because the failure it guards against (a table nobody
+  // ever writes) is discovered by a reader at leisure, while the one the ordering rule guards
+  // against (a writer served against a column that does not exist) is a live 500.
+  [
+    "tms_dispatchers",
+    "LOADS-GO-LIVE-PLAN.md L4 owes the producer in the NEXT merge — tmsDispatcherIngest.ts behind " +
+      "POST /api/tms/dispatchers. Expected stale within the day; the gate will say so itself.",
+  ],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

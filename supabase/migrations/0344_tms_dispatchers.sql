@@ -51,6 +51,8 @@
 -- `migrate.yml` applies its migration. Its first writer is L3's successor, in a separate merge
 -- (`lint:migration-ordering`). The two new tables are exempt from that rule; the column is not.
 
+-- raw-access-waiver: this migration CREATES the mcleod raw table it names — the owning collector's
+-- own DDL, no cross-module read.
 -- cross-module-waiver: this migration creates `mcleod`'s own dispatcher table and adds ONE nullable
 -- column plus an index to `loads`, which the `loads` module owns. The column has to live there
 -- because whose load it is, is a property of the LOAD — it is read on the board beside `status` and
