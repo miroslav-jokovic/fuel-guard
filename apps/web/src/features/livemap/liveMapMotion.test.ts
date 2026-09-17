@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { LiveMapVehicle } from "@silvicom/shared";
 import {
+  MAX_TWEEN_MS,
   MOTION_DURATION_MS,
   MOTION_LATENCY_BUDGET_MS,
   SNAP_DISTANCE_DEGREES,
@@ -178,5 +179,89 @@ describe("tweensSettled", () => {
   it("keeps drawing a truck that is only turning", () => {
     const tweens = planTweens(new Map([["veh-1", place(44.0, -88.0, 90)]]), [at(44.0, -88.0, 180)], 0);
     expect(tweensSettled(tweens, 0)).toBe(false);
+  });
+});
+
+/**
+ * D-LM8b — the tween is cut from the FIXES, not from the poll.
+ *
+ * ⚠ Measured on production 2026-09-17 and the reason this exists: 27 moving trucks had a median fix
+ * age of 5.6 s, so fixes land about every 11 seconds while the board is polled every 5. More than
+ * half of all boards therefore repeat a truck's position, and the previous code re-based on every one
+ * of them — restarting a 6.5 s tween with almost no ground to cover, which is a dot crawling at a
+ * quarter speed for a whole window and then jumping. The owner reported exactly that, as "still
+ * slowing down every ~5 seconds", after the freeze had been fixed.
+ */
+/** The file's own `at()` with a stated fix time — which is what this section is about. */
+const fixAt = (lat: number, sampledAt: string): LiveMapVehicle => {
+  const v = at(lat, -88.0);
+  return { ...v, position: { ...v.position, sampledAt } };
+};
+
+describe("a board that repeats a fix", () => {
+
+  it("leaves that truck's tween exactly as it was, rather than restarting it", () => {
+    const rendered = new Map([["veh-1", place(44.0, -88.0)]]);
+    const first = planTweens(rendered, [fixAt(44.02, "2026-09-17T12:00:00.000Z")], 0);
+    const tween = first.get("veh-1")!;
+
+    // The next board arrives 5s later carrying the SAME fix — no news about this truck.
+    const second = planTweens(new Map([["veh-1", place(44.01, -88.0)]]), [fixAt(44.02, "2026-09-17T12:00:00.000Z")], 5_000, first);
+
+    expect(second.get("veh-1")).toBe(tween);
+    expect(second.get("veh-1")!.startedAt).toBe(0);
+  });
+
+  // …and a board that DOES bring a new fix re-bases from where the dot currently is, as before.
+  it("re-bases the moment a newer fix arrives", () => {
+    const first = planTweens(new Map([["veh-1", place(44.0, -88.0)]]), [fixAt(44.02, "2026-09-17T12:00:00.000Z")], 0);
+    const second = planTweens(new Map([["veh-1", place(44.01, -88.0)]]), [fixAt(44.04, "2026-09-17T12:00:11.000Z")], 5_000, first);
+
+    expect(second.get("veh-1")).not.toBe(first.get("veh-1"));
+    expect(second.get("veh-1")!.from).toEqual({ lat: 44.01, lng: -88.0, heading: 0 });
+    expect(second.get("veh-1")!.startedAt).toBe(5_000);
+  });
+});
+
+describe("how long a tween runs", () => {
+  const secondFix = (gapSeconds: number) => {
+    const first = planTweens(new Map([["veh-1", place(44.0, -88.0)]]), [fixAt(44.02, "2026-09-17T12:00:00.000Z")], 0);
+    const later = new Date(Date.parse("2026-09-17T12:00:00.000Z") + gapSeconds * 1000).toISOString();
+    return planTweens(new Map([["veh-1", place(44.01, -88.0)]]), [fixAt(44.04, later)], 5_000, first).get("veh-1")!;
+  };
+
+  /**
+   * The measured interval, plus the latency budget the poll version used. ⚠ NOT the poll interval:
+   * this fleet's fixes are ~11 s apart, so covering each segment in 6.5 s makes every dot outrun its
+   * own truck and then wait.
+   */
+  it("spends the time the two fixes actually describe", () => {
+    expect(secondFix(11).durationMs).toBe(11_000 + MOTION_LATENCY_BUDGET_MS);
+    expect(secondFix(5).durationMs).toBe(5_000 + MOTION_LATENCY_BUDGET_MS);
+  });
+
+  /**
+   * ⚠ A truck parked for an hour reports a fix whose predecessor is an hour old. Animating that
+   * segment over an hour is a dot that never appears to move at all, so past the cap the honest
+   * reading is that we do not know how it got there and it should simply arrive.
+   */
+  it("caps a long gap rather than gliding for an hour", () => {
+    expect(secondFix(3_600).durationMs).toBe(MAX_TWEEN_MS);
+    expect(MAX_TWEEN_MS).toBeGreaterThan(13_600); // the worst interval measured on production
+  });
+
+  // A first sighting has no interval to read, so it falls back to the poll-shaped default.
+  it("falls back to the poll-shaped duration when there is no previous fix to measure against", () => {
+    const first = planTweens(new Map([["veh-1", place(44.0, -88.0)]]), [fixAt(44.02, "2026-09-17T12:00:00.000Z")], 0);
+    expect(first.get("veh-1")!.durationMs).toBe(MOTION_DURATION_MS);
+  });
+
+  // Each tween is sampled against ITS OWN duration — the reason the field exists on the tween.
+  it("samples every truck against its own duration, not one global one", () => {
+    const slow = { from: place(0, 0), to: place(10, 0), startedAt: 0, durationMs: 10_000, toSampledAt: "x" };
+    const quick = { from: place(0, 0), to: place(10, 0), startedAt: 0, durationMs: 1_000, toSampledAt: "y" };
+    const sampled = sampleTweens(new Map([["slow", slow], ["quick", quick]]), 1_000);
+    expect(sampled.get("quick")!.lat).toBe(10);
+    expect(sampled.get("slow")!.lat).toBeCloseTo(1, 5);
   });
 });

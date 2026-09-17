@@ -14,6 +14,11 @@
  * reason: at 199 trucks a five-second teleport reads as a broken map, and a dispatcher who distrusts
  * the map stops using it.
  *
+ * ⚠ D-LM8b (2026-09-17): the tween's LENGTH is a property of the two fixes as well, not a constant —
+ * measured on production, this fleet's moving trucks are re-fixed about every 11 seconds while the
+ * board is polled every 5, so most boards repeat a position and a board that repeats one is now left
+ * alone entirely. `tweenDurationFor` carries the numbers.
+ *
  * ⚠ It is bounded to the SEGMENT BETWEEN TWO MEASURED FIXES and never extrapolates past one. Sliding
  * a dot on along its heading because it "should" be moving would be inventing a position, and the
  * per-truck age (D-LM10) is computed from `sampledAt` by the server — it is not affected by any of
@@ -81,6 +86,19 @@ export interface Tween {
   from: RenderedPlace;
   to: RenderedPlace;
   startedAt: number;
+  /**
+   * How long THIS tween runs, which is a property of the two fixes rather than of the app (D-LM8b).
+   *
+   * See `planTweens` for the measurement that made it per-tween: the fleet's fixes arrive about every
+   * 11 seconds and the board is polled every 5, so a single global duration is right for neither.
+   */
+  durationMs: number;
+  /**
+   * The `sampledAt` of the fix this tween is travelling TO — the only reliable way to tell a board
+   * carrying news from a board repeating itself. Positions compare equal to the metre and would make
+   * a truck that genuinely has not moved indistinguishable from one whose fix has not been refreshed.
+   */
+  toSampledAt: string;
 }
 
 /**
@@ -94,6 +112,7 @@ export function planTweens(
   previous: ReadonlyMap<string, RenderedPlace>,
   vehicles: readonly LiveMapVehicle[],
   startedAt: number,
+  existing: ReadonlyMap<string, Tween> = new Map(),
 ): Map<string, Tween> {
   const next = new Map<string, Tween>();
   for (const v of vehicles) {
@@ -102,18 +121,69 @@ export function planTweens(
       lng: v.position.lng,
       heading: v.position.headingDegrees,
     };
+    const was = existing.get(v.vehicleId);
+
+    /**
+     * ⚠ A BOARD THAT BRINGS NO NEWS ABOUT THIS TRUCK MUST NOT TOUCH ITS TWEEN. This is the whole of
+     * D-LM8b: re-basing on a repeated fix restarts the clock with almost no ground left to cover, so
+     * the dot crawls for that whole window and then jumps when a real fix lands — which is what the
+     * owner reported as "still slowing down every ~5 seconds" after the freeze was fixed.
+     */
+    if (was && was.toSampledAt === v.position.sampledAt) {
+      next.set(v.vehicleId, was);
+      continue;
+    }
+
     const from = previous.get(v.vehicleId);
     // A truck we have never drawn appears where it is. There is nothing to interpolate from, and
     // starting it at some default would animate it in from a place it has never been.
     if (!from || isTooFarToAnimate(from, to)) {
-      next.set(v.vehicleId, { from: to, to, startedAt });
+      next.set(v.vehicleId, { from: to, to, startedAt, durationMs: MOTION_DURATION_MS, toSampledAt: v.position.sampledAt });
       continue;
     }
-    next.set(v.vehicleId, { from, to, startedAt });
+    next.set(v.vehicleId, {
+      from,
+      to,
+      startedAt,
+      durationMs: tweenDurationFor(was, v.position.sampledAt),
+      toSampledAt: v.position.sampledAt,
+    });
   }
   // Trucks absent from this board are absent from the map: a tween for a truck with no feature to
   // apply it to is a leak that grows by one entry per retired vehicle per session.
   return next;
+}
+
+/**
+ * How long to spend covering the ground between two fixes — the interval the fixes themselves
+ * describe, not a constant (D-LM8b).
+ *
+ * ── MEASURED ON PRODUCTION, 2026-09-17 ──────────────────────────────────────────────────────────
+ * 27 trucks were moving; the median age of their fixes was **5.6 s**, the mean 5.5 s and the worst
+ * 13.6 s. Ages are uniform over the arrival interval, so a mean age of 5.5 s means fixes land about
+ * every **11 seconds** — against a 5-second poll. A truck therefore gets a NEW position on fewer than
+ * half the boards that mention it, and animating every segment over one fixed `MOTION_DURATION_MS`
+ * is wrong in both directions: too fast when the fix is 11 s old, far too slow on the poll that
+ * merely repeats it.
+ *
+ * So the duration is the gap between this fix and the one before it, plus the same latency budget
+ * the poll version used, and the dot travels the segment at something close to the truck's real speed.
+ *
+ * ⚠ CAPPED, because a truck that has been parked for an hour reports a fix whose predecessor is an
+ * hour old, and a one-hour tween is a dot that never appears to move. The cap is deliberately just
+ * above the worst interval measured (13.6 s) rather than a round number: past it, the honest reading
+ * is that we do not know how the truck got there, and the dot should arrive rather than glide.
+ */
+export const MAX_TWEEN_MS = 15_000;
+
+function tweenDurationFor(was: Tween | undefined, sampledAt: string): number {
+  const previousFix = was ? Date.parse(was.toSampledAt) : Number.NaN;
+  const thisFix = Date.parse(sampledAt);
+  if (!Number.isFinite(previousFix) || !Number.isFinite(thisFix)) return MOTION_DURATION_MS;
+  const interval = thisFix - previousFix;
+  // A fix that is not newer than the one before it says nothing about how long the journey took.
+  if (interval <= 0) return MOTION_DURATION_MS;
+  return Math.min(interval + MOTION_LATENCY_BUDGET_MS, MAX_TWEEN_MS);
 }
 
 function isTooFarToAnimate(from: RenderedPlace, to: RenderedPlace): boolean {
@@ -132,11 +202,10 @@ function isTooFarToAnimate(from: RenderedPlace, to: RenderedPlace): boolean {
 export function sampleTweens(
   tweens: ReadonlyMap<string, Tween>,
   now: number,
-  durationMs: number = MOTION_DURATION_MS,
 ): Map<string, RenderedPlace> {
   const places = new Map<string, RenderedPlace>();
   for (const [id, tween] of tweens) {
-    const t = durationMs <= 0 ? 1 : (now - tween.startedAt) / durationMs;
+    const t = tween.durationMs <= 0 ? 1 : (now - tween.startedAt) / tween.durationMs;
     places.set(id, {
       lat: lerp(tween.from.lat, tween.to.lat, t),
       lng: lerp(tween.from.lng, tween.to.lng, t),
@@ -177,13 +246,9 @@ function sampleHeading(tween: Tween, t: number): number | null {
  * ⚠ Heading counts as somewhere to go. A truck rotating on the spot in a yard has `from.lat/lng ===
  * to.lat/lng` and is still moving on screen.
  */
-export function tweensSettled(
-  tweens: ReadonlyMap<string, Tween>,
-  now: number,
-  durationMs: number = MOTION_DURATION_MS,
-): boolean {
+export function tweensSettled(tweens: ReadonlyMap<string, Tween>, now: number): boolean {
   for (const tween of tweens.values()) {
-    if (now - tween.startedAt >= durationMs) continue;
+    if (now - tween.startedAt >= tween.durationMs) continue;
     if (!isStill(tween)) return false;
   }
   return true;
