@@ -16,6 +16,11 @@ orientation and the road test (R8), and `DRIVER-TRAINING-PLAN.md` already specif
 system in 1,396 lines. **The single most important finding in this document is that the owner's
 request is largely already planned and unbuilt, not unplanned.** §7 says what that changes.
 
+**Its UI companion is `HIRING-UI-PLAN.md`** — what a person sees and touches: D-HUI1–D-HUI8,
+Q-HUI1–Q-HUI5, the HU1–HU7 queue. This document owns the process, the regulation and the order; that
+one owns the surfaces. The split follows this repo's own precedent, `RECRUITING-SYSTEM-PLAN.md` /
+`RECRUITING-UI-SURFACE-PLAN.md`.
+
 Regulatory citations in §5 were verified against FMCSA and eCFR/Cornell in September 2026 and each
 carries its source. Product claims in §4 are cited to the vendor or the trade press and are marked
 where they are marketing copy rather than a measurement.
@@ -522,6 +527,13 @@ every time.
   the compliance-file vendors (§4). Regulatory ordering verified against FMCSA and eCFR (§5),
   including the road-test contradiction now carried as Q-HM1. D-HM1–D-HM8 proposed, none ruled.
   **Nothing built.**
+- **2026-09-17, later** — `HIRING-UI-PLAN.md` added as the surface companion. ⚠ Its §2.2 is worth
+  reading from here: the product-adoption literature's single named anti-pattern is *a checklist that
+  makes users repeat what they have already done*, which is **D-HM1 arrived at from the usability
+  side** — a correctness argument and an abandonment measurement landing on the same design. Its §2.3
+  also recovers three rulings already written into `ApplyProgress.vue` (Q-AX1) that nobody should
+  re-derive: the bar indicates and a list navigates, forward is fenced at the high-water mark, and a
+  30px step target is what a phone actually gives you.
 
 ---
 
