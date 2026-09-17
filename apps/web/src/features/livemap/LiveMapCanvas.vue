@@ -276,10 +276,12 @@ function flyTo(vehicleId: string): void {
   const vehicle = props.vehicles.find((v) => v.vehicleId === vehicleId);
   if (!vehicle || !map.value) return;
   const place = places.get(vehicleId);
-  const bounds = map.value.getBounds();
   const move = planCameraMove(
     { lng: place?.lng ?? vehicle.position.lng, lat: place?.lat ?? vehicle.position.lat },
-    { west: bounds.getWest(), south: bounds.getSouth(), east: bounds.getEast(), north: bounds.getNorth() },
+    // ⚠ `visibleBounds`, not a fourth `getWest()/getSouth()/…` literal. This line WAS one, because
+    // D-LM19 and D-LM23 were built on separate branches and each converted maplibre's bounds object
+    // itself; the two conversions then sat eight lines apart doing the same thing.
+    visibleBounds(map.value),
     map.value.getZoom(),
   );
   if (move.kind === "fly") map.value.flyTo({ center: move.center, zoom: move.zoom, duration: move.durationMs });

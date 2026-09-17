@@ -192,9 +192,16 @@ export const EMPTY_FILTERS: LiveMapFilters = { states: [], search: "" };
 /**
  * A rectangle of the world, in the shape `maplibregl.LngLatBounds` already answers with.
  *
- * ⚠ SAME SHAPE as `CameraBounds` in `liveMapCamera.ts`, and the two must collapse into this one the
- * moment both are on `main` — they arrived on separate branches of the same queue. A second bounds
- * type is a copy with a delay fuse: the day one of them grows a `padding` the other will not have it.
+ * ⚠ **THE ONE bounds type on this surface**, and it was briefly two. `liveMapCamera.ts` declared an
+ * identical `CameraBounds` because the camera (D-LM19) and the viewport filter (D-LM23) were built on
+ * separate branches of the same queue and landed within an hour of each other. Both read the same
+ * four numbers off the same `map.getBounds()` call, so the split was never a distinction — it was two
+ * names for one fact, which is this repo's register for a copy with a delay fuse: the day one of them
+ * grows a `padding`, the other silently will not have it.
+ *
+ * ⚠ It lives HERE and not in `liveMapCamera.ts` for a reason worth keeping: this module imports only
+ * `@silvicom/shared` and nothing local, so everything else in the feature can depend on it without a
+ * cycle. `liveMapCamera.ts` imports this; nothing imports `liveMapCamera.ts` but the canvas.
  */
 export interface MapBounds {
   west: number;

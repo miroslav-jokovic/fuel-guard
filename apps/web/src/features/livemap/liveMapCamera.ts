@@ -40,6 +40,8 @@
  * distance and back in. Same 600 ms, same arrival, and the worst click above drops from 73 to 46.
  */
 
+import type { MapBounds } from "./liveMapLayer";
+
 /**
  * The zoom a selection is guaranteed at least.
  *
@@ -51,14 +53,6 @@ export const SELECT_ZOOM = 11;
 
 /** How long the animated half runs. Unchanged from the `easeTo` this replaced. */
 export const SELECT_FLY_MS = 600;
-
-/** A viewport, in the shape `maplibregl.LngLatBounds` already answers with. */
-export interface CameraBounds {
-  west: number;
-  south: number;
-  east: number;
-  north: number;
-}
 
 export type CameraMove =
   | { kind: "fly"; center: [number, number]; zoom: number; durationMs: number }
@@ -73,7 +67,7 @@ export type CameraMove =
  */
 export function planCameraMove(
   target: { lng: number; lat: number },
-  visible: CameraBounds,
+  visible: MapBounds,
   currentZoom: number,
 ): CameraMove {
   const center: [number, number] = [target.lng, target.lat];
@@ -88,6 +82,6 @@ export function planCameraMove(
  * the alternative — an exclusive test — makes the camera's behaviour depend on a float comparison
  * nobody can predict from the chair.
  */
-function isVisible(target: { lng: number; lat: number }, b: CameraBounds): boolean {
+function isVisible(target: { lng: number; lat: number }, b: MapBounds): boolean {
   return target.lng >= b.west && target.lng <= b.east && target.lat >= b.south && target.lat <= b.north;
 }
