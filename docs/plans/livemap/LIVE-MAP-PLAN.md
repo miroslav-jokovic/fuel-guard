@@ -2107,3 +2107,72 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   ⚠ The lesson worth keeping: every unit test in `liveMapMotion.test.ts` passed throughout both
   defects. Each asks whether ONE tween is built correctly, and both defects lived in the SEQUENCE of
   them. What a reader sees is a speed, so there is now a test that measures a speed.
+
+- **2026-09-17 — Item 3, the click freeze: NOT REPRODUCED, and the method is the deliverable.**
+  The owner's worst item is "clicking a row sometimes freezes the whole page". It was measured before
+  anything was changed, the way D-LM8b was. It did not happen once.
+
+  The rig: `apps/web/dist` and `/api/…` served from ONE origin by a node stand-in (the recipe
+  `HANDOFF-2026-09-17-OWNER-LIST.md` §3 records, because a playwright `route.fulfill` answers above
+  the network stack and can never show a request queuing), 199 trucks on a board that moves every
+  poll, production latencies — 175 ms per 512px jpeg tile, 1.0 s for the board. Two independent
+  clocks: a wrapped `requestAnimationFrame`, which stops when the ANIMATION stops, and a 100 ms
+  `setInterval`, which stops only when the MAIN THREAD is blocked. A freeze the owner would call
+  "the whole page" is the second one stopping.
+
+  | pattern | clicks | worst frame gap | worst main-thread gap | worst board gap (poll is 6.0 s) |
+  |---|---|---|---|---|
+  | one click every 250 ms | 30 | 66 ms | 114 ms | 6,041 ms |
+  | as fast as playwright dispatches | 60 | 9 ms | 108 ms | — |
+  | the SAME row every 80 ms, so every animation is interrupted mid-flight | 60 | 9 ms | 109 ms | — |
+  | opposite ends of the fleet, every 120 ms | 40 | 9 ms | 117 ms | — |
+  | one click every 700 ms for a minute | 85 | 11 ms | 119 ms | 6,096 ms |
+  | one click every 400 ms, CPU throttled ×6 | 60 | 76 ms | 154 ms | 6,199 ms |
+
+  Nothing stalled, the page answered `1 + 1` after every pattern, and the heap did not move (37.8 MB
+  throughout). **Two candidate causes are therefore dead rather than merely unproven.** The rAF tween
+  loop does NOT fight the camera animation — both drive `setData` on the same source and the frame
+  gap never exceeded 76 ms. And the tile burst does NOT starve the board: Chrome opens seven sockets
+  to the origin and the board's own `requestStart - startTime` stayed at **1–2 ms** through a click
+  storm, because Chrome ranks a `fetch` above an image in its socket pool.
+
+  ⚠ **What is left is the half of the path this rig cannot see: our own API.** See D-LM19 — which is
+  where the measurement went instead.
+
+- **2026-09-17 — D-LM19: the camera arrives at a truck it cannot see, and only travels to one it can.**
+  Measuring item 3 did not find the freeze; it found that **one row click fetched a median of 48 map
+  tiles and as many as 272**, against the **nine** a zoom-11 viewport actually contains.
+
+  `flyTo()` called maplibre's `easeTo`, which interpolates centre and zoom linearly — so selecting a
+  truck two states away dragged a zoom-11 viewport across every tile in between. Each of those is a
+  real request to `/api/fueling/map-tiles/:z/:x/:y`, which is a PROXY: one upstream HERE fetch and a
+  ~47 KB buffer per tile, on the same Railway service that answers the board. Twenty clicks was a
+  thousand upstream fetches against our HERE quota.
+
+  | camera | tiles/click, median | worst | 12 clicks |
+  |---|---|---|---|
+  | `easeTo` always (what shipped) | 48 | 272 | 804 |
+  | `flyTo` always | 48 | 86 | 611 |
+  | `easeTo` when visible, `jumpTo` when not | 9 | 73 | 163 |
+  | **`flyTo` when visible, `jumpTo` when not** | **9** | **41** | **134** |
+
+  **The rule is about the reader, and the tile count only agrees with it.** The animation exists so a
+  dispatcher does not lose their place — they watch the map travel and arrive knowing how the new view
+  relates to the old. That only works when the destination was ALREADY ON SCREEN; a truck two states
+  away is not somewhere the eye can follow the camera to, so the animation is a blur of intermediate
+  tiles ending somewhere the reader has to re-orient in anyway. Visible, animate. Not visible, arrive.
+
+  ⚠ `flyTo` rather than `easeTo` for the animated half is not a synonym: van Wijk's path zooms out
+  over the distance and back in, so the one case that still animates a long move — the reader sitting
+  at the fitted fleet view, watching the map dive into a truck — costs 41 tiles instead of 73.
+
+  ⚠ The decision is `liveMapCamera.ts` and NOT four lines in `LiveMapCanvas.vue`, because that file
+  is stubbed by every test that mounts this surface (maplibre needs WebGL). A rule kept there is a
+  rule no assertion in this repo can reach — which is exactly where both of D-LM8's stutter defects
+  lived. Six tests, three **proved by mutation**: always-animate fails the two off-screen cases,
+  a longitude-only visibility test fails the latitude case, and assigning the zoom rather than raising
+  it fails the reader's-own-zoom case.
+
+  ⚠ **This is NOT a fix for item 3 and must not be recorded as one.** It is a measured defect on the
+  exact path the owner named, and it is the leading remaining hypothesis for the freeze — the browser
+  survives the tile storm, and the API's side of it has never been measured. Item 3 stays open.

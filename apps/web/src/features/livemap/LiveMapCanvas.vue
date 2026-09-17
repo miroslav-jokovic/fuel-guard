@@ -5,6 +5,7 @@ import { basemapFor, type BasemapChoice, type LiveMapVehicle } from "@silvicom/s
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
+import { planCameraMove } from "./liveMapCamera";
 import { installLiveMapIcons } from "./liveMapIcons";
 import { toFeatureCollection, type RenderedPlace } from "./liveMapLayer";
 import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
@@ -237,20 +238,25 @@ watch(isDark, () => {
 onBeforeUnmount(stopMotion);
 
 /**
- * Centre on one truck, called when a row in the table beneath is clicked.
+ * Centre on one truck, called when a row in the fleet rail is clicked.
  *
- * Zoom is raised to 11 only if the view is further out than that. A dispatcher who has zoomed into a
- * corridor and clicks a truck inside it wants to keep their own zoom, not be thrown to a preset.
+ * ⚠ The DECISION — travel or arrive, and at what zoom — is `planCameraMove` and not this function.
+ * It is pure, it is unit-tested, and it carries the measurement that produced it (D-LM19): the
+ * `easeTo` this used to be fetched a median of 48 tiles per click and up to 272, against the nine a
+ * zoom-11 viewport actually needs. Everything below is the part that needs a live map to run.
  */
 function flyTo(vehicleId: string): void {
   const vehicle = props.vehicles.find((v) => v.vehicleId === vehicleId);
   if (!vehicle || !map.value) return;
   const place = places.get(vehicleId);
-  map.value.easeTo({
-    center: [place?.lng ?? vehicle.position.lng, place?.lat ?? vehicle.position.lat],
-    zoom: Math.max(map.value.getZoom(), 11),
-    duration: 600,
-  });
+  const bounds = map.value.getBounds();
+  const move = planCameraMove(
+    { lng: place?.lng ?? vehicle.position.lng, lat: place?.lat ?? vehicle.position.lat },
+    { west: bounds.getWest(), south: bounds.getSouth(), east: bounds.getEast(), north: bounds.getNorth() },
+    map.value.getZoom(),
+  );
+  if (move.kind === "fly") map.value.flyTo({ center: move.center, zoom: move.zoom, duration: move.durationMs });
+  else map.value.jumpTo({ center: move.center, zoom: move.zoom });
 }
 
 /**
