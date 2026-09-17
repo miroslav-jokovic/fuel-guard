@@ -36,9 +36,14 @@ table has been wrong since the morning; do not work from it.
    itself**, so the new `headersSent` guard is not what saves the reader from a half-tile; what it
    buys is not reporting a HERE outage to Sentry as a bug in our own route.
 
-3. **B3 — a tile cache / request coalescing. GATED on a measurement, deliberately.** Two dispatchers
-   on one viewport pay for every tile twice. Do not build it until a Railway-side storm measurement
-   says the storm costs something; the browser-side rig cannot answer it.
+3. **B3 — a tile cache / request coalescing. STILL GATED, and the gate cannot currently be opened —
+   `Q-LM21`.** The Railway-side storm measurement was attempted on 2026-09-17 and the data does not
+   exist: **this API has no HTTP request logging of any kind** (no `morgan`/`pino`/`winston`, no
+   hand-rolled middleware, no logging dependency), so both services return **0 log lines** for
+   `map-tiles` and the storm cannot be counted from the outside. **The recommendation is to read
+   HERE's own quota console** — the vendor bills per tile and already has the number, it needs no
+   code and no deploy, and it answers the cost question in the dimension that decides it. Candidates
+   and reasoning are in `Q-LM21` at the end of `LIVE-MAP-PLAN.md`. Do not build B3 on the assumption.
 
 4. **B4 — `webglcontextlost` handling in `useMapLibre.ts`.** There is none, so a lost context leaves a
    dead canvas silently. Only worth building if the owner's answer to (1) points at the map.

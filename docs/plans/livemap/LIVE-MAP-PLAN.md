@@ -2735,3 +2735,35 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
 
   ⚠ **None of this touches item 3.** B2 is a latency fix. The deadline merged as #852 removed item 3's
   last live mechanism; the next move there is still the owner's answer, not more measuring.
+- **2026-09-17 — `Q-LM21`: B3's gate cannot be satisfied with what is deployed. Recorded as a blocker
+  rather than answered by guesswork.**
+
+  B3 (a tile cache / request coalescing) was deliberately gated: *do not build it until a Railway-side
+  storm measurement says the storm costs something*. That measurement was attempted and **the data
+  does not exist**.
+
+  | checked | result |
+  |---|---|
+  | `railway logs --service fleetguardapi-production` for `map-tiles` | **0 lines** |
+  | `railway logs --service fleetguardweb-production` for `map-tiles` | **0 lines** |
+  | any HTTP request logger in `apps/api/src` (`morgan`, `pino`, `winston`, a hand-rolled `app.use((req…`) | **none — 0 hits each**, and no logging dependency in `apps/api/package.json` |
+
+  **This API does not log requests at all**, so production emits nothing per-tile and no amount of log
+  reading will count the storm. The route is also authenticated and shared by two Railway services,
+  so the count cannot be inferred from the outside either.
+
+  ⚠ **The honest consequence: B3 stays unbuilt.** Coalescing built on an assumed storm is precisely
+  the workaround the repo's own rule names — a second source of truth for a cost nobody has measured.
+  The candidates, with the recommendation:
+
+  | | what it is | costs |
+  |---|---|---|
+  | (a) **read HERE's own quota console** | the vendor bills us per tile; their dashboard already has the number, in the dimension that actually decides whether a storm is expensive | needs the owner's HERE login; no code, no deploy. **Recommended** — it answers the money question directly and today |
+  | (b) instrument the tile route with a counter | a few lines behind an env flag, reporting hits per z/x/y per interval | a deploy, and it measures OUR side (CPU, egress) rather than the quota — the cheaper of the two costs |
+  | (c) add a request logger to the API | answers this and every future question of the same shape | much wider than B3, and a per-request log line on a tile route is itself a cost |
+  | (d) build B3 on the assumption | — | rejected: it is the gate this plan set, and the reason it was set |
+
+  **Recommended: (a), then decide.** If HERE's console shows tile spend is immaterial, B3 closes as
+  *not worth building* — which is a result, not a gap — and the gate has done its job. Note that #853
+  already removed the per-tile double allocation, so the in-process half of the cost is smaller than
+  when B3 was written.
