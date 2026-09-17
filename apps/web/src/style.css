@@ -376,3 +376,42 @@ body {
     box-shadow: none;
   }
 }
+
+/* ── THE MARKER POPOVER (D-LM28) ───────────────────────────────────────────────────────────────────
+   maplibre draws its own popup chrome — a white `.maplibregl-popup-content` with its own radius,
+   padding and drop shadow, and a `.maplibregl-popup-tip` drawn as a CSS triangle out of border
+   colours. None of it knows about this app's tokens, so in dark mode it is a white card with a white
+   spike pointing at a dark map.
+
+   These rules take that chrome off and hand the surface to `.map-panel`, which is the SAME glass the
+   corner panels used and which the three media queries above already answer for. A popover with a
+   background of its own would be a second answer to "what does something floating over this map look
+   like", and the measured 82%/blur/saturate would have to be got right twice.
+
+   ⚠ **OUTSIDE `@layer components`, AND DOUBLED IN SPECIFICITY, BECAUSE THE FIRST ATTEMPT SILENTLY
+   LOST.** Written inside the layer it had no effect at all: read back from the rendered DOM, the
+   content div still measured `rgb(255, 255, 255)` with `15px 10px` of padding while our rule sat in
+   the stylesheet doing nothing. Vendor CSS is UNLAYERED, and unlayered styles beat every cascade
+   layer regardless of specificity or order — the same trap D-LM22 measured on `AppButton`, where a
+   call-site utility and the component's own shared a layer and Tailwind's ordering decided. So these
+   are unlayered too, and `.maplibregl-popup` is repeated to outrank maplibre's own single class
+   whichever stylesheet the bundler happens to emit first.
+
+   ⚠ The TIP is a border triangle, so it cannot take `color-mix` glass — a translucent triangle over a
+   blurred panel reads as a crack. It is painted in the solid surface colour instead, which is what
+   maplibre's own default does and is invisible against the panel it points out of. */
+.maplibregl-popup .maplibregl-popup-content {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ⚠ THREE CLASSES, MEASURED: two was not enough. maplibre colours the tip per anchor
+   (`.maplibregl-popup-anchor-top .maplibregl-popup-tip`), which is 0,2,0 — the same weight as a
+   two-class override, so source order decided and the vendor won. Read back from the DOM in dark
+   mode, the tip measured `rgb(255, 255, 255)`: a white spike under a dark card. */
+.maplibregl-popup.maplibregl-popup .maplibregl-popup-tip {
+  border-top-color: var(--surface);
+  border-bottom-color: var(--surface);
+}

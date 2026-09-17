@@ -38,8 +38,18 @@ const props = withDefaults(
      * corners.
      */
     fit?: "card" | "fill";
+    /**
+     * The element the marker popover shows (D-LM28) — rendered by the workspace, positioned here.
+     *
+     * ⚠ A DOM ELEMENT and not a slot, because maplibre's `Popup` takes one: `setDOMContent` MOVES
+     * the node into the popup's own container, which is inside the map. Vue keeps rendering into it
+     * because it is the same element it always was — what changes is where the browser draws it.
+     * The alternative was reproducing the truck card inside this file, which is the copy the facts
+     * component was extracted to prevent.
+     */
+    cardEl?: HTMLElement | null;
   }>(),
-  { fit: "card" },
+  { fit: "card", cardEl: null },
 );
 
 const emit = defineEmits<{
@@ -77,6 +87,86 @@ let places = new Map<string, RenderedPlace>();
 let frame: number | null = null;
 let fitted = false;
 
+/**
+ * The popover, anchored to the selected truck's marker (D-LM28, the owner's item 8).
+ *
+ * ── IT FOLLOWS THE TWEEN, NOT THE BOARD ──────────────────────────────────────────────────────────
+ * ⚠ `setLngLat` is called from `step()`, every frame, for as long as the dot is moving. A popup
+ * pinned to the board's last fix would sit still for five seconds while the truck it names slid out
+ * from under it — at 60 mph and the zoom a dispatcher reads at, that is the marker leaving its own
+ * card behind. One `setLngLat` per frame for ONE popup is nothing next to the `setData` beside it.
+ *
+ * ── WHY IT IS NOT FOCUSED ON OPEN ────────────────────────────────────────────────────────────────
+ * `focusAfterOpen: false` overrides maplibre's default, and `focusPopover()` below is how the rail
+ * asks for the other behaviour. A mouse user clicking a marker has not asked for their focus to move
+ * off whatever they were doing; a keyboard user selecting a truck from the rail has nowhere else to
+ * be, and would otherwise be left tabbing through the list while the facts opened somewhere else.
+ * The gesture decides, which is why the decision lives with the caller and not in this option.
+ */
+let popup: maplibregl.Popup | null = null;
+
+/**
+ * Where the selected truck is being DRAWN right now.
+ *
+ * `places` and not `props.vehicles`: the board says where the truck was at the last poll, and the
+ * tween says where its dot is on this frame. The popover points at the dot.
+ */
+function selectedPlace(): RenderedPlace | undefined {
+  return props.selectedId ? places.get(props.selectedId) : undefined;
+}
+
+function syncPopover(): void {
+  const instance = map.value;
+  const place = selectedPlace();
+  // No selection, no card yet, or a selected truck the board no longer carries — all three mean the
+  // same thing to a popover, and none of them is an error worth a branch of its own.
+  if (!instance || !props.cardEl || !place) {
+    popup?.remove();
+    return;
+  }
+  // ⚠ THE ANCHOR IS OURS, BECAUSE MAPLIBRE'S IS CHOSEN ONCE AND NEVER REVISED. Measured at 390×844:
+  // a popup opened while the camera was still flying kept `anchor-top` — the card below the marker —
+  // and stayed there through a pan, hanging **94px below the fold**. maplibre only computes an anchor
+  // when one was not given, and it does not recompute on `setLngLat`. So the side is decided here,
+  // from where the marker actually is: a truck in the bottom half of the map gets its card ABOVE it,
+  // where the room is.
+  //
+  // Decided when the popover OPENS and not per frame — a card that flipped sides mid-tween as a truck
+  // crossed the middle of the screen would be a card nobody can read.
+  const anchor = instance.project([place.lng, place.lat]).y > instance.getCanvas().clientHeight / 2
+    ? "bottom"
+    : "top";
+  popup ??= new maplibregl.Popup({
+    anchor,
+    closeButton: false,
+    // The card carries its own dismiss, and a map click already clears the selection. maplibre's
+    // own close would leave `selectedId` set — a shut popover over a truck the rail still shows as
+    // selected, and no way back to it but selecting something else.
+    closeOnClick: false,
+    focusAfterOpen: false,
+    maxWidth: "20rem",
+    // Clear of the 30px marker (D-LM24) rather than on top of it: the arrow says which way the
+    // truck is pointing, and a card over it hides the fact the marker exists to give.
+    offset: 22,
+  });
+  popup.setLngLat([place.lng, place.lat]);
+  if (!popup.isOpen()) {
+    // The instance is reused across selections, so the side is re-decided for each one rather than
+    // inherited from whichever truck was picked first.
+    popup.options.anchor = anchor;
+    popup.setDOMContent(props.cardEl);
+    popup.addTo(instance);
+  }
+}
+
+/**
+ * Put the keyboard inside the popover — called by the workspace when the selection came from the
+ * RAIL, which is the keyboard's route onto this surface (D-DR7).
+ */
+function focusPopover(): void {
+  props.cardEl?.focus();
+}
+
 function source(): maplibregl.GeoJSONSource | undefined {
   return map.value?.getSource(SOURCE) as maplibregl.GeoJSONSource | undefined;
 }
@@ -96,6 +186,9 @@ function step(): void {
   const now = performance.now();
   places = sampleTweens(tweens, now);
   redraw();
+  // ⚠ In the frame loop, deliberately — see `popup` above for why a popover that does not follow
+  // the dot is worse than no popover.
+  syncPopover();
   frame = tweensSettled(tweens, now) ? null : requestAnimationFrame(step);
 }
 
@@ -254,7 +347,15 @@ watch(() => props.generatedAt, () => {
 
 // Selection is not animated — it is a ring appearing, and it must appear on the click rather than
 // on whichever poll happens next.
-watch(() => props.selectedId, redraw);
+//
+// ⚠ The popover is synced HERE as well as in `step()`, and both are needed: the frame loop stops
+// itself once every dot has arrived (D-LM8), so over a parked fleet — which is most of a board at
+// night — there is no next frame to open a popover on. `cardEl` is watched with it because it
+// arrives one tick after this component mounts, and a popover cannot be built out of `null`.
+watch([() => props.selectedId, () => props.cardEl], () => {
+  redraw();
+  syncPopover();
+});
 
 // The markers are drawn in token colours, and every ramp in this product is a `light-dark()` pair.
 // Without this, flipping the theme leaves a dark map wearing light-mode markers until a reload.
@@ -262,7 +363,14 @@ watch(isDark, () => {
   if (map.value) installLiveMapIcons(map.value);
 });
 
-onBeforeUnmount(stopMotion);
+onBeforeUnmount(() => {
+  stopMotion();
+  // The popup holds the workspace's own element. Leaving it attached to a map being disposed is how
+  // a detached node keeps a component's subtree alive — `useMapLibre`'s teardown order exists for
+  // exactly this class of bug, and this is the caller's half of it.
+  popup?.remove();
+  popup = null;
+});
 
 /**
  * Centre on one truck, called when a row in the fleet rail is clicked.
@@ -310,7 +418,8 @@ function resize(): void {
   map.value?.resize();
 }
 
-defineExpose({ flyTo, resize });
+// One expose, at the end, where every method it names is already defined.
+defineExpose({ flyTo, resize, focusPopover });
 </script>
 
 <template>
