@@ -46,6 +46,12 @@ import { fuelCardSettingsRouter } from "./modules/efs/routes/settings.js";
 import { fuelCardWriteProbeRouter } from "./modules/efs/routes/writeProbe.js";
 import { fuelCardsRouter } from "./modules/efs/routes/read.js";
 import { fuelCardVendorRateLimitKey, skipFuelCardVendorRateLimit } from "./modules/efs/routes/vendorRateLimit.js";
+import {
+  apiRateLimitKey,
+  apiAddressKey,
+  API_RATE_LIMIT_PER_CALLER,
+  API_RATE_LIMIT_PER_ADDRESS,
+} from "./middleware/apiRateLimit.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { samsaraWebhookBootWarning } from "./modules/samsara/index.js";
 import { tmsIngestRouter } from "./modules/mcleod/index.js";
@@ -106,6 +112,51 @@ function mountFuelCardPrefix(app: Express, env: Env, vendorLimiter: RequestHandl
     return;
   }
   app.use("/api/fuel-cards", requireAuth, vendorLimiter);
+}
+
+/**
+ * The general `/api` budget — two limiters, mounted ahead of every body parser.
+ *
+ * ── THE ORDERING IS THE OLD FIX, AND IT STAYS (audit M8, 2026-08-09 finding 3.8) ─────────────────
+ * These used to sit BELOW the body parsers, which meant an unauthenticated POST to
+ * /api/transactions/import-report was buffered and JSON.parsed at up to 25 MB BEFORE the limiter ran
+ * — the 429 was returned after the cost had already been paid, on the single service that also
+ * serves the SPA. Middleware runs in registration order, so where this is called from is the whole
+ * fix. It must stay above `mountBodyParsers`.
+ *
+ * ── C1: IT IS TWO LIMITERS NOW, AND THE CHEAP CHECK RUNS FIRST ───────────────────────────────────
+ * It was one 600/IP/15 min bucket, which every dispatcher in an office shared — measured, 30 of them
+ * were hard-refused 100.1 seconds after opening the live map and stayed refused for the rest of the
+ * window. `middleware/apiRateLimit.ts` carries the measurement and the sizing of both numbers.
+ *
+ * The address ceiling runs first because it is a map lookup on an address the socket already knows;
+ * the per-caller bucket hashes a header, so it is the dearer of the two.
+ *
+ * ⚠ Extracted from `createApp` rather than inlined because it took that function to 207 lines, past
+ * the 200-line budget `lint:funcsize` enforces. Same shape as `mountPublic` and `mountFuelCardPrefix`
+ * above — a named stage, called in order.
+ */
+function mountGeneralRateLimits(app: Express): void {
+  const apiAddressCeiling = rateLimit({
+    windowMs: 15 * 60_000,
+    limit: API_RATE_LIMIT_PER_ADDRESS,
+    keyGenerator: apiAddressKey,
+    // The per-caller limiter owns the `RateLimit` headers. Two limiters both writing draft-7 headers
+    // would leave a client reading whichever ran last, which is the less informative of the two — a
+    // dispatcher wants to know about THEIR budget, not their office's.
+    standardHeaders: false,
+    legacyHeaders: false,
+  });
+  app.use("/api", apiAddressCeiling);
+
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60_000,
+    limit: API_RATE_LIMIT_PER_CALLER,
+    keyGenerator: apiRateLimitKey,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  });
+  app.use("/api", apiLimiter);
 }
 
 /**
@@ -269,20 +320,7 @@ export function createApp(env: Env): Express {
   app.use("/api/tms", ingestLimiter);
   app.use("/api/tms", tmsIngestRouter());
 
-  // Rate limiting (audit M8): a general API cap + stricter caps on sensitive/expensive routes.
-  //
-  // The general cap is mounted HERE, ahead of every body parser, on purpose. It used to sit below
-  // them, which meant an unauthenticated POST to /api/transactions/import-report was buffered and
-  // JSON.parsed at up to 25mb BEFORE the limiter ever ran — the 429 was returned after the cost had
-  // already been paid, on the single service that also serves the SPA (audit 2026-08-09, finding
-  // 3.8). Middleware runs in registration order, so ordering is the whole fix.
-  const apiLimiter = rateLimit({
-    windowMs: 15 * 60_000,
-    limit: 600,
-    standardHeaders: "draft-7",
-    legacyHeaders: false,
-  });
-  app.use("/api", apiLimiter);
+  mountGeneralRateLimits(app);
 
   mountBodyParsers(app);
 
