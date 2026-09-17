@@ -21,7 +21,7 @@
  * numbers live in the table beneath it — which is why that table is part of this surface and not a
  * decoration on it.
  */
-import type { LiveMapBoard, LiveMapVehicle, VehicleMapState } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapScope, LiveMapVehicle, VehicleMapState } from "@silvicom/shared";
 
 /**
  * The four states, in the order a dispatcher reads them: what is working, down to what we have lost
@@ -333,16 +333,69 @@ export function rowMetric(vehicle: LiveMapVehicle): RowMetric {
 }
 
 /**
- * How many trucks the rail is showing, as a plain total (the owner's item 6).
+ * Whose trucks these are, as a clause that finishes a count (D-LM18).
  *
- * ⚠ "171 of 171 shown" was the defect: a fraction whose two halves are equal is a fraction nobody
- * needs to read, and it appeared that way on every unfiltered board — which is most of them. The
- * fraction is kept for the case it was written for, a filtered list, where the reader genuinely
- * does need to know how much of the fleet is off screen.
+ * A table of the two values `LiveMapScope` can take, read by its key — the same shape as
+ * `STATE_LABEL` above, and for the same reason. It is not a second copy of the API's answer: the
+ * API says WHICH scope is in force and this says what that scope is called in English, which is
+ * the one thing a response has no business carrying (`scopeReason` is the prose it does carry, and
+ * it is still rendered — see `boardSummarySentence`).
+ *
+ * ⚠ `mine` has never been in force. D-LM18 ships the board fleet-wide until McLeod grants the
+ * dispatcher relation, so the second entry is dead the day this is written — deliberately, because
+ * the day the scope becomes real the sentence must already know how to say so rather than being one
+ * more thing somebody has to remember.
  */
-export function fleetTotalSentence(shown: number, total: number): string {
+export const SCOPE_CLAUSE: Record<LiveMapScope, string> = {
+  all: "in the fleet",
+  mine: "assigned to you",
+};
+
+/** Everything the rail's one-line foot says, and the only place it is composed. */
+export interface BoardSummary {
+  /** Trucks after every filter — what the list is showing and the map is drawing. */
+  shown: number;
+  /** Trucks on the board. The denominator is the whole fleet, which is what makes the clause true. */
+  total: number;
+  scope: LiveMapScope;
+  /** Derived from `LIVE_MAP_POLL_MS` by the caller, never typed (D-LM9b). */
+  pollSeconds: number;
+}
+
+/**
+ * The single sentence at the foot of the rail — how many trucks, whose, and how fresh (`Q-LM19`).
+ *
+ * ── THREE THINGS USED TO SAY THIS AND THE OWNER COULD READ NONE OF THEM ──────────────────────────
+ * The foot carried a scope PARAGRAPH (D-LM18's `scopeReason`, ~150 characters at `text-2xs` in a
+ * 320px rail — four lines), then "171 of 171 shown", then the cadence. The owner's item 6 asked for
+ * "a plain total" in place of the first two. The count half shipped on 2026-09-17; this is the rest,
+ * and `Q-LM19` is the question of how to do it WITHOUT deleting two recorded decisions:
+ *
+ * · **D-LM18 survives, and is harder to miss than it was.** The disclosure is now the clause the
+ *   count ends in, so a dispatcher cannot read the number without reading whose trucks it counts.
+ *   A paragraph underneath a number is the thing people stop seeing; a clause inside the sentence
+ *   they came for is not. `scopeReason` — WHY the scope is what it is — is reference material about
+ *   a missing McLeod grant, so it moves one click away into the foot's own disclosure rather than
+ *   sitting on a dispatcher's screen every day. Nothing is deleted and nothing is dismissible.
+ * · **D-LM9b survives unchanged**: `pollSeconds` is derived from `LIVE_MAP_POLL_MS` by the caller,
+ *   so retuning the poll still moves the sentence instead of quietly making it false.
+ *
+ * ⚠ "171 of 171 shown" was the original defect and the fraction is still only drawn when it says
+ * something: a fraction whose halves are equal is one nobody needs to read, and that was every
+ * unfiltered board. Filtered — including by D-LM23's viewport toggle, where the camera is the filter
+ * — the reader does need to know how much of the fleet is off screen.
+ *
+ * ⚠ ONE function for BOTH renderings of this sentence. The rail's foot carries it at `lg`; below
+ * that the rail is shut most of the time and a copy rides beside the Fleet button, which is the only
+ * reason the disclosure survives a closed rail. Two templates composing "count + clause + cadence"
+ * themselves is precisely the copy with a delay fuse this repo's register is about — and the old
+ * cadence clause WAS written out twice, in `LiveMapRail.vue` and nowhere else, only because the
+ * small-screen copy showed the paragraph instead.
+ */
+export function boardSummarySentence({ shown, total, scope, pollSeconds }: BoardSummary): string {
   const noun = total === 1 ? "truck" : "trucks";
-  return shown === total ? `${total} ${noun}` : `${shown} of ${total} ${noun}`;
+  const count = shown === total ? `${total} ${noun}` : `${shown} of ${total} ${noun}`;
+  return `${count} ${SCOPE_CLAUSE[scope]} · refreshes every ${pollSeconds}s`;
 }
 
 /**

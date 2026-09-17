@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
+import { AppCard } from "@silvicom/ui";
 import ExplainerPanel from "./ExplainerPanel.vue";
 
 /**
@@ -33,5 +34,31 @@ describe("ExplainerPanel", () => {
       global: { stubs: { AppIcon: true } },
     });
     expect(w.get("summary").text()).toBe("Why this has to be entered by hand");
+  });
+
+  /**
+   * The `inline` variant (`Q-LM19`) — the same disclosure on a surface that is already a panel.
+   *
+   * ⚠ What is pinned is the CONTAINER and the typography, because both are what a call-site class
+   * could not have changed: `AppCard` is a component, so a class cannot remove it, and D-LM22
+   * measured the other half on `AppButton` — a utility passed in shares a cascade layer with the
+   * component's own and loses silently. Proved by mutation: making `inline` render the card fails
+   * the first assertion, and dropping the variant from the summary's classes fails the second.
+   */
+  it("drops the card and the heading weight when it is inline, and keeps both when it is not", () => {
+    const inline = mount(ExplainerPanel, {
+      props: { variant: "inline", summary: "171 trucks in the fleet" },
+      slots: { default: "<p>Per-dispatcher scoping needs McLeod.</p>" },
+      global: { stubs: { AppIcon: true } },
+    });
+    expect(inline.findComponent(AppCard).exists()).toBe(false);
+    expect(inline.get("summary").classes()).toContain("text-2xs");
+    // The disclosure itself is unchanged — closed, with its content still in the document.
+    expect(inline.get("details").attributes("open")).toBeUndefined();
+    expect(inline.text()).toContain("Per-dispatcher scoping needs McLeod.");
+
+    const card = mount(ExplainerPanel, { global: { stubs: { AppIcon: true } } });
+    expect(card.findComponent(AppCard).exists()).toBe(true);
+    expect(card.get("summary").classes()).toContain("font-semibold");
   });
 });

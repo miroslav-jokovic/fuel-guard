@@ -3,8 +3,9 @@ import type { LiveMapBoard, LiveMapVehicle } from "@silvicom/shared";
 import {
   ICON_NAMES,
   MAP_STATES,
+  boardSummarySentence,
+  engineOnBoundSentence,
   filterVehicles,
-  fleetTotalSentence,
   formatAge,
   iconNameFor,
   offlineBoundSentence,
@@ -166,6 +167,20 @@ describe("offlineBoundSentence", () => {
     };
     expect(offlineBoundSentence(bounds)).toBe("No fix for over 30 min");
   });
+
+  /**
+   * Its sibling, untested until `Q-LM19` gave both of them a renderer — they had been exports with
+   * no call site since D-DR25 dropped DR5's legend, which is how D-LM9b's own text left the page
+   * without anything failing.
+   */
+  it("says the engine-on seam from the response too", () => {
+    const bounds: LiveMapBoard["bounds"] = {
+      stoppedSpeedMph: 3,
+      engineOnBoundSeconds: 45,
+      offlineBoundSeconds: 900,
+    };
+    expect(engineOnBoundSentence(bounds)).toBe("Not moving, heard from within 45s");
+  });
 });
 
 /**
@@ -256,19 +271,57 @@ describe("rowMetric", () => {
   });
 });
 
-describe("fleetTotalSentence", () => {
+/**
+ * The rail's one-line foot (`Q-LM19`, the owner's item 6) — and the two decisions it had to keep.
+ *
+ * Every case below fails on a specific mutation of `boardSummarySentence`, and each was run:
+ * dropping `SCOPE_CLAUSE[scope]` fails the two disclosure cases, hard-coding "in the fleet" fails
+ * the `mine` case, typing "5s" instead of reading `pollSeconds` fails the cadence case, and dropping
+ * the `shown === total` branch fails the plain-total case.
+ */
+describe("boardSummarySentence", () => {
+  const FLEET = { shown: 171, total: 171, scope: "all", pollSeconds: 5 } as const;
+
   /** The owner's item 6: "171 of 171 shown" is a fraction whose halves are equal. */
   it("says a plain total when nothing is filtered out", () => {
-    expect(fleetTotalSentence(171, 171)).toBe("171 trucks");
+    expect(boardSummarySentence(FLEET)).toBe("171 trucks in the fleet · refreshes every 5s");
   });
 
   it("keeps the fraction when the list IS narrowed, which is the case it was written for", () => {
-    expect(fleetTotalSentence(42, 171)).toBe("42 of 171 trucks");
+    expect(boardSummarySentence({ ...FLEET, shown: 42 })).toBe(
+      "42 of 171 trucks in the fleet · refreshes every 5s",
+    );
   });
 
   it("does not say '1 trucks'", () => {
-    expect(fleetTotalSentence(1, 1)).toBe("1 truck");
-    expect(fleetTotalSentence(1, 171)).toBe("1 of 171 trucks");
+    expect(boardSummarySentence({ ...FLEET, shown: 1, total: 1 })).toContain("1 truck in the fleet");
+    expect(boardSummarySentence({ ...FLEET, shown: 1 })).toContain("1 of 171 trucks in the fleet");
+  });
+
+  /**
+   * D-LM18 survives item 6 as the clause the count ends in. A dispatcher reading "171 trucks" alone
+   * cannot tell whose trucks they are, which is the misreading D-LM18 exists to prevent — so the
+   * count is never allowed to stand without it.
+   */
+  it("says whose trucks the count is counting, in the same sentence as the count (D-LM18)", () => {
+    expect(boardSummarySentence(FLEET)).toContain("in the fleet");
+  });
+
+  /**
+   * ⚠ `mine` has never been in force — D-LM18 ships the board fleet-wide until McLeod grants the
+   * dispatcher relation. This is pinned anyway, because the failure it guards against is a sentence
+   * that still reads "in the fleet" on the day a dispatcher IS scoped, which no one would notice
+   * from the rail and which would be exactly the lie D-LM18 forbids.
+   */
+  it("changes the clause with the scope rather than describing every board as the fleet", () => {
+    expect(boardSummarySentence({ ...FLEET, shown: 12, total: 60, scope: "mine" })).toBe(
+      "12 of 60 trucks assigned to you · refreshes every 5s",
+    );
+  });
+
+  /** D-LM9b: the cadence is the caller's `LIVE_MAP_POLL_MS`, never a typed number. */
+  it("takes the cadence from the poll it is given", () => {
+    expect(boardSummarySentence({ ...FLEET, pollSeconds: 30 })).toContain("refreshes every 30s");
   });
 });
 

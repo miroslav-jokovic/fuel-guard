@@ -185,24 +185,48 @@ describe("LiveMapWorkspace (DR5)", () => {
   });
 
   /**
-   * D-LM18, and the assertion had to change with the layout rather than be deleted.
+   * D-LM18, and the assertion has now changed with the layout TWICE rather than being deleted once.
    *
    * ⚠ It used to read `closest("[aria-label]") === null`, which was a proxy for "not inside a
    * dismissible floating panel" — every one of those carried a label. The rail is a labelled
    * landmark (`<aside aria-label="Fleet">`), so that proxy now fails on correct markup, which is the
-   * failure mode a proxy assertion always has. The property itself is unchanged and is asserted
-   * directly: the sentence is on screen, it is not a control, and it appears in BOTH places the
-   * board can be read from — the rail at `lg`, and beside the Fleet button below it, where the rail
-   * is shut most of the time.
+   * failure mode a proxy assertion always has.
+   *
+   * ⚠ `Q-LM19` moved the disclosure from a paragraph of its own into the clause the count sentence
+   * ends in, so what is searched for is the CLAUSE and not the old paragraph's first words. The
+   * property is unchanged and is still asserted directly: the disclosure is on screen, it is not a
+   * control, and it appears in BOTH places the board can be read from — the rail at `lg`, and beside
+   * the Fleet button below it, where the rail is shut most of the time.
    */
   it("states the board's scope with no way to dismiss it, at every width (D-LM18)", async () => {
     const wrapper = await mountWorkspace();
-    const said = wrapper.findAll("p").filter((p) => p.text().startsWith("Showing every truck"));
+    const said = wrapper.findAll("p, summary").filter((el) => el.text().includes("in the fleet"));
 
     expect(said.length, "the scope must be stated in the rail and beside the map's fleet button").toBe(2);
-    for (const p of said) expect(p.element.closest("button")).toBeNull();
+    for (const el of said) expect(el.element.closest("button")).toBeNull();
     // One of the two is the small-screen copy, and it is the one that must survive a shut rail.
-    expect(said.some((p) => p.classes().includes("truncate"))).toBe(true);
+    expect(said.some((el) => el.classes().includes("truncate"))).toBe(true);
+  });
+
+  /**
+   * The owner's item 6, and the half that could not be finished until `Q-LM19` was ruled: the foot
+   * is ONE line, and the two decisions that used to occupy it are still on the page.
+   *
+   * ⚠ The `<details>` is asserted CLOSED. That is the whole difference between moving reference
+   * material one click away and deleting it — the reason is in the document for in-page search and
+   * for a screen reader's document walk, and it is not on screen. A `v-if` would pass "not visible"
+   * and fail this.
+   */
+  it("keeps the scope reason and the bounds one click away rather than on screen (Q-LM19)", async () => {
+    const wrapper = await mountWorkspace();
+    const details = wrapper.get("aside details");
+
+    expect(details.attributes("open"), "the foot opens collapsed, or item 6 is not fixed").toBeUndefined();
+    expect(details.get("summary").text()).toBe("1 truck in the fleet · refreshes every 5s");
+    expect(details.text()).toContain(BOARD.scopeReason);
+    // Read from `bounds`, which this board deliberately sets to something other than production's.
+    expect(details.text()).toContain("No fix for over 90 min");
+    expect(details.text()).toContain("Not moving, heard from within 900s");
   });
 
   it("derives the freshness sentence from the poll interval rather than typing it (D-LM9b)", async () => {
