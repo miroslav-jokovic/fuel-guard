@@ -623,3 +623,6 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   the very constraint it exists to forbid. That is the second under-discriminating fixture found in
   one day; the first was L11's positional id pairing. `rls.test.mjs` seeds the new table with no
   hand-seeder needed (149 tables covered, 0 unseedable), `load-lifecycle` still 61/61.
+- 2026-09-17 — **`0344` confirmed APPLIED in production 340 s after merge** (checked from
+  `information_schema`, not from the clock), so L4 is unblocked. Handoff written at
+  `HANDOFF-2026-09-17-LOADS.md` — start there in a new session, then read this log's end.
