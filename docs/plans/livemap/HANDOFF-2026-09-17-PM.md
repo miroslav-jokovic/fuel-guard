@@ -18,7 +18,8 @@ table has been wrong since the morning; do not work from it.
 | #849 | **D-LM26** — `LiveMapVehicle.fuel` on the contract (API only) | merged **and deployed** |
 | #850 | **D-LM27** — the tank on the card, rule (b′) | merged |
 | #851 | **D-LM28** — the card moved onto its marker | merged |
-| #852 | the tile proxy's 8 s upstream deadline | open at handoff |
+| #852 | the tile proxy's 8 s upstream deadline | merged (`9d00756`) |
+| #853 | **B2** — the tile is streamed, not buffered (~52 ms of TTFB per tile) | open |
 
 ## What is left
 
@@ -29,14 +30,20 @@ table has been wrong since the morning; do not work from it.
    side has been measured and is in the plan; three candidates are dead, one is removed by #852.
    ⚠ Do not change browser code for this without a reproduction.
 
-2. **B2 — stream the tile instead of buffering it.** `mapProxies.ts` still does
-   `Buffer.from(await upstream.arrayBuffer())`, so the browser's TTFB is HERE's full download plus a
-   re-send, and each tile allocates ~2×47 KB. Recorded as open in `HANDOFF-2026-09-16-LIVE-MAP-PERF.md`
-   §3.3 before this queue existed.
+2. ~~**B2 — stream the tile instead of buffering it.**~~ **DONE on #853.** Measured on the route:
+   time-to-headers 181.4 → 129.6 ms, ~52 ms per tile, completion unchanged. The dated log at the end
+   of `LIVE-MAP-PLAN.md` has the numbers and the one surprise — **`pipeline` destroys both streams
+   itself**, so the new `headersSent` guard is not what saves the reader from a half-tile; what it
+   buys is not reporting a HERE outage to Sentry as a bug in our own route.
 
-3. **B3 — a tile cache / request coalescing. GATED on a measurement, deliberately.** Two dispatchers
-   on one viewport pay for every tile twice. Do not build it until a Railway-side storm measurement
-   says the storm costs something; the browser-side rig cannot answer it.
+3. **B3 — a tile cache / request coalescing. STILL GATED, and the gate cannot currently be opened —
+   `Q-LM21`.** The Railway-side storm measurement was attempted on 2026-09-17 and the data does not
+   exist: **this API has no HTTP request logging of any kind** (no `morgan`/`pino`/`winston`, no
+   hand-rolled middleware, no logging dependency), so both services return **0 log lines** for
+   `map-tiles` and the storm cannot be counted from the outside. **The recommendation is to read
+   HERE's own quota console** — the vendor bills per tile and already has the number, it needs no
+   code and no deploy, and it answers the cost question in the dimension that decides it. Candidates
+   and reasoning are in `Q-LM21` at the end of `LIVE-MAP-PLAN.md`. Do not build B3 on the assumption.
 
 4. **B4 — `webglcontextlost` handling in `useMapLibre.ts`.** There is none, so a lost context leaves a
    dead canvas silently. Only worth building if the owner's answer to (1) points at the map.
