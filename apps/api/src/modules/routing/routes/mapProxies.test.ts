@@ -39,6 +39,8 @@ const env = loadEnv({
 let server: Server;
 let baseUrl = "";
 const upstream: string[] = [];
+/** The second half of each upstream call — what the handler asked for, not just where. */
+const upstreamInit: (RequestInit | undefined)[] = [];
 
 beforeAll(async () => {
   const app = createApp(env);
@@ -61,6 +63,7 @@ afterAll(async () => {
 
 afterEach(() => {
   upstream.length = 0;
+  upstreamInit.length = 0;
   vi.unstubAllGlobals();
 });
 
@@ -72,8 +75,9 @@ afterEach(() => {
  * wrong style the first time anything else in the request path learned to fetch.
  */
 function stubUpstream() {
-  vi.stubGlobal("fetch", async (input: unknown) => {
+  vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
     upstream.push(String(input));
+    upstreamInit.push(init);
     return new Response(Buffer.from([0]), { status: 200, headers: { "content-type": "image/png" } });
   });
 }
@@ -93,6 +97,50 @@ async function tile(query: string, opts: { anon?: boolean } = {}) {
     headers: opts.anon ? {} : { Authorization: "Bearer admin" },
   });
 }
+
+/**
+ * The upstream call is BOUNDED, and the reason is the owner's item 3.
+ *
+ * `await fetch(url)` with no signal inherits undici's five-minute defaults, and maplibre-gl caps
+ * in-flight image requests at 16 — so sixteen wedged tiles stop the map loading any further tile at
+ * all, for minutes, while the markers keep moving. That is a map a dispatcher would call frozen, and
+ * it is the one mechanism a browser rig cannot see.
+ *
+ * ⚠ What is asserted is the SIGNAL and the MAPPING, not the clock. A test that waited eight seconds
+ * to watch a timer fire would be eight seconds of suite for a `setTimeout` nobody doubts; what can
+ * actually rot is the signal being dropped from the call, or an abort being reported as 502 and
+ * losing an outage in the logs.
+ */
+describe("the tile proxy's upstream timeout", () => {
+  it("gives HERE a deadline rather than waiting on it forever", async () => {
+    stubUpstream();
+    await tile("");
+    const init = upstreamInit.find((i) => i?.signal);
+    expect(init?.signal, "the upstream fetch must carry an abort signal").toBeDefined();
+    expect(init!.signal!.aborted).toBe(false);
+  });
+
+  it("answers 504 when the upstream stops answering, rather than holding the request open", async () => {
+    vi.stubGlobal("fetch", async () => {
+      // What `AbortSignal.timeout` throws when it fires — the shape, without the eight-second wait.
+      throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+    });
+    const res = await tile("");
+    expect(res.status).toBe(504);
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe("tile_upstream_timeout");
+  });
+
+  it("still calls a vendor error a vendor error", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new Error("socket hang up");
+    });
+    const res = await tile("");
+    expect(res.status).toBe(502);
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe("tile_upstream_error");
+  });
+});
 
 describe("which basemap the tile proxy asks HERE for (D-DR8)", () => {
   it("keeps the route behind the router's auth gate", async () => {
@@ -151,6 +199,7 @@ describe("the style parameter reaches the upstream URL", () => {
     expect(hereUrl()).toContain("style=satellite.day");
 
     upstream.length = 0;
+  upstreamInit.length = 0;
     await tile("?style=topo.day");
     expect(hereUrl()).toContain("style=topo.day");
   });
@@ -166,6 +215,7 @@ describe("the style parameter reaches the upstream URL", () => {
     expect(hereUrl()).toContain("/5/8/9/jpeg?");
 
     upstream.length = 0;
+  upstreamInit.length = 0;
     await tile("?style=explore.day");
     expect(hereUrl()).toContain("/5/8/9/png?");
   });

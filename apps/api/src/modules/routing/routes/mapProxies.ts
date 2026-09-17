@@ -9,6 +9,34 @@ import { fetchVehicleCurrentGps } from "../../samsara/lib/samsara.js";
 import { loadSamsaraToken } from "../../samsara/lib/samsaraToken.js";
 import { hereReverseGeocode } from "../../../lib/hereGeocode.js";
 
+/**
+ * How long this proxy waits for HERE before answering the browser itself.
+ *
+ * ── IT IS HERE BECAUSE AN UNBOUNDED `fetch` IN A HANDLER IS A DEFECT ON ITS OWN TERMS ────────────
+ * `await fetch(url)` with no signal inherits undici's defaults — `headersTimeout` and `bodyTimeout`
+ * are five minutes each — so a wedged upstream connection held this handler, and the browser's own
+ * request, for up to 300 seconds with no way for either end to give up.
+ *
+ * ── AND IT IS THE LAST LIVE HYPOTHESIS FOR THE OWNER'S ITEM 3 ────────────────────────────────────
+ * "Clicking a row sometimes freezes the whole page" has not been reproduced in a browser rig: ~250
+ * clicks across six patterns at 6× CPU throttle measured a worst frame gap of 76 ms and a heap flat
+ * at 37.8 MB. What a browser rig cannot see is a tile request that never settles — and
+ * **maplibre-gl caps in-flight image requests at 16** (`MAX_PARALLEL_IMAGE_REQUESTS`, verified in
+ * the installed 5.24.0 bundle). A fetch that never resolves holds its slot, so sixteen wedged tiles
+ * stop the map loading ANY further tile for as long as the socket hangs: markers keep moving over a
+ * grey grid, which a dispatcher would fairly describe as frozen. This does not prove that is what
+ * they saw; it removes the mechanism.
+ *
+ * ── WHY 8 SECONDS ───────────────────────────────────────────────────────────────────────────────
+ * Measured against the production key while D-DR22 was weighing jpeg against png: HERE answers a
+ * tile in **150–210 ms round trip, 100–170 ms TTFB**, across five tiles from a dense city to open
+ * country. 8 s is ~38× the worst of those, so it cannot fire on a slow-but-working tile or on a cold
+ * upstream; it fires on a connection that is not coming back. A tile is also the most re-issuable
+ * request this app makes — maplibre asks again on the next pan — so the cost of being wrong in that
+ * direction is one grey square, and the cost of being wrong in the other is the map.
+ */
+const TILE_UPSTREAM_TIMEOUT_MS = 8_000;
+
 /** Map + geocoding proxies: keep the HERE key / vendor rate server-side, never in the browser. */
 export function registerMapRoutes(router: Router): void {
   // Tells the client whether an interactive HERE tile map is available (key present) or it should keep the
@@ -63,7 +91,7 @@ export function registerMapRoutes(router: Router): void {
         `https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/${format}?style=${style}&size=512` +
         `&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
       try {
-        const upstream = await fetch(url);
+        const upstream = await fetch(url, { signal: AbortSignal.timeout(TILE_UPSTREAM_TIMEOUT_MS) });
         if (!upstream.ok) {
           res.status(502).json(apiError("tile_upstream_error", `HERE tile HTTP ${upstream.status}`));
           return;
@@ -73,6 +101,23 @@ export function registerMapRoutes(router: Router): void {
         res.setHeader("Cache-Control", "public, max-age=86400");
         res.send(buf);
       } catch (e) {
+        /**
+         * A timeout answers 504 and not 502, and the distinction is for the logs rather than for
+         * maplibre — which treats every failed tile the same. "HERE refused us" and "HERE stopped
+         * answering" are different incidents with different owners, and a single `tile_upstream_error`
+         * covering both is what makes an outage take an afternoon to attribute.
+         *
+         * ⚠ BOTH NAMES ARE CHECKED. `AbortSignal.timeout` rejects with `TimeoutError`, but an abort
+         * arriving from anywhere else — a client that went away mid-tile — surfaces as `AbortError`,
+         * and neither is an error worth 502's "the upstream said something wrong".
+         */
+        const aborted = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+        if (aborted) {
+          res
+            .status(504)
+            .json(apiError("tile_upstream_timeout", `HERE did not answer in ${TILE_UPSTREAM_TIMEOUT_MS}ms`));
+          return;
+        }
         res.status(502).json(apiError("tile_upstream_error", e instanceof Error ? e.message : "tile fetch failed"));
       }
     }),
