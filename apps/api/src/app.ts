@@ -14,6 +14,7 @@ import { apiError, asyncHandler } from "./lib/http.js";
 import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
+import { requestMetrics } from "./middleware/requestMetrics.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { invitesRouter, publicInvitesRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
@@ -253,6 +254,16 @@ export function createApp(env: Env): Express {
   registerTagResolvers(); // D-INV7's kind → resolver map, on the queue registry's model
   app.set("trust proxy", 1); // Railway runs behind a proxy
 
+  /**
+   * ⚠ FIRST, ABOVE EVERY LIMITER AND EVERY ROUTER. A limiter that refuses a request answers it and
+   * returns, so a metrics middleware mounted below one counts none of the refusals — and counting
+   * 429s is most of why C7 exists, since C1 shipped only because nobody could see them.
+   *
+   * Pinned by "counts a refusal, which is the thing nobody could see", which fails along with three
+   * others when this line is moved below `mountApiRouters`. That test's own comment records the one
+   * ordering it does not separately hold, and why.
+   */
+  app.use(requestMetrics());
   app.use(securityMiddleware(env));
   app.use(cors({ origin: env.ALLOWED_ORIGINS, credentials: true }));
   mountCompression(app);
