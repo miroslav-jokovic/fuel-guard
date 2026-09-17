@@ -25,6 +25,7 @@
     "@silvicom/shared": "workspace:*",
     "@supabase/supabase-js": "2.110.0",
     "@xmldom/xmldom": "0.9.10",
+    "compression": "^1.8.2",
     "cors": "2.8.6",
     "dotenv": "17.4.2",
     "exceljs": "4.4.0",
@@ -40,6 +41,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@types/compression": "^1.8.1",
     "@types/cors": "2.8.19",
     "@types/express": "5.0.6",
     "@types/node": "26.0.1",
