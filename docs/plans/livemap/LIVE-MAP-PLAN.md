@@ -2648,3 +2648,32 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   above a truck is `marker − offset − height`, and 360px of card put that under the map's own Fleet
   button and scope sentence. That is the vendor-DOM overlap trap the other way round — our element,
   inside maplibre's popup, hitting our own overlay — and neither side's collision check can see it.
+- **2026-09-17 — the tile proxy now gives HERE a deadline (item 3's last live hypothesis).**
+  `mapProxies.ts` did `await fetch(url)` with no signal, which inherits undici's five-minute
+  `headersTimeout`/`bodyTimeout`. That is a defect on its own terms — an unbounded upstream call
+  inside a request handler — and it is also the only remaining mechanism that can produce the owner's
+  item 3 without showing up in a browser rig:
+
+  **maplibre-gl caps in-flight image requests at 16** (`MAX_PARALLEL_IMAGE_REQUESTS`, read out of the
+  installed 5.24.0 bundle rather than the docs). A fetch that never settles holds its slot, so
+  sixteen wedged tiles stop the map fetching ANY further tile for as long as the sockets hang —
+  markers still moving over a grey grid, which is fairly described as frozen. The ~250 clicks at 6×
+  CPU throttle could not see this, because the stand-in always answered in 175 ms.
+
+  **8 seconds, measured rather than picked**: D-DR22's jpeg/png work timed HERE at **150–210 ms round
+  trip, 100–170 ms TTFB** across five tiles from a dense city to open country, so the deadline is
+  ~38× the worst of them. It cannot fire on a slow tile; it fires on a connection that is not coming
+  back. A tile is also the most re-issuable request this app makes — maplibre asks again on the next
+  pan — so being wrong in that direction costs one grey square.
+
+  ⚠ **A timeout answers `504 tile_upstream_timeout`, not `502 tile_upstream_error`, and that is for
+  the logs rather than for maplibre** (which treats every failed tile identically). "HERE refused us"
+  and "HERE stopped answering" are different incidents with different owners; one code covering both
+  is what makes an outage take an afternoon to attribute.
+
+  ⚠ **This does NOT close item 3 — it removes a mechanism.** The next move is still the owner's
+  answer on today's deploy: does it still happen, and does the RAIL still scroll when it does. That
+  one answer separates a wedged map from a dead tab, and no amount of further blind measuring will.
+
+  **Proved by mutation**, each run and reverted: dropping the signal fails 1, reporting a timeout as
+  502 fails 1, reporting every upstream error as a timeout fails 1.
