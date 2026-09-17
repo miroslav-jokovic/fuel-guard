@@ -166,6 +166,44 @@ same mail as the VM.
 
 ---
 
+### 4.1 Amendment, 2026-09-17 — the cost premise is inverted, and the bottleneck is ours
+
+Measured on live `lme` with `SET STATISTICS TIME`, median of five runs, after the first production
+pull:
+
+| | CPU | elapsed |
+|---|---|---|
+| **full sweep** — the three statements the agent ships, 514 rows | **16 ms** | 26 ms |
+| **change detection** — `CHANGETABLE` across four tables, 60-second window | **76 ms** | 72 ms |
+
+At a 60-second cadence the full sweep is **23 CPU-seconds a day — 0.0006%** of a 42-core box, and
+**3 requests a minute, 0.036%** of its ~138/s baseline. We could poll every ten seconds and remain
+invisible.
+
+⚠ **MC1/MC2's stated premise is false at this carrier's volume.** They justify a change detector on
+the grounds that re-reading the whole board is expensive. It is not: the board is 157 loads and 333
+stops with every predicate indexed, while the Change Tracking side tables carry ~236,900 versions a
+day. **Asking what changed costs about five times more than reading everything.**
+
+**D-MCC16 — keep the detector, but re-argue it, and never argue it from the carrier's CPU.** The
+reasons that survive measurement are: (a) it stops us re-posting all 157 loads to **our own** API
+every cycle, which is where the real cost is; (b) it is how a cancellation or a disappearance is
+noticed at all; (c) it is the only thing that still works if the board grows by an order of
+magnitude. The reason that does **not** survive is protecting their server. Do not put that reason
+in front of Alex — tell him the truth, which is that the read is 0.0006% either way.
+
+**The bottleneck is our own ingest: 52.1 seconds for 157 loads.** Measured on the first production
+pull (board read finished 17:49:25.266, ingest acknowledged 17:50:17.330). The diagnosis is not a
+guess: `ingestLoads` performs **five sequential round trips per load** — insert `loads`, upsert
+`load_external_payloads`, delete pending `load_stops`, upsert `load_stops`, insert `load_events` —
+inside a plain `for` loop. **157 × 5 = 785 serial round trips, and 52,100 ms ÷ 785 = 66 ms each**,
+which is ordinary Railway→Supabase latency. Nothing is batched.
+
+At a 60-second cadence that leaves **eight seconds of headroom**. That is not a cadence, it is a
+queue waiting to form — so **L11 lands before L9 turns the schedule on.**
+
+---
+
 ## 5. Steps
 
 Ten steps, each **one PR**, each with a Done-when a machine or a measurement can settle. They are
@@ -174,7 +212,8 @@ and the irreversible things arrive last. Where a step is already specified elsew
 does not restate it — `MCLEOD-COLLECTOR-PLAN.md` MC*, `../livemap/LIVE-MAP-PLAN.md` LM*.
 
 **Dependency order.** L0 → L1 · L2 (parallel, no code) · L3 → L4 (separate merges, deploy window) ·
-L5 → L6 → L7 (agent chain) · L8 (blocked on Alex) · L9 (blocked on the VM) · L10 (independent).
+L5 → L6 → L7 (agent chain) · L8 (blocked on Alex) · **L11 → L9** (the schedule cannot be turned on
+while one cycle takes 52 s) · L10 (independent).
 
 ---
 
@@ -423,6 +462,39 @@ the last measurement), and MC4's sandbox warning no longer fires for the finance
 
 ---
 
+---
+
+### L11 · Make the ingest set-based — **we** are the bottleneck, not the carrier
+
+**Why, measured.** §4.1: 52.1 s for 157 loads, 785 serial round trips at 66 ms each. A 60-second
+cadence against a 52-second ingest has eight seconds of headroom. Every other step in this plan is
+cheap by comparison, and this is the only one standing between us and a schedule.
+
+**Files.** `apps/api/src/modules/mcleod/tmsLoadIngest.ts` and its tests.
+
+**Do.** **Partition first, purely and in memory** — create / amend / cancel / skip — then **one
+set-based write per partition per table**, in foreign-key order: `loads`, then `load_stops`, then
+`load_external_payloads`, then `load_events`. That is roughly **six round trips for the whole
+payload instead of 785**.
+
+**Constraints that must survive the rewrite — each one is why this is not a five-minute change:**
+
+- `lint:upserts` forbids a partial upsert: Postgres checks NOT NULL before conflict arbitration, so
+  every set-based upsert carries **complete** rows. Migrations 0174/0175 are the pattern.
+- ⚠ **`tmsMayOverwrite` still decides per load.** An `approved`, `accepted`, `in_transit` or
+  `delivered` load is **never** overwritten by the feed. A blind bulk upsert would silently
+  overwrite work an office has already approved — **this is the one place where a performance change
+  can cause a correctness loss**, and it is the reason the partition is computed before any write.
+- The per-load `results[]` and the unmatched report keep their present shape: the agent log and
+  LM12's verification both read them.
+- `load_events` is an evidence table and stays append-only. Batching its inserts is fine; collapsing
+  two events into one is not.
+
+**Done when.** The same 157-load payload ingests in **under 5 seconds**, measured against the same
+board and stated in the progress log; every existing `tmsLoadIngest` test still passes unchanged;
+and a **new** test proves an approved load is not overwritten by a re-ingest — **proven by mutation**:
+delete the partition guard and that test must fail.
+
 ## 6. The testing routine — what "tested" means at each stage
 
 Four levels, because each catches what the others cannot. This repo has been bitten by tests that
@@ -469,3 +541,21 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   migrations, `load_stops.kind` confirmed `CHECK (pickup|dropoff)`, `org_integrations` confirmed to
   hold **only** the live org's two rows — so the QA org the local agent config targets has nothing
   to post to, which is now L0.
+- 2026-09-17 — **L0 and L1 are DONE.** L0 needed no work: the ingest token in the agent's gitignored
+  config was already the live org's, re-issued 2026-08-28 — the header calling it QA-only was three
+  weeks stale, and rotating it would have broken the roster and financial sweeps. L1 ran: **157 loads,
+  333 stops, all `pending_approval`**, 138 with a driver, 139 with a vehicle, 111 with a trailer.
+  Three loads verified by hand against McLeod — `ref`, `external_status` and miles exact.
+  ⚠ Movement 290837 stored **6 of its 10 stops**: the `VA` gap is now a real load on a real screen,
+  which makes Q-GL1 the first question Alex should answer. A second unmapped type, `SP`, appeared.
+  The single unmatched key (`JFERGUSO`) is a **stale roster, not a broken link** — that driver was
+  hired 2026-09-14 and our roster sweep last ran 2026-09-14 19:11. Noted in passing:
+  **`drivers.employee_id` is populated on ZERO of 299 rows**, so every driver match runs on
+  `mcleod_driver_id` alone.
+- 2026-09-17 — **L2 built, and §4.1 added because measuring for it reversed a premise.**
+  `tools/mcleod-agent/review/SILVICOM-READ-ROUTINE.sql` is generated from `queries.mjs` so it cannot
+  drift, carries the four questions, and was **executed against live `lme` to prove the claim that
+  the carrier can run it as-is** — four result sets, 178 ms. `review.test.mjs` pins it to the code and
+  to the promises it makes; all four assertions **proven able to fail** by mutation (a drifted query,
+  a removed lock timeout, an injected `NOLOCK`). D-MCC16 and step **L11** added: the carrier's server
+  costs 16 ms of CPU and our own ingest costs 52.1 seconds, so the bottleneck was never theirs.
