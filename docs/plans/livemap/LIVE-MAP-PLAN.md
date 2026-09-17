@@ -2436,3 +2436,50 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   one-origin rig: **median 9 tiles per click, worst 45, 151 over twelve clicks**, against 9 / 41 / 134
   before the collapse. The viewport filter was re-walked too: on over a still map, zoomed in to the
   camera sentence, off again to the full fleet.
+- **2026-09-17 — `Q-LM19` RULED, and the answer was a candidate that was not on the list: D-LM25.**
+  The question was whether D-LM18's scope paragraph and D-LM9b's freshness clause come off the foot
+  of the rail (the owner's item 6). The four candidates recorded on 2026-09-17 all assumed the API
+  owns the sentence — (b) and (c) both said "needs an API change, not a client one". That was the
+  wrong frame. **The API owns the FACT (`scope`), the rail owns the WORDS**, which is exactly how
+  `STATE_LABEL` has always turned `VehicleMapState` into English. Rendering a known enum is not a
+  second copy of a fact; `SCOPE_CLAUSE` is one line beside it.
+
+  So the foot is now **one line**, and both decisions live inside it:
+
+      171 trucks in the fleet · refreshes every 5s
+      42 of 171 trucks in the fleet · refreshes every 5s
+      42 of 60 trucks assigned to you · refreshes every 5s   ← the day `mine` exists
+
+  · **D-LM18 is harder to miss than it was, not weaker.** The disclosure is the clause the count ends
+    in, so a dispatcher cannot read the number without reading whose trucks it counts. A paragraph
+    *underneath* a number is the thing people stop seeing.
+  · **D-LM9b is unchanged** — `pollSeconds` is still derived from `LIVE_MAP_POLL_MS` by the caller.
+  · **Nothing was deleted.** `scopeReason` is still on the response and still on the page, one click
+    away in the foot's own disclosure, which is where reference material about a McLeod grant belongs
+    rather than on a dispatcher's screen every day. No API change, no deploy window, one merge.
+
+  ⚠ **The small-screen copy was losing two thirds of the disclosure and nobody had measured it.**
+  Below `lg` the rail is shut, so a copy of the sentence rides beside the Fleet button — `truncate`d.
+  Measured in the browser at 390px: the paragraph wanted **720px of text in a 244px pill, 34% of it
+  visible**. The sentence that replaced it measures 244px and fits exactly. The disclosure a phone
+  reader was given had been "Showing every truck in the fleet. Per-di…" for as long as that pill has
+  existed.
+
+  ⚠ **`offlineBoundSentence` and `engineOnBoundSentence` had no renderer at all, and now do.** They
+  were written for DR5's legend; D-DR25's rail consolidation dropped the legend and left both as
+  exports with tests and no call site — D-LM9b's own text, off the page for a fortnight, with no gate
+  able to see it. They are two of the three things behind the disclosure, and they read their numbers
+  off `bounds` (LM6), which the mounted test proves by asserting a board whose bounds are NOT
+  production's.
+
+  ⚠ **`ExplainerPanel` gained an `inline` variant rather than taking a class at the call site**, and
+  that is D-LM22's lesson applied rather than re-learned: a call-site utility and a component's own
+  utility share a cascade layer, Tailwind's order decides, and the last time this was tried on
+  `AppButton` it failed SILENTLY — three entries read back from the DOM as one colour. `AppCard` is
+  a component besides, so no class could have removed it. The card and the heading-weight summary
+  are wrong for a 320px rail foot; the disclosure behaviour is identical.
+
+  **Proved by mutation**, all four run and reverted: dropping `SCOPE_CLAUSE[scope]` from the sentence
+  fails seven tests across two files, making `inline` render the card fails its variant test,
+  `<details open>` fails three (the foot's and two of the panel's own), and deleting `scopeReason`
+  from the disclosure fails the Q-LM19 test. Walked at 1512 and 390, in light and dark.

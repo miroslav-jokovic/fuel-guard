@@ -5,13 +5,16 @@ import { MapIcon, XMarkIcon } from "@silvicom/ui/icons";
 import type { LiveMapBoard, LiveMapVehicle, VehicleMapState } from "@silvicom/shared";
 import { AppSearchField as SearchInput } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import { BADGE_BASE, vehicleStateTone } from "@/lib/badges";
 import {
   LIVE_MAP_SORTS,
   MAP_STATES,
   STATE_COLOR_CLASS,
   STATE_LABEL,
-  fleetTotalSentence,
+  boardSummarySentence,
+  engineOnBoundSentence,
+  offlineBoundSentence,
   rowMetric,
   sortVehicles,
   type LiveMapSort,
@@ -240,24 +243,44 @@ function toggleState(state: VehicleMapState): void {
       </ul>
     </div>
 
-    <!-- ── The two sentences the dock used to carry ─────────────────────────────────────────────── -->
-    <div class="shrink-0 space-y-1 border-t border-edge-subtle px-3 py-2">
-      <!--
-        D-LM18, required rather than decorative and never dismissible: the board says whose trucks
-        these are, and it says "all of them" until the dispatcher relation exists. It comes from the
-        RESPONSE, so it stops appearing by itself on the day the scope becomes real.
-      -->
-      <p v-if="board && board.scope === 'all'" class="text-2xs text-ink-secondary">{{ board.scopeReason }}</p>
-      <!--
-        ⚠ The owner's item 6 was "replace the scope paragraph AND '171 of 171 shown' with a plain
-        total". The COUNT is done here and is plainly better; the scope PARAGRAPH above is D-LM18 and
-        is not this step's to delete — it is a required disclosure with a stated reason, and the
-        freshness clause below it is D-LM9b. Both are recorded as Q-LM19 in `LIVE-MAP-PLAN.md` with a
-        recommendation, because a decision removed quietly is one nobody can find again.
-      -->
-      <p class="text-2xs text-ink-tertiary">
-        {{ fleetTotalSentence(filtered.length, vehicles.length) }} · refreshes every {{ pollSeconds }}s
-      </p>
+    <!--
+      ── ONE LINE, OPENING ONTO WHAT USED TO BE ON SCREEN ALL DAY (`Q-LM19`, the owner's item 6) ────
+      The foot was a four-line scope paragraph, "171 of 171 shown", and the cadence. It is now the
+      one sentence a dispatcher asked for — `boardSummarySentence`, which carries D-LM18's disclosure
+      as the clause it ends in and D-LM9b's cadence derived from the poll.
+
+      ⚠ The disclosure is NOT dismissible and this does not make it so. `<details>` hides the
+      REFERENCE material behind it — `scopeReason`'s account of the missing McLeod grant, and the two
+      bound sentences — while the summary itself, which is where the disclosure lives, is on screen
+      open or shut. D-LM18 forbids switching the disclosure off; it does not require the reason for
+      it to be read every day.
+
+      ⚠ The two bound sentences had NO renderer at all until this. `offlineBoundSentence` and
+      `engineOnBoundSentence` were written for DR5's legend, D-DR25's rail consolidation dropped the
+      legend, and both survived as exports with tests and no call site — D-LM9b's own text, gone from
+      the page for a fortnight without a gate able to say so. They read the numbers off `bounds`, so
+      the day a threshold is retuned the sentence follows it (LM6).
+    -->
+    <div v-if="board" class="shrink-0 border-t border-edge-subtle px-3 py-2">
+      <ExplainerPanel
+        variant="inline"
+        :summary="boardSummarySentence({
+          shown: filtered.length,
+          total: vehicles.length,
+          scope: board.scope,
+          pollSeconds,
+        })"
+      >
+        <p>{{ board.scopeReason }}</p>
+        <p>
+          <span class="font-medium text-ink">{{ STATE_LABEL.offline }}</span>
+          · {{ offlineBoundSentence(board.bounds) }}
+        </p>
+        <p>
+          <span class="font-medium text-ink">{{ STATE_LABEL.stopped }}</span>
+          · {{ engineOnBoundSentence(board.bounds) }}
+        </p>
+      </ExplainerPanel>
     </div>
   </aside>
 </template>

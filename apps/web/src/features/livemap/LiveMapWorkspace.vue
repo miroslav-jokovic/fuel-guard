@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { TruckIcon } from "@silvicom/ui/icons";
 import type { LiveMapVehicle } from "@silvicom/shared";
-import type { MapBounds } from "./liveMapLayer";
+import { boardSummarySentence, type MapBounds } from "./liveMapLayer";
 import LiveMapCanvas from "./LiveMapCanvas.vue";
 import LiveMapFloatingPanel from "./LiveMapFloatingPanel.vue";
 import LiveMapRail from "./LiveMapRail.vue";
@@ -44,6 +44,12 @@ import { LIVE_MAP_POLL_MS } from "./useLiveMapBoard";
  * floating over a map is either dismissible, which lets the disclosure be switched off, or not,
  * which is a panel lying about being a panel. The rail's foot is neither: always on screen, never
  * closable, still read from the RESPONSE so it stops appearing by itself when the scope becomes real.
+ *
+ * ⚠ `Q-LM19` (2026-09-17) changed its SHAPE and not its standing. The disclosure is no longer a
+ * paragraph under the count — it is the clause the count ends in, "171 trucks **in the fleet**",
+ * composed once by `boardSummarySentence` and rendered in both places the board can be read from.
+ * The paragraph it replaced still exists and is one click away in the foot's own disclosure; what
+ * went is a four-line block of reference material sitting on a dispatcher's screen every day.
  */
 const {
   board,
@@ -198,11 +204,31 @@ watch(railVisible, async () => {
           Fleet
           <span class="font-normal tabular-nums text-ink-secondary">{{ filtered.length }}</span>
         </BaseButton>
+        <!--
+          ⚠ `Q-LM19`: this used to be `scopeReason`, and `truncate` was quietly eating most of it.
+          Measured in the browser at 390px, the width this copy exists for: the paragraph wanted
+          **720px of text in a 244px pill — 34% of it visible**, so two thirds of the disclosure was
+          never read by the reader it was put there for. It now carries the SAME sentence as the
+          rail's foot, from the same function, and that sentence measures 244px — it fits exactly,
+          with nothing clipped.
+
+          ⚠ No `<details>` here, on purpose: this pill sits ON the map over a truck, and a
+          disclosure that expanded would cover the thing it is describing. Below `lg` the reason is
+          one tap further away, behind the Fleet button — which is the same place the rail's own
+          list lives at this width.
+        -->
         <p
-          v-if="board.data.value && board.data.value.scope === 'all'"
+          v-if="board.data.value"
           class="min-w-0 flex-1 truncate rounded-control bg-surface/90 px-2 py-1 text-2xs text-ink-secondary shadow-overlay"
         >
-          {{ board.data.value.scopeReason }}
+          {{
+            boardSummarySentence({
+              shown: filtered.length,
+              total: vehicles.length,
+              scope: board.data.value.scope,
+              pollSeconds,
+            })
+          }}
         </p>
       </div>
 
