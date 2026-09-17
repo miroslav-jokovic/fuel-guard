@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
 import { closeTestServer } from "../testing/httpServer.js";
@@ -152,20 +152,42 @@ describe("what the middleware records", () => {
 describe("the summary that reaches the log", () => {
   /**
    * ⚠ The constraint from the plan, as an assertion: "must not cost a log line per tile". A hundred
-   * requests must produce exactly one line, or the tile proxy alone would flood Railway's stream.
+   * requests must fold into ONE line, or the tile proxy alone would flood Railway's stream.
+   *
+   * ⚠⚠ THIS DELIBERATELY DOES NOT INVOLVE THE TIMER, AND THE FIRST DRAFT DID. That version started a
+   * 20 ms reporter, issued 100 requests and asserted "fewer than 5 lines" — which silently asserted
+   * that 100 sequential HTTP requests take under 100 ms. They do locally; on CI they took 363 ms and
+   * produced 15 lines, so it failed there and nowhere else. The count of lines is a function of
+   * ELAPSED TIME, never of request count, so a test that couples the two is measuring the runner's
+   * speed. The cadence is covered below with fake timers instead.
    */
-  it("emits one line per window however many requests it covers", async () => {
+  it("folds a hundred requests into a single line, not a hundred", async () => {
+    for (let i = 0; i < 100; i += 1) await fetch(`${baseUrl}/api/version`);
+    const line = formatMetricsLine(snapshotRequestMetrics());
+    expect(line.split("\n")).toHaveLength(1);
+    expect((JSON.parse(line.replace("[metrics] ", "")) as { requests: number }).requests).toBe(100);
+  });
+
+  /**
+   * The cadence, deterministically: one line per elapsed interval, covering everything served in it,
+   * and the window is reset afterwards so the next one starts empty.
+   */
+  it("emits once per elapsed interval and resets the window behind it", async () => {
+    for (let i = 0; i < 5; i += 1) await fetch(`${baseUrl}/api/version`);
     const lines: string[] = [];
-    const timer = startRequestMetricsReporter(20, (l) => lines.push(l));
+    vi.useFakeTimers();
+    const timer = startRequestMetricsReporter(1_000, (l) => lines.push(l));
     try {
-      for (let i = 0; i < 100; i += 1) await fetch(`${baseUrl}/api/version`);
-      await new Promise((r) => setTimeout(r, 60));
-      expect(lines.length).toBeGreaterThan(0);
-      expect(lines.length).toBeLessThan(5);
-      const covered = lines.reduce((n, l) => n + (JSON.parse(l.replace("[metrics] ", "")) as { requests: number }).requests, 0);
-      expect(covered).toBeGreaterThanOrEqual(100);
+      vi.advanceTimersByTime(1_000);
+      expect(lines).toHaveLength(1);
+      expect((JSON.parse(lines[0]!.replace("[metrics] ", "")) as { requests: number }).requests).toBe(5);
+
+      // The window was emptied, so a second interval with no traffic in it says nothing at all.
+      vi.advanceTimersByTime(1_000);
+      expect(lines).toHaveLength(1);
     } finally {
       clearInterval(timer);
+      vi.useRealTimers();
     }
   });
 
