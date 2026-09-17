@@ -109,8 +109,27 @@ export function useLiveMapView(): LiveMapView {
       : "",
   );
 
+  /**
+   * ⚠ CLEARING the search closes the truck card (the owner's item 4, D-LM21).
+   *
+   * Searching is how a dispatcher finds ONE truck: they type a unit number, the rail narrows to it,
+   * they click it and the card opens over the map. Clearing the search is how they say they are done
+   * with that truck — and the card used to stay, over a map still parked on a truck nobody was
+   * looking for, with no control on screen admitting the two were connected.
+   *
+   * ⚠ On CLEARING, not on being empty. An empty search is also the state the rail opens in, and
+   * closing the card whenever the search happens to be empty would mean a truck picked off the map or
+   * out of the full list could never stay selected. The transition is the gesture; the value is not.
+   *
+   * ⚠ And it is not generalised to "the selection left the filtered list", which was the tempting
+   * one-rule version. It is the wrong rule: clearing a search makes the list LARGER, so the selected
+   * truck is still in it and that rule would do nothing here — while a census button pressed with a
+   * truck already selected would close a card the reader had not finished reading.
+   */
   const setSearch = (value: string): void => {
+    const wasSearching = filters.value.search !== "";
     filters.value = { ...filters.value, search: value };
+    if (wasSearching && value === "") selectedId.value = null;
   };
 
   return {

@@ -8,7 +8,9 @@ are cited.
 detection, cadence, isolation, and the live/sandbox split (`D-MCC*`). This plan owns *what the map
 is*. Where they overlap — LM0's grant and LM1's change detection — this document defers.
 
-**There are no open questions in this document.** Every question the research raised was closed
+**One open question, `Q-LM19`, recorded in §8's dated log of 2026-09-17** — and it is the owner's to
+answer, not a measurement's: whether D-LM18's scope disclosure and D-LM9b's freshness clause come off
+the rail's foot, as item 6 of the owner's list asks. Every question the RESEARCH raised was closed
 against a measurement, and §3 records the measurement beside the ruling. Where a fact could change
 (a vendor grant, a carrier's configuration), §4's resume ritual says how to re-measure it and §5's
 step says what to do when the answer differs. A step never says "investigate"; it says what to run
@@ -2176,3 +2178,63 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   ⚠ **This is NOT a fix for item 3 and must not be recorded as one.** It is a measured defect on the
   exact path the owner named, and it is the leading remaining hypothesis for the freeze — the browser
   survives the tile storm, and the API's side of it has never been measured. Item 3 stays open.
+- **2026-09-17 — D-LM20: the rail's right-hand slot carries the speed while the feed keeps up, and
+  the fix age the moment it does not.** The owner's item 2 was "show SPEED per truck in the rail, not
+  '3s ago'", and they are right about the defect: on a healthy board that slot read "1s ago", "3s
+  ago", "8s ago" down two hundred rows — a column of noise that separated no truck from any other.
+
+  ⚠ It is NOT simply "speed instead of age", because D-LM10 requires the fix age to be visible per
+  truck and that requirement has not stopped being true. A truck is `moving` if its fix is inside the
+  offline bound, which is fifteen minutes — so a truck CAN be moving on a fix nobody has refreshed in
+  twenty, and "62 mph" alone would be a lie with a number on it. `rowMetric` therefore shows the
+  speed while the fix is fresh and the age as soon as it is not, so on a healthy board almost every
+  row shows a speed (the change the owner asked for) and the one truck that has gone quiet says so
+  (what D-LM10 exists for). Neither requirement was traded.
+
+  ⚠ The seam is **30 s**, derived rather than picked: D-LM8b measured this fleet's moving trucks
+  being re-fixed about every 11 s, worst 13.6 s, so twice the worst measured interval is where the
+  feed has demonstrably skipped a report. ⚠ And a fresh ping carrying NO speed shows its age too —
+  `speedMph` is nullable in `vehicle_positions` and absent is not zero, so "0 mph" there would be an
+  invented measurement.
+
+- **2026-09-17 — D-LM21: clearing the search closes the truck card (the owner's item 4).** Searching
+  is how a dispatcher finds ONE truck — type a unit, the rail narrows, click it, the card opens.
+  Clearing the box is how they say they are done with it, and the card used to stay, over a map still
+  parked on a truck nobody was looking for, with nothing on screen admitting the two were connected.
+
+  ⚠ On CLEARING, not on BEING EMPTY: an empty search is also the state the rail opens in, so the
+  second reading would mean a truck picked off the map could never stay selected. ⚠ And deliberately
+  not generalised to "the selection left the filtered list", which was the tempting one-rule version
+  and is wrong twice — clearing a search makes the list LARGER, so that rule does nothing on the
+  gesture the owner named, while a census button pressed with a truck already open would shut a card
+  the reader had not finished reading. Four tests, two **proved by mutation**.
+
+- **2026-09-17 — item 6, half shipped and half asked back: `Q-LM19`.** The owner asked to "replace
+  the scope paragraph + '171 of 171 shown' with a plain total".
+
+  **The count is done.** "171 of 171 shown" is a fraction whose two halves are equal, which is how it
+  read on every unfiltered board — most of them. It is now "171 trucks", and the fraction survives for
+  the case it was written for: "42 of 171 trucks" when the list really is narrowed.
+
+  **The paragraph is not this step's to delete, and that is `Q-LM19`.** It is two recorded decisions
+  with stated reasons, not decoration. D-LM18 requires the board to say out loud that it is
+  fleet-wide — "a dispatcher who believes they are seeing only their own trucks will read an empty
+  column as 'nothing of mine is late'" — and D-LM9b requires the freshness clause, read from
+  `LIVE_MAP_POLL_MS` so the sentence cannot quietly become false. Deleting either silently is exactly
+  the move this repo's register calls a workaround.
+
+  The candidates, with a recommendation:
+
+  | | what the rail's foot becomes | costs |
+  |---|---|---|
+  | (a) leave both | today's two lines | the owner's complaint stands; the reason sentence is ~150 characters at `text-2xs` in a 320px rail, which is four lines |
+  | (b) **shorten the scope to its first clause, keep the reason reachable** | "Every truck in the fleet · 171 trucks · refreshes every 5s", the full reason on the tab's own help | D-LM18 satisfied by the clause that carries the disclosure; needs somewhere for the reason, and there is no help surface on this tab today |
+  | (c) drop the reason, keep the disclosure | "Showing every truck in the fleet." + "171 trucks · refreshes every 5s" | one line instead of four; loses *why*, which is the half that tells a dispatcher it is temporary |
+  | (d) do as asked — total only | "171 trucks" | D-LM18 and D-LM9b both gone. A dispatcher can no longer tell whose trucks these are, which is the misreading D-LM18 was written to prevent |
+
+  **Recommended: (c).** The disclosure is the half D-LM18 is actually about, it is one line, and the
+  reason belongs with the carrier's McLeod grant rather than on a dispatcher's screen every day. ⚠ It
+  needs an API change, not a client one — `scopeReason` is one string from `FLEET_WIDE_SCOPE_REASON`
+  in `apps/api/src/modules/livemap/liveMapBoard.ts`, and splitting the server's sentence in the
+  browser would be a copy with a delay fuse. **(d) is the owner's to choose and is recorded here so
+  that choosing it is a decision rather than a deletion.**

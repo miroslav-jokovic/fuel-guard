@@ -203,6 +203,66 @@ export function formatAge(seconds: number): string {
 }
 
 /**
+ * How old a fix has to be before its age outranks anything read FROM it (D-LM20).
+ *
+ * ⚠ Derived from a measurement, not chosen. D-LM8b measured this fleet on production, 2026-09-17:
+ * moving trucks are re-fixed about every 11 seconds, worst observed 13.6 s. So an age under about
+ * half a minute is the feed working normally and says nothing a reader can act on — which is exactly
+ * the owner's complaint, that every row read "3s ago" and none of them distinguished a truck. Over
+ * twice the worst measured interval, the feed has skipped at least one report, and THAT is news.
+ */
+export const STALE_FIX_SECONDS = 30;
+
+/** What the rail's right-hand slot says about one truck, and which fact it turned out to be. */
+export interface RowMetric {
+  text: string;
+  kind: "speed" | "age";
+}
+
+/**
+ * The one fact worth the rail's right-hand slot for this truck (D-LM20).
+ *
+ * ── THE OWNER'S ITEM 2, AND WHY IT IS NOT SIMPLY "SPEED INSTEAD OF AGE" ─────────────────────────
+ * The slot used to be `formatAge` unconditionally, and on a healthy board that reads "1s ago",
+ * "3s ago", "8s ago" down two hundred rows: a column of noise that separates no truck from any
+ * other. Speed does separate them, and speed is what the owner asked for.
+ *
+ * ⚠ But D-LM10 requires the fix age to be visible PER TRUCK and never hidden behind the marker, for a
+ * reason that has not stopped being true: a speed read off a fix nobody has refreshed in twenty
+ * minutes is a lie with a number on it. A truck can be `moving` with a stale fix — the state only
+ * asks that the fix is inside the offline bound, which is fifteen minutes — so "62 mph" alone would
+ * be exactly that lie.
+ *
+ * So the slot carries the fact that is TRUE and USEFUL rather than a fixed column: the speed while
+ * the feed is keeping up, and the age the moment it stops. On a healthy board almost every row shows
+ * a speed, which is the change the owner asked for; on a truck whose feed has gone quiet the row
+ * says so, which is what D-LM10 exists for. Neither requirement is traded away.
+ *
+ * ⚠ A truck with a fresh fix and no speed on the ping shows its age too. `speedMph` is nullable in
+ * `vehicle_positions` and absent is NOT zero — printing "0 mph" for a ping that carried no speed
+ * would invent a measurement.
+ */
+export function rowMetric(vehicle: LiveMapVehicle): RowMetric {
+  if (vehicle.ageSeconds > STALE_FIX_SECONDS || vehicle.position.speedMph == null) {
+    return { text: formatAge(vehicle.ageSeconds), kind: "age" };
+  }
+  return { text: `${Math.round(vehicle.position.speedMph)} mph`, kind: "speed" };
+}
+
+/**
+ * How many trucks the rail is showing, as a plain total (the owner's item 6).
+ *
+ * ⚠ "171 of 171 shown" was the defect: a fraction whose two halves are equal is a fraction nobody
+ * needs to read, and it appeared that way on every unfiltered board — which is most of them. The
+ * fraction is kept for the case it was written for, a filtered list, where the reader genuinely
+ * does need to know how much of the fleet is off screen.
+ */
+export function fleetTotalSentence(shown: number, total: number): string {
+  const noun = total === 1 ? "truck" : "trucks";
+  return shown === total ? `${total} ${noun}` : `${shown} of ${total} ${noun}`;
+}
+
+/**
  * The legend's sentence for the `offline` bound, built from what the response said it was.
  *
  * The board sends `bounds` precisely so no component holds a second copy of the numbers (LM6). A
