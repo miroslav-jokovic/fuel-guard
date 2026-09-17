@@ -43,11 +43,46 @@ export const MAP_STATES: readonly VehicleMapState[] = ["moving", "stopped", "par
  * `warning` for the reason D-LM9 refuses the word `idle`: an instantaneous "engine on, speed 0" is
  * not a judgement about the driver, and the `idle` module owns the judgement that is.
  */
+/**
+ * ── D-LM24 (the owner's item 9): MEASURED, IN BOTH SCHEMES, AS PAINTED ──────────────────────────
+ * These four are the only thing carrying status on the canvas, so two that measure the same are two
+ * states a dispatcher cannot tell apart. Measured 2026-09-17 as ΔEok between the colours AS
+ * COMPOSITED — offline is drawn at `icon-opacity: 0.65`, so comparing raw tokens (which the first
+ * pass did) overstates how different it looks — and through deuteranopia and protanopia simulations,
+ * because a fleet map read by a red-blind dispatcher is not a hypothetical.
+ *
+ * | scheme | worst pair before | worst pair after |
+ * |---|---|---|
+ * | light | `stopped`/`parked` **0.076** | `moving`/`stopped` 0.117 |
+ * | dark  | `moving`/`offline` **0.021** (deuteranopia) | `moving`/`offline` 0.079 |
+ *
+ * ⚠ **The dark scheme was the worse of the two and nobody had looked.** A moving truck and an
+ * offline one measured 0.021 apart for a deuteranope — the same colour — because a green marker at
+ * full opacity and a grey one at 0.65 over a dark basemap land in the same place.
+ *
+ * ⚠ **`parked` is amber and `offline` is NOT, which is a distinction with a measurement behind it.**
+ * `badges.ts` records why offline must not be alarm-coloured: 54 of 199 trucks rendered offline the
+ * day the board first had data, and a page that is a fifth alarm-coloured teaches its reader to stop
+ * reading colour. That argument is about POPULATION, so it was re-measured rather than assumed —
+ * production, 2026-09-16: stopped 123, offline 59, moving 17, **parked 1**. `parked` is a ten-minute
+ * transitional band (heard from 5–15 minutes ago) that almost nothing is ever in, so amber there
+ * colours half a percent of the board and the objection does not reach it.
+ *
+ * ⚠ **Two candidates were rejected BY MEASUREMENT, both of which looked right on taste.**
+ * `accent-600` (violet) for parked collapsed against offline grey at **0.016** under deuteranopia —
+ * worse than what it replaced. `neutral-700` (a darker grey) fixed parked/offline but collapsed
+ * against `success-600` at **0.037**: dark green and dark grey are one colour to a red-blind reader.
+ *
+ * ⚠ **The cost, stated rather than buried.** Moving offline to `neutral-400` makes it fainter against
+ * a LIGHT basemap — ΔE to the basemap falls 0.181 → 0.145, a fifth. That is the right side of the
+ * trade (the white keyline and D-LM24's larger marker both work against it, and an offline position
+ * is one we deliberately no longer stand behind) but it is a cost, not a free win.
+ */
 export const STATE_COLOR_CLASS: Record<VehicleMapState, string> = {
   moving: "text-success-600",
   stopped: "text-info-500",
-  parked: "text-neutral-600",
-  offline: "text-neutral-500",
+  parked: "text-warning-600",
+  offline: "text-neutral-400",
 };
 
 export const STATE_LABEL: Record<VehicleMapState, string> = {

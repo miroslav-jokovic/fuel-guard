@@ -8,6 +8,7 @@ import {
   formatAge,
   iconNameFor,
   offlineBoundSentence,
+  STATE_COLOR_CLASS,
   rowMetric,
   scopeToViewport,
   stateCounts,
@@ -299,5 +300,37 @@ describe("scopeToViewport", () => {
   it("counts a truck exactly on the edge as visible, because it is drawn on screen", () => {
     const edge = vehicle({ vehicleId: "e", position: { ...vehicle().position, lat: 42, lng: -88 } });
     expect(scopeToViewport([edge], CHICAGO)).toHaveLength(1);
+  });
+});
+
+describe("STATE_COLOR_CLASS", () => {
+  /**
+   * ⚠ The four marker colours, held apart STRUCTURALLY, because the perceptual measurement that
+   * chose them cannot run here — the values live in `tokens.css` and only resolve in a browser
+   * (`tokenColor` is why `liveMapIcons.ts` has no test at all).
+   *
+   * What a unit test CAN hold is the rule that broke: `parked` and `offline` were both `neutral`,
+   * two states sharing one ramp, and on the canvas they measured 0.076 apart as painted — the same
+   * grey at a glance. One state, one ramp family. The numbers behind the choice are in
+   * `STATE_COLOR_CLASS`'s own header.
+   */
+  const family = (cls: string) => cls.replace(/^text-/, "").replace(/-\d+$/, "");
+
+  it("gives every state its own ramp family, which is the rule that had broken", () => {
+    const families = MAP_STATES.map((s) => family(STATE_COLOR_CLASS[s]));
+    expect(families).toHaveLength(MAP_STATES.length);
+    expect(new Set(families).size).toBe(MAP_STATES.length);
+  });
+
+  it("keeps `offline` the neutral one, because it is the population that must not be alarm-coloured", () => {
+    // 54 of 199 trucks rendered offline the day the board first had data. A page that is a fifth
+    // alarm-coloured teaches its reader to stop reading colour — see `badges.ts`.
+    expect(family(STATE_COLOR_CLASS.offline)).toBe("neutral");
+  });
+
+  it("colours every state with a semantic token, never a raw palette utility", () => {
+    // `lint:tokens` says the same thing about templates; these strings reach maplibre through
+    // `tokenColor` instead, so they never pass under that gate's eye.
+    for (const s of MAP_STATES) expect(STATE_COLOR_CLASS[s]).toMatch(/^text-(success|info|warning|caution|danger|accent|brand|neutral)-\d+$/);
   });
 });
