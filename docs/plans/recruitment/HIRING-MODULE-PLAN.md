@@ -66,9 +66,10 @@ This programme runs across several chats. Nothing below assumes you remember the
 
 **The four facts that will otherwise cost you an hour each.**
 
-- ⚠ **A filed packet is frozen.** `file.ts:140–146` renders once, hashes, and returns storage bytes
-  for ever. Production holds **0** `application_packet_marks`, so how the packet prints is still free
-  to change — until the first ceremony walk. Any step that changes printing must land before HU6.
+- ⚠ **A filed packet is frozen.** `ensureApplicationPdf` renders once, hashes, and returns storage
+  bytes for ever. ⚠ The freeze is at **filing**, not at marking — production now holds **20** marks
+  from one unfinished walk (§1a C2/C3) and **no** filed packet, so how the packet prints is still
+  free to change. Any step that changes printing must land before C1.
 - ⚠ **"Deployed" is a per-service question.** Two Railway services run `apps/api` and routinely sit at
   different commits. **Applicants reach `@fleetguard/web`; `pnpm verify:live` checks
   `@fleetguard/api`.** Curl the web host's `/api/version` when an applicant-facing change matters.
@@ -82,6 +83,112 @@ merge commit, a `DONE` line is appended to §10, and **the done-when sentence is
 not of an endpoint. ⚠ That last clause is not decoration — A11b was marked done while the first
 invitation had no send path at all, because every test asserted what the route DID and nothing
 asserted what it did not do.
+
+---
+
+## 1a. Verification pass, 2026-09-17 — what was checked, and the six things that were wrong
+
+Everything in §1 and §2 was re-checked against the code, against production Railway variables and
+against the production database before any of it was built on. ⚠ **This section is the record of that
+pass. Read it before §1 — six claims below correct claims made above, and one of them changes which
+step goes first.**
+
+### Confirmed, unchanged
+
+Two renderers and nothing comparing them · the ceremony showing no document · the four drawn-mark
+defects · no authorizations PDF · three recruitment pages · `qualification_records.kind` already
+carrying `road_test` / `mvr` / `clearinghouse_full` / `clearinghouse_limited` / `eldt` / `drug_test`
+since 0217 · **zero** `training_*` or `orientation_*` tables in any migration · no `sign_token_hash`
+column anywhere, so A5a is genuinely needed · `SlideOver`, `TablePagination`, `isFullBleed`,
+`check-surfaces.mjs`, `preview:local` and `lint:tokens` all exist.
+
+**The nudge sweep really does run.** `startDqAlertScheduler` is registered in `schedulers.ts` on a
+~6h timer; `APPLICATION_NUDGE_ENABLED` and `DQ_ALERTS_ENABLED` are **not set** on `@fleetguard/api`
+and both default `true`; `RUN_SCHEDULERS_IN_PROCESS` is `true` there. So the mechanism in §1.6 is
+armed. What follows is that it has not yet gone off.
+
+### ⚠ C1 — §1.6 is a LATENT defect, not live damage, and it is **not** the owner's bug
+
+Measured on production `application_invitations` (8 rows): **`nudged_while_with_office = 0`**. Three
+invitations have ever been nudged and none of them was with the office or approved at the time.
+
+And the owner's own walk rules it out directly. Their invitation is `f2b142e4…`, created
+**2026-09-17 22:14:15**, `nudged_at` **null**, `expires_at` **2026-10-01**. Neither the rotation nor
+the expiry touched it.
+
+⚠ **So the sentence "§1.6 is live and is costing you real applicants right now" was wrong, and the
+claim that it explains the owner's expired link was wrong.** The mechanism is real and will fire the
+first time an un-nudged applicant sits with the office for two days — which is every applicant, as
+soon as there is more than a trickle — so **A1 still ships, and ships early, on that reasoning alone.**
+It is cheap insurance against a certainty, not a repair of a wound.
+
+### ⚠ C2 — what actually happened to the owner, located but not explained
+
+**The ceremony ran for the first time in its life today and stopped two places short.**
+
+| | |
+|---|---|
+| Marks recorded | **20 of 22** — and 20 is every `application_packet_marks` row in production |
+| When | 2026-09-17 **22:20:45 → 22:21:08**, twenty marks in **23 seconds** |
+| Missing | **`p31a` and `p31b`** — page 31, the owner-operator leased-driver agreement, signed once as driver and once as owner-operator. They are the LAST two in page order |
+| Filed | **no** — `submitted_at` null, no `documents` row |
+| Initials recorded | **`M`** on p05/p06/p09 — §1.4's defect, in production data |
+
+Both missing stops are genuine driver placements, both have mark geometry, and the server's own
+refusal list has nothing that should reject them. ⚠ **Why they did not record is NOT established, and
+is deliberately not guessed at here.**
+
+Two things about that are certain and both are worse than the unknown cause:
+
+1. **A failed mark is a permanent dead end.** `usePacketCeremony.sign()` only advances `index` on a
+   201; every other outcome sets `error` and leaves the driver on the same stop for ever, reading
+   *"That did not go through."* There is no skip, no retry-later, no way past.
+2. ⚠ **Nothing records a refused mark.** The one run of this ceremony that has ever mattered left no
+   diagnosis anywhere — not a log line, not a row. That is why this section cannot say what happened.
+
+**This is now A0, and it goes before everything.** See §9.
+
+### ⚠ C3 — "production holds 0 packet marks" is out of date
+
+It holds **20**. §0 and §2 both said 0 and both were true until 22:20 today.
+
+⚠ **The freeze window is still open**, and the nuance matters: `ensureApplicationPdf` renders and
+hashes at **filing**, not at marking, and this application was never filed. So how the packet prints
+is still free to change. But there is now a half-signed ceremony in production that will file with
+whatever the code says on the day it completes.
+
+### ⚠ C4 — A2 conflated two different switches, and would have been built wrong
+
+§9's A2 warned *"keep `render.ts` — an application with 0 marks must still render as the summary"*.
+That is **D-PKT5's rule for the FILED document** and it is correct there. It is wrong for the
+preview, and applying it there would have produced a step that could never do anything:
+
+**a preview happens before signing, so a preview always has zero marks.** Under a marks-based switch
+the office's preview would render the §391.21 summary for ever — exactly the defect A2 exists to fix.
+
+**The preview renders `packetFieldFill` + `renderPacketOverlay` with `marks: []`**, banded DRAFT.
+Blank signature lines on a draft-banded preview are correct: that is what the paper looks like before
+anybody signs it. `render.ts` stays, untouched, for already-filed records only.
+
+### ⚠ C5 — cite symbols, not line numbers
+
+`preview.ts:105`, `file.ts:97` and `packetOverlay.ts:172` had all drifted by the time they were
+re-checked, the same day they were written. Only `applicationNudge.ts:32` still landed.
+
+**Every citation in these plans should name the function**, not the line — `preview.ts`'s
+`applicationPreviewPdf`, `file.ts`'s `renderFiledDocument`, `packetOverlay.ts`'s `renderPacketOverlay`
+mark loop. A line number in a document a fresh chat follows is a wrong answer with a short half-life.
+
+### ⚠ C6 — two component paths in `HIRING-UI-PLAN.md` §1 were wrong
+
+`SlideOver.vue` and `TablePagination.vue` live in **`apps/web/src/components/`**, not
+`apps/web/src/components/ui/`. Corrected there.
+
+### ⚠ C7 — the next migration is 0345
+
+`0344_tms_dispatchers.sql` is on `origin/main` and applied in production. A checkout sitting on an
+older branch shows `0343` as the head and would compute `0344` — which is taken. **Branch from
+`origin/main`** (§0 rule 2) and re-check the head before numbering anything.
 
 ---
 
@@ -207,8 +314,8 @@ Read off the code and the production database, 2026-09-15/17. Not estimated.
 | Application form, 8 screens | **Live.** 1 application filed, ever (2026-09-14) |
 | E-sign consent + 4 authorizations | **Live.** Defaults serve; `org_disclosures` is empty and every gate is open |
 | Office review + edit + approve | **Live** (F4), previewing the wrong document (§1.1) |
-| 22-place packet ceremony | **Live and never run.** `application_packet_marks` = **0** rows in production |
-| Carrier packet renderer, 31 pages | **Live and never run.** Geometry measured by hand; template is a repo asset |
+| 22-place packet ceremony | **Live, run once, stopped at 20 of 22** (§1a C2). Those 20 are every mark in production |
+| Carrier packet renderer, 31 pages | **Live and never run** — nothing has been filed through it. Geometry measured by hand; template is a repo asset |
 | Hire handoff, applicant → driver → DQF | **Live** (H8, `hireHandoff.ts`) |
 | PSP order + record | **Live.** 1 `psp_requests` row in all of production |
 | `qualification_records.kind` slots | `mvr`, `annual_mvr_review`, `road_test`, `cdl_equivalency`, `clearinghouse_full`, `clearinghouse_limited`, `eldt`, `drug_test`, `psp_report`, … **all exist since 0217** |
@@ -545,7 +652,8 @@ separate ordering — this is the ordering.**
 Each step is one PR. `∥` means it may run in a different chat at the same time as its neighbours,
 because it touches no file an unfinished neighbour touches. Sizes are a rough half-day / day / more.
 
-⚠ **Read §0 before starting any of them**, and append to §10 rather than ticking a row here.
+⚠ **Read §0 before starting any of them**, then **§1a**, which corrects seven claims made earlier in
+this document. Append to §10; never tick a row here.
 
 ### The sequencing insight, which is what makes this fast
 
@@ -561,15 +669,19 @@ coupling accumulates.
 
 ---
 
-### Wave A · repair the application — nothing waits for this, and it is live damage
+### Wave A · repair the application
+
+⚠ **A0 goes first and everything else waits behind it**, because it is the only step that can tell us
+why the owner's walk stopped — and every later step in this wave changes files that walk touches.
 
 | | Step | Build | Verify | Done when |
 |---|---|---|---|---|
-| **A1** ∥ | **Stop the nudge rotating a live link** · half day | `applicationNudgeSweep.ts` `candidates()` — exclude `review_requested_at`/`approved_at`. ⚠ The rule belongs in `packages/shared/src/applicationNudge.ts`'s `planApplicationNudges`, beside `STALE_DRAFT_HOURS`, not in the query, so it is testable without a database | `pnpm --filter @silvicom/shared test`; mutate the new predicate and watch a test go red | **An applicant whose application has been with the office for a week still has a working link.** Pin it with a candidate whose `draft_updated_at` is 10 days old and `approved_at` set |
-| **A2** ∥ | **One document, not two** · half day | `applicationPdf/preview.ts` → `renderPacketDocument`. ⚠ Keep `render.ts` (D-PKT5): an application with **0 marks** must still render as the summary, or the preview is 31 blank signature lines | `pnpm --filter @silvicom/api test`; then render both and `pdftoppm -r 110 -png` — **look at them** | **The office's preview and the driver's filing are the same document.** Pinned by a test that renders both paths from one payload and compares page counts |
-| **A3** ∥ | **The drawn mark's four defects** · day | `packetOverlay.ts:172` — read `mark.signedName` for `mark === "initials"` **before** the `if (drawn)` branch; `usePacketCeremony.ts:158–165` — surface the staging failure instead of swallowing it; `PacketCeremony.vue` — preview the drawing in drawn mode | `pnpm --filter @silvicom/web test`; rasterise a packet signed by drawing and look at p05/p06/p09 | **A driver who draws gets their drawing on the signature lines and their typed initials on the initials lines, and is told if the drawing did not upload** |
+| **A0** | **Find out why the ceremony stopped at 20 of 22** · half day. **FIRST** | Two halves, both small. (a) **Telemetry**: log the refusal in `recordPacketMark` — code, placement, invitation — so a refused mark leaves a trace; today it leaves none (§1a C2). (b) **Reproduce**: walk a fresh invitation in the **QA org** to `p31a` and read the response. ⚠ Do not walk it in Silvicom — a second half-signed ceremony helps nobody | the QA walk itself; then `grep` the Railway logs for the refusal line | **The reason `p31a` did not record is written into §10 as a sentence, with the response code.** If it reproduces, the fix is a second PR; if it does not, that is also an answer and gets recorded |
+| **A1** ∥ | **Stop the nudge rotating a link that is with the office** · half day | `applicationNudgeSweep.ts` `candidates()` — exclude `review_requested_at`/`approved_at`. ⚠ The rule belongs in `packages/shared/src/applicationNudge.ts`'s `planApplicationNudges`, beside `STALE_DRAFT_HOURS`, not in the query, so it is testable without a database. ⚠ **This is insurance, not a repair** (§1a C1): measured, it has never fired — and it becomes a certainty the moment more than a trickle of applicants sit with the office for two days | `pnpm --filter @silvicom/shared test`; mutate the new predicate and watch a test go red | **An applicant whose application has been with the office for a week still has a working link.** Pin it with a candidate whose `draft_updated_at` is 10 days old and `approved_at` set |
+| **A2** ∥ | **One document, not two** · half day | `applicationPreviewPdf` renders `packetFieldFill` + `renderPacketOverlay` with **`marks: []`**, banded DRAFT. ⚠ **Do NOT reuse `renderFiledDocument`'s marks-based switch** (§1a C4): a preview happens before signing, so it always has zero marks, and a marks-based switch would render the summary for ever — the exact defect this step exists to fix. Blank signature lines on a draft-banded preview are correct. `render.ts` stays untouched, for already-filed records only | `pnpm --filter @silvicom/api test`; then render both and `pdftoppm -r 110 -png` — **look at them** | **The office's preview and the driver's filing are the same document.** Pinned by a test that renders both paths from one payload and compares page counts |
+| **A3** ∥ | **The drawn mark's four defects** · day | `renderPacketOverlay`'s mark loop — read `mark.signedName` for `mark === "initials"` **before** the `if (drawn)` branch; `usePacketCeremony.adopt()` — surface the staging failure instead of swallowing it; `PacketCeremony.vue` — preview the drawing in drawn mode | `pnpm --filter @silvicom/web test`; rasterise a packet signed by drawing and look at p05/p06/p09 | **A driver who draws gets their drawing on the signature lines and their typed initials on the initials lines, and is told if the drawing did not upload** |
 | **A4** | **Initials stop pinning on one keystroke** · half day | `usePacketCeremony.ts` — confirm step before the first mark, editable until it lands. ⚠ Do not raise the contract's `min(1)`: somebody with one legal name has one initial. The defect is the **pin**, not the minimum | web tests; mutate the confirm gate | **A driver can correct a mistyped initial before it is fixed for the document** · *after A3 — same files* |
-| **A5a** ∥ | **Migration: a second sign-token hash** · half day | Next-numbered migration adding `sign_token_hash` to `application_invitations`. ⚠ Column only — **no reader in this PR** (`lint:migration-ordering`). Commit the regenerated `schema.generated.sql` | `pnpm lint`; the PGlite matrix | **The column exists in production and nothing reads it** |
+| **A5a** ∥ | **Migration: a second sign-token hash** · half day | Next-numbered migration — ⚠ **0345**, not 0344 (§1a C7) — adding `sign_token_hash` to `application_invitations`. ⚠ Column only — **no reader in this PR** (`lint:migration-ordering`). Commit the regenerated `schema.generated.sql` | `pnpm lint`; the PGlite matrix | **The column exists in production and nothing reads it** |
 | **A5b** | **A fresh link in the approval email** · day | `applicationApprovalNotice.ts` mints a new token into `sign_token_hash` and sends it; `applicationIntake.ts` `resolveInvitation` accepts **either** hash. ⚠ Q-AX4's objection dissolves here — the old link keeps working, so nothing is stranded | api tests; a refused-send test asserting the approval still commits | **An approved applicant gets an email with a link that opens the signing screen, and their old link still works** · *after A5a, separate merge* |
 
 ### Wave B · the fold, the artifact, the surface
@@ -632,6 +744,14 @@ every time.
   so it is buildable on day one in its own chat**, in parallel with every repair in Wave A, and
   everything in Waves B–C consumes it. Wave D then parallelises almost completely because each of
   its steps extends that one fold and nothing else. **Nothing built.**
+- **2026-09-17, verification pass** — §1a added: every claim in §1 and §2 re-checked against the code,
+  the production Railway variables and the production database. **Seven corrections, C1–C7.** The two
+  that change work: **C1** — the nudge/office collision has never fired (`nudged_while_with_office =
+  0`) and is **not** the owner's bug, so A1 is insurance rather than a repair; **C2** — the ceremony
+  ran for the first time today, recorded **20 of 22** marks in 23 seconds, stopped at `p31a`/`p31b`,
+  and **left no trace of why**, which is now **A0** and goes first. **C4** caught a step that would
+  have been built wrong: a preview always has zero marks, so the filing's marks-based switch cannot
+  be reused there. **Nothing built.**
 
 ---
 

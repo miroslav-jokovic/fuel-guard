@@ -28,8 +28,10 @@ Read `apps/web/CLAUDE.md` before touching anything. The rules most relevant here
 
 **Primitives.** `@silvicom/ui` for `AppButton`/`AppCard`/`AppInput`/`AppTabs`/`AppSegmentedControl`/
 `AppCombobox`/`AppBadge`; `@/components/ui/` for the web composites — `DataTable`, `PageHeader`,
-`FilterBar`, `FilterSelect`, `DataWorkspace`, `StatCard`, `ExplainerPanel`, `SlideOver`,
-`FileDropzone`, `TimelineRail`. ⚠ **A local clone of a shared primitive fails `lint:ui-adoption`**, and
+`FilterBar`, `FilterSelect`, `DataWorkspace`, `StatCard`, `ExplainerPanel`, `FileDropzone`,
+`TimelineRail`. ⚠ **`SlideOver.vue` and `TablePagination.vue` are one level up, in
+`apps/web/src/components/`** — verified 2026-09-17, and the plan had both in `ui/` (§1a C6 of the
+parent). ⚠ **A local clone of a shared primitive fails `lint:ui-adoption`**, and
 a raw `<button>` in pages or features fails it with zero tolerance.
 
 **Tokens.** Semantic only. `pnpm --filter web lint:tokens` fails a raw palette utility, a hex, an
