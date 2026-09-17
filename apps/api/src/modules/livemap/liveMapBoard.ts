@@ -22,7 +22,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   deriveVehicleState,
-  positionAgeSeconds,
+  secondsSince,
   ENGINE_ON_BOUND_SECONDS,
   FUEL_FRESH_SECONDS,
   OFFLINE_BOUND_SECONDS,
@@ -120,7 +120,7 @@ export async function readLiveMapBoard(
       state,
       // `?? 0` is unreachable — `sampled_at` is NOT NULL in 0341 and the row came from that table —
       // but the contract says number and a cast would be a lie the type system stops checking.
-      ageSeconds: Math.round(positionAgeSeconds(p.sampled_at, now) ?? 0),
+      ageSeconds: Math.round(secondsSince(p.sampled_at, now) ?? 0),
       /**
        * `Q-LM20`, item 8. Carried verbatim from the roster's interface, with NO age computed here
        * and none folded into the fix's.

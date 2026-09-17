@@ -1,16 +1,11 @@
 import { describe, it, expect } from "vitest";
-import type { LiveMapBoard, LiveMapVehicle } from "@silvicom/shared";
+import type { LiveMapVehicle } from "@silvicom/shared";
 import {
   ICON_NAMES,
   MAP_STATES,
-  boardSummarySentence,
-  engineOnBoundSentence,
   filterVehicles,
-  formatAge,
   iconNameFor,
-  offlineBoundSentence,
   STATE_COLOR_CLASS,
-  rowMetric,
   scopeToViewport,
   stateCounts,
   toFeatureCollection,
@@ -144,49 +139,7 @@ describe("stateCounts", () => {
   });
 });
 
-describe("formatAge", () => {
-  it("reads in the unit the number deserves", () => {
-    expect(formatAge(2)).toBe("2s ago");
-    expect(formatAge(59)).toBe("59s ago");
-    expect(formatAge(240)).toBe("4m ago");
-    expect(formatAge(7200)).toBe("2h ago");
-    // The seven `active` trucks whose telematics stopped more than a week ago — a fleet problem the
-    // map is for surfacing, and unreadable as "1468800s ago".
-    expect(formatAge(17 * 86_400)).toBe("17d ago");
-  });
-});
 
-describe("offlineBoundSentence", () => {
-  /**
-   * ⚠ The legend must READ the bound rather than restate it. `bounds` is on the response precisely
-   * so no component holds a second copy, and a hard-coded "15 minutes" is wrong the day it is
-   * retuned — so this asserts against a bound that is NOT the production one.
-   */
-  it("says the bound the response sent, not the one in production today", () => {
-    const bounds: LiveMapBoard["bounds"] = {
-      stoppedSpeedMph: 3,
-      engineOnBoundSeconds: 30,
-      offlineBoundSeconds: 1_800,
-      fuelFreshSeconds: 900,
-    };
-    expect(offlineBoundSentence(bounds)).toBe("No fix for over 30 min");
-  });
-
-  /**
-   * Its sibling, untested until `Q-LM19` gave both of them a renderer — they had been exports with
-   * no call site since D-DR25 dropped DR5's legend, which is how D-LM9b's own text left the page
-   * without anything failing.
-   */
-  it("says the engine-on seam from the response too", () => {
-    const bounds: LiveMapBoard["bounds"] = {
-      stoppedSpeedMph: 3,
-      engineOnBoundSeconds: 45,
-      offlineBoundSeconds: 900,
-      fuelFreshSeconds: 900,
-    };
-    expect(engineOnBoundSentence(bounds)).toBe("Not moving, heard from within 45s");
-  });
-});
 
 /**
  * The orderings the rail offers instead of the dock's sortable column headers (D-DR25).
@@ -242,39 +195,6 @@ describe("sortVehicles", () => {
   });
 });
 
-describe("rowMetric", () => {
-  /**
-   * The rail's right-hand slot (D-LM20). The owner's item 2 was "show SPEED per truck, not '3s ago'",
-   * and D-LM10 requires the fix age to stay visible per truck — these are the cases where the two
-   * meet, so neither can be quietly traded for the other later.
-   */
-  it("shows the speed while the feed is keeping up, which is what a reader can act on", () => {
-    expect(rowMetric(vehicle({ ageSeconds: 5 }))).toEqual({ text: "62 mph", kind: "speed" });
-  });
-
-  it("shows a stopped truck's nought, because the badge says stopped and the number says how stopped", () => {
-    expect(rowMetric(vehicle({ state: "stopped", ageSeconds: 8, position: { ...vehicle().position, speedMph: 0 } })))
-      .toEqual({ text: "0 mph", kind: "speed" });
-  });
-
-  it("shows the AGE once the fix is stale, because a speed read off an old fix is a lie with a number on it", () => {
-    // `moving` only asks that the fix is inside the fifteen-minute offline bound, so a truck can be
-    // moving with a fix nobody has refreshed in twenty minutes. That row must not read "62 mph".
-    expect(rowMetric(vehicle({ state: "moving", ageSeconds: 1_200 }))).toEqual({ text: "20m ago", kind: "age" });
-  });
-
-  it("shows the age for a ping that carried no speed, rather than inventing a nought", () => {
-    // `speedMph` is nullable in `vehicle_positions` and absent is NOT zero (0341's column is nullable
-    // for exactly this).
-    expect(rowMetric(vehicle({ ageSeconds: 4, position: { ...vehicle().position, speedMph: null } })))
-      .toEqual({ text: "4s ago", kind: "age" });
-  });
-
-  it("puts the seam at twice the worst fix interval measured on this fleet, not at a round minute", () => {
-    expect(rowMetric(vehicle({ ageSeconds: 30 })).kind).toBe("speed");
-    expect(rowMetric(vehicle({ ageSeconds: 31 })).kind).toBe("age");
-  });
-});
 
 /**
  * The rail's one-line foot (`Q-LM19`, the owner's item 6) — and the two decisions it had to keep.
@@ -284,51 +204,7 @@ describe("rowMetric", () => {
  * the `mine` case, typing "5s" instead of reading `pollSeconds` fails the cadence case, and dropping
  * the `shown === total` branch fails the plain-total case.
  */
-describe("boardSummarySentence", () => {
-  const FLEET = { shown: 171, total: 171, scope: "all", pollSeconds: 5 } as const;
 
-  /** The owner's item 6: "171 of 171 shown" is a fraction whose halves are equal. */
-  it("says a plain total when nothing is filtered out", () => {
-    expect(boardSummarySentence(FLEET)).toBe("171 trucks in the fleet · refreshes every 5s");
-  });
-
-  it("keeps the fraction when the list IS narrowed, which is the case it was written for", () => {
-    expect(boardSummarySentence({ ...FLEET, shown: 42 })).toBe(
-      "42 of 171 trucks in the fleet · refreshes every 5s",
-    );
-  });
-
-  it("does not say '1 trucks'", () => {
-    expect(boardSummarySentence({ ...FLEET, shown: 1, total: 1 })).toContain("1 truck in the fleet");
-    expect(boardSummarySentence({ ...FLEET, shown: 1 })).toContain("1 of 171 trucks in the fleet");
-  });
-
-  /**
-   * D-LM18 survives item 6 as the clause the count ends in. A dispatcher reading "171 trucks" alone
-   * cannot tell whose trucks they are, which is the misreading D-LM18 exists to prevent — so the
-   * count is never allowed to stand without it.
-   */
-  it("says whose trucks the count is counting, in the same sentence as the count (D-LM18)", () => {
-    expect(boardSummarySentence(FLEET)).toContain("in the fleet");
-  });
-
-  /**
-   * ⚠ `mine` has never been in force — D-LM18 ships the board fleet-wide until McLeod grants the
-   * dispatcher relation. This is pinned anyway, because the failure it guards against is a sentence
-   * that still reads "in the fleet" on the day a dispatcher IS scoped, which no one would notice
-   * from the rail and which would be exactly the lie D-LM18 forbids.
-   */
-  it("changes the clause with the scope rather than describing every board as the fleet", () => {
-    expect(boardSummarySentence({ ...FLEET, shown: 12, total: 60, scope: "mine" })).toBe(
-      "12 of 60 trucks assigned to you · refreshes every 5s",
-    );
-  });
-
-  /** D-LM9b: the cadence is the caller's `LIVE_MAP_POLL_MS`, never a typed number. */
-  it("takes the cadence from the poll it is given", () => {
-    expect(boardSummarySentence({ ...FLEET, pollSeconds: 30 })).toContain("refreshes every 30s");
-  });
-});
 
 describe("scopeToViewport", () => {
   /**

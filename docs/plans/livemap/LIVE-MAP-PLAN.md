@@ -2539,3 +2539,58 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   The contract change is also its own impact report — making `fuel` REQUIRED and nullable (rather
   than optional) turned every board fixture in the repo into a compile error, which is the list of
   everybody who constructs one.
+- **2026-09-17 — item 8's fuel half is on the card, under (b′): D-LM27.** The API half (D-LM26) was
+  deployed to BOTH Railway services before a line of this merged — `fleetguardapi` and
+  `fleetguardweb` were watched to `e16008a` rather than assumed, which is the whole of the
+  deploy-window discipline applied to an API change instead of a migration.
+
+  **What the card says, and the one place it is decided:**
+
+      Fuel   68%                    ← reading inside `bounds.fuelFreshSeconds`
+      Fuel   44% · read 3d ago      ← past it
+      Fuel   —                      ← this truck has never reported a level
+
+  **Why the number STAYS when it is old, which is where this parts company with `rowMetric`.**
+  D-LM20 makes the rail's one slot CHOOSE — the speed while the feed keeps up, the age the moment it
+  stops — because a speed read off a twenty-minute-old fix is a lie with a number on it. A tank is
+  not like that: **it only changes while the engine burns from it**, so an hours-old reading is
+  unconfirmed rather than wrong. Copying `rowMetric` literally (candidate (b)) would blank the figure
+  on the 24% of live-fix trucks whose fuel is over an hour old and on every parked truck — most of
+  the reason a dispatcher opens the card. So the rule is the same (the response decides what fresh
+  means; the reader is told which they are looking at) and the truncation is not. The card is a `<dl>`
+  with room for a value AND a qualifier; the rail's slot has room for one, which is why fuel is not
+  in the rail.
+
+  ⚠ **The tank's age is derived in the browser, and that does NOT break D-LM10.** What D-LM10 forbids
+  is `Date.now() - sampledAt` — a second clock on the same screen as the first. `generatedAt` and
+  `fuel.at` both arrive in one response, so subtracting them cannot be wrong by whatever the reader's
+  laptop disagrees with the server by. The FIX age stays server-computed because `deriveVehicleState`
+  needs it there anyway; the tank has no server-side reader.
+
+  ⚠ **`positionAgeSeconds` is now `secondsSince`.** The second caller is what generalised the name:
+  a tank aged by a function named for a position is a double-take at every call site. Same precedent
+  as `STOPPED_SPEED_MPH` leaving `matchFuelingMoment` when its second user appeared. Pure rename, no
+  behaviour, safe in either deploy order.
+
+  ⚠ **`LiveMapVehicleDrawer.vue` is DELETED, and it had been dead since D-DR24.** The card's own
+  header said "ONE SET OF FACTS, TWO CONTAINERS" and named the drawer as the document form — but
+  D-DR24 deleted `/live-map` and `LiveMapPanel.vue` a fortnight ago and left the drawer importable by
+  nobody. It surfaced here because the card gained a required `board` prop and the choice was to
+  thread it through a component no route mounts, or to admit the component is gone. Nothing imported
+  it; no test covered it.
+
+  **Measured by looking, at compact density in the floating panel**: the stale string is one line at
+  139px, and so is the worst case this data can produce — `100% · read 492d ago`, 492 days being the
+  oldest reading in the database. Walked in light and dark across all three states. **Proved by
+  mutation**, each run and reverted: hiding the percentage past the bound fails 3 tests, comparing
+  against a literal 900 instead of `bounds.fuelFreshSeconds` fails 1, returning a percentage for an
+  unreadable timestamp fails 1, and a card that stops rendering the tank fails 2.
+
+  ⚠ **The size gate forced a split, and the seam it forced was already there.** `fuelMetric` took
+  `liveMapLayer.ts` to 527 lines, past the 500 budget. The file now divides along a line that had
+  been implicit since DR5: **`liveMapLayer.ts` turns board data into GEOMETRY** (icons, a
+  `FeatureCollection`, a rectangle, a filtered and sorted list) and **`liveMapWords.ts` turns it into
+  ENGLISH** (`formatAge`, `rowMetric`, `fuelMetric`, the scope sentence, the two bound sentences).
+  Nothing in the words file knows what a marker is; nothing in the layer formats a string a person
+  reads. The tests moved with their module rather than staying in one file that covers two — 334 and
+  209 lines of source, 276 and 237 of test.

@@ -230,6 +230,26 @@ describe("LiveMapWorkspace (DR5)", () => {
     expect(details.text()).toContain("Not moving, heard from within 900s");
   });
 
+  /**
+   * `Q-LM20` on the surface a dispatcher reads, and the case that is a quarter of this fleet: a
+   * truck whose POSITION is seconds old and whose TANK was last reported days ago. The card must
+   * keep the number — an unburnt tank does not stop being true — and say how old it is, in the same
+   * panel where the fix reads "12s ago". The two ages are independent and both are on screen.
+   */
+  it("says a live truck's tank is old when it is, without hiding the level (Q-LM20)", async () => {
+    board.data.value = {
+      ...BOARD,
+      vehicles: [{ ...BOARD.vehicles[0]!, fuel: { percent: 41, at: "2026-09-13T12:00:00.000Z" } }],
+    };
+    const wrapper = await mountWorkspace();
+    await wrapper.findComponent({ name: "LiveMapCanvas" }).vm.$emit("select", "veh-1");
+    await wrapper.vm.$nextTick();
+    const card = wrapper.find('[aria-label="Unit 47"]');
+    expect(card.text()).toContain("41% · read 3d ago");
+    // …and the FIX age is untouched by it. One is the GPS feed, the other the ECU.
+    expect(card.text()).toContain("Fix 12s ago");
+  });
+
   it("derives the freshness sentence from the poll interval rather than typing it (D-LM9b)", async () => {
     const wrapper = await mountWorkspace();
     expect(wrapper.text()).toContain("refreshes every 5s");
@@ -245,6 +265,9 @@ describe("LiveMapWorkspace (DR5)", () => {
     const card = wrapper.find('[aria-label="Unit 47"]');
     expect(card.exists()).toBe(true);
     expect(card.text()).toContain("62 mph (engine)");
+    // `Q-LM20`: the tank is on the card, and this fixture's reading is inside the bound.
+    expect(card.text()).toContain("68%");
+    expect(card.text()).not.toContain("read");
     expect(card.text()).toContain("Gary, IN");
     expect(card.text()).toContain("Jordan Ellis");
 
