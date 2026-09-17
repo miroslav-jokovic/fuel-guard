@@ -9,6 +9,7 @@ import {
   iconNameFor,
   offlineBoundSentence,
   rowMetric,
+  scopeToViewport,
   stateCounts,
   toFeatureCollection,
   sortVehicles,
@@ -267,5 +268,36 @@ describe("fleetTotalSentence", () => {
   it("does not say '1 trucks'", () => {
     expect(fleetTotalSentence(1, 1)).toBe("1 truck");
     expect(fleetTotalSentence(1, 171)).toBe("1 of 171 trucks");
+  });
+});
+
+describe("scopeToViewport", () => {
+  /**
+   * The owner's item 7 (D-LM23). What is pinned here is the SCOPE, which is a different thing from
+   * the filters — see `useLiveMapView` for why the census counts this and not `filtered`.
+   */
+  const CHICAGO = { west: -88, south: 41, east: -87, north: 42 };
+  const inside = vehicle({ vehicleId: "in", position: { ...vehicle().position, lat: 41.8, lng: -87.6 } });
+  const outside = vehicle({ vehicleId: "out", position: { ...vehicle().position, lat: 34.0, lng: -118.2 } });
+
+  it("keeps only the trucks the camera can see", () => {
+    expect(scopeToViewport([inside, outside], CHICAGO).map((v) => v.vehicleId)).toEqual(["in"]);
+  });
+
+  it("treats null as OFF and hands back every truck, rather than as an empty rectangle", () => {
+    // A map that has not reported its bounds yet would otherwise blank the fleet for a frame, which
+    // reads as a broken board rather than as a filter waiting for a camera.
+    expect(scopeToViewport([inside, outside], null)).toHaveLength(2);
+  });
+
+  it("excludes a truck that is outside on LATITUDE alone", () => {
+    // The first draft compared longitude only, which passes everything on a fleet running east-west.
+    const north = vehicle({ vehicleId: "n", position: { ...vehicle().position, lat: 48.0, lng: -87.6 } });
+    expect(scopeToViewport([north], CHICAGO)).toHaveLength(0);
+  });
+
+  it("counts a truck exactly on the edge as visible, because it is drawn on screen", () => {
+    const edge = vehicle({ vehicleId: "e", position: { ...vehicle().position, lat: 42, lng: -88 } });
+    expect(scopeToViewport([edge], CHICAGO)).toHaveLength(1);
   });
 });

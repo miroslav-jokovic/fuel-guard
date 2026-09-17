@@ -155,6 +155,47 @@ export interface LiveMapFilters {
 export const EMPTY_FILTERS: LiveMapFilters = { states: [], search: "" };
 
 /**
+ * A rectangle of the world, in the shape `maplibregl.LngLatBounds` already answers with.
+ *
+ * ⚠ SAME SHAPE as `CameraBounds` in `liveMapCamera.ts`, and the two must collapse into this one the
+ * moment both are on `main` — they arrived on separate branches of the same queue. A second bounds
+ * type is a copy with a delay fuse: the day one of them grows a `padding` the other will not have it.
+ */
+export interface MapBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+/**
+ * The trucks inside a rectangle — the owner's item 7, "only trucks in the viewport" (D-LM23).
+ *
+ * ⚠ A SEPARATE STEP FROM `filterVehicles`, not a fifth field inside it, and that is the whole design.
+ * The census has to count the population the rail is drawing FROM — the fleet normally, the viewport
+ * when the reader has asked for the viewport — while the state and search filters narrow WITHIN that
+ * population. Folding the viewport in with them would make pressing "Moving" zero the other three
+ * counts, which is what `stateCounts(vehicles)` exists to avoid.
+ *
+ * ⚠ `null` means the filter is OFF and every truck is in scope. It is not an empty rectangle: a map
+ * that has not reported its bounds yet would otherwise show an empty fleet for one frame, which reads
+ * as a broken board rather than as a filter waiting for a camera.
+ */
+export function scopeToViewport(
+  vehicles: readonly LiveMapVehicle[],
+  viewport: MapBounds | null,
+): readonly LiveMapVehicle[] {
+  if (!viewport) return vehicles;
+  return vehicles.filter(
+    (v) =>
+      v.position.lng >= viewport.west &&
+      v.position.lng <= viewport.east &&
+      v.position.lat >= viewport.south &&
+      v.position.lat <= viewport.north,
+  );
+}
+
+/**
  * ⚠ The dispatcher and load-status filters LM8 originally listed are deliberately absent.
  *
  * `tms_dispatchers` does not exist in this database — it is downstream of the McLeod

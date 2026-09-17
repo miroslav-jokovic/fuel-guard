@@ -2266,3 +2266,41 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   `aria-current` alone and the trigger carries the visual answer. Six tests, three **proved by
   mutation**: restoring the permanent row fails five, a trigger that stops naming the basemap fails
   the one about hiding, and a fourth Day/Night entry fails two.
+- **2026-09-17 — D-LM23: "only trucks in view" is a SCOPE, and the census follows it (item 7).** The
+  rail gains a toggle beside the census; when it is on, the list and the four counts describe what
+  the map is showing rather than the fleet.
+
+  **The order is the design, and it is why this is not a fourth field inside `filters`.** The census
+  counts `scoped`; the list shows `filtered`. Pressing "Moving" therefore narrows the list without
+  touching the four numbers beside it, which is what makes the census usable as a filter at all —
+  fold the viewport in with the others and the census counts its own output, so every press zeroes
+  the other three.
+
+  ⚠ **Q from the handoff, RULED: the census FOLLOWS the viewport.** A count on a button has to
+  describe what pressing that button gives you; a rail scoped to Chicago showing "Offline 34" for a
+  fleet-wide 34 is a button lying about its own effect. The cost is real and is stated rather than
+  hidden — a dispatcher zoomed into one metro reads "Offline 0" and could take it for the fleet — and
+  the foot's total is what keeps it honest: it says "12 of 199 trucks", so the 187 the counts exclude
+  are on screen as a number beside them. The rail is therefore passed `vehicles` (the whole fleet,
+  for that denominator) and `counts` (already scoped), not one list doing both jobs.
+
+  ⚠ `moveend` and not `move`. The map is in motion for the whole of a selection animation and for
+  every frame of a drag, so `move` would re-filter the rail sixty times a second and hand two hundred
+  rows to Vue on each — the list would shimmer while the hand was still down.
+
+  ⚠ The canvas emits its bounds ON LOAD as well as on every settle, and the toggle switches on using
+  the bounds already reported. Over a still map there is no next `moveend`, so without both halves
+  the filter would appear to do nothing until the reader happened to pan.
+
+  ⚠ A selected truck's card SURVIVES panning away from it — `selected` resolves against the whole
+  board, not the scope. The panel answers "what is 204 doing", and that does not stop being true
+  because the camera moved; it would also flicker, since `moveend` fires on every pan.
+
+  ⚠ **A third empty state, and it was found by WALKING the surface rather than reasoning about it.**
+  Zoom into open country with the toggle on and the rail emptied under "No trucks match these
+  filters" — which sends a reader hunting through a census where nothing is pressed. The camera is
+  the filter in that case, so the sentence names the camera and both ways out of it. Eleven tests,
+  five **proved by mutation**: counting `filtered` instead of `scoped` fails the census-independence
+  case, counting `vehicles` fails the follows-the-viewport case, resolving `selected` against the
+  scope fails the panned-away case, treating `null` as an empty rectangle fails the off case, and one
+  empty sentence for both fails the camera case.
