@@ -7,6 +7,16 @@ import {
   type DriverKeyRow,
 } from "./entityLookup.js";
 import {
+  applyCancels,
+  applyOverwrites,
+  insertCreates,
+  stampExternalStatus,
+  writeEvents,
+  writePayloads,
+  writeStops,
+  type EventRow,
+} from "./tmsLoadIngestWriters.js";
+import {
   AMENDABLE_LOAD_FIELDS,
   tmsMayOverwrite,
   type LoadStatus,
@@ -31,6 +41,12 @@ import {
  *      would change an approved load writes an `amended` event carrying the diff, for a human to
  *      apply or dismiss. Silently overwriting an approved load is how a driver ends up at the wrong
  *      dock holding paperwork nobody can reconcile.
+ *
+ * SHAPE (L11, 2026-09-17): this runs in two phases — **classify every load purely and in memory,
+ * then issue one statement per table**. It used to interleave decisions with writes, six round trips
+ * per load, which measured 52.1 seconds for a 157-load board. The classification is where rule 2
+ * lives, so it is deliberately computed BEFORE any write: a bulk write that decided ownership as it
+ * went is exactly how an approved load would get overwritten. See `tmsLoadIngestWriters.ts`.
  */
 
 /**
@@ -58,37 +74,6 @@ export interface LoadIngestResult {
   /** Match keys (unit numbers / employee ids) we could not resolve — reported, never silently dropped. */
   unmatched: string[];
   results: TmsLoadResult[];
-}
-
-/**
- * Record what the TMS said (LD5). `external_status` goes on the load — it is a status word, safe for
- * a driver to see, and the field the cancellation path reads; the payload goes in
- * `load_external_payloads`, which drivers cannot read at all, because a McLeod order carries rates.
- *
- * Best-effort on purpose: provenance is evidence about an ingest, and losing it must never fail the
- * ingest itself. A load that arrived is worth more than the record of how it arrived.
- */
-async function writeProvenance(
-  admin: SupabaseClient,
-  orgId: string,
-  loadId: string,
-  provider: string,
-  input: TmsLoadInput,
-): Promise<void> {
-  const syncedAt = new Date().toISOString();
-  const { error: loadErr } = await admin
-    .from("loads")
-    .update({ external_status: input.external_status ?? null, external_synced_at: syncedAt })
-    .eq("id", loadId)
-    .eq("org_id", orgId);
-  if (loadErr) console.error(`[tms-loads] external_status not recorded for ${loadId}: ${loadErr.message}`);
-
-  if (!input.raw) return;
-  const { error } = await admin.from("load_external_payloads").upsert(
-    { load_id: loadId, org_id: orgId, provider, raw: input.raw, synced_at: syncedAt },
-    { onConflict: "load_id" },
-  );
-  if (error) console.error(`[tms-loads] payload not recorded for ${loadId}: ${error.message}`);
 }
 
 async function lookup(
@@ -137,112 +122,62 @@ interface ExistingLoad {
   trailer_id: string | null;
 }
 
-/** Write the append-only timeline entry. Best-effort — never fails an ingest batch. */
-async function event(
-  admin: SupabaseClient,
-  orgId: string,
-  loadId: string,
-  kind: string,
-  payload: Record<string, unknown>,
-  fromStatus?: string,
-  toStatus?: string,
-): Promise<void> {
-  const { error } = await admin.from("load_events").insert({
-    org_id: orgId,
-    load_id: loadId,
-    actor_role: "system",
-    kind,
-    from_status: fromStatus ?? null,
-    to_status: toStatus ?? null,
-    payload,
-  });
-  if (error) console.error(`[tms] load event '${kind}' failed: ${error.message}`);
-}
+/**
+ * What we decided to do with one incoming load, decided before anything is written.
+ *
+ * `outcome` is the caller-facing word and is filled in here so the reported order always matches the
+ * order the feed sent, whatever order the writes then happen in.
+ */
+type Decision =
+  | { kind: "skip"; result: TmsLoadResult }
+  | { kind: "cancel"; priorId: string; from: LoadStatus; result: TmsLoadResult }
+  | { kind: "create"; input: TmsLoadInput; row: Record<string, unknown>; result: TmsLoadResult }
+  | {
+      kind: "own";
+      priorId: string;
+      input: TmsLoadInput;
+      patch: Record<string, unknown>;
+      result: TmsLoadResult;
+    }
+  | {
+      kind: "report";
+      priorId: string;
+      input: TmsLoadInput;
+      event: Record<string, unknown> | null;
+      result: TmsLoadResult;
+    };
 
-/** Replace the stops of a load the feed still owns. Never touches a stop a driver has worked. */
-async function writeStops(
-  admin: SupabaseClient,
-  orgId: string,
-  loadId: string,
-  stops: TmsLoadInput["stops"],
-): Promise<void> {
-  await admin.from("load_stops").delete().eq("load_id", loadId).eq("status", "pending");
-  if (stops.length === 0) return;
-  const { error } = await admin.from("load_stops").upsert(
-    stops.map((s) => ({
-      org_id: orgId,
-      load_id: loadId,
-      seq: s.seq,
-      kind: s.kind,
-      name: s.name,
-      address_line: s.address_line ?? null,
-      city: s.city ?? null,
-      state: s.state ?? null,
-      postal_code: s.postal_code ?? null,
-      lat: s.lat ?? null,
-      lon: s.lon ?? null,
-      appointment_start: s.appointment_start ?? null,
-      appointment_end: s.appointment_end ?? null,
-      // The feed does not know a carrier's photo policy — dispatch sets those slots. Defaults keep a
-      // driver from arriving at a shipper with nothing to capture.
-      required_photos: s.kind === "pickup" ? ["trailer", "bol"] : ["bol"],
-      notes: s.notes ?? null,
-    })),
-    { onConflict: "load_id,seq" },
-  );
-  if (error) throw new Error(error.message);
-}
-
-export async function ingestLoads(
-  admin: SupabaseClient,
+/**
+ * Decide, for every load, what happens to it — with no I/O at all.
+ *
+ * Rule 2 of the header lives in here. Because nothing is written while this runs, there is no path
+ * on which a load's ownership is re-evaluated halfway through a batch.
+ */
+function classify(
+  loads: TmsLoadInput[],
+  existing: Map<string, ExistingLoad>,
+  resolvers: { drivers: KeyResolver; vehicles: KeyResolver; trailers: KeyResolver },
+  autoApprove: boolean,
   orgId: string,
   provider: string,
-  loads: TmsLoadInput[],
-): Promise<LoadIngestResult> {
-  const [vehicles, trailers, drivers, autoApprove] = await Promise.all([
-    lookup(admin, "vehicles", orgId),
-    lookup(admin, "trailers", orgId),
-    driverLookup(admin, orgId),
-    autoApproves(admin, orgId, provider),
-  ]);
+  syncedAt: string,
+  unmatched: Set<string>,
+): Decision[] {
+  const status: LoadStatus = autoApprove ? "approved" : "pending_approval";
 
-  const unmatched = new Set<string>();
-  const results: TmsLoadResult[] = [];
-  let created = 0;
-  let amended = 0;
-  let canceled = 0;
-
-  // Everything this feed has already written for this org, so the whole batch is one lookup.
-  const { data: existingRows } = await admin
-    .from("loads")
-    .select("id, status, ref, equipment, commodity, hazmat, driver_id, vehicle_id, trailer_id, external_id")
-    .eq("org_id", orgId)
-    .eq("provider", provider)
-    .not("external_id", "is", null);
-  const existing = new Map<string, ExistingLoad>();
-  for (const r of (existingRows ?? []) as unknown as (ExistingLoad & { external_id: string })[]) {
-    existing.set(r.external_id, r);
-  }
-
-  for (const input of loads) {
+  return loads.map((input): Decision => {
     /**
      * `undefined` means the feed said NOTHING about this field — not that it was cleared. The
      * distinction matters: a sync that omits driver info would otherwise read as "dispatch's driver
      * was removed" and raise a false amendment on every poll. `null` is an explicit clear.
      */
-    const resolve = (
-      key: string | null | undefined,
-      by: KeyResolver,
-    ): string | null | undefined => {
+    const resolve = (key: string | null | undefined, by: KeyResolver): string | null | undefined => {
       if (key === undefined) return undefined;
       if (key === null) return null;
       const hit = by.get(key);
       if (!hit) unmatched.add(key);
       return hit ?? null;
     };
-    const driver_id = resolve(input.driver_employee_id, drivers);
-    const vehicle_id = resolve(input.vehicle_unit, vehicles);
-    const trailer_id = resolve(input.trailer_unit, trailers);
 
     // `undefined` is preserved throughout: it means the feed said nothing about this field, which is
     // different from clearing it. Only the insert path collapses undefined to null (a new row has
@@ -261,9 +196,9 @@ export async function ingestLoads(
       hazmat: input.hazmat,
       total_miles: input.total_miles,
       notes: input.notes,
-      driver_id,
-      vehicle_id,
-      trailer_id,
+      driver_id: resolve(input.driver_employee_id, resolvers.drivers),
+      vehicle_id: resolve(input.vehicle_unit, resolvers.vehicles),
+      trailer_id: resolve(input.trailer_unit, resolvers.trailers),
     };
     const withNulls = <T extends Record<string, unknown>>(o: T): Record<string, unknown> =>
       Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === undefined ? null : v]));
@@ -273,31 +208,30 @@ export async function ingestLoads(
     // ── cancellation upstream ────────────────────────────────────────────────
     if (input.canceled) {
       if (!prior) {
-        results.push({ external_id: input.external_id, ref: input.ref, outcome: "skipped", reason: "canceled upstream and never ingested" });
-        continue;
+        return {
+          kind: "skip",
+          result: { external_id: input.external_id, ref: input.ref, outcome: "skipped", reason: "canceled upstream and never ingested" },
+        };
       }
       if (prior.status === "canceled" || prior.status === "delivered") {
-        results.push({ external_id: input.external_id, ref: prior.ref, outcome: "unchanged" });
-        continue;
+        return { kind: "skip", result: { external_id: input.external_id, ref: prior.ref, outcome: "unchanged" } };
       }
       // A driver may already be running this. The load is canceled either way — but it becomes a
       // loud dispatch exception rather than a row that quietly vanishes off a phone mid-run (D48).
-      await admin
-        .from("loads")
-        .update({ status: "canceled", cancel_reason: "Canceled in the TMS" })
-        .eq("id", prior.id);
-      await event(admin, orgId, prior.id, "canceled", { source: "tms", provider, was: prior.status }, prior.status, "canceled");
-      canceled += 1;
-      results.push({ external_id: input.external_id, ref: prior.ref, outcome: "canceled" });
-      continue;
+      return {
+        kind: "cancel",
+        priorId: prior.id,
+        from: prior.status,
+        result: { external_id: input.external_id, ref: prior.ref, outcome: "canceled" },
+      };
     }
 
     // ── new load ─────────────────────────────────────────────────────────────
     if (!prior) {
-      const status: LoadStatus = autoApprove ? "approved" : "pending_approval";
-      const { data, error } = await admin
-        .from("loads")
-        .insert({
+      return {
+        kind: "create",
+        input,
+        row: {
           org_id: orgId,
           // `loads.hazmat` is NOT NULL DEFAULT false, so an absent value must be OMITTED and left to
           // the column default — never collapsed to null the way the nullable fields beside it are.
@@ -308,35 +242,28 @@ export async function ingestLoads(
           provider,
           external_id: input.external_id,
           status,
-          submitted_at: new Date().toISOString(),
-          ...(autoApprove ? { approved_at: new Date().toISOString() } : {}),
-        })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-
-      const id = (data as { id: string }).id;
-      await writeProvenance(admin, orgId, id, provider, input);
-      await writeStops(admin, orgId, id, input.stops);
-      await event(admin, orgId, id, "created", { source: "tms", provider, external_id: input.external_id, stops: input.stops.length }, undefined, status);
-      if (autoApprove) {
-        await event(admin, orgId, id, "approved", { source: "tms", auto: true }, "pending_approval", "approved");
-      }
-      created += 1;
-      results.push({ external_id: input.external_id, ref: input.ref, outcome: "created" });
-      continue;
+          submitted_at: syncedAt,
+          // Stamped on the insert rather than by a second UPDATE, which is one of the six round trips
+          // per load that L11 removed. Same end state.
+          external_status: input.external_status ?? null,
+          external_synced_at: syncedAt,
+          ...(autoApprove ? { approved_at: syncedAt } : {}),
+        },
+        result: { external_id: input.external_id, ref: input.ref, outcome: "created" },
+      };
     }
 
     // ── the feed still owns it: overwrite freely ─────────────────────────────
     if (tmsMayOverwrite(prior.status)) {
       // Drop the keys the feed said nothing about, so a partial sync patches rather than blanks.
       const patch = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
-      const { error } = await admin.from("loads").update(patch).eq("id", prior.id);
-      if (error) throw new Error(error.message);
-      await writeProvenance(admin, orgId, prior.id, provider, input);
-      await writeStops(admin, orgId, prior.id, input.stops);
-      results.push({ external_id: input.external_id, ref: input.ref, outcome: "updated" });
-      continue;
+      return {
+        kind: "own",
+        priorId: prior.id,
+        input,
+        patch: { ...patch, external_status: input.external_status ?? null, external_synced_at: syncedAt },
+        result: { external_id: input.external_id, ref: input.ref, outcome: "updated" },
+      };
     }
 
     // ── dispatch owns it: report, do not write (D48) ──────────────────────────
@@ -346,21 +273,21 @@ export async function ingestLoads(
       return next !== undefined && next !== now;
     });
 
-    // Even an amendment dispatch has not applied is worth recording: it is the evidence behind the
-    // banner they are about to read.
-    await writeProvenance(admin, orgId, prior.id, provider, input);
-
     if (changed.length === 0) {
-      results.push({ external_id: input.external_id, ref: prior.ref, outcome: "unchanged" });
-      continue;
+      return {
+        kind: "report",
+        priorId: prior.id,
+        input,
+        event: null,
+        result: { external_id: input.external_id, ref: prior.ref, outcome: "unchanged" },
+      };
     }
 
-    await event(
-      admin,
-      orgId,
-      prior.id,
-      "amended",
-      {
+    return {
+      kind: "report",
+      priorId: prior.id,
+      input,
+      event: {
         source: "tms",
         provider,
         changed,
@@ -372,10 +299,137 @@ export async function ingestLoads(
           ]),
         ),
       },
-    );
-    amended += 1;
-    results.push({ external_id: input.external_id, ref: prior.ref, outcome: "amended", changed: [...changed] });
+      result: { external_id: input.external_id, ref: prior.ref, outcome: "amended", changed: [...changed] },
+    };
+  });
+}
+
+export async function ingestLoads(
+  admin: SupabaseClient,
+  orgId: string,
+  provider: string,
+  loads: TmsLoadInput[],
+): Promise<LoadIngestResult> {
+  const [vehicles, trailers, drivers, autoApprove] = await Promise.all([
+    lookup(admin, "vehicles", orgId),
+    lookup(admin, "trailers", orgId),
+    driverLookup(admin, orgId),
+    autoApproves(admin, orgId, provider),
+  ]);
+
+  // Everything this feed has already written for this org, so the whole batch is one lookup.
+  const { data: existingRows } = await admin
+    .from("loads")
+    .select("id, status, ref, equipment, commodity, hazmat, driver_id, vehicle_id, trailer_id, external_id")
+    .eq("org_id", orgId)
+    .eq("provider", provider)
+    .not("external_id", "is", null);
+  const existing = new Map<string, ExistingLoad>();
+  for (const r of (existingRows ?? []) as unknown as (ExistingLoad & { external_id: string })[]) {
+    existing.set(r.external_id, r);
   }
 
-  return { received: loads.length, created, amended, canceled, unmatched: [...unmatched], results };
+  const unmatched = new Set<string>();
+  const syncedAt = new Date().toISOString();
+  const decisions = classify(
+    loads,
+    existing,
+    { drivers, vehicles, trailers },
+    autoApprove,
+    orgId,
+    provider,
+    syncedAt,
+    unmatched,
+  );
+
+  const status: LoadStatus = autoApprove ? "approved" : "pending_approval";
+  const events: EventRow[] = [];
+  const payloads: { loadId: string; raw: unknown }[] = [];
+  const stops: { loadId: string; stops: TmsLoadInput["stops"] }[] = [];
+
+  // ── loads the TMS withdrew ───────────────────────────────────────────────────
+  const cancels = decisions.filter((d): d is Extract<Decision, { kind: "cancel" }> => d.kind === "cancel");
+  await applyCancels(admin, orgId, cancels.map((c) => c.priorId));
+  for (const c of cancels) {
+    events.push({
+      org_id: orgId, load_id: c.priorId, actor_role: "system", kind: "canceled",
+      from_status: c.from, to_status: "canceled",
+      payload: { source: "tms", provider, was: c.from },
+    });
+  }
+
+  // ── new loads ────────────────────────────────────────────────────────────────
+  //
+  // Split by whether the feed spoke about `hazmat`, because PostgREST rejects a bulk insert whose
+  // rows do not share a key set — and the two shapes mean different things (see omitUndefinedHazmat).
+  // Two statements for any batch size, rather than one per load.
+  const creates = decisions.filter((d): d is Extract<Decision, { kind: "create" }> => d.kind === "create");
+  const byShape = new Map<string, Extract<Decision, { kind: "create" }>[]>();
+  for (const c of creates) {
+    const key = Object.keys(c.row).sort().join(",");
+    const bucket = byShape.get(key);
+    if (bucket) bucket.push(c);
+    else byShape.set(key, [c]);
+  }
+  const idByExternal = await insertCreates(admin, [...byShape.values()].map((g) => g.map((c) => c.row)));
+  for (const g of creates) {
+    const id = idByExternal.get(g.input.external_id);
+    if (!id) throw new Error(`[tms-loads] insert returned no id for ${g.input.external_id}`);
+    payloads.push({ loadId: id, raw: g.input.raw });
+    stops.push({ loadId: id, stops: g.input.stops });
+    events.push({
+      org_id: orgId, load_id: id, actor_role: "system", kind: "created",
+      from_status: null, to_status: status,
+      payload: { source: "tms", provider, external_id: g.input.external_id, stops: g.input.stops.length },
+    });
+    if (autoApprove) {
+      events.push({
+        org_id: orgId, load_id: id, actor_role: "system", kind: "approved",
+        from_status: "pending_approval", to_status: "approved",
+        payload: { source: "tms", auto: true },
+      });
+    }
+  }
+
+  // ── loads the feed still owns ────────────────────────────────────────────────
+  const owned = decisions.filter((d): d is Extract<Decision, { kind: "own" }> => d.kind === "own");
+  await applyOverwrites(admin, orgId, owned.map((o) => ({ loadId: o.priorId, patch: o.patch })));
+  for (const o of owned) {
+    payloads.push({ loadId: o.priorId, raw: o.input.raw });
+    stops.push({ loadId: o.priorId, stops: o.input.stops });
+  }
+
+  // ── loads dispatch owns: stamp and report, never write the load itself ───────
+  const reported = decisions.filter((d): d is Extract<Decision, { kind: "report" }> => d.kind === "report");
+  await stampExternalStatus(
+    admin,
+    orgId,
+    syncedAt,
+    reported.map((r) => ({ loadId: r.priorId, externalStatus: r.input.external_status ?? null })),
+  );
+  for (const r of reported) {
+    // Even an amendment dispatch has not applied is worth recording: it is the evidence behind the
+    // banner they are about to read.
+    payloads.push({ loadId: r.priorId, raw: r.input.raw });
+    if (r.event) {
+      events.push({
+        org_id: orgId, load_id: r.priorId, actor_role: "system", kind: "amended",
+        from_status: null, to_status: null, payload: r.event,
+      });
+    }
+  }
+
+  await writeStops(admin, orgId, stops);
+  await writePayloads(admin, orgId, provider, syncedAt, payloads);
+  await writeEvents(admin, events);
+
+  return {
+    received: loads.length,
+    created: creates.length,
+    amended: reported.filter((r) => r.event !== null).length,
+    canceled: cancels.length,
+    unmatched: [...unmatched],
+    // Reported in the order the feed sent them, whatever order the writes happened in.
+    results: decisions.map((d) => d.result),
+  };
 }

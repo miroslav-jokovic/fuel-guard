@@ -48,10 +48,16 @@ function stub(opts: {
 
     self.insert = (payload: unknown) => {
       writes.push({ table, op: "insert", payload });
+      const rows = (Array.isArray(payload) ? payload : [payload]) as { external_id?: string }[];
+      const returned = rows.map((r, i) => ({ id: `new-load-${i}`, external_id: r.external_id }));
       const ins: Record<string, unknown> = {
         select: () => ins,
-        single: () => Promise.resolve({ data: { id: "new-load" }, error: null }),
-        then: (r: (v: { data: null; error: null }) => unknown) => r({ data: null, error: null }),
+        single: () => Promise.resolve({ data: returned[0] ?? { id: "new-load" }, error: null }),
+        // REVERSED on purpose. PostgREST does not promise the returned rows come back in the order
+        // they were sent, so the ingest must pair them by external_id; returning them in order would
+        // let a positional bug pass. Mutating the pairing to use position fails the suite.
+        then: (r: (v: { data: unknown[]; error: null }) => unknown) =>
+          r({ data: [...returned].reverse(), error: null }),
       };
       return ins;
     };
@@ -93,8 +99,18 @@ function load(over: Partial<TmsLoadInput> = {}): TmsLoadInput {
 }
 
 const loadWrites = (w: Captured[]) => w.filter((x) => x.table === "loads");
+/** The rows of the first `loads` insert. Batched since L11, so the payload is an array of rows. */
+const insertedLoads = (w: Captured[]): Record<string, unknown>[] => {
+  const p = loadWrites(w).find((x) => x.op === "insert")?.payload;
+  return (Array.isArray(p) ? p : p ? [p] : []) as Record<string, unknown>[];
+};
 const events = (w: Captured[]) =>
-  w.filter((x) => x.table === "load_events").map((x) => x.payload as { kind: string; payload: Record<string, unknown> });
+  w
+    .filter((x) => x.table === "load_events")
+    .flatMap((x) => (Array.isArray(x.payload) ? x.payload : [x.payload])) as {
+    kind: string;
+    payload: Record<string, unknown>;
+  }[];
 
 describe("a new load from the feed", () => {
   it("lands in pending_approval — never offered", async () => {
@@ -103,7 +119,7 @@ describe("a new load from the feed", () => {
 
     expect(res.created).toBe(1);
     expect(res.results[0]?.outcome).toBe("created");
-    const inserted = loadWrites(writes).find((w) => w.op === "insert")?.payload as { status: string; source: string };
+    const inserted = insertedLoads(writes)[0] as unknown as { status: string; source: string };
     expect(inserted.status).toBe("pending_approval");
     expect(inserted.source).toBe("tms");
   });
@@ -122,11 +138,11 @@ describe("a new load from the feed", () => {
   it("only auto-approves when the org has opted in", async () => {
     const off = stub({});
     await ingestLoads(off.admin, "org", "mcleod", [load()]);
-    expect((loadWrites(off.writes)[0]?.payload as { status: string }).status).toBe("pending_approval");
+    expect(insertedLoads(off.writes)[0]?.status).toBe("pending_approval");
 
     const on = stub({ autoApprove: true });
     await ingestLoads(on.admin, "org", "mcleod", [load()]);
-    expect((loadWrites(on.writes)[0]?.payload as { status: string }).status).toBe("approved");
+    expect(insertedLoads(on.writes)[0]?.status).toBe("approved");
     expect(events(on.writes).map((e) => e.kind)).toContain("approved");
   });
 
@@ -145,7 +161,7 @@ describe("a new load from the feed", () => {
       load({ vehicle_unit: "214", driver_employee_id: "E-77" }),
     ]);
     expect(res.unmatched).toEqual([]);
-    const inserted = loadWrites(writes)[0]?.payload as { vehicle_id: string; driver_id: string };
+    const inserted = insertedLoads(writes)[0] as unknown as { vehicle_id: string; driver_id: string };
     expect(inserted.vehicle_id).toBe("v1");
     expect(inserted.driver_id).toBe("d1");
   });
@@ -266,27 +282,27 @@ describe("a load from McLeod finds the records it names", () => {
   it("resolves the driver by the McLeod id, because employee_id is empty at this carrier", async () => {
     const { admin, writes } = stub({ drivers: mcleodDriver });
     const res = await ingestLoads(admin, "org1", "mcleod", [load({ driver_employee_id: "D0001" })]);
-    expect((loadWrites(writes)[0]!.payload as { driver_id: string }).driver_id).toBe("d-1");
+    expect(insertedLoads(writes)[0]?.driver_id).toBe("d-1");
     expect(res.results[0]!.outcome).toBe("created");
   });
 
   it("resolves a reefer whose McLeod unit number lacks Silvicom 360's R prefix", async () => {
     const { admin, writes } = stub({ trailers: [{ id: "t-1", unit_number: "R532159" }] });
     await ingestLoads(admin, "org1", "mcleod", [load({ trailer_unit: "532159" })]);
-    expect((loadWrites(writes)[0]!.payload as { trailer_id: string }).trailer_id).toBe("t-1");
+    expect(insertedLoads(writes)[0]?.trailer_id).toBe("t-1");
   });
 
   it("still reports a driver nobody holds, rather than inventing one", async () => {
     const { admin, writes } = stub({ drivers: mcleodDriver });
     const res = await ingestLoads(admin, "org1", "mcleod", [load({ driver_employee_id: "D9999" })]);
     expect(res.unmatched).toContain("D9999");
-    expect((loadWrites(writes)[0]!.payload as { driver_id: string | null }).driver_id).toBeNull();
+    expect(insertedLoads(writes)[0]?.driver_id).toBeNull();
   });
 
   it("leaves a carrier that really uses employee_id working exactly as before", async () => {
     const { admin, writes } = stub({ drivers: [{ id: "d-2", employee_id: "EMP-7" }] });
     await ingestLoads(admin, "org1", "mcleod", [load({ driver_employee_id: "EMP-7" })]);
-    expect((loadWrites(writes)[0]!.payload as { driver_id: string }).driver_id).toBe("d-2");
+    expect(insertedLoads(writes)[0]?.driver_id).toBe("d-2");
   });
 });
 
@@ -301,7 +317,7 @@ describe("hazmat, which the feed does not know", () => {
     const { admin, writes } = stub({});
     const { hazmat: _absent, ...withoutHazmat } = load();
     await ingestLoads(admin, "org", "mcleod", [withoutHazmat as TmsLoadInput]);
-    const inserted = loadWrites(writes).find((w) => w.op === "insert")?.payload as Record<string, unknown>;
+    const inserted = insertedLoads(writes)[0]!;
     // Present-but-null would fail the NOT NULL constraint; the key must be absent entirely.
     expect(Object.hasOwn(inserted, "hazmat")).toBe(false);
   });
@@ -319,7 +335,7 @@ describe("hazmat, which the feed does not know", () => {
   it("still writes hazmat when a feed genuinely asserts it", async () => {
     const { admin, writes } = stub({});
     await ingestLoads(admin, "org", "mcleod", [load({ hazmat: true })]);
-    const inserted = loadWrites(writes).find((w) => w.op === "insert")?.payload as { hazmat: unknown };
+    const inserted = insertedLoads(writes)[0] as unknown as { hazmat: unknown };
     expect(inserted.hazmat).toBe(true);
   });
 
@@ -331,5 +347,90 @@ describe("hazmat, which the feed does not know", () => {
     const res = await ingestLoads(admin, "org", "mcleod", [withoutHazmat as TmsLoadInput]);
     expect(res.results[0]?.outcome).toBe("unchanged");
     expect(events(writes).filter((e) => e.kind === "amended")).toHaveLength(0);
+  });
+});
+
+/**
+ * The hazard L11 introduced, pinned (LOADS-GO-LIVE-PLAN L11).
+ *
+ * Batching means one statement now carries many loads, and the whole safety property of this file is
+ * that SOME of those loads belong to dispatch and must not be written. A bulk write that decided
+ * ownership as it went — or that swept a whole board into one upsert — would silently overwrite work
+ * an office had already approved, and it would do it fastest of all.
+ *
+ * So ownership is decided for every load BEFORE any statement is issued, and this proves a mixed
+ * batch keeps them apart.
+ */
+describe("a batch holding both kinds of load — the property batching could have broken", () => {
+  const mixed = [
+    { id: "L-own", external_id: "MV-OWN", status: "pending_approval", ref: "LD-OWN-OLD", hazmat: false, equipment: null, commodity: null, driver_id: null, vehicle_id: null, trailer_id: null },
+    { id: "L-dispatch", external_id: "MV-DISPATCH", status: "approved", ref: "LD-DISPATCH", hazmat: false, equipment: "Dry van", commodity: null, driver_id: null, vehicle_id: null, trailer_id: null },
+  ];
+
+  it("writes the feed's load and leaves the approved one alone, in the same batch", async () => {
+    const { admin, writes } = stub({ existingLoads: mixed });
+    const res = await ingestLoads(admin, "org", "mcleod", [
+      load({ external_id: "MV-OWN", ref: "LD-OWN-NEW" }),
+      load({ external_id: "MV-DISPATCH", ref: "LD-DISPATCH-CHANGED", equipment: "Reefer" }),
+      load({ external_id: "MV-NEW", ref: "LD-BRAND-NEW" }),
+    ]);
+
+    expect(res.results.map((r) => r.outcome)).toEqual(["updated", "amended", "created"]);
+
+    // The approved load's id must never appear in a statement that changes dispatch-owned fields.
+    const touchedDispatchFields = loadWrites(writes).filter((w) => {
+      const rows = (Array.isArray(w.payload) ? w.payload : [w.payload]) as Record<string, unknown>[];
+      return rows.some((r) => Object.hasOwn(r, "ref") || Object.hasOwn(r, "equipment"));
+    });
+    for (const w of touchedDispatchFields) {
+      const rows = (Array.isArray(w.payload) ? w.payload : [w.payload]) as Record<string, unknown>[];
+      expect(rows.every((r) => r.ref !== "LD-DISPATCH-CHANGED" && r.equipment !== "Reefer")).toBe(true);
+    }
+
+    // And its stops are never replaced — a stop a driver has worked is evidence.
+    const stopRows = writes
+      .filter((w) => w.table === "load_stops" && w.op === "upsert")
+      .flatMap((w) => (Array.isArray(w.payload) ? w.payload : [w.payload]) as { load_id: string }[]);
+    expect(stopRows.some((r) => r.load_id === "L-dispatch")).toBe(false);
+    expect(stopRows.some((r) => r.load_id === "L-own")).toBe(true);
+  });
+
+  it("keeps the reported order the feed sent, however the writes were grouped", async () => {
+    const { admin } = stub({ existingLoads: mixed });
+    const res = await ingestLoads(admin, "org", "mcleod", [
+      load({ external_id: "MV-NEW-1", ref: "LD-1" }),
+      load({ external_id: "MV-DISPATCH", ref: "LD-DISPATCH" }),
+      load({ external_id: "MV-NEW-2", ref: "LD-2" }),
+    ]);
+    expect(res.results.map((r) => r.external_id)).toEqual(["MV-NEW-1", "MV-DISPATCH", "MV-NEW-2"]);
+  });
+});
+
+/**
+ * The bug that would attach one load's stops to a different load.
+ *
+ * A batched insert returns the created rows, but PostgREST does not promise them in the order they
+ * were sent — so the ingest pairs them back by `external_id`. Pairing by POSITION looks identical on
+ * any fixture where the loads are interchangeable, which is why this one deliberately is not: the
+ * two loads carry different stops, and the stub returns the inserted rows reversed.
+ *
+ * Without this test a positional pairing passes the whole suite (measured 2026-09-17: 23/23 green
+ * with the mutation in place).
+ */
+describe("a batch of new loads keeps each load's own stops", () => {
+  it("attaches every stop to the load that sent it, whatever order the insert returned", async () => {
+    const { admin, writes } = stub({});
+    await ingestLoads(admin, "org", "mcleod", [
+      load({ external_id: "MV-A", ref: "LD-A", stops: [{ seq: 1, kind: "pickup", name: "A-ONLY" }] }),
+      load({ external_id: "MV-B", ref: "LD-B", stops: [{ seq: 1, kind: "pickup", name: "B-ONLY" }] }),
+    ]);
+
+    // The stub names ids by the position they were SENT in, so MV-A is new-load-0 by construction.
+    const stopRows = writes
+      .filter((w) => w.table === "load_stops" && w.op === "upsert")
+      .flatMap((w) => (Array.isArray(w.payload) ? w.payload : [w.payload]) as { load_id: string; name: string }[]);
+
+    expect(stopRows.find((r) => r.name === "A-ONLY")?.load_id).toBe("new-load-0");
+    expect(stopRows.find((r) => r.name === "B-ONLY")?.load_id).toBe("new-load-1");
   });
 });
