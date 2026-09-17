@@ -610,3 +610,16 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   stop duplicated and none lost, and the re-ingest was idempotent. The unmatched key is still
   `JFERGUSO` and still the stale roster, not the code. **A 60-second cadence now has ~57 seconds of
   headroom instead of eight, so L9 is no longer blocked by us.**
+- 2026-09-17 — **L3 built: migration `0344`, schema only.** `tms_dispatchers` (owner `mcleod`, layer
+  `raw`, PK `(org_id, provider, external_id)`, `user_id` nullable → `auth.users` ON DELETE SET NULL)
+  and `loads.dispatcher_external_id` + `loads_org_status_dispatcher_idx`. No reader, no writer —
+  **its first writer is L4, in a separate merge**, because the column is not exempt from the deploy
+  window. The cross-module touch on `loads` carries a written waiver, the shape 0341 set.
+  ⚠ **The `loads` FK is deliberately ABSENT and the matrix pins the absence**: loads and dispatchers
+  are two separate pushes, so an FK would let one unknown account reject a 157-load batch. Mutation
+  results: dropping `provider` from the key fails a test, cascading `user_id` instead of nulling it
+  fails a test, and **adding that FK failed nothing until the fixture set `loads.provider`** — a
+  composite FK containing a NULL is not enforced (MATCH SIMPLE), so the test had been sailing past
+  the very constraint it exists to forbid. That is the second under-discriminating fixture found in
+  one day; the first was L11's positional id pairing. `rls.test.mjs` seeds the new table with no
+  hand-seeder needed (149 tables covered, 0 unseedable), `load-lifecycle` still 61/61.
