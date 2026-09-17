@@ -2412,3 +2412,27 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   blank line the handoff warned about. The board's query already selects from `vehicles`, so the API
   half is two columns and a contract field; no migration, no new writer, and `lint:table-writers` is
   not engaged because nothing writes.
+
+- **2026-09-17 — the two bounds types collapsed into one, and there were three copies not two.**
+  D-LM19 (the camera) and D-LM23 (the viewport filter) were built on separate branches of the same
+  queue and merged within the hour, each having declared its own four-number rectangle:
+  `CameraBounds` in `liveMapCamera.ts` and `MapBounds` in `liveMapLayer.ts`. Both read the same four
+  numbers off the same `map.getBounds()` call, so the split was never a distinction — it was two
+  names for one fact.
+
+  ⚠ **The third copy was the one nobody had written down.** `LiveMapCanvas.vue` held a
+  `visibleBounds()` helper converting maplibre's bounds object into the plain shape — and `flyTo()`,
+  eight lines further down, built the same object from the same four getters inline, because the two
+  arrived on different branches and neither knew the other existed. Looking for the type found the
+  duplicated CONVERSION, which is the more expensive of the two.
+
+  `MapBounds` survives, in `liveMapLayer.ts` rather than in the camera, and the reason is a
+  dependency one worth keeping: that module imports only `@silvicom/shared` and nothing local, so
+  anything in the feature can depend on it without a cycle — `liveMapCamera.ts` now imports it, and
+  nothing imports `liveMapCamera.ts` but the canvas.
+
+  **Behaviour-preserving, and measured rather than asserted** — `flyTo` lives in a `.vue` file no test
+  can mount, which is exactly why D-LM19's decision was extracted in the first place. Re-run on the
+  one-origin rig: **median 9 tiles per click, worst 45, 151 over twelve clicks**, against 9 / 41 / 134
+  before the collapse. The viewport filter was re-walked too: on over a still map, zoomed in to the
+  camera sentence, off again to the full fleet.
