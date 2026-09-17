@@ -2076,3 +2076,34 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   for a whole shift. The dock's seven sortable columns became four orderings in a select
   (`sortVehicles`), which keeps "which truck has the oldest fix" rather than losing it with the
   columns. Measurements and the rest of the reasoning: `DESIGN-REFRESH-2026-09.md` §7, **D-DR25**.
+
+- **2026-09-17 — D-LM8b: the tween is cut from the FIXES, and a board that repeats one is left
+  alone.** The owner reported the markers still "slowing down every 4.7 seconds" after D-LM8a fixed
+  the freeze, and they were right again. Measured on production rather than reasoned about:
+
+  | | |
+  |---|---|
+  | moving trucks | 27 |
+  | median age of their fix | **5.6 s** |
+  | mean age · worst | 5.5 s · 13.6 s |
+
+  Ages are uniform over the arrival interval, so a mean age of 5.5 s means fixes land about every
+  **11 seconds** — against a **5-second** poll. **A moving truck therefore gets a new position on
+  fewer than half the boards that mention it**, and `planTweens` re-based on every one of them:
+  a repeat restarted a 6.5 s tween with almost nothing left to cover, so the dot crawled for that
+  whole window and jumped when a real fix landed. D-LM8a's constant was right and its input was wrong.
+
+  **Two changes, both in the same direction — let the data say it.** A board carrying a truck's
+  existing `sampledAt` now leaves that truck's tween untouched; a board carrying a NEW fix animates
+  over the interval the two fixes describe (plus D-LM8a's latency budget), capped at 15 s so a truck
+  parked for an hour arrives rather than gliding for one. Duration therefore lives on the tween, not
+  in a module constant.
+
+  **Measured through the real module at 60fps over a minute of production-shaped boards:** velocity
+  swing **127% → 21%** of the mean, and frames below half speed **1,204 → 4**. Pinned by
+  "holds a steady speed instead of crawling on every repeated fix", which asserts the RATIO against
+  the old behaviour rather than an absolute, so it cannot be satisfied by tuning a constant.
+
+  ⚠ The lesson worth keeping: every unit test in `liveMapMotion.test.ts` passed throughout both
+  defects. Each asks whether ONE tween is built correctly, and both defects lived in the SEQUENCE of
+  them. What a reader sees is a speed, so there is now a test that measures a speed.

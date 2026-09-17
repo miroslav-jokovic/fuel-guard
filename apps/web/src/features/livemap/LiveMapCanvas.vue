@@ -83,7 +83,9 @@ function step(): void {
 }
 
 function startMotion(): void {
-  tweens = planTweens(places, props.vehicles, performance.now());
+  // ⚠ The EXISTING tweens go in, because a board that repeats a truck's fix must leave that truck's
+  // motion untouched (D-LM8b). Dropping them here is what made the dot crawl for a whole poll.
+  tweens = planTweens(places, props.vehicles, performance.now(), tweens);
   if (frame == null) frame = requestAnimationFrame(step);
 }
 
