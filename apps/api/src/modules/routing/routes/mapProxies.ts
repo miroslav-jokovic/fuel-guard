@@ -117,8 +117,35 @@ export function registerMapRoutes(router: Router): void {
       const url =
         `https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/${format}?style=${style}&size=512` +
         `&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
+      /**
+       * ⚠ THE DEADLINE IS OWNED, NOT FIRE-AND-FORGET, AND THAT COST A PRODUCTION OUTAGE.
+       *
+       * This was `AbortSignal.timeout(TILE_UPSTREAM_TIMEOUT_MS)`, which arms a timer that keeps
+       * running no matter what the response does. maplibre cancels tiles constantly — every pan
+       * abandons the requests for the tiles that just left the viewport — and on a cancel `pipeline`
+       * destroys the source and rejects into the catch below, which handles it correctly. The timer,
+       * though, was still armed. Seconds later it fired, undici aborted the request and errored the
+       * underlying web stream, and the Node wrapper destroyed a Readable that `pipeline` had already
+       * let go of. Nothing was listening for `'error'` on it by then, and an unhandled `'error'` on a
+       * stream does not log — it terminates the process.
+       *
+       * Measured 2026-09-17: `@fleetguard/web` crashed four times on deployment `184f5a44`, hit
+       * `restartPolicyMaxRetries: 3` and stayed down, serving 502 to every reader. `@fleetguard/api`
+       * was healthy on the same commit the whole time, because only the web service serves the SPA
+       * and therefore only it serves tiles — the bug is reachable only where browsers are.
+       *
+       * So the controller is ours: `clearTimeout` in `finally` means nothing can fire after this
+       * handler is done, and the `abort()` beside it releases undici's hold on a body we are no
+       * longer reading. Pinned by "does not crash the process when the deadline fires after the
+       * response has already finished".
+       */
+      const deadline = new AbortController();
+      const timer = setTimeout(
+        () => deadline.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError")),
+        TILE_UPSTREAM_TIMEOUT_MS,
+      );
       try {
-        const upstream = await fetch(url, { signal: AbortSignal.timeout(TILE_UPSTREAM_TIMEOUT_MS) });
+        const upstream = await fetch(url, { signal: deadline.signal });
         if (!upstream.ok) {
           res.status(502).json(apiError("tile_upstream_error", `HERE tile HTTP ${upstream.status}`));
           return;
@@ -136,7 +163,16 @@ export function registerMapRoutes(router: Router): void {
           res.end();
           return;
         }
-        await pipeline(Readable.fromWeb(upstream.body as NodeReadableStream<Uint8Array>), res);
+        /**
+         * Held in a variable, and given its own `'error'` listener, for the same reason the
+         * controller above is owned: `pipeline` detaches from this stream the instant it settles, and
+         * anything that errors it afterwards would otherwise have nobody listening. `pipeline` is
+         * still what REPORTS the failure — it rejects into the catch below and that is where the
+         * status is decided; this listener exists only so a late error is inert rather than fatal.
+         */
+        const source = Readable.fromWeb(upstream.body as NodeReadableStream<Uint8Array>);
+        source.on("error", () => {});
+        await pipeline(source, res);
       } catch (e) {
         /**
          * A timeout answers 504 and not 502, and the distinction is for the logs rather than for
@@ -182,6 +218,12 @@ export function registerMapRoutes(router: Router): void {
           return;
         }
         res.status(502).json(apiError("tile_upstream_error", e instanceof Error ? e.message : "tile fetch failed"));
+      } finally {
+        // The deadline has done its job either way. Disarming it is what stops a late fire from
+        // erroring a stream nobody owns any more; the abort releases undici's hold on a body we have
+        // either finished reading or abandoned. Both are no-ops on the happy path.
+        clearTimeout(timer);
+        deadline.abort();
       }
     }),
   );

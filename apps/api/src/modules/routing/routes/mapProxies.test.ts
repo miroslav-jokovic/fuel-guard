@@ -159,7 +159,14 @@ describe("the tile proxy's upstream timeout", () => {
     await tile("");
     const init = upstreamInit.find((i) => i?.signal);
     expect(init?.signal, "the upstream fetch must carry an abort signal").toBeDefined();
-    expect(init!.signal!.aborted).toBe(false);
+    /**
+     * ⚠ This asserted `aborted === false` until 2026-09-17, as a proxy for "the deadline did not
+     * fire". The deadline is now an AbortController the handler OWNS and closes out in `finally`
+     * (that is what releases undici's hold on the body), so the signal is legitimately aborted once
+     * the tile has been served. The intent is unchanged and is now stated directly: what must never
+     * be true is that it was aborted BY THE DEADLINE.
+     */
+    expect((init!.signal!.reason as Error | undefined)?.name).not.toBe("TimeoutError");
   });
 
   it("answers 504 when the upstream stops answering, rather than holding the request open", async () => {
@@ -212,6 +219,70 @@ function stubBrokenBodyUpstream() {
  * off the upstream, so "did all of it arrive" and "is it still declared correctly" are both things
  * that can now be got wrong without any other test noticing.
  */
+/**
+ * The outage of 2026-09-17, pinned.
+ *
+ * `@fleetguard/web` crashed four times on deployment `184f5a44`, exhausted `restartPolicyMaxRetries`
+ * and served 502 to every reader for half an hour. `@fleetguard/api` was healthy on the same commit
+ * throughout, because only the web service serves the SPA and therefore only it serves tiles.
+ *
+ * The cause was `AbortSignal.timeout(8_000)`: a timer that cannot be disarmed. maplibre abandons
+ * tile requests on every pan, `pipeline` then destroys its source and lets go, and the still-armed
+ * timer fired seconds later — undici aborted the request, errored the underlying web stream, and the
+ * Node wrapper destroyed a Readable that nothing was listening to. An unhandled `'error'` on a stream
+ * does not log; it terminates the process.
+ *
+ * So the deadline is now an AbortController this handler owns and closes out in `finally`.
+ */
+describe("the tile proxy's deadline cannot outlive the request it was guarding", () => {
+  it("closes out its own deadline once the tile is served, rather than leaving one armed", async () => {
+    stubChunkedUpstream(2, 512);
+    const res = await tile("");
+    expect(res.status).toBe(200);
+    await res.arrayBuffer();
+
+    const signal = upstreamInit.at(-1)?.signal;
+    expect(signal, "the upstream fetch must carry an abort signal").toBeDefined();
+    expect(
+      signal!.aborted,
+      "the handler must abort its own controller in finally — that is what releases undici's hold " +
+        "on the body, so a late fire has nothing left to error",
+    ).toBe(true);
+    expect(
+      (signal!.reason as Error | undefined)?.name,
+      "and it must be closed out by US, not by the deadline expiring",
+    ).not.toBe("TimeoutError");
+  });
+
+  it("disarms the deadline timer itself, rather than leaving it to fire at nothing", async () => {
+    /**
+     * Deliberately coupled to the mechanism, because the mechanism IS the fix: the crash was a timer
+     * that outlived the stream it was guarding. Fake timers cannot be used here — `tile()` makes a
+     * real request over a real server, and faking the clock wedges the transport.
+     */
+    const armed = vi.spyOn(globalThis, "setTimeout");
+    const cleared = vi.spyOn(globalThis, "clearTimeout");
+    try {
+      stubChunkedUpstream(2, 512);
+      const res = await tile("");
+      expect(res.status).toBe(200);
+      await res.arrayBuffer();
+
+      const i = armed.mock.calls.findIndex((c) => c[1] === 8_000);
+      expect(i, "the handler must arm an 8s deadline").toBeGreaterThanOrEqual(0);
+      const handle = armed.mock.results[i]?.value;
+      expect(
+        cleared.mock.calls.some((c) => c[0] === handle),
+        "the 8s deadline must be cleared when the handler finishes — an armed timer with no stream " +
+          "left to guard is what took production down",
+      ).toBe(true);
+    } finally {
+      armed.mockRestore();
+      cleared.mockRestore();
+    }
+  });
+});
+
 describe("the tile proxy streams the body through intact (B2)", () => {
   it("delivers every chunk, not just the first one", async () => {
     const total = stubChunkedUpstream(8, 4_096);
