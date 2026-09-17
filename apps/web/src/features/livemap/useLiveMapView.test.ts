@@ -17,7 +17,7 @@ const BOARD: LiveMapBoard = {
   generatedAt: "2026-09-17T12:00:00.000Z",
   scope: "all",
   scopeReason: "Showing every truck in the fleet.",
-  bounds: { stoppedSpeedMph: 3, engineOnBoundSeconds: 900, offlineBoundSeconds: 5400 },
+  bounds: { stoppedSpeedMph: 3, engineOnBoundSeconds: 900, offlineBoundSeconds: 5400, fuelFreshSeconds: 900 },
   truncated: false,
   vehicles: [
     // Two in Chicago, one moving and one offline; one parked in Los Angeles. The geography is what
@@ -42,6 +42,7 @@ function truck(
     state,
     ageSeconds: 6,
     load: null,
+    fuel: null,
     position: {
       lat,
       lng,

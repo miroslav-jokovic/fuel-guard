@@ -24,6 +24,7 @@ import {
   deriveVehicleState,
   positionAgeSeconds,
   ENGINE_ON_BOUND_SECONDS,
+  FUEL_FRESH_SECONDS,
   OFFLINE_BOUND_SECONDS,
   STOPPED_SPEED_MPH,
   type LiveMapBoard,
@@ -120,6 +121,17 @@ export async function readLiveMapBoard(
       // `?? 0` is unreachable — `sampled_at` is NOT NULL in 0341 and the row came from that table —
       // but the contract says number and a cast would be a lie the type system stops checking.
       ageSeconds: Math.round(positionAgeSeconds(p.sampled_at, now) ?? 0),
+      /**
+       * `Q-LM20`, item 8. Carried verbatim from the roster's interface, with NO age computed here
+       * and none folded into the fix's.
+       *
+       * ⚠ The two clocks are genuinely independent and the board must not imply otherwise: fuel
+       * comes off the ECU and position off GPS, so a truck can be fixed six seconds ago and last
+       * have reported a tank five days ago — 35 of the 146 live-fix trucks on this fleet were over
+       * an hour apart on 2026-09-17. `bounds.fuelFreshSeconds` travels with the board so the reader
+       * can say which of the two it is looking at without holding a copy of the line.
+       */
+      fuel: identity.fuel,
       load: toLoadContext(loads.byVehicleId.get(p.vehicle_id)),
     });
   }
@@ -132,6 +144,7 @@ export async function readLiveMapBoard(
       stoppedSpeedMph: STOPPED_SPEED_MPH,
       engineOnBoundSeconds: ENGINE_ON_BOUND_SECONDS,
       offlineBoundSeconds: OFFLINE_BOUND_SECONDS,
+      fuelFreshSeconds: FUEL_FRESH_SECONDS,
     },
     vehicles,
     truncated: positions.truncated || identities.truncated || loads.truncated,

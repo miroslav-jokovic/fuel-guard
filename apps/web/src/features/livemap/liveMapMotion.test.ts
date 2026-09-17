@@ -23,6 +23,8 @@ const at = (lat: number, lng: number, heading: number | null = 0): LiveMapVehicl
   vehicleId: "veh-1",
   unitNumber: "1207",
   driver: null,
+  // Motion has nothing to do with the tank; it is here because the contract requires an answer.
+  fuel: null,
   position: {
     lat,
     lng,

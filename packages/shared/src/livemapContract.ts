@@ -36,6 +36,33 @@ export interface LiveMapDriver {
   name: string;
 }
 
+/**
+ * What is in the tank, and when that was last true (`Q-LM20`, the owner's item 8).
+ *
+ * ── WHY IT IS A PAIR AND NOT A NUMBER ────────────────────────────────────────────────────────────
+ * The two halves are inseparable, so the type makes them so. `68` beside a position measured six
+ * seconds ago reads as a tank measured six seconds ago; on this fleet it is a day or more old for
+ * about a third of the board and, for a quarter of the trucks whose POSITION is live, over an hour
+ * (see `FUEL_FRESH_SECONDS` for the measurements). A number that looks live and is not is worse than
+ * no number — the same argument D-LM10 and D-LM20 have already been paid for twice on this surface,
+ * for the fix age and for speed.
+ *
+ * ⚠ `at` is the VENDOR's reading time, not ours. `samsara_fuel_at` is when the ECU reported the
+ * level, which is the only clock that can say whether the figure still describes the truck; when we
+ * happened to store it says nothing about the fuel.
+ *
+ * ⚠ A truck with no reading at all sends `null` rather than a percent of 0, and the difference is
+ * the whole point: an empty tank and an unknown tank are opposite facts. 65 of 272 `vehicles` rows
+ * have never carried a reading — though none of them is on the board today, because every one is
+ * retired or has no position (measured 2026-09-17).
+ */
+export interface LiveMapFuel {
+  /** Percent of tank, as the vendor reports it. Production range on this fleet: 3.0 – 100.0. */
+  percent: number;
+  /** Vendor reading time, ISO. Paired with `bounds.fuelFreshSeconds` to decide how it is presented. */
+  at: string;
+}
+
 export interface LiveMapStop {
   seq: number | null;
   kind: string | null;
@@ -66,6 +93,14 @@ export interface LiveMapVehicle {
   state: VehicleMapState;
   /** Age of the FIX in seconds. D-LM10 — shown per truck, never hidden behind the marker. */
   ageSeconds: number;
+  /**
+   * The tank, with the time it was read. Null when this truck has never reported one.
+   *
+   * ⚠ Its age is its OWN and is never inherited from the fix. A truck can be fixed six seconds ago
+   * and last have reported fuel five days ago — 35 of the 146 live-fix trucks on this fleet are more
+   * than an hour apart on the two (2026-09-17).
+   */
+  fuel: LiveMapFuel | null;
   /** Null for every truck until LM12 turns the loads feed on. That is normal, not an error. */
   load: LiveMapLoad | null;
 }
@@ -90,6 +125,12 @@ export interface LiveMapBounds {
   stoppedSpeedMph: number;
   engineOnBoundSeconds: number;
   offlineBoundSeconds: number;
+  /**
+   * Past this many seconds a fuel reading is presented with its age rather than on its own
+   * (`FUEL_FRESH_SECONDS`). Here for the same reason as the three above: the client that decides how
+   * to word a stale reading must read the line from the response, not hold a second copy of it.
+   */
+  fuelFreshSeconds: number;
 }
 
 export interface LiveMapBoard {

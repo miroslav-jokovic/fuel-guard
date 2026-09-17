@@ -69,6 +69,32 @@ export const ENGINE_ON_BOUND_SECONDS = 30;
  */
 export const OFFLINE_BOUND_SECONDS = 900;
 
+/**
+ * How old a FUEL reading may be before the board stops presenting it as current (`Q-LM20`, item 8).
+ *
+ * ── IT IS A SEPARATE NUMBER FROM THE OFFLINE BOUND, AND EQUAL TO IT ON PURPOSE ───────────────────
+ * Both answer "past this we are describing what WAS", and a quarter of an hour is the same honest
+ * line for a tank as for a position — so the value is the same and the name is not. Deriving one
+ * from the other would tie a vendor's ECU cadence to its GPS cadence, which are two different feeds
+ * that happen to agree today; a reader retuning the offline bound would silently move what counts as
+ * a live fuel reading, which is exactly the coupling `STOPPED_SPEED_MPH` was promoted out of
+ * `matchFuelingMoment` to avoid.
+ *
+ * ⚠ MEASURED, NOT CHOSEN, AND THE FIRST MEASUREMENT WAS WRONG. Production, 2026-09-16 at 22:20 CDT:
+ * "6 of 272 vehicles fresh within 15 minutes, average 17.6 days old". Re-run at 08:55 the next
+ * morning over the 171 trucks the board actually draws: **171 of 171 have a reading and 101 are
+ * inside the quarter hour**, because fuel comes off the ECU and an ECU reports while the engine runs
+ * — moving trucks measured **67 of 67 fresh**, parked ones 35 of 79, offline 0 of 25. The first
+ * figure described a fleet asleep at ten at night and a denominator including 37 retired trucks and
+ * every vehicle with no position.
+ *
+ * ⚠ The hazard survived the correction, and it is what this bound is FOR: of the 146 trucks whose
+ * POSITION was fresh, **35 (24%) carried a fuel reading over an hour old, the worst 5.6 days**. A
+ * live marker with a stale tank is the one case a bare percentage would lie about, and it is a
+ * quarter of the trucks a dispatcher clicks.
+ */
+export const FUEL_FRESH_SECONDS = 900;
+
 export type VehicleMapState = "moving" | "stopped" | "parked" | "offline";
 
 /** The little a state decision needs. Deliberately not the whole position row. */
