@@ -55,20 +55,30 @@ export function inviteTone(status: string): string {
 }
 
 /**
- * What a truck is doing on the live map: moving | stopped | parked | offline (LM8, D-LM9).
+ * What a truck is doing on the live map: moving | stopped | parked | offline (LM8, D-LM9, D-LM24).
  *
- * Descriptive rather than a severity ramp, and the two greys are deliberate. `offline` is not amber:
- * 54 of 199 trucks rendered offline the day the board first had data, and a page that is a fifth
- * alarm-coloured teaches its reader to stop reading colour. `stopped` is `info` and not `warning` for
- * the reason D-LM9 refuses the word `idle` — an instantaneous "engine on, speed 0" is not a
- * judgement about a driver, and the `idle` module owns the judgement that is.
+ * Descriptive rather than a severity ramp. `offline` is NOT amber, and that is the one ruling here
+ * with a number behind it: 54 of 199 trucks rendered offline the day the board first had data, and a
+ * page that is a fifth alarm-coloured teaches its reader to stop reading colour. `stopped` is `info`
+ * and not `warning` for the reason D-LM9 refuses the word `idle` — an instantaneous "engine on,
+ * speed 0" is not a judgement about a driver, and the `idle` module owns the judgement that is.
+ *
+ * ⚠ `parked` WAS the second grey and is now amber (D-LM24). The objection above is about POPULATION,
+ * so it was re-measured rather than inherited: production, 2026-09-16, stopped 123 · offline 59 ·
+ * moving 17 · **parked 1**. `parked` is a ten-minute transitional band — heard from 5 to 15 minutes
+ * ago — that almost nothing is ever in, so amber there colours half a percent of a board rather than
+ * a fifth of it, and the "stop reading colour" failure the sentence above guards against needs volume.
  *
  * ⚠ The map's marker colours are the SAME four decisions in a different medium and live in
  * `features/livemap/liveMapLayer.ts`, because a maplibre layer needs a concrete colour string rather
- * than a class. They are token classes there too, and they must be changed together.
+ * than a class. They are token classes there too, and they must be changed together — this pair is
+ * why: the rail shows a census DOT from that file next to a state BADGE from this one, so the two
+ * disagreeing is visible in one glance, in one column.
  */
 export function vehicleStateTone(state: string): string {
-  return toneClass(state === "moving" ? "success" : state === "stopped" ? "info" : "neutral");
+  return toneClass(
+    state === "moving" ? "success" : state === "stopped" ? "info" : state === "parked" ? "warning" : "neutral",
+  );
 }
 
 /**

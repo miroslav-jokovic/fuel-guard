@@ -2304,3 +2304,59 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   case, counting `vehicles` fails the follows-the-viewport case, resolving `selected` against the
   scope fails the panned-away case, treating `null` as an empty rectangle fails the off case, and one
   empty sentence for both fails the camera case.
+- **2026-09-17 — D-LM24: bigger markers, and a colour per status that survives colour blindness and
+  both schemes (the owner's item 9).** `SIZE` 24 → 30; `parked` moves off its grey to `warning-600`;
+  `offline` moves to `neutral-400`. Everything below is measured, and three of the measurements
+  contradicted what the code already said about itself.
+
+  **Size. The comment's second claim was false in the view the map OPENS in.** It read "24 px is the
+  smallest an arrow stays readable as a DIRECTION rather than a blob, and the largest that leaves 199
+  of them legible over a metro area". Measured against the 198 positions production holds today,
+  projected into the map's real box beside the rail (1132×780 at 1512×900) with
+  `fitBounds(padding: 56, maxZoom: 9)`:
+
+  | zoom | what it is | trucks touching another at 24 px | at 30 px |
+  |---|---|---|---|
+  | 3.87 | the fitted fleet, the default view | **77.2%** | 83.8% |
+  | 5 | a region | 46.2% | 49.7% |
+  | 9 | a corridor, where markers are actually read | 25.4% | **25.4%** |
+
+  The default view is already three-quarters overlapped at 24 px, so the size was not buying the
+  legibility claimed; and above zoom 9 the figure does not move with size at all, because those 480
+  pairs are trucks at the same coordinates in a yard. 30 costs 6.6 points where the map is already a
+  pile and nothing where it is read. 24 stays the FLOOR for the arrow reading as a direction.
+
+  **Colour, measured AS PAINTED — which changed the answer.** The first pass compared raw tokens and
+  named `parked`/`offline` as the collapsed pair. But offline is drawn at `icon-opacity: 0.65`, so an
+  offline dot is its token blended with the basemap; composite it and the real weak pair is different:
+
+  | scheme | worst pair before | after |
+  |---|---|---|
+  | light | `stopped`/`parked` **0.076** | `moving`/`stopped` 0.117 |
+  | dark | `moving`/`offline` **0.021** (deuteranopia) | `moving`/`offline` 0.079 |
+
+  ⚠ **The dark scheme was the worse of the two and nobody had ever looked at it.** A moving truck and
+  an offline one measured **0.021** apart for a red-blind dispatcher — one colour — because a green
+  marker at full opacity and a grey one at 0.65 over a dark basemap land in the same place.
+
+  ⚠ **Two candidates were rejected BY MEASUREMENT, and both were the ones taste would have picked.**
+  `accent-600` (violet) for parked collapsed against offline at **0.016** under deuteranopia, worse
+  than what it replaced. `neutral-700` (a darker grey) fixed parked/offline and then collapsed against
+  `success-600` at **0.037** — dark green and dark grey are one colour to a red-blind reader.
+
+  ⚠ **`parked` is amber and `offline` is deliberately not.** `badges.ts` records why offline must
+  never be alarm-coloured: 54 of 199 trucks rendered offline the day the board first had data, and a
+  page a fifth alarm-coloured teaches its reader to stop reading colour. That argument is about
+  POPULATION, so it was re-measured rather than inherited — production 2026-09-16: stopped 123,
+  offline 59, moving 17, **parked 1**. `parked` is a ten-minute transitional band that almost nothing
+  is ever in, so amber there colours half a percent of a board and the objection does not reach it.
+
+  ⚠ **The cost, stated.** Offline on `neutral-400` is fainter against a LIGHT basemap — ΔE to the
+  basemap falls 0.181 → 0.145, a fifth. The white keyline and the larger marker both work against
+  that, and an offline position is one we deliberately no longer stand behind, but it is a cost.
+
+  ⚠ `vehicleStateTone` moved with it. The rail shows a census DOT from `liveMapLayer.ts` beside a
+  state BADGE from `badges.ts`, so the two disagreeing is visible in one glance in one column.
+  Three tests, two **proved by mutation** — putting `parked` back on a grey fails the one-ramp-per-state
+  test, and making `offline` amber fails the population test. Rendered and looked at in BOTH schemes
+  over a flat basemap, which is how the keyline's job in each was checked.

@@ -21,12 +21,32 @@ import { tokenColor } from "@/composables/useMapLibre";
 import { MAP_STATES, STATE_COLOR_CLASS } from "./liveMapLayer";
 
 /**
- * Marker size in CSS pixels, at pixel ratio 2.
+ * Marker size in CSS pixels, at pixel ratio 2 (D-LM24, the owner's item 9).
  *
- * 24 px is the smallest an arrow stays readable as a DIRECTION rather than a blob, and the largest
- * that leaves 199 of them legible over a metro area — the two constraints that actually bound this.
+ * ⚠ **THIS WAS 24, UNDER A CLAIM THAT TURNED OUT TO BE FALSE.** The old comment read "24 px is the
+ * smallest an arrow stays readable as a DIRECTION rather than a blob, and the largest that leaves 199
+ * of them legible over a metro area". The first half stands; the second was asserted and never
+ * measured, and it is wrong in the view this map OPENS in.
+ *
+ * Measured 2026-09-17 against the 198 positions production holds today — `vehicle_positions` is
+ * current state, one row per vehicle — projected into the map's real box beside the rail (1132×780 at
+ * 1512×900) with `fitBounds(padding: 56, maxZoom: 9)`:
+ *
+ * | zoom | what it is | trucks touching another at 24 px | at 30 px |
+ * |---|---|---|---|
+ * | 3.87 | the fitted fleet, the default view | **77.2%** | 83.8% |
+ * | 5 | a region | 46.2% | 49.7% |
+ * | 9 | a corridor, where a dispatcher reads markers | 25.4% | **25.4%** |
+ *
+ * Two things fall out. The default view is ALREADY a pile at 24 px, so the size was not buying the
+ * legibility the comment claimed. And at zoom 9 and above the number does not move with the size at
+ * all — those 480 overlapping pairs are trucks at the same coordinates in a yard, which no size fixes
+ * and which is exactly what `icon-allow-overlap: true` exists to keep visible.
+ *
+ * So 30 costs 6.6 points on a view that is already three-quarters overlapped, and nothing at all
+ * where markers are actually read. 24 remains the FLOOR for the arrow reading as a direction.
  */
-const SIZE = 24;
+const SIZE = 30;
 const RATIO = 2;
 
 /** The white keyline. A green dot on a green field is invisible; the ring is what makes it not. */
