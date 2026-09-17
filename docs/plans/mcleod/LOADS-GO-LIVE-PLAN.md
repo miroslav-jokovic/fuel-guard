@@ -602,3 +602,11 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   every fixture had interchangeable loads. That is the "fixture too uniform to discriminate" trap
   again; a test with two loads carrying different stops, against a stub that returns the rows
   reversed, now kills it. 24 tests in the file, 3,825 in `apps/api`, all green.
+- 2026-09-17 — **L11's Done-when is CLOSED: 52.1 s → 3.1 s**, measured against the same board after
+  the merge was served (Railway on `5ceb5fe`, 135 s after merge). The run took the **slower** of the
+  two paths — 154 overwrites through the bounded-concurrency patcher plus 1 create — so a first pull,
+  which is all inserts, is cheaper still. Integrity checked rather than assumed: 158 loads / 158
+  events / 158 payloads / 335 stops, **every load still `pending_approval`** (`not_pending = 0`), no
+  stop duplicated and none lost, and the re-ingest was idempotent. The unmatched key is still
+  `JFERGUSO` and still the stale roster, not the code. **A 60-second cadence now has ~57 seconds of
+  headroom instead of eight, so L9 is no longer blocked by us.**
