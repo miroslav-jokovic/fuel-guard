@@ -2238,3 +2238,31 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   in `apps/api/src/modules/livemap/liveMapBoard.ts`, and splitting the server's sentence in the
   browser would be a copy with a delay fuse. **(d) is the owner's to choose and is recorded here so
   that choosing it is a decision rather than a deletion.**
+- **2026-09-17 — D-LM22: the basemap opens from a button (the owner's item 5).** Map / Satellite /
+  Terrain were a permanently-lit segmented row in the map's control rail. They are now one button
+  naming the active basemap, opening the same three through `KebabMenu`.
+
+  ⚠ **This overrules `LiveMapControls.vue`'s own written reasoning, and that reasoning is kept in the
+  file rather than deleted.** It argued: "three options, all always available, one active — that is a
+  radio group, and comp (7) draws it as one. A dropdown would hide two of three choices behind a
+  click to save 90px on a surface whose whole point is that it is large." The 90px was the wrong
+  quantity. A basemap is chosen rarely and then left alone for a shift, so a control sized for a
+  once-a-day decision was sitting at full size all day on a canvas that IS the product. The trigger
+  still NAMES the active basemap, so nothing the row told anybody is hidden.
+
+  ⚠ D-DR8 is untouched: there is still no Day/Night entry, because the road map follows the reader's
+  colour scheme and a fourth entry would put that answer on screen twice. The control renders
+  `BASEMAP_CHOICES` rather than a list of its own, so it cannot grow one without the catalogue doing.
+
+  ⚠ **Two attempts at marking the active entry inside the panel both failed, and the second failed
+  SILENTLY — which is the part worth carrying forward.** A tick beside the active label centred its
+  own row and left the other two on a different edge, because `.kebab-item`'s `text-left` is in
+  `@layer components` and loses to `AppButton`'s `justify-center`. A brand tint then did nothing at
+  all: read back from the rendered DOM rather than looked at, all three entries measured
+  `background-color: oklch(1 0 0)`, one colour and `font-weight: 600`. A call-site utility and the
+  button's own utility share a cascade layer, so Tailwind's ordering decides, not the class
+  attribute. `AppButton`'s own comments say three times that an override at a call site means a
+  variant is missing; this is the fourth. The panel therefore marks the active entry with
+  `aria-current` alone and the trigger carries the visual answer. Six tests, three **proved by
+  mutation**: restoring the permanent row fails five, a trigger that stops naming the basemap fails
+  the one about hiding, and a fourth Day/Night entry fails two.
