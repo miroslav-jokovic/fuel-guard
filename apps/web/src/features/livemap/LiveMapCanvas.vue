@@ -7,7 +7,7 @@ import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
 import { planCameraMove } from "./liveMapCamera";
 import { installLiveMapIcons } from "./liveMapIcons";
-import { toFeatureCollection, type RenderedPlace } from "./liveMapLayer";
+import { toFeatureCollection, type MapBounds, type RenderedPlace } from "./liveMapLayer";
 import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
 
 /**
@@ -42,7 +42,23 @@ const props = withDefaults(
   { fit: "card" },
 );
 
-const emit = defineEmits<{ select: [vehicleId: string | null] }>();
+const emit = defineEmits<{
+  select: [vehicleId: string | null];
+  /**
+   * What the camera can see, whenever it settles (D-LM23).
+   *
+   * ⚠ `moveend` and NOT `move`. The map is in motion for the whole of a 600 ms selection animation
+   * and for every frame a dispatcher drags, so `move` would re-filter the rail sixty times a second
+   * and hand two hundred rows to Vue on each — the list would shimmer while the hand was still down.
+   * `moveend` fires once, when the reader has arrived somewhere they might read.
+   *
+   * ⚠ It is emitted even when nobody is listening, because the canvas does not know whether the
+   * filter is on. Turning the EMIT on and off with the filter would mean the first bounds after the
+   * toggle arrived only on the next pan, so switching the filter on over a still map would do nothing
+   * until the reader happened to move.
+   */
+  viewport: [bounds: MapBounds];
+}>();
 
 const mapEl = ref<HTMLElement | null>(null);
 const { isDark } = useColorScheme();
@@ -93,6 +109,12 @@ function startMotion(): void {
 function stopMotion(): void {
   if (frame != null) cancelAnimationFrame(frame);
   frame = null;
+}
+
+/** What the camera can see, in the plain shape the pure filter takes. */
+function visibleBounds(instance: maplibregl.Map): MapBounds {
+  const b = instance.getBounds();
+  return { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
 }
 
 /** Frame the whole fleet ONCE. Re-fitting on every poll would yank the view out from under a reader. */
@@ -214,6 +236,11 @@ const { map } = useMapLibre({
     instance.on("mouseenter", SYMBOL_LAYER, () => { instance.getCanvas().style.cursor = "pointer"; });
     instance.on("mouseleave", SYMBOL_LAYER, () => { instance.getCanvas().style.cursor = ""; });
     fitToFleet(instance);
+    // ⚠ Once on load as well as on every settle, so a rail that asks to be scoped before the reader
+    // has touched the map has a rectangle to be scoped to. Without it the filter's first answer is
+    // an empty fleet, which reads as a broken board.
+    instance.on("moveend", () => emit("viewport", visibleBounds(instance)));
+    emit("viewport", visibleBounds(instance));
     startMotion();
   },
 });

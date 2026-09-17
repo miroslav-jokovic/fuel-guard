@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { TruckIcon } from "@silvicom/ui/icons";
 import type { LiveMapVehicle } from "@silvicom/shared";
+import type { MapBounds } from "./liveMapLayer";
 import LiveMapCanvas from "./LiveMapCanvas.vue";
 import LiveMapFloatingPanel from "./LiveMapFloatingPanel.vue";
 import LiveMapRail from "./LiveMapRail.vue";
@@ -49,6 +50,7 @@ const {
   filters,
   selectedId,
   vehicles,
+  viewport,
   filtered,
   counts,
   selected,
@@ -76,6 +78,29 @@ const canvas = ref<InstanceType<typeof LiveMapCanvas> | null>(null);
  * find a truck by number; the overlay is a gesture, not a preference, and it closes on selection.
  */
 const railOpen = ref(false);
+
+/**
+ * The owner's item 7 (D-LM23), as a REQUEST the canvas answers rather than a rectangle held here.
+ *
+ * `viewportOnly` is what the reader pressed; `latestBounds` is the last thing the map said it could
+ * see. The view's `viewport` is the two combined, so there is exactly one value deciding both the
+ * rail's scope and its census, and no way for "the filter is on" to be true while "which rectangle"
+ * is still unknown.
+ */
+const viewportOnly = ref(false);
+let latestBounds: MapBounds | null = null;
+
+function onViewport(bounds: MapBounds): void {
+  latestBounds = bounds;
+  if (viewportOnly.value) viewport.value = bounds;
+}
+
+watch(viewportOnly, (on) => {
+  // ⚠ Switching ON uses the bounds the canvas has ALREADY reported, rather than waiting for the next
+  // `moveend`. Over a still map there is no next one, so the filter would appear to do nothing until
+  // the reader happened to pan — and they would reasonably conclude it was broken.
+  viewport.value = on ? latestBounds : null;
+});
 
 function select(vehicle: LiveMapVehicle): void {
   selectedId.value = vehicle.vehicleId;
@@ -113,8 +138,10 @@ watch(railVisible, async () => {
         :empty-text="emptyText"
         :error-message="errorMessage"
         :poll-seconds="pollSeconds"
+        :viewport-only="viewportOnly"
         @update:search="setSearch($event)"
         @update:states="stateFilter = $event"
+        @update:viewport-only="viewportOnly = $event"
         @select="select"
         @close="railOpen = false"
       />
@@ -130,6 +157,7 @@ watch(railVisible, async () => {
         :generated-at="board.data.value.generatedAt"
         :selected-id="selectedId"
         @select="selectedId = $event"
+        @viewport="onViewport"
       />
       <div v-else class="flex h-full items-center justify-center bg-surface-muted">
         <p class="text-sm text-ink-muted">

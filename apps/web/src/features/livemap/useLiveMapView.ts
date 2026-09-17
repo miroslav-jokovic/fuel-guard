@@ -6,8 +6,10 @@ import {
   STATE_LABEL,
   EMPTY_FILTERS,
   filterVehicles,
+  scopeToViewport,
   stateCounts,
   type LiveMapFilters,
+  type MapBounds,
 } from "./liveMapLayer";
 
 /**
@@ -34,6 +36,16 @@ export interface LiveMapView {
   /** Which truck the reader has opened, in whichever surface opened it. `null` is "none". */
   selectedId: Ref<string | null>;
   vehicles: ComputedRef<LiveMapVehicle[]>;
+  /**
+   * Whether the rail is scoped to what the map is showing, and to WHAT (D-LM23, the owner's item 7).
+   *
+   * One ref rather than a boolean beside a rectangle: "on" and "which rectangle" cannot disagree if
+   * they are the same value, and the pair would have had exactly one bug in it — the flag true while
+   * the bounds were still `null`, which shows an empty fleet.
+   */
+  viewport: Ref<MapBounds | null>;
+  /** Every truck the rail is drawing from — the fleet, or what the map is showing. */
+  scoped: ComputedRef<readonly LiveMapVehicle[]>;
   filtered: ComputedRef<LiveMapVehicle[]>;
   counts: ComputedRef<Record<VehicleMapState, number>>;
   selected: ComputedRef<LiveMapVehicle | null>;
@@ -62,8 +74,33 @@ export function useLiveMapView(): LiveMapView {
   const selectedId = ref<string | null>(null);
 
   const vehicles = computed<LiveMapVehicle[]>(() => board.data.value?.vehicles ?? []);
-  const filtered = computed(() => filterVehicles(vehicles.value, filters.value));
-  const counts = computed(() => stateCounts(vehicles.value));
+
+  /**
+   * ── THE VIEWPORT IS A SCOPE, NOT A FOURTH FILTER (D-LM23) ──────────────────────────────────────
+   * The order matters and it is the reason this is a separate `computed`. The census counts `scoped`
+   * and the list shows `filtered`, so pressing "Moving" narrows the list without touching the four
+   * numbers beside it — which is what makes the census usable as a filter at all. If the viewport
+   * were one more field inside `filters`, the census would count its own output and every press
+   * would zero the other three.
+   *
+   * ⚠ AND THE CENSUS FOLLOWS THE VIEWPORT, which is a ruling rather than a consequence. A count on a
+   * button has to describe what pressing that button gives you; a rail scoped to Chicago showing
+   * "Offline 34" for a fleet-wide 34 would be a button lying about its own effect. The cost is real
+   * and is stated rather than hidden: a dispatcher zoomed into one metro reads "Offline 0" and could
+   * take it for the fleet. The foot's total is what keeps that honest — it says "12 of 199 trucks",
+   * so the 187 not counted are on screen as a number, next to the counts that exclude them.
+   */
+  const viewport = ref<MapBounds | null>(null);
+  const scoped = computed(() => scopeToViewport(vehicles.value, viewport.value));
+
+  const filtered = computed(() => filterVehicles(scoped.value, filters.value));
+  const counts = computed(() => stateCounts(scoped.value));
+  /**
+   * ⚠ Resolved against the whole board and NOT against `scoped`. A truck the reader opened and then
+   * panned away from must keep its card: the panel is the answer to "what is truck 1042 doing", and
+   * that answer does not stop being true because the camera moved. Closing it would also make the
+   * card flicker as the map settles, since `moveend` fires on every pan.
+   */
   const selected = computed(
     () => vehicles.value.find((v) => v.vehicleId === selectedId.value) ?? null,
   );
@@ -91,17 +128,28 @@ export function useLiveMapView(): LiveMapView {
   });
 
   /**
-   * Two different empty boards, said differently.
+   * THREE different empty boards, said differently.
    *
    * "No trucks match these filters" in front of a dispatcher who has set no filters sends them
    * looking for a filter to clear. An empty board before the collector has stored anything is a
    * waiting state, and naming the thing they are waiting for is the difference between the two.
+   *
+   * ⚠ The third arrived with D-LM23 and was found by WALKING the surface rather than by reasoning
+   * about it: zoom into open country with "Only trucks in view" on and the rail emptied under
+   * "No trucks match these filters", which sends a reader hunting through a census where nothing is
+   * pressed. The camera is the filter in that case, so the sentence has to name the camera — and it
+   * names both ways out, because zooming is the one the reader usually wants and switching the
+   * toggle off is the one they can find.
    */
-  const emptyText = computed(() =>
-    vehicles.value.length === 0
-      ? "No truck positions yet. Positions appear within a few minutes of a truck reporting to Samsara."
-      : "No trucks match these filters.",
-  );
+  const emptyText = computed(() => {
+    if (vehicles.value.length === 0) {
+      return "No truck positions yet. Positions appear within a few minutes of a truck reporting to Samsara.";
+    }
+    if (viewport.value && scoped.value.length === 0) {
+      return "No trucks in view. Zoom out, or switch off “Only trucks in view”.";
+    }
+    return "No trucks match these filters.";
+  });
 
   const errorMessage = computed(() =>
     board.isError.value
@@ -137,6 +185,8 @@ export function useLiveMapView(): LiveMapView {
     filters,
     selectedId,
     vehicles,
+    viewport,
+    scoped,
     filtered,
     counts,
     selected,

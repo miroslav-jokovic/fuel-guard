@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
-import { XMarkIcon } from "@silvicom/ui/icons";
+import { MapIcon, XMarkIcon } from "@silvicom/ui/icons";
 import type { LiveMapBoard, LiveMapVehicle, VehicleMapState } from "@silvicom/shared";
 import { AppSearchField as SearchInput } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -57,11 +57,14 @@ const props = defineProps<{
   emptyText: string;
   errorMessage: string;
   pollSeconds: number;
+  /** Whether the list and the census are scoped to what the map is showing (D-LM23, item 7). */
+  viewportOnly: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "update:search", value: string): void;
   (e: "update:states", value: string[]): void;
+  (e: "update:viewportOnly", value: boolean): void;
   (e: "select", vehicle: LiveMapVehicle): void;
   (e: "close"): void;
 }>();
@@ -156,6 +159,34 @@ function toggleState(state: VehicleMapState): void {
           </span>
         </BaseButton>
       </div>
+
+      <!--
+        ⚠ The same toggle idiom as the census buttons directly above, deliberately — `aria-pressed`,
+        ghost, a ring when on. It belongs to the same question ("which trucks am I looking at") and a
+        checkbox or a switch here would be a third control language in one 320px column.
+
+        ⚠ The label says what the reader GETS, not what the control is. "Only trucks in view" is the
+        list they will have; "Viewport filter" is a name for the mechanism, which is ours and not
+        theirs.
+      -->
+      <BaseButton
+        variant="ghost"
+        size="row"
+        class="px-2 ring-1 ring-inset"
+        :class="viewportOnly ? 'bg-surface-subtle ring-edge' : 'ring-transparent'"
+        :aria-pressed="viewportOnly"
+        @click="emit('update:viewportOnly', !viewportOnly)"
+      >
+        <span class="flex w-full items-center justify-between gap-1.5">
+          <span class="truncate font-normal text-ink-secondary">Only trucks in view</span>
+          <AppIcon
+            :icon="MapIcon"
+            class="size-3.5 shrink-0"
+            :class="viewportOnly ? 'text-brand-600' : 'text-ink-tertiary'"
+            aria-hidden="true"
+          />
+        </span>
+      </BaseButton>
 
       <FilterSelect v-model="sortModel" block label="Sort" :options="LIVE_MAP_SORTS" />
     </div>
