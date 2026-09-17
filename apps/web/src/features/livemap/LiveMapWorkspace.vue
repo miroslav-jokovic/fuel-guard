@@ -3,7 +3,8 @@ import { computed, nextTick, ref, watch } from "vue";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { TruckIcon } from "@silvicom/ui/icons";
 import type { LiveMapVehicle } from "@silvicom/shared";
-import { boardSummarySentence, type MapBounds } from "./liveMapLayer";
+import { type MapBounds } from "./liveMapLayer";
+import { boardSummarySentence } from "./liveMapWords";
 import LiveMapCanvas from "./LiveMapCanvas.vue";
 import LiveMapFloatingPanel from "./LiveMapFloatingPanel.vue";
 import LiveMapRail from "./LiveMapRail.vue";
@@ -252,7 +253,9 @@ watch(railVisible, async () => {
         >
           {{ selected.driver?.name ?? "No driver assigned" }}
         </p>
-        <LiveMapVehicleFacts :vehicle="selected" density="compact" />
+        <!-- `board.data.value` is non-null here: `selected` resolves against the board, so there is
+             no card without one. -->
+        <LiveMapVehicleFacts :vehicle="selected" :board="board.data.value!" density="compact" />
       </LiveMapFloatingPanel>
     </div>
   </div>

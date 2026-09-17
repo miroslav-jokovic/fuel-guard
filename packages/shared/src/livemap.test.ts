@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   deriveVehicleState,
-  positionAgeSeconds,
+  secondsSince,
   lerp,
   lerpAngle,
   lerpPosition,
@@ -18,22 +18,22 @@ const state = (o: { age?: number; speed?: number | null; sampledAt?: string | nu
     NOW,
   );
 
-describe("positionAgeSeconds", () => {
+describe("secondsSince", () => {
   it("measures from the vendor's stamp, not from when we stored it", () => {
-    expect(positionAgeSeconds(agoSec(125), NOW)).toBe(125);
+    expect(secondsSince(agoSec(125), NOW)).toBe(125);
   });
 
   // Null and 0 are opposite claims: 0 means "we just heard from this truck".
   it("returns null, never 0, when there is no usable stamp", () => {
-    expect(positionAgeSeconds(null, NOW)).toBeNull();
-    expect(positionAgeSeconds(undefined, NOW)).toBeNull();
-    expect(positionAgeSeconds("not a date", NOW)).toBeNull();
+    expect(secondsSince(null, NOW)).toBeNull();
+    expect(secondsSince(undefined, NOW)).toBeNull();
+    expect(secondsSince("not a date", NOW)).toBeNull();
   });
 
   // A vendor clock a second fast is not a truck reporting from the future — and if it were allowed
   // through, that truck would sort as the freshest thing on the map.
   it("clamps a stamp from the future to 0 rather than reporting a negative age", () => {
-    expect(positionAgeSeconds(new Date(new Date(NOW).getTime() + 4000).toISOString(), NOW)).toBe(0);
+    expect(secondsSince(new Date(new Date(NOW).getTime() + 4000).toISOString(), NOW)).toBe(0);
   });
 });
 
@@ -76,7 +76,7 @@ describe("deriveVehicleState", () => {
   // and five minutes old; calling those offline would grey out most of a driving fleet.
   it("still calls a fast truck with a four-minute-old fix moving, and leaves the age to the panel", () => {
     expect(state({ age: 240, speed: 62 })).toBe("moving");
-    expect(positionAgeSeconds(agoSec(240), NOW)).toBe(240);
+    expect(secondsSince(agoSec(240), NOW)).toBe(240);
   });
 
   it("is offline when there is no fix at all, rather than inventing a fourth unknown state", () => {

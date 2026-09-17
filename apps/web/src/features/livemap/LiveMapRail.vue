@@ -12,13 +12,15 @@ import {
   MAP_STATES,
   STATE_COLOR_CLASS,
   STATE_LABEL,
+  sortVehicles,
+  type LiveMapSort,
+} from "./liveMapLayer";
+import {
   boardSummarySentence,
   engineOnBoundSentence,
   offlineBoundSentence,
   rowMetric,
-  sortVehicles,
-  type LiveMapSort,
-} from "./liveMapLayer";
+} from "./liveMapWords";
 
 /**
  * The fleet rail — search, the census, the ordering and the list, down the left of the map (D-DR25).

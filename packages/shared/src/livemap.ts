@@ -112,13 +112,19 @@ export interface VehicleStateBounds {
 }
 
 /**
- * Seconds between a fix and `now`. Null when there is no usable timestamp — never 0, because 0 means
- * "we just heard from this truck" and a missing stamp means the opposite.
+ * Seconds between a vendor timestamp and `now`. Null when there is no usable timestamp — never 0,
+ * because 0 means "we just heard from this truck" and a missing stamp means the opposite.
  *
  * Negative ages are clamped to 0. A vendor clock a second ahead of ours is not a truck reporting from
  * the future, and letting a negative through would make it the freshest thing on the map.
+ *
+ * ⚠ It was `positionAgeSeconds` until 2026-09-17, and the rename is the second caller arriving
+ * rather than tidying: `Q-LM20`'s fuel reading has an age too, measured the same way from a
+ * different feed's clock. A tank aged by a function named for a position is a reader's double-take
+ * at every call site, and this repo has done the alternative once already — `STOPPED_SPEED_MPH` was
+ * promoted out of `matchFuelingMoment` the moment a second user appeared, for the same reason.
  */
-export function positionAgeSeconds(
+export function secondsSince(
   sampledAt: string | null | undefined,
   now: string | number | Date,
 ): number | null {
@@ -137,7 +143,7 @@ export function positionAgeSeconds(
  * 60 mph whose fix is four minutes old is still `moving` — it is moving, we simply know where it was
  * four minutes ago. Collapsing that into `offline` would grey out most of a driving fleet, because 65
  * of 171 trucks sat between one and five minutes old in production. D-LM10 is the other half: the
- * panel shows the AGE per truck alongside the state, and `positionAgeSeconds` is what it shows.
+ * panel shows the AGE per truck alongside the state, and `secondsSince` is what it shows.
  */
 export function deriveVehicleState(
   position: VehicleStateInput | null | undefined,
@@ -148,7 +154,7 @@ export function deriveVehicleState(
   const engineOn = bounds.engineOnBoundSeconds ?? ENGINE_ON_BOUND_SECONDS;
   const offline = bounds.offlineBoundSeconds ?? OFFLINE_BOUND_SECONDS;
 
-  const age = positionAgeSeconds(position?.sampledAt, now);
+  const age = secondsSince(position?.sampledAt, now);
   // No fix at all is `offline`, not a fourth kind of unknown. A truck we have never heard from and a
   // truck we stopped hearing from need the same thing from a dispatcher: find out why.
   if (age == null) return "offline";

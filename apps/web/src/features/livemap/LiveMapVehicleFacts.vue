@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { LiveMapVehicle } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapVehicle } from "@silvicom/shared";
 import { BADGE_BASE, vehicleStateTone } from "@/lib/badges";
-import { STATE_LABEL, formatAge } from "./liveMapLayer";
+import { STATE_LABEL } from "./liveMapLayer";
+import { formatAge, fuelMetric } from "./liveMapWords";
 
 /**
  * What one truck is doing right now — the body of both readings of a selection (D-DR5).
  *
- * ── ONE SET OF FACTS, TWO CONTAINERS ─────────────────────────────────────────────────────────────
- * The document form opens a `SlideOver` (`LiveMapVehicleDrawer`); the workspace floats a panel in
- * the bottom-left corner, where comp (7) draws it. The CONTAINER differs because the surfaces do;
- * the facts do not, and copying them would leave two versions of "which speed source is this" to
- * drift apart.
+ * ── ONE SET OF FACTS, ONE CONTAINER — AND IT SAID TWO FOR A FORTNIGHT ────────────────────────────
+ * This opened in two places once: a `SlideOver` for the DOCUMENT form of the board, and the
+ * workspace's floating panel where comp (7) draws it. D-DR24 deleted the document form — `/live-map`
+ * and `LiveMapPanel.vue` went with it — and `LiveMapVehicleDrawer.vue` survived the cut, imported by
+ * nobody, while this comment went on calling it a live container. It is deleted with this change,
+ * because the alternative was threading this card's new `board` prop through a component no route
+ * mounts. The facts stay in one file for the original reason: two copies of "which speed source is
+ * this" would drift apart.
  *
  * ── IT LINKS RATHER THAN RESTATES ────────────────────────────────────────────────────────────────
  * Everything a dispatcher might do next about a truck, a driver or a load already has a page that
@@ -30,6 +34,14 @@ import { STATE_LABEL, formatAge } from "./liveMapLayer";
  */
 const props = defineProps<{
   vehicle: LiveMapVehicle;
+  /**
+   * The board this truck came off, for its clock and its bounds (`Q-LM20`).
+   *
+   * ⚠ A `Pick` and not the whole board: this card describes ONE truck, and handing it every vehicle
+   * on the fleet would let a later edit reach for a second one from in here. The two fields are what
+   * `fuelMetric` needs to age a tank against the response's own clock rather than the browser's.
+   */
+  board: Pick<LiveMapBoard, "generatedAt" | "bounds">;
   /** `compact` drops the section rules and tightens the grid, for the floating panel. */
   density?: "comfortable" | "compact";
 }>();
@@ -50,6 +62,16 @@ const heading = computed(() => {
   // Null is not north. A bearing-less ping draws a dot rather than an arrow for the same reason.
   return deg == null ? "Not reported" : `${Math.round(deg)}°`;
 });
+
+/**
+ * The tank (`Q-LM20`, the owner's item 8). `—` when this truck has never reported one, because an
+ * unknown tank and an empty tank are opposite facts and 0% would send somebody to a full truck.
+ *
+ * The staleness is `fuelMetric`'s decision, not this component's — the rule reads the bound off the
+ * response, so a component holding its own idea of "recent" is exactly the second copy LM6's
+ * `bounds` exists to prevent.
+ */
+const fuel = computed(() => fuelMetric(props.vehicle, props.board));
 </script>
 
 <template>
@@ -63,6 +85,16 @@ const heading = computed(() => {
       <div>
         <dt class="text-xs text-ink-muted">Speed</dt>
         <dd class="text-ink">{{ speed }}</dd>
+      </div>
+      <div>
+        <!--
+          ⚠ Fuel sits beside SPEED, not after Heading, and that is the owner's item 8 read literally:
+          "fuel level, speed, current location" are the three facts asked for, and a bearing in
+          degrees is the one a dispatcher reads least. The two numbers a person scans together are
+          therefore the two on the first row.
+        -->
+        <dt class="text-xs text-ink-muted">Fuel</dt>
+        <dd :class="fuel?.stale ? 'text-ink-secondary' : 'text-ink'">{{ fuel?.text ?? "—" }}</dd>
       </div>
       <div>
         <dt class="text-xs text-ink-muted">Heading</dt>
