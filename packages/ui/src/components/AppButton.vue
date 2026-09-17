@@ -6,7 +6,7 @@ import { RouterLink, type RouteLocationRaw } from "vue-router";
 const props = withDefaults(
   defineProps<{
     variant?: "primary" | "secondary" | "danger" | "soft" | "ghost" | "link";
-    size?: "sm" | "md" | "icon";
+    size?: "sm" | "md" | "icon" | "row";
     type?: "button" | "submit" | "reset";
     block?: boolean;
     disabled?: boolean;
@@ -59,13 +59,39 @@ const SIZES: Record<NonNullable<typeof props.size>, string> = {
    * passes `aria-label`; there is no way for this file to enforce that, which is why it is said here.
    */
   icon: "size-8 p-0",
+  /**
+   * A ROW in a list: the full width of its column, left-aligned, as tall as its own content.
+   *
+   * Added 2026-09-16 for the live map's fleet rail (D-DR25), and added here for the third time the
+   * same lesson has been learned in this file — the call site was written as
+   * `class="!h-auto !justify-start !rounded-none !px-3 !py-2 !text-left !font-normal"`, six
+   * `!important`s to undo the button's box, which `lint:template-integrity` refused and was right to.
+   *
+   * ⚠ A row is a BUTTON and not a table row on purpose: in the fleet rail it is the keyboard's only
+   * route onto a canvas a screen reader cannot enter, so it has to be focusable and activatable
+   * without a grid's roles. It also wraps — `whitespace-normal` — because a row carries a driver's
+   * name and a place name rather than a label, and truncation is the caller's to choose per line.
+   */
+  row: "h-auto w-full gap-x-2 px-3 py-2 text-sm",
 };
 
 /** The link variant sits in running text, so it takes the surrounding size and no box at all. */
 const LINK_SIZE = "h-auto gap-x-1 p-0 text-inherit";
 
+/**
+ * ⚠ The shape line is conditional because `row` inverts three of its defaults — a control is centred,
+ * pill-cornered and semibold; a list row is left-aligned, square and normal weight. Branching here is
+ * what lets the variant exist WITHOUT an `!important` at the call site, which was the whole reason it
+ * was added.
+ */
+const SHAPE = {
+  control: "justify-center whitespace-nowrap rounded-control font-semibold",
+  row: "justify-start whitespace-normal text-left font-normal",
+} as const;
+
 const cls = computed(() => [
-  "inline-flex items-center justify-center whitespace-nowrap rounded-control font-semibold transition-colors",
+  "inline-flex items-center transition-colors",
+  props.size === "row" ? SHAPE.row : SHAPE.control,
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring",
   "disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60",
   VARIANTS[props.variant],

@@ -14,7 +14,7 @@ import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessu
 import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
-import { isFullBleed } from "@/lib/layout";
+import { isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
 import { useModulesQuery } from "@/composables/useModules";
 import NotificationBell from "@/components/NotificationBell.vue";
 import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
@@ -112,10 +112,32 @@ const navLinkClassCollapsed = (to: string) => [
 const mobileOpen = ref(false);
 watch(() => route.path, () => (mobileOpen.value = false));
 
-// Collapsible desktop sidebar — persisted so it survives page refreshes.
-const sidebarCollapsed = ref(localStorage.getItem("sidebar-collapsed") === "true");
-watch(sidebarCollapsed, (v) => localStorage.setItem("sidebar-collapsed", String(v)));
-function toggleSidebar() { sidebarCollapsed.value = !sidebarCollapsed.value; }
+/**
+ * Collapsible desktop sidebar — persisted so it survives page refreshes, and collapsed by default on
+ * a workspace surface (D-DR25). The rule itself is `sidebarIsCollapsed` in `lib/layout.ts`, which is
+ * where its reasoning and its test live; this is the state it reads.
+ */
+const storedCollapsed = ref(localStorage.getItem("sidebar-collapsed") === "true");
+/** What the reader did about the sidebar while on THIS workspace. Cleared when the surface changes. */
+const collapseOverride = ref<boolean | null>(null);
+watch(fullBleed, () => (collapseOverride.value = null));
+const sidebarCollapsed = computed(() =>
+  sidebarIsCollapsed({
+    stored: storedCollapsed.value,
+    fullBleed: fullBleed.value,
+    override: collapseOverride.value,
+  }),
+);
+function toggleSidebar() {
+  const next = !sidebarCollapsed.value;
+  // On a workspace the choice is about this visit; on a document it is the preference, and only that
+  // one is written down. See `sidebarIsCollapsed` for why the automatic collapse must not persist.
+  if (fullBleed.value) collapseOverride.value = next;
+  else {
+    storedCollapsed.value = next;
+    localStorage.setItem("sidebar-collapsed", String(next));
+  }
+}
 
 async function signOut() {
   await session.signOut();

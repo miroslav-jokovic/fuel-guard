@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isFullBleed, resolveLayout } from "./layout";
+import { isFullBleed, resolveLayout, sidebarIsCollapsed } from "./layout";
 
 describe("resolveLayout (G1)", () => {
   it("signed out, a dead-end page swaps AppShell for the centered auth shell", () => {
@@ -64,5 +64,41 @@ describe("isFullBleed (D-DR5, extended by D-DR24)", () => {
   // to drop the gutters. The `=== true` in both branches is what this holds.
   it("takes only `true` from a predicate, the same as from a literal", () => {
     expect(isFullBleed(at({ fullBleed: () => "yes" as unknown as boolean }))).toBe(false);
+  });
+});
+
+/**
+ * The sidebar on a workspace surface (D-DR25).
+ *
+ * ⚠ Every case here is about a preference NOT being written down. The defect this rule exists to
+ * prevent is a reader visiting the live map once and finding every page in the app collapsed
+ * afterwards, with nothing they did to explain it.
+ */
+describe("sidebarIsCollapsed (D-DR25)", () => {
+  it("collapses on a workspace and leaves a document alone", () => {
+    expect(sidebarIsCollapsed({ stored: false, fullBleed: true, override: null })).toBe(true);
+    expect(sidebarIsCollapsed({ stored: false, fullBleed: false, override: null })).toBe(false);
+  });
+
+  // The reader who collapsed it everywhere keeps it collapsed everywhere.
+  it("honours a stored collapse on a document page", () => {
+    expect(sidebarIsCollapsed({ stored: true, fullBleed: false, override: null })).toBe(true);
+  });
+
+  it("lets a choice made on the workspace win over both, in both directions", () => {
+    expect(sidebarIsCollapsed({ stored: false, fullBleed: true, override: false })).toBe(false);
+    expect(sidebarIsCollapsed({ stored: true, fullBleed: false, override: true })).toBe(true);
+    // ⚠ `false` is a real override and must not be read as "no override" — the bug a `||` would have.
+    expect(sidebarIsCollapsed({ stored: true, fullBleed: true, override: false })).toBe(false);
+  });
+
+  /**
+   * The property the whole rule is for: what is on screen is derived, so LEAVING the workspace
+   * restores the reader's own preference without anything having been saved or restored.
+   */
+  it("returns to the stored preference the moment the surface stops being a workspace", () => {
+    const stored = false;
+    expect(sidebarIsCollapsed({ stored, fullBleed: true, override: null })).toBe(true);
+    expect(sidebarIsCollapsed({ stored, fullBleed: false, override: null })).toBe(false);
   });
 });

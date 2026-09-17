@@ -1,6 +1,5 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { LiveMapVehicle, VehicleMapState } from "@silvicom/shared";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { useLiveMapBoard } from "./useLiveMapBoard";
 import {
   MAP_STATES,
@@ -48,21 +47,13 @@ export interface LiveMapView {
 }
 
 /**
- * The columns, shared because the fleet list is the SAME list in both shapes (D-DR7).
- *
- * The workspace docks it at the bottom instead of stacking it under the map; it is the same
- * `DataTable` with the same columns, which is what "expands to a dock with the existing table
- * inside it, unchanged" has to mean if it is to mean anything.
+ * ⚠ `LIVE_MAP_COLUMNS` WAS HERE AND WENT WITH THE DOCK (D-DR25). It described a seven-column
+ * `DataTable` — unit, driver, status, speed, last fix, location, load — shared by the two shapes of
+ * this board. There is one shape now (D-DR24) and its fleet list is a 320px rail, where seven columns
+ * do not fit and never could: that is D-DR17's lesson, which this programme has now paid for three
+ * times. `LiveMapRail` renders rows rather than cells, and the ordering the headers used to offer
+ * survives as `sortVehicles` in `liveMapLayer.ts`.
  */
-export const LIVE_MAP_COLUMNS: DataTableColumn[] = [
-  { key: "unitNumber", label: "Unit", sortable: true, width: "xs" },
-  { key: "driver", label: "Driver", sortable: true, width: "md" },
-  { key: "state", label: "Status", width: "sm" },
-  { key: "speed", label: "Speed", numeric: true, width: "xs" },
-  { key: "age", label: "Last fix", numeric: true, width: "sm" },
-  { key: "location", label: "Location", width: "lg" },
-  { key: "load", label: "Load", width: "md" },
-];
 
 export function useLiveMapView(): LiveMapView {
   const board = useLiveMapBoard();

@@ -2065,3 +2065,14 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   ⚠ For this plan the consequence worth carrying forward is that **LM8's page and LM-T's tab are now
   one surface**: a defect in the board has one place to be fixed, `useLiveMapView` has one consumer
   rather than two, and anything written here about "the page" means the Dispatch tab.
+
+- **2026-09-16 — D-DR25: the fleet list is a left rail, and D-DR7's dock is retired.** Search, the
+  census (which is now the status filter itself), the ordering and the list are one column beside the
+  map; the two corner panels and the bottom dock are gone, and with them D-DR6's `localStorage` panel
+  memory. For this plan the parts that matter: **LM8's fleet list is still the keyboard's only route
+  to a named truck** and is still mounted at every width — the rail is a permanent column at `lg` and
+  an overlay below it, never `v-if`'d away — and **D-LM18's scope sentence now has two homes**,
+  because below `lg` the rail is shut and a disclosure behind a button is one a dispatcher can miss
+  for a whole shift. The dock's seven sortable columns became four orderings in a select
+  (`sortVehicles`), which keeps "which truck has the oldest fix" rather than losing it with the
+  columns. Measurements and the rest of the reasoning: `DESIGN-REFRESH-2026-09.md` §7, **D-DR25**.

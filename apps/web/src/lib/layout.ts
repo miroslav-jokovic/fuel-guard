@@ -60,3 +60,34 @@ export function isFullBleed(route: { meta: RouteMeta; query?: Record<string, unk
   const declared = route.meta.fullBleed;
   return typeof declared === "function" ? declared(route) === true : declared === true;
 }
+
+/**
+ * Is the desktop sidebar collapsed right now (D-DR25)?
+ *
+ * Three inputs, and the order of them is the whole rule:
+ *
+ *   · `stored` — what the reader chose, in `localStorage`, for ordinary document pages.
+ *   · `fullBleed` — whether the surface on screen is a workspace. Measured at 1512×900, the live map
+ *     is **67% of the viewport with the sidebar open and 79% with it collapsed**; on the page it
+ *     replaced the same trade read 71% vs 83%. A dispatcher watching a board wants those points and
+ *     a reader of a document does not care, so a workspace starts collapsed.
+ *   · `override` — what they did about it WHILE ON that workspace, which must win over both.
+ *
+ * ⚠ **The automatic collapse is never written to `localStorage`, and that is the point of having a
+ * function rather than an assignment.** If it were stored, one visit to the live map would leave the
+ * reader with every page collapsed and no memory of asking for it — a surface quietly rewriting a
+ * global preference as a side effect, which this repo's register names as a workaround. So the
+ * stored value is what they chose, this function is what is on screen, and leaving the workspace
+ * restores them to what they chose without a restore step existing at all.
+ *
+ * ⚠ `override` is cleared by the CALLER when `fullBleed` changes: an expansion asked for on the map
+ * is about the map, and carrying it onto the next workspace would be inventing a preference nobody
+ * set.
+ */
+export function sidebarIsCollapsed(input: {
+  stored: boolean;
+  fullBleed: boolean;
+  override: boolean | null;
+}): boolean {
+  return input.override ?? (input.fullBleed || input.stored);
+}
