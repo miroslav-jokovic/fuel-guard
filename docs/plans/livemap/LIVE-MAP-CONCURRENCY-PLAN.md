@@ -8,8 +8,8 @@ This document is the measurement and the queue. Decisions land at the end of `LI
 usual.
 
 ⚠ **§0–§6 are the measurement as it stood before anything was built, and are left that way on
-purpose** — they are what the numbers in §7 are measured against. **§7 is the current position:
-C1, C2 and C3 have shipped, and `Q-LM22` is what the last of them exposed.** Read §7 first.
+purpose** — they are what the later numbers are measured against. **§7 and §8 are the current
+position: C1, C2, C3 and C7 have shipped, and `Q-LM22` is what C3 exposed.** Read §7 and §8 first.
 
 ---
 
@@ -247,3 +247,58 @@ how this codebase already answers "what may this caller do"**, and it costs a to
 - **C8** (replicas) — not needed on this evidence. ⚠ Note C3 caches **in process**, so a second
   replica means two caches and two reads per TTL rather than one. That is correct but halves the
   saving, and is a reason to price C8 against C7 rather than reach for it first.
+
+---
+
+## 8. C7 built — the API can now say what it is serving (2026-09-17)
+
+`middleware/requestMetrics.ts`. One `[metrics]` line per minute per process, folded from a rolling
+in-memory window. Under the 30-dispatcher scenario, **540 requests produced 3 lines**:
+
+    [metrics] {"windowSec":30,"requests":180,"rps":5.95,"status":{"2xx":180},"refused429":0,
+               "errors5xx":0,"latencyMs":{"p50":13,"p95":21,"p99":56,"max":59},"distinctRoutes":1,
+               "busiest":[{"route":"GET /api/livemap/positions","count":180,"p95":21,"max":64}],
+               "slowest":[...]}
+
+⚠ The `latencyMs` here is **server-side handler time** and will read lower than a client round trip —
+the same load measures 24 ms p50 at the browser and 13 ms here. Both are correct; they measure
+different spans, and quoting one as the other is how a performance claim becomes wrong.
+
+**The two constraints were the design, not a caveat:**
+
+- **Not a line per tile.** The obvious shape — `morgan`, one line per request — would emit tens of
+  thousands of lines an hour from the tile proxy alone. Aggregating costs one line a minute at any
+  traffic level, and it is pinned ("emits one line per window however many requests it covers").
+- **Nothing identifying.** The query string is dropped entirely, every id-shaped segment is replaced
+  (`uuid`, numeric, anything ≥ 24 chars), path depth is capped, SPA assets collapse to one bucket, and
+  **no user, org, token or address is recorded at any point**. There is deliberately no way to ask
+  this module what one person did. Five assertions cover it, each a real path shape in this product.
+
+⚠ **Cardinality is a memory question, not a tidiness one.** Route keys are capped at 200 with the
+rest folded into `<other>`, and per-route samples at 128. Without that, anything probing random URLs
+mints unbounded map keys inside a long-lived process — a leak that appears exactly under the traffic
+you least want to fall over in.
+
+⚠ **It is NOT a scheduler, and `docs/WORKER-DEPLOYMENT.md` does not govern it.** That document is
+about work that must run in exactly ONE process fleet-wide, because two doing it means duplicated
+writes. This writes nothing, reads no shared state and reports only its own process — so it must run
+in *every* process, two services reporting separately is correct, and it deliberately has **no env
+flag**, because a flag is precisely the silent-default trap that document exists to warn about. The
+timer is `unref()`ed so it cannot hold a process open, and it is started in `index.ts` rather than
+`createApp` so the test suite does not build hundreds of them.
+
+**What to do with it:** `railway logs --service fleetguardapi-production | grep '^\[metrics\]'` now
+answers the questions `Q-LM21` was blocked on — request rate, p95, refusals — without a deploy. That
+does not close `Q-LM21` by itself (it counts our own traffic, not HERE's billing), but **B3's storm
+is now measurable from our side**, which it was not this morning.
+
+### Where the queue stands
+
+| | |
+|---|---|
+| **C1** #856 · **C2** #857 · **C3** #858 · **C7** | **shipped** |
+| **C4** ETag/`304` | open — cheap now that C3 makes the board a shared snapshot |
+| **C5** B3 tile coalescing | still gated on **HERE's quota console** (`Q-LM21`), but now half-answerable from `[metrics]` |
+| **C6** the five sequential round trips | **largely mooted by C3** — they run ~0.03 times per poll |
+| **C8** replicas | not needed on this evidence, and ⚠ now *costs* something: C3's cache is in-process |
+| **`Q-LM22`** `org_module_enabled` at 88% of remaining DB traffic | open, and **not the map's to fix** |
