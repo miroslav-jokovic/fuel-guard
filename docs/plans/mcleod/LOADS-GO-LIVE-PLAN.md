@@ -194,10 +194,14 @@ in front of Alex — tell him the truth, which is that the read is 0.0006% eithe
 
 **The bottleneck is our own ingest: 52.1 seconds for 157 loads.** Measured on the first production
 pull (board read finished 17:49:25.266, ingest acknowledged 17:50:17.330). The diagnosis is not a
-guess: `ingestLoads` performs **five sequential round trips per load** — insert `loads`, upsert
-`load_external_payloads`, delete pending `load_stops`, upsert `load_stops`, insert `load_events` —
-inside a plain `for` loop. **157 × 5 = 785 serial round trips, and 52,100 ms ÷ 785 = 66 ms each**,
-which is ordinary Railway→Supabase latency. Nothing is batched.
+guess: `ingestLoads` performs **six sequential round trips per load** — insert `loads`, stamp
+`external_status`, upsert `load_external_payloads`, delete pending `load_stops`, upsert
+`load_stops`, insert `load_events` — inside a plain `for` loop. **157 × 6 = 942 serial round trips,
+and 52,100 ms ÷ 942 ≈ 55 ms each**, which is ordinary Railway→Supabase latency. Nothing is batched.
+
+*(Corrected 2026-09-17 while executing L11: the first count said five and 66 ms, taken from a grep
+rather than from the call path. The `external_status` stamp inside `writeProvenance` is a sixth.
+The conclusion is unchanged and the ratio is slightly worse.)*
 
 At a 60-second cadence that leaves **eight seconds of headroom**. That is not a cadence, it is a
 queue waiting to form — so **L11 lands before L9 turns the schedule on.**
@@ -491,9 +495,36 @@ payload instead of 785**.
   two events into one is not.
 
 **Done when.** The same 157-load payload ingests in **under 5 seconds**, measured against the same
-board and stated in the progress log; every existing `tmsLoadIngest` test still passes unchanged;
-and a **new** test proves an approved load is not overwritten by a re-ingest — **proven by mutation**:
-delete the partition guard and that test must fail.
+board and stated in the progress log; every **behaviour** the `tmsLoadIngest` suite pins still holds;
+and a **new** test proves an approved load is not overwritten when it shares a batch with loads the
+feed does own — **proven by mutation**: remove the ownership guard and that test must fail.
+
+⚠ **Corrected 2026-09-17, during execution.** This step originally required that *"every existing
+test still passes unchanged"*. That was written before the suite was read and **could not be met**:
+those tests assert the SHAPE of each write (`payload as { status }` on a single `loads` insert), and
+batching necessarily turns one payload into an array. The assertions were moved to the new shape with
+every behavioural claim intact, and the test double was corrected to model a bulk insert — it now
+returns the created rows **reversed**, because PostgREST does not promise their order. Requiring a
+test not to change is the wrong kind of promise; requiring the behaviour not to change is the right
+one.
+
+---
+
+### L11b · A set-based UPDATE RPC, to remove the last per-row write
+
+**Why.** L11 batches everything except the overwrite patches, because each patch sets different
+values and one UPDATE can only set one. That path runs with bounded concurrency (8) — faster than
+serial, still a statement per row, and **labelled as a deliberate intermediate in
+`applyOverwrites`** rather than left as silent debt.
+
+**Do.** The pattern this repository already uses: a migration adding an RPC that takes a `jsonb`
+array and applies every patch in one statement (migrations 0174/0175). ⚠ `lint:migration-ordering`
+**cannot see functions**, so the RPC ships one merge ahead of its first caller and `pg_proc` is
+checked by hand before the caller merges.
+
+**Not urgent, and say why:** once the change detector lands (L7) a cycle carries the ~28 movements
+that changed in the last hour, not all 157 — so this path shrinks by an order of magnitude on its
+own. Sequence it after L7 and re-measure before building it; it may not be worth a migration.
 
 ## 6. The testing routine — what "tested" means at each stage
 
@@ -559,3 +590,15 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   to the promises it makes; all four assertions **proven able to fail** by mutation (a drifted query,
   a removed lock timeout, an injected `NOLOCK`). D-MCC16 and step **L11** added: the carrier's server
   costs 16 ms of CPU and our own ingest costs 52.1 seconds, so the bottleneck was never theirs.
+- 2026-09-17 — **L11 built.** `ingestLoads` now **classifies every load purely, then issues one
+  statement per table**; the writers moved to `tmsLoadIngestWriters.ts` (the 500-line budget, and a
+  cleaner split: the classify file now writes nothing at all, so the three grandfathered
+  `loads`-owned write sites MOVED path rather than multiplying — `lint:table-modules` and
+  `lint:table-writers` both ratchet, and both pass). Round trips for a 157-load first pull go from
+  **942 to ~11**. ⚠ Not yet measured end to end: the agent posts to the deployed API, so the 52.1 s →
+  ? figure can only be taken **after this merges**, and L11's Done-when is not closed until it is.
+  Three mutations were run against the implementation: removing the ownership guard kills 5 tests,
+  reordering the results kills 2 — and **pairing inserted ids by position killed nothing**, because
+  every fixture had interchangeable loads. That is the "fixture too uniform to discriminate" trap
+  again; a test with two loads carrying different stops, against a stub that returns the rows
+  reversed, now kills it. 24 tests in the file, 3,825 in `apps/api`, all green.
