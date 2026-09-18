@@ -6,11 +6,13 @@ import type { Driver } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.vue";
+import HiringChecklistCard from "@/features/recruitment/HiringChecklistCard.vue";
 import DispositionSection from "@/features/recruitment/DispositionSection.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 import ApplicationReviewDrawer from "@/features/apply/ApplicationReviewDrawer.vue";
+import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
 
 /**
  * One applicant's hiring paperwork — the recruiting surface's own record page (R7, D-ROS6).
@@ -45,6 +47,16 @@ const id = computed(() => String(route.params.id ?? ""));
  */
 const reviewing = ref<string | null>(null);
 
+/**
+ * Where this hire has got to, across all of D-HM9's steps (B5).
+ *
+ * ⚠ It leads the page rather than sitting among the five sections, and that is the whole point of
+ * B5: the sections answer *what did we record about this person*, and a recruiter opening a record
+ * asks *what do I do about them today* first. B6 rebuilds the page around this card, at which point
+ * the five sections below become the drawers its rows open.
+ */
+const checklistQ = useApplicantChecklistQuery(id);
+
 const { data: driver } = useQuery({
   queryKey: ["driver-detail", id],
   enabled: computed(() => Boolean(id.value)),
@@ -61,6 +73,13 @@ const { data: driver } = useQuery({
     <PageHeader
       :title="driver?.full_name ?? 'Applicant'"
       description="The application, the employment history it declares, the §391.23 investigation of that history, and the decision."
+    />
+
+    <HiringChecklistCard
+      :driver-id="id"
+      :checklist="checklistQ.data.value ?? null"
+      :loading="checklistQ.isLoading.value"
+      :error="checklistQ.error.value ? 'The hiring checklist could not be loaded.' : null"
     />
 
     <!-- The recruiter's act of asking, and the act that ends it (0238). An applicant who is hired

@@ -7,7 +7,7 @@ import {
   rolesThatManage,
   type HiringPhase,
 } from "@silvicom/shared";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
@@ -369,11 +369,19 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
           <span v-else class="text-ink-muted">Nothing left to do</span>
         </template>
 
+        <!-- ⚠ Icon AND word (D-HUI4), brought into line with the checklist in B5's PR. It was
+             word-only from B4 until 2026-09-18; the glyph comes from the same record the checklist
+             rows read, so this column and that one cannot say one state two ways. -->
         <template #cell-waiting_on="{ row }">
           <span
             v-if="!row.disposition && row.checklist"
             :class="[BADGE_BASE, toneClass(hiringWaitingOnBadge(row.checklist.waiting_on).tone)]"
           >
+            <AppIcon
+              :icon="hiringWaitingOnBadge(row.checklist.waiting_on).icon"
+              class="size-3.5"
+              aria-hidden="true"
+            />
             {{ hiringWaitingOnBadge(row.checklist.waiting_on).label }}
           </span>
           <span v-else class="text-ink-muted">—</span>

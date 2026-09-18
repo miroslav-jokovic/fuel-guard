@@ -1304,6 +1304,54 @@ every time.
 
   **Headroom restored:** 148 lines on the catalogue and 302 on the logic, against zero before.
 
+
+- **2026-09-18, B5 — DONE. The applicant record leads with a checklist whose every row says what it
+  is, who owes the move, and the document that proves it.** `features/recruitment/` per D-HUI2 —
+  `HiringChecklistCard.vue`, `useApplicantChecklist.ts` (B3's endpoint had no reader until now) and
+  `hiringArtifacts.ts`. Not shared, and Q-HUI3 already names the trigger that promotes it.
+
+  **Two design questions were settled in the CATALOGUE, not in the component, and both were the same
+  shape as the one B4 hit.**
+
+  | | |
+  |---|---|
+  | The artifact column | `spec.evidence` was a bare table name, so *"qualification_records.mvr"* was what the third column rendered. It is now `{ table, label }` — one object, not a field beside a field, so **a step with an evidence table and no words for it is unrepresentable** rather than merely forbidden by D-HUI3. `table` still means exactly what it meant and is still what keeps a step out of the fold |
+  | Reaching the document | A route, so it stays in `apps/web`. ⚠ `HiringEvidenceTable` became a CLOSED UNION for this: the map from artifact to address is a `Record` over it, so a new step with a new artifact is a **typecheck failure** in `hiringArtifacts.ts` until somebody says where it is reached. Proved by deleting one entry — `error TS2741`. Without it that map is a copy with a delay fuse, which is the failure mode `CLAUDE.md` names |
+  | The badges | One `Record<HiringStepState, {tone, icon}>` in `badges.recruiting.ts`. B4's `hiringWaitingOnBadge` reads it too and keeps B4's tones, so the board's *You* and the checklist's *Waiting on you* now carry the same glyph. ⚠ `hiringPhaseBadge` was deliberately NOT given one: the stage is not one of D-HUI4's four states, and five phases with five icons is a second vocabulary and a louder board |
+
+  ⚠ **`readyToTravel` is rendered as a sentence, never a tick.** `ok` is false for everybody until
+  D4 ships, so the card says *"Not ready to travel — 2 steps outstanding, and orientation videos
+  cannot be checked yet"*, naming what it could not measure. A green tick there would be the
+  medical-certificate mistake at the summary level, and Q-HM5 makes travel a hard gate.
+
+  **Where each artifact is reached, measured rather than assumed:** nine resolve to the driver's
+  §391.51 file — including the signed packet, because `applicationPdf/file.ts` files it as a
+  `documents` row of kind `employment_application` cited by a qualification record, so it is already
+  listed and downloadable there. Two are cards on the applicant record itself. **One resolves to
+  nothing: `driver_authorizations`.** The read endpoint exists and no screen in the office's half of
+  the product calls it, so the row states the artifact and does not link it. ⚠ Recorded as **Q-HUI6**
+  in `HIRING-UI-PLAN.md` §7 with three candidates and a recommendation, rather than pointed at the
+  nearest page — a row that says "Authorizations" and opens the application is worse than one that
+  does not open.
+
+  **Verified:** ten mutations, ten red, each on a different assertion — artifact shown before the
+  step is done · rendered as its table name · the loud state stops being loud · the state badge
+  loses its icon · the travel sentence swallows `unmeasured` · the next action becomes the step's
+  label · an unreachable artifact pointed at the nearest page · an artifact label restating its step
+  · a blocked row that stops naming its blocker · completed steps filtered out of the count. Plus
+  the typecheck fuse above. ⚠ The harness restores by writing the original bytes back, never
+  `git checkout --`, which is refused in a worktree-isolated session and cost B4 a whole run.
+
+  **And the one defect every test was green for**, found by rendering at 1440 and 390 with
+  `preview:local` + `VITE_DEV_BYPASS`: the blocked rows read ***"needs office approved it"***. The
+  step labels are not one grammatical form — "Permissions signed" is a past-tense fact, "Driving
+  record" is a noun, "Office approved it" is a clause with its own object — so no preposition
+  composes with all twelve. It ships as `Needs: <Label>`, where the colon does the work. Same lesson
+  as B4's *"Next action: Office approved it"*, one field over.
+
+  `pnpm lint`, `typecheck`, `test` (9,445 unit + 40 matrices), `lint:boundaries`, `lint:filesize`,
+  `lint:funcsize`, `lint:comment-claims`, `lint:ui-adoption`, `lint:surfaces` and
+  `--filter web lint:tokens` all green. No migration; no schema change.
 ---
 
 ## 11. Sources
