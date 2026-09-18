@@ -1,4 +1,5 @@
 import { computed, ref, type Ref } from "vue";
+import type { PacketMarkKind } from "@silvicom/shared";
 import { applyPacketMark, type ApplyPacketStop } from "@/features/apply/useApplication";
 import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapture";
 
@@ -37,13 +38,23 @@ import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapt
  * already authorized is a fact about `driver_authorizations`, not about the paper.
  *
  * ── WHAT IT REFUSES TO DO ─────────────────────────────────────────────────────────────────────
- * Skip, and finish early. The index only advances on a 201, so a stop that did not land cannot be
- * walked past — and `complete` comes from the SERVER's count rather than from this file reaching the
- * end of its own array, because the array is what the client happens to be holding and the count is
- * what the document actually carries.
+ * Skip, and finish early. A stop only stops being outstanding once it is FILED, so one that did not
+ * land cannot be walked past — and `complete` comes from the SERVER's count rather than from this
+ * file reaching the end of its own array, because the array is what the client happens to be holding
+ * and the count is what the document actually carries.
+ *
+ * ⚠ It also refuses to let a mistyped mark become permanent without being shown (A4): `confirming`
+ * sits between the last keystroke and the first signature, and a kind the server has not yet pinned
+ * stays changeable — `pinnedKinds` is what decides, because the server is what enforces it.
  */
 
-export type PacketCeremonyState = "adopting" | "signing" | "done";
+/**
+ * ⚠ **`confirming` is A4's step and it is a STATE, not a modal.** The driver has typed both marks and
+ * has not yet fixed either; the screen shows them as they will be printed and offers a way back. It
+ * sits here rather than in the component because what may still be changed is a fact about the
+ * server's rows (`pinnedKinds`), and a component cannot be the place that decides it.
+ */
+export type PacketCeremonyState = "adopting" | "confirming" | "signing" | "done";
 
 /** How the driver chose to make their mark (D-PKT13). Decided once, before the first stop. */
 export type AdoptedMarkStyle = "typed" | "drawn";
@@ -78,8 +89,15 @@ export function usePacketCeremony(
   /** The drawn mark, when the driver chose to draw one. */
   const markBlob = ref<Blob | null>(null);
   const adopted = ref(false);
+  /**
+   * Whether the driver has SEEN the confirm screen and said yes (A4).
+   *
+   * ⚠ Separate from `adopted`, which only means the marks have been collected and the drawing staged.
+   * Collapsing the two is what made the old flow go straight from the last keystroke to the first
+   * signature with nothing in between.
+   */
+  const confirmed = ref(false);
   const stage = options.stage ?? stageCapture;
-  const index = ref(0);
   const working = ref(false);
   const error = ref<string | null>(null);
   /**
@@ -110,15 +128,42 @@ export function usePacketCeremony(
   const finished = ref(false);
 
   /**
-   * ⚠ Everything this link has NOT already collected, in the packet's own page order.
+   * ⚠ Everything this link has NOT collected, in the packet's own page order — re-derived, and the
+   * placement ids this WALK filed are part of the derivation.
    *
-   * Computed once per load rather than re-derived after each mark: a list that re-filtered as the
-   * driver went would renumber the stops under them — "3 of 22" becoming "3 of 19" — and the count
-   * a driver is watching must not move while they are watching it.
+   * ── ⚠ WHY THIS IS NOT A LIST PLUS A COUNTER, WHICH IS WHAT IT WAS ─────────────────────────────
+   * It used to be `stops.filter(s => !s.signedAt)` computed against a snapshot, with `current` being
+   * `outstanding[index]` and `index` a counter incremented per filed mark. The header said the list
+   * was *"computed once per load"*. **It is a `computed`, so it was not**, and `useApplyInvitationQuery`
+   * runs under `VueQueryPlugin` with no `defaultOptions` — which means TanStack's
+   * `refetchOnWindowFocus: true` is live on the walk.
+   *
+   * So: a driver five marks in switches apps to read a text and comes back. The refetch re-serves the
+   * packet with those five now carrying `signedAt`, `outstanding` drops from 22 entries to 17, and
+   * `index` is still 5 — so `current` becomes `outstanding[5]`, the ELEVENTH place, and five places
+   * are stepped over silently. At the end `index` runs off the shortened array, `current` goes null
+   * with stops still unsigned, and the template falls through to *"That is every place signed"* on a
+   * packet that is not. A phone is where this walk happens, so backgrounding the page is not an edge
+   * case; it is the normal way a person uses one.
+   *
+   * ── THE SHAPE THAT CANNOT DO THAT ─────────────────────────────────────────────────────────────
+   * There is no cursor. The current stop is **the first one nobody has filed**, asked fresh every
+   * time: `signedAt` is the server's answer and `filedHere` is this session's, and a refetch simply
+   * moves a stop from the second to the first. The two agree, so it is self-healing rather than
+   * merely resilient — there is no state left over to be wrong.
+   *
+   * ⚠ **And the count still does not renumber**, which was the original comment's real concern. It
+   * was right about the hazard and wrong about the cause: the old `position` added `index` to a
+   * number derived from the same shrinking list, so a refetch double-counted. `position` below is
+   * one subtraction from `total` and moves by exactly one per mark.
    */
-  const outstanding = computed(() => stops.value.filter((s) => !s.signedAt));
+  const filedHere = ref<Set<string>>(new Set());
 
-  const current = computed<ApplyPacketStop | null>(() => outstanding.value[index.value] ?? null);
+  const outstanding = computed(() =>
+    stops.value.filter((s) => !s.signedAt && !filedHere.value.has(s.id)),
+  );
+
+  const current = computed<ApplyPacketStop | null>(() => outstanding.value[0] ?? null);
 
   /**
    * Whether this link still has a stop that takes initials, and therefore whether to ask for them.
@@ -136,11 +181,80 @@ export function usePacketCeremony(
   /** The whole packet, so the driver sees what they are part-way through rather than what is left. */
   const total = computed(() => stops.value.length);
   const alreadySigned = computed(() => stops.value.length - outstanding.value.length);
-  const position = computed(() => alreadySigned.value + index.value + 1);
+  /**
+   * "Place 7 of 22", counted against the whole document.
+   *
+   * ⚠ One subtraction and no cursor — see `outstanding`. The version this replaces added a counter to
+   * this same figure, so a mid-walk refetch counted every filed mark twice.
+   */
+  const position = computed(() => alreadySigned.value + 1);
   const complete = computed(() => finished.value || outstanding.value.length === 0);
 
+  /**
+   * Which of the two adopted marks this LINK has already fixed on the server (A4).
+   *
+   * ── WHY THIS EXISTS, AND WHY IT IS PER KIND ───────────────────────────────────────────────────
+   * `record_packet_mark` (0340) pins per `(invitation_id, mark)`: the FIRST row of a kind fixes
+   * `signed_name` for that kind, and any later stop of that kind arriving with a different spelling
+   * is refused `DR035`. So the two marks are fixed at two different moments — the signature at the
+   * first signature stop (`p03`, place 1), the initials at the first INITIALS stop (`p05`, place 3).
+   *
+   * ⚠ **That gap is the whole of A4's opportunity and §1.4 does not spell it out.** The moment a
+   * driver is most likely to notice a mistyped initial is the moment they first SEE it in place —
+   * "We will put your initials on the page: MV", at place 3, immediately before they press. At that
+   * moment the initials are not yet pinned and the server would accept a correction. Before this,
+   * the screen collected both marks up front and offered no way back, so a stray keystroke was
+   * permanent for a federal record and the refusal, when it came, was `DR035` — advice the driver
+   * cannot act on.
+   *
+   * ⚠ **Derived from what has been FILED, never from a flag this file sets.** Three sources, all of
+   * them evidence: what the server served as pinned (`options.adopted`), any stop it served as
+   * already collected, and anything this walk has filed. That is the same principle 0340's header
+   * gives for reading the pin off the marks rather than off a summary of them — a summary can drift
+   * from the rows, and here the cost of drifting is offering the driver a correction the server will
+   * refuse, or withholding one it would have taken.
+   */
+  const pinnedKinds = computed<ReadonlySet<PacketMarkKind>>(() => {
+    const pinned = new Set<PacketMarkKind>();
+    const served = options.adopted?.value;
+    if (served?.signature?.trim()) pinned.add("signature");
+    if (served?.initials?.trim()) pinned.add("initials");
+    for (const stop of stops.value) {
+      if (stop.signedAt || filedHere.value.has(stop.id)) pinned.add(stop.mark);
+    }
+    return pinned;
+  });
+
+  /** Whether a correction to this kind would still be accepted. The server decides; this reads it. */
+  const canChange = (kind: PacketMarkKind): boolean => !pinnedKinds.value.has(kind);
+
+  /**
+   * How many places already carry a mark of this kind (A4) — the REASON a locked mark gives.
+   *
+   * ⚠ **It lives here rather than in the component, and that is a defect found by rendering.** The
+   * component had its own version counting `stops.filter(s => s.mark === kind && s.signedAt)`, which
+   * looked equivalent and was not: a mark filed during THIS walk is in `filedHere` and will not carry
+   * `signedAt` until the next refetch. So the screen told a driver *"Your signature is already on 0
+   * places of the form, so it cannot be changed now"* — a sentence that refuses and disproves itself
+   * in the same breath, on the one screen whose job is to be believed.
+   *
+   * ⚠ The general form of the mistake is the one this repo keeps meeting: a second computation of a
+   * fact the first one already owns. `pinnedKinds` and this count now read the same two sources, so
+   * "it is locked" and "here is how many" cannot disagree.
+   */
+  const placesWithMark = (kind: PacketMarkKind): number =>
+    stops.value.filter((s) => s.mark === kind && (s.signedAt || filedHere.value.has(s.id))).length;
+
+  /**
+   * ⚠ **`confirming` sits between adopting and signing, and it is A4** — the step at which the
+   * driver sees what they typed, in the face it will be printed in, before any of it is fixed.
+   *
+   * A resumed link SKIPS it: `alreadyAdopted` means the server pinned both marks on a previous
+   * visit, so there is nothing on that screen the driver could change and showing it would be
+   * offering a decision that has already been made.
+   */
   const state = computed<PacketCeremonyState>(() =>
-    complete.value ? "done" : adopted.value ? "signing" : "adopting",
+    complete.value ? "done" : confirmed.value ? "signing" : adopted.value ? "confirming" : "adopting",
   );
 
   /**
@@ -216,6 +330,42 @@ export function usePacketCeremony(
       }
     }
     adopted.value = true;
+    /**
+     * ⚠ **A resumed link skips the confirm step, and only a resumed link does** (A4). `alreadyAdopted`
+     * is true when the SERVER has already pinned both marks, which means there is nothing on that
+     * screen the driver could change — `record_packet_mark` would refuse a different spelling with
+     * `DR035`. Showing it anyway would be asking somebody to approve a decision that is already
+     * final, which is the shape of consent theatre rather than consent.
+     */
+    confirmed.value = alreadyAdopted.value;
+    return true;
+  }
+
+  /**
+   * The driver has read the confirm screen and is happy (A4). Nothing is filed by this — the first
+   * mark is still the thing that fixes anything — so it is a screen change and nothing more.
+   */
+  function confirm(): void {
+    if (!adopted.value) return;
+    confirmed.value = true;
+  }
+
+  /**
+   * Go back and change a mark that is not yet fixed (A4).
+   *
+   * ⚠ **Refuses when BOTH kinds are pinned**, because at that point there is nothing to go back for
+   * and a form whose every field is disabled is worse than no form. When only one is pinned it opens:
+   * the other is still genuinely editable, and `canChange` tells the screen which is which so the
+   * disabled one can say WHY rather than vanishing.
+   *
+   * ⚠ Returns to `adopting`, not to a special edit mode. The adoption screen is already the place
+   * these marks are made, and a second screen for changing them would be a second place the rules
+   * about what a mark may be would have to live.
+   */
+  function reopen(): boolean {
+    if (!canChange("signature") && !canChange("initials")) return false;
+    adopted.value = false;
+    confirmed.value = false;
     return true;
   }
 
@@ -272,20 +422,24 @@ export function usePacketCeremony(
       // ⚠ The SERVER decides this, not the end of our array. A resumed link, a second tab or a stop
       // collected elsewhere all mean the client's list is not the document's.
       if (result.complete) finished.value = true;
-      index.value += 1;
+      // ⚠ This stop is filed, so it stops being outstanding and `current` moves on by itself. Adding
+      // the ID rather than advancing a cursor is what makes a mid-walk refetch harmless — see
+      // `outstanding`. The server re-serving this stop with `signedAt` set says the same thing twice,
+      // which is exactly the property we want.
+      filedHere.value = new Set(filedHere.value).add(stop.id);
     } catch (e) {
       const code = (e as { code?: string }).code;
       if (code === "packet_mark_already_made") {
         // A double-tap, or the same link open twice. The mark exists — move on rather than telling
         // the driver off for something the server handled correctly.
-        index.value += 1;
+        filedHere.value = new Set(filedHere.value).add(stop.id);
       } else {
         // ⚠ A0b. The refusal that stopped the first real ceremony was a 429, and until now every
         // refusal here read the same on the screen above — which then sent a driver with a perfectly
         // good connection off to check their signal. This one is carried out separately so the
         // screen can say the only thing that is both true and actionable: wait, press again, nothing
-        // is lost. ⚠ `index` deliberately does not advance, so pressing again retries the SAME place
-        // on the carrier's paper rather than skipping it.
+        // is lost. ⚠ The stop is NOT added to `filedHere`, so it stays outstanding and pressing again
+        // retries the SAME place on the carrier's paper rather than skipping it.
         rateLimited.value = code === "too_many_requests";
         error.value = e instanceof Error ? e.message : "That did not go through.";
       }
@@ -303,6 +457,12 @@ export function usePacketCeremony(
     style,
     markBlob,
     currentShowsDrawing,
+    pinnedKinds,
+    canChange,
+    placesWithMark,
+    confirm,
+    reopen,
+    confirmed: computed(() => confirmed.value),
     drawnMarkFailed: computed(() => drawnMarkFailed.value),
     adopted: computed(() => adopted.value),
     state,

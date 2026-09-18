@@ -783,6 +783,32 @@ a process decision is how a plan starts describing a business nobody runs.
   **Recommendation (a), as its own PR before the next surface is added, not bundled into one.** It
   touches a gate that three consumers depend on and nothing about it belongs in a feature step.
 
+- **Q-PKT11 · `usePacketCeremony.ts` is at 481 of 500 lines, and the next author gets nineteen.**
+  (raised by A4, 2026-09-18.) It was 248 before A3. A3 added the drawn-mark rule and its reasoning,
+  A4 added the confirm state, the per-kind pin and the retired cursor's post-mortem — all of it the
+  long-form WHY this repo's conventions ask for, and all of it load-bearing: the cursor comment is
+  the only place the `refetchOnWindowFocus` hazard is written down.
+
+  ⚠ **It passes `lint:filesize` and it is over the 450 warning**, which is exactly where
+  `surfaces.ts` stood when Q-HM8 was raised — and Q-HM8's finding was that squeezing the comments
+  back under *"is the wrong repair and it only worked once"*.
+
+  **Candidates:**
+  - **(a) Split along the seam the file already has.** The walk (`outstanding`, `current`,
+    `position`, `sign`) and the ADOPTION (`adoptedName`, `adoptedInitials`, `style`, `markBlob`,
+    `adopt`, `confirm`, `reopen`, `pinnedKinds`, `canChange`) are two cohesive halves that touch each
+    other at exactly two points — `markFor` and `currentShowsDrawing`. `usePacketAdoption.ts` beside
+    it, composed by `usePacketCeremony`, keeps the public surface the component reads unchanged.
+  - **(b) Waive the file.** Retires the only pressure keeping it readable, on the file that has
+    produced four defects in two days.
+  - **(c) Trim the comments.** Cheapest, and it deletes the record of why the cursor was removed —
+    which is the single thing most likely to be reintroduced by somebody optimising later.
+
+  **Recommendation (a), as its own PR before C2** — which adds the adoption dialog and will land
+  squarely in the half that is already full. ⚠ Not bundled into a feature step: the split is a
+  refactor whose whole value is that nothing about it changes behaviour, and it wants a diff that
+  says so.
+
 ### D-HM10 — the handbook is a separate instrument, signed in the office (ruled 2026-09-17)
 
 The owner: *"we will have signing handbook as part of signing process and when driver is in the
@@ -1533,6 +1559,84 @@ every time.
   `lint:funcsize`, `lint:comment-claims`, `lint:ui-adoption` and `--filter web lint:tokens` green.
 
   **Next is A4** (initials stop pinning on one keystroke) — same files, same freeze exposure.
+
+---
+
+- **2026-09-18, evening — A4 BUILT, plus the stranding defect A0 recorded and nobody fixed.**
+  PR #878, branch `claude/hiring-a4`. No migration; no schema change.
+
+  **A4: the initials no longer pin on one keystroke.** A `confirming` state now sits between the last
+  keystroke and the first mark, showing both marks in the face they will be printed in — the drawing
+  itself when there is one — plus *"These go on pages 5, 6 and 9"*, derived from the stops rather than
+  from the number three (the packet has gained a placement mid-array before, p17/D-PKT12). `Change`
+  returns to the adoption form. ⚠ The contract's `min(1)` is untouched, per the row: the defect was
+  the pin, not the minimum.
+
+  ⚠ **§1.4 understates the opportunity, and reading 0340 is what showed it.** The pin is per
+  `(invitation_id, mark)` — the first row OF A KIND fixes `signed_name` for that kind — so the two
+  marks are fixed at two different moments: the signature at place 1 (`p03`), **the initials not
+  until place 3 (`p05`)**. And place 3 is precisely where a driver is most likely to notice a
+  mistyped initial, because it is the first time they see it in position, immediately above the
+  button. So `pinnedKinds` derives from filed rows (served pin + served `signedAt` + this session's
+  `filedHere`) and `canChange(kind)` offers a correction exactly when `record_packet_mark` would
+  accept one, never when it would answer `DR035`. A resumed link skips the confirm screen entirely:
+  both marks are already pinned, and asking somebody to approve a settled decision is consent theatre.
+
+  ⚠⚠ **AND THE STRANDING DEFECT, which was recorded by A0 and left unfixed.** `current` was
+  `outstanding[index]` with `index` a counter, under a comment claiming the list was *"computed once
+  per load"* — it is a `computed`, so it was not, and `useApplyInvitationQuery` runs under
+  `VueQueryPlugin` with **no `defaultOptions`**, so TanStack's `refetchOnWindowFocus: true` is live.
+  A driver five marks in who switches apps to read a text comes back to a refetch: `outstanding`
+  drops 22 → 17, `index` is still 5, and `current` becomes the ELEVENTH place. Five places are
+  stepped over in silence, and at the end `current` goes null with stops unsigned while the template
+  falls through to *"That is every place signed"*. **Measured by mutation: `expected 'p17' to be
+  'p10'`, then `ran out of stops after 11` — which is the "strands any walk past the 11th mark" the
+  A0 session wrote down.** A phone is where this walk happens; backgrounding the page is not an edge
+  case. There is no cursor now: the current stop is the first nobody has filed, asked fresh, so a
+  refetch is self-healing rather than survivable. ⚠ It shipped here rather than separately because
+  A4's confirm step rewires the same state machine — fixing it apart would mean editing it twice.
+
+  **Two defects found by RENDERING, the seventh and eighth consecutive step.**
+  - ⚠ **The stop's `Change` button was gated on the CURRENT STOP's kind**, which looked right and was
+    wrong: after place 1 the signature is pinned, so standing on place 2 (another signature) the
+    button vanished — while the driver's initials were changeable for another place. Somebody who
+    remembered their typo at place 2 had no way back until place 3, for no visible reason. It now
+    matches `reopen()`'s own guard (either kind), and the form disables each pinned field with its
+    reason, so the screen never hides a possible correction nor offers an impossible one.
+  - ⚠ **"Your signature is already on 0 places of the form, so it cannot be changed now."** Measured
+    on screen at place 2. The component counted `stops.filter(s => s.mark === kind && s.signedAt)` —
+    its own second computation of a fact the composable owned — and a mark filed in THIS session has
+    no `signedAt` until the next refetch. A sentence that refuses and disproves itself in one breath.
+    `placesWithMark` now reads the same two sources `pinnedKinds` does. Same shape as every
+    second-source-of-truth defect in this programme.
+  - ⚠ And the reopened adoption form still said *"Give your signature once below"* while pointing at
+    the disabled field. `changeIntro` is the reopened wording; B5 shipped the same class one field
+    over.
+
+  **The copy gate had a blind spot and now says so.** `strings.test.ts` guessed each copy function's
+  arguments from its ARITY, and `confirmInitialsWhere(pages: number[])` has arity 1 exactly like
+  `adoptIntro(carrier)` — so it threw `pages.slice(...).join is not a function`. The loud failure was
+  the good case; the bad one is a shape that happens not to throw and returns something unlike the
+  real sentence. It now TRIES candidate shapes and **throws by name** on a function it cannot call,
+  rather than returning `[]` and walking past its own blind spot.
+
+  **Mutations: twelve run, twelve red.** Restoring the cursor reddened both refetch tests with the
+  defect in the message; `confirmed = true` killed the confirm step; pinning both kinds on any filed
+  mark reddened all five per-kind tests; dropping `reopen()`'s guard reddened its refusal; and
+  reverting the count to the component's version produced `expected 0 to be greater than 0` — the
+  screen's own sentence.
+
+  **Walked in a browser at 420px**: mistyped `QQ`, saw the confirm screen, pressed Change, corrected
+  to `MV`, started signing, signed place 1, pressed Change at place 2 and measured
+  `name disabled: true | initials disabled: false` with *"already on 1 place"*.
+
+  `pnpm lint`, `typecheck`, `test` (all suites + every matrix, web 2,000), `lint:boundaries`,
+  `lint:filesize`, `lint:funcsize`, `lint:comment-claims`, `lint:ui-adoption` and
+  `--filter web lint:tokens` green.
+
+  ⚠ **Raised, not absorbed: `usePacketCeremony.ts` is at 481 of 500 lines** (was 248 before A3). It
+  passes `lint:filesize` and it is over the 450 warning. **Recorded as Q-PKT11 in §8** rather than
+  fixed by trimming comments, which Q-HM8 named as the wrong repair that only works once.
 
 ---
 

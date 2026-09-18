@@ -205,6 +205,60 @@ export const APPLY_FLOW_COPY = {
       "You adopted this when you started. We will keep using it for the places that are left.",
     resumedInitialsLabel: "Your initials",
     resumedAction: "Carry on signing",
+    /**
+     * ⚠ The confirm step (A4) — the screen between the last keystroke and the first signature.
+     *
+     * It exists because `record_packet_mark` pins the adopted mark at the first stop OF ITS KIND and
+     * refuses a different spelling afterwards with `DR035`, which is advice a driver cannot act on.
+     * Before this there was nothing between typing an initial and it being permanent for a federal
+     * record.
+     *
+     * ⚠ **It names the consequence rather than asking "are you sure?"** A confirmation that only asks
+     * for a second press teaches people to press twice; one that says what becomes unchangeable gives
+     * them a reason to read. And it says it in the packet's own terms — the places — because that is
+     * what the driver is about to walk.
+     */
+    confirmHeading: "Check your marks before you start",
+    confirmBody:
+      "These go on the form exactly as they look here. Once a mark is on the form it cannot be "
+      + "changed, so take a moment now.",
+    confirmSignatureLabel: "Your signature",
+    confirmInitialsLabel: "Your initials",
+    /**
+     * ⚠ The pages come from the STOPS, never from the number three. The packet has gained a placement
+     * mid-array once already (p17, D-PKT12), and a sentence naming three pages would have been wrong
+     * the day it gained a fourth.
+     */
+    confirmInitialsWhere: (pages: number[]): string =>
+      pages.length === 1
+        ? `These go on page ${pages[0]}.`
+        : `These go on pages ${pages.slice(0, -1).join(", ")} and ${pages[pages.length - 1]}.`,
+    confirmChange: "Change",
+    confirmAction: "These are right — start signing",
+    /**
+     * ⚠ The adoption screen's intro when it has been REOPENED to correct something, rather than met
+     * for the first time (A4).
+     *
+     * `adoptIntro` says *"Give your signature once below — then we take you to each place"*, which is
+     * true the first time and wrong here: the driver is part-way through, and the field it points at
+     * may be the disabled one. Found by reopening the form and reading it, which is the same defect
+     * B5 shipped one field over — a sentence that was written for one state and shown in two.
+     */
+    changeIntro:
+      "Change a mark that is not on the form yet. Anything you have already signed stays as it is.",
+    /**
+     * ⚠ Offered at a stop only while the server would still accept a correction (A4, `pinnedKinds`).
+     * A button that leads to a refusal is worse than no button.
+     */
+    changeMark: "Change",
+    /**
+     * ⚠ What a driver is told about the mark they can no longer change, and WHY — the count is the
+     * reason. "Your signature is already on 4 places" is a fact they can check against the counter
+     * they have been watching; "this cannot be changed" is an assertion they have to take on trust.
+     */
+    markLocked: (kind: "signature" | "initials", places: number): string =>
+      `Your ${kind} ${places === 1 ? "is already on 1 place" : `is already on ${places} places`} `
+      + "of the form, so it cannot be changed now.",
     counter: (n: number, total: number): string => `Place ${n} of ${total}`,
     page: (n: number): string => `Page ${n} of the application`,
     /** The two marks, named as the packet names them (`adoptedMarkKinds()`). */
