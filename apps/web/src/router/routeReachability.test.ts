@@ -33,7 +33,7 @@ import { NAV_SURFACES } from "@silvicom/shared";
  * ⚠ The same lesson a second time, and it is why this paragraph is here rather than a shrug. When
  * this file was written the sidebar was built from a literal list in `lib/nav.ts`, so scanning
  * `src` saw every nav path. The surface-entitlements programme then made
- * `packages/shared/src/surfaces.ts` the one home for "which permission does this screen need"
+ * `packages/shared/src/surfaceCatalogue.ts` the one home for "which permission does this screen need"
  * (D-SURF3), and `nav.ts` now renders `NAV_SURFACES.map(s => ({ to: s.path }))` — the path literal
  * never appears in this app at all.
  *

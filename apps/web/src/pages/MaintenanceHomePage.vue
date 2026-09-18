@@ -33,7 +33,7 @@ import type { StockLineDto, UnitKitDto } from "@silvicom/shared";
  * four tables of its own since I2, so the address a technician types is the section's front door
  * and the ledger is one card on it, at `/shop/repair-spend`. The surface KEY stayed
  * `maintenance.repair-spend` through that relabel, which is a permission decision rather than a
- * naming one — `packages/shared/src/surfaces.ts` carries the measurement.
+ * naming one — `packages/shared/src/surfaceCatalogue.ts` carries the measurement.
  *
  * ── IT IS A TODAY PAGE, NOT A ROW OF COUNTERS (2026-09-10) ────────────────────────────────────
  * Four tiles and, under them, the two lists somebody acts on: what to order and which units are

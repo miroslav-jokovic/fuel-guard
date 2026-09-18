@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { USER_ROLES } from "./constants.js";
-import { SURFACES, isEditableSurface } from "./surfaces.js";
+import { isEditableSurface } from "./surfaces.js";
+import { SURFACES } from "./surfaceCatalogue.js";
 import { isEditableRole, isEditableSection } from "./auth.js";
 
 /**

@@ -34,7 +34,11 @@
 import { readFileSync, readdirSync } from "node:fs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
-const CATALOGUE = `${ROOT}packages/shared/src/surfaces.ts`;
+// ⚠ The CATALOGUE is `surfaceCatalogue.ts`, not `surfaces.ts` — they split on 2026-09-18 (Q-HM8)
+// when the combined file hit its 500-line budget. This gate PARSES the file rather than importing
+// it (a gate needing the workspace built cannot run before the build), so the path and the data
+// have to move together. `surfaces.ts` keeps the types and the gate functions and has no entries.
+const CATALOGUE = `${ROOT}packages/shared/src/surfaceCatalogue.ts`;
 const ICONS = `${ROOT}apps/web/src/lib/navIcons.ts`;
 const ROUTE_SNAPSHOT = `${ROOT}apps/web/src/router/__snapshots__/routeTable.test.ts.snap`;
 const AUTH = `${ROOT}packages/shared/src/auth.ts`;
@@ -74,7 +78,7 @@ export function routePaths(snapshot) {
 /** The catalogue's entries, parsed from its literal. */
 export function surfaces(src) {
   const block = src.match(/export const SURFACES: readonly Surface\[\] = \[([\s\S]*?)\n\];/);
-  if (!block) throw new Error("SURFACES literal not found in surfaces.ts — gate cannot check anything; fix the parser with the file");
+  if (!block) throw new Error("SURFACES literal not found in surfaceCatalogue.ts — gate cannot check anything; fix the parser with the file");
   const out = [];
   for (const line of block[1].split("\n")) {
     const key = line.match(/\{\s*key:\s*"([^"]+)"/)?.[1];

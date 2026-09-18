@@ -257,7 +257,7 @@ other sixteen are where the sentence has to carry it, and it does.
 
 `/recruitment/screening` and `/recruitment/inquiries` stop being nav destinations and become panels
 on the applicant record, where the work happens. ⚠ **The nav is generated from `NAV_SURFACES`**, so
-this is a `packages/shared/src/surfaces.ts` change plus route records — the paths are not in
+this is a `packages/shared/src/surfaceCatalogue.ts` change plus route records — the paths are not in
 `apps/web/src`, and looking for them there wastes an hour.
 
 They are **not deleted**. Both are real work queues; a fleet-wide view of either earns a tab on the
