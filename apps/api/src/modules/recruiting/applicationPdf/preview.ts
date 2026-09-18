@@ -1,11 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  applicationProgress,
-  type ApplicationDraftPayload,
-  type ApplicationPhases,
-} from "@silvicom/shared";
-import { renderApplicationPdf } from "./render.js";
-import { authorizationsFor, carrierOf, esignConsentFor, signatureMarkBytes } from "./sources.js";
+import type { DriverApplication } from "@silvicom/shared";
+import { renderPacketDocument } from "./packetDocument.js";
+
+/**
+ * ⚠ The words `render.ts` stamps on a preview, repeated here rather than imported, and the choice is
+ * deliberate. They are not one fact in two places: `render.ts` bands the §391.21 summary and this
+ * bands the carrier's packet, and the two documents are allowed to diverge — if the summary's wording
+ * ever changes for a reason about the summary, this must not follow it silently. What they share is a
+ * sentence an office has learned to recognise, and `preview.test.ts` asserts this one on the page.
+ */
+const PREVIEW_BAND = "DRAFT - NOT A SIGNED APPLICATION";
 
 /**
  * The application as a printable document BEFORE anybody has signed it (F6).
@@ -18,10 +22,36 @@ import { authorizationsFor, carrierOf, esignConsentFor, signatureMarkBytes } fro
  * it — and the whole point of the two-visit flow is that the office reads it first.
  *
  * ── IT IS THE SAME RENDERER, AND THAT IS THE STEP ─────────────────────────────────────────────
- * `renderApplicationPdf` over `application_drafts.payload` instead of `driver_applications.payload`.
+ * `renderPacketDocument` over `application_drafts.payload` instead of `driver_applications.payload`.
  * Not a second draft-shaped renderer: the office is previewing the document that will be FILED, and
- * a second rendering of the same answers would be a second source of truth about what a §391.21
- * application looks like. Every page carries the band saying it certifies nothing.
+ * a second rendering of the same answers would be a second source of truth. Every page carries the
+ * band saying it certifies nothing.
+ *
+ * ⚠ **That sentence was true when it was written and false a day later, which is the whole of A2.**
+ * It argued at length that this was deliberately the same renderer as the filing — correct on
+ * 2026-09-13, when F6 shipped and `file.ts` also rendered `render.ts`'s §391.21 summary. The packet
+ * renderer landed on 2026-09-14 and changed what the filing renders; **nothing changed this file, and
+ * no test compared the two**, so for four days the office read an eight-page summary and the driver
+ * signed the carrier's thirty-one-page packet. No gate could see it: both files typechecked, both
+ * were tested, and each test asserted its own renderer. The assertion that did not exist is the one
+ * `preview.test.ts` now carries — *the office's preview and the driver's filing are the same
+ * document* — and it compares PAGE COUNTS from one payload, because that is the difference a reader
+ * would notice first and the one no amount of per-renderer testing can catch.
+ *
+ * ⚠ **`marks: []`, and NOT `file.ts`'s marks-based switch** (§1a C4). A preview happens before
+ * signing, so it always has zero marks; applying the filed document's switch here would render the
+ * summary for ever and this step would do nothing. `render.ts` stays, untouched, for already-filed
+ * records only.
+ *
+ * ── ⚠ WHAT THIS PREVIEW STOPPED SHOWING, AND WHERE IT GOES ────────────────────────────────────
+ * The summary carried three things the carrier's packet has no page for: which releases the office
+ * holds, the e-sign consent, and the §391.21(b)(12) certification block with its progress line. They
+ * are not lost facts — they are facts on the wrong document. **B2 is the step that gives them their
+ * own banded interim PDF** (the four authorizations + the §7001(c) consent + the certificate of
+ * completion), which is the right home for them: the office's question *"what has this applicant
+ * signed so far"* is not the same question as *"what will they sign"*, and answering both on one
+ * sheet is what made the preview diverge from the filing in the first place. Until B2, the releases
+ * are on the applicant's record behind the Permissions row (B6's `AuthorizationsPanel`).
  *
  * ── AND WHY IT REFUSES ONCE THE APPLICATION IS FILED ──────────────────────────────────────────
  * ⚠ A certified application already HAS a document — rendered at submit, hashed into
@@ -43,8 +73,6 @@ interface InvitationRow {
   id: string;
   org_id: string;
   driver_id: string;
-  review_requested_at: string | null;
-  approved_at: string | null;
   submitted_at: string | null;
 }
 
@@ -62,7 +90,9 @@ export async function applicationPreviewPdf(
   const { data } = await admin
     .from("application_invitations")
     // The service role bypasses RLS, so the org filter is the only thing between two carriers.
-    .select("id, org_id, driver_id, review_requested_at, approved_at, submitted_at")
+    // ⚠ The two phase stamps came out with A2: they fed the summary's progress line, and the
+    // carrier's packet has no page for it. `submitted_at` stays — it is the already-filed refusal.
+    .select("id, org_id, driver_id, submitted_at")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
@@ -93,37 +123,41 @@ export async function applicationPreviewPdf(
     };
   }
 
-  const phases: ApplicationPhases = {
-    reviewRequestedAt: invitation.review_requested_at,
-    approvedAt: invitation.approved_at,
-    submittedAt: invitation.submitted_at,
-  };
-
-  const pdf = await renderApplicationPdf({
-    carrier: await carrierOf(admin, orgId),
+  const pdf = await renderPacketDocument({
+    /**
+     * ⚠ **Empty, and it is the point of this step rather than a gap** (§1a C4). Blank signature
+     * lines under a DRAFT band are exactly what the carrier's paper looks like before anybody signs
+     * it, which is what an office previewing an unsigned application is asking to see.
+     */
+    marks: [],
     /**
      * ⚠ Cast, not parsed — deliberately, and it is the same rule `file.ts` renders filed payloads
      * under. This is stored jsonb written by a form that has changed shape before and will again; a
      * preview that refused to draw because one key does not match today's contract would be exactly
-     * the failure the renderer's `blank()`/`?? []` discipline exists to prevent. The office is owed
-     * the document as it stands, gaps and all. The BINDING parse happens at certification.
+     * the failure `packetDraw.ts`'s `blank()`/`?? []` discipline exists to prevent. The office is
+     * owed the document as it stands, gaps and all. The BINDING parse happens at certification.
      */
-    application: payload as ApplicationDraftPayload,
-    // The invitation, because there is no application row yet. The band and the footer both say so.
-    applicationId: invitation.id,
-    certifiedAt: null,
+    application: payload as DriverApplication,
+    /**
+     * ⚠ Empty rather than today's date. `certifiedAt` is page 1's `Date:` and it is the date the
+     * applicant CERTIFIED — server-stamped, never invented (D-APP9). Nobody has certified anything
+     * here, and `date("")` draws nothing, so the line stays blank like the signature above it. A
+     * preview that dated page 1 would be a document asserting an act that has not happened.
+     */
+    certifiedAt: "",
+    /**
+     * ⚠ The one line of this module that could forge something, kept empty for `preview.test.ts`'s
+     * *"signs nothing"*. This is page 22's `Driver name Print`, drawn beside the signature lines;
+     * the applicant's own name is two fields away in the payload, and printing it here would put a
+     * name where a signature belongs on a document nobody has signed.
+     */
     signedName: "",
-    applicantIp: null,
-    applicantUserAgent: null,
-    // ⚠ Passed, and it still only reaches the AUTHORIZATION pages: `render.ts` suppresses the mark
-    // under the §391.21(b)(12) block on a preview, because a drawn signature beside an uncertified
-    // statement is the one thing on these pages that could be mistaken for evidence (D-APP8).
-    signatureMark: await signatureMarkBytes(admin, orgId, invitationId),
-    preview: { stage: applicationProgress(phases, true) },
-    // The releases ARE signed by now — they come before the form (D-AX11) — so the preview shows
-    // which of them the carrier holds. That is half of what an office reads a draft application for.
-    authorizations: await authorizationsFor(admin, orgId, invitationId),
-    esignConsent: await esignConsentFor(admin, orgId, invitationId),
+    // ⚠ Null, and it would be ignored anyway — A3 made the drawn mark follow the MARKS, and there
+    // are none. Named rather than omitted so the next reader does not go looking for the read.
+    drawnMark: null,
+    // ⚠ Same words as `render.ts` stamps, so the office reads the phrase it has always read on a
+    // preview even though the paper underneath it changed.
+    band: PREVIEW_BAND,
   });
 
   return { pdf, filename: `application-${invitation.id}-preview.pdf` };

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { inflateSync } from "node:zlib";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { ensureApplicationPdf } from "./file.js";
 import { driverPlacements } from "@silvicom/shared";
@@ -36,6 +37,42 @@ const APPLICATION_ROW = {
   applicant_ip: "203.0.113.9",
 };
 
+/** The adopted signature on the packet fixture below, so an assertion can name it once. */
+const SIGNED_NAME = "Susan Godfrey";
+
+/**
+ * The drawn text, pulled back out of a packet.
+ *
+ * ⚠ Same technique as `preview.test.ts`'s helper and for the same reason: both documents compress
+ * their content streams, so the words a reader sees exist only once the streams are inflated and the
+ * kerned runs are decoded and joined. Every assertion using it guards the guard by first finding
+ * something it knows is there — a helper that silently returned "" would make every `not.toContain`
+ * below pass for free, which is exactly how the test A2 replaced came to prove nothing.
+ */
+function packetTextOf(pdf: Buffer): string {
+  const raw = pdf.toString("latin1");
+  let out = "";
+  const re = /stream\r?\n/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(raw)) !== null) {
+    const start = match.index + match[0].length;
+    const end = raw.indexOf("endstream", start);
+    if (end < 0) continue;
+    try {
+      out += inflateSync(Buffer.from(raw.slice(start, end), "latin1")).toString("latin1");
+    } catch {
+      // Not a deflate stream (a font subset, the xref) — nothing to read here.
+    }
+  }
+  return (out.match(/<[0-9a-fA-F\s]+>|\((?:\\.|[^\\)])*\)/g) ?? [])
+    .map((token) =>
+      token.startsWith("<")
+        ? Buffer.from(token.slice(1, -1).replace(/\s+/g, ""), "hex").toString("latin1")
+        : token.slice(1, -1).replace(/\\([()\\])/g, "$1"),
+    )
+    .join("");
+}
+
 /**
  * A packet signed through, as `application_packet_marks` holds one.
  *
@@ -46,7 +83,7 @@ const APPLICATION_ROW = {
 const signedPacket = () =>
   driverPlacements().map((pl) => ({
     placement_id: pl.id,
-    signed_name: pl.mark === "initials" ? "SG" : "Susan Godfrey",
+    signed_name: pl.mark === "initials" ? "SG" : SIGNED_NAME,
     signed_at: "2026-08-21T18:00:00Z",
   }));
 
@@ -304,6 +341,29 @@ describe("which document an application files", () => {
     const summary = await bytesOf(seed({ marks: [] }));
     expect(signed.equals(summary)).toBe(false);
     expect(signed.length).toBeGreaterThan(summary.length);
+  });
+
+  /**
+   * ⚠ **A2's safety property, measured at the FILING path rather than argued about** (A2).
+   *
+   * A2 gave `renderPacketOverlay` an optional band so the office's preview could be the same paper
+   * the driver signs. The band must never reach a filed document: `ensureApplicationPdf` renders
+   * once, hashes, and returns those bytes for ever, and a filed §391.51(b)(1) record reading DRAFT
+   * across every page would be an auditor's first question — permanently, because evidence tables are
+   * append-only.
+   *
+   * ⚠ *"It is optional, so the filing path cannot pass it"* is a claim about a diff, and the next
+   * change to this file will not have read that claim. `packetOverlay.test.ts` proves the renderer
+   * obeys an absent band; this proves the caller does not supply one. Mutation: adding a `band` to
+   * `renderFiledDocument`'s call reddens exactly this.
+   */
+  it("files a document with no draft band on it, ever", async () => {
+    const pdf = await bytesOf(seed({ marks: signedPacket() }));
+    const pages = await PDFDocument.load(pdf, { ignoreEncryption: true });
+    expect(pages.getPageCount()).toBeGreaterThanOrEqual(31);
+    // Guards the guard: the marks are on it, so a reader finding no band read a real document.
+    expect(packetTextOf(pdf)).toContain(SIGNED_NAME);
+    expect(packetTextOf(pdf)).not.toContain("DRAFT");
   });
 
   /** ⚠ Org-scoped like every other read here: the service role bypasses RLS. */

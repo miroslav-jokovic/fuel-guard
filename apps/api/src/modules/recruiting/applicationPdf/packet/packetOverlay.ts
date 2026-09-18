@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage } from "pdf-lib";
+import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import { packetPlacementById } from "@silvicom/shared";
 import { MARK_BASELINE_LIFT, PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { FIELD_BASELINE_LIFT, fieldTableFor } from "./packetFieldGeometry.js";
@@ -106,6 +106,21 @@ export interface PacketOverlayInput {
    * name rather than throwing.
    */
   drawnMark?: Buffer | null;
+  /**
+   * The words stamped across every sheet, or absent for the FILED document (A2).
+   *
+   * ⚠ **The filing path never passes this, and that is what keeps A2 off the freeze clock.**
+   * `ensureApplicationPdf` renders once and returns those bytes for ever, so a change to how this
+   * function prints a FILED packet can only be made before the first one is filed. Adding an option
+   * that `renderPacketDocument`'s filing caller does not set changes nothing about what it draws —
+   * pinned by "draws no band when the filing path does not ask for one" in `packetOverlay.test.ts`.
+   *
+   * ⚠ Words rather than a colour, and it is `stamp.ts`'s reasoning carried over to the carrier's
+   * paper: D-AVI22 recorded an office reading a red-inked preview as *"the product prints in red"*.
+   * A preview whose ink differs from the filing is not previewing the filing, so the answers are
+   * drawn in exactly the ink they will be filed in and the sheet says what it is in a sentence.
+   */
+  band?: string | null;
 }
 
 /** How tall a drawn mark is allowed to be, so it sits on the line rather than over the page. */
@@ -119,6 +134,51 @@ const INK = rgb(0.1, 0.1, 0.1);
 /** How far below a grid's last rule its continuation notice sits, and how small it is. */
 const CONTINUATION_NOTICE_DROP = 9;
 const CONTINUATION_NOTICE_SIZE = 6.5;
+
+/**
+ * The draft band, across the diagonal of one sheet (A2).
+ *
+ * ⚠ **pdf-lib, not `stamp.ts`.** The band next door does the same job on the §391.21 summary and
+ * cannot be reused: that document is BUILT in pdfkit, where the y axis points down and the rotation
+ * is applied to the page transform; this one is the carrier's own file LOADED and drawn on, where y
+ * points up and pdf-lib rotates each text run about its own origin. So the angle's sign is opposite
+ * and the origin has to be computed rather than centred. Two implementations of one idea is the
+ * thing this repo normally refuses — the shared part here is the WORDS and the opacity, and those
+ * come from the one caller rather than from a second copy of the rule.
+ *
+ * ⚠ `opacity` rather than a pale grey, for `stamp.ts`'s measured reason: the band is drawn LAST, over
+ * the answers, so it has to be legible as a mark and transparent as ink. 0.12 is where a photocopy
+ * still carries it and the smallest field label underneath is still readable.
+ */
+const BAND_ANGLE = 30;
+const BAND_OPACITY = 0.12;
+const BAND_MAX_SIZE = 30;
+const BAND_MIN_SIZE = 10;
+/** `pdfDraw.ts`'s `MUTED` (#666666), as pdf-lib wants it. The band is grey on both documents. */
+const BAND_INK = rgb(0.4, 0.4, 0.4);
+
+function drawBand(page: PDFPage, font: PDFFont, band: string): void {
+  const { width, height } = page.getSize();
+  // Shrink to fit rather than trusting a constant: the band is a sentence, and a longer one at a
+  // fixed size runs off the DIAGONAL it is drawn along — silently cropped, because nothing wraps.
+  const room = Math.hypot(width, height) - 80;
+  let size = BAND_MAX_SIZE;
+  while (size > BAND_MIN_SIZE && font.widthOfTextAtSize(band, size) > room) size -= 1;
+
+  const radians = (BAND_ANGLE * Math.PI) / 180;
+  const run = font.widthOfTextAtSize(band, size);
+  page.drawText(band, {
+    // pdf-lib rotates about the text's own origin, so the start is walked back half the run along
+    // the angle to put the MIDDLE of the sentence in the middle of the sheet.
+    x: width / 2 - (run / 2) * Math.cos(radians),
+    y: height / 2 - (run / 2) * Math.sin(radians) - size * 0.35,
+    size,
+    font,
+    color: BAND_INK,
+    opacity: BAND_OPACITY,
+    rotate: degrees(BAND_ANGLE),
+  });
+}
 
 /** The largest size at or below `TYPED_MARK_SIZE` whose text fits the line, floored so it stays readable. */
 function fittedSize(font: PDFFont, text: string, width: number): number {
@@ -264,6 +324,18 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
       overflow: input.overflow ?? [],
       applicantName: input.applicantName ?? "",
     });
+  }
+
+  /**
+   * ⚠ **Last, and over EVERY sheet including the continuation one.** Last because a band drawn
+   * before the answers would sit under them and read as part of the carrier's form rather than as a
+   * stamp on it. Every sheet because `stamp.ts` already paid for the alternative: a preview gets
+   * printed, photocopied and posted, and the sheet that ends up in somebody's hands has to carry its
+   * own status. A 31-page draft banded only on page 1 is thirty unmarked pages.
+   */
+  if (input.band) {
+    const bandFont = await doc.embedFont(StandardFonts.HelveticaBold);
+    for (const page of doc.getPages()) drawBand(page, bandFont, input.band);
   }
 
   return Buffer.from(await doc.save());

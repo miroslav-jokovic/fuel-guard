@@ -27,6 +27,14 @@ import { renderPacketOverlay } from "./packet/packetOverlay.js";
  * So: **marks decide.** A submission the server accepted since D-PKT15 has all twenty-two of them,
  * because `submitApplication` refuses one that is not signed through. An older one has none and keeps
  * rendering the way it always did.
+ *
+ * ⚠ **That switch belongs to `file.ts`, NOT to this function, and A2 is why the distinction now
+ * matters.** `renderFiledDocument` asks "does this filed application have marks"; this function draws
+ * whatever it is given. Since A2 the office's PREVIEW calls it with `marks: []` on purpose — a
+ * preview happens before signing, so it always has zero marks, and a preview that applied the filed
+ * document's marks-based switch would render the §391.21 summary for ever, which is the exact defect
+ * A2 exists to remove (§1a C4). Blank signature lines under a DRAFT band are what the carrier's paper
+ * looks like before anybody signs it.
  */
 
 export interface PacketMarkRow {
@@ -61,6 +69,14 @@ export interface PacketDocumentInput {
   signedName: string;
   /** The driver's drawn mark, when they gave one (D-PKT13). Decoration; the typed name is the record. */
   drawnMark?: Buffer | null;
+  /**
+   * The words across every sheet, for the office's PREVIEW of an unsigned packet (A2).
+   *
+   * ⚠ `file.ts` does not pass it and must not: a filed §391.51(b)(1) record that said DRAFT across
+   * every page would be an auditor's first question. Absent here means absent in the overlay, so the
+   * filing path draws exactly what it drew before this option existed.
+   */
+  band?: string | null;
 }
 
 /**
@@ -89,5 +105,6 @@ export async function renderPacketDocument(input: PacketDocumentInput): Promise<
     // to the right packet, and `signed_name` is how somebody signs rather than what they are called.
     applicantName: [a.first_name, a.middle_name, a.last_name].filter(Boolean).join(" "),
     drawnMark: input.drawnMark ?? null,
+    band: input.band ?? null,
   });
 }

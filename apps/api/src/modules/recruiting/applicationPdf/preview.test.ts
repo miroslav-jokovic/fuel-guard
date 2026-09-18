@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { PACKET_PLACEMENTS } from "@silvicom/shared";
 import { applicationPreviewPdf, isPreviewError } from "./preview.js";
+import { renderPacketDocument } from "./packetDocument.js";
 
 /**
  * The office's printable preview of an application nobody has signed (F6).
@@ -63,6 +65,40 @@ const seed = (over: { invitation?: Record<string, unknown> | null; payload?: unk
     },
   });
 
+/**
+ * The adopted signature, chosen so it appears NOWHERE else in the fixture.
+ *
+ * ⚠ Not "Susan Godfrey". The applicant's own name is drawn legitimately all over the packet — the
+ * name block, the employment grid, the continuation sheet's header — so asserting its absence would
+ * fail on a correct preview, and asserting its presence would pass on a broken one. A mark is a
+ * different string from a name, and this fixture keeps them different.
+ */
+const ADOPTED = "S. Q. Vanterpool-Mark";
+
+/** The bare carrier packet, before anything is appended. `packetTemplate.test.ts` pins the number. */
+const TEMPLATE_PAGES = 31;
+
+/**
+ * One more accident than the carrier's grid holds (Q-PKT10).
+ *
+ * ⚠ §391.21(b)(7) asks for every accident in the preceding three years and the paper has room for
+ * three, so a fourth forces the continuation sheet. That is what makes the page-count test below
+ * discriminate rather than merely pass.
+ */
+const FOUR_ACCIDENTS = [1, 2, 3, 4].map((n) => ({
+  date: `2024-0${n}-01`,
+  nature: `Accident ${n}`,
+  fatalities: 0,
+  injuries: 0,
+  hazmat_spill: false,
+}));
+
+/** How many sheets a reader would hold. */
+async function pageCount(pdf: Buffer): Promise<number> {
+  const { PDFDocument } = await import("pdf-lib");
+  return (await PDFDocument.load(pdf, { ignoreEncryption: true })).getPageCount();
+}
+
 /** The text a reader would see — pdfkit deflates its streams, so the raw bytes carry nothing. */
 async function textOf(pdf: Buffer): Promise<string> {
   const { inflateSync } = await import("node:zlib");
@@ -102,37 +138,145 @@ describe("previewing an application before it is signed", () => {
   });
 
   /**
-   * ⚠ The one line of this module that could forge something. `signedName` is what the renderer
-   * prints under the §391.21(b)(12) statement, and a preview that passed the applicant's own name —
-   * which this module is holding, two fields away — would print a signature for an act nobody has
-   * performed. Scoped to the certification block, because the name legitimately appears in the (b)(2)
-   * block, in the footer of every sheet and beside each release they really did sign.
+   * ⚠ **The assertion A2 exists for** (§1.1, and the step's own done-when).
+   *
+   * Between 2026-09-14 and this step the office previewed `render.ts`'s eight-page §391.21 summary
+   * while the driver signed the carrier's thirty-one-page packet. **No gate could see it**: both
+   * renderers typechecked, both were tested, and each test asserted its own document. The assertion
+   * that did not exist is this one — one payload, both paths, and the page counts must agree.
+   *
+   * ⚠ Page counts rather than bytes, and deliberately. The two documents are NOT byte-identical and
+   * must not be: the filing carries twenty-two marks and a certification date, the preview carries a
+   * band and blank signature lines. What "the same document" means here is the same PAPER, and the
+   * page count is the part of that a reader notices first and a per-renderer test can never check.
+   *
+   * ⚠ The payload OVERFLOWS its accident grid on purpose. A preview that silently dropped the
+   * continuation sheet the filing appends would still match on a payload that fits, so a fixture
+   * without overflow could not tell the two implementations apart — this repo's named *fixture too
+   * uniform to discriminate* failure. The counts must move together, and both must exceed the bare
+   * template.
    */
-  it("signs nothing: the certification block carries no name", async () => {
-    const result = await applicationPreviewPdf(seed().client, ORG, INV);
-    expect(isPreviewError(result)).toBe(false);
-    if (isPreviewError(result)) return;
-    const text = await textOf(result.pdf);
-    const block = text.slice(text.indexOf("§391.21(b)(12)"), text.indexOf("NOT SIGNED."));
-    expect(block).not.toContain("Susan");
-    expect(block).not.toContain("Godfrey");
+  it("prints the same paper the driver signs, page for page", async () => {
+    const payload = { ...PAYLOAD, accidents: FOUR_ACCIDENTS, declares_no_accidents: false };
+
+    const preview = await applicationPreviewPdf(seed({ payload }).client, ORG, INV);
+    expect(isPreviewError(preview)).toBe(false);
+    if (isPreviewError(preview)) return;
+
+    const filed = await renderPacketDocument({
+      marks: PACKET_PLACEMENTS.map((p) => ({
+        placement_id: p.id,
+        signed_name: ADOPTED,
+        signed_at: "2026-09-12T10:00:00Z",
+      })),
+      application: payload as never,
+      certifiedAt: "2026-09-12T10:00:00Z",
+      signedName: ADOPTED,
+    });
+
+    const previewPages = await pageCount(preview.pdf);
+    expect(previewPages).toBe(await pageCount(filed));
+    // Guards the guard: 31 is the bare template, so a pair that both lost the continuation sheet
+    // would still be "equal" and would still be the bug.
+    expect(previewPages).toBeGreaterThan(TEMPLATE_PAGES);
   });
 
-  it("says where it has got to, and moves when the driver hands it over", async () => {
-    const filling = await applicationPreviewPdf(seed().client, ORG, INV);
-    expect(isPreviewError(filling)).toBe(false);
-    if (isPreviewError(filling)) return;
-    expect(await textOf(filling.pdf)).toContain("filling it in");
+  /**
+   * ⚠ The one line of this module that could forge something. `signedName` is drawn on page 22's
+   * `Driver name Print`, beside the signature lines, and the applicant's own name sits two fields
+   * away in the payload this module is holding — so a preview that passed it would print a name
+   * where a signature belongs on a document nobody has signed.
+   *
+   * ⚠ **This test went VACUOUS when A2 changed the paper under it and still passed.** It used to
+   * slice the §391.21(b)(12) block out of the summary and assert the name was not in it; the packet
+   * has no such block, so both `indexOf` calls returned -1, the slice returned `""`, and `""`
+   * contains nothing. It proved the absence of a string in an empty string. It now compares the
+   * preview against a SIGNED render of the same payload, using an adopted signature that appears
+   * nowhere else in it — so the assertion has something to be wrong about.
+   */
+  it("signs nothing: no adopted mark is drawn on an unsigned preview", async () => {
+    const preview = await applicationPreviewPdf(seed().client, ORG, INV);
+    expect(isPreviewError(preview)).toBe(false);
+    if (isPreviewError(preview)) return;
 
-    const handed = await applicationPreviewPdf(
-      seed({ invitation: invitation({ review_requested_at: "2026-09-11T09:00:00Z" }) }).client,
-      ORG,
-      INV,
-    );
-    expect(isPreviewError(handed)).toBe(false);
-    if (isPreviewError(handed)) return;
-    expect(await textOf(handed.pdf)).toContain("waiting for you");
+    const signed = await renderPacketDocument({
+      marks: PACKET_PLACEMENTS.map((p) => ({
+        placement_id: p.id,
+        signed_name: ADOPTED,
+        signed_at: "2026-09-12T10:00:00Z",
+      })),
+      application: PAYLOAD as never,
+      certifiedAt: "2026-09-12T10:00:00Z",
+      signedName: ADOPTED,
+    });
+
+    // The signed one carries it, which is what makes the preview's not carrying it mean something.
+    expect(await textOf(signed)).toContain(ADOPTED);
+    expect(await textOf(preview.pdf)).not.toContain(ADOPTED);
   });
+
+  /**
+   * ⚠ **The other half of "signs nothing", and it needed its own test because the one above cannot
+   * see it.** `signedName` is drawn on page 22's `Driver name Print` by `packetFieldValues.ts`, which
+   * runs whether or not there are any marks — so a preview that passed the applicant's own name would
+   * print it there, and no assertion about a distinct ADOPTED string would notice, because the name
+   * is legitimately on the document a dozen times over.
+   *
+   * Measured by counting: the preview draws "Susan Godfrey" wherever the carrier's form asks for the
+   * applicant's name, and one MORE occurrence is the signature line being filled in. The number
+   * itself is read from a render with the field deliberately empty, so this pins the DIFFERENCE and
+   * not a magic constant that a legitimate new name field would break.
+   */
+  it("prints no name on the signature line an unsigned preview leaves blank", async () => {
+    const preview = await applicationPreviewPdf(seed().client, ORG, INV);
+    expect(isPreviewError(preview)).toBe(false);
+    if (isPreviewError(preview)) return;
+
+    const withPrintedName = await renderPacketDocument({
+      marks: [],
+      application: PAYLOAD as never,
+      certifiedAt: "",
+      signedName: "Susan Godfrey",
+    });
+
+    const count = (text: string) => text.split("Susan Godfrey").length - 1;
+    // Guards the guard: the name IS on both, so neither count is zero and the delta means something.
+    expect(count(await textOf(preview.pdf))).toBeGreaterThan(0);
+    expect(count(await textOf(withPrintedName))).toBe(count(await textOf(preview.pdf)) + 1);
+  });
+
+  /**
+   * ⚠ Page 1's `Date:` is the date the applicant CERTIFIED — server-stamped, never invented (D-APP9).
+   * Nobody has certified a preview, so the line stays blank like the signature above it. A preview
+   * that dated it would be a document asserting an act that has not happened, and the office prints
+   * these and posts them.
+   */
+  it("dates nothing: page one carries no certification date", async () => {
+    const preview = await applicationPreviewPdf(seed().client, ORG, INV);
+    expect(isPreviewError(preview)).toBe(false);
+    if (isPreviewError(preview)) return;
+
+    const dated = await renderPacketDocument({
+      marks: [],
+      application: PAYLOAD as never,
+      certifiedAt: "2026-09-12T10:00:00Z",
+      signedName: "",
+    });
+
+    // The date appears when one is given, which is what makes its absence here a measurement.
+    expect(await textOf(dated)).toContain("2026-09-12");
+    expect(await textOf(preview.pdf)).not.toContain("2026-09-12");
+  });
+
+  /**
+   * ⚠ **Deleted with A2, and recorded rather than quietly dropped:** *"says where it has got to, and
+   * moves when the driver hands it over"* asserted the preview printed its progress stage
+   * (*"filling it in"* → *"waiting for you"*). That line lived in `render.ts`'s §391.21 summary and
+   * the carrier's packet has no page for it, so the capability is gone by design, not by accident —
+   * see this module's header for where the three dropped facts go (B2). The stage is on the
+   * applicant's record, which is where a recruiter reads it anyway; a document's job is to be the
+   * document.
+   */
 
   it("scopes every read to the reader's own org", async () => {
     // The service role bypasses RLS, so the filter is the only thing between two carriers.
