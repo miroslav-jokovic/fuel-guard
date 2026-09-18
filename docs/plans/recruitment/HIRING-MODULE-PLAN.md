@@ -1744,6 +1744,63 @@ every time.
   is the same shape as the open api flake in `HANDOFF-2026-09-08`.
 
 
+- **2026-09-18, A2 — DONE. The office previews the document the driver signs.**
+  `applicationPreviewPdf` renders `renderPacketDocument` with **`marks: []`**, banded DRAFT, over
+  `application_drafts.payload`. `render.ts` is untouched and stays for already-filed records, exactly
+  as §1a C4 requires — **and C4 was right that this would have been built wrong**: the marks-based
+  switch `file.ts` uses is correct for a FILED document and would have rendered the §391.21 summary
+  for ever here, because a preview always has zero marks.
+
+  **The defect was four days old and no gate could see it.** `preview.ts`'s own header argued at
+  length that it was deliberately the same renderer as the filing — true on 2026-09-13 when F6
+  shipped, false on 2026-09-14 when the packet renderer landed and changed what the filing renders.
+  Both files typechecked, both were tested, and **each test asserted its own renderer**. The
+  assertion that did not exist is the one that now does: one payload, both paths, page counts equal.
+
+  ⚠ **The band is NEW MACHINERY on the filing path's renderer, and that needed pinning rather than
+  arguing.** `renderPacketOverlay` is pdf-lib and `stamp.ts` is pdfkit — opposite y axes, and pdf-lib
+  rotates each run about its own origin — so the band is a second implementation of one idea, which
+  this repo normally refuses. What is shared is the WORDS and the opacity; what is not is the
+  geometry. It is an OPTIONAL parameter the filing path never passes, and *"optional, so it cannot
+  reach a filed packet"* is a claim about today's diff. **Two tests measure it instead**: *"draws no
+  band when the filing path does not ask for one"* (the renderer obeys an absent band) and *"files a
+  document with no draft band on it, ever"* (the caller does not supply one). A filed §391.51(b)(1)
+  record saying DRAFT across every page would be permanent — evidence tables are append-only.
+
+  ⚠ **Eight mutations run, eight red — but only after THREE came back green and three tests were at
+  fault.** The green ones: the preview could have dated page 1 with a certification nobody made; it
+  could have printed the applicant's own name on page 22's `Driver name Print`; and the filing path
+  could have started banding its documents. Each now has a test that renders the same payload the
+  OTHER way and compares — a date that appears when given, a name count that goes up by exactly one,
+  a band the filing never carries.
+
+  ⚠ **And one existing test had gone VACUOUS and still passed.** *"signs nothing: the certification
+  block carries no name"* sliced the §391.21(b)(12) block out of the summary; the packet has no such
+  block, so both `indexOf` calls returned -1, the slice returned `""`, and `""` contains nothing. It
+  proved the absence of a string in an empty string. **A test that keeps passing while the document
+  under it is replaced was never testing the document** — the same lesson as Q-HM9's uniform fixture,
+  one day apart.
+
+  ⚠ **What the preview STOPPED showing, recorded rather than dropped quietly:** the four releases,
+  the e-sign consent, and the §391.21(b)(12) certification block with its progress line. The
+  carrier's packet has no page for any of them. They are not lost facts, they are facts on the wrong
+  document — **B2 is their home** (the four authorizations + the §7001(c) consent + the certificate
+  of completion as one banded interim PDF), and until B2 the releases are on the applicant's record
+  behind the Permissions row. The deleted test *"says where it has got to, and moves when the driver
+  hands it over"* is named in `preview.test.ts` with that reasoning, so nobody re-adds the line to
+  the wrong document.
+
+  **Rendered both and looked at them** (`pdftoppm -r 100 -png`, pages 1 and 20). Page 1: the same
+  carrier letterhead, the same `reisdency` typo, the same answers — the preview's `Date:` blank and
+  banded, the filing's reading `2026-09-12` and unbanded. Page 20 (FCRA disclosure): `Driver
+  signature:` blank on the preview, `Susan Godfrey` on the filing. Same paper, and the band is
+  legible without obscuring the field labels underneath it.
+
+  `pnpm lint`, `typecheck`, `test` (9,576 unit + 71 matrices), `lint:boundaries`, `lint:filesize`,
+  `lint:funcsize`, `lint:comment-claims`, `lint:table-writers`, `lint:table-access`, `lint:surfaces`,
+  `lint:ui-adoption` and `--filter web lint:tokens` green. No migration; no schema change.
+
+
 ---
 
 ## 11. Sources

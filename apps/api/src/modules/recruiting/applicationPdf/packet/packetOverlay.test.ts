@@ -370,3 +370,60 @@ describe("drawing the field values", () => {
     expect(pages).toHaveLength(31);
   });
 });
+
+/**
+ * The DRAFT band (A2).
+ *
+ * ⚠ **The first test here is the one that keeps A2 off the freeze clock.** `ensureApplicationPdf`
+ * renders a packet once, hashes it, and returns those bytes for ever, so a change to how this
+ * function prints a FILED document can only be made before the first packet is filed. A2 changes the
+ * PREVIEW and must leave the filing alone — and "it is an optional parameter, so it cannot" is an
+ * argument, not a measurement. This measures it.
+ */
+describe("the draft band", () => {
+  const BAND = "DRAFT - NOT A SIGNED APPLICATION";
+
+  it("draws no band when the filing path does not ask for one", async () => {
+    const pages = await readBack(await renderPacketOverlay({ marks: allMarks() }));
+    const text = pages.map(pageText).join(" ");
+    // Guards the guard: the marks ARE there, so a reader finding no band is reading a real document
+    // rather than failing to read anything.
+    expect(text).toContain(NAME);
+    expect(text).not.toContain(BAND);
+  });
+
+  /**
+   * ⚠ Every sheet, not just page 1. `stamp.ts` already paid for the alternative on the other
+   * document: a preview gets printed, photocopied and posted, and a 31-page draft banded once is
+   * thirty unmarked pages that each look like a signed form.
+   */
+  it("bands every sheet when the preview asks for one", async () => {
+    const pages = await readBack(await renderPacketOverlay({ marks: [], band: BAND }));
+    expect(pages.length).toBeGreaterThan(1);
+    for (const [i, page] of pages.entries()) {
+      expect(pageText(page), `page ${i + 1} carries no band`).toContain(BAND);
+    }
+  });
+
+  /**
+   * ⚠ The continuation sheet is APPENDED after the carrier's 31 pages, so a band drawn before that
+   * append would miss it — and the continuation sheet is the one carrying the answers that did not
+   * fit, which is exactly the sheet somebody reads on its own.
+   */
+  it("bands the continuation sheet too", async () => {
+    const overflow = [
+      {
+        tableId: "p02.accidents",
+        label: "Accident record",
+        columns: ["Date", "Nature", "Fatalities", "Injuries"],
+        page: 2,
+        rows: [["2024-05-01", "Fourth accident", "0", "0"]],
+      },
+    ];
+    const pages = await readBack(
+      await renderPacketOverlay({ marks: [], band: BAND, overflow, applicantName: NAME }),
+    );
+    expect(pages.length).toBeGreaterThan(31);
+    expect(pageText(pages[pages.length - 1]!)).toContain(BAND);
+  });
+});
