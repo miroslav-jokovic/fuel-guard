@@ -987,6 +987,60 @@ every time.
   **Still open, and deliberately:** the `outstanding`/refetch stranding recorded under A0 is
   untouched. It is a separate defect with a separate mechanism and belongs with C1.
 
+- **2026-09-17, B1 — DONE. `hiringChecklist.ts` folds D-HM9's fourteen steps out of evidence rows.**
+  Pure, no clock, no network, no schema; `packages/shared/src/hiringSteps.ts` holds the catalogue and
+  `hiringChecklist.ts` the fold. Everything in Waves B–C can consume it now.
+
+  ⚠ **B1's own done-when said "the five steps that have evidence today" and the real number is
+  TWELVE.** That sentence was written before §1a confirmed what 0217 already carries. Measured
+  against the schema on 2026-09-17: `mvr`, `clearinghouse_full`, `drug_test`,
+  `medical_registry_verification`, `road_test` and `cdl_equivalency` are all live
+  `qualification_records` kinds; `psp_requests` is migration 0216; `application_invitations`,
+  `driver_applications`, `driver_authorizations` and `application_packet_marks` all exist. **Exactly
+  three steps have no evidence table**, and all three are the unbuilt ones D4/D3 already own:
+  orientation videos (there is not one `training_*` table in any migration), the live orientation
+  day, and the handbook (D-HM10 needs 0215's `purpose` CHECK widened). Built to the measurement, not
+  to the sentence — and the sentence is what is corrected here.
+
+  **The decisions the step forced, each one recorded at its call site:**
+
+  | | |
+  |---|---|
+  | Emission | Only steps with an evidence table. D-HM1's corollary — *a step with no artifact cannot be a step* — is a `filter`, and the three unbuilt steps stay in the catalogue so D-HM3's order is written down once |
+  | Prerequisites | Every edge is **law or a database constraint, never a preference** (D-HUI7 lets the office act out of order on everything else). So: MVR and PSP ← the signatures `SCREENING_PREREQUISITES` names · the packet ← `approved_at`, because `record_packet_mark` raises DR032 without it · **Clearinghouse ← nothing**, because its consent is given in FMCSA's portal and is deliberately absent from `APPLICATION_RELEASE_ORDER` |
+  | The road test | Blocked on the **drug test only**, which is §5.1's strict reading under the open Q-HM1. FMCSA has said in writing the Clearinghouse query may follow a road test, so that half is explicitly **not** a blocker; the drug-test half is the inference every commercial source draws and no FMCSA document does, and D-REC7 says take the answer that can only be stricter |
+  | Two evidences, one requirement | `cdl_equivalency` satisfies the road test — §391.51(b)(4), which `dqCatalogue.ts` already models |
+
+  ⚠ **`readyToTravel` is NOT a boolean, and that is the most important line in the step.** Step 9 is
+  inside its range and has no evidence table, so a boolean would answer *"yes, fly him out"* about
+  somebody who has watched no videos. Both readiness answers return `{ ok, unmeasured, outstanding }`
+  — `ok` is only ever true when `unmeasured` is empty. **This is the medical-certificate lesson
+  applied one level up**: D-HM9 records that the gate was missing for weeks because *capture* had
+  been read as *verification*, and a summary that treats "we have no way to check" as "checked" is
+  the same mistake with a wider blast radius. It follows that `readyToTravel.ok` is **false for
+  everybody until D4 ships** — correctly, and it says why by name.
+
+  ⚠ **One defect the tests caught in the fold's own design, worth keeping written down.** `next` —
+  the board's single "do this now" — was *"the first step the OFFICE owes"*. Because the Clearinghouse
+  query has no in-product prerequisite, that nominated **run the Clearinghouse query** for an
+  applicant who had been sent a link and had signed nothing: a query the carrier pays for, against a
+  federal gate, on somebody who may never apply. It is now the first step in D-HM9's order that is
+  neither done nor blocked, which cannot recommend spending money on a stranger. Pinned by *"does not
+  send the office off to buy a Clearinghouse query for a stranger"*.
+
+  **Verified:** seven mutations, seven red, each hitting a different assertion — emit unmeasurable
+  steps · swallow `unmeasured` · read `AUTHORIZATION_PURPOSES` instead of `APPLICATION_RELEASE_ORDER`
+  · unblock the road test · drop the licence equivalency · hard-code 22 marks · show the artifact
+  before the step is done. Fixtures are built from `APPLICATION_RELEASE_ORDER` and
+  `packetDriverMarkCount()` rather than from `4` and `22`, so they cannot pass through the change
+  they exist to catch. `pnpm lint`, `typecheck`, `test` green.
+
+  ⚠ **Split into two files at the 450-line warning, not at the 500 wall**, along the seam `app.ts`'s
+  header argues for: `hiringSteps.ts` is the ruled process (which steps, what order, which are
+  federal, what proves each) and `hiringChecklist.ts` is the computation over it. A new file landing
+  22 lines from the wall leaves the next person — whoever builds one of the three unbuilt steps — with
+  no headroom, which is the exact failure the budget exists to prevent.
+
 ---
 
 ## 11. Sources
