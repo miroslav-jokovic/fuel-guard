@@ -576,6 +576,51 @@ START/NEXT tags walking the 22 marks; FINISH gated on all 22. ⚠ **The server h
 reusable** — `packetTemplate`, `packetMarkGeometry`, `packetFieldGeometry`, `packetOverlay`,
 `packetGrid`. The coordinates are measured. This is a client rewrite, not a programme restart.
 
+### D-HM9 — the fourteen steps, in the owner's order (ruled 2026-09-17)
+
+**Why this is a decision and not a list.** Until the owner answered Q-HM1/3/7 the ordering was
+inferred from regulation alone, which gives a legal floor and not a working day. What it was missing
+is the seam that organises everything: **which steps happen before the applicant travels, and which
+happen while they are standing in the office.** The owner's words: *"these are done before applicant
+even come to office, road test is when he comes to office"*, and *"hiring is concluded when applicant
+is in the office and everything is done and signed and then we do hiring."*
+
+| # | Step | Where | Artifact |
+|---|---|---|---|
+| 1 | Invitation sent | remote | `application_invitations` |
+| 2 | Permissions signed — 4 authorizations + §7001(c) consent | remote, phone | the step-one PDF (B2) |
+| 3 | Application filled in | remote, phone | `application_drafts` → `driver_applications` |
+| 4 | Office reads, corrects, approves | office | `approved_at` + audit |
+| 5 | **MVR** pulled outside this product and uploaded (Q-HM2) | office | `documents` + `qualification_records` kind `mvr` |
+| 6 | **PSP** report | office | `psp_requests` + `psp_report` |
+| 7 | **Clearinghouse** full query, run in FMCSA's portal, recorded here | office | `clearinghouse_full` |
+| 8 | **Drug test** — collection, then verified negative from the MRO | external | `drug_test` |
+| 9 | **Orientation videos + quizzes** (Q-HM3) | remote, before travel | training completion + certificate |
+| 10 | **Road test** (Q-HM1) | **office, on arrival** | §391.31(e) certificate, kind `road_test` |
+| 11 | **Live orientation, by section** (Q-HM7) | office, same day | attendance |
+| 12 | **Handbook signed** (Q-HM5) | office, same day | its own signed document |
+| 13 | **Application signed** — the 22-place packet ceremony | **office, same day** | the filed 31-page packet |
+| 14 | **Hired** — DQF opens, truck assigned | office | `hireHandoff` |
+
+⚠ **Steps 5–9 all precede arrival, and that is the product's job to enforce.** The applicant travels
+once, and they travel only when 1–9 are done. Every one of the market's products in §4 is selling
+exactly that compression, and the owner arrived at it independently: *"with videos and application
+and other things we can finish it in half day and assign a truck if driver is in the office in the
+morning."*
+
+⚠ **So the checklist's most valuable single output is not a percentage — it is the answer to "can this
+person travel yet?"** Steps 1–9 green is that answer. Build it as a named thing in `hiringChecklist.ts`
+(`readyToTravel`), not as something a recruiter infers by reading nine rows.
+
+⚠ **The consequence for the signing surface (D-HUI9): step 13 happens IN THE OFFICE.** The phone
+measurement still stands and the design still renders at every width — but the primary device is now
+an office screen, not a truck-stop phone, which removes the risk from C1 rather than adding to it.
+
+⚠ **The consequence for orientation videos: they are assigned to an APPLICANT, before hire.** That
+overrides `RECRUITING-SYSTEM-PLAN.md`'s Q-REC6 fallback (*"no assignment is auto-created pre-hire
+until answered"*) — the owner has now answered. The compensable-time half of Q-REC6 is still
+counsel's and does **not** block the build.
+
 ### 6.1 The window that is closing
 
 ⚠ `file.ts:140–146` renders a filed packet **once**, hashes it, and returns storage bytes for ever.
@@ -605,50 +650,82 @@ zero cost today — and becomes permanently frozen for the first driver who walk
 
 ---
 
-## 8. Open questions — each with candidates and a recommendation
+## 8. Questions — six ruled by the owner 2026-09-17, two still open
 
-Nothing in §6 or §9 assumes an answer here.
+⚠ **Rulings are recorded here in the owner's own words where he gave them**, because a paraphrase of
+a process decision is how a plan starts describing a business nobody runs.
 
-- **Q-HM1 · Where does the road test go?** (counsel) §5.1's contradiction. Candidates: (a) after the
-  verified negative and the full query — strict, matches industry practice in §4.2; (b) road test on
-  arrival, query and test after — matches FMCSA's own Clearinghouse FAQ but relies on the §382.301
-  half being wrong. **Recommendation (a)** until counsel rules, on D-REC7's principle: it can only be
-  stricter than necessary. ⚠ This also finally gives **Q-REC5** somewhere to be answered.
-- **Q-HM2 · MVR vendor.** (owner) Nothing exists; Samba was deferred on cost 2026-08-26. Candidates:
-  revive Samba, a different vendor, or D-HM6's recorded act with a manually uploaded MVR.
-  **Recommendation: D-HM6 now, vendor later** — the recorded act is needed either way, and it unblocks
-  the checklist immediately.
-- **Q-HM3 · Is orientation training pre-hire or post-hire?** (owner + counsel) This is `Q-REC6`
-  restated and now load-bearing, because §4's entire economic argument is that training happens before
-  the driver travels. The sub-question is whether pre-hire training is compensable time the carrier
-  must track. **Recommendation: build it assignable pre-hire, auto-assign nothing pre-hire** until
-  answered — R7's existing fallback, unchanged.
-- **Q-HM4 · The drug-and-alcohol programme.** (owner) `Q-REC2`: who is the C/TPA or consortium, the
-  collection network, the MRO, and is there electronic ordering? **Recommendation:** recorded process
-  with manual result entry; no vendor integration.
-- **Q-HM5 · Does the checklist BLOCK or only WARN?** (owner) Candidates: (a) advisory — show the order,
-  let the office act out of order and record it; (b) blocking — refuse to mark a driver hireable until
-  the federal gates are green. **Recommendation (b) for the six federal gates only**, advisory for
-  everything else. A product that lets you hire past §382.301 is a liability, and a product that
-  blocks the equipment handover because a handbook page is unsigned is one nobody uses.
-- **Q-HM6 · One link or several for the applicant?** (owner) Directly from §1.6. **Recommendation:**
-  one link for visits 1–2, a **new link minted and emailed at approval** for visit 3, both hashes
-  valid. This is what the owner described, and Q-AX4's objection dissolves once the old hash stays
-  live.
-- **Q-HM7 · What is an orientation day, actually?** (owner) `Q-REC1`. Nothing about sessions,
-  capacity or what happens in the room can be designed without it. **No fallback — this one blocks
-  its step.**
-- **~~Q-HM8 · Video hosting.~~ RULED 2026-09-17: Supabase for Phases 0–1, with a written switch
-  trigger.** Sized rather than guessed: 200 drivers × 9 segments × ~5 min at 720p (~1.5 Mbps) ≈ **56 MB
-  a segment, ~100 GB for one full cycle**, against Supabase Pro's 250 GB. ⚠ **But the plan's own R2
-  makes rewatching the norm, not the exception** — fail a quiz and the video resets — so 1.5–2 watches
-  per segment is the realistic figure and that is **150–200 GB before the rest of the app**. It fits,
-  with almost no headroom, which is precisely the case D1's provider abstraction was written for.
-  **Ship on Supabase; switch to Bunny or Cloudflare Stream (~$1–5/mo) when measured monthly egress
-  passes 150 GB.** Write that number into the training plan's Phase 0 so it is a trigger and not a
-  worry.
+### Ruled
 
----
+- **~~Q-HM1 · Where does the road test go?~~ SETTLED, and it never needed counsel.** The owner:
+  *"these are done before applicant even come to office, road test is when he comes to office."*
+  The drug test, Clearinghouse query, MVR and PSP are **all in hand before the applicant travels**, so
+  the strict reading — verified negative and full query before anyone drives — is not a constraint
+  imposed on the carrier, it is **already what they do**. §5.1's contradiction is therefore moot for
+  this build: we enforce the strict order, which is simultaneously the legal safe harbour and the
+  real process. ⚠ Counsel is needed **only** if the carrier ever wants to road-test on arrival without
+  results in hand, and until somebody asks for that, nothing is blocked. **D2 is unblocked.**
+- **~~Q-HM2 · MVR vendor.~~ RULED: there is no vendor and there will not be one.** The owner:
+  *"we are handling this MVR pulls out of Silvicom 360 and uploading it."* This is D-HM6's recorded-act
+  path, chosen deliberately rather than as a fallback. **Do not build an MVR integration.** Build the
+  upload, the file and the annual-review clock. **D1 is unblocked** for MVR.
+- **~~Q-HM3 · Pre-hire or post-hire training?~~ RULED: pre-hire, and pre-arrival.** The owner:
+  *"orientation videos are pre arriving and pre hiring process. Hiring is concluded when applicant is
+  in the office and everything is done and signed and then we do hiring."* See D-HM9 steps 9 and 14.
+  ⚠ This **overrides** `RECRUITING-SYSTEM-PLAN.md` Q-REC6's fallback. The compensable-time half stays
+  counsel's and blocks nothing.
+- **~~Q-HM6 · One link or several?~~ RULED: several**, as recommended — one link for visits 1–2, a new
+  one minted and emailed at approval, both hashes valid. **A5a/A5b stand as written.**
+- **~~Q-HM7 · What is an orientation day?~~ RULED.** The owner: *"orientation is done by sections and
+  it is full day process, but with videos and application and other things we can finish it in half
+  day and assign a truck if driver is in the office in the morning."*
+  Three things follow and all three are buildable: orientation has **named sections**, so
+  `orientation_sessions` models a day made of sections rather than one block; **the videos are what
+  buys the half day**, which is the same economics every product in §4 sells; and **the day ends in a
+  truck assignment**, so step 14 is a real end state and not a status. **D3 is unblocked.**
+- **~~Q-HUI1 · Does the applicant see the carrier's steps?~~ RULED: no.** The owner:
+  *"applicant dont see our steps."* Their surface shows their own steps only, plus one line saying we
+  are working on it.
+
+### Still open
+
+- **⚠ Q-HM5 · Does the checklist BLOCK or only WARN?** **Not yet answered** — the reply addressed the
+  handbook example rather than the rule (that answer is now D-HM10 below, and it is valuable). The
+  question stands: when the six federal gates are not green, does the product **refuse** to mark
+  somebody hireable, or **warn** and let the office proceed and record why?
+  *Recommendation unchanged:* **blocking on the six federal gates only, advisory everywhere else.**
+  *Fallback until answered:* build the fold to report `blocking: true` on those six and let the UI
+  merely warn — so the ruling, when it comes, is a UI change and not a rework.
+- **⚠ Q-HM4 · The drug-and-alcohol testing programme.** The owner: *"I don't understand this."* Asked
+  again in plainer words, because the question is real and step 8 cannot be built without it:
+  **who runs your DOT drug testing?** Three parties, and a carrier usually has all three:
+  (a) the **consortium / third-party administrator (C/TPA)** — the company that keeps the random
+  testing pool and tells you who to send; (b) the **collection site** — the clinic the driver goes to
+  and gives the sample, e.g. a Quest or LabCorp location; (c) the **MRO (Medical Review Officer)** —
+  the doctor who reviews a positive with the driver before it is reported to you.
+  What the build needs is only: their names, and **whether any of them sends results electronically or
+  whether somebody types them in.** *Fallback:* the recorded-act path, exactly like MVR — the office
+  records the order and uploads the result. That fallback is good enough to ship step 8, so **D1 is
+  not blocked by this.**
+
+### D-HM10 — the handbook is a separate instrument, signed in the office (ruled 2026-09-17)
+
+The owner: *"we will have signing handbook as part of signing process and when driver is in the
+office, and that is part of application but separate process and document."*
+
+So it is **step 12** in D-HM9: its own document, its own signature, in the office, on the same day as
+the road test and the packet — and **not** a page of the 31-page packet.
+
+**What that means mechanically**, because this is the pattern R8 already specified and it has a trap:
+widen **0215's `purpose` CHECK** by next-numbered migration for a `handbook` purpose, and add it to
+**neither `APPLICATION_RELEASE_ORDER`** — the applicant's remote flow presents that exact list, and a
+handbook leaking into it would put it on the phone two weeks early — **nor `SCREENING_PREREQUISITES`**,
+because it authorises no vendor call.
+
+⚠ **And the §382.601 rule from §5.2 applies to it directly: give the drug-and-alcohol policy receipt
+its own signature block, separate from the handbook's.** An omnibus *"I received the handbook"* does
+not prove the driver received the §382.601 materials, and that is the specific thing an auditor
+rejects.
 
 ## 9. The queue
 
@@ -694,7 +771,7 @@ why the owner's walk stopped — and every later step in this wave changes files
 
 | | Step | Build | Verify | Done when |
 |---|---|---|---|---|
-| **B1** ∥ | **`hiringChecklist.ts` — the fold** · day. **START THIS FIRST** | `packages/shared/src/hiringChecklist.ts`. Pure. In: invitation phases, authorizations, packet marks, applications, qualification records, documents, PSP rows. Out per step: `blocked \| waiting_on_them \| waiting_on_us \| done`, the artifact, and the blocker's name. ⚠ **Only steps that exist today.** A step with no artifact cannot be a step (D-HM1) | shared tests; a fixture per state, and one asserting a step is **not** emitted when its evidence table is empty | **The fold answers "where is this applicant" for the five steps that have evidence today, and refuses to invent a sixth** |
+| **B1** ∥ | **`hiringChecklist.ts` — the fold** · day. **START THIS FIRST** | `packages/shared/src/hiringChecklist.ts`. Pure. In: invitation phases, authorizations, packet marks, applications, qualification records, documents, PSP rows. Out per step: `blocked \| waiting_on_them \| waiting_on_us \| done`, the artifact, and the blocker's name. ⚠ **The step list is D-HM9's fourteen and their order is ruled** — write all fourteen, and emit only those whose evidence table exists today. ⚠ Also emit **`readyToTravel`** (steps 1–9 green): D-HM9 makes that the single most valuable thing this fold says, and a recruiter should not have to infer it from nine rows. A step with no artifact cannot be a step (D-HM1) | shared tests; a fixture per state, and one asserting a step is **not** emitted when its evidence table is empty | **The fold answers "where is this applicant" for the five steps that have evidence today, and refuses to invent a sixth** |
 | **B2** ∥ | **The step-one permissions PDF** · day | The four instruments + the e-sign consent + the certificate of completion, as one banded interim document. ⚠ It does **not** touch D-AX8: the filed record stays single and hashed; this is banded exactly as `preview.pdf` bands a draft | api tests; rasterise it and read it | **The office can print what an applicant signed on the day they signed it, without waiting for the application to be filed** |
 | **B3** | **Serve the fold** · half day | `GET /api/recruitment/applicants/:driverId/checklist`. ⚠ Service role bypasses RLS — org-filter every read and assert it with `supabaseRecorder`'s `expectOrgScoped` | api tests | **The endpoint returns the same answer the fold returns for the same rows** · *after B1* |
 | **B4** | **The board** · day | `/recruitment` per `HIRING-UI-PLAN.md` §4.1 and mockup screen 1. `surfaces.ts`: screening + inquiries become tabs, not nav items (D-HUI8) | `pnpm --filter web lint:tokens`, `lint:ui-adoption`, `check-surfaces.mjs`; `preview:local` and look | **A recruiter opening Recruitment sees who is waiting on them, first, without choosing a page** · *after B3* |
@@ -714,16 +791,17 @@ why the owner's walk stopped — and every later step in this wave changes files
 
 | | Step | Gated on | Done when |
 |---|---|---|---|
-| **D1** ∥ | Recorded acts + artifacts for MVR, Clearinghouse and the drug test (D-HM6) | Q-HM2, Q-HM4 | **An MVR obtained anywhere files the same way and turns its step green** |
-| **D2** ∥ | Road test — §391.31(c) form, examiner, §391.31(e) certificate (D-HM7 / R8). ⚠ No schema widening: 0217 already carries `road_test` | **Q-HM1** | **A passed road test produces a certificate in the driver's file** |
-| **D3** ∥ | Orientation sessions, attendance, per-instrument acknowledgements (R8, §5.2). ⚠ **Separate signature block per instrument** — an omnibus "I received orientation" does not prove §382.601 | **Q-HM7** | **An orientation day is schedulable and who attended is auditable** |
-| **D4** | Re-found `DRIVER-TRAINING-PLAN.md` against the current gate set, then its Phases 0–3 | Q-HM3, Q-HM8 | **An applicant watches nine videos, answers the questions, and fails back to the video when they get them wrong** |
+| **D1** ∥ | Recorded acts + artifacts for MVR, Clearinghouse and the drug test (D-HM6, D-HM9 steps 5–8). ⚠ **No MVR integration — Q-HM2 ruled there will never be one.** Build the upload, the file, the annual-review clock | **unblocked** | **An MVR pulled anywhere uploads, files, and turns its step green** |
+| **D2** ∥ | Road test — §391.31(c) form, examiner, §391.31(e) certificate (D-HM7 / R8). ⚠ No schema widening: 0217 already carries `road_test`. It is an **in-office, on-arrival** act (D-HM9 step 10) | **unblocked** (Q-HM1 settled) | **A passed road test produces a certificate in the driver's file** |
+| **D3** ∥ | Orientation as **named sections** within a day (Q-HM7), attendance, and the **handbook** as its own instrument (D-HM10). ⚠ Widen 0215's `purpose` CHECK; add `handbook` to **neither** `APPLICATION_RELEASE_ORDER` **nor** `SCREENING_PREREQUISITES`. ⚠ Separate §382.601 signature block | **unblocked** | **A half-day orientation is schedulable by section, attendance is auditable, and the handbook is signed and filed on the day** |
+| **D4** | Re-found `DRIVER-TRAINING-PLAN.md` against the current gate set, then its Phases 0–3. ⚠ Assigned to an **applicant, before they travel** (Q-HM3 ruled) — this is what buys the half-day orientation | **unblocked** | **An applicant watches the videos before they travel, answers the questions, and fails back to the video when they get them wrong** |
 | **D5** | Live sessions with auto-assignment of the recording to absentees (§4.4) | D3, D4 | **Somebody who missed the live session is assigned the recording without anybody remembering to do it** |
 
 ### Not in the queue, because they are not builds
 
-Send the counsel package · buy a Clearinghouse query plan + IDEMIA verification · choose an MVR
-vendor · three Railway variables for Resend · point `silvicom360.silvicominc.com` at Railway.
+Send the counsel package · buy a Clearinghouse query plan + IDEMIA verification · three Railway
+variables for Resend · point `silvicom360.silvicominc.com` at Railway.
+⚠ **"Choose an MVR vendor" is struck** — Q-HM2 ruled there will not be one.
 
 ---
 
