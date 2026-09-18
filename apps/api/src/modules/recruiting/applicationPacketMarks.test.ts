@@ -199,6 +199,76 @@ describe("what the transaction refuses", () => {
   });
 });
 
+/**
+ * ⚠ A0, 2026-09-17. The first signing ceremony this product ever ran stopped two places short and
+ * the only evidence it left was an absence — twenty rows where twenty-two belonged. A stop that does
+ * not land is a permanent dead end (`usePacketCeremony.sign()` advances only on a 201), so a refusal
+ * nobody can find is the expensive kind of silence.
+ *
+ * ⚠ These do not cover the refusal that actually happened: `p31a` was refused by the rate limiter in
+ * `app.ts`, above this module, and is pinned there by *"says so in the log when it refuses an
+ * applicant"*.
+ */
+describe("a refused mark leaves a trace", () => {
+  const captureWarnings = (): { lines: unknown[][]; restore: () => void } => {
+    const lines: unknown[][] = [];
+    const original = console.warn;
+    console.warn = (...args: unknown[]) => void lines.push(args);
+    return { lines, restore: () => void (console.warn = original) };
+  };
+
+  it("names the code, the placement and the invitation, and no more than that", async () => {
+    const warn = captureWarnings();
+    try {
+      const rec = seed({ inv: invitation({ approved_at: null }) });
+      await recordPacketMark(rec.client, TOKEN, body("p31a", "Miroslav Jokovic"), CTX, NOW);
+      expect(warn.lines).toHaveLength(1);
+      expect(warn.lines[0]![0]).toBe("[packet-mark] refused");
+      expect(warn.lines[0]![1]).toEqual({
+        code: "packet_not_yet_approved",
+        placement: "p31a",
+        invitation: "inv-1",
+      });
+    } finally {
+      warn.restore();
+    }
+  });
+
+  /**
+   * ⚠ The token is the credential for a live application and the name is the applicant's. Neither
+   * belongs in a log line that Railway retains — the blindness A0 cured must not be paid for with a
+   * signing link in a log.
+   */
+  it("keeps the token and the applicant's name out of the line", async () => {
+    const warn = captureWarnings();
+    try {
+      const rec = seed({ inv: invitation({ submitted_at: "2026-09-14T11:00:00Z" }) });
+      await recordPacketMark(rec.client, TOKEN, body("p03", "Marija Varmeda"), CTX, NOW);
+      // ⚠ First, that there IS a line. Three `not.toContain`s over an empty array pass perfectly and
+      // prove nothing — which is precisely what they did when this branch was mutated to check.
+      expect(warn.lines).toHaveLength(1);
+      const printed = JSON.stringify(warn.lines);
+      expect(printed).not.toContain(TOKEN);
+      expect(printed).not.toContain("Marija Varmeda");
+      expect(printed).not.toContain(CTX.ip);
+    } finally {
+      warn.restore();
+    }
+  });
+
+  /** A mark that lands is not an event — twenty-two lines per applicant would bury the one that is. */
+  it("says nothing when the mark lands", async () => {
+    const warn = captureWarnings();
+    try {
+      const rec = seed();
+      await recordPacketMark(rec.client, TOKEN, body("p03"), CTX, NOW);
+      expect(warn.lines).toEqual([]);
+    } finally {
+      warn.restore();
+    }
+  });
+});
+
 describe("the queue the ceremony walks", () => {
   it("serves the driver's stops in the packet's own page order", async () => {
     const rec = seed();

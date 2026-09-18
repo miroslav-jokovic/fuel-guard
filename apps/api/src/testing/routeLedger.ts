@@ -27,6 +27,12 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   ["/api/version", "deploy/migration probe — public deliberately; a version endpoint needing a token is one nobody checks"],
   ["/api/public/hazmat", "the public M7 calculator — anonymous by product design; stateless, no tenant data"],
   ["/api/public/invites", "redeeming an emailed invitation — the person has no account yet, so the 256-bit link token in the POST body is the credential; it resolves to exactly one invitation's org and email server-side, refuses every dead link with one answer, and is rate-limited in app.ts (2026-09-04)"],
+  // ⚠ Newly VISIBLE here on 2026-09-17 rather than newly open: the mount was broken across four
+  // lines in app.ts, and neither fitness function can see a call that spans a newline — so the one
+  // unauthenticated surface that takes a date of birth, a licence number and possibly a Social
+  // Security number was checked by neither. Found while diagnosing A0 (`HIRING-MODULE-PLAN.md` §10);
+  // the mount is one line again, which is what put it in front of this ledger.
+  ["/api/public/application", "the applicant's own link — they have no account, so the 256-bit token in the path is the credential; it resolves to exactly one invitation's org server-side, answers every dead link with the same sentence, and is rate-limited in app.ts. There is no role to check because there is no user (2026-09-17)"],
   ["/api/webhooks", "provider-signed (Samsara HMAC, Telnyx Ed25519) — authenticated, just not by a user role"],
   ["/api/tms", "the on-prem agent — authenticated by the org ingest token (hash-matched), a machine credential with no role to check"],
   // R3c-2. Deliberate, and the argument is that there is no capability here to gate. A saved view is

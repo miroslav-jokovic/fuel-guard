@@ -168,23 +168,52 @@ export async function recordPacketMark(
   ctx: SubmitContext,
   now: Date,
 ): Promise<{ id: string; signedCount: number; complete: boolean } | IntakeError> {
+  /**
+   * ⚠ A refused mark used to leave NOTHING behind — not a row, not a line (A0, 2026-09-17).
+   *
+   * The one ceremony that has ever mattered stopped two places from the end, and the whole of the
+   * evidence it left was an absence: twenty rows where there should have been twenty-two. A stop
+   * that does not land is a permanent dead end for the driver — `usePacketCeremony.sign()` advances
+   * only on a 201 — so the refusal is the most consequential thing this module does, and it was the
+   * one thing it did not say out loud.
+   *
+   * ⚠ **This would not have caught the refusal that happened**, which is worth stating rather than
+   * letting the next reader assume otherwise: `p31a` was refused by the rate limiter in `app.ts`,
+   * two layers above, and never reached this function. That trace lives there. This one covers the
+   * six refusals that ARE this module's — a stale phase, a countersignature stop, a second spelling
+   * of the adopted name — each of them just as invisible until now.
+   *
+   * ⚠ **Nothing identifying goes in the line.** A placement id is a place on somebody else's paper,
+   * an invitation id is a uuid; the token, the name and the address stay out.
+   */
+  let invitationId: string | null = null;
+  const refused = (error: IntakeError): IntakeError => {
+    console.warn("[packet-mark] refused", {
+      code: error.code,
+      placement: body.placement_id,
+      invitation: invitationId,
+    });
+    return error;
+  };
+
   const invitation = await resolveInvitation(admin, token, now);
-  if (isIntakeError(invitation)) return invitation;
+  if (isIntakeError(invitation)) return refused(invitation);
+  invitationId = invitation.id;
 
   // A signature given electronically by somebody who never agreed to sign electronically is the gap
   // §390.32(d) exists to close — and the carrier's PUBLISHED wording, never the code's placeholders,
   // which is the omission that recorded a release with no consent behind it on 2026-09-13.
   const wording = await loadCarrierWording(admin, invitation.org_id);
   const consent = requireEsignConsent(invitation, wording);
-  if (consent) return consent;
+  if (consent) return refused(consent);
 
   const placement = packetPlacementById(body.placement_id);
-  if (!placement || placement.party !== "driver") return PACKET_MARK_NOT_THE_DRIVERS;
+  if (!placement || placement.party !== "driver") return refused(PACKET_MARK_NOT_THE_DRIVERS);
 
   // The cheap refusals, before the transaction. The RPC checks both again under its lock — these
   // keep a ceremony opened on a stale page from reaching the database at all.
-  if (!invitation.approved_at) return PACKET_NOT_APPROVED;
-  if (invitation.submitted_at) return PACKET_ALREADY_FILED;
+  if (!invitation.approved_at) return refused(PACKET_NOT_APPROVED);
+  if (invitation.submitted_at) return refused(PACKET_ALREADY_FILED);
 
   const { data, error } = await admin.rpc("record_packet_mark", {
     p_org: invitation.org_id,
@@ -205,25 +234,25 @@ export async function recordPacketMark(
   });
   if (error) {
     if (error.code === "DR034" || /packet_mark_already_made/.test(error.message)) {
-      return PACKET_MARK_ALREADY_MADE;
+      return refused(PACKET_MARK_ALREADY_MADE);
     }
     if (error.code === "DR035" || /packet_mark_name_changed/.test(error.message)) {
-      return PACKET_MARK_NAME_CHANGED;
+      return refused(PACKET_MARK_NAME_CHANGED);
     }
     if (error.code === "DR032" || /packet_not_yet_approved/.test(error.message)) {
-      return PACKET_NOT_APPROVED;
+      return refused(PACKET_NOT_APPROVED);
     }
     if (error.code === "DR033" || /packet_already_filed/.test(error.message)) {
-      return PACKET_ALREADY_FILED;
+      return refused(PACKET_ALREADY_FILED);
     }
     if (
       error.code === "DR030"
       || error.code === "DR031"
       || /invitation_unusable|invitation_not_found/.test(error.message)
     ) {
-      return { code: "invalid_link", message: "This application link is not valid. Ask for a new one." };
+      return refused({ code: "invalid_link", message: "This application link is not valid. Ask for a new one." });
     }
-    return { code: "packet_mark_failed", message: error.message };
+    return refused({ code: "packet_mark_failed", message: error.message });
   }
   const row = data as { mark_id?: string; signed_count?: number; complete?: boolean } | null;
   return {
