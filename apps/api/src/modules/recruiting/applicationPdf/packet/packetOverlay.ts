@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage } from "pdf-lib";
+import { packetPlacementById } from "@silvicom/shared";
 import { MARK_BASELINE_LIFT, PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { FIELD_BASELINE_LIFT, fieldTableFor } from "./packetFieldGeometry.js";
 import type { PacketFieldOverflow, PlacedFieldValue } from "./packetGrid.js";
@@ -29,12 +30,19 @@ import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
  * is filed evidence that has to reproduce in ten years. A signature's job on this page is to be
  * legibly the signer's name in the place the form asks for it, which oblique does.
  *
- * ── ⚠ NOT WIRED IN YET, AND WHAT IS LEFT ──────────────────────────────────────────────────────
- * `file.ts` still renders the §391.21 summary. One thing is outstanding before this replaces it:
- * **the field values are not drawn here.** Pages 1, 2, 12, 15 and 16 carry applicant data, so wiring
- * this in today would file a signed form with empty answers. Their coordinates now exist —
- * `packetFieldGeometry.ts`, measured the same way this file's were — and drawing them is the next
- * step.
+ * ── ⚠ THIS IS THE FILING PATH ─────────────────────────────────────────────────────────────────
+ * ⚠ **Wired in, and the note that used to sit here saying it was not is gone because it was false.**
+ * `file.ts`'s `renderFiledDocument` calls `renderPacketDocument`, which calls this — so an
+ * application with marks files what this function draws. The two things that block had outstanding
+ * are both done: the field values are drawn (`fields`, from `packetFieldValues.ts`) and the
+ * continuation sheet is appended.
+ *
+ * ⚠ **What follows from that is a deadline, not a nicety.** `ensureApplicationPdf` renders ONCE,
+ * hashes, and returns the stored bytes for ever; evidence tables are append-only. So a change to how
+ * this function prints reaches only packets filed after it merges, and every packet filed before it
+ * keeps the old appearance permanently. Settle a printing question before the first packet is filed
+ * or do not settle it at all — measured 2026-09-18, production held 20 marks from one unfinished
+ * walk and no filed packet, which is the only reason A3 was able to fix the drawn mark below.
  *
  * ⚠ **And so is the DATE beside each signature.** Thirteen of the twenty-two stops carry a `Date`
  * line and page 22 carries `Driver name Print`; this file draws the mark and stops, so a packet
@@ -42,11 +50,18 @@ import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
  * those fourteen coordinates. Each one takes its OWN stop's `signed_at`, never one stamp for all of
  * them — the walk is twenty-two acts and a driver who loses signal finishes tomorrow.
  *
- * ⚠ **The initials defect this renderer found is CLOSED** (Q-PKT8, 2026-09-14). `p05`, `p06` and
- * `p09` are `mark: "initials"`, D-PKT6 calls those a second adopted mark, and until that day the
- * ceremony adopted one and `record_packet_mark` pinned one `signed_name` per link — so a client
- * sending initials was refused at its third stop. Migration 0340 pins per kind and the walk collects
- * both. Nothing here changed: it draws `signed_name`, which for those three is now the initials.
+ * ⚠ **The initials defect had TWO halves and only one of them closed in 2026-09-14** (Q-PKT8, then
+ * A3). `p05`, `p06` and `p09` are `mark: "initials"`, D-PKT6 calls those a second adopted mark, and
+ * until that day the ceremony adopted one and `record_packet_mark` pinned one `signed_name` per link
+ * — so a client sending initials was refused at its third stop. Migration 0340 pins per kind and the
+ * walk collects both, which fixed the TYPED path: this file draws `signed_name`, which for those
+ * three is now the initials.
+ *
+ * ⚠ **The DRAWN path kept the defect for another four days**, because the branch that stamps the PNG
+ * never read the placement's kind — it ran for all twenty-two. That is A3, and the fix is in the mark
+ * loop: the drawing goes on signature lines only. The lesson is the one worth keeping — *"nothing
+ * here changed"* was true of the typed path and false of the path beside it, and one sentence covered
+ * both.
  *
  * ⚠ **Every mark is scaled to fit its line and never overruns it.** The lines are between 90 and 413
  * points wide and a long name at a fixed size would run into the printed text beside it — on page 4
@@ -67,7 +82,8 @@ export interface PacketOverlayInput {
    *
    * ⚠ Optional, and empty is a legitimate call: a caller that wants only the marks — the office
    * previewing what the driver has signed so far — asks for only the marks. What is NOT legitimate is
-   * FILING one without them, which is why `file.ts` is still not wired to this.
+   * FILING one without them, and `renderPacketDocument` is the reason it cannot happen: the filing
+   * path goes through it and it always fills them.
    */
   fields?: readonly PlacedFieldValue[];
   /**
@@ -168,7 +184,34 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
     const width = line.x2 - line.x1;
     const baseline = line.y + MARK_BASELINE_LIFT;
 
-    if (drawn) {
+    /**
+     * ⚠ **A drawing is a SIGNATURE, and `p05`, `p06` and `p09` do not ask for one** (A3, D-PKT6).
+     *
+     * Until this line existed the `if (drawn)` branch below ran for every placement, so a driver who
+     * chose to draw got their signature stamped on the three initials lines as well — 141pt of
+     * somebody's full autograph in a box the carrier captioned `Initials`, on a document the driver
+     * had been told would carry their typed initials there. D-PKT6 is explicit that initials are *"a
+     * SECOND adopted mark and not an abbreviation of the first"*; the ceremony collects them
+     * separately and types them for exactly that reason, and this renderer was throwing that away at
+     * the last step. Q-PKT8 closed the same defect on the typed path in 2026-09-14 and this drawn one
+     * survived it, because nothing on the drawn branch ever read the placement's kind.
+     *
+     * ⚠ **The kind comes from `PACKET_PLACEMENTS`, never from the id's spelling or the page number.**
+     * It is the inventory of somebody else's paper — the same table the ceremony reads to decide
+     * which mark to collect — so the paper, the screen and the print agree by construction rather
+     * than by three people remembering the same three page numbers. `packetMarkGeometry.ts` carries
+     * no kind at all and must not gain one.
+     *
+     * ⚠ **An id the inventory does not carry falls back to the TYPED name**, which is the safe
+     * direction: a typed signature is still the signature of record (D-APP8), whereas a drawing on an
+     * initials line is this defect. Today the case is unreachable — every geometry id has a
+     * placement, pinned by "carries exactly the driver's twenty-two places, and nothing else"
+     * — but a filed packet is frozen for ever, so the branch that runs when the two tables disagree
+     * has to be the one that cannot produce a wrong mark.
+     */
+    const takesDrawing = packetPlacementById(mark.placementId)?.mark === "signature";
+
+    if (drawn && takesDrawing) {
       const scale = Math.min(
         DRAWN_MARK_MAX_HEIGHT / drawn.height,
         // ⚠ 0.9 of the line, so a drawn mark has the same air around it the typed one gets.

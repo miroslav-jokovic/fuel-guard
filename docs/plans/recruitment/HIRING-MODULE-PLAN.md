@@ -1437,6 +1437,103 @@ every time.
   ahead of B7/B8**, which have no deadline. ⚠ A2 does NOT share this property — it fixes the
   PREVIEW, and its own row says `render.ts` stays untouched.
 
+- **2026-09-18, after the handoff — A3 BUILT. The drawn mark's four defects, three fixed and a
+  fourth found by rendering the screen.** PR #877, branch `claude/hiring-a3`. No migration; no schema change.
+
+  **Why this went ahead of B7/B8:** the freeze. Verified again at the call sites —
+  `file.ts`'s `renderFiledDocument` → `renderPacketDocument` → `renderPacketOverlay` — so A3's fix is
+  on the FILING path, and `ensureApplicationPdf` renders once and returns stored bytes for ever.
+  **Production re-measured 2026-09-18 before starting: 20 marks, one walk, 2026-09-17 22:20–22:21,
+  three of them `initials`; no filed PACKET.** ⚠ There IS one filed `employment_application`
+  document (hashed, 2026-09-14) — it pre-dates every mark, so it is `render.ts`'s §391.21 summary,
+  which is what `renderFiledDocument`'s marks-based switch is supposed to produce. The window was
+  open and is now used.
+
+  **(c) — the drawn signature on the initials lines. The one that would have frozen.**
+  `renderPacketOverlay`'s mark loop ran `if (drawn) { …; continue; }` before reading the placement,
+  so a driver who drew got their full autograph stamped on `p05`, `p06` and `p09` — the three boxes
+  the carrier captioned `Initials`. The kind now comes from `packetPlacementById()`, i.e. from
+  `PACKET_PLACEMENTS`, the same table the ceremony reads: the paper, the screen and the print agree
+  by construction rather than by three people remembering the same three page numbers. ⚠ An id the
+  inventory does not carry falls back to the TYPED name, which is the safe direction (a typed
+  signature is still the signature of record, D-APP8); the branch is unreachable today and the test
+  file says so rather than faking a way in, because "carries exactly the driver's twenty-two places,
+  and nothing else" keeps the two tables equal.
+
+  ⚠ **Q-PKT8 closed half of this in 2026-09-14 and the file said so in one sentence covering both
+  paths.** *"Nothing here changed: it draws `signed_name`"* was true of the TYPED path and false of
+  the drawn branch three lines below it. The header now separates them.
+
+  **(a) — the ceremony previewed the typed name in drawn mode.** The caption read `style` and the
+  preview read `markFor()`, so the screen said *"We will put your signature on the page"* over the
+  typed name, at every one of the twenty-two stops. Both now read ONE boolean,
+  `currentShowsDrawing` — the client half of a NAMED PAIR with the renderer's mark loop, not a
+  shared function, because the renderer looks at a PNG it was handed and this looks at a Blob that
+  has not been filed. What they share is the RULE, and both derive the kind from
+  `PacketPlacement.mark`.
+
+  **(b) — the failed upload was swallowed in silence.** The swallow stays (A8b: a PNG that will not
+  upload must not stand between a driver and twenty-two signatures) and is now recorded in
+  `drawnMarkFailed`, which withdraws the promise as well as raising the notice — a stop whose
+  drawing did not stage previews the typed name, because that is what will land. New copy
+  `drawFailed` in the catalogue. ⚠ It offers no retry on purpose: changing a mark once adopted is
+  C2, and a button that does not exist is worse than the sentence.
+
+  **(d) is NOT in this PR and should not be.** *"No upload option, no style choice, no way to change
+  a mark once adopted"* is C2's adoption dialog. A3's done-when does not include it.
+
+  ⚠⚠ **THE FOURTH DEFECT, and it is the owner's actual complaint.** Found by driving `/apply/:token`
+  in a browser — every test in the suite was green for it, and always would have been.
+  `alreadyAdopted` was computed from `adoptedName`/`adoptedInitials`, **which are the refs the input
+  boxes are bound to**. So for a FIRST-TIME applicant (`packetAdopted: null`) the question *"has this
+  link already adopted a mark?"* answered YES the moment they finished typing their initials, and the
+  component swapped itself for the RESUMED panel mid-form: the Type/Draw control disappeared, the
+  signature pad was unmounted, **the drawing in it was destroyed**, `Use this and start` became
+  `Carry on signing`, and they were told *"You adopted this when you started"* about a mark they were
+  making right then. Measured, in that order: on arrival 1 style control / 0 canvases; after choosing
+  Draw, 1 canvas; after the name, 1 canvas; **after the initials, 0 canvases and the resumed panel.**
+
+  ⚠ For a driver who chose to DRAW this was fatal rather than cosmetic, and it is why it belongs to
+  A3: the name field sits ABOVE the pad, so the natural order is type, type, draw — and the pad was
+  gone before they reached it, with no error and nothing to press. The mark silently became the typed
+  one. **That is *"custom signature cannot be applied"* from the driver's end.** The two facts were
+  never the same thing: what the server pinned is a fact about the LINK, what is in the boxes is a
+  fact about this minute's keystrokes, and `adoptedName` being SEEDED from the pin is where the
+  relationship ends. `alreadyAdopted` now reads `options.adopted`.
+
+  **Verified by looking, which is the only verification that counts here — sixth consecutive step.**
+  Rasterised a packet signed by drawing, before and after, `pdftoppm -r 110 -png`: pages 5, 6 and 9
+  carried a blue squiggle across the `Initials` rule and now carry `MV`; page 20's signature line
+  still carries the drawing. Then the real `/apply/:token` at 420px against `preview:local`: stop 1
+  (`p03`, signature) shows the drawing under *"We will put your signature on the page"*, stop 3
+  (`p05`, initials) shows `MV` under *"We will put your initials on the page"*, and with the staging
+  call refused the stop shows the typed name plus the `drawFailed` sentence.
+
+  ⚠ **How to rebuild that browser harness in ten minutes** — it is worth it for A4 and C2, and the
+  fixture is the expensive part. `preview:local` (it takes whatever port is free; three other
+  sessions were holding 4173–4176), then Playwright with `route.fulfill` of RAW bodies — `publicFetch`
+  returns the parsed body itself, so `{ok,data}` makes every field undefined one level down. To reach
+  `SignOffScreen`, the bundle needs `phases.approvedAt` set and `submittedAt` null, plus
+  `consentedAt` and `releasesCompletedAt` set, `releases: []` and `draft.locked: false` — otherwise
+  `ApplyPage` stops at the consent gate, the release ceremony or the date-of-birth gate, in that
+  order. `packet` is the 22 driver placements with `signedAt: null`, `packetAdopted: null`. Intercept
+  `POST /:token/capture`, the signed `uploadUrl`, `PUT /:token/capture/:id` and `POST /:token/mark`.
+  ⚠ `pnpm --filter @silvicom/web build` will NOT work for this — it needs the two `VITE_` vars as real
+  env vars, not the `.env` file; `preview:local` handles it.
+
+  **Mutations: six run, six red.** Renderer — `drawn && takesDrawing` → `drawn` reddened the initials
+  test with the defect itself in the message (*page 5 … expected 'In compliance with Federal…' to
+  contain 'QX'*); `=== "signature"` → a kind that never matches reddened the signature half, which is
+  what stops the first test passing on a renderer that ignores the drawing entirely. Composable —
+  dropping the kind check, forcing `drawnMarkFailed` false, inverting the style check, and restoring
+  the old `alreadyAdopted` each reddened their own tests. ⚠ The reverts write the original BYTES back;
+  `git checkout --` is refused in a worktree-isolated session and does nothing, silently.
+
+  `pnpm lint`, `typecheck`, `test` (all suites + every matrix), `lint:boundaries`, `lint:filesize`,
+  `lint:funcsize`, `lint:comment-claims`, `lint:ui-adoption` and `--filter web lint:tokens` green.
+
+  **Next is A4** (initials stop pinning on one keystroke) — same files, same freeze exposure.
+
 ---
 
 ## 11. Sources

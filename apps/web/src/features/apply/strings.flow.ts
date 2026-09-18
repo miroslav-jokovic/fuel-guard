@@ -216,6 +216,24 @@ export const APPLY_FLOW_COPY = {
     applyingDrawn: "We will put your signature on the page:",
     /** ⚠ A stop taking initials says so here too, not only on its button. */
     applyingInitials: "We will put your initials on the page:",
+    /**
+     * ⚠ What a driver is told when their DRAWING did not save (A3).
+     *
+     * It was told to nobody until 2026-09-18. The upload failure is swallowed on purpose — A8b, a PNG
+     * that will not upload must not stand between a driver and twenty-two signatures — but the
+     * swallow was silent, so somebody who chose to draw signed all twenty-two places believing their
+     * drawing was going on the paper, and the filed packet came out typed. That is the owner's
+     * *"custom signature cannot be applied"* seen from the driver's end.
+     *
+     * ⚠ **It does not apologise and it does not offer a retry.** Nothing here is broken from the
+     * driver's side and there is nothing for them to press: the typed name is the signature of record
+     * either way (D-APP8), so the only useful sentence says which mark is going on the form and that
+     * they can carry on. Changing the mark once adopted is C2's job, and inviting it here would be
+     * offering a button that does not exist.
+     */
+    drawFailed:
+      "We could not save your drawing, so your typed name goes on the form instead. "
+      + "Everything you sign still counts — carry on.",
     resumed: (n: number): string =>
       n === 1 ? "You have already signed 1 place." : `You have already signed ${n} places.`,
     doneHeading: "That is every place signed",

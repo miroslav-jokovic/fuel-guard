@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
   AppButton as BaseButton,
   AppInput as BaseInput,
@@ -78,6 +78,44 @@ const initialsReady = computed(
 const applying = computed(() =>
   ceremony.current.value ? ceremony.markFor(ceremony.current.value) : "",
 );
+
+/**
+ * The drawing itself, shown at the stops that will carry it (A3).
+ *
+ * ⚠ **Previously this screen showed the TYPED name in drawn mode**, under a caption that said
+ * *"We will put your signature on the page"*. Both halves came from different places — the caption
+ * from `style`, the preview from `markFor()` — so the screen described the right act with the wrong
+ * mark, all the way through twenty-two stops. `ceremony.currentShowsDrawing` is now the single
+ * answer and both read it.
+ *
+ * ⚠ An object URL rather than a data URL, and revoked when the blob changes or the screen goes: a
+ * signature pad blob is a few hundred KB and a driver who redraws four times would otherwise leave
+ * four of them pinned for the life of the tab.
+ */
+const drawnUrl = ref<string | null>(null);
+watch(
+  () => ceremony.markBlob.value,
+  (blob) => {
+    if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
+    drawnUrl.value = blob ? URL.createObjectURL(blob) : null;
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => {
+  if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
+});
+
+/**
+ * Which sentence sits above the mark.
+ *
+ * ⚠ Derived from the same boolean the preview uses, never from `style` — that is the disagreement A3
+ * fixed. A drawn-mode stop whose drawing did not upload says `applyingTyped`, because the typed name
+ * is what lands there.
+ */
+const applyingLabel = computed(() => {
+  if (ceremony.current.value?.mark === "initials") return copy.applyingInitials;
+  return ceremony.currentShowsDrawing.value ? copy.applyingDrawn : copy.applyingTyped;
+});
 
 async function adoptAndStart(): Promise<void> {
   if ((await ceremony.adopt()) && ceremony.complete.value) emit("done", ceremony.adoptedName.value.trim());
@@ -205,19 +243,27 @@ async function signCurrent(): Promise<void> {
     </p>
 
     <!-- ⚠ The mark this stop takes, not the signature. A page asking for initials that previewed the
-         full name would be showing the driver something other than what lands on the paper. -->
+         full name would be showing the driver something other than what lands on the paper — and a
+         drawn-mode stop that previewed the TYPED name was doing exactly that until A3. -->
     <div>
-      <p class="text-sm text-ink-muted">
-        {{
-          ceremony.current.value.mark === "initials"
-            ? copy.applyingInitials
-            : style === 'drawn'
-              ? copy.applyingDrawn
-              : copy.applyingTyped
-        }}
-      </p>
-      <p class="signature-preview text-2xl text-ink">{{ applying }}</p>
+      <p class="text-sm text-ink-muted">{{ applyingLabel }}</p>
+      <!-- ⚠ The drawing itself, at the stops that carry it. `alt` is empty on purpose: the sentence
+           above already says what this is, and "your drawn signature" read out twice is noise. -->
+      <img
+        v-if="ceremony.currentShowsDrawing.value && drawnUrl"
+        :src="drawnUrl"
+        alt=""
+        class="mt-1 h-16 w-auto max-w-full object-contain object-left"
+      />
+      <p v-else class="signature-preview text-2xl text-ink">{{ applying }}</p>
     </div>
+
+    <!-- ⚠ The drawing did not save (A3). Said at every remaining stop rather than once, because a
+         driver who missed one notice would otherwise sign the rest of the packet still believing
+         their drawing was on it. It is not an error state: nothing is lost and the walk continues. -->
+    <p v-if="ceremony.drawnMarkFailed.value" class="text-sm text-ink-secondary">
+      {{ copy.drawFailed }}
+    </p>
 
     <!--
       ⚠ Two refusals, two sentences (A0b). A rate-limited stop is not a fault and the driver's

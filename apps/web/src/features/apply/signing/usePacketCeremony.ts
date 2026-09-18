@@ -90,6 +90,21 @@ export function usePacketCeremony(
    * the copy.
    */
   const rateLimited = ref(false);
+  /**
+   * Whether the drawing the driver made did NOT survive being staged (A3).
+   *
+   * ⚠ **The swallow below stays; what was wrong with it was the silence.** A8b's rule is right — a
+   * PNG that will not upload must not stand between a driver and twenty-two signatures — so the walk
+   * carries on with the typed name, which is the signature of record anyway (D-APP8). But the driver
+   * chose to draw, and until this flag existed they were never told it had not worked: they went on
+   * to sign twenty-two places believing their drawing was going on the paper, and the filed document
+   * came out typed. The product looked like it had ignored them, which is what the owner reported as
+   * *"custom signature cannot be applied"*.
+   *
+   * ⚠ A flag rather than an error, because this is not a failure of the ceremony — nothing is lost
+   * and there is nothing to retry. It changes what the screen PROMISES, and that is all.
+   */
+  const drawnMarkFailed = ref(false);
   /** The server's own count, which is what "signed through" means. */
   const filed = ref(0);
   const finished = ref(false);
@@ -134,10 +149,34 @@ export function usePacketCeremony(
    * ⚠ Read against `needsInitials`, not against "both are set": a driver whose three initials stops
    * are already collected never adopted any initials and never will, and holding them on the
    * adoption screen for a mark the packet no longer asks for would be the opposite of the fix.
+   *
+   * ⚠ **Read off the SERVER's pin, never off `adoptedName`/`adoptedInitials`** — and that distinction
+   * is the whole of a defect found by rendering the screen on 2026-09-18 (A3). Those two refs are what
+   * the input boxes are bound to, so computing this from them made the question *"has this link
+   * already adopted a mark?"* answer YES the moment a FIRST-TIME applicant finished typing one. The
+   * screen then swapped itself for the resumed panel mid-form: the Type/Draw control disappeared, the
+   * signature pad was unmounted, the drawing in it was destroyed, `Use this and start` was replaced by
+   * `Carry on signing`, and the applicant was told *"You adopted this when you started"* about a mark
+   * they were in the middle of making.
+   *
+   * ⚠ **For a driver who chose to DRAW that was fatal, not cosmetic**, which is why it belongs to A3:
+   * the name field sits above the pad, so the natural order is type, type, draw — and the pad was
+   * gone before they reached it. There was no error and nothing to press; the mark silently became
+   * the typed one. That is the owner's *"custom signature cannot be applied"* seen from the driver's
+   * end, and every test in this file was green for it because a composable has no pad to unmount.
+   *
+   * The two facts were never the same thing. What the server pinned is a fact about the LINK; what is
+   * in the boxes is a fact about this minute's keystrokes. `adoptedName` is SEEDED from the pin, and
+   * seeding is where the relationship ends.
    */
-  const alreadyAdopted = computed(
-    () => Boolean(adoptedName.value.trim()) && (!needsInitials.value || Boolean(adoptedInitials.value.trim())),
-  );
+  const alreadyAdopted = computed(() => {
+    const pinned = options.adopted?.value;
+    if (!pinned) return false;
+    return (
+      Boolean(pinned.signature?.trim())
+      && (!needsInitials.value || Boolean(pinned.initials?.trim()))
+    );
+  });
 
   /** The stops already collected, for a resumed session to show as done rather than hide. */
   const collected = computed(() => stops.value.filter((s) => Boolean(s.signedAt)));
@@ -150,9 +189,11 @@ export function usePacketCeremony(
    * the packet itself asks for a printed name beside the mark on page 22 (`Driver name Print`). What
    * D-PKT13 adds is which of the two appears on the paper.
    *
-   * ⚠ The drawn mark is awaited and its failure is swallowed — A8b's rule, and the reason is the same
-   * one: a PNG that will not upload must not stand between a driver and twenty-two signatures on a
-   * document their job depends on. If it fails they have still signed, with their typed name.
+   * ⚠ The drawn mark is awaited and its failure does not stop the walk — A8b's rule, and the reason
+   * is the same one: a PNG that will not upload must not stand between a driver and twenty-two
+   * signatures on a document their job depends on. If it fails they have still signed, with their
+   * typed name. ⚠ **But it is RECORDED now** (`drawnMarkFailed`, A3): it was swallowed in silence
+   * until 2026-09-18, so the screen went on promising a drawing the filed packet would not carry.
    */
   async function adopt(): Promise<boolean> {
     if (adoptedName.value.trim().length < 2) return false;
@@ -166,8 +207,10 @@ export function usePacketCeremony(
       working.value = true;
       try {
         await stage(token.value, "signature_mark", blob, "image/png", options.io);
+        drawnMarkFailed.value = false;
       } catch {
-        /* decoration; see above */
+        // ⚠ Still swallowed, still not rethrown — and now SAID. See `drawnMarkFailed`.
+        drawnMarkFailed.value = true;
       } finally {
         working.value = false;
       }
@@ -187,6 +230,34 @@ export function usePacketCeremony(
   function markFor(stop: ApplyPacketStop): string {
     return stop.mark === "initials" ? adoptedInitials.value.trim() : adoptedName.value.trim();
   }
+
+  /**
+   * Whether the stop the driver is standing on will carry the DRAWING rather than typed text (A3).
+   *
+   * ⚠ **This is the client half of a NAMED PAIR with `renderPacketOverlay`'s mark loop**, and it is a
+   * pair rather than a shared function because the two halves read different things: the renderer
+   * looks at the PNG it was handed and the placement it is drawing, and this looks at a Blob that has
+   * not been filed yet. What they must agree on is the RULE — *a drawing is a signature, and `p05`,
+   * `p06` and `p09` do not ask for one* — and both derive the kind from `PacketPlacement.mark` rather
+   * than from a page number, so the agreement survives the packet gaining a stop.
+   *
+   * ⚠ **One boolean, so the label and the preview cannot contradict each other.** That contradiction
+   * WAS the defect: the screen said *"We will put your signature on the page"* over a preview of the
+   * typed name, because the caption read `style` and the preview read `markFor()`. Anything on this
+   * screen that describes the mark now reads this.
+   *
+   * ⚠ **A failed upload makes it false**, which is the honest answer and not a defensive one: if the
+   * PNG did not stage, `signatureMarkBytes` hands the renderer nothing and the typed name is what
+   * lands on all twenty-two. Promising a drawing then would be promising something no filed document
+   * will ever show.
+   */
+  const currentShowsDrawing = computed(
+    () =>
+      style.value === "drawn"
+      && !drawnMarkFailed.value
+      && markBlob.value !== null
+      && current.value?.mark === "signature",
+  );
 
   /** Apply the adopted mark at the stop the driver is standing on. */
   async function sign(): Promise<void> {
@@ -231,6 +302,8 @@ export function usePacketCeremony(
     markFor,
     style,
     markBlob,
+    currentShowsDrawing,
+    drawnMarkFailed: computed(() => drawnMarkFailed.value),
     adopted: computed(() => adopted.value),
     state,
     current,
