@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { hiringStep, type HiringChecklist, type HiringStepKey } from "@silvicom/shared";
-import { AppCard as BaseCard, AppIcon } from "@silvicom/ui";
+import { hiringStep, type HiringChecklist, type HiringStep, type HiringStepKey } from "@silvicom/shared";
+import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { hiringStepStateBadge } from "@/lib/badges.recruiting";
 import { hiringArtifactLink } from "@/features/recruitment/hiringArtifacts";
@@ -41,6 +41,16 @@ const props = defineProps<{
 }>();
 
 /**
+ * The row is where the work starts (B6).
+ *
+ * ⚠ The card does not own the drawer, and that is the boundary that keeps this reusable: it says
+ * WHICH step the reader chose and nothing about what happens next. Q-HUI3 already names the DQF
+ * page as the second consumer that promotes this component out of `features/`, and a drawer wired
+ * in here would be a recruitment-shaped assumption baked into it before that move.
+ */
+const emit = defineEmits<{ open: [step: HiringStep] }>();
+
+/**
  * Progress is a percentage of STEPS, not of screens.
  *
  * ⚠ The applicant's wizard counts screens and this counts steps; mixing them produces a number that
@@ -54,11 +64,18 @@ const percent = computed(() => {
   return Math.round((c.done / c.total) * 100);
 });
 
-/** The one action to lead with. `action` and not `label` — an instruction, never a completed fact. */
-const nextAction = computed(() => {
-  const key = props.checklist?.next;
-  return key ? hiringStep(key).action : null;
-});
+/**
+ * The one action to lead with, as the STEP rather than as a string.
+ *
+ * ⚠ `action` and not `label` — an instruction, never a completed fact (B4's defect, one field over).
+ * B6 needs the step itself as well as its words, because the lead action is now a button that opens
+ * the same drawer the row opens: two affordances, one destination, so a recruiter who reads *"Next:
+ * verify the medical certificate"* and presses it lands exactly where the row would have taken them.
+ */
+const nextStep = computed<HiringStep | null>(
+  () => props.checklist?.steps.find((s) => s.key === props.checklist?.next) ?? null,
+);
+const nextAction = computed(() => (nextStep.value ? hiringStep(nextStep.value.key).action : null));
 
 const stepLabel = (key: HiringStepKey): string => hiringStep(key).label;
 
@@ -108,8 +125,16 @@ const artifactOf = (key: HiringStepKey) => {
               · {{ checklist.done }} of {{ checklist.total }} done
             </span>
           </h2>
-          <p v-if="nextAction" class="mt-1 text-xs text-ink-secondary">
-            Next: <span class="font-medium text-ink">{{ nextAction }}</span>
+          <!-- ⚠ The lead action is a BUTTON, not a sentence. Before B6 the card said what to do
+               next and left the reader to find where — which is the gap between a checklist and a
+               board, and the reason §4.2's done-when is about doing the thing rather than seeing
+               it. `variant="link"` because it reads as part of the sentence it is in; the variant
+               exists for exactly this and its own header says why. -->
+          <p v-if="nextAction && nextStep" class="mt-1 text-xs text-ink-secondary">
+            Next:
+            <BaseButton variant="link" class="font-medium text-brand-700" @click="emit('open', nextStep)">
+              {{ nextAction }}
+            </BaseButton>
           </p>
           <p v-else-if="checklist" class="mt-1 text-xs text-ink-secondary">Nothing left to do.</p>
         </div>
@@ -135,24 +160,36 @@ const artifactOf = (key: HiringStepKey) => {
         <li
           v-for="step in checklist.steps"
           :key="step.key"
-          class="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 py-2 sm:grid-cols-[1fr_9rem_10rem]"
+          class="grid gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"
         >
-          <span class="text-xs font-medium text-ink">{{ step.label }}</span>
+          <!-- ⚠ `BaseButton size="row"`, never a raw `<button>`: `lint:ui-adoption` fails on ANY
+               raw button in a page or a feature, and the `row` size exists for this exact shape —
+               `h-auto w-full`, left-aligned, normal weight, wrapping. Its own header records that
+               it was added because two call sites were faking it with six `!important`s.
 
-          <!-- D-HUI4: icon AND word, never a coloured dot. The four states are not ordered on a
-               good/bad axis, so only the one that means YOU is toned at all. -->
-          <span
-            :class="[BADGE_BASE, toneClass(hiringStepStateBadge(step.state).tone), 'justify-self-start']"
-          >
-            <AppIcon :icon="hiringStepStateBadge(step.state).icon" class="size-3.5" aria-hidden="true" />
-            {{ hiringStepStateBadge(step.state).label }}
-          </span>
+               ⚠ And the artifact stays OUTSIDE the button rather than inside it. It is a link, and
+               a link nested in a button is invalid markup and an unreachable target for a keyboard
+               — two destinations in one row have to be two siblings. -->
+          <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('open', step)">
+            <span class="grid w-full grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4">
+              <span class="text-xs font-medium text-ink">{{ step.label }}</span>
+
+              <!-- D-HUI4: icon AND word, never a coloured dot. The four states are not ordered on a
+                   good/bad axis, so only the one that means YOU is toned at all. -->
+              <span
+                :class="[BADGE_BASE, toneClass(hiringStepStateBadge(step.state).tone), 'justify-self-start']"
+              >
+                <AppIcon :icon="hiringStepStateBadge(step.state).icon" class="size-3.5" aria-hidden="true" />
+                {{ hiringStepStateBadge(step.state).label }}
+              </span>
+            </span>
+          </BaseButton>
 
           <!-- D-HUI3's third column, load-bearing: the artifact when there is one, the blocker in
                WORDS when the row is blocked, and an em dash when there is honestly nothing to say.
                ⚠ A blocked row never renders as a grey with no explanation — that is the difference
                between a checklist and a wall. -->
-          <span class="col-span-2 text-2xs sm:col-span-1 sm:justify-self-end sm:text-right">
+          <span class="px-3 text-2xs sm:px-0 sm:justify-self-end sm:text-right">
             <template v-if="artifactOf(step.key)">
               <router-link
                 v-if="artifactOf(step.key)!.to"
