@@ -222,6 +222,21 @@ export const APPLY_FLOW_COPY = {
     doneBody:
       "Your signature is now on every place the form asks for it. One last step below and your application is in.",
     failed: "That did not go through. Check your signal and try again.",
+    /**
+     * ⚠ What a rate-limited stop says, and it exists because both of the alternatives lied (A0b).
+     *
+     * A 429 used to arrive as express-rate-limit's plain text, which `publicFetch` cannot parse, so
+     * the driver was told *"This application link is not valid. Ask for a new one."* about a link
+     * that was perfectly good and would work again within the minute. `failed` above is barely
+     * better: it sends somebody with a working connection off to check their signal.
+     *
+     * ⚠ Names the wait, because "try again later" is not an instruction. The window is 60 seconds.
+     * And it says nothing is lost because that is true — `application_packet_marks` is append-only
+     * and a resumed walk starts at the first unsigned place.
+     */
+    tooFast:
+      "That went faster than we could record it. Wait about a minute, then press the button again — "
+      + "nothing you have already signed is lost.",
   },
 
   unlock: {

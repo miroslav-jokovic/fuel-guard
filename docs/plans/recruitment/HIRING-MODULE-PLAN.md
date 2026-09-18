@@ -934,6 +934,59 @@ every time.
   what happened on 2026-09-17 (that needs a focus event inside one 0.5 s gap; the limiter needs no
   coincidence at all), but it is live. Belongs with A0b or C1.
 
+- **2026-09-17, A0b — DONE. The applicant's link has two budgets now, and a third one that nobody
+  had counted turned up on the way.** A0 measured the cause; this is the repair, and all three parts
+  the step asked for are in it.
+
+  **(i) The bucket is sized to the document, not to the adversary.** The intake keeps its 20 a
+  minute — it is sized for a form that takes a date of birth and a licence number, and nothing there
+  is asked for twenty times — and **loses the one route it was never sized for**. `POST /:token/mark`
+  gets `PACKET_CEREMONY_LIMIT = 60`, which is the 22-place packet nearly three times over in a
+  minute. ⚠ Deliberately not "22 plus a bit": a number sized to exactly one perfect walk refuses the
+  first imperfect one, and the imperfect walk is what this step exists because of.
+
+  ⚠ **Keyed by the LINK, not the address, and that is the load-bearing choice.** D-HM9 step 13 puts
+  the signing *in the office* on the day the driver arrives, so several applicants on one address is
+  the designed case — under an address key the second driver spends the first one's packet. This is
+  `apiRateLimitKey`'s reasoning applied to applicants: *"every dispatcher in one office shares one
+  address"*. The token is hashed for that module's reason (a rate-limit key outlives its request),
+  and minting fresh buckets is still bounded by `apiAddressCeiling` over all of `/api`.
+
+  ⚠ **A THIRD bucket was found while testing and it would also have stopped the ceremony** —
+  `calcLimiter`, **60 a minute keyed by address, mounted on all of `/api/public`**. Its comment says
+  what it is for: *"the public calculator is unauthenticated → its own tighter limiter on the abuse
+  surface"*. It was argued and sized when the hazmat calculator was the only thing under that prefix;
+  the application was mounted beside it later and silently inherited a number nobody had argued for
+  it. **Three applicants signing in one office is 66 marks from one address**, so it fails the same
+  way one step further out. The application prefix now opts out of it, with the argument recorded at
+  the predicate. ⚠ This is the second time in one day that this surface was governed by a decision
+  taken about something else — worth reading next to §1a C5: the citation drifts, and so does the
+  reason.
+
+  **(ii) The 429 answers in the API's own envelope.** `apiError("too_many_requests", …)` with a
+  message that names the wait. express-rate-limit's default plain-text body is what `publicFetch`
+  could not parse — that is the whole mechanism by which a perfectly good link was reported dead.
+
+  **(iii) The ceremony tells a refusal from a fault.** `usePacketCeremony` carries `rateLimited`
+  separately from `error`, and `PacketCeremony.vue` picks different words: the limiter's message says
+  wait about a minute, press again, nothing is lost. ⚠ `index` still does not advance, so pressing
+  again retries the **same place** — never skips it.
+
+  ⚠ **§1a C2's "permanent dead end" was too strong, and correcting it matters for A0b's scope.** The
+  Sign button is `:disabled="ceremony.working.value"` and nothing else, so a driver could always press
+  it again; what they could not do was *know that was worth doing*, because every refusal — including
+  one that would clear itself in forty seconds — told them to check their signal or get a new link.
+  The dead end was in the words, not in the button. So no retry timer was built: with the bucket now
+  three packets wide, an honest walk cannot reach it, and an automatic retry would be machinery in
+  front of a case that should not occur.
+
+  **Verified:** five mutations, five red — shrink the ceremony bucket, drop the link key, send a
+  plain-text body, stop `calcLimiter` skipping, and stop the client flagging. Two applicants from one
+  address are pinned as independent. `pnpm lint`, `typecheck`, `test` green.
+
+  **Still open, and deliberately:** the `outstanding`/refetch stranding recorded under A0 is
+  untouched. It is a separate defect with a separate mechanism and belongs with C1.
+
 ---
 
 ## 11. Sources

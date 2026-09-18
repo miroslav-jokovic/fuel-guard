@@ -3,7 +3,9 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createApp } from "./app.js";
 import { loadEnv } from "./env.js";
+import { packetDriverMarkCount } from "@silvicom/shared";
 import { closeTestServer } from "./testing/httpServer.js";
+import { PACKET_CEREMONY_LIMIT } from "./middleware/applicationLimits.js";
 
 /**
  * The bucket in front of the applicant's own link, and what it does when it closes (A0, 2026-09-17).
@@ -32,7 +34,16 @@ import { closeTestServer } from "./testing/httpServer.js";
 
 /** Long enough to look like the real credential, so "the token is not logged" means something. */
 const TOKEN = "seCretSigningToken0000000000000000000000000";
+/** ⚠ Three segments and a GET: shaped like the ceremony, counted by the INTAKE. See `isPacketMark`. */
 const PATH = `/api/public/application/${TOKEN}/mark/x`;
+/** The ceremony's own verb. `validateBody` refuses an empty body at 400, before any service runs. */
+const markPath = (token: string) => `/api/public/application/${token}/mark`;
+const mark = (baseUrl: string, token: string) =>
+  fetch(`${baseUrl}${markPath(token)}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
 
 /**
  * ⚠ One app, and therefore one bucket, PER TEST. The limiter's store belongs to the `createApp`
@@ -62,10 +73,59 @@ describe("the applicant's bucket", () => {
     for (let i = 0; i < 21; i += 1) {
       codes.push((await fetch(`${baseUrl}${PATH}`)).status);
     }
-    // ⚠ The arithmetic that took the ceremony down, stated as a test: the twentieth is served and
-    // the twenty-first is not, and a packet has twenty-two places.
+    // ⚠ The intake's number is UNCHANGED by A0b, and that is the point of the split: it is sized
+    // for a form that takes a date of birth and a licence number, and nothing there is asked for
+    // twenty times.
     expect(codes.slice(0, 20).every((c) => c !== 429)).toBe(true);
     expect(codes[20]).toBe(429);
+  });
+
+  /**
+   * ⚠ A0b's whole reason. `PACKET_CEREMONY_LIMIT` is sized against the DOCUMENT — twenty-two places
+   * — not against an attacker's guess rate, because twenty-two marks are twenty-two POSTs by design
+   * and no applicant could ever finish a walk inside the intake's twenty.
+   */
+  it("lets a whole packet through the ceremony's own bucket, twice over", async () => {
+    const baseUrl = await freshApp();
+    const codes: number[] = [];
+    for (let i = 0; i < PACKET_CEREMONY_LIMIT; i += 1) {
+      codes.push((await mark(baseUrl, TOKEN)).status);
+    }
+    expect(PACKET_CEREMONY_LIMIT).toBeGreaterThan(2 * packetDriverMarkCount());
+    expect(codes.some((c) => c === 429)).toBe(false);
+    expect((await mark(baseUrl, TOKEN)).status).toBe(429);
+  });
+
+  /**
+   * ⚠ The load-bearing choice, and the one an address key would get wrong. D-HM9 step 13 puts the
+   * packet signing IN THE OFFICE on the day the driver arrives, so two applicants signing from one
+   * address is the designed case — and under an address key the second one would spend the first
+   * one's packet.
+   */
+  it("gives each link its own packet, so two applicants in one office do not share one", async () => {
+    const baseUrl = await freshApp();
+    for (let i = 0; i < PACKET_CEREMONY_LIMIT + 1; i += 1) await mark(baseUrl, TOKEN);
+    expect((await mark(baseUrl, TOKEN)).status).toBe(429);
+    // Same address, same second, different link. The office's other applicant is unaffected.
+    expect((await mark(baseUrl, `${TOKEN}-second-driver`)).status).not.toBe(429);
+  });
+
+  /**
+   * ⚠ The 429 that told a driver their link was dead. express-rate-limit's default body is plain
+   * text; `publicFetch` parses JSON, so `body?.error?.code` was undefined and it fell back to
+   * `invalid_link` — "This application link is not valid. Ask for a new one." — about a link that
+   * was fine and would work again within the minute.
+   */
+  it("refuses in the API's own envelope, with a code the ceremony can act on", async () => {
+    const baseUrl = await freshApp();
+    for (let i = 0; i < PACKET_CEREMONY_LIMIT + 1; i += 1) await mark(baseUrl, TOKEN);
+    const res = await mark(baseUrl, TOKEN);
+    expect(res.status).toBe(429);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    const body = (await res.json()) as { error?: { code?: string; message?: string } };
+    expect(body.error?.code).toBe("too_many_requests");
+    // And it tells the driver the one thing they can do about it.
+    expect(body.error?.message).toMatch(/minute/);
   });
 
   /**
@@ -87,7 +147,7 @@ describe("the applicant's bucket", () => {
     // Exactly one: the twenty served requests say nothing, and only the refusal does.
     expect(lines).toHaveLength(1);
     expect(lines[0]![0]).toBe("[public-application] rate limited");
-    expect(lines[0]![1]).toEqual({ method: "GET", step: "mark" });
+    expect(lines[0]![1]).toEqual({ bucket: "intake", method: "GET", step: "mark" });
     // The token in the path IS the credential for a live application. Curing the blindness must not
     // be paid for by putting a signing link into Railway's log retention.
     expect(JSON.stringify(lines)).not.toContain(TOKEN);
