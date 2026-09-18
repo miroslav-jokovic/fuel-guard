@@ -1089,7 +1089,25 @@ every time.
   the invitation · PSP read from the order · `revokes` not selected · membership check unscoped ·
   gated on `manage`. The headline assertion builds one state twice, as database rows and as fold
   inputs, and demands the whole objects match, so no rule is restated in the API to be got wrong
-  separately. `pnpm lint`, `typecheck`, `test` green.
+  separately.
+
+  ⚠ **CI's `gates` job caught a real boundary violation that `pnpm lint` does not run**, and the
+  right answer was not the one the gate offered. `psp_requests` belongs to the `psp` module (D-SEP1)
+  and `lint:table-access` refused a raw `.from()` on it from recruitment — *"read it through the
+  owner's interface, or grandfather with justification"*. **Grandfathering is the workaround**; the
+  fix is `hasPspRequest()` on the psp module's own interface, which keeps the table's shape — the
+  `status` CHECK, the billing stance, the monitoring flag — where they live. ⚠ It deliberately does
+  **not** answer "is PSP done": the report is a `qualification_records` row, so completion is the
+  evidence layer's answer and a helper that gave it would put half the checklist's rule in the
+  collector. It went in a NEW `pspRequests.ts` rather than onto `pspOrder.ts`, which was already at
+  495 of its 500 lines.
+
+  ⚠ **`pnpm lint` is not the gate set.** `lint:boundaries` and `lint:filesize` both pass or fail
+  independently of it, and both failed here after a green `pnpm lint`. §0 rule 5 says run the gates
+  before pushing; what this adds is that *the gates* means the list in `package.json`, not the one
+  script whose name suggests it. `pnpm lint && pnpm lint:boundaries && pnpm lint:filesize &&
+  pnpm lint:funcsize && pnpm lint:table-writers && pnpm lint:comment-claims` is the cheap subset for
+  a change that adds a file or reads a table.
 
 ---
 

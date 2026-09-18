@@ -5,6 +5,7 @@ import {
   type HiringChecklist,
   type HiringChecklistInputs,
 } from "@silvicom/shared";
+import { hasPspRequest } from "../psp/index.js";
 
 /**
  * Gather the evidence one applicant's checklist folds over (B3, `HIRING-MODULE-PLAN.md` §9).
@@ -74,7 +75,9 @@ export async function applicantChecklist(
   const [authorizations, kinds, pspRequested, packetMarks, hasDraft] = await Promise.all([
     readAuthorizations(admin, orgId, driverId),
     readQualificationKinds(admin, orgId, driverId),
-    readPspRequested(admin, orgId, driverId),
+    // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
+    // (D-SEP1) and `lint:table-access` refuses a raw read from here — correctly, and it caught this.
+    hasPspRequest(admin, orgId, driverId),
     readPacketMarks(admin, orgId, invitation?.id ?? null),
     readHasDraft(admin, orgId, invitation?.id ?? null),
   ]);
@@ -153,21 +156,6 @@ async function readQualificationKinds(
     .eq("org_id", orgId)
     .eq("driver_id", driverId);
   return [...new Set(((data ?? []) as Array<{ kind: string }>).map((r) => r.kind))];
-}
-
-/** Has a PSP record been ordered? The report itself is a qualification record — see the caller. */
-async function readPspRequested(
-  admin: SupabaseClient,
-  orgId: string,
-  driverId: string,
-): Promise<boolean> {
-  const { data } = await admin
-    .from("psp_requests")
-    .select("id")
-    .eq("org_id", orgId)
-    .eq("driver_id", driverId)
-    .limit(1);
-  return ((data ?? []) as unknown[]).length > 0;
 }
 
 /**
