@@ -1877,6 +1877,29 @@ every time.
   button is there; the rest passed again once `linkHasBeenUsed` read `draft.payload` — a draft with
   something typed into it is a driver who has started, whatever `updatedAt` says in a fixture.
 
+- **2026-09-18, evening — handoff for the rest of Wave B.** `HANDOFF-2026-09-18-B2-B8.md`. **B2 and
+  B8 are the last two steps of Wave B and both are `∥`** — two chats, not a queue; B8 first if only
+  one gets run, because C1 is gated on it. Neither should need a migration; 0345 is still next.
+
+  ⚠ **A measurement that changes B8's size, taken before the step starts:
+  `apps/web/src/components/DocumentPreview.vue` is already the repo's sanctioned document viewer** —
+  `BaseModal size="xl"`, `<iframe>` for PDFs, `<img>` for scans, print and download, already promoted
+  out of `features/` for the `lint:boundaries` reason. What it cannot do is the actual gap: it takes a
+  `DocumentRow` with URLs, and a document this API RENDERS ON DEMAND (`preview.pdf`, and B2's) has no
+  row and no URL — those go through `documentDownload.ts`'s `openPdf`, which opens a NEW TAB, which is
+  the thing B8's row exists to stop. So B8 is most likely *teach the sanctioned viewer to take a blob*,
+  not *build a viewer*. ⚠ And **"shared with C1" is a claim to test, not to inherit**: an iframe cannot
+  address a page or draw over it, so C1's rail needs canvas — `pdfjs-dist` is already a dependency and
+  `lib/pdfWords.ts` already solves the worker URL.
+
+  ⚠ **B2's ingredients are all in place and one of them is misremembered in conversation: the 7001(c)
+  consent is `esign_consents` (0227), its own table with the six clauses and the version** —
+  `driver_authorizations.esign_consent_at` is a timestamp on each row, not the instrument.
+  `certificate.ts` is already a reusable function with a `preview` branch, and `stamp.ts` already
+  bands a pdfkit document. **Open question recorded rather than assumed: driver-keyed or
+  invitation-keyed?** Recommendation is invitation-keyed, beside `preview.pdf`, because B3 already
+  ruled that marks key on the live invitation and a document spanning two invitations cannot be dated.
+
 
 ---
 
