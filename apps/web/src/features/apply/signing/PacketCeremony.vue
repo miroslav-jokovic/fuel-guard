@@ -121,6 +121,48 @@ async function adoptAndStart(): Promise<void> {
   if ((await ceremony.adopt()) && ceremony.complete.value) emit("done", ceremony.adoptedName.value.trim());
 }
 
+/**
+ * The pages the initials go on, for the confirm screen (A4).
+ *
+ * ⚠ Read off the STOPS, so it stays true if the packet gains a placement — it has gained one
+ * mid-array before (p17, D-PKT12). De-duplicated and sorted, because a page could hold two.
+ */
+const initialsPages = computed(() =>
+  [...new Set(props.stops.filter((s) => s.mark === "initials").map((s) => s.page))].sort(
+    (a, b) => a - b,
+  ),
+);
+
+/**
+ * Whether anything is still correctable, which is what the stop's Change button offers (A4).
+ *
+ * ⚠ **EITHER kind, not this stop's kind** — and walking the screen is what settled it. Gating on the
+ * stop in front of the driver looked right and was wrong: after place 1 the signature is pinned, so
+ * standing on place 2 (another signature) the button vanished — while the driver's INITIALS were
+ * still changeable for another place. Somebody who remembered their typo at place 2 had no way back
+ * until place 3, for no reason a person could see.
+ *
+ * ⚠ It matches `reopen()`'s own guard exactly, so the button can never lead to a refusal, and the
+ * form it opens disables each pinned field with the count as the reason. The screen therefore never
+ * hides a correction that is possible, and never offers one that is not.
+ */
+/**
+ * Whether the adoption form is being met for the first time or REOPENED to correct something (A4).
+ *
+ * ⚠ Derived from the pin rather than from a flag this component sets: anything pinned means at least
+ * one mark is already on the paper, which is exactly the condition under which the first-visit
+ * wording stops being true.
+ */
+const reopenedToChange = computed(() => ceremony.pinnedKinds.value.size > 0);
+
+const canChangeAnyMark = computed(
+  () => ceremony.canChange("signature") || ceremony.canChange("initials"),
+);
+
+function changeHere(): void {
+  ceremony.reopen();
+}
+
 async function signCurrent(): Promise<void> {
   await ceremony.sign();
   if (ceremony.complete.value) emit("done", ceremony.adoptedName.value.trim());
@@ -168,7 +210,12 @@ async function signCurrent(): Promise<void> {
       <h2 class="text-lg font-semibold text-ink">
         {{ ceremony.needsInitials.value ? copy.adoptHeadingWithInitials : copy.adoptHeading }}
       </h2>
-      <p class="mt-2 text-sm text-ink-muted">{{ copy.adoptIntro(carrier, ceremony.total.value) }}</p>
+      <!-- ⚠ A reopened form is a different errand from a first visit, and `adoptIntro` describes
+           only the first ("Give your signature once below — then we take you to each place"). Shown
+           on a form whose signature field is disabled, it points at the one thing they cannot do. -->
+      <p class="mt-2 text-sm text-ink-muted">
+        {{ reopenedToChange ? copy.changeIntro : copy.adoptIntro(carrier, ceremony.total.value) }}
+      </p>
       <!-- A resumed link says so, rather than silently opening part-way through. -->
       <p v-if="ceremony.collected.value.length" class="mt-2 text-sm text-ink-secondary">
         {{ copy.resumed(ceremony.collected.value.length) }}
@@ -178,18 +225,37 @@ async function signCurrent(): Promise<void> {
     <AppSegmentedControl v-model="style" :options="STYLES" :label="copy.styleLabel" />
 
     <!-- ⚠ Asked for even when the driver draws. `signed_name` is the record on every row (D-APP8),
-         and the packet itself asks for a printed name beside the mark on page 22. -->
+         and the packet itself asks for a printed name beside the mark on page 22.
+         ⚠ A4: DISABLED once the server has pinned this kind, with the count as the reason. A driver
+         who came back to fix their initials at place 3 must not be able to edit a signature that is
+         already on two pages — the server would answer DR035 and they could do nothing about it. -->
     <FormField v-slot="{ id }" :label="copy.adoptLabel" :hint="copy.adoptHint">
-      <BaseInput :id="id" v-model="ceremony.adoptedName.value" autocomplete="name" />
+      <BaseInput
+        :id="id"
+        v-model="ceremony.adoptedName.value"
+        autocomplete="name"
+        :disabled="!ceremony.canChange('signature')"
+      />
     </FormField>
+    <p v-if="!ceremony.canChange('signature')" class="text-sm text-ink-secondary">
+      {{ copy.markLocked("signature", ceremony.placesWithMark("signature")) }}
+    </p>
 
     <!-- ⚠ The SECOND adopted mark (D-PKT6, Q-PKT8), not an abbreviation of the first. Typed by the
          driver even when they draw their signature, because `signed_name` is what goes on p05, p06
          and p09 — and shown only while one of those three is still outstanding. -->
     <template v-if="ceremony.needsInitials.value">
       <FormField v-slot="{ id }" :label="copy.initialsLabel" :hint="copy.initialsHint">
-        <BaseInput :id="id" v-model="ceremony.adoptedInitials.value" autocomplete="off" />
+        <BaseInput
+          :id="id"
+          v-model="ceremony.adoptedInitials.value"
+          autocomplete="off"
+          :disabled="!ceremony.canChange('initials')"
+        />
       </FormField>
+      <p v-if="!ceremony.canChange('initials')" class="text-sm text-ink-secondary">
+        {{ copy.markLocked("initials", ceremony.placesWithMark("initials")) }}
+      </p>
       <p v-if="!initialsReady" class="text-sm text-ink-secondary">{{ copy.initialsNeeded }}</p>
     </template>
 
@@ -226,6 +292,55 @@ async function signCurrent(): Promise<void> {
     </div>
   </section>
 
+  <!--
+    ⚠ A4: the step between the last keystroke and the first signature.
+
+    `record_packet_mark` pins the adopted mark at the first stop OF ITS KIND (0340) and refuses a
+    different spelling afterwards with DR035 — which, as the composable's own comment admitted, is
+    advice the driver cannot act on. Before this there was nothing at all between typing an initial
+    and it being permanent for a federal record.
+
+    ⚠ It shows the marks in the face they will be PRINTED in, and the drawing itself when there is
+    one, because a confirmation that renders the mark differently from the document is confirming
+    something else. Same reasoning as A3's stop preview, one screen earlier.
+  -->
+  <section v-else-if="ceremony.state.value === 'confirming'" class="space-y-4">
+    <div>
+      <h2 class="text-lg font-semibold text-ink">{{ copy.confirmHeading }}</h2>
+      <p class="mt-2 text-sm text-ink-muted">{{ copy.confirmBody }}</p>
+    </div>
+
+    <div>
+      <p class="text-sm text-ink-muted">{{ copy.confirmSignatureLabel }}</p>
+      <img
+        v-if="style === 'drawn' && !ceremony.drawnMarkFailed.value && drawnUrl"
+        :src="drawnUrl"
+        alt=""
+        class="mt-1 h-16 w-auto max-w-full object-contain object-left"
+      />
+      <p v-else class="signature-preview text-2xl text-ink">{{ ceremony.adoptedName.value }}</p>
+    </div>
+
+    <!-- ⚠ Shown only while a stop still asks for initials, for `needsInitials`' own reason: a driver
+         whose three initials places were collected yesterday has no initials to check. -->
+    <div v-if="ceremony.needsInitials.value">
+      <p class="text-sm text-ink-muted">{{ copy.confirmInitialsLabel }}</p>
+      <p class="signature-preview text-2xl text-ink">{{ ceremony.adoptedInitials.value }}</p>
+      <p class="mt-1 text-xs text-ink-tertiary">{{ copy.confirmInitialsWhere(initialsPages) }}</p>
+    </div>
+
+    <!-- ⚠ The drawing did not save (A3), said here too — this is the screen where the driver decides
+         to go ahead, so it is the last place the promise can still be corrected before it matters. -->
+    <p v-if="ceremony.drawnMarkFailed.value" class="text-sm text-ink-secondary">
+      {{ copy.drawFailed }}
+    </p>
+
+    <div class="flex justify-end gap-2">
+      <BaseButton variant="secondary" @click="ceremony.reopen">{{ copy.confirmChange }}</BaseButton>
+      <BaseButton variant="primary" @click="ceremony.confirm">{{ copy.confirmAction }}</BaseButton>
+    </div>
+  </section>
+
   <!-- One place. Nothing else on the screen. -->
   <section v-else-if="ceremony.current.value" class="space-y-4">
     <div class="flex items-baseline justify-between gap-4">
@@ -256,6 +371,20 @@ async function signCurrent(): Promise<void> {
         class="mt-1 h-16 w-auto max-w-full object-contain object-left"
       />
       <p v-else class="signature-preview text-2xl text-ink">{{ applying }}</p>
+    </div>
+
+    <!--
+      ⚠ A4: correct this mark, offered ONLY while the server would still take the correction.
+
+      `canChange` reads `pinnedKinds`, which is derived from filed rows, so this appears exactly when
+      `record_packet_mark` would accept a different spelling and never when it would answer DR035.
+      The asymmetry is deliberate and is the whole value: the signature is pinned at place 1 and the
+      initials not until place 3, so a driver who mistyped their initials can still fix them while
+      standing on the first place that shows them — which is the moment they are most likely to
+      notice, because it is the first time they see the mark in position.
+    -->
+    <div v-if="canChangeAnyMark">
+      <BaseButton variant="ghost" size="sm" @click="changeHere">{{ copy.changeMark }}</BaseButton>
     </div>
 
     <!-- ⚠ The drawing did not save (A3). Said at every remaining stop rather than once, because a

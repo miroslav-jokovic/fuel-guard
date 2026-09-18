@@ -27,11 +27,39 @@ const FORBIDDEN = /§|\bCFR\b|\b49\s*C\.?F\.?R\b/;
 function leaves(node: unknown, path: string): Array<{ path: string; text: string }> {
   if (typeof node === "string") return [{ path, text: node }];
   if (typeof node === "function") {
-    // The copy functions take (carrier), (n, total), (n, noun) or (carrier, count). Feeding a string
-    // and a number covers all four shapes; the assertion is about the literal parts either way.
+    /**
+     * The copy functions take (carrier), (n, total), (n, noun), (carrier, count) — and since A4 also
+     * (pages[]) and (kind, count).
+     *
+     * ⚠ **Arity is not enough to tell them apart and this walk used to assume it was.** A4 added
+     * `confirmInitialsWhere(pages: number[])`, which has arity 1 exactly like `adoptIntro(carrier)`;
+     * feeding it a string threw `pages.slice(...).join is not a function` and the whole suite failed.
+     * The failure was loud, which is the good case — the BAD case is a shape that happens not to throw
+     * and returns something unlike the real sentence, leaving a gate that walks past its own blind
+     * spot. So the candidates are TRIED, and a function that satisfies none of them is reported rather
+     * than skipped: `leaves` returning `[]` for it would be this file failing silently, which is the
+     * one thing its header says it exists to prevent.
+     */
     const fn = node as (...args: unknown[]) => unknown;
-    const out = fn.length >= 2 ? fn("Silvicom", 2) : fn("Silvicom");
-    return typeof out === "string" ? [{ path: `${path}()`, text: out }] : [];
+    const candidates: unknown[][] = [
+      ["Silvicom", 2],
+      ["Silvicom"],
+      [[5, 6, 9]],
+      [2],
+      [[5]],
+    ];
+    for (const args of candidates) {
+      try {
+        const out = fn(...args);
+        if (typeof out === "string") return [{ path: `${path}()`, text: out }];
+      } catch {
+        // Wrong shape for this one; try the next.
+      }
+    }
+    throw new Error(
+      `${path} is a copy function this walk cannot call — add its argument shape to \`candidates\` `
+      + "rather than letting it go unchecked.",
+    );
   }
   if (node && typeof node === "object") {
     return Object.entries(node).flatMap(([k, v]) => leaves(v, `${path}.${k}`));

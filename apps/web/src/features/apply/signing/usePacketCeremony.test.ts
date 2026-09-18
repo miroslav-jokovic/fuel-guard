@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ref } from "vue";
-import { driverPlacements } from "@silvicom/shared";
+import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
 import { usePacketCeremony } from "./usePacketCeremony";
 import type { ApplyPacketStop } from "@/features/apply/useApplication";
 
@@ -580,5 +580,250 @@ describe("a first-time link is not a resumed one", () => {
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     expect(c.alreadyAdopted.value).toBe(false);
+  });
+});
+
+/**
+ * A4 — the confirm step, and what may still be corrected.
+ *
+ * ⚠ **The rule under test is the SERVER's.** `record_packet_mark` (0340) pins per
+ * `(invitation_id, mark)`: the first row of a kind fixes `signed_name` for that kind and a later stop
+ * of that kind with a different spelling is refused `DR035`. So the two marks are fixed at two
+ * different moments — the signature at place 1, the initials at place 3 — and the whole of A4 is
+ * offering a correction in the gap between them, and only there.
+ */
+describe("the confirm step", () => {
+  const ready = (c: ReturnType<typeof usePacketCeremony>) => {
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+  };
+
+  it("stands between the last keystroke and the first signature", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    ready(c);
+    expect(c.state.value).toBe("adopting");
+    expect(await c.adopt()).toBe(true);
+    // ⚠ NOT "signing". Adopting collects the marks; it no longer starts the walk.
+    expect(c.state.value).toBe("confirming");
+  });
+
+  it("starts the walk once the driver says the marks are right", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    ready(c);
+    await c.adopt();
+    c.confirm();
+    expect(c.state.value).toBe("signing");
+  });
+
+  it("goes back to the form so a mistyped mark can be corrected", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    ready(c);
+    await c.adopt();
+    expect(c.reopen()).toBe(true);
+    expect(c.state.value).toBe("adopting");
+    // The whole point: the initials are still editable, and nothing has been filed.
+    c.adoptedInitials.value = "MJ";
+    await c.adopt();
+    c.confirm();
+    expect(c.markFor(c.current.value!)).toBe("Marija Varmeda");
+    const initialsStop = stopsFrom().find((s) => s.mark === "initials")!;
+    expect(c.markFor(initialsStop)).toBe("MJ");
+  });
+
+  /**
+   * ⚠ A resumed link SKIPS it, and that is not a shortcut: the server has already pinned both marks,
+   * so there is nothing on the confirm screen the driver could change. Showing it would be asking
+   * somebody to approve a decision that is already final.
+   */
+  it("is skipped by a link the server has already pinned", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      adopted: ref({ signature: "Marija Varmeda", initials: "MV" }),
+    });
+    expect(await c.adopt()).toBe(true);
+    expect(c.state.value).toBe("signing");
+  });
+});
+
+describe("which marks can still be corrected", () => {
+  /** Walk forward until the driver is standing on a stop of the given kind. */
+  async function walkTo(c: ReturnType<typeof usePacketCeremony>, kind: "signature" | "initials") {
+    for (let i = 0; i < 22 && c.current.value?.mark !== kind; i++) await c.sign();
+    expect(c.current.value?.mark, `never reached a ${kind} stop`).toBe(kind);
+  }
+
+  async function walking() {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    await c.adopt();
+    c.confirm();
+    return c;
+  }
+
+  it("lets both be corrected before anything is filed", async () => {
+    const c = await walking();
+    expect(c.canChange("signature")).toBe(true);
+    expect(c.canChange("initials")).toBe(true);
+  });
+
+  /**
+   * ⚠ **The asymmetry that makes A4 worth building.** After the first SIGNATURE the signature is
+   * pinned and the initials are not — so a driver standing on place 3, seeing their initials in
+   * position for the first time, can still fix them. A flag set at adoption could not express this.
+   */
+  it("locks the signature after the first signature and leaves the initials open", async () => {
+    const c = await walking();
+    expect(c.current.value?.mark).toBe("signature");
+    await c.sign();
+    expect(c.canChange("signature")).toBe(false);
+    expect(c.canChange("initials")).toBe(true);
+  });
+
+  it("locks the initials once one has been filed", async () => {
+    const c = await walking();
+    await walkTo(c, "initials");
+    expect(c.canChange("initials")).toBe(true);
+    await c.sign();
+    expect(c.canChange("initials")).toBe(false);
+  });
+
+  /** ⚠ Reading the SERVER's pin, not our own filing — a resumed link has filed nothing this session. */
+  it("reads a pin the server served, with nothing filed here", () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      adopted: ref({ signature: "Marija Varmeda", initials: null }),
+    });
+    expect(c.canChange("signature")).toBe(false);
+    expect(c.canChange("initials")).toBe(true);
+  });
+
+  /** ⚠ And a stop the server says is collected pins its kind, even if we never saw it filed. */
+  it("reads a pin from a stop the server served as already signed", () => {
+    const firstInitials = driverPlacements().find((p) => p.mark === "initials")!;
+    const c = usePacketCeremony(
+      ref(TOKEN),
+      ref(stopsFrom({ [firstInitials.id]: "2026-09-14T11:00:00Z" })),
+    );
+    expect(c.canChange("initials")).toBe(false);
+    expect(c.canChange("signature")).toBe(true);
+  });
+
+  /** ⚠ Nothing left to change means no way back — a form with every field disabled is worse than none. */
+  it("refuses to reopen once both marks are pinned", async () => {
+    const c = await walking();
+    await walkTo(c, "initials");
+    await c.sign();
+    expect(c.canChange("signature")).toBe(false);
+    expect(c.canChange("initials")).toBe(false);
+    expect(c.reopen()).toBe(false);
+    expect(c.state.value).toBe("signing");
+  });
+});
+
+/**
+ * The walk survives the page being refetched under it.
+ *
+ * ⚠ **This is a defect that was RECORDED and left unfixed, not a hypothetical.** `current` used to be
+ * `outstanding[index]` with `index` a counter. `useApplyInvitationQuery` runs under `VueQueryPlugin`
+ * with no `defaultOptions`, so TanStack's `refetchOnWindowFocus: true` is live — and a driver on a
+ * phone who switches apps mid-walk gets exactly the refetch below. `outstanding` shrank by the number
+ * already filed while `index` had climbed by the same number, so the walk SKIPPED that many places
+ * and then reported itself finished on an unsigned packet.
+ *
+ * ⚠ The fixture re-serves the stops the way the server would: the filed ones come back carrying
+ * `signedAt`. A fixture that replaced the array with an identical one would prove nothing.
+ */
+describe("a refetch in the middle of the walk", () => {
+  it("does not skip the places filed before it", async () => {
+    const stops = ref(stopsFrom());
+    const c = usePacketCeremony(ref(TOKEN), stops);
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    await c.adopt();
+    c.confirm();
+
+    const walked: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      walked.push(c.current.value!.id);
+      await c.sign();
+    }
+    expect(walked).toEqual(driverPlacementIds().slice(0, 5));
+    const next = c.current.value!.id;
+
+    // The window regains focus: the server re-serves the packet, five stops now signed.
+    const signed = Object.fromEntries(walked.map((id) => [id, "2026-09-18T12:00:00Z"]));
+    stops.value = stopsFrom(signed);
+
+    // ⚠ The SAME place as before the refetch — the sixth, not the eleventh.
+    expect(c.current.value?.id).toBe(next);
+    expect(c.current.value?.id).toBe(driverPlacementIds()[5]);
+    expect(c.position.value).toBe(6);
+  });
+
+  it("still reaches every place, and only reports done when it has", async () => {
+    const stops = ref(stopsFrom());
+    const c = usePacketCeremony(ref(TOKEN), stops);
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    await c.adopt();
+    c.confirm();
+
+    const walked: string[] = [];
+    for (let i = 0; i < 22; i++) {
+      expect(c.current.value, `ran out of stops after ${walked.length}`).not.toBeNull();
+      walked.push(c.current.value!.id);
+      await c.sign();
+      // A refetch before every single mark, which is the worst case and costs nothing to assert.
+      stops.value = stopsFrom(Object.fromEntries(walked.map((id) => [id, "2026-09-18T12:00:00Z"])));
+    }
+    expect(walked).toEqual(driverPlacementIds());
+    expect(new Set(walked).size).toBe(22);
+    expect(c.complete.value).toBe(true);
+  });
+});
+
+/**
+ * The count a locked mark gives as its reason (A4).
+ *
+ * ⚠ **Found by rendering, and it is a second-source-of-truth defect.** The component computed this
+ * itself as `stops.filter(s => s.mark === kind && s.signedAt)`, which looks equivalent to the
+ * composable's and is not: a mark filed during THIS walk lives in `filedHere` and does not carry
+ * `signedAt` until the next refetch. So the screen said *"Your signature is already on 0 places of
+ * the form, so it cannot be changed now"* — measured, at place 2, immediately after signing place 1.
+ * A sentence that refuses and disproves itself in the same breath.
+ */
+describe("what a locked mark says about itself", () => {
+  it("counts a place filed in this session, not only ones the server has re-served", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    await c.adopt();
+    c.confirm();
+
+    expect(c.placesWithMark("signature")).toBe(0);
+    await c.sign();
+    // ⚠ The stops ref is UNCHANGED — no refetch has happened, which is the normal case.
+    expect(c.canChange("signature")).toBe(false);
+    expect(c.placesWithMark("signature")).toBe(1);
+  });
+
+  /** ⚠ And it must agree with `canChange`: locked with a count of nought is the defect restated. */
+  it("never reports a locked mark as being on no places at all", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    await c.adopt();
+    c.confirm();
+    for (let i = 0; i < 4; i++) await c.sign();
+    for (const kind of ["signature", "initials"] as const) {
+      if (!c.canChange(kind)) expect(c.placesWithMark(kind), kind).toBeGreaterThan(0);
+    }
+  });
+
+  /** The server's own list still counts, for a resumed link that filed nothing here. */
+  it("counts places the server served as signed", () => {
+    const initials = driverPlacements().filter((p) => p.mark === "initials");
+    const signed = Object.fromEntries(initials.map((p) => [p.id, "2026-09-14T11:00:00Z"]));
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(signed)));
+    expect(c.placesWithMark("initials")).toBe(3);
   });
 });
