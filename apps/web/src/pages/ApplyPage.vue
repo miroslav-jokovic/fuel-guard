@@ -22,16 +22,11 @@ import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
 import SignOffScreen from "@/features/apply/SignOffScreen.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
-import { emptyDraft, fromDraftPayload, toApplication, type ApplicationDraft } from "@/features/apply/draft";
-import { applicationBeforeCertificationSchema, driverApplicationSchema } from "@silvicom/shared";
-import {
-  giveEsignConsent,
-  useApplyInvitationQuery,
-  useRequestReview,
-  useSubmitApplication,
-} from "@/features/apply/useApplication";
+import { emptyDraft, fromDraftPayload, type ApplicationDraft } from "@/features/apply/draft";
+import { giveEsignConsent, useApplyInvitationQuery } from "@/features/apply/useApplication";
 import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
-import { issuesFromParse, useApplicationWizard, type SectionIssue } from "@/features/apply/useApplicationWizard";
+import { useApplicationSending } from "@/features/apply/useApplicationSending";
+import { useApplicationWizard, type SectionIssue } from "@/features/apply/useApplicationWizard";
 import { provideApplyIssues } from "@/features/apply/issues";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -86,15 +81,11 @@ const emit = defineEmits<{ carrier: [string | null] }>();
 const token = computed(() => String(route.params.token ?? ""));
 
 const invitation = useApplyInvitationQuery(token);
-const submit = useSubmitApplication(token);
-const handOff = useRequestReview(token);
 
 // The layout's header shows the carrier's name once the link resolves.
 watch(() => invitation.data.value?.carrier, (name) => emit("carrier", name ?? null), { immediate: true });
 
 const draft = reactive<ApplicationDraft>(emptyDraft());
-const sendError = ref<string | null>(null);
-const justSent = ref(false);
 
 /**
  * Submitted is a fact about the link, not about this browser tab (D-APP1). Before 0225 it could only
@@ -109,7 +100,6 @@ const submitted = computed(() => justSent.value || Boolean(invitation.data.value
  * review?") answers with the first box ticked and gets every later state wrong, which is the classic
  * shape of this bug: an approved application has `reviewRequestedAt` set too, and is not waiting.
  */
-const handedOver = ref(false);
 const awaitingSignature = computed(
   () => !submitted.value && Boolean(invitation.data.value?.phases?.approvedAt),
 );
@@ -140,6 +130,12 @@ const autosaveEnabled = ref(false);
 const furthestSection = ref<string | null>(null);
 
 const wizard = useApplicationWizard(draft, furthestSection);
+/**
+ * The two acts that end an application, and the validation in front of each (`useApplicationSending`).
+ * It takes the wizard because a refused document has to land on the screen that owns the field.
+ */
+const { sendError, justSent, handedOver, sending, handingOver, sendForReview, send } =
+  useApplicationSending(token, draft, wizard);
 /**
  * Every control on every screen reads this to mark itself (D-AX3). Provided once here rather than
  * threaded through seven components as a prop — see `issues.ts` for why.
@@ -252,71 +248,6 @@ const ceremonyNeeded = computed(
 );
 
 
-// ── Sending ───────────────────────────────────────────────────────────────────────────────────
-
-/**
- * The whole document, through the server's own schema — not the union of the per-screen checks.
- *
- * The last screen being valid is not the same thing as the application being complete. Each issue is
- * attributed to the screen that owns the field, so "employers" reads as somewhere to go back to, and
- * the candidate travels with them: `messageFor` needs the VALUE that failed to tell an empty box
- * ("This is needed") from a two-character one ("This is too short").
- */
-function documentIsComplete(): boolean {
-  const candidate = toApplication(draft);
-  // ⚠ WITHOUT the certification. On this visit the driver has not signed anything and must not have
-  // to — `driverApplicationSchema` requires `certified` to be literally `true`, so checking with it
-  // here would refuse every hand-off and tell the driver to tick a box that is not on their screen.
-  const parsed = applicationBeforeCertificationSchema.safeParse(candidate);
-  if (parsed.success) return true;
-  wizard.setIssues(issuesFromParse(parsed.error.issues, candidate));
-  globalThis.scrollTo({ top: 0, behavior: "smooth" });
-  return false;
-}
-
-/**
- * Hand it to the office (F4, D-AX11) — the last act of the FIRST visit.
- *
- * ⚠ The certification is deliberately not asked for here. §391.21(b)(12) has the applicant swear
- * that every entry is true and complete, and the office can now correct an entry — so a signature
- * taken now would be a signature on a document that may not be the one filed. It is asked for on the
- * second visit instead, beside the changes.
- *
- * The completeness check still runs, against everything §391.21(b) requires except those two.
- */
-async function sendForReview(): Promise<void> {
-  sendError.value = null;
-  if (!documentIsComplete()) return;
-  try {
-    await handOff.mutateAsync();
-    handedOver.value = true;
-    globalThis.scrollTo({ top: 0, behavior: "smooth" });
-  } catch (e) {
-    sendError.value = e instanceof Error ? e.message : APPLY_COPY.handoff.failed;
-  }
-}
-
-/** Certify it and file it — the last act of the SECOND visit. */
-async function send(): Promise<void> {
-  sendError.value = null;
-  const candidate = toApplication(draft);
-  const parsed = driverApplicationSchema.safeParse(candidate);
-  if (!parsed.success) {
-    wizard.setIssues(issuesFromParse(parsed.error.issues, candidate));
-    globalThis.scrollTo({ top: 0, behavior: "smooth" });
-    return;
-  }
-  try {
-    await submit.mutateAsync({
-      application: parsed.data,
-      // D-APP3: the one field that never entered a draft goes straight from the form to `sealSsn`.
-      ssn: draft.ssn.trim() === "" ? null : draft.ssn.trim(),
-    });
-    justSent.value = true;
-  } catch (e) {
-    sendError.value = e instanceof Error ? e.message : APPLY_COPY.issues.sendFailed;
-  }
-}
 </script>
 
 <template>
@@ -393,7 +324,7 @@ async function send(): Promise<void> {
       :captures="invitation.data.value?.captures ?? []"
       :stops="packetStops"
       :adopted-marks="packetAdopted"
-      :sending="submit.isPending.value"
+      :sending="sending"
       :error="sendError"
       @send="send"
     />
@@ -471,7 +402,7 @@ async function send(): Promise<void> {
       <span v-else />
       <BaseButton
         variant="primary"
-        :disabled="handOff.isPending.value || (wizard.isLast.value && wordingNotFinal)"
+        :disabled="handingOver || (wizard.isLast.value && wordingNotFinal)"
         @click="wizard.isLast.value ? sendForReview() : wizard.next()"
       >
         <template v-if="wizard.isLast.value">
@@ -483,7 +414,7 @@ async function send(): Promise<void> {
                visit, on the document as the office leaves it — see `sendForReview`. -->
           {{ wordingNotFinal
             ? APPLY_COPY.notOpen.sendLabel
-            : handOff.isPending.value
+            : handingOver
               ? APPLY_COPY.handoff.sending
               : APPLY_COPY.handoff.send(invitation.data.value.carrier) }}
         </template>
