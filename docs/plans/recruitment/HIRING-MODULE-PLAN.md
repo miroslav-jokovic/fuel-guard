@@ -1420,6 +1420,25 @@ every time.
   `--filter web lint:tokens` green. No migration; no schema change.
 ---
 
+- **2026-09-18, evening — handoff written, and one queue problem named.**
+  `HANDOFF-2026-09-18-RECORD.md`. ⚠ **Wave A's `∥` steps have drifted for four sessions**, and the
+  reason is structural rather than anybody's oversight: `∥` means *open a second chat now*, nobody
+  did, and a parallel step has no moment at which it announces itself as late — unlike a blocked one,
+  which announces itself when its blocker lands. **If a `∥` step is not going to get its own chat it
+  needs a place in the sequential order instead**, or the queue silently becomes "everything that was
+  ever blocked, in order".
+
+  ⚠ **And A0b changed the priority of A3 without anybody noticing.** Verified 2026-09-18 at the call
+  sites: `file.ts` → `renderPacketDocument()` → `renderPacketOverlay()`, so **A3's fix is on the
+  FILING path**, and §0's freeze means a filed packet is frozen for ever. Until A0b shipped, the rate
+  limiter refused the 21st of 22 marks so **nobody could complete a ceremony at all** — the freeze was
+  being held off by a bug. A0b removed it. So the next applicant who finishes freezes a document in
+  which a drawn signature is stamped on the three initials lines. **A3, then A4, are recommended
+  ahead of B7/B8**, which have no deadline. ⚠ A2 does NOT share this property — it fixes the
+  PREVIEW, and its own row says `render.ts` stays untouched.
+
+---
+
 ## 11. Sources
 
 **Regulatory** — [49 CFR §382.301](https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-382/subpart-C/section-382.301) ·
