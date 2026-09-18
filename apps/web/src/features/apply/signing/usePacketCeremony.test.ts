@@ -414,3 +414,171 @@ describe("a resumed walk whose marks the server has already pinned", () => {
     expect(c.alreadyAdopted.value).toBe(true);
   });
 });
+
+/**
+ * A3 — what the stop is allowed to PROMISE about the mark.
+ *
+ * ⚠ **`currentShowsDrawing` is the client half of a named pair with `renderPacketOverlay`'s mark
+ * loop**, so these tests are the client-side statement of one rule: *a drawing is a signature, and
+ * `p05`, `p06` and `p09` do not ask for one*. The server half is pinned by
+ * "puts the typed initials on the three pages that ask for initials, even in drawn mode".
+ *
+ * ⚠ The fixture WALKS to a real initials stop rather than asserting over a hand-made one, for this
+ * file's stated reason: `p05` is the fourth place in the packet's own order, and a two-element
+ * fixture would make "a stop takes initials" true by construction.
+ */
+describe("what the stop promises in drawn mode", () => {
+  /** Adopt by drawing, staged successfully, standing on the first stop. */
+  async function drawnCeremony(stage = vi.fn().mockResolvedValue(undefined)) {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = "drawn";
+    c.markBlob.value = new Blob(["x"], { type: "image/png" });
+    expect(await c.adopt()).toBe(true);
+    return c;
+  }
+
+  /** Walk forward until the driver is standing on a stop of the given kind. */
+  async function walkTo(
+    c: Awaited<ReturnType<typeof drawnCeremony>>,
+    kind: "signature" | "initials",
+  ): Promise<void> {
+    for (let i = 0; i < 22 && c.current.value?.mark !== kind; i++) await c.sign();
+    expect(c.current.value?.mark, `never reached a ${kind} stop`).toBe(kind);
+  }
+
+  it("shows the drawing on a stop that takes a signature", async () => {
+    const c = await drawnCeremony();
+    await walkTo(c, "signature");
+    expect(c.currentShowsDrawing.value).toBe(true);
+  });
+
+  /**
+   * ⚠ **The defect.** This was TRUE at every stop for four days, which is what put a driver's full
+   * autograph on the three lines the carrier captioned `Initials`.
+   */
+  it("shows the typed initials, not the drawing, on a stop that takes initials", async () => {
+    const c = await drawnCeremony();
+    await walkTo(c, "initials");
+    expect(c.currentShowsDrawing.value).toBe(false);
+    expect(c.markFor(c.current.value!)).toBe("MV");
+  });
+
+  it("never shows a drawing when the driver typed", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    expect(await c.adopt()).toBe(true);
+    expect(c.currentShowsDrawing.value).toBe(false);
+  });
+});
+
+/**
+ * A3 — the swallowed upload, which is now said out loud.
+ *
+ * ⚠ A8b still holds and each test asserts it in the same breath: the walk STARTS either way. What
+ * changed is that a driver whose drawing did not survive is told, instead of signing twenty-two
+ * places believing it did.
+ */
+describe("telling the driver the drawing did not save", () => {
+  const drawing = (): Blob => new Blob(["x"], { type: "image/png" });
+
+  it("says nothing when the drawing staged", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      stage: vi.fn().mockResolvedValue(undefined) as never,
+    });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = "drawn";
+    c.markBlob.value = drawing();
+    expect(await c.adopt()).toBe(true);
+    expect(c.drawnMarkFailed.value).toBe(false);
+  });
+
+  /**
+   * ⚠ Both halves in one test on purpose: "told" without "still signs" would be a regression of A8b,
+   * and "still signs" without "told" is the defect A3 exists to close. Splitting them would let
+   * either half pass alone.
+   */
+  it("records the failure, and still lets the driver sign", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      stage: vi.fn().mockRejectedValue(new Error("offline")) as never,
+    });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = "drawn";
+    c.markBlob.value = drawing();
+    expect(await c.adopt()).toBe(true);
+    expect(c.drawnMarkFailed.value).toBe(true);
+  });
+
+  /**
+   * ⚠ And the promise is withdrawn with it. A failed upload means `signatureMarkBytes` hands the
+   * renderer nothing, so the TYPED name lands on all twenty-two — a screen still previewing the
+   * drawing would be promising something no filed document will ever show.
+   */
+  it("stops promising the drawing once it has failed", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      stage: vi.fn().mockRejectedValue(new Error("offline")) as never,
+    });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = "drawn";
+    c.markBlob.value = drawing();
+    await c.adopt();
+    expect(c.current.value?.mark).toBe("signature");
+    expect(c.currentShowsDrawing.value).toBe(false);
+  });
+});
+
+/**
+ * A3 — the adoption screen must not turn into the RESUMED screen while somebody is filling it in.
+ *
+ * ⚠ **Found by rendering, not by this suite**, and the suite could not have found it as it was
+ * written: `alreadyAdopted` read the same refs the input boxes are bound to, so a first-time
+ * applicant who typed a name and initials flipped the component to the resumed panel — the Type/Draw
+ * control gone, the signature pad unmounted, the drawing in it destroyed, and *"You adopted this when
+ * you started"* said to somebody adopting it right then. For a driver who chose to DRAW it was fatal:
+ * the name field is above the pad, so the pad vanished before they reached it and the mark silently
+ * became the typed one.
+ *
+ * ⚠ The discriminating input is `options.adopted` — **null for a first-time link** — which is exactly
+ * what the old computation ignored. A fixture that always passed a pin could not tell the two apart.
+ */
+describe("a first-time link is not a resumed one", () => {
+  it("stays on the adoption screen while the applicant types a name and initials", () => {
+    // ⚠ No `adopted` option at all: this link has pinned nothing, which is the common case.
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    expect(c.alreadyAdopted.value).toBe(false);
+
+    c.adoptedName.value = "Marija Varmeda";
+    expect(c.alreadyAdopted.value).toBe(false);
+
+    // ⚠ The keystroke that used to swap the screen out from under them.
+    c.adoptedInitials.value = "MV";
+    expect(c.alreadyAdopted.value).toBe(false);
+  });
+
+  /**
+   * ⚠ And the other direction, so the fix cannot be "always false": a link the server HAS pinned is
+   * still recognised as resumed, which is the whole of Q-PKT9 and must not regress.
+   */
+  it("still recognises a link the server has already pinned", () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      adopted: ref({ signature: "Marija Varmeda", initials: "MV" }),
+    });
+    expect(c.alreadyAdopted.value).toBe(true);
+  });
+
+  /**
+   * ⚠ The case that proves it reads the PIN and not the boxes: the boxes are full, the server has
+   * pinned nothing. Under the old computation this was `true` — and it is the defect exactly.
+   */
+  it("is not resumed when the boxes are full but the server pinned nothing", () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { adopted: ref(null) });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    expect(c.alreadyAdopted.value).toBe(false);
+  });
+});

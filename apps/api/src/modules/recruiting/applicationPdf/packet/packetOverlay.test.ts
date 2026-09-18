@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { inflateSync } from "node:zlib";
+import { deflateSync, inflateSync } from "node:zlib";
 import { join } from "node:path";
 import { PDFArray, PDFDocument, PDFStream, StandardFonts } from "pdf-lib";
 import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
@@ -30,6 +30,17 @@ import { fieldLineFor } from "./packetFieldGeometry.js";
  */
 
 const NAME = "Marija Varmeda";
+
+/** PNG's CRC-32 (ISO 3309), so the fixture below is a file a decoder will actually accept. */
+function crc32(buf: Buffer): number {
+  let c = 0xffffffff;
+  for (const byte of buf) {
+    c ^= byte;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
 /** The places that take a signature — the other three take initials. */
 const signatureIds = new Set(
   driverPlacements().filter((p) => p.mark === "signature").map((p) => p.id),
@@ -180,6 +191,109 @@ describe("drawing the driver's marks on the carrier's packet", () => {
     );
     expect(pageText(pages[19]!)).toContain(NAME);
   });
+});
+
+/**
+ * A3 — where a DRAWING is allowed to go, which is not everywhere.
+ *
+ * ⚠ **The discriminator is text, not pixels**, and that is deliberate rather than a compromise. This
+ * file's header explains why a drawn mark's coordinates cannot be read back honestly; but the
+ * question here is not *where* the drawing landed, it is *whether the typed mark was drawn instead of
+ * it* — and typed text this reader can see. So an initials page that carries the initials STRING is
+ * an initials page the drawing did not take over, and a signature page that carries no name is one
+ * the drawing did.
+ *
+ * ⚠ **Two different strings, because one would have proved nothing.** With the same text adopted for
+ * both kinds, "page 5 contains the mark" passes whether the renderer read the placement's kind or
+ * ignored it — the name is on twenty-two pages either way. `INITIALS` appears nowhere in `NAME`.
+ */
+describe("a drawn mark goes on the signature lines and nowhere else", () => {
+  const INITIALS = "QX";
+  /** The three the carrier captioned `Initials` — `p05`, `p06`, `p09`, and they are pages 5, 6, 9. */
+  const initialsPlacements = driverPlacements().filter((p) => p.mark === "initials");
+
+  /** What the ceremony sends: the initials on the three, the name on the other nineteen. */
+  const mixedMarks = () =>
+    driverPlacements().map((p) => ({
+      placementId: p.id,
+      signedName: p.mark === "initials" ? INITIALS : NAME,
+    }));
+
+  /**
+   * A real, decodable 1×1 PNG, built here rather than checked in.
+   *
+   * ⚠ It has to DECODE — the existing fallback test passes garbage on purpose, and passing garbage
+   * here would exercise the `drawn = null` path and assert nothing about the branch under test.
+   * `packages/capture-engine/fixtures/png.mjs` writes these too, and is not imported: `lint:boundaries`
+   * keeps the hazmat-shaped packages out of `apps/`, and a fixture generator is not a contract.
+   */
+  function onePixelPng(): Buffer {
+    const chunk = (type: string, body: Buffer): Buffer => {
+      const head = Buffer.concat([Buffer.from([0, 0, 0, 0]), Buffer.from(type, "latin1")]);
+      head.writeUInt32BE(body.length, 0);
+      const crc = Buffer.alloc(4);
+      crc.writeUInt32BE(crc32(Buffer.concat([Buffer.from(type, "latin1"), body])), 0);
+      return Buffer.concat([head, body, crc]);
+    };
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(1, 0);
+    ihdr.writeUInt32BE(1, 4);
+    // 8-bit, colour type 2 (truecolour), no interlace — what pdf-lib's PNG reader accepts.
+    ihdr[8] = 8;
+    ihdr[9] = 2;
+    return Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      chunk("IHDR", ihdr),
+      // One scanline: filter byte 0, then one black pixel.
+      chunk("IDAT", deflateSync(Buffer.from([0, 0, 0, 0]))),
+      chunk("IEND", Buffer.alloc(0)),
+    ]);
+  }
+
+  it("puts the typed initials on the three pages that ask for initials, even in drawn mode", async () => {
+    expect(initialsPlacements).toHaveLength(3);
+    const pages = await readBack(
+      await renderPacketOverlay({ marks: mixedMarks(), drawnMark: onePixelPng() }),
+    );
+    for (const p of initialsPlacements) {
+      const text = pageText(pages[p.page - 1]!);
+      expect(text, `page ${p.page} (${p.id})`).toContain(INITIALS);
+      // ⚠ And NOT the signature. A renderer that drew both would satisfy the line above.
+      expect(text, `page ${p.page} (${p.id})`).not.toContain(NAME);
+    }
+  });
+
+  /**
+   * ⚠ The other half, and without it the test above passes on a renderer that ignores the drawing
+   * entirely — which would be a different defect with the same green suite.
+   */
+  it("replaces the typed name with the drawing on a page that asks for a signature", async () => {
+    const pages = await readBack(
+      await renderPacketOverlay({ marks: mixedMarks(), drawnMark: onePixelPng() }),
+    );
+    // p20's page, a signature line — the same page the fallback test reads.
+    expect(pageText(pages[19]!)).not.toContain(NAME);
+    // ⚠ And the whole document, so this cannot pass by one page happening to be blank.
+    const signaturePages = driverPlacements().filter((p) => p.mark === "signature");
+    for (const p of signaturePages) {
+      expect(pageText(pages[p.page - 1]!), `page ${p.page} (${p.id})`).not.toContain(NAME);
+    }
+  });
+
+  /**
+   * ⚠ **The mark loop's unknown-placement fallback is deliberately NOT tested here, and this note is
+   * why**, so the next reader does not spend an afternoon looking for the gap.
+   *
+   * To reach it a mark needs an id the GEOMETRY carries and the INVENTORY does not — the geometry
+   * lookup runs first and skips anything it does not know. No such id exists, and it is not supposed
+   * to: `packetMarkGeometry.test.ts`'s "carries exactly the driver's twenty-two places, and nothing
+   * else" is what keeps it that way. Reaching the branch would mean stubbing one of the two tables,
+   * which would assert that a mock returns what it was told to.
+   *
+   * So the branch is unreachable-by-construction rather than untested-by-omission. It stays in the
+   * renderer because a filed packet is frozen for ever and the two tables can drift in a later PR;
+   * what a test can honestly pin is the invariant, and that is where it is pinned.
+   */
 });
 
 /**
