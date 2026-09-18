@@ -1640,6 +1640,31 @@ every time.
 
 ---
 
+- **2026-09-18, end of day — Wave A's deadline discharged; handoff written.**
+  `HANDOFF-2026-09-18-WAVE-A.md`. A3 (#877) and A4 (#878) are both on the FILING path and both are
+  merged, so **the freeze no longer sets the order** — it has stopped, not disappeared, and anything
+  else that changes how the packet PRINTS still lands before the first filed packet. ⚠ A2 does not
+  share the property: it fixes the PREVIEW and its row says `render.ts` stays untouched.
+
+  ⚠ **Recommended next: Q-HM9, and the argument is that it is the only open item that can make the
+  product report something FALSE about a federal obligation.** `grep -c inquir hiringSteps.ts` is 0,
+  so a recruiter working from the checklist alone reaches "Hired" with the §391.23(a)(2) investigation
+  undone — which is the thing the checklist exists to prevent. Then A2, then B7/B8.
+  ⚠ **Q-PKT11 goes before C2 and not earlier**, because C2 lands in the half of
+  `usePacketCeremony.ts` that is already full.
+
+  ⚠ **Two process traps learned today and written into the handoff §4.** A PR with a merge conflict
+  gets **no CI at all** — GitHub cannot build a merge ref, so `gh pr checks` reports *"no checks
+  reported"* rather than a failure, and #877 looked stuck for twenty minutes while it was merely
+  conflicted; check `mergeStateStatus` first. And a §10 conflict between two sessions is NORMAL: both
+  append dated entries at the `## 11. Sources` boundary, and **the resolution is to keep BOTH**, never
+  to take one side.
+
+  ⚠ **Eight consecutive steps have now shipped a defect every test was green for** — B4 three, B5 one,
+  B6 two, A3 one, A4 three. The browser recipe that finds them is in the A3 entry above. Budget for it.
+
+---
+
 ## 11. Sources
 
 **Regulatory** — [49 CFR §382.301](https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-382/subpart-C/section-382.301) ·
