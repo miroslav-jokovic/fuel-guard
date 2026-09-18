@@ -689,24 +689,29 @@ a process decision is how a plan starts describing a business nobody runs.
 
 ### Still open
 
-- **⚠ Q-HM5 · Does the checklist BLOCK or only WARN?** **Not yet answered** — the reply addressed the
-  handbook example rather than the rule (that answer is now D-HM10 below, and it is valuable). The
-  question stands: when the six federal gates are not green, does the product **refuse** to mark
-  somebody hireable, or **warn** and let the office proceed and record why?
-  *Recommendation unchanged:* **blocking on the six federal gates only, advisory everywhere else.**
-  *Fallback until answered:* build the fold to report `blocking: true` on those six and let the UI
-  merely warn — so the ruling, when it comes, is a UI change and not a rework.
-- **⚠ Q-HM4 · The drug-and-alcohol testing programme.** The owner: *"I don't understand this."* Asked
-  again in plainer words, because the question is real and step 8 cannot be built without it:
-  **who runs your DOT drug testing?** Three parties, and a carrier usually has all three:
-  (a) the **consortium / third-party administrator (C/TPA)** — the company that keeps the random
-  testing pool and tells you who to send; (b) the **collection site** — the clinic the driver goes to
-  and gives the sample, e.g. a Quest or LabCorp location; (c) the **MRO (Medical Review Officer)** —
-  the doctor who reviews a positive with the driver before it is reported to you.
-  What the build needs is only: their names, and **whether any of them sends results electronically or
-  whether somebody types them in.** *Fallback:* the recorded-act path, exactly like MVR — the office
-  records the order and uploads the result. That fallback is good enough to ship step 8, so **D1 is
-  not blocked by this.**
+- **⚠ Q-HM5 · If something federal is missing, does the product REFUSE the hire or WARN and let it
+  through?** ⚠ **Asked twice in jargon and not answered either time — that is the question's fault,
+  and it is rewritten here in the words it should always have used.**
+
+  Federal law requires six things on file before anybody drives: the **application**, a
+  **Clearinghouse** query that is not "prohibited", a **drug test** that came back negative, a
+  **driving record** from every state they were licensed in, a valid **medical certificate**, and a
+  **road test**. D-HM9 has all six as steps 3, 7, 8, 5, and 10.
+
+  The scenario that decides it, and it is a real morning at Silvicom: *the driver is in the office,
+  the road test is passed, orientation is done, and the driving record has not come back yet. The
+  recruiter wants to hire and give him a truck today.* Does the product:
+
+  (a) **Refuse.** The Hire button does not work until all six are on file. Says which one is missing.
+  (b) **Warn.** Shows plainly what is missing, lets the office hire anyway, and **records who decided
+      to and when**.
+
+  *Recommendation:* **(a) for these six only, (b) for everything else.** Letting somebody drive
+  without a negative drug test is the violation this product exists to prevent, and the office cannot
+  un-know it once the screen has said so. Everything that is not one of the six — handbook, a
+  section of orientation, a photo — warns and never blocks.
+  *Fallback until ruled:* the fold reports `blocking: true` on the six and **the UI only warns**, so
+  whichever way it goes the change is one condition in a component, not a rework.
 
 ### D-HM10 — the handbook is a separate instrument, signed in the office (ruled 2026-09-17)
 
