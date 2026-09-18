@@ -77,6 +77,60 @@ export const HIRING_PHASE_LABELS: Record<HiringPhase, string> = {
   hire: "Ready to hire",
 };
 
+/**
+ * The row that proves a step — `"qualification_records.mvr"`, `"application_packet_marks"`.
+ *
+ * ⚠ A CLOSED UNION rather than `string`, added by B5 and load-bearing for a reason that is not
+ * documentation. A surface that renders the artifact column has to answer *where does a reader go to
+ * see this*, and that answer is a UI fact (it is a route) which cannot live in this package. With a
+ * `string` here, the web app's map from artifact to address would go stale in silence the first time
+ * a step was added: a new table name, no entry, a blank cell, nothing failing. As a union it is a
+ * TYPE ERROR in `apps/web` until somebody says where the new artifact is reached — which is the only
+ * kind of "remember to update the other file" that actually works.
+ */
+export type HiringEvidenceTable =
+  | "application_invitations"
+  | "application_invitations.approved_at"
+  | "driver_authorizations"
+  | "driver_applications"
+  | "qualification_records.mvr"
+  | "qualification_records.psp_report"
+  | "qualification_records.clearinghouse_full"
+  | "qualification_records.drug_test"
+  | "qualification_records.medical_registry_verification"
+  | "qualification_records.road_test"
+  | "application_packet_marks"
+  | "drivers.hire_date";
+
+/**
+ * What proves a step: the row it lives in, and the words a reader is shown for it (B5, D-HUI3).
+ *
+ * ── WHY ONE OBJECT AND NOT TWO FIELDS BESIDE EACH OTHER ───────────────────────────────────────
+ * D-HUI3 says the artifact column is the visible half of D-HM1's corollary — *a step with no
+ * artifact cannot be a step* — and that **"if the column is empty for a row, that row should not
+ * have shipped"**. As `evidence: string | null` plus an `artifactLabel: string | null` beside it,
+ * that rule is a sentence in a plan: nothing stops a step shipping with a table and no words, and
+ * the fold would emit the row anyway because the fold only looks at the table. Bound together, a
+ * step either has both or has neither, and the rule is enforced by the compiler instead of by
+ * whoever happens to review the next step.
+ *
+ * ⚠ `table` is NOT free to become a display string. It means *which row proves this*, it is read by
+ * `hiringChecklist`'s emission filter and by the plan, and B5's whole reason for existing is that
+ * `"qualification_records.mvr"` had been rendering on a recruiter's screen as if it were words.
+ */
+export interface HiringEvidence {
+  /** The row that proves it. A machine fact — never rendered. */
+  table: HiringEvidenceTable;
+  /**
+   * The artifact in the words the row shows: "MVR report", "Signed packet", "Authorizations".
+   *
+   * ⚠ It names the DOCUMENT a reader would open, not the step — the row already says the step in
+   * its first column, and a third column repeating it is a column doing nothing. The mockup's
+   * *"Packet (31 pp) ↗"* and *"Report ↗"* are the register: short, a noun, the thing itself.
+   */
+  label: string;
+}
+
 export interface HiringStepSpec {
   key: HiringStepKey;
   /**
@@ -125,12 +179,12 @@ export interface HiringStepSpec {
    */
   requires: readonly HiringStepKey[];
   /**
-   * The row that proves it, or `null` when nothing in the schema can.
+   * What proves it, or `null` when nothing in the schema can.
    *
    * ⚠ `null` is what keeps a step out of the fold. Three of them are `null` today and each one is a
    * real gap rather than an oversight — named, so the next person to build one knows what to write.
    */
-  evidence: string | null;
+  evidence: HiringEvidence | null;
 }
 
 /**
@@ -144,28 +198,28 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     action: "Send the invitation",
     where: "remote", phase: "application",
     federalGate: false, beforeTravel: true, owes: "us", requires: [],
-    evidence: "application_invitations",
+    evidence: { table: "application_invitations", label: "Invitation" },
   },
   {
     key: "permissions_signed", ordinal: "2", label: "Permissions signed",
     action: "Sign the permissions",
     where: "remote", phase: "application",
     federalGate: false, beforeTravel: true, owes: "them", requires: ["invitation_sent"],
-    evidence: "driver_authorizations",
+    evidence: { table: "driver_authorizations", label: "Authorizations" },
   },
   {
     key: "application_filled", ordinal: "3", label: "Application filled in",
     action: "Fill in the application",
     where: "remote", phase: "application",
     federalGate: true, beforeTravel: true, owes: "them", requires: ["permissions_signed"],
-    evidence: "driver_applications",
+    evidence: { table: "driver_applications", label: "Application" },
   },
   {
     key: "office_approved", ordinal: "4", label: "Office approved it",
     action: "Read the application and approve it",
     where: "office", phase: "application",
     federalGate: false, beforeTravel: true, owes: "us", requires: ["application_filled"],
-    evidence: "application_invitations.approved_at",
+    evidence: { table: "application_invitations.approved_at", label: "Approval" },
   },
   // ⚠ §391.23(a)(1) needs the record, and `SCREENING_PREREQUISITES.mvr_order` names what makes
   // ordering one lawful: the FCRA disclosure. It is NOT gated on the office approving — Q-HM2 ruled
@@ -176,7 +230,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     action: "Order the driving record",
     where: "office", phase: "screening",
     federalGate: true, beforeTravel: true, owes: "us", requires: ["permissions_signed"],
-    evidence: "qualification_records.mvr",
+    evidence: { table: "qualification_records.mvr", label: "MVR report" },
   },
   // ⚠ §5: "PSP is voluntary. It is a tool, not a requirement, which is why it can sit anywhere in
   // the order." Its prerequisites are the two signatures `SCREENING_PREREQUISITES.psp_record` names.
@@ -189,7 +243,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     // lives — but this string is only ever shown once the step is DONE, and what proves it is the
     // filed record. Both paths land there: `/psp-orders` files one on a settled order and
     // `/psp-imports` files one from a report bought on FMCSA's portal (D-HM6).
-    evidence: "qualification_records.psp_report",
+    evidence: { table: "qualification_records.psp_report", label: "Report" },
   },
   // ⚠ No prerequisite here, and that is deliberate rather than an omission. §382.701(a)'s full-query
   // consent is given INSIDE the FMCSA Clearinghouse, not on our screen — `clearinghouse` is
@@ -199,7 +253,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     action: "Run the Clearinghouse query",
     where: "office", phase: "screening",
     federalGate: true, beforeTravel: true, owes: "us", requires: [],
-    evidence: "qualification_records.clearinghouse_full",
+    evidence: { table: "qualification_records.clearinghouse_full", label: "Query result" },
   },
   // ⚠ §382.301(a) wants a VERIFIED NEGATIVE, and §5 is emphatic that collection is not clearance:
   // allowing a driver to operate before the result arrives violates it even if the result is later
@@ -209,7 +263,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     action: "Get the drug test result",
     where: "external", phase: "screening",
     federalGate: true, beforeTravel: true, owes: "them", requires: ["permissions_signed"],
-    evidence: "qualification_records.drug_test",
+    evidence: { table: "qualification_records.drug_test", label: "Lab result" },
   },
   // ⚠ The step that was missing until the owner recited the six gates back (D-HM9). The application
   // CAPTURES the card — `medical_card` is an `APPLICATION_CAPTURE_SLOTS` entry — and capture had
@@ -220,7 +274,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     action: "Verify the medical certificate",
     where: "office", phase: "screening",
     federalGate: true, beforeTravel: true, owes: "us", requires: ["application_filled"],
-    evidence: "qualification_records.medical_registry_verification",
+    evidence: { table: "qualification_records.medical_registry_verification", label: "Registry check" },
   },
   // ⚠ NO EVIDENCE TABLE. `DRIVER-TRAINING-PLAN.md` specifies the whole system in 1,396 lines and
   // none of it is built: there is not one `training_*` table in any migration. Q-HM3 ruled these are
@@ -245,7 +299,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     action: "Run the road test",
     where: "office", phase: "office_day",
     federalGate: true, beforeTravel: false, owes: "us", requires: ["drug_test"],
-    evidence: "qualification_records.road_test",
+    evidence: { table: "qualification_records.road_test", label: "Certificate" },
   },
   // ⚠ NO EVIDENCE TABLE. Q-HM7 ruled this is named SECTIONS inside a day, with attendance — R8
   // specifies it and nothing is built. D3 in the queue.
@@ -274,7 +328,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     action: "Sign the application packet",
     where: "office", phase: "office_day",
     federalGate: false, beforeTravel: false, owes: "them", requires: ["office_approved"],
-    evidence: "application_packet_marks",
+    evidence: { table: "application_packet_marks", label: "Signed packet" },
   },
   // ⚠ Requires every federal gate, because that is what the owner said hiring IS: "hiring is
   // concluded when applicant is in the office and everything is done and signed and then we do
@@ -289,7 +343,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
       "application_filled", "mvr", "clearinghouse", "drug_test",
       "medical_certificate", "road_test", "application_signed",
     ],
-    evidence: "drivers.hire_date",
+    evidence: { table: "drivers.hire_date", label: "Driver file" },
   },
 ];
 

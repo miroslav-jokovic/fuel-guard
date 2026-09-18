@@ -401,6 +401,20 @@ Each of these is something this repo, or the research, has already paid for once
   carrier is buying a report on them, before the carrier has decided anything, and can draw a
   conclusion from its timing. ⚠ This has an FCRA-adjacent flavour and should be confirmed, not
   assumed.
+- **Q-HUI6 · Nothing in the office's product shows a signed authorization.** Raised by B5, which is
+  the first surface that had to answer *where do I go to see the artifact*. Eleven of the twelve
+  artifacts resolve — nine to the driver's §391.51 file (the filed packet included: `file.ts` files
+  it as a `documents` row of kind `employment_application` cited by a qualification record), two to
+  cards already on the applicant record. `driver_authorizations` resolves to nothing: the read
+  endpoint exists (`GET /api/recruitment/drivers/:driverId/authorizations`) and **no screen calls
+  it**, so the office cannot see the four §604(b)(2)/§391.23 releases it is relying on. Candidates:
+  (a) a drawer on the applicant record listing purpose, accepted-at and the wording version, opened
+  from the checklist row — B6 is already building that drawer machinery; (b) a section on the
+  §391.51 file, which is where an auditor would look; (c) leave it, and the checklist row states the
+  artifact without a link. **Recommendation (a)** — the recruiter is the reader who acts on it, and
+  the FCRA disclosure's *version* is the fact that matters in a dispute. ⚠ B5 ships (c) with the
+  reason written into `features/recruitment/hiringArtifacts.ts` rather than pointing the row at the
+  nearest page, which would open the wrong document under the right word.
 - **~~Q-HUI2 · Is the signing surface usable on a phone?~~ RULED 2026-09-17 by measurement — D-HUI9.**
 - **~~Q-HUI3 · Where does the checklist live once the driver is hired?~~ RULED 2026-09-17: not yet.**
   The DQF page is the same shape for a §391.51 file and is therefore **the second consumer that

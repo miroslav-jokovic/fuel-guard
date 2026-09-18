@@ -2,7 +2,10 @@ import { hasLiveAuthorization, type AuthorizationRow } from "./authorizationCont
 import { APPLICATION_RELEASE_ORDER } from "./applicationIntake.js";
 import { applicationReviewState, type ApplicationPhases } from "./applicationReviewContract.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
-import { HIRING_STEPS, measurableHiringSteps, type HiringStepKey, type HiringStepSpec } from "./hiringSteps.js";
+import {
+  HIRING_STEPS, measurableHiringSteps,
+  type HiringEvidence, type HiringStepKey, type HiringStepSpec,
+} from "./hiringSteps.js";
 
 /**
  * Where a hire has got to, across all fourteen of the owner's steps (B1, `HIRING-MODULE-PLAN.md`).
@@ -96,13 +99,19 @@ export interface HiringChecklistInputs {
 export interface HiringStep extends HiringStepSpec {
   state: HiringStepState;
   /**
-   * The artifact that proves it, in the words the row shows (D-HUI3's third column, load-bearing).
+   * The artifact that proves it — its words and its row (D-HUI3's third column, load-bearing).
    *
    * ⚠ Null until the step is done, and that is the honest reading: before an MVR is uploaded there
-   * is no artifact, and a column that showed the table name would be showing where the proof WOULD
-   * live rather than that it exists.
+   * is no artifact, and a column that named one anyway would be saying where the proof WOULD live
+   * rather than that it exists.
+   *
+   * ⚠ It is the spec's `evidence` verbatim rather than a projection of it, and that is deliberate:
+   * a renderer needs BOTH halves — `label` for the words and `table` for the address it routes to —
+   * and handing over only the label would push the address back onto a step-key switch in the page,
+   * which is the copy `hiringSteps.ts`'s own header argues against. What this field adds over
+   * `spec.evidence` is the one fact the fold owns: whether the proof is there yet.
    */
-  artifact: string | null;
+  artifact: HiringEvidence | null;
   /** When blocked, the first unmet requirement — so the row names its blocker in words, not a grey. */
   blockedBy: HiringStepKey | null;
 }

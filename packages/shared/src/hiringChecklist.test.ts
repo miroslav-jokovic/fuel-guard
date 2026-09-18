@@ -122,6 +122,37 @@ describe("the catalogue", () => {
   it("resolves every key in the union to a spec", () => {
     for (const step of HIRING_STEPS) expect(hiringStep(step.key)).toBe(step);
   });
+
+  /**
+   * ⚠ D-HUI3's third column, checked at the catalogue rather than at the renderer (B5).
+   *
+   * Until B5 the artifact was `spec.evidence` — a bare table name — so *"qualification_records.mvr"*
+   * was what a recruiter's screen said the proof was. The fix belongs here and not in a map beside
+   * the component, because a map is a copy with a delay fuse: nothing fails when a new step is added
+   * without an entry. Binding the words to the row means a step cannot have one without the other,
+   * and this asserts the half a type cannot — that the words are words, and are not just the step's
+   * own label said twice, which would make the column do nothing.
+   */
+  it("gives every measurable step artifact words that are not the step's own label", () => {
+    for (const step of measurableHiringSteps()) {
+      const evidence = step.evidence!;
+      expect(evidence.label.length, `${step.key} has no artifact words`).toBeGreaterThan(0);
+      expect(evidence.label, `${step.key}'s artifact restates its label, so the column says nothing`)
+        .not.toBe(step.label);
+      // A table name is what this replaced, so it must not have crept back into the words.
+      expect(evidence.label, `${step.key}'s artifact is a table name`).not.toContain("_");
+    }
+  });
+
+  /**
+   * ⚠ The table is an ADDRESS as well as a fact, so two steps proved by the same row would give one
+   * surface two names for one document. Six of them share `qualification_records`, and each names a
+   * different `kind` after the dot for exactly this reason.
+   */
+  it("proves each measurable step with a row no other step claims", () => {
+    const tables = measurableHiringSteps().map((s) => s.evidence!.table);
+    expect(new Set(tables).size).toBe(tables.length);
+  });
 });
 
 describe("the four states", () => {
@@ -150,7 +181,7 @@ describe("the four states", () => {
     const c = hiringChecklist(complete());
     const mvr = c.steps.find((s) => s.key === "mvr")!;
     expect(mvr.state).toBe("done");
-    expect(mvr.artifact).toBe("qualification_records.mvr");
+    expect(mvr.artifact).toEqual({ table: "qualification_records.mvr", label: "MVR report" });
   });
 
   /**

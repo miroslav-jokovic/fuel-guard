@@ -1,5 +1,10 @@
-import { HIRING_PHASE_LABELS, type HiringPhase } from "@silvicom/shared";
-import { toneClass, type DqBadge } from "./badges";
+import {
+  HIRING_PHASE_LABELS, HIRING_STEP_STATE_LABELS,
+  type HiringPhase, type HiringStepState,
+} from "@silvicom/shared";
+import { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon, NoSymbolIcon } from "@silvicom/ui/icons";
+import type { Icon } from "@silvicom/ui/icons";
+import { toneClass, type BadgeTone, type DqBadge } from "./badges";
 
 /**
  * The recruiting surface's badges.
@@ -146,6 +151,62 @@ export function hiringPhaseBadge(phase: HiringPhase | null): DqBadge {
 }
 
 /**
+ * A badge that carries a glyph as well as a word (D-HUI4).
+ *
+ * ⚠ `DqBadge` is deliberately left alone rather than widened. Every other badge in this app and its
+ * neighbour is a label and a tone, and making `icon` optional on the shared shape would invite a
+ * hundred call sites to start answering a question only the hiring states have to answer.
+ */
+export interface HiringStateBadge extends DqBadge {
+  icon: Icon;
+}
+
+/**
+ * The four step states, dressed (D-HUI4) — **one record, read by both surfaces**.
+ *
+ * ── WHY THE ICON AND THE TONE ARE DECIDED IN ONE PLACE ────────────────────────────────────────
+ * The checklist renders all four states as rows (B5); the board renders two of them as its
+ * Waiting-on column (B4). They are the same fact seen from two distances, so a recruiter reads
+ * *waiting on you* twice a morning in two places — and the failure to avoid is not a wrong icon but
+ * two DIFFERENT right ones, which teaches a reader that the two screens mean different things.
+ * `hiringWaitingOnBadge` below reads this record rather than carrying its own pair.
+ *
+ * ── THE FOUR CHOICES ──────────────────────────────────────────────────────────────────────────
+ * ⚠ These are NOT a severity ramp, and D-HUI4 is explicit that they cannot be: *waiting on them*
+ * and *waiting on us* are equally "in progress" and are completely different actions. So the glyphs
+ * differ in KIND — a clock is somebody else's delay, an alert is a job on your desk — rather than in
+ * loudness, and only `waiting_on_us` is toned at all. A board where everything shouts is a board
+ * nobody reads, and the office's real question every morning is *"what is mine today?"*.
+ *
+ * ⚠ The alert triangle on `waiting_on_us` looks alarming for a state that just means "your turn",
+ * and it is right anyway for a reason worth writing down: `requires` keeps the number of rows in
+ * that state tiny. A freshly invited applicant has exactly ONE — the Clearinghouse query, the only
+ * measurable step with no prerequisite. The loudness is bounded by the process, not by taste.
+ *
+ * ⚠ `blocked` gets the slashed circle the mockup drew as `⊘` and stays neutral: nobody owes
+ * anything on a blocked row, and colouring it would ask the reader to act on a row whose whole
+ * meaning is that they cannot yet.
+ */
+const HIRING_STEP_STATE_STYLE: Record<HiringStepState, { tone: BadgeTone; icon: Icon }> = {
+  blocked: { tone: "neutral", icon: NoSymbolIcon },
+  waiting_on_them: { tone: "neutral", icon: ClockIcon },
+  waiting_on_us: { tone: "warning", icon: ExclamationTriangleIcon },
+  done: { tone: "success", icon: CheckCircleIcon },
+};
+
+/**
+ * One checklist row's state (B5) — icon and word, never colour alone (D-HUI4).
+ *
+ * ⚠ The words come from `HIRING_STEP_STATE_LABELS` in shared, never from a `case` here, for the
+ * same reason `hiringPhaseBadge` reads `HIRING_PHASE_LABELS`: the applicant's own screen folds the
+ * same states (D-HM2), and two vocabularies for one computation is the disagreement that has already
+ * shipped twice. What this file decides is the tone and the glyph, which are UI facts.
+ */
+export function hiringStepStateBadge(state: HiringStepState): HiringStateBadge {
+  return { label: HIRING_STEP_STATE_LABELS[state], ...HIRING_STEP_STATE_STYLE[state] };
+}
+
+/**
  * The hiring board's Waiting-on chip (B4) — who owes the next move.
  *
  * ⚠ **This is the only loud thing on the board**, and D-HUI4 says why in as many words: the office's
@@ -157,11 +218,22 @@ export function hiringPhaseBadge(phase: HiringPhase | null): DqBadge {
  * ⚠ "You" and "Them" rather than "Us" and "Applicant". The column is read by the person who owes
  * it, and `applicantStageBadge` already established the second person for exactly this ("Waiting
  * for you"). A board that says "Us" is a board written from the product's point of view.
+ *
+ * ⚠ **It shipped word-only on 2026-09-18 and D-HUI4 asks for an icon AND a word.** The tones below
+ * are B4's unchanged — they were argued for and they already agree with the state record — and what
+ * B5 adds is the glyph, TAKEN FROM that record rather than chosen again here. The board and the
+ * checklist now say *waiting on you* with the same mark, which is the whole point of doing it in
+ * B5's PR rather than leaving two vocabularies a screen apart.
+ *
+ * ⚠ `null` is not one of the four states: on the board it means the applicant is hired and nobody
+ * owes anything, so it borrows `done`'s tick and keeps B4's neutral tone. Success-toning it would
+ * put a second green chip beside `hiringPhaseBadge`'s "Hired" on the same row, saying one fact
+ * twice in the loudest way available.
  */
-export function hiringWaitingOnBadge(who: "us" | "them" | null): DqBadge {
-  if (who === "us") return { label: "You", tone: "warning" };
-  if (who === "them") return { label: "Them", tone: "neutral" };
-  return { label: "Nobody", tone: "neutral" };
+export function hiringWaitingOnBadge(who: "us" | "them" | null): HiringStateBadge {
+  if (who === "us") return { label: "You", ...HIRING_STEP_STATE_STYLE.waiting_on_us };
+  if (who === "them") return { label: "Them", ...HIRING_STEP_STATE_STYLE.waiting_on_them };
+  return { label: "Nobody", tone: "neutral", icon: HIRING_STEP_STATE_STYLE.done.icon };
 }
 
 export function employmentInquiryBadge(status: string): DqBadge {
