@@ -1041,6 +1041,74 @@ every time.
   22 lines from the wall leaves the next person — whoever builds one of the three unbuilt steps — with
   no headroom, which is the exact failure the budget exists to prevent.
 
+- **2026-09-17, B3 — DONE. `GET /api/recruitment/applicants/:driverId/checklist` serves the fold.**
+  `applicantChecklist.ts` gathers seven reads and hands them to B1; `routes/checklist.ts` is a gate,
+  a 404 and an envelope. ⚠ **The service decides nothing** — if a question about hiring can be
+  answered in it, it is in the wrong file, which is how the applicant comes to be told they are
+  waiting on us while the office is told the opposite (D-HM2, and §1's board defects twice).
+
+  **The three column-level decisions, each one a place a wrong read would have been invisible:**
+
+  - **The live invitation is the NEWEST one.** A driver can have several — a re-sent link, or a
+    rehire, which 0337 says must not merge — and folding an older row reports last spring's progress
+    as this week's.
+  - **Packet marks are counted against that invitation, never the driver.** 0339 scopes them to the
+    invitation for the same rehire reason; a driver-keyed count adds last year's twenty-two to this
+    year's none and reports a packet signed that nobody has opened.
+  - ⚠ **PSP is done when the RECORD exists, not when an order settles.** Both paths file a
+    `qualification_records` row of kind `psp_report` — `/psp-orders` on a settled order and
+    `/psp-imports` from a report bought on FMCSA's portal — so a PSP obtained outside the product
+    ticks the step exactly as an ordered one does. That is D-HM6's *"recorded acts, not
+    integrations"* read from the evidence side, and it is what makes D-HUI5 liveable rather than a
+    nag. B1's `evidence` string for that step is corrected here from `psp_requests` to
+    `qualification_records.psp_report`; the request row is still what `requested` reads.
+
+  **`view`, not `manage`, and the AUDITOR is what settles it** — the one role with
+  `recruitment: "view"` and not `manage`. Gating a read-only summary on `manage` would refuse exactly
+  the reader a §391.51 hiring file exists for, and every write it summarises is already gated by the
+  route that performs it.
+
+  ⚠ **The response carries no §391.21 answers, no date of birth and no licence number — by
+  construction, not by filtering.** The fold reads the existence of rows and a set of record kinds,
+  so there is nothing to redact; pinned by *"never selects the application's answers"*.
+
+  ⚠ **Two mutations passed at first, and both were the TEST's fault rather than the code's** — worth
+  recording because both are shapes that will recur:
+
+  1. **`supabaseRecorder` applies no filters, no order, no limit, and no column projection.**
+     Dropping `revokes` from the authorizations select changed nothing, because the fake handed whole
+     rows back — so *"honours a revoked release"* passed against a service that never read the
+     revocation. The fixture now applies the `eq` filters, the `order`, the `limit` **and the select
+     list** the query actually made. Same family as
+     [[supabase-recorder-does-not-filter]], one step further: projection matters too.
+  2. **The role chosen to prove a gate has to be able to fail it.** `manage` instead of `view`
+     refused nobody, because admin, safety_manager and recruiter all hold `manage`. The auditor is
+     the discriminating case and is now in the list.
+
+  **Verified:** seven mutations, seven red — unscoped read · oldest invitation · marks not keyed on
+  the invitation · PSP read from the order · `revokes` not selected · membership check unscoped ·
+  gated on `manage`. The headline assertion builds one state twice, as database rows and as fold
+  inputs, and demands the whole objects match, so no rule is restated in the API to be got wrong
+  separately.
+
+  ⚠ **CI's `gates` job caught a real boundary violation that `pnpm lint` does not run**, and the
+  right answer was not the one the gate offered. `psp_requests` belongs to the `psp` module (D-SEP1)
+  and `lint:table-access` refused a raw `.from()` on it from recruitment — *"read it through the
+  owner's interface, or grandfather with justification"*. **Grandfathering is the workaround**; the
+  fix is `hasPspRequest()` on the psp module's own interface, which keeps the table's shape — the
+  `status` CHECK, the billing stance, the monitoring flag — where they live. ⚠ It deliberately does
+  **not** answer "is PSP done": the report is a `qualification_records` row, so completion is the
+  evidence layer's answer and a helper that gave it would put half the checklist's rule in the
+  collector. It went in a NEW `pspRequests.ts` rather than onto `pspOrder.ts`, which was already at
+  495 of its 500 lines.
+
+  ⚠ **`pnpm lint` is not the gate set.** `lint:boundaries` and `lint:filesize` both pass or fail
+  independently of it, and both failed here after a green `pnpm lint`. §0 rule 5 says run the gates
+  before pushing; what this adds is that *the gates* means the list in `package.json`, not the one
+  script whose name suggests it. `pnpm lint && pnpm lint:boundaries && pnpm lint:filesize &&
+  pnpm lint:funcsize && pnpm lint:table-writers && pnpm lint:comment-claims` is the cheap subset for
+  a change that adds a file or reads a table.
+
 ---
 
 ## 11. Sources
