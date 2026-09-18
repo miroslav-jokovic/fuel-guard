@@ -20,10 +20,15 @@ import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
 import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
 import SignOffScreen from "@/features/apply/SignOffScreen.vue";
+import ApplyExpectations from "@/features/apply/ApplyExpectations.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
 import { emptyDraft, fromDraftPayload, type ApplicationDraft } from "@/features/apply/draft";
-import { giveEsignConsent, useApplyInvitationQuery } from "@/features/apply/useApplication";
+import {
+  giveEsignConsent,
+  linkHasBeenUsed,
+  useApplyInvitationQuery,
+} from "@/features/apply/useApplication";
 import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
 import { useApplicationSending } from "@/features/apply/useApplicationSending";
 import { useApplicationWizard, type SectionIssue } from "@/features/apply/useApplicationWizard";
@@ -44,6 +49,11 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * a driver abandons; the wizard shows one §391.21(b) paragraph at a time, saves after each, and puts
  * the whole thing back in front of them at `review` before they certify it — because (b)(12) has
  * them swear the entries are true and complete, and nobody can swear to what they cannot see.
+ *
+ * ── AND WHAT IT INVOLVES IS SAID BEFORE ANY OF IT IS ASKED (B7) ───────────────────────────────
+ * An untouched link opens on how long this takes and what to have to hand, because the alternative is
+ * that a driver finds out by walking it. It asks and writes nothing, which is why it can sit ahead of
+ * the consent without disturbing the rule below — see `ApplyExpectations.vue`.
  *
  * ── NOTHING HAPPENS BEFORE THE 7001(c) CONSENT (A4) ───────────────────────────────────────────
  * §390.32(d) makes an electronic §391.21 application conditional on including proof that the driver
@@ -184,6 +194,13 @@ const autosave = useApplicationDraft(token, draft, {
 });
 const saveStatus = computed(() => draftStatusLabel(autosave.state.value));
 
+// ── What it involves, before any of it is asked (B7) ──────────────────────────────────────────
+// Shown to somebody who has not started, and nothing about that is remembered: "has this driver read
+// it?" is not worth a column or a write on an unauthenticated route, and `linkHasBeenUsed` answers it
+// from what the link already returns.
+const begun = ref(false);
+const expectationsNeeded = computed(() => !begun.value && !linkHasBeenUsed(invitation.data.value));
+
 // ── The 7001(c) consent (A4) ──────────────────────────────────────────────────────────────────
 const consenting = ref(false);
 const consentFailed = ref(false);
@@ -277,6 +294,18 @@ const ceremonyNeeded = computed(
       {{ APPLY_COPY.handoff.waitingBody(invitation.data.value?.carrier ?? "") }}
     </p>
     <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.handoff.waitingNote }}</p>
+  </BaseCard>
+
+  <!-- B7. ⚠ Ahead of the consent gate below, and this does not disturb D-APP5: A4's ruling is that
+       nothing is ASKED and nothing is WRITTEN before the 7001(c) consent, and this screen does
+       neither. `signFirst` covers both things signed before the form — the consent and the ceremony
+       flip together, because both are gated on the same wording being published. -->
+  <BaseCard v-else-if="expectationsNeeded">
+    <ApplyExpectations
+      :carrier="invitation.data.value?.carrier ?? ''"
+      :sign-first="ceremonyAvailable || Boolean(esignConsent?.required)"
+      @start="begun = true"
+    />
   </BaseCard>
 
   <!-- A4/D-APP5: §390.32(d) requires proof of 15 U.S.C. 7001(c) consent behind an electronic

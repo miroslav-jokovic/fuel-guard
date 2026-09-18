@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
-import { APPLICATION_FILLING_SECTIONS } from "@silvicom/shared";
+import { APPLICATION_FILLING_SECTIONS, APPLICATION_SECTION_MINUTES } from "@silvicom/shared";
 import ApplyProgress from "./ApplyProgress.vue";
 
 /**
@@ -88,6 +88,35 @@ describe("the step list, which is the part that navigates", () => {
     await w.find('button[aria-controls="apply-step-list"]').trigger("click");
     expect(stepButtons(w)[3]!.attributes("aria-current")).toBe("step");
     expect(stepButtons(w)[2]!.attributes("aria-current")).toBeUndefined();
+  });
+});
+
+describe("how much is left, in minutes (B7)", () => {
+  it("carries the catalogue's estimate on every row", async () => {
+    const w = card({ index: 3, furthest: 7 });
+    await w.find('button[aria-controls="apply-step-list"]').trigger("click");
+    const rows = stepButtons(w);
+    APPLICATION_FILLING_SECTIONS.forEach((section, at) => {
+      // Row by row rather than "the page contains 10 min": the estimates repeat across screens, and
+      // a single `toContain` would pass with every row showing the same number.
+      expect(rows[at]!.text()).toContain(`${APPLICATION_SECTION_MINUTES[section]} min`);
+    });
+  });
+
+  it("keeps the estimate on a screen the driver has already finished", async () => {
+    // The column is read downwards to answer "how much is left", and a blank where a finished
+    // screen's number should be reads as a missing value rather than a spent one. It is also what a
+    // driver going back to correct an answer needs: how long that screen costs them again.
+    const w = card({ index: 3, furthest: 4 });
+    await w.find('button[aria-controls="apply-step-list"]').trigger("click");
+    expect(stepButtons(w)[0]!.text()).toContain(`${APPLICATION_SECTION_MINUTES.identity} min`);
+  });
+
+  it("puts nothing on the bar, which is still not a thing to aim at", async () => {
+    // Q-AX1: the bar INDICATES and the list NAVIGATES. An estimate painted on a 30px segment would be
+    // unreadable and would make the segment look like the control it deliberately is not.
+    const w = card({ index: 3 });
+    expect(w.find('[aria-hidden="true"]').text()).toBe("");
   });
 });
 

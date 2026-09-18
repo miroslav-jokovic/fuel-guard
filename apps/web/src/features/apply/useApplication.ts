@@ -146,6 +146,35 @@ export interface ApplyPacketStop extends PacketPlacement {
   signedAt: string | null;
 }
 
+/**
+ * Has this link been used for anything at all? (B7.)
+ *
+ * Beside the payload it reads rather than in the page, because it is a question about the
+ * invitation and not about a screen — and because every one of these fields means the same thing:
+ * somebody has started. A consent, a signed permission and a saved draft are three beginnings of the
+ * same act, and the expectations screen is for the person who has made none of them.
+ *
+ * ⚠ The four draft fields are read together because any one of them means a draft row exists. The
+ * server sends nulls throughout for a link nobody has typed into, and `locked` alone means the saved
+ * draft already holds a date of birth (D-APP16) — which is about as started as it gets. ⚠ And
+ * `phases` is read optionally, like everywhere else on this path: a bundle cached from before 0336
+ * served the link without one, and throwing here would show the applicant an error boundary instead
+ * of an application.
+ */
+export function linkHasBeenUsed(invitation: ApplyInvitation | undefined): boolean {
+  if (!invitation) return false;
+  const draft = invitation.draft;
+  return Boolean(
+    invitation.phases?.consentedAt
+      || invitation.phases?.releasesCompletedAt
+      || (invitation.releasesSigned?.length ?? 0) > 0
+      || draft?.payload
+      || draft?.locked
+      || draft?.furthestSection
+      || draft?.updatedAt,
+  );
+}
+
 async function publicFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api/public/application${path}`, {
     ...init,

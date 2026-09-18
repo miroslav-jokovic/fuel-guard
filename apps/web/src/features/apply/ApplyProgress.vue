@@ -5,6 +5,7 @@ import { CheckIcon, ChevronDownIcon } from "@silvicom/ui/icons";
 import {
   APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_LABELS,
+  APPLICATION_SECTION_MINUTES,
   type ApplicationSection,
 } from "@silvicom/shared";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -33,6 +34,14 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * driver has never been to would be a way around the validation, and they would meet the whole list
  * of what they skipped at the Send button instead of one screen at a time. Everything up to the
  * furthest screen reached is open, because they have already passed it.
+ *
+ * ── WHAT B7 ADDED, AND WHERE IT DELIBERATELY DID NOT GO ───────────────────────────────────────
+ * Each row now carries its estimate, so the list answers "how much is left" with a quantity instead
+ * of a count of screens. It hangs off the LIST and nothing else: the bar and the fence above are
+ * Q-AX1's rulings and B7's row says not to touch either, so the estimate is not a second thing to
+ * aim at and reaching an unvisited screen is still refused. The numbers are the catalogue's
+ * (`APPLICATION_SECTION_MINUTES`) — `ApplyExpectations.vue` prints the same ones before the driver
+ * starts, and neither component is allowed a second opinion about how long a screen takes.
  */
 const props = defineProps<{
   /** Where the driver is now. */
@@ -52,6 +61,9 @@ const steps = computed(() =>
     section,
     at,
     label: APPLICATION_SECTION_LABELS[section],
+    // B7. From the catalogue, not from a map beside this component: the estimate is a property of the
+    // screen, and the expectations screen prints the same numbers from the same place.
+    minutes: APPLICATION_SECTION_MINUTES[section],
     state: at < props.index ? "done" : at === props.index ? "here" : "later",
     reachable: at <= props.furthest,
   })),
@@ -120,6 +132,15 @@ function jump(section: ApplicationSection, reachable: boolean): void {
                  says the same thing to a sighted reader and `aria-current="step"` to every other. -->
             <span v-if="step.state === 'here'" class="hidden text-2xs text-ink-muted sm:inline">
               {{ copy.here }}
+            </span>
+            <!-- B7: what this screen costs, on every row including the ones behind the driver — the
+                 column answers "how much is left" by being read down, and a gap where a finished
+                 screen's number should be reads as a missing value rather than a spent one. Muted
+                 only when the row is reachable, for the reason the label above is: `AppButton`
+                 already mutes a disabled row, and a second mute on top of it takes the contrast
+                 under the floor `lint:ui-contrast` defends. -->
+            <span :class="['shrink-0 text-2xs tabular-nums', step.reachable ? 'text-ink-muted' : '']">
+              {{ copy.minutes(step.minutes) }}
             </span>
           </span>
         </BaseButton>
