@@ -29,6 +29,34 @@ export interface ApplicationInvitation {
   has_draft: boolean;
 }
 
+/**
+ * The LIVE invitation: the newest one that has not been revoked (B6).
+ *
+ * ⚠ **This rule already exists on the server and the two MUST agree.** `applicantChecklist.ts`
+ * expresses it as a PostgREST query — `.is("revoked_at", null).order("created_at", desc).limit(1)`
+ * — because a filter is how you say "newest unrevoked" without fetching the lot. That is why this
+ * is a second expression of one rule rather than a shared function: a fold cannot be handed to
+ * PostgREST, and making the server read every invitation so both could call one function would be a
+ * worse trade than a named pair.
+ *
+ * ⚠ The failure it guards is measured, not hypothetical. `revoked_at` was missing from the server's
+ * rule until B4, and the same driver could be described by two different invitations on two adjacent
+ * surfaces — D-HM2's failure named exactly. A `.find()` written inline in a `.vue` file is how that
+ * comes back, so it lives here beside `inviteState`, with a test.
+ */
+export function liveApplicationInvitation(
+  rows: readonly ApplicationInvitation[],
+): ApplicationInvitation | null {
+  return (
+    rows
+      .filter((r) => r.revoked_at === null)
+      .reduce<ApplicationInvitation | null>(
+        (newest, r) => (newest === null || r.created_at > newest.created_at ? r : newest),
+        null,
+      )
+  );
+}
+
 const inviteKey = (driverId: string) => ["recruitment", "application-invites", driverId] as const;
 
 export function useApplicationInvitesQuery(driverId: Ref<string>) {

@@ -395,13 +395,35 @@ Each of these is something this repo, or the research, has already paid for once
 
 ## 7. Open questions
 
+- **Q-HM9 · The §391.23(a)(2) previous-employer investigation is not one of D-HM9's fourteen steps.**
+  Found by B6, which had to give `EmployerInquirySection` a home and discovered there is no row it
+  belongs to: `grep -c inquir packages/shared/src/hiringSteps.ts` returns **0**. It is a federal
+  §391.51 file requirement, this product already builds the whole of it (the inquiry queue, the
+  30-day §391.23(c)(1) clock, `inquiryQueue.ts`, `employer_inquiries`), and the hiring checklist does
+  not mention it — so a recruiter working from the checklist alone can reach "Hired" with the
+  investigation undone. Candidates: (a) add it as a step after `application_filled`, evidence
+  `employer_inquiries`, blocking `hired`; (b) leave it off, on the grounds that it is a file
+  requirement rather than a step in the owner's process; (c) fold it into `application_filled`'s
+  state. **Recommendation (a)** — it has an evidence table, so D-HM1's corollary admits it, and every
+  other federal gate in the list is there for exactly this reason. ⚠ It is a CATALOGUE ruling and
+  changes the fold, the board and the counts, so B6 did not take it: the inquiries live in the
+  application drawer for now, labelled as being there because the step does not exist.
 - **Q-HUI1 · Does the applicant see the carrier's steps at all?** Candidates: (a) only their own, with
   one line — *"We are reviewing your application. We will email you."*; (b) the full list with ours
   greyed. **Recommendation (a).** An applicant who can see "PSP report — waiting on you" learns the
   carrier is buying a report on them, before the carrier has decided anything, and can draw a
   conclusion from its timing. ⚠ This has an FCRA-adjacent flavour and should be confirmed, not
   assumed.
-- **Q-HUI6 · Nothing in the office's product shows a signed authorization.** Raised by B5, which is
+- **~~Q-HUI6 · Nothing in the office's product shows a signed authorization.~~ CLOSED 2026-09-18 by
+  B6**, with recommendation (a): `AuthorizationsPanel` is the drawer behind the Permissions row. It
+  lists the four releases in `APPLICATION_RELEASE_ORDER`, folds each with `liveAuthorization` so a
+  revoked grant reads as outstanding (D-REC3), and leads each line with the **wording version** —
+  which is the field a FCRA §604(b)(2) dispute turns on, and the reason a tick and a date would have
+  looked complete and been useless. The original entry is kept below, because the shape of the gap is
+  the useful part: an endpoint with no caller is invisible to every gate in this repo, and what found
+  it was a checklist row asking *where do I go to see this*.
+
+  Raised by B5, which is
   the first surface that had to answer *where do I go to see the artifact*. Eleven of the twelve
   artifacts resolve — nine to the driver's §391.51 file (the filed packet included: `file.ts` files
   it as a `documents` row of kind `employment_application` cited by a qualification record), two to

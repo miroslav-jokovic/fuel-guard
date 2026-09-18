@@ -1,0 +1,202 @@
+import { describe, it, expect, afterEach } from "vitest";
+import { mount, type VueWrapper } from "@vue/test-utils";
+import { createRouter, createMemoryHistory } from "vue-router";
+import { VueQueryPlugin } from "@tanstack/vue-query";
+import { hiringChecklist, type HiringChecklistInputs, type HiringStep } from "@silvicom/shared";
+import HiringStepDrawer from "@/features/recruitment/HiringStepDrawer.vue";
+
+/**
+ * Which work a checklist row opens (B6).
+ *
+ * ── WHAT IS ASSERTED, AND WHAT IS DELIBERATELY STUBBED ────────────────────────────────────────
+ * The bodies themselves are existing components with their own suites; what B6 decided is the
+ * SWITCH — which step opens which body, and what the two bodies with no affordance yet are allowed
+ * to say. So the four section components are stubbed to their own names and the assertions are
+ * about which one rendered. Mounting them for real would test `EmploymentHistorySection` again and
+ * test `hiringStepDrawers.ts` not at all.
+ */
+
+const routes = [
+  { path: "/recruitment/:id", name: "applicant-record", component: { template: "<div />" } },
+  { path: "/drivers/:id", name: "driver-detail", component: { template: "<div />" } },
+];
+
+const DRIVER = "driver-1";
+
+const stub = (name: string) => ({ name, template: `<div data-body="${name}" />` });
+
+const STUBS = {
+  ApplicationInviteCard: stub("invite"),
+  AuthorizationsPanel: stub("authorizations"),
+  EmploymentHistorySection: stub("employment"),
+  EmployerInquirySection: stub("inquiry"),
+  PspRecordsSection: stub("psp"),
+};
+
+/** Everything the schema can see is done, so every step has a state worth opening. */
+const COMPLETE: HiringChecklistInputs = {
+  invitedAt: "2026-09-01T00:00:00Z",
+  phases: {
+    reviewRequestedAt: "2026-09-02T00:00:00Z",
+    approvedAt: "2026-09-03T00:00:00Z",
+    submittedAt: null,
+  },
+};
+
+const stepOf = (key: string): HiringStep =>
+  hiringChecklist(COMPLETE).steps.find((s) => s.key === key)!;
+
+let wrapper: VueWrapper | null = null;
+
+/** ⚠ SlideOver teleports. Unmount and clear the body, or the next test reads a panel from this one. */
+afterEach(() => {
+  wrapper?.unmount();
+  wrapper = null;
+  document.body.innerHTML = "";
+});
+
+/**
+ * ⚠ **It unmounts the previous panel first, and that line is here because a mutation caught its
+ * absence.** `SlideOver` teleports into `document.body`, so a test that opened two drawers in one
+ * `it` was reading the FIRST one's body for both assertions — the second was passing no matter what
+ * the map said, which a mutation of `office_approved` proved by staying green. `afterEach` alone is
+ * not enough when a single test opens more than one. It is the trap B5's handoff names, met from the
+ * other side: *teleported panels outlive the test*.
+ */
+async function openOn(key: string, invitationId: string | null = "invite-1") {
+  wrapper?.unmount();
+  wrapper = null;
+  document.body.innerHTML = "";
+  const router = createRouter({ history: createMemoryHistory(), routes });
+  await router.push(`/recruitment/${DRIVER}`);
+  await router.isReady();
+  wrapper = mount(HiringStepDrawer, {
+    props: {
+      open: true,
+      step: stepOf(key),
+      driverId: DRIVER,
+      driverStatus: "applicant",
+      invitationId,
+    },
+    global: { plugins: [router, VueQueryPlugin], stubs: STUBS },
+    attachTo: document.body,
+  });
+  await new Promise((r) => setTimeout(r, 0));
+  return document.body;
+}
+
+const bodyOf = (root: HTMLElement) => root.querySelector("[data-body]")?.getAttribute("data-body");
+
+describe("a row opens the work behind the step", () => {
+  it("opens the invitation for the step that sends it", async () => {
+    expect(bodyOf(await openOn("invitation_sent"))).toBe("invite");
+  });
+
+  /**
+   * ⚠ **Q-HUI6, closed.** B5 recorded that nothing in the office's half of the product showed a
+   * signed authorization — the read endpoint existed and no screen called it — and refused to point
+   * the artifact at a page showing something else. This is the row that now opens them.
+   */
+  it("opens the signed releases for the permissions step, which had no screen at all before B6", async () => {
+    expect(bodyOf(await openOn("permissions_signed"))).toBe("authorizations");
+  });
+
+  /**
+   * ⚠ Both application steps land on the application, and that is the ruling rather than a
+   * coincidence: the office's act at step 4 IS reading what was filed at step 3 and approving it.
+   */
+  it("opens the application for both the filling and the approving step", async () => {
+    expect(bodyOf(await openOn("application_filled"))).toBe("employment");
+    expect(bodyOf(await openOn("office_approved"))).toBe("employment");
+  });
+
+  it("opens the PSP ledger for the PSP step", async () => {
+    expect(bodyOf(await openOn("psp"))).toBe("psp");
+  });
+});
+
+describe("the steps with no affordance yet say so, and point at the act", () => {
+  /**
+   * ⚠ The honest half of B6. Five recorded acts (D-HM6) and the packet have no in-drawer affordance
+   * because D1, D2 and C1 are the steps that build them. A drawer opening onto nothing would be the
+   * "invent a capability" failure; a drawer that names the artifact and links the §391.51 file where
+   * the act is performed today is a signpost, and says which it is.
+   */
+  it("names the artifact and links the qualification file for a recorded act", async () => {
+    const root = await openOn("mvr");
+    expect(root.textContent).toContain("MVR report");
+    const link = [...root.querySelectorAll("a")].find((a) =>
+      a.textContent?.includes("qualification file"),
+    );
+    expect(link?.getAttribute("href")).toBe(`/drivers/${DRIVER}?section=qualification`);
+  });
+
+  /**
+   * ⚠ It must NOT claim the office can see the signing. The driver signs on their own link and C1
+   * builds the office's view; saying otherwise is the medical-certificate mistake in a new place.
+   */
+  it("says the packet is signed on the applicant's own link", async () => {
+    const root = await openOn("application_signed");
+    expect(root.textContent).toContain("their own link");
+  });
+});
+
+describe("what the drawer says about the step itself", () => {
+  /** ⚠ The title and subtitle are the catalogue's `label` and `action` — never a third string. */
+  it("titles the drawer with the step and subtitles it with the instruction", async () => {
+    const root = await openOn("mvr");
+    expect(root.textContent).toContain("Driving record");
+    expect(root.textContent).toContain("Order the driving record");
+  });
+
+  /**
+   * ⚠ ...but only while there is still something to do. `action` is an imperative, and under a
+   * finished step it reads as an order to redo it — *"Permissions signed / Sign the permissions /
+   * Done"*. Found by opening the drawer, not by a test: an assertion that the instruction is present
+   * cannot see that it is present at the wrong moment.
+   */
+  it("drops the instruction once the step is done", async () => {
+    // `invitation_sent` and not `permissions_signed`: this fixture sets `invitedAt` and no
+    // authorizations, so only the first of those is actually done. A fixture chosen for its name
+    // rather than its state is how an assertion about "done" gets made about something that is not.
+    expect(stepOf("invitation_sent").state).toBe("done");
+    const root = await openOn("invitation_sent");
+    expect(root.textContent).toContain("Invitation sent");
+    expect(root.textContent).not.toContain("Send the invitation");
+  });
+
+  /** A blocked step names its blocker here too, in the same words the row used. */
+  it("names the blocker in the drawer, in the row's own words", async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes });
+    await router.push(`/recruitment/${DRIVER}`);
+    await router.isReady();
+    const blocked = hiringChecklist({ invitedAt: "2026-09-01T00:00:00Z" }).steps.find(
+      (s) => s.key === "mvr",
+    )!;
+    expect(blocked.state).toBe("blocked");
+    wrapper = mount(HiringStepDrawer, {
+      props: {
+        open: true,
+        step: blocked,
+        driverId: DRIVER,
+        driverStatus: "applicant",
+        invitationId: null,
+      },
+      global: { plugins: [router, VueQueryPlugin], stubs: STUBS },
+      attachTo: document.body,
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.body.textContent).toContain("Needs: Permissions signed");
+  });
+
+  /**
+   * ⚠ No live invitation means no button, not a button that opens nothing. An applicant whose link
+   * was revoked has no application to read, and offering one would produce the API's refusal.
+   */
+  it("offers no application to open when there is no live invitation", async () => {
+    const root = await openOn("application_filled", null);
+    expect(root.textContent).toContain("no live invitation");
+    expect([...root.querySelectorAll("button")].some((b) => b.textContent?.includes("Open the application")))
+      .toBe(false);
+  });
+});

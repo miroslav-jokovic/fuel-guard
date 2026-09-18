@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { inviteState, type ApplicationInvitation } from "./useApplicationInvites";
+import {
+  inviteState,
+  liveApplicationInvitation,
+  type ApplicationInvitation,
+} from "./useApplicationInvites";
 
 /**
  * What an invitation is doing right now, DERIVED rather than stored — the same rule the applicant
@@ -119,5 +123,45 @@ describe("what the office can now tell apart", () => {
         NOW,
       ),
     ).toBe("used");
+  });
+});
+
+/**
+ * Which application the office is looking at (B6).
+ *
+ * ⚠ **This rule also exists on the server, as a PostgREST filter**, and the two must agree —
+ * `applicantChecklist.ts` writes it as `.is("revoked_at", null).order("created_at", desc).limit(1)`.
+ * It is not one shared function because a fold cannot be handed to PostgREST, and making the server
+ * read every invitation so both could call one is a worse trade than a named, tested pair.
+ */
+describe("the live invitation", () => {
+  const at = (id: string, created: string, revoked: string | null = null) =>
+    invite({ id, created_at: created, revoked_at: revoked });
+
+  it("is the newest, whatever order the rows arrive in", () => {
+    const rows = [
+      at("old", "2026-08-01T00:00:00Z"),
+      at("new", "2026-08-19T00:00:00Z"),
+      at("middle", "2026-08-10T00:00:00Z"),
+    ];
+    expect(liveApplicationInvitation(rows)?.id).toBe("new");
+  });
+
+  /**
+   * ⚠ The half that was MISSING from the server's rule until B4, and it was a real divergence: the
+   * same driver could be described by two different applications on two adjacent surfaces, which is
+   * D-HM2's failure named exactly. A revoked row is dead everywhere or it is dead nowhere.
+   */
+  it("skips a revoked row even when it is the newest", () => {
+    const rows = [
+      at("live", "2026-08-10T00:00:00Z"),
+      at("revoked", "2026-08-19T00:00:00Z", "2026-08-19T01:00:00Z"),
+    ];
+    expect(liveApplicationInvitation(rows)?.id).toBe("live");
+  });
+
+  it("is null when every invitation has been revoked, and null when there are none", () => {
+    expect(liveApplicationInvitation([at("a", "2026-08-01T00:00:00Z", "2026-08-02T00:00:00Z")])).toBeNull();
+    expect(liveApplicationInvitation([])).toBeNull();
   });
 });

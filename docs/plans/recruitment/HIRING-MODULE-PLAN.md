@@ -1352,6 +1352,72 @@ every time.
   `pnpm lint`, `typecheck`, `test` (9,445 unit + 40 matrices), `lint:boundaries`, `lint:filesize`,
   `lint:funcsize`, `lint:comment-claims`, `lint:ui-adoption`, `lint:surfaces` and
   `--filter web lint:tokens` all green. No migration; no schema change.
+
+- **2026-09-18, B6 — DONE. The applicant record is the checklist, and every row opens the work behind
+  it.** `/recruitment/:id` = `PageHeader` → `HiringChecklistCard` (rows are buttons now) →
+  `ExplainerPanel` → `HiringStepDrawer`. The lead action stopped being a sentence and became a button
+  that opens the same drawer its row does, which is the difference the done-when is actually about:
+  before B6 the card said what to do next and left the reader to find where.
+
+  ⚠ **§4.2's sentence — *"the five existing sections become drawer bodies"* — describes a mapping
+  that does not exist, and finding that out is most of what B6 was.** Measured against the fold:
+  **five of the twelve emitted steps have a body today and seven do not** (D1, D2 and C1 are the
+  steps that build six of the seven), and **three of the five sections are not steps at all** —
+  employment history is the *content* of `application_filled`, the employer inquiries are the
+  §391.23 investigation *of* that content, and a disposition is how the whole process EXITS. Both
+  literal readings were refused: inventing a step per homeless section would put rows on a federal
+  checklist D-HM9 never ruled, and seven rows opening onto nothing is worse than no drawer.
+
+  | | |
+  |---|---|
+  | The switch | `hiringStepDrawers.ts`, a `Record<HiringStepKey, HiringDrawerBody>` over the closed union — a new step is a **typecheck failure** there until somebody says what its drawer holds. Same fuse as B5's artifact map; proved by deleting `road_test` (`error TS2741`) |
+  | The seven | `recorded_act` and `packet` bodies: the state, the artifact **named**, and a link to the driver's §391.51 file where the act is performed today. A signpost that says it is one, not a workbench that is not |
+  | Title and subtitle | the step's `label` and `action` from the catalogue. **No third string per step** — B4 and B5 each paid for one copy-with-a-delay-fuse already |
+  | `DispositionSection` | **stays a section, deliberately.** Ending an application is not one of D-HM9's fourteen steps and must not become one; putting it behind a row would have meant inventing a fifteenth |
+  | No nested drawer | `ApplicationReviewDrawer` is itself a `SlideOver` **and** lives in `features/apply`, which `features/recruitment` may not import. Both facts point one way: the step drawer emits `review` and the page swaps one for the other |
+
+  ✅ **Q-HUI6 is CLOSED** (B5 raised it), with its own recommendation (a). `AuthorizationsPanel` is
+  the Permissions row's drawer: the four releases from `APPLICATION_RELEASE_ORDER`, each folded with
+  `liveAuthorization` so a revoked grant reads as outstanding (D-REC3), each leading with the
+  **wording version** — the field an FCRA §604(b)(2) dispute turns on, and the reason a tick and a
+  date would have looked complete and been useless. ⚠ `hiringArtifacts.ts`'s entry was corrected in
+  the same PR rather than left describing a gap that had been filled; a stale comment about a gap is
+  worse than none, because the next reader believes it.
+
+  ⚠ **Q-HM9 RAISED, and not taken here.** Giving `EmployerInquirySection` a home turned up that the
+  **§391.23(a)(2) previous-employer investigation is not one of D-HM9's fourteen steps** —
+  `grep -c inquir hiringSteps.ts` is **0** — although it is a federal §391.51 requirement and this
+  product already builds the whole of it. So a recruiter working from the checklist alone can reach
+  "Hired" with the investigation undone. Recommendation (a): add it as a step with evidence
+  `employer_inquiries`, blocking `hired`. ⚠ That is a catalogue ruling and changes the fold, the
+  board and every count; the inquiries sit in the application drawer meanwhile, labelled as being
+  there because the step does not exist.
+
+  **Two more rules that came out of building it.** `liveApplicationInvitation` in
+  `useApplicationInvites.ts` — the newest unrevoked — because the review drawer needs an invitation
+  id and a `.find()` in a `.vue` file is how the server and the page came to describe two different
+  applications for one driver before B4. It is a NAMED pair with the server's PostgREST filter, not
+  a shared function: a fold cannot be handed to PostgREST. And the checklist row is a
+  `BaseButton size="row"` with the artifact link kept OUTSIDE it — `lint:ui-adoption` fails on any
+  raw `<button>` in a page or feature, and a link nested inside a button is invalid markup and a
+  target a keyboard cannot reach separately.
+
+  **Verified:** eleven mutations, eleven red, plus the typecheck fuse. ⚠ **One of them came back
+  GREEN first time and the test was the thing at fault**, which is the result worth keeping: a test
+  that opened two drawers in one `it` was reading the FIRST panel for both assertions, because
+  `SlideOver` teleports and `afterEach` does not run between assertions. It passed whatever the map
+  said. That is B5's handoff trap — *teleported panels outlive the test* — met from the other side,
+  and the fix is in `openOn`, with the reason.
+
+  **And two defects every test was green for, both found by opening the drawer at 1440:** the
+  subtitle showed the step's imperative under a step already finished (*"Permissions signed / Sign
+  the permissions / Done"* — an order to redo it), and `hiringArtifacts.ts` still told the next
+  reader that Q-HUI6 was open after B6 had closed it. Fifth consecutive step where rendering found
+  something the suite could not. **Render the page.**
+
+  `pnpm lint`, `typecheck`, `test` (1,976 web + the rest), `lint:boundaries`, `lint:filesize`,
+  `lint:funcsize`, `lint:comment-claims`, `lint:ui-adoption`, `lint:surfaces` and
+  `--filter web lint:tokens` green. No migration; no schema change.
 ---
 
 ## 11. Sources

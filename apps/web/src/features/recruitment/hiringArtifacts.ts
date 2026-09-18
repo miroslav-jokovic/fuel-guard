@@ -19,14 +19,17 @@ import type { HiringEvidenceTable } from "@silvicom/shared";
  * artifact is a **type error in this file** until somebody says where it is reached. That is the
  * whole reason B5 made the table a union rather than leaving it `string`.
  *
- * ── AND ONE GAP, NAMED RATHER THAN FAKED ──────────────────────────────────────────────────────
- * ⚠ Four of the twelve resolve to `null`, and three of those are "it is already on the page you are
- * reading" — B6 rebuilds this page as the checklist plus drawers and gives them real affordances.
- * The fourth, `driver_authorizations`, is a genuine missing capability: **nothing in the office's
- * half of the product shows a signed authorization.** The API to read them exists
- * (`GET /api/recruitment/drivers/:driverId/authorizations`) and no screen calls it. Recorded as
- * Q-HUI6 in `HIRING-UI-PLAN.md` §7 rather than papered over with a link to somewhere near it — a
- * row that says "Authorizations" and opens the wrong document is worse than one that does not open.
+ * ── AND THE FOUR THAT ARE NOT ROUTES ──────────────────────────────────────────────────────────
+ * ⚠ Four of the twelve resolve to `null`, and all four now mean **"it is on the page you are
+ * reading"**: B6 made every checklist row open a drawer, so the invitation, the approval, the
+ * application and the signed releases are one click away rather than one navigation.
+ *
+ * ⚠ The fourth of those was a real missing capability when B5 wrote this file — nothing in the
+ * office's half of the product showed a signed authorization, the read endpoint existed and no
+ * screen called it, and it was recorded as **Q-HUI6** rather than papered over with a link to
+ * somewhere near it. **B6 closed it**, and the entry below was corrected at the same time rather
+ * than left saying something that had stopped being true. A comment describing a gap that has been
+ * filled is worse than no comment: the next reader trusts it.
  */
 
 /** A destination, or nothing — with the reason written down where the reader of this file is. */
@@ -63,11 +66,9 @@ const DESTINATIONS: Record<HiringEvidenceTable, (driverId: string) => HiringArti
   "application_invitations": () => onThisPage("The invitation"),
   "application_invitations.approved_at": () => onThisPage("The approved application"),
   "driver_applications": () => onThisPage("The application"),
-  // ⚠ The one real gap — Q-HUI6. No office screen renders a signed authorization at all.
-  "driver_authorizations": () => ({
-    to: null,
-    unreachable: "No screen shows a signed authorization yet (Q-HUI6).",
-  }),
+  // ⚠ Was the one real gap. **Q-HUI6 was CLOSED by B6**: `AuthorizationsPanel` is the drawer behind
+  // the Permissions row, so the releases now have a screen and this entry stops claiming otherwise.
+  "driver_authorizations": () => onThisPage("The signed releases"),
   "qualification_records.mvr": qualificationFile,
   "qualification_records.psp_report": qualificationFile,
   "qualification_records.clearinghouse_full": qualificationFile,

@@ -149,6 +149,51 @@ describe("state is never colour alone (D-HUI4)", () => {
   });
 });
 
+describe("the row is where the work starts (B6)", () => {
+  /**
+   * ⚠ The card emits and does not open. Q-HUI3 names the DQF page as the second consumer that
+   * promotes this component out of `features/` under D-DS18, and a drawer wired in here would bake a
+   * recruitment-shaped assumption into it before that move — so the contract asserted is the EVENT.
+   */
+  it("emits the step a reader chose, not its key or its index", async () => {
+    const wrapper = await mountWith(JUST_INVITED);
+    const rows = wrapper.findAll("li");
+    await rows[4]!.find("button").trigger("click");
+    const emitted = wrapper.emitted("open");
+    expect(emitted).toHaveLength(1);
+    expect((emitted![0]![0] as { key: string }).key).toBe(
+      hiringChecklist(JUST_INVITED).steps[4]!.key,
+    );
+  });
+
+  /**
+   * ⚠ The lead action and the row must land in the SAME place. Before B6 the card said what to do
+   * next and left the reader to find where, which is the gap between a checklist and a board — and
+   * a second destination for one instruction would be worse than the sentence it replaced.
+   */
+  it("leads with a button that opens the same step the next action names", async () => {
+    const wrapper = await mountWith(JUST_INVITED);
+    const c = hiringChecklist(JUST_INVITED);
+    const lead = wrapper.findAll("button").find((b) => b.text().includes("Sign the permissions"));
+    expect(lead, "the next action is not a button").toBeTruthy();
+    await lead!.trigger("click");
+    expect((wrapper.emitted("open")![0]![0] as { key: string }).key).toBe(c.next);
+  });
+
+  /**
+   * ⚠ The artifact link stays OUTSIDE the row button. A link nested inside a button is invalid
+   * markup and a target a keyboard cannot reach separately — two destinations in one row have to be
+   * two siblings, and this is the assertion that keeps them apart.
+   */
+  it("keeps the artifact link out of the row button", async () => {
+    const wrapper = await mountWith(COMPLETE);
+    for (const button of wrapper.findAll("li button")) {
+      expect(button.find("a").exists(), "an artifact link is nested inside a row button").toBe(false);
+    }
+    expect(wrapper.findAll("li a").length).toBeGreaterThan(0);
+  });
+});
+
 describe("the header and the summary", () => {
   /**
    * ⚠ Progress is a percentage of STEPS and the count never renumbers under somebody — completed
