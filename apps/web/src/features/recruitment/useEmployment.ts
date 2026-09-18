@@ -7,6 +7,8 @@ import type {
   EmploymentHistory,
   EmploymentHistoryCreate,
   EmploymentHistoryUpdate,
+  HiringPhase,
+  HiringStepKey,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
@@ -39,6 +41,31 @@ export interface PipelineApplicant {
    * the other.
    */
   disposition: ApplicantDispositionRow | null;
+  /**
+   * The hiring checklist, projected to the five things the board's columns show (B4).
+   *
+   * ⚠ **The whole row comes from the server's fold, including the words.** `next_label` and the
+   * phase are resolved from `HIRING_STEPS` in `packages/shared` rather than mapped here, so the
+   * board cannot drift from the applicant's own checklist (D-HM2) or from the printed file. A
+   * `Record<HiringStepKey, string>` in this app would be that drift with a delay fuse.
+   *
+   * Nullable because the endpoint predates it and an older deploy can still answer without it —
+   * see [["Deployed" is a per-service question]]: the two Railway services routinely sit at
+   * different commits, so the page has to survive a response from yesterday's API.
+   */
+  checklist: BoardChecklist | null;
+}
+
+/** One row's worth of checklist. Mirrors `applicantBoard.ts`'s `BoardChecklist`, which owns it. */
+export interface BoardChecklist {
+  next: HiringStepKey | null;
+  next_label: string | null;
+  phase: HiringPhase | null;
+  waiting_on: "us" | "them" | null;
+  done: number;
+  total: number;
+  days_waiting: number;
+  last_progress_at: string | null;
 }
 const historyKey = (driverId: string) => ["recruitment", "employment", driverId] as const;
 

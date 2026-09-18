@@ -1,7 +1,5 @@
 import {
-  ArrowsRightLeftIcon,
   BeakerIcon,
-  CheckCircleIcon,
   CurrencyDollarIcon,
   DocumentTextIcon,
   ChartAverageIcon,
@@ -88,9 +86,11 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   // ⚠ U5/D-UI6: Applicants rendered Building02Icon — a BUILDING, for the person applying. The LABEL
   // is deliberately untouched: RECRUITING-SYSTEM-PLAN R9 owns the word and renames it when the
   // recruiter board lands (D-UI8).
+  // ⚠ Screening readiness and the inquiry queue lost their icons at B4 with their nav entries
+  // (D-HUI8). `check-surfaces.mjs` requires the two key sets to match EXACTLY in both directions,
+  // so an icon left behind for a surface that is no longer in the nav fails the gate — which is the
+  // gate doing its job: a glyph nothing renders is the first half of a sidebar entry coming back.
   "recruitment.applicants": UserListIcon,
-  "recruitment.screening": CheckCircleIcon,
-  "recruitment.inquiries": ArrowsRightLeftIcon,
 
   "fleet.vehicles": VehicleIcon,
   "fleet.trailers": TrailerIcon,

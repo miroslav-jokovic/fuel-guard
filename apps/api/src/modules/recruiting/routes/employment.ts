@@ -16,6 +16,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { boardChecklists } from "../applicantBoard.js";
 
 /**
  * Recruitment — the applicant pipeline (H6) and the §391.21(b)(10)-(11) employment list (0208).
@@ -198,6 +199,35 @@ export function recruitmentEmploymentRouter(): Router {
         else authsBy.set(row.driver_id, [row]);
       }
 
+      /**
+       * The hiring checklist for every row, folded set-based (B4).
+       *
+       * ⚠ It reuses the invitation, the draft flag and the authorizations already read above rather
+       * than reading them again, and that is a correctness argument before it is a performance one:
+       * `boardChecklists` and `applicantProgress` are two answers about one person on one row, and
+       * two independent reads of `application_invitations` could pick different invitations and then
+       * disagree in adjacent columns — which is D-HM2's failure exactly.
+       */
+      const checklists = await boardChecklists(
+        admin,
+        orgId,
+        (applicants ?? []).map((a) => ({
+          driverId: a.id,
+          hiredAt: (a as { hire_date: string | null }).hire_date,
+          invitation: inviteBy.get(a.id) ?? null,
+          hasDraft: (() => {
+            const invite = inviteBy.get(a.id);
+            return invite ? draftFor.has(invite.id) : false;
+          })(),
+          authorizations: authsBy.get(a.id) ?? [],
+          // ⚠ The NEWEST decision, through the same `currentDisposition` the row below uses — the
+          // table is append-only, so a carrier that declines and then changes its mind has two rows
+          // and only the later one is the answer. Reading `.length > 0` here would keep a
+          // reconsidered applicant off the board's own queue for ever.
+          decided: currentDisposition(decisionsBy.get(a.id) ?? []) !== null,
+        })),
+      );
+
       const rows = (applicants ?? []).map((a) => {
         const own = historyBy.get(a.id) ?? [];
         const asOf = String(a.created_at ?? "").slice(0, 10) || new Date().toISOString().slice(0, 10);
@@ -236,6 +266,9 @@ export function recruitmentEmploymentRouter(): Router {
           // declines and then changes its mind records a second row. `currentDisposition` is shared
           // with the driver page so the board and the file cannot answer this differently.
           disposition: currentDisposition(decisionsBy.get(a.id) ?? []),
+          // The board's five columns since B4. Always present — the fold answers for an applicant
+          // who has done nothing as readily as for one who has done everything.
+          checklist: checklists.get(a.id) ?? null,
         };
       });
 

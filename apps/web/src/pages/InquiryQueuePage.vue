@@ -17,6 +17,7 @@ import StatCard from "@/components/ui/StatCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { inquiryStateTone } from "@/lib/badges.recruiting";
 import { useInquiryQueueQuery, type InquiryQueueRow } from "@/features/recruitment/useInquiryQueue";
+import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 
 /**
  * The §391.23 queue (EMPLOYER-INQUIRY-PLAN E5).
@@ -86,6 +87,9 @@ const columns: DataTableColumn[] = [
 <template>
   <div class="space-y-6">
     <PageHeader description="Every safety-history investigation with work left, closest to its deadline first" />
+
+    <!-- D-HUI8: this page keeps its URL and stops being a sidebar entry. -->
+    <RecruitmentTabs />
 
     <!-- U3/D-UI2: three figures that were bare `<div>`s inside one card — a KPI row that was not a
          tile. `muted` keeps the deliberate dimming of a zero worth showing but not alarming about. -->

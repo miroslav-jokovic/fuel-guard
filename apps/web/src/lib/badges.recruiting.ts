@@ -1,3 +1,4 @@
+import { HIRING_PHASE_LABELS, type HiringPhase } from "@silvicom/shared";
 import { toneClass, type DqBadge } from "./badges";
 
 /**
@@ -124,6 +125,43 @@ export function applicantDispositionBadge(outcome: string): DqBadge {
     default:
       return { label: outcome, tone: "neutral" };
   }
+}
+
+/**
+ * The hiring board's Stage chip (B4) — the phase of the step an applicant is waiting on.
+ *
+ * ⚠ **The label is read from `HIRING_PHASE_LABELS`, never written here.** A `case` per phase with a
+ * string beside it would be the copy `hiringSteps.ts`'s own header argues against, and it would go
+ * stale silently the first time a phase was renamed. What this function decides is the TONE, which
+ * is a UI fact and belongs in this file; the words are the catalogue's.
+ *
+ * ⚠ And every tone but one is `neutral`, which is D-HUI4 applied rather than an unfinished palette:
+ * *a board where everything shouts is a board nobody reads*. The stage is context, not an alarm —
+ * the loud column is Waiting on, and only when the answer is *you*. `hire` earns `success` because
+ * "there is nothing left to do but hire them" is the one stage that is genuinely good news.
+ */
+export function hiringPhaseBadge(phase: HiringPhase | null): DqBadge {
+  if (phase === null) return { label: "Hired", tone: "success" };
+  return { label: HIRING_PHASE_LABELS[phase], tone: phase === "hire" ? "success" : "neutral" };
+}
+
+/**
+ * The hiring board's Waiting-on chip (B4) — who owes the next move.
+ *
+ * ⚠ **This is the only loud thing on the board**, and D-HUI4 says why in as many words: the office's
+ * real question every morning is *"what is mine today?"*, and the four step states are not ordered
+ * on a good/bad axis — *waiting on them* and *waiting on us* are equally "in progress" and are
+ * completely different actions. So `us` is `warning` and `them` is `neutral`: not because chasing
+ * somebody is less important, but because a recruiter can only ever act on one of the two.
+ *
+ * ⚠ "You" and "Them" rather than "Us" and "Applicant". The column is read by the person who owes
+ * it, and `applicantStageBadge` already established the second person for exactly this ("Waiting
+ * for you"). A board that says "Us" is a board written from the product's point of view.
+ */
+export function hiringWaitingOnBadge(who: "us" | "them" | null): DqBadge {
+  if (who === "us") return { label: "You", tone: "warning" };
+  if (who === "them") return { label: "Them", tone: "neutral" };
+  return { label: "Nobody", tone: "neutral" };
 }
 
 export function employmentInquiryBadge(status: string): DqBadge {

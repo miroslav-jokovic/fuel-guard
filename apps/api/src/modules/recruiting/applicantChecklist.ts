@@ -34,7 +34,7 @@ export const isChecklistError = (v: unknown): v is ChecklistError =>
   typeof v === "object" && v !== null && (v as ChecklistError).code === "not_found";
 
 /** Just enough of the invitation to answer phases — the token hash is never selected. */
-const INVITE_COLS = "id, created_at, review_requested_at, approved_at, submitted_at";
+const INVITE_COLS = "id, created_at, review_requested_at, approved_at, submitted_at, revoked_at";
 
 export async function applicantChecklist(
   admin: SupabaseClient,
@@ -56,18 +56,29 @@ export async function applicantChecklist(
   }
 
   /**
-   * The LIVE invitation, which is the newest one.
+   * The LIVE invitation: the newest one that has not been REVOKED.
    *
    * ⚠ A driver can have several — a link that expired and was re-sent, or a rehire, which 0337 is
    * explicit must not merge with the first application. Reading the newest is the only answer that
    * stays right through both: an older row's stamps describe a hire that already happened or a link
    * that was replaced, and folding those would report last spring's progress as this week's.
+   *
+   * ⚠ **`revoked_at` was missing from this rule until B4 and that was a real divergence, not a
+   * nicety.** `applicationIntake`'s `resolveInvitation` treats a revoked row as dead, and the
+   * pipeline that draws the board beside this one has always skipped them. So the same driver could
+   * be described by two different invitations on two adjacent surfaces — which is D-HM2's failure
+   * named exactly: *the applicant can never be told they are waiting on us while the office is told
+   * the opposite*. One rule, in the one place each caller reads it.
+   *
+   * A `.limit(1)` cannot express "newest unrevoked" in PostgREST without a filter, so the filter is
+   * the `.is("revoked_at", null)` below rather than a slice taken afterwards.
    */
   const { data: invites } = await admin
     .from("application_invitations")
     .select(INVITE_COLS)
     .eq("org_id", orgId)
     .eq("driver_id", driverId)
+    .is("revoked_at", null)
     .order("created_at", { ascending: false })
     .limit(1);
   const invitation = ((invites ?? []) as InvitationRow[])[0] ?? null;
@@ -115,6 +126,7 @@ interface InvitationRow {
   review_requested_at: string | null;
   approved_at: string | null;
   submitted_at: string | null;
+  revoked_at: string | null;
 }
 
 /**

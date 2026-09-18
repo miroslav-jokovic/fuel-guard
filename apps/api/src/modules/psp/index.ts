@@ -18,5 +18,5 @@ export { PspError, fetchMonitoringReport, fetchRecordPdf, pspHost, requestRecord
 export { recruitmentPspRouter } from "./routes/psp.js";
 export { recruitmentPspOrdersRouter } from "./routes/pspOrders.js";
 export { orderPspRecord, pspOrderPreflight } from "./pspOrder.js";
-export { hasPspRequest } from "./pspRequests.js";
+export { hasPspRequest, driversWithPspRequest } from "./pspRequests.js";
 export { filePspImport, isPspImportError, registerPspImportDocument } from "./pspImport.js";

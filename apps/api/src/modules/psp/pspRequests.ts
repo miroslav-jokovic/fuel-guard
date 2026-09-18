@@ -38,3 +38,30 @@ export async function hasPspRequest(
     .limit(1);
   return ((data ?? []) as unknown[]).length > 0;
 }
+
+/**
+ * The same question for a whole board, in one query (B4).
+ *
+ * ── WHY A SECOND FUNCTION AND NOT A LOOP OVER THE FIRST ───────────────────────────────────────
+ * ⚠ The board folds every applicant on one request, so `hasPspRequest` per row would be one query
+ * per applicant for one boolean each. That is the shape `LIVE-MAP-CONCURRENCY-PLAN.md` §7 measured
+ * as the thing that refused a whole office, and it took three PRs to undo. The set-based read is
+ * the same SQL with `.in()` instead of `.eq()`, so there is no second rule here to get wrong — only
+ * a second arity.
+ *
+ * Returns the ids that HAVE an order, rather than a map to `false`, so a caller cannot accidentally
+ * read "absent" as anything but "no order".
+ */
+export async function driversWithPspRequest(
+  admin: SupabaseClient,
+  orgId: string,
+  driverIds: readonly string[],
+): Promise<Set<string>> {
+  if (driverIds.length === 0) return new Set();
+  const { data } = await admin
+    .from("psp_requests")
+    .select("driver_id")
+    .eq("org_id", orgId)
+    .in("driver_id", driverIds);
+  return new Set(((data ?? []) as Array<{ driver_id: string }>).map((r) => r.driver_id));
+}
