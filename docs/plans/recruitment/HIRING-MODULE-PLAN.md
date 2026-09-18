@@ -594,7 +594,8 @@ is in the office and everything is done and signed and then we do hiring."*
 | 5 | **MVR** pulled outside this product and uploaded (Q-HM2) | office | `documents` + `qualification_records` kind `mvr` |
 | 6 | **PSP** report | office | `psp_requests` + `psp_report` |
 | 7 | **Clearinghouse** full query, run in FMCSA's portal, recorded here | office | `clearinghouse_full` |
-| 8 | **Drug test** — collection, then verified negative from the MRO | external | `drug_test` |
+| 8 | **Drug test** — collection at Medstop, then the verified negative | external | `drug_test` |
+| 8b | ⚠ **Medical certificate checked against the National Registry** — the sixth federal gate, and it was **missing from this list until 2026-09-17** (see below) | office | `medical_registry_verification` |
 | 9 | **Orientation videos + quizzes** (Q-HM3) | remote, before travel | training completion + certificate |
 | 10 | **Road test** (Q-HM1) | **office, on arrival** | §391.31(e) certificate, kind `road_test` |
 | 11 | **Live orientation, by section** (Q-HM7) | office, same day | attendance |
@@ -609,12 +610,35 @@ and other things we can finish it in half day and assign a truck if driver is in
 morning."*
 
 ⚠ **So the checklist's most valuable single output is not a percentage — it is the answer to "can this
-person travel yet?"** Steps 1–9 green is that answer. Build it as a named thing in `hiringChecklist.ts`
-(`readyToTravel`), not as something a recruiter infers by reading nine rows.
+person travel yet?"** Steps 1–9 green is that answer.
+
+⚠ **And it is TWO answers, not one** — the owner's Q-HM5 ruling split them. `hiringChecklist.ts` emits
+both as named things, never as something a recruiter infers by reading nine rows:
+
+- **`readyToTravel`** — steps 1–9 green. Five of the six federal gates (application, Clearinghouse,
+  drug test, driving record, medical certificate) plus PSP and the videos. **This is the gate on the
+  plane ticket**, and the owner is explicit that nothing else is: *"we will not even bring him if this
+  not green."*
+- **`readyToHire`** — that, plus the road test, the live orientation, the handbook and the 22 marks.
+  The sixth federal gate, the **road test, is the only one that cannot be green before arrival**
+  because it physically happens on arrival (step 10).
+
+That split is the whole reason this is a checklist and not a wizard: the same fold answers two
+different questions on two different days.
 
 ⚠ **The consequence for the signing surface (D-HUI9): step 13 happens IN THE OFFICE.** The phone
 measurement still stands and the design still renders at every width — but the primary device is now
 an office screen, not a truck-stop phone, which removes the risk from C1 rather than adding to it.
+
+⚠ **A GAP THIS LIST HAD UNTIL 2026-09-17, found by the owner reciting the six gates back.** The
+**medical certificate** is one of the six things federal law wants on file before anybody drives, and
+it was **not a step here** — because the application already *captures* the card (`medical_card` is an
+`APPLICATION_CAPTURE_SLOTS` entry) and capture had been silently mistaken for the gate. It is not:
+checking the examiner against the **National Registry** is a separate act with its own record kind,
+`medical_registry_verification`, already in `dqCatalogue.ts` and already a `qualification_records`
+kind since 0217. It is step **8b** above. ⚠ The lesson generalises and is worth the sentence: **a
+document being uploaded is not the same fact as a document being verified**, and a checklist that
+conflates them reports a gate as green that nobody has checked.
 
 ⚠ **The consequence for orientation videos: they are assigned to an APPLICANT, before hire.** That
 overrides `RECRUITING-SYSTEM-PLAN.md`'s Q-REC6 fallback (*"no assignment is auto-created pre-hire
@@ -665,10 +689,16 @@ a process decision is how a plan starts describing a business nobody runs.
   this build: we enforce the strict order, which is simultaneously the legal safe harbour and the
   real process. ⚠ Counsel is needed **only** if the carrier ever wants to road-test on arrival without
   results in hand, and until somebody asks for that, nothing is blocked. **D2 is unblocked.**
-- **~~Q-HM2 · MVR vendor.~~ RULED: there is no vendor and there will not be one.** The owner:
-  *"we are handling this MVR pulls out of Silvicom 360 and uploading it."* This is D-HM6's recorded-act
-  path, chosen deliberately rather than as a fallback. **Do not build an MVR integration.** Build the
-  upload, the file and the annual-review clock. **D1 is unblocked** for MVR.
+- **~~Q-HM2 · MVR vendor.~~ RULED: no integration.** The owner: *"we are handling this MVR pulls out
+  of Silvicom 360 and uploading it"*, and then, on 2026-09-17: *"we pulling this instantly from
+  **Samba** even before drivers arrive office."*
+  So the vendor is **SambaSafety** and the carrier already has a working account that returns records
+  instantly — it simply is not reached from this product. **Do not build an MVR integration.** Build
+  the upload, the file and the annual-review clock. **D1 is unblocked** for MVR.
+  ⚠ Recorded because it changes the price of a future decision, not this one: Samba was deferred on
+  **cost** in August 2026, and the recon that would be needed if it is ever revisited already exists
+  (`../safety-dqf/SAMBA-RECON.md`, `RECRUITING-SYSTEM-PLAN.md` R3/R4). A live account makes that
+  cheaper than the deferral assumed. **It stays deferred; this is a note, not a reopening.**
 - **~~Q-HM3 · Pre-hire or post-hire training?~~ RULED: pre-hire, and pre-arrival.** The owner:
   *"orientation videos are pre arriving and pre hiring process. Hiring is concluded when applicant is
   in the office and everything is done and signed and then we do hiring."* See D-HM9 steps 9 and 14.
@@ -689,29 +719,28 @@ a process decision is how a plan starts describing a business nobody runs.
 
 ### Still open
 
-- **⚠ Q-HM5 · If something federal is missing, does the product REFUSE the hire or WARN and let it
-  through?** ⚠ **Asked twice in jargon and not answered either time — that is the question's fault,
-  and it is rewritten here in the words it should always have used.**
+- **~~Q-HM5 · Refuse or warn?~~ RULED 2026-09-17: REFUSE — and the carrier is already stricter than
+  the product was going to be.** The owner, given the six by name: *"we pulling this instantly from
+  Samba even before drivers arrive office … we even before he comes we will not even bring him if
+  this not green."*
 
-  Federal law requires six things on file before anybody drives: the **application**, a
-  **Clearinghouse** query that is not "prohibited", a **drug test** that came back negative, a
-  **driving record** from every state they were licensed in, a valid **medical certificate**, and a
-  **road test**. D-HM9 has all six as steps 3, 7, 8, 5, and 10.
+  ⚠ **That is a stronger answer than either candidate.** The question asked what happens when a
+  recruiter presses Hire with something missing. The answer is that **the situation is not allowed to
+  arise** — five of the six are green *before the applicant is asked to travel*, so the office never
+  meets the dilemma at all.
 
-  The scenario that decides it, and it is a real morning at Silvicom: *the driver is in the office,
-  the road test is passed, orientation is done, and the driving record has not come back yet. The
-  recruiter wants to hire and give him a truck today.* Does the product:
+  **What the product builds, therefore:**
+  - `readyToTravel` is a **hard gate on the invitation to come in**, not a warning beside it. It is
+    the earliest place a refusal costs nothing and prevents the most — a wasted journey rather than
+    an unlawful hire.
+  - `readyToHire` refuses the hire outright on all six. There is no "hire anyway and record who
+    decided", because the carrier has said the scenario does not happen; building an override for a
+    situation the owner has ruled out would be inventing a way around his own process.
+  - Everything that is **not** one of the six — handbook, a section of orientation, a photo — warns
+    and never blocks.
 
-  (a) **Refuse.** The Hire button does not work until all six are on file. Says which one is missing.
-  (b) **Warn.** Shows plainly what is missing, lets the office hire anyway, and **records who decided
-      to and when**.
-
-  *Recommendation:* **(a) for these six only, (b) for everything else.** Letting somebody drive
-  without a negative drug test is the violation this product exists to prevent, and the office cannot
-  un-know it once the screen has said so. Everything that is not one of the six — handbook, a
-  section of orientation, a photo — warns and never blocks.
-  *Fallback until ruled:* the fold reports `blocking: true` on the six and **the UI only warns**, so
-  whichever way it goes the change is one condition in a component, not a rework.
+  ⚠ **The road test is the only gate that is green after arrival**, so it is the last thing between a
+  driver in the office and a truck. That is step 10, and it is why the half-day works.
 
 ### D-HM10 — the handbook is a separate instrument, signed in the office (ruled 2026-09-17)
 
