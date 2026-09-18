@@ -20,6 +20,7 @@ import {
   useScreeningReadinessQuery,
 } from "@/features/recruitment/useScreeningReadiness";
 import DobImportCard from "@/features/recruitment/DobImportCard.vue";
+import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 
 /**
  * Screening readiness (PSP-PLAN P0b) — the page that answers "how many drivers can we screen".
@@ -96,6 +97,10 @@ const columns: DataTableColumn[] = [
 <template>
   <div class="space-y-6">
     <PageHeader description="How many drivers FMCSA PSP could actually be asked about, and what is missing for the rest" />
+
+    <!-- D-HUI8: this page keeps its URL and stops being a sidebar entry. `RecruitmentTabs` is the
+         one place that knows the three views; it carries why the tabs navigate. -->
+    <RecruitmentTabs />
 
     <BaseCard v-if="summary">
       <div class="flex flex-wrap items-start justify-between gap-4">

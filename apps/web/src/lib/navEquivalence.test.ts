@@ -21,6 +21,24 @@ import { buildNavGroups } from "./nav";
  * one role would pin the shape and miss the gates, which are the whole content of this file. The
  * `sections` claim is exercised separately below, because that argument is what P3 added and a
  * refactor could silently stop threading it.
+ *
+ * ── THE SNAPSHOTS WERE UPDATED ONCE, ON 2026-09-18, AND THIS IS THE RECORD OF WHY ─────────────
+ * ⚠ The file above says a passing run is the proof that nothing moved, so an update needs a reason
+ * better than "it went red". B4 (`HIRING-MODULE-PLAN.md`) is a deliberate PRODUCT change rather
+ * than a refactor: D-HUI8 rules that screening readiness and the safety-history inquiry queue stop
+ * being sidebar entries and become tabs on the hiring board. Both keep their routes, their keys and
+ * their grants — only the entry point moves.
+ *
+ * What makes the update safe to believe is what the diff SAID. Across all nineteen snapshots the
+ * whole change was the same two lines, removed:
+ *
+ *     - "Screening readiness → /recruitment/screening",
+ *     - "Safety-history inquiries → /recruitment/inquiries",
+ *
+ * No other entry, no other group, no gate, in no role and no module set. That is the harness doing
+ * exactly its job — it turned "I moved two nav items" into a proof that I moved two nav items and
+ * nothing else — and it is why the next person to update these should read the diff line by line
+ * before they run `-u`.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */

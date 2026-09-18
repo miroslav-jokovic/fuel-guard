@@ -231,12 +231,9 @@ export const SURFACES: readonly Surface[] = [
   // The hiring half of §391, and its OWN section — not a corner of Fleet. Gating it on `fleet` (how
   // it first shipped) let a dispatcher read every driver's former employers; §391.53(a)(1) puts that
   // file with the people making the hiring decision.
+  // ⚠ ONE recruitment entry since B4 (D-HUI8), where there were three: screening readiness and the
+  // inquiry queue are children of this one now, in the NON-NAV block below. Keys unchanged.
   { key: "recruitment.applicants", label: "Applicants", path: "/recruitment", group: "recruitment", gate: section("recruitment") },
-  // U1/D-UI1: both routes were REGISTERED on 2026-08-20 to close a P0b incident (the URLs fell
-  // through to nothing) and still had no nav entry, so they were reachable only from two buttons on
-  // the Applicants page. A recruiter arriving from a notification had no way back.
-  { key: "recruitment.screening", label: "Screening readiness", path: "/recruitment/screening", group: "recruitment", gate: section("recruitment") },
-  { key: "recruitment.inquiries", label: "Safety-history inquiries", path: "/recruitment/inquiries", group: "recruitment", gate: section("recruitment") },
 
   // ── fleet ─────────────────────────────────────────────────────────────────────────────────────
   // ⚠ ONE group, TWO sections since the D-ROS12 split, deliberately. "Fleet" is where an operator
@@ -311,6 +308,18 @@ export const SURFACES: readonly Surface[] = [
   { key: "fleet.vehicles.detail", label: "Vehicle", path: "/vehicles/:id", group: "fleet", gate: section("equipment"), parent: "fleet.vehicles" },
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },
   { key: "recruitment.applicants.detail", label: "Applicant", path: "/recruitment/:id", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
+  /**
+   * The board's two other tabs (D-HUI8, B4). Non-nav, parented on the board, keys unchanged.
+   *
+   * U1/D-UI1 gave both a nav entry in 2026-08-20's P0b incident, when they were reachable only from
+   * two buttons and a recruiter arriving from a notification had no way back. This does NOT
+   * reintroduce it: the tab strip is on all three pages and every URL still resolves.
+   * ⚠ A `parent` makes them answer to the board's key (D-SURF8), so a separate denial of either
+   * would become a denial of the board. Measured on production first, 2026-09-18: both override
+   * tables hold ZERO rows for any `recruitment.*` key, so nothing stored is reinterpreted.
+   */
+  { key: "recruitment.screening", label: "Screening readiness", path: "/recruitment/screening", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
+  { key: "recruitment.inquiries", label: "Safety-history inquiries", path: "/recruitment/inquiries", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
   { key: "maintenance.parts.detail", label: "Part", path: "/shop/inventory/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.parts" },
   { key: "maintenance.assets.detail", label: "Asset", path: "/shop/assets/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.assets" },

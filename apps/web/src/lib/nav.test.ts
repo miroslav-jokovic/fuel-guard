@@ -86,20 +86,24 @@ describe("fuel cards", () => {
 });
 
 /**
- * U1/D-UI1 — the two recruitment sub-pages, and the glyph rule that made them findable.
+ * U1/D-UI1 — the recruitment surfaces, and the glyph rule that made them findable.
  *
- * Both routes were registered on 2026-08-20 to close a P0b incident (the URLs fell through to
- * nothing) and then had no nav entry for a day, so they were reachable only from two buttons on the
- * Applicants page. The first test below is the half a route record cannot assert.
+ * Both sub-page routes were registered on 2026-08-20 to close a P0b incident (the URLs fell through
+ * to nothing) and then had no nav entry for a day, so they were reachable only from two buttons on
+ * the Applicants page.
+ *
+ * ── WHAT B4 CHANGED HERE, AND WHY THE P0b GUARANTEE DID NOT MOVE ──────────────────────────────
+ * ⚠ This test asserted all THREE paths were in the sidebar, which is exactly the assertion D-HUI8
+ * reverses: screening readiness and the inquiry queue are tabs on the board now, not sidebar rows.
+ * Deleting the test would have taken the P0b guarantee with it, so the guarantee moved instead of
+ * being dropped — `RecruitmentTabs.test.ts` pins that all three views are offered on every one of
+ * the three pages, which is a STRONGER promise than a sidebar entry was: it holds on the sub-pages
+ * themselves, which is where somebody arriving from a notification actually lands.
  */
 describe("recruitment is navigable, not just routed", () => {
-  it("publishes all three recruitment surfaces to a recruiter", () => {
+  it("publishes ONE recruitment entry, the board (D-HUI8)", () => {
     const group = buildNavGroups("recruiter", null).find((g) => g.label === "Recruitment");
-    expect(group?.items.map((i) => i.to)).toEqual([
-      "/recruitment",
-      "/recruitment/screening",
-      "/recruitment/inquiries",
-    ]);
+    expect(group?.items.map((i) => i.to)).toEqual(["/recruitment"]);
   });
 
   it("shows a driver none of it", () => {

@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { hiringChecklist, type HiringChecklistInputs } from "./hiringChecklist.js";
-import { HIRING_STEPS, measurableHiringSteps, type HiringStepKey } from "./hiringSteps.js";
+import {
+  HIRING_PHASE_LABELS,
+  HIRING_STEPS,
+  hiringStep,
+  measurableHiringSteps,
+  type HiringStepKey,
+} from "./hiringSteps.js";
 import { APPLICATION_RELEASE_ORDER } from "./applicationIntake.js";
 import type { AuthorizationRow } from "./authorizationContract.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
@@ -92,6 +98,29 @@ describe("the catalogue", () => {
   it("puts the travel seam after step 9", () => {
     const before = HIRING_STEPS.filter((s) => s.beforeTravel).map((s) => s.ordinal);
     expect(before).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "8b", "9"]);
+  });
+
+  /**
+   * ⚠ Every step carries a phase and an ACTION, and the action is never the label (B4).
+   *
+   * Both fields exist because the board asked this catalogue two questions a checklist never asks:
+   * *what stage is this* and *what has to happen next*. The second is the one that went wrong in
+   * the only way a type cannot catch — a step whose action is its label renders "Next action:
+   * Office approved it", a completed fact where an instruction belongs. That shipped, was green,
+   * and was found by looking at the board at 1440 on 2026-09-18.
+   */
+  it("gives every step a phase, and an action that is not its label", () => {
+    for (const step of HIRING_STEPS) {
+      expect(HIRING_PHASE_LABELS[step.phase], `${step.key} has no phase label`).toBeTruthy();
+      expect(step.action.length, `${step.key} has no action`).toBeGreaterThan(0);
+      expect(step.action, `${step.key}'s action is its label, so the board reads as a fact`)
+        .not.toBe(step.label);
+    }
+  });
+
+  /** `hiringStep` is total over the union — a miss means the union and the array have drifted. */
+  it("resolves every key in the union to a spec", () => {
+    for (const step of HIRING_STEPS) expect(hiringStep(step.key)).toBe(step);
   });
 });
 

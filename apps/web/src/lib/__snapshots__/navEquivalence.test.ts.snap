@@ -39,8 +39,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -252,8 +250,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -334,8 +330,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -414,8 +408,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -497,8 +489,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -576,8 +566,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -653,8 +641,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -737,8 +723,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -991,8 +975,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1065,8 +1047,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1137,8 +1117,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1189,8 +1167,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1221,8 +1197,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1253,8 +1227,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1299,8 +1271,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1346,8 +1316,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1393,8 +1361,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1575,8 +1541,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "group": "Recruitment",
     "items": [
       "Applicants → /recruitment",
-      "Screening readiness → /recruitment/screening",
-      "Safety-history inquiries → /recruitment/inquiries",
     ],
   },
   {
@@ -1662,8 +1626,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "group": "Recruitment",
       "items": [
         "Applicants → /recruitment",
-        "Screening readiness → /recruitment/screening",
-        "Safety-history inquiries → /recruitment/inquiries",
       ],
     },
     {

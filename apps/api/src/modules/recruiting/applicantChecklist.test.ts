@@ -1,10 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { hiringChecklist, packetDriverMarkCount, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
-import {
-  createSupabaseRecorder,
-  expectOrgScoped,
-  type RecordedQuery,
-} from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 
 /**
@@ -31,30 +28,11 @@ const INVITE = "11111111-2222-4333-8444-555555555555";
  * a test written against one. Two of the properties below are precisely about narrowing (the live
  * invitation, and marks counted against it), so they are only real if the fake narrows.
  *
- * This applies what PostgREST would: the `eq` filters the query actually made, then its `order` and
- * `limit`. Every fixture row carries `org_id` so the tenant filter is real here too, rather than
- * being a column the fake politely ignores.
+ * `postgrestFixture` is that fake, and it moved to `src/testing/` in B4 so the board's test and this
+ * one cannot come to disagree about which one PostgREST is. Its header carries the two green
+ * assertions that proved nothing before it existed.
  */
-const table = (rows: Array<Record<string, unknown>>) => (q: RecordedQuery) => {
-  let out = rows.filter((r) => q.filters().every((f) => r[f.col] === f.val));
-  // ⚠ And it PROJECTS to the selected columns, which is the half that caught a real gap: dropping
-  // `revokes` from the authorizations select changed nothing in a fake that handed whole rows back,
-  // so "honours a revoked release" passed against a service that never read the revocation.
-  const select = q.ops.find((o) => o.method === "select")?.args[0];
-  if (typeof select === "string" && select !== "*") {
-    const cols = select.split(",").map((c) => c.trim());
-    out = out.map((r) => Object.fromEntries(cols.filter((c) => c in r).map((c) => [c, r[c]])));
-  }
-  const order = q.ops.find((o) => o.method === "order");
-  if (order) {
-    const col = String(order.args[0]);
-    const asc = (order.args[1] as { ascending?: boolean } | undefined)?.ascending !== false;
-    out = [...out].sort((a, b) => String(a[col]).localeCompare(String(b[col])) * (asc ? 1 : -1));
-  }
-  const limit = q.ops.find((o) => o.method === "limit");
-  if (limit) out = out.slice(0, Number(limit.args[0]));
-  return out;
-};
+const table = postgrestFixture;
 
 const own = (row: Record<string, unknown>) => ({ org_id: ORG, ...row });
 
@@ -231,6 +209,37 @@ describe("what it reads, and from where", () => {
     // The new link has not been sent to the office, so the application is NOT filled in — which the
     // old, certified invitation would have reported as done.
     expect(steps.find((s) => s.key === "application_filled")!.state).toBe("waiting_on_them");
+  });
+
+  /**
+   * ⚠ **A REVOKED invitation is not the live one, and until B4 this read it as one.**
+   * `applicationIntake`'s `resolveInvitation` treats a revoked row as a dead link and the pipeline
+   * behind the board has always skipped them — so a recruiter who revoked a link and sent nothing
+   * else saw the board fall back to the older application while this endpoint kept describing the
+   * dead one. Two surfaces, one person, two answers: D-HM2's failure by name.
+   */
+  it("ignores a revoked invitation and folds the live one underneath it", async () => {
+    const rec = seed({
+      application_invitations: [
+        {
+          id: INVITE, driver_id: DRIVER, created_at: "2026-09-01T00:00:00Z",
+          review_requested_at: "2026-09-02T00:00:00Z", approved_at: "2026-09-03T00:00:00Z",
+          submitted_at: null, revoked_at: null,
+        },
+        {
+          id: "revoked-invite", driver_id: DRIVER, created_at: "2026-09-20T00:00:00Z",
+          review_requested_at: null, approved_at: null, submitted_at: null,
+          revoked_at: "2026-09-21T00:00:00Z",
+        },
+      ],
+    });
+    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    expect(isChecklistError(result)).toBe(false);
+    const steps = (result as { steps: Array<{ key: string; state: string }> }).steps;
+    // The revoked row is the NEWEST and has no stamps at all, so reading it would report an
+    // application nobody had filled in and an office that had approved nothing.
+    expect(steps.find((s) => s.key === "application_filled")!.state).toBe("done");
+    expect(steps.find((s) => s.key === "office_approved")!.state).toBe("done");
   });
 
   /**
