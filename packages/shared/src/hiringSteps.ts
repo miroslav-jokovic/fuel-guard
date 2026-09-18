@@ -120,7 +120,11 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   {
     key: "psp", ordinal: "6", label: "PSP report", where: "office",
     federalGate: false, beforeTravel: true, owes: "us", requires: ["permissions_signed"],
-    evidence: "psp_requests",
+    // ⚠ The REPORT, not the request. D-HM9's table names both — `psp_requests` is where an order
+    // lives — but this string is only ever shown once the step is DONE, and what proves it is the
+    // filed record. Both paths land there: `/psp-orders` files one on a settled order and
+    // `/psp-imports` files one from a report bought on FMCSA's portal (D-HM6).
+    evidence: "qualification_records.psp_report",
   },
   // ⚠ No prerequisite here, and that is deliberate rather than an omission. §382.701(a)'s full-query
   // consent is given INSIDE the FMCSA Clearinghouse, not on our screen — `clearinghouse` is

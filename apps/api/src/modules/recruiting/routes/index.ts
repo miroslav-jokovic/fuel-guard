@@ -9,6 +9,7 @@ import { recruitmentApplicationInvitesRouter } from "./applicationInvites.js";
 import { recruitmentDispositionsRouter } from "./dispositions.js";
 import { recruitmentApplicationReviewRouter } from "./applicationReview.js";
 import { recruitmentWordingRouter } from "./wording.js";
+import { recruitmentChecklistRouter } from "./checklist.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -31,5 +32,6 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentDispositionsRouter()); // the other exit: why an application ended without one (0238)
   router.use(recruitmentApplicationReviewRouter()); // read, correct and approve an application before it is signed (F4)
   router.use(recruitmentWordingRouter()); // the carrier publishes its own instrument wording (0338)
+  router.use(recruitmentChecklistRouter()); // where one applicant has got to, folded from evidence (B3)
   return router;
 }
