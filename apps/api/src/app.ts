@@ -117,6 +117,11 @@ function mountFuelCardPrefix(app: Express, env: Env, vendorLimiter: RequestHandl
  * Security number, so it takes a tighter bucket of its own. A 256-bit token is not guessable at 20
  * tries a minute or at 20 million — the limit is what stops a leaked link being replayed at volume
  * while it is still live, and what keeps an anonymous caller from mapping the surface.
+ *
+ * ⚠ **That paragraph is about an ATTACKER's request rate, and it was the only rate anybody counted.**
+ * An honest applicant signing the carrier's packet makes twenty-two POSTs in about as many seconds,
+ * which is over this bucket on its own — measured on 2026-09-17, see `applicationLimiter` below. The
+ * number stands until A0b argues for a different one; what is wrong is not knowing it.
  */
 function mountPublic(app: Express): void {
   app.use("/api/public/hazmat", publicHazmatRouter());
@@ -127,11 +132,38 @@ function mountPublic(app: Express): void {
   // cannot see a call broken across lines; both pin this prefix as public by design.
   app.use("/api/public/invites", rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false }));
   app.use("/api/public/invites", publicInvitesRouter());
-  app.use(
-    "/api/public/application",
-    rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false }),
-    publicApplicationRouter(),
-  );
+  /**
+   * The same bucket for the application intake — and, since A0, a trace when it refuses.
+   *
+   * ⚠ **This limiter stopped the first signing ceremony this product ever ran, and left nothing
+   * behind that said so.** On 2026-09-17 a driver's walk recorded `p03` through `p28` — twenty
+   * marks in twenty-three seconds, because twenty-two marks are twenty-two POSTs by design
+   * (`publicApplication.ts`'s `/:token/mark`: *"twenty-two marks made by one request would be one
+   * act"*) — spent the whole minute's budget on them, and got 429 at `p31a`. The body is
+   * express-rate-limit's own plain text, so `publicFetch` cannot parse it and reports the only
+   * thing it has: *"This application link is not valid. Ask for a new one."* A day then went into
+   * looking for the link's killer in the abandonment sweep, which measurement later showed had
+   * never fired (`HIRING-MODULE-PLAN.md` §1a C1, §10).
+   *
+   * The handler does not change the answer. **Sizing this bucket for a ceremony is A0b, a separate
+   * merge**, because it changes what an unauthenticated surface allows and that argument belongs on
+   * its own PR. What changes here is that the next refusal is findable.
+   *
+   * ⚠ **The token never goes in the line.** `req.path` is mount-relative — `/<token>/mark` — and
+   * that token IS the credential for a live application; putting it in Railway's log retention
+   * would be worse than the blindness it cures. Only the step after it is kept.
+   */
+  const applicationLimiter = rateLimit({
+    windowMs: 60_000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false,
+    handler: (req, res, _next, options) => {
+      console.warn("[public-application] rate limited", {
+        method: req.method,
+        step: req.path.split("/").filter(Boolean)[1] ?? "(invitation)",
+      });
+      res.status(options.statusCode).send(options.message);
+    },
+  });
+  app.use("/api/public/application", applicationLimiter, publicApplicationRouter());
 }
 
 /** The P5 finance sections — split out of createApp at the 200-line function budget. The

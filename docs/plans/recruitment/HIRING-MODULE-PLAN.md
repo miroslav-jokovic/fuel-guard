@@ -138,6 +138,12 @@ Both missing stops are genuine driver placements, both have mark geometry, and t
 refusal list has nothing that should reject them. ⚠ **Why they did not record is NOT established, and
 is deliberately not guessed at here.**
 
+> ⚠ **ANSWERED 2026-09-17 by A0, and the answer is above this module entirely — see §10.** `p31a` was
+> refused with **HTTP 429** by the rate limiter on `/api/public/application` in `app.ts`: 20 requests
+> per 60 seconds, and the walk's twenty marks were requests 1–20 of that window. It never reached
+> `recordPacketMark`, which is why its refusal list had nothing to say. The sentence *"the server's
+> own refusal list has nothing that should reject them"* was true and was the wrong list to read.
+
 Two things about that are certain and both are worse than the unknown cause:
 
 1. **A failed mark is a permanent dead end.** `usePacketCeremony.sign()` only advances `index` on a
@@ -794,6 +800,7 @@ why the owner's walk stopped — and every later step in this wave changes files
 | | Step | Build | Verify | Done when |
 |---|---|---|---|---|
 | **A0** | **Find out why the ceremony stopped at 20 of 22** · half day. **FIRST** | Two halves, both small. (a) **Telemetry**: log the refusal in `recordPacketMark` — code, placement, invitation — so a refused mark leaves a trace; today it leaves none (§1a C2). (b) **Reproduce**: walk a fresh invitation in the **QA org** to `p31a` and read the response. ⚠ Do not walk it in Silvicom — a second half-signed ceremony helps nobody | the QA walk itself; then `grep` the Railway logs for the refusal line | **The reason `p31a` did not record is written into §10 as a sentence, with the response code.** If it reproduces, the fix is a second PR; if it does not, that is also an answer and gets recorded |
+| **A0b** | **Size the applicant's bucket for a ceremony** · half day. ⚠ **This blocks every applicant, not just the owner** | A0 measured the cause (§10): `/api/public/application` allows **20 requests / 60 s** and the packet takes **22 POSTs** by design, so nobody can finish a walk. Three parts, and the third is not optional: (i) a limit sized to a ceremony rather than to an attacker's replay — recommend a dedicated bucket on `POST /:token/mark` and leaving the intake's 20 alone, so the tighter number still guards the surface that takes a date of birth; (ii) the 429 answers in the API's own `apiError` envelope with a code, because express-rate-limit's plain text is what `publicFetch` cannot parse and reports as `invalid_link`; (iii) `usePacketCeremony.sign()` retries or lets the driver retry — today any non-201 is a permanent dead end (§1a C2) | a test that walks all 22 marks through the limiter and files; `pnpm --filter @silvicom/api test` | **A driver can sign all twenty-two places in one sitting, and a refusal that does happen says what it was** · *after A0* |
 | **A1** ∥ | **Stop the nudge rotating a link that is with the office** · half day | `applicationNudgeSweep.ts` `candidates()` — exclude `review_requested_at`/`approved_at`. ⚠ The rule belongs in `packages/shared/src/applicationNudge.ts`'s `planApplicationNudges`, beside `STALE_DRAFT_HOURS`, not in the query, so it is testable without a database. ⚠ **This is insurance, not a repair** (§1a C1): measured, it has never fired — and it becomes a certainty the moment more than a trickle of applicants sit with the office for two days | `pnpm --filter @silvicom/shared test`; mutate the new predicate and watch a test go red | **An applicant whose application has been with the office for a week still has a working link.** Pin it with a candidate whose `draft_updated_at` is 10 days old and `approved_at` set |
 | **A2** ∥ | **One document, not two** · half day | `applicationPreviewPdf` renders `packetFieldFill` + `renderPacketOverlay` with **`marks: []`**, banded DRAFT. ⚠ **Do NOT reuse `renderFiledDocument`'s marks-based switch** (§1a C4): a preview happens before signing, so it always has zero marks, and a marks-based switch would render the summary for ever — the exact defect this step exists to fix. Blank signature lines on a draft-banded preview are correct. `render.ts` stays untouched, for already-filed records only | `pnpm --filter @silvicom/api test`; then render both and `pdftoppm -r 110 -png` — **look at them** | **The office's preview and the driver's filing are the same document.** Pinned by a test that renders both paths from one payload and compares page counts |
 | **A3** ∥ | **The drawn mark's four defects** · day | `renderPacketOverlay`'s mark loop — read `mark.signedName` for `mark === "initials"` **before** the `if (drawn)` branch; `usePacketCeremony.adopt()` — surface the staging failure instead of swallowing it; `PacketCeremony.vue` — preview the drawing in drawn mode | `pnpm --filter @silvicom/web test`; rasterise a packet signed by drawing and look at p05/p06/p09 | **A driver who draws gets their drawing on the signature lines and their typed initials on the initials lines, and is told if the drawing did not upload** |
@@ -870,6 +877,62 @@ every time.
   and **left no trace of why**, which is now **A0** and goes first. **C4** caught a step that would
   have been built wrong: a preview always has zero marks, so the filing's marks-based switch cannot
   be reused there. **Nothing built.**
+
+- **2026-09-17, A0 — DONE. `p31a` was refused with HTTP 429 by the rate limiter, not by anything in
+  the packet.** The one sentence the step asked for: **the twenty-first request of the ceremony
+  exceeded `/api/public/application`'s bucket of 20 requests per 60 seconds, so `p31a` never reached
+  `recordPacketMark` at all.**
+
+  How it was established, because none of it should be re-walked:
+
+  | | |
+  |---|---|
+  | The bucket | `app.ts` `mountPublic` — `rateLimit({ windowMs: 60_000, limit: 20 })` on the whole `/api/public/application` prefix |
+  | The ceremony's cost | **22 requests**, one per place. `publicApplication.ts` says why in as many words: *"twenty-two marks made by one request would be one act"* |
+  | The walk, from production | `p03` … `p28` — twenty marks, **22:20:44.85 → 22:21:08.05**, in perfect page order with no gap. The cadence accelerates from 6.6 s to **0.50 s** and then stops dead, which is what a screen changing under somebody looks like, not what quitting looks like |
+  | The arithmetic | marks 1–20 are requests 1–20 of a window that opened with mark 1 (nothing else in the 60 s before it — he was typing his name). `p31a` is request **21** |
+  | Confirmed live | `curl` the applicants' host: `ratelimit-policy: 20;w=60`. Twenty-one requests **on one reused connection** → the twenty-first is `429` with the plain-text body `Too many requests, please try again later.` ⚠ Twenty-one requests on SEPARATE connections do **not** trip it — production runs two replicas with independent in-memory stores, and only a browser's single HTTP/2 connection lands them all on one. That is why this never showed up in casual testing |
+  | What the driver saw | `publicFetch` cannot parse a plain-text body, so `body?.error?.code` is undefined and it throws the default: **`invalid_link`, "This application link is not valid. Ask for a new one."** |
+
+  ⚠ **This is §1.6's "the link dies mid-flow", and §1.6 named the wrong cause.** The nudge sweep was
+  the suspect; C1 had already measured that it has never fired. The link was never rotated, never
+  expired and never revoked — it was refused for one minute by a limiter, and told the driver it was
+  dead. **A1 remains worth shipping on C1's own reasoning; it is not this.**
+
+  ⚠ **It would have happened to every applicant, every time.** Nobody can make 22 requests inside a
+  60-second bucket of 20. The ceremony has only ever been walked once, so "every time" and "once" are
+  the same number so far.
+
+  **Built** (PR): the two traces a refusal now leaves — a `[public-application] rate limited` line at
+  the limiter (which is the layer that refused, naming the step and never the token) and a
+  `[packet-mark] refused` line in `recordPacketMark` for the six refusals that *are* that module's.
+  ⚠ **The service-level log would not have caught this one**, and its comment says so rather than
+  letting the next reader assume otherwise. **The limit is deliberately unchanged — sizing it is
+  A0b**, now in §9, and it is the step that unblocks every applicant.
+
+  **Found on the way, and fixed here because it was one line:** `/api/public/application` was
+  **invisible to `routeAuth.test.ts` and `routeGates.test.ts`**. Both discover mounts by scanning
+  `app.ts` source with a regex that cannot cross a newline, and this mount — the only unauthenticated
+  surface that takes a date of birth, a licence number and possibly a Social Security number — was
+  broken across four lines. The mount two lines above it carries a comment warning about exactly that
+  hazard. It is one line again and now carries its argument in both ledgers, so it is public **by
+  declaration** rather than by omission.
+
+  **Not walked:** A0 asked for a fresh QA-org invitation walked to `p31a`. It was not needed — the
+  refusal reproduces directly against the applicants' host, with the response code, and a walk would
+  now only re-confirm it. Production's half-signed ceremony is untouched: 20 marks, unfiled, and its
+  link is still good, so the owner can finish it in a fresh minute once A0b lands.
+
+  ⚠ **A second, separate defect found while ruling out the alternative, and NOT fixed here.**
+  `usePacketCeremony`'s `outstanding` is a `computed` over the `stops` prop, and its comment claims it
+  is *"computed once per load rather than re-derived after each mark"*. It is not: `useApplyInvitationQuery`
+  is a plain `useQuery` under a default `VueQueryPlugin`, so `refetchOnWindowFocus` is on and
+  `staleTime` is 0. A driver who switches window mid-walk gets a refetch, `outstanding` shrinks by
+  everything they have signed while `index` keeps counting up, and `current` falls off the end of the
+  array — at which point `PacketCeremony.vue`'s final `v-else` tells them **"every place collected"**
+  and emits nothing. Silent, unfileable, and it strands any walk past the eleventh mark. It is not
+  what happened on 2026-09-17 (that needs a focus event inside one 0.5 s gap; the limiter needs no
+  coincidence at all), but it is live. Belongs with A0b or C1.
 
 ---
 

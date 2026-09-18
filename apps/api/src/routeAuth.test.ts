@@ -18,11 +18,19 @@ import { closeTestServer } from "./testing/httpServer.js";
 // endpoint that needs a token is one nobody checks, and it publishes nothing tenant-scoped.
 // /api/public/invites redeems an emailed invitation for somebody who has no account yet; the
 // token in the POST body is the credential (routes/publicInvites.ts), rate-limited in app.ts.
+// ⚠ /api/public/application is the SAME shape — the applicant has no account and the 256-bit token
+// in the path is the credential — and it was invisible to this file until 2026-09-17. Not because
+// anybody argued it should be: its mount in app.ts was broken across four lines, and the detector
+// below cannot see a call that spans a newline. The mount two lines above it carries a comment
+// warning about exactly that, which the mount underneath then did. It is one line again, so the most
+// sensitive unauthenticated surface in the product is now declared public rather than merely
+// unseen — found while diagnosing A0, HIRING-MODULE-PLAN.md §10.
 const PUBLIC_PREFIXES = new Set([
   "/api/webhooks",
   "/api/auth",
   "/api/public/hazmat",
   "/api/public/invites",
+  "/api/public/application",
   "/api/version",
 ]);
 
