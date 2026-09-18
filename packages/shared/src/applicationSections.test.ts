@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  APPLICATION_FILLING_MINUTES,
+  APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_KEYS,
   APPLICATION_SECTION_LABELS,
+  APPLICATION_SECTION_MINUTES,
   APPLICATION_SECTION_ORDER,
   isApplicationSection,
   sectionOwning,
@@ -58,6 +61,32 @@ describe("the section vocabulary", () => {
     const at = (s: string): number => (APPLICATION_SECTION_ORDER as readonly string[]).indexOf(s);
     expect(at("documents")).toBeGreaterThan(at("safety"));
     expect(at("documents")).toBeLessThan(at("review"));
+  });
+
+  /**
+   * B7. The compiler already refuses a section with no estimate — the point of keying the map by the
+   * union — so what is left to pin is the two things a type cannot say: that no estimate is a
+   * placeholder, and that the number the driver is shown before they start is the FIRST visit.
+   */
+  it("gives every screen an estimate somebody could act on", () => {
+    for (const section of APPLICATION_SECTION_ORDER) {
+      expect(APPLICATION_SECTION_MINUTES[section]).toBeGreaterThan(0);
+    }
+  });
+
+  it("totals the screens of the first visit, and leaves the signature out of it", () => {
+    const summed = APPLICATION_FILLING_SECTIONS.reduce(
+      (total, section) => total + APPLICATION_SECTION_MINUTES[section],
+      0,
+    );
+    expect(APPLICATION_FILLING_MINUTES).toBe(summed);
+    // The certification is a second visit on another day (F4). Folding its minutes into the number on
+    // the expectations screen would quote a driver a length for an errand they are not on yet.
+    const everything = APPLICATION_SECTION_ORDER.reduce(
+      (total, section) => total + APPLICATION_SECTION_MINUTES[section],
+      0,
+    );
+    expect(APPLICATION_FILLING_MINUTES).toBeLessThan(everything);
   });
 
   /** `furthest_section` is free text in the database, so a stored value may be anything at all —

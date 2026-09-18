@@ -69,6 +69,70 @@ export const APPLY_COPY = {
     /** Shown until autosave has actually done something, so the card is never a blank promise. */
     savesItself: "Your answers save as you go",
     comeBack: "You can close this page and open your link again later.",
+    /**
+     * A screen's estimate, beside its name (B7). Abbreviated because it is glanced at in a list of
+     * eight and read in a column: "10 min" scans as a quantity where "about 10 minutes" scans as a
+     * sentence and wraps the row on a phone.
+     */
+    minutes: (n: number): string => `${n} min`,
+  },
+
+  /**
+   * What the applicant is told before they start (B7).
+   *
+   * ── WHY THERE IS A SCREEN HERE AT ALL ─────────────────────────────────────────────────────────
+   * Because the length of this application was previously discovered by walking it. A driver who
+   * opens the link in a queue at a shipper with four minutes to spare, starts, and meets the
+   * employment screen's ten years of history is a driver who abandons it — and the answers they did
+   * type are worth nothing to anybody. The finding this is built on is not ours (NN/g on setting
+   * expectations before a long form, and every carrier ATS that has measured its own abandonment):
+   * the length and the list of what to have to hand are what a person needs in order to decide
+   * whether to start NOW or this evening, and both answers are fine. Neither of them is "start, and
+   * find out".
+   *
+   * ⚠ The estimate itself is not typed here. It comes from `APPLICATION_SECTION_MINUTES` in shared,
+   * so this file states no fact about the form that the form does not own — see the catalogue.
+   */
+  expectations: {
+    /**
+     * ⚠ Not "Before you start", which is the 7001(c) consent's heading and stays its heading. Two
+     * screens in a row under the same words would read as the page repeating itself, and the consent
+     * has the better claim to it: it is the last thing before the application, and this is the thing
+     * before all of it.
+     */
+    heading: "What this involves",
+    /** The carrier is a fact, so it is an argument rather than a template a translator cannot move. */
+    lead: (carrier: string): string => `This is ${carrier}'s driver application.`,
+    /**
+     * ⚠ Rounded to the nearest five minutes on the way out. The catalogue's total is a sum of eight
+     * estimates nobody has measured; printing it to the minute would dress a judgement up as a
+     * stopwatch, and a driver who takes 34 minutes against a promised 31 has been misled by a
+     * precision we never had.
+     */
+    howLong: (screens: number, minutes: number): string =>
+      `${screens} screens, about ${Math.round(minutes / 5) * 5} minutes in all.`,
+    stepsHeading: "The screens",
+    needHeading: "What to have with you",
+    needs: [
+      `Every address you have lived at in the last ${EMPLOYMENT_WINDOW_YEARS} years.`,
+      `Every job you have held in the last ${EMPLOYMENT_WINDOW_YEARS} years, and every driving job in the last ${CMV_WINDOW_YEARS} — with dates, addresses and phone numbers.`,
+      "Your licence, and any other licence or permit you hold.",
+    ],
+    /** Introduces the photographs, which are named from the capture catalogue rather than retyped. */
+    photographHeading: "And these, to photograph:",
+    /**
+     * Said here because it is the part of the process nobody expects: the driver signs the carrier's
+     * permission forms BEFORE the form itself (D-APP4), and then signs the application itself on a
+     * second visit after the office has read it (F4). Both are shown only when they will actually
+     * happen — the permissions are skipped while the wording is still draft, and a screen promising
+     * a step the page then skips is worse than saying nothing.
+     */
+    signFirst: (carrier: string): string =>
+      `${carrier} asks for a few signed permissions first. They take a minute, and the application follows.`,
+    afterwards: (carrier: string): string =>
+      `When you send it, ${carrier} reads it and then asks you to sign it. That last part is a second, short visit — we will send you the link.`,
+    savesItself: "Your answers save as you go, so you can stop part-way and open your link again later.",
+    start: "Start",
   },
 
   nav: {

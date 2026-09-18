@@ -1831,6 +1831,52 @@ every time.
   found by `pdftoppm` and was instead caught by a mutation, which is the cheaper end of the same
   discipline. **Open the page, or rasterise the document.**
 
+- **2026-09-18, evening — B7 BUILT (#884), behind a split of `ApplyPage.vue` (#883).** The wizard's
+  two additions: an expectations screen on an untouched link, and each screen's estimate on
+  `ApplyProgress`'s list. No migration — 0344 is still the head and 0345 is still next.
+
+  **The minutes are a property of the section**, `APPLICATION_SECTION_MINUTES` in
+  `applicationSections.ts`, keyed by the union beside the labels and the citations. A screen cannot
+  exist without an estimate, and `APPLICATION_FILLING_MINUTES` is their sum rather than a number
+  anybody types. ⚠ They are judgements from the shape of each screen, not measurements — nothing
+  times a driver today. `application_drafts.furthest_section` plus its timestamps is a measurement of
+  exactly this, per screen, and A10's sweep is where these constants should eventually be checked
+  against reality rather than defended.
+
+  **The expectations screen sits AHEAD of the 7001(c) consent, and that does not disturb D-APP5.**
+  A4's ruling is that nothing is ASKED and nothing is WRITTEN before the consent; this screen has no
+  field on it and writes nothing, so the consent is still the first thing the driver DOES. Behind the
+  consent and the four signatures it would have set expectations for the form only — and the
+  permissions coming first is the part nobody expects. Nothing about having seen it is remembered:
+  `linkHasBeenUsed` (in `useApplication.ts`, beside the payload it reads) derives it from a consent, a
+  signed permission or a saved draft, so somebody who opens the link twice having done nothing is told
+  the same thing twice, which is the right answer to having done nothing.
+
+  ⚠ **Q-AX1's three rulings were left exactly as they were** — the bar still only INDICATES, the fence
+  is still the high-water mark, and everything navigable is still a real button. The estimates hang
+  off the list, and a test pins that the bar renders no text at all.
+
+  ⚠ **`lint:filesize` is what made this two PRs.** `ApplyPage.vue` was at **496 of 500** — two lines
+  under the ambush `check-file-size.mjs`'s own header describes — and B7's wiring does not fit in two
+  lines however tersely it is written. #883 lifted the sending half into
+  `features/apply/useApplicationSending.ts` first, as its own behaviour-preserving PR (same 2,001 web
+  tests before and after), taking the page to 427; B7 then took it to 456. That is Q-PKT11's pattern
+  applied without being asked: **a refactor's whole value is a diff that says nothing changed**, and
+  bundled into a feature step nobody could have seen which lines were which. A waiver was the other
+  option and is how gates die.
+
+  **Verified by looking, at 390px and 1440px**, with the invitation `route.fulfill`ed: the expectations
+  screen (~1,360px tall on a phone, the length sentence above the fold), the step list with its
+  estimate column, and the walk through Start into the form. Eight mutations were run and all eight
+  failed the right way — including two that only compile because the anchor was written to compile,
+  since a mutation that merely breaks the build proves nothing about the assertion.
+
+  ⚠ **Twelve of `ApplyPage.test.ts`'s tests failed on the first run, and nine of them were right to.**
+  Their fixtures describe a link nobody has touched, which is now exactly the case that opens on the
+  expectations screen. Three genuinely untouched ones press Start through a helper that ASSERTS the
+  button is there; the rest passed again once `linkHasBeenUsed` read `draft.payload` — a draft with
+  something typed into it is a driver who has started, whatever `updatedAt` says in a fixture.
+
 
 ---
 

@@ -84,6 +84,20 @@ const advance = async (w: ReturnType<typeof mountPage>) => {
   await settle(w);
 };
 
+/**
+ * Get past the expectations screen (B7), which is what an untouched link now opens on.
+ *
+ * ⚠ It asserts the button is there rather than clicking it if it happens to be. A helper that
+ * shrugged would let a fixture drift into "started" — a payload, a consent, a signed permission —
+ * and the test would still pass while quietly no longer covering the screen it was written for.
+ */
+const start = async (w: ReturnType<typeof mountPage>) => {
+  const button = w.findAll("button").find((b) => b.text() === APPLY_COPY.expectations.start);
+  expect(button, "the expectations screen is not on this untouched link").toBeTruthy();
+  await button!.trigger("click");
+  await settle(w);
+};
+
 const settle = async (w: ReturnType<typeof mountPage>) => {
   for (let i = 0; i < 12; i++) {
     await w.vm.$nextTick();
@@ -250,6 +264,7 @@ describe("the applicant's page", () => {
     }));
     const w = mountPage();
     await settle(w);
+    await start(w);
 
     await advance(w);
     expect(w.text()).toContain("Before you can go on");
@@ -278,6 +293,7 @@ describe("the applicant's page", () => {
     }));
     const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin] }, attachTo: document.body });
     await settle(w);
+    await start(w);
     await advance(w);
 
     // Not "the page scrolled to the top and printed a list" — on the employment screen the field a
@@ -294,6 +310,7 @@ describe("the applicant's page", () => {
     }));
     const w = mount(ApplyPage, { global: { plugins: [VueQueryPlugin] }, attachTo: document.body });
     await settle(w);
+    await start(w);
     await advance(w);
 
     const input = document.getElementById("apply-first_name");
@@ -543,6 +560,68 @@ describe("the applicant's page", () => {
     for (let i = 0; i < TOTAL - 1; i++) await advance(w);
     expect(w.text()).toContain("Not final");
     expect(w.text()).toContain("We may obtain your FMCSA crash and inspection history.");
+  });
+
+  /**
+   * B7. What the whole thing involves, for somebody who has not started it.
+   *
+   * ⚠ It sits AHEAD of the consent gate, and that does not disturb D-APP5: A4's ruling is that
+   * nothing is asked and nothing is written before the 7001(c) consent, and this screen does neither.
+   * Behind the consent and the four signatures, it would be telling a driver the length of the form
+   * after they had already signed five documents.
+   */
+  it("says what it involves before it asks for anything, on a link nobody has touched", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+      esignConsent: {
+        version: "v1", title: "Agreeing to sign electronically", citation: "15 U.S.C. 7001(c)",
+        body: "You do not have to do any of this electronically.",
+        intent: "I agree.", draft: false, required: true,
+      },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain(APPLY_COPY.expectations.heading);
+    // Neither the consent nor the form is behind it yet — one screen at a time, and this one first.
+    expect(w.text()).not.toContain("You do not have to do any of this electronically.");
+    expect(w.text()).not.toContain(step(1));
+
+    await start(w);
+    // And the consent is still what the link collects first.
+    expect(w.text()).toContain("You do not have to do any of this electronically.");
+    expect(w.text()).not.toContain(step(1));
+  });
+
+  /**
+   * Every one of these means the same thing — that this person has started — and each is a separate
+   * disjunct in `started`. A fixture that only ever varied the draft would pass with the other two
+   * deleted, which is the shape of a test that proves nothing.
+   */
+  it.each([
+    ["a draft with something typed into it", {
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: { first_name: "Susan" }, furthestSection: null, updatedAt: null },
+    }],
+    ["a consent already given", {
+      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+    }],
+    ["a ceremony abandoned part-way through", {
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+      releasesSigned: ["psp"],
+    }],
+  ])("does not explain the process again to somebody with %s", async (_case, link) => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES, ...link,
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).not.toContain(APPLY_COPY.expectations.heading);
   });
 
   /**

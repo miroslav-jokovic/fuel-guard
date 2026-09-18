@@ -76,6 +76,60 @@ export const APPLICATION_SECTION_LABELS: Record<ApplicationSection, string> = {
 };
 
 /**
+ * Roughly how long each screen takes, in minutes (B7).
+ *
+ * ── WHY THIS IS A PROPERTY OF THE SECTION AND NOT A MAP IN THE WEB APP ────────────────────────
+ * Because a `Record<ApplicationSection, number>` beside the wizard would be a copy with a delay
+ * fuse: add a screen, forget the entry, and the newest screen is the one with no estimate — silently,
+ * because nothing checks a map it does not know about. Keyed by the union here, a section cannot
+ * exist without an estimate and the build says so. This is the same move `HIRING_STEPS` made for
+ * `action`/`phase` and `HiringEvidenceTable`'s closed union made for artifacts.
+ *
+ * And the estimate is a fact about the FORM, which two readers need: the applicant's expectations
+ * screen, and the office copy that tells a candidate what they are being sent. Two readers, one
+ * definition — D-HM2's reason for `packages/shared` existing at all.
+ *
+ * ── ⚠ THESE ARE JUDGEMENTS FROM THE SHAPE OF EACH SCREEN, NOT MEASUREMENTS ────────────────────
+ * Nothing times a driver today. Each number is derived from what the screen asks for and how much of
+ * it repeats: `identity` is seven boxes answered from memory; `addresses` is one card per address
+ * over EMPLOYMENT_WINDOW_YEARS; `employment` is the big one because §391.21(b)(10) and (b)(11) ask
+ * for three years of every job and ten of the CMV ones, each with dates, an address and a phone
+ * number the driver has to go and find. They are deliberately generous rather than flattering: a
+ * form that takes longer than it promised is the abandonment case, and one that takes less is a
+ * pleasant surprise.
+ *
+ * They can be replaced with real numbers the day A10's abandonment sweep has them —
+ * `application_drafts.furthest_section` plus its timestamps is a measurement of exactly this, per
+ * screen, and when it exists these constants should be read against it rather than defended.
+ */
+export const APPLICATION_SECTION_MINUTES: Record<ApplicationSection, number> = {
+  identity: 2,
+  addresses: 4,
+  licence: 2,
+  employment: 10,
+  safety: 4,
+  questions: 3,
+  documents: 3,
+  review: 2,
+  // The second visit, and the shortest act in the application: read what the office changed and sign
+  // it. It is not part of the total below for that reason — it is not on the clock the driver is
+  // deciding about when they open the link.
+  certify: 2,
+};
+
+/**
+ * How long the FIRST visit takes, all told — the number the expectations screen is about.
+ *
+ * Summed rather than typed out, so it cannot drift from the screens it is the total of. ⚠ It is the
+ * exact sum and reads like one; whoever prints it should say "about 30 minutes" rather than the
+ * arithmetic, because a minute of false precision on an estimate nobody measured is a small lie.
+ */
+export const APPLICATION_FILLING_MINUTES = APPLICATION_FILLING_SECTIONS.reduce(
+  (total, section) => total + APPLICATION_SECTION_MINUTES[section],
+  0,
+);
+
+/**
  * The §391.21(b) paragraph each screen discharges — **for the printed application and for anyone
  * auditing us, and no longer for the driver.**
  *
