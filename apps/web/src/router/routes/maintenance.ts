@@ -19,7 +19,7 @@ import type { RouteRecordRaw } from "vue-router";
  * ── AND `/shop` IS THE HOME, NOT THE LEDGER, FROM I4 ──────────────────────────────────────────
  * It rendered `MaintenanceSpendPage` until I4. The ledger is one `StatCard` on the home now and the
  * page behind that card, at `/shop/repair-spend`. The SURFACE key stayed `maintenance.repair-spend`
- * for both — see the reasoning in `packages/shared/src/surfaces.ts`, which is a permission argument
+ * for both — see the reasoning in `packages/shared/src/surfaceCatalogue.ts`, which is a permission argument
  * and not a naming one.
  *
  * Routes carry `requiresAuth` only, per the house rule: the section question is answered once in

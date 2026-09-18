@@ -6,7 +6,7 @@ import { useSessionStore } from "@/stores/session";
  * Route meta, TYPED — added with R0 (D-ROS7), and narrowed by S2.
  *
  * `requiresManage` and `requiresView` used to name the section a route needed. They are GONE: that
- * fact now lives once, in `SURFACES` (`packages/shared/src/surfaces.ts`), and the guard below reads
+ * fact now lives once, in `SURFACES` (`packages/shared/src/surfaceCatalogue.ts`), and the guard below reads
  * it. Two metas naming a section and a catalogue naming the same section is the restatement D-SURF3
  * exists to prevent — and the reason it matters is measured: while both existed, 28 routes had a
  * sidebar entry gated on a section and no route gate at all, and `/settings` had the mismatch

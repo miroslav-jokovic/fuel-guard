@@ -73,7 +73,7 @@ This programme runs across several chats. Nothing below assumes you remember the
 - ⚠ **"Deployed" is a per-service question.** Two Railway services run `apps/api` and routinely sit at
   different commits. **Applicants reach `@fleetguard/web`; `pnpm verify:live` checks
   `@fleetguard/api`.** Curl the web host's `/api/version` when an applicant-facing change matters.
-- ⚠ **The nav is generated from `NAV_SURFACES`** in `packages/shared/src/surfaces.ts`. Nav paths are
+- ⚠ **The nav is generated from `NAV_SURFACES`** in `packages/shared/src/surfaceCatalogue.ts`. Nav paths are
   not in `apps/web/src`, and looking for them there is the hour.
 - ⚠ **`pnpm dev` crashes** on this machine inside vite's dependency optimiser. It is environmental and
   is not your change. Use `pnpm --filter @silvicom/web preview:local` (:4173) to see anything.
@@ -748,7 +748,16 @@ a process decision is how a plan starts describing a business nobody runs.
   ⚠ **The road test is the only gate that is green after arrival**, so it is the last thing between a
   driver in the office and a truck. That is step 10, and it is why the half-day works.
 
-- **Q-HM8 · `packages/shared/src/surfaces.ts` is at 500 of 500 lines. Who splits it, and when?**
+- **~~Q-HM8 · `packages/shared/src/surfaces.ts` is at 500 of 500 lines. Who splits it, and when?~~
+  RULED AND DONE 2026-09-18 — candidate (a), as its own PR.** `surfaceCatalogue.ts` holds the data
+  (348 lines) and `surfaces.ts` the types and gate logic (191), so a screen no longer competes for
+  budget with the rules that govern it. `check-surfaces.mjs` moved with it. ⚠ **The split's own
+  trap, kept because it will recur:** the new file's header quoted the `SURFACES` declaration
+  verbatim, the gate's parser matched the COMMENT, read to the next `];` — the end of
+  `SURFACE_GROUPS` — and reported nine surfaces where there are fifty-seven. The gate said *"parser
+  or literal shape changed"* and was right. Prose about a parsed file must paraphrase what the
+  parser matches. The question as originally raised is kept below.
+
   (raised by B4, 2026-09-18)
 
   B4 added one nav comment and two catalogue entries and took the file over its budget; the comments
@@ -1254,6 +1263,46 @@ every time.
   job — `check-surfaces.mjs` PARSES that exact path rather than importing it, so the gate's parser
   moves with the file and the two have to land together. Carried into §8 as Q-HM8.
 
+
+- **2026-09-18, Q-HM8 — DONE. `surfaces.ts` split, so a screen stops competing for budget with the
+  rules that govern it.** Not a queue step: B4 raised it as a blocker and this is the answer, shipped
+  as its own PR exactly as §8 recommended rather than bundled into a feature step.
+
+  | | |
+  |---|---|
+  | `surfaceCatalogue.ts` (new) | `SURFACE_GROUPS`, `SURFACES`, `NAV_SURFACES`, `surfaceForPath` — **the data**. 352 lines |
+  | `surfaces.ts` | the types, the gate constructors and `surfaceGateAllows` / `canReachSurface` / `surfaceAllowed` / `isEditableSurface` — **the logic**. 198 lines |
+
+  The dependency runs catalogue → surfaces, one way, so there is no cycle and the four gate functions
+  can now be read without scrolling past 280 entries. It is the seam `hiringSteps.ts` /
+  `hiringChecklist.ts` took at its own 450 warning, for the same reason.
+
+  **Moved with it, because a gate that parses a path is bound to that path:**
+  `scripts/check-surfaces.mjs`'s `CATALOGUE` constant and the error message that names the file;
+  `apiContract.ts`'s import of `SURFACES`; the barrel export; and four live code citations
+  (`router/index.ts`, `routeReachability.test.ts`, `routes/maintenance.ts`,
+  `MaintenanceHomePage.vue`). ⚠ Dated statements in other plans were **left alone** — they are
+  records of what was true on their date, and rewriting history to match a rename is how a decision
+  log stops being one.
+
+  ⚠ **THE TRAP THIS SPLIT HIT, and it is worth the paragraph because it will recur.** The new
+  file's header explained the arrangement by quoting the declaration the gate's parser looks for.
+  The parser matched **the comment**, read to the next `];` — the end of `SURFACE_GROUPS` above it —
+  and reported **nine** surfaces where there are fifty-seven. The gate refused with *"parser or
+  literal shape changed; fix together"*, which is exactly the sentence it exists to say, and the
+  file now paraphrases instead. **Prose about a parsed file must not quote what the parser matches.**
+  The comment says so, at the place it happened.
+
+  **Verified:** three mutations, three red against a green baseline — the gate's path left pointing
+  at `surfaces.ts` where the data no longer is (exits 1, naming `surfaceCatalogue.ts`); a surface
+  dropped during the move (*"navIcons.ts has an icon for `fleet.drivers`, which is not a nav
+  surface — the split has drifted"*); and the header quoting the declaration, which is the live bug
+  above. `check-surfaces.mjs --self-test` still fires all nineteen detectors. `pnpm lint`,
+  `typecheck`, `lint:filesize`, `lint:boundaries`, `lint:funcsize`, `lint:comment-claims`,
+  `lint:shared-contracts`, `lint:table-access`, `lint:tests` and all three suites green —
+  **57 surfaces, 33 in the sidebar, unchanged in both directions.**
+
+  **Headroom restored:** 148 lines on the catalogue and 302 on the logic, against zero before.
 
 ---
 
