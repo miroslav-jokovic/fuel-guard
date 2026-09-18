@@ -20,6 +20,12 @@ import type { HiringStepKey } from "@silvicom/shared";
  * without an in-product affordance get the `recorded_act` or `packet` body — which states the step,
  * its artifact and **the page where the act is performed today**, rather than pretending.
  *
+ * ⚠ **Amended 2026-09-18 by Q-HM9, and it moved one row the other way.** The count above is B6's and
+ * is left as it measured; what changed is that `employment_investigation` joins the emitted steps
+ * with a body that already existed — `EmployerInquirySection`, which B6 had had to park inside the
+ * `application` body for want of a step to hang it on. So this is the first step added since B6 that
+ * did NOT need a `recorded_act` signpost: the affordance was built long before the row was.
+ *
  * ── AND THE FUSE IS THE SAME ONE `hiringArtifacts.ts` USES ────────────────────────────────────
  * ⚠ `Record<HiringStepKey, …>` over a closed union: a step added to `HIRING_STEPS` is a **typecheck
  * failure in this file** until somebody says what its drawer holds. Without that, the next step
@@ -40,6 +46,17 @@ export type HiringDrawerBody =
   | "application"
   /** `PspRecordsSection` — order one, import one bought on the portal, read the filed report. */
   | "psp"
+  /**
+   * `EmployerInquirySection` — the §391.23(a)(2) investigation: who is owed a letter, what was
+   * sent, what came back, and the good-faith attempts that stand in for a reply nobody sent.
+   *
+   * ⚠ Added by Q-HM9, and it is the one body here that MOVED rather than appeared. It was inside
+   * `application` — carried there by B6 because the investigation had no step of its own to hang
+   * on, with a comment saying exactly that. Now it does, so it hangs on it. The employment HISTORY
+   * stays in `application`, because the §391.21(b)(10) declaration really is the application's
+   * content; the investigation OF that history is a separate act with its own evidence.
+   */
+  | "investigation"
   /** `HireDrawer`'s act: the applicant stops being one. */
   | "hire"
   /**
@@ -74,6 +91,7 @@ const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   medical_certificate: "recorded_act",
   road_test: "recorded_act",
   application_signed: "packet",
+  employment_investigation: "investigation",
   hired: "hire",
   // The three with no evidence table. The fold filters them out, so these are unreachable today.
   orientation_videos: "unbuilt",
