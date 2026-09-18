@@ -50,6 +50,10 @@ const complete = (over: Partial<HiringChecklistInputs> = {}): HiringChecklistInp
     qualificationKinds: ALL_KINDS,
     psp: { requested: true, reportReceived: true },
     packetMarks: packetDriverMarkCount(),
+    // ⚠ Q-HM9. Nothing outstanding, so nothing can be awaiting either — `awaiting` counts a SUBSET of
+    // `outstanding`, and a fixture with `awaiting > outstanding` would be describing a state the
+    // queue cannot produce.
+    investigation: { outstanding: 0, awaiting: 0 },
     hiredAt: "2026-09-10",
     ...over,
   });
@@ -75,11 +79,18 @@ describe("the catalogue", () => {
     expect(HIRING_STEPS.length).toBe(measurableHiringSteps().length + 3);
   });
 
-  /** ⚠ The array's order IS the checklist's order (D-HM3). Nothing sorts it at read time. */
-  it("keeps D-HM9's order, with the medical certificate at 8b", () => {
+  /**
+   * ⚠ The array's order IS the checklist's order (D-HM3). Nothing sorts it at read time.
+   *
+   * ⚠ `13b` is Q-HM9's §391.23(a)(2) investigation, and it is at 13b rather than beside the MVR at 5
+   * on purpose — see its row in `hiringSteps.ts`. It sits immediately before `hired` because that is
+   * what it gates; the sub-ordinal is 8b's precedent, so no reference in the plan to a step by its
+   * number is ever broken by an insertion.
+   */
+  it("keeps D-HM9's order, with the medical certificate at 8b and the investigation at 13b", () => {
     const c = hiringChecklist(complete());
     expect(c.steps.map((s) => s.ordinal)).toEqual([
-      "1", "2", "3", "4", "5", "6", "7", "8", "8b", "10", "13", "14",
+      "1", "2", "3", "4", "5", "6", "7", "8", "8b", "10", "13", "13b", "14",
     ]);
   });
 
@@ -191,6 +202,131 @@ describe("the four states", () => {
   it("carries no artifact before the step is done", () => {
     const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z" }));
     expect(c.steps.find((s) => s.key === "permissions_signed")!.artifact).toBeNull();
+  });
+});
+
+/**
+ * Q-HM9 — the §391.23(a)(2) previous-employer investigation (ruled 2026-09-18).
+ *
+ * ⚠ The whole reason this step exists is that a recruiter working the checklist alone could reach
+ * "Hired" with a §391.51(b)(3) file requirement untouched. So the assertion that carries the ruling
+ * is the LAST one in this block — `hired` is blocked by it — and everything above it exists to make
+ * sure the step cannot go green dishonestly first.
+ */
+describe("the §391.23 investigation", () => {
+  /** With the history declared and every owed employer closed out, there is nothing left to ask. */
+  it("is done when nothing is outstanding and the application has been filed", () => {
+    const c = hiringChecklist(complete());
+    const step = c.steps.find((s) => s.key === "employment_investigation")!;
+    expect(step.state).toBe("done");
+    expect(step.artifact).toEqual({ table: "employer_inquiries", label: "Inquiry record" });
+  });
+
+  /**
+   * ⚠ **THE DEFECT THIS STEP WAS MOST LIKELY TO SHIP, pinned.**
+   *
+   * `driverInquiryQueue.complete` is `outstanding.length === 0`, which is vacuously TRUE for a driver
+   * whose employment history nobody has typed yet: no employers owed, nothing outstanding. A step
+   * reading that number alone goes green on the day the invitation is sent, certifying an
+   * investigation that has not begun — D-HM9's own medical-certificate mistake (capture read as
+   * verification) in a third costume.
+   *
+   * Here the application is still `filling` and the queue is empty, which is exactly that shape.
+   */
+  it("refuses to be done on an empty queue when the application has not been filed", () => {
+    const c = hiringChecklist(
+      complete({
+        phases: { reviewRequestedAt: null, approvedAt: null, submittedAt: null },
+        investigation: { outstanding: 0, awaiting: 0 },
+      }),
+    );
+    expect(stateOf(c, "employment_investigation")).not.toBe("done");
+  });
+
+  /**
+   * ⚠ And the other half of that rule, which is what stops the fix above becoming its own defect: a
+   * first-time driver with no DOT-regulated employer inside the three-year window genuinely has
+   * nobody to write to. Once the history is DECLARED, zero means zero, and holding them against a row
+   * nothing can ever satisfy would be the decoration D-HM1's corollary forbids.
+   */
+  it("is done for a declared history with no DOT-regulated employer to ask", () => {
+    const c = hiringChecklist(complete({ investigation: { outstanding: 0, awaiting: 0 } }));
+    expect(stateOf(c, "employment_investigation")).toBe("done");
+  });
+
+  /** ⚠ Absent input is NOT DONE — a caller that forgets the read leaves the step visibly open. */
+  it("is not done when the caller supplies no investigation at all", () => {
+    const c = hiringChecklist(complete({ investigation: null }));
+    expect(stateOf(c, "employment_investigation")).not.toBe("done");
+  });
+
+  /**
+   * ⚠ Nobody written to is OURS to move; written and unanswered is THEIRS — the previous employer's,
+   * exactly as PSP's is the vendor's once an order is placed. The distinction is D-HUI4's between
+   * chasing and acting, and it is the difference between a row that says "send the letters" and one
+   * that says "they have not written back".
+   */
+  it("owes us the first letter and them the reply", () => {
+    const notSent = hiringChecklist(complete({ investigation: { outstanding: 2, awaiting: 0 } }));
+    expect(stateOf(notSent, "employment_investigation")).toBe("waiting_on_us");
+
+    const sent = hiringChecklist(complete({ investigation: { outstanding: 2, awaiting: 2 } }));
+    expect(stateOf(sent, "employment_investigation")).toBe("waiting_on_them");
+  });
+
+  /**
+   * ⚠ **THE DEFECT THE BROWSER FOUND, pinned** (2026-09-18, rendered at 1440).
+   *
+   * Two employers outstanding and one letter sent. The first version of this rule read "has anything
+   * been sent at all", so the row said ***"Waiting on them"*** while the office had not written to
+   * one of the two — telling a recruiter to sit still when the next move was theirs. Every test was
+   * green for it, because none of them held a PARTIAL state: the fixtures were all-or-nothing, which
+   * is this repo's named "fixture too uniform to discriminate" failure.
+   *
+   * `awaiting` counts only the employers whose own §391.23(g)(1) 30 days are still running. One
+   * `not_sent`, `overdue` or `undeliverable` among them and it is ours.
+   */
+  it("is ours while ANY outstanding employer has not been written to", () => {
+    const c = hiringChecklist(complete({ investigation: { outstanding: 2, awaiting: 1 } }));
+    expect(stateOf(c, "employment_investigation")).toBe("waiting_on_us");
+  });
+
+  /** ⚠ The work can start the moment the application declares a history, and not before. */
+  it("is blocked by the application, and says so", () => {
+    const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z" }));
+    const step = c.steps.find((s) => s.key === "employment_investigation")!;
+    expect(step.state).toBe("blocked");
+    expect(step.blockedBy).toBe("application_filled");
+  });
+
+  /**
+   * ⚠ **THE RULING.** Everything else in this block protects this one assertion: an outstanding
+   * investigation blocks the hire, so nobody reaches the end of the checklist with §391.23 untouched.
+   */
+  it("blocks the hire while an employer is still outstanding", () => {
+    // ⚠ `hiredAt: null` is the scenario, not a convenience. The fold lets EVIDENCE beat `blocked` —
+    // a driver with a `hire_date` reads `done` whatever the requirements say, because the checklist
+    // reports what happened rather than what should have. So the row Q-HM9 exists to protect is the
+    // one before the hire, which is the only moment anybody can still act on it.
+    const c = hiringChecklist(
+      complete({ hiredAt: null, investigation: { outstanding: 1, awaiting: 1 } }),
+    );
+    const hired = c.steps.find((s) => s.key === "hired")!;
+    expect(hired.state).toBe("blocked");
+    expect(hired.blockedBy).toBe("employment_investigation");
+    expect(c.readyToHire.ok).toBe(false);
+    expect(c.readyToHire.outstanding).toContain("employment_investigation");
+  });
+
+  /**
+   * ⚠ And it does NOT gate the plane ticket. §391.23(c)(1) gives the carrier 30 days from the date
+   * employment begins, so gating travel on it would stall a hire for a third party's silence — or
+   * push an office to document a non-response early just to clear the row, which produces a weaker
+   * file than waiting. See the step's own row for the argument.
+   */
+  it("does not hold up travel", () => {
+    const c = hiringChecklist(complete({ investigation: { outstanding: 3, awaiting: 0 } }));
+    expect(c.readyToTravel.outstanding).not.toContain("employment_investigation");
   });
 });
 

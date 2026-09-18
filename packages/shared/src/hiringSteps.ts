@@ -36,6 +36,7 @@ export type HiringStepKey =
   | "live_orientation"
   | "handbook"
   | "application_signed"
+  | "employment_investigation"
   | "hired";
 
 /** Where the step physically happens. The seam that D-HM9 organises everything around. */
@@ -100,6 +101,7 @@ export type HiringEvidenceTable =
   | "qualification_records.medical_registry_verification"
   | "qualification_records.road_test"
   | "application_packet_marks"
+  | "employer_inquiries"
   | "drivers.hire_date";
 
 /**
@@ -330,6 +332,48 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     federalGate: false, beforeTravel: false, owes: "them", requires: ["office_approved"],
     evidence: { table: "application_packet_marks", label: "Signed packet" },
   },
+  // ⚠ THE FIFTEENTH STEP, added by Q-HM9 on 2026-09-18, and it is the only one here that D-HM9 did
+  // not rule. It is in the catalogue because the alternative was measured and is worse: this
+  // product builds the whole §391.23(a)(2) investigation — `employer_inquiries` (0223), the
+  // §391.23(c)(2) written record, `inquiryQueue.ts`, the 30-day clock, a fleet-wide queue page —
+  // and none of it was connected to the checklist a recruiter actually works from. `grep -c inquir`
+  // on this file was 0. So a recruiter working the checklist alone could reach "Hired" with a
+  // §391.51(b)(3) file requirement untouched, which is the single thing the checklist exists to
+  // prevent. D-HM1's corollary admits it: its evidence table already exists.
+  //
+  // ── WHY IT IS NOT A `federalGate`, THOUGH IT IS FEDERAL ────────────────────────────────────
+  // ⚠ `federalGate` does not mean "required by law" — it means one of §5's six things a carrier
+  // must HOLD BEFORE THE DRIVER FIRST DRIVES, which is why the six are not reorderable and not
+  // skippable. §391.23(c)(1) gives the carrier 30 days FROM THE DATE EMPLOYMENT BEGINS to have
+  // either the replies or documented good-faith efforts on file, so this is lawfully still open on
+  // the driver's first day. Marking it a seventh gate would shorten the law in the product's
+  // favour and would break the one test that pins §5's six against FMCSA.
+  //
+  // ── AND WHY IT SITS AT 13b RATHER THAN BESIDE THE MVR ──────────────────────────────────────
+  // ⚠ §391.23(a)(1) (the MVR, step 5) and §391.23(a)(2) (this) are the same regulation's two
+  // halves, so beside each other is where this first went. It was moved, and the reason is the
+  // TRAVEL SEAM: a step at 5 is `beforeTravel`, and `readyToTravel` is the answer the owner leads
+  // with (*"we will not even bring him if this not green"*). Previous employers routinely take
+  // weeks to reply and their §391.23(g)(1) clock is their own — so gating the plane ticket on this
+  // would either stall every hire for a third party's silence, or push an office into documenting
+  // a non-response early just to clear the row, which produces a WEAKER file than waiting. Neither
+  // is what a checklist should push somebody towards.
+  //
+  // ⚠ So it is positioned by its DEADLINE, not by when the work starts: it must be complete before
+  // the hire, and `requires` says the work can start the moment the application declares a history.
+  // The ordinal is `13b` for 8b's reason — renumbering would break every reference in the plan to a
+  // step by its number.
+  {
+    key: "employment_investigation", ordinal: "13b", label: "Previous employers checked",
+    action: "Contact the previous employers",
+    where: "office", phase: "screening",
+    federalGate: false, beforeTravel: false, owes: "us", requires: ["application_filled"],
+    // ⚠ The ATTEMPTS, not the replies. §391.23(c)(1) accepts "documentation of good faith efforts"
+    // in place of an answer and §391.23(c)(2) requires a record of "the attempts made", so the
+    // written record IS the deliverable when nobody writes back — which is why 0223 stores one row
+    // per attempt rather than one per employer.
+    evidence: { table: "employer_inquiries", label: "Inquiry record" },
+  },
   // ⚠ Requires every federal gate, because that is what the owner said hiring IS: "hiring is
   // concluded when applicant is in the office and everything is done and signed and then we do
   // hiring." Listed explicitly rather than computed from `federalGate`, so that reading this row
@@ -342,6 +386,13 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     requires: [
       "application_filled", "mvr", "clearinghouse", "drug_test",
       "medical_certificate", "road_test", "application_signed",
+      // ⚠ Q-HM9: not a `federalGate` (see its row), and listed here anyway. The 30 days of
+      // §391.23(c)(1) run from the date employment BEGINS, so the law permits hiring with this
+      // open — but the owner's own definition does not (*"hiring is concluded when applicant is in
+      // the office and everything is done and signed"*), and an investigation left for after the
+      // hire is the one that gets forgotten. This is the row that stops "Hired" being offered with
+      // a §391.51(b)(3) requirement untouched, which is the whole of Q-HM9.
+      "employment_investigation",
     ],
     evidence: { table: "drivers.hire_date", label: "Driver file" },
   },

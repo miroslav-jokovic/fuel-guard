@@ -1,10 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  driverInquiryQueue,
   hiringChecklist,
   hiringStep,
   type AuthorizationRow,
   type HiringPhase,
   type HiringStepKey,
+  type QueueAttempt,
+  type QueueEmployment,
 } from "@silvicom/shared";
 import { driversWithPspRequest } from "../psp/index.js";
 
@@ -120,19 +123,40 @@ export async function boardChecklists(
   const driverIds = applicants.map((a) => a.driverId);
   const invitationIds = applicants.map((a) => a.invitation?.id).filter((id): id is string => Boolean(id));
 
-  const [records, pspRequested, marks] = await Promise.all([
+  const [records, pspRequested, marks, employment, inquiries] = await Promise.all([
     readQualificationRecords(admin, orgId, driverIds),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
     // (D-SEP1) and `lint:table-access` refuses a raw read from recruitment — which is exactly what
     // it did to B3, correctly.
     driversWithPspRequest(admin, orgId, driverIds),
     readPacketMarks(admin, orgId, invitationIds),
+    // ⚠ Q-HM9's two, and they keep this function's shape rather than breaking it: five `.in()`
+    // queries for the whole org, grouped in memory, still three-plus-two regardless of whether the
+    // board holds two applicants or two thousand. Folding the investigation per driver here would
+    // have been the N+1 this module's header exists to refuse.
+    readEmploymentHistory(admin, orgId, driverIds),
+    readInquiries(admin, orgId, driverIds),
   ]);
+
+  // ⚠ Derived from `now` rather than read separately, so the whole board is folded against ONE
+  // instant. Two clock reads in one pass is how a row at a midnight boundary comes out measured
+  // against a different day from the row above it.
+  const today = now.toISOString().slice(0, 10);
 
   for (const a of applicants) {
     const own = records.get(a.driverId) ?? [];
     const kinds = [...new Set(own.map((r) => r.kind))];
     const markRows = a.invitation ? (marks.get(a.invitation.id) ?? []) : [];
+    const attempts = inquiries.get(a.driverId) ?? [];
+    // ⚠ The same pure fold the single-applicant checklist uses (`applicantChecklist.ts`), for D-HM2's
+    // reason: the board and the applicant's own record must never disagree about whether the §391.23
+    // investigation is outstanding.
+    const investigationQueue = driverInquiryQueue({
+      employment: employment.get(a.driverId) ?? [],
+      attempts,
+      hireDate: a.hiredAt,
+      today,
+    });
 
     const checklist = hiringChecklist({
       invitedAt: a.invitation?.created_at ?? null,
@@ -153,6 +177,11 @@ export async function boardChecklists(
         reportReceived: kinds.includes("psp_report"),
       },
       packetMarks: markRows.length,
+      investigation: {
+        outstanding: investigationQueue.outstanding.length,
+        // ⚠ `awaiting` only — the employer's own move. See `applicantChecklist.ts`'s note.
+        awaiting: investigationQueue.outstanding.filter((e) => e.state === "awaiting").length,
+      },
       hiredAt: a.hiredAt,
     });
 
@@ -272,6 +301,72 @@ async function readPacketMarks(
     .eq("org_id", orgId)
     .in("invitation_id", invitationIds);
   return groupBy((data ?? []) as MarkRow[], (r) => r.invitation_id);
+}
+
+/**
+ * The declared §391.21(b)(10) employment history, per driver (Q-HM9).
+ *
+ * ⚠ Read whole rather than counted, because `driverInquiryQueue` decides which of these employers
+ * are actually owed an inquiry — DOT-regulated, and inside the §391.23(a)(2) three-year window
+ * measured from the hire date. A `count` here could not answer either question, and a `.eq` on
+ * `dot_regulated` would be this module forming the opinion its own header says it must not.
+ */
+async function readEmploymentHistory(
+  admin: SupabaseClient,
+  orgId: string,
+  driverIds: readonly string[],
+): Promise<Map<string, QueueEmployment[]>> {
+  const { data } = await admin
+    .from("driver_employment_history")
+    .select("id, driver_id, employer_name, started_on, ended_on, dot_regulated")
+    .eq("org_id", orgId)
+    .in("driver_id", driverIds);
+  const out = new Map<string, QueueEmployment[]>();
+  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    const driverId = String(row.driver_id);
+    const list = out.get(driverId) ?? [];
+    list.push({
+      id: String(row.id),
+      employerName: String(row.employer_name),
+      startedOn: String(row.started_on),
+      endedOn: (row.ended_on as string | null) ?? null,
+      dotRegulated: Boolean(row.dot_regulated),
+    });
+    out.set(driverId, list);
+  }
+  return out;
+}
+
+/**
+ * The §391.23(c)(2) contact attempts, per driver (Q-HM9).
+ *
+ * ⚠ `safety_performance` only, matching `loadInquiryQueue` and `applicantChecklist`: `drug_alcohol`
+ * is §40.25 and applies to non-FMCSA DOT safety-sensitive employment, which §391.23(e) routes to the
+ * Clearinghouse instead. Counting it would hold this step open against an inquiry nobody owes.
+ */
+async function readInquiries(
+  admin: SupabaseClient,
+  orgId: string,
+  driverIds: readonly string[],
+): Promise<Map<string, QueueAttempt[]>> {
+  const { data } = await admin
+    .from("employer_inquiries")
+    .select("driver_id, employment_id, contacted_on, outcome")
+    .eq("org_id", orgId)
+    .eq("kind", "safety_performance")
+    .in("driver_id", driverIds);
+  const out = new Map<string, QueueAttempt[]>();
+  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    const driverId = String(row.driver_id);
+    const list = out.get(driverId) ?? [];
+    list.push({
+      employmentId: String(row.employment_id),
+      contactedOn: String(row.contacted_on),
+      outcome: row.outcome as QueueAttempt["outcome"],
+    });
+    out.set(driverId, list);
+  }
+  return out;
 }
 
 function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[]> {

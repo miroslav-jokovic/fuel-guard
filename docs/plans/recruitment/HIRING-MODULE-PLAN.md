@@ -1663,6 +1663,87 @@ every time.
   ⚠ **Eight consecutive steps have now shipped a defect every test was green for** — B4 three, B5 one,
   B6 two, A3 one, A4 three. The browser recipe that finds them is in the A3 entry above. Budget for it.
 
+- **2026-09-18, Q-HM9 — RULED AND BUILT. The §391.23(a)(2) previous-employer investigation is a step.**
+  `employment_investigation`, ordinal **13b**, evidence `employer_inquiries`, blocking `hired`.
+  Recommendation (a) taken as §8 and the Wave A handoff §3 both proposed. Before this, `grep -c inquir
+  hiringSteps.ts` was **0**: the product built the whole investigation — 0223's §391.23(c)(2) written
+  record, `inquiryQueue.ts`, the 30-day clock, a fleet queue page — and none of it was connected to
+  the checklist a recruiter works from, so "Hired" was reachable with a §391.51(b)(3) requirement
+  untouched. No migration; no schema change. The evidence table has existed since 0223.
+
+  **Two rulings the one-line recommendation did not settle, taken here with reasons, because both
+  change what the product asserts:**
+  - ⚠ **`federalGate: false`, and the pinned six stay six.** `federalGate` does not mean "required by
+    law" — it means one of §5's six things a carrier must hold BEFORE THE DRIVER FIRST DRIVES, which
+    is why they are not reorderable. §391.23(c)(1) gives the carrier **30 days from the date
+    employment begins** to hold either the replies or documented good-faith efforts, so this is
+    lawfully still open on the driver's first day. A seventh gate would have shortened the law in the
+    product's favour.
+  - ⚠ **`beforeTravel: false`, which is why it is at 13b and not beside the MVR at 5.** §391.23(a)(1)
+    and (a)(2) are the same regulation's two halves and 5b is where this first went. It was moved:
+    a step inside 1–9 gates `readyToTravel`, the answer the owner leads with, and previous employers
+    routinely take weeks on a clock that is **theirs**. Gating the plane ticket on it would either
+    stall every hire for a third party's silence or push an office to document a non-response early
+    to clear the row — which produces a **weaker** file than waiting. So it is positioned by its
+    DEADLINE (complete before the hire) while `requires: ["application_filled"]` says the work starts
+    as soon as a history is declared. ⚠ If the owner wants travel gated on it, that is a one-field
+    change and a test.
+
+  **The trap, and it is the one this step was most likely to ship.** `driverInquiryQueue.complete` is
+  `outstanding.length === 0`, which is **vacuously true for a driver whose employment history nobody
+  has typed yet** — no employers owed, nothing outstanding, "complete". A step reading that number
+  alone goes green on the day the invitation is sent. That is D-HM9's own medical-certificate mistake
+  in a third costume (capture read as verification), so `evidenceFor` requires the application to be
+  FILED before zero is allowed to mean zero — and once it is filed, zero does mean zero, because a
+  first-time driver with no DOT-regulated employer in the window genuinely has nobody to write to.
+  Absent input is NOT done, fail-closed.
+
+  **Mutations: eleven run, eleven red** — dropping the `historyDeclared` guard · removing fail-closed
+  on absent input · `inFlight` forced false · removing `employment_investigation` from `hired.requires`
+  · `beforeTravel: true` (reddened the travel-seam test too) · dropping the `application_filled`
+  prerequisite · four org/driver-scope filters on the two new reads · pointing the drawer at the
+  application body. ⚠ **One came back GREEN and the TEST was at fault**: deleting the
+  `kind = 'safety_performance'` filter reddened nothing, because both fixtures held only
+  safety-performance rows. A `drug_alcohol` row against the un-written-to employer now makes them
+  discriminate — §40.25 applies to non-FMCSA DOT employment and §391.23(e) routes FMCSA carriers to
+  the Clearinghouse, so counting it would close a step nobody has worked.
+
+  ⚠ **And the defect every test was green for, found by rendering at 1440 — the NINTH consecutive
+  step.** With two employers outstanding and one letter sent, the row read ***"Waiting on them"***
+  while the office had not written to one of them at all: `inFlight` was `attempts > 0`, a count
+  where a state was needed. `inquiryQueue.ts` has four open states and only **`awaiting`** is the
+  employer's move — `not_sent` is a letter we owe, `overdue` is a chase or a documented non-response,
+  `undeliverable` needs a different address. The input now carries `awaiting` rather than `attempts`,
+  and the row is theirs only when every outstanding employer is `awaiting`. ⚠ No test could have seen
+  it: every fixture was all-or-nothing, which is this repo's named *fixture too uniform to
+  discriminate* failure, and the partial state is now pinned.
+
+  **Walked in a browser** at 1440 and 390 (`preview:local` on :4178, Playwright, RAW `route.fulfill`
+  bodies): the record page reads *"Hiring · 11 of 13 done · Next: Contact the previous employers"*,
+  the row reads **Waiting on you** with no artifact, **Hired** reads **Blocked — Needs: Previous
+  employers checked**, and the travel sentence still names only the orientation videos. The row opens
+  `EmployerInquirySection`, which **moved out of the application drawer** — B6 had parked it there
+  with a comment saying the step did not exist, and that label came out with this change. The board
+  shows *"Contact the previous employers"* under Next action, Stage **Screening**, counted into
+  *Waiting on you*. ⚠ `bodyOf` in `HiringStepDrawer.test.ts` read only the FIRST `[data-body]`, which
+  is why the inquiry section sat in the application body unasserted for a whole step; a `bodies`
+  helper that enumerates now pins that it is no longer there.
+
+  ⚠ **`applicantChecklist` now takes `today`** and `boardChecklists` derives one date for the whole
+  pass — the §391.23(a)(2) window is measured from the hire date or, for an applicant, from today,
+  and two clock reads in one board would measure adjacent rows against different days. The board is
+  still set-based: **five `.in()` queries whether it holds two applicants or two thousand**, and its
+  test now says that the number must not move with the count rather than that the number is three.
+
+  `pnpm lint`, `typecheck`, `test` (9,570 unit across every package + 71 matrices), `lint:boundaries`,
+  `lint:filesize`, `lint:funcsize`, `lint:comment-claims`, `lint:table-writers`, `lint:table-access`,
+  `lint:surfaces`, `lint:ui-adoption`, `lint:migrations`, `lint:migration-ordering`, `lint:upserts`
+  and `--filter web lint:tokens` all green. ⚠ One `pnpm test` run showed `RecruitmentPage.test.ts`
+  timing out at 5,036 ms under the full parallel load; it passed on the two full runs and three web
+  runs either side, and the test touches nothing in this change. Recorded rather than dismissed — it
+  is the same shape as the open api flake in `HANDOFF-2026-09-08`.
+
+
 ---
 
 ## 11. Sources

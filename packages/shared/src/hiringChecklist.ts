@@ -89,6 +89,33 @@ export interface HiringChecklistInputs {
   qualificationKinds?: readonly string[];
   /** PSP: whether a request has been made, and whether a report came back. */
   psp?: { requested: boolean; reportReceived: boolean } | null;
+  /**
+   * The §391.23(a)(2) investigation, already folded by `driverInquiryQueue` (Q-HM9).
+   *
+   * ⚠ Counts rather than rows, and folded by the caller rather than here, because
+   * `driverInquiryQueue` needs `today` — the §391.23(a)(2) three-year window is measured from the
+   * hire date or, for an applicant, from today. This module has no clock and is not getting one, so
+   * the caller does the dated part and hands over the two numbers that survive it.
+   *
+   * ⚠ Absent means NOT DONE, never "nothing to do". A caller that forgets to read the inquiries
+   * leaves the step outstanding, which is the failure that shows; the other way round it would
+   * silently certify an investigation nobody performed.
+   */
+  investigation?: {
+    /** Employers still needing a reply or a documented non-response (`outstanding.length`). */
+    outstanding: number;
+    /**
+     * Of those, how many are `awaiting` — written to, with their §391.23(g)(1) 30 days still running.
+     *
+     * ⚠ Not "how many letters have been sent", which is what this was first and was wrong on screen.
+     * `inquiryQueue.ts` has four open states and only ONE of them is the employer's move: `not_sent`
+     * is a letter the office still owes, `overdue` is a chase or a documented non-response, and
+     * `undeliverable` needs a different address. Rendered at 1440 with two employers outstanding and
+     * one letter sent, a count-based rule put *"Waiting on them"* on a row where the office had not
+     * written to one of them at all — telling a recruiter to sit still when the next move was theirs.
+     */
+    awaiting: number;
+  } | null;
   /** How many of the packet's places this link has collected. The total is derived, never passed. */
   packetMarks?: number;
   /** The hire date, once there is one. */
@@ -210,6 +237,36 @@ function evidenceFor(
         done: (input.packetMarks ?? 0) >= packetDriverMarkCount(),
         inFlight: (input.packetMarks ?? 0) > 0,
       };
+    case "employment_investigation": {
+      // ⚠ THE GATE IS THE APPLICATION, NOT THE COUNT, and conflating them is the whole defect this
+      // case is written against. `driverInquiryQueue.complete` is `outstanding.length === 0`, which
+      // is **vacuously true for a driver whose employment history nobody has typed yet** — no
+      // employers owed, nothing outstanding, "complete". A step reading that number alone would go
+      // green on the day the invitation was sent, for an applicant who has declared nothing.
+      //
+      // That is D-HM9's own recorded mistake in a third costume: the medical certificate was
+      // missing for weeks because CAPTURE had been mistaken for VERIFICATION, and the lesson
+      // written down was that a checklist which conflates them "reports a gate as green that nobody
+      // has checked". An empty employment history is the same shape — an absence of evidence read
+      // as evidence of completeness.
+      //
+      // ⚠ Once the application is FILED the history is declared, and only then does zero mean zero:
+      // an applicant with no DOT-regulated employer inside the §391.23(a)(2) three-year window
+      // genuinely has nobody to write to, and their investigation is complete rather than empty.
+      // A first-time driver must not be held against a row that can never be satisfied.
+      const historyDeclared = review !== null && review !== "filling";
+      const queue = input.investigation;
+      return {
+        // ⚠ `queue == null` is NOT DONE — see the field's own note. Fail-closed, for the same
+        // reason a null RLS predicate denies rather than admits.
+        done: historyDeclared && queue != null && queue.outstanding === 0,
+        // ⚠ Theirs ONLY when there is nothing left for the office to do — every outstanding employer
+        // written to and still inside their own 30 days. One `not_sent`, `overdue` or `undeliverable`
+        // among them and the next move is ours, whatever else has been sent. See `awaiting`'s note:
+        // the count-based version of this rule shipped "Waiting on them" over an unwritten letter.
+        inFlight: queue != null && queue.outstanding > 0 && queue.awaiting === queue.outstanding,
+      };
+    }
     case "hired":
       return { done: Boolean(input.hiredAt), inFlight: false };
     // The three with no evidence table. Reached only if a caller asks directly; the fold never emits

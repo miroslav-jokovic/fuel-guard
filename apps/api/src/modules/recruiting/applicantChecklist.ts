@@ -1,9 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  driverInquiryQueue,
   hiringChecklist,
   type AuthorizationRow,
   type HiringChecklist,
   type HiringChecklistInputs,
+  type QueueAttempt,
+  type QueueEmployment,
 } from "@silvicom/shared";
 import { hasPspRequest } from "../psp/index.js";
 
@@ -21,7 +24,8 @@ import { hasPspRequest } from "../psp/index.js";
  * ── THE SERVICE ROLE BYPASSES RLS ──────────────────────────────────────────────────────────────
  * ⚠ So every read below org-filters itself, without exception, and `applicantChecklist.test.ts`
  * asserts it through `supabaseRecorder`'s `expectOrgScoped` rather than trusting the review that
- * noticed. Seven reads is seven chances to leave one off.
+ * noticed. Nine reads is nine chances to leave one off — Q-HM9 added the two that fold the §391.23
+ * investigation, and they are org-filtered for the same reason as the other seven.
  */
 
 /** The driver is not this org's, or is not there at all. Told apart from an empty checklist. */
@@ -40,6 +44,10 @@ export async function applicantChecklist(
   admin: SupabaseClient,
   orgId: string,
   driverId: string,
+  // ⚠ A parameter rather than a `new Date()` inside, for `boardChecklists`' stated reason: the
+  // §391.23(a)(2) three-year window is measured from the hire date or, for an applicant, from today
+  // — so a function that read the clock itself could only be tested at a particular hour.
+  today: string = new Date().toISOString().slice(0, 10),
 ): Promise<HiringChecklist | ChecklistError> {
   // ⚠ First, and it is a membership check rather than a lookup: the service role would happily read
   // another org's rows for this id, so the 404 below is what makes every read after it safe to
@@ -83,7 +91,7 @@ export async function applicantChecklist(
     .limit(1);
   const invitation = ((invites ?? []) as InvitationRow[])[0] ?? null;
 
-  const [authorizations, kinds, pspRequested, packetMarks, hasDraft] = await Promise.all([
+  const [authorizations, kinds, pspRequested, packetMarks, hasDraft, investigation] = await Promise.all([
     readAuthorizations(admin, orgId, driverId),
     readQualificationKinds(admin, orgId, driverId),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
@@ -91,6 +99,7 @@ export async function applicantChecklist(
     hasPspRequest(admin, orgId, driverId),
     readPacketMarks(admin, orgId, invitation?.id ?? null),
     readHasDraft(admin, orgId, invitation?.id ?? null),
+    readInvestigation(admin, orgId, driverId, (driver as { hire_date: string | null }).hire_date, today),
   ]);
 
   const input: HiringChecklistInputs = {
@@ -114,6 +123,7 @@ export async function applicantChecklist(
       reportReceived: kinds.includes("psp_report"),
     },
     packetMarks,
+    investigation,
     hiredAt: (driver as { hire_date: string | null }).hire_date,
   };
 
@@ -127,6 +137,75 @@ interface InvitationRow {
   approved_at: string | null;
   submitted_at: string | null;
   revoked_at: string | null;
+}
+
+/**
+ * The §391.23(a)(2) investigation, folded by the function that already owns the rules (Q-HM9).
+ *
+ * ⚠ `driverInquiryQueue` decides which employers are owed an inquiry and which of them are still
+ * open, and this module deliberately does not second-guess any of it — the window, the DOT-regulated
+ * filter, and the ruling that a DOCUMENTED non-response is DONE (§391.23(c)(1) accepts "documentation
+ * of good faith efforts" in place of a reply) are all its. The alternative was a `.select` with a
+ * `.neq("outcome", …)` here, which is this repo's *deriving beats restating* failure exactly: a
+ * second, simpler and wrong copy of a rule that already exists, and the one that would quietly report
+ * a lawful file as incomplete for ever.
+ *
+ * ⚠ Both reads org-filter themselves. The inquiries are additionally filtered to
+ * `kind = 'safety_performance'`, matching `loadInquiryQueue`: `drug_alcohol` is §40.25 and applies to
+ * non-FMCSA DOT employment only, so counting it would hold the step open for an inquiry §391.23(e)
+ * says to route to the Clearinghouse instead.
+ */
+async function readInvestigation(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  hireDate: string | null,
+  today: string,
+): Promise<{ outstanding: number; awaiting: number }> {
+  const [{ data: employment }, { data: inquiries }] = await Promise.all([
+    admin
+      .from("driver_employment_history")
+      .select("id, employer_name, started_on, ended_on, dot_regulated")
+      .eq("org_id", orgId)
+      .eq("driver_id", driverId),
+    admin
+      .from("employer_inquiries")
+      .select("employment_id, contacted_on, outcome")
+      .eq("org_id", orgId)
+      .eq("driver_id", driverId)
+      .eq("kind", "safety_performance"),
+  ]);
+
+  const attempts = ((inquiries ?? []) as Array<Record<string, unknown>>).map(
+    (row): QueueAttempt => ({
+      employmentId: String(row.employment_id),
+      contactedOn: String(row.contacted_on),
+      outcome: row.outcome as QueueAttempt["outcome"],
+    }),
+  );
+
+  const queue = driverInquiryQueue({
+    employment: ((employment ?? []) as Array<Record<string, unknown>>).map(
+      (row): QueueEmployment => ({
+        id: String(row.id),
+        employerName: String(row.employer_name),
+        startedOn: String(row.started_on),
+        endedOn: (row.ended_on as string | null) ?? null,
+        dotRegulated: Boolean(row.dot_regulated),
+      }),
+    ),
+    attempts,
+    hireDate,
+    today,
+  });
+
+  // ⚠ `awaiting` is the one open state that is the EMPLOYER's move. `not_sent`, `overdue` and
+  // `undeliverable` are all the office's, so they must not read as "waiting on them" — see the
+  // field's note in `hiringChecklist.ts` for the row that shipped saying otherwise.
+  return {
+    outstanding: queue.outstanding.length,
+    awaiting: queue.outstanding.filter((e) => e.state === "awaiting").length,
+  };
 }
 
 /**

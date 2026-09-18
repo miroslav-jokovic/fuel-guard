@@ -67,6 +67,25 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
     ],
     psp_requests: [{ id: "psp-1", driver_id: driverId(1) }],
     application_packet_marks: [],
+    // ⚠ Q-HM9, and seeded for driver 1 ONLY on purpose. The six-applicant test folds these same
+    // rows, so a service that forgot to group by driver — or that handed every applicant the whole
+    // org's employment history — gives drivers 2–6 an investigation they do not owe. A fixture that
+    // seeded all six equally could not tell that apart from grouping correctly.
+    driver_employment_history: [
+      { id: "emp-answered", driver_id: driverId(1), employer_name: "Kowlage Haulage",
+        started_on: "2024-01-01", ended_on: "2025-06-30", dot_regulated: true },
+      { id: "emp-open", driver_id: driverId(1), employer_name: "Rivergate Freight",
+        started_on: "2025-07-01", ended_on: "2026-05-31", dot_regulated: true },
+    ],
+    employer_inquiries: [
+      { driver_id: driverId(1), employment_id: "emp-answered", kind: "safety_performance",
+        contacted_on: "2026-09-05", outcome: "responded" },
+      // ⚠ §40.25, against the employer nobody has written to for §391.23(d). The service filters it
+      // out, so `emp-open` stays outstanding. Without this row, deleting that filter reddens nothing
+      // — measured by mutation on 2026-09-18.
+      { driver_id: driverId(1), employment_id: "emp-open", kind: "drug_alcohol",
+        contacted_on: "2026-09-06", outcome: "responded" },
+    ],
     ...over,
   };
   return createSupabaseRecorder({
@@ -89,6 +108,8 @@ const asInputs = (over: Record<string, unknown> = {}) => ({
   qualificationKinds: ["mvr", "psp_report"],
   psp: { requested: true, reportReceived: true },
   packetMarks: 0,
+  // ⚠ `emp-open` has had no letter, so one employer is still outstanding. Q-HM9.
+  investigation: { outstanding: 1, awaiting: 0 },
   hiredAt: null,
   ...over,
 });
@@ -176,6 +197,13 @@ describe("the board row is the fold's answer, projected", () => {
       application_packet_marks: Array.from({ length: packetDriverMarkCount() }, (_, i) => ({
         invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `m${i}`,
       })),
+      // ⚠ Q-HM9: BOTH employers answered, so the §391.23 investigation is closed too. Without this
+      // the default seed leaves `emp-open` unwritten-to and `next` is the investigation — which is
+      // the step doing its job, and would make this test's "nothing outstanding" a false premise.
+      employer_inquiries: ["emp-answered", "emp-open"].map((employment_id) => ({
+        driver_id: driverId(1), employment_id, kind: "safety_performance",
+        contacted_on: "2026-09-05", outcome: "responded",
+      })),
     });
     const board = await boardChecklists(rec.client, ORG, [applicant(1, { hiredAt: "2026-09-08" })], NOW);
     const row = board.get(driverId(1))!;
@@ -234,17 +262,26 @@ describe("what it reads, and how much", () => {
     await boardChecklists(rec.client, ORG, [applicant(1)], NOW);
     expectOrgScoped(rec, ORG);
     expect(new Set(rec.queries.map((q) => q.table))).toEqual(
-      new Set(["qualification_records", "psp_requests", "application_packet_marks"]),
+      new Set([
+        "qualification_records", "psp_requests", "application_packet_marks",
+        // Q-HM9's two: the declared employment history and the §391.23(c)(2) contact attempts.
+        "driver_employment_history", "employer_inquiries",
+      ]),
     );
   });
 
   /**
-   * ⚠ **The property a one-applicant fixture cannot express.** Six applicants must still be three
-   * queries, because the alternative — a loop over B3's seven round trips — is what
+   * ⚠ **The property a one-applicant fixture cannot express.** Six applicants must still be five
+   * queries, because the alternative — a loop over B3's round trips — is what
    * `LIVE-MAP-CONCURRENCY-PLAN.md` §7 measured as refusing a whole office, and it took #856–#858 to
    * undo. A board is the screen a recruiter leaves open all morning.
+   *
+   * ⚠ It was three until Q-HM9 and is five now. What the assertion protects is not the NUMBER — it
+   * is that the number does not move with the applicant count, which is the whole difference between
+   * a set-based read and an N+1. Six applicants folding the §391.23 investigation per driver would
+   * read thirteen.
    */
-  it("costs the same three queries for six applicants as for one", async () => {
+  it("costs the same five queries for six applicants as for one", async () => {
     const one = seed();
     await boardChecklists(one.client, ORG, [applicant(1)], NOW);
 
@@ -256,7 +293,7 @@ describe("what it reads, and how much", () => {
       NOW,
     );
     expect(many.queries.length).toBe(one.queries.length);
-    expect(many.queries.length).toBe(3);
+    expect(many.queries.length).toBe(5);
   });
 
   /**
@@ -274,6 +311,11 @@ describe("what it reads, and how much", () => {
         driver_id: driverId(n), kind: "mvr", created_at: "2026-09-04T00:00:00Z",
       })),
       psp_requests: [],
+      // ⚠ Q-HM9: cleared for BOTH, because the default seed gives driver 1 an employment history and
+      // driver 2 none — which is a second difference between them, and this test can only measure
+      // the marks if the marks are the only one. It cost a real failure here, not a hypothetical.
+      driver_employment_history: [],
+      employer_inquiries: [],
       application_packet_marks: [
         ...Array.from({ length: packetDriverMarkCount() }, (_, i) => ({
           invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `a${i}`,

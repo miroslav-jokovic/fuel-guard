@@ -87,6 +87,17 @@ async function openOn(key: string, invitationId: string | null = "invite-1") {
 
 const bodyOf = (root: HTMLElement) => root.querySelector("[data-body]")?.getAttribute("data-body");
 
+/**
+ * EVERY body rendered, in order.
+ *
+ * ⚠ `bodyOf` reads the first `[data-body]` and nothing else, which is fine for the bodies that are
+ * one component and blind for the one that is not: the application body renders two stubs, so
+ * `bodyOf` could never see the second and never noticed that `EmployerInquirySection` was in there.
+ * An assertion about what a body does NOT contain has to enumerate.
+ */
+const bodies = (root: HTMLElement) =>
+  [...root.querySelectorAll("[data-body]")].map((el) => el.getAttribute("data-body"));
+
 describe("a row opens the work behind the step", () => {
   it("opens the invitation for the step that sends it", async () => {
     expect(bodyOf(await openOn("invitation_sent"))).toBe("invite");
@@ -112,6 +123,23 @@ describe("a row opens the work behind the step", () => {
 
   it("opens the PSP ledger for the PSP step", async () => {
     expect(bodyOf(await openOn("psp"))).toBe("psp");
+  });
+
+  /**
+   * ⚠ **Q-HM9, and this test is the half the type system could not reach.** The §391.23(a)(2)
+   * investigation became a step on 2026-09-18, and `EmployerInquirySection` moved out of the
+   * application body — where B6 had parked it for want of a row to hang it on — and behind the new
+   * one. `hiringStepDrawers.ts` is a `Record` over a closed union, so the compiler forced an entry
+   * to exist; nothing in the compiler could check that the entry renders the right component.
+   *
+   * ⚠ And the assertion below has to be `bodies`, not `bodyOf`. The application body renders TWO
+   * stubs and `bodyOf` returns only the first, which is why the inquiry section sat inside it for a
+   * whole step unasserted: a test reading the first child would have gone green whether the section
+   * moved or not. That is this file's own teleport lesson met from a different direction.
+   */
+  it("opens the inquiries for the investigation step, and no longer for the application", async () => {
+    expect(bodyOf(await openOn("employment_investigation"))).toBe("inquiry");
+    expect(bodies(await openOn("application_filled"))).toEqual(["employment"]);
   });
 });
 

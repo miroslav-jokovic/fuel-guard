@@ -47,6 +47,50 @@ const authRows = () =>
 const markRows = (n: number, invitation = INVITE) =>
   Array.from({ length: n }, (_, i) => ({ id: `mark-${invitation}-${i}`, invitation_id: invitation }));
 
+/**
+ * ⚠ A fixed date, passed in, and not `new Date()` (Q-HM9). The §391.23(a)(2) window is measured from
+ * the hire date or — for an applicant, which is every fixture here — from today, so a test that let
+ * the service read the clock would be a test whose employment fixtures aged out of the window on a
+ * date nobody chose. The seed's dates below are positioned against THIS day.
+ */
+const TODAY = "2026-09-18";
+
+/**
+ * Two DOT-regulated previous employers inside the three-year window, and one earlier job outside it.
+ *
+ * ⚠ The third row is the one that makes this fixture discriminate rather than merely pass. A seed
+ * with only owed employers cannot tell a service that folds the window correctly from one that
+ * counts every employment row it can see — which is exactly the "fixture too uniform to discriminate"
+ * failure this file's own header names.
+ */
+const employmentRows = () => [
+  { id: "emp-answered", driver_id: DRIVER, employer_name: "Kowlage Haulage",
+    started_on: "2024-01-01", ended_on: "2025-06-30", dot_regulated: true },
+  { id: "emp-open", driver_id: DRIVER, employer_name: "Rivergate Freight",
+    started_on: "2025-07-01", ended_on: "2026-05-31", dot_regulated: true },
+  // Outside the §391.23(a)(2) three-year window, so no inquiry is owed on it.
+  { id: "emp-old", driver_id: DRIVER, employer_name: "Ninth Street Cartage",
+    started_on: "2015-01-01", ended_on: "2016-01-01", dot_regulated: true },
+];
+
+/**
+ * One letter sent, and answered. `emp-open` has had none, so one employer is still outstanding.
+ *
+ * ⚠ The second row is `drug_alcohol` AGAINST `emp-open`, and it is the whole reason this fixture
+ * discriminates. §40.25 drug-and-alcohol inquiries apply to non-FMCSA DOT safety-sensitive
+ * employment only — §391.23(e) routes FMCSA carriers to the Clearinghouse — so the service filters
+ * them out, and `emp-open` must still read as nobody-has-written-to-them. **Without this row,
+ * deleting the `kind` filter from the service changed no test's answer**: measured by mutation on
+ * 2026-09-18, it came back green and proved nothing. With it, dropping the filter makes `emp-open`
+ * look answered and the count goes wrong.
+ */
+const inquiryRows = () => [
+  { driver_id: DRIVER, employment_id: "emp-answered", kind: "safety_performance",
+    contacted_on: "2026-09-05", outcome: "responded" },
+  { driver_id: DRIVER, employment_id: "emp-open", kind: "drug_alcohol",
+    contacted_on: "2026-09-06", outcome: "responded" },
+];
+
 /** One applicant, mid-flow: approved, three screening records in, packet half-signed. */
 const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
   const rows: Record<string, Array<Record<string, unknown>>> = {
@@ -70,6 +114,8 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
     ],
     psp_requests: [{ id: "psp-1", driver_id: DRIVER }],
     application_packet_marks: markRows(3),
+    driver_employment_history: employmentRows(),
+    employer_inquiries: inquiryRows(),
     ...over,
   };
   return createSupabaseRecorder({
@@ -92,6 +138,9 @@ const asInputs = (over: Record<string, unknown> = {}) => ({
   qualificationKinds: ["mvr", "drug_test", "psp_report"],
   psp: { requested: true, reportReceived: true },
   packetMarks: 3,
+  // ⚠ `outstanding: 1` is `emp-open` — the employer nobody has written to. `emp-answered` is closed
+  // and `emp-old` is outside the window, so neither is owed. Q-HM9.
+  investigation: { outstanding: 1, awaiting: 0 },
   hiredAt: null,
   ...over,
 });
@@ -104,7 +153,7 @@ describe("the endpoint answers exactly what the fold answers", () => {
    */
   it("matches the fold for the same rows, step for step", async () => {
     const rec = seed();
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(isChecklistError(result)).toBe(false);
     expect(result).toEqual(hiringChecklist(asInputs()));
   });
@@ -119,7 +168,7 @@ describe("the endpoint answers exactly what the fold answers", () => {
       psp_requests: [],
       application_packet_marks: [],
     });
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(result).toEqual(
       hiringChecklist({
         invitedAt: null,
@@ -144,7 +193,7 @@ describe("the endpoint answers exactly what the fold answers", () => {
       qualification_records: kinds.map((kind) => ({ driver_id: DRIVER, kind })),
       application_packet_marks: markRows(packetDriverMarkCount()),
     });
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(result).toEqual(
       hiringChecklist(asInputs({
         qualificationKinds: kinds,
@@ -159,17 +208,22 @@ describe("what it reads, and from where", () => {
   /**
    * ⚠ The service role bypasses RLS, so every read has to carry its own org filter — and
    * `expectOrgScoped` checks the queries that were MADE, which is why the table set is asserted
-   * beside it. A service that read four tables instead of seven would pass the scope check by doing
+   * beside it. A service that read six tables instead of nine would pass the scope check by doing
    * less, and the first assertion alone could not tell that apart from doing it right.
    */
   it("scopes every read to the org the caller is in", async () => {
     const rec = seed();
-    await applicantChecklist(rec.client, ORG, DRIVER);
+    await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expectOrgScoped(rec, ORG);
-    // ⚠ And that it read all seven, so a scope check over four queries cannot pass by reading less.
+    // ⚠ And that it read all nine, so a scope check over six queries cannot pass by reading less.
+    // ⚠ The last two are Q-HM9's: the §391.23 investigation needs the declared employment history
+    // AND the contact attempts, and reading only one of them would silently fold the wrong answer
+    // rather than fail — an empty history reads as "nothing owed", which is the trap the fold's own
+    // `historyDeclared` guard exists for.
     expect(new Set(rec.queries.map((q) => q.table))).toEqual(new Set([
       "drivers", "application_invitations", "driver_authorizations", "qualification_records",
       "psp_requests", "application_packet_marks", "application_drafts",
+      "driver_employment_history", "employer_inquiries",
     ]));
   });
 
@@ -179,7 +233,7 @@ describe("what it reads, and from where", () => {
    */
   it("refuses a driver who belongs to another org, and reads nothing else", async () => {
     const rec = seed({ drivers: [] });
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(isChecklistError(result)).toBe(true);
     // One query: the membership check that failed. Nothing about this applicant was gathered.
     expect(rec.queries).toHaveLength(1);
@@ -203,7 +257,7 @@ describe("what it reads, and from where", () => {
         },
       ],
     });
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(isChecklistError(result)).toBe(false);
     const steps = (result as { steps: Array<{ key: string; state: string }> }).steps;
     // The new link has not been sent to the office, so the application is NOT filled in — which the
@@ -233,7 +287,7 @@ describe("what it reads, and from where", () => {
         },
       ],
     });
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(isChecklistError(result)).toBe(false);
     const steps = (result as { steps: Array<{ key: string; state: string }> }).steps;
     // The revoked row is the NEWEST and has no stamps at all, so reading it would report an
@@ -251,7 +305,7 @@ describe("what it reads, and from where", () => {
     const rec = seed({
       application_packet_marks: [...markRows(2), ...markRows(packetDriverMarkCount(), "old-invite")],
     });
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(result).toEqual(hiringChecklist(asInputs({ packetMarks: 2 })));
   });
 
@@ -262,7 +316,7 @@ describe("what it reads, and from where", () => {
    */
   it("counts a PSP filed from the portal, with no order behind it", async () => {
     const rec = seed({ psp_requests: [] });
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     const steps = (result as { steps: Array<{ key: string; state: string }> }).steps;
     expect(steps.find((s) => s.key === "psp")!.state).toBe("done");
   });
@@ -272,7 +326,7 @@ describe("what it reads, and from where", () => {
     const rec = seed({
       qualification_records: [{ driver_id: DRIVER, kind: "mvr" }, { driver_id: DRIVER, kind: "drug_test" }],
     });
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     const steps = (result as { steps: Array<{ key: string; state: string }> }).steps;
     expect(steps.find((s) => s.key === "psp")!.state).toBe("waiting_on_them");
   });
@@ -292,7 +346,7 @@ describe("what it reads, and from where", () => {
         },
       ],
     });
-    const result = await applicantChecklist(rec.client, ORG, DRIVER);
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     const steps = (result as { steps: Array<{ key: string; state: string }> }).steps;
     expect(steps.find((s) => s.key === "permissions_signed")!.state).toBe("waiting_on_them");
   });

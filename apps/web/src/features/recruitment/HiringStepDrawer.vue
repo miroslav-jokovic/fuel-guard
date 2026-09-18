@@ -29,6 +29,8 @@ import { useAuthorizationsQuery } from "@/features/recruitment/useAuthorizations
  * that does not exist — five of the twelve emitted steps have a body today and seven do not, because
  * D1, D2 and C1 are the steps that build them. Those seven get a body that says what the step is,
  * what proves it and **where the act is performed today**, rather than a drawer opening onto nothing.
+ * ⚠ Q-HM9 added a thirteenth emitted step on 2026-09-18 and it came WITH its affordance — the
+ * inquiry section existed and had been parked in the application body — so the seven is unchanged.
  *
  * ⚠ No nested drawer. `ApplicationReviewDrawer` is itself a `SlideOver`, so the application body
  * EMITS `review` and the page swaps one drawer for the other — two dialogs open at once is a focus
@@ -119,11 +121,11 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       />
 
       <template v-else-if="body === 'application'">
-        <!-- ⚠ The §391.21(b)(10) history and the §391.23 investigation OF that history are here
-             because they are the application's content, not because a row was free. ⚠ But the
-             INQUIRY is not one of D-HM9's fourteen steps at all, despite being a §391.51 file
-             requirement this product already builds — recorded as Q-HM9, because inventing a
-             fifteenth step is a catalogue ruling and not a UI decision. -->
+        <!-- ⚠ The §391.21(b)(10) employment history is here because it IS the application's content.
+             The §391.23 investigation OF that history used to be here too, parked, with a comment
+             saying it was not one of D-HM9's steps despite being a §391.51 file requirement this
+             product already builds. **Q-HM9 ruled it in on 2026-09-18**, so it has its own row and
+             its own drawer (`body === 'investigation'`) and no longer rides along with this one. -->
         <!-- ⚠ The application itself is a button and not this drawer's body: `ApplicationReviewDrawer`
              is a `SlideOver` of its own AND lives in `features/apply`, which this feature may not
              import. Both facts say the same thing — hand it up to the page. -->
@@ -136,10 +138,14 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         </p>
 
         <EmploymentHistorySection :driver-id="driverId" />
-        <EmployerInquirySection :driver-id="driverId" />
       </template>
 
       <PspRecordsSection v-else-if="body === 'psp'" :driver-id="driverId" />
+
+      <!-- ⚠ Q-HM9's step. The section is unchanged — it was already the whole §391.23(c)(2) record,
+           it simply had no row to open it. What the row adds is that the investigation is now
+           COUNTED: it blocks Hired, so nobody reaches the end of the checklist with it untouched. -->
+      <EmployerInquirySection v-else-if="body === 'investigation'" :driver-id="driverId" />
 
       <!-- ⚠ The five recorded acts (D-HM6) and the packet. No affordance in this drawer yet, and
            saying so plainly is the point: D1, D2 and C1 build them. What it CAN do is take the

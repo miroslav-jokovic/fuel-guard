@@ -19,10 +19,11 @@ import type { HiringEvidenceTable } from "@silvicom/shared";
  * artifact is a **type error in this file** until somebody says where it is reached. That is the
  * whole reason B5 made the table a union rather than leaving it `string`.
  *
- * ── AND THE FOUR THAT ARE NOT ROUTES ──────────────────────────────────────────────────────────
- * ⚠ Four of the twelve resolve to `null`, and all four now mean **"it is on the page you are
+ * ── AND THE FIVE THAT ARE NOT ROUTES ──────────────────────────────────────────────────────────
+ * ⚠ Five of the thirteen resolve to `null`, and all five now mean **"it is on the page you are
  * reading"**: B6 made every checklist row open a drawer, so the invitation, the approval, the
- * application and the signed releases are one click away rather than one navigation.
+ * application, the signed releases and — since Q-HM9 — the previous-employer inquiries are one
+ * click away rather than one navigation.
  *
  * ⚠ The fourth of those was a real missing capability when B5 wrote this file — nothing in the
  * office's half of the product showed a signed authorization, the read endpoint existed and no
@@ -76,6 +77,10 @@ const DESTINATIONS: Record<HiringEvidenceTable, (driverId: string) => HiringArti
   "qualification_records.medical_registry_verification": qualificationFile,
   "qualification_records.road_test": qualificationFile,
   "application_packet_marks": qualificationFile,
+  // ⚠ Q-HM9's step. On this page since the same change: the investigation got its own checklist row
+  // and `EmployerInquirySection` moved out of the application drawer and behind it, so the §391.23
+  // written record is one click from the row it proves rather than three screens away.
+  "employer_inquiries": () => onThisPage("The previous-employer inquiries"),
   "drivers.hire_date": (driverId) => ({
     to: { name: "driver-detail", params: { id: driverId } },
     unreachable: null,
