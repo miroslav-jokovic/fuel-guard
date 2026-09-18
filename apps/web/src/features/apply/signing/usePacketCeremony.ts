@@ -82,6 +82,14 @@ export function usePacketCeremony(
   const index = ref(0);
   const working = ref(false);
   const error = ref<string | null>(null);
+  /**
+   * Whether the last refusal was the limiter rather than a fault (A0b).
+   *
+   * ⚠ A separate flag and not a string comparison on `error`: the screen has to pick different
+   * words, and matching on a message is a coupling that survives exactly until somebody edits
+   * the copy.
+   */
+  const rateLimited = ref(false);
   /** The server's own count, which is what "signed through" means. */
   const filed = ref(0);
   const finished = ref(false);
@@ -186,6 +194,7 @@ export function usePacketCeremony(
     if (!stop || working.value) return;
     working.value = true;
     error.value = null;
+    rateLimited.value = false;
     try {
       const result = await applyPacketMark(token.value, stop.id, markFor(stop));
       filed.value = result.signedCount;
@@ -200,6 +209,13 @@ export function usePacketCeremony(
         // the driver off for something the server handled correctly.
         index.value += 1;
       } else {
+        // ⚠ A0b. The refusal that stopped the first real ceremony was a 429, and until now every
+        // refusal here read the same on the screen above — which then sent a driver with a perfectly
+        // good connection off to check their signal. This one is carried out separately so the
+        // screen can say the only thing that is both true and actionable: wait, press again, nothing
+        // is lost. ⚠ `index` deliberately does not advance, so pressing again retries the SAME place
+        // on the carrier's paper rather than skipping it.
+        rateLimited.value = code === "too_many_requests";
         error.value = e instanceof Error ? e.message : "That did not go through.";
       }
     } finally {
@@ -225,6 +241,7 @@ export function usePacketCeremony(
     filed: computed(() => filed.value),
     working: computed(() => working.value),
     error: computed(() => error.value),
+    rateLimited: computed(() => rateLimited.value),
     adopt,
     sign,
   };

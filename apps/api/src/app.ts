@@ -15,6 +15,7 @@ import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
 import { requestMetrics } from "./middleware/requestMetrics.js";
+import { applicationIntakeLimiter, isApplicationLink, packetCeremonyLimiter } from "./middleware/applicationLimits.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { invitesRouter, publicInvitesRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
@@ -118,10 +119,12 @@ function mountFuelCardPrefix(app: Express, env: Env, vendorLimiter: RequestHandl
  * tries a minute or at 20 million — the limit is what stops a leaked link being replayed at volume
  * while it is still live, and what keeps an anonymous caller from mapping the surface.
  *
- * ⚠ **That paragraph is about an ATTACKER's request rate, and it was the only rate anybody counted.**
- * An honest applicant signing the carrier's packet makes twenty-two POSTs in about as many seconds,
- * which is over this bucket on its own — measured on 2026-09-17, see `applicationLimiter` below. The
- * number stands until A0b argues for a different one; what is wrong is not knowing it.
+ * ⚠ **That paragraph is about an ATTACKER's request rate, and for a while it was the only rate
+ * anybody had counted.** An honest applicant signing the carrier's packet makes twenty-two POSTs in
+ * about as many seconds, which is over a bucket of twenty on its own — measured on 2026-09-17, when
+ * it stopped the first ceremony this product ever ran. The intake keeps the tight number it was
+ * sized for and the ceremony has its own; both live in `middleware/applicationLimits.ts`, which
+ * carries the argument.
  */
 function mountPublic(app: Express): void {
   app.use("/api/public/hazmat", publicHazmatRouter());
@@ -133,37 +136,19 @@ function mountPublic(app: Express): void {
   app.use("/api/public/invites", rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false }));
   app.use("/api/public/invites", publicInvitesRouter());
   /**
-   * The same bucket for the application intake — and, since A0, a trace when it refuses.
+   * TWO buckets on the applicant's link, and the argument for the split is in `applicationLimits.ts`.
    *
-   * ⚠ **This limiter stopped the first signing ceremony this product ever ran, and left nothing
-   * behind that said so.** On 2026-09-17 a driver's walk recorded `p03` through `p28` — twenty
-   * marks in twenty-three seconds, because twenty-two marks are twenty-two POSTs by design
-   * (`publicApplication.ts`'s `/:token/mark`: *"twenty-two marks made by one request would be one
-   * act"*) — spent the whole minute's budget on them, and got 429 at `p31a`. The body is
-   * express-rate-limit's own plain text, so `publicFetch` cannot parse it and reports the only
-   * thing it has: *"This application link is not valid. Ask for a new one."* A day then went into
-   * looking for the link's killer in the abandonment sweep, which measurement later showed had
-   * never fired (`HIRING-MODULE-PLAN.md` §1a C1, §10).
+   * ⚠ One bucket stopped the first signing ceremony this product ever ran (A0, 2026-09-17): the
+   * packet is twenty-two POSTs by design and the prefix allowed twenty a minute. The intake keeps
+   * its number — it is sized for a form that takes a date of birth and a licence number — and the
+   * ceremony gets its own, keyed by the LINK rather than the address, because D-HM9 puts the signing
+   * in the office where several applicants share one address.
    *
-   * The handler does not change the answer. **Sizing this bucket for a ceremony is A0b, a separate
-   * merge**, because it changes what an unauthenticated surface allows and that argument belongs on
-   * its own PR. What changes here is that the next refusal is findable.
-   *
-   * ⚠ **The token never goes in the line.** `req.path` is mount-relative — `/<token>/mark` — and
-   * that token IS the credential for a live application; putting it in Railway's log retention
-   * would be worse than the blindness it cures. Only the step after it is kept.
+   * Each skips the other's routes, so exactly one of them counts any given request.
    */
-  const applicationLimiter = rateLimit({
-    windowMs: 60_000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false,
-    handler: (req, res, _next, options) => {
-      console.warn("[public-application] rate limited", {
-        method: req.method,
-        step: req.path.split("/").filter(Boolean)[1] ?? "(invitation)",
-      });
-      res.status(options.statusCode).send(options.message);
-    },
-  });
-  app.use("/api/public/application", applicationLimiter, publicApplicationRouter());
+  app.use("/api/public/application", applicationIntakeLimiter());
+  app.use("/api/public/application", packetCeremonyLimiter());
+  app.use("/api/public/application", publicApplicationRouter());
 }
 
 /** The P5 finance sections — split out of createApp at the 200-line function budget. The
@@ -333,11 +318,18 @@ export function createApp(env: Env): Express {
     keyGenerator: fuelCardVendorRateLimitKey,
   });
   // M7: the public calculator is unauthenticated → its own tighter limiter on the abuse surface.
+  // ⚠ A0b: it no longer covers the applicant's link. This was argued and sized when the hazmat
+  // calculator was the only thing under `/api/public`; the application was mounted beside it later
+  // and inherited 60-per-address, which three applicants signing in one office (D-HM9 step 13)
+  // exceed on the packet alone. That prefix carries its own two buckets now — see
+  // `middleware/applicationLimits.ts`, which owns the argument — and `apiAddressCeiling` still sits
+  // over all of it.
   const calcLimiter = rateLimit({
     windowMs: 60_000,
     limit: 60,
     standardHeaders: "draft-7",
     legacyHeaders: false,
+    skip: isApplicationLink,
   });
   app.use("/api/invites", strictLimiter);
   app.use("/api/auth", strictLimiter); // public login exchange — worst-case abuse target

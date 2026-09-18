@@ -252,6 +252,48 @@ describe("the walk", () => {
   });
 
   /**
+   * ⚠ A0b, and the reason the walk on 2026-09-17 ended in a lie. The limiter refused the
+   * twenty-first request of the ceremony, `publicFetch` could not parse the plain-text 429, and the
+   * driver was told their link was invalid — about a link that was fine and would work again within
+   * the minute. The server answers in the API's envelope now; this is the client half.
+   */
+  it("tells a rate-limited stop apart from a fault, and stays on the same place", async () => {
+    const c = started();
+    await c.adopt();
+    answer = () => Object.assign(new Error("slow down"), { code: "too_many_requests" });
+    await c.sign();
+    expect(c.rateLimited.value).toBe(true);
+    expect(c.error.value).not.toBeNull();
+    // ⚠ Same place, so pressing again retries THIS mark rather than skipping it — the one thing a
+    // refusal must never do on a document somebody's job depends on.
+    expect(c.current.value!.id).toBe("p03");
+    expect(marked).toHaveLength(1);
+  });
+
+  /** Anything else is a fault, and must not borrow the limiter's "wait a minute" words. */
+  it("does not call an ordinary failure rate-limited", async () => {
+    const c = started();
+    await c.adopt();
+    answer = () => Object.assign(new Error("boom"), { code: "packet_mark_failed" });
+    await c.sign();
+    expect(c.error.value).not.toBeNull();
+    expect(c.rateLimited.value).toBe(false);
+  });
+
+  /** And a retry that lands clears it, so the wait message cannot outlive the wait. */
+  it("clears the rate-limited flag when the next attempt goes through", async () => {
+    const c = started();
+    await c.adopt();
+    answer = () => Object.assign(new Error("slow down"), { code: "too_many_requests" });
+    await c.sign();
+    expect(c.rateLimited.value).toBe(true);
+    answer = () => ({ signedCount: 1, complete: false });
+    await c.sign();
+    expect(c.rateLimited.value).toBe(false);
+    expect(c.current.value!.id).toBe("p04");
+  });
+
+  /**
    * ⚠ **Completion is the SERVER's count, not the end of this file's array.** A stop collected in
    * another tab means the client's list is not the document's, and a ceremony that declared itself
    * finished on reaching its own last element would be reporting on the wrong thing.

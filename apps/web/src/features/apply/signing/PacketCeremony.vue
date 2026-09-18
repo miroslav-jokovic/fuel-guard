@@ -219,7 +219,15 @@ async function signCurrent(): Promise<void> {
       <p class="signature-preview text-2xl text-ink">{{ applying }}</p>
     </div>
 
-    <p v-if="ceremony.error.value" class="text-sm text-ink-secondary">{{ copy.failed }}</p>
+    <!--
+      ⚠ Two refusals, two sentences (A0b). A rate-limited stop is not a fault and the driver's
+      connection is fine — telling them to check their signal, which is what this said to every
+      refusal alike, sends somebody off to fix a thing that is not broken. The limiter's sentence
+      names the wait and says nothing is lost, both of which are true.
+    -->
+    <p v-if="ceremony.error.value" class="text-sm text-ink-secondary">
+      {{ ceremony.rateLimited.value ? copy.tooFast : copy.failed }}
+    </p>
 
     <div class="flex justify-end">
       <BaseButton variant="primary" :disabled="ceremony.working.value" @click="signCurrent">
