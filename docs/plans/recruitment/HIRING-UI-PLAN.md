@@ -225,6 +225,34 @@ allowing it, which is Q-HM5's recommendation rendered.
 ⚠ The applicant's wizard keeps `ApplyProgress`'s high-water-mark fence unchanged. It is not a UX
 preference there — it is what stops the navigation being a route around validation.
 
+### D-HUI9 — the page is the orientation, the sentence is the reading surface (Q-HUI2, measured)
+
+**Measured 2026-09-17**, by rendering packet page 15 at the exact scale each viewport gives it —
+`pdftoppm -r 46` is what a 390px phone shows at 1x, `-r 90` is a 765px tablet:
+
+| Viewport | Body text renders at | Verdict |
+|---|---|---|
+| **390px** (phone) | **~6 CSS px** | the document is recognisable as a **shape** — heading, paragraphs, signature lines, page number — and the body text **cannot be read** |
+| **765px** (tablet/desktop) | ~12 CSS px | **fully readable** |
+
+⚠ **So none of Q-HUI2's three candidates was right.** (a) pinch-zoom alone makes reading the clause a
+chore on the screen most drivers have; (b) cropping to the mark's neighbourhood throws away the
+document, which is the entire point of the rebuild; (c) desktop-only strands the driver this product
+is for.
+
+**What ships instead: both, always.** The page renders at every width — that is what tells the driver
+*where they are on the carrier's paper*, and at 390px it does that job perfectly well even though the
+body text is 6px. Beside it, **the stop's own sentence in real type** — which the current ceremony
+already serves as `stop.what` and is the one thing it got right. Pinch-zoom stays enabled for the
+full clause. ⚠ Never `user-scalable=no`; disabling zoom is an accessibility failure and here it would
+remove the only way to read the paragraph.
+
+⚠ **And there is a fact that makes this safe rather than a compromise: six of the twenty-two stops sit
+on pages whose instrument the driver has already read and signed in full, readable type on their
+phone** — page 15's past-employment release, page 20's FCRA disclosure, page 22's urinalysis
+notification. On those pages the packet line is a countersignature of something already read. The
+other sixteen are where the sentence has to carry it, and it does.
+
 ### D-HUI8 — one recruitment page, not three
 
 `/recruitment/screening` and `/recruitment/inquiries` stop being nav destinations and become panels
@@ -373,22 +401,21 @@ Each of these is something this repo, or the research, has already paid for once
   carrier is buying a report on them, before the carrier has decided anything, and can draw a
   conclusion from its timing. ⚠ This has an FCRA-adjacent flavour and should be confirmed, not
   assumed.
-- **Q-HUI2 · Is the signing surface usable on a phone?** Candidates: (a) render the page and let the
-  driver pinch-zoom, DocuSign's own answer; (b) a "focused field" mode that crops to the mark's
-  neighbourhood with a "see the whole page" toggle; (c) desktop-only, and the driver signs in the
-  office. ⚠ **This needs to be measured on a real device before it is chosen**, and the measurement is
-  cheap. **Recommendation (b)** on the evidence we have — it keeps the document visible, which is the
-  whole point of the rebuild, without asking somebody to read 8pt type.
-- **Q-HUI3 · Where does the checklist live once the driver is hired?** The DQF page is the same shape
-  for a §391.51 file. **Recommendation:** do not merge them until the recruitment one has shipped and
-  been used — that is also the second consumer D-HUI2 is waiting for.
-- **Q-HUI4 · Board: table or kanban?** **Recommendation: table.** The repo has no board primitive, the
-  page skeleton is a table, and a sortable "days in stage" answers the only question a kanban would.
-  If the owner wants columns, it is an `AppTabs` tab over the same data, not a second layout.
-- **Q-HUI5 · Does the office need to see the applicant's screen state live?** ("They are on screen 6
-  of 8 right now.") The data exists — `application_drafts.furthest_section` is already written.
-  **Recommendation: not yet.** It is surveillance-shaped and its value is a phone call the recruiter
-  could make anyway.
+- **~~Q-HUI2 · Is the signing surface usable on a phone?~~ RULED 2026-09-17 by measurement — D-HUI9.**
+- **~~Q-HUI3 · Where does the checklist live once the driver is hired?~~ RULED 2026-09-17: not yet.**
+  The DQF page is the same shape for a §391.51 file and is therefore **the second consumer that
+  promotes the checklist out of `features/` under D-DS18** — but promotion waits until the recruitment
+  one has shipped and been used, because that is the whole of D-DS18's argument. Recorded as the
+  named trigger rather than left open.
+- **~~Q-HUI4 · Board: table or kanban?~~ RULED 2026-09-17: table.** Not a preference — the repo has no
+  board primitive, the page skeleton *is* a table, one-table-per-page is a standing structural rule,
+  and a sortable "days in stage" answers the only question a kanban asks. Columns, if ever wanted, are
+  an `AppTabs` tab over the same data, never a second layout.
+- **~~Q-HUI5 · Does the office need the applicant's live screen state?~~ RULED 2026-09-17: no, and not
+  later either.** The data exists (`application_drafts.furthest_section` is already written), which is
+  exactly why this needed a ruling rather than an omission. It is surveillance-shaped, its entire
+  value is a phone call the recruiter can already make, and *"they are on screen 6 of 8"* is not a
+  fact a carrier needs about a person who has not been hired.
 
 ---
 

@@ -638,9 +638,15 @@ Nothing in §6 or §9 assumes an answer here.
 - **Q-HM7 · What is an orientation day, actually?** (owner) `Q-REC1`. Nothing about sessions,
   capacity or what happens in the room can be designed without it. **No fallback — this one blocks
   its step.**
-- **Q-HM8 · Video hosting.** `DRIVER-TRAINING-PLAN.md` D1 chose Supabase Storage behind a provider
-  abstraction and flagged egress as the top cost risk at 200+ drivers. Re-measure before Phase 0;
-  the org's Supabase plan and driver count have both moved since 2026-07-23.
+- **~~Q-HM8 · Video hosting.~~ RULED 2026-09-17: Supabase for Phases 0–1, with a written switch
+  trigger.** Sized rather than guessed: 200 drivers × 9 segments × ~5 min at 720p (~1.5 Mbps) ≈ **56 MB
+  a segment, ~100 GB for one full cycle**, against Supabase Pro's 250 GB. ⚠ **But the plan's own R2
+  makes rewatching the norm, not the exception** — fail a quiz and the video resets — so 1.5–2 watches
+  per segment is the realistic figure and that is **150–200 GB before the rest of the app**. It fits,
+  with almost no headroom, which is precisely the case D1's provider abstraction was written for.
+  **Ship on Supabase; switch to Bunny or Cloudflare Stream (~$1–5/mo) when measured monthly egress
+  passes 150 GB.** Write that number into the training plan's Phase 0 so it is a trigger and not a
+  worry.
 
 ---
 
