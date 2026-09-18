@@ -1801,6 +1801,37 @@ every time.
   `lint:ui-adoption` and `--filter web lint:tokens` green. No migration; no schema change.
 
 
+- **2026-09-18, end of day — Q-HM9 and A2 merged; handoff written; next is B7.**
+  `HANDOFF-2026-09-18-B7.md`. Two steps landed today after Wave A's freeze was discharged, and
+  **neither needed a migration** — 0344 is still the head, so the next one is still 0345.
+
+  ⚠ **Recommended next: B7, and the argument is that it is `∥` and half a day.** Wave A's recorded
+  failure was that `∥` steps drifted for four sessions because *"a parallel step has no moment at
+  which it announces itself as late"* — a blocked step announces itself when its blocker lands. B7
+  wants its own chat now rather than a place in a queue. Then B8. ⚠ **Q-PKT11 still goes before C2**
+  and not earlier.
+
+  ⚠ **B2 stopped being optional polish.** A2 moved the preview onto the carrier's packet, which has
+  no page for the four releases, the e-sign consent or the §391.21(b)(12) block — so those three
+  facts now have no printable home until B2 builds one. They are not lost (the releases are behind
+  B6's Permissions row) and they are not on the wrong document any more, which was the defect. The
+  deleted progress-line test is named in `preview.test.ts` so nobody re-adds it to the packet.
+
+  ⚠ **The lesson both steps share, and it is a new one: a mutation coming back GREEN usually means
+  the TEST is at fault, not the code.** Four times this week — Q-HM9's `kind` filter, and A2's page-1
+  date, printed name and filing-path band. Every time the cause was the same: a fixture too uniform
+  to discriminate, with no partial state, one row kind, or an all-or-nothing input. **Write the
+  partial case.** And A2 found the sharper version of it — *"signs nothing"* had gone VACUOUS and
+  still passed, slicing a block out of a document that no longer had one, so it asserted the absence
+  of a string in an empty string. **A test that keeps passing while the document under it is replaced
+  was never testing the document.**
+
+  ⚠ **Ten consecutive steps have now shipped a defect every test was green for** — B4 three, B5 one,
+  B6 two, A3 one, A4 three, Q-HM9 one. Q-HM9's was found at 1440 in a browser; A2's would have been
+  found by `pdftoppm` and was instead caught by a mutation, which is the cheaper end of the same
+  discipline. **Open the page, or rasterise the document.**
+
+
 ---
 
 ## 11. Sources
