@@ -2085,6 +2085,45 @@ every time.
   D-PKT17), which is a different question in a different plan. Nothing renames either here; the next
   reader who greps for Q-PKT11 gets two answers and both are right.
 
+- **2026-09-18, night — handoff for the rest of Wave A, and A1 stopped being insurance.**
+  `HANDOFF-2026-09-18-A1-A5.md`. Wave B and Q-PKT11 are complete and §8 has no open questions left,
+  so A1, A5a and A5b are what remain of the application's own repair.
+
+  ⚠ **A1 has a measured clock on it, and §9's word for it — *insurance, measured, never fired* — is
+  now half wrong.** Read against production at ~22:20 CDT: eight invitations, three ever nudged, none
+  yet nudged while with the office — **and one live invitation, `f2b142e4…`, that is APPROVED, holds
+  an email address, is unrevoked and unexpired, and whose draft was last touched THIRTY hours ago.**
+  `STALE_DRAFT_HOURS` is 48, so it becomes sweep-eligible in about eighteen hours. Every link behind
+  it is live: the sweep runs six-hourly inside `dqAlertScheduler.ts`, `RUN_SCHEDULERS_IN_PROCESS` is
+  `true` on `@fleetguard/api`, and ⚠ **`APPLICATION_NUDGE_ENABLED` is unset in Railway and defaults to
+  `"true"`** — the same defaults-on trap `CLAUDE.md` records for the scheduler flag. What fires is
+  `nudge_application_invitation` (0232), which REPLACES `token_hash`: it would kill the link of an
+  applicant who has just been approved and told *"keep this link, it is where you will sign"*, which
+  is the lockout A5b's whole design exists to avoid, arriving through a different door.
+
+  ⚠ **And one symptom needs no flag at all**: `alertOffice()` runs BEFORE the flag check, so the
+  office is already being told *"X stopped part-way through their application"* about applicants who
+  are waiting on the office. Turning the flag off would stop the rotation and leave that in place.
+
+  ⚠ **A1 is three edits, not one.** `NudgeCandidate` cannot see `review_requested_at` or
+  `approved_at` today and `candidates()` does not select them, so the predicate has nowhere to read
+  from — and it must exclude BOTH stamps, because the measured row has both (approval does not clear
+  the review stamp).
+
+  ⚠ **A5b's file is at 497 of 500** (`applicationIntake.ts`), and its whole change is in
+  `resolveInvitation`. Split first, in its own PR. ⚠ **And three places carry a written decision it
+  amends** — `applicationApprovalNotice.ts`'s header, `email.ts`'s `renderApplicationApprovedEmail`
+  (D-AX14) and the waiting screen's *"keep this link"* promise all argue that the approval email
+  carries no link. The objection's two halves come apart: *there is no link to send* is what A5a's
+  column fixes, and *rotating breaks the promise* never applied, because A5b adds a SECOND hash and
+  the old one keeps working. Amend the three headers and give it a decision id, or the repo will hold
+  comments contradicting its own behaviour.
+
+  ⚠ **A5a's one unstated design point:** `token_hash` is NOT NULL UNIQUE with a unique index.
+  `sign_token_hash` must be nullable, and the recommendation is a **partial unique index** where it is
+  not null — without one, two invitations could share a sign token and `.maybeSingle()` would answer
+  neither.
+
 ---
 
 ## 11. Sources
