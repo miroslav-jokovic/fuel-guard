@@ -3,7 +3,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { deflateSync, inflateSync } from "node:zlib";
 import { join } from "node:path";
-import { PDFArray, PDFDocument, PDFStream, StandardFonts } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream, StandardFonts } from "pdf-lib";
 import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
 import { renderPacketOverlay } from "./packetOverlay.js";
 import { PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
@@ -47,6 +47,43 @@ const signatureIds = new Set(
 );
 const allMarks = (signedName = NAME) =>
   driverPlacementIds().map((placementId) => ({ placementId, signedName }));
+
+/**
+ * Every IMAGE each page of the produced document carries, as `width×height` (Q-HUI14).
+ *
+ * ── ⚠ WHY THIS EXISTS, WHEN THE REST OF THE FILE READS TEXT ───────────────────────────────────
+ * A3's rule is *the signature picture must never land on `p05`, `p06` or `p09`*, and text was a
+ * sufficient discriminator for it only while those three lines printed typed initials: an initials
+ * page carrying the initials STRING was a page the drawing had not taken over. Q-HUI14 gives the
+ * initials a picture, so both kinds of line now carry an image and NEITHER carries text — and a
+ * reader that can only see text cannot tell which of the two images is on which page. It would go
+ * green on a renderer that put the signature on all twenty-two, which is precisely the defect.
+ *
+ * So the discriminator becomes the image's own dimensions, and the fixtures below are deliberately
+ * different SIZES. This reads the page's `/XObject` resources — which is how `pdf-lib` records
+ * `drawImage` — and reports each one's `/Width` and `/Height`. It is not a measurement of WHERE the
+ * picture sits (this file's header says why that cannot be read back honestly); it is a measurement
+ * of WHICH picture is on the page, which is the whole of the rule.
+ */
+async function imagesByPage(pdf: Buffer): Promise<Map<number, string[]>> {
+  const doc = await PDFDocument.load(pdf);
+  const found = new Map<number, string[]>();
+  doc.getPages().forEach((page, index) => {
+    const sizes: string[] = [];
+    const resources = page.node.Resources();
+    const xobjects = resources?.lookupMaybe(PDFName.of("XObject"), PDFDict);
+    for (const [, value] of xobjects?.entries() ?? []) {
+      const stream = page.node.context.lookupMaybe(value, PDFStream);
+      const dict = stream?.dict;
+      if (dict?.lookupMaybe(PDFName.of("Subtype"), PDFName)?.asString() !== "/Image") continue;
+      const width = dict.lookupMaybe(PDFName.of("Width"), PDFNumber)?.asNumber();
+      const height = dict.lookupMaybe(PDFName.of("Height"), PDFNumber)?.asNumber();
+      if (width !== undefined && height !== undefined) sizes.push(`${width}x${height}`);
+    }
+    found.set(index + 1, sizes);
+  });
+  return found;
+}
 
 /** The produced document, read back with the same reader that measured the blank one. */
 async function readBack(pdf: Buffer) {
@@ -227,7 +264,7 @@ describe("a drawn mark goes on the signature lines and nowhere else", () => {
    * `packages/capture-engine/fixtures/png.mjs` writes these too, and is not imported: `lint:boundaries`
    * keeps the hazmat-shaped packages out of `apps/`, and a fixture generator is not a contract.
    */
-  function onePixelPng(): Buffer {
+  function onePixelPng(width = 1, height = 1): Buffer {
     const chunk = (type: string, body: Buffer): Buffer => {
       const head = Buffer.concat([Buffer.from([0, 0, 0, 0]), Buffer.from(type, "latin1")]);
       head.writeUInt32BE(body.length, 0);
@@ -236,24 +273,51 @@ describe("a drawn mark goes on the signature lines and nowhere else", () => {
       return Buffer.concat([head, body, crc]);
     };
     const ihdr = Buffer.alloc(13);
-    ihdr.writeUInt32BE(1, 0);
-    ihdr.writeUInt32BE(1, 4);
+    ihdr.writeUInt32BE(width, 0);
+    ihdr.writeUInt32BE(height, 4);
     // 8-bit, colour type 2 (truecolour), no interlace — what pdf-lib's PNG reader accepts.
     ihdr[8] = 8;
     ihdr[9] = 2;
+    // ⚠ One filter byte per scanline, then three bytes per pixel. Getting this wrong produces a file
+    // `embedPng` rejects, which would silently exercise the FALLBACK and assert nothing.
+    const row = Buffer.alloc(1 + width * 3);
     return Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
       chunk("IHDR", ihdr),
-      // One scanline: filter byte 0, then one black pixel.
-      chunk("IDAT", deflateSync(Buffer.from([0, 0, 0, 0]))),
+      chunk("IDAT", deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))),
       chunk("IEND", Buffer.alloc(0)),
     ]);
   }
 
+  /**
+   * ⚠ **Two fixtures of DIFFERENT sizes, and the difference is the whole measurement** (Q-HUI14).
+   *
+   * With both marks now printed as pictures, `pageText` cannot tell them apart — so `imagesByPage`
+   * identifies each one by its dimensions instead, and two fixtures of the same size would make every
+   * assertion below vacuous. That is the *fixture too uniform to discriminate* failure this repo keeps
+   * meeting, and here "too uniform" would mean two 1×1 PNGs.
+   *
+   * ⚠ The sizes are also not square, so a renderer that transposed width and height could not pass.
+   */
+  const SIGNATURE_PNG_SIZE = "3x2";
+  const INITIALS_PNG_SIZE = "5x7";
+  const signaturePng = () => onePixelPng(3, 2);
+  const initialsPng = () => onePixelPng(5, 7);
+
+  /**
+   * ⚠ **A3's rule, and it still holds exactly as it did** (Q-HUI14): given only the SIGNATURE picture,
+   * the three initials lines print typed initials — the signature picture does not spread onto them.
+   * This was A3's test verbatim; what changed is only that `initialsMark` is now named as absent,
+   * because "absent" is the state this test is about.
+   */
   it("puts the typed initials on the three pages that ask for initials, even in drawn mode", async () => {
     expect(initialsPlacements).toHaveLength(3);
     const pages = await readBack(
-      await renderPacketOverlay({ marks: mixedMarks(), drawnMark: onePixelPng() }),
+      await renderPacketOverlay({
+        marks: mixedMarks(),
+        drawnMark: signaturePng(),
+        initialsMark: null,
+      }),
     );
     for (const p of initialsPlacements) {
       const text = pageText(pages[p.page - 1]!);
@@ -264,12 +328,109 @@ describe("a drawn mark goes on the signature lines and nowhere else", () => {
   });
 
   /**
+   * ⚠ **The step itself: given an initials picture, those three lines carry it instead of text.**
+   *
+   * Read as text on purpose, which is what makes this the honest complement of the test above: if the
+   * initials STRING is still on page 5 then the picture did not land there, whatever else is true.
+   */
+  it("replaces the typed initials with the initials picture on the three pages that ask for them", async () => {
+    const pages = await readBack(
+      await renderPacketOverlay({
+        marks: mixedMarks(),
+        drawnMark: signaturePng(),
+        initialsMark: initialsPng(),
+      }),
+    );
+    for (const p of initialsPlacements) {
+      const text = pageText(pages[p.page - 1]!);
+      expect(text, `page ${p.page} (${p.id})`).not.toContain(INITIALS);
+      expect(text, `page ${p.page} (${p.id})`).not.toContain(NAME);
+    }
+  });
+
+  /**
+   * ⚠ **A3's rule measured where text cannot reach it, which is the one test this step could not do
+   * without** (Q-HUI14, D-PKT6).
+   *
+   * The defect A3 fixed was a 141pt autograph in a box captioned `Initials`. With both marks printed
+   * as pictures, every earlier assertion in this file would pass on a renderer that put the SIGNATURE
+   * on all twenty-two: the initials pages would carry an image and no text either way. So this
+   * identifies the picture by its dimensions and asserts, per page, that the one the carrier asked for
+   * is the one that landed — and that the other is nowhere on that page.
+   *
+   * ⚠ Both directions, on every placement, from the real inventory. Asserting only the initials pages
+   * would go green on a renderer that drew the INITIALS on all twenty-two, which is the same defect
+   * mirrored and just as wrong.
+   */
+  it("puts each kind of picture only on the lines that ask for that kind", async () => {
+    const images = await imagesByPage(
+      await renderPacketOverlay({
+        marks: mixedMarks(),
+        drawnMark: signaturePng(),
+        initialsMark: initialsPng(),
+      }),
+    );
+    for (const p of driverPlacements()) {
+      const onPage = images.get(p.page) ?? [];
+      const wanted = p.mark === "initials" ? INITIALS_PNG_SIZE : SIGNATURE_PNG_SIZE;
+      const forbidden = p.mark === "initials" ? SIGNATURE_PNG_SIZE : INITIALS_PNG_SIZE;
+      expect(onPage, `page ${p.page} (${p.id}) should carry its own mark`).toContain(wanted);
+      expect(onPage, `page ${p.page} (${p.id}) must not carry the other mark`).not.toContain(
+        forbidden,
+      );
+    }
+  });
+
+  /**
+   * ⚠ The partial case for the measurement above: with NO initials picture, the initials pages carry
+   * no image at all. Without this, `imagesByPage` returning every image in the document — rather than
+   * the ones on that page — would satisfy the test above and prove nothing.
+   */
+  it("leaves the initials pages carrying no picture when none was adopted", async () => {
+    const images = await imagesByPage(
+      await renderPacketOverlay({
+        marks: mixedMarks(),
+        drawnMark: signaturePng(),
+        initialsMark: null,
+      }),
+    );
+    for (const p of initialsPlacements) {
+      expect(images.get(p.page) ?? [], `page ${p.page} (${p.id})`).not.toContain(
+        SIGNATURE_PNG_SIZE,
+      );
+      expect(images.get(p.page) ?? [], `page ${p.page} (${p.id})`).not.toContain(
+        INITIALS_PNG_SIZE,
+      );
+    }
+  });
+
+  /**
+   * ⚠ A8b per mark: initials bytes that will not decode fall back to the typed initials, and do not
+   * take the signature down with them. ⚠ The signature page assertion is what makes this more than a
+   * restatement of the fallback test above — one mark failing must not disturb the other.
+   */
+  it("falls back to the typed initials when the initials picture will not decode", async () => {
+    const pdf = await renderPacketOverlay({
+      marks: mixedMarks(),
+      drawnMark: signaturePng(),
+      initialsMark: Buffer.from("this is not a png"),
+    });
+    const pages = await readBack(pdf);
+    for (const p of initialsPlacements) {
+      expect(pageText(pages[p.page - 1]!), `page ${p.page} (${p.id})`).toContain(INITIALS);
+    }
+    const images = await imagesByPage(pdf);
+    const signaturePlacement = driverPlacements().find((p) => p.mark === "signature")!;
+    expect(images.get(signaturePlacement.page) ?? []).toContain(SIGNATURE_PNG_SIZE);
+  });
+
+  /**
    * ⚠ The other half, and without it the test above passes on a renderer that ignores the drawing
    * entirely — which would be a different defect with the same green suite.
    */
   it("replaces the typed name with the drawing on a page that asks for a signature", async () => {
     const pages = await readBack(
-      await renderPacketOverlay({ marks: mixedMarks(), drawnMark: onePixelPng() }),
+      await renderPacketOverlay({ marks: mixedMarks(), drawnMark: signaturePng() }),
     );
     // p20's page, a signature line — the same page the fallback test reads.
     expect(pageText(pages[19]!)).not.toContain(NAME);

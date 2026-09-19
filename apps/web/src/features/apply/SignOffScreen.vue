@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
-import type { ApplicationCaptureView } from "@silvicom/shared";
+import { APPLICATION_CAPTURE_MARK_SLOT, type ApplicationCaptureView } from "@silvicom/shared";
 import SignOffFields from "@/features/apply/SignOffFields.vue";
 import PacketCeremony from "@/features/apply/signing/PacketCeremony.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -69,7 +69,24 @@ const packetSignedHere = ref(false);
  * picture fail to stage — in which case the packet prints the typed name and saying otherwise would
  * be the promise `drawnMarkFailed` exists to withdraw.
  */
-const markStaged = computed(() => props.captures.some((c) => c.slot === "signature_mark"));
+const markStaged = computed(() =>
+  props.captures.some((c) => c.slot === APPLICATION_CAPTURE_MARK_SLOT.signature),
+);
+/**
+ * And whether an INITIALS picture is already staged on this link (Q-HUI14).
+ *
+ * ⚠ **A second question, not the same one.** The two marks are two `application_captures` rows staged
+ * by two calls, so a link can hold the signature and not the initials — a walk resumed after `p03`
+ * and `p04` but before `p05` is exactly that, and so is one whose initials upload failed while the
+ * signature's landed. Answering both from one flag would tell the initials screens that a picture
+ * exists when what exists is the signature's, which is the wrong-mark preview C2 spent a day closing.
+ *
+ * ⚠ The slot names come from `APPLICATION_CAPTURE_MARK_SLOT` rather than being spelled here, so this
+ * component, the renderer and `sources.ts` all join *kind of mark* to *storage slot* in one place.
+ */
+const initialsStaged = computed(() =>
+  props.captures.some((c) => c.slot === APPLICATION_CAPTURE_MARK_SLOT.initials),
+);
 
 /**
  * The walk finishing IS the certification (D-PKT15, owner 2026-09-14).
@@ -125,6 +142,7 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
       :carrier="carrier"
       :adopted-marks="adoptedMarks ?? null"
       :mark-staged="markStaged"
+      :initials-staged="initialsStaged"
       @done="packetSigned"
     />
   </div>

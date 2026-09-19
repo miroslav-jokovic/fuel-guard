@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { inflateSync } from "node:zlib";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { ensureApplicationPdf } from "./file.js";
-import { driverPlacements } from "@silvicom/shared";
+import { APPLICATION_CAPTURE_MARK_SLOT, driverPlacements } from "@silvicom/shared";
 import { PDFDocument } from "pdf-lib";
 
 /**
@@ -241,6 +241,101 @@ describe("the drawn signature mark", () => {
     });
     const filed = await ensureApplicationPdf(rec.client, ORG, APP_ID);
     expect(filed?.rendered).toBe(true);
+  });
+});
+
+/**
+ * Both adopted marks, on the FILING path (Q-HUI14).
+ *
+ * ⚠ **This is where the freeze happens**, which is why it is pinned on `ensureApplicationPdf` rather
+ * than only on the renderer: it renders once, hashes, and returns those bytes for ever, so a packet
+ * filed with one picture read instead of two keeps three lines of `HelveticaOblique` permanently.
+ *
+ * ⚠ **The fixtures answer ON THE SLOT FILTER, and they have to.** `supabaseRecorder` does not filter
+ * ([[supabase-recorder-does-not-filter]]) — a flat array of captures hands the same row to both
+ * queries, so a renderer that read `signature_mark` twice would produce two identical downloads and
+ * every assertion below would pass. Function fixtures are the only way this file can tell the two
+ * reads apart.
+ */
+describe("the two adopted marks, read per kind", () => {
+  const SIG_CAPTURE = "aaaaaaaa-1111-4111-8111-111111111111";
+  const INI_CAPTURE = "bbbbbbbb-2222-4222-8222-222222222222";
+  const sigPath = `${ORG}/inv-1/${SIG_CAPTURE}.png`;
+  const iniPath = `${ORG}/inv-1/${INI_CAPTURE}.png`;
+
+  /** Which slot a query asked for, so a fixture can answer as the database would. */
+  const slotOf = (q: { filters(): Array<{ col: string; val: unknown }> }): unknown =>
+    q.filters().find((f) => f.col === "slot")?.val;
+
+  const withBothMarks = (over: { marks?: Array<Record<string, unknown>> } = {}) =>
+    createSupabaseRecorder({
+      tables: {
+        driver_applications: [APPLICATION_ROW],
+        organizations: [{ name: "Silvicom Inc", legal_address: null }],
+        driver_authorizations: [],
+        esign_consents: [],
+        qualification_records: [{ document_id: null }],
+        application_packet_marks: over.marks ?? signedPacket(),
+        application_captures: (q) => {
+          const slot = slotOf(q);
+          if (slot === APPLICATION_CAPTURE_MARK_SLOT.signature) {
+            return [{ id: SIG_CAPTURE, storage_path: sigPath }];
+          }
+          if (slot === APPLICATION_CAPTURE_MARK_SLOT.initials) {
+            return [{ id: INI_CAPTURE, storage_path: iniPath }];
+          }
+          return [];
+        },
+        // Nothing promoted, so both reads fall back to the staging bucket — which keeps the two
+        // download paths distinguishable without a second per-slot fixture.
+        documents: [],
+      },
+      rpc: { attach_application_document: true },
+      storage: {
+        upload: () => ({ error: null }),
+        download: () => ({ data: new Blob([Buffer.from("iVBORw0KGgo=", "base64")]), error: null }),
+      },
+    });
+
+  it("asks `application_captures` for each kind of mark, by the slot the contract names", async () => {
+    const rec = withBothMarks();
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    const slots = rec.forTable("application_captures").map((q) => slotOf(q));
+    expect(slots).toEqual([
+      APPLICATION_CAPTURE_MARK_SLOT.signature,
+      APPLICATION_CAPTURE_MARK_SLOT.initials,
+    ]);
+    // ⚠ And both reads carry their own tenant filter: the service role bypasses RLS.
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  /**
+   * ⚠ **Two DIFFERENT objects, which is the assertion a duplicated read cannot satisfy.** If both
+   * calls asked for `signature_mark` the same path would be downloaded twice — and the packet would
+   * print the signature on the three lines the carrier captioned `Initials`, which is A3's defect
+   * restored by way of the reads rather than the renderer.
+   */
+  it("downloads the two marks' own objects, not the same one twice", async () => {
+    const rec = withBothMarks();
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    const paths = rec.storageCalls().filter((c) => c.fn === "download").map((c) => c.args[0]);
+    expect(paths).toEqual([sigPath, iniPath]);
+  });
+
+  /**
+   * ⚠ **`render.ts`'s §391.21 summary gets the SIGNATURE and nothing else, and this is the pin.**
+   *
+   * `gather()` feeds `instrumentPages.drawnMark` — a different document, built in pdfkit, with one
+   * signature block and no initials line anywhere on it. Handing it the initials picture would draw a
+   * mark where a signature belongs. An application with no packet marks renders that document
+   * (D-PKT5), so this is the branch where a single capture read is the correct answer.
+   */
+  it("reads only the signature for the §391.21 summary, which has no initials line", async () => {
+    const rec = withBothMarks({ marks: [] });
+    await ensureApplicationPdf(rec.client, ORG, APP_ID);
+    expect(rec.forTable("application_captures").map((q) => slotOf(q))).toEqual([
+      APPLICATION_CAPTURE_MARK_SLOT.signature,
+    ]);
   });
 });
 

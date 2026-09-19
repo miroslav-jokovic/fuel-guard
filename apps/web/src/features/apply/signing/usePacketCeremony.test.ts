@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ref } from "vue";
-import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
+import {
+  APPLICATION_CAPTURE_MARK_SLOT,
+  driverPlacementIds,
+  driverPlacements,
+} from "@silvicom/shared";
 import { usePacketCeremony } from "./usePacketCeremony";
 import type { ApplyPacketStop } from "@/features/apply/useApplication";
 
@@ -66,16 +70,74 @@ describe("adopting the mark", () => {
     expect(c.adopted.value).toBe(false);
   });
 
-  it("starts once the drawing exists", async () => {
+  /**
+   * ⚠ **Both marks, two calls, two slots (Q-HUI14).** This test asserted ONE staging call into
+   * `signature_mark` until the initials got a picture of their own; the packet asks for two marks, so
+   * a drawn adoption that staged one of them files three lines of `HelveticaOblique` beside nineteen
+   * lines of the driver's hand. The slots are read from the contract rather than spelled here, which
+   * is the same rule the renderer and the client follow.
+   */
+  it("stages both marks, into their own slots, once both drawings exist", async () => {
     const stage = vi.fn().mockResolvedValue(undefined);
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = new Blob(["x"], { type: "image/png" });
+    c.initialsBlob.value = new Blob(["y"], { type: "image/png" });
     expect(await c.adopt()).toBe(true);
+    expect(stage).toHaveBeenCalledTimes(2);
+    expect(stage.mock.calls.map((call) => call[1])).toEqual([
+      APPLICATION_CAPTURE_MARK_SLOT.signature,
+      APPLICATION_CAPTURE_MARK_SLOT.initials,
+    ]);
+    // ⚠ And they are DIFFERENT bytes. The two slots are one row each, so staging the same blob twice
+    // would file the signature on the initials lines — A3's defect with the pictures the right way
+    // round on the wire and the wrong way round on the paper.
+    expect(stage.mock.calls[0]![2]).not.toBe(stage.mock.calls[1]![2]);
+  });
+
+  /**
+   * ⚠ D-PKT13's other half, for the SECOND mark (Q-HUI14): choosing Draw and drawing only the
+   * signature is not finishing the tab's errand, and starting the walk would print typed initials
+   * under a screen that had shown the driver two pads.
+   */
+  it("refuses to start when the initials were never drawn", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = "drawn";
+    c.markBlob.value = new Blob(["x"], { type: "image/png" });
+    expect(await c.adopt()).toBe(false);
+    expect(c.adopted.value).toBe(false);
+  });
+
+  /**
+   * ⚠ **And it does NOT hold a walk that has no initials left to give** (Q-HUI14, `needsInitials`).
+   * A driver resuming a link whose `p05`, `p06` and `p09` were collected on a previous visit has no
+   * initials line remaining; demanding a picture for one would block them behind a mark the packet
+   * will never print. ⚠ The fixture marks exactly the three initials placements as signed, read off
+   * the inventory rather than named, so it stays right if the packet gains a fourth.
+   */
+  it("asks for no initials picture once every initials place is collected", async () => {
+    const stage = vi.fn().mockResolvedValue(undefined);
+    const initialsSigned = Object.fromEntries(
+      driverPlacements()
+        .filter((p) => p.mark === "initials")
+        .map((p) => [p.id, "2026-09-19T10:00:00Z"]),
+    );
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(initialsSigned)), {
+      stage: stage as never,
+    });
+    c.adoptedName.value = "Marija Varmeda";
+    c.style.value = "drawn";
+    c.markBlob.value = new Blob(["x"], { type: "image/png" });
+    expect(c.needsInitials.value).toBe(false);
+    expect(await c.adopt()).toBe(true);
+    // One call, the signature's — and no `initialsMarkFailed`, because nothing was expected of it.
     expect(stage).toHaveBeenCalledOnce();
-    expect(stage.mock.calls[0]![1]).toBe("signature_mark");
+    expect(stage.mock.calls[0]![1]).toBe(APPLICATION_CAPTURE_MARK_SLOT.signature);
+    expect(c.initialsMarkFailed.value).toBe(false);
   });
 
   /**
@@ -90,7 +152,36 @@ describe("adopting the mark", () => {
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = new Blob(["x"], { type: "image/png" });
+    c.initialsBlob.value = new Blob(["y"], { type: "image/png" });
     expect(await c.adopt()).toBe(true);
+  });
+
+  /**
+   * ⚠ **One mark landing and the other failing is a real outcome, and every screen has to be able to
+   * say which** (Q-HUI14). It would be easy to fold the two failures into one flag; the cost is that a
+   * driver whose signature saved perfectly would be told it had not, on nineteen pages, because their
+   * initials upload timed out.
+   *
+   * ⚠ The mock refuses by SLOT, which is the only way this test can fail for the right reason: a
+   * blanket rejection would pass against a single shared flag too.
+   */
+  it("reports the failure of one mark without disowning the other", async () => {
+    const stage = vi.fn((_t: string, slot: string) =>
+      slot === APPLICATION_CAPTURE_MARK_SLOT.initials
+        ? Promise.reject(new Error("offline"))
+        : Promise.resolve(undefined),
+    );
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = "drawn";
+    c.markBlob.value = new Blob(["x"], { type: "image/png" });
+    c.initialsBlob.value = new Blob(["y"], { type: "image/png" });
+    expect(await c.adopt()).toBe(true);
+    expect(c.drawnMarkFailed.value).toBe(false);
+    expect(c.markWillPrint.value).toBe(true);
+    expect(c.initialsMarkFailed.value).toBe(true);
+    expect(c.initialsWillPrint.value).toBe(false);
   });
 
   it("does not stage anything when the driver types", async () => {
@@ -111,13 +202,14 @@ describe("adopting the mark", () => {
    * adoption half its own flag passed all sixty-six tests until this one existed.
    */
   it("will not file a mark while the drawing is still uploading", async () => {
-    let release!: () => void;
-    const stage = vi.fn(() => new Promise<void>((resolve) => { release = resolve; }));
+    const releases: Array<() => void> = [];
+    const stage = vi.fn(() => new Promise<void>((resolve) => { releases.push(resolve); }));
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = new Blob(["x"], { type: "image/png" });
+    c.initialsBlob.value = new Blob(["y"], { type: "image/png" });
 
     const adopting = c.adopt();
     expect(c.working.value).toBe(true);
@@ -125,7 +217,22 @@ describe("adopting the mark", () => {
     // Nothing reached the server: the stop is still standing and no mark was filed.
     expect(marked).toHaveLength(0);
 
-    release();
+    /**
+     * ⚠ **The flag stays up BETWEEN the two uploads, and that is the half Q-HUI14 added** (see
+     * `adopt()`'s staging loop). The signature's upload finishing does not mean the adoption has
+     * finished: the initials picture has not been sent yet, and a flag raised and cleared per call
+     * would be DOWN in this gap — which is a real `await` boundary, so a driver's tap can land in it.
+     * A version that cleared it here would file the first mark on the carrier's paper while the
+     * second picture was still going up.
+     */
+    releases[0]!();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(releases).toHaveLength(2);
+    expect(c.working.value).toBe(true);
+    await c.sign();
+    expect(marked).toHaveLength(0);
+
+    releases[1]!();
     expect(await adopting).toBe(true);
     // And the flag is released, so the walk can start — otherwise this would pass on a ceremony
     // that had simply jammed.
@@ -461,13 +568,16 @@ describe("a resumed walk whose marks the server has already pinned", () => {
  * fixture would make "a stop takes initials" true by construction.
  */
 describe("what the stop promises in drawn mode", () => {
-  /** Adopt by drawing, staged successfully, standing on the first stop. */
+  /** Adopt by drawing BOTH marks, staged successfully, standing on the first stop. */
   async function drawnCeremony(stage = vi.fn().mockResolvedValue(undefined)) {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = new Blob(["x"], { type: "image/png" });
+    // ⚠ Q-HUI14: two pictures, so the fixture makes two. Distinct bytes, because a fixture that gave
+    // both marks the same blob could not tell the two apart and neither could any assertion over it.
+    c.initialsBlob.value = new Blob(["yy"], { type: "image/png" });
     expect(await c.adopt()).toBe(true);
     return c;
   }
@@ -488,21 +598,70 @@ describe("what the stop promises in drawn mode", () => {
   });
 
   /**
-   * ⚠ **The defect.** This was TRUE at every stop for four days, which is what put a driver's full
-   * autograph on the three lines the carrier captioned `Initials`.
+   * ⚠ **This test asserted the OPPOSITE until Q-HUI14, and both versions were right in their turn.**
+   *
+   * It read *"shows the typed initials, not the drawing, on a stop that takes initials"* — because
+   * A3's fix excluded `p05`, `p06` and `p09` from the ONE picture there was, having found a driver's
+   * full autograph stamped at 141pt into a box the carrier captioned `Initials`. That exclusion is
+   * still in force: what changed is that the initials now have a picture OF THEIR OWN (migration
+   * 0346), so the honest preview at an initials stop is that picture rather than typed text.
+   *
+   * ⚠ **The rule that must never flip is the one below it**: the mark this stop applies is still the
+   * INITIALS string, never the name. A picture is what the line carries; `signed_name` is what the
+   * row records (D-APP8), and on these three that is `MV`.
    */
-  it("shows the typed initials, not the drawing, on a stop that takes initials", async () => {
+  it("shows the initials picture on a stop that takes initials", async () => {
     const c = await drawnCeremony();
     await walkTo(c, "initials");
-    expect(c.currentShowsDrawing.value).toBe(false);
+    expect(c.currentShowsDrawing.value).toBe(true);
     expect(c.markFor(c.current.value!)).toBe("MV");
   });
 
-  it("never shows a drawing when the driver typed", async () => {
+  /**
+   * ⚠ **The discriminating test, and the reason the two marks need two flags** (Q-HUI14).
+   *
+   * The signature stages and the initials do not. A version of `currentShowsDrawing` that read one
+   * shared *"a picture will print"* flag — which is exactly what it read before this step — would
+   * promise a picture on `p05` that the packet is about to print in `HelveticaOblique`. So the
+   * assertion is per stop KIND, walked to on the real inventory: true where the picture landed,
+   * false where it did not.
+   */
+  it("reads each stop's own mark, so one failed picture does not mispromise the other", async () => {
+    const stage = vi.fn((_t: string, slot: string) =>
+      slot === APPLICATION_CAPTURE_MARK_SLOT.initials
+        ? Promise.reject(new Error("offline"))
+        : Promise.resolve(undefined),
+    );
+    const c = await drawnCeremony(stage as never);
+    await walkTo(c, "signature");
+    expect(c.currentShowsDrawing.value).toBe(true);
+    await walkTo(c, "initials");
+    expect(c.currentShowsDrawing.value).toBe(false);
+    // ⚠ And it is the typed initials that land there, which is the fallback A8b requires.
+    expect(c.markFor(c.current.value!)).toBe("MV");
+  });
+
+  /** ⚠ The same, the other way round — a failed signature must not disown the initials picture. */
+  it("still promises the initials picture when the signature's did not stage", async () => {
+    const stage = vi.fn((_t: string, slot: string) =>
+      slot === APPLICATION_CAPTURE_MARK_SLOT.signature
+        ? Promise.reject(new Error("offline"))
+        : Promise.resolve(undefined),
+    );
+    const c = await drawnCeremony(stage as never);
+    await walkTo(c, "signature");
+    expect(c.currentShowsDrawing.value).toBe(false);
+    await walkTo(c, "initials");
+    expect(c.currentShowsDrawing.value).toBe(true);
+  });
+
+  it("never shows a picture when neither mark made one", async () => {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()));
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     expect(await c.adopt()).toBe(true);
+    expect(c.currentShowsDrawing.value).toBe(false);
+    await walkTo(c, "initials");
     expect(c.currentShowsDrawing.value).toBe(false);
   });
 });
@@ -516,6 +675,12 @@ describe("what the stop promises in drawn mode", () => {
  */
 describe("telling the driver the drawing did not save", () => {
   const drawing = (): Blob => new Blob(["x"], { type: "image/png" });
+  /**
+   * ⚠ The second mark's bytes, and DIFFERENT from the first's (Q-HUI14). Two identical blobs would
+   * make every assertion below unable to tell which mark it was looking at — the *fixture too uniform
+   * to discriminate* failure this file's header already names, arriving through a second mark.
+   */
+  const initialsDrawing = (): Blob => new Blob(["yy"], { type: "image/png" });
 
   it("says nothing when the drawing staged", async () => {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
@@ -525,6 +690,7 @@ describe("telling the driver the drawing did not save", () => {
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = drawing();
+    c.initialsBlob.value = initialsDrawing();
     expect(await c.adopt()).toBe(true);
     expect(c.drawnMarkFailed.value).toBe(false);
   });
@@ -542,6 +708,7 @@ describe("telling the driver the drawing did not save", () => {
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = drawing();
+    c.initialsBlob.value = initialsDrawing();
     expect(await c.adopt()).toBe(true);
     expect(c.drawnMarkFailed.value).toBe(true);
   });
@@ -559,6 +726,7 @@ describe("telling the driver the drawing did not save", () => {
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = drawing();
+    c.initialsBlob.value = initialsDrawing();
     await c.adopt();
     expect(c.current.value?.mark).toBe("signature");
     expect(c.currentShowsDrawing.value).toBe(false);
@@ -876,9 +1044,24 @@ describe("what a locked mark says about itself", () => {
  */
 describe("what the paper carries, whichever tab made the mark", () => {
   const png = (): Blob => new Blob(["x"], { type: "image/png" });
+  /** ⚠ Distinct bytes from the signature's, so no assertion here can confuse the two marks. */
+  const initialsPng = (): Blob => new Blob(["yy"], { type: "image/png" });
 
-  /** A mark made in any tab, staged successfully, standing on the first stop. */
-  async function adopted(style: "styled" | "drawn" | "uploaded", blob: Blob | null) {
+  /**
+   * A mark made in any tab, staged successfully, standing on the first stop.
+   *
+   * ⚠ **The initials picture follows the signature's presence** (Q-HUI14): a tab that produced a
+   * signature picture produced an initials one too, and a tab that produced neither produced neither.
+   * That is what the three tabs actually do — one picker with two previews, two pads, two file
+   * pickers — so the fixture models the screen rather than the composable's tolerance. The case where
+   * the two DISAGREE is worth its own test and has one ("refuses to start when the initials were
+   * never drawn").
+   */
+  async function adopted(
+    style: "styled" | "drawn" | "uploaded",
+    blob: Blob | null,
+    initials: Blob | null = blob === null ? null : initialsPng(),
+  ) {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
       stage: vi.fn().mockResolvedValue(undefined) as never,
     });
@@ -886,6 +1069,7 @@ describe("what the paper carries, whichever tab made the mark", () => {
     c.adoptedInitials.value = "MV";
     c.style.value = style;
     c.markBlob.value = blob;
+    c.initialsBlob.value = initials;
     return { c, ok: await c.adopt() };
   }
 
@@ -954,10 +1138,18 @@ describe("what the paper carries, whichever tab made the mark", () => {
  */
 describe("resuming a link whose signature picture is already staged", () => {
   const png = (): Blob => new Blob(["x"], { type: "image/png" });
+  /** ⚠ Distinct bytes from the signature's, so no assertion here can confuse the two marks. */
+  const initialsPng = (): Blob => new Blob(["yy"], { type: "image/png" });
 
-  const resumed = (markStaged: boolean) =>
+  /**
+   * ⚠ **Both flags, because the walk has two marks to resume** (Q-HUI14). `initialsStaged` defaults
+   * to the same answer as `markStaged`, which is the common case — a driver who adopted on a previous
+   * visit staged both — and the tests below that care about the two DIFFERING pass them separately.
+   */
+  const resumed = (markStaged: boolean, initialsStaged = markStaged) =>
     usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
       markStaged: ref(markStaged),
+      initialsStaged: ref(initialsStaged),
       stage: vi.fn().mockResolvedValue(undefined) as never,
     });
 
@@ -976,6 +1168,67 @@ describe("resuming a link whose signature picture is already staged", () => {
   });
 
   /**
+   * ⚠ **The two marks are two rows, so a link can hold one and not the other** (Q-HUI14) — a walk
+   * resumed after `p03` but before `p05`, or one whose initials upload failed last time. This is the
+   * test that a SHARED staged flag would fail: it would tell the initials screens a picture exists
+   * when what exists is the signature's, and every remaining initials stop would promise a picture
+   * the packet is about to print in `HelveticaOblique`.
+   *
+   * ⚠ Asserted at BOTH kinds of stop, walked to on the real inventory, because the per-stop selectors
+   * (`currentShowsDrawing`, `currentMarkCarriedOver`) are the things the screen actually reads.
+   */
+  it("answers per mark when only the signature was staged", async () => {
+    const c = resumed(true, false);
+    expect(c.markCarriedOver.value).toBe(true);
+    expect(c.markWillPrint.value).toBe(true);
+    expect(c.initialsCarriedOver.value).toBe(false);
+    expect(c.initialsWillPrint.value).toBe(false);
+
+    expect(c.current.value?.mark).toBe("signature");
+    expect(c.currentShowsDrawing.value).toBe(true);
+    expect(c.currentMarkCarriedOver.value).toBe(true);
+
+    for (let i = 0; i < 22 && c.current.value?.mark !== "initials"; i++) await c.sign();
+    expect(c.current.value?.mark).toBe("initials");
+    expect(c.currentShowsDrawing.value).toBe(false);
+    expect(c.currentMarkCarriedOver.value).toBe(false);
+  });
+
+  /** ⚠ And the mirror image, so neither flag can be the one that answers for both. */
+  it("answers per mark when only the initials were staged", async () => {
+    const c = resumed(false, true);
+    expect(c.currentShowsDrawing.value).toBe(false);
+    for (let i = 0; i < 22 && c.current.value?.mark !== "initials"; i++) await c.sign();
+    expect(c.current.value?.mark).toBe("initials");
+    expect(c.currentShowsDrawing.value).toBe(true);
+    expect(c.currentMarkCarriedOver.value).toBe(true);
+  });
+
+  /**
+   * ⚠ **C2's rendered defect, for the second mark** (Q-HUI14). A resumed link reaches `adopt()`
+   * through *Carry on signing* with both blobs empty — correctly, because both pictures were staged
+   * on the previous visit. Without the staged-already guard in `adopt()`'s loop that reads as a
+   * failure for BOTH marks, and every remaining stop previews typed text while the packet carries the
+   * driver's own hand. No unit test found this the first time; walking the browser did.
+   */
+  it("raises no failure for either mark when both were staged on a previous visit", async () => {
+    const stage = vi.fn();
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      markStaged: ref(true),
+      initialsStaged: ref(true),
+      stage: stage as never,
+    });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    expect(await c.adopt()).toBe(true);
+    expect(stage).not.toHaveBeenCalled();
+    expect(c.drawnMarkFailed.value).toBe(false);
+    expect(c.initialsMarkFailed.value).toBe(false);
+    expect(c.markWillPrint.value).toBe(true);
+    expect(c.initialsWillPrint.value).toBe(true);
+  });
+
+  /**
    * ⚠ **`markBlob` wins, and the order is the point.** A driver who resumed and then chose a new style
    * has replaced the staged row — one row per slot — so what the packet will carry is the blob in hand
    * and the screen can show it. `markCarriedOver` is only true in the gap between arriving and making
@@ -988,6 +1241,7 @@ describe("resuming a link whose signature picture is already staged", () => {
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = png();
+    c.initialsBlob.value = initialsPng();
     expect(await c.adopt()).toBe(true);
     expect(c.markCarriedOver.value).toBe(false);
     expect(c.markWillPrint.value).toBe(true);
@@ -1007,6 +1261,7 @@ describe("resuming a link whose signature picture is already staged", () => {
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
     c.markBlob.value = png();
+    c.initialsBlob.value = initialsPng();
     expect(await c.adopt()).toBe(true);
     expect(c.drawnMarkFailed.value).toBe(true);
     expect(c.markWillPrint.value).toBe(false);

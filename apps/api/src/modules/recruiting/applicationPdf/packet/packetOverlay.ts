@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
-import { packetPlacementById } from "@silvicom/shared";
+import { packetPlacementById, type PacketMarkKind } from "@silvicom/shared";
 import { MARK_BASELINE_LIFT, PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { FIELD_BASELINE_LIFT, fieldTableFor } from "./packetFieldGeometry.js";
 import type { PacketFieldOverflow, PlacedFieldValue } from "./packetGrid.js";
@@ -22,8 +22,14 @@ import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
  * different layouts for the same act and two of them are indistinguishable by geometry.
  *
  * ── WHAT A MARK IS ────────────────────────────────────────────────────────────────────────────
- * The typed name in an italic face, or the driver's drawn PNG when they gave one (D-PKT13 lets them
- * choose; D-APP8 keeps the typed name as the signature of RECORD either way).
+ * The driver's own PNG when they adopted one, and the typed text in an italic face when they did not
+ * (D-PKT13 lets them choose how; D-APP8 keeps the typed name as the mark of RECORD either way).
+ *
+ * ⚠ **TWO pictures since Q-HUI14, not one, and they are not interchangeable.** Nineteen places take
+ * the signature and three take the initials, and `pictures` below is keyed by the kind the placement
+ * itself carries so that neither can land on the other's line. D-PKT6 is the rule underneath: the
+ * initials are a second adopted mark, so the second picture is made from the separately-typed
+ * initials and never from the signature.
  *
  * ⚠ **`StandardFonts.HelveticaOblique`, not a script webfont.** A standard-14 face costs no embedded
  * bytes, cannot fail to load, and renders identically wherever the PDF is opened — and this document
@@ -58,10 +64,16 @@ import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
  * three is now the initials.
  *
  * ⚠ **The DRAWN path kept the defect for another four days**, because the branch that stamps the PNG
- * never read the placement's kind — it ran for all twenty-two. That is A3, and the fix is in the mark
- * loop: the drawing goes on signature lines only. The lesson is the one worth keeping — *"nothing
+ * never read the placement's kind — it ran for all twenty-two. That is A3, and its fix is in the mark
+ * loop: the drawing went on signature lines only. The lesson is the one worth keeping — *"nothing
  * here changed"* was true of the typed path and false of the path beside it, and one sentence covered
  * both.
+ *
+ * ⚠ **A3's fix was correct and incomplete, which is Q-HUI14.** Excluding the signature from `p05`,
+ * `p06` and `p09` left them printing `HelveticaOblique` while every line around them carried the
+ * driver's hand — a filed packet in Great Vibes on nineteen lines and Helvetica on three. The answer
+ * is not to relax the exclusion but to give the initials a picture of their own, so the loop selects
+ * BY KIND instead of deciding whether to draw at all.
  *
  * ⚠ **Every mark is scaled to fit its line and never overruns it.** The lines are between 90 and 413
  * points wide and a long name at a fixed size would run into the printed text beside it — on page 4
@@ -99,13 +111,31 @@ export interface PacketOverlayInput {
   /** The applicant, so a continuation sheet separated from the packet can be put back with it. */
   applicantName?: string;
   /**
-   * The driver's drawn signature, when they chose to draw one (D-PKT13).
+   * The driver's adopted SIGNATURE, as a picture (D-PKT13, D-HUI14).
    *
    * ⚠ PNG bytes, and optional forever. A8b's rule holds here too: a mark that will not render must
    * not stand between a driver and a filed application, so a failure to embed falls back to the typed
    * name rather than throwing.
+   *
+   * ⚠ **It goes on signature lines and NOWHERE else.** See the mark loop: this was drawn on all
+   * twenty-two placements until A3, which is how 141pt of somebody's full autograph ended up in a box
+   * the carrier had captioned `Initials`.
    */
   drawnMark?: Buffer | null;
+  /**
+   * The driver's adopted INITIALS, as a picture (Q-HUI14).
+   *
+   * ⚠ **A second image rather than a second use of the first, and D-PKT6 is the whole reason.**
+   * Initials are *"a SECOND adopted mark and not an abbreviation of the first"* — so this is the
+   * separately-typed initials rendered in the face the driver chose, or their own hand drawn or
+   * uploaded, and it is never produced by cropping, scaling or abbreviating `drawnMark`. The two
+   * arrive in two `application_captures` rows and are read by two calls.
+   *
+   * ⚠ Optional on the same terms as its sibling: absent means `p05`, `p06` and `p09` print the typed
+   * initials from `signed_name`, which is exactly what every packet printed before Q-HUI14 and still
+   * the signature of record (D-APP8).
+   */
+  initialsMark?: Buffer | null;
   /**
    * The words stamped across every sheet, or absent for the FILED document (A2).
    *
@@ -180,6 +210,24 @@ function drawBand(page: PDFPage, font: PDFFont, band: string): void {
   });
 }
 
+/**
+ * Put one adopted mark's PNG in the document, or hand back null (A8b, D-APP8).
+ *
+ * ⚠ **The swallow is the rule, not a defensive habit.** A mark is decoration and the typed
+ * `signed_name` is the signature of record, so bytes that will not decode must cost the driver a
+ * picture and never a filed §391.51(b)(1) document. ⚠ It is one function for both marks because the
+ * consequence is identical whichever failed: that kind of line prints its typed text instead. Two
+ * copies of this try/catch would be two chances to get the fallback wrong.
+ */
+async function embedMark(doc: PDFDocument, bytes: Buffer | null | undefined): Promise<PDFImage | null> {
+  if (!bytes) return null;
+  try {
+    return await doc.embedPng(bytes);
+  } catch {
+    return null;
+  }
+}
+
 /** The largest size at or below `TYPED_MARK_SIZE` whose text fits the line, floored so it stays readable. */
 function fittedSize(font: PDFFont, text: string, width: number): number {
   for (let size = TYPED_MARK_SIZE; size > TYPED_MARK_MIN_SIZE; size -= 0.5) {
@@ -208,15 +256,22 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
    */
   const fieldFont = await doc.embedFont(StandardFonts.Helvetica);
 
-  let drawn: PDFImage | null = null;
-  if (input.drawnMark) {
-    try {
-      drawn = await doc.embedPng(input.drawnMark);
-    } catch {
-      // Decoration that failed to decode. The typed name below is the signature of record (D-APP8).
-      drawn = null;
-    }
-  }
+  /**
+   * One picture per KIND of mark, embedded once each (Q-HUI14).
+   *
+   * ⚠ **A `Record` keyed by `PacketMarkKind` rather than two variables**, so the selector in the mark
+   * loop is a lookup and cannot accidentally be an `if` that reaches for the wrong one. That `if` is
+   * A3's defect: the branch that stamped the PNG never read the placement's kind, so it ran for all
+   * twenty-two places. With a map keyed by the same kind the placement carries, a signature can only
+   * reach a signature line — there is no expression in the loop that could put it anywhere else.
+   *
+   * ⚠ Embedded before the loop, not inside it: `embedPng` adds the image to the document once, and
+   * embedding per placement would put nineteen copies of the same bytes in a filed PDF.
+   */
+  const pictures: Record<PacketMarkKind, PDFImage | null> = {
+    signature: await embedMark(doc, input.drawnMark),
+    initials: await embedMark(doc, input.initialsMark),
+  };
 
   /**
    * ⚠ Values first, marks second, so that if a coordinate is ever wrong enough for the two to
@@ -245,43 +300,50 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
     const baseline = line.y + MARK_BASELINE_LIFT;
 
     /**
-     * ⚠ **A drawing is a SIGNATURE, and `p05`, `p06` and `p09` do not ask for one** (A3, D-PKT6).
+     * ⚠ **WHICH picture this line takes — a selector, and never a yes/no** (A3, D-PKT6, Q-HUI14).
      *
-     * Until this line existed the `if (drawn)` branch below ran for every placement, so a driver who
-     * chose to draw got their signature stamped on the three initials lines as well — 141pt of
-     * somebody's full autograph in a box the carrier captioned `Initials`, on a document the driver
-     * had been told would carry their typed initials there. D-PKT6 is explicit that initials are *"a
-     * SECOND adopted mark and not an abbreviation of the first"*; the ceremony collects them
-     * separately and types them for exactly that reason, and this renderer was throwing that away at
-     * the last step. Q-PKT8 closed the same defect on the typed path in 2026-09-14 and this drawn one
-     * survived it, because nothing on the drawn branch ever read the placement's kind.
+     * Until A3 this was `if (drawn)` with no kind in it at all, so a driver who chose to draw got
+     * their signature stamped on the three initials lines as well — 141pt of somebody's full autograph
+     * in a box the carrier captioned `Initials`, on a document the driver had been told would carry
+     * their typed initials there. A3 made it `mark === "signature"`, which closed that and left the
+     * initials printing typed text for ever; Q-HUI14 gives them a picture of their own, so the
+     * question stopped being *does this line take a drawing* and became *whose drawing*.
+     *
+     * ⚠ **A3's rule is not relaxed by this, it is strengthened.** `pictures` is keyed by the very kind
+     * the placement carries, so the signature is not merely excluded from `p05`, `p06` and `p09` —
+     * there is no expression in this loop that could reach it from them. D-PKT6 holds in the other
+     * direction too: `pictures.initials` is the separately-adopted initials mark and nothing here
+     * derives it from the signature.
      *
      * ⚠ **The kind comes from `PACKET_PLACEMENTS`, never from the id's spelling or the page number.**
      * It is the inventory of somebody else's paper — the same table the ceremony reads to decide
-     * which mark to collect — so the paper, the screen and the print agree by construction rather
-     * than by three people remembering the same three page numbers. `packetMarkGeometry.ts` carries
-     * no kind at all and must not gain one.
+     * which mark to collect, joined to the storage slot by `APPLICATION_CAPTURE_MARK_SLOT` — so the
+     * paper, the screen and the print agree by construction rather than by three people remembering
+     * the same three page numbers. `packetMarkGeometry.ts` carries no kind at all and must not gain
+     * one.
      *
      * ⚠ **An id the inventory does not carry falls back to the TYPED name**, which is the safe
-     * direction: a typed signature is still the signature of record (D-APP8), whereas a drawing on an
-     * initials line is this defect. Today the case is unreachable — every geometry id has a
-     * placement, pinned by "carries exactly the driver's twenty-two places, and nothing else"
-     * — but a filed packet is frozen for ever, so the branch that runs when the two tables disagree
-     * has to be the one that cannot produce a wrong mark.
+     * direction and stays the safe direction now that there are two pictures: a typed mark is still
+     * the mark of record (D-APP8), whereas a picture on a line whose kind we cannot establish is a
+     * guess printed onto federal paper. Today the case is unreachable — every geometry id has a
+     * placement, pinned by "carries exactly the driver's twenty-two places, and nothing else" — but a
+     * filed packet is frozen for ever, so the branch that runs when the two tables disagree has to be
+     * the one that cannot produce a wrong mark.
      */
-    const takesDrawing = packetPlacementById(mark.placementId)?.mark === "signature";
+    const kind = packetPlacementById(mark.placementId)?.mark;
+    const picture = kind ? pictures[kind] : null;
 
-    if (drawn && takesDrawing) {
+    if (picture) {
       const scale = Math.min(
-        DRAWN_MARK_MAX_HEIGHT / drawn.height,
+        DRAWN_MARK_MAX_HEIGHT / picture.height,
         // ⚠ 0.9 of the line, so a drawn mark has the same air around it the typed one gets.
-        (width * 0.9) / drawn.width,
+        (width * 0.9) / picture.width,
       );
-      page.drawImage(drawn, {
+      page.drawImage(picture, {
         x: line.x1 + 2,
         y: baseline,
-        width: drawn.width * scale,
-        height: drawn.height * scale,
+        width: picture.width * scale,
+        height: picture.height * scale,
       });
       continue;
     }

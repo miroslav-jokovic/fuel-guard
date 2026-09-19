@@ -4,6 +4,7 @@ import { pdfText as textOf } from "../../testing/pdfText.js";
 import { applicationPreviewPdf, isPreviewError } from "./applicationPdf/preview.js";
 import { applicantReadingCopy } from "./applicationReadingCopy.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
+import { APPLICATION_CAPTURE_MARK_SLOT } from "@silvicom/shared";
 
 /**
  * The packet a driver reads before they sign it (C1).
@@ -232,5 +233,39 @@ describe("the packet a driver reads before signing it", () => {
       expect(q.filters().some((f) => f.col === "org_id" && f.val === OTHER_ORG)).toBe(true);
       expect(q.filters().some((f) => f.col === "org_id" && f.val === ORG)).toBe(false);
     }
+  });
+
+  /**
+   * ⚠ **The reading copy fetches BOTH pictures, and A2 is why it is pinned here** (Q-HUI14).
+   *
+   * This document and the FILED packet are the same renderer over the same rows — A2's whole lesson is
+   * that two renderings of one document diverge silently and no gate can see it, which is how an
+   * office read an eight-page summary for four days while a driver signed a thirty-one-page packet. A
+   * reading copy that fetched only the signature would show this driver `p05`, `p06` and `p09` in
+   * Helvetica while the packet they are about to sign prints their own hand there — the same failure,
+   * one document narrower.
+   */
+  it("reads both adopted marks, by the slot the contract names for each kind", async () => {
+    const rec = seed({ marks: signedP03 });
+    await applicantReadingCopy(rec.client, TOKEN, NOW);
+    const slots = rec
+      .forTable("application_captures")
+      .map((q) => q.filters().find((f) => f.col === "slot")?.val);
+    expect(slots).toEqual([
+      APPLICATION_CAPTURE_MARK_SLOT.signature,
+      APPLICATION_CAPTURE_MARK_SLOT.initials,
+    ]);
+  });
+
+  /**
+   * ⚠ The partial case, and it is the one that keeps a public route cheap: with nothing signed there
+   * is no line for a picture to sit on, so neither mark is fetched at all. Without this, a version
+   * that read both unconditionally would pass the test above and add two Storage reads to every open
+   * of an unstarted link.
+   */
+  it("fetches neither picture on a packet nobody has signed yet", async () => {
+    const rec = seed();
+    await applicantReadingCopy(rec.client, TOKEN, NOW);
+    expect(rec.forTable("application_captures")).toHaveLength(0);
   });
 });

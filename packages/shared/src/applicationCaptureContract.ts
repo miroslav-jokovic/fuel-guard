@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { DocumentKind } from "./complianceContract.js";
+import type { PacketMarkKind } from "./packetPlacements.js";
 
 /**
  * The documents an applicant photographs from the application link (A8, D-APP10).
@@ -32,10 +33,44 @@ export const APPLICATION_CAPTURE_SLOTS = [
    * cannot produce a squiggle has still signed.
    */
   "signature_mark",
+  /**
+   * The drawn INITIALS mark (Q-HUI14, D-HUI14, migration 0346) — a second picture, not a crop of
+   * the first.
+   *
+   * ⚠ **A seventh slot rather than a second use of `signature_mark` or of `other`, and the reason is
+   * 0230's unique index**: `application_captures` holds ONE ROW PER SLOT, so two marks sharing a slot
+   * overwrite each other. Adopting initials into the signature's row would silently delete the
+   * signature picture and file nineteen typed lines beside three drawn ones.
+   *
+   * ⚠ **D-PKT6 is why it exists at all.** The initials are *"a SECOND adopted mark and not an
+   * abbreviation of the first"* — the driver types them separately and, since this slot, makes a
+   * picture of them separately. Nothing derives one mark from the other at any point; the shared
+   * thing is the FACE the driver chose, which is presentation.
+   */
+  "initials_mark",
   "other",
 ] as const;
 
 export type ApplicationCaptureSlot = (typeof APPLICATION_CAPTURE_SLOTS)[number];
+
+/**
+ * Which slot holds the picture for each kind of mark the carrier's packet asks for (Q-HUI14).
+ *
+ * ⚠ **The one place the two vocabularies are joined, so nothing else has to know both.**
+ * `PacketPlacement.mark` is measured off the carrier's paper (`packetPlacements.ts`) and the slot set
+ * above is what this product will store; the renderer picks a picture per placement, the ceremony
+ * stages a picture per kind, and both read this rather than spelling out the pair. A copy of it in
+ * either would be `CLAUDE.md`'s *value copied instead of derived* — with the specific failure mode
+ * that the renderer and the client would disagree about which picture goes on `p05`, which is the
+ * A3 defect exactly.
+ *
+ * ⚠ It is a total `Record`, so a third kind of mark on somebody's paper cannot compile until it has
+ * been given somewhere to live.
+ */
+export const APPLICATION_CAPTURE_MARK_SLOT: Record<PacketMarkKind, ApplicationCaptureSlot> = {
+  signature: "signature_mark",
+  initials: "initials_mark",
+};
 
 /** The machine tokens ship with their labels, as every state vocabulary in this product does. */
 export const APPLICATION_CAPTURE_SLOT_LABELS: Record<ApplicationCaptureSlot, string> = {
@@ -44,15 +79,19 @@ export const APPLICATION_CAPTURE_SLOT_LABELS: Record<ApplicationCaptureSlot, str
   medical_card: "Medical examiner's certificate",
   ssn_card: "Social Security card",
   signature_mark: "Your signature",
+  initials_mark: "Your initials",
   other: "Anything else",
 };
 
 /**
  * What the capture screen asks for, in order.
  *
- * `signature_mark` is deliberately absent — it belongs to the signing ceremony, and a slot on this
- * screen inviting a driver to photograph a signature would collect a photograph of a piece of paper
- * rather than the mark D-APP8 describes. `other` is absent because a form that opens with "anything
+ * ⚠ **`signature_mark` and `initials_mark` are BOTH deliberately absent** — they belong to the
+ * signing ceremony, and a slot on this screen inviting a driver to photograph a mark would collect a
+ * photograph of a piece of paper rather than the mark D-APP8 describes. (`initials_mark` was the one
+ * addition Q-HUI14's writer half had to make sure NOT to make: the list drives the capture screen, the
+ * review summary and `ApplyExpectations`, so an entry here would have asked every applicant to
+ * photograph their own initials.) `other` is absent because a form that opens with "anything
  * else" invites a folder of receipts into an evidence bucket; it exists in the vocabulary so a later
  * step can ask for something specific without a migration.
  */
@@ -92,6 +131,11 @@ export const APPLICATION_CAPTURE_DOCUMENT_KIND: Record<ApplicationCaptureSlot, D
   medical_card: "medical_card",
   ssn_card: "other",
   signature_mark: "other",
+  // The initials picture files exactly where its sibling does, and for the same reason: there is no
+  // §391.51 record kind for a decoration. `sources.ts` finds either of them by the staged row's
+  // SLOT rather than by the filed document's kind, which is what makes the two distinguishable
+  // after promotion even though `documents` calls them the same thing.
+  initials_mark: "other",
   other: "other",
 };
 
@@ -108,6 +152,7 @@ export const APPLICATION_CAPTURE_PAGE: Record<ApplicationCaptureSlot, number> = 
   medical_card: 1,
   ssn_card: 1,
   signature_mark: 1,
+  initials_mark: 1,
   other: 1,
 };
 

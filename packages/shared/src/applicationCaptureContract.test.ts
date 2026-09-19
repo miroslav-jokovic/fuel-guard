@@ -3,6 +3,7 @@ import {
   APPLICATION_CAPTURE_CONTENT_TYPES,
   APPLICATION_CAPTURE_DOCUMENT_KIND,
   APPLICATION_CAPTURE_EXTENSIONS,
+  APPLICATION_CAPTURE_MARK_SLOT,
   APPLICATION_CAPTURE_PAGE,
   APPLICATION_CAPTURE_REQUESTED,
   APPLICATION_CAPTURE_SLOTS,
@@ -12,6 +13,7 @@ import {
   applicationCaptureStoragePath,
 } from "./applicationCaptureContract.js";
 import { DOCUMENT_CONTENT_TYPES, DOCUMENT_KINDS } from "./complianceContract.js";
+import { PACKET_MARK_KINDS } from "./packetPlacements.js";
 
 /**
  * The staging vocabulary, and the two promises it makes to the qualification file (A8).
@@ -44,11 +46,43 @@ describe("the capture slot vocabulary", () => {
     expect(APPLICATION_CAPTURE_PAGE.cdl_back).toBe(2);
   });
 
-  /** The signing ceremony writes it, not the capture screen — see the contract's own note. */
-  it("does not ask the driver to photograph their signature", () => {
-    expect(APPLICATION_CAPTURE_REQUESTED).not.toContain("signature_mark");
+  /**
+   * The signing ceremony writes them, not the capture screen — see the contract's own note.
+   *
+   * ⚠ **`initials_mark` was the one addition Q-HUI14's writer half had to be careful NOT to make.**
+   * This list drives the capture screen, `reviewSummary.ts` and `ApplyExpectations.vue`, so an entry
+   * here would have asked every applicant to photograph their own initials — and the mark is produced
+   * by the ceremony in the browser, so what it would collect is a photograph of a piece of paper.
+   *
+   * ⚠ Written over the MARK SLOTS rather than as two string literals, so a third kind of mark cannot
+   * be added to the storage vocabulary and quietly appear on the capture screen.
+   */
+  it("does not ask the driver to photograph either of their adopted marks", () => {
+    for (const slot of Object.values(APPLICATION_CAPTURE_MARK_SLOT)) {
+      expect(APPLICATION_CAPTURE_REQUESTED, slot).not.toContain(slot);
+    }
     expect(APPLICATION_CAPTURE_REQUESTED).not.toContain("other");
     for (const slot of APPLICATION_CAPTURE_REQUESTED) {
+      expect(APPLICATION_CAPTURE_SLOTS as readonly string[]).toContain(slot);
+    }
+  });
+
+  /**
+   * ⚠ **Every kind of mark the carrier's paper asks for has its own slot, and no two share one**
+   * (Q-HUI14, D-PKT6).
+   *
+   * `application_captures` holds ONE ROW PER SLOT (0230's unique index), so two kinds of mark mapped
+   * to the same slot would overwrite each other: adopting initials would silently delete the signature
+   * picture, and the packet would file nineteen typed lines beside three drawn ones. ⚠ The totality is
+   * what makes it worth a test — a third kind of mark on somebody's paper cannot compile until it has
+   * been given a slot, and this is where the DISTINCTNESS is checked, which the type cannot express.
+   */
+  it("gives every kind of mark its own slot, because one row per slot means sharing overwrites", () => {
+    const slots = Object.values(APPLICATION_CAPTURE_MARK_SLOT);
+    expect(slots).toHaveLength(PACKET_MARK_KINDS.length);
+    expect(new Set(slots).size).toBe(slots.length);
+    for (const kind of PACKET_MARK_KINDS) {
+      const slot = APPLICATION_CAPTURE_MARK_SLOT[kind];
       expect(APPLICATION_CAPTURE_SLOTS as readonly string[]).toContain(slot);
     }
   });

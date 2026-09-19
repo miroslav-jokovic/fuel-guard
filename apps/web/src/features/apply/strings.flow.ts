@@ -196,9 +196,29 @@ export const APPLY_FLOW_COPY = {
     /** Shown in the options before the driver has typed anything. A name, so the hands are comparable. */
     styleSampleName: "John Smith",
     stylePreviewLabel: "This is what goes on the form",
+    /**
+     * ⚠ The SECOND preview under the one style picker (Q-HUI14). It names where the initials land,
+     * because that is the whole reason a driver is being shown two pictures instead of one — and
+     * `stylePreviewLabel` above cannot be reused: two identical captions over two different pictures
+     * is the screen failing to say which is which.
+     *
+     * ⚠ It says "the pages that ask for your initials" rather than "three pages": the packet has
+     * gained a placement mid-array before (p17, D-PKT12), and `confirmInitialsWhere` is the one
+     * sentence that names the numbers, from the stops.
+     */
+    styleInitialsPreviewLabel: "And this goes on the pages that ask for your initials",
     uploadLabel: "Upload a picture of your signature",
     uploadHint:
       "A photo or a scan. Sign a white sheet in dark ink, take a picture of it, and we trim the paper away.",
+    /**
+     * ⚠ The second file picker (Q-HUI14). A separate PICTURE, not a second use of the first — D-PKT6
+     * calls the initials a second adopted mark, so a driver uploading a scan of their signature is not
+     * thereby uploading their initials, and the form must not print a cropped signature as if they had.
+     */
+    uploadInitialsLabel: "Upload a picture of your initials",
+    uploadInitialsHint:
+      "The same again, with just your initials on the sheet. These go on the pages that ask for initials.",
+    uploadInitialsNeeded: "Choose a picture of your initials above, or pick a style instead.",
     uploadChoose: "Choose a picture",
     uploadReplace: "Choose a different picture",
     uploadReading: "Reading…",
@@ -227,7 +247,22 @@ export const APPLY_FLOW_COPY = {
     drawLabel: "Draw your signature",
     drawHint: "Use your finger. This is what goes on the form — your typed name goes on it as well.",
     drawClear: "Clear",
-    drawNeeded: "Draw your signature above, or choose to type it instead.",
+    /**
+     * ⚠ **It said *"or choose to type it instead"* until Q-HUI14, and that tab has not existed since
+     * C2.** `AdoptedMarkStyle`'s `"typed"` was removed, not renamed, because it named a behaviour that
+     * no longer happens — every tab produces a picture now — so this sentence was pointing a stuck
+     * driver at a control that is not on the screen. Found by reading the rendered tab beside its new
+     * sibling, which says `choose a style`; the pair now name the same real thing.
+     */
+    drawNeeded: "Draw your signature above, or choose a style instead.",
+    /**
+     * ⚠ The second pad (Q-HUI14, D-PKT6). Its own label, because a single pad captioned *"draw your
+     * mark"* would leave the driver deciding which mark, and whichever they drew would go on both
+     * nineteen lines and three — which is A3's defect arriving from the client side this time.
+     */
+    drawInitialsLabel: "Now draw your initials",
+    drawInitialsHint: "Just your initials. These go on the pages that ask for them instead of a signature.",
+    drawInitialsNeeded: "Draw your initials above, or choose a style instead.",
     adoptAction: "Use this and start",
     /**
      * ⚠ What a RESUMED walk sees instead of the fields (Q-PKT9). The driver adopted these on a
@@ -253,6 +288,14 @@ export const APPLY_FLOW_COPY = {
      * reads `canChange` is what offers it (A4).
      */
     markCarriedOver: "Your signature picture is saved. We will keep putting it on the pages that are left.",
+    /**
+     * ⚠ Its own sentence rather than a shared one (Q-HUI14). The two pictures are two rows staged by
+     * two calls, so a resumed link can hold one and not the other — and on an initials stop, a
+     * sentence saying *your signature picture is saved* would be true about the wrong mark, which is
+     * the failure this whole family of sentences exists to avoid.
+     */
+    initialsCarriedOver:
+      "Your initials picture is saved. We will keep putting it on the pages that ask for initials.",
     /**
      * ⚠ The confirm step (A4) — the screen between the last keystroke and the first signature.
      *
@@ -340,6 +383,17 @@ export const APPLY_FLOW_COPY = {
      */
     drawFailed:
       "We could not save your signature picture, so your typed name goes on the form instead. "
+      + "Everything you sign still counts — carry on.",
+    /**
+     * ⚠ Its own sentence, and the two can be shown together (Q-HUI14).
+     *
+     * The marks stage in two calls, so *signature landed, initials did not* is a real outcome and it
+     * prints differently on three pages from on nineteen. One merged sentence would either disown a
+     * signature that did save or claim one that did not; two sentences, shown only for the mark that
+     * actually failed, is the only version that is true in all four combinations.
+     */
+    initialsFailed:
+      "We could not save your initials picture, so your typed initials go on those pages instead. "
       + "Everything you sign still counts — carry on.",
     resumed: (n: number): string =>
       n === 1 ? "You have already signed 1 place." : `You have already signed ${n} places.`,

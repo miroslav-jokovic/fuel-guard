@@ -67,8 +67,17 @@ export interface PacketDocumentInput {
   application: DriverApplication;
   certifiedAt: string;
   signedName: string;
-  /** The driver's drawn mark, when they gave one (D-PKT13). Decoration; the typed name is the record. */
+  /** The driver's adopted SIGNATURE picture, when they made one (D-PKT13). The typed name is the record. */
   drawnMark?: Buffer | null;
+  /**
+   * The driver's adopted INITIALS picture, when they made one (Q-HUI14).
+   *
+   * ⚠ **Passed beside its sibling rather than folded into it**, because the renderer picks per
+   * placement kind and a single "the mark" would have to be re-decided somewhere, which is how a
+   * signature reached an initials line in the first place (A3). Both are optional and both fall back
+   * to the typed text on their own lines only.
+   */
+  initialsMark?: Buffer | null;
   /**
    * The words across every sheet, for the office's PREVIEW of an unsigned packet (A2).
    *
@@ -105,6 +114,7 @@ export async function renderPacketDocument(input: PacketDocumentInput): Promise<
     // to the right packet, and `signed_name` is how somebody signs rather than what they are called.
     applicantName: [a.first_name, a.middle_name, a.last_name].filter(Boolean).join(" "),
     drawnMark: input.drawnMark ?? null,
+    initialsMark: input.initialsMark ?? null,
     band: input.band ?? null,
   });
 }
