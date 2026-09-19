@@ -73,6 +73,11 @@ export function usePacketCeremony(
      * half, whose `markStaged` carries the whole argument for why a resumed walk needs it.
      */
     markStaged?: Ref<boolean>;
+    /**
+     * Whether an `initials_mark` was already staged on a previous visit (Q-HUI14). Read by the
+     * adoption half; its `initialsStaged` says why the two marks need two flags.
+     */
+    initialsStaged?: Ref<boolean>;
   } = {},
 ) {
   const working = ref(false);
@@ -155,6 +160,7 @@ export function usePacketCeremony(
     working,
     served: options.adopted,
     markStaged: options.markStaged,
+    initialsStaged: options.initialsStaged,
     stage: options.stage,
     io: options.io,
   });
@@ -231,13 +237,41 @@ export function usePacketCeremony(
    * the packet printed the picture, which is the same contradiction the comment above records, pointing
    * the other way.
    *
-   * ⚠ **And it asks `markWillPrint`, not `markBlob`** — a resumed link has a staged mark on the server
-   * and nothing in the browser, and `markBlob` alone would say *no picture* about a walk whose every
+   * ⚠ **And it asks `willPrint`, not the blob** — a resumed link has a staged mark on the server
+   * and nothing in the browser, and the blob alone would say *no picture* about a walk whose every
    * remaining page is about to get one. See `markStaged`.
+   *
+   * ⚠ **Q-HUI14 turned the `mark === "signature"` term into a SELECTOR, and that is the same change
+   * `renderPacketOverlay`'s mark loop made** — the named pair above is still a pair, and it still
+   * agrees. Before this, an initials stop answered `false` and previewed typed text, which was exactly
+   * right while `takesDrawing` excluded those three lines from the drawing. Now that they have a
+   * picture of their own, `false` there would be the same contradiction the notes above record,
+   * arriving from the third direction: the screen previewing Helvetica while the paper carried the
+   * driver's hand. ⚠ It reads the STOP's kind, never its page number, for `markFor`'s reason.
    */
-  const currentShowsDrawing = computed(
-    () => adoption.markWillPrint.value && current.value?.mark === "signature",
-  );
+  const currentShowsDrawing = computed(() => {
+    const kind = current.value?.mark;
+    if (!kind) return false;
+    return kind === "initials" ? adoption.initialsWillPrint.value : adoption.markWillPrint.value;
+  });
+
+  /**
+   * Whether the picture going on THIS stop was staged on a previous visit and cannot be shown here
+   * (Q-HUI14, C2).
+   *
+   * ⚠ Selected by the stop's kind for `currentShowsDrawing`'s reason. A driver resuming a link that
+   * staged a signature and no initials stands on `p05` with a picture in hand for one mark and
+   * nothing for the other, and the sentence *"the mark you made earlier is saved"* is true of exactly
+   * one of them. The stop screen used to read `markCarriedOver` directly, which would have said it
+   * about the signature while standing on an initials line.
+   */
+  const currentMarkCarriedOver = computed(() => {
+    const kind = current.value?.mark;
+    if (!kind) return false;
+    return kind === "initials"
+      ? adoption.initialsCarriedOver.value
+      : adoption.markCarriedOver.value;
+  });
 
   /** Apply the adopted mark at the stop the driver is standing on. */
   async function sign(): Promise<void> {
@@ -287,6 +321,7 @@ export function usePacketCeremony(
      */
     ...adoption,
     currentShowsDrawing,
+    currentMarkCarriedOver,
     state,
     current,
     total,

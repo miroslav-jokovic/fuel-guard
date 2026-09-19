@@ -117,10 +117,20 @@ export interface PreviewAudience {
    */
   band?: string | null;
   /**
-   * The driver's drawn mark, when they adopted one (D-PKT13). Decoration; the typed name is the
-   * record (D-APP8). ⚠ The office's preview has no marks to draw it on, so it passes none.
+   * The driver's adopted SIGNATURE picture, when they made one (D-PKT13). Decoration; the typed name
+   * is the record (D-APP8). ⚠ The office's preview has no marks to draw it on, so it passes none.
    */
   drawnMark?: Buffer | null;
+  /**
+   * The driver's adopted INITIALS picture, when they made one (Q-HUI14).
+   *
+   * ⚠ **Here for A2's reason and no other.** The applicant's reading copy is the document they are
+   * about to sign, so a reading copy that printed their initials in Helvetica while the filed packet
+   * printed their own hand would be A2 all over again in miniature — two renderings of one document
+   * disagreeing about one of them, with no gate able to see it. The office's preview passes neither
+   * picture, because it has no marks for either to sit on.
+   */
+  initialsMark?: Buffer | null;
 }
 
 export async function applicationPreviewPdf(
@@ -196,10 +206,11 @@ export async function applicationPreviewPdf(
      * name where a signature belongs on a document nobody has signed.
      */
     signedName: "",
-    // ⚠ Null for the OFFICE, and it would be ignored anyway — A3 made the drawn mark follow the
-    // MARKS, and that caller has none. Named rather than omitted so the next reader does not go
-    // looking for the read. The applicant's reading copy has marks, so it passes the drawing too.
+    // ⚠ Null for the OFFICE, and both would be ignored anyway — A3 made a picture follow the MARKS,
+    // and that caller has none. Named rather than omitted so the next reader does not go looking for
+    // the reads. The applicant's reading copy has marks, so it passes both pictures.
     drawnMark: audience.drawnMark ?? null,
+    initialsMark: audience.initialsMark ?? null,
     // ⚠ Same words as `render.ts` stamps, so the office reads the phrase it has always read on a
     // preview even though the paper underneath it changed. ⚠ `null` is a DELIBERATE value here, not
     // a missing one (D-HUI10) — see `PreviewAudience.band`.

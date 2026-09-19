@@ -2719,6 +2719,130 @@ every time.
   initials mark renders the separately-typed `adoptedInitials` in the chosen face (presentation, not
   derivation), while Draw and Upload need a second control each.
 
+- **2026-09-19 — Q-HUI14, writer half DONE. A driver's initials now print in the mark they adopted.**
+  The schema half (#900, migration 0346) is applied in production — `verify:live` reported
+  `schema version local 0346 / live 0346` before the first line of this was written, which is the
+  whole point the two-PR split was made for: this half WRITES `initials_mark`, and a Postgres 23514
+  on an initials upload would have landed on the one screen in the product whose entire job is to be
+  believed.
+
+  **What it does, end to end.** `APPLICATION_CAPTURE_MARK_SLOT` in `applicationCaptureContract.ts`
+  joins `PacketMarkKind` to a storage slot in ONE place; `signatureMarkBytes` takes that kind and
+  reads the matching row; `renderPacketOverlay` embeds one picture per kind and the mark loop SELECTS
+  by `packetPlacementById(mark.placementId)?.mark`; `file.ts`, `preview.ts` and
+  `applicationReadingCopy.ts` pass both pictures; and the adoption screen collects two marks in one
+  shared face — two previews under one style picker, two pads, two file pickers.
+
+  ⚠ **A3's rule is STRENGTHENED by this, not relaxed, and the shape of the fix is why.** `takesDrawing`
+  was `mark === "signature"`, a yes/no; it is now a lookup into a `Record<PacketMarkKind, PDFImage |
+  null>` keyed by the very kind the placement carries. So the signature is not merely excluded from
+  `p05`, `p06` and `p09` — **there is no expression in the mark loop that could reach it from them**.
+  D-PKT6 holds in the other direction too: the initials picture is made from the separately-typed
+  `adoptedInitials`, and nothing in the client, the contract or the renderer derives it from the name.
+
+  ⚠ **The handoff said FOUR exhaustive `Record<ApplicationCaptureSlot, …>` maps. There are THREE**
+  (`_SLOT_LABELS`, `_DOCUMENT_KIND`, `_PAGE`), plus the `APPLICATION_CAPTURE_SLOTS` array itself,
+  which is what makes four things to edit. `APPLICATION_CAPTURE_EXTENSIONS` is keyed by content type,
+  not by slot. Recorded because the next reader will count them.
+
+  ⚠ **`initials_mark` was kept OUT of `APPLICATION_CAPTURE_REQUESTED`, and that list has three
+  readers** — the capture screen, `reviewSummary.ts` and `ApplyExpectations.vue` — so an entry would
+  have asked every applicant to photograph their own initials. Pinned over the mark slots rather than
+  as two string literals, so a third kind of mark cannot be added to the vocabulary and quietly
+  appear on the capture screen.
+
+  ⚠ **`text` STOPPED being a sufficient discriminator, and that is the one test this step could not
+  do without.** `packetOverlay.test.ts` proved A3 by reading page text: an initials page carrying the
+  initials STRING was a page the drawing had not taken over. With both marks printed as pictures,
+  neither kind of line carries text — so every existing assertion in that file would have gone GREEN
+  on a renderer that stamped the signature on all twenty-two. The new `imagesByPage` helper reads each
+  page's `/XObject` resources and identifies the picture by its `/Width`×`/Height`, and the two
+  fixtures are deliberately different sizes (`3x2` and `5x7`, neither square). ⚠ Two 1×1 PNGs would
+  have been the *fixture too uniform to discriminate* failure [[a-green-mutation-means-the-test-is-at-fault]]
+  keeps producing, arriving through a second mark.
+
+  ⚠ **The busy flag had to move OUT of the staging loop, and the window is real rather than
+  theoretical.** `working` is the walk's single flag and `sign()` refuses to start while it is true.
+  Staging two pictures with a `finally` per call leaves it DOWN in the gap between them — an `await`
+  boundary a driver's tap can land in — so the first mark could be filed on the carrier's paper while
+  the second picture was still going up. It is raised once around the pair. ⚠ The first mutation
+  written for this came back GREEN and the MUTATION was at fault, not the test: adding
+  `working.value = true` inside the loop is a no-op where the flag is already up. The hazard is the
+  CLEAR, not the raise; M19b moved the `finally` inside and went red.
+
+  ⚠ **`withDefaults` cannot name a setup-scope binding, and `vue-tsc` does not care.**
+  `PacketMarkUpload.vue` took its three sentences as props with `withDefaults(..., { label: copy.uploadLabel })`;
+  `pnpm typecheck` passed clean and `ApplyPage.test.ts` went red in `@vue/compiler-sfc` with *"cannot
+  reference locally declared variables"*. Resolved with `computed(() => props.label ?? copy.uploadLabel)`.
+  The lesson for this repo's loop: a clean typecheck is not a compile.
+
+  ⚠ **`usePacketAdoption.ts` hit 618 of the 500-line budget and was SPLIT, not waived** — the second
+  time this area has hit it. `markPicture.ts` (205 lines) now owns the tab vocabulary, the per-mark
+  picture state and the staging loop; `usePacketAdoption.ts` (473) owns the two adopted strings, the
+  pins and what may still be changed. Q-PKT11's ruling verbatim, one level down: trimming the comments
+  or waiving the file retires the only pressure keeping readable the code that produced four defects
+  in two days. ⚠ `markRequiredFor` and `AdoptedMarkStyle` are RE-EXPORTED from their old home, so two
+  call sites and an 1,100-line suite did not have to move for a file rename.
+
+  ⚠ **One rule, instantiated twice — not two copies.** `makeMarkPicture` is a factory, so
+  `carriedOver`, `willPrint`, `failed` and `stagedAlready` have ONE body each and the signature's and
+  the initials' surfaces are the same four names. C2 got one of those bodies wrong by a single term
+  and only a browser walk found it; a hand-written second set would have been a second chance at the
+  same mistake, on the mark nobody walks as often. ⚠ The one place doubling IS right is the failure
+  FLAG: *signature saved, initials not* is a real outcome and prints differently on three pages from
+  on nineteen, so there are two flags and two sentences, shown only for the mark that actually failed.
+
+  ⚠ **A stale sentence fixed on the way past**: `drawNeeded` said *"or choose to type it instead"*,
+  naming a tab C2 removed — `AdoptedMarkStyle`'s `"typed"` was deleted rather than renamed. It now
+  says *choose a style*, matching its new sibling. Found by READING the rendered tab, not by a gate.
+
+  **RENDERED, and this is what settles it.** `preview:local` on **:4197** — ⚠ the port came from the
+  END of the log, after nineteen *"Port N is in use"* lines from parallel sessions
+  ([[preview-local-port-from-end-of-log]]) — Playwright with `channel: "chrome"`, `route.fulfill` of
+  RAW bodies, a true 390px viewport. ⚠ The link had to be served `draft.locked: false`, or
+  `DraftUnlockGate` holds the walk at a date-of-birth prompt and nothing below is reachable.
+
+  · The adoption screen shows three tabs, two typed fields, ONE picker and TWO previews — *Marija
+    Varmeda* and *MV*, both in the Formal (Great Vibes) hand chosen by one click.
+  · `adopt()` staged **two** pictures of **different** sizes: `signature_mark` 92,274 bytes at
+    1200×246 (capped at `MAX_MARK_EDGE`), `initials_mark` 21,364 bytes at 525×206 — each trimmed to
+    its own ink, so neither is a crop of the other.
+  · Draw shows **two canvases** (*"Draw your signature"*, *"Now draw your initials"*) with the adopt
+    button correctly disabled until both exist; Upload shows two pickers with their own three
+    sentences. Horizontal overflow at 390px: **0px**. No page errors.
+  · The stop screen at place 1 (page 3) previews the SIGNATURE picture; at place 3 (page 5) it
+    previews the `MV` picture under *"We will put your initials on the page"* with an `Initial here`
+    button — the per-stop selector agreeing with the renderer in a browser.
+  · **The packet was then rendered from those exact staged bytes and rasterised.** `p03` carries the
+    signature on the `Signature` line, scaled to the line and not overrunning it. **`p05` carries
+    `MV` in Great Vibes on the line the carrier captioned `Initials`, and no signature appears
+    anywhere on that page.** Rendered a second time with `initialsMark: null` for the contrast: the
+    same line reads `MV` in Helvetica Oblique. That pair IS the done-when.
+
+  **Mutations: 22 run, 22 red** — the initials embed fed the signature's bytes, fed null, and the
+  selector forced to each kind in turn (4 on the renderer); `sources.ts` ignoring its kind; `file.ts`
+  reading `"signature"` twice and handing the §391.21 summary the initials; the reading copy reading
+  one slot twice and reading unconditionally; both kinds mapped to one slot; `initials_mark` added to
+  `APPLICATION_CAPTURE_REQUESTED`; the initials-required guard dropped; `skip` forced both ways; the
+  initials staged into the signature's slot; both per-stop selectors collapsed to the signature's;
+  the staged-already guard dropped; one flag for both marks; the loop stopped after the first mark;
+  `markRequiredFor` flipped; and the busy flag cleared per call. ⚠ Each restored by copying BYTES
+  back and the restore PROVEN by sha256 — `git checkout -- <paths>` restores nothing at all when one
+  path in the pathspec is untracked, and `markPicture.ts` is exactly such a path.
+
+  **Gates:** all green — the web list, `lint:scanner-parity`, `lint:filesize`, `lint:funcsize`,
+  `lint:boundaries`, `lint:comment-claims`, `lint:table-writers`, `lint:migration-ordering`, root
+  `lint`, `pnpm --filter web lint:tokens`, `pnpm typecheck`. `pnpm test` green twice end to end
+  (2,062 web · 3,928 api · 2,962 shared · 71 matrices). ⚠ **`pnpm build` fails on this machine and it
+  is environmental**: `vite.config.ts` guards a production build on `process.env.VITE_SUPABASE_URL`,
+  which `apps/web/.env` does not export — `set -a && . apps/web/.env` and it passes. CI exports them.
+
+  ⚠ **The freeze clock is unchanged and this step did not touch it.** Production still holds no filed
+  packet; the QA walk above ran entirely against mocked routes, so nothing was filed and the format is
+  still free. `f2b142e4…` still holds 20 of 22 marks and its link still dies **2026-10-01**.
+
+  **What remains:** Wave D. ⚠ Q-HUI14 is now ANSWERED with candidate (a) and needs no further work;
+  §8's block can be read as history.
 ---
 
 ## 11. Sources

@@ -56,6 +56,15 @@ const props = defineProps<{
    * needed at all.
    */
   markStaged?: boolean;
+  /**
+   * Whether an INITIALS picture was staged on a previous visit (Q-HUI14).
+   *
+   * ⚠ A second prop rather than one flag for both, because they are two `application_captures` rows
+   * and a driver can genuinely have one without the other — a walk resumed after the signature was
+   * adopted but before the first initials stop is exactly that. Derived in `SignOffScreen` beside its
+   * sibling, for the same reason that one is.
+   */
+  initialsStaged?: boolean;
 }>();
 /** Carries the adopted mark, because it is the §391.21(b)(12) signature now (D-PKT15). */
 const emit = defineEmits<{ done: [signedName: string] }>();
@@ -67,6 +76,7 @@ const ceremony = usePacketCeremony(
   {
     adopted: computed(() => props.adoptedMarks ?? null),
     markStaged: computed(() => Boolean(props.markStaged)),
+    initialsStaged: computed(() => Boolean(props.initialsStaged)),
   },
 );
 
@@ -92,17 +102,47 @@ const applying = computed(() =>
  * same drawing: one blob, one URL, one revoke.
  */
 const drawnUrl = ref<string | null>(null);
+/**
+ * And the INITIALS picture's URL (Q-HUI14).
+ *
+ * ⚠ A second URL rather than one that follows the current stop's mark, and that is not a shortcut:
+ * the confirm screen shows both pictures at once, so a single URL could never serve it. One blob, one
+ * URL, one revoke — twice.
+ */
+const initialsUrl = ref<string | null>(null);
+
+/**
+ * ⚠ One watcher per picture, and the bodies are identical on purpose — the alternative is a watcher
+ * on both blobs at once, which cannot tell which of the two changed and so must revoke and re-create
+ * both URLs on every keystroke in either field.
+ */
+function followBlob(blob: Blob | null, url: typeof drawnUrl): void {
+  if (url.value) URL.revokeObjectURL(url.value);
+  url.value = blob ? URL.createObjectURL(blob) : null;
+}
+watch(() => ceremony.markBlob.value, (blob) => followBlob(blob, drawnUrl), { immediate: true });
 watch(
-  () => ceremony.markBlob.value,
-  (blob) => {
-    if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
-    drawnUrl.value = blob ? URL.createObjectURL(blob) : null;
-  },
+  () => ceremony.initialsBlob.value,
+  (blob) => followBlob(blob, initialsUrl),
   { immediate: true },
 );
 onBeforeUnmount(() => {
   if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
+  if (initialsUrl.value) URL.revokeObjectURL(initialsUrl.value);
 });
+
+/**
+ * The picture for the stop the driver is standing on (Q-HUI14).
+ *
+ * ⚠ **Selected by the stop's own `mark`, never by its page number** — the same rule
+ * `renderPacketOverlay`'s mark loop and `currentShowsDrawing` follow, and the reason the three agree
+ * is that all three read `PacketPlacement.mark` rather than remembering which pages ask for what.
+ * Showing `drawnUrl` at an initials stop would be A3's defect rendered on the screen instead of on
+ * the paper: the driver told their signature was about to go in a box captioned `Initials`.
+ */
+const currentMarkUrl = computed(() =>
+  ceremony.current.value?.mark === "initials" ? initialsUrl.value : drawnUrl.value,
+);
 
 /**
  * Which sentence sits above the mark.
@@ -214,6 +254,7 @@ async function signCurrent(): Promise<void> {
     :carrier="carrier"
     :stops="stops"
     :drawn-url="drawnUrl"
+    :initials-url="initialsUrl"
     @done="emit('done', $event)"
   />
 
@@ -290,15 +331,28 @@ async function signCurrent(): Promise<void> {
            screen says so, in a sentence. ⚠ **It must not fall through to the typed name below**: that
            preview would be of the wrong mark, shown with no caveat, which is precisely the failure
            C2 exists to close, arriving through the one door C2 itself opened for every driver. -->
+      <!-- ⚠ All three reads are now per-STOP (Q-HUI14): `currentShowsDrawing` and
+           `currentMarkCarriedOver` select on the stop's mark in the composable, and `currentMarkUrl`
+           does the same for the bytes. Reading `markCarriedOver` and `drawnUrl` directly, as this did
+           before the initials had a picture, would have said *"your signature picture is saved"* while
+           standing on `p05`. -->
       <p
-        v-if="ceremony.currentShowsDrawing.value && !drawnUrl && ceremony.markCarriedOver.value"
+        v-if="
+          ceremony.currentShowsDrawing.value
+            && !currentMarkUrl
+            && ceremony.currentMarkCarriedOver.value
+        "
         class="text-sm text-ink-secondary"
       >
-        {{ copy.markCarriedOver }}
+        {{
+          ceremony.current.value?.mark === "initials"
+            ? copy.initialsCarriedOver
+            : copy.markCarriedOver
+        }}
       </p>
       <img
-        v-else-if="ceremony.currentShowsDrawing.value && drawnUrl"
-        :src="drawnUrl"
+        v-else-if="ceremony.currentShowsDrawing.value && currentMarkUrl"
+        :src="currentMarkUrl"
         alt=""
         class="mt-1 h-16 w-auto max-w-full object-contain object-left"
       />
@@ -319,11 +373,20 @@ async function signCurrent(): Promise<void> {
       <BaseButton variant="ghost" size="sm" @click="changeHere">{{ copy.changeMark }}</BaseButton>
     </div>
 
-    <!-- ⚠ The drawing did not save (A3). Said at every remaining stop rather than once, because a
+    <!-- ⚠ The picture did not save (A3). Said at every remaining stop rather than once, because a
          driver who missed one notice would otherwise sign the rest of the packet still believing
-         their drawing was on it. It is not an error state: nothing is lost and the walk continues. -->
+         their mark was on it. It is not an error state: nothing is lost and the walk continues.
+         ⚠ Both marks, each with its own sentence and its own condition (Q-HUI14) — one can land while
+         the other fails, and telling a driver their signature did not save when it did would be worse
+         than saying nothing. The initials notice is withheld once no page asks for them. -->
     <p v-if="ceremony.drawnMarkFailed.value" class="text-sm text-ink-secondary">
       {{ copy.drawFailed }}
+    </p>
+    <p
+      v-if="ceremony.needsInitials.value && ceremony.initialsMarkFailed.value"
+      class="text-sm text-ink-secondary"
+    >
+      {{ copy.initialsFailed }}
     </p>
 
     <!--
@@ -367,6 +430,9 @@ async function signCurrent(): Promise<void> {
  * type, and a wrapper component adds a node to two screens to carry two declarations. ⚠ The pair must
  * move together — both are reached only when a mark falls back to `drawText`, and a screen showing
  * one face while its neighbour shows another is the disagreement this step exists to end.
+ * ⚠ Since Q-HUI14 *"falls back to `drawText`"* is the WHOLE of what reaches this face: the three
+ * initials lines used to reach it by rule and now print a picture like every other line, so a mark
+ * shown in this face is a mark whose staging failed and nothing else.
  * ⚠ `SigningCeremony.vue` keeps the brush script on purpose: it is a different document, rendered by
  * pdfkit rather than by `packetOverlay`, and it makes no claim that its preview is the print.
  */

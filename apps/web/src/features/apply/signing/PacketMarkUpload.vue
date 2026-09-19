@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { pickImageFile } from "@/features/apply/capture/webImageIo";
 import {
@@ -26,12 +26,40 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * job. Recorded here rather than assumed, because reaching for the shared primitive is normally the
  * right instinct in this repo.
  */
+const copy = APPLY_COPY.packet;
+
+/**
+ * ⚠ **The three sentences are props so a SECOND instance can be about the initials** (Q-HUI14).
+ *
+ * The control is identical for both marks — one image in, one cleaned PNG out — and what differs is
+ * only which mark it is asking for. Props rather than a `kind` prop that looks the copy up here: the
+ * copy already lives in `strings.ts` where the whole flow's wording is reviewed together, and a
+ * component choosing between two sentences by a token is a second place the pairing would live.
+ *
+ * ⚠ The fallbacks are the signature's, so the call site that existed before Q-HUI14 did not change.
+ */
+const props = defineProps<{
+  label?: string;
+  hint?: string;
+  /** What to say when no picture has been chosen yet. */
+  needed?: string;
+}>();
+
+/**
+ * ⚠ **`??` rather than `withDefaults`, and that is a compiler constraint rather than a preference.**
+ * `withDefaults` compiles its defaults outside the setup scope, so naming `copy` in them fails
+ * `@vue/compiler-sfc` with *"cannot reference locally declared variables"* — ⚠ and `vue-tsc` passes it
+ * regardless, so the only thing that catches it is building or running the component. Measured
+ * 2026-09-19: a clean `pnpm typecheck` and a red `ApplyPage.test.ts` on the same tree.
+ */
+const label = computed(() => props.label ?? copy.uploadLabel);
+const hint = computed(() => props.hint ?? copy.uploadHint);
+const needed = computed(() => props.needed ?? copy.uploadNeeded);
+
 const emit = defineEmits<{
   /** The cleaned PNG, or null whenever there is not one — including while a file is being read. */
   change: [Blob | null];
 }>();
-
-const copy = APPLY_COPY.packet;
 
 const previewUrl = ref<string | null>(null);
 const failure = ref<UploadedMarkFailure | null>(null);
@@ -79,8 +107,8 @@ onBeforeUnmount(() => show(null));
 <template>
   <div class="space-y-3">
     <div>
-      <p class="text-sm text-ink">{{ copy.uploadLabel }}</p>
-      <p class="mt-1 text-xs text-ink-muted">{{ copy.uploadHint }}</p>
+      <p class="text-sm text-ink">{{ label }}</p>
+      <p class="mt-1 text-xs text-ink-muted">{{ hint }}</p>
     </div>
 
     <!-- ⚠ The picker is built, clicked and thrown away by `pickImageFile` rather than living in this
@@ -112,7 +140,7 @@ onBeforeUnmount(() => show(null));
          worked perfectly and whose sheet was blank is advice they cannot act on. -->
     <p v-if="failure" class="text-sm text-ink-secondary">{{ copy.uploadFailed[failure] }}</p>
     <p v-else-if="!previewUrl && !reading" class="text-sm text-ink-secondary">
-      {{ copy.uploadNeeded }}
+      {{ needed }}
     </p>
   </div>
 </template>

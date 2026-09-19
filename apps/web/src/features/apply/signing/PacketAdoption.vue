@@ -37,8 +37,16 @@ const props = defineProps<{
   ceremony: ReturnType<typeof usePacketCeremony>;
   carrier: string;
   stops: ApplyPacketStop[];
-  /** The drawn mark's object URL, owned by the parent. Null in typed mode and before the first draw. */
+  /** The signature picture's object URL, owned by the parent. Null before the first mark is made. */
   drawnUrl: string | null;
+  /**
+   * The INITIALS picture's object URL, owned by the parent (Q-HUI14).
+   *
+   * ⚠ Two URLs rather than one for the same reason there are two blobs: the confirm screen shows both
+   * pictures side by side, and one URL could only ever show one of them. The parent owns both for
+   * `drawnUrl`'s reason — one blob, one URL, one revoke.
+   */
+  initialsUrl: string | null;
 }>();
 /** Carries the adopted mark, because it is the §391.21(b)(12) signature now (D-PKT15). */
 const emit = defineEmits<{ done: [signedName: string] }>();
@@ -75,7 +83,11 @@ const style = computed({
     const next = (STYLES.find((s) => s.value === v)?.value ?? "styled") as AdoptedMarkStyle;
     if (next === ceremony.value.style.value) return;
     ceremony.value.style.value = next;
+    // ⚠ BOTH pictures, and forgetting the second would be this step's version of the defect the
+    // comment above describes: a drawn initials mark left behind after a switch to Upload would be
+    // staged and printed on three pages while the screen showed an empty file picker for it.
     ceremony.value.markBlob.value = null;
+    ceremony.value.initialsBlob.value = null;
   },
 });
 
@@ -94,6 +106,20 @@ const nameReady = computed(() => ceremony.value.adoptedName.value.trim().length 
  */
 const markReady = computed(
   () => !markRequiredFor(style.value) || ceremony.value.markBlob.value !== null,
+);
+/**
+ * ⚠ The same question about the second picture, and it matches `adopt()`'s own guard exactly
+ * (Q-HUI14) — including the `needsInitials` term, so a resumed link with its three initials stops
+ * already collected is not held behind a picture the packet will never ask for.
+ *
+ * ⚠ It must match, because a button that lights up while `adopt()` would return false is a button
+ * that does nothing when pressed, with nothing on the screen to explain it.
+ */
+const initialsMarkReady = computed(
+  () =>
+    !markRequiredFor(style.value)
+    || !ceremony.value.needsInitials.value
+    || ceremony.value.initialsBlob.value !== null,
 );
 /** ⚠ The same length the composable enforces, and the same reason: one initial is a real one. */
 const initialsReady = computed(
@@ -160,7 +186,20 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
 
     <div v-if="ceremony.needsInitials.value">
       <p class="text-sm text-ink-muted">{{ copy.resumedInitialsLabel }}</p>
-      <p class="signature-preview text-2xl text-ink">{{ ceremony.adoptedInitials.value }}</p>
+      <!-- ⚠ The same three-way answer the signature above gets (Q-HUI14): the picture when this
+           browser has it, a sentence when the server does and we cannot show it, and the typed
+           initials only when neither is true. Falling through to the typed form while an initials
+           PICTURE went on the remaining pages is exactly the defect C2 closed for the signature. -->
+      <img
+        v-if="!ceremony.initialsMarkFailed.value && initialsUrl"
+        :src="initialsUrl"
+        alt=""
+        class="mt-1 h-10 w-auto max-w-full object-contain object-left"
+      />
+      <p v-else-if="ceremony.initialsCarriedOver.value" class="text-sm text-ink-secondary">
+        {{ copy.initialsCarriedOver }}
+      </p>
+      <p v-else class="signature-preview text-2xl text-ink">{{ ceremony.adoptedInitials.value }}</p>
     </div>
 
     <div class="flex justify-end">
@@ -228,11 +267,21 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
     <!-- ⚠ Shown only once there is a name worth drawing. The picker's whole job is to show the
          driver's OWN name in four hands, and four rows of a placeholder is a choice between
          specimens rather than between signatures. -->
+    <!-- ⚠ ONE picker, TWO previews (Q-HUI14): the driver's initials are rendered in the face they
+         chose for their signature, from the string they typed in their own field above. Sharing the
+         FACE is presentation; deriving the initials from the name is what D-PKT6 forbids, and
+         `initials` below is `adoptedInitials` and never a slice of `adoptedName`.
+         ⚠ `initials` is passed unconditionally and the component renders nothing for an empty one —
+         `needsInitials` is false on a link whose three initials stops are already collected, and
+         staging a picture for a mark no remaining page asks for would put a row in
+         `application_captures` that nothing will ever read. -->
     <PacketMarkStyles
       v-if="style === 'styled' && nameReady"
       v-model="styleId"
       :name="ceremony.adoptedName.value"
+      :initials="ceremony.needsInitials.value ? ceremony.adoptedInitials.value : ''"
       @change="ceremony.markBlob.value = $event"
+      @initials-change="ceremony.initialsBlob.value = $event"
     />
 
     <!-- ⚠ The pad's OWN label and hint are replaced rather than a second line printed above it. Its
@@ -246,17 +295,47 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
         @change="ceremony.markBlob.value = $event"
       />
       <p v-if="!markReady" class="text-sm text-ink-secondary">{{ copy.drawNeeded }}</p>
+
+      <!-- ⚠ A SECOND pad, shown only while a page still asks for initials (Q-HUI14). Two pads rather
+           than one because D-PKT6 makes these two marks, and one pad would put whichever mark the
+           driver drew on both the nineteen signature lines and the three initials lines — A3's
+           defect arriving from the client this time. -->
+      <template v-if="ceremony.needsInitials.value">
+        <SignaturePad
+          :label="copy.drawInitialsLabel"
+          :hint="copy.drawInitialsHint"
+          @change="ceremony.initialsBlob.value = $event"
+        />
+        <p v-if="!initialsMarkReady" class="text-sm text-ink-secondary">
+          {{ copy.drawInitialsNeeded }}
+        </p>
+      </template>
     </template>
 
-    <PacketMarkUpload
-      v-else-if="style === 'uploaded'"
-      @change="ceremony.markBlob.value = $event"
-    />
+    <template v-else-if="style === 'uploaded'">
+      <PacketMarkUpload @change="ceremony.markBlob.value = $event" />
+
+      <!-- ⚠ A second picker, with its own three sentences — a driver handing over a scan of their
+           signature has not thereby handed over their initials (Q-HUI14, D-PKT6). -->
+      <PacketMarkUpload
+        v-if="ceremony.needsInitials.value"
+        :label="copy.uploadInitialsLabel"
+        :hint="copy.uploadInitialsHint"
+        :needed="copy.uploadInitialsNeeded"
+        @change="ceremony.initialsBlob.value = $event"
+      />
+    </template>
 
     <div class="flex justify-end">
       <BaseButton
         variant="primary"
-        :disabled="ceremony.working.value || !nameReady || !initialsReady || !markReady"
+        :disabled="
+          ceremony.working.value
+            || !nameReady
+            || !initialsReady
+            || !markReady
+            || !initialsMarkReady
+        "
         @click="adoptAndStart"
       >
         {{ ceremony.working.value ? copy.working : copy.adoptAction }}
@@ -310,14 +389,40 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
          whose three initials places were collected yesterday has no initials to check. -->
     <div v-if="ceremony.needsInitials.value">
       <p class="text-sm text-ink-muted">{{ copy.confirmInitialsLabel }}</p>
-      <p class="signature-preview text-2xl text-ink">{{ ceremony.adoptedInitials.value }}</p>
+      <!-- ⚠ The PICTURE, on the same terms and at the same height as the signature above (Q-HUI14).
+           `confirmBody` promises *"These go on the form exactly as they look here"* — which was true
+           of the initials only while `takesDrawing` excluded their three lines from every picture.
+           Since migration 0346 and the renderer's per-kind selector it is a promise this element has
+           to keep, so it shows the bytes rather than a typed stand-in for them. -->
+      <img
+        v-if="!ceremony.initialsMarkFailed.value && initialsUrl"
+        :src="initialsUrl"
+        alt=""
+        class="mt-1 h-10 w-auto max-w-full object-contain object-left"
+      />
+      <p v-else-if="ceremony.initialsCarriedOver.value" class="text-sm text-ink-secondary">
+        {{ copy.initialsCarriedOver }}
+      </p>
+      <p v-else class="signature-preview text-2xl text-ink">{{ ceremony.adoptedInitials.value }}</p>
       <p class="mt-1 text-xs text-ink-tertiary">{{ copy.confirmInitialsWhere(initialsPages) }}</p>
     </div>
 
-    <!-- ⚠ The drawing did not save (A3), said here too — this is the screen where the driver decides
-         to go ahead, so it is the last place the promise can still be corrected before it matters. -->
+    <!-- ⚠ The signature picture did not save (A3), said here too — this is the screen where the
+         driver decides to go ahead, so it is the last place the promise can still be corrected
+         before it matters. -->
     <p v-if="ceremony.drawnMarkFailed.value" class="text-sm text-ink-secondary">
       {{ copy.drawFailed }}
+    </p>
+    <!-- ⚠ Its own sentence and its own condition, so all four combinations read truthfully
+         (Q-HUI14): the two marks stage in two calls, and *signature saved, initials not* prints
+         differently on three pages from on nineteen. ⚠ Shown only while a page still asks for
+         initials, for `needsInitials`' reason — a failure to stage a mark nothing will print is not
+         a fact about this driver's document. -->
+    <p
+      v-if="ceremony.needsInitials.value && ceremony.initialsMarkFailed.value"
+      class="text-sm text-ink-secondary"
+    >
+      {{ copy.initialsFailed }}
     </p>
 
     <div class="flex justify-end gap-2">
@@ -338,9 +443,15 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
  * `confirmBody` sat over the pair promising *"These go on the form exactly as they look here."*
  *
  * ⚠ Everywhere a mark is PRINTED as a picture the preview is now the picture itself (D-HUI14), so this
- * face is reached in exactly two places, and in both of them it is correct: the three initials lines,
- * which `takesDrawing` has always excluded (Q-HUI14), and a signature whose staging failed and which
- * therefore falls back to `drawText` (A8b, `drawnMarkFailed`).
+ * face is reached only where the packet really does fall back to `drawText`.
+ *
+ * ⚠ **Q-HUI14 removed one of the two cases this note used to list, and the note has to go with it.**
+ * It said the face was correct for *"the three initials lines, which `takesDrawing` has always
+ * excluded"* — true until migration 0346 gave the initials a picture of their own and the renderer's
+ * mark loop became a per-kind selector. Those three lines now print a PNG like every other line, so
+ * the only remaining case is a mark whose staging failed: a signature (`drawnMarkFailed`) or initials
+ * (`initialsMarkFailed`) that could not be made or sent, which A8b says must not stop the walk. Both
+ * of those genuinely print `HelveticaOblique`, which is what this face is.
  *
  * ⚠ A system stack, so it needs no webfont and cannot fail to load on a truck-stop connection.
  * Helvetica is named first because it IS the printed face on any machine that has it; the rest are the

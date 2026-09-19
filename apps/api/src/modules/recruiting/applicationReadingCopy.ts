@@ -85,10 +85,24 @@ export async function applicantReadingCopy(
   // finished application.
   if (invitation.submitted_at) return ALREADY_FILED;
 
-  // What is already on the paper (D-HUI11), and the drawing it was made with when there is one.
+  /**
+   * What is already on the paper (D-HUI11), and the pictures those marks were made with.
+   *
+   * ⚠ **BOTH marks, because the packet carries both** (Q-HUI14). The signature goes on nineteen
+   * lines and the initials on three, and a reading copy that fetched only the signature would show
+   * this driver `p05`, `p06` and `p09` in Helvetica while the packet they are signing prints their
+   * own hand there. That is A2's failure — two renderings of one document disagreeing — reached
+   * through the reading copy instead of through the office's preview.
+   *
+   * ⚠ Still gated on `marks.length`: with nothing signed there is no line for a picture to sit on,
+   * and this is a public unauthenticated route where two Storage reads per open are worth not making.
+   */
   const marks = await packetMarksFor(admin, invitation.org_id, invitation.id);
   const drawnMark = marks.length
-    ? await signatureMarkBytes(admin, invitation.org_id, invitation.id)
+    ? await signatureMarkBytes(admin, invitation.org_id, invitation.id, "signature")
+    : null;
+  const initialsMark = marks.length
+    ? await signatureMarkBytes(admin, invitation.org_id, invitation.id, "initials")
     : null;
 
   const preview = await applicationPreviewPdf(admin, invitation.org_id, invitation.id, {
@@ -97,6 +111,7 @@ export async function applicantReadingCopy(
     // unbanded to the person being asked to sign it.
     band: null,
     drawnMark,
+    initialsMark,
   });
   if (isPreviewError(preview)) {
     // ⚠ Mapped, not passed through. `applicationPreviewPdf`'s sentences are written for an office

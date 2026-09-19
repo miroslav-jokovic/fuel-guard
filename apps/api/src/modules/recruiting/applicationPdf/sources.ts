@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { APPLICATION_CAPTURES_BUCKET, DOCUMENTS_BUCKET } from "@silvicom/shared";
+import {
+  APPLICATION_CAPTURES_BUCKET,
+  APPLICATION_CAPTURE_MARK_SLOT,
+  DOCUMENTS_BUCKET,
+  type ApplicationCaptureSlot,
+  type PacketMarkKind,
+} from "@silvicom/shared";
 import type { ApplicationPdfInput } from "./render.js";
 
 /**
@@ -76,7 +82,21 @@ export async function esignConsentFor(
 }
 
 /**
- * The drawn signature mark this session gave, if it gave one (A8b, D-APP8).
+ * The drawn mark this session gave for one KIND of place, if it gave one (A8b, D-APP8, Q-HUI14).
+ *
+ * ── ⚠ WHY THERE IS A KIND PARAMETER AT ALL ────────────────────────────────────────────────────
+ * The carrier's packet asks for two marks, not one: nineteen signature lines and three captioned
+ * `Initials`, and D-PKT6 has always said the second is *"a SECOND adopted mark and not an
+ * abbreviation of the first"*. Until Q-HUI14's writer half this function read one slot by name, so
+ * the initials could only ever print as typed `HelveticaOblique` while the signature beside them was
+ * the driver's own hand. ⚠ **The kind maps to a slot through `APPLICATION_CAPTURE_MARK_SLOT` rather
+ * than through a string spelled here**, so this file, the renderer and the browser all join the two
+ * vocabularies in the same one place — see that constant for what a second copy would cost.
+ *
+ * ⚠ **The default is `"signature"`, and it is a default rather than a required argument on purpose.**
+ * Every caller that existed before this change wanted the signature and still does; making them all
+ * say so would have put the word `signature` in six call sites to express the thing that had not
+ * changed, and a diff in which every line moved is a diff in which the one new read is invisible.
  *
  * ── HOW IT IS FOUND, WHICH IS NOT OBVIOUS ─────────────────────────────────────────────────────
  * The mark promotes into `documents` as kind `other`, which is indistinguishable from a promoted
@@ -94,20 +114,26 @@ export async function esignConsentFor(
  * a re-render years later will find no `application_captures` row and will draw the document with the
  * typed name alone — which is what D-APP8 says the signature of record has been the whole time. The
  * PDF filed on the day still carries the mark. If that is judged too lossy, A11's rule is one
- * exception away from keeping `signature_mark` rows; it is named in that step for exactly this reason.
+ * exception away from keeping the two mark rows; it is named in that step for exactly this reason.
+ * ⚠ Since Q-HUI14 there are TWO of them to keep or prune, and they must be treated alike — a rule
+ * that kept the signature and pruned the initials would make a re-render come out half in one hand.
  */
 export async function signatureMarkBytes(
   admin: SupabaseClient,
   orgId: string,
   invitationId: string | null,
+  kind: PacketMarkKind = "signature",
 ): Promise<Buffer | null> {
+  const slot = APPLICATION_CAPTURE_MARK_SLOT[kind];
   try {
-    return await readSignatureMark(admin, orgId, invitationId);
+    return await readSignatureMark(admin, orgId, invitationId, slot);
   } catch (e) {
     // The whole of D-APP8, as a catch block. Whatever went wrong reading an ornament, the
     // §391.51(b)(1) document still has to be producible — and on the recruiter's download path there
     // is no caller above this one that would forgive a throw.
+    // ⚠ The SLOT is logged, because with two marks "could not read the mark" no longer says which.
     console.warn("[application] could not read the drawn signature mark", {
+      slot,
       error: e instanceof Error ? e.message : String(e),
     });
     return null;
@@ -118,6 +144,7 @@ async function readSignatureMark(
   admin: SupabaseClient,
   orgId: string,
   invitationId: string | null,
+  slot: ApplicationCaptureSlot,
 ): Promise<Buffer | null> {
   if (!invitationId) return null;
   const { data: staged } = await admin
@@ -125,7 +152,7 @@ async function readSignatureMark(
     .select("id, storage_path")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
-    .eq("slot", "signature_mark")
+    .eq("slot", slot)
     .maybeSingle();
   const capture = staged as { id: string; storage_path: string } | null;
   if (!capture) return null;

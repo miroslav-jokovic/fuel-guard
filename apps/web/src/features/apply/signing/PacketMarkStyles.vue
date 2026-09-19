@@ -30,6 +30,19 @@ import { APPLY_COPY } from "@/features/apply/strings";
 const props = defineProps<{
   /** The typed name, live. Empty until the driver has typed something worth drawing. */
   name: string;
+  /**
+   * The typed INITIALS, live — the second mark, in the same hand (Q-HUI14, D-PKT6).
+   *
+   * ⚠ **Empty means the packet is not asking for initials**, which is a real state: a resumed link
+   * whose `p05`, `p06` and `p09` are already collected has no initials line left, and
+   * `usePacketAdoption`'s `needsInitials` is what decides it. Empty renders nothing and emits null,
+   * so no picture is staged for a mark nothing will print.
+   *
+   * ⚠ **It is a SEPARATE string and never sliced out of `name`.** D-PKT6: the initials are a second
+   * adopted mark, *"not an abbreviation of the first"* — deriving `MV` from `Miroslav Jokovic` here
+   * would be inventing a mark the signer never made, and a picture of it would be a convincing one.
+   */
+  initials?: string;
   /** The chosen face's id. */
   modelValue: string;
 }>();
@@ -37,13 +50,21 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:modelValue": [id: string];
   /**
-   * The PNG, or null when it could not be made.
+   * The signature PNG, or null when it could not be made.
    *
    * ⚠ Null is emitted rather than swallowed, for `SignaturePad`'s reason: the parent holds the current
    * mark and a stale blob left behind by a failed re-render would be staged in place of the one the
    * driver is looking at.
    */
   change: [Blob | null];
+  /**
+   * The initials PNG, on the same terms (Q-HUI14).
+   *
+   * ⚠ A second event rather than one event carrying both, because the parent holds them in two refs
+   * that stage into two slots — and an event whose payload were a pair would have to say something
+   * about the initials every time the name changed, including on a link that asks for none.
+   */
+  initialsChange: [Blob | null];
 }>();
 
 const copy = APPLY_COPY.packet;
@@ -56,10 +77,12 @@ const copy = APPLY_COPY.packet;
  * them; an unrevoked URL pins its blob for the life of the document.
  */
 const previewUrl = ref<string | null>(null);
+/** The same again for the second mark (Q-HUI14) — its own URL, revoked on its own schedule. */
+const initialsPreviewUrl = ref<string | null>(null);
 
-function show(blob: Blob | null): void {
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
-  previewUrl.value = blob ? URL.createObjectURL(blob) : null;
+function show(url: typeof previewUrl, blob: Blob | null): void {
+  if (url.value) URL.revokeObjectURL(url.value);
+  url.value = blob ? URL.createObjectURL(blob) : null;
 }
 
 /**
@@ -71,34 +94,76 @@ function show(blob: Blob | null): void {
  */
 let latest = 0;
 
-async function render(): Promise<void> {
-  const ticket = (latest += 1);
-  const name = props.name.trim();
-  if (!name) {
+/**
+ * Render one of the two marks, under the shared ticket.
+ *
+ * ⚠ **ONE ticket for both marks, not one each**, and that follows from what the ticket is for: it
+ * guards against an OLD render landing after a new one, and a keystroke in either field invalidates
+ * both pictures — the face is shared, so a style change re-renders the pair. Two tickets would let a
+ * stale initials render from the previous face survive a style switch, which is the same
+ * approve-one-thing-file-another failure the guard exists to prevent, one mark over.
+ */
+async function renderOne(
+  text: string,
+  ticket: number,
+  url: typeof previewUrl,
+  /**
+   * ⚠ A closure rather than the event NAME, and TypeScript is the reason rather than taste: a
+   * `defineEmits` overload set cannot be called with a union of its own event names, so
+   * `emit(name, blob)` where `name` is `"change" | "initialsChange"` does not typecheck against any
+   * of the three overloads. The call sites below each name one event, which is also the version a
+   * reader can follow.
+   */
+  publish: (blob: Blob | null) => void,
+): Promise<void> {
+  const trimmed = text.trim();
+  if (!trimmed) {
     if (ticket === latest) {
-      show(null);
-      emit("change", null);
+      show(url, null);
+      publish(null);
     }
     return;
   }
-  const blob = await renderStyledMark(name, markStyleById(props.modelValue));
+  const blob = await renderStyledMark(trimmed, markStyleById(props.modelValue));
   if (ticket !== latest) return;
-  show(blob);
-  emit("change", blob);
+  show(url, blob);
+  publish(blob);
+}
+
+async function render(): Promise<void> {
+  const ticket = (latest += 1);
+  /**
+   * ⚠ **Sequential, and the signature first.** `renderStyledMark` awaits `document.fonts.load` for
+   * the same face twice, and the second call is a cache hit rather than a second fetch — so ordering
+   * them costs nothing and keeps the preview the driver looks at first appearing first on a slow
+   * phone. ⚠ Both are rendered on every change: the initials are in the same hand, so a style switch
+   * that re-rendered only the signature would show the new face above the old one.
+   */
+  await renderOne(props.name, ticket, previewUrl, (blob) => emit("change", blob));
+  await renderOne(props.initials ?? "", ticket, initialsPreviewUrl, (blob) =>
+    emit("initialsChange", blob),
+  );
 }
 
 /**
- * ⚠ `immediate` — the mark for the default face has to exist before the driver presses anything.
+ * ⚠ `immediate` — the marks for the default face have to exist before the driver presses anything.
  * Without it a driver who typed their name, glanced at the preview and pressed straight through would
  * adopt with no PNG staged, and `drawnMarkFailed` would truthfully report a failure that was really
  * this component never having been asked.
  */
-watch(() => [props.name, props.modelValue], () => void render(), { immediate: true });
+watch(
+  () => [props.name, props.initials, props.modelValue],
+  () => void render(),
+  { immediate: true },
+);
 
 /** The option rows are CSS text, so they need the faces even before there is a name to render. */
 onMounted(() => void loadSignatureFaces());
 
-onBeforeUnmount(() => show(null));
+onBeforeUnmount(() => {
+  show(previewUrl, null);
+  show(initialsPreviewUrl, null);
+});
 </script>
 
 <template>
@@ -138,6 +203,23 @@ onBeforeUnmount(() => show(null));
            18pt to 11pt. The options above render at `text-2xl`, so a preview much taller than this
            reads as a promise that the signature will dwarf everything around it on the page. -->
       <img :src="previewUrl" alt="" class="mt-1 h-10 w-auto max-w-full object-contain object-left" />
+    </div>
+
+    <!--
+      ⚠ The second mark, in the same hand and at the same height (Q-HUI14).
+
+      `h-10` for BOTH, deliberately, even though on paper the initials are the shorter string: the
+      overlay scales every picture to the same `DRAWN_MARK_MAX_HEIGHT`, so two pictures of the same
+      height here is what the paper actually does. Shrinking this one to look subordinate would be the
+      preview disagreeing with the print about the one thing this screen promises it agrees on.
+    -->
+    <div v-if="initialsPreviewUrl">
+      <p class="text-sm text-ink-muted">{{ copy.styleInitialsPreviewLabel }}</p>
+      <img
+        :src="initialsPreviewUrl"
+        alt=""
+        class="mt-1 h-10 w-auto max-w-full object-contain object-left"
+      />
     </div>
   </div>
 </template>

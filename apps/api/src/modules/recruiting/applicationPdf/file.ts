@@ -98,7 +98,23 @@ async function renderFiledDocument(
     application: application.payload,
     certifiedAt: application.certified_at,
     signedName: application.signed_name,
-    drawnMark: await signatureMarkBytes(admin, application.org_id, invitationId),
+    /**
+     * ⚠ **Two reads, one per kind of mark** (Q-HUI14). The packet asks for a signature on nineteen
+     * lines and initials on three, `renderPacketOverlay` picks between them by the placement's own
+     * kind, and neither is derived from the other at any point (D-PKT6).
+     *
+     * ⚠ **This is the FILING path, so this is the pair that gets frozen.** `ensureApplicationPdf`
+     * renders once, hashes and returns those bytes for ever — a packet filed before Q-HUI14 keeps
+     * three lines of `HelveticaOblique` permanently, and nothing can go back and change it. That is
+     * the whole reason this step had to land before the first real walk was finished.
+     *
+     * ⚠ **`gather()` above is NOT given the initials, and must not be.** Its `signatureMark` feeds
+     * `render.ts`'s §391.21 summary through `instrumentPages.drawnMark` — a different document, built
+     * in pdfkit, with one signature block and no initials line anywhere on it. An initials picture
+     * handed to it would be a mark drawn where a signature belongs.
+     */
+    drawnMark: await signatureMarkBytes(admin, application.org_id, invitationId, "signature"),
+    initialsMark: await signatureMarkBytes(admin, application.org_id, invitationId, "initials"),
   });
 }
 
