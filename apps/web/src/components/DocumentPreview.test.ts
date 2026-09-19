@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import type { DocumentRow } from "@silvicom/shared";
@@ -9,7 +9,13 @@ import DocumentPreview from "@/components/DocumentPreview.vue";
  * iframe AND hides Print (a button that silently prints an empty frame is worse than no button,
  * D-DQ9); an image renders <img> from the NORMALIZED variant and shows Print.
  */
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn(async () => ({ ok: true, data: { url: "u", filename: "f" } })) }));
+const fetchObjectUrl = vi.hoisted(() => vi.fn());
+const saveObjectUrl = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn(async () => ({ ok: true, data: { url: "u", filename: "f" } })),
+  fetchObjectUrl,
+}));
+vi.mock("@/lib/documentDownload", () => ({ saveObjectUrl, openPdf: vi.fn(), downloadPdf: vi.fn() }));
 
 const base: DocumentRow = {
   id: "00000000-0000-4000-8000-00000000000a",
@@ -28,20 +34,41 @@ const base: DocumentRow = {
   normalizedUrl: "https://signed.example/normalized.webp",
 };
 
+const MODAL_STUB = {
+  BaseModal: {
+    template: "<div><slot /><slot name='footer' /></div>",
+    props: ["open", "title", "size", "printable"],
+  },
+};
+
 function mountPreview(doc: DocumentRow) {
   setActivePinia(createPinia());
   return mount(DocumentPreview, {
     props: { open: true, label: "Medical examiner's certificate", doc },
-    global: {
-      stubs: {
-        BaseModal: {
-          template: "<div><slot /><slot name='footer' /></div>",
-          props: ["open", "title", "size", "printable"],
-        },
-      },
-    },
+    global: { stubs: MODAL_STUB },
   });
 }
+
+/** A document the API renders on demand: a path, a filename, no row and no hash (B8). */
+function mountRendered(path = "/api/recruitment/applications/inv-1/preview.pdf") {
+  setActivePinia(createPinia());
+  return mount(DocumentPreview, {
+    props: {
+      open: true,
+      label: "Application preview",
+      rendered: { path, filename: "application-preview.pdf" },
+    },
+    global: { stubs: MODAL_STUB },
+  });
+}
+
+/** Ten ticks, because the frame's source arrives from a fetch rather than from a prop. */
+const settle = async (w: { vm: { $nextTick: () => Promise<unknown> } }) => {
+  for (let i = 0; i < 10; i++) {
+    await w.vm.$nextTick();
+    await new Promise((r) => setTimeout(r, 0));
+  }
+};
 
 describe("DocumentPreview (B6)", () => {
   it("image branch: renders the NORMALIZED variant, not the original, and shows Print", () => {
@@ -66,5 +93,74 @@ describe("DocumentPreview (B6)", () => {
     expect(w.find("img").exists()).toBe(false);
     expect(w.text()).not.toContain("Print");
     expect(w.text()).toContain("Download original");
+  });
+
+  /**
+   * ⚠ The hash is asserted PRESENT here so that its absence in the rendered branch below means
+   * something. An "it does not show a hash" test on its own passes just as well against a viewer
+   * that shows nobody a hash ever, which is A2's vacuous-assertion lesson in its other form.
+   */
+  it("filed branch: prints the §390.32(c) hash, because a stored document has one", () => {
+    const w = mountPreview({ ...base, contentType: "application/pdf" });
+    expect(w.text()).toContain("abababababab");
+  });
+});
+
+/**
+ * B8 — the second source: a document the API RENDERS ON DEMAND has no row, no storage URL and no
+ * hash, so it reached the office only through `openPdf`'s new tab. These pin the three things that
+ * separate it from a filed document: where the bytes come from, what evidence it may claim, and who
+ * owns the object URL.
+ */
+describe("DocumentPreview, a document with no row (B8)", () => {
+  beforeEach(() => {
+    fetchObjectUrl.mockReset();
+    saveObjectUrl.mockReset();
+    fetchObjectUrl.mockResolvedValue("blob:rendered-1");
+    URL.revokeObjectURL = vi.fn(); // jsdom implements neither half of the object-URL API
+  });
+
+  it("fetches the path it was given and shows THOSE bytes in the frame", async () => {
+    const w = mountRendered();
+    await settle(w);
+    expect(fetchObjectUrl).toHaveBeenCalledWith("/api/recruitment/applications/inv-1/preview.pdf");
+    expect(w.find("iframe").attributes("src")).toBe("blob:rendered-1");
+  });
+
+  it("claims no hash, and says why instead of printing a blank one", async () => {
+    const w = mountRendered();
+    await settle(w);
+    expect(w.text()).not.toContain("abababababab");
+    expect(w.text()).toContain("not a stored copy");
+  });
+
+  it("says the API's own sentence when the render is refused", async () => {
+    fetchObjectUrl.mockRejectedValueOnce(new Error("They have not filled anything in yet."));
+    const w = mountRendered();
+    await settle(w);
+    expect(w.text()).toContain("filled anything in");
+    expect(w.find("iframe").exists()).toBe(false);
+  });
+
+  it("revokes the blob when it closes, rather than on a timer it cannot observe", async () => {
+    const w = mountRendered();
+    await settle(w);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+
+    await w.setProps({ open: false });
+    await settle(w);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:rendered-1");
+  });
+
+  it("downloads the bytes already on screen rather than rendering a second, different copy", async () => {
+    const w = mountRendered();
+    await settle(w);
+    const download = w.findAll("button").find((b) => b.text().includes("Download"))!;
+    expect(download.text()).toContain("Download a copy"); // not "original" — there is no original
+    await download.trigger("click");
+    await settle(w);
+
+    expect(saveObjectUrl).toHaveBeenCalledWith("blob:rendered-1", "application-preview.pdf");
+    expect(fetchObjectUrl).toHaveBeenCalledTimes(1);
   });
 });

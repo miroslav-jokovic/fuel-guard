@@ -24,6 +24,16 @@ import { fetchObjectUrl } from "@/lib/api";
 
 const REVOKE_AFTER_MS = 60_000;
 
+/**
+ * The identity of a document this API renders on demand — a path to fetch and a name to save it as.
+ *
+ * ⚠ There is deliberately no id, no hash and no captured date on this type, and that absence is the
+ * point: a rendered document is composed from the current rows each time it is asked for and is
+ * never stored, so it has no `documents` row and nothing §390.32(c) can be shown about it. A viewer
+ * handed one of these must not print evidence it does not have (B8).
+ */
+export type RenderedDocument = { path: string; filename: string };
+
 /** Open the PDF in a new tab. Throws with the API's own sentence when it cannot be fetched. */
 export async function openPdf(path: string): Promise<void> {
   const url = await fetchObjectUrl(path);
@@ -31,9 +41,15 @@ export async function openPdf(path: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
 }
 
-/** Save the PDF under `filename` without opening it. Throws with the API's own sentence on failure. */
-export async function downloadPdf(path: string, filename: string): Promise<void> {
-  const url = await fetchObjectUrl(path);
+/**
+ * Hand an object URL to the browser as a download.
+ *
+ * Split out of `downloadPdf` for B8: a viewer that is already SHOWING the bytes saves exactly those
+ * bytes, rather than fetching a second copy of a document that is composed fresh on every request
+ * and could differ from the one on screen. The URL's lifetime stays with whoever created it — this
+ * function does not revoke, because the viewer still needs it in the frame.
+ */
+export function saveObjectUrl(url: string, filename: string): void {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
@@ -41,5 +57,11 @@ export async function downloadPdf(path: string, filename: string): Promise<void>
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+/** Save the PDF under `filename` without opening it. Throws with the API's own sentence on failure. */
+export async function downloadPdf(path: string, filename: string): Promise<void> {
+  const url = await fetchObjectUrl(path);
+  saveObjectUrl(url, filename);
   setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
 }
