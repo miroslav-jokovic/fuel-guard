@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
-import { useToastStore } from "@/stores/toast";
 
 /**
  * The office's review of an application (F4, D-AX11–13).
@@ -14,9 +13,21 @@ import { useToastStore } from "@/stores/toast";
  */
 
 const apiFetch = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api", () => ({ apiFetch }));
+const fetchObjectUrl = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api", () => ({ apiFetch, fetchObjectUrl }));
 const openPdf = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/documentDownload", () => ({ openPdf, downloadPdf: vi.fn() }));
+vi.mock("@/lib/documentDownload", () => ({ openPdf, downloadPdf: vi.fn(), saveObjectUrl: vi.fn() }));
+
+/**
+ * ⚠ `DocumentPreview` is mounted for real here, with only its `BaseModal` stubbed — HeadlessUI's
+ * `Dialog` throws under this repo's jsdom, as `DocumentPreview.test.ts` and `DocumentsModal.test.ts`
+ * both note. Stubbing the VIEWER instead would leave the path this drawer hands it unasserted, which
+ * is the one thing about this wiring that can be wrong.
+ */
+const BaseModalStub = {
+  template: "<div v-if='open'><slot /><slot name='footer' /></div>",
+  props: ["open", "title", "size", "printable"],
+};
 
 /** Renders both slots inline, footer included — Approve lives in `#footer`. */
 const SlideOverStub = {
@@ -63,7 +74,10 @@ let pinia: ReturnType<typeof createPinia>;
 const drawer = () =>
   mount(ApplicationReviewDrawer, {
     props: { open: true, invitationId: "inv-1" },
-    global: { plugins: [VueQueryPlugin, pinia], stubs: { SlideOver: SlideOverStub } },
+    global: {
+      plugins: [VueQueryPlugin, pinia],
+      stubs: { SlideOver: SlideOverStub, BaseModal: BaseModalStub },
+    },
   });
 
 const settle = async (w: ReturnType<typeof drawer>) => {
@@ -80,10 +94,13 @@ beforeEach(() => {
   pinia = createPinia();
   setActivePinia(pinia);
   apiFetch.mockReset();
-  openPdf.mockReset();
-  openPdf.mockResolvedValue(undefined);
+  fetchObjectUrl.mockReset();
+  fetchObjectUrl.mockResolvedValue("blob:preview-1");
   apiFetch.mockResolvedValue({ ok: true, data: review() });
 });
+
+// jsdom implements neither half of the object-URL API; the viewer revokes on close.
+URL.revokeObjectURL = vi.fn();
 
 describe("what the office reads", () => {
   it("shows the answers themselves, in the words the driver was asked them in", async () => {
@@ -248,12 +265,24 @@ describe("approving it", () => {
  * a second, uncited rendering of a filed federal record is the thing this button must never produce.
  */
 describe("printing it", () => {
-  it("opens the rendered application, at the invitation it belongs to", async () => {
+  it("opens the rendered application BESIDE the record, at the invitation it belongs to", async () => {
     const w = drawer();
     await settle(w);
+
+    const viewer = w.findComponent({ name: "DocumentPreview" });
+    expect(viewer.props("open")).toBe(false);
+
     await button(w, "Open as a PDF")!.trigger("click");
     await settle(w);
-    expect(openPdf).toHaveBeenCalledWith("/api/recruitment/applications/inv-1/preview.pdf");
+
+    expect(viewer.props("open")).toBe(true);
+    expect((viewer.props("rendered") as { path: string }).path).toBe(
+      "/api/recruitment/applications/inv-1/preview.pdf",
+    );
+    // ⚠ B8's done-when, and the reason this replaced `openPdf`: the record the reviewer is reading
+    // the document AGAINST is still on the screen underneath it, and nothing reached for a new tab.
+    expect(w.text()).toContain("Susan Godfrey");
+    expect(openPdf).not.toHaveBeenCalled();
   });
 
   it("offers it while the driver is still filling it in — that is what it is for", async () => {
@@ -277,14 +306,25 @@ describe("printing it", () => {
     expect(button(w, "Open as a PDF")).toBeUndefined();
   });
 
-  it("says what went wrong rather than opening an empty tab", async () => {
-    openPdf.mockRejectedValueOnce(new Error("They have not filled anything in yet."));
+  /**
+   * ⚠ The refusal is no longer this drawer's to report — the viewer fetches the bytes now, so the
+   * API's own sentence is pinned in `DocumentPreview.test.ts` ("says the API's own sentence when the
+   * render is refused"). What is still this drawer's is WHICH document the viewer is left holding.
+   */
+  it("starts on the record, not on the last applicant's PDF, when it moves to another one", async () => {
     const w = drawer();
     await settle(w);
     await button(w, "Open as a PDF")!.trigger("click");
     await settle(w);
-    // The API's own sentence, as the toast TITLE — `push(variant, title)` is how this drawer reports
-    // every other failure, and a refusal phrased by the server is the one worth showing verbatim.
-    expect(useToastStore().toasts.some((t) => t.title.includes("filled anything in"))).toBe(true);
+    expect(w.findComponent({ name: "DocumentPreview" }).props("open")).toBe(true);
+
+    await w.setProps({ invitationId: "inv-2" });
+    await settle(w);
+
+    const viewer = w.findComponent({ name: "DocumentPreview" });
+    expect(viewer.props("open")).toBe(false);
+    expect((viewer.props("rendered") as { path: string }).path).toBe(
+      "/api/recruitment/applications/inv-2/preview.pdf",
+    );
   });
 });

@@ -1900,6 +1900,64 @@ every time.
   invitation-keyed?** Recommendation is invitation-keyed, beside `preview.pdf`, because B3 already
   ruled that marks key on the live invitation and a document spanning two invitations cannot be dated.
 
+- **2026-09-18, night — B8 BUILT. The office reads a rendered PDF beside the record it belongs to.**
+  No migration: 0344 is still the head and 0345 is still next. **B2 is now the last of Wave B.**
+
+  **The handoff's measurement held, and the step was the small one it predicted.**
+  `DocumentPreview.vue` was already the sanctioned viewer and no second one was built. The gap was
+  exactly as written: it takes a `DocumentRow` with URLs, so `preview.pdf` — which the API composes
+  on every request and never stores — could only reach a reviewer through `documentDownload.ts`'s
+  `openPdf`, which opens a NEW TAB. `ApplicationReviewDrawer.vue:145` was the only caller in this
+  programme's scope; the other three `openPdf` sites are maintenance's and were left alone.
+
+  ⚠ **One fact the handoff did not carry, and it shaped the prop.** The viewer's footer prints
+  `doc.kind`, `capturedAt`, `bytes` and `sha256.slice(0,12)` as §390.32(c) evidence — and a rendered
+  document **has none of those**. So `rendered` is a second, deliberately asymmetric source: it
+  claims no hash and says *"Rendered from the answers on file as they are now. It is not a stored
+  copy, so it carries no file hash."* instead of printing a blank one. ⚠ The test that pins this
+  asserts the hash **present** on the filed branch as well, because "shows no hash" passes just as
+  well against a viewer that shows nobody a hash ever — A2's vacuous-assertion lesson in its other
+  form. The viewer also OWNS the object URL and revokes it **on close**, where `openPdf` has to
+  guess with a 60-second timer because it hands the URL to a tab it cannot observe.
+
+  ⚠⚠ **The defect rendering found, which no test in this repo could have.** The viewer was first
+  placed as a SIBLING of `SlideOver` — deliberately, so the drawer stayed mounted underneath. It
+  rendered perfectly and was still wrong: **HeadlessUI decides which dialog owns Escape from the DOM
+  TREE, so two sibling dialogs are both "topmost", and one Escape press closed the viewer AND the
+  drawer behind it** — throwing the reviewer out of the record, which is the one thing this step
+  exists to prevent. `ApplicantRecordPage.vue`'s header had warned about exactly this class of
+  hazard (*"a focus trap inside a focus trap"*) for the drawer-in-drawer case. The fix is to nest
+  the viewer inside the drawer's body, where HeadlessUI registers it as the child; both still portal
+  to the body, so nesting costs nothing in layout. ⚠ **This cannot be unit-pinned** — HeadlessUI's
+  `Dialog` throws under this repo's jsdom and is stubbed in every test that touches it — so it is
+  held by the comment above it and by measurement, and by nothing else. Anybody who moves that
+  component out of the drawer body will reintroduce it silently.
+
+  A second, smaller one from the same look: the new caption pushed the panel past `max-h-[90vh]` at
+  1440×900 and hid itself behind the footer. The rendered branch's frame is now sized to what the
+  panel actually leaves rather than to `h-[70vh]`.
+
+  **Verified by looking, in real Chrome at 1440×900 and 390×844**, against a three-page banded PDF
+  through the whole chain (checklist → step drawer → review drawer → viewer), with the checklist
+  fixture computed from `hiringChecklist()` itself rather than hand-written. ⚠ **Headless Chromium
+  renders an empty frame for `application/pdf`** and says nothing about it — the first screenshot
+  showed a blank viewer that was entirely an artifact of the runner. Use `channel: "chrome"`.
+
+  **Nine mutations, all red for the right reason** — each written to compile so only the assertion
+  could catch it, and each leaving the rest of its suite green (M9 added an import and a call and
+  produced exactly one failure out of seventeen).
+
+  ⚠ **`readyToTravel` and C1's inheritance: answered, and the answer is no.** B8 ships an
+  `<iframe>`. C1 needs a page rail, START/NEXT and tap targets over 22 named places, and an iframe
+  cannot address a page, draw over one, or report which one is on screen. **C1 must build the canvas
+  path** — `pdfjs-dist` is already a dependency and `lib/pdfWords.ts` already imports it dynamically
+  AND solves the worker URL, which is the fiddly half. This is written into `DocumentPreview.vue`'s
+  header so C1 does not open expecting to inherit a signing surface. And the 390px look is the first
+  honest input to **Q-HUI2**: a whole page is legible on a phone only *as a whole page*, so a
+  signing surface at that width will need per-field zoom — more evidence for canvas, not less.
+
+  ⚠ **`pnpm test` failed once on the api suite and passed on re-run with the same tree** — the known
+  undiagnosed flake (6 of 23 runs, 2026-09-08), not this change.
 
 ---
 

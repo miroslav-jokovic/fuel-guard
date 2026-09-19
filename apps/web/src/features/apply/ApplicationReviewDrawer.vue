@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, toRef } from "vue";
+import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import {
   APPLICATION_REVIEW_STATE_LABELS,
@@ -7,7 +7,8 @@ import {
   type ApplicationPath,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
-import { openPdf } from "@/lib/documentDownload";
+import DocumentPreview from "@/components/DocumentPreview.vue";
+import type { RenderedDocument } from "@/lib/documentDownload";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
@@ -140,13 +141,30 @@ async function save(path: ApplicationPath, value: string | boolean): Promise<voi
  */
 const canPreview = computed(() => Boolean(payload.value) && state.value !== "certified");
 
-async function openPreview(): Promise<void> {
-  try {
-    await openPdf(`/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/preview.pdf`);
-  } catch (e) {
-    toast.push("error", e instanceof Error ? e.message : "That could not be opened.");
-  }
-}
+/**
+ * ⚠ Read BESIDE the record, not in a new browser tab (B8).
+ *
+ * This used to be `openPdf`, which fetches the bytes with the session token and hands them to
+ * `window.open`. It worked, and it cost the reviewer the thing they were reading the document
+ * AGAINST: the drawer's scroll position, the correction list, and which field they were half way
+ * through checking. A reviewer comparing a PDF to a form is doing one job, and a tab switch makes it
+ * two. The drawer stays mounted underneath, so closing the viewer returns them exactly where they
+ * were — which is the whole of B8's done-when.
+ */
+const previewing = ref(false);
+// Reopening the drawer, or moving to another applicant, starts on the record — never on a PDF left
+// open from the last one, which would otherwise be the first thing a recruiter saw of a new person.
+watch([() => props.open, invitationId], () => {
+  previewing.value = false;
+});
+const previewDocument = computed<RenderedDocument | null>(() =>
+  invitationId.value === null
+    ? null
+    : {
+        path: `/api/recruitment/applications/${encodeURIComponent(invitationId.value)}/preview.pdf`,
+        filename: "application-preview.pdf",
+      },
+);
 
 /**
  * What the recruiter is told about the message to the applicant (Q-AX4).
@@ -283,6 +301,20 @@ async function approveIt(): Promise<void> {
         />
       </section>
 
+      <!-- ⚠ INSIDE the drawer's body, and that placement is the whole fix (B8, measured 2026-09-18).
+           As a sibling of `SlideOver` it rendered correctly and still broke: HeadlessUI decides which
+           dialog owns Escape from the DOM TREE, and two dialogs that are siblings are both "topmost",
+           so one Escape closed the viewer AND the drawer behind it — throwing the reviewer out of the
+           record, which is the one thing this step exists to prevent. Nested in the tree, HeadlessUI
+           registers the viewer as the child and Escape closes only it. Both dialogs still portal to
+           the body, so nesting here costs nothing in layout. -->
+      <DocumentPreview
+        :open="previewing"
+        label="Application preview"
+        :rendered="previewDocument"
+        @close="previewing = false"
+      />
+
       <!-- What has been changed, and when. §391.21(b)(12) is the applicant's own statement that the
            entries are true, so a correction is something somebody has to be able to account for. -->
       <section v-if="edits.length" class="space-y-2">
@@ -313,7 +345,12 @@ async function approveIt(): Promise<void> {
         <BaseButton variant="secondary" class="w-full sm:w-auto" @click="emit('close')">
           Close
         </BaseButton>
-        <BaseButton v-if="canPreview" variant="secondary" class="w-full sm:w-auto" @click="openPreview">
+        <BaseButton
+          v-if="canPreview"
+          variant="secondary"
+          class="w-full sm:w-auto"
+          @click="previewing = true"
+        >
           Open as a PDF
         </BaseButton>
         <BaseButton
