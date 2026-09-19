@@ -31,6 +31,7 @@ const STUBS = {
   EmploymentHistorySection: stub("employment"),
   EmployerInquirySection: stub("inquiry"),
   PspRecordsSection: stub("psp"),
+  RecordedActPanel: stub("record"),
 };
 
 /** Everything the schema can see is done, so every step has a state worth opening. */
@@ -158,16 +159,67 @@ describe("a row opens the work behind the step", () => {
   });
 });
 
+describe("the three recorded acts D1 built (D-HM6)", () => {
+  /**
+   * ⚠ **The switch, and it is the whole of D1's UI decision.** Three steps stopped being signposts on
+   * 2026-09-19 and started performing the act. Each is asserted by name rather than looped, because
+   * the interesting property is that these three moved and the neighbours did not.
+   */
+  it("opens the recording panel for the MVR, the Clearinghouse query and the drug test", async () => {
+    for (const key of ["mvr", "clearinghouse", "drug_test"]) {
+      expect(bodyOf(await openOn(key)), key).toBe("record");
+    }
+  });
+
+  /**
+   * ⚠ The panel cannot ask the drawer which step it is showing — it is handed the key, NARROWED, and
+   * whether the step is already green. A dropped `step` prop renders the identical stub, so no
+   * assertion about which body opened could ever see it: the panel would file the wrong kind, or
+   * offer a form under a finished step (D-HUI5).
+   */
+  it("hands the panel the narrowed step and whether it is already done", async () => {
+    const root = await openOn("clearinghouse");
+    const panel = root.querySelector("[data-body='record']");
+    expect(panel?.getAttribute("step")).toBe("clearinghouse");
+    expect(panel?.getAttribute("done")).toBe("false");
+
+    /**
+     * ⚠ **Both values, and the second half is here because a mutation survived without it.** The
+     * fixture above has no qualification records, so every one of these three steps is outstanding —
+     * and `:done="false"` hard-coded reads identically to the real binding against it. A step that IS
+     * done has to appear in this test or the binding is unasserted, and the panel would go on asking
+     * for a record it already holds (D-HUI5).
+     */
+    const filed = hiringChecklist({ ...COMPLETE, qualificationKinds: ["mvr"] }).steps.find(
+      (s) => s.key === "mvr",
+    )!;
+    expect(filed.state).toBe("done");
+    wrapper?.unmount();
+    document.body.innerHTML = "";
+    const router = createRouter({ history: createMemoryHistory(), routes });
+    await router.push(`/recruitment/${DRIVER}`);
+    await router.isReady();
+    wrapper = mount(HiringStepDrawer, {
+      props: { open: true, step: filed, driverId: DRIVER, driverStatus: "applicant", invitationId: null },
+      global: { plugins: [router, VueQueryPlugin], stubs: STUBS },
+      attachTo: document.body,
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.body.querySelector("[data-body='record']")?.getAttribute("done")).toBe("true");
+  });
+});
+
 describe("the steps with no affordance yet say so, and point at the act", () => {
   /**
-   * ⚠ The honest half of B6. Five recorded acts (D-HM6) and the packet have no in-drawer affordance
-   * because D1, D2 and C1 are the steps that build them. A drawer opening onto nothing would be the
-   * "invent a capability" failure; a drawer that names the artifact and links the §391.51 file where
-   * the act is performed today is a signpost, and says which it is.
+   * ⚠ The honest half of B6, now four rows rather than seven. The medical certificate is the case
+   * that remains after D1 and it is NOT a backlog entry: Q-HM11 has to rule whether §391.51(b)(8)'s
+   * registry verification applies to a CDL holder at all before this product offers to record one.
+   * A drawer opening onto nothing would be the "invent a capability" failure; a drawer that names the
+   * artifact and links the §391.51 file where the act is performed today is a signpost, and says so.
    */
   it("names the artifact and links the qualification file for a recorded act", async () => {
-    const root = await openOn("mvr");
-    expect(root.textContent).toContain("MVR report");
+    const root = await openOn("medical_certificate");
+    expect(root.textContent).toContain("Registry check");
     const link = [...root.querySelectorAll("a")].find((a) =>
       a.textContent?.includes("qualification file"),
     );

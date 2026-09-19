@@ -119,6 +119,7 @@ export * from "./questionnaireContract.js";
 export * from "./hireHandoff.js";
 export * from "./hiringSteps.js";
 export * from "./hiringChecklist.js";
+export * from "./hiringEvidence.js";
 export * from "./psp/identity.js";
 export * from "./psp/order.js";
 export * from "./psp/readiness.js";

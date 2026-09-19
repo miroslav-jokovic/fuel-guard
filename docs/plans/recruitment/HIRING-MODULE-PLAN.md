@@ -857,6 +857,76 @@ marks from one unfinished walk on `f2b142e4…`, whose link dies **2026-10-01** 
 today and stops being free the moment somebody finishes that walk. ⚠ Walk the QA org to test, never
 Silvicom: finishing that one files the packet and freezes the format at whatever is merged that day.
 
+---
+
+### ⚠ Q-HM10 · When does the §391.25 annual-review clock start? (opened by D1, 2026-09-19)
+
+**D1's row says "build the upload, the file and the annual-review clock". The first two shipped; this
+is the third, and it stopped at a ruling rather than at a line of code.**
+
+**What was measured on 2026-09-19**, reading `dqFile.ts`, `dqCatalogue.ts` and `dqAlerts.ts` at the
+call site. `annual_mvr_review` is a catalogue item with `recurrence: "annual"`, and the clock works
+**once a first review exists**: `goodUntilFor` gives it a year from `occurred_on` (or an explicit
+`covers_until`), `dqAttention` ranks it and `planDqAlerts` emails the office as it approaches. Before
+that first review the same item is **wrong in both directions at once**:
+
+- **It over-reports.** With no anchor of any kind, it reads `missing` from the day a driver row
+  exists — including for somebody hired last week, who is not yet late for anything. That is D-PSP1's
+  named failure, *reporting a lawful file as incomplete*.
+- **It under-reports.** `planDqAlerts` deliberately skips undated items — *"a fleet mid-onboarding has
+  sixteen missing items per driver, and a channel that opens with thousands of 'missing' pings is a
+  channel everyone mutes by Friday"* — so a `missing` annual review has no `daysRemaining` and
+  **crosses no threshold, ever**. Nothing in this product announces a driver's FIRST annual review.
+
+The anchor that is already in the file is the §391.23(a)(1) pre-employment inquiry — the `mvr` row D1
+now files. `clearinghouse_annual` (§382.701(b)) has exactly the same shape, anchored on
+`clearinghouse_full`.
+
+| | |
+|---|---|
+| **(a) Anchor it, and add a fifth state** | `not_due` joins `DqItemState`. Honest on both counts, and it reaches the badges, `RequirementTable`, the group rollups, the fleet overview, the binder, the exports and the alert planner. A vocabulary change across the whole DQF. |
+| **(b) Anchor it, keep four states** | A missing annual item with an anchor gets a `goodUntil`, so the existing alert machinery starts counting to it. Fixes the silence; leaves the row reading `missing` before it is due. ⚠ On the first scheduler run it would also alert on every driver whose pre-employment MVR is more than a year old and who has no review filed — correct, and a fleet-wide volume change nobody has agreed to. |
+| **(c) Nothing until a carrier misses one** | Costs nothing today. The §391.25 review is the obligation that goes unnoticed for exactly as long as nothing mentions it. |
+
+**Recommendation: (b), and it needs the owner's word on the alert volume before it merges** — it is
+one sentence in `goodUntilFor` and one in `dqAttention`, and its blast radius is the whole fleet's
+inbox rather than the hiring module. ⚠ It was deliberately NOT shipped inside D1: `buildDqFile` is
+read by the driver file, the roster columns, the fleet queue, the binder and the exports, and a
+compliance-semantics change made quietly inside a hiring PR is the shape `CLAUDE.md`'s *no
+workarounds* section warns about from the other end.
+
+⚠ **Not a regulatory question about the 12 months** — §391.25(a) is plain that the inquiry is made at
+least once every 12 months. It is a question about which date this product counts from and how a
+not-yet-due recurring obligation is *stated* in a vocabulary that has only current/expiring/expired/
+missing.
+
+---
+
+### ⚠ Q-HM11 · Does the medical-registry verification apply to a CDL holder? (opened by D1, 2026-09-19)
+
+**Two things this repo already believes, which cannot both be right.** D-HM9 makes the medical
+certificate step **8b** one of the six federal gates — required before anybody drives, for every
+driver. `dqCatalogue.ts`'s `medical_registry_verification` item carries `appliesWhen: "no_cdl"`, with
+a comment citing §391.51(b)(8)(ii)'s *"Through June 22, 2025"* sunset: for a CDL holder the CDLIS MVR
+is said to carry the verification instead. So for a CDL holder the checklist says a gate is
+outstanding and the §391.51 file says the requirement does not apply to them.
+
+**What it cost D1:** the medical certificate was left OUT of the three recorded acts. Its drawer is
+still the `recorded_act` signpost, and it is the only one of the original five with no dated exit —
+the road test is D2. Recording it here would have picked a side silently.
+
+| | |
+|---|---|
+| **(a) The catalogue is right** | Step 8b becomes conditional on the applicant having no CDL, and the checklist stops reporting it for the drivers this carrier actually hires. |
+| **(b) D-HM9 is right** | The item loses `appliesWhen`, every CDL holder's file grows a requirement, and the sunset comment has to be shown wrong against the current §391.51(b)(8). |
+| **(c) Both, differently scoped** | The §391.51 FILE requirement sunset for CDL holders; the carrier's own act of checking the examiner against the National Registry did not. The checklist row is then a carrier practice rather than a `federalGate`. |
+
+**Recommendation: (c), pending a reading of the current §391.51(b)(8).** It is the only one that
+explains why both texts were written, and D-HM9's own lesson points at it — *a document being
+uploaded is not the same fact as a document being verified*. ⚠ Whoever answers it should read the
+eCFR text rather than this plan's summary of it; §5's citations were verified in September 2026 and
+this particular pair was not among the six re-checked.
+
 
 ## 9. The queue
 
@@ -2843,6 +2913,109 @@ every time.
 
   **What remains:** Wave D. ⚠ Q-HUI14 is now ANSWERED with candidate (a) and needs no further work;
   §8's block can be read as history.
+
+- **2026-09-19 — D1 DONE. The MVR, the Clearinghouse query and the drug test are recorded where the
+  hire is worked, and two questions were opened rather than answered by hand.**
+
+  **The done-when, walked in a browser rather than asserted:** the Driving record row read *"Order the
+  driving record"*, the drawer took a date and a result, the POST went to
+  `/api/recruitment/applicants/:id/records/mvr`, and the row read **"Driving record · Done"** — the
+  header moving from *5 of 13* to *Next: Get the PSP report*. Both folds in that walk came from the
+  real `hiringChecklist`, so the green is the product's own answer and not a fixture's claim.
+
+  **Three of the seven bodies `hiringStepDrawers.ts` called signposts are now workbenches.** `mvr`,
+  `clearinghouse` and `drug_test` open `RecordedActPanel`; `medical_certificate` and `road_test` keep
+  the signpost, each with a dated reason (Q-HM11 and D2). Nothing else moved.
+
+  ⚠ **THE THING THAT NEARLY BECAME A WORKAROUND, WRITTEN DOWN BECAUSE IT IS `CLAUDE.md`'s OWN WORKED
+  EXAMPLE.** `POST /api/compliance/qualification-records` and `POST /api/compliance/documents` do
+  exactly this work and are gated on `roster` **manage** — and `recruiter` is `roster: "view"` by
+  RECRUITER-ROLE-SCOPE.md's Option B, deliberately. So the role the board was built for could not
+  perform step 5, whose instruction is literally the mockup's lead action. The two cheap ways out were
+  to move the affordance to the qualification page a recruiter cannot write to, or to widen `roster`
+  and re-open the leak Option B closed. Neither shipped. The capability was built where the matrix
+  already says it belongs — **by NAME, on the recruitment section's own door**, which is the precedent
+  the matrix comment itself cites and which `/psp-imports` (D-PSP9) already set. `usePspImport.ts`'s
+  header had written the same paragraph a month earlier about the same two endpoints.
+
+  **What that door is.** `POST /applicants/:id/records/:step/document` then `POST
+  /applicants/:id/records/:step`, on `pspImport.ts`'s shape: register, PUT to the signed URL, file the
+  row. ⚠ The kind is **composed server-side from the step** and never accepted from the caller — the
+  kind IS the §382.401(a)/0217 read restriction, so a door that took it from the body would let a
+  drug-test result be filed as something anybody in the section can open. Writes go through the
+  evidence module's interface (`insertQualificationRecord`, exported at its second owner exactly as
+  `insertCertification` was), so the cross-module writer list is still two entries and no waiver was
+  added.
+
+  ⚠ **The guard is an INTERSECTION and it had to be per-request.** `/psp-imports` can compute its role
+  list at module load because it always files `psp_report`; here the kind comes from the `:step`
+  segment, so the same role gets two answers — a recruiter may record the driving record and may
+  **not** record the Clearinghouse query or the drug test, both `TESTING_RECORD_KINDS`. The test names
+  the roles rather than looping: recruiter 201/403/403, fleet_manager 201/403, safety_manager 201×3.
+  ⚠ An unrecognised step PASSES the kind gate and is refused by the service as a **400**: nobody may
+  file a PSP report here, so *"you lack permission"* would be a lie told to an admin.
+
+  ⚠ **The step→kind map is DERIVED, and one test is the only reason that is provable.** `hiringEvidence.ts`
+  reads the kind off `HiringEvidence.table` (`"qualification_records.mvr"` → `mvr`) rather than
+  listing pairs. Two of the three steps have a key and a kind that are the same word, so a mutation
+  returning the step key survived the entire suite — `clearinghouse` → `clearinghouse_full` is the
+  only fixture that can tell them apart, and with the step key `canReadRestrictedKind("clearinghouse")`
+  answers YES to a recruiter §382.401(a) refuses. Both halves are now pinned.
+  ⚠ The recordable-step LIST is written down rather than derived, and that is deliberate: the obvious
+  derivation (*"every step proved by a qualification record"*) includes `psp_report`, whose own door
+  carries a consent attestation this one has neither of. A rule with an exception carved out of it is
+  a restatement wearing a derivation's clothes.
+
+  ⚠ **A DEFECT THE BROWSER FOUND AND NO TEST COULD.** Filing from inside the drawer refreshed the list
+  and the header — and the open drawer went on reading *"Waiting on you"* over the record just filed,
+  with the form still asking for it. `ApplicantRecordPage` was storing the `HiringStep` OBJECT, a copy
+  of one element of a response, so the refetch it triggered could not reach it. It now stores the KEY
+  and derives the row from the live fold. ⚠ The test that pins it asserts through the STATE and not
+  the key — the key is identical in both folds, which is exactly why the stale copy looked right — and
+  a second row had to be opened before a mutation pinning the key to `mvr` would go red.
+  This is [[a-cursor-into-a-refetched-list-strands-the-walk]] in a third costume.
+
+  **Rendered, and two things changed because of it.** `preview:local` on **:4290** (a fixed port, to
+  keep a parallel session's server out of the walk), Playwright, `route.fulfill` of RAW bodies, at
+  1440 and at a true 390. ⚠ **Catch-all routes must be registered FIRST** — Playwright matches the
+  most recently added route, so a `**/api/**` added last swallowed every specific route above it and
+  the page said only *"The hiring checklist could not be loaded"*. Horizontal overflow at 390: **0px**
+  on all three drawers. No page errors. The second change: the On-file row read
+  `2026-09-10  clean  SambaSafety  MVR-771` — four unlabelled values where a reader has to guess which
+  is the result and which is the agency. It is now two lines, and each optional value carries a word
+  (`By …`, `Ref …`) at `text-2xs`, which is what D-DS6 reserves that size for.
+
+  **Mutations: 30 run, 30 red** — but **three survived first** and each one was a weak test rather
+  than a no-op mutant: the step-key-as-kind above, `:done="false"` hard-coded (every fixture had the
+  step outstanding, so both readings rendered `false`), and the drawer key pinned to `mvr` (every test
+  clicked the same row). ⚠ Restores were by copying BYTES back and proven by sha256 on all thirty —
+  `git checkout --` restores nothing when a path in the pathspec is untracked, and every file in this
+  step is untracked.
+
+  **Gates:** the shared/api list and the web list, all green, plus `lint:scanner-parity`, root `lint`,
+  `pnpm --filter web lint:tokens`, `pnpm typecheck` and `pnpm build`. ⚠ `lint:comment-claims` caught a
+  real thing: a bare `hiringEvidence.test.ts` matched TWO files (shared's and the api's), so the
+  reference now names its path and quotes the scenario it claims. ⚠ **No migration** — D1 needed no
+  schema, so none of the two-merge dance applies and the freeze clock is untouched: production still
+  holds no filed packet and nothing here changes what the packet prints.
+  ⚠ `pnpm test` failed once on `RecruitmentPage.test.ts` with a 5 s timeout at 6012 ms and passed on
+  the rerun; that file is byte-identical to `origin/main` on this branch and passed three times in
+  isolation. Recorded as a flake, not as a result.
+
+  **Two questions were OPENED rather than answered by hand**, per §0.8, and both are in §8:
+  · **Q-HM10 — the annual-review clock.** D1's row asks for it; the upload and the file shipped and
+    the clock did not. Measured: `annual_mvr_review` reads `missing` from the day a driver exists
+    (over-reports a lawful file) and `planDqAlerts` skips undated items by design, so the FIRST
+    §391.25 review is announced by nothing (under-reports). One anchor fixes both, and the fix lands
+    in `buildDqFile` — read by the driver file, the roster columns, the fleet queue, the binder and
+    the exports. Recommendation (b), and it needs the owner's word on alert volume.
+  · **Q-HM11 — does the medical-registry verification apply to a CDL holder?** D-HM9 makes step 8b a
+    federal gate for everyone; `dqCatalogue` marks the same requirement `appliesWhen: "no_cdl"`.
+    That is why the medical certificate is NOT among D1's three. Recommendation (c).
+
+  **What remains in Wave D:** D2, D3, D4, D5. ⚠ D2 and D3 both edit `hiringStepDrawers.ts`' `Record`
+  — D1 left each of their rows a one-line change (`road_test: "record"` is D2's whole edit there if it
+  reuses this panel, and it should not: §391.31(c) is a form, not an upload).
 ---
 
 ## 11. Sources

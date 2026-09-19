@@ -20,6 +20,11 @@ import type { HiringStepKey } from "@silvicom/shared";
  * without an in-product affordance get the `recorded_act` or `packet` body — which states the step,
  * its artifact and **the page where the act is performed today**, rather than pretending.
  *
+ * ⚠ **Amended 2026-09-19 by D1, which is the first step to discharge part of that seven.** The MVR,
+ * the Clearinghouse query and the drug test now have a body that performs the act rather than
+ * pointing at the page where it is performed — `"record"` below. Four of the seven remain, and the
+ * count above is left as B6 measured it because it is a measurement, not a tally to keep current.
+ *
  * ⚠ **Amended 2026-09-18 by Q-HM9, and it moved one row the other way.** The count above is B6's and
  * is left as it measured; what changed is that `employment_investigation` joins the emitted steps
  * with a body that already existed — `EmployerInquirySection`, which B6 had had to park inside the
@@ -60,11 +65,25 @@ export type HiringDrawerBody =
   /** `HireDrawer`'s act: the applicant stops being one. */
   | "hire"
   /**
-   * A recorded act with no in-product affordance yet (D-HM6): MVR, Clearinghouse, drug test,
-   * medical-registry verification, road test. The body says what proves it and links the driver's
-   * §391.51 file, which is where all five are recorded today. **D1 and D2 replace this body.**
+   * A recorded act with no in-product affordance yet (D-HM6): the medical-registry verification and
+   * the road test. The body says what proves it and links the driver's §391.51 file, which is where
+   * both are recorded today.
+   *
+   * ⚠ **D1 took three of the original five** — MVR, Clearinghouse and drug test — and they are
+   * `"record"` below. The two that remain each have a named reason rather than a backlog entry: the
+   * road test is **D2** and is a §391.31(c) form with an examiner, not an upload; the medical
+   * certificate is blocked on **Q-HM11**, because D-HM9 makes the registry verification a gate for
+   * every driver and `dqCatalogue` marks it `appliesWhen: "no_cdl"`, and only a reading of
+   * §391.51(b)(8) can say which is right.
    */
   | "recorded_act"
+  /**
+   * A recorded act this product can now RECORD (D1): the MVR, the Clearinghouse query and the drug
+   * test. `RecordedActPanel` files the `qualification_records` row that turns the step green —
+   * through the recruitment section's own door, because the compliance one gates on `roster`
+   * manage and a recruiter does not hold it.
+   */
+  | "record"
   /**
    * The 22-place signing ceremony. The driver performs it on their own link; the office has no
    * view of it at all until C1 builds one.
@@ -84,10 +103,10 @@ const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   // surface that does both. Two rows, one document, one place to work.
   application_filled: "application",
   office_approved: "application",
-  mvr: "recorded_act",
+  mvr: "record",
   psp: "psp",
-  clearinghouse: "recorded_act",
-  drug_test: "recorded_act",
+  clearinghouse: "record",
+  drug_test: "record",
   medical_certificate: "recorded_act",
   road_test: "recorded_act",
   application_signed: "packet",

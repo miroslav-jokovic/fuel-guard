@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { hiringStep, packetDriverMarkCount, type HiringStep } from "@silvicom/shared";
+import {
+  hiringStep,
+  isHiringRecordedActStep,
+  packetDriverMarkCount,
+  type HiringStep,
+} from "@silvicom/shared";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -12,6 +17,7 @@ import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue"
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
+import RecordedActPanel from "@/features/recruitment/RecordedActPanel.vue";
 import { useAuthorizationsQuery } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -31,6 +37,9 @@ import { useAuthorizationsQuery } from "@/features/recruitment/useAuthorizations
  * what proves it and **where the act is performed today**, rather than a drawer opening onto nothing.
  * ⚠ Q-HM9 added a thirteenth emitted step on 2026-09-18 and it came WITH its affordance — the
  * inquiry section existed and had been parked in the application body — so the seven is unchanged.
+ * ⚠ **D1 then discharged three of them on 2026-09-19**: the MVR, the Clearinghouse query and the
+ * drug test open `RecordedActPanel`, which performs the act instead of naming where it is performed.
+ * Four are left, and `hiringStepDrawers.ts` names what each is waiting for.
  *
  * ⚠ No nested drawer. `ApplicationReviewDrawer` is itself a `SlideOver`, so the application body
  * EMITS `review` and the page swaps one drawer for the other — two dialogs open at once is a focus
@@ -76,6 +85,18 @@ const artifact = computed(() => {
  */
 const subtitle = computed(() =>
   props.step && props.step.state !== "done" ? props.step.action : undefined,
+);
+
+/**
+ * The step key, narrowed to one `RecordedActPanel` can file (D1).
+ *
+ * ⚠ Null rather than a cast. `hiringStepDrawers.ts` and `hiringEvidence.ts` are two files that have
+ * to agree about which three steps are recordable, and a `step.key as HiringRecordedActStep` here
+ * would compile on the day they stopped agreeing — which is the delay fuse this component's own
+ * `Record<HiringStepKey, …>` was built to refuse.
+ */
+const recordedActStep = computed(() =>
+  props.step && isHiringRecordedActStep(props.step.key) ? props.step.key : null,
 );
 
 const blockedBy = computed(() =>
@@ -142,6 +163,16 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       </template>
 
       <PspRecordsSection v-else-if="body === 'psp'" :driver-id="driverId" />
+
+      <!-- ⚠ D1. The step key is passed to a prop typed as the three steps this panel can file, so a
+           row wired to `"record"` without a kind behind it is a TYPE error here rather than a form
+           that posts and 400s. `recordedActStep` is where that narrowing happens. -->
+      <RecordedActPanel
+        v-else-if="body === 'record' && recordedActStep"
+        :driver-id="driverId"
+        :step="recordedActStep"
+        :done="step.state === 'done'"
+      />
 
       <!-- ⚠ Q-HM9's step. The section is unchanged — it was already the whole §391.23(c)(2) record,
            it simply had no row to open it. What the row adds is that the investigation is now
