@@ -2208,6 +2208,38 @@ every time.
   argue that the approval email carries no link. They are RIGHT until A5b lands, because A5a adds no
   behaviour. A5b amends them with a decision id, and must, or the repo argues against itself.
 
+- **2026-09-18, night — A5b, first half: `applicationIntake.ts` split along the seam it already
+  had.** 497 → **238**, with `applicationSubmit.ts` (305) taking the filing half:
+  `submitApplication`, `packetIsSignedThrough`, and the four refusals only they can give
+  (`NOT_YET_APPROVED`, `WORDING_NOT_FINAL`, `PACKET_NOT_SIGNED`, `PACKET_NAME_MISMATCH`). Its own
+  PR, before the feature, for the reason #883 and #888 record: a refactor bundled into a feature
+  step produces a diff in which nobody can see the feature, and that is how a 500-line budget comes
+  to be waived rather than obeyed. A5b's change is three lines inside `resolveInvitation`, and there
+  were three lines of headroom.
+
+  ⚠ **`SubmitContext` stayed behind, and that is the whole test of whether the seam is real.**
+  `recordRelease`, `recordPacketMark` and `recordEsignConsent` all take one; they record acts rather
+  than file documents. Moving it with its namesake would have made three modules that are not about
+  submitting import the module that is. The dependency still runs one way — submission knows the
+  session, the session knows nothing of submission — which is the rule `applicationReleases.ts`
+  already states for the ceremony.
+
+  ⚠ **One comment was made false by the move and is amended, not left.** `packetIsSignedThrough`
+  argued it was written *"here, in the SESSION module"* rather than imported from
+  `applicationPacketMarks.ts`. The reason it gave was the cycle, and the split preserves it — the
+  question is now asked one door FURTHER from the ceremony, never closer. A comment that survives a
+  move unread is how a file comes to argue against itself.
+
+  ⚠ **The suite was NOT split with the source**, on purpose: an untouched test file is what proves
+  the coverage moved with the code. Five mutations, three in the moved half and two in the kept one
+  — the packet name mismatch stops refusing (2 red), an already-submitted link may submit again (2
+  red), an unapproved application may be certified (4 red), a revoked link resolves (1 red).
+
+  ⚠ **And one mutation that stays GREEN, recorded because A5b changes that exact line.** Replacing
+  `hashEquals`'s `timingSafeEqual` with `===` passes all 94 tests. It has to: a timing side channel
+  is not observable to a functional test. A5b widens this lookup to a second column, so the compare
+  it adds is in the one place this repo's tests cannot check — review it by reading, not by running.
+
 ---
 
 ## 11. Sources

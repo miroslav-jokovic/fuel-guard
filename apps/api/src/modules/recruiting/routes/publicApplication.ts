@@ -24,12 +24,8 @@ import { applicantCopy } from "../applicationCopy.js";
 import { loadCarrierWording } from "../carrierWording.js";
 import { loadDraft, saveDraft, unlockDraft } from "../applicationDraft.js";
 import { esignConsentForApplicant, recordEsignConsent } from "../esignConsent.js";
-import {
-  isIntakeError,
-  phasesOf,
-  resolveInvitation,
-  submitApplication,
-} from "../applicationIntake.js";
+import { isIntakeError, phasesOf, resolveInvitation } from "../applicationIntake.js";
+import { submitApplication } from "../applicationSubmit.js";
 import { recordRelease, releasesForApplicant, signedReleases } from "../applicationReleases.js";
 import { adoptedPacketMarks, packetStops, recordPacketMark } from "../applicationPacketMarks.js";
 
