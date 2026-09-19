@@ -1070,3 +1070,32 @@ describe("what the applicant is served once the carrier has published", () => {
     expect(sent.status).toBe(201);
   });
 });
+
+/**
+ * The document route, through the mount rather than through `applicantCopy`.
+ *
+ * ⚠ These exist because of a measurement taken when this file's routes were split for C1: removing
+ * `publicApplicationDocumentsRouter()` from the parent entirely left all 706 recruiting tests green.
+ * `applicationCopy.test.ts` pins the SERVICE thoroughly and nothing pinned that it was reachable, so
+ * the one thing a split can break — the mount — was the one thing not covered. Both assertions below
+ * turn red if the sub-router stops being mounted.
+ */
+describe("the applicant's filed copy, as a route", () => {
+  it("answers not_submitted on a live link with nothing filed behind it", async () => {
+    holder.client = seed().client;
+    const res = await call(`/${TOKEN}/document`);
+    // 409 and not 404: the link is perfectly good and the answer is "not yet". An unmounted route
+    // would answer 404 here, which is what makes this the assertion that sees the mount.
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("not_submitted");
+  });
+
+  it("gives a dead link the same refusal every other route gives it", async () => {
+    holder.client = seed(null).client;
+    const res = await call(`/${TOKEN}/document`);
+    expect(res.status).toBe(404);
+    // ⚠ The code, not just the status — a 404 from a route that is not mounted carries a different
+    // body, and this surface's whole discipline is that every dead link answers `invalid_link`.
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("invalid_link");
+  });
+});

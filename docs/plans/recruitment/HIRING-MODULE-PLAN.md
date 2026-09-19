@@ -2336,6 +2336,33 @@ every time.
   lines of headroom) and `routes/publicApplication.ts` at **460/500**, with a route to add. Expect
   C1 to be two or three PRs — split first, as #883, #888 and #893 all did.
 
+- **2026-09-19 — C1, first half: split the capture and document routes out of the public router
+  (behaviour-preserving), and pinned a mount nothing was pinning.** `routes/publicApplication.ts`
+  stood at 461 of the 500-line budget with a tenth route to add, so the split comes first and on its
+  own, as #883, #888 and #893 did. `publicApplicationCapture.ts` takes the two photograph routes and
+  `captureStatus` — that helper had exactly two callers and both moved with it — and
+  `publicApplicationDocuments.ts` takes `GET /:token/document`. Both are mounted at the parent's own
+  root (`router.use(...)`, `complianceExports.ts`'s precedent), so every path is unchanged. 461 → 376,
+  and the parent left the 450-line warning band it was already inside.
+
+  ⚠ **The seam is *documents*, chosen rather than left over.** C1's gap is that nine routes hang off
+  this link and none serves the packet the driver is about to sign, so the next route to arrive
+  answers the same question at a different moment in the application's life. The two belong in one
+  file and differ on one thing — whether the application has been filed.
+
+  ⚠ **A green mutation found a real hole, and it is the reason this PR carries tests.** Removing
+  `publicApplicationDocumentsRouter()` from the parent entirely left **all 706 recruiting tests
+  green**: `applicationCopy.test.ts` pins the service thoroughly and *nothing pinned that the route
+  was reachable*. So the one thing a split can break was the one thing uncovered. Two route-level
+  assertions now stand there — `not_submitted` (409) on a live unfiled link, and `invalid_link` (404)
+  with its **code** asserted, because an unmounted route answers 404 too — and both go red when the
+  mount is removed. The capture mount was already covered: mutating it reddens 6 tests.
+
+  **Gates:** all green, full suite exit 0 — api 325 files / 3,907 tests, web 207 / 2,030, shared
+  206 / 2,961, every matrix green, `schema.generated.sql` unchanged. ⚠ One earlier `pnpm test` run
+  failed and the next two passed: the `RecruitmentPage.test.ts` flake §6 of the handoff records, in
+  a file this change does not touch.
+
 ---
 
 ## 11. Sources
