@@ -2124,6 +2124,24 @@ every time.
   not null — without one, two invitations could share a sign token and `.maybeSingle()` would answer
   neither.
 
+- **2026-09-18, 23:15 CDT — the nudge sweep is OFF in production, and A1 is still owed.** The owner
+  ruled it after the measurement above: **`APPLICATION_NUDGE_ENABLED=false` on `@fleetguard/api`**,
+  which is the only service that runs schedulers (`@fleetguard/web` carries
+  `RUN_SCHEDULERS_IN_PROCESS=false`). The service redeployed cleanly. So the approved applicant whose
+  link was eighteen hours from being rotated is safe, and **the eighteen-hour clock in
+  `HANDOFF-2026-09-18-A1-A5.md` §1 has stopped**.
+
+  ⚠ **It is a stay, not a fix, and it costs something.** (i) The fold still cannot see
+  `review_requested_at`/`approved_at`, so the defect is intact and the clock restarts the moment the
+  flag goes back on. (ii) The **false office alert survives it** — `alertOffice()` runs BEFORE the
+  flag check, so the office is still told an applicant "stopped part-way through" when they are
+  waiting on the office. (iii) **A10's abandonment recovery is now switched off fleet-wide**, which
+  is a product capability withdrawn to buy time; the market finding it exists for is that not losing
+  the driver mid-form is the whole battle.
+
+  ⚠ **No gate can see a Railway variable.** Turn it back on in the same PR that lands A1, and record
+  that here — otherwise the sweep stays off for as long as nobody remembers why it was turned off.
+
 ---
 
 ## 11. Sources
