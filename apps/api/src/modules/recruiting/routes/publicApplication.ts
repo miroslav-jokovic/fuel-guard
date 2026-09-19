@@ -1,14 +1,10 @@
 import { Router } from "express";
 import {
-  applicationCaptureConfirmSchema,
-  applicationCaptureStartSchema,
   applicationDraftSaveSchema,
   applicationDraftUnlockSchema,
   applicationPacketMarkSchema,
   applicationReleaseSchema,
   applicationSubmitSchema,
-  type ApplicationCaptureConfirm,
-  type ApplicationCaptureStart,
   type ApplicationDraftSave,
   type ApplicationDraftUnlock,
   type ApplicationPacketMark,
@@ -18,9 +14,10 @@ import {
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
-import { confirmCapture, listCaptures, startCapture } from "../applicationCapture.js";
+import { listCaptures } from "../applicationCapture.js";
 import { applicantVisibleEdits, requestReview } from "../applicationHandoff.js";
-import { applicantCopy } from "../applicationCopy.js";
+import { publicApplicationCaptureRouter } from "./publicApplicationCapture.js";
+import { publicApplicationDocumentsRouter } from "./publicApplicationDocuments.js";
 import { loadCarrierWording } from "../carrierWording.js";
 import { loadDraft, saveDraft, unlockDraft } from "../applicationDraft.js";
 import { esignConsentForApplicant, recordEsignConsent } from "../esignConsent.js";
@@ -55,21 +52,6 @@ import { adoptedPacketMarks, packetStops, recordPacketMark } from "../applicatio
  * is no parameter to tamper with — the shape 0174's header calls out for service-role functions,
  * applied to an HTTP surface.
  */
-/**
- * The capture endpoints' shared answer map.
- *
- * `capture_upload_failed` is 422 and not 404: the link is fine, the slot is fine, and the one thing
- * that is wrong — no object at that key — is something the driver fixes by taking the photograph
- * again. A 404 here would read as "your link is dead" to a page whose whole vocabulary for 404 is
- * exactly that.
- */
-function captureStatus(code: string): number {
-  if (code === "invalid_link") return 404;
-  if (code === "already_submitted" || code === "esign_consent_required") return 409;
-  if (code === "capture_upload_failed") return 422;
-  return 500;
-}
-
 export function publicApplicationRouter(): Router {
   const router = Router();
 
@@ -311,55 +293,6 @@ export function publicApplicationRouter(): Router {
     }),
   );
 
-  /**
-   * Somewhere to put one photograph (A8, D-APP10).
-   *
-   * The response is a signed upload URL and an id; nothing is written. The bytes go from the phone
-   * straight to Storage — `compliance.ts:110`'s property, and the reason a driver uploading six
-   * megabytes on a truck-stop connection does not occupy an API worker for the duration.
-   */
-  router.post(
-    "/:token/capture",
-    validateBody(applicationCaptureStartSchema),
-    asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await startCapture(
-        admin, String(req.params.token ?? ""),
-        res.locals.body as ApplicationCaptureStart, new Date(),
-      );
-      if (isIntakeError(result)) {
-        res.status(captureStatus(result.code)).json(apiError(result.code, result.message));
-        return;
-      }
-      res.status(201).json(result);
-    }),
-  );
-
-  /**
-   * The bytes landed — record the slot (A8).
-   *
-   * PUT, and idempotent per slot: a re-shoot replaces what that slot held rather than adding to it,
-   * which is what keeps three attempts at one blurry licence from becoming three rows in a
-   * qualification file (D-APP10). The capture id in the path is what the start call minted; the
-   * storage key is recomputed from it server-side and never taken from the request.
-   */
-  router.put(
-    "/:token/capture/:captureId",
-    validateBody(applicationCaptureConfirmSchema),
-    asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await confirmCapture(
-        admin, String(req.params.token ?? ""), String(req.params.captureId ?? ""),
-        res.locals.body as ApplicationCaptureConfirm, new Date(),
-      );
-      if (isIntakeError(result)) {
-        res.status(captureStatus(result.code)).json(apiError(result.code, result.message));
-        return;
-      }
-      res.status(201).json({ ok: true, ...result });
-    }),
-  );
-
   /** One instrument, one call — FCRA §604(b)(2)'s "solely the disclosure", expressed in transport. */
   router.post(
     "/:token/release",
@@ -431,30 +364,13 @@ export function publicApplicationRouter(): Router {
     }),
   );
 
-  /**
-   * The applicant's own copy of what was filed (X8, D-AX9).
-   *
-   * ⚠ A GET that returns a URL rather than the bytes, which is this product's idiom for every other
-   * evidence document (`compliance.ts`). The bytes go from Storage to the driver's phone and never
-   * through this API — one fewer place for a PDF of somebody's employment history to be logged,
-   * buffered or cached.
-   *
-   * `not_submitted` is a 409 and not a 404: the link is perfectly valid and the answer is "not yet",
-   * which is a different sentence and a different thing for the page to do about it.
-   */
-  router.get(
-    "/:token/document",
-    asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await applicantCopy(admin, String(req.params.token ?? ""), new Date());
-      if (isIntakeError(result)) {
-        const status = result.code === "invalid_link" ? 404 : result.code === "not_submitted" ? 409 : 503;
-        res.status(status).json(apiError(result.code, result.message));
-        return;
-      }
-      res.json({ ok: true, ...result });
-    }),
-  );
+  // The photograph slots, in their own module (500-line budget). Mounted at this router's root, so
+  // the paths are unchanged.
+  router.use(publicApplicationCaptureRouter());
+
+  // What this link hands back as a DOCUMENT, in its own module for the same reason. C1's reading
+  // copy of the unsigned packet belongs beside the filed copy, not here.
+  router.use(publicApplicationDocumentsRouter());
 
   return router;
 }
