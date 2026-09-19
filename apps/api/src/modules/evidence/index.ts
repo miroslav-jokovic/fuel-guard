@@ -25,6 +25,11 @@ export type { FiledDocument, GeneratedDocumentInput } from "./generatedDocuments
 // The certification write, exported so an owner outside this module can file the compliance FACT a
 // document backs — `maintenance` files the §396.17 expiry this way (D-AVI9/D-AVI10).
 export { insertCertification } from "./compliance.js";
+// And the §391.51 EVENT beside it, exported at its second owner for the same reason (D1, D-HM6):
+// `recruiting` files the MVR, the Clearinghouse query and the drug test an office performed
+// elsewhere, through this interface rather than by reaching into `qualification_records` — which is
+// what keeps the cross-module writer list at two entries instead of three.
+export { insertQualificationRecord } from "./compliance.js";
 // The TMS-sourced licence and medical card, filed as evidence rather than only as roster columns —
 // D-ARC3's dual-source finding closed at the seam the McLeod sweep would otherwise have widened.
 export { recordSyncedCredentials, SYNC_NOTE } from "./syncedCredentials.js";

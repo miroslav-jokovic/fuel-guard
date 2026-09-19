@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
-import type { Driver, HiringStep } from "@silvicom/shared";
+import type { Driver, HiringStepKey } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
@@ -74,13 +74,30 @@ const { data: driver } = useQuery({
   },
 });
 
-/** The step whose drawer is open. Null is closed — there is no "which drawer" state beside it. */
-const openStep = ref<HiringStep | null>(null);
+/**
+ * The step whose drawer is open — its KEY, and the row itself derived from the live fold.
+ *
+ * ── ⚠ THE ROW IS DERIVED BECAUSE A STORED ONE GOES STALE UNDER ITS OWN READER (D1) ────────────
+ * It held the `HiringStep` object until 2026-09-19, which is a COPY of one element of a response.
+ * Recording an act from inside the drawer refetches the checklist — the list behind it went green
+ * and the header count moved — and the open drawer went on showing *"Waiting on you"* over the
+ * record that had just been filed, with the form still asking for it. Found by filing one in a
+ * browser; every test was green, because a test that mounts the drawer with a prop cannot see that
+ * the page never changes the prop.
+ *
+ * ⚠ Null is closed. There is no "which drawer" state beside this, and the drawer closes by itself
+ * if the fold ever stops emitting the step — which is the honest response to a row that no longer
+ * exists, rather than a panel describing something the server no longer reports.
+ */
+const openStepKey = ref<HiringStepKey | null>(null);
+const openStep = computed(
+  () => checklistQ.data.value?.steps.find((s) => s.key === openStepKey.value) ?? null,
+);
 const reviewing = ref<string | null>(null);
 
 /** One drawer at a time: opening the review closes the step it was opened from. */
 function openReview(invitation: string): void {
-  openStep.value = null;
+  openStepKey.value = null;
   reviewing.value = invitation;
 }
 </script>
@@ -97,7 +114,7 @@ function openReview(invitation: string): void {
       :checklist="checklistQ.data.value ?? null"
       :loading="checklistQ.isLoading.value"
       :error="checklistQ.error.value ? 'The hiring checklist could not be loaded.' : null"
-      @open="openStep = $event"
+      @open="openStepKey = $event.key"
     />
 
     <!-- ⚠ Collapsed, and below the work. D-HUI3's rule that a row answers three questions only
@@ -130,7 +147,7 @@ function openReview(invitation: string): void {
       :driver-id="id"
       :driver-status="driver?.status ?? ''"
       :invitation-id="invitationId"
-      @close="openStep = null"
+      @close="openStepKey = null"
       @review="openReview"
     />
 
