@@ -3206,6 +3206,69 @@ every time.
   · The office's preview drawing blank signature lines under a DRAFT band is A2's ruling and correct.
   · Page 1's blank `Social Security number` line is correct — we do not collect one.
 
+
+- **2026-09-19 — DESIGN for AUD-1 / AUD-2, measured. Not built; this is the next PR.**
+
+  The audit's worst finding needs a decision before code, and the decision turns on four numbers that
+  are in `packetFieldGeometry.ts` and had not been read together. Recorded here so the next chat
+  starts from the measurement rather than from the choice.
+
+  **What is wrong.** `packetOverlay.ts:232` `fittedSize()` walks 11pt down to a floor of 6 and then
+  returns the floor whether or not the text fits; `packetOverlay.ts:286` calls `page.drawText()` with
+  it, and pdf-lib neither wraps nor clips. `packetContinuation.ts:86` does the same with a floor of 5.
+
+  **The three obvious answers and why two of them are wrong.**
+
+  · *Clip with an ellipsis.* Silently drops an answer out of a §391.51(b)(1) record. This is the
+    reasoning already written at `packetContinuation.ts:96` — *"a truncated conviction is the silent
+    loss this whole sheet prevents"* — and it is right.
+  · *Shrink further.* Already past legibility at 6pt, and it does not even work: the text still does
+    not fit, which is why it overruns today.
+  · *Wrap inside the cell.* Correct **where the carrier left room**, and the question is where.
+
+  **The measurement, from `PacketFieldTable.rows` — every grid's row pitch:**
+
+  | grid | rows | pitch |
+  |---|---|---|
+  | `p02.experience`, `p02.accidents`, `p02.convictions` | 4 / 3 / 3 | **15.2pt** |
+  | `p12.employment` | 15 | **30.4pt** |
+  | `p16.education`, `p16.references` | 4 / 3 | **45.7pt** |
+  | `p02.licences`, `p12.identity` | 1 | no pitch — a single row has no neighbour to measure against |
+
+  At `FIELD_BASELINE_LIFT` 3 and 8pt type, a second line's ascender reaches ~20pt above the rule. So
+  **page 12 and page 16 have room for two lines and page 2 does not** — 15.2pt is one line of the
+  carrier's own type and nothing else. ⚠ That is not a limitation to work around; it is the carrier's
+  paper saying what it can hold, and page 12 is where the audit's worst collision was measured
+  (company, address and position superimposed into an unreadable row).
+
+  **So the fix is the mechanism that already exists, extended by one dimension.** `fillGrid` today
+  produces `PacketFieldOverflow` for *"the carrier printed no more ROWS"*. It should also produce it
+  for *"the carrier's row is not WIDE enough"* — the same sentence about the same paper, and the
+  continuation sheet the driver already certifies is already the answer to it.
+
+  1. **`packetGrid.ts`** — a cell that will not fit its span at a readable size makes its whole ROW
+     overflow. The row is still drawn in the grid, clipped with an ellipsis so it never crosses the
+     rule, and `continuationNoticeFor` needs a second phrasing: *continued on* is not *missing from*.
+  2. **`packetOverlay.ts`** — `fittedSize` stops lying. It returns a size **and** the text that fits
+     at it, so no caller can draw past `x2`. Where the grid's pitch allows a second line (p12, p16),
+     wrap into it before clipping.
+  3. **`packetContinuation.ts`** — values WRAP. The sheet is ours, it has a full page, and it already
+     has a `wrap()` used for headings. The row grows to its tallest cell. This is what makes (1)
+     honest: the full text has to land somewhere.
+
+  ⚠ **Freeze-bound.** `ensureApplicationPdf` renders once and keeps those bytes, and production holds
+  no filed packet yet. This must land before the first real filing, and the QA org is where the walk
+  is done — finishing a walk in Silvicom files the packet and freezes the format at whatever is
+  merged that day.
+
+  ⚠ **No test in the repo can fail on this today and that is the thing to fix first.** `pdfText()`
+  finds every word whether or not it was drawn on top of another one, so every existing assertion
+  passes. The test that would have caught it asserts a GEOMETRIC property — *no drawn run may extend
+  past its own `x2`* — which is checkable from the placed values and the font metrics without
+  rasterising, and `packetFieldGeometry.test.ts` already asserts a neighbouring one (*"no line beside
+  a mark may overlap the mark's own span"*, the 2026-09-14 p10 correction). Write that first, watch
+  it go red against today's renderer, then fix.
+
 ---
 
 ## 11. Sources
