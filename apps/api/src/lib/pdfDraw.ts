@@ -63,11 +63,32 @@ export interface Drawing {
  * So Latin letters lose their diacritics — the form every DOT document a US carrier files already
  * uses — and anything genuinely unrepresentable becomes '?', which reads as a defect rather than as
  * a different person's name. Applied inside every helper below, so no drawing path can skip it.
+ *
+ * ── ⚠ ONLY WHAT WINANSI CANNOT HOLD IS FOLDED, AND IT USED TO BE EVERYTHING (AUD-3, 2026-09-19) ─
+ * The paragraph above is about `ć` and `š`, which genuinely are outside the encoding. But the strip ran
+ * unconditionally, so `é` and `ñ` — both of which ARE WinAnsi (0xE9, 0xF1), and both of which every
+ * standard font reached from here draws — were decomposed and flattened along with them. A driver
+ * named José Muñoz-Peña had `Jose Munoz-Pena` filed as their §391.21 application.
+ *
+ * ⚠ **The packet proved it, by disagreeing.** `packetOverlay.ts` draws through pdf-lib and does not
+ * call this function at all; on the same run that this function flattened the name onto the summary,
+ * the overlay printed it correctly onto the carrier's page 3. Two documents in one qualification
+ * file spelling one driver's name two ways, and the one that was right was the one with no
+ * normaliser — which settles whether the fold was ever needed for Latin-1. It was not.
+ *
+ * So the decomposition is applied PER CHARACTER, and only to characters the encoding cannot hold.
+ * `ć` still becomes `c` and `š` still becomes `s`; `é` and `ñ` are left alone; and the catch-all at the
+ * bottom still turns anything that survives and is genuinely unrepresentable into '?'.
  */
 export function winAnsi(text: string): string {
   return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // strip combining marks: c-acute becomes c, s-caron becomes s
+    // ⚠ NOT a bare `.normalize("NFD")` over the whole string. NFD decomposes every precomposed Latin
+    // letter, WinAnsi or not, and the combining-mark strip cannot tell the two apart afterwards —
+    // which is exactly how a Spanish surname came to be folded by a rule written for a Serbian one.
+    // The class here is the same one the '?' catch-all at the bottom uses, deliberately: what may
+    // stay and what must be folded are then one definition rather than two that can drift.
+    .replace(/[^\u0020-\u007e\u00a0-\u00ff]/gu, (ch) =>
+      ch.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
     .replace(/\u0110/g, "D")
     .replace(/\u0111/g, "d") // D-with-stroke carries no combining mark
     .replace(/\u0141/g, "L")
