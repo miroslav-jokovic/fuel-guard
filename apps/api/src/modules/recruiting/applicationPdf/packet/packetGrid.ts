@@ -16,6 +16,31 @@ import { fieldCell, fieldTableRowCount, type PacketFieldLine } from "./packetFie
 export interface PlacedFieldValue {
   line: PacketFieldLine;
   text: string;
+  /**
+   * The carrier's own word for what this value answers — a column heading, or the printed question
+   * beside a standalone rule (AUD-1, 2026-09-19).
+   *
+   * ⚠ **Used only when the value has to be CUT**, and then it is the only thing that lets the
+   * continuation sheet say what the answer underneath it belongs to. Optional because most values
+   * never need naming: they fit, and the carrier's page already has the question printed next to
+   * them. ⚠ It must be the carrier's wording rather than ours, for Q-PKT10's reason — the sheet is
+   * part of the application the driver certifies, and a sheet that renamed their question would be a
+   * different form appended to theirs.
+   *
+   * ⚠ Set on STANDALONE rules only. A grid cell is named by `grid` below instead, because a cut cell
+   * needs its whole row reassembled and a lone column heading cannot do that.
+   */
+  label?: string;
+  /**
+   * The grid this value is a cell of, as the continuation sheet would need to describe it (AUD-1).
+   *
+   * ⚠ **Carried on every cell rather than looked up afterwards, and that is not redundancy.** By the
+   * time the renderer discovers a value will not fit, it holds a `PacketFieldLine` and nothing else;
+   * the grid's heading and column names were arguments to `fillGrid` and are out of reach. The ONLY
+   * other place they survive is an overflow block, and a grid whose rows all fitted has none — which
+   * is exactly the case a too-wide cell creates.
+   */
+  grid?: { label: string; columns: readonly string[] };
 }
 
 /**
@@ -36,6 +61,20 @@ export interface PacketFieldOverflow {
   /** The carrier's own page number, so the sheet can say which page it continues. */
   page: number;
   rows: string[][];
+  /**
+   * How many of `rows`, counting from the END, are rows that ALSO appear on the carrier's page — cut
+   * short there because a value was too long for its column, and reproduced here in full (AUD-1).
+   *
+   * ⚠ **The distinction has to reach the notice printed under the grid**, because the two cases are
+   * different sentences to the person reading page 2. A row the carrier printed no space for is
+   * *missing from* this page; a row whose text was cut is *shown in full on* the sheet. Telling a
+   * reader "1 more entry" about a row that is visibly right in front of them is how an attachment
+   * becomes the place an answer was hidden.
+   *
+   * Counted from the end because `fillGrid` appends the capacity leftovers first and the renderer
+   * appends the cut rows after them; absent means none, which is the ordinary case.
+   */
+  continued?: number;
 }
 
 export interface PacketFieldFill {
@@ -94,7 +133,10 @@ export function fillGrid(
       const text = raw.trim();
       if (!text) return;
       const line = fieldCell(tableId, r, c);
-      if (line) into.push({ line, text });
+      // ⚠ The heading is carried on every cell rather than looked up later: by the time a renderer
+      // discovers the value does not fit, it has a `PacketFieldLine` and no way back to the column
+      // list that named it. `columns` is the carrier's own wording, which is what the sheet needs.
+      if (line) into.push({ line, text, grid: { label, columns } });
     });
   });
 

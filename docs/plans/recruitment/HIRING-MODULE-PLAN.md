@@ -3269,6 +3269,64 @@ every time.
   a mark may overlap the mark's own span"*, the 2026-09-14 p10 correction). Write that first, watch
   it go red against today's renderer, then fix.
 
+
+- **2026-09-19 — AUD-1 and AUD-2 BUILT. PR #905.** The design entry above is what shipped, with one
+  part removed on measurement and one file that did not exist when it was written.
+
+  **The rule, and it is now one sentence in one place:** *nothing is drawn outside the span its
+  geometry gives it, and nothing that gets cut is lost.* `packetFit.ts` owns both halves —
+  `fitText` returns a size **and the text that fits at it**, and `cutBlocks` hands what was cut to
+  the continuation sheet. Neither half is safe alone, and before this the code did neither.
+
+  **A cut grid cell takes its whole ROW with it**, under the carrier's own headings (Q-PKT10): a
+  description with no date beside it cannot be matched back to the accident it is. A cut standalone
+  rule goes to a per-page block headed by the carrier's own printed question — so `p02.denied.explain`
+  and `p16.military_when` gained labels, and page 1's name and address rows gained a pseudo-grid id
+  so their cells could find their siblings.
+
+  ⚠ **The notice under a grid now says two different things**, because they are two different facts
+  to the person holding page 2: *"1 more entry is on the continuation sheet"* (the carrier printed no
+  room) and *"1 entry above is too long for its column and is printed in full on that sheet"* (it is
+  on the page, ending in an ellipsis). The first sentence said about the second case is how an
+  attachment stops reading as a continuation and starts reading as where an answer was hidden.
+
+  ⚠ **A per-rule notice was BUILT AND REMOVED the same afternoon, and the reason generalises.** A
+  grid's notice is safe because the geometry gives the grid's last rule and the space under it is
+  measured. A standalone rule has no such guarantee: the notice 9pt under page 16's `If so, when?`
+  drew straight through the carrier's printed *"Please list any training you have received…"*, and a
+  first attempt at it ran off the right edge of the paper. **A sentence explaining that an answer was
+  cut, printed on top of the carrier's own words, is the exact defect this change exists to remove.**
+  What would bring it back is `packetTemplate.ts`'s `TemplateTextRun`, which knows where the carrier's
+  type actually sits; that is written above the gap in `packetOverlay.ts` rather than left to be
+  rediscovered.
+
+  **Three findings the build added to the audit's list, all found by looking rather than by testing:**
+  · the first notice read *"1 more entry is, and 1 entry above is too long…"* — two clauses sharing
+    one tail, grammatical nonsense on a federal form;
+  · a block spilling onto a second sheet left its heading and columns orphaned on the page before —
+    **AUD-4's defect, in our own renderer**, and not fixable by reserving room, because rows wrap and
+    a row's height is not known until it is laid out;
+  · the continuation sheet's `wrap` could not break a word wider than its column, which
+    `Featherstonehaugh-Villanueva` in a fifth of the page genuinely is.
+
+  **Mutations: 8 run, 8 red — but THREE survived first and all three were the same gap.** The sheet's
+  wrapping and its page breaks had no test at all; the module whose stated purpose is that nothing is
+  lost was pinned only for the rows the carrier had no room for. ⚠ The tests that now catch them count
+  **runs, not words**: `pageText` rejoins wrapped lines with spaces and gives back the original
+  sentence, so no assertion about text can tell a wrapped cell from an overrunning one. That is the
+  same blindness that hid AUD-1 for as long as it existed.
+
+  **`packetFit.ts` exists because three gates failed.** `packetOverlay.ts` reached 626 lines against a
+  500 budget and `renderPacketOverlay` 218 against 200. The split is at a real seam — *what fits, and
+  where the remainder goes*, reviewable against `packetGrid.ts`'s overflow model rather than against
+  page 12's column order — not at a line count. `lint:comment-claims` caught two comments quoting
+  test titles that did not exist.
+
+  **Gates** (after the last edit): the shared/api list, `check-rls`, root `lint`, `pnpm typecheck` —
+  all green. `pnpm --filter @silvicom/api test`: **3956 passed, 328 files**. ⚠ **No migration**, and
+  the freeze clock is untouched by the change itself — but this DOES change what a filed packet
+  prints, so it must land before the first real filing.
+
 ---
 
 ## 11. Sources

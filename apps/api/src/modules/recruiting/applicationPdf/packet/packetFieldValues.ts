@@ -85,6 +85,17 @@ const columnLine = (
   cols: readonly number[],
   col: number,
   y: number,
+  /**
+   * Which pseudo-grid cell this is (AUD-1).
+   *
+   * ⚠ `tableId` here names NO entry in `PACKET_FIELD_TABLES`, deliberately: page 1's name and
+   * address rows are caption-aligned rather than ruled, which is why they are built here instead of
+   * measured there. What the id has to do is group a row's cells together, so that a cut street is
+   * carried to the continuation sheet WITH the city and state that identify it — an address line on
+   * its own under a heading is not an address. `fieldTableFor` returning null for it is expected, and
+   * is what keeps the grid-notice loop from trying to draw under a grid that has no last rule.
+   */
+  cell: { tableId: string; row: number; col: number },
 ): PacketFieldLine => ({
   id,
   page: 1,
@@ -93,7 +104,12 @@ const columnLine = (
   y,
   source: "seen",
   note: "Page 1 caption-aligned column — measured off the printed caption, not a ruled boundary.",
+  cell,
 });
+
+/** The carrier's captions under page 1's two caption-aligned rows, verbatim (Q-PKT10). */
+const P1_NAME_COLUMNS = ["Last", "First", "Middle"] as const;
+const P1_ADDRESS_COLUMNS = ["Street", "City", "State", "Zip"] as const;
 
 /**
  * ⚠ **Trim-checked, not truthy-checked.** A questionnaire answer of `"   "` is truthy and would be
@@ -101,10 +117,10 @@ const columnLine = (
  * would keep `fittedSize` busy shrinking whitespace. `blank()` already collapses these to `""` for
  * the CONTRACT fields; `answer()` reads free-form questionnaire jsonb and does not.
  */
-const push = (into: PlacedFieldValue[], id: string, text: string): void => {
+const push = (into: PlacedFieldValue[], id: string, text: string, label?: string): void => {
   const trimmed = text.trim();
   const line = fieldLineFor(id);
-  if (line && trimmed) into.push({ line, text: trimmed });
+  if (line && trimmed) into.push({ line, text: trimmed, label });
 };
 
 const addressCells = (addr: {
@@ -124,7 +140,7 @@ function page1(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
   const a = input.application;
   push(into, "p01.date", date(input.certifiedAt));
   push(into, "p01.dob", date(a.date_of_birth));
-  push(into, "p01.position", answer(a, "position"));
+  push(into, "p01.position", answer(a, "position"), P1.position);
   // ⚠ The Social Security number is NOT drawn (D-HIRE6), here or on page 12 or page 15. The
   // carrier's label stays on the paper because the paper is theirs.
   push(into, "p01.cdl", `${blank(a.cdl_number)}${a.cdl_state ? ` (${a.cdl_state})` : ""}`);
@@ -132,12 +148,18 @@ function page1(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
   push(into, "p01.legally_work", yesNo(bool(a, "legally_work")));
   push(into, "p01.proof_of_age", yesNo(bool(a, "proof_of_age")));
   push(into, "p01.contact_employers", yesNo(bool(a, "may_contact_employers")));
-  push(into, "p01.heard_from", answer(a, "heard_from"));
+  push(into, "p01.heard_from", answer(a, "heard_from"), P1.heardFrom);
 
   const nameParts = [a.last_name, a.first_name, a.middle_name];
   nameParts.forEach((part, i) => {
     const text = blank(part);
-    if (text) into.push({ line: columnLine(`p01.name.${i}`, PAGE_1_NAME_COLUMNS, i, 509.4), text });
+    if (!text) return;
+    into.push({
+      line: columnLine(`p01.name.${i}`, PAGE_1_NAME_COLUMNS, i, 509.4,
+        { tableId: "p01.name", row: 0, col: i }),
+      text,
+      grid: { label: P1.name, columns: P1_NAME_COLUMNS },
+    });
   });
 
   // ⚠ The current address takes the `Address:` rule; the rest take the three `Previous Three years
@@ -149,8 +171,10 @@ function page1(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
       const text = raw.trim();
       if (!text) return;
       into.push({
-        line: columnLine(`p01.address.${r}.${c}`, PAGE_1_ADDRESS_COLUMNS, c, PAGE_1_ADDRESS_ROWS[r]!),
+        line: columnLine(`p01.address.${r}.${c}`, PAGE_1_ADDRESS_COLUMNS, c, PAGE_1_ADDRESS_ROWS[r]!,
+          { tableId: "p01.address", row: r, col: c }),
         text,
+        grid: { label: P1.residency, columns: P1_ADDRESS_COLUMNS },
       });
     });
   });
@@ -159,7 +183,7 @@ function page1(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
     over.push({
       tableId: "p01.residency",
       label: P1.residency,
-      columns: ["Street", "City", "State", "Zip"],
+      columns: P1_ADDRESS_COLUMNS,
       page: 1,
       rows: spare,
     });
@@ -285,7 +309,10 @@ function page2(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFi
   const denied = a.licence_ever_denied;
   push(into, denied ? "p02.denied.yes" : "p02.denied.no", "X");
   push(into, denied ? "p02.revoked.yes" : "p02.revoked.no", "X");
-  if (denied) push(into, "p02.denied.explain", blank(a.licence_denial_detail));
+  // ⚠ Labelled, and only the free-text rules are (AUD-1). A value too long for its rule is cut on
+  // the paper and reproduced on the continuation sheet, which then has to say what it answers —
+  // and an explanation of a licence suspension is the longest thing page 2 asks anybody to write.
+  if (denied) push(into, "p02.denied.explain", blank(a.licence_denial_detail), P2.deniedQuestion);
 }
 
 function page12(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFieldOverflow[]): void {
@@ -323,7 +350,10 @@ function page15(input: PacketFieldInput, into: PlacedFieldValue[]): void {
   // ⚠ The DATE here is the date the driver signed THIS page — p15's own mark — not `certifiedAt`.
   // The page is a release and its date is when the release was given.
   push(into, "p15.date", date(input.markedAt["p15"] ?? input.certifiedAt));
-  push(into, "p15.name", [a.first_name, a.middle_name, a.last_name].filter(Boolean).join(" "));
+  // ⚠ Labelled with the carrier's own caption. This cell is 103pt and holds a full name, so it is
+  // one of the few standalone rules that reaches the floor size on an ordinary applicant.
+  push(into, "p15.name", [a.first_name, a.middle_name, a.last_name].filter(Boolean).join(" "),
+    "Name of applicant");
   push(into, "p15.dob", date(a.date_of_birth));
   // ⚠ `Sent to` is deliberately blank — the packet carries ONE copy of this page and a driver with
   // four previous employers needs it sent to four of them. Q-PKT11, open.
@@ -369,7 +399,9 @@ function page16(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketF
   );
 
   push(into, "p16.military", yesNo(bool(a, "military_service")));
-  push(into, "p16.military_when", answer(a, "military_when"));
+  // The carrier gives `If so, when?` a 90pt rule and the answer is a free-text service record;
+  // labelled for the same reason as page 2's explanation above.
+  push(into, "p16.military_when", answer(a, "military_when"), P16.militaryWhen);
 
   // ⚠ Three ruled lines and free text. Wrapped by WORD across them rather than cut at a character
   // count: the packet's own instruction is "any training you have received", and a sentence broken

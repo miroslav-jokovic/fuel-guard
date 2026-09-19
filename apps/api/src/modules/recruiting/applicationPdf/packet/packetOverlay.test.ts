@@ -8,7 +8,7 @@ import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
 import { renderPacketOverlay } from "./packetOverlay.js";
 import { PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { pageText, readPacketTemplate } from "./packetTemplate.js";
-import { fieldLineFor } from "./packetFieldGeometry.js";
+import { fieldCell, fieldLineFor } from "./packetFieldGeometry.js";
 
 /**
  * The marks, drawn onto the carrier's packet.
@@ -586,5 +586,62 @@ describe("the draft band", () => {
     );
     expect(pages.length).toBeGreaterThan(31);
     expect(pageText(pages[pages.length - 1]!)).toContain(BAND);
+  });
+});
+
+/**
+ * AUD-1's other half: cutting must not LOSE the answer.
+ *
+ * ⚠ `packetContinuation.ts` had the right instinct written down — *"a truncated conviction is the
+ * silent loss this whole sheet prevents"* — and drew the wrong conclusion from it, that overrunning
+ * was the lesser harm. It is not: an overrun loses the value just as completely and destroys the one
+ * beside it. So the cut is paired with the sheet, and this is the assertion that says so.
+ */
+describe("what was cut off the carrier's page", () => {
+  const NATURE = "Rear-ended while stopped at a construction flagger on I-80 westbound near mile 118";
+
+  const accidentRow = () => {
+    const cells = ["2024-05-02", NATURE, "0", "2", "No"];
+    return cells.map((text, col) => ({
+      line: fieldCell("p02.accidents", 0, col)!,
+      text,
+      grid: { label: "ACCIDENT RECORD FOR PAST 3 YEARS", columns: ["DATES", "NATURE", "F", "I", "SPILLS"] },
+    }));
+  };
+
+  it("is on the continuation sheet in full, and is not on the page it came from", async () => {
+    const pdf = await renderPacketOverlay({ marks: [], fields: accidentRow(), overflow: [] });
+    const pages = await readBack(pdf);
+
+    // The carrier's page 2 shows as much as fits and no more.
+    expect(pageText(pages[1]!)).not.toContain(NATURE);
+    // ⚠ Guards the guard: a renderer that drew nothing at all would satisfy the line above for free.
+    expect(pageText(pages[1]!)).toContain("Rear-ended while stopped");
+
+    // A sheet was appended, and it carries the sentence whole.
+    expect(pages.length).toBeGreaterThan(31);
+    const sheet = pages.slice(31).map((p) => pageText(p)).join(" ");
+    expect(sheet).toContain(NATURE);
+    // The row's siblings come with it, or the answer cannot be matched back to the accident it is.
+    expect(sheet).toContain("2024-05-02");
+  });
+
+  it("is announced under the grid it was cut from, in its own words", async () => {
+    const pdf = await renderPacketOverlay({ marks: [], fields: accidentRow(), overflow: [] });
+    const page2 = pageText((await readBack(pdf))[1]!);
+    expect(page2).toContain("too long for its column");
+    // ⚠ The discriminator. `1 more entry is` is the OTHER notice — the one for a row the carrier
+    // printed no space for — and saying that about a row visibly present on the page is the defect
+    // the second sentence exists to avoid.
+    expect(page2).not.toContain("1 more entry is");
+  });
+
+  it("adds no sheet and no notice when every value fits", async () => {
+    const short = accidentRow().map((f) => (f.text === NATURE ? { ...f, text: "Rear-end" } : f));
+    const pdf = await renderPacketOverlay({ marks: [], fields: short, overflow: [] });
+    const pages = await readBack(pdf);
+    expect(pages.length).toBe(31);
+    expect(pageText(pages[1]!)).toContain("Rear-end");
+    expect(pageText(pages[1]!)).not.toContain("too long for its column");
   });
 });

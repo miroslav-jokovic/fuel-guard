@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appendContinuationSheet, continuationNoticeFor } from "./packetContinuation.js";
+import { appendContinuationSheet, continuationNoticeFor, wrap } from "./packetContinuation.js";
 import { PACKET_TEMPLATE_PATH, pageText, readPacketTemplate } from "./packetTemplate.js";
 import { renderPacketOverlay } from "./packetOverlay.js";
 import type { PacketFieldOverflow } from "./packetGrid.js";
@@ -177,5 +177,98 @@ describe("the notice on the grid that continues", () => {
     const pages = await readBack(pdf);
     expect(pages).toHaveLength(31);
     for (const p of pages) expect(pageText(p)).not.toContain("continuation sheet");
+  });
+});
+
+/**
+ * AUD-2: on this sheet a value WRAPS, and the sheet is the one place it can.
+ *
+ * ⚠ These two tests exist because the fix shipped without them and a mutation proved it. Removing
+ * the wrap — `return [text]` in the row loop — and removing the character break inside `wrap` BOTH
+ * left the whole suite green, on the module whose stated purpose is that nothing is lost. The old
+ * comment here said a value too long for its column *"shrinks to 5pt and is allowed to be small"*;
+ * at 5pt the fourth accident's description still ran through `FATALITIES NUMBER` beside it.
+ */
+describe("a value too wide for its column on the sheet", () => {
+  const LONG = "Rear-ended while stopped at a construction flagger on I-80 westbound near mile 118";
+
+  it("is drawn as several lines, not one run that overruns", async () => {
+    const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
+    await appendContinuationSheet(doc, {
+      overflow: [block({ rows: [["2024-05-02", LONG, "IL", "$200"]] })],
+      applicantName: "Marija Varmeda",
+    });
+    const sheet = (await readBack(Buffer.from(await doc.save())))[31]!;
+
+    // ⚠ Counting RUNS, not reading text: `pageText` rejoins the lines with spaces and gives back the
+    // original sentence either way, so the words on the page cannot tell a wrapped cell from an
+    // overrunning one. How many separate runs were drawn can.
+    const pieces = sheet.runs.filter((r) => LONG.includes(r.text.trim()) && r.text.trim().length > 3);
+    expect(pieces.length).toBeGreaterThan(1);
+    // Guards the guard: no single run may be the whole sentence, which is what not wrapping produces.
+    expect(sheet.runs.some((r) => r.text.includes(LONG))).toBe(false);
+    // And nothing was lost on the way.
+    expect(pageText(sheet)).toContain("westbound near mile 118");
+  });
+
+  it("breaks a word that is itself wider than the column, rather than letting it run", async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const width = 60;
+    for (const text of [
+      LONG,
+      // One token, no spaces to break at. Word-wrapping alone cannot place it.
+      "Featherstonehaughvillanuevafeatherstonehaughvillanueva",
+      "short",
+    ]) {
+      for (const line of wrap(font, text, 8.5, width)) {
+        expect(font.widthOfTextAtSize(line, 8.5)).toBeLessThanOrEqual(width);
+      }
+    }
+    // ⚠ Discriminating: a `wrap` that returned [] would satisfy every assertion above for free.
+    expect(wrap(font, "short", 8.5, width)).toEqual(["short"]);
+    expect(wrap(font, LONG, 8.5, width).join(" ")).toContain("mile 118");
+  });
+});
+
+/**
+ * A block that spills onto a second sheet takes its heading with it.
+ *
+ * ⚠ Found by rendering the long fixture and looking: page 33 opened with the employment log's rows
+ * and no heading, because the heading had been drawn once at the foot of page 32 and the first row
+ * then broke the page. A reader of that page has five unlabelled columns and no way to tell which
+ * grid they continue — the same defect as AUD-4 in the certificate next door, one module over.
+ *
+ * ⚠ It cannot be fixed by reserving room before the heading, which is what the code did. Rows here
+ * WRAP, so a row's height is not known until it has been laid out, and the four-row reservation is a
+ * guess that a tall row falsifies.
+ */
+describe("a block that runs past the foot of the sheet", () => {
+  it("repeats its heading and its columns on every page it reaches", async () => {
+    const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
+    const label = "TRAFFIC CONVICTIONS AND FORFEITTURES FOR THE PAST 3 YEARS";
+    await appendContinuationSheet(doc, {
+      overflow: [block({
+        label,
+        rows: Array.from({ length: 70 }, (_, i) => [
+          `2023-04-${String((i % 28) + 1).padStart(2, "0")}`,
+          "Speeding 14 over the posted limit in a marked construction zone with workers present",
+          "IL",
+          "$200 fine",
+        ]),
+      })],
+      applicantName: "Marija Varmeda",
+    });
+    const sheets = (await readBack(Buffer.from(await doc.save()))).slice(31);
+
+    // Guards the guard: one page would make the claim below vacuous.
+    expect(sheets.length).toBeGreaterThan(1);
+    for (const sheet of sheets) {
+      const text = pageText(sheet);
+      // Every page that carries a row must carry the words that say what the row is.
+      if (!text.includes("Speeding 14 over")) continue;
+      expect(text).toContain(label);
+      expect(text).toContain("DATE CONVICTED");
+    }
   });
 });

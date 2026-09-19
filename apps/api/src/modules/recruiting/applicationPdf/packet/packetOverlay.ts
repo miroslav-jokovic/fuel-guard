@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import { packetPlacementById, type PacketMarkKind } from "@silvicom/shared";
 import { MARK_BASELINE_LIFT, PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
-import { FIELD_BASELINE_LIFT, fieldTableFor } from "./packetFieldGeometry.js";
+import { fieldTableFor } from "./packetFieldGeometry.js";
+import { drawFieldValues, fitText, mergeOverflow } from "./packetFit.js";
 import type { PacketFieldOverflow, PlacedFieldValue } from "./packetGrid.js";
 import { appendContinuationSheet, continuationNoticeFor } from "./packetContinuation.js";
 import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
@@ -228,14 +229,6 @@ async function embedMark(doc: PDFDocument, bytes: Buffer | null | undefined): Pr
   }
 }
 
-/** The largest size at or below `TYPED_MARK_SIZE` whose text fits the line, floored so it stays readable. */
-function fittedSize(font: PDFFont, text: string, width: number): number {
-  for (let size = TYPED_MARK_SIZE; size > TYPED_MARK_MIN_SIZE; size -= 0.5) {
-    if (font.widthOfTextAtSize(text, size) <= width) return size;
-  }
-  return TYPED_MARK_MIN_SIZE;
-}
-
 /**
  * Draw the marks onto the carrier's packet and return the whole 31-page document.
  *
@@ -248,14 +241,6 @@ function fittedSize(font: PDFFont, text: string, width: number): number {
 export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Buffer> {
   const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
   const font = await doc.embedFont(StandardFonts.HelveticaOblique);
-  /**
-   * ⚠ **Upright, not the signature's oblique.** A mark is a person's hand and reads as one; an
-   * ANSWER is a fact somebody typed into a form. Drawing a date of birth in italic would make every
-   * filled field look like a signature, on a document whose whole point is that the signatures are
-   * distinguishable from everything else on it.
-   */
-  const fieldFont = await doc.embedFont(StandardFonts.Helvetica);
-
   /**
    * One picture per KIND of mark, embedded once each (Q-HUI14).
    *
@@ -278,19 +263,9 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
    * collide the SIGNATURE is the one on top. A date drawn over a signature is a document whose
    * signature is obscured; a signature drawn over a date is a legible signature and a smudged date.
    */
-  for (const field of input.fields ?? []) {
-    const text = field.text.trim();
-    if (!text) continue;
-    const page = doc.getPage(field.line.page - 1);
-    const width = field.line.x2 - field.line.x1;
-    page.drawText(text, {
-      x: field.line.x1 + 2,
-      y: field.line.y + FIELD_BASELINE_LIFT,
-      size: fittedSize(fieldFont, text, width - 4),
-      font: fieldFont,
-      color: INK,
-    });
-  }
+  // ⚠ Values first, marks second — see `drawFieldValues`, which owns the reason.
+  const { font: fieldFont, cut } = await drawFieldValues(doc, input.fields ?? []);
+  const overflow = mergeOverflow(input.overflow ?? [], cut, input.fields ?? []);
 
   for (const mark of input.marks) {
     const line = markLineFor(mark.placementId);
@@ -350,10 +325,14 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
 
     const name = mark.signedName.trim();
     if (!name) continue;
-    page.drawText(name, {
+    // ⚠ A typed name is cut rather than overrun too, and it can happen: `p05`'s initials box is 141pt
+    // and a name reaches it through `signedName`. A signature drawn across the caption beside it is
+    // not more faithful than one that ends in an ellipsis — it is the same loss plus a ruined caption.
+    const namefit = fitText(font, name, width - 4, TYPED_MARK_SIZE, TYPED_MARK_MIN_SIZE);
+    page.drawText(namefit.text, {
       x: line.x1 + 2,
       y: baseline,
-      size: fittedSize(font, name, width - 4),
+      size: namefit.size,
       font,
       color: INK,
     });
@@ -365,7 +344,7 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
    * anybody who stops reading there — the attachment becomes a place the answer was hidden rather
    * than a place it was continued.
    */
-  for (const over of input.overflow ?? []) {
+  for (const over of overflow) {
     const table = fieldTableFor(over.tableId);
     if (!table) continue;
     const lastRow = table.rows[table.rows.length - 1];
@@ -381,9 +360,31 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
     });
   }
 
-  if ((input.overflow ?? []).length > 0) {
+  /**
+   * ⚠ **A cut answer on a STANDALONE rule gets no notice on the carrier's page, and that is a
+   * measured decision rather than an omission** (AUD-1, 2026-09-19).
+   *
+   * It was built and taken out again on the same afternoon, which is the part worth keeping. A grid's
+   * notice is safe because `fieldTableFor` gives the grid's last rule and the space under it is
+   * measured and empty. A standalone rule has no such guarantee, and page 16 proved it twice over:
+   * a notice 9pt under `If so, when?` was drawn straight through the carrier's printed instruction
+   * *"Please list any training you have received…"*, and a first attempt at the same notice ran off
+   * the right edge of the paper. **A sentence explaining that an answer was cut, printed on top of
+   * the carrier's own words, is the exact defect this whole change exists to remove** — shipping it
+   * would have traded one collision for another and called it a fix.
+   *
+   * What the reader has instead: the ellipsis on the line, and a continuation-sheet block headed
+   * *"Answers that did not fit the space on the form — continued from page 16"* naming the carrier's
+   * own question beside the answer in full. What would let the notice come back is knowing where the
+   * carrier's type actually sits — `packetTemplate.ts`'s `TemplateTextRun` carries exactly that, and
+   * reading it here would let a notice claim a rectangle proven to be empty. It is not worth an
+   * extra parse of the template on every render today; it is written down so it does not have to be
+   * rediscovered.
+   */
+
+  if (overflow.length > 0) {
     await appendContinuationSheet(doc, {
-      overflow: input.overflow ?? [],
+      overflow,
       applicantName: input.applicantName ?? "",
     });
   }

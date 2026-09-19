@@ -47,6 +47,20 @@ export interface PacketFieldLine {
   source: "seen" | "sibling";
   /** What the page looks like there, so a reader can check the entry without re-deriving it. */
   note: string;
+  /**
+   * Which grid cell this line IS, when it is one (AUD-1, 2026-09-19).
+   *
+   * ⚠ **Set by `fieldCell`, which is the only thing that knows** — and read rather than parsed back
+   * out of `id`. The id spells `p12.employment.r0.c1` and a renderer could pick it apart with a
+   * regular expression, but then two modules would own the format and the one that does not print it
+   * would be the one to break silently when it changed.
+   *
+   * What needs it: a value too long for its column is cut on the carrier's paper, and the ROW it
+   * belongs to then has to be reproduced in full on the continuation sheet — which means the renderer
+   * has to be able to get from one cut cell back to its siblings. Absent on the standalone lines,
+   * which have no row and are carried to the sheet on their own.
+   */
+  cell?: { tableId: string; row: number; col: number };
 }
 
 /**
@@ -339,6 +353,7 @@ export function fieldCell(tableId: string, row: number, col: number): PacketFiel
     y,
     source: t.source,
     note: t.note,
+    cell: { tableId, row, col },
   };
 }
 
