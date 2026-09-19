@@ -2458,9 +2458,9 @@ every time.
      was **1011** against a 390 viewport and `window.scrollTo(500, 0)` moved. Worth writing down
      what did and did not fix it, because the obvious one does not: `overflow: hidden` on the list,
      the nav AND the section all left it at 1011, while `contain: paint` and `flex-wrap` both
-     collapsed it to 390. The rail now **wraps** — no exotic property, and all twenty-two places
-     are visible at once where a seven-wide scroller showed seven. Re-measured: 390, and
-     `pageScrollsSideways: false`.
+     collapsed it to 390. The rail first **wrapped** the chips; the `lint:ui-adoption` fix below
+     then replaced the phone strip with dots that are not controls, which removes the overflow at
+     its source. Re-measured both times: 390, and `pageScrollsSideways: false`.
 
   ⚠ **A fourth defect the SUITE caught, and the lesson is about ordering**: the `wide` watcher was
   first written beside the other computeds, where `immediate: true` evaluated `awaitingSignature` →
@@ -2481,6 +2481,24 @@ every time.
   `schema.generated.sql` unchanged. No migration. ⚠ `RecruitmentPage.test.ts` timed out at 5,000 ms
   in the full `pnpm test` run and passes targeted (10/10) and per-package (207/2,030) — the flake §6
   of the handoff records, in a file this change does not touch.
+
+  ⚠ **A fifth defect, and CI found it because I had not run the gate: `lint:ui-adoption`.** The
+  rail's phone strip used a raw `<button>`, which that gate forbids in pages and features. ⚠ **It is
+  in CI's `gates` job and is NOT part of `pnpm lint`** — and neither are `lint:ui-contrast`,
+  `lint:light-dark`, `lint:chart-colors`, `lint:token-gamut`, `lint:tokens-parity`,
+  `lint:token-schema` or `lint:template-integrity`, all of which this step then ran and passed.
+  [[pnpm-lint-is-not-the-gate-set]] names `lint:boundaries` and `lint:filesize`; **the web-facing
+  half of that list is longer than the memory says**, and a UI step should run every `lint:` script
+  that touches `apps/web`, not the five that are usually quoted.
+
+  The fix was not a smaller one. `AppButton`'s `size="row"` is this repo's sanctioned left-aligned
+  full-width row and its header records that a call site reaching for `!important` means a variant
+  is missing — but twenty-two of those rows is ~880px on a phone, against D-HUI9's ruling that the
+  page needs every vertical pixel at 390. So the rail now **navigates on a desktop and indicates on
+  a phone**: `AppButton size="row"` in a column at `lg`, and below it the count plus twenty-two dots
+  that are not controls at all. That also retired the wrapped-chip fix above — the phone strip no
+  longer has buttons to wrap. Re-measured after the rewrite: 390, `pageScrollsSideways: false`,
+  `PACKET FETCHES: 1`, and the desktop look-ahead walk unchanged.
 
   **Left for C2**, which is the next step and edits the same files: the adoption dialog's three tabs.
   ⚠ Re-derive §1c of the handoff before starting it — `pinnedKinds` and `canChange` are already

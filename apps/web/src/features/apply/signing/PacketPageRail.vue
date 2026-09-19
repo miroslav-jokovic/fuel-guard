@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import type { ApplyPacketStop } from "@/features/apply/useApplication";
 
 /**
@@ -21,6 +22,22 @@ import type { ApplyPacketStop } from "@/features/apply/useApplication";
  * Reading is not signing (D-HUI12), and C1 exists so that a driver can read what they are agreeing
  * to. A rail that refused to show page 20 until page 19 was signed would be the pressure this step
  * removes, dressed as safety. The Sign button is always for `current` and says so.
+ *
+ * ── ⚠ IT NAVIGATES ON A DESKTOP AND INDICATES ON A PHONE, AND THAT IS NOT A CLIMBDOWN ─────────
+ * Two facts decided this and they point the same way. **D-HUI9**: at 390px the packet page is a
+ * SHAPE and the sentence beside it carries the words, so the page needs every vertical pixel — a
+ * rail of twenty-two rows above it would push the document off the screen it exists to show.
+ * **The primitive**: `AppButton`'s `size="row"` is this repo's sanctioned left-aligned full-width
+ * row, and its own header records that a call site reaching for `!important` means a variant is
+ * missing rather than a rule being wrong. Twenty-two of those rows is ~880px on a phone.
+ *
+ * So below `lg` this is a progress INDICATOR — the count, and twenty-two dots saying what is done —
+ * and at `lg` it is the column of real buttons it looks like. ⚠ The first version made the phone
+ * strip tappable with a raw `<button>` inside a horizontal scroller, and **both halves were wrong**:
+ * the raw button failed `lint:ui-adoption` (a CI gate that is not in `pnpm lint`), and the scroller
+ * made the whole signing screen drag sideways — `documentElement.scrollWidth` measured **1011**
+ * against a 390 viewport, and `overflow: hidden` on the list, the nav and the section all failed to
+ * contain it.
  *
  * ── PROGRESS COUNTS THE PACKET, NOT THE WORK LEFT ─────────────────────────────────────────────
  * The numbering is the position in the carrier's own order, so a driver who comes back sees their
@@ -77,53 +94,54 @@ function dotClass(r: RailStop): string {
   if (r.signing) return "bg-action-primary/40 ring-2 ring-action-primary";
   return "bg-surface-muted ring-1 ring-edge";
 }
+
+/** What a screen reader is told about each place, on either layout. */
+function stopLabel(r: RailStop): string {
+  const state = r.signed
+    ? "signed"
+    : r.signing
+      ? "the place you are signing now"
+      : "still to come";
+  return `Place ${r.index}, page ${r.stop.page}. ${r.stop.what} — ${state}`;
+}
 </script>
 
 <template>
-  <nav class="w-full" :aria-label="`The ${stops.length} places you are asked to sign`">
-    <p class="mb-2 text-xs text-ink-muted">
-      {{ signedCount }} of {{ stops.length }} done
-    </p>
+  <div class="w-full">
+    <p class="mb-2 text-xs text-ink-muted">{{ signedCount }} of {{ stops.length }} done</p>
 
-    <!--
-      ⚠ A WRAPPING strip on a phone that becomes a column with room, rather than two components.
-      The phone needs its vertical space for the page itself (D-HUI9: at 390px the page is a shape
-      and the sentence carries the words), so the rail must stay short — but it must not scroll
-      sideways either.
-
-      ⚠ **It was `overflow-x-auto`, and that scrolled the whole PAGE.** Measured at a true 390px
-      viewport: `document.documentElement.scrollWidth` came back 1011 against a 390 viewport and
-      `window.scrollTo(500, 0)` moved — so the driver could drag the entire signing screen off to
-      one side. The strip itself clipped correctly and every box in the chain measured 302px, which
-      is why it is worth writing down what did and did not fix it: `overflow: hidden` on the list,
-      on the nav, and on the section all left it at 1011; `contain: paint` and `flex-wrap` both
-      collapsed it to 390. Wrapping wins because it needs no exotic property and it shows all
-      twenty-two places at once, which a seven-wide scroller never did.
-    -->
-    <ol class="flex flex-wrap gap-1 lg:flex-col lg:flex-nowrap lg:gap-0.5">
-      <li v-for="r in rail" :key="r.stop.id" class="shrink-0 lg:w-full">
-        <button
-          type="button"
-          class="flex w-full items-center gap-x-1.5 rounded-control px-1.5 py-1 text-left transition-colors hover:bg-surface-muted lg:gap-x-2 lg:px-2 lg:py-1.5"
-          :class="r.looking ? 'bg-surface-muted' : ''"
-          :aria-current="r.looking ? 'true' : undefined"
-          @click="emit('look', r.stop.id)"
-        >
-          <span class="size-2 shrink-0 rounded-full" :class="dotClass(r)" aria-hidden="true" />
-          <span class="text-2xs font-medium text-ink-tertiary lg:text-xs">
-            {{ r.index }}
-          </span>
-          <!-- The carrier's own page number, hidden on the phone strip where there is no room for
-               it and the dot plus the number already say where you are. -->
-          <span class="hidden truncate text-xs text-ink-muted lg:inline">
-            Page {{ r.stop.page }}
-          </span>
-          <span class="sr-only">
-            {{ r.stop.what }} —
-            {{ r.signed ? "signed" : r.signing ? "the place you are signing now" : "still to come" }}
-          </span>
-        </button>
+    <!-- The phone: an indicator, not a menu. Wrapped rather than scrolled — see the header. -->
+    <ul
+      class="flex flex-wrap gap-1.5 lg:hidden"
+      :aria-label="`Progress through ${stops.length} places`"
+    >
+      <li v-for="r in rail" :key="r.stop.id">
+        <span class="block size-2.5 rounded-full" :class="dotClass(r)" />
+        <span class="sr-only">{{ stopLabel(r) }}</span>
       </li>
-    </ol>
-  </nav>
+    </ul>
+
+    <!-- The desktop: the column of places, each one a real button to the page it sits on. -->
+    <nav
+      class="hidden lg:block"
+      :aria-label="`The ${stops.length} places you are asked to sign`"
+    >
+      <ol class="flex flex-col gap-0.5">
+        <li v-for="r in rail" :key="r.stop.id">
+          <BaseButton
+            variant="ghost"
+            size="row"
+            :class="r.looking ? 'bg-surface-muted' : ''"
+            :aria-current="r.looking ? 'true' : undefined"
+            @click="emit('look', r.stop.id)"
+          >
+            <span class="size-2 shrink-0 rounded-full" :class="dotClass(r)" aria-hidden="true" />
+            <span class="text-xs font-medium text-ink-tertiary">{{ r.index }}</span>
+            <span class="truncate text-xs text-ink-muted">Page {{ r.stop.page }}</span>
+            <span class="sr-only">{{ stopLabel(r) }}</span>
+          </BaseButton>
+        </li>
+      </ol>
+    </nav>
+  </div>
 </template>
