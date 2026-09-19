@@ -4,7 +4,7 @@ import { ref } from "vue";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { hiringChecklist, APPLICATION_RELEASE_ORDER, type HiringChecklist } from "@silvicom/shared";
+import { hiringChecklist, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 
 /**
  * One applicant's record — the page that holds the checklist and the drawer behind a row (B6).
