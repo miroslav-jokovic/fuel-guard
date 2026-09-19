@@ -2293,6 +2293,49 @@ every time.
   ⚠ `RecruitmentPage.test.ts` timed out at 5,006 ms in one `pnpm test` run and passes targeted and
   per-package — the flake §4 of the handoff already records, in a file this change does not touch.
 
+- **2026-09-19 — Wave C handoff written, and it corrects FOUR claims in these plans.**
+  `HANDOFF-2026-09-19-WAVE-C.md`. Waves A and B are complete, §8 has no open questions, no migration
+  is owed. Read it before C1; the four corrections are the reason, and one of them decides where
+  C1's first line of code goes.
+
+  ⚠ **§9's C1 row names the wrong lever.** `meta.fullBleed` (D-HUI6) is read by `AppShell.vue` and
+  nothing else, and `/apply/:token` carries `layout: "apply"` — so `App.vue` renders `ApplyLayout`,
+  never `AppShell`, and setting `fullBleed` on that route is a **no-op**. `ApplyLayout.vue` is 42
+  lines and hard-codes `max-w-3xl` on `<main>`. D-HUI6's *reasoning* stands (do not add a
+  `layout: "canvas"`); its mechanism does not reach this surface. ⚠ And `max-w-3xl` is **768px**
+  against D-HUI9's measured readable width of **765px** — the layout is already within three pixels
+  of the blessing, so what the screen needs is vertical room, not width.
+
+  ⚠ **§9 still lists C1 as gated on Q-HUI2, and D-HUI9 answered it** on 2026-09-17 by measurement:
+  390px renders body text at ~6 CSS px (shape legible, words not), 765px at ~12 (readable). None of
+  the three candidates was right; what ships is BOTH, ALWAYS — the page at every width plus the
+  stop's own sentence in real type. **C1 is not blocked.**
+
+  ⚠ **"Q-PKT9's remaining half" is not open work.** Both previous handoffs carry it. Measured:
+  `GET /:token` serves `packetAdopted`, `ApplyPage` passes it as `:adopted-marks`, `alreadyAdopted`
+  reads the SERVED pin (not the input refs), and `pinnedKinds` is used by `canChange`. D-PKT18 and
+  A4 between them closed it. Re-derive before treating it as work.
+
+  ⚠ **The server half is NOT "entirely reusable", and this is C1's one real gap.** The five geometry
+  modules do exist, but **no route serves the packet to the applicant**: `GET /:token/document` is
+  post-submission only (`not_submitted`, 409), by an argument its own header makes. So there is no
+  way for a driver to read the packet they are about to sign — the defect C1 exists to fix — and it
+  needs a tenth public route. The renderer is written (`applicationPreviewPdf`); the delivery is not.
+  Three open questions about its shape are recorded as **Q-HUI10–12** in the handoff's §4, each with
+  a recommendation: the DRAFT band, whether collected marks render, and whether it refuses before
+  approval.
+
+  ⚠ **A clock, and it is the invitation A1 rescued.** Production, measured 2026-09-19: `f2b142e4…`
+  holds **20 of 22 marks**, unsubmitted, unrevoked, **live until 2026-10-01**. The one filed
+  `employment_application` pre-dates every mark, so it is `render.ts`'s §391.21 summary and **no
+  packet has ever been filed** — how the packet prints is still free to change, and anything in
+  C1/C2 that changes printing must land before somebody finishes that walk. ⚠ **Do not finish it to
+  "test" C1** — that files the packet and freezes the format. Walk the QA org, as A0 did.
+
+  ⚠ **Two of C1's files are within a step of the gate**: `PacketCeremony.vue` at **434/500** (16
+  lines of headroom) and `routes/publicApplication.ts` at **460/500**, with a route to add. Expect
+  C1 to be two or three PRs — split first, as #883, #888 and #893 all did.
+
 ---
 
 ## 11. Sources
