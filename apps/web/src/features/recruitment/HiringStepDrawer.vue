@@ -115,6 +115,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
 
       <AuthorizationsPanel
         v-else-if="body === 'authorizations'"
+        :invitation-id="invitationId"
         :rows="authorizationsQ.data.value ?? []"
         :loading="authorizationsQ.isLoading.value"
         :error="authorizationsQ.error.value ? 'The signed releases could not be loaded.' : null"

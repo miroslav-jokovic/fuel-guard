@@ -38,7 +38,11 @@ const stamp = (iso: string | null | undefined): string =>
  * ⚠ It is a PAGE of the application, not a second file (D-AX8). §390.32(d) asks for one reproducible
  * record; a separate certificate is a second document to lose, and the §391.51 file has one slot.
  */
-export function certificate(doc: PDFKit.PDFDocument, input: ApplicationPdfInput): void {
+export function certificate(
+  doc: PDFKit.PDFDocument,
+  input: ApplicationPdfInput,
+  opts: { source?: string } = {},
+): void {
   doc.addPage();
   heading(doc, "Certificate of completion");
   muted(
@@ -97,11 +101,18 @@ export function certificate(doc: PDFKit.PDFDocument, input: ApplicationPdfInput)
   }
 
   rule(doc);
+  /**
+   * ⚠ The sentence has to name what the footer's digest is actually over, and the third caller made
+   * that a parameter rather than a guess. `stampPages` stamps the digest of the SOURCE, and B2's
+   * permissions PDF is drawn from the signed rows rather than from the answers — a page telling a
+   * reader to match it against "the answers" when the digest is over something else is a claim
+   * nobody can check, which on an evidence document is worse than saying nothing.
+   */
+  const source = opts.source ?? (input.preview ? "answers" : "certified answers");
   muted(
     doc,
     "Each act above is stored with the exact text that was shown at the time, not a reference to "
     + "wording that may since have changed. The identifier in the footer of every page is the digest "
-    + `of the ${input.preview ? "answers" : "certified answers"} this document was drawn from, so a `
-    + "page can be matched to its source.",
+    + `of the ${source} this document was drawn from, so a page can be matched to its source.`,
   );
 }

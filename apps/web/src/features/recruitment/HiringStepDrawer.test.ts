@@ -113,6 +113,21 @@ describe("a row opens the work behind the step", () => {
   });
 
   /**
+   * ⚠ **The binding, not just the body** (B2). The releases panel is driver-keyed and the printable
+   * copy of them is invitation-keyed, so the panel cannot find the invitation for itself — the page
+   * resolves it and this drawer hands it down. Every body here is stubbed to its own name, which
+   * means a dropped prop renders exactly the same stub and no assertion about WHICH body opened
+   * could ever see it: the printed document would simply never be offered.
+   */
+  it("hands the live invitation down to the releases panel, which is what the printed copy needs", async () => {
+    const root = await openOn("permissions_signed", "invite-9");
+    // The stub declares no props, so the binding arrives as a fall-through ATTRIBUTE and keeps its
+    // kebab spelling — which is also what makes it visible to a test at all.
+    expect(root.querySelector("[data-body='authorizations']")?.getAttribute("invitation-id"))
+      .toBe("invite-9");
+  });
+
+  /**
    * ⚠ Both application steps land on the application, and that is the ruling rather than a
    * coincidence: the office's act at step 4 IS reading what was filed at step 3 and approving it.
    */
