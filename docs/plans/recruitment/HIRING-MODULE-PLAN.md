@@ -783,7 +783,8 @@ a process decision is how a plan starts describing a business nobody runs.
   **Recommendation (a), as its own PR before the next surface is added, not bundled into one.** It
   touches a gate that three consumers depend on and nothing about it belongs in a feature step.
 
-- **Q-PKT11 · `usePacketCeremony.ts` is at 481 of 500 lines, and the next author gets nineteen.**
+- **~~Q-PKT11 · `usePacketCeremony.ts` is at 481 of 500 lines, and the next author gets nineteen.~~
+  RULED AND DONE 2026-09-18 — candidate (a), as its own PR. See the dated entry in §10.**
   (raised by A4, 2026-09-18.) It was 248 before A3. A3 added the drawn-mark rule and its reasoning,
   A4 added the confirm state, the per-kind pin and the retired cursor's post-mortem — all of it the
   long-form WHY this repo's conventions ask for, and all of it load-bearing: the cursor comment is
@@ -2046,6 +2047,43 @@ every time.
   widening `ApplicationPdfInput`, which the filed document shares. ⚠ **`pnpm test` failed once on
   `RecruitmentPage.test.ts` at 5,006 ms and passed on re-run and on a targeted run** — the flake the
   handoff records, not this change.
+
+- **2026-09-18, night — Q-PKT11 DONE. `usePacketCeremony.ts` split along the seam it already had.**
+  Candidate (a), as its own PR, before C1 rather than before C2 — earlier than §8 said, and the
+  earlier the better: C1 lands in this file too, and it now starts from 268 lines instead of 481.
+
+  `usePacketAdoption.ts` (324) holds the two marks and everything about fixing them — `adoptedName`,
+  `adoptedInitials`, `style`, `markBlob`, `adopted`, `confirmed`, `drawnMarkFailed`, `needsInitials`,
+  `pinnedKinds`, `canChange`, `placesWithMark`, `alreadyAdopted`, `adopt`, `confirm`, `reopen`,
+  `markFor`. `usePacketCeremony.ts` (268) keeps the WALK and composes it. Both are under the 450
+  warning line; neither is near the 500 budget.
+
+  ⚠ **The public surface is unchanged STRUCTURALLY, not by a list.** The ceremony returns
+  `{ ...adoption, …the walk }`, so the component and its suite cannot tell the marks moved; re-listing
+  fourteen members would have been a second declaration of the same surface, free to drift by one
+  name. **2,029 web tests before, 2,030 after** — and the one new test is not a rewrite of an old one
+  (see below).
+
+  ⚠ **Three things had to be passed IN rather than recomputed**: `stops`, `outstanding` and
+  `filedHere`. Deriving `outstanding` again inside the adoption half would have been a second
+  computation of a fact the walk already owns — which is exactly the defect `placesWithMark`'s own
+  comment is the post-mortem for, reintroduced by the change meant to tidy the file.
+
+  ⚠ **The split revealed an invariant nothing asserted, which is the reason to mutate a refactor
+  too.** `adopt()` holds the busy flag while the drawing uploads and `sign()` refuses to start while
+  it is held — one `const` in one file before, and now a ref passed across a module boundary. A
+  mutation giving the adoption half its OWN flag **passed all sixty-six tests**: a driver could have
+  filed the first mark on top of a still-staging PNG and no suite would have noticed. *"will not file
+  a mark while the drawing is still uploading"* is the sixty-seventh test, and it fails on exactly
+  that mutation. Five of the six mutations run here were red on the untouched suite — which is what
+  says the moved code is still covered where it landed, rather than merely still compiling.
+
+  ⚠ **Two unrelated traps, both cheap and both recorded.** `lint:tokens` reads a hash followed by
+  three hex digits as a colour, so the ordinary way of citing a PR number in a comment fails the
+  build — the reference is spelled out instead. And **Q-PKT11 is a COLLIDING id**:
+  `APPLICATION-PACKET-PLAN.md` has its own Q-PKT11 (page 15's `Sent to`, answered 2026-09-14 by
+  D-PKT17), which is a different question in a different plan. Nothing renames either here; the next
+  reader who greps for Q-PKT11 gets two answers and both are right.
 
 ---
 
