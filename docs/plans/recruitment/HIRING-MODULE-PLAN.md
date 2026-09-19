@@ -829,6 +829,35 @@ its own signature block, separate from the handbook's.** An omnibus *"I received
 not prove the driver received the §382.601 materials, and that is the specific thing an auditor
 rejects.
 
+---
+
+### ⚠ Q-HUI14 · Do the three initials lines carry the driver's chosen style too? (opened by C2, 2026-09-19)
+
+**Open, and on a clock.** C2 made every SIGNATURE a picture: the driver's chosen hand, drawn or
+uploaded, rasterised in the browser and printed by `embedPng` (D-HUI14, §10). `p05`, `p06` and `p09`
+were left out, and they were left out for a reason rather than forgotten — `takesDrawing` in
+`packetOverlay.ts` is `mark === "signature"`, added by A3 after a driver's full autograph was stamped
+at 141pt into a box the carrier had captioned `Initials`, and `application_captures` has one row per
+slot with no `initials_mark` in its CHECK.
+
+So a filed packet now shows a signature in, say, Great Vibes on nineteen lines and initials in
+HelveticaOblique on three. The confirm screen shows both in the face each is actually printed in, so
+nothing is being hidden from the driver — but it is a visible inconsistency on the paper and it is not
+what DocuSign does, which adopts signature and initials separately and in the same style.
+
+| | |
+|---|---|
+| **(a) Give initials their own mark** | A migration widening `application_captures.slot` to `initials_mark`, the four exhaustive `Record<ApplicationCaptureSlot, …>` maps in `applicationCaptureContract.ts` (TS forces all four), `signatureMarkBytes` parameterised by slot, `packetOverlay` taking a second image and choosing per `PacketPlacement.mark`, one more staging call on the client, and `ApplyExpectations.test.ts` excluding the new label from the capture screen. ⚠ A migration, so the reader ships in a second PR (`lint:migration-ordering`). Full parity. |
+| **(b) Leave it, and say so** | What C2 shipped. Costs nothing, and the screen is honest about it. |
+
+**Recommendation: (a), and it has to be decided BEFORE the first packet is filed.**
+`ensureApplicationPdf` renders once, hashes and returns those bytes for ever, so a change to how this
+prints reaches only packets filed after it merges. Production still holds **no filed packet** and 20
+marks from one unfinished walk on `f2b142e4…`, whose link dies **2026-10-01** — so the format is free
+today and stops being free the moment somebody finishes that walk. ⚠ Walk the QA org to test, never
+Silvicom: finishing that one files the packet and freezes the format at whatever is merged that day.
+
+
 ## 9. The queue
 
 **One queue. `HIRING-UI-PLAN.md` holds the design reasoning for the `U`-prefixed steps but no
@@ -2503,6 +2532,122 @@ every time.
   **Left for C2**, which is the next step and edits the same files: the adoption dialog's three tabs.
   ⚠ Re-derive §1c of the handoff before starting it — `pinnedKinds` and `canChange` are already
   wired, and Upload is the only genuinely new tab.
+
+- **2026-09-19 — C2 DONE. The adoption dialog's three tabs, and the mark stopped being a string.**
+  DocuSign's Choose a style / Draw / Upload, shipped as one PR because the new code lands in new files
+  rather than growing `PacketAdoption.vue` (276 → 296; no split step was needed, unlike C1's).
+  `markRaster.ts` (pure: `inkBounds`, `padBounds`, `knockOutPaper`, `fitScale`), `markStyles.ts` (the
+  four faces + `renderStyledMark`), `markUpload.ts` (`normaliseUploadedMark`), `PacketMarkStyles.vue`,
+  `PacketMarkUpload.vue`, `signatureFaces.css`, and four OFL woff2 pairs in `public/fonts` under
+  `LICENSE_FONT_SIGNATURES`.
+
+  ⚠ **D-HUI14 — every tab produces a PNG, and the PNG is what the packet prints.** The step began as
+  "add two tabs" and the audit found something else first, by rendering: `renderPacketOverlay` draws a
+  typed mark with `drawText` in `StandardFonts.HelveticaOblique` — a slanted Helvetica, which is what a
+  form field looks like — while the adoption screen previewed it in a brush script
+  (`ui-rounded, "Segoe Script", "Brush Script MT"`), under `confirmBody` promising *"These go on the
+  form exactly as they look here."* Measured by rendering `p03` with `{placementId: "p03", signedName:
+  "Marija Varmeda"}` and `pdftoppm`-ing it. The component's own comment claimed it *"shows the marks in
+  the face they will be PRINTED in"*; `lint:comment-claims` could not see it, because that gate guards
+  claims about TEST COVERAGE and this was a claim about a font. **So the fix is not a better font stack,
+  it is removing the second source of truth**: the style is rasterised in the browser and staged into
+  the one `signature_mark` slot the drawn mark already used, so the preview *is* the print. Confirmed by
+  putting the exact staged bytes through `renderPacketOverlay` and rasterising: p03 now carries
+  `Marija Varmeda` in the chosen hand, on the carrier's line.
+
+  ⚠ **The PDF gains no embedded font, and `packetOverlay.ts` §28's argument is the reason it did not
+  have to.** That comment refuses a script webfont because a standard-14 face costs no embedded bytes,
+  cannot fail to load, and reproduces in ten years — all three arguments about the PDF, and a rasterised
+  mark honours every one of them. The alternative (embed four faces, record the chosen face per mark so
+  a re-render can reproduce it) needs a migration and contradicts a recorded decision; it was not taken.
+
+  ⚠ **`AdoptedMarkStyle` is `"styled" | "drawn" | "uploaded"` — `"typed"` was REMOVED, not renamed**,
+  because it named a behaviour that no longer exists. `currentShowsDrawing` lost its `style === "drawn"`
+  term for the same reason: what the paper carries is decided by whether a picture exists, never by
+  which tab made it. `markRequiredFor` is the one asymmetry — Draw and Upload demand an artifact (the
+  driver did not do the thing the tab is for), a styled mark does not (its failure is ours, and A8b says
+  it may not hold anybody at a dead button).
+
+  ⚠ **Upload is never staged as it arrived, and there are four separate reasons**, each of which files a
+  packet unlike the screen: the overlay calls `embedPng` and ONLY `embedPng`, so a phone's JPEG stages
+  fine and is then silently swallowed by its `catch`; `embedPng` draws every pixel, so untreated paper
+  is an opaque white rectangle over the carrier's own signature rule; the overlay scales by
+  `image.height`, so a signature occupying a tenth of a sheet arrives at a tenth of 18pt; and EXIF.
+  `knockOutPaper` uses Rec. 601 luma with a faded band rather than equality-with-white — photographed
+  paper is a grey-beige gradient, so a pure-white test removes nothing from a real scan and the whole
+  thing looks right on a screenshot and fails on a phone. Verified by uploading a synthetic photographed
+  sheet: 900×600 JPEG in, 341×152 PNG out, corner alpha 0, and on p03 the carrier's rule shows through.
+
+  ⚠ **A defect RENDERING found that eleven green unit tests did not** (this is the twelfth consecutive
+  step, and the suite being green is still not the verification). A resumed link whose marks the server
+  has pinned reaches `adopt()` through *Carry on signing* with an empty `markBlob` — correctly, the
+  picture was staged last visit — and the first version read that as a rasteriser failure, raised
+  `drawnMarkFailed`, and made every remaining stop preview the typed name under *"We will put this on
+  the page"* while the packet carried the driver's own signature. `} else if (!markStaged?.value)` is
+  the fix. ⚠ **A composable cannot see this**: two refs describing two different links look identical
+  from inside. It took a browser saying one thing over a document that would have said another.
+
+  ⚠ **`markStaged` had to be added in the same step, and it closes a PRE-EXISTING defect C2 would have
+  made universal.** `application_captures` outlives the session that wrote it, so a returning driver has
+  a PNG on the server and nothing in the browser. Before C2 that misled only the few who had drawn;
+  after it, every driver has a picture. The bundle serves capture slots as dates and never as bytes
+  (`useApplicationCaptures`: *"slots serve dates, not pictures"*), which is a deliberate rule about a
+  public link — so `markCarriedOver` says the mark is saved **in a sentence** rather than falling back
+  to previewing the typed name, which would be a picture of the wrong thing with no caveat.
+  `SignOffScreen` derives it from the captures it already holds; `ApplyPage.vue` is untouched (479/500).
+
+  ⚠ **The fallback face is now `Helvetica, Arial, "Liberation Sans"` at `oblique 12deg`**, in both
+  `PacketAdoption.vue` and `PacketCeremony.vue`. It is reached in exactly two places and is correct in
+  both: the three initials lines, and a signature whose staging failed. The duplication is deliberate —
+  `<style scoped>` cannot be shared, a global class puts a printing decision in the design system, and
+  a wrapper component adds a node to two screens to carry two declarations. ⚠ **The pair must move
+  together.** `SigningCeremony.vue` keeps its brush script on purpose: different document, pdfkit, and
+  it makes no claim that its preview is the print.
+
+  ⚠ **`h-10` for every mark preview, and the number is DERIVED**: the overlay draws a mark at up to
+  `DRAWN_MARK_MAX_HEIGHT` (18pt) and typed text at `TYPED_MARK_SIZE` (11pt), so a signature stands ~1.6×
+  the initials beside it; the initials render at `text-2xl` (24px), and 24 × 18/11 ≈ 40px. At the `h-16`
+  a drawn mark used to get it read nearly four times the initials — the preview disagreeing with the
+  paper about proportion on the one screen that promises they agree.
+
+  ⚠ **`lint:ui-adoption` allows NO raw `<input>` in a page or feature**, and the file picker is not an
+  `AppInput` and never will be. `pickImageFile` in `webImageIo.ts` is the sanctioned shape, lifted out
+  of `pickPhotoFromCamera` which already did exactly this — `capture` omitted rather than changed,
+  because a driver uploading a signature already has the picture and forcing the camera would make them
+  photograph a screen. ⚠ `lint:tokens` also read a `#ffffff` **in a comment** as a colour.
+
+  **Mutations: twelve run, twelve red**, each in isolation — the five pure helpers (alpha threshold →
+  `=== 0`, clamp removed, luma → equal mean, faded band → hard cut, `fitScale` enlarging), the style
+  term restored to `currentShowsDrawing`, `markRequiredFor` flipped, `markCarriedOver` ignoring
+  `markBlob`, `markWillPrint` ignoring the failure, the styled-with-no-blob flag silenced, and the new
+  `markStaged` guard forced both ways. ⚠ **The first mutation harness measured nothing and said so
+  loudly**: `git checkout -- <paths>` where ONE path is untracked resolves the whole pathspec and
+  restores NOTHING, silently, so all ten accumulated and the counts rose monotonically. §10's A3 entry
+  already warned that `git checkout --` does nothing here; the new half is that a new file in the list
+  is enough to disarm it. Restore by copying bytes back.
+
+  ⚠ **A parallel chat's preview server answered on the port I grepped.** `preview:local` prints
+  *"Port N is in use"* lines before the real one, so `grep | head -1` on a log still being written
+  returned 4173 — another session's build, two radios instead of three, and half an hour chasing a
+  phantom. Read the port from the END of the log, after it has settled.
+
+  ⚠ **`page.mouse` does not drive `SignaturePad` in this Chromium**: pointer capture swallows the
+  synthetic stream, `drawn` never flips and Clear never appears. Dispatching real `PointerEvent`s
+  through `page.evaluate` works (26 events, Clear shown, adopt enabled). A harness limitation, not a
+  defect — the pad is untouched by this step.
+
+  ⚠ **Q-HUI14 is OPEN and recorded rather than routed around** (§8): the three initials lines still
+  print typed HelveticaOblique, because `takesDrawing` is `mark === "signature"` and
+  `application_captures` has no `initials_mark` in its CHECK. Candidates: (a) a migration adding the
+  slot, `sources.ts` parameterised, `packetOverlay` taking a second image — full DocuSign parity, two
+  PRs for the migration dance; (b) leave it, and say so on the confirm screen, which is what this step
+  does. **Recommendation: (a), and BEFORE the first packet is filed**, because it is a printing change
+  and `ensureApplicationPdf` freezes the format at filing. ⚠ The clock is unchanged: `f2b142e4…` holds
+  20 of 22 marks and dies 2026-10-01; nothing has been filed; walk the QA org, never Silvicom.
+
+  ⚠ `RecruitmentPage.test.ts` flaked once again at 5009 ms under full `pnpm test` load, and passes
+  targeted (10/10) and per-package (2053/2053). §6 of the handoff records it as undiagnosed and not
+  this change; nothing here touches that file.
 
 ---
 

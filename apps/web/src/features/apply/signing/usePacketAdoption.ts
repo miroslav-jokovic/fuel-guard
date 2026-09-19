@@ -2,6 +2,7 @@ import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { PacketMarkKind } from "@silvicom/shared";
 import type { ApplyPacketStop } from "@/features/apply/useApplication";
 import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapture";
+import { DEFAULT_MARK_STYLE_ID } from "@/features/apply/signing/markStyles";
 
 /**
  * The marks the driver adopts, and the moment each one stops being changeable (D-PKT6, D-PKT13, A4).
@@ -43,8 +44,35 @@ import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapt
  * from it anywhere, and there is no keystroke in this file that turns one into the other.
  */
 
-/** How the driver chose to make their mark (D-PKT13). Decided once, before the first stop. */
-export type AdoptedMarkStyle = "typed" | "drawn";
+/**
+ * How the driver chose to make their mark (D-PKT13, and the three tabs of C2/D-HUI14).
+ *
+ * ⚠ **`"typed"` is gone, and it is gone rather than renamed because it named a different behaviour.**
+ * It meant *put the string on the paper* — `renderPacketOverlay` drew it with `drawText` in
+ * `StandardFonts.HelveticaOblique`, which is a form field and not a signature, while the adoption
+ * screen previewed it in a brush script under copy promising the two were the same. All three tabs now
+ * produce a PNG and the PNG is what the packet prints, so the preview is the print rather than a
+ * picture of it. `markRaster.ts` carries the measurement and the full argument.
+ *
+ * ⚠ **The typed-text branch in the overlay survives, and must**, because `signed_name` is still the
+ * signature of record (D-APP8) and A8b's rule still holds: a PNG that will not stage may never stand
+ * between a driver and twenty-two signatures. It is now the FALLBACK rather than a choice, reached
+ * only through `drawnMarkFailed` — and every preview reads that flag, so nothing promises a picture
+ * the filed document will not carry.
+ */
+export type AdoptedMarkStyle = "styled" | "drawn" | "uploaded";
+
+/**
+ * Whether choosing this way of making a mark means the driver has to actually make one.
+ *
+ * ⚠ The asymmetry is deliberate and it is A8b's rule applied per tab. A driver who opened **Draw** and
+ * drew nothing, or opened **Upload** and chose no file, has not done the thing the tab is for, and
+ * starting a twenty-two place walk for them would file a packet they did not mean to sign that way.
+ * A **styled** mark is generated on their behalf, so its failure is ours — blocking there would strand
+ * a driver on a browser with no 2D context, in front of a button that will not light up and gives no
+ * reason. They go on with the typed name, and `drawnMarkFailed` makes every screen say so.
+ */
+export const markRequiredFor = (style: AdoptedMarkStyle): boolean => style !== "styled";
 
 export interface PacketAdoptionInput {
   token: Ref<string>;
@@ -69,12 +97,30 @@ export interface PacketAdoptionInput {
    * them, the adoption screen shows the mark rather than an empty field.
    */
   served?: Ref<{ signature: string | null; initials: string | null } | null | undefined>;
+  /**
+   * Whether this link ALREADY has a `signature_mark` staged, from a previous visit (C2).
+   *
+   * ── ⚠ WHY THIS HAD TO BE ADDED IN THE SAME STEP AS THE THREE TABS ─────────────────────────────
+   * `application_captures` holds one row per slot and it survives the session that made it, so a
+   * driver who adopted a mark on Monday and comes back on Tuesday has a PNG on the server and an empty
+   * `markBlob` in the browser. Before C2 that produced a rare wrong preview — only a driver who had
+   * DRAWN saw the typed name on resume while the paper carried their drawing. C2 gives every driver a
+   * PNG, so the same defect would have become the normal experience of every resumed walk.
+   *
+   * ⚠ **It says a picture EXISTS; it cannot show it.** The apply bundle serves capture slots as dates
+   * and never as bytes (`useApplicationCaptures`: *"slots serve dates, not pictures — no re-serving of
+   * a URL"*), which is a deliberate rule about a public link and not an oversight to work around here.
+   * So the screens say the mark is saved and will keep being used, in a sentence. ⚠ **What they must
+   * not do is fall back to previewing the typed name**, because that is a picture of the wrong thing,
+   * shown with no caveat, on the screen whose job is to be believed.
+   */
+  markStaged?: Ref<boolean>;
   stage?: typeof stageCapture;
   io?: CaptureIo;
 }
 
 export function usePacketAdoption(input: PacketAdoptionInput) {
-  const { token, stops, filedHere, outstanding, working, served } = input;
+  const { token, stops, filedHere, outstanding, working, served, markStaged } = input;
   const stage = input.stage ?? stageCapture;
 
   const adoptedName = ref(served?.value?.signature ?? "");
@@ -87,8 +133,24 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
    * reads.
    */
   const adoptedInitials = ref(served?.value?.initials ?? "");
-  const style = ref<AdoptedMarkStyle>("typed");
-  /** The drawn mark, when the driver chose to draw one. */
+  const style = ref<AdoptedMarkStyle>("styled");
+  /**
+   * Which of the four hands a STYLED mark is drawn in (`markStyles.ts`).
+   *
+   * ⚠ It is not sent anywhere and nothing stores it. The choice leaves this screen as pixels, which is
+   * the whole point of D-HUI14: a face recorded as an id would have to be resolvable by whatever
+   * re-renders the packet in ten years, and that is the embedded-font problem `packetOverlay.ts`
+   * declined. A PNG has no such dependency.
+   */
+  const styleId = ref(DEFAULT_MARK_STYLE_ID);
+  /**
+   * The picture of the mark, whichever tab made it — styled, drawn or uploaded.
+   *
+   * ⚠ **One ref for all three, because the packet cannot tell them apart.** They converge on a single
+   * `signature_mark` capture (`application_captures` holds one row per slot) and a single `embedPng`
+   * on the carrier's paper, so three refs would be three states for one fact and the screen would need
+   * a rule for what to show when two of them were set.
+   */
   const markBlob = ref<Blob | null>(null);
   const adopted = ref(false);
   /**
@@ -100,7 +162,7 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
    */
   const confirmed = ref(false);
   /**
-   * Whether the drawing the driver made did NOT survive being staged (A3).
+   * Whether the mark the driver made did NOT survive being made or staged (A3).
    *
    * ⚠ **The swallow below stays; what was wrong with it was the silence.** A8b's rule is right — a
    * PNG that will not upload must not stand between a driver and twenty-two signatures — so the walk
@@ -109,6 +171,13 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
    * to sign twenty-two places believing their drawing was going on the paper, and the filed document
    * came out typed. The product looked like it had ignored them, which is what the owner reported as
    * *"custom signature cannot be applied"*.
+   *
+   * ⚠ **C2 gave it two more ways to become true, and that is why it is worded about the MARK rather
+   * than about the drawing.** A styled mark whose canvas would not rasterise and an upload that could
+   * not be read both end here, because all three tabs stage the same PNG into the same slot and the
+   * consequence of not having one is identical whichever tab the driver was on: the packet prints the
+   * typed name. A second flag per tab would be three ways to say one thing, and every screen that
+   * previews a mark would need to read all three.
    *
    * ⚠ A flag rather than an error, because this is not a failure of the ceremony — nothing is lost
    * and there is nothing to retry. It changes what the screen PROMISES, and that is all.
@@ -166,6 +235,34 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
 
   /** Whether a correction to this kind would still be accepted. The server decides; this reads it. */
   const canChange = (kind: PacketMarkKind): boolean => !pinnedKinds.value.has(kind);
+
+  /**
+   * Whether the mark going on the paper is one this browser cannot show — staged on a previous visit
+   * (C2). See `markStaged`.
+   *
+   * ⚠ **`markBlob` wins when it is set**, and the order matters: a driver who resumed and then chose a
+   * new style has replaced the staged row (one row per slot), so what the packet will carry is the
+   * blob in hand and the screen can show it. This is only true in the gap between arriving on a
+   * resumed link and making a new mark.
+   *
+   * ⚠ And `drawnMarkFailed` clears it, for `currentShowsDrawing`'s reason: if this session's staging
+   * failed, the typed name is what lands, and a sentence saying a picture is saved would be promising
+   * the document that lost.
+   */
+  const markCarriedOver = computed(
+    () => Boolean(markStaged?.value) && markBlob.value === null && !drawnMarkFailed.value,
+  );
+
+  /**
+   * Whether a picture of a signature will be printed, whatever this browser happens to be holding.
+   *
+   * ⚠ The union of "made here" and "already on the server", because the packet cannot tell those apart
+   * either — `signatureMarkBytes` reads one row and the overlay embeds whatever it finds. Anything on
+   * screen describing what the paper will carry reads this rather than `markBlob`.
+   */
+  const markWillPrint = computed(
+    () => !drawnMarkFailed.value && (markBlob.value !== null || Boolean(markStaged?.value)),
+  );
 
   /**
    * How many places already carry a mark of this kind (A4) — the REASON a locked mark gives.
@@ -227,11 +324,17 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
    * the packet itself asks for a printed name beside the mark on page 22 (`Driver name Print`). What
    * D-PKT13 adds is which of the two appears on the paper.
    *
-   * ⚠ The drawn mark is awaited and its failure does not stop the walk — A8b's rule, and the reason
-   * is the same one: a PNG that will not upload must not stand between a driver and twenty-two
-   * signatures on a document their job depends on. If it fails they have still signed, with their
-   * typed name. ⚠ **But it is RECORDED now** (`drawnMarkFailed`, A3): it was swallowed in silence
-   * until 2026-09-18, so the screen went on promising a drawing the filed packet would not carry.
+   * ⚠ The mark is awaited and its failure does not stop the walk — A8b's rule, and the reason is the
+   * same one: a PNG that will not upload must not stand between a driver and twenty-two signatures on
+   * a document their job depends on. If it fails they have still signed, with their typed name.
+   * ⚠ **But it is RECORDED now** (`drawnMarkFailed`, A3): it was swallowed in silence until
+   * 2026-09-18, so the screen went on promising a drawing the filed packet would not carry.
+   *
+   * ⚠ **This is where the PNG is staged and it is staged ONCE, for all three tabs** (C2). The bytes
+   * are produced by the tab — `renderStyledMark`, the pad, or `normaliseUploadedMark` — and arrive
+   * here as one `markBlob`, so there is exactly one upload, one slot and one failure path however the
+   * driver chose to sign. `application_captures` holds one row per slot, so a second staging call
+   * would replace the first rather than adding to it, which is what makes switching tabs safe.
    */
   async function adopt(): Promise<boolean> {
     if (adoptedName.value.trim().length < 2) return false;
@@ -239,7 +342,7 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
     // initial is what somebody with one legal name has, and `applicationPacketMarkSchema` accepts
     // `min(1)`. Refusing it here would be this client inventing a rule the contract does not have.
     if (needsInitials.value && adoptedInitials.value.trim().length < 1) return false;
-    if (style.value === "drawn" && !markBlob.value) return false;
+    if (markRequiredFor(style.value) && !markBlob.value) return false;
     const blob = markBlob.value;
     if (blob) {
       working.value = true;
@@ -252,6 +355,23 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
       } finally {
         working.value = false;
       }
+    } else if (!markStaged?.value) {
+      // ⚠ A STYLED mark with nothing to stage, which `markRequiredFor` lets through on purpose. The
+      // rasteriser handed back null — no 2D context, or `toBlob` refused — so the packet will print
+      // the typed name, and this is the one place that can still say so before the driver is shown a
+      // preview. Setting the flag here rather than in the component keeps the promise and the bytes
+      // decided in the same place: a screen cannot be told a picture exists that this function knows
+      // it never staged.
+      //
+      // ⚠ **`markStaged` guards it, and that guard is a defect found by RENDERING and by nothing else.**
+      // A resumed link whose marks the server has already pinned reaches `adopt()` through *Carry on
+      // signing* with an empty `markBlob` — correctly, because the picture was staged on the previous
+      // visit and there is nothing to send. Without this clause that reads as a failure: the flag went
+      // up, `markWillPrint` went down, and every one of the remaining stops previewed the typed name
+      // under *"We will put this on the page"* while the packet carried the driver's own signature. The
+      // suite was green for it, because a composable cannot tell that two refs it set are describing
+      // different links. Walked in the browser on 2026-09-19, which is the only way it surfaced.
+      drawnMarkFailed.value = true;
     }
     adopted.value = true;
     /**
@@ -312,7 +432,10 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
     alreadyAdopted,
     markFor,
     style,
+    styleId,
     markBlob,
+    markCarriedOver,
+    markWillPrint,
     pinnedKinds,
     canChange,
     placesWithMark,

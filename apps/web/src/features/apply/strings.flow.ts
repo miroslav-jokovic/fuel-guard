@@ -182,9 +182,38 @@ export const APPLY_FLOW_COPY = {
     adoptHeadingWithInitials: "Your signature and initials on the application",
     adoptIntro: (carrier: string, count: number): string =>
       `${carrier} has approved your application. It now needs your signature in ${count} places on their own form. Give your signature once below — then we take you to each place, one at a time, and show you what you are signing.`,
+    /**
+     * ⚠ The three tabs (C2). *"Type my name"* is gone, and not because the words were wrong: it named
+     * a behaviour that no longer exists. Every tab now produces a picture of a signature and the
+     * picture is what the packet prints (D-HUI14), so a tab called *type* would be promising the one
+     * thing the form stopped doing.
+     */
     styleLabel: "How would you like to sign?",
-    styleTyped: "Type my name",
-    styleDrawn: "Draw my signature",
+    styleStyled: "Choose a style",
+    styleDrawn: "Draw it",
+    styleUploaded: "Upload",
+    styleChooseLabel: "Pick the hand that looks most like yours",
+    /** Shown in the options before the driver has typed anything. A name, so the hands are comparable. */
+    styleSampleName: "John Smith",
+    stylePreviewLabel: "This is what goes on the form",
+    uploadLabel: "Upload a picture of your signature",
+    uploadHint:
+      "A photo or a scan. Sign a white sheet in dark ink, take a picture of it, and we trim the paper away.",
+    uploadChoose: "Choose a picture",
+    uploadReplace: "Choose a different picture",
+    uploadReading: "Reading…",
+    uploadPreviewLabel: "This is what goes on the form",
+    uploadNeeded: "Choose a picture above, or pick a style instead.",
+    /**
+     * ⚠ Three outcomes and three sentences, because they need three different next actions: make the
+     * file smaller, try a different file, or sign the sheet harder. One "that did not work" would be
+     * true of all three and useful for none.
+     */
+    uploadFailed: {
+      too_large: "That picture is too big to read on a phone. Try a smaller one, or draw your signature instead.",
+      unreadable: "We could not read that picture. Try a photo or a scan in PNG or JPEG.",
+      blank: "We could not find a signature in that picture. Sign a white sheet in dark ink and photograph it in good light.",
+    },
     adoptLabel: "Type your full name",
     adoptHint: "Type it as it appears on your licence. This is what goes on the form.",
     /**
@@ -210,6 +239,20 @@ export const APPLY_FLOW_COPY = {
       "You adopted this when you started. We will keep using it for the places that are left.",
     resumedInitialsLabel: "Your initials",
     resumedAction: "Carry on signing",
+    /**
+     * ⚠ What a resumed link is told about a signature picture it cannot show (C2).
+     *
+     * The picture is on the server, staged on a previous visit, and the apply bundle serves capture
+     * dates rather than bytes — so there is nothing to put on the screen. ⚠ **A sentence is the honest
+     * answer and the typed name is not**: falling back to it would preview the wrong mark, with no
+     * caveat, on every remaining page of a walk the driver cannot see the rest of.
+     *
+     * ⚠ It says *saved*, not *uploaded*, and it does not invite a change. The mark may already be
+     * pinned on the server, and offering to replace something `record_packet_mark` would refuse is the
+     * shape of advice a driver cannot act on. Where a change IS still possible, the Change button that
+     * reads `canChange` is what offers it (A4).
+     */
+    markCarriedOver: "Your signature picture is saved. We will keep putting it on the pages that are left.",
     /**
      * ⚠ The confirm step (A4) — the screen between the last keystroke and the first signature.
      *
@@ -287,11 +330,16 @@ export const APPLY_FLOW_COPY = {
      * ⚠ **It does not apologise and it does not offer a retry.** Nothing here is broken from the
      * driver's side and there is nothing for them to press: the typed name is the signature of record
      * either way (D-APP8), so the only useful sentence says which mark is going on the form and that
-     * they can carry on. Changing the mark once adopted is C2's job, and inviting it here would be
-     * offering a button that does not exist.
+     * they can carry on.
+     *
+     * ⚠ **C2 made it say "signature" rather than "drawing", because there are now three ways to reach
+     * it** — a style that would not rasterise and an upload that could not be read land here exactly as
+     * a drawing that would not stage does, and a driver who chose a style has no drawing to be told
+     * about. It still names the consequence rather than the cause: what matters to them is which mark
+     * the form is about to carry.
      */
     drawFailed:
-      "We could not save your drawing, so your typed name goes on the form instead. "
+      "We could not save your signature picture, so your typed name goes on the form instead. "
       + "Everything you sign still counts — carry on.",
     resumed: (n: number): string =>
       n === 1 ? "You have already signed 1 place." : `You have already signed ${n} places.`,

@@ -68,6 +68,11 @@ export function usePacketCeremony(
      * half, which is where the rule about resumed links lives.
      */
     adopted?: Ref<{ signature: string | null; initials: string | null } | null | undefined>;
+    /**
+     * Whether a `signature_mark` was already staged on a previous visit (C2). Read by the adoption
+     * half, whose `markStaged` carries the whole argument for why a resumed walk needs it.
+     */
+    markStaged?: Ref<boolean>;
   } = {},
 ) {
   const working = ref(false);
@@ -149,6 +154,7 @@ export function usePacketCeremony(
     outstanding,
     working,
     served: options.adopted,
+    markStaged: options.markStaged,
     stage: options.stage,
     io: options.io,
   });
@@ -217,13 +223,20 @@ export function usePacketCeremony(
    *
    * ⚠ It stays on the WALK side of Q-PKT11's seam because it is about the stop the driver is standing
    * on — one of the two places the two halves meet.
+   *
+   * ⚠ **C2 removed the `style === "drawn"` term, and removing it was the point rather than a tidy-up.**
+   * All three tabs now stage a PNG (D-HUI14), so which tab the driver used stopped being evidence
+   * about what the paper will carry — the only question left is whether a picture exists and whether
+   * this line takes one. Keeping the term would have made a styled mark preview as typed text while
+   * the packet printed the picture, which is the same contradiction the comment above records, pointing
+   * the other way.
+   *
+   * ⚠ **And it asks `markWillPrint`, not `markBlob`** — a resumed link has a staged mark on the server
+   * and nothing in the browser, and `markBlob` alone would say *no picture* about a walk whose every
+   * remaining page is about to get one. See `markStaged`.
    */
   const currentShowsDrawing = computed(
-    () =>
-      adoption.style.value === "drawn"
-      && !adoption.drawnMarkFailed.value
-      && adoption.markBlob.value !== null
-      && current.value?.mark === "signature",
+    () => adoption.markWillPrint.value && current.value?.mark === "signature",
   );
 
   /** Apply the adopted mark at the stop the driver is standing on. */

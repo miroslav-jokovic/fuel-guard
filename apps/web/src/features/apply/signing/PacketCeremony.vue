@@ -47,6 +47,15 @@ const props = defineProps<{
   carrier: string;
   /** What this link has already adopted (Q-PKT9). Null before the first mark, which is the norm. */
   adoptedMarks?: { signature: string | null; initials: string | null } | null;
+  /**
+   * Whether a signature picture was staged on a previous visit (C2).
+   *
+   * ⚠ Passed in rather than derived here: `SignOffScreen` holds the served captures and already knows
+   * the slot vocabulary, and a second reader of `captures` on this side would be a second place the
+   * fact *"this link has a mark"* is decided. `usePacketAdoption`'s `markStaged` carries why it is
+   * needed at all.
+   */
+  markStaged?: boolean;
 }>();
 /** Carries the adopted mark, because it is the §391.21(b)(12) signature now (D-PKT15). */
 const emit = defineEmits<{ done: [signedName: string] }>();
@@ -55,7 +64,10 @@ const copy = APPLY_COPY.packet;
 const ceremony = usePacketCeremony(
   computed(() => props.token),
   computed(() => props.stops),
-  { adopted: computed(() => props.adoptedMarks ?? null) },
+  {
+    adopted: computed(() => props.adoptedMarks ?? null),
+    markStaged: computed(() => Boolean(props.markStaged)),
+  },
 );
 
 /** What this stop puts on the page — read from the composable so the preview cannot disagree. */
@@ -273,8 +285,19 @@ async function signCurrent(): Promise<void> {
       <p class="text-sm text-ink-muted">{{ applyingLabel }}</p>
       <!-- ⚠ The drawing itself, at the stops that carry it. `alt` is empty on purpose: the sentence
            above already says what this is, and "your drawn signature" read out twice is noise. -->
+      <!-- ⚠ A picture IS going on this line and this browser has not got it — it was staged on a
+           previous visit and the bundle serves capture dates, never bytes (`markStaged`). So the
+           screen says so, in a sentence. ⚠ **It must not fall through to the typed name below**: that
+           preview would be of the wrong mark, shown with no caveat, which is precisely the failure
+           C2 exists to close, arriving through the one door C2 itself opened for every driver. -->
+      <p
+        v-if="ceremony.currentShowsDrawing.value && !drawnUrl && ceremony.markCarriedOver.value"
+        class="text-sm text-ink-secondary"
+      >
+        {{ copy.markCarriedOver }}
+      </p>
       <img
-        v-if="ceremony.currentShowsDrawing.value && drawnUrl"
+        v-else-if="ceremony.currentShowsDrawing.value && drawnUrl"
         :src="drawnUrl"
         alt=""
         class="mt-1 h-16 w-auto max-w-full object-contain object-left"
@@ -334,10 +357,21 @@ async function signCurrent(): Promise<void> {
 </template>
 
 <style scoped>
-/* Cursive is a system-stack keyword, so this needs no webfont and cannot fail to load on a
-   truck-stop connection. Same face as `SigningCeremony`'s, deliberately: one signature, shown the
-   same way wherever the driver meets it. */
+/*
+ * ⚠ **The TYPED-TEXT face, matching `StandardFonts.HelveticaOblique` — see `PacketAdoption.vue`'s
+ * copy of this rule**, which carries the measurement that produced it.
+ *
+ * ⚠ **Duplicated rather than lifted, and that is a deliberate two-line copy rather than an oversight.**
+ * `<style scoped>` cannot be shared between components, and the alternatives are worse than the
+ * duplication: a global class puts a printing decision in the design system where `lint:tokens` owns
+ * type, and a wrapper component adds a node to two screens to carry two declarations. ⚠ The pair must
+ * move together — both are reached only when a mark falls back to `drawText`, and a screen showing
+ * one face while its neighbour shows another is the disagreement this step exists to end.
+ * ⚠ `SigningCeremony.vue` keeps the brush script on purpose: it is a different document, rendered by
+ * pdfkit rather than by `packetOverlay`, and it makes no claim that its preview is the print.
+ */
 .signature-preview {
-  font-family: ui-rounded, "Segoe Script", "Brush Script MT", cursive;
+  font-family: Helvetica, Arial, "Liberation Sans", sans-serif;
+  font-style: oblique 12deg;
 }
 </style>

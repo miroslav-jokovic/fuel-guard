@@ -9,6 +9,9 @@ import {
 import type { ApplyPacketStop } from "@/features/apply/useApplication";
 import type { usePacketCeremony } from "@/features/apply/signing/usePacketCeremony";
 import SignaturePad from "@/features/apply/signing/SignaturePad.vue";
+import PacketMarkStyles from "@/features/apply/signing/PacketMarkStyles.vue";
+import PacketMarkUpload from "@/features/apply/signing/PacketMarkUpload.vue";
+import { markRequiredFor, type AdoptedMarkStyle } from "@/features/apply/signing/usePacketAdoption";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -43,22 +46,54 @@ const emit = defineEmits<{ done: [signedName: string] }>();
 const copy = APPLY_COPY.packet;
 const ceremony = computed(() => props.ceremony);
 
+/**
+ * DocuSign's three, in DocuSign's order (C2).
+ *
+ * ⚠ **Choose a style comes first because it is the one that needs nothing from the driver.** They have
+ * already typed their name for `signed_name`; the default face renders it before they press anything,
+ * so the fastest path through this screen is to look at it and carry on. Draw and Upload are for
+ * somebody who wants their own hand, which is a deliberate act and belongs behind a deliberate tap.
+ */
 const STYLES = [
-  { value: "typed", label: copy.styleTyped },
+  { value: "styled", label: copy.styleStyled },
   { value: "drawn", label: copy.styleDrawn },
+  { value: "uploaded", label: copy.styleUploaded },
 ] as const;
 
-/** D-PKT13: the driver picks how the mark is made, once, before the first place. */
+/**
+ * D-PKT13: the driver picks how the mark is made, once, before the first place.
+ *
+ * ⚠ **Switching tabs throws the previous tab's picture away, and it must.** All three converge on one
+ * `markBlob` and one `signature_mark` row, so a drawing left behind after a switch to Upload would be
+ * staged and printed while the screen showed an empty file picker — the screen-says-one-thing,
+ * form-carries-another failure this whole step exists to close. The tabs each re-emit their own mark
+ * on mount, so the one on screen is always the one in hand.
+ */
 const style = computed({
   get: () => ceremony.value.style.value,
   set: (v: string) => {
-    ceremony.value.style.value = v === "drawn" ? "drawn" : "typed";
+    const next = (STYLES.find((s) => s.value === v)?.value ?? "styled") as AdoptedMarkStyle;
+    if (next === ceremony.value.style.value) return;
+    ceremony.value.style.value = next;
+    ceremony.value.markBlob.value = null;
+  },
+});
+
+const styleId = computed({
+  get: () => ceremony.value.styleId.value,
+  set: (v: string) => {
+    ceremony.value.styleId.value = v;
   },
 });
 
 const nameReady = computed(() => ceremony.value.adoptedName.value.trim().length >= 2);
-const drawReady = computed(
-  () => style.value !== "drawn" || ceremony.value.markBlob.value !== null,
+/**
+ * ⚠ Asked of `markRequiredFor` rather than spelled out again here. Which tabs demand an actual picture
+ * is a rule about what a failure means — the composable's header argues it — and a copy of the list in
+ * a template is a copy that is right until somebody adds a fourth tab.
+ */
+const markReady = computed(
+  () => !markRequiredFor(style.value) || ceremony.value.markBlob.value !== null,
 );
 /** ⚠ The same length the composable enforces, and the same reason: one initial is a real one. */
 const initialsReady = computed(
@@ -114,6 +149,13 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
     <div>
       <p class="text-sm text-ink-muted">{{ copy.applyingTyped }}</p>
       <p class="signature-preview text-2xl text-ink">{{ ceremony.adoptedName.value }}</p>
+      <!-- ⚠ A resumed link may also have a PICTURE staged, and the name above is not it. Said rather
+           than shown, because the bundle serves capture dates and never bytes (`markStaged`) — and
+           left unsaid, this panel would show a driver the typed name under the heading *"The mark you
+           are signing with"* while their own signature picture went on the remaining pages. -->
+      <p v-if="ceremony.markCarriedOver.value" class="mt-1 text-sm text-ink-secondary">
+        {{ copy.markCarriedOver }}
+      </p>
     </div>
 
     <div v-if="ceremony.needsInitials.value">
@@ -183,32 +225,38 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
       <p v-if="!initialsReady" class="text-sm text-ink-secondary">{{ copy.initialsNeeded }}</p>
     </template>
 
-    <template v-if="style === 'typed'">
-      <p v-if="nameReady" class="text-sm text-ink-muted">{{ copy.applyingTyped }}</p>
-      <!-- A script face, so it reads as a signature. It is a rendering of the typed name and nothing
-           more — the legally load-bearing artifact is the row the server writes (D-APP8). -->
-      <p v-if="nameReady" class="signature-preview text-2xl text-ink">
-        {{ ceremony.adoptedName.value }}
-      </p>
-    </template>
+    <!-- ⚠ Shown only once there is a name worth drawing. The picker's whole job is to show the
+         driver's OWN name in four hands, and four rows of a placeholder is a choice between
+         specimens rather than between signatures. -->
+    <PacketMarkStyles
+      v-if="style === 'styled' && nameReady"
+      v-model="styleId"
+      :name="ceremony.adoptedName.value"
+      @change="ceremony.markBlob.value = $event"
+    />
 
     <!-- ⚠ The pad's OWN label and hint are replaced rather than a second line printed above it. Its
          defaults are A5's — "Draw it too, if you like", "Optional" — and here the drawing is the
          mark the driver chose, so the pad would have been telling them it was optional while the
          button below stayed disabled. -->
-    <template v-else>
+    <template v-else-if="style === 'drawn'">
       <SignaturePad
         :label="copy.drawLabel"
         :hint="copy.drawHint"
         @change="ceremony.markBlob.value = $event"
       />
-      <p v-if="!drawReady" class="text-sm text-ink-secondary">{{ copy.drawNeeded }}</p>
+      <p v-if="!markReady" class="text-sm text-ink-secondary">{{ copy.drawNeeded }}</p>
     </template>
+
+    <PacketMarkUpload
+      v-else-if="style === 'uploaded'"
+      @change="ceremony.markBlob.value = $event"
+    />
 
     <div class="flex justify-end">
       <BaseButton
         variant="primary"
-        :disabled="ceremony.working.value || !nameReady || !initialsReady || !drawReady"
+        :disabled="ceremony.working.value || !nameReady || !initialsReady || !markReady"
         @click="adoptAndStart"
       >
         {{ ceremony.working.value ? copy.working : copy.adoptAction }}
@@ -236,12 +284,25 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
 
     <div>
       <p class="text-sm text-ink-muted">{{ copy.confirmSignatureLabel }}</p>
+      <!-- ⚠ No longer gated on `style === 'drawn'` (C2). All three tabs produce the picture the packet
+           prints, so the question is whether there IS one — asking which tab made it would have hidden
+           a styled mark behind a preview of the typed name it was made from. -->
+      <!-- ⚠ `h-10`, and the number is DERIVED rather than chosen: the overlay draws a mark at up to
+           `DRAWN_MARK_MAX_HEIGHT` (18pt) and typed text at `TYPED_MARK_SIZE` (11pt), so on paper a
+           signature stands about 1.6× the initials beside it. The initials below render at `text-2xl`
+           (24px), and 24 × 18/11 ≈ 40px. At the `h-16` a drawn mark used to get, the signature read
+           nearly four times the initials — which on the one screen that says *"these go on the form
+           exactly as they look here"* is the preview disagreeing with the paper about proportion
+           while agreeing about everything else. -->
       <img
-        v-if="style === 'drawn' && !ceremony.drawnMarkFailed.value && drawnUrl"
+        v-if="!ceremony.drawnMarkFailed.value && drawnUrl"
         :src="drawnUrl"
         alt=""
-        class="mt-1 h-16 w-auto max-w-full object-contain object-left"
+        class="mt-1 h-10 w-auto max-w-full object-contain object-left"
       />
+      <p v-else-if="ceremony.markCarriedOver.value" class="text-sm text-ink-secondary">
+        {{ copy.markCarriedOver }}
+      </p>
       <p v-else class="signature-preview text-2xl text-ink">{{ ceremony.adoptedName.value }}</p>
     </div>
 
@@ -267,10 +328,26 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
 </template>
 
 <style scoped>
-/* Cursive is a system-stack keyword, so this needs no webfont and cannot fail to load on a
-   truck-stop connection. Same face as `SigningCeremony`'s, deliberately: one signature, shown the
-   same way wherever the driver meets it. */
+/*
+ * ⚠ **This is the TYPED-TEXT face, and it is an oblique sans because that is what the packet prints.**
+ *
+ * It used to be a brush script — `ui-rounded, "Segoe Script", "Brush Script MT", cursive` — chosen so
+ * a typed name would "read as a signature". Measured on 2026-09-19 by rendering `p03` with a typed
+ * mark and rasterising it: `renderPacketOverlay` draws that branch in `StandardFonts.HelveticaOblique`,
+ * a plain slanted sans. So the screen showed a brush script, the paper carried oblique Helvetica, and
+ * `confirmBody` sat over the pair promising *"These go on the form exactly as they look here."*
+ *
+ * ⚠ Everywhere a mark is PRINTED as a picture the preview is now the picture itself (D-HUI14), so this
+ * face is reached in exactly two places, and in both of them it is correct: the three initials lines,
+ * which `takesDrawing` has always excluded (Q-HUI14), and a signature whose staging failed and which
+ * therefore falls back to `drawText` (A8b, `drawnMarkFailed`).
+ *
+ * ⚠ A system stack, so it needs no webfont and cannot fail to load on a truck-stop connection.
+ * Helvetica is named first because it IS the printed face on any machine that has it; the rest are the
+ * usual metric-compatible stand-ins, and `sans-serif` is the floor.
+ */
 .signature-preview {
-  font-family: ui-rounded, "Segoe Script", "Brush Script MT", cursive;
+  font-family: Helvetica, Arial, "Liberation Sans", sans-serif;
+  font-style: oblique 12deg;
 }
 </style>

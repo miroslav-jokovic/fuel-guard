@@ -57,6 +57,21 @@ const copy = APPLY_COPY.signOff;
 const packetSignedHere = ref(false);
 
 /**
+ * Whether a signature picture is already staged on this link (C2).
+ *
+ * ⚠ Derived here because this component already holds the served captures and already speaks the slot
+ * vocabulary; the ceremony takes the answer as a boolean rather than the array, so the fact *"this
+ * link has a mark"* is decided in one place. `usePacketAdoption`'s `markStaged` carries why a resumed
+ * walk cannot do without it.
+ *
+ * ⚠ **The slot is read from the served rows, not assumed from `adoptedMarks`.** They are different
+ * facts: `record_packet_mark` pins a NAME, and a driver whose name is pinned may still have had their
+ * picture fail to stage — in which case the packet prints the typed name and saying otherwise would
+ * be the promise `drawnMarkFailed` exists to withdraw.
+ */
+const markStaged = computed(() => props.captures.some((c) => c.slot === "signature_mark"));
+
+/**
  * The walk finishing IS the certification (D-PKT15, owner 2026-09-14).
  *
  * ⚠ **`certified` and `signed_name` are still written, and must be.** They are `driverApplicationSchema`
@@ -109,6 +124,7 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
       :stops="[...stops]"
       :carrier="carrier"
       :adopted-marks="adoptedMarks ?? null"
+      :mark-staged="markStaged"
       @done="packetSigned"
     />
   </div>
