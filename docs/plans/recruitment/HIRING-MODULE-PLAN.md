@@ -2670,6 +2670,55 @@ every time.
   targeted (10/10) and per-package (2053/2053). §6 of the handoff records it as undiagnosed and not
   this change; nothing here touches that file.
 
+- **2026-09-19 — Q-HUI14, schema half DONE (#900, migration 0346). The writer is OWED and is held on
+  purpose.** C2 left the three initials lines printing typed `StandardFonts.HelveticaOblique` while
+  every signature became a picture; §8's Q-HUI14 recommended candidate (a) and the owner approved full
+  parity the same day. 0346 widens `application_captures.slot` to accept `initials_mark` and **names
+  the value nowhere else**.
+
+  ⚠ **The split was applied BY HAND, because no gate is watching.** `lint:migration-ordering` tracks
+  added COLUMNS and renames; widening a CHECK adds neither, so it passes a PR that ships both halves.
+  And the hazard runs opposite to the #430 outage that gate was built for — that was a READ against a
+  column the database did not have yet, this would be a WRITE of a value the constraint does not accept
+  yet. Railway serves a merge ~2m44s before `migrate.yml` applies, so shipping the staging call here
+  would have handed every applicant adopting a mark a Postgres 500 for that window. ⚠ **The next reader
+  should generalise this**: [[hold-a-function-reader-behind-its-migration]] already records that the
+  gate cannot see functions; it cannot see CHECK values either, and a WRITE hazard is invisible to a
+  gate that only models reads.
+
+  ⚠ **A seventh slot rather than reusing `other`, and the matrix DEMONSTRATES why.**
+  `application_captures` holds one row per slot (0230's unique index), so two marks sharing a slot
+  overwrite each other — adopting initials into `other` would silently delete the signature picture and
+  file nineteen typed lines beside three drawn ones. `application-captures.test.mjs` now stages
+  `other` twice directly beneath the two marks coexisting, so the hazard is shown rather than described.
+  ⚠ `initials_mark` is NOT added to `APPLICATION_CAPTURE_REQUESTED`: that list is what the capture
+  screen asks a driver to photograph, and both marks are written by the signing ceremony.
+
+  ⚠ **The new block stages onto its OWN invitation, and that is not tidiness.** Two assertions above it
+  count every row in the table (*"and its delete matches nothing either"*) and every row on `INV`
+  (*"the staged rows survive the submission"*). Adding five marks to `INV` made both fail, and
+  loosening either — turning an exact count into a comparison — would have retired what they actually
+  pin: RLS deny-all, and staged rows surviving for the retention rule to collect.
+
+  ⚠ **The refusal is CAUGHT rather than awaited bare, which is the difference between a red matrix and
+  a DEAD one.** With `initials_mark` taken back out of 0346 the insert raises 23514; an uncaught throw
+  kills the process before the RESULT line, which `run-tests.mjs` reads as *"did not execute"*. Held,
+  the same mutation fails one named assertion and the other forty still report.
+
+  **Mutations: two run, two red** — the value left out of the CHECK, and the old CHECK never dropped so
+  both stay live. Each gives `RESULT: 38 passed, 3 failed` with `23514` in the message.
+  **Gates:** all green, including `lint:table-writers` carrying the regenerated `schema.generated.sql`,
+  `lint:schema-snapshot`, `lint:matrix-exit` and `check-rls`; `pnpm test` all suites, 71 matrices.
+
+  **What the writer half owes** — `initialsMark` travelling beside `drawnMark` through `sources.ts`,
+  `packetOverlay.ts` (picking by `PacketPlacement.mark`, never by page number), `packetDocument.ts`,
+  `preview.ts`, `file.ts` and `applicationReadingCopy.ts`; `initials_mark` added to the four exhaustive
+  `Record<ApplicationCaptureSlot, …>` maps in `applicationCaptureContract.ts`; and a second mark-maker
+  on the adoption screen. ⚠ **A3's rule and D-PKT6 both bind it**: the SIGNATURE picture must never
+  land on an initials line, and the initials must never be derived from the signature — so a styled
+  initials mark renders the separately-typed `adoptedInitials` in the chosen face (presentation, not
+  derivation), while Draw and Upload need a second control each.
+
 ---
 
 ## 11. Sources
