@@ -2180,6 +2180,34 @@ every time.
   six-hourly pass with the old rule. `f2b142e4…` — the invitation measured at eighteen hours from
   rotation — is excluded by the fold now, not by the flag.
 
+- **2026-09-18, night — A5a DONE. `sign_token_hash` exists; nothing reads it.** Migration **0345**,
+  column only, on `application_invitations`. A5b is the reader and ships in the next merge — Railway
+  serves a merge ~2m44s before `migrate.yml` applies its schema, so a column and its first reader
+  cannot travel together (`lint:migration-ordering`). Nullable, because it is minted at approval and
+  every row alive today has none; unique **where not null**, because `resolveInvitation` will look an
+  invitation up by it and two rows sharing a value would make `.maybeSingle()` answer neither — a
+  driver holding a good link told it is invalid, with no trace of why.
+
+  ⚠ **A mutation came back GREEN and the test's comment, not the code, was the thing at fault.**
+  Dropping the `where sign_token_hash is not null` predicate — the obvious mutation — left all four
+  new matrix assertions passing, and the first draft of that comment had claimed it would refuse the
+  second unapproved invitation in the fleet. It would not: nulls are distinct to a Postgres unique
+  index unless it says `nulls not distinct`, so the partial predicate buys INTENT and index size, not
+  behaviour. The comment now says that, measured. The mutation that does bite is removing the
+  uniqueness itself, which takes down *"but two may not share one sign token"*.
+
+  ⚠ **And the nullable half is covered by the matrix FILE, not by the line asserting it.** Every
+  invitation `application-intake.test.mjs` creates has no sign token, so `nulls not distinct` (or
+  `not null` on the column) kills the run at the second `invite()` call, hundreds of lines before the
+  new block — no named failure, no `RESULT` line, which `pnpm test` treats as a failed matrix. The
+  assertion is kept regardless: a reader should be able to see that many nulls is the intended state
+  rather than something nobody considered.
+
+  **Still true of the code as merged:** three places — `applicationApprovalNotice.ts`'s header,
+  `renderApplicationApprovedEmail` (D-AX14) and the waiting screen's *"keep this link"* promise —
+  argue that the approval email carries no link. They are RIGHT until A5b lands, because A5a adds no
+  behaviour. A5b amends them with a decision id, and must, or the repo argues against itself.
+
 ---
 
 ## 11. Sources
