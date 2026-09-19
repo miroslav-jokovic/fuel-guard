@@ -176,9 +176,13 @@ const sizeLabel = computed(() => {
         {{ loadError ?? "That document could not be opened." }}
       </p>
 
+      <!-- ⚠ The SOURCE is the caller's, because the two rendered documents are drawn from different
+           things: the application preview from the answers on file, B2's permissions PDF from the
+           signed instruments. A caption naming the wrong one tells a reader they are holding
+           something they are not. -->
       <p class="text-xs text-ink-muted">
-        Rendered from the answers on file as they are now. It is not a stored copy, so it carries no
-        file hash.
+        Rendered from {{ rendered?.source ?? "the answers on file" }} as they are now. It is not a
+        stored copy, so it carries no file hash.
       </p>
     </div>
 

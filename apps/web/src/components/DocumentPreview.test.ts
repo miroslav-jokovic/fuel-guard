@@ -50,13 +50,16 @@ function mountPreview(doc: DocumentRow) {
 }
 
 /** A document the API renders on demand: a path, a filename, no row and no hash (B8). */
-function mountRendered(path = "/api/recruitment/applications/inv-1/preview.pdf") {
+function mountRendered(
+  path = "/api/recruitment/applications/inv-1/preview.pdf",
+  source?: string,
+) {
   setActivePinia(createPinia());
   return mount(DocumentPreview, {
     props: {
       open: true,
       label: "Application preview",
-      rendered: { path, filename: "application-preview.pdf" },
+      rendered: { path, filename: "application-preview.pdf", source },
     },
     global: { stubs: MODAL_STUB },
   });
@@ -125,6 +128,26 @@ describe("DocumentPreview, a document with no row (B8)", () => {
     await settle(w);
     expect(fetchObjectUrl).toHaveBeenCalledWith("/api/recruitment/applications/inv-1/preview.pdf");
     expect(w.find("iframe").attributes("src")).toBe("blob:rendered-1");
+  });
+
+  /**
+   * ⚠ The caption is the sentence that tells a reader what they are holding, and the two rendered
+   * documents are drawn from different things — the application preview from the answers on file,
+   * B2's permissions PDF from the signed instruments. Both halves are asserted: a component that
+   * ignored `source` would pass the default case for ever.
+   */
+  it("names what it was drawn from, which is not the same for both rendered documents", async () => {
+    const preview = mountRendered();
+    await settle(preview);
+    expect(preview.text()).toContain("Rendered from the answers on file");
+
+    const permissions = mountRendered(
+      "/api/recruitment/applications/inv-1/permissions.pdf",
+      "the instruments this applicant signed",
+    );
+    await settle(permissions);
+    expect(permissions.text()).toContain("Rendered from the instruments this applicant signed");
+    expect(permissions.text()).not.toContain("the answers on file");
   });
 
   it("claims no hash, and says why instead of printing a blank one", async () => {

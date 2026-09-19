@@ -2014,12 +2014,23 @@ every time.
   **The affordance, because the done-when is about a person** (§0, A11b's lesson): *Print what they
   have signed*, in `AuthorizationsPanel` behind the Permissions row, shown only once something has
   been signed — the API refuses an empty one in a sentence rather than printing five *"Not signed
-  yet"* rows, and a button whose only outcome is a refusal is worse than none. ⚠ **It opens a NEW
-  TAB and it should not stay one.** B8 (#886) teaches `DocumentPreview.vue` to take a rendered
-  document and was an open PR when this shipped, so this uses the path that exists on `main`; the
-  comment above the call says so and says what removes it. **Follow-up owed: one prop and a modal,
-  once B8 is on main** — leaving it would mean the office reads one rendered PDF beside the record
-  and another one somewhere else entirely.
+  yet"* rows, and a button whose only outcome is a refusal is worse than none. **It opens B8's
+  viewer, not a new tab**: B8 (#886) merged while this was in review, and B2 was rebased onto it
+  rather than shipping the tab it had been written against, which would have left the office reading
+  one rendered PDF beside the record and another one somewhere else entirely.
+
+  ⚠ **Two things B8's own step could not have found, both from the second caller arriving.** First,
+  the placement: `DocumentPreview` is rendered INSIDE this panel, which is a drawer body — as a
+  sibling of the step drawer, HeadlessUI would give both dialogs Escape and one press would close the
+  record too. That is B8's measured defect met a second time, in a different drawer, and no unit test
+  can see it (`Dialog` throws under jsdom). Walked in real Chrome at 1440 and 390: Escape closes the
+  viewer and the Permissions drawer is still there behind it. Second, the CAPTION: B8's viewer said
+  *"Rendered from the answers on file"* of every rendered document, which is true of `preview.pdf`
+  and false of this one — there are no answers on a document of signed instruments, and at step two
+  the applicant has usually not typed any. `RenderedDocument.source` now names it, defaulting to the
+  old sentence, and both branches are asserted. ⚠ It is the same defect as a footer digest naming the
+  wrong source, which this step had already fixed once on the PDF itself — the sentence telling a
+  reader what they are holding has to be about what they are holding.
 
   **Twelve api mutations and four web ones, all red for the right test, all written to compile** —
   ⚠ and the first attempt at six of them proved nothing: they failed `tsc` on an unused symbol, and

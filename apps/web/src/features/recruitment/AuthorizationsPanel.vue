@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   APPLICATION_RELEASE_ORDER,
   AUTHORIZATION_PURPOSE_LABELS,
@@ -9,8 +9,8 @@ import {
 import { AppButton, AppIcon } from "@silvicom/ui";
 import { CheckCircleIcon, ClockIcon } from "@silvicom/ui/icons";
 import { formatDateTime } from "@/lib/format";
-import { openPdf } from "@/lib/documentDownload";
-import { useToastStore } from "@/stores/toast";
+import DocumentPreview from "@/components/DocumentPreview.vue";
+import type { RenderedDocument } from "@/lib/documentDownload";
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -56,10 +56,8 @@ const props = defineProps<{
   invitationId?: string | null;
 }>();
 
-const toast = useToastStore();
-
 /**
- * Printing what the applicant has signed (B2).
+ * Reading what the applicant has signed (B2).
  *
  * ── WHY THE OFFICE NEEDS PAPER FOR THIS AT ALL ────────────────────────────────────────────────
  * Every screening act rests on one of these releases (`SCREENING_PREREQUISITES`), and until B2 the
@@ -68,30 +66,43 @@ const toast = useToastStore();
  * The application's own PDF carries them and does not exist until the driver certifies, which can be
  * a fortnight later or never.
  *
- * ⚠ Shown only once something has been signed, because the API refuses an empty one in a sentence
+ * ⚠ Offered only once something has been signed, because the API refuses an empty one in a sentence
  * rather than printing a sheet of "Not signed yet" rows — a button whose only outcome is a refusal is
  * worse than no button. The consent-only moment (they agreed to sign electronically and have signed
  * nothing else) lasts seconds and is the one state this hides a real document in.
+ *
+ * ── ⚠ THE VIEWER, NOT A NEW TAB (B8) ─────────────────────────────────────────────────────────
+ * `DocumentPreview` is this repo's sanctioned viewer and B8 taught it the second source: a document
+ * the API COMPOSES on every request, which has no `documents` row, no storage URL and no hash. That
+ * is exactly what this is. `openPdf` would have worked and would have taken the recruiter out of the
+ * record they are reading it against — and it would have left the office reading one rendered PDF
+ * beside the record and another one in a tab somewhere, which is the kind of divergence that only
+ * looks small one decision at a time.
  */
 const canPrint = computed(() => Boolean(props.invitationId) && props.rows.length > 0);
 
-async function openPermissions(): Promise<void> {
-  try {
-    /**
-     * ⚠ **A new tab, and it should not stay one.** B8 teaches `DocumentPreview.vue` — this repo's
-     * sanctioned viewer — to take a document the API renders on demand rather than a stored
-     * `DocumentRow`, which is exactly what this is; it was an open PR when B2 shipped, so this uses
-     * the path that exists on `main` today. **When B8 lands, this becomes that viewer**: it is one
-     * prop and a modal, not a rewrite, and leaving it a new tab afterwards would mean the office
-     * reads one rendered PDF beside the record and another one somewhere else entirely.
-     */
-    await openPdf(
-      `/api/recruitment/applications/${encodeURIComponent(props.invitationId ?? "")}/permissions.pdf`,
-    );
-  } catch (e) {
-    toast.push("error", e instanceof Error ? e.message : "That could not be opened.");
-  }
-}
+const viewing = ref(false);
+
+/**
+ * ⚠ Closed whenever the invitation changes. This panel is a drawer BODY — the step drawer swaps what
+ * it holds without unmounting — so a viewer left open would greet the next applicant with the last
+ * one's document. B8 met the same hazard on the review drawer and answered it the same way.
+ */
+watch(() => props.invitationId, () => {
+  viewing.value = false;
+});
+
+const permissionsDocument = computed<RenderedDocument | null>(() =>
+  props.invitationId
+    ? {
+        path: `/api/recruitment/applications/${encodeURIComponent(props.invitationId)}/permissions.pdf`,
+        filename: "permissions.pdf",
+        // Not "the answers on file", which is the viewer's default and true of the application
+        // preview: this document is drawn from the signed rows, and the PDF's own footer says so too.
+        source: "the instruments this applicant signed",
+      }
+    : null,
+);
 
 interface ReleaseRow {
   purpose: AuthorizationPurpose;
@@ -136,9 +147,22 @@ const releases = computed<ReleaseRow[]>(() =>
       </li>
     </ul>
 
-    <AppButton v-if="canPrint" size="sm" variant="secondary" @click="openPermissions">
+    <AppButton v-if="canPrint" size="sm" variant="secondary" @click="viewing = true">
       Print what they have signed
     </AppButton>
+
+    <!-- ⚠ Rendered INSIDE the drawer body this panel is, and that placement is load-bearing (B8,
+         measured 2026-09-18). HeadlessUI decides which dialog owns Escape from the DOM TREE, so a
+         viewer that is a SIBLING of the step drawer is equally "topmost" and one Escape press closes
+         both — throwing the recruiter out of the applicant record. Nested, Escape closes only the
+         viewer. No unit test in this repo can see it: `Dialog` throws under jsdom and is stubbed
+         wherever it appears, so this comment and a measurement are what hold it. -->
+    <DocumentPreview
+      :open="viewing"
+      label="Signed permissions"
+      :rendered="permissionsDocument"
+      @close="viewing = false"
+    />
 
     <p class="text-2xs text-ink-tertiary">
       The Clearinghouse query consent is not listed: it is given inside the FMCSA portal, not here.

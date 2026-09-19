@@ -32,7 +32,20 @@ const REVOKE_AFTER_MS = 60_000;
  * never stored, so it has no `documents` row and nothing §390.32(c) can be shown about it. A viewer
  * handed one of these must not print evidence it does not have (B8).
  */
-export type RenderedDocument = { path: string; filename: string };
+export type RenderedDocument = {
+  path: string;
+  filename: string;
+  /**
+   * What the viewer's caption says this was drawn FROM. Optional, and the default is the answers,
+   * which is what `preview.pdf` is drawn from.
+   *
+   * ⚠ Added by B2, whose document is drawn from the signed instruments and not from any answer — the
+   * caption is the sentence telling a reader what they are holding, and one that names the wrong
+   * source is the same defect as a footer digest naming the wrong source. Two callers, two sources,
+   * one component: the alternative was a sentence that is true of one of them.
+   */
+  source?: string;
+};
 
 /** Open the PDF in a new tab. Throws with the API's own sentence when it cannot be fetched. */
 export async function openPdf(path: string): Promise<void> {

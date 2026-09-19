@@ -4,8 +4,24 @@ import { createPinia, setActivePinia } from "pinia";
 import { APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue";
 
-const openPdf = vi.fn<(path: string) => Promise<void>>();
-vi.mock("@/lib/documentDownload", () => ({ openPdf: (p: string) => openPdf(p) }));
+const fetchObjectUrl = vi.hoisted(() => vi.fn(async () => "blob:permissions"));
+vi.mock("@/lib/api", () => ({ fetchObjectUrl, apiFetch: vi.fn() }));
+const openPdf = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/documentDownload", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  openPdf,
+}));
+
+/**
+ * ⚠ The VIEWER is mounted for real and only its `BaseModal` is stubbed — HeadlessUI's `Dialog`
+ * throws under this repo's jsdom, which is the same compromise B8 made on the review drawer.
+ * Stubbing `DocumentPreview` itself would leave the one thing this wiring can get wrong — which
+ * document it is handed — unasserted.
+ */
+const BaseModalStub = {
+  template: "<div v-if='open'><slot /><slot name='footer' /></div>",
+  props: ["open", "title", "size", "printable"],
+};
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -38,7 +54,10 @@ const ALL = APPLICATION_RELEASE_ORDER.map((purpose) => row({ purpose }));
 const INVITATION = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
 const render = (rows: AuthorizationDetail[], invitationId: string | null = INVITATION) =>
-  mount(AuthorizationsPanel, { props: { rows, loading: false, error: null, invitationId } });
+  mount(AuthorizationsPanel, {
+    props: { rows, loading: false, error: null, invitationId },
+    global: { stubs: { BaseModal: BaseModalStub } },
+  });
 
 const printButton = (wrapper: ReturnType<typeof render>) =>
   wrapper.findAll("button").find((b) => b.text().includes("Print what they have signed")) ?? null;
@@ -46,7 +65,7 @@ const printButton = (wrapper: ReturnType<typeof render>) =>
 beforeEach(() => {
   setActivePinia(createPinia());
   openPdf.mockReset();
-  openPdf.mockResolvedValue(undefined);
+  fetchObjectUrl.mockClear();
 });
 
 describe("what the office can finally see", () => {
@@ -99,13 +118,43 @@ describe("what the office can finally see", () => {
    * reachable only from here, so the assertion that matters is that pressing this asks for THIS
    * invitation's permissions — a driver-keyed path would be the other half of the decision recorded
    * in the route's header, silently undone.
+   *
+   * ⚠ And it opens BESIDE the releases rather than in a new tab (B8). `openPdf` is asserted NOT to
+   * have been called, because a viewer that opened correctly AND also opened a tab would satisfy
+   * every other assertion here.
    */
-  it("prints the permissions for the invitation it was given", async () => {
+  it("opens this invitation's permissions in the viewer, beside the releases", async () => {
     const wrapper = render(ALL);
+    const viewer = wrapper.findComponent({ name: "DocumentPreview" });
+    expect(viewer.props("open")).toBe(false);
+
     await printButton(wrapper)!.trigger("click");
-    expect(openPdf).toHaveBeenCalledWith(
+
+    expect(viewer.props("open")).toBe(true);
+    expect((viewer.props("rendered") as { path: string }).path).toBe(
       `/api/recruitment/applications/${INVITATION}/permissions.pdf`,
     );
+    expect(openPdf).not.toHaveBeenCalled();
+
+    // ⚠ And the caption names what this document is drawn from. The viewer's DEFAULT sentence —
+    // "the answers on file" — is true of the application preview and false of this: there are no
+    // answers on a document of signed instruments, and the applicant may not have typed one yet.
+    expect(wrapper.text()).toContain("Rendered from the instruments this applicant signed");
+  });
+
+  /**
+   * ⚠ This panel is a drawer BODY and the step drawer swaps what it holds without unmounting, so a
+   * viewer left open would greet the next applicant with the last one's document — which is worse
+   * than a stale screen: it is one person's signed instruments shown under another person's name.
+   */
+  it("closes the viewer when the drawer moves to another invitation", async () => {
+    const wrapper = render(ALL);
+    await printButton(wrapper)!.trigger("click");
+    expect(wrapper.findComponent({ name: "DocumentPreview" }).props("open")).toBe(true);
+
+    await wrapper.setProps({ invitationId: "another-invitation" });
+
+    expect(wrapper.findComponent({ name: "DocumentPreview" }).props("open")).toBe(false);
   });
 
   /**
