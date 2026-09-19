@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import express from "express";
 import { securityMiddleware } from "./appHttp.js";
+import { closeTestServer } from "./testing/httpServer.js";
 import { testEnv } from "./testing/testEnv.js";
 
 /**
@@ -23,6 +24,14 @@ import { testEnv } from "./testing/testEnv.js";
  * ⚠ The assertions name the two things the app actually frames rather than checking the directive is
  * merely present. A `frame-src 'self'` would be present, would look deliberate, and would be the
  * exact defect.
+ *
+ * ⚠ **The shutdown goes through `closeTestServer`, and the first draft of this file did it by hand.**
+ * `testServerTeardown.test.ts` forbids that and caught it — but only in CI. It passed locally,
+ * because that gate enumerates its targets with `git ls-files` and this file was still untracked. A
+ * source-scanning fitness function cannot see a file git has never heard of, so a new test file's
+ * first honest run against the gates is the one after `git add`.
+ * ⚠ It also greps the SOURCE TEXT, comments included: the first attempt at this note quoted the
+ * forbidden call inside backticks and stayed red.
  */
 async function cspOf(): Promise<Record<string, string[]>> {
   const app = express();
@@ -44,7 +53,10 @@ async function cspOf(): Promise<Record<string, string[]>> {
       }),
     );
   } finally {
-    server.close();
+    // ⚠ The helper, never a hand-rolled shutdown. `testServerTeardown.test.ts` forbids one across
+    // every suite in this package, because it waits on keep-alive sockets and hangs `afterAll` for
+    // the full hook timeout — and `fetch` above leaves exactly such a socket behind.
+    await closeTestServer(server);
   }
 }
 
