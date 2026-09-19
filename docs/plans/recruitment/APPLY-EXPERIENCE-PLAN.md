@@ -1110,3 +1110,28 @@ adjacent table rows conflict every time.
   a splice a correctness bug. And the form collects a WHOLE employer before saving, because the draft
   schema is `.partial()` at the top level only: an element present must satisfy
   `applicationEmployerSchema` in full, so a blank row saved now and filled in later would be refused.
+
+- 2026-09-18 — **D-AX15: the approval email carries a link, and the old one still works.** This is
+  D-AX14's own "third option", taken: *a second `sign_token_hash` column so both links work — the
+  honest fix, costed and declined for now … the upgrade path if inbox search proves to be a real
+  drop-off.* Built as A5a (migration **0345**, column only) and A5b (the readers), in two merges,
+  because a column and its first reader cannot travel together.
+  ⚠ **It AMENDS D-AX14 rather than reversing it.** That decision's objection had two halves, and
+  only one was ever about the email: *(a)* there was no link to send — 0220 stores a SHA-256 and the
+  plaintext existed once, at mint — and *(b)* rotating the token would break the waiting screen's
+  promise that "this link is where you will sign, and it still works". A second hash answers (a) and
+  leaves (b) untouched. `token_hash` is never written on this path; approval mints a fresh token
+  BESIDE it, `resolveInvitation` accepts either, and `APPLY_FLOW_COPY.handoff.waitingNote` stays true
+  word for word. Two doors, one application.
+  ⚠ **Minted once, ever.** The update carries `.is("sign_token_hash", null)`, because the plaintext
+  of a stored hash is unrecoverable and a second mint would silently kill a link already emailed. When
+  nothing can be stored the email falls back to the old copy that names the earlier email's subject
+  line — never a link whose hash is not on the row, which is the lockout this whole design avoids.
+  ⚠ **The text message was deliberately left alone.** Measured: `approvedSmsBody` with a real apply
+  URL runs 170–193 characters against a 160-character segment, and carriers bill per segment. The
+  nudge next door already pays that (199) because an abandoned form gives the driver nothing else to
+  act on. Here the existing sentence — *open the application link we emailed you* — only got truer.
+  ⚠ **Three headers argued against this step and were amended with it, not left behind**:
+  `applicationApprovalNotice.ts`, `renderApplicationApprovedEmail` and `strings.flow.ts`'s
+  `waitingNote`. A repository holding comments that contradict its own behaviour is worse than one
+  holding none, because the next reader believes them.

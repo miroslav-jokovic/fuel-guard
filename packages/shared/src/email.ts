@@ -258,49 +258,74 @@ export function renderApplicationInviteEmail(
 }
 
 /**
- * The applicant has been approved and is being asked back to sign (Q-AX4, D-AX14).
+ * The applicant has been approved and is being asked back to sign (Q-AX4, D-AX14, amended D-AX15).
  *
- * ── ⚠ IT CARRIES NO LINK, AND THAT IS THE DECISION RATHER THAN AN OMISSION ────────────────────
- * `application_invitations` stores a SHA-256 and nothing else (0220), so at approval time there is no
- * link to put in an email — the plaintext was returned once, at mint, to the recruiter's screen and
- * to the applicant's inbox. The nudge next door solves that by ROTATING the token (0232), and that
- * move is wrong here: the waiting screen has already told this applicant "keep this link — it is
- * where you will sign, and it still works", and approval is the exact moment they go and use it.
- * Breaking the one promise the product made them, at the one moment it matters, to save them a search
- * of their own inbox, is not a trade worth making.
+ * ── ⚠ IT CARRIES A LINK SINCE A5b — AND THE OLD LINK STILL WORKS ───────────────────────────────
+ * It used to carry none, and the reason was not an omission. `application_invitations` stores a
+ * SHA-256 and nothing else (0220), so at approval time there was no link to put in an email — the
+ * plaintext was returned once, at mint. The nudge next door solves that by ROTATING the token (0232),
+ * and that move was rejected here: the waiting screen has already told this applicant "keep this link
+ * — it is where you will sign, and it still works", and approval is the exact moment they go and use
+ * it. Breaking the one promise the product made them, at the one moment it matters, to save them a
+ * search of their own inbox, is not a trade worth making.
  *
- * So the email names the EARLIER EMAIL'S SUBJECT LINE instead — which is why `renderApplicationInviteEmail`
- * above and this function must keep saying the same words, and why `email.test.ts` pins that they do.
- * A driver searching their mail for "Your driver application for Acme" finds the live link. If they
- * cannot, the fallback is a human: the office can revoke and re-invite, and the copy points there.
+ * **D-AX15 amends that decision rather than reversing it.** 0345 gave the invitation a SECOND hash,
+ * so approval mints a new token instead of rotating the one in the applicant's inbox: this email
+ * carries a link, `resolveInvitation` accepts either, and nobody is stranded. The objection had two
+ * halves — there is no link to send, and rotating breaks the promise — and only the first was ever
+ * about the email.
+ *
+ * ⚠ `signUrl` is nullable and the no-link copy below is NOT dead code. It is what goes out when the
+ * sign token could not be stored, and a caller in that position must not send a link that resolves to
+ * nothing. That path still names the EARLIER EMAIL'S SUBJECT LINE, which is why
+ * `renderApplicationInviteEmail` above and this function must keep saying the same words, and why
+ * `email.test.ts` pins that they do.
  *
  * ── THE VOICE ─────────────────────────────────────────────────────────────────────────────────
  * The carrier's name first, as every applicant-facing template in this file does — they applied to a
  * trucking company. No deadline and no chase: the office has just made its decision, and this is
- * news, not pressure.
+ * news, not pressure. ⚠ And the link is offered rather than urged: a driver who still has the first
+ * email may use either, so the copy does not tell them the old one is finished — that sentence would
+ * be false, and it is the exact sentence the nudge has to say.
  */
-export function renderApplicationApprovedEmail(carrier: string): RenderedEmail {
+export function renderApplicationApprovedEmail(carrier: string, signUrl: string | null = null): RenderedEmail {
   const earlier = applicationInviteSubject(carrier);
   const subject = `Your application for ${carrier} is ready to sign`;
-  const html =
-    `<div style="font-family:system-ui,sans-serif;color:#111">`
-    + `<h2 style="margin:0 0 8px">${esc(carrier)} has read your application</h2>`
+  const opening =
+    `<h2 style="margin:0 0 8px">${esc(carrier)} has read your application</h2>`
     + `<p style="color:#555">It is ready for your signature. Nothing you filled in has been lost — `
     + `you will see the application as it now stands, and anything ${esc(carrier)} corrected is `
-    + `marked for you before you sign.</p>`
-    + `<p style="color:#555;margin:20px 0">Open the link from the earlier email &mdash; the one `
-    + `titled <strong>&quot;${esc(earlier)}&quot;</strong> &mdash; and you will be asked to sign.</p>`
-    + `<p style="color:#aaa;font-size:12px">If you cannot find that email, reply to this one or call `
-    + `${esc(carrier)} and they will send you a new link.</p>`
-    + `</div>`;
-  const text =
+    + `marked for you before you sign.</p>`;
+  const openingText =
     `${carrier} has read your application and it is ready for your signature.\n\n`
     + `Nothing you filled in has been lost — you will see the application as it now stands, and `
-    + `anything ${carrier} corrected is marked for you before you sign.\n\n`
-    + `Open the link from the earlier email — the one titled "${earlier}" — and you will be asked to `
-    + `sign.\n\n`
-    + `If you cannot find that email, reply to this one or call ${carrier} and they will send you a `
-    + `new link.`;
+    + `anything ${carrier} corrected is marked for you before you sign.\n\n`;
+  const html = signUrl
+    ? `<div style="font-family:system-ui,sans-serif;color:#111">`
+      + opening
+      + `<p style="margin:20px 0"><a href="${esc(signUrl)}" style="background:#4f46e5;color:#fff;`
+      + `padding:10px 16px;border-radius:6px;text-decoration:none">Read it and sign →</a></p>`
+      + `<p style="color:#888;font-size:12px">If the button doesn't work, paste this link into your `
+      + `browser: ${esc(signUrl)}</p>`
+      + `<p style="color:#aaa;font-size:12px">The link from the earlier email still works too, if you `
+      + `would rather use that one.</p>`
+      + `</div>`
+    : `<div style="font-family:system-ui,sans-serif;color:#111">`
+      + opening
+      + `<p style="color:#555;margin:20px 0">Open the link from the earlier email &mdash; the one `
+      + `titled <strong>&quot;${esc(earlier)}&quot;</strong> &mdash; and you will be asked to sign.</p>`
+      + `<p style="color:#aaa;font-size:12px">If you cannot find that email, reply to this one or call `
+      + `${esc(carrier)} and they will send you a new link.</p>`
+      + `</div>`;
+  const text = signUrl
+    ? openingText
+      + `Read it and sign: ${signUrl}\n\n`
+      + `The link from the earlier email still works too, if you would rather use that one.`
+    : openingText
+      + `Open the link from the earlier email — the one titled "${earlier}" — and you will be asked to `
+      + `sign.\n\n`
+      + `If you cannot find that email, reply to this one or call ${carrier} and they will send you a `
+      + `new link.`;
   return { subject, html, text };
 }
 

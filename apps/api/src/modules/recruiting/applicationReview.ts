@@ -313,7 +313,7 @@ export async function approveApplication(
    * behind a state that says they are not, and `approved_at` is what the certification route reads.
    * A notice that did not go is a sentence in the recruiter's drawer and a line in the log.
    */
-  const notice = await notifyApplicationApproved(admin, env, orgId, inv.driver_id, inv.email, now);
+  const notice = await notifyApplicationApproved(admin, env, orgId, invitationId, inv.driver_id, inv.email, now);
 
   return { approvedAt, notice };
 }

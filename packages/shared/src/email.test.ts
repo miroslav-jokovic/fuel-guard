@@ -49,7 +49,10 @@ describe("renderApplicationInviteEmail", () => {
 });
 
 describe("renderApplicationApprovedEmail", () => {
-  const mail = () => renderApplicationApprovedEmail("Silvicom Inc");
+  const SIGN_URL = "https://app.test/apply/s1gn-tok3n";
+  const mail = () => renderApplicationApprovedEmail("Silvicom Inc", SIGN_URL);
+  /** No link to send — the fallback, not the decision, since A5b. See below. */
+  const linkless = () => renderApplicationApprovedEmail("Silvicom Inc");
 
   it("puts the CARRIER in the subject, not this product", () => {
     expect(mail().subject).toBe("Your application for Silvicom Inc is ready to sign");
@@ -57,19 +60,42 @@ describe("renderApplicationApprovedEmail", () => {
   });
 
   /**
-   * ⚠ THE test in this file. `application_invitations` stores a SHA-256 and nothing else (0220), so
-   * there is no link to send at approval — and the answer the abandonment nudge uses (rotate the
-   * token, 0232) is refused here, because the waiting screen already told this applicant "keep this
-   * link — it is where you will sign, and it still works".
+   * ⚠ THE test in this file, and it says the OPPOSITE of what it said until 2026-09-18.
    *
-   * A link appearing in this template later would therefore be a SILENT regression: the copy would
-   * point at something, and the applicant's own link would be the only thing that actually worked.
+   * It used to assert that this template carries no link, because `application_invitations` stored one
+   * SHA-256 and nothing else (0220) — there was nothing to send. A5b gave the invitation a second hash
+   * (0345, D-AX15), so approval mints a fresh token BESIDE the applicant's original instead of
+   * rotating it, and a link can be sent without breaking the waiting screen's promise that the first
+   * one still works.
+   *
+   * Both bodies, because a text-only client must still be able to sign — the same rule
+   * `renderApplicationInviteEmail` is held to above.
    */
-  it("carries no link, and names the earlier email instead", () => {
-    expect(mail().text).not.toContain("/apply/");
-    expect(mail().html).not.toContain("/apply/");
-    expect(mail().text).toContain('"Your driver application for Silvicom Inc"');
-    expect(mail().html).toContain("Your driver application for Silvicom Inc");
+  it("carries the sign link in both bodies", () => {
+    expect(mail().text).toContain(SIGN_URL);
+    expect(mail().html).toContain(SIGN_URL);
+  });
+
+  /**
+   * ⚠ And it does not tell them the old link is finished, which is the sentence the nudge HAS to say
+   * because the nudge really does rotate. Saying it here would be false, and false in the direction
+   * that makes an applicant stop using a link that works.
+   */
+  it("says the earlier link still works, rather than that it is dead", () => {
+    expect(mail().text).toContain("still works");
+    expect(`${mail().text}${mail().html}`).not.toMatch(/no longer works|replaces the one/);
+  });
+
+  /**
+   * ⚠ The no-link copy is NOT dead code: `mintSignLink` returns null when the hash could not be
+   * stored, and a caller in that position must send something the applicant can act on rather than a
+   * link that resolves to nothing. It is the old copy, unchanged, naming the earlier email.
+   */
+  it("falls back to naming the earlier email when there is no link to send", () => {
+    expect(linkless().text).not.toContain("/apply/");
+    expect(linkless().html).not.toContain("/apply/");
+    expect(linkless().text).toContain('"Your driver application for Silvicom Inc"');
+    expect(linkless().html).toContain("Your driver application for Silvicom Inc");
   });
 
   /**
@@ -77,8 +103,11 @@ describe("renderApplicationApprovedEmail", () => {
    * first time somebody improved one of them, and the failure would be a driver searching for words
    * that were never sent — so both templates read it from `applicationInviteSubject`.
    */
-  it("quotes the subject line the invitation actually used", () => {
-    expect(mail().text).toContain(`"${applicationInviteSubject("Silvicom Inc")}"`);
+
+it("quotes the subject line the invitation actually used", () => {
+    // ⚠ The LINKLESS copy: it is the only one that asks the applicant to search their inbox, so it is
+    // the only one whose phrase has to match what was actually sent.
+    expect(linkless().text).toContain(`"${applicationInviteSubject("Silvicom Inc")}"`);
     expect(renderApplicationInviteEmail("Silvicom Inc", "u", 7).subject)
       .toBe(applicationInviteSubject("Silvicom Inc"));
   });
