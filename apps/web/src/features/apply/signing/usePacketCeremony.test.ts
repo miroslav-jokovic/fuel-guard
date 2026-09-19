@@ -860,3 +860,206 @@ describe("what a locked mark says about itself", () => {
     expect(c.placesWithMark("initials")).toBe(3);
   });
 });
+
+/**
+ * C2 — the three tabs, and the one rule that had to change under them (D-HUI14).
+ *
+ * ⚠ **The rule: what the paper carries is decided by whether a PICTURE exists, never by which tab
+ * made it.** Before C2, `currentShowsDrawing` also asked `style === "drawn"` — correct while drawing
+ * was the only thing that produced a PNG, and wrong the moment a styled mark produced one too, because
+ * it would have previewed the typed name on a page about to receive a picture. That is the same
+ * screen-says-one-thing, form-carries-another shape A3 closed, pointing the other way.
+ *
+ * ⚠ The fixture walks the REAL inventory for this file's stated reason, and every assertion below has
+ * a partial case beside it — a styled mark WITH a blob against one without, a staged mark against a
+ * failed one — because a fixture in which every mark succeeds cannot tell a promise from a wish.
+ */
+describe("what the paper carries, whichever tab made the mark", () => {
+  const png = (): Blob => new Blob(["x"], { type: "image/png" });
+
+  /** A mark made in any tab, staged successfully, standing on the first stop. */
+  async function adopted(style: "styled" | "drawn" | "uploaded", blob: Blob | null) {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      stage: vi.fn().mockResolvedValue(undefined) as never,
+    });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = style;
+    c.markBlob.value = blob;
+    return { c, ok: await c.adopt() };
+  }
+
+  it("previews the picture a STYLED mark made, not the name it was made from", async () => {
+    const { c, ok } = await adopted("styled", png());
+    expect(ok).toBe(true);
+    expect(c.currentShowsDrawing.value).toBe(true);
+  });
+
+  it("previews the picture an UPLOADED mark made", async () => {
+    const { c, ok } = await adopted("uploaded", png());
+    expect(ok).toBe(true);
+    expect(c.currentShowsDrawing.value).toBe(true);
+  });
+
+  /**
+   * ⚠ A8b applied per tab (`markRequiredFor`). A styled mark is generated on the driver's behalf, so
+   * its failure is ours and must not hold them at a button that will not light up — they go on with
+   * the typed name, and the flag is what makes every later screen say so rather than promise a picture.
+   */
+  it("lets a STYLED mark that would not rasterise through, and withdraws the promise", async () => {
+    const { c, ok } = await adopted("styled", null);
+    expect(ok).toBe(true);
+    expect(c.drawnMarkFailed.value).toBe(true);
+    expect(c.currentShowsDrawing.value).toBe(false);
+  });
+
+  /** ⚠ The other side of the same rule: opening Upload and choosing no file is not a failure of ours,
+   *  it is the driver not having done the thing the tab is for. */
+  it("refuses an UPLOADED mark with no picture chosen", async () => {
+    const { c, ok } = await adopted("uploaded", null);
+    expect(ok).toBe(false);
+    expect(c.adopted.value).toBe(false);
+  });
+
+  /** And a drawn mark keeps the rule it already had, so the change did not loosen it. */
+  it("refuses a DRAWN mark with nothing drawn", async () => {
+    const { ok } = await adopted("drawn", null);
+    expect(ok).toBe(false);
+  });
+
+  /**
+   * ⚠ Switching tabs is what makes the single `markBlob` safe, and the composable is not what does it —
+   * the component clears the blob on a tab change, so this pins the CONSEQUENCE rather than the act:
+   * a tab with nothing in it must not inherit the previous tab's promise.
+   */
+  it("promises nothing once the mark is taken away", async () => {
+    const { c } = await adopted("drawn", png());
+    c.markBlob.value = null;
+    expect(c.currentShowsDrawing.value).toBe(false);
+  });
+});
+
+/**
+ * C2 — a walk resumed on a link that already has a picture on the server.
+ *
+ * ⚠ **This is the defect C2 would otherwise have made universal.** `application_captures` holds one
+ * row per slot and it outlives the session that made it, so a driver who comes back has a PNG on the
+ * server and an empty `markBlob` in the browser. Before C2 that misled only the few who had drawn;
+ * after it, every driver has a picture, so every resumed walk would have previewed the typed name
+ * while the remaining pages received the picture.
+ *
+ * ⚠ **The bundle serves capture dates and never bytes**, which is a deliberate rule about a public
+ * link — so the answer is a sentence rather than a preview, and these tests pin that the ceremony
+ * knows a picture is coming even though it cannot show one.
+ */
+describe("resuming a link whose signature picture is already staged", () => {
+  const png = (): Blob => new Blob(["x"], { type: "image/png" });
+
+  const resumed = (markStaged: boolean) =>
+    usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      markStaged: ref(markStaged),
+      stage: vi.fn().mockResolvedValue(undefined) as never,
+    });
+
+  it("knows a picture will be printed even with nothing in this browser", () => {
+    const c = resumed(true);
+    expect(c.markWillPrint.value).toBe(true);
+    expect(c.markCarriedOver.value).toBe(true);
+    expect(c.currentShowsDrawing.value).toBe(true);
+  });
+
+  /** ⚠ The partial case. Without it a mutation returning `true` unconditionally would pass above. */
+  it("promises nothing on a link that has no picture staged", () => {
+    const c = resumed(false);
+    expect(c.markWillPrint.value).toBe(false);
+    expect(c.markCarriedOver.value).toBe(false);
+  });
+
+  /**
+   * ⚠ **`markBlob` wins, and the order is the point.** A driver who resumed and then chose a new style
+   * has replaced the staged row — one row per slot — so what the packet will carry is the blob in hand
+   * and the screen can show it. `markCarriedOver` is only true in the gap between arriving and making
+   * a new mark, and getting this backwards would put a *"your picture is saved"* sentence over a
+   * preview the driver had just made.
+   */
+  it("stops carrying over once a new mark is made here", async () => {
+    const c = resumed(true);
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = "drawn";
+    c.markBlob.value = png();
+    expect(await c.adopt()).toBe(true);
+    expect(c.markCarriedOver.value).toBe(false);
+    expect(c.markWillPrint.value).toBe(true);
+  });
+
+  /**
+   * ⚠ A staging failure in THIS session beats a row from the last one, and it has to: the slot is
+   * replaced by whatever staged last, so a failed upload means the server may hold nothing usable and
+   * `drawText` is what runs. Saying a picture is saved there would be promising the document that lost.
+   */
+  it("withdraws the promise when this session's staging failed", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      markStaged: ref(true),
+      stage: vi.fn().mockRejectedValue(new Error("no")) as never,
+    });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = "drawn";
+    c.markBlob.value = png();
+    expect(await c.adopt()).toBe(true);
+    expect(c.drawnMarkFailed.value).toBe(true);
+    expect(c.markWillPrint.value).toBe(false);
+    expect(c.markCarriedOver.value).toBe(false);
+  });
+});
+
+/**
+ * C2 — a resumed link carrying on with a picture it did not make (found by rendering, 2026-09-19).
+ *
+ * ⚠ **This is the defect the suite was green for.** A link whose marks the server has already pinned
+ * skips the adoption form and offers *Carry on signing*, which calls `adopt()` with an empty
+ * `markBlob` — correctly, because the picture was staged on the previous visit and there is nothing
+ * left to send. The first version of `adopt()` read that empty blob as a rasteriser failure, raised
+ * `drawnMarkFailed`, and every remaining stop then previewed the typed name under *"We will put this
+ * on the page"* while the packet carried the driver's own signature.
+ *
+ * ⚠ It took a browser to see, and the reason is worth keeping: a composable cannot tell that a ref it
+ * set two lines ago is describing THIS session and a ref it was handed is describing a previous one.
+ * The two look identical from inside. What made them distinguishable was a screen that said one thing
+ * over a document that would have said another.
+ */
+describe("carrying on from a link whose picture was staged last time", () => {
+  const pinned = () =>
+    usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      markStaged: ref(true),
+      adopted: ref({ signature: "Marija Varmeda", initials: "MV" }),
+      stage: vi.fn().mockResolvedValue(undefined) as never,
+    });
+
+  it("does not call an empty blob a failure when the server already holds one", async () => {
+    const c = pinned();
+    expect(c.alreadyAdopted.value, "fixture must reach the resumed path").toBe(true);
+    expect(await c.adopt()).toBe(true);
+    expect(c.drawnMarkFailed.value).toBe(false);
+    expect(c.markWillPrint.value).toBe(true);
+    expect(c.currentShowsDrawing.value).toBe(true);
+  });
+
+  /**
+   * ⚠ The partial case, and without it the fix above is indistinguishable from deleting the flag.
+   * A FIRST-TIME driver whose styled mark would not rasterise has nothing on the server either, and
+   * must still be told — that is A3's whole rule and it has not been relaxed.
+   */
+  it("still calls an empty blob a failure when the server holds nothing", async () => {
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
+      markStaged: ref(false),
+      stage: vi.fn().mockResolvedValue(undefined) as never,
+    });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    expect(await c.adopt()).toBe(true);
+    expect(c.drawnMarkFailed.value).toBe(true);
+    expect(c.markWillPrint.value).toBe(false);
+  });
+});
