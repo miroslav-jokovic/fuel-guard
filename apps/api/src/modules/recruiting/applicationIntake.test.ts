@@ -15,8 +15,11 @@ import {
   phasesOf,
   resolveInvitation,
   sealSsn,
-  submitApplication,
 } from "./applicationIntake.js";
+// ⚠ ONE suite still, across the A5b split. The submit half moved to its own module and this file did
+// not follow it: an untouched suite is what proves the coverage moved WITH the code rather than
+// being rewritten around it — the reading #888 relied on when `usePacketCeremony.ts` was split.
+import { submitApplication } from "./applicationSubmit.js";
 import { recordRelease } from "./applicationReleases.js";
 import { PSP_VERSION } from "./defaultWording.js";
 import { PSP_MANDATED_INTENT, pspDisclosure } from "./pspDisclosure.js";
