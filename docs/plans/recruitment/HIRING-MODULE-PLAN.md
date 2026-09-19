@@ -3124,7 +3124,14 @@ every time.
     pdf-lib's standard Helvetica draw them. Only what is OUTSIDE the encoding needs stripping — `č`,
     `ś`, `ș`, and the two hand-listed strokes `Đ`/`Ł` that carry no combining mark, which is the case
     the function was written for. Measured end to end: the name prints wrong in the body, in the
-    footer and on the packet. A Spanish surname is not an edge case in this industry.
+    footer and on the packet. A Spanish surname is not an edge case in this industry. ⚠ **The
+    proof is a disagreement between two documents in one file, not a reading of the encoding table.**
+    `packetOverlay.ts` draws through pdf-lib and does not call `winAnsi` at all — on the same run it
+    printed `José Muñoz-Peña` correctly onto the carrier's page 3 while the summary printed `Jose
+    Munoz-Pena`. ⚠ An existing assertion PINNED the defect: `pdfDraw.test.ts` read
+    `expect(winAnsi("José Muñoz")).toBe("Jose Munoz")`, green, under a `describe` calling an accented
+    surname one of *"the two foldings that were wrong"*. **FIXED 2026-09-19** — the decomposition is
+    now applied per character and only to characters outside the encoding.
 
   **B. Layout and finish — the owner's "really professional documents".**
 
@@ -3132,7 +3139,11 @@ every time.
     Measured on the permissions PDF p7→p8 and the §391.21 summary p10→p11: the last section's heading
     and two of its four rows are on one page, the other two are stranded at the top of the next with
     nothing saying what they belong to, and that page is then 85% white. One root — `certificate()`
-    emits rows with no keep-together — and it reaches both documents.
+    emits rows with no keep-together — and it reaches both documents. ⚠ Do not read this as *"there
+    is no keep-together"*: `pdfDraw.ts`'s `field()` has carried one since 2026-09-11, pinned by
+    *"keeps them together, and leaves no page carrying only the label"*. It holds a LABEL to its
+    VALUE. What has none is the SECTION — a heading and the rows under it — which is the unit a
+    reader needs, and one level up from where the fix went last time.
   · **AUD-5 · Three type sizes in one column of one grid.** A consequence of AUD-1's shrink: packet
     p2's accident grid has rows at ~11pt, ~7pt and ~6pt stacked on each other. A signed federal form
     whose rows are in different sizes reads as broken before anybody reads a word of it.
@@ -3155,8 +3166,14 @@ every time.
   · **AUD-11 · Two §391.21 sections render an empty heading instead of saying they are empty.**
     (b)(3) renders a bare heading and (b)(6) a lone `-`, while (b)(7), (b)(8) and (b)(10) all print
     *"Not answered."* A reader cannot tell "nothing was asked" from "nothing was given".
-  · **AUD-12 · Empty education rows are filled with `N/A` in all five columns; empty reference rows on
-    the same page are left blank.** Whichever is right, one page should not do both.
+  · **AUD-12 · WITHDRAWN on reading the code that does it — it is D-PKT14, and it is the owner's own
+    ruling.** The audit saw page 16's education rows filled `N/A` × 5 while the reference rows below
+    them were left blank, and recorded it as an inconsistency. `packetGrid.ts`'s `GridFiller` says
+    why it is not: the filler is opt-in per grid because an empty row does not mean the same thing
+    on every grid, and it reaches the two grids the owner named and stops there. Left in the list
+    rather than deleted, because the next person to rasterise page 16 will see the same thing and
+    should find the answer here instead of re-opening it.
+
   · **AUD-13 · Packet p2 question B is answered `Yes` with its "If yes, explain" left blank.** A and B
     sharing one contract field is deliberate and documented (`packetFieldValues.ts:281`) and is not
     the finding; the finding is that `p02.revoked.explain` exists in the geometry table, is never

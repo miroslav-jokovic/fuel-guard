@@ -32,7 +32,29 @@ describe("winAnsi", () => {
 
   it("drops a diacritic instead of leaving a stray question mark beside the letter", () => {
     expect(winAnsi("Nikolić")).toBe("Nikolic");
-    expect(winAnsi("José Muñoz")).toBe("Jose Munoz");
+    // Latin Extended-A, one letter past what the encoding holds, and the reason the fold exists.
+    expect(winAnsi("Wałęsa")).toBe("Walesa");
+    expect(winAnsi("Đorđević")).toBe("Dordevic");
+  });
+
+  /**
+   * ⚠ **This assertion used to say the opposite, and it was wrong** (AUD-3, 2026-09-19). It read
+   * `expect(winAnsi("José Muñoz")).toBe("Jose Munoz")` and it passed, under a `describe` that called
+   * an accented surname one of "the two foldings that were wrong" — so the defect was pinned as the
+   * fix. `é` is 0xE9 and `ñ` is 0xF1: both are WinAnsi, and there was never anything to fold.
+   *
+   * What proved it was not a reading of the encoding table but a disagreement between two documents
+   * in one qualification file. `packetOverlay.ts` does not call `winAnsi` at all, and on the same
+   * render it drew this exact name onto the carrier's page 3 correctly while the summary drew
+   * `Jose Munoz-Pena`. The test above still pins the case the fold is FOR; this one pins the case it
+   * was reaching too far into.
+   */
+  it("leaves a name alone when every letter in it is one WinAnsi can hold", () => {
+    expect(winAnsi("José Muñoz-Peña")).toBe("José Muñoz-Peña");
+    expect(winAnsi("Ángel Gutiérrez")).toBe("Ángel Gutiérrez");
+    expect(winAnsi("Françoise Lefèvre")).toBe("Françoise Lefèvre");
+    // Mixed: the Spanish letters stay and the Slavic one still folds, in one string.
+    expect(winAnsi("Peña Nikolić")).toBe("Peña Nikolic");
   });
 
   it("still marks something genuinely unrepresentable, rather than dropping it silently", () => {
