@@ -680,7 +680,7 @@ zero cost today — and becomes permanently frozen for the first driver who walk
 
 ---
 
-## 8. Questions — six ruled by the owner 2026-09-17, two still open
+## 8. Questions — six ruled by the owner 2026-09-17, four still open
 
 ⚠ **Rulings are recorded here in the owner's own words where he gave them**, because a paraphrase of
 a process decision is how a plan starts describing a business nobody runs.
@@ -926,6 +926,64 @@ explains why both texts were written, and D-HM9's own lesson points at it — *a
 uploaded is not the same fact as a document being verified*. ⚠ Whoever answers it should read the
 eCFR text rather than this plan's summary of it; §5's citations were verified in September 2026 and
 this particular pair was not among the six re-checked.
+
+---
+
+### ⚠ Q-HM12 · Which document does the owner mean by "preview for the first set of approvals"? (opened by the audit, 2026-09-19)
+
+**Measured first, because the sentence has two readings and they are different builds** (AUD-14,
+AUD-15, AUD-16). The step-one document exists and is reachable — `GET
+/api/recruitment/applications/:invitationId/permissions.pdf`, from the Permissions step's drawer via
+`AuthorizationsPanel.vue:98`. What does not exist is either of the things the sentence could mean.
+
+⚠ **The trap is AUD-16.** `canPrint` is `invitationId && rows.length > 0`, so it reads like a
+one-line gate change. It is not: rendered with no instruments, the document is two pages of *"Not
+signed yet"*. The instrument pages carry the wording, and an instrument page is drawn from a signed
+row. **An evidence record of what was signed and a specimen of what will be asked are two documents**,
+and we render only the first.
+
+| | |
+|---|---|
+| **(a) A specimen for the office** | A new render mode over `DISCLOSURES` + `ESIGN_CONSENT` rather than over `driver_authorizations` — the five instruments at their current versions, banded `SPECIMEN - NOT SIGNED`, with the signature blocks blank. Answers *"what am I sending them?"*. Reuses `instrumentPages.ts` whole; the only new thing is the source of the rows. |
+| **(b) The applicant's own copy** | A sixth public route beside `/:token/document` and `/:token/packet`, serving the same permissions document the office already gets. Answers §7001(c) practice and FCRA §604(b), and `HIRING-UI-PLAN.md` §4.3 already says we owe it. Cheapest of the three — the renderer, the fold and the keying all exist; it is a route, a token resolve and a link in the apply UI. |
+| **(c) Both** | They are independent and neither blocks the other. (a) is office-facing and needs no token; (b) is applicant-facing and needs no new renderer. |
+
+**Recommendation: (c), built as (b) then (a).** (b) is an obligation we have written down and not
+met, and it is the smaller of the two. (a) is the one the owner probably meant — he was looking at a
+fresh applicant and found nothing — but it needs a ruling on what a specimen may say before a version
+is pinned, and it must not be confused with the evidence record it will sit next to in the same
+drawer. ⚠ Whichever is built, the drawer must make the difference legible: two buttons that both say
+*Print* and produce different documents is the D-HM2 disagreement again.
+
+---
+
+### ⚠ Q-HM13 · Does D-PKT11 survive "really professional documents"? (opened by the audit, 2026-09-19)
+
+**D-PKT11 (owner, 2026-09-14) reversed D-PKT9** and ruled that the carrier's own text prints exactly
+as written — `packetStatic.ts`'s `CORRECTIONS` register was deleted for it. The argument was sound
+and is still on the page: correcting a contract is drafting one, and *natural* versus *neutral*
+arbitrator is the difference between two agreements.
+
+**What the audit puts beside it** (AUD, §D): on 2026-09-19 the owner asked for documents that are
+*"precise, well designed… really professional"*. The first three pages of every packet carry
+`Previous Three years reisdency`, `maritial status`, `TO BE READ AND SINGED BY APPLICANT`, `heatlh
+care providers`, `commerical motor vehicle` and `as required by 49 CFR 391.23(d) and €.` — the last
+being a corrupt glyph where a subparagraph letter should be. These are the pages an auditor opens
+first and the pages a driver signs.
+
+| | |
+|---|---|
+| **(a) D-PKT11 stands** | Nothing changes. The typos are counsel's work product and the owner's "professional" sentence is read as being about OUR documents — the permissions PDF, the summary, the certificate — which is where AUD-4 through AUD-12 all live anyway. |
+| **(b) Split it** | Typography is corrected on the pages that are *forms* (1, 2, 11, 12, 16, 26); the pages that are a *contract* (7–8, 29–30, 31) stay verbatim. This is close to what D-PKT9 actually did before it was reversed, and the split has a principle behind it rather than a page list. |
+| **(c) Fix the source** | Correct `assets/application-11.pdf` and `APPLICATION.xlsx` once, with counsel, and delete the question. ⚠ This changes the carrier's paper form, which the owner has twice said not to touch. |
+
+**Recommendation: (a) for now, and say so out loud when the packet is next shown.** The typos are
+visible, the owner will see them, and an audit that did not name them would have let him discover
+them himself and conclude the pass missed them. But this is his form and his prior ruling; **do not
+re-correct it on the strength of a sentence about a different set of documents.** ⚠ Note the
+asymmetry that makes (a) cheap to hold: the freeze clock binds AUD-1 through AUD-13 and does **not**
+bind this — the template is an asset, a corrected one renders a new document, and nothing about
+`ensureApplicationPdf` prevents a later version.
 
 
 ## 9. The queue
@@ -3016,6 +3074,121 @@ every time.
   **What remains in Wave D:** D2, D3, D4, D5. ⚠ D2 and D3 both edit `hiringStepDrawers.ts`' `Record`
   — D1 left each of their rows a one-line change (`road_test: "record"` is D2's whole edit there if it
   reuses this panel, and it should not: §391.31(c) is a form, not an upload).
+
+- **2026-09-19 — AUDIT. Every document this hire prints, rasterised and looked at.** Not a build step;
+  the numbered list below is the work product, and the fixes are separate PRs that cite these numbers.
+
+  **How it was measured, so it can be repeated.** A harness rendered all six documents twice — once
+  with the `renderPacket.test.ts` fixture, once with the same applicant at the long end of what the
+  contract allows (a hyphenated surname, a 60-character street, four accidents, four convictions,
+  three employers, a two-line denial explanation) — then `pdftoppm -r 110 -png` and read the images.
+  ⚠ **Nothing below was found by reading the drawing code**, and several of them are invisible to it:
+  the code that produces AUD-1 has a doc comment that says it does the opposite.
+
+  **The set audited:** the 31-page packet (`packetOverlay.ts` over `assets/application-11.pdf`), the
+  office's draft preview (`preview.ts`), the applicant's reading copy (`applicationReadingCopy.ts`),
+  the step-one permissions PDF (`permissions.ts` / `permissionsDocument.ts` / `instrumentPages.ts`),
+  the §391.21 summary (`render.ts`, still what already-filed records point at), the certificate
+  (`certificate.ts`) and the stamp (`stamp.ts`).
+
+  ---
+
+  **A. The filed document says something untrue, unreadable or incomplete.** These are the ones the
+  freeze clock applies to: `ensureApplicationPdf` renders once and returns those bytes for ever, so
+  every one of them must land before the first real filing.
+
+  · **AUD-1 · A long answer is drawn straight through the column beside it, and off the page.**
+    `packetOverlay.ts:232` `fittedSize()` walks 11pt down to a floor of 6 and returns the floor;
+    `packetOverlay.ts:286` then calls `page.drawText()` with it. pdf-lib does not clip and does not
+    wrap, so a value that does not fit at 6pt is drawn at full length anyway. Measured: packet **p2**,
+    accident row 1 — `…westbound near mile 118` runs through the rule into FATALITIES and the `0`
+    lands on top of the word `mile`; **p2**, conviction row 1 — `…in a construction zone` and the
+    state `IL` are superimposed and neither is legible; **p12**, employment row 1 — company, address
+    and position are three strings drawn over each other and the row cannot be read at all, on the
+    §391.23 verification log; **p16** — the military answer runs off the right edge of the paper;
+    **p2 question A** — the denial explanation is cut by the page edge at *"reinstated in full on
+    2016-1"* and the rest is simply gone. ⚠ The function's own name and `packetContinuation.ts:85`'s
+    *"Shrink to fit, never overrun"* both assert the opposite of what it does. **No assertion in the
+    repo can see this** — the text is in the PDF's content stream either way, so `pdfText()` finds
+    every word and every existing test passes.
+  · **AUD-2 · The same defect on the continuation sheet**, whose entire purpose is that nothing is
+    lost (`packetContinuation.ts:86`, floor 5pt). Measured on the long fixture's p32: the fourth
+    accident's nature carries the fatalities `0` inside the word `must`, and the fourth conviction
+    carries `PA` inside `continuation`. ⚠ `clipped()` above it is deliberately headings-only, with
+    the reason written down — *"a truncated conviction is the silent loss this whole sheet
+    prevents"*. The reasoning is right and the conclusion does not follow: overrunning loses the
+    value just as silently **and** corrupts the neighbour. The answer is to wrap within the cell,
+    not to draw wider than it.
+  · **AUD-3 · `José Muñoz-Peña` is filed as `Jose Munoz-Pena`.** `pdfDraw.ts:67` `winAnsi()` strips
+    every combining mark via NFD. But `é` and `ñ` **are** WinAnsi (0xE9, 0xF1) and both PDFKit's and
+    pdf-lib's standard Helvetica draw them. Only what is OUTSIDE the encoding needs stripping — `č`,
+    `ś`, `ș`, and the two hand-listed strokes `Đ`/`Ł` that carry no combining mark, which is the case
+    the function was written for. Measured end to end: the name prints wrong in the body, in the
+    footer and on the packet. A Spanish surname is not an edge case in this industry.
+
+  **B. Layout and finish — the owner's "really professional documents".**
+
+  · **AUD-4 · The certificate of completion splits across a page break with its heading left behind.**
+    Measured on the permissions PDF p7→p8 and the §391.21 summary p10→p11: the last section's heading
+    and two of its four rows are on one page, the other two are stranded at the top of the next with
+    nothing saying what they belong to, and that page is then 85% white. One root — `certificate()`
+    emits rows with no keep-together — and it reaches both documents.
+  · **AUD-5 · Three type sizes in one column of one grid.** A consequence of AUD-1's shrink: packet
+    p2's accident grid has rows at ~11pt, ~7pt and ~6pt stacked on each other. A signed federal form
+    whose rows are in different sizes reads as broken before anybody reads a word of it.
+  · **AUD-6 · The continuation sheet carries no letterhead, no footer and no page number**, while all
+    31 pages it is attached to carry all three. It is the one sheet designed to be separated.
+  · **AUD-7 · Signature lines are filled and their printed-name companions left blank.** Packet p3
+    `Printed name`, p31 `Driver name:`, `Owner Operator Name:` and `I ______ aka (OP)` — all empty on
+    a signed contract whose signature line above them carries the name.
+  · **AUD-8 · Metadata lines are set at body leading against the block below them**, so they read as a
+    table row with a missing value rather than as a caption. Permissions instrument pages
+    (`Version v0-draft` 15px above a 16px-leaded paragraph), every numbered certificate section (the
+    citation sits in the label column directly above `Signed as`), and page 1's lede under its title.
+  · **AUD-9 · A revocation is typeset as the least important thing on its page.** The red `REVOKED …`
+    and `Reason given: …` lines sit directly under `Version v0-draft` at the same size, above the
+    disclosure body. It is the only fact on that page that changes what the carrier may do.
+  · **AUD-10 · The band crosses body text on the one full page of the permissions document** — the
+    certificate, where it runs diagonally through sections 2–4's evidence rows — and through one
+    sentence on page 1. On the other six pages it sits in white space, which is why it was never
+    noticed.
+  · **AUD-11 · Two §391.21 sections render an empty heading instead of saying they are empty.**
+    (b)(3) renders a bare heading and (b)(6) a lone `-`, while (b)(7), (b)(8) and (b)(10) all print
+    *"Not answered."* A reader cannot tell "nothing was asked" from "nothing was given".
+  · **AUD-12 · Empty education rows are filled with `N/A` in all five columns; empty reference rows on
+    the same page are left blank.** Whichever is right, one page should not do both.
+  · **AUD-13 · Packet p2 question B is answered `Yes` with its "If yes, explain" left blank.** A and B
+    sharing one contract field is deliberate and documented (`packetFieldValues.ts:281`) and is not
+    the finding; the finding is that `p02.revoked.explain` exists in the geometry table, is never
+    pushed, and the detail that would fill it is already printed two inches above under A.
+
+  **C. The owner's sentence — "I don't see preview for first set of approvals".** Two different
+  builds sit behind it and he should pick before either is built (see Q-HM12 in §8).
+
+  · **AUD-14 · The office cannot see it before anybody signs.** `AuthorizationsPanel.vue:82`
+    `canPrint = invitationId && rows.length > 0`, so a fresh invitation offers no button.
+  · **AUD-15 · The applicant is never offered their own copy.** `publicApplicationDocuments.ts` serves
+    `/:token/document` and `/:token/packet` and nothing for step one, while `HIRING-UI-PLAN.md` §4.3
+    says in as many words that *"the applicant is owed it by the same act"*.
+  · **AUD-16 · ⚠ And removing the gate would not answer him.** Measured — rendered the permissions
+    document with `instruments: []` and `consent: null`: it is **2 pages of "Not signed yet" ×5**, not
+    a specimen. The wording lives on the instrument pages and an instrument page only exists for a row
+    that exists. **A specimen of what the applicant is about to be asked to sign is a different
+    document from an evidence record of what they signed**, and today we render only the second.
+    Anyone who reads AUD-14 as a one-line gate change will ship a blank sheet.
+
+  **D. Ruled or deliberate — recorded so the next audit does not raise them again.**
+
+  · The template's own typos — `SINGED`, `reisdency`, `maritial`, `heatlh`, `commerical`, `previuous`
+    and `49 CFR 391.23(d) and €.` — print as written. **D-PKT11 (owner, 2026-09-14)** reversed
+    D-PKT9 for exactly this. ⚠ They are on pages 1, 2 and 11 of every packet and they are the first
+    thing the owner's "professional documents" sentence will land on; the ruling, not the renderer,
+    is what would have to change. Raised as **Q-HM13** in §8 rather than acted on.
+  · `v0-draft` printed on every instrument page and in every summary row is the counsel blocker
+    (`COUNSEL-REVIEW-PACKAGE.md`), not a layout defect.
+  · The office's preview drawing blank signature lines under a DRAFT band is A2's ruling and correct.
+  · Page 1's blank `Social Security number` line is correct — we do not collect one.
+
 ---
 
 ## 11. Sources
