@@ -57,6 +57,28 @@ export function securityMiddleware(env: Env) {
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],
+        /**
+         * ⚠ **Without this the document viewer is a grey box in production and works everywhere
+         * else** (2026-09-19, reported by the owner against B2's permissions PDF).
+         *
+         * `frame-src` has no default of its own — it falls back to `default-src`, which is `'self'`.
+         * `DocumentPreview.vue` frames two things and NEITHER is `'self'`: a `blob:` URL for a
+         * document the API composes per request (the application preview, B2's signed permissions),
+         * and a Supabase signed storage URL for a filed one. Chrome refuses both and paints its own
+         * *"This content is blocked. Contact the site owner to fix the issue."* — no console error
+         * the page can catch, no network failure, no way for the component to tell.
+         *
+         * ⚠ **The reason it survived review is that it cannot happen on this machine.** Vite serves
+         * the SPA in dev and in `preview:local`, and vite does not run helmet — so the viewer is
+         * correct in every local walk and blocked in the one deploy where this server also serves the
+         * SPA. Rendering the PDF and looking at it does not find this; only loading the page from a
+         * host that sends the header does.
+         *
+         * ⚠ `blob:` is the same exception `workerSrc` above already carries for maplibre's tile
+         * decoder, for the same reason: the bytes never left the page, so the origin is the document
+         * itself and there is nothing for an allow-list to name.
+         */
+        frameSrc: ["'self'", "blob:", "https://*.supabase.co"],
       },
     },
   });
