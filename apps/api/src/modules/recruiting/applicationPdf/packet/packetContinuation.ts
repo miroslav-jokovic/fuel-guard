@@ -77,12 +77,45 @@ export interface ContinuationInput {
  * ⚠ Returned rather than drawn here, because it goes on the CARRIER's page and this module only
  * makes new ones. `packetOverlay.ts` places it.
  */
-export const continuationNoticeFor = (over: PacketFieldOverflow): string =>
-  over.rows.length === 1
-    ? "1 more entry is on the continuation sheet attached to this application."
-    : `${over.rows.length} more entries are on the continuation sheet attached to this application.`;
+export const continuationNoticeFor = (over: PacketFieldOverflow): string => {
+  const continued = over.continued ?? 0;
+  const missing = over.rows.length - continued;
+  const parts: string[] = [];
+  if (missing > 0) {
+    parts.push(missing === 1
+      ? "1 more entry is on the continuation sheet attached to this application."
+      : `${missing} more entries are on the continuation sheet attached to this application.`);
+  }
+  /**
+   * ⚠ **A different sentence, because it is a different fact to the person holding page 2** (AUD-1).
+   * A row with no room is *missing from* this page. A row whose text was too wide for its column is
+   * printed right there, ending in an ellipsis, and is *shown in full* on the sheet — telling that
+   * reader "1 more entry" about a row in front of them is how an attachment stops reading as a
+   * continuation and starts reading as the place an answer was put out of sight.
+   */
+  if (continued > 0) {
+    const where = missing > 0 ? "that sheet" : "the continuation sheet attached to this application";
+    parts.push(continued === 1
+      ? `1 entry above is too long for its column and is printed in full on ${where}.`
+      : `${continued} entries above are too long for their columns and are printed in full on ${where}.`);
+  }
+  // ⚠ Two whole SENTENCES joined by a space, not two clauses joined by "and". The first draft shared
+  // one tail between them and printed "1 more entry is, and 1 entry above is too long for its column
+  // and is printed in full on the continuation sheet" — grammatical nonsense on a federal form, and
+  // the sort of thing only rasterising the page shows you.
+  return parts.join(" ");
+};
 
-/** Shrink to fit, never overrun — `packetOverlay.ts`'s rule, for the same reason. */
+/**
+ * The largest size at or below `start` whose text fits, floored at 5pt.
+ *
+ * ⚠ **The comment here used to say "Shrink to fit, never overrun" and neither half was true**
+ * (AUD-2). It returns the floor whether or not the text fits at it, exactly as `packetOverlay.ts`'s
+ * `fittedSize` did — the two were written together and were wrong together. Every surviving caller
+ * now either passes the result straight to `clipped()` or is a single line of our own copy whose
+ * length this module controls, so the floor can no longer reach the page uncut. Answers do not come
+ * through here at all any more: they WRAP.
+ */
 function fitted(font: PDFFont, text: string, width: number, start: number): number {
   for (let size = start; size > 5; size -= 0.5) {
     if (font.widthOfTextAtSize(text, size) <= width) return size;
@@ -98,9 +131,13 @@ function fitted(font: PDFFont, text: string, width: number, start: number): numb
  * straight through `FATALITIES NUMBER` beside it — two headings on top of each other, on the sheet
  * that exists so nothing is lost.
  *
- * ⚠ Applied to HEADINGS only, never to an answer. A truncated column name is still readable beside
- * the page it continues; a truncated conviction is the silent loss this whole sheet prevents. A value
- * too long for its column shrinks to 5pt and is allowed to be small.
+ * ⚠ **Applied to HEADINGS and to our own copy, never to an answer** — and the second half of that
+ * rule changed on 2026-09-19. It used to end *"a value too long for its column shrinks to 5pt and is
+ * allowed to be small"*, which was measured to be false: at 5pt the fourth accident's description
+ * still did not fit and ran through the column beside it. An answer now WRAPS instead, which is the
+ * option this page has and the carrier's 15.2pt rows do not. The first half stands: a truncated
+ * column name is still readable beside the page it continues, and a truncated conviction is the
+ * silent loss this whole sheet prevents.
  */
 function clipped(font: PDFFont, text: string, width: number, size: number): string {
   if (font.widthOfTextAtSize(text, size) <= width) return text;
@@ -109,20 +146,46 @@ function clipped(font: PDFFont, text: string, width: number, size: number): stri
   return `${cut.trimEnd()}…`;
 }
 
-/** Break a heading onto as many lines as it needs, by word. */
-function wrap(font: PDFFont, text: string, size: number, width: number): string[] {
+/**
+ * Break text onto as many lines as it needs, by word.
+ *
+ * ⚠ **A word wider than the column is broken by character rather than left to overrun** — the one
+ * case word-wrapping alone cannot answer, and not hypothetical: the sheet's columns are a fifth of
+ * the page and `Featherstonehaugh-Villanueva` is wider than that at 8.5pt. Breaking a surname is
+ * ugly; drawing it through the next column is the defect this file was opened to fix.
+ *
+ * ⚠ **Exported for its own test only.** It makes the claim this whole module now rests on — *no line
+ * that comes back is wider than the width it was given* — and that claim cannot be read back off a
+ * produced page, because a drawn page's coordinates stop being trustworthy once pdf-lib has
+ * bracketed the carrier's content in `q … Q`. So it is pinned directly, by "breaks a word that is
+ * itself wider than the column, rather than letting it run"; what the RENDERER does with the lines
+ * is pinned by "is drawn as several lines, not one run that overruns", which counts runs rather
+ * than reading words, because rejoining wrapped lines reproduces the original sentence.
+ */
+export function wrap(font: PDFFont, text: string, size: number, width: number): string[] {
   const out: string[] = [];
   let line = "";
+  const flush = (): void => {
+    if (line) out.push(line);
+    line = "";
+  };
   for (const word of text.split(/\s+/)) {
     const candidate = line ? `${line} ${word}` : word;
-    if (font.widthOfTextAtSize(candidate, size) > width && line) {
-      out.push(line);
-      line = word;
-    } else {
+    if (font.widthOfTextAtSize(candidate, size) <= width) {
       line = candidate;
+      continue;
     }
+    flush();
+    let rest = word;
+    while (font.widthOfTextAtSize(rest, size) > width && rest.length > 1) {
+      let take = rest;
+      while (take.length > 1 && font.widthOfTextAtSize(take, size) > width) take = take.slice(0, -1);
+      out.push(take);
+      rest = rest.slice(take.length);
+    }
+    line = rest;
   }
-  if (line) out.push(line);
+  flush();
   return out;
 }
 
@@ -157,10 +220,13 @@ export async function appendContinuationSheet(
     page.drawText("CONTINUATION SHEET", { x: LEFT, y, size: TITLE_SIZE, font: bold, color: INK });
     y -= 13;
     const who = `Attached to and part of the application of ${input.applicantName}`.trim();
-    page.drawText(who, {
+    // ⚠ Clipped as well as fitted: the sentence is ours but the NAME in it is theirs, and a long
+    // enough one reaches the floor and runs off the right margin of the sheet's own header.
+    const whoSize = fitted(font, who, RIGHT - LEFT, HEADING_SIZE);
+    page.drawText(clipped(font, who, RIGHT - LEFT, whoSize), {
       x: LEFT,
       y,
-      size: fitted(font, who, RIGHT - LEFT, HEADING_SIZE),
+      size: whoSize,
       font,
       color: INK,
     });
@@ -179,16 +245,48 @@ export async function appendContinuationSheet(
 
   let cursor = newPage();
 
-  for (const block of blocks) {
-    // A block needs its heading, its column row and at least one row, or it starts a fresh page.
-    if (cursor.y - ROW_HEIGHT * 4 < BOTTOM) cursor = newPage();
-
+  /**
+   * A block's heading and its column row, drawn at the cursor.
+   *
+   * ⚠ **A function because it has to run again on every page the block spills onto** (AUD-1). It was
+   * inline, once per block, and a block whose rows crossed a page boundary left its heading and its
+   * column names orphaned at the foot of one page while the rows landed headerless at the top of the
+   * next — the reader of that second page has five unlabelled columns and no idea which grid they
+   * continue. Measured on the long fixture: page 33 opened with the employment log's rows and no
+   * heading. ⚠ It is the same defect class as AUD-4 next door in the certificate, and it is not
+   * enough to reserve room before the heading: rows here wrap, so their height is not known until
+   * the row is laid out.
+   */
+  const openBlock = (block: PacketFieldOverflow, columnWidth: number): void => {
     for (const line of wrap(bold, `${block.label} — continued from page ${block.page}`, HEADING_SIZE, RIGHT - LEFT)) {
       cursor.page.drawText(line, { x: LEFT, y: cursor.y, size: HEADING_SIZE, font: bold, color: INK });
       cursor.y -= 11;
     }
     cursor.y -= 3;
+    if (!block.columns.some((c) => c.trim())) return;
+    block.columns.forEach((heading, i) => {
+      const text = heading.trim();
+      if (!text) return;
+      const size = fitted(font, text, columnWidth - 4, COLUMN_SIZE);
+      cursor.page.drawText(clipped(font, text, columnWidth - 4, size), {
+        x: LEFT + i * columnWidth,
+        y: cursor.y,
+        size,
+        font,
+        color: RULE,
+      });
+    });
+    cursor.y -= 4;
+    cursor.page.drawLine({
+      start: { x: LEFT, y: cursor.y },
+      end: { x: RIGHT, y: cursor.y },
+      thickness: 0.6,
+      color: RULE,
+    });
+    cursor.y -= 11;
+  };
 
+  for (const block of blocks) {
     /**
      * ⚠ Widened by the LONGEST row as well as by the column list. A block whose rows carry more
      * cells than its headings — which `p02.experience` did, because the carrier's `DATES FROM / TO`
@@ -197,50 +295,52 @@ export async function appendContinuationSheet(
      * answer.
      */
     const span = Math.max(block.columns.length, ...block.rows.map((r) => r.length), 1);
-    const columnWidth = (RIGHT - LEFT) / span;
     // ⚠ The sheet's columns are EVEN, and do not copy the carrier's widths. Their grid's proportions
     // belong to their printed page; reproducing them here would squeeze `Address` into 103pt again
     // for no reason, and this page is ours to lay out.
-    const showColumns = block.columns.some((c) => c.trim());
-    if (showColumns) {
-      block.columns.forEach((heading, i) => {
-        const text = heading.trim();
-        if (!text) return;
-        const size = fitted(font, text, columnWidth - 4, COLUMN_SIZE);
-        cursor.page.drawText(clipped(font, text, columnWidth - 4, size), {
-          x: LEFT + i * columnWidth,
-          y: cursor.y,
-          size,
-          font,
-          color: RULE,
-        });
-      });
-      cursor.y -= 4;
-      cursor.page.drawLine({
-        start: { x: LEFT, y: cursor.y },
-        end: { x: RIGHT, y: cursor.y },
-        thickness: 0.6,
-        color: RULE,
-      });
-      cursor.y -= 11;
-    }
+    const columnWidth = (RIGHT - LEFT) / span;
+
+    // A block needs its heading, its column row and at least one row, or it starts a fresh page.
+    if (cursor.y - ROW_HEIGHT * 4 < BOTTOM) cursor = newPage();
+    openBlock(block, columnWidth);
 
     for (const row of block.rows) {
-      if (cursor.y < BOTTOM) cursor = newPage();
-      row.forEach((cell, i) => {
+      /**
+       * ⚠ **Values WRAP here, and on the carrier's own grids they cannot** (AUD-2). The comment this
+       * replaced said a value too long for its column *"shrinks to 5pt and is allowed to be small"*.
+       * It was not allowed to be small enough: at 5pt the fourth accident's description still did not
+       * fit a fifth of the page, so it ran through `FATALITIES NUMBER` and the `0` landed inside the
+       * word `must` — on the one sheet whose entire purpose is that nothing is lost.
+       *
+       * This page is OURS. It has no printed rules to sit on and no fixed row pitch, so the honest
+       * answer here is the one the carrier's 15.2pt rows cannot give: let the text take the lines it
+       * needs and let the row grow. Nothing on this sheet is ever cut.
+       */
+      const cells = row.map((cell) => {
         const text = cell.trim();
-        if (!text) return;
-        // ⚠ A single-column block (page 16's free text) gets the whole width rather than a fifth of it.
+        if (!text) return [];
         const width = span > 1 ? columnWidth : RIGHT - LEFT;
-        cursor.page.drawText(text, {
-          x: LEFT + (span > 1 ? i * columnWidth : 0),
-          y: cursor.y,
-          size: fitted(font, text, width - 4, ROW_SIZE),
-          font,
-          color: INK,
+        return wrap(font, text, ROW_SIZE, width - 4);
+      });
+      const tallest = Math.max(1, ...cells.map((lines) => lines.length));
+      // ⚠ A row taller than the page's remainder starts a fresh one AND re-opens the block, so the
+      // rows that land there still carry the heading and the columns they belong to.
+      if (cursor.y - tallest * ROW_HEIGHT < BOTTOM) {
+        cursor = newPage();
+        openBlock(block, columnWidth);
+      }
+      cells.forEach((lines, i) => {
+        lines.forEach((text, l) => {
+          cursor.page.drawText(text, {
+            x: LEFT + (span > 1 ? i * columnWidth : 0),
+            y: cursor.y - l * ROW_HEIGHT,
+            size: ROW_SIZE,
+            font,
+            color: INK,
+          });
         });
       });
-      cursor.y -= ROW_HEIGHT;
+      cursor.y -= tallest * ROW_HEIGHT;
     }
     cursor.y -= 8;
   }
