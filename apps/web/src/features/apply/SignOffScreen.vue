@@ -85,16 +85,24 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
 </script>
 
 <template>
-  <AppCallout v-if="error" tone="caution" class="mb-4">{{ error }}</AppCallout>
+  <!--
+    ⚠ C1 widened the apply layout for the packet walk, and everything that is a FORM or PROSE keeps
+    its reading width regardless. `max-w-3xl` here is a no-op while the layout is itself 3xl — which
+    is every screen but this one — so there is no conditional and no second source of truth about
+    how wide the container is. Only the page-and-rail below uses the room.
+  -->
+  <div class="mx-auto w-full max-w-3xl">
+    <AppCallout v-if="error" tone="caution" class="mb-4">{{ error }}</AppCallout>
 
-  <SignOffFields
-    v-model="draft"
-    :carrier="carrier"
-    :edits="edits"
-    :captures="captures"
-  />
+    <SignOffFields
+      v-model="draft"
+      :carrier="carrier"
+      :edits="edits"
+      :captures="captures"
+    />
+  </div>
 
-  <!-- P5/D-PKT6/D-PKT13: the carrier's own form, place by place. -->
+  <!-- P5/D-PKT6/D-PKT13: the carrier's own form, place by place — and, since C1, the page itself. -->
   <div v-if="stops.length" class="mt-8 border-t border-edge pt-6">
     <PacketCeremony
       :token="token"
@@ -105,7 +113,7 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
     />
   </div>
 
-  <div class="mt-6 flex justify-end">
+  <div class="mx-auto mt-6 flex w-full max-w-3xl justify-end">
     <BaseButton variant="primary" :disabled="sending || blocked" @click="emit('send')">
       {{ sending ? copy.signing : copy.sign }}
     </BaseButton>

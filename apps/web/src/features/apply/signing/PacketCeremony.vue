@@ -4,6 +4,8 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import type { ApplyPacketStop } from "@/features/apply/useApplication";
 import { usePacketCeremony } from "@/features/apply/signing/usePacketCeremony";
 import PacketAdoption from "@/features/apply/signing/PacketAdoption.vue";
+import PacketPageRail from "@/features/apply/signing/PacketPageRail.vue";
+import PacketPageView from "@/features/apply/signing/PacketPageView.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -123,6 +125,69 @@ function changeHere(): void {
   ceremony.reopen();
 }
 
+/**
+ * Which page the driver is LOOKING at (C1).
+ *
+ * ⚠ **Derived with an override that expires, never a stored cursor.** The handoff's warning for C1
+ * is that a page index is A4's stranded-walk defect one level up: `current` is the first stop nobody
+ * has filed, and anything that remembers a position instead of deriving one goes wrong the moment
+ * the list is refetched — `refetchOnWindowFocus` is on by default.
+ *
+ * So this holds only a DEPARTURE from the derived answer. `looking` falls back to `current` whenever
+ * the override is null, and the watcher below clears the override the instant the signing position
+ * moves, which carries the driver to the next place the moment they sign rather than leaving them
+ * reading page 14. Nothing here can change where they are SIGNING; that stays the composable's.
+ */
+const lookingOverride = ref<string | null>(null);
+const looking = computed<ApplyPacketStop | null>(() => {
+  const override = lookingOverride.value
+    ? (props.stops.find((s) => s.id === lookingOverride.value) ?? null)
+    : null;
+  return override ?? ceremony.current.value;
+});
+watch(
+  () => ceremony.current.value?.id ?? null,
+  () => {
+    lookingOverride.value = null;
+  },
+);
+/** True while the driver has wandered off the place they are being asked to sign. */
+const lookingAway = computed(
+  () => Boolean(ceremony.current.value) && looking.value?.id !== ceremony.current.value?.id,
+);
+
+/**
+ * Where the packet's bytes come from.
+ *
+ * ⚠ **Keyed on the token ALONE, and deliberately not on the mark count.** The first draft of this
+ * line put `filed` in the query so that a driver looking back at place 3 would see the signature
+ * they had just applied. That is a refetch of a thirty-one-page document after every one of
+ * twenty-two marks — and A0b's measurement is that everything on this prefix except `POST …/mark`
+ * falls to the **intake bucket at 20 requests per minute**. Twenty-two refetches inside one walk
+ * exceeds it, and the driver would be stopped mid-ceremony by a limiter, which is the exact defect
+ * A0b existed to fix ([[packet-ceremony-outruns-the-rate-limiter]]).
+ *
+ * So the document is what the carrier's paper looked like **when this screen opened**. That is
+ * precisely D-HUI11's case — a driver resuming at stop 8 sees the seven signatures a previous
+ * session left — and the cost is that a signature applied in THIS session is not redrawn. The
+ * screen says so rather than letting the two disagree silently; see `signedHereNotOnPage`.
+ */
+const packetSrc = computed(
+  () => `/api/public/application/${encodeURIComponent(props.token)}/packet`,
+);
+
+/**
+ * ⚠ The one place the rail and the page can legitimately disagree, said out loud.
+ *
+ * A stop the driver signed in THIS session is done — the rail marks it done, the server has the row
+ * — but the PDF on screen was fetched before that mark existed, so its signature line is still
+ * blank. Saying nothing would be the A3 failure in miniature: a screen showing one thing about a
+ * document while asserting another. One sentence costs nothing and is true.
+ */
+const signedHereNotOnPage = computed(
+  () => Boolean(looking.value) && !looking.value?.signedAt && ceremony.signedHere.value.has(looking.value?.id ?? ""),
+);
+
 async function signCurrent(): Promise<void> {
   await ceremony.sign();
   if (ceremony.complete.value) emit("done", ceremony.adoptedName.value.trim());
@@ -140,7 +205,7 @@ async function signCurrent(): Promise<void> {
     @done="emit('done', $event)"
   />
 
-  <!-- One place. Nothing else on the screen. -->
+  <!-- One place — and now the page it is on (C1). -->
   <section v-else-if="ceremony.current.value" class="space-y-4">
     <div class="flex items-baseline justify-between gap-4">
       <span class="text-xs font-medium text-ink-tertiary">
@@ -150,6 +215,51 @@ async function signCurrent(): Promise<void> {
         {{ copy.counter(ceremony.position.value, ceremony.total.value) }}
       </span>
     </div>
+
+    <!--
+      ⚠ The page and the sentence, BOTH, at every width — D-HUI9, and it is a measurement rather
+      than a preference. At 390px the packet's body text rasterises at ~6 CSS px: the page is
+      recognisable as a shape, which is what tells the driver where they are on the carrier's paper,
+      and its words cannot be read. So the sentence beside it carries the meaning and the page
+      carries the place. At 765px the page itself is readable, which is the width `ApplyLayout`
+      already had. ⚠ Pinch-zoom stays enabled; never `user-scalable=no`.
+    -->
+    <div class="lg:flex lg:items-start lg:gap-x-6">
+      <div class="lg:order-2 lg:min-w-0 lg:flex-1">
+        <PacketPageView
+          :src="packetSrc"
+          :page="looking?.page ?? ceremony.current.value.page"
+          :label="`Page ${looking?.page ?? ceremony.current.value.page} of the carrier's application`"
+        />
+      </div>
+
+      <!-- A strip above the page on a phone, a column beside it with room. -->
+      <div class="mt-4 lg:order-1 lg:mt-0 lg:w-44 lg:shrink-0">
+        <PacketPageRail
+          :stops="stops"
+          :current-id="ceremony.current.value.id"
+          :looking-id="looking?.id ?? null"
+          :signed-ids="ceremony.signedHere.value"
+          @look="lookingOverride = $event"
+        />
+      </div>
+    </div>
+
+    <!-- ⚠ The driver has wandered off the place being signed. Said plainly, with the way back, so
+         the Sign button below can never be mistaken for signing the page on screen. -->
+    <p v-if="lookingAway" class="text-sm text-ink-secondary">
+      You are reading page {{ looking?.page }}. The place you are signing is on page
+      {{ ceremony.current.value.page }}.
+      <BaseButton variant="ghost" size="sm" @click="lookingOverride = null">
+        Take me back
+      </BaseButton>
+    </p>
+
+    <!-- ⚠ The one place the rail and the page may legitimately disagree — see the computed. -->
+    <p v-else-if="signedHereNotOnPage" class="text-sm text-ink-secondary">
+      You signed this place a moment ago. It is saved; this copy of the page was made before you
+      signed it.
+    </p>
 
     <!-- The carrier's own sentence for this place, and the only thing being agreed to here. -->
     <p class="rounded-surface bg-surface-muted p-4 text-base text-ink">

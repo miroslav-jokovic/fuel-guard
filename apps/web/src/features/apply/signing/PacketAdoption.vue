@@ -101,7 +101,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
   -->
   <section
     v-if="ceremony.state.value === 'adopting' && ceremony.alreadyAdopted.value"
-    class="space-y-4"
+    class="mx-auto w-full max-w-3xl space-y-4"
   >
     <div>
       <h2 class="text-lg font-semibold text-ink">{{ copy.resumedHeading }}</h2>
@@ -129,7 +129,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
   </section>
 
   <!-- Adoption: once, before any place is shown. -->
-  <section v-else-if="ceremony.state.value === 'adopting'" class="space-y-4">
+  <section v-else-if="ceremony.state.value === 'adopting'" class="mx-auto w-full max-w-3xl space-y-4">
     <div>
       <h2 class="text-lg font-semibold text-ink">
         {{ ceremony.needsInitials.value ? copy.adoptHeadingWithInitials : copy.adoptHeading }}
@@ -228,7 +228,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
     one, because a confirmation that renders the mark differently from the document is confirming
     something else. Same reasoning as A3's stop preview, one screen earlier.
   -->
-  <section v-else-if="ceremony.state.value === 'confirming'" class="space-y-4">
+  <section v-else-if="ceremony.state.value === 'confirming'" class="mx-auto w-full max-w-3xl space-y-4">
     <div>
       <h2 class="text-lg font-semibold text-ink">{{ copy.confirmHeading }}</h2>
       <p class="mt-2 text-sm text-ink-muted">{{ copy.confirmBody }}</p>
