@@ -41,6 +41,14 @@ export interface NudgeCandidate {
   revoked_at: string | null;
   submitted_at: string | null;
   nudged_at: string | null;
+  /**
+   * When the driver handed the application to the office (`requestReview`), and when the office
+   * approved it. Both are here for one reason: after either stamp the draft stops changing because
+   * the driver has nothing left to type, which is indistinguishable from abandonment to a rule that
+   * only reads `draft_updated_at`.
+   */
+  review_requested_at: string | null;
+  approved_at: string | null;
   /** Null when the driver opened the link and typed nothing — there is no work to come back to. */
   draft_updated_at: string | null;
   furthest_section: string | null;
@@ -70,7 +78,23 @@ export interface PlannedNudge {
  *   · expired — the link is dead, and the plan's rule is that a nudge extends a live link rather
  *     than resurrecting a dead one; a carrier who wants a lapsed candidate back issues a new one
  *   · already nudged — once, ever
+ *   · handed to the office, or approved by it — see below; they did not walk away, they are waiting
  *   · no draft, or a draft touched inside the window — nothing abandoned yet
+ *
+ * ── ⚠ WAITING ON US IS NOT ABANDONMENT (A1, 2026-09-18) ───────────────────────────────────────
+ * The moment a driver taps "send to the office" their draft stops changing, and forty-eight hours
+ * later it looks exactly like a draft somebody walked away from. It is the opposite: the person who
+ * stopped working is the carrier. Nudging them would be bad enough on its own — the office is told
+ * "X stopped part-way through their application" about an applicant who is in fact waiting on the
+ * office — but the sweep also ROTATES the token (0232), so it would take the link out from under
+ * somebody whose next act is to sign. Measured in production on 2026-09-18: invitation
+ * `f2b142e4…` was approved, unrevoked, unexpired, carried an address, and its draft had sat
+ * untouched for thirty hours. It was about eighteen hours from having its link rotated.
+ *
+ * ⚠ BOTH stamps, not just the first. Approval does not clear `review_requested_at`, so the measured
+ * row carried both — but the two are separate exits from the driver's hands, and an application can
+ * be approved without a review having been requested through this path. Excluding one would leave
+ * the other as a door into the same failure.
  */
 export function planApplicationNudges(
   candidates: readonly NudgeCandidate[],
@@ -83,6 +107,7 @@ export function planApplicationNudges(
   return candidates
     .filter((c) => {
       if (c.submitted_at || c.revoked_at || c.nudged_at) return false;
+      if (c.review_requested_at || c.approved_at) return false;
       if (Date.parse(c.expires_at) <= now) return false;
       if (!c.draft_updated_at) return false;
       return Date.parse(c.draft_updated_at) < staleBefore;

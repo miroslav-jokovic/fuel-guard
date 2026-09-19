@@ -2142,6 +2142,44 @@ every time.
   ⚠ **No gate can see a Railway variable.** Turn it back on in the same PR that lands A1, and record
   that here — otherwise the sweep stays off for as long as nobody remembers why it was turned off.
 
+- **2026-09-18, night — A1 DONE. The sweep can see who is waiting on the office, and the sweep is
+  back on.** `planApplicationNudges` now refuses any invitation carrying `review_requested_at` or
+  `approved_at`, beside the existing submitted / revoked / already-nudged line. ⚠ **Three edits, as
+  the handoff said, and the third is the one with no natural test.** `NudgeCandidate` gained the two
+  fields; the fold filters on them; and `candidates()` had to SELECT them — it fetched seven columns
+  and neither was among them, so the rule would have read `undefined` for ever and waved every
+  approved applicant straight through.
+
+  ⚠ **`supabaseRecorder` hands back whole fixture rows whatever a query asked for**, so the
+  end-to-end test — *"neither alerts the office nor rotates the link of an approved applicant"* —
+  passes word for word with the select reverted. Measured, not assumed: that mutation left it green
+  and took down only the second test, *"asks PostgREST for both phase stamps"*, which reads the
+  recorded column list. Asserting a column list looks like testing the fake; it is the only place
+  the contract with PostgREST is visible to a test at all. Five mutations in total, each red on the
+  one test it should be: the two stamps dropped from the predicate one at a time, the predicate
+  removed entirely (red in the API suite too, which is what proves that suite runs the real fold
+  rather than a copy), a predicate excluding everything (red on the discriminator, *"still nudges an
+  equally stale draft that was never handed over"* — without it the three exclusion tests would pass
+  in a fold that had stopped nudging anybody), and the column list.
+
+  ⚠ **`.select()` must stay ONE string literal.** Breaking the longer list across two concatenated
+  lines to fit the margin compiles to `GenericStringError[]` and the existing cast stops typechecking
+  — supabase-js derives the row type from the literal. Named `CANDIDATE_COLS`, the shape
+  `applicantChecklist.ts` already used.
+
+  ⚠ **And this closes the false office alert, which the flag never could.** `alertOffice()` runs
+  before the `APPLICATION_NUDGE_ENABLED` check, so switching the flag off on 2026-09-18 23:15 stopped
+  the rotation and left the office being told *"X stopped part-way through their application"* about
+  an applicant who was waiting on the office. Excluding the candidate in the fold removes both,
+  because nothing downstream of the fold ever sees the row.
+
+  ✅ **`APPLICATION_NUDGE_ENABLED=true` set on `@fleetguard/api` again**, explicitly rather than by
+  deleting the variable — an absent variable that defaults to on is the trap this document has now
+  recorded twice, and a value somebody can read in the Railway dashboard is not. ⚠ **Set AFTER the
+  merge was served, never before**: the flag must not precede the fold, or the sweep gets one
+  six-hourly pass with the old rule. `f2b142e4…` — the invitation measured at eighteen hours from
+  rotation — is excluded by the fold now, not by the flag.
+
 ---
 
 ## 11. Sources
