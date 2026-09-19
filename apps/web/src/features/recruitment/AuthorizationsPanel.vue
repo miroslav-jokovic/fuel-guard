@@ -6,9 +6,11 @@ import {
   liveAuthorization,
   type AuthorizationPurpose,
 } from "@silvicom/shared";
-import { AppIcon } from "@silvicom/ui";
+import { AppButton, AppIcon } from "@silvicom/ui";
 import { CheckCircleIcon, ClockIcon } from "@silvicom/ui/icons";
 import { formatDateTime } from "@/lib/format";
+import { openPdf } from "@/lib/documentDownload";
+import { useToastStore } from "@/stores/toast";
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -43,7 +45,53 @@ const props = defineProps<{
   rows: readonly AuthorizationDetail[];
   loading?: boolean;
   error?: string | null;
+  /**
+   * The live invitation, for the printable copy (B2). Null before one exists.
+   *
+   * ⚠ The panel is DRIVER-keyed and the document is INVITATION-keyed, and that is the decision rather
+   * than an inconsistency: a recruiter looking at a person wants every release that person ever
+   * signed, and a printed instrument belongs to one hire — a rehire's older signatures belong to
+   * their own application, and a document spanning two invitations could not be dated.
+   */
+  invitationId?: string | null;
 }>();
+
+const toast = useToastStore();
+
+/**
+ * Printing what the applicant has signed (B2).
+ *
+ * ── WHY THE OFFICE NEEDS PAPER FOR THIS AT ALL ────────────────────────────────────────────────
+ * Every screening act rests on one of these releases (`SCREENING_PREREQUISITES`), and until B2 the
+ * only place they existed was this panel — a screen, behind a login, inside a drawer. So a carrier
+ * asked to produce the FCRA disclosure somebody signed had four instruments it could not hand over.
+ * The application's own PDF carries them and does not exist until the driver certifies, which can be
+ * a fortnight later or never.
+ *
+ * ⚠ Shown only once something has been signed, because the API refuses an empty one in a sentence
+ * rather than printing a sheet of "Not signed yet" rows — a button whose only outcome is a refusal is
+ * worse than no button. The consent-only moment (they agreed to sign electronically and have signed
+ * nothing else) lasts seconds and is the one state this hides a real document in.
+ */
+const canPrint = computed(() => Boolean(props.invitationId) && props.rows.length > 0);
+
+async function openPermissions(): Promise<void> {
+  try {
+    /**
+     * ⚠ **A new tab, and it should not stay one.** B8 teaches `DocumentPreview.vue` — this repo's
+     * sanctioned viewer — to take a document the API renders on demand rather than a stored
+     * `DocumentRow`, which is exactly what this is; it was an open PR when B2 shipped, so this uses
+     * the path that exists on `main` today. **When B8 lands, this becomes that viewer**: it is one
+     * prop and a modal, not a rewrite, and leaving it a new tab afterwards would mean the office
+     * reads one rendered PDF beside the record and another one somewhere else entirely.
+     */
+    await openPdf(
+      `/api/recruitment/applications/${encodeURIComponent(props.invitationId ?? "")}/permissions.pdf`,
+    );
+  } catch (e) {
+    toast.push("error", e instanceof Error ? e.message : "That could not be opened.");
+  }
+}
 
 interface ReleaseRow {
   purpose: AuthorizationPurpose;
@@ -87,6 +135,10 @@ const releases = computed<ReleaseRow[]>(() =>
         </div>
       </li>
     </ul>
+
+    <AppButton v-if="canPrint" size="sm" variant="secondary" @click="openPermissions">
+      Print what they have signed
+    </AppButton>
 
     <p class="text-2xs text-ink-tertiary">
       The Clearinghouse query consent is not listed: it is given inside the FMCSA portal, not here.

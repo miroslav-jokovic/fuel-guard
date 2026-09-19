@@ -1959,6 +1959,83 @@ every time.
   ⚠ **`pnpm test` failed once on the api suite and passed on re-run with the same tree** — the known
   undiagnosed flake (6 of 23 runs, 2026-09-08), not this change.
 
+- **2026-09-18, night — B2 BUILT, and Wave B is complete.** No migration: 0344 is still the head and
+  0345 is still next. `GET /api/recruitment/applications/:invitationId/permissions.pdf`, `canView`,
+  streamed and never filed.
+
+  **The open question is answered INVITATION-keyed**, as recommended, and the reason is now in the
+  route's header rather than in a handoff: the marks, the draft and the consent all key on the live
+  invitation (0227 makes `invitation_id` unique on the consent), so a document spanning two
+  invitations could not be dated. ⚠ **The releases PANEL stays driver-keyed and that is not an
+  inconsistency** — a recruiter looking at a person wants every release that person ever signed; a
+  printed instrument belongs to one hire. The two really do key differently, and
+  `permissions.test.ts`'s rehire fixture is the only thing that can tell: it answers a driver-keyed
+  read with an older application's signatures, so *"keys the instruments on this invitation, not on
+  the driver"* fails the moment somebody swaps the key.
+
+  ⚠ **It does NOT refuse once the application is filed, where `preview.ts` does**, and the two
+  refusals only look like the same question. The preview refuses because its CONTENT is the filed
+  record's content. This document's content is in no filed record at all: what gets filed is the
+  carrier's 31-page packet, which has no page for the releases, the consent or the certificate of
+  completion — the three facts A2 removed from the preview and named B2 as the home for. So it stays
+  readable for the life of the applicant, and the certificate page tells the truth on both sides of
+  the filing: *"Not signed yet"* before, the signer and the server's timestamp after.
+
+  ⚠ **Assembly, as the handoff said — except for the one thing that was not.** `certificate.ts`,
+  `stamp.ts` and `lib/pdfDraw.ts` were reusable as promised. What was not reusable as it stood was
+  the CONSENT PAGE and the INSTRUMENT PAGE, which lived inside `render.ts` and would have had to be
+  written a second time. They are now `instrumentPages.ts`, called by both, behaviour-preserving
+  (the filed renderer passes no `standing` line and draws what it drew before). **That is A2's
+  lesson applied before the divergence rather than after it**: the instrument page is the page a
+  dispute is actually about, since FCRA §604(b)(2) asks which wording was shown, and it is the last
+  place two implementations should exist. The test slices the block out of the filed document and
+  asserts the permissions PDF contains it character for character.
+
+  ⚠ **A revoked release was the one error worth building for.** `sources.ts`'s reader is right for
+  the filing and wrong here: its `.is("revokes", null)` drops revocation ROWS, not grants that a
+  later row revoked — correct for a record of what was signed on the day, and a lie on a document
+  answering *what may we rely on now*. This module reads both kinds and folds them with
+  `liveAuthorization`, the same fold `AuthorizationsPanel` and `hiringChecklist` use, so the paper
+  and the screen cannot disagree. A revoked instrument keeps its page (the wording is the fact a
+  dispute turns on) under a DANGER-ink line naming the date and the reason.
+
+  **Verified by rasterising at 110 dpi and looking**, which found a defect no assertion in this repo
+  could have: ⚠ **`field()` advanced the cursor past the VALUE and never asked how tall the LABEL
+  was**, so a label too long for its 130pt column wrapped and the next row was drawn straight
+  through it. Every document here had short labels ("Employer", "Signed", "Date") until this one
+  printed `AUTHORIZATION_PURPOSE_LABELS`, which run to four words. **It was already live on the
+  FILED application**: `questionnairePage.ts` draws the carrier's questions as field labels, and
+  *"How did you hear about this company?"* had been overprinting its neighbour on every filed
+  §391.21 document nobody had rasterised. One line — take the max of the two halves — fixed both,
+  and 325 api suites are unchanged by it. The band is *"SIGNED PERMISSIONS - NOT THE APPLICATION"*
+  and deliberately not DRAFT: every act on the page is real, dated and signed, and what it is not is
+  the application.
+
+  **The affordance, because the done-when is about a person** (§0, A11b's lesson): *Print what they
+  have signed*, in `AuthorizationsPanel` behind the Permissions row, shown only once something has
+  been signed — the API refuses an empty one in a sentence rather than printing five *"Not signed
+  yet"* rows, and a button whose only outcome is a refusal is worse than none. ⚠ **It opens a NEW
+  TAB and it should not stay one.** B8 (#886) teaches `DocumentPreview.vue` to take a rendered
+  document and was an open PR when this shipped, so this uses the path that exists on `main`; the
+  comment above the call says so and says what removes it. **Follow-up owed: one prop and a modal,
+  once B8 is on main** — leaving it would mean the office reads one rendered PDF beside the record
+  and another one somewhere else entirely.
+
+  **Twelve api mutations and four web ones, all red for the right test, all written to compile** —
+  ⚠ and the first attempt at six of them proved nothing: they failed `tsc` on an unused symbol, and
+  a mutation that merely breaks the build says nothing about the assertion. ⚠ One of them came back
+  GREEN and was right to: `supabaseRecorder` records `.eq()` and does not apply it, so mutating an
+  `invitation_id` filter changes nothing the fake can see. That is what put the KEY behind function
+  fixtures rather than flat arrays — the hole hides a wrong key exactly as it hides a missing org
+  filter.
+
+  ⚠ **Known and deliberate:** the certificate page lists a revoked release among the acts without
+  repeating that it was revoked. It is a record of acts *"at the moment of each act"*, and both the
+  summary and the instrument page say REVOKED — teaching `certificate()` about revocation would mean
+  widening `ApplicationPdfInput`, which the filed document shares. ⚠ **`pnpm test` failed once on
+  `RecruitmentPage.test.ts` at 5,006 ms and passed on re-run and on a targeted run** — the flake the
+  handoff records, not this change.
+
 ---
 
 ## 11. Sources

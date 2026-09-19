@@ -11,6 +11,7 @@ import {
   isReviewError,
 } from "../applicationReview.js";
 import { applicationPreviewPdf, isPreviewError } from "../applicationPdf/preview.js";
+import { applicationPermissionsPdf, isPermissionsError } from "../applicationPdf/permissions.js";
 
 /**
  * Reading, correcting and approving an applicant's answers (F4).
@@ -40,6 +41,7 @@ export function recruitmentApplicationReviewRouter(): Router {
         ? 400
         : code === "application_not_editable" || code === "application_not_reviewable"
           || code === "already_certified" || code === "already_filed" || code === "nothing_to_preview"
+          || code === "nothing_signed_yet"
           ? 409
           : 500;
 
@@ -86,6 +88,44 @@ export function recruitmentApplicationReviewRouter(): Router {
         String(req.params.invitationId ?? ""),
       );
       if (isPreviewError(result)) {
+        res.status(status(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      res.send(result.pdf);
+    }),
+  );
+
+  /**
+   * What the applicant has signed, as a printable document (B2).
+   *
+   * ⚠ Invitation-keyed, beside the preview, and NOT driver-keyed like the releases panel it is
+   * printed from. Recorded as the step's one real decision rather than settled in passing: the marks,
+   * the draft and the consent all key on the live invitation (0227 makes `invitation_id` unique on
+   * the consent), so a document spanning two invitations could not be dated — a rehire's older
+   * signatures belong to their own application. The panel stays driver-keyed because a recruiter
+   * looking at a person wants every release that person ever signed; a printed instrument belongs to
+   * one hire.
+   *
+   * ⚠ `canView`, like the preview above it. Printing what somebody signed changes nothing, and a
+   * recruiter who could read the releases on the screen but not on paper would photograph the screen.
+   *
+   * Streamed, never filed: nothing cites these bytes and nothing hashes them, and the document says
+   * so across every page. D-AX8 keeps the filed record single.
+   */
+  router.get(
+    "/applications/:invitationId/permissions.pdf",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await applicationPermissionsPdf(
+        admin,
+        req.auth!.orgId!,
+        String(req.params.invitationId ?? ""),
+      );
+      if (isPermissionsError(result)) {
         res.status(status(result.code)).json(apiError(result.code, result.message));
         return;
       }
