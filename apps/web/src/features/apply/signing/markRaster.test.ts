@@ -100,7 +100,7 @@ describe("padding the box before it is cropped", () => {
 describe("taking the paper out of an uploaded signature", () => {
   it("keeps dark ink at full opacity and removes bright paper entirely", () => {
     const data = canvas(2, 1, [250, 250, 248, 255], (set) => set(0, 0, [20, 20, 20, 255]));
-    knockOutPaper(data);
+    knockOutPaper(data, 2, 1);
     expect(data[3]).toBe(255);
     expect(data[7]).toBe(0);
   });
@@ -115,30 +115,57 @@ describe("taking the paper out of an uploaded signature", () => {
    */
   it("fades the grey between ink and paper rather than cutting at a threshold", () => {
     const data = canvas(1, 1, [160, 160, 160, 255]);
-    knockOutPaper(data, 110, 205);
+    knockOutPaper(data, 1, 1, 110, 205);
     expect(data[3]).toBeGreaterThan(0);
     expect(data[3]).toBeLessThan(255);
   });
 
   /**
-   * ⚠ Rec. 601 weights, not an equal-weight average. Blue reads far darker to the eye than its value
-   * suggests, so an average treats a blue-ish shadow as ink and leaves a bruise around the signature.
-   * These two colours have the SAME arithmetic mean and very different luma, which is what makes this
-   * assertion able to fail.
+   * ⚠ **Weighted luma, not an equal-weight average**, and the weights come from `capture-engine`'s
+   * `toLuminance` rather than from a copy here — `lint:scanner-parity` refuses a second definition
+   * (D-SCAN8), and it was right to: the copy this replaced said Rec. 601 while the one definition says
+   * Rec. **709**. Blue reads far darker to the eye than its value suggests, so an average treats a
+   * blue-ish shadow as ink and leaves a bruise around the signature. ⚠ These two colours have the SAME
+   * arithmetic mean (140) and very different luma (199 against 132), which is what makes this assertion
+   * able to fail — and it fails under either standard, so it pins the SHAPE of the rule rather than one
+   * set of coefficients this file must not restate.
    */
   it("weighs the channels the way an eye does, not equally", () => {
     const greenish = canvas(1, 1, [150, 230, 40, 255]);
     const blueish = canvas(1, 1, [40, 150, 230, 255]);
-    knockOutPaper(greenish);
-    knockOutPaper(blueish);
+    knockOutPaper(greenish, 1, 1);
+    knockOutPaper(blueish, 1, 1);
     expect(greenish[3]!).toBeLessThan(blueish[3]!);
   });
 
   /** Transparency already in the file — a PNG signature with no background — must survive untouched. */
   it("leaves an already-transparent pixel transparent", () => {
     const data = canvas(1, 1, [20, 20, 20, 0]);
-    knockOutPaper(data);
+    knockOutPaper(data, 1, 1);
     expect(data[3]).toBe(0);
+  });
+
+  /**
+   * ⚠ **This test exists because a mutation came back GREEN, and the test was at fault** — the seventh
+   * time in this repo, and the cause was the usual one: a fixture too uniform to discriminate
+   * ([[a-green-mutation-means-the-test-is-at-fault]]).
+   *
+   * `toLuminance` takes a `channels` argument, and `knockOutPaper` must pass **4** because a canvas
+   * hands back RGBA. Passing 3 walks the buffer at the wrong stride — pixel *k* reads bytes `3k…3k+2`
+   * instead of `4k…4k+2` — so from the second pixel on, every luminance is computed from one pixel's
+   * alpha and the next one's red and green. Every other assertion in this block used a ONE or TWO
+   * pixel fixture, and at that size the two strides cannot disagree: the first pixel is bytes 0–2
+   * either way. So the mutation passed while reading the image diagonally.
+   *
+   * ⚠ Four pixels, and the values are chosen so misalignment cannot be mistaken for rounding: the
+   * correct stride gives `[255, 255, 255, 0]` — three opaque strokes and one transparent paper pixel —
+   * and a stride of 3 gives `[255, 255, 61, 255]`, which gets the paper *backwards*. On a real upload
+   * that is a signature sheared diagonally across the page with the background left opaque.
+   */
+  it("reads the canvas at the RGBA stride, not the RGB one", () => {
+    const data = canvas(4, 1, [0, 0, 0, 255], (set) => set(3, 0, [255, 255, 255, 255]));
+    knockOutPaper(data, 4, 1);
+    expect([data[3], data[7], data[11], data[15]]).toEqual([255, 255, 255, 0]);
   });
 });
 

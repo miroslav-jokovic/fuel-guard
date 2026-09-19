@@ -2616,11 +2616,32 @@ every time.
   because a driver uploading a signature already has the picture and forcing the camera would make them
   photograph a screen. ⚠ `lint:tokens` also read a `#ffffff` **in a comment** as a colour.
 
-  **Mutations: twelve run, twelve red**, each in isolation — the five pure helpers (alpha threshold →
+  ⚠ **`lint:scanner-parity` failed in CI after every gate on the handoff's list passed, and it was
+  RIGHT — twice over.** `knockOutPaper` carried its own Rec. 601 luma coefficients, and D-SCAN8 says
+  the quality metrics have one definition, `packages/capture-engine/src/metrics.ts`. ⚠ **The copy was
+  not merely a duplicate, it was already WRONG**: the one definition is Rec. **709**. So the value had
+  drifted from the original on the day it was written, with a fuse of zero — `CLAUDE.md`'s *deriving
+  beats restating* demonstrated on itself. It now calls `toLuminance(rgba, w, h, 4)`, which also
+  removes the per-pixel arithmetic. ⚠ The lesson for the gate list is the one [[pnpm-lint-is-not-the-gate-set]]
+  keeps teaching from new directions: the handoff's list is the WEB-facing gates, and a web file can
+  trip a gate that belongs to the driver scanner.
+
+  **Mutations: fifteen run, fifteen red**, each in isolation — the five pure helpers (alpha threshold →
   `=== 0`, clamp removed, luma → equal mean, faded band → hard cut, `fitScale` enlarging), the style
   term restored to `currentShowsDrawing`, `markRequiredFor` flipped, `markCarriedOver` ignoring
-  `markBlob`, `markWillPrint` ignoring the failure, the styled-with-no-blob flag silenced, and the new
-  `markStaged` guard forced both ways. ⚠ **The first mutation harness measured nothing and said so
+  `markBlob`, `markWillPrint` ignoring the failure, the styled-with-no-blob flag silenced, the
+  `markStaged` guard forced both ways, and after the parity fix the RGBA stride, the existing alpha,
+  and the band again.
+
+  ⚠ **One of those came back GREEN first, and the TEST was at fault — the seventh time.** Passing
+  `channels = 3` to `toLuminance` walks the buffer at the wrong stride, so from the second pixel on
+  every luminance is computed from one pixel's alpha and the next one's red and green. Every fixture in
+  that block was ONE or TWO pixels wide, and at that size the two strides cannot disagree, because the
+  first pixel is bytes 0–2 either way. The mutation read the image diagonally and passed. The new
+  four-pixel fixture gives `[255, 255, 255, 0]` correctly against `[255, 255, 61, 255]` — it gets the
+  paper backwards, which on a real upload is a signature sheared across the page with the background
+  left opaque. **The cause is always a fixture too uniform to discriminate**, and "too uniform" includes
+  TOO SMALL. ⚠ **The first mutation harness measured nothing and said so
   loudly**: `git checkout -- <paths>` where ONE path is untracked resolves the whole pathspec and
   restores NOTHING, silently, so all ten accumulated and the counts rose monotonically. §10's A3 entry
   already warned that `git checkout --` does nothing here; the new half is that a new file in the list

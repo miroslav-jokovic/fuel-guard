@@ -93,7 +93,7 @@ export async function normaliseUploadedMark(
     ctx.drawImage(decoded.source, 0, 0, canvas.width, canvas.height);
 
     const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    knockOutPaper(image.data);
+    knockOutPaper(image.data, canvas.width, canvas.height);
     ctx.putImageData(image, 0, 0);
 
     const blob = await trimToBlob(canvas, ctx);

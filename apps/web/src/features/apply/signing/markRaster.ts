@@ -1,3 +1,5 @@
+import { toLuminance } from "@silvicom/capture-engine";
+
 /**
  * Turning a mark into the PNG the carrier's packet will print (C2, D-HUI14).
  *
@@ -124,18 +126,33 @@ export function padBounds(
  * below `dark` is kept at full opacity, and the band between is faded in proportion. A hard threshold
  * turns the antialiased rim of every stroke into a staircase, which at the 18pt the overlay scales a
  * mark down to reads as a dotted line rather than a pen stroke.
+ *
+ * ── ⚠ AND THE LUMA COMES FROM `capture-engine`, WHICH IS A GATE AND WAS ALSO A CORRECTION ─────
+ * The first version of this function carried its own Rec. 601 coefficients, and `lint:scanner-parity`
+ * refused it: *"the quality metrics have ONE definition: `packages/capture-engine/src/metrics.ts`
+ * (D-SCAN8)"*. ⚠ **It was not merely a duplicate — it was WRONG**, because the one definition is
+ * Rec. **709**. So the copy had already drifted from the original on the day it was written, which is
+ * the whole argument for the rule and a worked example of `CLAUDE.md`'s *deriving beats restating*:
+ * a value copied instead of derived is a workaround with a delay fuse, and this one's fuse was zero.
+ *
+ * ⚠ `toLuminance` reads interleaved RGB(A) and is given `channels = 4` so the canvas buffer is used
+ * WITHOUT a copy — the same reason its own header gives for the parameter existing.
  */
 export function knockOutPaper(
   pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
   dark = 110,
   light = 205,
 ): void {
-  for (let i = 0; i < pixels.length; i += 4) {
-    // Rec. 601 luma. The weights matter on a photograph: an equal-weight average reads a blue-ish
-    // shadow as darker than it looks and leaves a bruise around the signature.
-    const luma = 0.299 * pixels[i]! + 0.587 * pixels[i + 1]! + 0.114 * pixels[i + 2]!;
-    const opacity = luma <= dark ? 1 : luma >= light ? 0 : (light - luma) / (light - dark);
-    pixels[i + 3] = Math.round(pixels[i + 3]! * opacity);
+  // A view, not a copy: `getImageData` hands back a clamped array over a buffer `toLuminance` can
+  // read directly, and a 12-megapixel upload is not worth duplicating to change the wrapper's type.
+  const rgba = new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.length);
+  const { data: luma } = toLuminance(rgba, width, height, 4);
+  for (let p = 0; p < luma.length; p += 1) {
+    const l = luma[p]!;
+    const opacity = l <= dark ? 1 : l >= light ? 0 : (light - l) / (light - dark);
+    pixels[p * 4 + 3] = Math.round(pixels[p * 4 + 3]! * opacity);
   }
 }
 
