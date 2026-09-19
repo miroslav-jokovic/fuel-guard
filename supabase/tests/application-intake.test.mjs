@@ -290,6 +290,56 @@ ok("attaching twice is a no-op, not a second answer", second === false);
 const crossAttach = (await one(`select public.attach_application_document($1,$2,$3) as r`, [OTHER_ORG, result.application_id, DOC])).r;
 ok("and another org cannot attach to it at all", crossAttach === false);
 
+// ── the sign token's uniqueness (0345, A5a) ───────────────────────────────────────────────────
+//
+// A SECOND hash on the same invitation, minted at approval so the approval email can carry a link
+// (A5b reads it; nothing does yet). Its index is unique WHERE NOT NULL.
+//
+// ⚠ Measured rather than reasoned, because the first version of this comment was wrong. Dropping
+// the `where` clause — the obvious mutation — leaves every assertion below GREEN, and that is
+// correct Postgres rather than a hole in the test: nulls are distinct to a unique index unless it
+// says `nulls not distinct`, so the partial predicate buys intent and index size, not behaviour.
+// The mutation that does bite is removing the uniqueness itself, which takes down "but two may not
+// share one sign token".
+//
+// And the nullable half is covered by this file rather than by the line below it: every invitation
+// the matrix creates has no sign token, so any mutation that forbids a second null — `nulls not
+// distinct`, or `not null` on the column — kills the run at the second `invite()` call, hundreds of
+// lines before here. The assertion is kept anyway, because a reader should be able to see that many
+// nulls is the INTENDED state and not an accident nobody considered.
+{
+  const a = await invite(ORG, APPLICANT, "now() + interval '14 days'", "sign-a");
+  const b = await invite(ORG, CHECKED, "now() + interval '14 days'", "sign-b");
+  ok(
+    "two invitations may both be waiting with no sign token at all",
+    (await count(
+      `select count(*)::int as n from application_invitations where id in ($1,$2) and sign_token_hash is null`,
+      [a, b],
+    )) === 2,
+  );
+
+  await db.query(`update application_invitations set sign_token_hash = 'signhash-1' where id = $1`, [a]);
+  let refused = false;
+  try {
+    await db.query(`update application_invitations set sign_token_hash = 'signhash-1' where id = $1`, [b]);
+  } catch {
+    refused = true;
+  }
+  // Two rows sharing one sign token would make `resolveInvitation`'s `.maybeSingle()` answer NEITHER
+  // of them: a driver holding a perfectly good link told the link is invalid, with no trace of why.
+  ok("but two may not share one sign token", refused);
+  ok(
+    "and the first one keeps it",
+    (await one(`select sign_token_hash from application_invitations where id = $1`, [a])).sign_token_hash
+      === "signhash-1",
+  );
+  // The original link is untouched by all of this — the whole reason there are two hashes (D-AX14).
+  ok(
+    "the applicant's original token is not disturbed by minting a sign token",
+    (await one(`select token_hash from application_invitations where id = $1`, [a])).token_hash === "sign-a",
+  );
+}
+
 // ── neither table is reachable from a browser session ──────────────────────────────────────────
 ok(
   "the intake function is service_role only",
