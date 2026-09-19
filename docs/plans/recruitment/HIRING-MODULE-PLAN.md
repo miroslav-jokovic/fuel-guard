@@ -2363,6 +2363,41 @@ every time.
   failed and the next two passed: the `RecruitmentPage.test.ts` flake §6 of the handoff records, in
   a file this change does not touch.
 
+- **2026-09-19 — C1, second half: split the three pre-walk screens out of `PacketCeremony.vue`
+  (behaviour-preserving), proved by six byte-identical screenshots.** #896 did the server side; this
+  is the client side of the same "split first" step. `PacketAdoption.vue` takes the resumed screen,
+  the adoption form and A4's confirm step; `PacketCeremony.vue` keeps the WALK. **434 → 233**, with
+  the new file at 276 — both comfortably under budget, where before there were 16 lines of headroom
+  and the carrier's page still to put on the stop. ⚠ The seam is also where **C2** lands: its three
+  tabs (Choose a style / Draw / Upload) grow the adoption screens, not the walk.
+
+  ⚠ **`ceremony` is passed WHOLE, on purpose.** `usePacketCeremony` returns `{ ...adoption, …walk }`
+  as one spread so that no consumer can tell the halves apart (Q-PKT11). Handing the child only the
+  adoption members would have rebuilt that seam at the component boundary instead. The child takes
+  the same object the parent holds, so the state machine stays one instance.
+
+  ⚠ **`drawnUrl` stays in the parent and is handed down as a prop**, because the confirm screen and
+  the stop screen show the same drawing: one blob, one object URL, one revoke. A second URL in the
+  child would pin a second copy of a few hundred KB per redraw.
+
+  **Verified by rendering, not by the suite** — the recipe is the A3 entry above, rebuilt in ten
+  minutes as it promised. Walked adoption → confirm → stop 1 → stop 2 → 390px before and after the
+  split: **all six screenshots byte-identical** (sha256), and the logged headings and stop text
+  identical too. ⚠ Then the path the typed walk never touches — **drawn mode**, which is the only
+  thing this refactor actually changed — walked separately: the stroke renders on the confirm screen
+  and on the stop, 1 `<img>` each.
+
+  ⚠ **And a green-suite warning worth keeping.** Deleting `:drawn-url="drawnUrl"` reproduces A3's
+  defect exactly — the confirm screen shows the cursive typed name where the drawing belongs, "the
+  right act with the wrong mark" — and **all 207 web test files / 2,030 tests stay green**, because
+  `PacketCeremony.vue` has no component test at all, only `usePacketCeremony.test.ts`. What catches
+  it is `vue-tsc`, and only because the prop is **required**. Had it been optional, nothing in the
+  gate set would have seen it. ⚠ C1 should not add an optional prop to these two files without
+  asking what would catch its absence.
+
+  **Gates:** `pnpm lint`, `typecheck`, `--filter web test` (207/2,030), `--filter web lint:tokens`,
+  `lint:filesize`, `lint:boundaries` all green. No migration. No behaviour change.
+
 ---
 
 ## 11. Sources
