@@ -67,11 +67,29 @@ export function nudgeEmail(
   return { subject, text, html };
 }
 
-/** Every live invitation for one org, joined to whatever draft it holds. */
+/**
+ * The column list, named rather than inlined — the same shape `applicantChecklist.ts` uses, and for
+ * the same reason: supabase-js derives the row type from the STRING LITERAL, so a list broken across
+ * two concatenated lines to fit the margin types as `GenericStringError[]` and the cast below stops
+ * compiling. One `const` keeps the literal and the margin both.
+ */
+const CANDIDATE_COLS =
+  "id, driver_id, email, expires_at, revoked_at, submitted_at, nudged_at, review_requested_at, approved_at";
+
+/**
+ * Every live invitation for one org, joined to whatever draft it holds.
+ *
+ * ⚠ `review_requested_at` and `approved_at` are SELECTED here and excluded in the fold, not filtered
+ * here (A1). The `.is(...)` filters below are about volume — there is no reason to drag submitted,
+ * revoked and already-nudged invitations across the wire — whereas "waiting on the office is not
+ * abandonment" is a rule about somebody's inbox, and `applicationNudge.ts`'s header argues at length
+ * that every one of those lives in the pure fold where it can be read back and tested without a
+ * database. A column selected but not filtered looks redundant; it is the fold's input.
+ */
 async function candidates(admin: SupabaseClient, orgId: string): Promise<NudgeCandidate[]> {
   const { data, error } = await admin
     .from("application_invitations")
-    .select("id, driver_id, email, expires_at, revoked_at, submitted_at, nudged_at")
+    .select(CANDIDATE_COLS)
     // The service role bypasses RLS; every query on this path carries its own tenant scope.
     .eq("org_id", orgId)
     .is("submitted_at", null)

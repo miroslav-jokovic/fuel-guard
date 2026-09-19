@@ -20,6 +20,8 @@ const candidate = (over: Partial<NudgeCandidate> = {}): NudgeCandidate => ({
   revoked_at: null,
   submitted_at: null,
   nudged_at: null,
+  review_requested_at: null,
+  approved_at: null,
   draft_updated_at: hoursAgo(72),
   furthest_section: "employment",
   ...over,
@@ -60,6 +62,55 @@ describe("who is nudged", () => {
   /** Once, ever. A system that reminds an applicant every six hours gets filtered. */
   it("never nudges twice", () => {
     expect(planApplicationNudges([candidate({ nudged_at: "2026-08-20T10:00:00Z" })], NOW)).toEqual([]);
+  });
+});
+
+/**
+ * ⚠ A1 — the driver who is waiting on US (2026-09-18).
+ *
+ * These four are not variations on "somebody finished". They are the case where the draft stops
+ * changing for the best possible reason: the driver handed the application over, and the party who
+ * has stopped working is the carrier. Every fixture here is deliberately TEN days stale, far past
+ * the window, so that the only thing keeping each one out of the plan is the stamp under test —
+ * a fixture that was merely fresh would pass whether or not the rule exists.
+ *
+ * What makes this worth four tests rather than one: the sweep rotates the token (0232), so a nudge
+ * here does not merely send a redundant email, it takes the link out from under somebody whose next
+ * act is to sign. Measured in production 2026-09-18: one approved invitation was about eighteen
+ * hours from exactly that.
+ */
+describe("the driver who is waiting on the office", () => {
+  const ancient = { draft_updated_at: hoursAgo(240) };
+
+  it("never nudges an application already handed to the office", () => {
+    expect(planApplicationNudges([candidate({ ...ancient, review_requested_at: "2026-08-15T09:00:00Z" })], NOW))
+      .toEqual([]);
+  });
+
+  /**
+   * Approval does not clear the review stamp, so this is what the production row actually looked
+   * like — and it is why excluding one stamp would not have been enough.
+   */
+  it("never nudges an approved application, review stamp and all", () => {
+    expect(planApplicationNudges([candidate({
+      ...ancient,
+      review_requested_at: "2026-08-15T09:00:00Z",
+      approved_at: "2026-08-16T09:00:00Z",
+    })], NOW)).toEqual([]);
+  });
+
+  /** The second stamp on its own — approval reached by any path that did not stamp the first. */
+  it("never nudges an approved application that carries no review stamp", () => {
+    expect(planApplicationNudges([candidate({ ...ancient, approved_at: "2026-08-16T09:00:00Z" })], NOW))
+      .toEqual([]);
+  });
+
+  /**
+   * And the discriminator: the same ten-day-old draft with neither stamp IS nudged. Without this the
+   * three above would still pass if the fold had simply stopped nudging anybody.
+   */
+  it("still nudges an equally stale draft that was never handed over", () => {
+    expect(planApplicationNudges([candidate(ancient)], NOW)[0]?.invitationId).toBe("inv-1");
   });
 });
 

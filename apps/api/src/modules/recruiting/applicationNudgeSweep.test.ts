@@ -32,6 +32,7 @@ const seed = (over: {
       application_invitations: [{
         id: "inv-1", driver_id: DRIVER, email: "susan@example.test",
         expires_at: "2026-09-01T00:00:00Z", revoked_at: null, submitted_at: null, nudged_at: null,
+        review_requested_at: null, approved_at: null,
         ...over.invitation,
       }],
       application_drafts: over.draft === null ? [] : [{
@@ -119,6 +120,50 @@ describe("the sweep", () => {
     expect(result).toEqual({ stalled: 1, emailed: 0, messaged: 0 });
     expect(sent.fn).not.toHaveBeenCalled();
     expect(rec.rpcs().some((r) => r.fn === "emit_notification")).toBe(true);
+  });
+});
+
+/**
+ * ⚠ A1 — the applicant who is waiting on the office (2026-09-18).
+ *
+ * The rule lives in `planApplicationNudges`; these two tests are about the half of A1 that a pure
+ * fold cannot reach, and they fail for different reasons on purpose.
+ *
+ * The first is end-to-end: it proves the sweep actually consults the fold before it alerts and
+ * before it rotates. ⚠ `alertOffice()` runs BEFORE the `APPLICATION_NUDGE_ENABLED` check, which is
+ * why switching the flag off in production on 2026-09-18 stopped the rotation and left the false
+ * "stopped part-way through" alert in place. The fold is the only place that fixes both.
+ *
+ * The second reads the recorded `select`, which looks like testing the fake rather than the code.
+ * It is not: `supabaseRecorder` hands back whole fixture rows whatever a query asked for, so the
+ * first test would pass word for word even if `candidates()` never selected the two stamps — in
+ * production the columns would arrive `undefined`, the fold would wave the invitation through, and
+ * every assertion here would still be green. The column list IS the contract with PostgREST, so it
+ * is what gets asserted.
+ */
+describe("an applicant the office is sitting on", () => {
+  const approved = { review_requested_at: "2026-08-19T09:00:00Z", approved_at: "2026-08-20T09:00:00Z" };
+
+  it("neither alerts the office nor rotates the link of an approved applicant", async () => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ invitation: approved });
+    expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
+      .toEqual({ stalled: 0, emailed: 0, messaged: 0 });
+    // Not "no rotation" — NOTHING. A rotation would take the link out from under a person whose
+    // next act is to sign, and the alert would tell the office that the office is late.
+    expect(rec.rpcs()).toEqual([]);
+    expect(sent.fn).not.toHaveBeenCalled();
+  });
+
+  it("asks PostgREST for both phase stamps", async () => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ invitation: approved });
+    await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW);
+    const columns = String(
+      rec.forTable("application_invitations")[0]?.ops.find((o) => o.method === "select")?.args[0] ?? "",
+    );
+    expect(columns).toContain("review_requested_at");
+    expect(columns).toContain("approved_at");
   });
 });
 
