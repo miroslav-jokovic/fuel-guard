@@ -68,6 +68,8 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   consented_at: CONSENTED,
   releases_completed_at: null,
   submitted_at: null,
+  /** No sign token until the office approves (A5b, 0345) — which is most invitations, most of the time. */
+  sign_token_hash: null,
   ...over,
 });
 
@@ -162,12 +164,96 @@ describe("the token", () => {
     expect(mintInvitationToken().token).not.toBe(token);
   });
 
+  /**
+   * ⚠ Read from the WHOLE recorded query rather than from `filters()`, since A5b. The lookup became an
+   * `.or()` so one token can open either door (D-AX15), and `or` is not a method `supabaseRecorder`
+   * counts as a filter — so the old assertion went on passing while looking at an empty list, which
+   * is a test that cannot fail. The property is about every byte sent to PostgREST, so that is what
+   * is inspected.
+   */
   it("is never sent to the database in the clear", async () => {
     const rec = seed();
     await resolveInvitation(rec.client, TOKEN, NOW);
-    const filters = JSON.stringify(rec.forTable("application_invitations")[0]!.filters());
-    expect(filters).toContain(hashInvitationToken(TOKEN));
-    expect(filters).not.toContain(TOKEN);
+    const query = JSON.stringify(rec.forTable("application_invitations")[0]!.ops);
+    expect(query).toContain(hashInvitationToken(TOKEN));
+    expect(query).not.toContain(TOKEN);
+  });
+});
+
+/**
+ * ⚠ Two doors, one application (A5b, D-AX15).
+ *
+ * The office's approval email carries a link of its own, minted into `sign_token_hash` beside the
+ * invitation's original `token_hash` rather than over it. Both open the same session, and the reason
+ * both must is a promise: `APPLY_FLOW_COPY.handoff.waitingNote` tells the applicant to keep the first
+ * link because it is where they will sign. A rotation would have been less code and would have made
+ * that sentence false at the exact moment somebody acted on it.
+ *
+ * ⚠ The refusals below each use a token that is NOT either hash, so they keep discriminating: a
+ * lookup widened to two columns must not become a lookup that matches anything.
+ */
+describe("either link opens the same application", () => {
+  const SIGN_TOKEN = "s".repeat(43);
+  const approved = () => invitation({
+    review_requested_at: "2026-08-19T00:00:00Z",
+    approved_at: "2026-08-20T00:00:00Z",
+    sign_token_hash: hashInvitationToken(SIGN_TOKEN),
+  });
+
+  it("opens on the token the applicant was invited with", async () => {
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()] } });
+    const row = await resolveInvitation(rec.client, TOKEN, NOW);
+    expect(isIntakeError(row)).toBe(false);
+  });
+
+  it("opens on the sign token the approval email carried", async () => {
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()] } });
+    const row = await resolveInvitation(rec.client, SIGN_TOKEN, NOW);
+    expect(isIntakeError(row)).toBe(false);
+    if (isIntakeError(row)) return;
+    // The SAME invitation, not a second session: the draft, the phases and the signed releases are all
+    // on this row, and a second session would be a second application.
+    expect(row.id).toBe("inv-1");
+  });
+
+  it("asks PostgREST for both columns, so a sign token can match at all", async () => {
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()] } });
+    await resolveInvitation(rec.client, SIGN_TOKEN, NOW);
+    const ops = rec.forTable("application_invitations")[0]!.ops;
+    expect(String(ops.find((o) => o.method === "select")?.args[0])).toContain("sign_token_hash");
+    expect(String(ops.find((o) => o.method === "or")?.args[0]))
+      .toBe(`token_hash.eq.${hashInvitationToken(SIGN_TOKEN)},sign_token_hash.eq.${hashInvitationToken(SIGN_TOKEN)}`);
+  });
+
+  /**
+   * ⚠ The widened lookup's own failure mode. `supabaseRecorder` answers with the fixture row whatever
+   * was asked, so a row comes back here even though neither hash matches — which is exactly the
+   * position production is in when PostgREST's `or` is wrong. The constant-time compare is what
+   * refuses, and it is the only thing that does.
+   */
+  it("refuses a token that matches neither hash, even when a row comes back", async () => {
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()] } });
+    const row = await resolveInvitation(rec.client, "z".repeat(43), NOW);
+    expect(row).toMatchObject({ code: "invalid_link" });
+  });
+
+  /** An unapproved invitation has no sign token, and a null must never be treated as a match. */
+  it("refuses a sign token against an invitation that has none", async () => {
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [invitation()] } });
+    expect(await resolveInvitation(rec.client, SIGN_TOKEN, NOW)).toMatchObject({ code: "invalid_link" });
+  });
+
+  /**
+   * ⚠ And `undefined`, which is a DIFFERENT value and was a real defect for a few minutes: a `!== null`
+   * guard let a row with no such property through to the compare. That is what a caller whose query
+   * forgot the column hands over, and it must decide nothing. Found by
+   * `applicationCopy.test.ts`'s "signs nothing for a token that is not this invitation's", which is
+   * why it is pinned here too rather than left to be re-found somewhere else.
+   */
+  it("refuses when the column was never selected, not only when it is null", async () => {
+    const { sign_token_hash: _omitted, ...withoutColumn } = invitation();
+    const rec = createSupabaseRecorder({ tables: { application_invitations: [withoutColumn] } });
+    expect(await resolveInvitation(rec.client, SIGN_TOKEN, NOW)).toMatchObject({ code: "invalid_link" });
   });
 });
 

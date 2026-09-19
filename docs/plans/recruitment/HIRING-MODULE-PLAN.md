@@ -2240,6 +2240,59 @@ every time.
   is not observable to a functional test. A5b widens this lookup to a second column, so the compare
   it adds is in the one place this repo's tests cannot check — review it by reading, not by running.
 
+- **2026-09-18, night — A5b DONE, and **Wave A is finished**. The approval email carries a link; the
+  applicant's original link still works.** Decision id **D-AX15**, recorded in
+  `APPLY-EXPERIENCE-PLAN.md` §6 — it is D-AX14's own declined "third option", taken. Readers:
+  `resolveInvitation` accepts either hash via `.or(token_hash.eq.…,sign_token_hash.eq.…)` and compares
+  in constant time against whichever column matched; `notifyApplicationApproved` mints the sign token
+  and passes the link to `renderApplicationApprovedEmail`.
+
+  ⚠ **Nothing on this path writes `token_hash`, and a test asserts that rather than asserting a token
+  exists.** *"mints the sign token beside the original rather than over it"* fails if the update
+  touches `token_hash` at all — because a rotation would have satisfied every other assertion here
+  just as well and stranded anybody who used the first link, which is the whole objection D-AX14
+  raised. Minted once ever, via `.is("sign_token_hash", null)`: the plaintext of a stored hash is
+  unrecoverable, so a second mint would silently kill a link already emailed.
+
+  ⚠ **An existing test had gone quietly vacuous and was found by this change.** *"is never sent to the
+  database in the clear"* read `supabaseRecorder`'s `filters()`, and `or` is not one of the methods the
+  recorder counts as a filter — so once the lookup widened, that assertion inspected an EMPTY list and
+  went on passing. It now reads the whole recorded query. The property is about every byte sent to
+  PostgREST, and that is now what it looks at.
+
+  ⚠ **Two tests were reversed on purpose and say so in their own comments** — *"carries the sign link
+  in both bodies"* (was "carries no link") and *"tells the applicant it is ready to sign, with a link
+  of its own"*. A third is new and guards the direction the copy must NOT go: *"says the earlier link
+  still works, rather than that it is dead"* — the sentence the nudge has to say is false here, and
+  false in the direction that makes somebody stop using a link that works.
+
+  ⚠ **The SMS was left alone, measured rather than assumed.** `approvedSmsBody` with a real apply URL
+  is 170–193 characters against a 160-character segment; the nudge already pays that price (199) and
+  has to, because an abandoned form gives the driver nothing else to act on. A5b's requirement is the
+  email, so the text keeps pointing at it — and that sentence only got truer.
+
+  ⚠ **`applicationApprovalNotice.ts` is a new writer of `application_invitations`** and had to be
+  added to `scripts/table-writers.json`; `lint:table-writers` catches this and nothing else does.
+
+  ⚠ **A real defect shipped for four minutes and the EXISTING suite found it: `null` is not the only
+  way a column goes missing.** The first guard read `row.sign_token_hash !== null`, which is true of
+  `undefined` — what a query that did not select the column hands over — and `hashEquals` would then
+  decode a non-string. `applicationCopy.test.ts`'s *"signs nothing for a token that is not this
+  invitation's"* went red, in a file this change never touched, and it was right to. The guard is now
+  `typeof === "string" && length > 0`, and the case is pinned here as well, in *"refuses when the
+  column was never selected, not only when it is null"*, rather than left to be re-found.
+
+  **Eight mutations, each red on the one test it should be**: the sign hash not consulted, null treated
+  as a match, the `or()` asking for one column, a rotation instead of a mint, the mint-once guard
+  dropped, no link reaching the email, no link reaching the text body, and the copy claiming the old
+  link is dead. ⚠ **One mutation is knowingly NOT covered**, recorded when this file was split: swap
+  `timingSafeEqual` for `===` and the whole api suite stays green. A5b adds a second compare in exactly
+  that spot; it is held by reading, not by running.
+
+  **Full suite:** api 325 files / 3,898 tests, web 207 / 2,030, shared 206 / 2,959, every matrix green.
+  ⚠ `RecruitmentPage.test.ts` timed out at 5,006 ms in one `pnpm test` run and passes targeted and
+  per-package — the flake §4 of the handoff already records, in a file this change does not touch.
+
 ---
 
 ## 11. Sources

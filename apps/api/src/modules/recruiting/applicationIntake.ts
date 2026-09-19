@@ -65,6 +65,11 @@ interface InvitationRow {
   org_id: string;
   driver_id: string;
   token_hash: string;
+  /**
+   * The SECOND hash, minted at approval and sent in the approval email (A5b, D-AX15, 0345). Null on
+   * every invitation that has not been approved, and on every row approved before 0345.
+   */
+  sign_token_hash: string | null;
   expires_at: string;
   revoked_at: string | null;
   /** 15 U.S.C. 7001(c) consent recorded (A4 sets it; nothing sets it yet). */
@@ -111,11 +116,53 @@ export const phasesOf = (row: {
 });
 
 /**
+ * Does the presented token match EITHER of the invitation's hashes? (A5b, D-AX15)
+ *
+ * ⚠ `hashEquals` on both, never `===`, and the reason is the same for the second column as for the
+ * first: anything derived from a secret compared byte-by-byte with early exit is a timing oracle. The
+ * repository's tests cannot see that property — replacing `timingSafeEqual` with `===` here leaves
+ * the whole api suite green, measured when this module was split — so it is kept by reading.
+ *
+ * The `||` does leak WHICH hash matched, in timing. That is not a secret: both tokens were emailed to
+ * the same person, and a caller who presents one already knows which one they hold.
+ */
+function presentedTokenMatches(row: Pick<InvitationRow, "token_hash" | "sign_token_hash">, hash: string): boolean {
+  if (hashEquals(row.token_hash, hash)) return true;
+  /**
+   * ⚠ A truthiness check, and `!== null` was not enough — measured, it broke
+   * `applicationCopy.test.ts`'s *"signs nothing for a token that is not this invitation's"*. Most
+   * invitations have never been approved and carry no sign token, and "no sign token" arrives as
+   * `null` from a query that selected the column and as `undefined` from one that did not.
+   * `hashEquals` would then decode a non-string and either throw or compare nothing, so a missing
+   * column could decide a token's fate. Nothing but a real hex digest may reach the compare.
+   */
+  return typeof row.sign_token_hash === "string" && row.sign_token_hash.length > 0
+    && hashEquals(row.sign_token_hash, hash);
+}
+
+/**
  * Resolve a presented token to a live invitation.
  *
  * Looked up BY HASH — the plaintext never touches a query — and then compared again in constant
  * time. The second compare is not redundant paranoia about the index: it keeps the code honest if
  * somebody later widens the lookup, and it costs a microsecond on a path that runs once per hire.
+ *
+ * ── ⚠ TWO DOORS, ONE INVITATION (A5b, D-AX15) ─────────────────────────────────────────────────
+ * Somebody later did widen the lookup. `token_hash` is the link the applicant was invited with;
+ * `sign_token_hash` is minted when the office approves, so the approval email can carry a link of its
+ * own instead of telling a stranger to go and search their inbox (0345). Either opens this invitation
+ * and both keep working — the amendment to D-AX14 is that approval ADDS a door rather than moving
+ * one, which is what lets `APPLY_FLOW_COPY.handoff.waitingNote` go on promising that the first link
+ * still works.
+ *
+ * ⚠ The `.or()` interpolates a value derived from the caller, which is normally how a filter becomes
+ * an injection. It is safe by construction and only by construction: `hashInvitationToken` returns a
+ * SHA-256 hex digest, so `hash` is 64 characters of `[0-9a-f]` whatever was presented. Nothing else
+ * may be interpolated into this filter.
+ *
+ * ⚠ `.maybeSingle()` answers `dead` if two rows somehow matched — a sign token colliding with another
+ * invitation's invite token. At 256 bits that will not happen, and the failure mode if it did is a
+ * refusal rather than the wrong person's application.
  *
  * Every failure returns the SAME refusal. "Expired" and "no such invitation" are different facts and
  * telling them apart is a probe: an anonymous caller learning that a token EXISTED has learned
@@ -138,14 +185,14 @@ export async function resolveInvitation(
   const { data } = await admin
     .from("application_invitations")
     .select(
-      "id, org_id, driver_id, token_hash, expires_at, revoked_at, consented_at, releases_completed_at, "
-      + "review_requested_at, approved_at, submitted_at",
+      "id, org_id, driver_id, token_hash, sign_token_hash, expires_at, revoked_at, consented_at, "
+      + "releases_completed_at, review_requested_at, approved_at, submitted_at",
     )
-    .eq("token_hash", hash)
+    .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash}`)
     .maybeSingle();
   const row = data as InvitationRow | null;
   const dead = { code: "invalid_link", message: "This application link is not valid. Ask for a new one." };
-  if (!row || !hashEquals(row.token_hash, hash)) return dead;
+  if (!row || !presentedTokenMatches(row, hash)) return dead;
   if (row.revoked_at) return dead;
   if (Date.parse(row.expires_at) <= now.getTime()) return dead;
   return row;
