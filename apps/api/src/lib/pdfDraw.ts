@@ -163,6 +163,15 @@ const FIELD_ROW = 14;
  * So: turn the page BEFORE the row when it will not fit, which keeps a label with its value; and if
  * the value wrapped across a break anyway, keep the cursor pdfkit actually left rather than a
  * position measured on the sheet before it.
+ *
+ * ── ⚠ AND THE OTHER HALF, WHICH ONLY A RENDERED PAGE SHOWED (B2, 2026-09-18) ──────────────────
+ * The cursor was advanced past the VALUE and the label's own height was never asked for — so a label
+ * too long for its 130pt column wrapped to two lines and the next row was drawn straight through it.
+ * Every document here had short labels ("Employer", "Signed", "Date") until B2 printed
+ * `AUTHORIZATION_PURPOSE_LABELS`, whose members run to four words and are the instruments' real
+ * names. It presents as the summary block of a document overprinting itself, and **no assertion
+ * about text can see it**: every word is on the page, at coordinates nothing checks. Found by
+ * rasterising at 110 dpi and looking at it, which is why every step that changes printing does that.
  */
 export function field(doc: PDFKit.PDFDocument, label: string, value: string): void {
   if (doc.y + FIELD_ROW > PAGE_HEIGHT - doc.page.margins.bottom) doc.addPage();
@@ -173,13 +182,15 @@ export function field(doc: PDFKit.PDFDocument, label: string, value: string): vo
     .font("Helvetica")
     .fontSize(9)
     .text(winAnsi(label), MARGIN, y, { width: 130 });
+  // Where the LABEL ended, before the value moves the cursor — a row is as tall as its taller half.
+  const labelBottom = doc.y;
   doc
     .fillColor(INK)
     .font("Helvetica-Bold")
     .fontSize(9.5)
     .text(winAnsi(value), MARGIN + 134, y, { width: CONTENT_WIDTH - 134 });
   doc.x = MARGIN;
-  doc.y = doc.page === startPage ? Math.max(doc.y, y + FIELD_ROW) : doc.y;
+  doc.y = doc.page === startPage ? Math.max(doc.y, labelBottom, y + FIELD_ROW) : doc.y;
 }
 
 export function rule(doc: PDFKit.PDFDocument): void {
