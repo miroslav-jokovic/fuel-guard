@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DriverApplication } from "@silvicom/shared";
-import { renderPacketDocument } from "./packetDocument.js";
+import { renderPacketDocument, type PacketMarkRow } from "./packetDocument.js";
 
 /**
  * ⚠ The words `render.ts` stamps on a preview, repeated here rather than imported, and the choice is
@@ -82,10 +82,52 @@ export interface ApplicationPreview {
   filename: string;
 }
 
+/**
+ * What differs between the two people who read an unsigned packet (C1, D-HUI10, D-HUI11).
+ *
+ * ⚠ **Options on THIS function rather than a second renderer, and A2 is the reason.** The office's
+ * preview and the applicant's reading copy are the same document, read at the same moment in its
+ * life, by two people with different questions. A2's whole lesson is that two renderers of one
+ * document diverge silently and no gate can see it — that is exactly how the office read an
+ * eight-page summary for four days while the driver signed a thirty-one-page packet. So the audience
+ * is a parameter and the rendering is one code path. Both defaults below reproduce the office's
+ * preview exactly, so the call site that existed before C1 did not change.
+ */
+export interface PreviewAudience {
+  /**
+   * The marks already on the paper (D-HUI11).
+   *
+   * ⚠ The office's preview passes NONE and must keep passing none — see the `marks: []` note below,
+   * which is A2's ruling and still stands for that caller. **The applicant's case is genuinely
+   * different**: a driver resuming at stop 8 of 22 has seven signatures on that paper already, and a
+   * reading copy that hid them would be showing them a document that is not the one they are signing.
+   * ⚠ This is NOT the marks-based SWITCH A2 rejected. That switch asked *"has this been signed?"* and
+   * used the answer to pick a different document; this passes the real mark set to one renderer and
+   * changes nothing about which document is drawn.
+   */
+  marks?: readonly PacketMarkRow[];
+  /**
+   * The words across every sheet. Defaults to the office's DRAFT band.
+   *
+   * ⚠ **`null` for the person being asked to sign it (D-HUI10).** The band is honest — nothing is
+   * filed — but a DRAFT stripe across the page somebody is about to put their name on reads as
+   * *this is not the real document*, which is the opposite of what C1 exists to do. The office is
+   * asking "what will they sign"; the driver is asking "what am I signing", and only one of those
+   * questions is helped by being told the answer is provisional.
+   */
+  band?: string | null;
+  /**
+   * The driver's drawn mark, when they adopted one (D-PKT13). Decoration; the typed name is the
+   * record (D-APP8). ⚠ The office's preview has no marks to draw it on, so it passes none.
+   */
+  drawnMark?: Buffer | null;
+}
+
 export async function applicationPreviewPdf(
   admin: SupabaseClient,
   orgId: string,
   invitationId: string,
+  audience: PreviewAudience = {},
 ): Promise<ApplicationPreview | PreviewError> {
   const { data } = await admin
     .from("application_invitations")
@@ -125,11 +167,13 @@ export async function applicationPreviewPdf(
 
   const pdf = await renderPacketDocument({
     /**
-     * ⚠ **Empty, and it is the point of this step rather than a gap** (§1a C4). Blank signature
-     * lines under a DRAFT band are exactly what the carrier's paper looks like before anybody signs
-     * it, which is what an office previewing an unsigned application is asking to see.
+     * ⚠ **Empty for the OFFICE, and it is the point of this step rather than a gap** (§1a C4). Blank
+     * signature lines under a DRAFT band are exactly what the carrier's paper looks like before
+     * anybody signs it, which is what an office previewing an unsigned application is asking to see.
+     * ⚠ The applicant's reading copy passes the real set instead — see `PreviewAudience.marks` for
+     * why that is not A2's rejected switch.
      */
-    marks: [],
+    marks: audience.marks ?? [],
     /**
      * ⚠ Cast, not parsed — deliberately, and it is the same rule `file.ts` renders filed payloads
      * under. This is stored jsonb written by a form that has changed shape before and will again; a
@@ -152,12 +196,14 @@ export async function applicationPreviewPdf(
      * name where a signature belongs on a document nobody has signed.
      */
     signedName: "",
-    // ⚠ Null, and it would be ignored anyway — A3 made the drawn mark follow the MARKS, and there
-    // are none. Named rather than omitted so the next reader does not go looking for the read.
-    drawnMark: null,
+    // ⚠ Null for the OFFICE, and it would be ignored anyway — A3 made the drawn mark follow the
+    // MARKS, and that caller has none. Named rather than omitted so the next reader does not go
+    // looking for the read. The applicant's reading copy has marks, so it passes the drawing too.
+    drawnMark: audience.drawnMark ?? null,
     // ⚠ Same words as `render.ts` stamps, so the office reads the phrase it has always read on a
-    // preview even though the paper underneath it changed.
-    band: PREVIEW_BAND,
+    // preview even though the paper underneath it changed. ⚠ `null` is a DELIBERATE value here, not
+    // a missing one (D-HUI10) — see `PreviewAudience.band`.
+    band: audience.band === undefined ? PREVIEW_BAND : audience.band,
   });
 
   return { pdf, filename: `application-${invitation.id}-preview.pdf` };

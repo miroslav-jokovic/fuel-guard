@@ -175,6 +175,27 @@ export function usePacketCeremony(
   const collected = computed(() => stops.value.filter((s) => Boolean(s.signedAt)));
 
   /**
+   * Every stop that is DONE, counting the ones filed in this tab (C1).
+   *
+   * ⚠ `collected` is not the same question and C1 needs both. `collected` is what the SERVER had
+   * when the bundle was fetched — which is exactly what the rendered packet shows, because the two
+   * are read from the same rows — while this is what is true NOW. They differ by `filedHere`, and
+   * the difference is visible to the driver: the rail must mark a place they just signed as done,
+   * and the page underneath it will not have grown a signature, because the PDF is fetched once per
+   * ceremony rather than once per mark (`PacketCeremony.vue` has the rate-budget arithmetic).
+   *
+   * ⚠ Derived, never a second cursor. It is `signedAt` OR `filedHere`, the same two facts
+   * `outstanding` is the complement of, so the rail and the walk cannot drift apart.
+   */
+  const signedHere = computed(
+    () =>
+      new Set([
+        ...stops.value.filter((s) => s.signedAt).map((s) => s.id),
+        ...filedHere.value,
+      ]),
+  );
+
+  /**
    * Whether the stop the driver is standing on will carry the DRAWING rather than typed text (A3).
    *
    * ⚠ **This is the client half of a NAMED PAIR with `renderPacketOverlay`'s mark loop**, and it is a
@@ -259,6 +280,7 @@ export function usePacketCeremony(
     position,
     complete,
     collected,
+    signedHere,
     filed: computed(() => filed.value),
     working: computed(() => working.value),
     error: computed(() => error.value),

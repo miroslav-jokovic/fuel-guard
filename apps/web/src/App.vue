@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import AppShell from "@/layouts/AppShell.vue";
 import AuthLayout from "@/layouts/AuthLayout.vue";
@@ -29,6 +29,21 @@ const isLabLayout = computed(() => layout.value === "lab");
  */
 const isApplyLayout = computed(() => layout.value === "apply");
 /**
+ * The signing surface asks for the wider container (C1), by the same route-scoped channel the
+ * carrier's name already uses.
+ *
+ * ⚠ It is NOT `meta.fullBleed`: that is read by `AppShell` alone, and this route never renders
+ * `AppShell`. `ApplyLayout`'s own header carries the measurement. ⚠ And it is a property of a
+ * SCREEN rather than of a route — `/apply/:token` is a form for seven screens and a signing surface
+ * for one — which is the same reason `isFullBleed` had to start reading the dashboard's tab from
+ * the URL rather than a static boolean (D-DR24).
+ */
+const applyWide = ref(false);
+// ⚠ Reset on navigation, or a driver who signs and then opens a fresh link gets the wide container
+// on the address form. The carrier's name is re-emitted on every load and so needs no such reset;
+// a boolean that is only ever emitted `true` does.
+watch(() => route.fullPath, () => { applyWide.value = false; });
+/**
  * The shop's own shell (D-INV17): a phone in a bay, no sidebar, a sticky bottom action bar. It is
  * NOT wrapped in `ErrorBoundary` for the reason the boundary's own comment gives about the other
  * standalone shells — but the reason is different enough to state: a count screen that threw would
@@ -51,8 +66,8 @@ const isShopLayout = computed(() => layout.value === "shop");
   <PublicLayout v-else-if="isPublicLayout">
     <RouterView />
   </PublicLayout>
-  <ApplyLayout v-else-if="isApplyLayout" :carrier="applyCarrier">
-    <RouterView @carrier="applyCarrier = $event" />
+  <ApplyLayout v-else-if="isApplyLayout" :carrier="applyCarrier" :wide="applyWide">
+    <RouterView @carrier="applyCarrier = $event" @wide="applyWide = $event" />
   </ApplyLayout>
   <ShopLayout v-else-if="isShopLayout">
     <RouterView />

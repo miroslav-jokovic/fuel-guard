@@ -2398,6 +2398,112 @@ every time.
   **Gates:** `pnpm lint`, `typecheck`, `--filter web test` (207/2,030), `--filter web lint:tokens`,
   `lint:filesize`, `lint:boundaries` all green. No migration. No behaviour change.
 
+- **2026-09-19 — C1 BUILT: a driver can read the page they are about to sign, on the page they are
+  about to sign it.** Three PRs, as the handoff predicted: #896 split the public router, #897 split
+  the ceremony component, and this one is the step. The done-when sentence is now true of a person,
+  and the defect it fixes was visible in a screenshot: stop 1 read *"Page 3 of the application"*,
+  *"Orientation and the drug test it includes"*, and a **Sign here** button, with nothing on the
+  screen that was the page.
+
+  **The tenth route.** `GET /:token/packet` → `applicationReadingCopy.ts`. The renderer already
+  existed; the delivery did not. `applicationPreviewPdf` now takes a `PreviewAudience` instead of
+  growing a twin — ⚠ A2's lesson is that two renderers of one document diverge silently and no gate
+  can see it, and both defaults reproduce the office's preview exactly, so the pre-existing call
+  site did not change. Bytes rather than a signed URL, because there is no object to sign a URL to:
+  the document is rendered on demand and never stored, since an unsigned uncited copy of a
+  §391.51(b)(1) record beside the filed one is the state `applicationCopy.ts` refuses to create.
+
+  **The three open questions, answered with decision ids.**
+  - **D-HUI10 — no DRAFT band on the signing surface.** The band is honest and the office keeps it;
+    a DRAFT stripe across the page somebody is being asked to sign reads as *this is not the real
+    document*. One test asserts **both halves**, because "does not contain" alone would pass on a
+    renderer that drew nothing.
+  - **D-HUI11 — the marks already collected ARE drawn.** A driver resuming at stop 8 has seven
+    signatures on that paper. ⚠ Not A2's rejected switch: the input is the real mark set, not a
+    proxy for *has this been signed*.
+  - **D-HUI12 — it does not wait for the office.** `POST /:token/mark` refuses before approval and
+    should; reading is not signing, and gating it would mean the only moment a driver can study the
+    document is the moment they are asked to sign it.
+
+  ⚠ **D-HUI13 — the packet is fetched ONCE per ceremony, not once per mark.** The first draft keyed
+  the URL on the mark count so a driver looking back would see the signature they had just applied.
+  That is a refetch of a **634 KB**, thirty-one-page document after each of twenty-two marks — and
+  everything on this prefix except `POST …/mark` falls to the **intake bucket at 20 requests per
+  minute**, so the walk would have been stopped by the limiter A0b existed to remove. Measured in
+  the browser: **PACKET FETCHES: 1** across a two-mark walk. The cost is that a mark filed in THIS
+  session is not redrawn, so the screen says so in one sentence rather than letting the rail and the
+  page disagree silently.
+
+  ⚠ **The layout lever is `ApplyLayout`'s own `wide` prop, and §9's row is wrong** — recorded in the
+  handoff and now built. `meta.fullBleed` is read by `isFullBleed()` → `AppShell` and nothing else,
+  and `/apply/:token` renders `ApplyLayout`. D-HUI6's reasoning stands (no sixth `LayoutName`).
+  ⚠ Everything on that screen that is a form or prose keeps `max-w-3xl` of its own accord — a no-op
+  while the layout is 3xl — so there is no conditional and no second source of truth about width.
+
+  ⚠ **The rail is not a cursor.** `current` stays the composable's derived answer; the rail emits
+  `look`, which moves only which page is READ, and the parent clears it the instant the signing
+  position moves. A4's stranded-walk defect is a stored position one level up, and this does not
+  reintroduce it.
+
+  **⚠ Rendering found three defects every test was green for**, which is the tenth consecutive step
+  to prove that sentence:
+  1. **`PAGE ERROR: Cannot use the same canvas during multiple render() operations.`** `draw()` has
+     three callers — load, page change, and the `ResizeObserver`, which fires twice because the
+     layout widens a frame after the page asks it to — and two overlap on the first paint every
+     time. The in-flight render is now cancelled rather than awaited.
+  2. **The rail read *"0 of 22 done"* after signing two places.** It was reading `stop.signedAt`,
+     and the bundle is not refetched per mark. `usePacketCeremony` now exposes `signedHere`
+     (`signedAt` OR `filedHere`), so the rail and the walk cannot drift.
+  3. ⚠ **The whole signing screen scrolled sideways at 390px.** `document.documentElement.scrollWidth`
+     was **1011** against a 390 viewport and `window.scrollTo(500, 0)` moved. Worth writing down
+     what did and did not fix it, because the obvious one does not: `overflow: hidden` on the list,
+     the nav AND the section all left it at 1011, while `contain: paint` and `flex-wrap` both
+     collapsed it to 390. The rail first **wrapped** the chips; the `lint:ui-adoption` fix below
+     then replaced the phone strip with dots that are not controls, which removes the overflow at
+     its source. Re-measured both times: 390, and `pageScrollsSideways: false`.
+
+  ⚠ **A fourth defect the SUITE caught, and the lesson is about ordering**: the `wide` watcher was
+  first written beside the other computeds, where `immediate: true` evaluated `awaitingSignature` →
+  `submitted` → `justSent` inside the temporal dead zone. All 31 of ApplyPage's tests failed with
+  *Cannot access 'justSent' before initialization*. An `immediate` watcher is setup-order-sensitive
+  in a way a computed is not; it now sits at the end of setup and says why.
+
+  **Mutations: seven run, seven red** (band ignored on either side, marks dropped on either side,
+  the route unmounted, `attachment` for `inline`). ⚠ **The eighth came back green and the TEST was
+  at fault** — with the `submitted_at` guard deleted, `applicationPreviewPdf` refuses on its own and
+  its sentence also contains the word "copy", so asserting the code and "copy" could not tell the
+  guard from the fallback. What the guard buys is that a filed application is refused **without the
+  document being rendered at all**, and the test now asserts the draft was never read.
+
+  **Gates:** all green — `pnpm lint`, `typecheck`, `lint:filesize`, `lint:funcsize`,
+  `lint:boundaries`, `lint:comment-claims`, `lint:table-writers`, `--filter web lint:tokens`;
+  api 326 files / 3,919 tests, web 207 / 2,030, shared 206 / 2,961, every matrix green,
+  `schema.generated.sql` unchanged. No migration. ⚠ `RecruitmentPage.test.ts` timed out at 5,000 ms
+  in the full `pnpm test` run and passes targeted (10/10) and per-package (207/2,030) — the flake §6
+  of the handoff records, in a file this change does not touch.
+
+  ⚠ **A fifth defect, and CI found it because I had not run the gate: `lint:ui-adoption`.** The
+  rail's phone strip used a raw `<button>`, which that gate forbids in pages and features. ⚠ **It is
+  in CI's `gates` job and is NOT part of `pnpm lint`** — and neither are `lint:ui-contrast`,
+  `lint:light-dark`, `lint:chart-colors`, `lint:token-gamut`, `lint:tokens-parity`,
+  `lint:token-schema` or `lint:template-integrity`, all of which this step then ran and passed.
+  [[pnpm-lint-is-not-the-gate-set]] names `lint:boundaries` and `lint:filesize`; **the web-facing
+  half of that list is longer than the memory says**, and a UI step should run every `lint:` script
+  that touches `apps/web`, not the five that are usually quoted.
+
+  The fix was not a smaller one. `AppButton`'s `size="row"` is this repo's sanctioned left-aligned
+  full-width row and its header records that a call site reaching for `!important` means a variant
+  is missing — but twenty-two of those rows is ~880px on a phone, against D-HUI9's ruling that the
+  page needs every vertical pixel at 390. So the rail now **navigates on a desktop and indicates on
+  a phone**: `AppButton size="row"` in a column at `lg`, and below it the count plus twenty-two dots
+  that are not controls at all. That also retired the wrapped-chip fix above — the phone strip no
+  longer has buttons to wrap. Re-measured after the rewrite: 390, `pageScrollsSideways: false`,
+  `PACKET FETCHES: 1`, and the desktop look-ahead walk unchanged.
+
+  **Left for C2**, which is the next step and edits the same files: the adoption dialog's three tabs.
+  ⚠ Re-derive §1c of the handoff before starting it — `pinnedKinds` and `canChange` are already
+  wired, and Upload is the only genuinely new tab.
+
 ---
 
 ## 11. Sources

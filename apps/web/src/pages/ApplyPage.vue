@@ -87,7 +87,7 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * guarantees the two can never disagree about what §391.21 requires.
  */
 const route = useRoute();
-const emit = defineEmits<{ carrier: [string | null] }>();
+const emit = defineEmits<{ carrier: [string | null]; wide: [boolean] }>();
 const token = computed(() => String(route.params.token ?? ""));
 
 const invitation = useApplyInvitationQuery(token);
@@ -131,6 +131,7 @@ const awaitingReview = computed(
 const packetStops = computed(() => invitation.data.value?.packet ?? []);
 /** Q-PKT9: what this link already adopted, so a resumed walk does not ask the driver to retype it. */
 const packetAdopted = computed(() => invitation.data.value?.packetAdopted ?? null);
+
 
 // ── Resuming (A2) ─────────────────────────────────────────────────────────────────────────────
 const released = ref<Record<string, unknown> | null>(null);
@@ -265,6 +266,28 @@ const ceremonyNeeded = computed(
 );
 
 
+/**
+ * The signing surface asks the layout for room (C1).
+ *
+ * ⚠ Emitted from HERE rather than from the ceremony, and the reason is that it is the same two
+ * facts the screen is chosen by — an approved application with places still to sign — so there is
+ * no third condition that could disagree with the `v-else-if` in the template.
+ *
+ * ⚠ **It sits at the END of setup, and the first version did not.** `awaitingSignature` reads
+ * `submitted`, which reads `justSent` — destructured from `useApplicationSending` sixty lines below
+ * where the watcher was — so `immediate: true` evaluated it inside the temporal dead zone and every
+ * one of ApplyPage's 31 tests failed with *Cannot access 'justSent' before initialization*. An
+ * `immediate` watcher is setup-order-sensitive in a way a computed is not, because nothing else
+ * reads these until render.
+ *
+ * ⚠ Everything on that screen that is a form or prose keeps `max-w-3xl` of its own accord, so the
+ * extra width reaches only the packet page and its rail. `SignOffScreen`'s template says so too.
+ */
+watch(
+  () => awaitingSignature.value && packetStops.value.length > 0,
+  (roomy) => emit("wide", roomy),
+  { immediate: true },
+);
 </script>
 
 <template>

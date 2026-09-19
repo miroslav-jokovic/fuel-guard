@@ -3,6 +3,7 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { applicantCopy } from "../applicationCopy.js";
+import { applicantReadingCopy } from "../applicationReadingCopy.js";
 import { isIntakeError } from "../applicationIntake.js";
 
 /**
@@ -45,6 +46,52 @@ export function publicApplicationDocumentsRouter(): Router {
         return;
       }
       res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * The packet the driver is about to sign, before they sign it (C1).
+   *
+   * ⚠ **The tenth route, and the only part of C1 with no code behind it.** The five geometry modules
+   * and the renderer all existed; what did not exist was any way for an applicant to READ the
+   * document. `applicationReadingCopy.ts` carries the argument for why the token is enough and what
+   * still bounds it.
+   *
+   * ⚠ **Bytes, not a URL, and the one place this surface departs from `compliance.ts`'s idiom.**
+   * There is no object to sign a URL to: this document is rendered on demand from the draft and
+   * deliberately never stored, because an unsigned uncited copy of a §391.51(b)(1) record sitting in
+   * Storage beside the filed one is the state the route above refuses to create.
+   *
+   * ⚠ **One request for the whole document, and the viewer must keep it that way** (A0b). The
+   * ceremony's own bucket covers `POST /:token/mark` only — 60 per minute, keyed per link — and
+   * everything else on this prefix falls to the intake bucket at **20 per minute per address**. A
+   * page-by-page fetch of a thirty-one-page document would blow that budget on the first scroll and
+   * the driver would be told their link was invalid. The client fetches these bytes ONCE and renders
+   * every page from them.
+   *
+   * `409` for a filed application: the link is perfectly good and the answer is "that document is
+   * finished, and it is one route up".
+   */
+  router.get(
+    "/:token/packet",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await applicantReadingCopy(admin, String(req.params.token ?? ""), new Date());
+      if (isIntakeError(result)) {
+        const status = result.code === "invalid_link" ? 404 : 409;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      // ⚠ `inline`, not `attachment`. The driver is reading this on the page they are signing on;
+      // a download prompt in the middle of a ceremony is how somebody loses their place.
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      // ⚠ Never cached by anything in between. The mark count changes with every stop the driver
+      // completes, so a cached copy would show a returning driver a page with fewer signatures on
+      // it than the paper actually has — and it is somebody's employment history in any case.
+      res.setHeader("cache-control", "no-store, private");
+      res.setHeader("x-packet-marks", String(result.markCount));
+      res.send(result.pdf);
     }),
   );
 
