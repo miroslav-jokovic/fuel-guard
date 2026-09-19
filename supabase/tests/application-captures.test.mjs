@@ -389,6 +389,66 @@ ok(
   )) === 0,
 );
 
+// ── the two marks the signing ceremony writes, and why they need two slots (Q-HUI14, 0346) ─────
+// C2 made every adopted SIGNATURE a picture (D-HUI14); 0346 widened this CHECK so the INITIALS can
+// be one too. ⚠ What the widening actually buys is asserted here rather than assumed: that the two
+// marks occupy SEPARATE rows. They must, because `renderPacketOverlay` picks between them by the
+// placement's own `PacketPlacement.mark` — a signature on one of the three initials lines is the
+// 141pt defect A3 closed, and D-PKT6 is explicit that initials are a second adopted mark rather than
+// an abbreviation of the first.
+// ⚠ Its OWN invitation, and that is not tidiness: two assertions above count every row in the
+// table (`delete matches nothing either`) and every row on `INV` (`the staged rows survive the
+// submission`). Staging five more marks onto `INV` made both fail, and loosening either — turning
+// an exact count into a comparison — would have retired what they actually pin. A separate link is
+// the honest way to add rows to a file whose assertions are absolute.
+const MARK_DRIVER = await driver("Marija Varmeda");
+const MARK_INV = await invite(MARK_DRIVER, "marija");
+const SIG = await newId();
+await stage(MARK_INV, "signature_mark", SIG, `${ORG}/${MARK_INV}/${SIG}.png`);
+const INI = await newId();
+
+// ⚠ Caught rather than awaited bare, and that is the difference between a red matrix and a DEAD one.
+// With `initials_mark` taken back out of 0346 the insert raises 23514, and an uncaught throw here
+// kills the process before the RESULT line — which `run-tests.mjs` reads as "did not execute" and
+// `supabase/CLAUDE.md` calls a build failure rather than a silent pass. True, but it is a crash, not
+// an assertion, and this repo's rule is that a mutation must be caught by the thing that measures it.
+// Held here, the same mutation fails ONE named assertion and the remaining forty still report.
+let initials = null;
+const initialsRefused = await raised(async () => {
+  initials = await stage(MARK_INV, "initials_mark", INI, `${ORG}/${MARK_INV}/${INI}.png`);
+});
+ok(
+  "the initials mark is an accepted slot — the whole of 0346",
+  initialsRefused === null && initials?.capture_id === INI,
+  String(initialsRefused?.code ?? ""),
+);
+ok(
+  "and it did NOT supersede the signature picture, which is why it needed a slot of its own",
+  initials?.replaced_path === null,
+);
+ok(
+  "both marks are on the link at once",
+  (await count(
+    `select count(*)::int as n from application_captures
+      where invitation_id = $1 and slot in ('signature_mark','initials_mark')`,
+    [MARK_INV],
+  )) === 2,
+);
+
+// ⚠ The partial case, and it is the reason `other` was not reused. One row per slot means two marks
+// sharing a slot overwrite each other — so had the initials been filed as `other`, adopting them
+// would have silently deleted the signature picture and the packet would have filed nineteen typed
+// lines beside three drawn ones. Asserted on `other` itself so the hazard is demonstrated rather
+// than described.
+const OTH1 = await newId();
+await stage(MARK_INV, "other", OTH1, `${ORG}/${MARK_INV}/${OTH1}.png`);
+const OTH2 = await newId();
+const clobbered = await stage(MARK_INV, "other", OTH2, `${ORG}/${MARK_INV}/${OTH2}.png`);
+ok(
+  "two marks sharing one slot would have overwritten each other — why 0346 added a slot, not a reuse",
+  clobbered.replaced_path === `${ORG}/${MARK_INV}/${OTH1}.png`,
+);
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
