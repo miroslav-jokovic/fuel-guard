@@ -7,11 +7,11 @@ import {
   type ApplicationEmployer,
   type ApplicationProgressState,
 } from "@silvicom/shared";
-import { certificate, purposeLabel } from "./certificate.js";
+import { certificate } from "./certificate.js";
+import { consentPage, drawnMark, instrumentPage } from "./instrumentPages.js";
 import { questionnaireSection } from "./questionnairePage.js";
 import { stampPages } from "./stamp.js";
 import {
-  MARGIN,
   body,
   field,
   heading,
@@ -166,37 +166,6 @@ function equipmentExperience(doc: PDFKit.PDFDocument, rows: ReadonlyArray<Record
   }
 }
 
-/**
- * The drawn mark, beside the name it decorates (A8b, D-APP8).
- *
- * ⚠ Wrapped, and the reason is the whole of D-APP8. pdfkit throws on anything that is not a PNG or a
- * JPEG, and these bytes came from a canvas on a stranger's phone through a bucket. A truncated upload
- * must cost the squiggle and never the document — a §391.51(b)(1) record that cannot be produced
- * because an ornament would not decode is precisely the §390.32(d) failure this renderer exists to
- * prevent.
- *
- * ⚠ And the room check is not politeness. `doc.image` will happily draw below the bottom margin and
- * off the sheet, and the page it would need is not added for it the way pdfkit adds one for text —
- * so a mark that does not fit is simply lost, silently, on whichever instrument happened to have the
- * longest disclosure.
- */
-const MARK_WIDTH = 170;
-const MARK_HEIGHT = 52;
-
-function drawnMark(doc: PDFKit.PDFDocument, mark: Buffer | null): void {
-  if (!mark) return;
-  try {
-    if (doc.page.height - doc.page.margins.bottom - doc.y < MARK_HEIGHT + 12) doc.addPage();
-    doc.image(mark, MARGIN, doc.y, { fit: [MARK_WIDTH, MARK_HEIGHT] });
-    doc.x = MARGIN;
-    doc.y += MARK_HEIGHT + 6;
-  } catch (e) {
-    console.warn("[application] the drawn signature mark could not be rendered", {
-      error: e instanceof Error ? e.message : String(e),
-    });
-  }
-}
-
 /** The digest of what this page was drawn from — see the header on why it is not the file's own. */
 export const sourceDigest = (application: ApplicationDraftPayload, applicationId: string): string =>
   createHash("sha256").update(`${applicationId}:${JSON.stringify(application)}`, "utf8").digest("hex");
@@ -346,34 +315,11 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   );
 
   // The 7001(c) consent, and then one page per instrument — each showing the text that was signed.
-  if (input.esignConsent) {
-    doc.addPage();
-    heading(doc, "Consent to transact electronically");
-    muted(doc, `15 U.S.C. 7001(c) · version ${input.esignConsent.disclosure_version}`);
-    body(doc, blank(input.esignConsent.disclosure_text));
-    doc.moveDown(0.5);
-    body(doc, blank(input.esignConsent.intent_statement));
-    field(doc, "Agreed", date(input.esignConsent.consented_at));
-  }
-
-  for (const auth of input.authorizations) {
-    doc.addPage();
-    // ⚠ The LABEL, not the token. This read `Authorization — fcra_disclosure` until X7: a machine
-    // vocabulary on a page whose reader is an auditor or a court, which is the same defect D-AX3
-    // fixed on the driver's screen. The map is `AUTHORIZATION_PURPOSE_LABELS`, and an unknown
-    // purpose falls back to what was stored rather than rendering nothing.
-    heading(doc, `Authorization — ${purposeLabel(auth.purpose)}`);
-    muted(doc, `Version ${auth.disclosure_version}`);
-    // The exact text that was signed, from the row, not from today's constant: a document showing
-    // current wording beside an old signature would misrepresent what somebody agreed to.
-    body(doc, blank(auth.disclosure_text));
-    doc.moveDown(0.5);
-    body(doc, blank(auth.intent_statement));
-    doc.moveDown(0.4);
-    field(doc, "Signed", blank(auth.signed_name));
-    drawnMark(doc, input.signatureMark);
-    field(doc, "Date", date(auth.accepted_at));
-  }
+  // ⚠ Both pages are drawn by `instrumentPages.ts`, which B2's permissions PDF draws them with too.
+  // They are the pages a dispute is about (FCRA §604(b)(2) asks which wording was shown), so they are
+  // the last place two implementations should exist — A2 is what a second one costs.
+  if (input.esignConsent) consentPage(doc, input.esignConsent);
+  for (const auth of input.authorizations) instrumentPage(doc, auth, input.signatureMark);
 
   // A9: last, under its own heading, after everything the regulation numbers.
   questionnaireSection(doc, input);

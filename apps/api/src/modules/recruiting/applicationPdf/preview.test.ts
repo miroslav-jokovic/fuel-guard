@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { pdfPageCount as pageCount, pdfText as textOf } from "../../../testing/pdfText.js";
 import { PACKET_PLACEMENTS } from "@silvicom/shared";
 import { applicationPreviewPdf, isPreviewError } from "./preview.js";
 import { renderPacketDocument } from "./packetDocument.js";
@@ -92,38 +93,6 @@ const FOUR_ACCIDENTS = [1, 2, 3, 4].map((n) => ({
   injuries: 0,
   hazmat_spill: false,
 }));
-
-/** How many sheets a reader would hold. */
-async function pageCount(pdf: Buffer): Promise<number> {
-  const { PDFDocument } = await import("pdf-lib");
-  return (await PDFDocument.load(pdf, { ignoreEncryption: true })).getPageCount();
-}
-
-/** The text a reader would see — pdfkit deflates its streams, so the raw bytes carry nothing. */
-async function textOf(pdf: Buffer): Promise<string> {
-  const { inflateSync } = await import("node:zlib");
-  const raw = pdf.toString("latin1");
-  let out = "";
-  const re = /stream\r?\n/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(raw)) !== null) {
-    const start = match.index + match[0].length;
-    const end = raw.indexOf("endstream", start);
-    if (end < 0) continue;
-    try {
-      out += inflateSync(Buffer.from(raw.slice(start, end), "latin1")).toString("latin1");
-    } catch {
-      // Not a deflate stream (a font subset, the xref) — nothing to read here.
-    }
-  }
-  return (out.match(/<[0-9a-fA-F\s]+>|\((?:\\.|[^\\)])*\)/g) ?? [])
-    .map((token) =>
-      token.startsWith("<")
-        ? Buffer.from(token.slice(1, -1).replace(/\s+/g, ""), "hex").toString("latin1")
-        : token.slice(1, -1).replace(/\\([()\\])/g, "$1"),
-    )
-    .join("");
-}
 
 describe("previewing an application before it is signed", () => {
   it("renders the answers that exist, marked as a draft", async () => {
