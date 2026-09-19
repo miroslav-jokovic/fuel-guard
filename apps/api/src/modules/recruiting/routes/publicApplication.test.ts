@@ -1072,6 +1072,15 @@ describe("what the applicant is served once the carrier has published", () => {
 });
 
 /**
+ * The error code off a refusal body, for the two route suites below.
+ *
+ * ⚠ Asserting the CODE and not only the status is the point: a route that is not mounted answers
+ * 404 as well, so a status-only assertion cannot tell a refusal from an absence.
+ */
+const refusalCode = async (res: Response): Promise<string> =>
+  ((await res.json()) as { error: { code: string } }).error.code;
+
+/**
  * The document route, through the mount rather than through `applicantCopy`.
  *
  * ⚠ These exist because of a measurement taken when this file's routes were split for C1: removing
@@ -1087,7 +1096,7 @@ describe("the applicant's filed copy, as a route", () => {
     // 409 and not 404: the link is perfectly good and the answer is "not yet". An unmounted route
     // would answer 404 here, which is what makes this the assertion that sees the mount.
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("not_submitted");
+    expect(await refusalCode(res)).toBe("not_submitted");
   });
 
   it("gives a dead link the same refusal every other route gives it", async () => {
@@ -1096,6 +1105,66 @@ describe("the applicant's filed copy, as a route", () => {
     expect(res.status).toBe(404);
     // ⚠ The code, not just the status — a 404 from a route that is not mounted carries a different
     // body, and this surface's whole discipline is that every dead link answers `invalid_link`.
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("invalid_link");
+    expect(await refusalCode(res)).toBe("invalid_link");
+  });
+});
+
+/**
+ * The tenth route (C1): the packet the driver is about to sign, through the mount.
+ *
+ * ⚠ The rendering itself is pinned by `applicationReadingCopy.test.ts` — the band, the marks, the
+ * refusals. What can only be pinned HERE is that the route is reachable and what it puts on the
+ * wire: PDF bytes rather than a URL, shown inline rather than downloaded, and never cached.
+ */
+describe("the packet a driver reads before signing it, as a route", () => {
+  const readingSeed = (over: Record<string, unknown> = {}): SupabaseRecorder =>
+    createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: "inv-1", org_id: ORG, driver_id: DRIVER,
+          token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: "2026-09-15T08:00:00Z",
+          // ⚠ Unapproved on purpose (D-HUI12): reading does not wait for the office, and the
+          // ordinary case for this route is a link nobody in the office has opened yet.
+          review_requested_at: null, approved_at: null, submitted_at: null,
+          ...over,
+        }],
+        organizations: [{ name: "Silvicom Inc", legal_address: null }],
+        application_drafts: [{ payload: APPLICATION.application }],
+        application_packet_marks: [],
+        driver_authorizations: [], esign_consents: [], application_captures: [], documents: [],
+      },
+    });
+
+  it("serves the carrier's paper as inline PDF bytes, uncached", async () => {
+    holder.client = readingSeed().client;
+    const res = await call(`/${TOKEN}/packet`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/pdf");
+    // ⚠ Inline, not attachment: a download prompt in the middle of a ceremony is how somebody loses
+    // their place on a twenty-two stop walk.
+    expect(res.headers.get("content-disposition")).toContain("inline");
+    expect(res.headers.get("content-disposition")).toContain("your-application.pdf");
+    // Somebody's employment history, and a document whose mark count changes at every stop.
+    expect(res.headers.get("cache-control")).toContain("no-store");
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
+  it("gives a dead link the same refusal every other route gives it", async () => {
+    holder.client = seed(null).client;
+    const res = await call(`/${TOKEN}/packet`);
+    expect(res.status).toBe(404);
+    // ⚠ The code, not just the status — an unmounted route answers 404 too.
+    expect(await refusalCode(res)).toBe("invalid_link");
+  });
+
+  it("sends a driver who has already filed to their filed copy", async () => {
+    holder.client = readingSeed({ submitted_at: "2026-09-18T11:00:00Z" }).client;
+    const res = await call(`/${TOKEN}/packet`);
+    // 409, not 404: the link is perfectly good and that document is finished.
+    expect(res.status).toBe(409);
+    expect(await refusalCode(res)).toBe("already_filed");
   });
 });
