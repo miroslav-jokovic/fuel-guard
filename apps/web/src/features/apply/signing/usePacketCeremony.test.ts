@@ -101,6 +101,39 @@ describe("adopting the mark", () => {
     expect(await c.adopt()).toBe(true);
     expect(stage).not.toHaveBeenCalled();
   });
+
+  /**
+   * ⚠ **The walk and the adoption share ONE busy flag, and until Q-PKT11 nothing said so.**
+   * `adopt()` holds it while the drawing uploads and `sign()` refuses to start while it is held, so
+   * a driver who presses through the confirm screen cannot file the first mark on top of a staging
+   * PNG. That was one `const` in one file and is now passed across a module boundary — which is
+   * precisely the kind of invariant a split can drop in silence, and the mutation that gave the
+   * adoption half its own flag passed all sixty-six tests until this one existed.
+   */
+  it("will not file a mark while the drawing is still uploading", async () => {
+    let release!: () => void;
+    const stage = vi.fn(() => new Promise<void>((resolve) => { release = resolve; }));
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
+    c.adoptedName.value = "Marija Varmeda";
+    c.adoptedInitials.value = "MV";
+    c.style.value = "drawn";
+    c.markBlob.value = new Blob(["x"], { type: "image/png" });
+
+    const adopting = c.adopt();
+    expect(c.working.value).toBe(true);
+    await c.sign();
+    // Nothing reached the server: the stop is still standing and no mark was filed.
+    expect(marked).toHaveLength(0);
+
+    release();
+    expect(await adopting).toBe(true);
+    // And the flag is released, so the walk can start — otherwise this would pass on a ceremony
+    // that had simply jammed.
+    expect(c.working.value).toBe(false);
+    c.confirm();
+    await c.sign();
+    expect(marked).toHaveLength(1);
+  });
 });
 
 /**
