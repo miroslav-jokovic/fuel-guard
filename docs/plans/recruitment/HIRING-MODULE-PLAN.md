@@ -931,6 +931,13 @@ this particular pair was not among the six re-checked.
 
 ### ⚠ Q-HM12 · Which document does the owner mean by "preview for the first set of approvals"? (opened by the audit, 2026-09-19)
 
+> **ANSWERED by the owner the same day, and the premise below is WRONG.** He did not mean *"which
+> document"* — he meant *"the preview I already have is broken"*. It was: `DocumentPreview.vue`
+> frames a `blob:`, the CSP had no `frame-src`, and Chrome refused it with *"This content is
+> blocked"*. Fixed on PR #906; see the dated entry at the end of §10. **The three options below are
+> still real builds and AUD-14/15/16 still stand as findings — they are just not what he was asking
+> for.** Read this block as a menu for later, not as an open question blocking anything.
+
 **Measured first, because the sentence has two readings and they are different builds** (AUD-14,
 AUD-15, AUD-16). The step-one document exists and is reachable — `GET
 /api/recruitment/applications/:invitationId/permissions.pdf`, from the Permissions step's drawer via
@@ -958,6 +965,12 @@ drawer. ⚠ Whichever is built, the drawer must make the difference legible: two
 ---
 
 ### ⚠ Q-HM13 · Does D-PKT11 survive "really professional documents"? (opened by the audit, 2026-09-19)
+
+> **RULED by the owner, 2026-09-19: (a) — D-PKT11 STANDS.** *"we need to keep text"*. The carrier's
+> `reisdency`, `maritial`, `SINGED`, `heatlh` and `and €.` print as written and are not to be
+> corrected. ⚠ In the same sentence he reported the thing that IS wrong on those pages — *"not all
+> places are prefilled with applicant data"* — which is AUD-17 at the end of §10, and is about our
+> blanks rather than their spelling.
 
 **D-PKT11 (owner, 2026-09-14) reversed D-PKT9** and ruled that the carrier's own text prints exactly
 as written — `packetStatic.ts`'s `CORRECTIONS` register was deleted for it. The argument was sound
@@ -3326,6 +3339,99 @@ every time.
   all green. `pnpm --filter @silvicom/api test`: **3956 passed, 328 files**. ⚠ **No migration**, and
   the freeze clock is untouched by the change itself — but this DOES change what a filed packet
   prints, so it must land before the first real filing.
+
+
+- **2026-09-19 — Q-HM12 WAS ASKED ON A WRONG PREMISE. The owner corrected it: the preview is not
+  missing, it is BROKEN.** Fixed, PR #906. And a second thing he reported in the same breath is
+  recorded below as AUD-17.
+
+  **What he actually sees.** The *Signed permissions* dialog opens, the caption underneath it is
+  right, *Download a copy* works — and the frame is a grey box with a torn-document icon. Chrome's
+  own words, from his screenshot: *"This content is blocked. Contact the site owner to fix the
+  issue."*
+
+  **The cause, in one directive.** `appHttp.ts`'s CSP sets `default-src 'self'` and never sets
+  `frame-src`. `frame-src` has no default of its own — it falls back to `default-src`. And
+  `DocumentPreview.vue` frames two things, **neither of which is `'self'`**: a `blob:` URL for a
+  document the API composes per request (B2's permissions PDF, and the application preview), and a
+  Supabase signed storage URL for a filed one. Chrome refuses both.
+
+  Measured in a real Chrome, before and after, on a server sending the header:
+  · **before** — `Framing 'blob:http://…' violates the following Content Security Policy directive:
+    "default-src 'self'"`, 1 violation;
+  · **after** (`frame-src 'self' blob: https://*.supabase.co`) — **0 violations**, the PDF renders.
+
+  ⚠ **Both branches of the viewer were broken, not just the one he hit.** The filed-document branch
+  frames a storage URL and is refused by the same fallback. Nobody had reported it, which says only
+  that filed documents are opened less often.
+
+  ⚠ **WHY IT SURVIVED B8's REVIEW, AND WHY NO AMOUNT OF RASTERISING WOULD HAVE FOUND IT.** Vite
+  serves the SPA in `pnpm dev` and in `preview:local`, and **vite does not run helmet**. So the
+  viewer is correct in every local walk and blocked in the one deploy where `apps/api` also serves
+  the SPA — which is production. The document was never the problem: every byte of it was right, and
+  the audit that rendered all six PDFs and read the images could not have seen this, because the
+  defect is in a response header on a different route. **A surface that is only wrong under a header
+  has to be checked by loading it from something that sends the header.**
+
+  **What is NOT the answer.** `frame-ancestors` stays `'self'` — who may frame US is a clickjacking
+  control and has nothing to do with what WE may frame. `object-src` stays `'none'`. Pinned by
+  `appHttp.test.ts`'s *"still refuses to be framed by anybody else"*, which exists because those two
+  are what a careless widening would take with it.
+
+  **AUD-14 / AUD-15 / AUD-16 still stand as findings and are NOT what he meant.** The office still
+  cannot see the document before anybody signs, the applicant is still never offered their own copy,
+  and the unsigned render is still an evidence record rather than a specimen. They are now plainly
+  lower priority than they looked: what he was reporting was a viewer that never worked in
+  production, and it works now.
+
+  **Mutations: 4 run, 4 red.** ⚠ One of them is the one that matters — `frame-src 'self'` alone is
+  *present*, looks deliberate, and is the exact defect; a test asserting only that the directive
+  exists would have passed it.
+
+
+- **2026-09-19 — AUD-17, the owner's second report: "not all places are prefilled with applicant
+  data".** Measured, not guessed. **Recorded, not built** — filling them needs coordinates, and this
+  repo measures a coordinate by drawing it in colour and looking at the page, never by inference
+  (`APPLICATION-PACKET-PLAN.md` §8, and `packetFieldGeometry.ts`'s header says the heuristic was
+  tried and does not work).
+
+  **First, what is NOT wrong.** Every one of the 23 measured `PACKET_FIELD_LINES` and every measured
+  grid cell IS filled — `packetFieldIdsUsed()` covers the geometry completely. The blanks the owner
+  is seeing are lines that were **never measured**, so the renderer has no way to know they exist.
+  ⚠ That distinction matters for whoever picks this up: there is no bug in the filling, and grepping
+  `packetFieldValues.ts` for a missing `push` will find nothing.
+
+  **The inventory**, from reading the template's own ruled lines and captions and subtracting every
+  coordinate the renderer holds. Split by whether the driver signs that page, because that is what
+  decides whether the blank is ours:
+
+  | page | blank, and we hold the answer |
+  |---|---|
+  | 3 | `Printed name` |
+  | 4 | `Print name` |
+  | 10 | `Print name` |
+  | 18 | `Driver name:` |
+  | 19 | `Driver name:` · `Address:` · `Company name:` · `Date:` |
+  | 22 | `Date` |
+  | 27, 28, 31 | `Date` |
+  | 28 | `Driver/Owner Name:` |
+  | 31 | `Owner Operator Name:` |
+
+  ⚠ **Pages 21, 23 and 24 also have blanks and must be LEFT ALONE** until somebody rules otherwise:
+  they carry no driver mark. 24 is `DRIVER SAFETY TRAINING`, which left the packet on 2026-08-23
+  (Q-PKT5) because it affirms a training that has not happened; 23 is the annual violation review;
+  14 is the previous-employer request we send. Those are the four pages D-PKT1 says are not the
+  applicant's document, and a name printed on them would assert an act nobody has performed.
+
+  ⚠ **The list is a starting point and not a work order.** It was produced by proximity matching, and
+  proximity lies in both directions: a caption box rule sits ~14pt above its own signature line, so
+  some entries above are the CAPTION's rule rather than the blank. Each one has to be drawn in colour
+  and looked at before it is written into the geometry table — which is exactly the discipline that
+  caught `p10` overlapping the printed `Date` on 2026-09-14.
+
+  **Why it is worth doing:** a signed contract whose `Driver name:` line is empty while the signature
+  above it carries the name reads as an unfinished document, and page 31 is the owner-operator
+  agreement. This is AUD-7 with the whole list behind it.
 
 ---
 
