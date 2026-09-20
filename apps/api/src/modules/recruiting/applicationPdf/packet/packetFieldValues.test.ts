@@ -46,8 +46,8 @@ const textAt = (r: ReturnType<typeof fill>, id: string): string | undefined =>
 describe("the answers that go on the carrier's pages", () => {
   it("puts the plain page-1 answers where the geometry says", () => {
     const r = fill({ questionnaire_answers: { position: "OTR driver", heard_from: "Indeed" } });
-    expect(textAt(r, "p01.date")).toBe("2026-09-14");
-    expect(textAt(r, "p01.dob")).toBe("1980-04-01");
+    expect(textAt(r, "p01.date")).toBe("09/14/2026");
+    expect(textAt(r, "p01.dob")).toBe("04/01/1980");
     expect(textAt(r, "p01.position")).toBe("OTR driver");
     expect(textAt(r, "p01.cdl")).toBe("PA334554 (PA)");
     expect(textAt(r, "p01.heard_from")).toBe("Indeed");
@@ -114,7 +114,7 @@ describe("what does not fit comes back rather than disappearing", () => {
     });
     expect(textAt(r, "p02.licences.r0.c1")).toBe("PA334554");
     const over = r.overflow.find((o) => o.tableId === "p02.licences")!;
-    expect(over.rows).toEqual([["IL", "IL99", "B", "2030-01-01"]]);
+    expect(over.rows).toEqual([["IL", "IL99", "B", "01/01/2030"]]);
   });
 
   /**
@@ -195,14 +195,14 @@ describe("the two licence-history questions", () => {
 describe("the date beside each signature", () => {
   it("gives each stop the date that stop was signed on, not one date for all of them", () => {
     const r = fill({}, { markedAt: { p03: "2026-09-14T10:00:00Z", p18: "2026-09-15T08:30:00Z" } });
-    expect(textAt(r, "p03.date")).toBe("2026-09-14");
-    expect(textAt(r, "p18.date")).toBe("2026-09-15");
+    expect(textAt(r, "p03.date")).toBe("09/14/2026");
+    expect(textAt(r, "p18.date")).toBe("09/15/2026");
   });
 
   /** ⚠ A line whose signature has not been made gets NO date — a half-signed packet is a real state. */
   it("leaves a stop that has not been signed undated", () => {
     const r = fill({}, { markedAt: { p03: "2026-09-14T10:00:00Z" } });
-    expect(textAt(r, "p03.date")).toBe("2026-09-14");
+    expect(textAt(r, "p03.date")).toBe("09/14/2026");
     expect(textAt(r, "p18.date")).toBeUndefined();
     expect(textAt(r, "p19a.date")).toBeUndefined();
   });
@@ -214,7 +214,7 @@ describe("the date beside each signature", () => {
     const r = fill({}, { markedAt: every });
     const dated = PACKET_MARK_SIDE_LINES.filter((l) => l.kind === "date");
     expect(dated.length).toBe(13);
-    for (const l of dated) expect(textAt(r, l.id), l.id).toBe("2026-09-14");
+    for (const l of dated) expect(textAt(r, l.id), l.id).toBe("09/14/2026");
   });
 
   /**
@@ -235,7 +235,7 @@ describe("the date beside each signature", () => {
   /** ⚠ Page 15's date is when the RELEASE was given, which is that page's own mark. */
   it("dates page 15 from its own stop rather than from the certification", () => {
     const r = fill({}, { markedAt: { p15: "2026-09-16T12:00:00Z" } });
-    expect(textAt(r, "p15.date")).toBe("2026-09-16");
+    expect(textAt(r, "p15.date")).toBe("09/16/2026");
   });
 
   /** ⚠ `Sent to` stays blank until Q-PKT11 is answered, and the absence is asserted so it stays so. */
@@ -286,7 +286,7 @@ describe("a payload from before half these fields existed", () => {
       application: ancient, certifiedAt: "2026-09-14T09:00:00Z", markedAt: {}, signedName: "Susan Godfrey",
     });
     expect(r.placed.length).toBeGreaterThan(0);
-    expect(textAt(r, "p01.dob")).toBe("1979-02-02");
+    expect(textAt(r, "p01.dob")).toBe("02/02/1979");
     // Nothing invented for the questions it was never asked.
     expect(textAt(r, "p01.position")).toBeUndefined();
     expect(textAt(r, "p01.heard_from")).toBeUndefined();

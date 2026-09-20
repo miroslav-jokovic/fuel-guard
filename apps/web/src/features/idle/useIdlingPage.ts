@@ -9,14 +9,14 @@ import { useIdleConfidence } from "./useIdleConfidence";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
 import { sortRows, type SortState } from "@/lib/sort";
-import { APU_TYPE_LABELS, type ApuType } from "@silvicom/shared";
+import { APU_TYPE_LABELS, formatDisplayDate, formatDisplayDayShort, type ApuType } from "@silvicom/shared";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 /** All state + logic for IdlingPage.vue: fleet KPIs, tabs, and the three tab tables. */
 export function useIdlingPage() {
 const usd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const usd2 = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
-const dateFmt = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const dateFmt = (iso: string) => formatDisplayDayShort(iso, iso);
 const PAGE_SIZE = 20;
 
 // Date range (drives the driver leaderboard, the fleet KPIs, and the avoidable-idles tab). The picker
@@ -39,7 +39,7 @@ const annualMultiplier = computed(() => 365 / rangeDays.value);
 // Explicit dates so it's unambiguous which window the top cards + tables reflect (the picker lives lower in
 // the tabs). Format the YYYY-MM-DD as a UTC instant so the calendar date isn't shifted by the browser tz.
 const fmtDay = (d: string, withYear = true) =>
-  new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC", ...(withYear ? { year: "numeric" } : {}) });
+  withYear ? formatDisplayDate(d, d) : formatDisplayDayShort(d, d);
 const rangeLabel = computed(() => {
   const f = dateFrom.value, t = dateTo.value;
   if (f && t) return f === t ? fmtDay(f) : `${fmtDay(f, false)} – ${fmtDay(t)}`;

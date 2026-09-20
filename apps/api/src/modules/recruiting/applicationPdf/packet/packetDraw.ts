@@ -11,7 +11,7 @@ import {
   type Column,
 } from "../../../../lib/pdfDraw.js";
 import { CONTINUED, FOOTER } from "./packetText.js";
-import type { EquipmentClass } from "@silvicom/shared";
+import { formatDisplayDate, type EquipmentClass } from "@silvicom/shared";
 
 /** Name and legal address, from `organizations` (D-PKT8). Declared here so the drawing layer does
  *  not have to import the renderer's input type and create a cycle. */
@@ -32,7 +32,34 @@ export interface PacketCarrier {
  */
 
 export const blank = (v: string | null | undefined): string => (v && v.trim() !== "" ? v : "");
-export const date = (iso: string | null | undefined): string => (iso ? iso.slice(0, 10) : "");
+/**
+ * A date as a federal form writes one: `MM/DD/YYYY`.
+ *
+ * ⚠ This printed the raw `2026-09-20` into every date box of the 22-page packet until 2026-09-20 —
+ * the applicant's date of birth, their CDL expiry, every accident and violation date, and the date
+ * beside each of the five signatures. An ISO date on a DOT employment application is not what a
+ * carrier's file reviewer or a DOT auditor reads, and it was the most visible instance of the split
+ * that `@silvicom/shared/displayDate` now closes.
+ *
+ * Safe against the packet's fixed geometry by MEASUREMENT, not by assumption: in Helvetica,
+ * `09/20/2026` is 37.530pt at 7.5pt and 50.040pt at 10pt against ISO's 38.355pt and 51.140pt — the
+ * new string is 0.83–1.10pt NARROWER, because `/` is a 278/1000em glyph where `-` is 333/1000em. No
+ * date box that fits today can overflow, which is the failure mode `docs/plans/roster/` warns is
+ * invisible to a text-extraction test.
+ *
+ * Empty string, not "—", for an absent value: a blank line on a form means "not supplied", while a
+ * dash is a mark the applicant did not make.
+ *
+ * ⚠ **The date on a federal form is the UTC calendar day, not the drawing process's.** Several callers
+ * pass an INSTANT rather than a calendar day — `markedAt[...]` and `certifiedAt` are `timestamptz` —
+ * and a packet regenerated from a laptop in Chicago must not date a late-evening signature to the
+ * previous day. `formatDisplayDate` guarantees this by construction: it reads the leading `YYYY-MM-DD`
+ * characters and ignores any time part, so no zone is ever consulted. That is a property of the shared
+ * formatter and NOT of this line, which is why the guarantee is pinned by a test here rather than
+ * trusted — see "dates a signature by the UTC day even when the drawing process is in another zone"
+ * in `packetSigningFields.test.ts`. Format changed on 2026-09-20; semantics did not.
+ */
+export const date = (iso: string | null | undefined): string => formatDisplayDate(iso, "");
 export const yesNo = (v: boolean | null | undefined): string => (v === true ? "Yes" : v === false ? "No" : "");
 
 /**

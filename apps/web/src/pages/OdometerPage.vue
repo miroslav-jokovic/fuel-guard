@@ -15,6 +15,7 @@ import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { formatDate as fmtDate, formatDateTime as fmtDateTime } from "@/lib/format";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useOdometerMismatches();
 const { data: vehicles } = useVehiclesQuery();
@@ -81,10 +82,6 @@ const page = ref(1);
 watch([filtered, sort], () => (page.value = 1));
 const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-const fmtDateTime = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 const fmtOdo = (n: number) => `${Math.round(n).toLocaleString()} mi`;
 const signed = (n: number) => `${n > 0 ? "+" : ""}${Math.round(n).toLocaleString()} mi`;
 

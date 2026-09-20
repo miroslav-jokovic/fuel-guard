@@ -11,6 +11,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { formatDate } from "@/lib/format";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useReeferCoverage();
 const { data: vehicles } = useVehiclesQuery();
@@ -91,8 +92,7 @@ const active = computed(() => {
 });
 
 const usd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const shortDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+const shortDate = (iso: string | null) => formatDate(iso);
 
 /** Flag trucks whose reefer share is far from the fleet baseline (informational, not an alert). */
 function shareTone(pct: number): string {

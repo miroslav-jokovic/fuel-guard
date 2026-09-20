@@ -1,3 +1,4 @@
+import { formatDisplayDayShort } from "../displayDate.js";
 /**
  * Days the fuel feed delivered nothing, in the MIDDLE of a window that has data either side.
  *
@@ -75,12 +76,7 @@ const median = (xs: number[]): number | null => {
   return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
 };
 
-const label = (ymd: string): string => {
-  const d = new Date(`${ymd}T00:00:00Z`);
-  return Number.isFinite(d.getTime())
-    ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
-    : ymd;
-};
+const label = (ymd: string): string => formatDisplayDayShort(ymd, ymd);
 
 /**
  * Find the holes. `days` may arrive in any order and need not be complete — the caller counted what

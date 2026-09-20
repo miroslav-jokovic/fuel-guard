@@ -12,6 +12,7 @@ import { ref, onMounted } from "vue";
 import { formatRuleId } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import CaseTimeline from "@/features/anomalies/CaseTimeline.vue";
+import { formatDateTime } from "@/lib/format";
 
 const props = defineProps<{ anomalyId: string }>();
 
@@ -131,7 +132,7 @@ const declineRetries = (rep: PatternReport) =>
     <div v-if="report" class="space-y-2 text-xs">
       <div class="text-ink-tertiary">
         Pattern analysis · last {{ report.report.lookbackDays }} days · generated
-        {{ new Date(report.generated_at).toLocaleString() }}
+        {{ formatDateTime(report.generated_at) }}
       </div>
       <template v-for="axis in (['driver', 'vehicle'] as const)" :key="axis">
         <div v-if="report.report[axis]" class="rounded-control bg-surface-subtle px-3 py-2">

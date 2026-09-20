@@ -10,6 +10,7 @@ import ErrorState from "@/components/ErrorState.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { formatDate as fmtDate } from "@/lib/format";
 
 const toast = useToastStore();
 const { data: sample, isLoading, isError, error, refetch, isFetching } = useAuditSample(20);
@@ -25,7 +26,6 @@ const pending = computed(() => (sample.value ?? []).filter((f) => !done.value.ha
 
 const pct = (n: number | null) => (n == null ? "—" : `${Math.round(n * 100)}%`);
 const usd = (n: number | null) => (n == null ? "—" : n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }));
-const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const place = (f: SampledFill) => f.locationText || [f.city, f.state].filter(Boolean).join(", ") || "—";
 
 async function judge(f: SampledFill, verdict: AuditVerdict) {

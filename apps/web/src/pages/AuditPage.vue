@@ -9,6 +9,7 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import CardChangeLog from "@/features/fuelCards/CardChangeLog.vue";
+import { formatDateTime as fmt } from "@/lib/format";
 
 /**
  * Two tabs (Step 6.6). Hand-rolled, because there is no `Tabs` component in the design system and
@@ -56,7 +57,6 @@ const search = computed({
   set: (v: string) => (filters.value = { action: v.trim() || undefined }),
 });
 
-const fmt = (iso: string) => new Date(iso).toLocaleString();
 
 const columns: DataTableColumn[] = [
   { key: "created_at", label: "When", width: "lg", cellClass: "text-ink-muted" },

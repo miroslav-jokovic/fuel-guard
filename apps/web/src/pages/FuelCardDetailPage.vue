@@ -34,6 +34,7 @@ import {
 } from "@/features/fuelCards/cardOperations";
 import { useEfsCard } from "@/features/fuelCards/useEfsCards";
 import { useRefreshCard } from "@/features/fuelCards/useCardControl";
+import { formatDateTime } from "@/lib/format";
 
 const route = useRoute();
 const session = useSessionStore();
@@ -153,7 +154,7 @@ const facts = computed(() => {
     // DISALLOW here removes a whole class of skimming; it is worth surfacing even read-only.
     { label: "Hand entry", value: c.handEnter ?? "—" },
     { label: "Payroll status", value: c.payrollStatus ?? "—" },
-    { label: "Last used", value: c.lastUsedDate ? new Date(c.lastUsedDate).toLocaleString() : "Never" },
+    { label: "Last used", value: c.lastUsedDate ? formatDateTime(c.lastUsedDate) : "Never" },
     { label: "Last authorisation", value: c.lastTransaction ?? "—" },
   ];
 });

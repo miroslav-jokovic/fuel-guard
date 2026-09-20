@@ -11,6 +11,7 @@ import { BADGE_BASE, toneClass, fuelExceptionStatusBadge } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useExceptionQuery, useMoveException } from "./useExceptions";
 import { usd } from "./format";
+import { formatDate } from "@/lib/format";
 
 /**
  * One finding, its evidence, and what somebody did about it.
@@ -98,7 +99,7 @@ const evidenceRows = computed(() =>
           <p class="text-2xl font-bold" :class="ex.amount_kind === 'unrecorded' ? 'text-danger-700' : 'text-ink'">
             {{ money(ex.amount) }}
           </p>
-          <p class="text-xs text-ink-muted">{{ ex.occurred_on ?? "no date" }} · unit {{ ex.unit_number ?? "—" }}</p>
+          <p class="text-xs text-ink-muted">{{ ex.occurred_on ? formatDate(ex.occurred_on) : "no date" }} · unit {{ ex.unit_number ?? "—" }}</p>
         </div>
         <span :class="[BADGE_BASE, toneClass(fuelExceptionStatusBadge(ex.status).tone)]">
           {{ fuelExceptionStatusBadge(ex.status).label }}
@@ -107,10 +108,10 @@ const evidenceRows = computed(() =>
 
       <dl class="grid grid-cols-2 gap-4 border-t border-edge-subtle pt-4">
         <div><dt class="text-xs text-ink-muted">Site</dt><dd class="text-sm text-ink">{{ site }}</dd></div>
-        <div><dt class="text-xs text-ink-muted">First seen</dt><dd class="text-sm text-ink">{{ ex.first_seen_at.slice(0, 10) }}</dd></div>
+        <div><dt class="text-xs text-ink-muted">First seen</dt><dd class="text-sm text-ink">{{ formatDate(ex.first_seen_at) }}</dd></div>
         <div v-if="ex.credited_amount != null">
           <dt class="text-xs text-ink-muted">Credited</dt>
-          <dd class="text-sm font-medium text-success-700">{{ money(ex.credited_amount) }} on {{ ex.credited_on ?? "—" }}</dd>
+          <dd class="text-sm font-medium text-success-700">{{ money(ex.credited_amount) }} on {{ formatDate(ex.credited_on) }}</dd>
         </div>
       </dl>
 
@@ -132,7 +133,7 @@ const evidenceRows = computed(() =>
           <li v-for="e in events" :key="e.id" class="border-l-2 border-edge pl-3">
             <p class="text-xs text-ink-secondary">
               {{ e.to_status ? FUEL_EXCEPTION_STATUS_LABELS[e.to_status as FuelExceptionStatus] ?? e.to_status : e.kind }}
-              <span class="text-ink-tertiary">· {{ e.created_at.slice(0, 10) }}</span>
+              <span class="text-ink-tertiary">· {{ formatDate(e.created_at) }}</span>
             </p>
             <p v-if="e.note" class="text-xs text-ink-muted">{{ e.note }}</p>
           </li>

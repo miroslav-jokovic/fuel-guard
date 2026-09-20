@@ -14,6 +14,7 @@ import {
   useAssignmentHistoryQuery,
   type AssignmentHistoryFilters,
 } from "@/features/dispatch/useAssignments";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * The attribution trail (loads plan L5 / D-L6).
@@ -140,8 +141,7 @@ const columns: DataTableColumn[] = [
   { key: "seat", label: "Seat", width: "md" },
 ];
 
-const stamp = (v: string): string =>
-  new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+const stamp = (v: string): string => formatDateTime(v);
 </script>
 
 <template>

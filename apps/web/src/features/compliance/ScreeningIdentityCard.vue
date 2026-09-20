@@ -8,6 +8,7 @@ import { AppFormField as FormField } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useUpdateDriverProfile } from "@/composables/useDrivers";
+import { formatDate } from "@/lib/format";
 
 /**
  * The four values a driver-screening lookup matches on (PSP-PLAN.md P0).
@@ -116,7 +117,7 @@ async function submit(): Promise<void> {
       </div>
       <div v-if="!showForm">
         <dt class="text-ink-muted">Date of birth</dt>
-        <dd class="font-medium text-ink">{{ driver.date_of_birth }}</dd>
+        <dd class="font-medium text-ink">{{ formatDate(driver.date_of_birth) }}</dd>
       </div>
     </dl>
 

@@ -1,5 +1,6 @@
 import type { ChartOptions, TooltipItem } from "chart.js";
 import { niceScale } from "./niceScale";
+import { formatDisplayDayShort } from "@silvicom/shared";
 
 /**
  * Shared chart look, driven by the design tokens in
@@ -285,10 +286,7 @@ const FONT = {
 
 /** "2026-07-04" → "Jul 4" (labels arrive pre-bucketed in the org timezone). */
 export function fmtDay(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return formatDisplayDayShort(iso, iso);
 }
 
 /** "2026-07" → "Jul 2026". Month labels arrive as the ledger's own period keys. */

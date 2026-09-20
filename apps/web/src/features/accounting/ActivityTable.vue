@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { useBillingActivityQuery, type ActivityGrain, type ActivityPeriodRow } from "./useBillingActivity";
+import { formatDisplayDayShort } from "@silvicom/shared";
 
 /**
  * Revenue and activity, week by week (W2).
@@ -33,10 +34,7 @@ const fmtRate = (n: number | null) =>
   n == null ? "—" : n.toLocaleString(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 const fmtMiles = (n: number) => Math.round(n).toLocaleString();
 /** "2026-07-06" → "Jul 6". The year is in the period above; a table of weeks repeats it 13 times. */
-const day = (iso: string) => {
-  const d = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-};
+const day = (iso: string) => formatDisplayDayShort(iso, iso);
 
 interface Row extends ActivityPeriodRow {
   id: string;

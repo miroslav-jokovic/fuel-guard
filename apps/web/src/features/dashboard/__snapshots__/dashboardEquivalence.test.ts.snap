@@ -5,7 +5,7 @@ exports[`the Dashboard renders the same elements before and after the widget cat
   "dt: Fleet avg MPG = 7.4 — 82% of fuel measured",
   "dt: Idle waste = 412 — idle hrs",
   "dt: Active alerts = 5 — 7 open cases",
-  "h2: Operating metrics · Sep 1 – Sep 15",
+  "h2: Operating metrics · 09/01 – 09/15",
   "dt: Fill-ups",
   "dd: 210",
   "dd: in selected range",
@@ -36,11 +36,11 @@ exports[`the Dashboard renders the same elements before and after the widget cat
 
 exports[`the Dashboard renders the same elements before and after the widget catalogue (LM9) > fleet overview · a caller who may see money 1`] = `
 [
-  "dt: Fuel spend = $128.4K — Sep 1 – Sep 15",
+  "dt: Fuel spend = $128.4K — 09/01 – 09/15",
   "dt: Fleet avg MPG = 7.4 — 82% of fuel measured",
   "dt: Idle waste = $8,211 — 412 idle hrs",
   "dt: Active alerts = 5 — 7 open cases",
-  "h2: Operating metrics · Sep 1 – Sep 15",
+  "h2: Operating metrics · 09/01 – 09/15",
   "dt: Fill-ups",
   "dd: 210",
   "dd: in selected range",

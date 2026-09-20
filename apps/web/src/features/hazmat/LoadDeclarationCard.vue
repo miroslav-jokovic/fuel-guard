@@ -21,6 +21,7 @@ import { useDriversQuery } from "@/composables/useDrivers";
 import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
 import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
 import { useUpdateLoad } from "@/features/hazmat/useHazmatLoads";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * Everything the record declares that is not a product — read-only on every status, editable on a
@@ -140,7 +141,7 @@ const carrierLabel = computed(
   () => CARRIER_RELATIONSHIP_OPTIONS.find((o) => o.value === props.load.carrier_relationship)?.label ?? "—",
 );
 const pickupLabel = computed(() =>
-  props.load.planned_pickup_at ? new Date(props.load.planned_pickup_at).toLocaleString() : "—",
+  props.load.planned_pickup_at ? formatDateTime(props.load.planned_pickup_at) : "—",
 );
 const permitsLabel = computed(() => (props.load.special_permit_numbers ?? []).join(", ") || "—");
 </script>

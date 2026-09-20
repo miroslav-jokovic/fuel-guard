@@ -294,8 +294,8 @@ describe("DriversPage roster table", () => {
   it("renders a fine expiry as plain text and an urgent one as a tinted badge", async () => {
     const w = await mountPage();
     const cells = w.findAll("tbody tr")[0]!.findAll("td");
-    const cdl = cells.find((c) => c.text().includes("Jan"))!;
-    const medical = cells.find((c) => c.text().includes("Sep"))!;
+    const cdl = cells.find((c) => c.text().includes("01/01/2030"))!;
+    const medical = cells.find((c) => c.text().includes("09/11/2026"))!;
 
     // `rounded-detail` is BADGE_BASE — its presence is what "this is a pill" means. Asserting on the
     // TONE instead would pass for a neutral pill too, which is the version of this test that did not
@@ -319,7 +319,7 @@ describe("DriversPage roster table", () => {
     // D-ROS1: the grid reads and navigates. D-ROS5: `?section=` is the public surface. A `roster`
     // component may not import `compliance`'s RequirementDrawer, and the link is the sanctioned path.
     const w = await mountPage();
-    const link = w.findAll("tbody tr")[0]!.findAll("a").find((a) => a.text().includes("Sep"))!;
+    const link = w.findAll("tbody tr")[0]!.findAll("a").find((a) => a.text().includes("09/11/2026"))!;
     expect(link.attributes("href")).toBe("/drivers/d-1?section=qualification");
   });
 

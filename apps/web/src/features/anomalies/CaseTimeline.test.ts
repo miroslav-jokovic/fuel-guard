@@ -18,8 +18,8 @@ describe("CaseTimeline (G3)", () => {
   it("renders newest first, whatever order the payload arrives in", () => {
     // The API sends oldest-first (`analyzeFills` walks an ascending query, then slices the tail).
     const w = mountWith([at(1, 41), at(9, 44), at(5, 42)]);
-    const days = w.findAll("li").map((li) => li.text().match(/Aug (\d+)/)?.[1]);
-    expect(days).toEqual(["9", "5", "1"]);
+    const days = w.findAll("li").map((li) => li.text().match(/08\/(\d+)/)?.[1]);
+    expect(days).toEqual(["09", "05", "01"]); // zero-padded since MM/DD landed — a column of one width
   });
 
   it("an empty window renders nothing at all, not an empty rail", () => {

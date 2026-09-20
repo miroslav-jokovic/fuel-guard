@@ -12,6 +12,7 @@ import { AppFormField as FormField } from "@silvicom/ui";
 import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import { useCertificationsQuery, useCreateCertification } from "@/composables/useCompliance";
+import { formatDate } from "@/lib/format";
 
 /** Reusable certifications editor for one subject (a driver, or the carrier organization). */
 const props = defineProps<{ subjectType: "driver" | "organization"; subjectId: string }>();
@@ -112,7 +113,7 @@ const columns: DataTableColumn[] = [
             <span v-else class="text-ink-tertiary">—</span>
           </template>
           <template #cell-expires_at="{ row }">
-            <span v-if="row.expires_at">{{ row.expires_at }}</span>
+            <span v-if="row.expires_at">{{ formatDate(row.expires_at) }}</span>
             <span v-else class="text-ink-tertiary">—</span>
           </template>
           <template #cell-status="{ row }">

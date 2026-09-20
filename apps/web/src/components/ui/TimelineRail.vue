@@ -27,6 +27,7 @@
  */
 import { computed, ref } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
+import { formatDisplayDate } from "@silvicom/shared";
 
 export interface TimelineEntry {
   /** Stable across renders — the row's own id where there is one. */
@@ -76,7 +77,7 @@ const visible = computed(() =>
 );
 
 const dayLabel = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  `${new Date(iso).toLocaleDateString("en-US", { weekday: "short" })}, ${formatDisplayDate(iso, iso)}`;
 
 /**
  * One section per day when asked, otherwise one unlabelled section holding everything.

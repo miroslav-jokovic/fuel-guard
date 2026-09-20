@@ -40,6 +40,6 @@ describe("what the yard reads", () => {
   });
 
   it("still shows the date beside the warning, so the reader can plan", () => {
-    expect(cell("2026-06-28").text()).toContain("2026-06-28");
+    expect(cell("2026-06-28").text()).toContain("06/28/2026");
   });
 });

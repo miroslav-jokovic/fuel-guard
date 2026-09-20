@@ -3,7 +3,7 @@ import { describeDriverEdit, formatDate, formatDateTime, formatPhone } from "./f
 
 describe("formatDate", () => {
   it("formats a calendar date without timezone shifting", () => {
-    expect(formatDate("2026-08-08T00:00:00.000Z")).toBe("Aug 8, 2026");
+    expect(formatDate("2026-08-08T00:00:00.000Z")).toBe("08/08/2026");
   });
   it("returns an em dash for missing dates", () => {
     expect(formatDate(null)).toBe("—");
@@ -13,7 +13,7 @@ describe("formatDate", () => {
 
 describe("formatDateTime", () => {
   it("formats a timestamp with date and time", () => {
-    expect(formatDateTime("2026-08-08T15:04:00.000Z")).toMatch(/Aug 8, 2026/);
+    expect(formatDateTime("2026-08-08T15:04:00.000Z")).toMatch(/08\/08\/2026/);
   });
   it("returns an em dash for missing timestamps", () => {
     expect(formatDateTime(null)).toBe("—");

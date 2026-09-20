@@ -28,6 +28,7 @@ import ExportButton from "@/components/ExportButton.vue";
 import { exportHref } from "@/lib/exportTarget";
 import { SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { EFS_CARD_STATUSES, matchesCardFilters, type EfsCardFilters } from "@silvicom/shared";
+import { formatDateTime } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 
@@ -71,7 +72,7 @@ const syncOutcome = computed((): { tone: string; text: string; at?: string } | n
   if (syncJob.isRunning.value) return { tone: "info", text: "Reading the card list from EFS…" };
   const job = syncJob.latest.value;
   if (!job) return null;
-  const at = job.finished_at ? new Date(job.finished_at).toLocaleString() : undefined;
+  const at = job.finished_at ? formatDateTime(job.finished_at) : undefined;
   if (job.status === "failed") {
     // EFS answers "Not Allowed <ref>" when it refuses an operation. Deliberately does NOT name a
     // cause: we have seen this mean an IP allowlist (per the vendor), an entitlement gap, and a

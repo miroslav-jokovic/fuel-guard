@@ -25,6 +25,7 @@ import VehicleSetupImport from "@/features/roster/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { formatDate } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
@@ -212,7 +213,7 @@ async function onRetire(v: Vehicle) {
         <span
           v-if="row.samsara_missing_since && row.status !== 'retired'"
           :class="[BADGE_BASE, toneClass('warning'), 'ml-2']"
-          :title="`This truck's Samsara vehicle no longer exists (since ${new Date(row.samsara_missing_since).toLocaleDateString()}). It cannot sync telematics — likely replaced. Retire it if the physical truck is gone.`"
+          :title="`This truck's Samsara vehicle no longer exists (since ${formatDate(row.samsara_missing_since)}). It cannot sync telematics — likely replaced. Retire it if the physical truck is gone.`"
         >Samsara link lost</span>
       </template>
       <template #cell-vehicle="{ row }">{{ [row.year, row.make, row.model].filter(Boolean).join(" ") || "—" }}</template>

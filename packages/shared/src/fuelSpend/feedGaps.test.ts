@@ -84,7 +84,7 @@ describe("detectFeedGaps", () => {
       day("2026-04-04", 0), day("2026-04-05", 0), day("2026-04-06", 0), day("2026-04-07", 60),
     ]);
     expect(r.gaps.map((g) => g.days)).toEqual([1, 3]);
-    expect(r.lead).toMatch(/Apr 4 – Apr 6 and 1 other gap/);
+    expect(r.lead).toMatch(/04\/04 – 04\/06 and 1 other gap/);
     expect(r.lead).toMatch(/for 4 days/);
   });
 

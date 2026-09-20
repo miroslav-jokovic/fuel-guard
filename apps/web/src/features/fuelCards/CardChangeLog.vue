@@ -13,6 +13,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { cardIdentityLabel } from "./cardIdentityLabel";
 import { useCardMutationLog, type CardMutationLogFilters } from "./useCardControl";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * Every card change on the account — the Audit Log page's "Card changes" tab (Step 6.6).
@@ -69,7 +70,7 @@ const total = computed(() => query.data.value?.total ?? 0);
 const rows = computed(() =>
   (query.data.value?.mutations ?? []).map((m) => ({
     ...m,
-    when: new Date(m.createdAt).toLocaleString(),
+    when: formatDateTime(m.createdAt),
     // Unit AND driver, not one-or-the-other: on a fleet where many last-4 groups hold more than one
     // card, the hidden field is often the only thing telling two rows apart (Step 7.7).
     who: cardIdentityLabel(m).unidentified ? "" : cardIdentityLabel(m).qualifier,

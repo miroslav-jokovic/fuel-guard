@@ -151,7 +151,7 @@ describe("the dates that stand alone on a signing page", () => {
    */
   it("dates only the stops that have actually been signed", () => {
     const r = fill({}, { markedAt: { p27: "2026-09-16T12:00:00Z" } });
-    expect(textAt(r, "p27.date")).toBe("2026-09-16");
+    expect(textAt(r, "p27.date")).toBe("09/16/2026");
     expect(textAt(r, "p22.date")).toBeUndefined();
     expect(textAt(r, "p28.date")).toBeUndefined();
   });
@@ -162,10 +162,40 @@ describe("the dates that stand alone on a signing page", () => {
       markedAt: { p22: "2026-09-14T10:00:00Z", p27: "2026-09-15T10:00:00Z", p28: "2026-09-16T10:00:00Z" },
     });
     expect([textAt(r, "p22.date"), textAt(r, "p27.date"), textAt(r, "p28.date")]).toEqual([
-      "2026-09-14",
-      "2026-09-15",
-      "2026-09-16",
+      "09/14/2026",
+      "09/15/2026",
+      "09/16/2026",
     ]);
+  });
+
+  /**
+   * ⚠ **The signature date is the UTC calendar day, not the reader's.** `markedAt` is a `timestamptz`,
+   * and when the packet moved to `MM/DD/YYYY` on 2026-09-20 the obvious call — handing the instant
+   * straight to `formatDisplayDate` — silently made the printed date depend on the zone of whatever
+   * process drew the PDF. It passed every test in this file, because they all use mid-morning UTC
+   * stamps that fall on the same day in every US zone.
+   *
+   * This one does: 02:30 UTC is the PREVIOUS evening in Chicago. The instant has to sit in the early
+   * UTC hours to discriminate at all — an afternoon stamp like the 10:00Z ones above falls on the same
+   * calendar day in every US zone, which is exactly why the whole file missed this. Production runs in
+   * UTC so the fault would never have shown there; it would have appeared only on a packet regenerated
+   * from a laptop — a federal form dated a day off, from a code path nobody was watching.
+   */
+  it("dates a signature by the UTC day even when the drawing process is in another zone", () => {
+    const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env;
+    expect(env, "this test needs process.env.TZ to pin a timezone").toBeDefined();
+    const wasTz = env!.TZ;
+    env!.TZ = "America/Chicago";
+    try {
+      // The trap, named: this instant is the 16th in UTC and the 15th on the local clock. If this
+      // line ever stops holding, the zone pin has stopped working and the assertion under it is
+      // testing nothing — which is the state this test was born in.
+      expect(new Date("2026-09-16T02:30:00Z").getDate()).toBe(15);
+      const r = fill({}, { markedAt: { p27: "2026-09-16T02:30:00Z" } });
+      expect(textAt(r, "p27.date")).toBe("09/16/2026");
+    } finally {
+      env!.TZ = wasTz;
+    }
   });
 });
 
@@ -211,7 +241,7 @@ describe("the identity block pages 18 and 19 both ask for", () => {
         "60160",
         "PA334554",
         "PA",
-        "2029-01-01",
+        "01/01/2029",
       ]);
     }
   });

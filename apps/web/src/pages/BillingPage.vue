@@ -11,6 +11,7 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { formatDate as fmtDate } from "@/lib/format";
 
 /**
  * Invoices — the lookup page (R7 of the fleet report's UI plan, owner rulings Q1 and Q2 of
@@ -37,7 +38,6 @@ const { data, isLoading, isError, error, refetch, isFetching } = useInvoicesQuer
 const entries = computed(() => data.value?.entries ?? []);
 const total = computed(() => data.value?.total ?? 0);
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const fmtUsd = (n: number | string) => Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
 const columns: DataTableColumn[] = [

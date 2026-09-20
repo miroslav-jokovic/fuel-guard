@@ -30,6 +30,7 @@ import {
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * One part: what it is, where it sits, and everything that has happened to it
@@ -144,7 +145,7 @@ const LEDGER_COLUMNS: DataTableColumn[] = [
 ];
 
 const fmtWhen = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  formatDateTime(iso, iso);
 
 /**
  * The one line of detail a row carries beyond its reason.

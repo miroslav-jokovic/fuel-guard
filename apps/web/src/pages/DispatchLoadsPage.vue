@@ -44,6 +44,7 @@ import {
 import DispatchLoadFormPage, { type LoadFormPayload } from "./DispatchLoadFormPage.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { formatDateTime } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 
@@ -162,10 +163,7 @@ const filtered = computed(() => {
 function firstAppointment(load: DispatchLoad): string {
   const first = [...load.stops].sort((a, b) => a.seq - b.seq)[0];
   if (!first?.appointment_start) return "—";
-  const date = new Date(first.appointment_start);
-  return Number.isNaN(date.getTime())
-    ? first.appointment_start
-    : date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return formatDateTime(first.appointment_start, first.appointment_start);
 }
 
 function sortValue(load: DispatchLoad, key: string): unknown {
@@ -390,7 +388,7 @@ onUnmounted(() => {
         <span v-else class="text-ink-secondary">{{ row.summary }}</span>
       </template>
       <template #cell-driver_name="{ row }">{{ row.driver_name ?? "—" }}</template>
-      <template #cell-occurred_at="{ row }">{{ new Date(row.occurred_at).toLocaleString() }}</template>
+      <template #cell-occurred_at="{ row }">{{ formatDateTime(row.occurred_at) }}</template>
       <template #actions="{ row }">
         <BaseButton
           v-if="session.can('dispatch') && row.load_id"
