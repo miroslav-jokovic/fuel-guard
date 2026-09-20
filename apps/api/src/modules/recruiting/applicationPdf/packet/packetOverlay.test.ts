@@ -5,6 +5,8 @@ import { deflateSync, inflateSync } from "node:zlib";
 import { join } from "node:path";
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream, StandardFonts } from "pdf-lib";
 import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
+import type { DriverApplication } from "@silvicom/shared";
+import { packetFieldFill } from "./packetFieldValues.js";
 import { renderPacketOverlay } from "./packetOverlay.js";
 import { PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { pageText, readPacketTemplate } from "./packetTemplate.js";
@@ -23,10 +25,19 @@ import { fieldCell, fieldLineFor } from "./packetFieldGeometry.js";
  * cover all four of the packet's layouts — and it is held still by `packetMarkGeometry.test.ts`,
  * which pins every coordinate against the template's own rules.
  *
- * ⚠ **And nothing here asserts a drawn mark's COORDINATES**, because the reader cannot give them
- * honestly for a page we have drawn on: it applies one page transform to everything, which is true of
- * the carrier's own pages and false once `pdf-lib` has bracketed them in `q … Q` and appended
- * operators in absolute space. Text and page structure are what this file reads.
+ * ⚠ **`packetTemplate.ts`'s reader cannot give a drawn mark's COORDINATES honestly** for a page we
+ * have drawn on: it applies one page transform to everything, which is true of the carrier's own
+ * pages and false once `pdf-lib` has bracketed them in `q … Q` and appended operators in absolute
+ * space. Text and page structure are what THAT reader gives this file.
+ *
+ * ⚠ **That is a fact about the reader, and until AUD-5 it was written here as a fact about the
+ * document — "nothing here asserts a drawn mark's coordinates", full stop.** It is not: the very
+ * bracketing that spoils the template reader is what leaves OUR operators in unmodified page space,
+ * in their own stream after the lone `Q`. `drawnRuns` below reads them, and the file's one geometric
+ * claim rests on it. The wrong sentence cost this repo more than a wrong coordinate would have —
+ * `packetFit.ts` cited a test named *"draws nothing past the span its geometry gives it"* as the
+ * thing that catches an overrun, and no such test existed anywhere in the repo for the whole of
+ * AUD-1's life. `lint:comment-claims` does not check that a cited title resolves, so nothing said so.
  */
 
 const NAME = "Marija Varmeda";
@@ -455,6 +466,302 @@ describe("a drawn mark goes on the signature lines and nowhere else", () => {
    * renderer because a filed packet is frozen for ever and the two tables can drift in a later PR;
    * what a test can honestly pin is the invariant, and that is where it is pinned.
    */
+});
+
+/** One text run this renderer appended to a page: where it starts, how big, and what it says. */
+interface DrawnRun {
+  x: number;
+  y: number;
+  size: number;
+  text: string;
+}
+
+/**
+ * WinAnsi's high range, which is the only part of `pdf-lib`'s encoding that is not Latin-1.
+ *
+ * ⚠ **It THROWS on a byte it does not carry rather than substituting anything.** A decoder that
+ * guessed would report a narrower string than was drawn, and a width assertion fed a short string is
+ * an assertion that cannot fail — the exact shape of a green test that proves nothing. Today the
+ * only high bytes the packet can emit are `0x85` (the cut ellipsis) and `0x97` (the em dash between
+ * two employment dates); the rest are here so that a future answer carrying a smart quote widens the
+ * map deliberately instead of silently weakening the claim below.
+ */
+const WIN_ANSI_HIGH: Readonly<Record<number, string>> = {
+  0x80: "\u20ac", 0x82: "\u201a", 0x83: "\u0192", 0x84: "\u201e", 0x85: "\u2026", 0x86: "\u2020",
+  0x87: "\u2021", 0x88: "\u02c6", 0x89: "\u2030", 0x8a: "\u0160", 0x8b: "\u2039", 0x8c: "\u0152",
+  0x8e: "\u017d", 0x91: "\u2018", 0x92: "\u2019", 0x93: "\u201c", 0x94: "\u201d", 0x95: "\u2022",
+  0x96: "\u2013", 0x97: "\u2014", 0x98: "\u02dc", 0x99: "\u2122", 0x9a: "\u0161", 0x9b: "\u203a",
+  0x9c: "\u0153", 0x9e: "\u017e", 0x9f: "\u0178",
+};
+
+const decodeWinAnsi = (hex: string): string =>
+  (hex.match(/../g) ?? [])
+    .map((pair) => {
+      const byte = parseInt(pair, 16);
+      if (byte < 0x80 || byte > 0x9f) return String.fromCharCode(byte);
+      const mapped = WIN_ANSI_HIGH[byte];
+      if (!mapped) throw new Error(`WinAnsi byte 0x${pair} is not in the decoder's map`);
+      return mapped;
+    })
+    .join("");
+
+/**
+ * Every text run WE appended to one page, in the page's own coordinate space.
+ *
+ * —— ⚠ WHY THIS CAN BE READ HONESTLY WHEN THE TEMPLATE READER CANNOT ——————————————————
+ * `pdf-lib` does not edit the carrier's content stream. It brackets it — a stream holding the single
+ * operator `q`, then the carrier's (which opens with its own `cm`, a 0.75 scale and a y-flip), then
+ * a stream holding the single `Q`, and then ours. The `Q` restores the identity transform, so every
+ * operator after it is in unmodified page points: exactly the space `packetFieldGeometry.ts`
+ * measured in. Verified on the produced bytes, not assumed — a page nobody drew on has ONE stream
+ * and no bracket at all, which is why the split below is "everything after the last lone `Q`" and
+ * not an index.
+ *
+ * ⚠ Text is decoded from the hex `Tj` operand rather than read off the input, so what is measured
+ * is what a reader's PDF viewer will show — including an ellipsis the fitter added, which is the
+ * character that makes a cut run wider than the string that was handed in.
+ */
+async function drawnRuns(pdf: Buffer, page: number): Promise<DrawnRun[]> {
+  const doc = await PDFDocument.load(pdf);
+  const contents = doc.getPage(page - 1).node.get(PDFName.of("Contents"));
+  const refs = contents instanceof PDFArray ? contents.asArray() : [contents];
+  const bodies = refs.map((ref) => {
+    const stream = doc.context.lookup(ref);
+    const raw = Buffer.from((stream as PDFStream & { getContents(): Uint8Array }).getContents());
+    try {
+      return inflateSync(raw).toString("latin1");
+    } catch {
+      return raw.toString("latin1");
+    }
+  });
+  const close = bodies.map((b) => b.trim()).lastIndexOf("Q");
+  if (close < 0) return [];
+
+  const runs: DrawnRun[] = [];
+  let size = 0;
+  let x = 0;
+  let y = 0;
+  for (const body of bodies.slice(close + 1)) {
+    for (const line of body.split("\n")) {
+      const tf = /^\/\S+ ([\d.]+) Tf$/.exec(line.trim());
+      if (tf) { size = Number(tf[1]); continue; }
+      const tm = /^1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm$/.exec(line.trim());
+      if (tm) { x = Number(tm[1]); y = Number(tm[2]); continue; }
+      const tj = /^<([0-9A-Fa-f]*)> Tj$/.exec(line.trim());
+      if (tj) runs.push({ x, y, size, text: decodeWinAnsi(tj[1]!) });
+    }
+  }
+  return runs;
+}
+
+/**
+ * The renderer's one GEOMETRIC guarantee, and the reason it is worth more than every text assertion
+ * above it put together.
+ *
+ * —— ⚠ THIS IS THE TEST `packetFit.ts` HAS CITED SINCE AUD-1 AND NOBODY HAD WRITTEN ———————
+ * The comment on `fitText` said an overrun is caught by *"`packetOverlay.test.ts`'s \"draws nothing
+ * past the span its geometry gives it\""*. `grep -rn "draws nothing past the span" apps/api/src`
+ * returned nothing, on a green tree, because `lint:comment-claims` checks that a claim quotes a
+ * title-shaped string and not that the title resolves. So the property AUD-1 was fixed to establish
+ * was, for its whole life, guarded by a sentence.
+ *
+ * ⚠ **No text assertion in this file can fail on an overrun.** Both runs are in the content stream
+ * whether or not they collide, so `pageText` finds every word of a page no human can read — that is
+ * how the defect shipped. The property is about WIDTH, which is why this reads coordinates.
+ */
+describe("a value the carrier's column is too narrow for", () => {
+  /**
+   * ⚠ The fixture strains three different grids at once, and it has to. A value that fits proves
+   * nothing here: the assertion is trivially true of every cell that was never close to its edge,
+   * and a fixture of those would be a test that cannot fail. `expect(cut).not.toHaveLength(0)` below
+   * is what stops this passing on a comfortable payload.
+   */
+  const strained = (): DriverApplication => ({
+    ...({
+      first_name: "Susan", middle_name: "M", last_name: "Godfrey", date_of_birth: "1980-04-01",
+      other_names: [], email: "s@x.test", phone: "555-0111", addresses: [],
+      cdl_number: "PA334554", cdl_state: "PA", cdl_class: "A", cdl_expires_at: "2029-01-01",
+      additional_licences: [], experience: "Eight years.", equipment_experience: [],
+      declares_no_violations: true, violations: [],
+      licence_ever_denied: false, licence_denial_detail: null,
+      prior_failed_pre_employment_test: false, questionnaire_version: "silvicom_driver@1",
+      questionnaire_answers: {},
+      certified: true, signed_name: NAME,
+      declares_no_accidents: false,
+      accidents: [
+        { occurred_on: "2025-03-04", nature: "Minor", fatalities: 0, injuries: 0, hazmat_spill: false },
+        { occurred_on: "2024-11-19", nature: "Rear-ended while stopped", fatalities: 0, injuries: 1, hazmat_spill: false },
+        {
+          occurred_on: "2024-02-02",
+          nature: "Rear-ended while stopped at a construction flagger on I-80 westbound near mile 118",
+          fatalities: 0, injuries: 2, hazmat_spill: true,
+        },
+      ],
+      declares_no_employment: false,
+      employers: Array.from({ length: 4 }, (_, i) => ({
+        employer_name: i === 0 ? "Swift" : `Midwest Regional Carriers of Northern Illinois ${i}`,
+        usdot_number: `${100000 + i}`,
+        address_line1: i === 0 ? "12 Depot Rd" : `${1200 + i} North Wolf Road Suite ${i}`,
+        city: i === 0 ? "Joliet" : "Schaumburg", state: "IL", phone: "555-0100", email: null,
+        position_held: "Over-the-road driver",
+        started_on: `20${20 + i}-01-01`, ended_on: `20${21 + i}-01-01`,
+        operated_cmv: true, dot_regulated: true, reason_for_leaving: "Better route",
+        subject_to_fmcsr: true, safety_sensitive: true,
+      })),
+    } as unknown as DriverApplication),
+  });
+
+  const filled = () =>
+    packetFieldFill({
+      application: strained(),
+      certifiedAt: "2026-08-23T18:00:00Z",
+      markedAt: {},
+      signedName: NAME,
+    });
+
+  it("draws nothing past the span its geometry gives it", async () => {
+    const { placed, overflow } = filled();
+    const pdf = await renderPacketOverlay({ marks: [], fields: placed, overflow });
+    const font = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+
+    // ⚠ Matched back to its own line by POSITION, which is the only link that survives rendering:
+    // the renderer starts a value 2pt inside its rule and lifts the baseline off it, so a run at
+    // those two numbers is that line's and no other's. Matching by TEXT would match the wrong cell
+    // whenever two rows answer the same thing — `Over-the-road driver` appears four times here.
+    let checked = 0;
+    const cut: string[] = [];
+    for (const field of placed) {
+      const runs = await drawnRuns(pdf, field.line.page);
+      const run = runs.find(
+        (r) => Math.abs(r.x - (field.line.x1 + 2)) < 0.01 && Math.abs(r.y - (field.line.y + 3)) < 0.01,
+      );
+      expect(run, `nothing drawn for ${field.line.id}`).toBeDefined();
+      const right = run!.x + font.widthOfTextAtSize(run!.text, run!.size);
+      expect(right, `${field.line.id} ran past its column: ${JSON.stringify(run!.text)}`)
+        .toBeLessThanOrEqual(field.line.x2);
+      if (run!.text.endsWith("\u2026")) cut.push(field.line.id);
+      checked += 1;
+    }
+
+    expect(checked).toBe(placed.length);
+    // ⚠ The discriminator. Without it this passes on a payload where nothing was ever near an edge,
+    // which is to say it passes on the one case it is not being written for.
+    expect(cut.length, "fixture no longer strains any column").toBeGreaterThan(0);
+  });
+
+  /**
+   * AUD-5: one grid, one size.
+   *
+   * ⚠ **A SIZE claim, not a text one, for the same reason as above** — p2's accident grid rendered
+   * its three `NATURE` rows at 11pt, 11pt and 6pt and every `pdfText()` assertion in this repo was
+   * true of it. A signed federal form whose rows are in three sizes reads as broken before anybody
+   * reads a word, and nothing but the drawn size can see it.
+   */
+  it("prints one grid at one size, however long one applicant's answer is", async () => {
+    const { placed, overflow } = filled();
+    const pdf = await renderPacketOverlay({ marks: [], fields: placed, overflow });
+
+    for (const tableId of ["p02.accidents", "p12.employment"]) {
+      const cells = placed.filter((f) => f.line.cell?.tableId === tableId);
+      expect(cells.length, `fixture fills no cell of ${tableId}`).toBeGreaterThan(3);
+      const sizes = new Set<number>();
+      for (const cell of cells) {
+        const runs = await drawnRuns(pdf, cell.line.page);
+        const run = runs.find(
+          (r) => Math.abs(r.x - (cell.line.x1 + 2)) < 0.01 && Math.abs(r.y - (cell.line.y + 3)) < 0.01,
+        );
+        sizes.add(run!.size);
+      }
+      expect([...sizes], `${tableId} printed in ${sizes.size} sizes`).toHaveLength(1);
+    }
+  });
+
+  /**
+   * ⚠ **The half that stops "one size" being satisfied by printing everything at the floor.** A
+   * renderer that always chose 8pt would pass the test above on every grid in the packet. What makes
+   * the rule a rule is that a grid nobody strained keeps the full 11pt — the shrink has to be
+   * something ONE long answer causes, not the house style.
+   */
+  it("leaves a grid nobody strained at full size", async () => {
+    const { placed } = filled();
+    const roomy = placed.filter((f) => f.line.cell?.tableId === "p02.convictions");
+    const pdf = await renderPacketOverlay({
+      marks: [],
+      fields: placed.filter((f) => f.line.cell?.tableId !== "p02.accidents"),
+    });
+    const strainedCells = placed.filter((f) => f.line.cell?.tableId === "p12.employment");
+    expect(strainedCells.length).toBeGreaterThan(0);
+    expect(roomy.length + strainedCells.length).toBeGreaterThan(0);
+
+    const identity = placed.filter((f) => f.line.cell?.tableId === "p12.identity");
+    expect(identity.length, "fixture fills no cell of p12.identity").toBeGreaterThan(1);
+    for (const cell of identity) {
+      const runs = await drawnRuns(pdf, cell.line.page);
+      const run = runs.find(
+        (r) => Math.abs(r.x - (cell.line.x1 + 2)) < 0.01 && Math.abs(r.y - (cell.line.y + 3)) < 0.01,
+      );
+      expect(run!.size, `${cell.line.id} shrank with nothing straining it`).toBe(11);
+    }
+  });
+
+  /**
+   * ⚠ **A value starts 2pt INSIDE its rule, so it has 4pt less room than the rule is long** — and
+   * the size pass and the draw pass have to agree about that, or the size pass chooses against a
+   * width the drawing does not have.
+   *
+   * —— ⚠ WRITTEN BECAUSE THE MUTANT SURVIVED ——————————————————————————————————
+   * Dropping the `- 4` from `groupSizes` passed every other test in this block, because the failure
+   * is INVISIBLE to all of them: the size comes out half a point too large, `fitAtSize` then cuts
+   * the value honestly, nothing overruns and every grid still prints at one size. What is lost is
+   * that the answer did not need cutting at all — it goes to the continuation sheet, and the
+   * applicant's sentence leaves the carrier's page, for a rounding error. On the §391.23
+   * verification log that is a row an auditor has to turn a page to read.
+   *
+   * ⚠ The fixture is measured, not chosen: `A friend who drives here` is 102.48pt at 9.5pt type in
+   * `p01.heard_from`'s 103.3pt rule and 97.08pt at 9pt. It therefore fits the RULE at 9.5 and the
+   * INSET only at 9 — the one band where the two passes can disagree. Any shorter answer fits both
+   * and proves nothing.
+   */
+  it("keeps a value that fits only once the inset is counted, instead of cutting it", async () => {
+    const line = fieldLineFor("p01.heard_from")!;
+    const text = "A friend who drives here";
+    const pdf = await renderPacketOverlay({ marks: [], fields: [{ line, text }] });
+    const font = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+    const run = (await drawnRuns(pdf, line.page)).find(
+      (r) => Math.abs(r.x - (line.x1 + 2)) < 0.01 && Math.abs(r.y - (line.y + 3)) < 0.01,
+    );
+    expect(run, "nothing drawn for p01.heard_from").toBeDefined();
+    expect(run!.text, "cut for want of the 4pt the drawing already gives away").toBe(text);
+    expect(run!.x + font.widthOfTextAtSize(run!.text, run!.size)).toBeLessThanOrEqual(line.x2 - 2);
+  });
+
+  /**
+   * ⚠ **The floor is not a suggestion**, and 8pt is where AUD-5 put it after measuring that floors
+   * of 6, 7 and 8 cut exactly the same cells and continue exactly the same rows. No ANSWER on a
+   * signed federal form may print smaller than this, whatever an applicant writes.
+   *
+   * ⚠ **Scoped to the applicant's ANSWERS on purpose, and the first draft of it was not — it failed,
+   * correctly, on a 6.5pt run on page 2.** That run is this renderer's own continuation NOTICE
+   * (`CONTINUATION_NOTICE_SIZE`), a sentence of ours under the grid rather than anything the driver
+   * wrote, so the floor AUD-5 chose for answers does not govern it and widening this assertion to
+   * cover it would be deciding its size here, in a test, by accident. It is recorded rather than
+   * swallowed: after this change the notice is the smallest type on the page — 6.5pt under an 8pt
+   * grid — which is AUD-8's question about metadata leading, not AUD-5's, and is in the plan's §10.
+   */
+  it("never prints an answer smaller than the floor, however long that answer is", async () => {
+    const { placed, overflow } = filled();
+    const pdf = await renderPacketOverlay({ marks: [], fields: placed, overflow });
+    let shrunk = 0;
+    for (const field of placed) {
+      const runs = await drawnRuns(pdf, field.line.page);
+      const run = runs.find(
+        (r) => Math.abs(r.x - (field.line.x1 + 2)) < 0.01 && Math.abs(r.y - (field.line.y + 3)) < 0.01,
+      );
+      expect(run!.size, `${field.line.id} printed at ${run!.size}pt`).toBeGreaterThanOrEqual(8);
+      if (run!.size < 11) shrunk += 1;
+    }
+    expect(shrunk, "fixture shrank nothing, so the floor was never approached").toBeGreaterThan(0);
+  });
 });
 
 /**
