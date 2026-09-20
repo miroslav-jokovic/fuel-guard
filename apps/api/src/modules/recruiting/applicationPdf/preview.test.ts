@@ -186,32 +186,43 @@ describe("previewing an application before it is signed", () => {
 
   /**
    * ⚠ **The other half of "signs nothing", and it needed its own test because the one above cannot
-   * see it.** `signedName` is drawn on page 22's `Driver name Print` by `packetFieldValues.ts`, which
-   * runs whether or not there are any marks — so a preview that passed the applicant's own name would
-   * print it there, and no assertion about a distinct ADOPTED string would notice, because the name
-   * is legitimately on the document a dozen times over.
+   * see it.** `signedName` arrives on the input whether or not there are any marks, so the question
+   * is whether any code path can put it on the paper without one.
    *
-   * Measured by counting: the preview draws "Susan Godfrey" wherever the carrier's form asks for the
-   * applicant's name, and one MORE occurrence is the signature line being filled in. The number
-   * itself is read from a render with the field deliberately empty, so this pins the DIFFERENCE and
-   * not a magic constant that a legitimate new name field would break.
+   * ⚠ **This test went VACUOUS once before and the shape of the failure is worth keeping.** It used
+   * to slice a §391.21(b)(12) block out of the summary and assert the name was not in it; the packet
+   * has no such block, so both `indexOf` calls returned -1 and it proved the absence of a string in
+   * an empty string. Its replacement then counted a DELTA of one occurrence, because
+   * `packetFieldValues.ts` drew `signedName` on page 22's `Driver name Print` — which AUD-18 stopped
+   * it doing, since that line asks what the signer is CALLED and now reads the payload like every
+   * other printed-name line. So the delta is zero, and this asserts the stronger thing the change
+   * makes true: **with no marks, the adopted signature reaches the document nowhere at all.**
    */
-  it("prints no name on the signature line an unsigned preview leaves blank", async () => {
+  it("draws the adopted signature only where a mark was actually made", async () => {
     const preview = await applicationPreviewPdf(seed().client, ORG, INV);
     expect(isPreviewError(preview)).toBe(false);
     if (isPreviewError(preview)) return;
 
-    const withPrintedName = await renderPacketDocument({
+    const unsigned = await renderPacketDocument({
       marks: [],
       application: PAYLOAD as never,
       certifiedAt: "",
-      signedName: "Susan Godfrey",
+      signedName: ADOPTED,
+    });
+    const signed = await renderPacketDocument({
+      marks: [{ placement_id: "p22", signed_name: ADOPTED, signed_at: "2026-09-12T10:00:00Z" }],
+      application: PAYLOAD as never,
+      certifiedAt: "",
+      signedName: ADOPTED,
     });
 
-    const count = (text: string) => text.split("Susan Godfrey").length - 1;
-    // Guards the guard: the name IS on both, so neither count is zero and the delta means something.
-    expect(count(await textOf(preview.pdf))).toBeGreaterThan(0);
-    expect(count(await textOf(withPrintedName))).toBe(count(await textOf(preview.pdf)) + 1);
+    const count = (text: string) => text.split(ADOPTED).length - 1;
+    // Guards the guard: one mark puts it on the page once, so zero means something.
+    expect(count(await textOf(signed))).toBe(1);
+    expect(count(await textOf(unsigned))).toBe(0);
+    expect(count(await textOf(preview.pdf))).toBe(0);
+    // ⚠ And the applicant's own name IS prefilled on that page, which is what the office previews.
+    expect(await textOf(preview.pdf)).toContain("Susan Godfrey");
   });
 
   /**

@@ -3433,6 +3433,122 @@ every time.
   above it carries the name reads as an unfinished document, and page 31 is the owner-operator
   agreement. This is AUD-7 with the whole list behind it.
 
+- **2026-09-19 — AUD-17 BUILT. The blanks are filled: twenty-eight coordinates measured by looking,
+  and one correction the work forced (AUD-18).** Branch `claude/hiring-aud17`.
+
+  **What the owner reported:** *"not all places are prefilled with applicant data."* The diagnosis in
+  the entry above held — there was no bug in the filling, and every one of the 23 measured
+  `PACKET_FIELD_LINES` was being drawn. The blanks were ruled lines nobody had measured.
+
+  **⚠ The candidate list in that entry was wrong in BOTH directions, which is the finding to carry
+  forward.** It came from proximity matching. Measured against the rendered page:
+
+  · **Page 19's `Company name:` is not a blank at all** — the carrier printed `Silvicom Inc` beside
+    it himself. It was on the list.
+  · **Pages 18 and 19 each carry a whole EIGHT-line identity block**, not the single `Driver name:`
+    the list named: `Driver name: / Address: / City: State: Zip: / CDL # State: Exp. Date:`. Sixteen
+    lines, every value already in the payload, on two pages the driver signs.
+  · **Page 26's §40.25(j) YES/NO box was empty**, and the list did not mention page 26 at all. That
+    is the mandatory two-year question — *did you test positive or refuse a pre-employment test for a
+    job you applied for but did not get?* — on a page the driver signs. `renderPacket.ts`'s own
+    comment says P4 shipped without that page rather than *"put a blank mandatory question inside a
+    document somebody signs"*; the overlay had been doing exactly that ever since it became the
+    filing path. Page 26 also carries a `Driver's/ Owner's Name:` rule, likewise blank.
+  · **The four pages that stay blank are 14, 21, 23 and 24** — the list gave 14, 23, 24 in its prose
+    and 21, 23, 24 in its warning. They are now derived from `driverPlacements()` rather than
+    restated, by *"measures nothing on a page the driver never signs"*.
+
+  **What now draws — 28 lines across ten pages**, in `packetSigningGeometry.ts` and
+  `packetSigningFields.ts`, both new:
+
+  | page | blank | value |
+  |---|---|---|
+  | 3, 4, 10 | `Printed name` / `Print name` | the applicant's name |
+  | 18, 19 | `Driver name: · Address: · City: · State: · Zip: · CDL # · State: · Exp. Date:` | name, current address, licence — ×2 |
+  | 22 | `Date:` | that stop's own `signed_at` |
+  | 26 | `Driver's/ Owner's Name:` and the YES/NO box | name, `prior_failed_pre_employment_test` |
+  | 27, 28 | `Date` | that stop's own `signed_at` |
+  | 28 | `Driver/Owner Name:` | the applicant's name |
+  | 31 | `Driver name:` · `Owner Operator Name:` | the applicant's name |
+
+  **⚠ AUD-18, a correction this work forced.** Page 22's `Driver name Print` read `signed_name` while
+  page 15's `Name of applicant` read the payload — so **one packet printed two spellings of one
+  person**, measured on the fixture as `Marija Varmeda` beside `Marija Ana Varmeda`. AUD-17 was about
+  to add seven more name lines on one side or the other of that disagreement. All nine now read
+  `fullName()`: the caption asks what the signer is CALLED, and the signature is on the line beside
+  it. **D-APP8 is untouched** — it says the typed `signed_name` is the mark of RECORD, which is about
+  the mark, and `packetOverlay.ts` still draws it from there. A preview test had been pinning the old
+  behaviour as *a delta of one occurrence*; it now pins the stronger thing this makes true —
+  *"draws the adopted signature only where a mark was actually made"*, zero occurrences with no marks.
+
+  **⚠ What stays blank, and none of it is an oversight.** All of it asserted, because an absence
+  nothing checks is one the next person fills in while closing a gap:
+  · **pages 14, 21, 23, 24** (D-PKT1, Q-PKT5) — no driver mark, so a name there asserts an act
+    nobody performed;
+  · **the SSN in all four places** — page 1, page 12, page 15, and page 4's, which shares ONE rule
+    with the printed name. `p04.printed_name` stops at x305 for that reason, and *"carries no field
+    for the Social Security number anywhere"* holds both halves of it;
+  · **every `Silvicom Inc Representative:` line and page 22's company countersignature** — `p18c`,
+    `p19ac`, `p19bc` and `p22c` are the carrier's, not the applicant's;
+  · **page 31's `Witness Name:`** — `p31w` is `party: "witness"`, a third person the packet refuses
+    to assume is either of the other two;
+  · **page 22's four `why is this test required` rules** — Q-HM14 below.
+
+  **How each coordinate was established: by looking, twenty-eight times.** A magenta sample value and
+  a pair of cyan span ticks drawn onto the carrier's own page, `pdftoppm -r 110` (`-r 150` for crops,
+  `-r 300` to settle one), read as an image. Then the whole packet re-rendered through
+  `renderPacketDocument` — the production path — with the ordinary fixture and a second one at the
+  long end of the contract (`Bartholomew Fitzwilliam Featherstonehaugh-Villanueva`, a 47-character
+  street with a unit, a ZIP+4), and every changed page looked at again. **The 150-dpi crop of page 19
+  made the `State:` and `Zip:` values look like they hung BELOW a line with nothing under them; at
+  300 dpi they sit squarely on their own rules.** A raster is only evidence at the resolution you
+  read it.
+
+  **Mutations: 17 run, 17 red — and TWO survived the first pass.** Both were real holes in the
+  assertions, not in the code:
+  · `x1 > run.x` on page 31 let the blank move to x60 and draw the driver's name straight through
+    the printed words `Driver name:`. The bound now comes off the carrier's own paper — pages 18 and
+    19 BOX that identical caption at 52.8→109.0, same document, same font, so the blank must clear 109.
+  · *"inside the box"* let page 26's tick drop onto the box's floor rule, which is what an X looks
+    like when it MISSED the box. It must now land in the middle third; both were drawn and compared.
+  ⚠ The assertion that matters most is *"keeps every pair within a line's height of each other side
+  by side"* — every pair of measured spans across all three geometry tables, the generalisation of
+  the check that caught `p10` in September. **No assertion about text can see a layout defect**,
+  because both runs are in the content stream and `pdfText()` finds every word on a page no human
+  could read.
+
+  **Four modules, and the seams are real rather than line-budget dodges.**
+  `packetFieldGeometry.ts` answers *"where does an ANSWER go"*; `packetSigningGeometry.ts` answers
+  *"where does the signer restate who they are"* — the same split `packetMarkGeometry.ts` already
+  makes for the marks. `placeValue` and `PacketFieldInput` moved to `packetGrid.ts` because there are
+  now two fill modules; `fullName` and `addressCells` to `packetDraw.ts` beside `blank`/`date`, so
+  one rule for a missing middle name and one for `line2` serve every caller. Pages 18 and 19's
+  sixteen lines are GENERATED from eight measured spans × two measured row sets —
+  `PACKET_FIELD_TABLES`'s own reasoning — and **both pages were rendered and looked at, not one and
+  assumed**; the test holds the two span sets identical against the TEMPLATE rather than against the
+  constant.
+
+  **Gates** (after the last edit): `lint:boundaries` · `lint:filesize` · `lint:funcsize` ·
+  `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` · `lint:upserts` ·
+  `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **3983 passed, 331 files**. ⚠ **No migration.**
+
+  **⚠ Freeze-bound, and this one is a deadline rather than a nicety.** `ensureApplicationPdf` renders
+  once and keeps those bytes; evidence tables are append-only. Production holds no filed packet yet,
+  so this reaches every packet ever filed — but only if it lands before the first one.
+
+  **Q-HM14 — OPEN, and deliberately not answered here.** Page 22 asks WHY the urinalysis is required:
+  `Pre-Employment Qualification:` / `Suspicion of Controlled Substance` /
+  `Pre-Qualification Contracting a Driver/ Owner Operator` / `Other`, four short rules. That is the
+  carrier's determination about its own test, and the nearest thing we hold is a free-text `position`
+  answer (`"Owner operator"` in the fixture). Choosing between the first and the third from words
+  somebody typed into a box would be inference printed onto a federal form, so all four stay blank.
+  **Candidates:** (a) the office ticks it during review — needs a control and a column; (b) a
+  structured `applying_as: company_driver | owner_operator` on the questionnaire; (c) leave it for
+  the recruiter to tick in ink. **Recommendation: (b)** — the packet asks the same question twice
+  (page 26 is headed `Driver's/ Owner's Name:`, page 31 is the owner-operator agreement) and free
+  text cannot answer either.
+
 ---
 
 ## 11. Sources

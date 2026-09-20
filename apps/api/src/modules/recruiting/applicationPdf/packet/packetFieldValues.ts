@@ -1,12 +1,16 @@
 import type { DriverApplication, EquipmentClass } from "@silvicom/shared";
-import { PACKET_ROW_OF, blank, date, foldedType, yesNo } from "./packetDraw.js";
+import { PACKET_ROW_OF, addressCells, blank, date, foldedType, fullName, yesNo } from "./packetDraw.js";
 import { P1, P2, P12, P16 } from "./packetText.js";
 import {
   fillGrid,
+  placeValue,
   type PacketFieldFill,
+  type PacketFieldInput,
   type PacketFieldOverflow,
   type PlacedFieldValue,
 } from "./packetGrid.js";
+import { packetSigningFill } from "./packetSigningFields.js";
+import { PACKET_SIGNING_FIELD_LINES } from "./packetSigningGeometry.js";
 import {
   PACKET_FIELD_LINES,
   PACKET_MARK_SIDE_LINES,
@@ -47,22 +51,6 @@ import {
  * it, and a derivative that throws on an old payload is a qualification file that cannot be produced.
  */
 
-export interface PacketFieldInput {
-  application: DriverApplication;
-  /** Server-stamped, never client-supplied (D-APP9). Page 1's `Date:`. */
-  certifiedAt: string;
-  /**
-   * ⚠ **Each stop's OWN `application_packet_marks.signed_at`, keyed by placement id.**
-   *
-   * Not one "signed on" date. The walk is twenty-two separate acts and a driver who loses signal
-   * finishes tomorrow — 0339's header is explicit that a half-signed packet is a state to resume
-   * from. One date on thirteen lines would assert that thirteen signatures were made at a moment
-   * twelve of them were not, on a document §390.32(d) asks to stay reproducible.
-   */
-  markedAt: Readonly<Record<string, string>>;
-  /** The adopted signature, for page 22's `Driver name Print` (D-APP8). */
-  signedName: string;
-}
 
 // ── questionnaire helpers, read defensively (A9/D-APP12) ──────────────────────────────────────
 // A payload filed before A9 has no questionnaire at all and must still produce a document.
@@ -111,30 +99,10 @@ const columnLine = (
 const P1_NAME_COLUMNS = ["Last", "First", "Middle"] as const;
 const P1_ADDRESS_COLUMNS = ["Street", "City", "State", "Zip"] as const;
 
-/**
- * ⚠ **Trim-checked, not truthy-checked.** A questionnaire answer of `"   "` is truthy and would be
- * placed as three spaces — invisible in the PDF, but a value the renderer believes it drew, and it
- * would keep `fittedSize` busy shrinking whitespace. `blank()` already collapses these to `""` for
- * the CONTRACT fields; `answer()` reads free-form questionnaire jsonb and does not.
- */
-const push = (into: PlacedFieldValue[], id: string, text: string, label?: string): void => {
-  const trimmed = text.trim();
-  const line = fieldLineFor(id);
-  if (line && trimmed) into.push({ line, text: trimmed, label });
-};
+/** Resolve against the ANSWERS table — `packetSigningFields.ts` has the signing pages' own. */
+const push = (into: PlacedFieldValue[], id: string, text: string, label?: string): void =>
+  placeValue(into, fieldLineFor(id), text, label);
 
-const addressCells = (addr: {
-  line1?: string | null;
-  line2?: string | null;
-  city?: string | null;
-  state?: string | null;
-  postal_code?: string | null;
-}): string[] => [
-  blank(addr.line1) + (addr.line2 ? `, ${addr.line2}` : ""),
-  blank(addr.city),
-  blank(addr.state),
-  blank(addr.postal_code),
-];
 
 function page1(input: PacketFieldInput, into: PlacedFieldValue[], over: PacketFieldOverflow[]): void {
   const a = input.application;
@@ -352,8 +320,7 @@ function page15(input: PacketFieldInput, into: PlacedFieldValue[]): void {
   push(into, "p15.date", date(input.markedAt["p15"] ?? input.certifiedAt));
   // ⚠ Labelled with the carrier's own caption. This cell is 103pt and holds a full name, so it is
   // one of the few standalone rules that reaches the floor size on an ordinary applicant.
-  push(into, "p15.name", [a.first_name, a.middle_name, a.last_name].filter(Boolean).join(" "),
-    "Name of applicant");
+  push(into, "p15.name", fullName(a), "Name of applicant");
   push(into, "p15.dob", date(a.date_of_birth));
   // ⚠ `Sent to` is deliberately blank — the packet carries ONE copy of this page and a driver with
   // four previous employers needs it sent to four of them. Q-PKT11, open.
@@ -471,8 +438,19 @@ function wrapToLines(text: string, _lines: number, perLine: number): string[] {
 function markSides(input: PacketFieldInput, into: PlacedFieldValue[]): void {
   for (const line of PACKET_MARK_SIDE_LINES) {
     if (line.kind === "printed_name") {
-      const name = input.signedName.trim();
-      if (name) into.push({ line, text: name });
+      /**
+       * ⚠ **`fullName`, not `input.signedName` — AUD-18, and it is a CORRECTION.**
+       *
+       * Page 22's caption is `Driver name Print`: it asks what the signer is CALLED, and the
+       * signature beside it is what they signed. Reading the adopted signature here made one packet
+       * print two different names for one person — the fixture's `Marija Varmeda` on page 22 beside
+       * `Marija Ana Varmeda` on page 15's `Name of applicant`, which had always read the payload.
+       * AUD-17 would have added five more lines on the wrong side of that disagreement.
+       *
+       * ⚠ D-APP8 is not touched by this. It says the typed `signed_name` is the signature of
+       * RECORD, which is about the mark; `packetOverlay.ts` still draws that mark from it.
+       */
+      placeValue(into, line, fullName(input.application));
       continue;
     }
     const at = input.markedAt[line.placementId];
@@ -489,6 +467,7 @@ export function packetFieldFill(input: PacketFieldInput): PacketFieldFill {
   page15(input, placed);
   page16(input, placed, overflow);
   markSides(input, placed);
+  packetSigningFill(input, placed);
   return { placed, overflow };
 }
 
@@ -496,4 +475,5 @@ export function packetFieldFill(input: PacketFieldInput): PacketFieldFill {
 export const packetFieldIdsUsed = (): string[] => [
   ...PACKET_FIELD_LINES.map((l) => l.id),
   ...PACKET_MARK_SIDE_LINES.map((l) => l.id),
+  ...PACKET_SIGNING_FIELD_LINES.map((l) => l.id),
 ];

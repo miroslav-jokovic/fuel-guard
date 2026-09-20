@@ -1,3 +1,4 @@
+import type { DriverApplication } from "@silvicom/shared";
 import { fieldCell, fieldTableRowCount, type PacketFieldLine } from "./packetFieldGeometry.js";
 
 /**
@@ -80,6 +81,61 @@ export interface PacketFieldOverflow {
 export interface PacketFieldFill {
   placed: PlacedFieldValue[];
   overflow: PacketFieldOverflow[];
+}
+
+/**
+ * What a fill needs to know about one application.
+ *
+ * ⚠ Here rather than beside `packetFieldFill`, because there are now TWO modules that fill from it —
+ * `packetFieldValues.ts` for the pages that ask questions and `packetSigningFields.ts` for the pages
+ * the driver signs (AUD-17) — and the one that owns the orchestrator must not also be the one the
+ * other has to import a type from.
+ */
+export interface PacketFieldInput {
+  application: DriverApplication;
+  /** Server-stamped, never client-supplied (D-APP9). Page 1's `Date:`. */
+  certifiedAt: string;
+  /**
+   * ⚠ **Each stop's OWN `application_packet_marks.signed_at`, keyed by placement id.**
+   *
+   * Not one "signed on" date. The walk is twenty-two separate acts and a driver who loses signal
+   * finishes tomorrow — 0339's header is explicit that a half-signed packet is a state to resume
+   * from. One date on sixteen lines would assert that sixteen signatures were made at a moment
+   * fifteen of them were not, on a document §390.32(d) asks to stay reproducible.
+   */
+  markedAt: Readonly<Record<string, string>>;
+  /**
+   * The adopted signature, as the driver typed it (D-APP8).
+   *
+   * ⚠ **It is NOT what any `Print name` line prints** — see `fullName` in `packetDraw.ts` for why,
+   * and AUD-18 for the day the two disagreed on one document. Kept on the input because the mark
+   * itself is drawn from it by `packetOverlay.ts`, which is a different question from what the
+   * carrier's name lines say.
+   */
+  signedName: string;
+}
+
+/**
+ * Put one value on one measured line, or drop it.
+ *
+ * ⚠ **Trim-checked, not truthy-checked.** A questionnaire answer of `"   "` is truthy and would be
+ * placed as three spaces — invisible in the PDF, but a value the renderer believes it drew, and it
+ * would keep the fitter busy shrinking whitespace. `blank()` already collapses these to `""` for the
+ * CONTRACT fields; free-form questionnaire jsonb is not read through it.
+ *
+ * ⚠ **It takes the LINE, not an id**, and that changed with AUD-17. There are two geometry tables
+ * now — the answers' and the signing pages' — so a resolver baked in here would have to know both,
+ * and would silently drop any id it happened not to carry. Each caller resolves against the table it
+ * is filling, which is the one thing it definitely knows.
+ */
+export function placeValue(
+  into: PlacedFieldValue[],
+  line: PacketFieldLine | null,
+  text: string,
+  label?: string,
+): void {
+  const trimmed = text.trim();
+  if (line && trimmed) into.push({ line, text: trimmed, label });
 }
 
 /**
