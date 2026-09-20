@@ -3194,6 +3194,14 @@ every time.
     sharing one contract field is deliberate and documented (`packetFieldValues.ts:281`) and is not
     the finding; the finding is that `p02.revoked.explain` exists in the geometry table, is never
     pushed, and the detail that would fill it is already printed two inches above under A.
+  · **AUD-22 · A carrier question the applicant left blank vanishes from the document.** Added
+    2026-09-20 while building AUD-11, and **it is NOT simply AUD-11 again** — which is why it was
+    raised rather than folded into it. `questionnairePage.ts:62` skips any answer that is undefined,
+    null or empty, so a recruiter cannot tell a question nobody asked from one the applicant
+    declined. §391.21's paragraphs are all mandatory and a carrier's questionnaire may be mostly
+    optional, so a dash per unanswered optional question could be noise rather than evidence.
+    **Needs the owner's ruling** on whether an unanswered carrier question is a fact the recruiter
+    must see; see the dated entry at the end of this section.
 
   **C. The owner's sentence — "I don't see preview for first set of approvals".** Two different
   builds sit behind it and he should pick before either is built (see Q-HM12 in §8).
@@ -4252,6 +4260,91 @@ every time.
   ⚠ **Not freeze-bound**, for the reason above — every banded document is rendered on demand.
 
   **Left for AUD-11 and AUD-20**, untouched and not started.
+
+- **2026-09-20 — AUD-11 BUILT. Ten paragraphs, ten answers.** Branch `claude/hiring-aud11`.
+  The §391.21 document, not the permissions one.
+
+  **Reproduced first**, on the FILED document rather than a preview: an application with no
+  addresses, no experience narrative and no equipment, beside the three sections that already say
+  which answer an empty list is. It is exactly as the audit recorded — **(b)(3) prints a heading and
+  then the next heading**, **(b)(6) prints a lone em dash**, and (b)(7)/(b)(8)/(b)(9)/(b)(10) all
+  print a sentence. On a §391.51 record, "nothing was asked" and "nothing was given" are very
+  different facts, and two of the ten paragraphs could not tell them apart.
+
+  **(b)(3) takes the sentence the other sections already use**, `Not answered.`, and NOT a declared
+  none. ⚠ The contract carries exactly three `declares_no_*` flags — accidents, violations,
+  employment — and it should not grow a fourth: everybody has an address, so an empty (b)(3) is an
+  omission and can only be one. The right answer here was to add nothing to the contract.
+
+  ⚠ **(b)(6) needed TWO sentences, because the paragraph asks two questions in one sentence** — "the
+  nature and extent of the applicant's experience" and "the type of equipment ... which he/she has
+  operated". The old line was `body(blank(a.experience))` followed by a loop that returns on an
+  empty list, so *both* halves were silent at once and a reader could not tell which was missing. It
+  now names the half that is missing, **quoting the regulation's own words rather than printing
+  "Not answered." twice** — two identical sentences under one heading say that something is missing
+  and not what. ⚠ And when BOTH halves are empty it is ONE `Not answered.`: the section as a whole
+  is unanswered, and saying it twice reads as two separate faults.
+
+  ⚠ **THE FREEZE QUESTION WAS ASKED OF PRODUCTION AND NOT OF THE PLAN, and the first query was
+  wrong.** This renderer draws the filed §391.21 record, `ensureApplicationPdf` renders once and
+  keeps those bytes. `documents where kind = 'application_pdf'` returned **0** — and that is not the
+  kind: `file.ts` writes **`employment_application`**, of which production holds **one, filed
+  2026-09-14 18:12:52 UTC**. A negative from a wrong filter is the confident wrong answer this repo
+  keeps writing down, and it nearly became this entry's headline.
+  ⚠ **Then measured, which settles it**: that application answered both halves — `has_addresses`
+  true, `has_experience` true, one equipment row — and for such a payload the new renderer draws an
+  **identical page, run for run and coordinate for coordinate** (compared against `HEAD`'s renderer
+  over five payload states; `both-answered` is byte-for-byte identical in layout). So the one
+  document already frozen is one this change would not have touched, and every application filed
+  from here gets the sentences.
+  ⚠ **A correction to the AUD-8 entry above, while the query is in hand**: its *"production holds no
+  filed packet"* is true of the carrier's 31-page PACKET and was read as covering this document too.
+  It does not. `documents` has carried one `employment_application` since 2026-09-14, so AUD-8's
+  caption leading — which reaches this renderer through `pdfDraw.ts` — did not reach that sheet and
+  never will. Nothing to undo; worth knowing before the next freeze-bound change is waved through.
+
+  **Three tests, and the first one is the general form of the defect.** A structural walk asserts
+  that **no §391.21 heading is followed by another heading** on a document with every optional
+  section emptied — which catches (b)(3) and any section added later without an empty branch. ⚠ It
+  cannot catch (b)(6): a lone dash IS a drawn run, so only a test that knows what the dash means can
+  fail on it, and that is the second test. ⚠ Both (b)(6) and (b)(3) assertions are **sliced to their
+  own block** — `Not answered.` is the correct sentence in three other paragraphs, so an unscoped
+  `toContain` is green on a document that still prints the dash.
+
+  ⚠ **The test that covered this line before asserted `pdf.byteLength > 1000`** — with
+  `experience: null` in its own fixture, which is the defect's exact input. It has been green
+  throughout, and it is the reason this was found by rasterising rather than by running the suite.
+
+  **Mutations: 7 run, 7 red.** (b)(3)'s branch removed (kills TWO tests, the structural walk and the
+  specific one); both-missing printing two sentences instead of one; equipment-missing silent again;
+  narrative-missing back to `blank(a.experience)`; **the two half-sentences swapped**, so each names
+  the wrong half; both-missing back to the lone em dash — the exact old behaviour; and the
+  structural walk's own citation matcher broken, which fires its guard rather than passing
+  vacuously. ⚠ One trap on the way, and it is `git stash pop`'s cousin: **`git checkout --` to undo
+  a mutant in a TEST file reverted the new tests with it.** They were rewritten and then re-proved
+  by re-running a mutant — a restored test that has not killed anything since is not evidence.
+
+  **Established by looking** at 150 dpi: the ten paragraphs of the emptied document, before and
+  after.
+
+  ⚠ **FOUND ON THE WAY, NOT FIXED — raised as AUD-22.** `questionnairePage.ts:62` SKIPS any carrier
+  question whose answer is undefined, null or empty, so a question the applicant left blank vanishes
+  from the document entirely. It is AUD-11's reader problem on the carrier's own questions — you
+  cannot tell "not asked" from "asked and not answered". ⚠ It is **not** simply AUD-11 again, which
+  is why it is not fixed here: §391.21's paragraphs are all mandatory and a carrier's questionnaire
+  may be mostly optional, so printing a dash per unanswered optional question could be noise rather
+  than evidence. It needs the owner's ruling on whether an unanswered carrier question is a fact the
+  recruiter must see. The section itself is safe — it returns before drawing its heading when it has
+  nothing, so it cannot produce the bare heading this step removed.
+
+  **Gates**: `lint:filesize` · `lint:funcsize` · `lint:boundaries` · `lint:comment-claims` ·
+  `lint:table-writers` · `lint:table-modules` · `lint:upserts` · `lint:migrations` ·
+  `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **4022 passed, 332 files.** ⚠ **No migration.**
+  ⚠ **Freeze-bound** — it reaches the filed §391.21 record, and the one record already filed is
+  measured above to be unaffected.
+
+  **Left: AUD-20, the new AUD-22, and the web surfaces** — still never walked at 1440×390.
 
 ---
 

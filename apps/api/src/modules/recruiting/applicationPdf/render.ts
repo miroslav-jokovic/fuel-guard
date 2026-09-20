@@ -234,6 +234,12 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   // the last place nine digits should appear.
 
   paragraph(doc, "§391.21(b)(3)", "Addresses for the past 3 years");
+  // ⚠ The same sentence (b)(8) and (b)(10) print, for the same reason (H8, AUD-11): a heading with
+  // nothing under it is the one thing this document must never say, because a reader cannot tell it
+  // from a section that was never asked. ⚠ And "Not answered." rather than a declared none: there is
+  // no `declares_no_addresses` in the contract and there should not be — everybody has an address,
+  // so an empty list here is an omission and can only be one.
+  if ((a.addresses ?? []).length === 0) body(doc, "Not answered.");
   for (const addr of a.addresses ?? []) {
     field(
       doc,
@@ -259,8 +265,27 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   paragraph(doc, "§391.21(b)(6)", "Experience and equipment");
   // The paragraph asks for two things in one sentence: "the nature and extent of the applicant's
   // experience" — the narrative — and "the type of equipment ... which he/she has operated".
-  body(doc, blank(a.experience));
-  equipmentExperience(doc, (a.equipment_experience ?? []) as ReadonlyArray<Record<string, unknown>>);
+  //
+  // ⚠ **Which is why a silence here needs TWO sentences, and AUD-11 is the reason they exist.** This
+  // block used to be `body(blank(a.experience))` followed by a loop that returns on an empty list —
+  // so an unanswered section printed a lone em dash and nothing else, and an answered narrative with
+  // no equipment printed as though the paragraph had one half. A dash under a heading is not an
+  // answer; it is the absence of one, wearing the costume of a value.
+  //
+  // ⚠ Each sentence QUOTES the half of the paragraph it is about rather than saying "Not answered."
+  // twice. Two identical sentences under one heading tell a reader that something is missing and not
+  // what; the regulation has already named both halves, so the document borrows its words.
+  // ⚠ And when BOTH are missing it is one sentence, the same "Not answered." the other sections use
+  // — the section as a whole is unanswered, and saying it twice would read as two separate faults.
+  const experience = (a.experience ?? "").trim();
+  const equipment = (a.equipment_experience ?? []) as ReadonlyArray<Record<string, unknown>>;
+  if (experience === "" && equipment.length === 0) {
+    body(doc, "Not answered.");
+  } else {
+    body(doc, experience === "" ? "The nature and extent of the experience was not answered." : experience);
+    if (equipment.length === 0) body(doc, "The type of equipment operated was not answered.");
+    else equipmentExperience(doc, equipment);
+  }
 
   paragraph(doc, "§391.21(b)(7)", "Accidents in the past 3 years");
   if ((a.accidents ?? []).length === 0) {
