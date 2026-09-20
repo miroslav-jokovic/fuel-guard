@@ -4346,6 +4346,78 @@ every time.
 
   **Left: AUD-20, the new AUD-22, and the web surfaces** — still never walked at 1440×390.
 
+- **2026-09-20 — AUD-20 BUILT. The closing note travels with the act it describes.** Branch
+  `claude/hiring-aud20`. A mechanism in `pdfDraw.ts`, and one caller.
+
+  ⚠ **Reproduced, and it is WORSE than it was written down.** The finding said the closing sentence
+  "can land on a sheet of its own, 97% white". Swept across one to five instruments and both a short
+  and a real 130-character user agent, the worst case is not the sentence on its own sheet — it is
+  the sentence SPLIT: at **three instruments with a long user agent, page 7 of 7 carried the three
+  words `to its source.` and nothing else, 0.9% of the text block used.** The page above kept
+  "…so a page can be matched"; this one took what was left of the clause.
+
+  **The mechanism is the third keep-together in this file and the first two are the argument for its
+  shape.** `field()` holds a label to its value, `section()` holds a heading to its rows, and each
+  measures what it is about to draw. So the colophon is an ARGUMENT to `section()`, not a
+  `colophon()` next to a `colophonHeight()` for a caller to pair up: a measuring function and a
+  drawing function called separately by somebody else are the two copies of one constant that
+  `HEADING_LEAD_ABOVE` exists to have avoided. One argument, one measurement, no way to reserve room
+  for one thing and draw another.
+
+  ⚠ **THE MEASUREMENT HAD TO GO BEFORE THE ROWS, AND THAT IS NOT TIDINESS.** Every measurement in
+  `pdfDraw.ts` leaves pdfkit holding the font it measured with, and `heading()` moves down by the
+  CURRENT font's line height. `partHeight()` has always run last and always left Helvetica-Bold 9.5;
+  AUD-8's measurements of that air were taken against it. Measuring the colophon after the rows
+  leaves 8.5 behind instead and **the heading sits 1.04pt higher** — measured both ways, on the same
+  section, with and without a colophon. A page-break fix that quietly re-spaced every section
+  carrying a closing note would have been a layout change nobody asked for. With the measurement
+  first, a section draws identically whether or not it was given one.
+
+  ⚠ **The test SEARCHES for the hardest cursor position rather than guessing one, and a survivor is
+  what forced that.** The first version swept `fillTo` in 4pt steps — which is worse than it looks,
+  because `fillTo` advances in whole `body()` lines of ~10.9pt and so only ever lands the cursor on
+  about seventeen distinct heights. A mutant that shortened the reservation by 0.92pt walked
+  straight through it. The test now bisects: fourteen renders find, to a twentieth of a point, the
+  largest y at which the section still holds the sheet in progress — the exact position where a
+  short reservation strands the last line — and asserts there. Found from the geometry, not written
+  down in the test.
+
+  ⚠ **And its sensitivity is stated rather than assumed: 2.08pt.** At the boundary the content ends
+  at y717.92 against a floor of 720, so the reservation over-shoots what is drawn by that much.
+  **Mutants of −1pt and −0.1pt survive, and they are NOT defects** — the room kept is still enough
+  for the ink, and over-shooting is exactly what `partHeight()`'s header asks for. A test that
+  failed on those would be pinning the estimate's arithmetic instead of the promise. Writing that
+  down is the point: the next person to run a mutation here should not go hunting for a bug that is
+  not there.
+
+  **Mutations: 5 run, 3 red, 2 green-and-correct** (above). Red: the colophon dropped from the
+  reservation while still being drawn (kills THREE tests); the rule's air measured at the colophon's
+  own 8.5 rather than the 9.5 bold `field()` leaves behind, which moves the boundary 4.1pt; and
+  `certificate.ts` drawing its note loose under the section again — **the exact old behaviour**,
+  which the mechanism test alone cannot see and the document test does.
+
+  **Two tests, at two levels, and the comment on each says why the other cannot cover it.**
+  `pdfDraw.test.ts` holds the mechanism at every height on the sheet; `permissions.test.ts` holds
+  that THIS document still hands its note to `section()` rather than drawing it loose — with the
+  fixture that reproduced the defect, three instruments and a real user agent, because two
+  instruments or a short one puts the note mid-sheet whatever the code does.
+
+  **Established by looking** at 100 dpi at the last two sheets of the three-instrument document,
+  before and after: page 7 went from three words to the whole §391.21(b)(12) act, its four rows, the
+  rule and the complete closing paragraph. Page count unchanged at 7 — and unchanged in all ten
+  swept configurations.
+
+  **Gates**: `lint:filesize` (pdfDraw.ts 465 → 477, budget 500) · `lint:funcsize` ·
+  `lint:boundaries` · `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` ·
+  `lint:upserts` · `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` ·
+  `typecheck` — all green. `pnpm --filter @silvicom/api test`: **4024 passed, 332 files.**
+  ⚠ **No migration.** ⚠ **Freeze-bound** — it changes where the filed §391.21 document breaks a
+  page. The one record filed in production (2026-09-14, measured under AUD-11) has three
+  authorizations and a short user agent, which is not a configuration this moves.
+
+  **Left: the new AUD-22, and the web surfaces** — still never walked at 1440×390. The original
+  sixteen findings are closed.
+
 ---
 
 ## 11. Sources

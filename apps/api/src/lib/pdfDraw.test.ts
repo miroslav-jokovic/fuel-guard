@@ -188,6 +188,90 @@ describe("a section, at the foot of a sheet", () => {
     expect(pages[0]).toContain("opening line");
     expect(pages.every((t) => t.trim().length > 0)).toBe(true);
   });
+
+  /**
+   * ── THE CLOSING NOTE TRAVELS WITH THE SECTION THAT CARRIES IT (AUD-20, 2026-09-20) ──────────
+   *
+   * ⚠ **What this replaces was two calls in the flow, bound to nothing.** The certificate ended with
+   * `rule(); muted(sentence)` after its last section, so where that sentence landed was whatever the
+   * cursor happened to be. Measured on the permissions PDF at three instruments and a real
+   * 130-character user agent: **page 7 of 7 carried the three words `to its source.` and nothing
+   * else** — not the note on its own sheet, which is how the finding was first written down, but the
+   * WRAP of the note, split mid-clause across the boundary.
+   *
+   * ⚠ **It SEARCHES for the hardest cursor position instead of guessing one.** A single `fillTo` is
+   * a fixture tuned to today's constants; a coarse sweep is barely better, and a measured mutant
+   * proved it — **the rule's air measured at 8.5pt instead of the 9.5 bold `field()` leaves behind
+   * shortens the reservation by about 0.92pt and a 4pt sweep steps clean over the window**, so that
+   * mutant survived. Worse, `fillTo` advances in whole `body()` lines of ~10.9pt, so a sweep of the
+   * REQUESTED room only ever lands the cursor on about seventeen distinct heights.
+   *
+   * So the cursor is set directly and the boundary is bisected: the largest y at which the section
+   * still draws on the sheet in progress is the position where a reservation that is short strands
+   * the note's last line. Fourteen renders find it to a twentieth of a point, from the geometry
+   * rather than from a number written down here — the difference between a test that holds and a
+   * test that held once.
+   *
+   * ⚠ **What it is sensitive to, stated rather than assumed.** At the boundary the content ends at
+   * y717.92 against a floor of 720, so the reservation over-shoots the true drawn height by
+   * **2.08pt** — and that is the test's threshold. A mutant that shortens the reservation by 0.92pt
+   * (measuring the rule's air at 8.5 rather than the 9.5 bold `field()` leaves) moves the boundary
+   * 4.1pt and IS caught; mutants of −1pt and −0.1pt are not, and **they are not defects**: the room
+   * kept is still enough for what is drawn. Over-shooting is what `partHeight()`'s header asks for.
+   * A test that failed on those would be pinning the estimate's arithmetic instead of the promise.
+   *
+   * ⚠ The assertion is on the note's FIRST and LAST fragments, not on the whole sentence: a
+   * paragraph that wraps is several runs, and `pdfPageTexts` concatenates them. The tail is what the
+   * defect strands, so the tail is what has to be found on the heading's own sheet.
+   */
+  it("never parts a closing note from its section, at any height on the sheet", async () => {
+    const OPENING = "Each act above is stored with the exact text";
+    const TAIL = "to its source.";
+    const COLOPHON =
+      `${OPENING} that was shown at the time, not a reference to wording that may since have `
+      + "changed. The identifier in the footer of every page is the digest of the certified answers "
+      + `this document was drawn from, so a page can be matched ${TAIL}`;
+
+    /** Draw the section with its note, starting the cursor at `y`, and read back the sheets. */
+    const at = async (y: number): Promise<string[]> => {
+      const { doc, done } = newDrawing(`colophon from y${y}`);
+      doc.y = y;
+      section(doc, "6. Certified the application", ROWS, { colophon: COLOPHON });
+      doc.end();
+      return pdfPageTexts(await done);
+    };
+    const heldItsSheet = (pages: string[]): boolean =>
+      pages[0]!.includes("6. Certified the application");
+
+    const check = (pages: string[], where: string): void => {
+      const sheet = pages.findIndex((t) => t.includes("6. Certified the application"));
+      expect(sheet, `${where}: the section is on the document`).toBeGreaterThanOrEqual(0);
+      expect(pages[sheet], `${where}: the note opens on its section's sheet`).toContain(OPENING);
+      expect(pages[sheet], `${where}: and ENDS on it`).toContain(TAIL);
+      // ⚠ And no other sheet carries any of it — the split leaves a fragment behind, and a test that
+      // only looked at the section's own page would call that page correct and miss the stray.
+      const strays = pages
+        .map((text, i) => ({ text, i }))
+        .filter(({ text, i }) => i !== sheet && (text.includes(TAIL) || text.includes(OPENING)));
+      expect(strays.map((s) => s.i), `${where}: no sheet carries a fragment of the note`).toEqual([]);
+    };
+
+    // The easy heights first — high on the sheet, and low enough that the page must turn.
+    for (const y of [54, 200, 400, 600, 700]) check(await at(y), `y${y}`);
+
+    // ⚠ Then the boundary itself. `lo` holds the section on the sheet in progress, `hi` does not;
+    // the assertions run at the last y that still does, which is where a short reservation shows.
+    let lo = 54;
+    let hi = 720;
+    expect(heldItsSheet(await at(lo)), "the search starts from a height that holds").toBe(true);
+    expect(heldItsSheet(await at(hi)), "...and ends at one that cannot").toBe(false);
+    while (hi - lo > 0.05) {
+      const mid = (lo + hi) / 2;
+      if (heldItsSheet(await at(mid))) lo = mid;
+      else hi = mid;
+    }
+    check(await at(lo), `the last height that holds (y${lo.toFixed(2)})`);
+  });
 });
 
 /**
