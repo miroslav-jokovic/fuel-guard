@@ -1,77 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { pdfDrawnLines, pdfPageTexts } from "../testing/pdfText.js";
 import {
-  PAGE_HEIGHT, body, caption, field, heading, muted, newDrawing, section, winAnsi,
+  PAGE_HEIGHT, body, caption, field, heading, muted, newDrawing, section,
 } from "./pdfDraw.js";
 
-/**
- * `winAnsi` is the last thing every drawn string passes through, so what it cannot represent shows up
- * on a legal document. These pin the two foldings that were wrong: generated copy full of typographic
- * punctuation, and a driver's accented surname.
- */
-describe("winAnsi", () => {
-  it("folds a minus sign rather than printing it as a question mark", () => {
-    // Real: the spend report's own delta line, which read "?88.1% vs prior".
-    expect(winAnsi("−88.1% vs prior")).toBe("-88.1% vs prior");
-    expect(winAnsi("2026-08-17 — 2026-08-23")).toBe("2026-08-17 - 2026-08-23");
-  });
-
-  /**
-   * The arrow is not decorative punctuation somebody typed — `operatingBridge` BUILDS its withheld
-   * messages with it, so it reaches a forwarded PDF on the one line the reader most needs to trust.
-   * With no rule for U+2192 it fell through to the catch-all and printed "2026-08-17 ? 2026-08-23".
-   */
-  it("folds the arrow that generated bridge copy puts between two dates", () => {
-    expect(winAnsi("Fleet MPG of 12.7 for 2026-08-17 → 2026-08-23 is outside what a tractor can do"))
-      .toBe("Fleet MPG of 12.7 for 2026-08-17 - 2026-08-23 is outside what a tractor can do");
-    expect(winAnsi("← saved")).toBe("- saved");
-  });
-
-  it("folds curly quotes and ellipses", () => {
-    expect(winAnsi("the carrier’s report…")).toBe("the carrier's report...");
-    expect(winAnsi("“Off-network”")).toBe('"Off-network"');
-  });
-
-  it("drops a diacritic instead of leaving a stray question mark beside the letter", () => {
-    expect(winAnsi("Nikolić")).toBe("Nikolic");
-    // Latin Extended-A, one letter past what the encoding holds, and the reason the fold exists.
-    expect(winAnsi("Wałęsa")).toBe("Walesa");
-    expect(winAnsi("Đorđević")).toBe("Dordevic");
-  });
-
-  /**
-   * ⚠ **This assertion used to say the opposite, and it was wrong** (AUD-3, 2026-09-19). It read
-   * `expect(winAnsi("José Muñoz")).toBe("Jose Munoz")` and it passed, under a `describe` that called
-   * an accented surname one of "the two foldings that were wrong" — so the defect was pinned as the
-   * fix. `é` is 0xE9 and `ñ` is 0xF1: both are WinAnsi, and there was never anything to fold.
-   *
-   * What proved it was not a reading of the encoding table but a disagreement between two documents
-   * in one qualification file. `packetOverlay.ts` does not call `winAnsi` at all, and on the same
-   * render it drew this exact name onto the carrier's page 3 correctly while the summary drew
-   * `Jose Munoz-Pena`. The test above still pins the case the fold is FOR; this one pins the case it
-   * was reaching too far into.
-   */
-  it("leaves a name alone when every letter in it is one WinAnsi can hold", () => {
-    expect(winAnsi("José Muñoz-Peña")).toBe("José Muñoz-Peña");
-    expect(winAnsi("Ángel Gutiérrez")).toBe("Ángel Gutiérrez");
-    expect(winAnsi("Françoise Lefèvre")).toBe("Françoise Lefèvre");
-    // Mixed: the Spanish letters stay and the Slavic one still folds, in one string.
-    expect(winAnsi("Peña Nikolić")).toBe("Peña Nikolic");
-  });
-
-  it("still marks something genuinely unrepresentable, rather than dropping it silently", () => {
-    expect(winAnsi("中")).toBe("?");
-  });
-});
-
-/**
- * ⚠ A label and its value are drawn at the SAME y, captured before either. Close enough to the foot
- * of the sheet, pdfkit turned the page under the label and the row's own bookkeeping then advanced
- * the NEW page's cursor to a coordinate on the OLD one — which pushed the next row off the sheet
- * again. What came out was a page carrying one orphaned label and nothing else. Found 2026-09-11 in
- * a rendered application preview ("DOT-regulated", alone, on page 2 of 8); older than that document
- * and shared by every one this module draws.
- */
 describe("a label and its value, at the foot of a sheet", () => {
   it("keeps them together, and leaves no page carrying only the label", async () => {
     const { doc, done } = newDrawing("page break");

@@ -4106,6 +4106,69 @@ every time.
   `pnpm --filter @silvicom/api test`: **4014 passed, 331 files.** ⚠ **No migration.** ⚠
   **Freeze-bound.**
 
+- **2026-09-20 — AUD-21 BUILT, the day it was found.** Branch `claude/hiring-aud21`. One line of
+  behaviour, on the document that matters most.
+
+  **`winAnsi()` folded every newline to `?`.** Its catch-all marks anything outside WinAnsi's
+  printable range, and U+000A is outside it — so pdfkit never saw the break it would have honoured.
+  Measured: `esignConsentBody()` composes the 15 U.S.C. 7001(c) consent with **16** newlines (a label
+  and its clause, then a blank line, six times over); all 16 printed as `?`; and **the source carries
+  no `?` of its own**, so every question mark a reader saw was corruption. It read *"You can have
+  these on paper instead?You do not have to do any of this electronically."*
+
+  ⚠ **The screen had it right the whole time, which is why this survived four audits.**
+  `EsignConsentGate.vue` renders the SAME stored string under `whitespace-pre-line`, and its comment
+  says so: *"because the clauses are composed with their own line breaks"*. The applicant read six
+  labelled clauses on their phone, signed them, and the filed PDF of that consent printed run-on
+  prose. **A2's defect in another guise** — one document, two renderers, disagreeing about what was
+  shown — and FCRA/7001(c) disputes are precisely questions about which wording was shown.
+
+  **The fix**: `\r\n?` → `\n` first, tab → space, and `\n` excluded from BOTH character classes.
+  ⚠ Both, deliberately: AUD-3's own comment says one definition of what may stay is the point, and
+  two that can drift is the defect it prevents. ⚠ CRLF is not hypothetical — `carrierWording.ts`
+  stores carrier-authored clause text and an HTML textarea submits CRLF by specification. (No web
+  surface writes that wording yet; the API door does.)
+
+  ⚠ **`heightOfString` MEASURES the break, checked before shipping and not assumed.** `"a\nb\nc"`
+  measures 32.95pt against 10.98 for one line — exactly 3.00×. So `partHeight`, `section`, `field`
+  and `table` all account for the new lines and AUD-4's keep-together is unaffected. A fix that made
+  text taller without the measurement following it is how AUD-8 nearly reopened AUD-4.
+
+  **Mutations: 5 run, 4 red, 1 proved a NO-OP.** The catch-all narrowed back (the defect itself —
+  kills three tests); the class widened too far so every control character passes; CRLF removed; tab
+  removed.
+  ⚠ **The survivor was a no-op and was checked rather than chased.** Narrowing only the NFD class
+  while the catch-all stays widened changes nothing: `"\n".normalize("NFD")` with combining marks
+  stripped IS `"\n"`, proved by running both classes over one string and comparing. **Second no-op
+  mutant in two steps** — AUD-9's was the same shape. A mutant that does not change the output is
+  not evidence about the test, and the cost of forgetting that is weakening a test that was right.
+
+  ⚠ **The unit fixture could not express the defect and that is why no test saw it.**
+  `permissions.test.ts`'s `CONSENT_TEXT` is one line with no break to lose. A second fixture composes
+  a consent the way the real one is composed, and the document-level assertion reads the DRAWN RUNS
+  — `pdfText` concatenates them, so a label that ran into its clause and a label on its own line
+  produce the same string and the same `toContain`.
+
+  ⚠ The widening is guarded from the other side too: a test walks NUL, BEL, VT, FF, ESC, DEL and
+  NEL and requires each still to be marked, because a class widened by one character too many prints
+  a control code into a filed document instead of flagging it.
+
+  ⚠ **`pdfDraw.ts` HIT 501 AND `lint:filesize` STOPPED THE PR, so the split it has been owed for
+  two steps happened here.** The AUD-8 entry said *"there is no room for the next fix — split it
+  first"* and AUD-9's said the split was still owed; this comment was the line that made the gate
+  say it out loud. **`winAnsi` moved to `lib/winAnsi.ts`** with its tests — the seam rather than an
+  arbitrary cut: pure string logic, no pdfkit type in it, and a subject of its own. `pdfDraw.ts`
+  re-exports it, so **no call site moved**. 501 → 426, and the new module is 96.
+  ⚠ **Trimming the comment to get under 500 was the other option and it is the one the gate exists
+  to refuse** — its own header says a budget satisfied by deleting prose instead of code *"leaves
+  the gate green and the file worse"*. ⚠ `git add` the two new files BEFORE running the gates:
+  `testServerTeardown.test.ts` enumerates with `git ls-files` and is blind to an untracked file.
+
+  **Gates**: all ten named · root `lint` · `typecheck` — green.
+  `pnpm --filter @silvicom/api test`: **4018 passed, 332 files** (one more file, the split).
+  ⚠ **No migration.** ⚠ **Freeze-bound — this reaches the FILED §391.21 application, not only
+  the permissions document.**
+
   **Gates** (after the last edit): `lint:boundaries` · `lint:filesize` · `lint:funcsize` ·
   `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` · `lint:upserts` ·
   `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.

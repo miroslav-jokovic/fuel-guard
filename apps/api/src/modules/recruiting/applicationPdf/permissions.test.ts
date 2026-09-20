@@ -29,6 +29,20 @@ const FCRA_TEXT = "FCRA-DISCLOSURE-BODY-AS-IT-WAS-SHOWN";
 const PSP_TEXT = "PSP-DISCLOSURE-BODY-AS-IT-WAS-SHOWN";
 const CONSENT_TEXT = "SEVEN-THOUSAND-AND-ONE-C-SIX-CLAUSES";
 
+/**
+ * A consent composed the way the real one is — label, clause, blank line — because the fixture above
+ * is ONE LINE and one line cannot show AUD-21 (2026-09-20).
+ *
+ * ⚠ `esignConsentBody()` joins a label to its clause with `\n` and the clauses to each other with
+ * `\n\n`, sixteen breaks in all. Every one of them printed as `?` and no assertion in this file could
+ * see it, because `CONSENT_TEXT` has no break to lose. A fixture that cannot express the defect is
+ * the repo's named cause of a green test proving nothing.
+ */
+const CLAUSE_LABEL = "CLAUSE-LABEL-THAT-MUST-OPEN-ITS-OWN-LINE";
+const SECOND_LABEL = "SECOND-CLAUSE-LABEL-LIKEWISE";
+const CONSENT_CLAUSES =
+  `${CLAUSE_LABEL}\nFIRST-CLAUSE-BODY-AS-IT-WAS-SHOWN\n\n${SECOND_LABEL}\nSECOND-CLAUSE-BODY-AS-IT-WAS-SHOWN`;
+
 const grant = (over: Record<string, unknown> = {}) => ({
   id: "auth-fcra",
   purpose: "fcra_disclosure",
@@ -418,6 +432,36 @@ describe("printing what an applicant has signed", () => {
     const live = value("Signed 2026-09-11");
     expect(live.color).toBe("#1a1a1a");
     expect(live.x).toBe(value("REVOKED 2026-09-12").x);
+  });
+
+  /**
+   * The consent prints with the breaks it was composed with, and the breaks it was SIGNED with.
+   *
+   * ⚠ **The screen and the filed document disagreed, and the screen was right.**
+   * `EsignConsentGate.vue` renders this same stored string under `whitespace-pre-line`, with a
+   * comment saying *"because the clauses are composed with their own line breaks"*. The applicant
+   * read six labelled clauses, signed them, and the PDF of that consent printed run-on prose with a
+   * `?` at every break — `winAnsi`'s catch-all ate `\n` before pdfkit could honour it. A2's defect
+   * in another guise: one document, two renderers, disagreeing about what was shown.
+   *
+   * ⚠ Asserted on the DRAWN RUNS, not on the text. `pdfText` concatenates every run, so a label that
+   * ran into its clause and a label on its own line produce the same string and the same `toContain`.
+   */
+  it("prints the consent's clauses on their own lines, as the applicant was shown them", async () => {
+    const lines = await pdfDrawnLines(
+      await rendered(seed({ consent: { ...CONSENT, disclosure_text: CONSENT_CLAUSES } })),
+    );
+    const label = lines.find((l) => l.text === CLAUSE_LABEL);
+    expect(label, "the first clause label, alone on its line").toBeDefined();
+    // ⚠ BOTH labels: one break working proves nothing about the `\n\n` that separates clauses, and
+    // the first label is the one case that would survive even if every later break were eaten.
+    expect(lines.find((l) => l.text === SECOND_LABEL), "the second label").toBeDefined();
+
+    // ⚠ And nothing on that sheet was folded to a question mark. The fixture carries none of its
+    // own, so this counts corruption rather than punctuation.
+    expect(CONSENT_CLAUSES).not.toContain("?");
+    const marks = lines.filter((l) => l.page === label!.page && l.text.includes("?"));
+    expect(marks.map((l) => l.text)).toEqual([]);
   });
 
   /**
