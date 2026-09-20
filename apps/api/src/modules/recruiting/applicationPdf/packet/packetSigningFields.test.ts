@@ -1,0 +1,222 @@
+import { describe, it, expect } from "vitest";
+import type { DriverApplication } from "@silvicom/shared";
+import { packetFieldFill, packetFieldIdsUsed } from "./packetFieldValues.js";
+import type { PacketFieldInput, PlacedFieldValue } from "./packetGrid.js";
+import {
+  PACKET_SIGNING_FIELD_LINES,
+  SINGLE_LICENCE_BLOCK_FIELDS,
+  SINGLE_LICENCE_BLOCK_PAGES,
+} from "./packetSigningGeometry.js";
+
+/**
+ * What the driver writes about themselves on the pages they sign (AUD-17).
+ *
+ * ⚠ **What is worth pinning is the REFUSALS, not the happy path.** That a name lands on a name line
+ * is checkable by looking at the rendered page, and was. What a test has to hold still is the set of
+ * things that would produce a document signed, filed and wrong: a §40.25(j) answer ticked for an
+ * applicant who never gave one, a date printed beside a signature nobody has made yet, a name on a
+ * page the applicant does not sign, and one packet printing two different spellings of one person.
+ */
+
+const BASE = {
+  first_name: "Marija",
+  middle_name: "Ana",
+  last_name: "Varmeda",
+  date_of_birth: "1980-04-01",
+  other_names: [],
+  email: "m@example.test",
+  phone: "(555) 011-1234",
+  addresses: [
+    { line1: "1301 Armitage Ave", line2: "Unit 4", city: "Melrose Park", state: "IL", postal_code: "60160" },
+    { line1: "9 Old Road", city: "Aurora", state: "WI", postal_code: "53210" },
+  ],
+  cdl_number: "PA334554",
+  cdl_state: "PA",
+  cdl_class: "A",
+  cdl_expires_at: "2029-01-01",
+  additional_licences: [],
+  equipment_experience: [],
+  accidents: [],
+  declares_no_accidents: true,
+  violations: [],
+  declares_no_violations: true,
+  licence_ever_denied: false,
+  employers: [],
+  declares_no_employment: true,
+  prior_failed_pre_employment_test: false,
+  questionnaire_answers: {},
+  certified: true,
+  signed_name: "Marija Varmeda",
+} as unknown as DriverApplication;
+
+/** ⚠ Every stop signed, so that a missing value is a missing value rather than an unsigned page. */
+const ALL_MARKED = Object.fromEntries(
+  ["p22", "p27", "p28", "p15", "p03"].map((id) => [id, "2026-09-14T10:00:00Z"]),
+);
+
+const fill = (over: Record<string, unknown> = {}, input: Partial<PacketFieldInput> = {}) =>
+  packetFieldFill({
+    application: { ...BASE, ...over } as DriverApplication,
+    certifiedAt: "2026-09-14T09:00:00Z",
+    markedAt: ALL_MARKED,
+    signedName: "Marija Varmeda",
+    ...input,
+  });
+
+const textAt = (r: { placed: PlacedFieldValue[] }, id: string): string | undefined =>
+  r.placed.find((p) => p.line.id === id)?.text;
+
+describe("the signing pages carry what we already hold", () => {
+  it("leaves no measured signing line empty for a complete application", () => {
+    const r = fill();
+    const empty = PACKET_SIGNING_FIELD_LINES.map((l) => l.id).filter(
+      (id) =>
+        // ⚠ Exactly one of the two page-26 ticks is drawn; the other being absent is the answer.
+        id !== "p26.prior_test.yes" && textAt(r, id) === undefined,
+    );
+    expect(empty).toEqual([]);
+  });
+
+  it("counts the signing table into the ids the renderer consumes", () => {
+    const used = packetFieldIdsUsed();
+    for (const l of PACKET_SIGNING_FIELD_LINES) expect(used, l.id).toContain(l.id);
+  });
+});
+
+/**
+ * ⚠ **AUD-18 — one person, one spelling, on one document.**
+ *
+ * `signed_name` is how somebody SIGNS (D-APP8's mark of record); the payload's `first / middle /
+ * last` is what they are CALLED. Before this, page 15's `Name of applicant` printed the payload's
+ * `Marija Ana Varmeda` while page 22's `Driver name Print` printed the signature's `Marija Varmeda`
+ * — and AUD-17 was about to add five more name lines on one side or the other of that disagreement.
+ */
+describe("every printed-name line prints the same name", () => {
+  it("prints the applicant's name and not their adopted signature", () => {
+    const r = fill({}, { signedName: "M Varmeda" });
+    const nameLines = [
+      "p03.printed_name",
+      "p04.printed_name",
+      "p10.printed_name",
+      "p26.name",
+      "p28.driver_owner_name",
+      "p31.driver_name",
+      "p31.owner_operator_name",
+      // ⚠ Page 22's sits beside its mark and is filled by `markSides`, which is the whole point of
+      // asserting it in the same breath as the other seven.
+      "p22.printed_name",
+      "p15.name",
+    ];
+    for (const id of nameLines) expect(textAt(r, id), id).toBe("Marija Ana Varmeda");
+  });
+
+  it("drops a middle name it does not have rather than printing two spaces", () => {
+    const r = fill({ middle_name: null });
+    expect(textAt(r, "p03.printed_name")).toBe("Marija Varmeda");
+  });
+});
+
+describe("the dates that stand alone on a signing page", () => {
+  /**
+   * ⚠ **A stop with no mark gets NO date**, rather than today's. A half-signed packet is a real
+   * state (0339) and a date beside a signature nobody has made yet is the document asserting
+   * something that has not happened.
+   */
+  it("dates only the stops that have actually been signed", () => {
+    const r = fill({}, { markedAt: { p27: "2026-09-16T12:00:00Z" } });
+    expect(textAt(r, "p27.date")).toBe("2026-09-16");
+    expect(textAt(r, "p22.date")).toBeUndefined();
+    expect(textAt(r, "p28.date")).toBeUndefined();
+  });
+
+  /** ⚠ Each stop's OWN `signed_at`, never `certifiedAt` and never one stamp across all of them. */
+  it("gives each page the day that page was signed", () => {
+    const r = fill({}, {
+      markedAt: { p22: "2026-09-14T10:00:00Z", p27: "2026-09-15T10:00:00Z", p28: "2026-09-16T10:00:00Z" },
+    });
+    expect([textAt(r, "p22.date"), textAt(r, "p27.date"), textAt(r, "p28.date")]).toEqual([
+      "2026-09-14",
+      "2026-09-15",
+      "2026-09-16",
+    ]);
+  });
+});
+
+/**
+ * Page 26 asks §40.25(j)'s two-year question, and it is the only box in the packet.
+ *
+ * ⚠ **An unanswered one ticks NEITHER half.** The field arrived with P8 and `driver_applications` is
+ * append-only, so a packet filed before it can never gain an answer — and ticking `NO` on its behalf
+ * would answer a mandatory federal question the applicant never answered, inside a document they
+ * have signed.
+ */
+describe("page 26's two-year question", () => {
+  it("ticks NO alone when the applicant answered no", () => {
+    const r = fill({ prior_failed_pre_employment_test: false });
+    expect(textAt(r, "p26.prior_test.no")).toBe("X");
+    expect(textAt(r, "p26.prior_test.yes")).toBeUndefined();
+  });
+
+  it("ticks YES alone when the applicant answered yes", () => {
+    const r = fill({ prior_failed_pre_employment_test: true });
+    expect(textAt(r, "p26.prior_test.yes")).toBe("X");
+    expect(textAt(r, "p26.prior_test.no")).toBeUndefined();
+  });
+
+  it("ticks neither box for a payload filed before the question existed", () => {
+    const r = fill({ prior_failed_pre_employment_test: undefined });
+    expect(textAt(r, "p26.prior_test.yes")).toBeUndefined();
+    expect(textAt(r, "p26.prior_test.no")).toBeUndefined();
+  });
+});
+
+describe("the identity block pages 18 and 19 both ask for", () => {
+  it("fills all eight fields on both pages, from the CURRENT address", () => {
+    const r = fill();
+    for (const page of SINGLE_LICENCE_BLOCK_PAGES) {
+      expect(SINGLE_LICENCE_BLOCK_FIELDS.map((f) => textAt(r, `p${page}.${f}`))).toEqual([
+        "Marija Ana Varmeda",
+        // ⚠ `line2` joined onto the street, the way page 1's residency grid reads it — an address
+        // that loses its unit number is a different address.
+        "1301 Armitage Ave, Unit 4",
+        "Melrose Park",
+        "IL",
+        "60160",
+        "PA334554",
+        "PA",
+        "2029-01-01",
+      ]);
+    }
+  });
+
+  /**
+   * ⚠ **The licence number ALONE, unlike page 1's.** `p01.cdl` appends the state in brackets because
+   * page 1 has no separate `State:` rule for the licence; this block has one at x360.5, so the same
+   * string here would print the state twice on one row.
+   */
+  it("does not repeat the licence state inside the licence number", () => {
+    const r = fill();
+    expect(textAt(r, "p18.cdl")).toBe("PA334554");
+    expect(textAt(r, "p18.cdl_state")).toBe("PA");
+  });
+
+  it("produces an empty block rather than throwing for a payload with no address", () => {
+    const r = fill({ addresses: [] });
+    expect(textAt(r, "p18.city")).toBeUndefined();
+    expect(textAt(r, "p18.driver_name")).toBe("Marija Ana Varmeda");
+  });
+});
+
+/**
+ * ⚠ **Asserted through the FILL, not only through the geometry.** `packetSigningGeometry.test.ts`
+ * holds that nothing is MEASURED on those pages; this holds that nothing is DRAWN there, which is
+ * the claim D-PKT1 actually makes and the one a future grid or overflow block could break without
+ * touching the geometry at all.
+ */
+describe("nothing reaches a page that is not the applicant's document", () => {
+  it("places no value on pages 14, 21, 23 or 24", () => {
+    const r = fill();
+    const strays = r.placed.filter((p) => [14, 21, 23, 24].includes(p.line.page));
+    expect(strays.map((p) => p.line.id)).toEqual([]);
+  });
+});

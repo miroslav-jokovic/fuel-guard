@@ -36,6 +36,45 @@ export const date = (iso: string | null | undefined): string => (iso ? iso.slice
 export const yesNo = (v: boolean | null | undefined): string => (v === true ? "Yes" : v === false ? "No" : "");
 
 /**
+ * The applicant's name, as the carrier's `Print name` / `Name of applicant` lines want it.
+ *
+ * ⚠ **The PAYLOAD's name, never `signed_name`** — and the distinction is not pedantry, it is what
+ * the two things are. `signed_name` is how somebody SIGNS, the mark of record under D-APP8; this is
+ * what they are CALLED, the structured `first / middle / last` the application collected. A packet
+ * printed from one driver's submission must not carry two different spellings of one person, and
+ * before AUD-17 it did: `p15.name` drew `Marija Ana Varmeda` from the payload while page 22's
+ * `Driver name Print` drew `Marija Varmeda` from the adopted signature, on the same document.
+ *
+ * ⚠ `filter(Boolean)` rather than a join with a fixed separator, because the middle name is optional
+ * and `Marija  Varmeda` with two spaces is a rendering fault on a federal form.
+ */
+export const fullName = (a: {
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+}): string => [a.first_name, a.middle_name, a.last_name].filter(Boolean).join(" ");
+
+/**
+ * One address as the four strings the carrier's `Street / City / State / Zip` captions ask for.
+ *
+ * ⚠ Here rather than beside one of its callers: page 1's residency grid, pages 18 and 19's identity
+ * block and the continuation sheet all want the same four, and a second copy of the `line2` rule is
+ * how one of them would quietly start dropping apartment numbers.
+ */
+export const addressCells = (addr: {
+  line1?: string | null;
+  line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+}): string[] => [
+  blank(addr.line1) + (addr.line2 ? `, ${addr.line2}` : ""),
+  blank(addr.city),
+  blank(addr.state),
+  blank(addr.postal_code),
+];
+
+/**
  * Six equipment classes onto the packet's four printed rows.
  *
  * ⚠ **The fold is not information loss, which is worth stating because it looks like it.** The

@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { DriverApplication } from "@silvicom/shared";
-import { packetFieldFill, type PacketFieldInput } from "./packetFieldValues.js";
+import { packetFieldFill } from "./packetFieldValues.js";
+import type { PacketFieldInput } from "./packetGrid.js";
 import { PACKET_FIELD_LINES, PACKET_MARK_SIDE_LINES, fieldTableRowCount } from "./packetFieldGeometry.js";
+import { PACKET_SIGNING_FIELD_LINES } from "./packetSigningGeometry.js";
 
 /**
  * The applicant's answers, matched onto the carrier's paper.
@@ -56,6 +58,9 @@ describe("the answers that go on the carrier's pages", () => {
     const known = new Set([
       ...PACKET_FIELD_LINES.map((l) => l.id),
       ...PACKET_MARK_SIDE_LINES.map((l) => l.id),
+      // ⚠ The signing pages' own table (AUD-17). It is listed here rather than reached through
+      // `packetFieldIdsUsed()` because that function is the thing under test on the line below.
+      ...PACKET_SIGNING_FIELD_LINES.map((l) => l.id),
     ]);
     const r = fill({
       accidents: [{ occurred_on: "2024-03-03", nature: "Rear-end", fatalities: 0, injuries: 1, hazmat_spill: false }],
@@ -212,10 +217,19 @@ describe("the date beside each signature", () => {
     for (const l of dated) expect(textAt(r, l.id), l.id).toBe("2026-09-14");
   });
 
-  /** Page 22 asks for the name in block capitals beside the mark — D-APP8's printed name. */
-  it("puts the adopted signature on page 22's printed-name line", () => {
-    const r = fill({}, { signedName: "Marija Varmeda" });
-    expect(textAt(r, "p22.printed_name")).toBe("Marija Varmeda");
+  /**
+   * Page 22 asks for the name in block capitals beside the mark.
+   *
+   * ⚠ **The applicant's NAME, not their adopted signature — AUD-18, 2026-09-19, a correction.** The
+   * caption is `Driver name Print`; the signature is on the line beside it. Reading `signed_name`
+   * here made one packet print two spellings of one person, because page 15's `Name of applicant`
+   * had always read the payload. `signedName` is deliberately passed as something DIFFERENT below,
+   * so a revert to it fails rather than coincidentally agreeing.
+   */
+  it("puts the applicant's own name on page 22's printed-name line", () => {
+    const r = fill({}, { signedName: "M Varmeda" });
+    expect(textAt(r, "p22.printed_name")).toBe("Marija Ana Varmeda");
+    expect(textAt(r, "p15.name")).toBe("Marija Ana Varmeda");
   });
 
   /** ⚠ Page 15's date is when the RELEASE was given, which is that page's own mark. */
