@@ -1,4 +1,4 @@
-import { StandardFonts, rgb, type PDFDocument, type PDFFont, type PDFPage } from "pdf-lib";
+import { StandardFonts, rgb, type PDFDocument, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
 import type { PacketFieldOverflow } from "./packetGrid.js";
 
 /**
@@ -54,8 +54,30 @@ const PAGE_HEIGHT = 792;
 /** The carrier's own text margin, measured off their pages — x51.4 to x553.6. */
 const LEFT = 51.4;
 const RIGHT = 553.6;
-const TOP = 726;
-const BOTTOM = 72;
+/**
+ * ⚠ **Both moved inward by AUD-6 to clear the carrier's own furniture** (2026-09-19). The sheet
+ * used the whole page because it carried no letterhead and no footer; it now carries both, lifted
+ * off the carrier's page 31, and text drawn at the old `TOP` of 726 would have run straight through
+ * `MELROSE PARK IL 60160`.
+ *
+ * ⚠ The numbers are the CARRIER'S OWN text block, not a margin we chose: 665.0 is where the printed
+ * content starts on pages 4, 6, 11, 12, 13 and 15, and 104 clears the footer band's top at 94. So a
+ * continuation sheet's type now begins and ends on the same lines as the pages it is stapled to.
+ *
+ * ⚠ **This costs sheets, and the cost was measured rather than assumed or waved away.** Usable
+ * height falls from 654pt to 561pt — 14% — but sheet COUNT is a step function and most of that
+ * falls inside a step. Measured against a conviction block of n rows:
+ *
+ *       rows    1   5  10  15  20  25  30  40  60
+ *       before  1   1   1   1   1   2   2   2   3
+ *       after   1   1   1   1   1   2   2   3   4
+ *
+ * So nothing changes until about forty overflow rows, which is an applicant with forty convictions
+ * or employers past what the carrier's grids hold. An ordinary packet pays nothing for the sheet
+ * becoming identifiable once separated, and that is the whole of AUD-6.
+ */
+const TOP = 665;
+const BOTTOM = 104;
 
 const INK = rgb(0.1, 0.1, 0.1);
 const RULE = rgb(0.45, 0.45, 0.45);
@@ -202,6 +224,83 @@ interface Cursor {
  * A packet that grew a blank "continuation sheet" page every time would be 32 pages of which one
  * says nothing.
  */
+/**
+ * The carrier's own letterhead and footer, LIFTED OFF THEIR PAGE rather than redrawn (AUD-6).
+ *
+ * —— ⚠ WHY THIS COPIES BYTES INSTEAD OF DRAWING TEXT ——————————————————————————
+ * Drawing it was tried first and cannot be made faithful. The letterhead is not set in one of the
+ * standard fourteen fonts, and the proof is arithmetic rather than an impression: if it were
+ * centred Helvetica, `SILVICOM INC` at x270.1 would be 10.67pt, `1301 ARMITAGE AVE` at x256.6 would
+ * be 9.94pt and `MELROSE PARK IL 60160` at x247.0 would be 9.71pt. Three sizes for three lines of
+ * one letterhead means the metrics are somebody else's. Redrawing it would have put a different
+ * typeface at a guessed size on the sheet whose entire job is to look like it belongs to the other
+ * thirty-one pages.
+ *
+ * `embedPage` takes a REGION of a page already in this document and hands back something drawable.
+ * The bytes are the carrier's, so the type, the size, the weight and the centring are theirs by
+ * construction — there is no second source of truth to drift, and nothing here to re-measure if
+ * they ever re-issue the template with a new address.
+ *
+ * ⚠ **Page 31, and the choice is measured.** The letterhead is identical on all thirty-one pages
+ * (one distinct layout, asserted next door), so what picks the source is the CLEAR SPACE under it:
+ * page 1 carries a second `FOR DEPARTMENT OF…` line at y680.3 and a band wide enough to hold the
+ * letterhead clips through it — rendered, that prints a sliced half-line of somebody else's text
+ * under the address. Pages 29, 30 and 31 have 45.1pt of nothing below the letterhead, the most in
+ * the packet, and all three carry the footer at its commonest position (85.9 / 70.7, eleven pages).
+ * Page 31 of those three, because it is the page these sheets are appended directly after.
+ *
+ * ⚠ **The footer band stops at x440 so the carrier's OWN page number does not come with it.** Their
+ * number is not a separate run — it is padded onto the end of `THIS IS NOT AN EMPLOYMENT
+ * APPLICATION` with spaces — so it cannot be dropped by choosing runs, only by clipping. Measured
+ * at 300 dpi: `THIS IS NOT AN EMPLOYMENT APPLICATION` ends at x≈395 and the number begins at
+ * x≈489.4.
+ *
+ * ⚠ **The clip is set by the LONGER line, and the first attempt was set by the shorter one and
+ * printed `…VERIFICATION PURPOSE O` on the sheet.** The two footer lines are centred independently
+ * and are not the same width: `FOR DEPARTMENT OF TRANSPORTATION VERIFICATION PURPOSE ONLY` runs on
+ * to x≈461.4, sixty-six points past the line beneath it. Measured on page 31 at 600 dpi, `ONLY`
+ * ends at 461.4 and `31` begins at 489.4 — so the gap to miss is 28pt wide and 475 is its middle,
+ * not the 97pt one the second line alone suggests.
+ */
+interface CarrierFurniture {
+  letterhead: PDFEmbeddedPage;
+  footer: PDFEmbeddedPage;
+}
+
+/** 1-based, as the carrier's own footer numbers it — see `LETTERHEAD_BAND` for why this page. */
+export const FURNITURE_SOURCE_PAGE = 31;
+export const LETTERHEAD_BAND = { left: 0, bottom: 688, right: PAGE_WIDTH, top: 745 };
+const FOOTER_BAND = { left: 0, bottom: 58, right: 475, top: 94 };
+
+/**
+ * Where OUR page number goes, matching the carrier's own.
+ *
+ * ⚠ The baseline is theirs — 70.7, the second footer line — so the number sits on the same line as
+ * `THIS IS NOT AN EMPLOYMENT APPLICATION` exactly as it does on every page before it. `x` and the
+ * size were read off a 300 dpi crop of page 12, whose `12` is two digits like every sheet this can
+ * produce. ⚠ It is drawn in Helvetica-Bold and the carrier's is not: a numeral is a numeral, and
+ * this is the one piece of furniture that CANNOT be copied, because the value has to change.
+ */
+const PAGE_NUMBER_X = 489.4;
+const PAGE_NUMBER_BASELINE = 70.7;
+const PAGE_NUMBER_SIZE = 10;
+/**
+ * ⚠ **Pure black, and it is the only thing on this sheet that is not `INK`.**
+ *
+ * Everything else we draw here is our own type on our own sheet and takes the packet's near-black.
+ * This numeral is different: it is drawn INSIDE the carrier's copied footer band, on the same line
+ * as `THIS IS NOT AN EMPLOYMENT APPLICATION`, a few points to its right. Measured on the produced
+ * page at 600 dpi, the copied footer's darkest pixel is 0 and `INK` renders at 25 — so at `INK` the
+ * number reads as something added to the carrier's footer rather than part of it, which on this
+ * sheet is precisely the wrong impression.
+ */
+const PAGE_NUMBER_INK = rgb(0, 0, 0);
+
+const carrierFurniture = async (doc: PDFDocument): Promise<CarrierFurniture> => ({
+  letterhead: await doc.embedPage(doc.getPage(FURNITURE_SOURCE_PAGE - 1), LETTERHEAD_BAND),
+  footer: await doc.embedPage(doc.getPage(FURNITURE_SOURCE_PAGE - 1), FOOTER_BAND),
+});
+
 export async function appendContinuationSheet(
   doc: PDFDocument,
   input: ContinuationInput,
@@ -213,9 +312,38 @@ export async function appendContinuationSheet(
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   let added = 0;
 
+  const furniture = await carrierFurniture(doc);
+
   const newPage = (): Cursor => {
     const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     added += 1;
+
+    /**
+     * ⚠ **The carrier's furniture first, so everything else is drawn on top of it** (AUD-6). Until
+     * now this sheet carried no letterhead, no footer and no page number while all thirty-one pages
+     * it is attached to carried all three — on the ONE sheet in the packet that is designed to be
+     * separated, and whose own heading says so.
+     *
+     * ⚠ Each band is drawn at the y it occupies on page 31, not at a position of ours, so the sheet
+     * and the pages around it line up when the packet is flicked through.
+     */
+    page.drawPage(furniture.letterhead, { x: LETTERHEAD_BAND.left, y: LETTERHEAD_BAND.bottom });
+    page.drawPage(furniture.footer, { x: FOOTER_BAND.left, y: FOOTER_BAND.bottom });
+    /**
+     * ⚠ **`getPageCount()` AFTER `addPage`, so this is the sheet's own 1-based number** — and it
+     * continues the carrier's sequence rather than starting one. That only holds because their
+     * printed footer number equals the PDF index on every one of their pages, which
+     * `packetContinuation.test.ts` now asserts for all thirty-one rather than assuming;
+     * `packetTemplate.ts` had recorded it as believed and not proved.
+     */
+    page.drawText(String(doc.getPageCount()), {
+      x: PAGE_NUMBER_X,
+      y: PAGE_NUMBER_BASELINE,
+      size: PAGE_NUMBER_SIZE,
+      font: bold,
+      color: PAGE_NUMBER_INK,
+    });
+
     let y = TOP;
     page.drawText("CONTINUATION SHEET", { x: LEFT, y, size: TITLE_SIZE, font: bold, color: INK });
     y -= 13;

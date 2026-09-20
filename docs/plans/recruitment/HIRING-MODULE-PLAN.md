@@ -3187,6 +3187,9 @@ every time.
     rather than deleted, because the next person to rasterise page 16 will see the same thing and
     should find the answer here instead of re-opening it.
 
+  · **AUD-19 · The continuation notice collides with the carrier's footer on page 12.** Added
+    2026-09-19 while measuring AUD-6, not part of the original sixteen. See the dated entry at the
+    end of this section for the measurement and the candidates.
   · **AUD-13 · Packet p2 question B is answered `Yes` with its "If yes, explain" left blank.** A and B
     sharing one contract field is deliberate and documented (`packetFieldValues.ts:281`) and is not
     the finding; the finding is that `p02.revoked.explain` exists in the geometry table, is never
@@ -3747,6 +3750,105 @@ every time.
 
   **⚠ Freeze-bound**, like everything that changes printing. Production holds no filed packet, so
   this reaches every document filed from here.
+
+- **2026-09-19 — AUD-6 BUILT. The sheet designed to be separated now says whose it is.** Branch
+  `claude/hiring-aud6`.
+
+  **Reproduced first.** A packet with seven accidents, six convictions and eighteen employers renders
+  three continuation sheets. Rasterised beside the carrier's page 2 at 80 dpi they are unmistakable:
+  their pages carry a letterhead, a two-line footer and a page number; the sheets carry none of the
+  three. Each sheet DID already name the applicant — *"Attached to and part of the application of
+  …"* — so what a detached sheet could not say was which CARRIER it belonged to and where it went
+  back.
+
+  **⚠ The letterhead is the carrier's own printed text, not config**, and that decides the
+  implementation. `renderPacketDocument` never sees a carrier name; `SILVICOM INC / 1301 ARMITAGE AVE
+  / MELROSE PARK IL 60160` is baked into the template at fixed coordinates, identically on all
+  thirty-one pages (one distinct layout, asserted). Taking the words from org settings would have
+  been a THIRD source that can disagree with the paper it is stapled to.
+
+  **⚠ Redrawing it was tried and cannot be made faithful, and the proof is arithmetic rather than
+  taste.** If the letterhead were centred Helvetica, `SILVICOM INC` at x270.1 would be 10.67pt,
+  `1301 ARMITAGE AVE` at x256.6 would be 9.94pt, and `MELROSE PARK IL 60160` at x247.0 would be
+  9.71pt. Three sizes for three lines of one letterhead means the metrics belong to a font we do not
+  have. So the fix **lifts the bytes**: `embedPage` takes a REGION of a page already in the document
+  and hands back something drawable, so the type, size, weight and centring are the carrier's by
+  construction and there is nothing to re-measure if they re-issue the template.
+
+  **⚠ Which page the furniture comes from is a measurement, not a default.** Page 1 carries a SECOND
+  `FOR DEPARTMENT OF…` line at y680.3, and a band wide enough to hold the letterhead clips through
+  it — rendered, that prints a sliced half-line of somebody else's sentence under the address.
+  Pages 29, 30 and 31 have 45.1pt of clear space below the letterhead, the most in the packet, and
+  all three carry the footer at its commonest position (85.9 / 70.7, eleven pages of thirty-one).
+  Page 31 of those, because the sheets are appended directly after it.
+
+  **⚠ The carrier's own page number had to be clipped off, and the first clip was set by the wrong
+  line.** Their number is not a separate run — it is padded onto the end of `THIS IS NOT AN
+  EMPLOYMENT APPLICATION` with spaces — so only a clip can drop it. Set at 440 from that line's end
+  (x≈395), the band printed `…VERIFICATION PURPOSE O`: the two footer lines are centred
+  independently and `FOR DEPARTMENT OF TRANSPORTATION VERIFICATION PURPOSE ONLY` runs on to x≈461.4,
+  sixty-six points further. Measured on page 31 at 600 dpi, `ONLY` ends at 461.4 and `31` begins at
+  489.4, so the real gap is 28pt wide and the clip belongs at 475.
+
+  **⚠ The numbering rests on something `packetTemplate.ts` recorded as BELIEVED AND NOT PROVED** —
+  that the carrier's printed footer number equals the PDF index. A sheet numbered 32 only continues
+  their sequence if their printed 31 is on the thirty-first page. **Checked on all thirty-one: it
+  holds**, and it is now an assertion rather than a belief.
+
+  **Our number, measured against theirs on the produced page at 600 dpi:** ink starts at x489.60 on
+  both, baseline 70.56 on both, width 10.44pt against their 10.68pt, cap height 7.20 against 7.32.
+  ⚠ It is drawn in Helvetica-Bold and theirs is not — a numeral is the one piece of furniture that
+  cannot be copied, because the value has to change. ⚠ It is also the only thing on this sheet drawn
+  in pure black rather than `INK`: it sits INSIDE the copied footer band, and at `INK` it measures 25
+  against the copied text's 0, which reads as something added to the carrier's footer.
+
+  **The sheet's own margins moved from 726/72 to 665/104** to clear the furniture — 665.0 is where
+  the carrier's printed content starts on pages 4, 6, 11, 12, 13 and 15. **The cost was measured, not
+  waved away**: usable height falls 14%, but sheet count is a step function and most of that falls
+  inside a step. Against a conviction block of n rows, before → after: 20 rows 1→1, 25 rows 2→2,
+  30 rows 2→2, **40 rows 2→3**, 60 rows 3→4. Nothing changes below about forty overflow rows.
+
+  **Mutations: 8 run, 6 killed on the first pass, 2 survived — and BOTH were real defects.**
+  Un-clipping the footer band leaves every other assertion green and copies THE CARRIER'S OWN PAGE
+  NUMBER onto every sheet, so sheet 32 prints `31` beside its own `32`. Lifting from page 1 prints
+  the sliced half-line. Both are invisible to `pageText` for a structural reason worth keeping: the
+  bands are form XObjects, and the reader does not follow a `Do`, so the carrier's words are not in
+  its runs for a sheet at all. What holds them now is the XObject's `/BBox` (bounded BELOW by the
+  carrier's own centred line-1 end, derived, and ABOVE by the measured 489.4) and an assertion that
+  whatever page the module names as its source has nothing in the band but the letterhead.
+
+  **Gates** (after the last edit): `lint:boundaries` · `lint:filesize` · `lint:funcsize` ·
+  `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` · `lint:upserts` ·
+  `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **4004 passed, 331 files**. ⚠ **One earlier run of that suite
+  failed and the failing test was not captured; the four runs since are green at 4004.** Recorded
+  rather than smoothed over — see the open api-flake note (6 of 23 runs, 2026-09-08, root cause
+  still open). ⚠ **No migration.** ⚠ **Freeze-bound.**
+
+- **2026-09-19 — AUD-19 FOUND WHILE MEASURING AUD-6, NOT FIXED. The continuation NOTICE collides
+  with the carrier's footer on page 12.**
+
+  `renderPacketOverlay` draws each grid's *"n more entries are on the continuation sheet…"* notice
+  `CONTINUATION_NOTICE_DROP` (9pt) below the grid's last rule. On page 12 the employment log's last
+  rule is y97.9, so the notice lands at y88.9 — and page 12's footer line `FOR DEPARTMENT OF
+  TRANSPORTATION VERIFICATION PURPOSE ONLY` is at y85.9. **Rasterised at 150 dpi the two strings are
+  superimposed and neither is readable.**
+
+  ⚠ **This is the defect AUD-1's own comment says cannot happen here.** That comment reasons that a
+  grid notice is safe *"because `fieldTableFor` gives the grid's last rule and the space under it is
+  measured and empty"*, and contrasts it with the standalone-rule notice that was built and removed
+  for drawing through page 16's printed instruction. On page 12 the space under the last rule is
+  **not** empty: the carrier's own footer is in it. The reasoning was right about the grid and wrong
+  about the page.
+
+  ⚠ It is a different defect from AUD-6 — that one is about the appended sheets, this is about
+  carrier page 12 — so it was recorded rather than folded into that change. **Candidates:** (a) drop
+  the notice ABOVE the grid when the space below is occupied; (b) give the notice the same
+  keep-clear treatment AUD-1 wanted and could not afford — read `packetTemplate.ts`'s runs and place
+  the notice in a rectangle proven empty, which that comment already names as the real fix;
+  (c) shrink `CONTINUATION_NOTICE_DROP` on page 12 alone. **Recommendation: (b)**, because it is the
+  only one that cannot be wrong on a page nobody has rasterised yet, and AUD-1 already wrote down
+  that `TemplateTextRun` carries exactly what it needs.
 
 ---
 
