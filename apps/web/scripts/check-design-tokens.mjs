@@ -184,7 +184,16 @@ const RULES = [
      * scanning because a raw palette name is distinctive and an English word is not.
      */
     classesOnly: true,
-    re: /\b(?:bg|text|ring|border|divide|outline|fill|stroke|accent|placeholder)-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\b/g,
+    /**
+     * ⚠ `from|via|to` were added 2026-09-20 and the gap they close is worth naming, because it was
+     * invisible in exactly the way this file keeps warning about. `UTIL_PREFIX` above already lists
+     * the gradient stops, so `from-indigo-500` was caught as a BANNED HUE — but this rule, the one
+     * that validates a role actually EXISTS, did not list them. So `from-brand-900` (a step no ramp
+     * defines) and `to-suraface` (a typo) both passed clean, and would have gone on passing for as
+     * long as nobody wrote a gradient. The chip restyle in `DASHBOARD-TEMPLATE-V2.md` §4.2b is the
+     * first one, which is why this lands before it rather than with it.
+     */
+    re: /\b(?:bg|text|ring|border|divide|outline|fill|stroke|accent|placeholder|from|via|to)-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\b/g,
     // A match is only a VIOLATION when the suffix names no role and is not structural. Numeric
     // suffixes (border-2, ring-1) and arbitrary values are left alone by the pattern itself.
     /**

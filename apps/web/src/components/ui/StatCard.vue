@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppIcon, AppCard as BaseCard } from "@silvicom/ui";
+import { AppCard as BaseCard, AppIconChip, type ChipTone } from "@silvicom/ui";
 import { type Icon } from "@silvicom/ui/icons";
 import { RouterLink } from "vue-router";
 import SparkLine from "@/components/SparkLine.vue";
@@ -53,8 +53,15 @@ const props = withDefaults(
     valueTitle?: string;
     sub?: string;
     icon?: Icon;
-    /** Tailwind classes for the icon chip, e.g. "text-success-600 bg-success-50". Ignored with no icon. */
-    tone?: string;
+    /**
+     * Which of the seven chip tones (D-DT17). Ignored with no icon.
+     *
+     * ⚠ It was an open string of Tailwind classes until 2026-09-20 — "text-success-600
+     * bg-success-50" and 23 more like it, hand-written across 7 files. The colour therefore lived
+     * at the call sites instead of in the system, which is why the chip could not be restyled
+     * without editing two dozen of them. `AppIconChip` owns the map now; this is a NAME.
+     */
+    tone?: ChipTone;
     /**
      * Optional 30-point trend; nulls render as gaps.
      *
@@ -134,17 +141,6 @@ const emit = defineEmits<{ toggle: [] }>();
 const isToggle = computed(() => props.pressed !== undefined);
 const hero = computed(() => props.size === "hero");
 
-/**
- * The hero chip: bigger than the KPI one and leading from the left (D-DR2, comp (3)).
- *
- * `rounded-surface` rather than a hand-picked radius, so it tracks the shape scale DR1 doubled
- * instead of freezing at whatever looked right the day it was written.
- */
-const chipClass = computed(() => [
-  "inline-flex size-10 shrink-0 items-center justify-center rounded-surface",
-  props.tone,
-]);
-
 /** Inline only when there is a spark to put there, and only in the hero anatomy. */
 const inlineSpark = computed(() => hero.value && props.sparkInline && Boolean(props.spark));
 
@@ -202,9 +198,7 @@ const valueClass = computed(() =>
              byte-identical is to not touch its branch at all. Both sides are pinned by
              StatCard.test.ts's "leads with the icon chip in hero and trails with it in kpi", and the
              KPI classes themselves by "renders the contract's KPI row by default". -->
-        <span v-if="icon && hero" :class="chipClass" aria-hidden="true">
-          <AppIcon :icon="icon" class="size-6" />
-        </span>
+        <AppIconChip v-if="icon && hero" :icon="icon" :tone="tone" size="md" />
         <div class="min-w-0 flex-1">
           <!--
             ⚠ `flex-wrap` and `min-w-32`, and both are load-bearing (D-DR17).
@@ -258,13 +252,7 @@ const valueClass = computed(() =>
             </div>
           </div>
         </div>
-        <span
-          v-if="icon && !hero"
-          :class="['inline-flex size-9 shrink-0 items-center justify-center rounded-surface', tone]"
-          aria-hidden="true"
-        >
-          <AppIcon :icon="icon" class="size-5" />
-        </span>
+        <AppIconChip v-if="icon && !hero" :icon="icon" :tone="tone" size="sm" />
       </div>
       <div v-if="spark && !loading && !inlineSpark" class="mt-3">
         <SparkLine :points="spark" :color="sparkColor ?? 'currentColor'" />

@@ -24,7 +24,7 @@ import {
   CurrencyDollarIcon, GallonsIcon, GaugeIcon, InvoiceIcon, RadarIcon,
   ReeferTruckIcon, RejectionIcon, RoadIcon,
 } from "@silvicom/ui/icons";
-import { AppCard as BaseCard, AppIcon } from "@silvicom/ui";
+import { AppCard as BaseCard, AppIconChip } from "@silvicom/ui";
 import { useFuelRangeTotals, type FuelFilters } from "@/composables/useFuelLog";
 import { fuelTileDestinations } from "@/composables/dashboardFuelLinks";
 import { useFindingsSummaryQuery, ledgerTiles } from "@/composables/useFindingsSummary";
@@ -57,11 +57,11 @@ const fuelingStats = computed(() => {
   // added here without a destination is a compiler error.
   const to = fuelTileDestinations(range.value);
   return [
-    { label: "Fill-ups", value: t ? fmtInt(t.fillUps) : "—", sub: "in selected range", icon: InvoiceIcon, tone: "text-brand-600 bg-brand-50", to: to["Fill-ups"] },
-    { label: "Gallons", value: d ? fmtInt(d.totalGallons) : "—", sub: "total fuel", icon: GallonsIcon, tone: "text-info-600 bg-info-50", to: to.Gallons },
-    { label: "Miles driven", value: t ? fmtInt(t.totalMiles) : "—", sub: "odometer span in range", icon: RoadIcon, tone: "text-success-600 bg-success-50", to: to["Miles driven"] },
-    { label: "Fuel spend", money: true as const, value: d ? `$${fmtCompact(d.totalSpend)}` : "—", valueTitle: d ? fmtMoney(d.totalSpend) : undefined, sub: "total cost", icon: CurrencyDollarIcon, tone: "text-success-600 bg-success-50", to: to["Fuel spend"] },
-    { label: "Avg MPG", value: mpgTotal.value?.mpg != null ? mpgTotal.value.mpg.toFixed(1) : "—", valueTitle: mpgTitle.value, sub: mpgSub.value, icon: GaugeIcon, tone: "text-brand-600 bg-brand-50", to: to["Avg MPG"] },
+    { label: "Fill-ups", value: t ? fmtInt(t.fillUps) : "—", sub: "in selected range", icon: InvoiceIcon, tone: "brand" as const, to: to["Fill-ups"] },
+    { label: "Gallons", value: d ? fmtInt(d.totalGallons) : "—", sub: "total fuel", icon: GallonsIcon, tone: "info" as const, to: to.Gallons },
+    { label: "Miles driven", value: t ? fmtInt(t.totalMiles) : "—", sub: "odometer span in range", icon: RoadIcon, tone: "success" as const, to: to["Miles driven"] },
+    { label: "Fuel spend", money: true as const, value: d ? `$${fmtCompact(d.totalSpend)}` : "—", valueTitle: d ? fmtMoney(d.totalSpend) : undefined, sub: "total cost", icon: CurrencyDollarIcon, tone: "success" as const, to: to["Fuel spend"] },
+    { label: "Avg MPG", value: mpgTotal.value?.mpg != null ? mpgTotal.value.mpg.toFixed(1) : "—", valueTitle: mpgTitle.value, sub: mpgSub.value, icon: GaugeIcon, tone: "brand" as const, to: to["Avg MPG"] },
   ];
 });
 
@@ -74,19 +74,20 @@ const trust = computed(() => [
     // entire history on 2026-09-01 it was 23%, because 76.8% of fills had never had telematics
     // fetched at all. Showing only the first turned an unanswered question into a reassuring answer.
     sub: s.value?.allTimeCoveragePct != null ? `${s.value.allTimeCoveragePct}% all time` : "fills corroborated",
-    icon: RadarIcon, tone: "text-info-600 bg-info-50", to: "/coverage",
+    icon: RadarIcon, tone: "info" as const, to: "/coverage",
   },
   {
     label: "Reefer fuel", money: true as const,
     value: s.value ? `$${fmtCompact(s.value.reeferSpend)}` : "—",
     valueTitle: s.value ? fmtMoney(s.value.reeferSpend) : undefined,
-    sub: "refrigerated tank", icon: ReeferTruckIcon, tone: "text-info-600 bg-info-50", to: "/reefer-coverage",
+    sub: "refrigerated tank", icon: ReeferTruckIcon, tone: "info" as const, to: "/reefer-coverage",
   },
   {
     label: "Declined attempts",
     value: s.value ? String(s.value.declinedCount) : "—",
     sub: "blocked at the pump", icon: RejectionIcon,
-    tone: (s.value?.declinedCount ?? 0) > 0 ? "text-caution-700 bg-caution-50" : "text-ink-muted bg-surface-muted",
+    // caution-700 → the closed `caution` (600); see KpiHeroWidget's "Idle waste" for the reasoning.
+    tone: (s.value?.declinedCount ?? 0) > 0 ? ("caution" as const) : ("neutral" as const),
     // FUEL-C2: the declines are a TAB of the Fuel Log now. `/rejections` still redirects and always
     // will, but a tile should name where the thing lives rather than lean on the compatibility path.
     to: "/fuel-log?tab=declines",
@@ -164,18 +165,16 @@ const metricStrip = computed(() =>
           template dropped them — `LedgerTile.icon` was typed `unknown`, so drawing one needed a cast
           and the missing cast read as intent.
 
-          `size-9` / `size-5` / `rounded-surface` and the TRAILING position are copied from
-          `StatCard`'s `size="kpi"` branch on purpose. D-DR2 moved the chip to the LEFT in the hero
-          anatomy only; the KPI anatomy keeps it on the right, and these are KPI tiles. Two surfaces
-          agreeing because one read the other beats two surfaces agreeing by coincidence.
+          ⚠ The geometry used to be COPIED here from `StatCard`'s `size="kpi"` branch — `size-9`,
+          `size-5`, `rounded-surface` — with a comment arguing that "two surfaces agreeing because
+          one read the other beats two surfaces agreeing by coincidence". True, and a copy is still
+          a copy: this was the THIRD place the chip was drawn, after StatCard's two branches, and it
+          is what made the tone vocabulary look like two call sites when it was three. `AppIconChip`
+          is now the one drawing, and `size="sm"` IS the KPI anatomy. The trailing POSITION stays a
+          property of this template, because that part really is local — D-DR2 moved the chip left
+          in the hero anatomy only, and these are KPI tiles.
         -->
-        <span
-          v-if="stat.icon"
-          :class="['inline-flex size-9 shrink-0 items-center justify-center rounded-surface', stat.tone]"
-          aria-hidden="true"
-        >
-          <AppIcon :icon="stat.icon" class="size-5" />
-        </span>
+        <AppIconChip v-if="stat.icon" :icon="stat.icon" :tone="stat.tone" size="sm" />
       </RouterLink>
     </dl>
   </BaseCard>
