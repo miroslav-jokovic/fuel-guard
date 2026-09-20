@@ -4175,6 +4175,84 @@ every time.
   `pnpm --filter @silvicom/api test`: **4012 passed, 331 files.** ⚠ **No migration.** ⚠
   **Freeze-bound** — this changes how a packet prints and must land before C1.
 
+- **2026-09-20 — AUD-10 BUILT. The band left the page and moved into the margin.** Branch
+  `claude/hiring-aud10`. One document's furniture, and no change to a word of its content.
+
+  **Reproduced before anything was changed**, on the real renderer: the permissions document with
+  four instruments, a consent and a certification, `pdftoppm -r 150`, all eight sheets. It is exactly
+  as the audit recorded it — on six pages the 30pt diagonal lands in white space and looks
+  deliberate; on the certificate it runs through the evidence rows of sections 2 to 5, and on page 1
+  through the Clearinghouse sentence.
+
+  ⚠ **THE OBVIOUS FIX WAS BUILT FIRST AND MEASURED NOT TO WORK, and that measurement is the whole
+  value of this entry.** A watermark belongs UNDER the content, and `stamp.ts`'s own comment admitted
+  the band *"sits under nothing — it is drawn last, over the answers"*. So it was moved: registered
+  on `pageAdded` before a word is drawn, with pdfkit's cursor and type state restored around it.
+  Then the two renders were compared pixel for pixel — **696 pixels changed on the certificate,
+  none of them by more than 9 of 255**, and the 150 dpi crops of the same rows are
+  indistinguishable. The arithmetic says why: #666 at 12% over #1a1a1a type lightens it to #232323.
+  **Z-order was never what made the band intrusive; its size and its position were.** Shipping that
+  change would have closed the finding without answering it — the audit's own workaround. The
+  `pageAdded` machinery was reverted in full.
+
+  ⚠ **What it cost to learn is worth recording too.** Drawing from `pageAdded` moved every page but
+  the first **11.5pt down**: `moveDown()` and `currentLineHeight()` read pdfkit's CURRENT font, and
+  `heading()` and `rule()` both move down BEFORE setting one, so a band that left 30pt Helvetica-Bold
+  behind gave every sheet's first heading 0.7 of a thirty-point line of air. `q`/`Q` restores the
+  content stream's half of the type state and not the JavaScript half. That trap is now written into
+  `stamp.ts` for whoever next draws outside the text flow.
+
+  **So the band moved into the FURNITURE, where a collision is impossible rather than unlikely.**
+  It is a tracked, bold, capitalised line in MUTED at 8.5pt, centred at y26 in the top margin — the
+  other strip of paper the text block never enters, the one the footer has always used. Measured on
+  the rendered page: baseline y32.10, descenders stopping around y34, text block starting at y54, so
+  **21.9pt of clearance** against the **15.07pt** that separates `title()` from its own lede on the
+  same sheet — the band is further from the title than the title's lede is, which is what keeps it
+  reading as the sheet's rubric rather than as an eyebrow on the document's name.
+
+  ⚠ **It is MORE legible than what it replaces, not less**, and that answers the obvious objection
+  to giving up a diagonal. The old band was drawn at 0.12 opacity — #666 over white renders near
+  #ededed — *because* it had to survive being on top of the answers. In the margin it has nothing to
+  be transparent for, so it is MUTED at full strength: the same grey as the footer. ⚠ The old
+  comment's claim that *"0.12 is where a photocopy still carries it"* was measured on a rendered page
+  and never on a photocopier, and 12% grey is exactly what a photocopier drops.
+
+  ⚠ **`packetOverlay.ts` keeps its diagonal, deliberately.** Its band goes on the CARRIER's own
+  printed form, which has no margin to borrow — AUD-19 measured 3.84pt of clear space above page
+  12's grid and the same below it. The two bands share their words and their reason; the shape is
+  decided by the paper, and only one of the two papers is ours. Both documents this change touches
+  are rendered ON DEMAND (`render.ts` bands only `input.preview`; `file.ts` forbids a band on the
+  filing), so **nothing here is freeze-bound** — the one printing change in this audit that is not.
+
+  **The test is geometric, because a text assertion passed throughout the defect and would pass
+  again tomorrow.** `permissions.test.ts` now walks every sheet and holds three claims: the band is
+  FOUND upright by `pdfDrawnLines`, it sits above the text block, and nothing the document prints is
+  in its margin. ⚠ A band that went back to being rotated does not fail a position assertion — it
+  DISAPPEARS from the geometry reader, which only matches pdfkit's upright text matrix — so "found
+  at all" is the first assertion rather than an afterthought. ⚠ The certified fixture is there so
+  the certificate is among the sheets walked; it is **not** a density guard, and the entry says so
+  in the file: the old defect depended on how full a page was and the new geometry cannot, which is
+  the improvement stated as a property.
+
+  **Mutations: 5 run, 5 red.** Band back to mid-page; band at y45, one point above the title's
+  ascenders (the "clear of the block" clause, which the "above the block" clause alone would pass);
+  band restored to the rotated diagonal — the exact old behaviour, which is the one that matters;
+  band drawn on the first sheet only; band emptied of its words. ⚠ Not pinned, and said rather than
+  left to be discovered: the TRACKING. It is what makes the line read as a stamp instead of a
+  running head, and an assertion about it would pin a font metric rather than a fact.
+
+  **Established by looking**, at 150 dpi on all eight pages of the permissions document and on the
+  §391.21 preview's own DRAFT band, and at 300 dpi on the certificate's head. A 10pt variant was
+  rendered beside the 8.5 and read as a second title.
+
+  **Gates**: `lint:filesize` · `lint:funcsize` · `lint:boundaries` · `lint:comment-claims` ·
+  `lint:table-writers` · `lint:table-modules` · `lint:upserts` · `lint:migrations` ·
+  `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **4019 passed, 332 files.** ⚠ **No migration.**
+  ⚠ **Not freeze-bound**, for the reason above — every banded document is rendered on demand.
+
+  **Left for AUD-11 and AUD-20**, untouched and not started.
+
 ---
 
 ## 11. Sources

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { pdfDrawnLines, pdfDrawnRules, pdfText } from "../../../testing/pdfText.js";
+import { MARGIN } from "../../../lib/pdfDraw.js";
 import { applicationPermissionsPdf, isPermissionsError } from "./permissions.js";
 import { renderApplicationPdf, type ApplicationPdfInput } from "./render.js";
 
@@ -462,6 +463,59 @@ describe("printing what an applicant has signed", () => {
     expect(CONSENT_CLAUSES).not.toContain("?");
     const marks = lines.filter((l) => l.page === label!.page && l.text.includes("?"));
     expect(marks.map((l) => l.text)).toEqual([]);
+  });
+
+  /**
+   * WHERE the band is drawn, which is the half of "it says so on every page" that words cannot hold
+   * (AUD-10).
+   *
+   * ⚠ **The text assertion above passed throughout the defect and would pass again tomorrow.** The
+   * band was a 30pt diagonal through the middle of the sheet: on the six pages with room it landed
+   * in white space, and on the certificate it ran through the evidence rows of four sections. Every
+   * character of it was in the content stream either way, which is exactly the family of defect this
+   * file's geometry reader exists for.
+   *
+   * ⚠ **The fixture certifies, so the certificate — the sheet the finding names — is one of the
+   * pages this walks.** It is NOT a density guard, and the honest reason is worth writing down: the
+   * old defect depended on how full a page was, and this one cannot. Measured on this fixture, the
+   * certificate page carries 50 runs reaching y576 of a 720pt text block, and the assertions below
+   * hold identically on the emptiest sheet in the document. **That is the improvement** — the band
+   * clearing the text stopped being a property of the content and became a property of the page.
+   *
+   * ⚠ **Both directions are pinned, and each one alone is satisfiable by something still wrong.**
+   * The band above the text block (a band in the block is the defect) AND every drawn line of the
+   * document below it (a text block that grew into the margin is the same collision arriving from
+   * the other side — and `stamp.ts` claims it cannot, because pdfkit paginates against the margin).
+   *
+   * ⚠ A band that went back to being a rotated diagonal does not fail an assertion about its
+   * position: it DISAPPEARS from `pdfDrawnLines`, which only matches pdfkit's upright text matrix.
+   * That is why the first assertion in the loop is that the band was found at all.
+   */
+  it("keeps the band in the margin, clear of every line the document prints", async () => {
+    const pdf = await rendered(seed({ application: CERTIFIED_APPLICATION }));
+    const lines = await pdfDrawnLines(pdf);
+
+    expect(
+      lines.find((l) => l.text === "Certificate of completion"),
+      "the page AUD-10 was found on is among the sheets below",
+    ).toBeDefined();
+
+    for (const page of new Set(lines.map((l) => l.page))) {
+      const onPage = lines.filter((l) => l.page === page);
+      const band = onPage.find((l) => l.text === "SIGNED PERMISSIONS - NOT THE APPLICATION");
+      expect(band, `page ${page + 1} carries the band, upright`).toBeDefined();
+      expect(band!.y, `page ${page + 1}: the band is in the top margin`).toBeLessThan(MARGIN);
+
+      const printed = onPage.filter((l) => l !== band);
+      const highest = Math.min(...printed.map((l) => l.y));
+      expect(highest, `page ${page + 1}: nothing is printed in the band's margin`)
+        .toBeGreaterThan(MARGIN);
+      // ⚠ Not merely "above it": a band at y45 would satisfy both assertions above with 1pt between
+      // its descenders and the top of the title, and read as an eyebrow on the document's name
+      // rather than as the sheet's rubric. Measured clearance is 21.9pt — two lines of its own type.
+      expect(MARGIN - band!.y, `page ${page + 1}: the band stands clear of the text block`)
+        .toBeGreaterThan(band!.size * 2);
+    }
   });
 
   /**

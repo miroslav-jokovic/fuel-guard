@@ -128,8 +128,12 @@ export interface DrawnLine {
  *
  * ⚠ It is still not a PDF parser. pdfkit sets its text matrix per run as `1 0 0 1 x y Tm` inside a
  * flipped `1 0 0 -1 0 H cm`, so `H - y` is the distance down the page — true of every run this
- * module's documents emit and NOT true of PDFs in general. Rotated text (the band `stamp.ts` draws)
- * uses a different matrix and is deliberately not matched, which is why the band never appears here.
+ * module's documents emit and NOT true of PDFs in general. Rotated text uses a different matrix and
+ * is deliberately not matched. ⚠ **`stamp.ts`'s band used to be the only such run and is not any
+ * more** (AUD-10, 2026-09-20): it is an upright line in the top margin now, so it DOES appear here,
+ * which is what makes "the band is clear of the text block" a claim a test can hold. A band that
+ * went back to being rotated would vanish from this list rather than fail an assertion about where
+ * it sits — so the assertion to write is that it is FOUND, and then where.
  */
 export async function pdfDrawnLines(pdf: Buffer): Promise<DrawnLine[]> {
   const { PDFDocument } = await import("pdf-lib");
