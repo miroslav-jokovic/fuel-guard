@@ -4418,6 +4418,105 @@ every time.
   **Left: the new AUD-22, and the web surfaces** — still never walked at 1440×390. The original
   sixteen findings are closed.
 
+- **2026-09-20 — AUD-22 BUILT, and AUD-23 found and fixed beside it. The carrier's questions no
+  longer disappear when nobody answers them.** Branch `claude/hiring-aud22`. `questionnairePage.ts`,
+  and no other file.
+
+  **The ruling is the owner's and it is one sentence: print them.** The finding was raised needing
+  one because none of these questions is mandatory — `questionnaireContract.ts` argues at length that
+  a `required` flag would have to be enforced in the wizard or the schema, and that a carrier's own
+  question must never be what refuses a §391.21 application — so a line per unanswered question is a
+  cost paid on a form that is optional throughout. The ruling is that the fact is worth the line: a
+  recruiter deciding a hire needs to know the applicant would not say whether previous employers may
+  be contacted, and "the question is not on the page" cannot tell them that.
+
+  ⚠ **The production document proves the size of it.** The one application filed against this
+  build (`driver_applications`, read 2026-09-20) answered **six of the ten carrier questions** —
+  `position`, `heard_from`, `legally_work`, `proof_of_age`, `may_contact_employers`,
+  `military_service`. The four it did not answer — `military_when`, `other_training`, `education`
+  and `references` — are absent from its rendered document entirely, including both grids. A
+  recruiter reading it cannot tell that the applicant was asked for three personal references.
+
+  **What the fix says, and why it borrows its words.** Every question is printed; an unanswered one
+  reads `Not answered.` — the SAME sentence `render.ts` prints under an empty §391.21(b)(3), (b)(7),
+  (b)(8) and (b)(10), now a named constant rather than a fourth spelling of it. A reader who learnt
+  what that sentence means on page 2 must not meet a different phrasing for the same state on the
+  last page.
+
+  ⚠ **An unanswered GRID gets a row, not a heading over a lone sentence.** `Education and training`
+  reads as a label/value row like every other unanswered question, which is what lets the page be
+  scanned for what was skipped; drawing the table's furniture around nothing would say the opposite.
+  **And its CELLS follow the same rule** — a blank `Phone number` on a reference the applicant DID
+  name is the same ambiguity one level down, and a document that prints `Not answered.` for
+  questions while staying silent for cells teaches a reader that silence is safe to interpret in one
+  place and not in another.
+
+  ⚠ **The section-level guard went too, and that case is real rather than defensive.** The renderer
+  skipped the whole page when no readable answer survived — the same defect at section scale.
+  `draft.ts` stamps the version only when something was answered and `cleanQuestionnaire` counts the
+  reserved `eeo` key as something, so an applicant who self-identifies and answers nothing else
+  arrives with a version and no readable answer. That page now says all ten questions went
+  unanswered, which is true, and says nothing whatever about the key that was — pinned by its own
+  test, beside the older one that the EEO payload never reaches the paper.
+
+  ⚠ **The em dash is gone from this page and the branch that drew it is kept on purpose.** The module
+  carried its own `blank()`; AUD-22 leaves it with no caller, because a dash under a carrier's
+  question is the absence of an answer wearing the costume of a value. `scalarAnswer`'s empty branch
+  is now **unreachable and deliberately retained**: putting the dash back into it changes not one
+  coordinate across five rendered payloads (measured), because nothing that reaches it can stringify
+  to nothing. It guards the edit that weakens `unanswered()`, and what it guards against is not a
+  dash but an EMPTY value column — a label with no answer beside it, which no assertion about text
+  could see.
+
+  ⚠ **AUD-23, found by sweeping and fixed here: a grid's heading alone at the foot of a sheet.**
+  The tables were the one family in this renderer that never got AUD-4's keep-together — a bare
+  `heading()` with nothing binding it to the rows under it. Swept over **1,148 payloads** (education
+  0–6 rows × references 0–3 × 41 lengths of the free-text answer above them): **27 put `Three
+  personal references` alone at the bottom of its page**, with `Full name` and a stranger's telephone
+  number opening the next one under nothing that says whose they are. **It is not a defect AUD-22
+  introduced, and that was measured rather than argued**: the identical sweep against the renderer as
+  it stood at 3d4b298 strands the same heading in the same payloads. After the fix, 0 of 1,148.
+
+  The fix passes the grid's FIRST ROW to `section()` and draws the rest in the loop — not the whole
+  grid, because `section()` refuses to break for a section no page can hold and a six-row education
+  table is one. One row is what a heading needs in order not to be alone. ⚠ **And the geometry of
+  every page that did not need it is unchanged** — every drawn run at the same coordinate on the same
+  sheet, before and after, on a fully-answered payload; the font-state trap AUD-20 wrote up does not
+  fire here because `partHeight()` leaves the same Helvetica-Bold 9.5 the old `field()` did.
+
+  **Mutations: 8 run, 6 red, 1 no-op, 1 mis-aimed.** Red: the pre-AUD-22 `continue` on scalar
+  questions (kills 3); the early return on an empty grid (kills 2); a blank cell dropped from
+  `cellParts` (kills 1); `unanswered()` written as `!value`, which eats a driver's `No` and a
+  `Years known` of 0 (kills 2) — **the worst available defect, since misreading the document beats
+  leaving a gap in it**; `heading()` back in place of `section()` (kills the AUD-23 test); and the
+  section-level guard restored (kills the EEO-only test). ⚠ **The em-dash mutant is a no-op, not a
+  survivor** — proven by rendering five payloads under it and diffing every drawn run, per the three
+  categories AUD-20 wrote down. ⚠ And the first cell mutant was **mis-aimed rather than survived**:
+  it patched the `rows.slice(1)` loop while the fixture had exactly one reference, so it never
+  touched the path the test walks. Re-aimed at the shared `cellParts` it dies. A mutant that misses
+  its own target looks exactly like a test that does not work.
+
+  **The tests read GEOMETRY, not text, and the finding is why.** Both the label and the sentence are
+  on the page in the broken world too once anything else is unanswered, so `toContain` can only say
+  that some question somewhere went unanswered. What discriminates is which label the sentence was
+  drawn BESIDE. `valueBeside()` reads the value run sharing the label's line out of the content
+  stream — ⚠ with a 2pt tolerance, because the label is 9pt and the value 9.5 and pdfkit places each
+  run off its own ascender (`y=102.88` against `y=103.24`, measured), and ⚠ matching on `trimEnd()`,
+  because pdfkit keeps the space it broke a wrapped label on.
+
+  **Established by looking** at 100 dpi: the six-answer page, the fully-answered page and the
+  education grid at six rows, before and after.
+
+  **Gates**: every `lint:*` in the `gates` job by name · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **4030 passed, 332 files** (4024 before). ⚠ **No migration.**
+  ⚠ **Freeze-bound, and it does not reach the filed record**: `ensureApplicationPdf` renders once and
+  returns the stored bytes for ever, so the application filed on 2026-09-14 keeps the document it
+  was filed with. The four questions it left blank appear on every render from here — previews, and
+  every application filed after this merge.
+
+  **Left: the web surfaces** — still never walked at 1440×390. Every finding from the audit is now
+  closed.
+
 ---
 
 ## 11. Sources

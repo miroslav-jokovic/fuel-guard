@@ -470,6 +470,13 @@ describe("the drawn signature mark", () => {
  * The staff route serves this PDF and nothing else of the application's content, so this section is
  * the ONLY place a recruiter ever sees what the driver answered — which is why it is rendered at all,
  * and why the one thing that must never appear on it is tested rather than assumed.
+ *
+ * ── ⚠ WHY MOST OF THESE READ GEOMETRY AND NOT TEXT (AUD-22) ──────────────────────────────────
+ * The finding is about a question that is ABSENT, and the fix prints a sentence beside it. Both the
+ * label and the sentence are on the page in either world once anything else is unanswered, so
+ * `toContain` cannot tell the fixed document from the broken one — it can only say some question
+ * somewhere went unanswered. What discriminates is WHICH label the sentence was drawn beside, which
+ * is a coordinate. `valueBeside` reads it out of the stream.
  */
 describe("the questionnaire section", () => {
   const answered = (over: Record<string, unknown> = {}) =>
@@ -487,6 +494,27 @@ describe("the questionnaire section", () => {
       } as unknown as DriverApplication,
     });
 
+  /**
+   * What the document printed in the VALUE column of the row this label opens.
+   *
+   * `field()` draws both halves from the same cursor — the label at the left margin, the value 134pt
+   * in — and a label too long for its 130pt column wraps into further runs at the same x and a lower
+   * y. So the value is the run to the RIGHT of the first run, on that run's line.
+   *
+   * ⚠ **"On that run's line" is a tolerance and not an equality, and the 0.36pt is measured.** The
+   * label is drawn at 9pt and the value at 9.5, and pdfkit places a run's text matrix off its own
+   * ascender — so the pair a reader sees as one row is `y=102.88` and `y=103.24`. Two points is
+   * comfortably inside one 14pt row and cannot reach the next label, which is the only thing the
+   * tolerance has to be smaller than.
+   */
+  const valueBeside = (lines: Awaited<ReturnType<typeof pdfDrawnLines>>, label: string): string | null => {
+    // ⚠ `trimEnd`, because pdfkit KEEPS the space it broke the line on: the first run of a wrapped
+    // label is `"How did you hear about this "`, and an equality on the visible words finds nothing.
+    const row = lines.find((l) => l.text.trimEnd() === label);
+    if (!row) return null;
+    return lines.find((l) => l.page === row.page && Math.abs(l.y - row.y) < 2 && l.x > row.x)?.text ?? null;
+  };
+
   it("prints the answers under a heading that says whose questions they are", async () => {
     const pdf = pdfText(await renderApplicationPdf(answered()));
     expect(pdf).toContain("the carrier's own questions");
@@ -496,13 +524,71 @@ describe("the questionnaire section", () => {
     expect(pdf).toContain("silvicom_driver");
   });
 
-  /** Three states, not two: answered no is a different fact from never answered. */
-  it("distinguishes a 'no' from a question nobody answered", async () => {
-    const pdf = pdfText(await renderApplicationPdf(answered()));
-    expect(pdf).toContain("May we contact your previous employers?");
-    expect(pdf).toContain("No");
-    // `heard_from` was never answered and must not appear as a blank row.
-    expect(pdf).not.toContain("How did you hear about this company?");
+  /**
+   * Three states, not two: answered no is a different fact from never answered — and BOTH are
+   * different from a question that is not on the page at all, which is what this used to assert and
+   * is the whole of AUD-22. A recruiter reading "May we contact your previous employers?" with
+   * nothing under it cannot tell a refusal from a question the form never asked.
+   */
+  it("prints a 'no', a value and an unanswered question as three different things", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(answered()));
+    expect(valueBeside(lines, "Position you are applying for")).toBe("Company driver");
+    expect(valueBeside(lines, "May we contact your previous")).toBe("No");
+    // ⚠ The row AUD-22 is about: asked, left blank, and now on the page saying so.
+    expect(valueBeside(lines, "How did you hear about this")).toBe("Not answered.");
+  });
+
+  /**
+   * ⚠ `false` and `0` are ANSWERS, and the predicate that decides this is one `||` away from eating
+   * them. A questionnaire that printed "Not answered." over a driver's "No" would be worse than the
+   * defect it replaced: the first misreads the document, the second only leaves a gap in it.
+   */
+  it("never mistakes a false or a zero for a silence", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(answered({
+      military_service: false,
+      references: [{ full_name: "Ann Reyes", years_known: 0, phone: "555-0134" }],
+    })));
+    expect(valueBeside(lines, "Have you ever served in the")).toBe("No");
+    expect(valueBeside(lines, "Years known")).toBe("0");
+  });
+
+  /**
+   * An unanswered grid is not a grid. It gets one row in the same shape as every other unanswered
+   * question, and NOT its own heading over a lone sentence — so the column labels of a table nobody
+   * filled in are absent, and the question itself is not.
+   */
+  it("prints an unanswered table as one row, with none of its column headings", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(answered({ references: [] })));
+    expect(valueBeside(lines, "Three personal references")).toBe("Not answered.");
+    expect(valueBeside(lines, "Education and training")).toBe("Not answered.");
+    expect(lines.some((l) => l.text === "Full name")).toBe(false);
+    expect(lines.some((l) => l.text === "School or university")).toBe(false);
+  });
+
+  /** The same rule one level down: a blank cell in a row the applicant DID fill in says so too. */
+  it("says which cell of an answered row was left blank", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(answered({
+      references: [{ full_name: "Marcus Whitfield", years_known: 12, phone: null }],
+    })));
+    expect(valueBeside(lines, "Full name")).toBe("Marcus Whitfield");
+    expect(valueBeside(lines, "Phone number")).toBe("Not answered.");
+  });
+
+  /**
+   * ⚠ The em dash is the defect wearing a costume — a drawn mark that reads as an answer and is the
+   * absence of one. `blank()` was this module's own copy of the house rule and AUD-22 left it with
+   * no caller; this is what stops the next edit reinstating it. The sweep is over the questionnaire
+   * SHEET only: the §391.21 pages above it print dashes on purpose, for fields the applicant was
+   * never asked to fill in.
+   */
+  it("prints no em dash anywhere on the carrier's page", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(answered({ heard_from: "   " })));
+    const sheet = lines.find((l) => l.text.includes("the carrier's own questions"))!.page;
+    expect(sheet, "the questionnaire page was found").toBeGreaterThan(0);
+    const dashes = lines.filter((l) => l.page === sheet && l.text.includes("—"));
+    expect(dashes.map((d) => d.text)).toEqual([]);
+    // ⚠ And the whitespace answer that used to produce one is the row that says so instead.
+    expect(valueBeside(lines, "How did you hear about this")).toBe("Not answered.");
   });
 
   /** ⚠ The assertion this section exists to be safe for. */
@@ -512,9 +598,55 @@ describe("the questionnaire section", () => {
     expect(pdf).not.toContain("eeo");
   });
 
+  /**
+   * ⚠ A version with NO readable answer is a real filed state, not a crafted one: `draft.ts` stamps
+   * the version only when something was answered, and `cleanQuestionnaire` counts the reserved `eeo`
+   * key as something. The applicant who self-identified and answered nothing else was asked all ten
+   * of the carrier's questions, so the document says all ten went unanswered — and says nothing
+   * whatever about the key that did not.
+   */
+  it("prints every question as unanswered when the version is stamped and nothing readable was answered", async () => {
+    const pdf = await renderApplicationPdf(input({
+      application: {
+        ...APPLICATION,
+        questionnaire_version: "silvicom_driver@v1",
+        questionnaire_answers: { eeo: { race: "UNIQUE-EEO-STRING" } },
+      } as unknown as DriverApplication,
+    }));
+    const lines = await pdfDrawnLines(pdf);
+    expect(valueBeside(lines, "Position you are applying for")).toBe("Not answered.");
+    expect(valueBeside(lines, "Three personal references")).toBe("Not answered.");
+    expect(pdfText(pdf)).not.toContain("UNIQUE-EEO-STRING");
+  });
+
+  /** Nobody was asked: the version is null, so there is no question to print and no page for it. */
   it("renders nothing at all when the driver answered nothing", async () => {
     const pdf = pdfText(await renderApplicationPdf(input()));
     expect(pdf).not.toContain("the carrier's own questions");
+  });
+
+  /**
+   * AUD-23, and the payload is the one the sweep found rather than one invented to pass.
+   *
+   * Five education rows, one reference and a 30-word answer to "any other training" put
+   * `Three personal references` alone at the foot of its sheet, with `Full name` opening the next —
+   * 27 of 1,148 payloads did, at 3d4b298 and before AUD-22 was written. `section()` measures the
+   * heading against its first row now and turns the page before drawing either.
+   */
+  it("never leaves a grid's heading alone at the foot of a sheet", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(answered({
+      other_training: "word ".repeat(30).trim(),
+      education: Array.from({ length: 5 }, (_, i) => ({
+        school: `School number ${i + 1}`, years_completed: i + 1,
+        field_of_study: "Diesel technology", graduated: true, graduated_when: `20${11 + i}`,
+      })),
+      references: [{ full_name: "Ann Reyes", years_known: 6, phone: "555-0134" }],
+    })));
+    const heading = lines.find((l) => l.text === "Three personal references")!;
+    expect(heading, "the grid's heading was drawn").toBeDefined();
+    const after = lines.filter((l) => l.page === heading.page && l.y > heading.y);
+    // ⚠ Not "something follows it" — the FOOTER always does. The first row of its own grid must.
+    expect(after.map((l) => l.text)).toContain("Full name");
   });
 
   /**
