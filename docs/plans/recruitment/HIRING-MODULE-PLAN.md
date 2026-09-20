@@ -3549,6 +3549,65 @@ every time.
   (page 26 is headed `Driver's/ Owner's Name:`, page 31 is the owner-operator agreement) and free
   text cannot answer either.
 
+- **2026-09-19 — AUD-4 BUILT. A section keeps its heading and its rows on one sheet.** Branch
+  `claude/hiring-aud4`.
+
+  **Reproduced before anything was changed**, by rendering both documents with all FIVE instruments
+  signed — the unit fixture carries two, and two always fitted — and rasterising at 100 dpi.
+  Permissions p8→p9 and the §391.21 summary p9→p10 were identical: section 6's heading, its citation
+  line and two of its four rows on one sheet, and **`From address` and `Browser` opening the next
+  one directly above a heading numbered 7**, which is a different instrument. On a page whose whole
+  job is to say which act happened when, two rows sitting under the wrong act is the worst thing it
+  can do quietly. That sheet was then ~70% white.
+
+  **The fix is `section()` in `pdfDraw.ts`, one level up from where the last one went.** It takes a
+  heading and the parts under it, predicts the height with `heightOfString` at the same font and
+  width each part will be DRAWN at, and turns the page before the heading when the whole unit will
+  not fit. `certificate()` now describes each act as a section instead of emitting loose rows.
+  ⚠ **`field()`'s keep-together was working and is not what was wrong** — it holds a LABEL to its
+  VALUE, pinned since 2026-09-11 by *"keeps them together, and leaves no page carrying only the
+  label"*. What had none was the SECTION.
+  ⚠ **It refuses to break for a section no sheet could hold.** Turning the page would buy nothing —
+  it breaks across the next boundary anyway — and would leave a blank sheet inside a filed §391.51
+  document to prove it. Unreachable with today's content; a browser string is caller-supplied and a
+  filed document must render whatever was stored.
+  ⚠ `HEADING_LEAD_ABOVE` / `HEADING_LEAD_BELOW` / `HEADING_SIZE` are named because the measurement
+  and the drawing both read them. Two copies of `0.7` would drift the first time somebody loosened
+  the spacing, and the one that drifts silently is the measurement.
+
+  **Measured after: the defect is gone from both documents and NEITHER grew a page** — permissions 9,
+  summary 10, the same as before. The fix spends the white space that was already at the foot of the
+  sheet.
+
+  **Mutations: 9 run, 9 red — and THREE survived the first pass, all three the same shape.**
+  `partHeight`'s three terms were each right and each unexercised: dropping the VALUE's height, the
+  LABEL's height, or the NOTE's height all left every test green, because the certificate's notes are
+  one line and its labels are two words. **That is precisely the position `field()` was in before B2
+  printed `AUTHORIZATION_PURPOSE_LABELS` in the label column and a four-word label wrapped into the
+  row below it.** A term that only holds while the content stays short is a term nothing is holding.
+  Three fixtures now put the boundary between the right answer and each wrong one — a wrapping value,
+  wrapping labels, and a note of four lines.
+
+  **`pdfPageTexts` is new in `src/testing/pdfText.ts`,** and it replaces a twenty-five-line copy of
+  the stream decoder that `pdfDraw.test.ts` was carrying — the exact duplication that file's own
+  header warns about. It walks the PAGE TREE rather than the raw bytes, so it can answer *which sheet
+  is this row on*; the file-order scan above it cannot, because font subsets and the xref sit among
+  the streams. ⚠ **It does not widen what a text assertion can see.** This defect is about page
+  MEMBERSHIP and ORDER, which is why text can hold it; *where on the sheet* still needs a raster and
+  a pair of eyes, and the helper says so.
+
+  **Gates** (after the last edit): `lint:boundaries` · `lint:filesize` · `lint:funcsize` ·
+  `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` · `lint:upserts` ·
+  `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **3991 passed, 331 files**. ⚠ **No migration.**
+
+  **⚠ Freeze-bound**, like everything that changes printing: `ensureApplicationPdf` renders once and
+  keeps those bytes. Production holds no filed packet, so this reaches every document filed from here.
+
+  ⚠ **AUD-10 was visible in every raster taken for this and is NOT fixed** — the draft band runs
+  diagonally through sections 4 and 5's rows on the permissions certificate. It is legible and it is
+  the next thing a reader notices on that page.
+
 ---
 
 ## 11. Sources

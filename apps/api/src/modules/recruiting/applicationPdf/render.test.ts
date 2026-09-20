@@ -1,6 +1,9 @@
 import { inflateSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
 import type { DriverApplication } from "@silvicom/shared";
+import { AUTHORIZATION_PURPOSES } from "@silvicom/shared";
+import { pdfPageTexts } from "../../../testing/pdfText.js";
+import { purposeLabel } from "./certificate.js";
 import { renderApplicationPdf, sourceDigest, type ApplicationPdfInput } from "./render.js";
 
 /**
@@ -549,5 +552,78 @@ describe("the certificate of completion", () => {
     // With no consent the numbering starts at the first instrument, not at a phantom step one.
     expect(pdf).toContain("1. Consumer report disclosure and authorization");
     expect(pdf).toContain("2. Certified the application");
+  });
+});
+
+/**
+ * The certificate's sections, against the sheets they land on (AUD-4, 2026-09-19).
+ *
+ * ⚠ **Measured before it was fixed, by rendering and looking at 100 dpi**: with all five instruments
+ * signed, the permissions PDF's page 9 and this document's page 10 OPENED with `From address` and
+ * `Browser` — two rows of an instrument whose heading was on the sheet before, sitting directly
+ * above a heading numbered for a different one. On a page whose whole job is to say which act
+ * happened when, two rows filed under the wrong act is the worst thing it can do quietly.
+ *
+ * ⚠ **This is one of the few layout properties a text assertion CAN hold**, and the reason is worth
+ * stating: it is about page MEMBERSHIP and ORDER, not about coordinates. `pdfPageTexts` reads the
+ * page tree, so "which sheet is this row on" is answerable. *Where on the sheet* is still not, and
+ * still needs a raster — see `pdfText.ts`'s own header.
+ */
+describe("the certificate of completion, section by section", () => {
+  /** The labels `certificate()` puts in the left column of an act's rows. */
+  const ROW_LABELS = ["Agreed", "Signed as", "Signed", "From address", "Browser"];
+
+  /** A real hire signs all five instruments; the fixture above carries two, and two always fitted. */
+  const everyInstrument = AUTHORIZATION_PURPOSES.map((purpose, i) => ({
+    purpose,
+    disclosure_version: "v1",
+    disclosure_text: `The wording that was actually signed for ${purpose}.`,
+    intent_statement: `I authorize the ${purpose} act.`,
+    signed_name: "Susan Godfrey",
+    accepted_at: `2026-08-21T17:5${i}:00Z`,
+    method: "esign",
+    accepted_ip: "203.0.113.9",
+    // ⚠ A real user agent, because it is the row that WRAPS — and the wrap is what pushed the
+    // section over the page boundary in the first place.
+    accepted_user_agent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 "
+      + "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+  }));
+
+  it("never opens a sheet with rows belonging to the section before it", async () => {
+    const pages = await pdfPageTexts(
+      await renderApplicationPdf(input({ authorizations: everyInstrument })),
+    );
+
+    const first = pages.findIndex((t) => t.includes("Certificate of completion"));
+    expect(first, "the certificate has to be on the document at all").toBeGreaterThan(-1);
+    // Guards the guard: the acts must actually span more than one sheet, or this proves nothing.
+    expect(pages.length - first).toBeGreaterThan(1);
+
+    for (const [offset, text] of pages.slice(first).entries()) {
+      // Everything before this sheet's first numbered heading belongs to whatever came before it.
+      const heading = text.search(/\d+\. [A-Z]/);
+      const orphaned = heading === -1 ? text : text.slice(0, heading);
+      for (const label of ROW_LABELS) {
+        expect(orphaned, `page ${first + offset + 1} opens with "${label}"`).not.toContain(label);
+      }
+    }
+  });
+
+  it("keeps every act's four rows on the sheet its own heading is on", async () => {
+    const pages = await pdfPageTexts(
+      await renderApplicationPdf(input({ authorizations: everyInstrument })),
+    );
+    const headings = everyInstrument.map((a, i) => `${2 + i}. ${purposeLabel(a.purpose)}`);
+    expect(headings).toHaveLength(5);
+
+    for (const heading of headings) {
+      const sheet = pages.find((t) => t.includes(heading));
+      expect(sheet, heading).toBeDefined();
+      const own = sheet!.slice(sheet!.indexOf(heading));
+      for (const label of ["Signed as", "From address", "Browser"]) {
+        expect(own, `${heading} → ${label}`).toContain(label);
+      }
+    }
   });
 });

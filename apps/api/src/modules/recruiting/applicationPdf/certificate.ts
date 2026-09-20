@@ -2,7 +2,7 @@ import {
   AUTHORIZATION_PURPOSE_LABELS,
   type AuthorizationPurpose,
 } from "@silvicom/shared";
-import { field, heading, muted, rule } from "../../../lib/pdfDraw.js";
+import { field, heading, muted, rule, section } from "../../../lib/pdfDraw.js";
 import type { ApplicationPdfInput } from "./render.js";
 
 /**
@@ -64,41 +64,55 @@ export function certificate(
   }
   rule(doc);
 
+  /**
+   * ⚠ **Every act below is drawn through `section()`, which keeps its heading with its rows
+   * (AUD-4).** Measured 2026-09-19 on this very page: the last instrument's heading and two of its
+   * four rows were on one sheet and `From address` and `Browser` opened the next, directly under a
+   * heading numbered for a DIFFERENT instrument. On a document whose whole purpose is to say which
+   * act happened when, two rows filed under the wrong act is the worst thing it can do quietly.
+   */
   if (input.esignConsent) {
-    heading(doc, "1. Agreed to sign electronically");
-    muted(doc, `15 U.S.C. 7001(c) · version ${input.esignConsent.disclosure_version}`);
-    field(doc, "Agreed", stamp(input.esignConsent.consented_at));
-    field(doc, "From address", blank(input.esignConsent.applicant_ip));
-    field(doc, "Browser", blank(input.esignConsent.applicant_user_agent));
+    section(doc, "1. Agreed to sign electronically", [
+      { note: `15 U.S.C. 7001(c) · version ${input.esignConsent.disclosure_version}` },
+      { label: "Agreed", value: stamp(input.esignConsent.consented_at) },
+      { label: "From address", value: blank(input.esignConsent.applicant_ip) },
+      { label: "Browser", value: blank(input.esignConsent.applicant_user_agent) },
+    ]);
     doc.moveDown(0.4);
   }
 
   input.authorizations.forEach((auth, i) => {
     // Numbered from the consent, so the list reads as the order the acts happened in rather than as
     // an unordered set — which is the question "what did they agree to, and when" actually asks.
-    heading(doc, `${(input.esignConsent ? 2 : 1) + i}. ${purposeLabel(auth.purpose)}`);
-    muted(doc, `Version ${auth.disclosure_version} · method ${auth.method}`);
-    field(doc, "Signed as", blank(auth.signed_name));
-    field(doc, "Signed", stamp(auth.accepted_at));
-    field(doc, "From address", blank(auth.accepted_ip));
-    field(doc, "Browser", blank(auth.accepted_user_agent));
+    section(doc, `${(input.esignConsent ? 2 : 1) + i}. ${purposeLabel(auth.purpose)}`, [
+      { note: `Version ${auth.disclosure_version} · method ${auth.method}` },
+      { label: "Signed as", value: blank(auth.signed_name) },
+      { label: "Signed", value: stamp(auth.accepted_at) },
+      { label: "From address", value: blank(auth.accepted_ip) },
+      { label: "Browser", value: blank(auth.accepted_user_agent) },
+    ]);
     doc.moveDown(0.4);
   });
 
-  heading(doc, `${(input.esignConsent ? 2 : 1) + input.authorizations.length}. Certified the application`);
-  muted(doc, "49 CFR §391.21(b)(12)");
-  // ⚠ On a preview the acts ABOVE are real — the consent and the four authorizations are signed
-  // before the form — and this last one has not happened. Saying so in a sentence is the point of the
-  // page: four rows of em dashes would read as evidence that failed to record rather than as an act
-  // still owed.
-  if (input.preview) {
-    muted(doc, "Not signed yet. The applicant certifies the answers after the office has approved them.");
-  } else {
-    field(doc, "Signed as", blank(input.signedName));
-    field(doc, "Signed", stamp(input.certifiedAt));
-    field(doc, "From address", blank(input.applicantIp));
-    field(doc, "Browser", blank(input.applicantUserAgent));
-  }
+  section(
+    doc,
+    `${(input.esignConsent ? 2 : 1) + input.authorizations.length}. Certified the application`,
+    [
+      { note: "49 CFR §391.21(b)(12)" },
+      // ⚠ On a preview the acts ABOVE are real — the consent and the four authorizations are signed
+      // before the form — and this last one has not happened. Saying so in a sentence is the point
+      // of the page: four rows of em dashes would read as evidence that failed to record rather
+      // than as an act still owed.
+      ...(input.preview
+        ? [{ note: "Not signed yet. The applicant certifies the answers after the office has approved them." }]
+        : [
+            { label: "Signed as", value: blank(input.signedName) },
+            { label: "Signed", value: stamp(input.certifiedAt) },
+            { label: "From address", value: blank(input.applicantIp) },
+            { label: "Browser", value: blank(input.applicantUserAgent) },
+          ]),
+    ],
+  );
 
   rule(doc);
   /**
