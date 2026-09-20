@@ -13,6 +13,7 @@ import { questionnaireSection } from "./questionnairePage.js";
 import { stampPages } from "./stamp.js";
 import {
   body,
+  caption,
   field,
   heading,
   muted,
@@ -196,7 +197,9 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
   title(doc, "Driver employment application");
   // ⚠ The FIRST line a reader sees says which of the two documents this is. A preview that opened
   // "Completed and certified by the applicant" would be a lie on the one page everybody reads.
-  muted(
+  // ⚠ `caption`, not `muted`: it is the title's lede and owns the air between itself and the rule
+  // below it, so it reads as belonging to the title rather than floating between the two (AUD-8).
+  caption(
     doc,
     input.preview
       ? "49 CFR §391.21. A PREVIEW of an application in progress. Nothing on it has been certified, "

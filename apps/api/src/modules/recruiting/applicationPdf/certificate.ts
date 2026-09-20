@@ -2,7 +2,7 @@ import {
   AUTHORIZATION_PURPOSE_LABELS,
   type AuthorizationPurpose,
 } from "@silvicom/shared";
-import { field, heading, muted, rule, section } from "../../../lib/pdfDraw.js";
+import { caption, field, heading, muted, rule, section } from "../../../lib/pdfDraw.js";
 import type { ApplicationPdfInput } from "./render.js";
 
 /**
@@ -45,13 +45,15 @@ export function certificate(
 ): void {
   doc.addPage();
   heading(doc, "Certificate of completion");
-  muted(
+  // ⚠ `caption`, and the hand-written `moveDown(0.5)` that used to follow it is gone with it: at
+  // 9.5pt that came to 5.49pt, against the 6.75pt of the heading's own air above — so the lede sat
+  // very slightly NEARER the rows than the title it belongs to, and read as one of them (AUD-8).
+  caption(
     doc,
     "How this application was signed, and what the carrier's system recorded at the moment of each "
     + "act. Every time is the server's, taken when the act was received, and none of it is supplied "
     + "by the signer.",
   );
-  doc.moveDown(0.5);
 
   field(doc, input.preview ? "Invitation" : "Application", input.applicationId);
   // ⚠ "Signer" is the person who made the §391.21(b)(12) certification, and on a preview nobody has.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
-import { pdfText } from "../../../testing/pdfText.js";
+import { pdfDrawnLines, pdfDrawnRules, pdfText } from "../../../testing/pdfText.js";
 import { applicationPermissionsPdf, isPermissionsError } from "./permissions.js";
 import { renderApplicationPdf, type ApplicationPdfInput } from "./render.js";
 
@@ -147,13 +147,16 @@ const seed = (
     },
   });
 
-const printed = async (rec: ReturnType<typeof seed>, org = ORG): Promise<string> => {
+const rendered = async (rec: ReturnType<typeof seed>, org = ORG): Promise<Buffer> => {
   const result = await applicationPermissionsPdf(rec.client, org, INV);
   expect(isPermissionsError(result)).toBe(false);
   if (isPermissionsError(result)) throw new Error(result.code);
   expect(result.pdf.subarray(0, 5).toString()).toBe("%PDF-");
-  return pdfText(result.pdf);
+  return result.pdf;
 };
+
+const printed = async (rec: ReturnType<typeof seed>, org = ORG): Promise<string> =>
+  pdfText(await rendered(rec, org));
 
 describe("printing what an applicant has signed", () => {
   it("prints the instruments, and says on every page that it is not the application", async () => {
@@ -209,6 +212,70 @@ describe("printing what an applicant has signed", () => {
     expect(block).toContain(FCRA_TEXT);
 
     expect(await printed(seed())).toContain(block);
+  });
+
+  /**
+   * The metadata lines, where this document actually puts them (AUD-8, 2026-09-20).
+   *
+   * ⚠ **`pdfDraw.test.ts` pins the PRIMITIVE and cannot see a call site.** `caption()` can be
+   * correct in every unit test while one of these pages goes back to calling `muted()`, and every
+   * string assertion in this file — including the character-for-character block comparison above —
+   * stays green either way, because the words do not move when the leading does. So this reads the
+   * rendered document's own baselines and asks the question a reader asks: does `Version v0-draft`
+   * belong to the authorization named above it, or to the paragraph under it?
+   *
+   * ⚠ It walks EVERY instrument page rather than the first. `find` returning the same page four
+   * times, with three never checked, is how AUD-19 passed on a defect it had been written to catch.
+   */
+  it("sets each page's metadata line as a caption on the block it introduces", async () => {
+    const lines = await pdfDrawnLines(await rendered(seed()));
+    const at = (text: string, from = 0): number => {
+      const i = lines.findIndex((l, n) => n >= from && l.text.includes(text));
+      expect(i, text).toBeGreaterThan(-1);
+      return i;
+    };
+
+    /**
+     * ⚠ **The document's own lede is judged against the RULE, not against the rows, and the first
+     * version of this assertion was vacuous for want of that.** It compared the title-to-lede step
+     * with the lede-to-`Carrier` step and passed on the defect, because the second span crosses the
+     * lede's own second line and is larger whatever the leading is. What is actually wrong on this
+     * sheet is that the rule sat 7.65pt under the lede and 10.39pt above the rows — an underline on
+     * the lede rather than a separator between the two blocks.
+     */
+    const ledeEnd = at("It is not the \u00a7391.21 application");
+    const ownLeading = lines[ledeEnd]!.y - lines[ledeEnd - 1]!.y;
+    expect(ownLeading).toBeGreaterThan(0);
+    const separator = (await pdfDrawnRules(await rendered(seed())))
+      .find((r) => r.page === lines[ledeEnd]!.page);
+    expect(separator).toBeDefined();
+    expect(separator!.y - lines[ledeEnd]!.y).toBeGreaterThan(ownLeading);
+
+    // ⚠ And one per instrument page. Two instruments are seeded and the consent page carries the
+    // same shape, so this is three distinct pages, asserted separately rather than folded into a
+    // count — a count is satisfied by the same page three times.
+    // ⚠ The VERSION strings, which differ per instrument in this fixture — searching for the word
+    // "Version" from a page's heading forward finds the NEXT page's when its own is worded
+    // differently, and the assertion then compares two pages and passes on both being wrong.
+    const captions: Array<[string, string, string]> = [
+      ["Consent to transact electronically", "version esign-2026-08-19", CONSENT_TEXT],
+      ["Authorization - Consumer report disclosure", "Version fcra-2026-08-19", FCRA_TEXT],
+      ["Authorization - FMCSA Pre-Employment", "Version psp-2026-08-19", PSP_TEXT],
+    ];
+    const seen = new Set<number>();
+    for (const [pageHeading, versionLine, disclosure] of captions) {
+      const h = at(pageHeading);
+      const version = at(versionLine, h);
+      const block = at(disclosure, version);
+      expect(lines[version]!.page, pageHeading).toBe(lines[h]!.page);
+      expect(seen.has(lines[h]!.page), `${pageHeading} shares a page`).toBe(false);
+      seen.add(lines[h]!.page);
+      // The finding, per page: it used to sit 15.34pt below its heading and 10.18pt above the
+      // wording, which reads as a line of that wording rather than as a note about it.
+      expect(lines[version]!.y - lines[h]!.y, pageHeading)
+        .toBeLessThan(lines[block]!.y - lines[version]!.y);
+    }
+    expect(seen.size).toBe(3);
   });
 
   /**

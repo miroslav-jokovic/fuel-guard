@@ -2,7 +2,7 @@ import { inflateSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
 import type { DriverApplication } from "@silvicom/shared";
 import { AUTHORIZATION_PURPOSES } from "@silvicom/shared";
-import { pdfPageTexts } from "../../../testing/pdfText.js";
+import { pdfDrawnLines, pdfDrawnRules, pdfPageTexts } from "../../../testing/pdfText.js";
 import { purposeLabel } from "./certificate.js";
 import { renderApplicationPdf, sourceDigest, type ApplicationPdfInput } from "./render.js";
 
@@ -128,6 +128,28 @@ describe("the rendered application", () => {
     const pdf = await renderApplicationPdf(input());
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
     expect(pdf.byteLength).toBeGreaterThan(1000);
+  });
+
+  /**
+   * ⚠ The FILED document's own lede, which `pdfDraw.test.ts` cannot reach (AUD-8, 2026-09-20).
+   *
+   * The first line a reader sees says which of the two documents this is, and it was set with the
+   * same `muted()` that put `Version v0-draft` in the certificate's label column — so the rule under
+   * it sat 7.65pt away and read as an underline on the lede rather than as the boundary between the
+   * masthead and §391.21(b)(1). Nothing about the words changes either way, which is why this is a
+   * measurement and not a `toContain`.
+   */
+  it("sets its lede as a caption on the title, not as a line of the block below", async () => {
+    const pdf = await renderApplicationPdf(input());
+    const lines = await pdfDrawnLines(pdf);
+    const ledeEnd = lines.findIndex((l) => l.text.includes("Completed and certified by the applicant"));
+    expect(ledeEnd).toBeGreaterThan(0);
+    const separator = (await pdfDrawnRules(pdf)).find((r) => r.page === lines[ledeEnd]!.page);
+    expect(separator).toBeDefined();
+    // Clear of the lede by more than the lede's own leading — measured against the step pdfkit set
+    // between the title and it, so the claim does not depend on a constant written in this file.
+    expect(separator!.y - lines[ledeEnd]!.y)
+      .toBeGreaterThan(lines[ledeEnd]!.y - lines[ledeEnd - 1]!.y);
   });
 
   /** A golden test in the sense that matters for a derivative: same evidence in, same bytes out. */

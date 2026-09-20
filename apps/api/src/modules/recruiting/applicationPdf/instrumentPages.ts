@@ -1,4 +1,4 @@
-import { DANGER, MARGIN, body, field, heading, muted } from "../../../lib/pdfDraw.js";
+import { DANGER, MARGIN, body, caption, field, heading } from "../../../lib/pdfDraw.js";
 import { purposeLabel } from "./certificate.js";
 
 /**
@@ -115,7 +115,7 @@ export function consentPage(
 ): void {
   doc.addPage();
   heading(doc, "Consent to transact electronically");
-  muted(doc, `15 U.S.C. 7001(c) · version ${consent.disclosure_version}`);
+  caption(doc, `15 U.S.C. 7001(c) · version ${consent.disclosure_version}`);
   if (standing) note(doc, standing);
   body(doc, blank(consent.disclosure_text));
   doc.moveDown(0.5);
@@ -138,7 +138,7 @@ export function instrumentPage(
 ): void {
   doc.addPage();
   heading(doc, `Authorization — ${purposeLabel(auth.purpose)}`);
-  muted(doc, `Version ${auth.disclosure_version}`);
+  caption(doc, `Version ${auth.disclosure_version}`);
   if (standing) note(doc, standing);
   // The exact text that was signed, from the row, not from today's constant: a document showing
   // current wording beside an old signature would misrepresent what somebody agreed to.

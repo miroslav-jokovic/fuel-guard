@@ -6,7 +6,7 @@ import {
   type ApplicationProgressState,
   type AuthorizationPurpose,
 } from "@silvicom/shared";
-import { field, heading, muted, newDrawing, rule, title } from "../../../lib/pdfDraw.js";
+import { caption, field, heading, muted, newDrawing, rule, title } from "../../../lib/pdfDraw.js";
 import { certificate } from "./certificate.js";
 import { consentPage, instrumentPage, type SignedConsent, type SignedInstrument } from "./instrumentPages.js";
 import type { ApplicationPdfInput } from "./render.js";
@@ -214,7 +214,10 @@ export async function renderPermissionsDocument(input: PermissionsDocumentInput)
   const { doc, done } = newDrawing(`Signed permissions — ${name}`, { bufferPages: true });
 
   title(doc, "Signed permissions");
-  muted(
+  // ⚠ The document's lede, and the one `muted()` on this page that has something under it. The
+  // Clearinghouse line in `summary()` is a trailing footnote with nothing after it and stays
+  // `muted()` — the distinction AUD-8 turns on is whether a line introduces a block or closes one.
+  caption(
     doc,
     "The releases and consent this applicant has signed, each with the exact wording it was signed "
     + "against. Rendered from the carrier's records at the moment it was asked for. It is not the "
