@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppButton, AppAvatar, AppCheckbox, AppSegmentedControl, AppTabs } from "@silvicom/ui";
+import { AppButton, AppAvatar, AppCheckbox, AppIconChip, AppSegmentedControl, AppTabs } from "@silvicom/ui";
 import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@silvicom/ui/icons";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
@@ -365,6 +365,19 @@ const labNavLinkClass = (to: string) => [
         <AppSegmentedControl v-model="labSegment" :options="labSegmentOptions" label="Fuel access" />
         <AppSegmentedControl v-model="labSegment" :options="labSegmentOptions" label="Fuel access, following the role" inherited />
         <AppSegmentedControl v-model="labSegment" :options="labSegmentOptions" label="Fuel access, locked" disabled />
+      </div>
+
+      <h3>Icon chip</h3>
+      <p class="lab-shipped-note">
+        Seven tones, two sizes, one glyph — the comparison that matters is across the row (D-DT17).
+        A solid gradient down one hue's ramp with a white glyph on it, so the chip carries a tile's
+        colour and the tile's ground can stay neutral. ⚠ The stops are different ramp STEPS in the
+        two schemes: the dark ramps turn over between 300 and 400, so light's pair renders pale in
+        dark. Switch the scheme here and the chips should read as equally solid, not paler.
+      </p>
+      <div class="lab-shipped-row">
+        <AppIconChip v-for="tone in shippedTones" :key="tone" :icon="FuelCardIcon" :tone="tone" />
+        <AppIconChip v-for="tone in shippedTones" :key="`sm-${tone}`" :icon="TruckIcon" :tone="tone" size="sm" />
       </div>
 
       <h3>Avatar</h3>

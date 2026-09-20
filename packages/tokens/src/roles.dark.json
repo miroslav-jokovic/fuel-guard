@@ -199,6 +199,62 @@
     "shadow-tint-4": {
       "$type": "color",
       "$value": "oklch(0% 0 0 / 0.65)"
+    },
+    "chip-danger-from": {
+      "$type": "color",
+      "$value": "var(--ramp-danger-600)"
+    },
+    "chip-danger-to": {
+      "$type": "color",
+      "$value": "var(--ramp-danger-300)"
+    },
+    "chip-caution-from": {
+      "$type": "color",
+      "$value": "var(--ramp-caution-600)"
+    },
+    "chip-caution-to": {
+      "$type": "color",
+      "$value": "var(--ramp-caution-300)"
+    },
+    "chip-warning-from": {
+      "$type": "color",
+      "$value": "var(--ramp-warning-600)"
+    },
+    "chip-warning-to": {
+      "$type": "color",
+      "$value": "var(--ramp-warning-300)"
+    },
+    "chip-success-from": {
+      "$type": "color",
+      "$value": "var(--ramp-success-600)"
+    },
+    "chip-success-to": {
+      "$type": "color",
+      "$value": "var(--ramp-success-300)"
+    },
+    "chip-info-from": {
+      "$type": "color",
+      "$value": "var(--ramp-info-600)"
+    },
+    "chip-info-to": {
+      "$type": "color",
+      "$value": "var(--ramp-info-300)"
+    },
+    "chip-brand-from": {
+      "$type": "color",
+      "$value": "var(--ramp-brand-600)"
+    },
+    "chip-brand-to": {
+      "$type": "color",
+      "$value": "var(--ramp-brand-300)"
+    },
+    "chip-neutral-from": {
+      "$type": "color",
+      "$value": "var(--ramp-neutral-500)"
+    },
+    "chip-neutral-to": {
+      "$type": "color",
+      "$value": "var(--ramp-neutral-300)"
     }
   }
 }

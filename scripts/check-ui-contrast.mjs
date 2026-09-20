@@ -20,12 +20,36 @@ function scheme(value, want) {
   return want === "light" ? pair[1] : pair[2];
 }
 
-function token(name, want) {
+function declaration(name) {
   const match = source.match(
     new RegExp(`^\\s*${name.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\s*:\\s*([^;]+);`, "m"),
   );
   if (!match) throw new Error(`Missing production token ${name}`);
-  const value = scheme(match[1].trim(), want);
+  return match[1].trim();
+}
+
+/**
+ * Follow `var(--x)` to the value it names (D-DT17).
+ *
+ * The roles this gate was written for are all literal `oklch()`. The chip's gradient stops are not:
+ * `--chip-danger-from` is `light-dark(var(--ramp-danger-500), var(--ramp-danger-600))`, because the
+ * two schemes need DIFFERENT ramp steps and a token that restated the numbers could drift from the
+ * ramp it was copied out of. Resolving the reference is what lets the gate check a derived role at
+ * all; without it every such pair would have to be checked against a hand-copied literal, which is
+ * the arrangement this whole token pipeline exists to stop.
+ *
+ * ⚠ The scheme is applied at EVERY hop, not just the first: `--chip-danger-from` picks the dark
+ * branch, and `--ramp-danger-600` — which it resolves to — has a dark branch of its own.
+ */
+function resolve(name, want, depth = 0) {
+  if (depth > 8) throw new Error(`${name} resolves in a circle`);
+  const value = scheme(declaration(name), want);
+  const reference = value.match(/^var\(\s*(--[\w-]+)\s*\)$/);
+  return reference ? resolve(reference[1], want, depth + 1) : value;
+}
+
+function token(name, want) {
+  const value = resolve(name, want);
   const parsed = value.match(/^oklch\(\s*([\d.]+)(%?)\s+([\d.]+)\s+([\d.]+)\s*\)$/);
   if (!parsed) throw new Error(`${name} must be an opaque oklch() value in ${want}, received ${value}`);
   return {
@@ -81,6 +105,22 @@ const pairs = [
   ["warning status / tint", "--ramp-warning-700", "--ramp-warning-50", 4.5],
   ["success status / tint", "--ramp-success-700", "--ramp-success-50", 4.5],
   ["info status / tint", "--ramp-info-700", "--ramp-info-50", 4.5],
+  /**
+   * The solid icon chip, BOTH stops (D-DT17 §4.2b).
+   *
+   * 3:1, not 4.5: the glyph is a non-text graphic, which is what WCAG 1.4.11 governs. Both stops
+   * are checked rather than an average, because the gradient's lighter end is where a white glyph
+   * goes first and an average would hide it.
+   *
+   * ⚠ This is the pair the whole light/dark step split exists for. The dark ramps turn over
+   * between 300 and 400 — dark `success-400` is L 79% against `success-300` at 48% — so reusing
+   * light's 500→700 in dark puts the glyph on a pale ground at 1.78:1. Re-step a chip and this
+   * gate is what tells you, in the scheme you were not looking at.
+   */
+  ...["danger", "caution", "warning", "success", "info", "brand", "neutral"].flatMap((tone) => [
+    [`chip glyph / ${tone} head`, "--chip-glyph", `--chip-${tone}-from`, 3],
+    [`chip glyph / ${tone} foot`, "--chip-glyph", `--chip-${tone}-to`, 3],
+  ]),
 ];
 
 let failed = false;
@@ -92,6 +132,48 @@ for (const want of ["light", "dark"]) {
     console.log(`${pass ? "✓" : "✗"} ${label}: ${ratio.toFixed(2)}:1 (minimum ${minimum}:1)`);
     failed ||= !pass;
   }
+}
+
+/**
+ * ── The chip's gradient, structurally (D-DT17) ──────────────────────────────────────────────────
+ *
+ * Two rules that are not about contrast and are here anyway, because this is the script that reads
+ * the sheet and resolving a `var()` chain is the thing it now knows how to do. They exist for the
+ * same reason the ratios above do: a chip is drawn from four tokens per tone, and a reader who
+ * wants to know whether the set is coherent has nowhere else to look.
+ *
+ *   1. Every tone declares the whole set. A missing `--elevation-chip-<tone>` is a `shadow-chip-*`
+ *      class that Tailwind emits nothing for, and a chip with no glow renders in silence.
+ *   2. Both stops stay on ONE hue's ramp, in BOTH schemes. A green→blue chip invents a colour
+ *      relationship the token system does not have; the dark branch is the half nobody looks at,
+ *      and it is the branch that had to be re-stepped by hand.
+ *
+ * The tone list is read off the sheet rather than listed here — an eighth tone must be checked by
+ * having arrived, not by somebody remembering to add it in two places.
+ */
+const chipTones = [...source.matchAll(/^\s*--chip-([a-z]+)-from\s*:/gm)].map((m) => m[1]);
+console.log(`── chip gradients (${chipTones.length} tones)`);
+if (chipTones.length === 0) {
+  console.log("✗ no --chip-*-from tokens found — this check has gone blind, not quiet");
+  failed = true;
+}
+for (const tone of chipTones) {
+  const missing = [`--chip-${tone}-to`, `--chip-${tone}-glow`, `--elevation-chip-${tone}`].filter(
+    (name) => !new RegExp(`^\\s*${name}\\s*:`, "m").test(source),
+  );
+  const hues = new Set();
+  for (const want of ["light", "dark"]) {
+    for (const stop of [`--chip-${tone}-from`, `--chip-${tone}-to`]) {
+      const step = scheme(declaration(stop), want).match(/^var\(\s*--ramp-([a-z]+)-\d+\s*\)$/);
+      hues.add(step ? step[1] : `not a ramp step (${stop}, ${want})`);
+    }
+  }
+  const ok = missing.length === 0 && hues.size === 1 && hues.has(tone);
+  console.log(
+    `${ok ? "✓" : "✗"} ${tone}: stops on ${[...hues].join(" + ")}` +
+      (missing.length ? `; missing ${missing.join(", ")}` : ""),
+  );
+  failed ||= !ok;
 }
 
 if (failed) process.exit(1);

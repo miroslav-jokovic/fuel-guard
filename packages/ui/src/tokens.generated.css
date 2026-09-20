@@ -268,6 +268,60 @@
   --danger-surface: light-dark(oklch(96% 0.0197 20), oklch(30.0% 0.055 20));
   --danger-text: light-dark(oklch(48% 0.18 27), oklch(78% 0.12 27));
 
+  /* ⚠ NOT `--ink-inverse`, which is the obvious reach and is wrong here: it flips to oklch(21.5% 0
+     0) in dark, where it would put a near-black glyph on a saturated chip. `--ink-inverse` means
+     "ink for an inverted SURFACE", and a chip's ground is saturated in both schemes rather than
+     inverted in one. The stops above are chosen so white clears 3:1 on every tone in both schemes,
+     which is what makes one glyph colour the right answer. */
+  --chip-glyph: oklch(100% 0 0); /* white in BOTH schemes — see why */
+  --chip-top-edge: color-mix(in oklab, oklch(100% 0 0) 28%, transparent); /* light catching the top of a solid object; an ingredient, not a utility */
+
+  /* the solid icon chip (D-DT17). One hue's ramp, two stops, a white glyph and the chip's own
+     colour cast on the card beneath — the `card 4` treatment, which concentrates a tile's colour
+     into its 40px chip so the tile's ground can stay neutral and the four KPI figures stay
+     comparable (that is D-DT1 pushed further, not reversed). ⚠ THE STOPS ARE NOT THE SAME STEPS IN
+     BOTH SCHEMES, and they cannot be: the dark ramps turn over between 300 and 400 (dark
+     `success-400` is L 79%, `success-300` is 48%), so the light pair 500→700 renders as a PALE
+     chip in dark and the white glyph drops to 1.78:1 on it. Measured 2026-09-20 across all seven
+     tones: light 500→700 holds the glyph at 3.27:1 worst (danger) and 3.73:1 best; dark 600→300
+     holds it at 3.29:1 worst (success) and 5.29:1 best. Both clear WCAG 1.4.11's 3:1 for a
+     non-text graphic. Neutral is the one tone whose dark `from` is 500 rather than 600, because
+     its dark ramp turns one step earlier — 600 (L 45.5%) is DARKER than 300 (L 49.9%), which would
+     light the chip from below while every other tone lit it from above. */
+  --chip-danger-from: light-dark(var(--ramp-danger-500), var(--ramp-danger-600));
+  --chip-danger-to: light-dark(var(--ramp-danger-700), var(--ramp-danger-300));
+
+  /* The glow is the chip's OWN foot colour, read from the `to` stop rather than restated, so a
+     re-stepped gradient cannot leave a cast from the colour it used to be. It carries no scheme of
+     its own for the same reason — `--chip-*-to` already has one. Not exposed to Tailwind: it is an
+     ingredient of the elevation below, never a utility. */
+  --chip-danger-glow: color-mix(in oklab, var(--chip-danger-to) 55%, transparent);
+  --elevation-chip-danger: inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-danger-glow);
+  --chip-caution-from: light-dark(var(--ramp-caution-500), var(--ramp-caution-600));
+  --chip-caution-to: light-dark(var(--ramp-caution-700), var(--ramp-caution-300));
+  --chip-caution-glow: color-mix(in oklab, var(--chip-caution-to) 55%, transparent);
+  --elevation-chip-caution: inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-caution-glow);
+  --chip-warning-from: light-dark(var(--ramp-warning-500), var(--ramp-warning-600));
+  --chip-warning-to: light-dark(var(--ramp-warning-700), var(--ramp-warning-300));
+  --chip-warning-glow: color-mix(in oklab, var(--chip-warning-to) 55%, transparent);
+  --elevation-chip-warning: inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-warning-glow);
+  --chip-success-from: light-dark(var(--ramp-success-500), var(--ramp-success-600));
+  --chip-success-to: light-dark(var(--ramp-success-700), var(--ramp-success-300));
+  --chip-success-glow: color-mix(in oklab, var(--chip-success-to) 55%, transparent);
+  --elevation-chip-success: inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-success-glow);
+  --chip-info-from: light-dark(var(--ramp-info-500), var(--ramp-info-600));
+  --chip-info-to: light-dark(var(--ramp-info-700), var(--ramp-info-300));
+  --chip-info-glow: color-mix(in oklab, var(--chip-info-to) 55%, transparent);
+  --elevation-chip-info: inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-info-glow);
+  --chip-brand-from: light-dark(var(--ramp-brand-500), var(--ramp-brand-600));
+  --chip-brand-to: light-dark(var(--ramp-brand-700), var(--ramp-brand-300));
+  --chip-brand-glow: color-mix(in oklab, var(--chip-brand-to) 55%, transparent);
+  --elevation-chip-brand: inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-brand-glow);
+  --chip-neutral-from: var(--ramp-neutral-500);
+  --chip-neutral-to: light-dark(var(--ramp-neutral-700), var(--ramp-neutral-300));
+  --chip-neutral-glow: color-mix(in oklab, var(--chip-neutral-to) 55%, transparent);
+  --elevation-chip-neutral: inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-neutral-glow);
+
   /* ── shape scale, doubled (D-DR2, 2026-09-16) ──────────────────────────────────────────────────
      Measured off the comps at 10x rather than estimated: a KPI card corner arcs over ~10-12px
      where ours arced over 6. The whole scale moves together and not just `shape-surface`, because
@@ -448,6 +502,28 @@
   --color-danger-solid-foreground: var(--danger-solid-foreground);
   --color-danger-surface: var(--danger-surface);
   --color-danger-text: var(--danger-text);
+  --color-chip-glyph: var(--chip-glyph);
+  --color-chip-danger-from: var(--chip-danger-from);
+  --color-chip-danger-to: var(--chip-danger-to);
+  --shadow-chip-danger: var(--elevation-chip-danger);
+  --color-chip-caution-from: var(--chip-caution-from);
+  --color-chip-caution-to: var(--chip-caution-to);
+  --shadow-chip-caution: var(--elevation-chip-caution);
+  --color-chip-warning-from: var(--chip-warning-from);
+  --color-chip-warning-to: var(--chip-warning-to);
+  --shadow-chip-warning: var(--elevation-chip-warning);
+  --color-chip-success-from: var(--chip-success-from);
+  --color-chip-success-to: var(--chip-success-to);
+  --shadow-chip-success: var(--elevation-chip-success);
+  --color-chip-info-from: var(--chip-info-from);
+  --color-chip-info-to: var(--chip-info-to);
+  --shadow-chip-info: var(--elevation-chip-info);
+  --color-chip-brand-from: var(--chip-brand-from);
+  --color-chip-brand-to: var(--chip-brand-to);
+  --shadow-chip-brand: var(--elevation-chip-brand);
+  --color-chip-neutral-from: var(--chip-neutral-from);
+  --color-chip-neutral-to: var(--chip-neutral-to);
+  --shadow-chip-neutral: var(--elevation-chip-neutral);
   --radius-detail: var(--shape-detail);
   --radius-control: var(--shape-control);
   --radius-surface: var(--shape-surface);
