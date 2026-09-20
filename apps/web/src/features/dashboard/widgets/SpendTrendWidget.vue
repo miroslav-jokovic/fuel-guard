@@ -8,15 +8,35 @@
  * equivalence harness. The gate is on the catalogue entry, not in here, so it is visible beside
  * every other gate rather than buried in a template.
  */
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { ChartConfiguration } from "chart.js";
+import { CurrencyDollarIcon } from "@silvicom/ui/icons";
 import BaseChart from "@/components/BaseChart.vue";
 import ChartCard from "../ChartCard.vue";
 import { useFleetWidgetData, type FleetRange } from "../fleetWidgetData";
 import { viz, BAR_GEOMETRY, trendOptions, fmtDay, fmtMoney } from "@/lib/chartTheme";
 
 const props = defineProps<{ range: FleetRange }>();
-const { s } = useFleetWidgetData(computed(() => props.range));
+const { s, rangeLabel } = useFleetWidgetData(computed(() => props.range));
+
+const points = computed(() => s.value?.spendTrend ?? []);
+
+/**
+ * The point under the pointer (D-DT11). Held here rather than in `ChartCard` because the formatting
+ * is this series' own — dollars, and a day rather than a week.
+ */
+const scrub = ref<{ label: string; value: number } | null>(null);
+
+/**
+ * The window's own total, summed from the SAME series the bars are drawn from.
+ *
+ * ⚠ Deliberately not `s.totalSpend`, which is the summary's figure over the summary's window. The
+ * two agree today and a card whose headline can disagree with the chart under it is a bug waiting
+ * for the day they do not — the readout has to be the sum of what is on screen.
+ */
+const total = computed(() => points.value.reduce((n, p) => n + (p.value ?? 0), 0));
+const readout = computed(() => (scrub.value ? fmtMoney(scrub.value.value) : fmtMoney(total.value)));
+const caption = computed(() => (scrub.value ? fmtDay(scrub.value.label) : `total · ${rangeLabel.value}`));
 
 /**
  * ── BARS, NOT A LINE (DR3) ───────────────────────────────────────────────────────────────────────
@@ -47,12 +67,26 @@ const spendChart = computed<ChartConfiguration>(() => ({
       ...BAR_GEOMETRY,
     }],
   },
-  options: trendOptions({ series: "Spend", format: (v) => fmtMoney(v) }),
+  options: trendOptions({
+    series: "Spend",
+    format: (v) => fmtMoney(v),
+    // The axis reads in round twenties instead of $15.3K/$30.7K (D-DT12), and the header carries
+    // the value under the pointer instead of a floating box (D-DT11).
+    dataMax: Math.max(0, ...points.value.map((p) => p.value ?? 0)),
+    onScrub: (p) => { scrub.value = p; },
+  }),
 }));
 </script>
 
 <template>
-  <ChartCard title="Fuel spend" subtitle="Daily total across the fleet">
+  <ChartCard
+    title="Fuel spend"
+    subtitle="Daily total across the fleet"
+    :icon="CurrencyDollarIcon"
+    tone="success"
+    :readout="readout"
+    :caption="caption"
+  >
     <BaseChart :config="spendChart" :height="260" />
     <table class="sr-only">
       <caption>Fuel spend by day</caption>

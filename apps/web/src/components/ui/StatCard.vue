@@ -191,14 +191,20 @@ const valueClass = computed(() =>
       <!--
         `size-10` and `gap-3` because the comp's chip measures ~40px.
       -->
-      <div :class="hero ? 'flex items-start gap-3' : 'flex items-start justify-between gap-3'">
-        <!-- D-DR2: the hero chip leads the tile from the left and is bigger; the KPI chip keeps its
-             place on the right. Two elements rather than one with a reordering class, because the
-             KPI anatomy is what fourteen surfaces render and the cheapest way to keep it
-             byte-identical is to not touch its branch at all. Both sides are pinned by
-             StatCard.test.ts's "leads with the icon chip in hero and trails with it in kpi", and the
-             KPI classes themselves by "renders the contract's KPI row by default". -->
-        <AppIconChip v-if="icon && hero" :icon="icon" :tone="tone" size="md" />
+      <div class="flex items-start gap-3">
+        <!--
+          ⚠ ONE SIDE, both anatomies, since 2026-09-20 (D-DT21). D-DR2 moved the chip left in the
+          hero and deliberately left the KPI chip on the right, so that fourteen surfaces would not
+          reflow. The cost of that caution only became visible on the Dashboard, where both
+          anatomies are on screen at once: four hero tiles leading with a chip, nine operating-metric
+          tiles trailing with one, and the eye reads the pair as two unrelated components rather
+          than one system. Every comp in `docs/design examples/` — all eleven — leads with the chip
+          in both bands, and the owner's reading of the shipped page was the same ("icons … mixed").
+          The size still differs (md/sm); only the side is now shared. Pinned by StatCard.test.ts's
+          "leads with the icon chip in both anatomies", and the KPI classes by "renders the
+          contract's KPI row by default".
+        -->
+        <AppIconChip v-if="icon" :icon="icon" :tone="tone" :size="hero ? 'md' : 'sm'" />
         <div class="min-w-0 flex-1">
           <!--
             ⚠ `flex-wrap` and `min-w-32`, and both are load-bearing (D-DR17).
@@ -252,7 +258,6 @@ const valueClass = computed(() =>
             </div>
           </div>
         </div>
-        <AppIconChip v-if="icon && !hero" :icon="icon" :tone="tone" size="sm" />
       </div>
       <div v-if="spark && !loading && !inlineSpark" class="mt-3">
         <SparkLine :points="spark" :color="sparkColor ?? 'currentColor'" />

@@ -38,7 +38,7 @@
  * is what proves the elements did not move. A flat stack of nine cards would have been simpler code
  * and a visibly different page.
  */
-import { computed, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import { canReachSurface, resolveDashboardLayout, widgetsForTab, type DashboardWidget } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useModulesQuery } from "@/composables/useModules";
@@ -59,6 +59,27 @@ const { data: modules } = useModulesQuery();
 const { layout } = useDashboardLayout();
 
 const editing = ref(false);
+
+/**
+ * Is the page's control row there to teleport Customize into (D-DT20)?
+ *
+ * Read once on mount rather than per render: the row is `DashboardPage`'s own markup, rendered
+ * above this component and for as long as it is, so the answer cannot change while this is
+ * mounted. Asked at all because this component is mounted without a page around it in three test
+ * files, and a Teleport whose target does not exist warns and renders nothing.
+ */
+const hasActionsRow = ref(false);
+onMounted(async () => {
+  /**
+   * ⚠ After `nextTick`, and that is not defensive tidiness — it is the difference between the
+   * button landing in the row and landing back on the photograph. A child's `onMounted` runs
+   * BEFORE its parent's subtree is inserted into the document, so the row exists as a detached
+   * node and `document.querySelector` returns null. Measured on 2026-09-20: the first build of
+   * this teleport rendered in place, silently, because the guard said the target was missing.
+   */
+  await nextTick();
+  hasActionsRow.value = document.querySelector("#dashboard-actions") !== null;
+});
 
 /** Everything on this tab the caller MAY see. The permission answer, and the only one. */
 const allowed = computed<DashboardWidget[]>(() =>
@@ -122,12 +143,43 @@ const workspaceWidget = computed(() =>
   />
 
   <div v-else class="space-y-4">
-    <div v-if="!nothingAvailable" class="flex justify-end">
+    <!--
+      ── WHY THIS IS A TELEPORT (D-DT20) ───────────────────────────────────────────────────────────
+      The button belongs on the page's control row, beside the tabs and the range picker; the
+      DECISION to offer it belongs here, where `nothingAvailable` is computed and where the editor
+      it opens already lives. Teleporting is what lets both be true. The alternatives were both
+      worse: emitting "I have widgets" so the page could draw its own button duplicates the gate in
+      a second place, and moving the editor up to the page drags `allowed`/`arranged` — the whole
+      permission computation — with it.
+
+      Before this it was a right-aligned row of its own directly under the tab strip, which on the
+      Dashboard put it on top of the hero photograph: at 1440 it landed on the truck's cab, mid-grey
+      on mid-grey, and read as a smudge rather than a control.
+
+      ⚠⚠ `:key` IS THE FIX, and `:disabled` alone was not. Vue resolves a Teleport's target ONCE,
+      at the vnode's first mount, and caches it on the vnode — including when it mounts disabled.
+      A child's `onMounted` runs before its parent's subtree reaches the document, so the target
+      resolved to `null`, and flipping `disabled` afterwards moved the button to nowhere: it stayed
+      exactly where the old code drew it, on the photograph, with no warning in a production build.
+      Keying on the flag remounts the Teleport once the row is really in the document, which is the
+      only moment the target can be resolved. Measured 2026-09-20; two builds read as "the teleport
+      silently does nothing" before the cache was the answer.
+
+      `:disabled` still earns its place: it is what the unit tests mount against (three files mount
+      this component with no page around it), and it renders the button in place rather than
+      dropping it.
+    -->
+    <Teleport
+      v-if="!nothingAvailable"
+      :key="String(hasActionsRow)"
+      to="#dashboard-actions"
+      :disabled="!hasActionsRow"
+    >
       <BaseButton type="button" variant="ghost" @click="editing = true">
         <AppIcon :icon="AdjustmentsHorizontalIcon" class="size-4" aria-hidden="true" />
         Customize
       </BaseButton>
-    </div>
+    </Teleport>
 
     <!-- Nothing exists for them here — see `nothingAvailable`. No Customize, because there is
          nothing to customize, and no suggestion that they have done something they can undo. -->

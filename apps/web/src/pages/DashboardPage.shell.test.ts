@@ -166,6 +166,31 @@ describe("the tab strip actually switches the dashboard", () => {
   });
 });
 
+/**
+ * ── THE CONTROL ROW (D-DT20) ──────────────────────────────────────────────────────────────────
+ * What this pins is a LAYOUT fact, which is unusual here and is the point: the range picker and
+ * Export used to be `PageHeader`'s actions and Customize was a row `TabWidgets` drew for itself,
+ * so the three controls that scope this page sat in three places — two of them on top of the hero
+ * photograph. The row is also load-bearing markup: `TabWidgets` teleports Customize into
+ * `#dashboard-actions` BY ID, so renaming or dropping the element puts the button back over the
+ * truck silently, in a production build, with no warning.
+ */
+describe("the control row", () => {
+  it("keeps the tab strip and the scope controls in one row", () => {
+    sessionMock.canView = grants("fuel", "dispatch", "accounting");
+    const w = mountShell();
+
+    const tablist = w.find('[role="tablist"]');
+    const actions = w.find("#dashboard-actions");
+    expect(tablist.exists()).toBe(true);
+    expect(actions.exists(), "TabWidgets teleports Customize into #dashboard-actions by id").toBe(true);
+    // Siblings, not merely both-present: a row is what puts them on one line.
+    expect(actions.element.parentElement).toBe(tablist.element.parentElement);
+    // And the scope controls are inside it rather than back up in the header.
+    expect(actions.find('[data-test="range-filter"]').exists()).toBe(true);
+  });
+});
+
 describe("the header's fleet-only controls", () => {
   it("offers the range filter and exports on the fleet tab", () => {
     sessionMock.role = "admin";

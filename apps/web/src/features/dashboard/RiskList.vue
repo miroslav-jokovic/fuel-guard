@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import { AppIcon, type ChipTone } from "@silvicom/ui";
 import {
   ShieldCheckIcon,
+  type Icon,
 } from "@silvicom/ui/icons";
 import { RouterLink } from "vue-router";
 import type { RiskRow } from "@silvicom/shared";
@@ -22,17 +23,27 @@ import ChartCard from "./ChartCard.vue";
  * column context that `flex-1` has nothing to fill — the icon and its sentence collapse to the top
  * of a tall card beside a populated neighbour.
  */
-defineProps<{
-  title: string;
-  rows: RiskRow[];
-  /** e.g. "/vehicles" — rows link to `${linkBase}/${id}`. Omit for non-linkable rows. */
-  linkBase?: string;
-  emptyLabel: string;
-}>();
+withDefaults(
+  defineProps<{
+    title: string;
+    rows: RiskRow[];
+    /** e.g. "/vehicles" — rows link to `${linkBase}/${id}`. Omit for non-linkable rows. */
+    linkBase?: string;
+    emptyLabel: string;
+    /**
+     * The header chip, passed straight through to `ChartCard` (D-DT21). Optional because the header
+     * it feeds is, and because a risk list is not a dashboard-only component — but every card in
+     * the dashboard grid carries one, and a card without it now reads as the odd one out.
+     */
+    icon?: Icon;
+    tone?: ChipTone;
+  }>(),
+  { linkBase: undefined, icon: undefined, tone: undefined },
+);
 </script>
 
 <template>
-  <ChartCard :title="title" class="flex h-full flex-col">
+  <ChartCard :title="title" :icon="icon" :tone="tone" class="flex h-full flex-col">
     <div v-if="rows.length === 0" class="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
       <AppIcon :icon="ShieldCheckIcon" class="size-8 text-success-500" aria-hidden="true" />
       <p class="text-sm font-medium text-ink">{{ emptyLabel }}</p>

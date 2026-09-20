@@ -140,6 +140,18 @@ const metricStrip = computed(() =>
         :to="stat.to"
         class="group flex min-w-0 items-start gap-3 px-4 py-3 hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
       >
+        <!--
+          The chip LEADS, as it does in `StatCard`'s hero and KPI anatomies and in all eleven comps
+          (D-DT21). It trailed until 2026-09-20 — the comment below this used to argue that the
+          trailing position "really is local" because D-DR2 had moved only the hero chip. That was
+          true of the code and wrong on the page: this strip sits directly under four hero tiles
+          whose chips lead, so the two bands disagreed about the same object, eight inches apart.
+
+          The GEOMETRY is `AppIconChip`'s and has been since the tone vocabulary landed — `size="sm"`
+          IS the KPI anatomy. It used to be copied here (`size-9`, `size-5`, `rounded-surface`),
+          which is what made one vocabulary look like two call sites when it was three.
+        -->
+        <AppIconChip v-if="stat.icon" :icon="stat.icon" :tone="stat.tone" size="sm" />
         <div class="min-w-0 flex-1">
           <dt class="truncate text-xs font-medium text-ink-tertiary">{{ stat.label }}</dt>
           <!--
@@ -159,22 +171,6 @@ const metricStrip = computed(() =>
           </dd>
           <dd class="truncate text-xs text-ink-tertiary">{{ stat.sub }}</dd>
         </div>
-        <!--
-          The chip every tile in this strip has always carried and none has ever drawn (DR7a). Each
-          entry below already sets `icon` and `tone`, `applyMoneyGate` passes both through, and the
-          template dropped them — `LedgerTile.icon` was typed `unknown`, so drawing one needed a cast
-          and the missing cast read as intent.
-
-          ⚠ The geometry used to be COPIED here from `StatCard`'s `size="kpi"` branch — `size-9`,
-          `size-5`, `rounded-surface` — with a comment arguing that "two surfaces agreeing because
-          one read the other beats two surfaces agreeing by coincidence". True, and a copy is still
-          a copy: this was the THIRD place the chip was drawn, after StatCard's two branches, and it
-          is what made the tone vocabulary look like two call sites when it was three. `AppIconChip`
-          is now the one drawing, and `size="sm"` IS the KPI anatomy. The trailing POSITION stays a
-          property of this template, because that part really is local — D-DR2 moved the chip left
-          in the hero anatomy only, and these are KPI tiles.
-        -->
-        <AppIconChip v-if="stat.icon" :icon="stat.icon" :tone="stat.tone" size="sm" />
       </RouterLink>
     </dl>
   </BaseCard>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
+import { ShieldExclamationIcon } from "@silvicom/ui/icons";
 import ChartCard from "./ChartCard.vue";
 import DonutBreakdown from "./DonutBreakdown.vue";
 import { viz } from "@/lib/chartTheme";
@@ -25,7 +26,13 @@ const rows = computed(() =>
 </script>
 
 <template>
-  <ChartCard title="Open cases by severity" subtitle="Current open and investigating cases" class="h-full">
+  <ChartCard
+    title="Open cases by severity"
+    subtitle="Current open and investigating cases"
+    :icon="ShieldExclamationIcon"
+    tone="danger"
+    class="h-full"
+  >
     <template #meta>
       <RouterLink
         to="/anomalies"
