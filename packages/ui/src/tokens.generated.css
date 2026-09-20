@@ -206,6 +206,21 @@
   --edge-strong: light-dark(oklch(82.2% 0.0069 286.2), oklch(35.0% 0.0086 285.9)); /* OMNIA #C4C4C9 — emphasised or hovered boundary */
   --edge-control: light-dark(oklch(63.5% 0.015 286), oklch(58.5% 0.015 286)); /* essential control boundary; 3:1 on canvas */
 
+  /* the ground a segmented control sits in — brand-tinted, not grey (D-DT16) */
+
+  /* A well used to be `--surface-muted`, and a grey slab spends a solid block of ink saying "these
+     three things belong together", which proximity already said for free — on the page's only
+     large neutral field, given to a control rather than to data. ⚠ `--ramp-brand-50` alone is NOT
+     the answer: at chroma 0.0061 it is technically brand and visually grey, which was the original
+     complaint. 58% of brand-100 (chroma 0.0205) lands at 0.0119 in light and 0.0140 in dark. The
+     value carries no `light-dark()` of its own because both its arguments have one. Measured
+     2026-09-20: the ground is 1.004:1 against `--canvas` in light, so the well is read from its
+     ring and the pill from its elevation — the way a raised object separates, not the way a hole
+     does. Idle label contrast goes UP, not down: `--ink-muted` reads 5.48:1 here against 4.82:1 on
+     `--surface-muted` (light) and 5.67:1 against 5.33:1 (dark). */
+  --control-well: color-mix(in oklab, var(--ramp-brand-100) 58%, var(--surface)); /* light #F5F6FF, dark #292A31 — measured 2026-09-20 */
+  --control-well-edge: color-mix(in oklab, var(--ramp-brand-200) 50%, transparent); /* the well's own hairline — 1.11:1 on the ground in light, 1.23:1 in dark */
+
   /* Shadow TINTS are colours, so they can be light-dark() pairs like everything else. The
      elevations below are built from them: a shadow value itself cannot go through light-dark(),
      which takes colours only, and tinting with --ink in dark would cast a light shadow because ink
@@ -411,6 +426,8 @@
   --color-edge: var(--edge);
   --color-edge-strong: var(--edge-strong);
   --color-edge-control: var(--edge-control);
+  --color-control-well: var(--control-well);
+  --color-control-well-edge: var(--control-well-edge);
   --shadow-card: var(--elevation-card);
   --shadow-card-raised: var(--elevation-card-raised);
   --shadow-overlay: var(--elevation-overlay);

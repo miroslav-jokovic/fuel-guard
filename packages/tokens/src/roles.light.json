@@ -152,6 +152,26 @@
         "silvicom.expose": "color"
       }
     },
+    "control-well": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ramp-brand-100) 58%, var(--surface))",
+      "$description": "light #F5F6FF, dark #292A31 \u2014 measured 2026-09-20",
+      "$extensions": {
+        "silvicom.section": [
+          "the ground a segmented control sits in \u2014 brand-tinted, not grey (D-DT16)",
+          "A well used to be `--surface-muted`, and a grey slab spends a solid block of ink saying \"these three things belong together\", which proximity already said for free \u2014 on the page's only large neutral field, given to a control rather than to data. \u26a0 `--ramp-brand-50` alone is NOT the answer: at chroma 0.0061 it is technically brand and visually grey, which was the original complaint. 58% of brand-100 (chroma 0.0205) lands at 0.0119 in light and 0.0140 in dark. The value carries no `light-dark()` of its own because both its arguments have one. Measured 2026-09-20: the ground is 1.004:1 against `--canvas` in light, so the well is read from its ring and the pill from its elevation \u2014 the way a raised object separates, not the way a hole does. Idle label contrast goes UP, not down: `--ink-muted` reads 5.48:1 here against 4.82:1 on `--surface-muted` (light) and 5.67:1 against 5.33:1 (dark)."
+        ],
+        "silvicom.expose": "color"
+      }
+    },
+    "control-well-edge": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ramp-brand-200) 50%, transparent)",
+      "$description": "the well's own hairline \u2014 1.11:1 on the ground in light, 1.23:1 in dark",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
     "shadow-tint-1": {
       "$type": "color",
       "$value": "color-mix(in oklab, var(--ink) 5%, transparent)",

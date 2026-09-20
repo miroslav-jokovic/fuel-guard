@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { SEGMENTED_IDLE, SEGMENTED_SEGMENT, SEGMENTED_SELECTED, SEGMENTED_WELL } from "../segmentedSurface";
 
 /**
  * The one tab strip (UI plan U4, D-UI4).
@@ -22,6 +23,10 @@ import { computed, ref, watch } from "vue";
  * No panel rendering. The six call sites each `v-if` their own panels, some of them lazily, and a
  * component that owned the panels would have to own their loading too. This owns the strip, the
  * roles, and the keyboard; the page still owns what a tab reveals.
+ *
+ * Nor the LOOK, since 2026-09-20 (D-DT16). The well, the pill and the idle ink live in
+ * `../segmentedSurface` and are shared with `AppSegmentedControl`, which had drawn the same recipe
+ * by hand and had already drifted from it. This file owns the widget; that file owns the style.
  */
 export interface TabItem {
   value: string;
@@ -115,9 +120,7 @@ const panelId = (value: string): string | undefined =>
   <nav
     class="flex text-sm"
     :class="[
-      orientation === 'vertical'
-        ? 'flex-col gap-0.5'
-        : 'gap-1 rounded-surface bg-surface-muted p-1',
+      orientation === 'vertical' ? 'flex-col gap-0.5' : `gap-1 p-1 ${SEGMENTED_WELL}`,
       scrollable ? 'overflow-x-auto' : '',
     ]"
     role="tablist"
@@ -132,17 +135,18 @@ const panelId = (value: string): string | undefined =>
       ref="buttons"
       type="button"
       role="tab"
-      class="rounded-control px-3 py-1.5 font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      class="py-1.5"
       :class="[
+        SEGMENTED_SEGMENT,
         scrollable ? 'shrink-0' : '',
         orientation === 'vertical' ? 'flex w-full items-center justify-between gap-2 text-left' : '',
         tab.value === modelValue
           ? orientation === 'vertical'
             ? 'bg-selected-surface text-ink'
-            : 'bg-surface text-ink'
+            : SEGMENTED_SELECTED
           : orientation === 'vertical'
             ? 'text-ink-secondary hover:bg-surface-subtle hover:text-ink'
-            : 'text-ink-muted hover:text-ink-secondary',
+            : SEGMENTED_IDLE,
       ]"
       :aria-selected="tab.value === modelValue"
       :aria-controls="panelId(tab.value)"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppButton, AppAvatar, AppCheckbox, AppSegmentedControl } from "@silvicom/ui";
+import { AppButton, AppAvatar, AppCheckbox, AppSegmentedControl, AppTabs } from "@silvicom/ui";
 import { FuelCardIcon, TruckIcon, UserGroupIcon, ShieldCheckIcon } from "@silvicom/ui/icons";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
@@ -10,6 +10,7 @@ import type { Crumb } from "@/lib/breadcrumbs";
 import { useSidebarSections } from "@/composables/useSidebarSections";
 import type { NavGroup } from "@/lib/nav";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { metrics, rows, shippedRows } from "./labSpecimens";
 
 type ActionMode = "graphite" | "gold";
 type SidebarMode = "dark" | "light";
@@ -39,6 +40,12 @@ const labSegmentOptions = [
 ];
 const labCheckB = ref(true);
 const labCheckC = ref(false);
+const labTab = ref("exports");
+const labTabs = [
+  { value: "drivers", label: "Drivers" },
+  { value: "exports", label: "Exports", badge: 12 },
+  { value: "audit", label: "Audit" },
+];
 
 const labTrailDeep: Crumb[] = [
   { label: "Settings", to: "/settings" },
@@ -123,51 +130,6 @@ const labIsCurrent = (to: string) => to === labCurrent;
 const labNavLinkClass = (to: string) => [
   labIsCurrent(to) ? "sidebar-nav-active" : "sidebar-nav-inactive",
   "sidebar-nav-item group flex min-h-10 items-center gap-x-2.5 rounded-control px-2.5 py-2 text-sm font-medium leading-5",
-];
-
-const shippedRows = [
-  { unit: "Unit 204", driver: "Maya Chen", gallons: "118.4", amount: "$412.86", mpg: "7.4", status: "Clear" },
-  { unit: "Unit 118", driver: "Darnell Ross", gallons: "96.2", amount: "$338.71", mpg: "6.1", status: "Review" },
-  { unit: "Unit 337", driver: "Priya Nandi", gallons: "141.9", amount: "$497.02", mpg: "7.9", status: "Clear" },
-  { unit: "Unit 052", driver: "Tom Bergeron", gallons: "88.0", amount: "$310.44", mpg: "5.2", status: "Alert" },
-];
-
-const metrics = [
-  { label: "Fuel spend", value: "$48,720", change: "2.8% below plan" },
-  { label: "Active alerts", value: "7", change: "2 require action", attention: true },
-  { label: "Idle cost", value: "$1,284", change: "$196 avoidable" },
-  { label: "Fleet MPG", value: "7.4", change: "+0.3 this period" },
-];
-
-const rows = [
-  {
-    vehicle: "Unit 204",
-    driver: "Maya Chen",
-    station: "Pilot No. 118",
-    amount: "$642.18",
-    status: "Verified",
-  },
-  {
-    vehicle: "Unit 318",
-    driver: "Andre Silva",
-    station: "Love's No. 728",
-    amount: "$511.44",
-    status: "Review",
-  },
-  {
-    vehicle: "Unit 112",
-    driver: "Nora Patel",
-    station: "TA Dallas",
-    amount: "$476.09",
-    status: "Verified",
-  },
-  {
-    vehicle: "Unit 425",
-    driver: "Eli Brooks",
-    station: "Flying J No. 614",
-    amount: "$704.31",
-    status: "Alert",
-  },
 ];
 </script>
 
@@ -378,6 +340,18 @@ const rows = [
           A deliberately long label that wraps onto a second line so the box can be seen holding its
           place beside the first one rather than drifting to the middle of the block
         </AppCheckbox>
+      </div>
+
+      <h3>Tab strip</h3>
+      <p class="lab-shipped-note">
+        The same well and pill as the segmented control below, read from one recipe rather than
+        written twice (D-DT16). The ground is brand-tinted, not grey, and the selected tab reads as
+        a raised object — surface, ring and elevation — rather than as a hole cut in a slab. The
+        vertical rail gets neither: it sits on the page ground and marks its row instead.
+      </p>
+      <div class="lab-shipped-row">
+        <AppTabs v-model="labTab" :tabs="labTabs" label="Qualification view" />
+        <AppTabs v-model="labTab" :tabs="labTabs" label="Qualification rail" orientation="vertical" />
       </div>
 
       <h3>Segmented control</h3>
