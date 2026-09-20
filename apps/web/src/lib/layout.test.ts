@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isFullBleed, resolveLayout, sidebarIsCollapsed } from "./layout";
+import { hasHeroPlate, heroPlate, isFullBleed, resolveLayout, sidebarIsCollapsed } from "./layout";
 
 describe("resolveLayout (G1)", () => {
   it("signed out, a dead-end page swaps AppShell for the centered auth shell", () => {
@@ -100,5 +100,57 @@ describe("sidebarIsCollapsed (D-DR25)", () => {
     const stored = false;
     expect(sidebarIsCollapsed({ stored, fullBleed: true, override: null })).toBe(true);
     expect(sidebarIsCollapsed({ stored, fullBleed: false, override: null })).toBe(false);
+  });
+});
+
+/**
+ * The page backdrop's plate (D-DT18, D-DT19 — and D-DR19 before them, where these assertions
+ * lived as `PageHeader` tests about an `<img>` prop).
+ *
+ * ⚠ The scheme is an ARGUMENT here rather than a composable read inside the function, which is
+ * what moving the plate out of the header bought: choosing a photograph is arithmetic on the
+ * route's meta, so it can be asked all four ways in four lines instead of by mounting a component
+ * and writing a CSS property onto `<html>` to make it answer.
+ */
+const DAY = "/hero/highway-dawn.webp";
+const NIGHT = "/hero/highway-night.webp";
+const route = (meta: Record<string, unknown>, query: Record<string, unknown> = {}) => ({ meta, query });
+
+describe("heroPlate (D-DT18)", () => {
+  it("hangs the day plate in light and the night plate in dark", () => {
+    expect(heroPlate(route({ hero: DAY, heroDark: NIGHT }), false)).toBe(DAY);
+    expect(heroPlate(route({ hero: DAY, heroDark: NIGHT }), true)).toBe(NIGHT);
+  });
+
+  /**
+   * ⚠ A compromise, asserted as a decision rather than met as a surprise. `prairie-dusk` and
+   * `coast-mist` have no night variant and keep the 6.54:1 separation measured on them in dark
+   * mode; a missing file is still not a reason to drop the whole layer.
+   */
+  it("falls back to the day plate when a route has no night variant", () => {
+    expect(heroPlate(route({ hero: DAY }), true)).toBe(DAY);
+  });
+
+  it("is nothing at all on a route that declares no plate", () => {
+    expect(heroPlate(route({ title: "Vehicles" }), false)).toBeNull();
+    expect(hasHeroPlate(route({ title: "Vehicles" }))).toBe(false);
+  });
+
+  /**
+   * ⚠ The reason this is a function and not `route.meta.hero` at the call site. The dashboard is
+   * the SAME route with and without gutters — a document on most tabs, a workspace on the one
+   * holding the live map (D-DR24) — so "does this page want a backdrop" cannot be answered from
+   * the meta alone, and a decorative layer under the live map is what reading it directly buys.
+   */
+  it("refuses a plate whenever the outlet is edge to edge", () => {
+    const dashboard = (tab: string) =>
+      route({ hero: DAY, heroDark: NIGHT, fullBleed: (r: { query?: Record<string, unknown> }) => r.query?.tab === "map" }, { tab });
+
+    expect(heroPlate(dashboard("fleet"), false)).toBe(DAY);
+    expect(hasHeroPlate(dashboard("fleet"))).toBe(true);
+    expect(heroPlate(dashboard("map"), false)).toBeNull();
+    expect(hasHeroPlate(dashboard("map"))).toBe(false);
+    // …and a statically full-bleed route with a plate declared on it gets the same answer.
+    expect(heroPlate(route({ hero: DAY, fullBleed: true }), false)).toBeNull();
   });
 });

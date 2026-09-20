@@ -14,7 +14,8 @@ import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessu
 import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
-import { isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
+import { heroPlate, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
+import { useColorScheme } from "@/composables/useColorScheme";
 import { useModulesQuery } from "@/composables/useModules";
 import NotificationBell from "@/components/NotificationBell.vue";
 import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
@@ -35,6 +36,17 @@ const queryClient = useQueryClient();
  * D-DR5: the outlet varies, the shell does not. See `isFullBleed` for why this is not a `layout`.
  */
 const fullBleed = computed(() => isFullBleed(route));
+
+/**
+ * The page backdrop (D-DT18) — the shell's, not the page's.
+ *
+ * It sits behind bands the PAGE renders and bleeds past a gutter the SHELL owns, so neither half
+ * could have drawn it alone. `heroPlate` answers which plate, including the refusal on a full-bleed
+ * route; `useColorScheme` answers day or night, as it does for the live map's basemap (D-DR8) —
+ * one place in the product decides whether the reader is in dark mode.
+ */
+const { isDark } = useColorScheme();
+const plate = computed(() => heroPlate(route, isDark.value));
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const modules = useModulesQuery();
@@ -416,8 +428,48 @@ async function signOut() {
       -->
       <main :class="fullBleed ? 'h-[calc(100dvh-4rem)] overflow-hidden' : 'py-6'">
         <!-- Full-width content: tables use the whole screen; small gutters only. -->
-        <div :class="fullBleed ? 'h-full' : 'w-full px-4 sm:px-6 lg:px-8'">
-          <slot />
+        <div
+          class="relative"
+          :class="fullBleed ? 'h-full' : 'w-full px-4 sm:px-6 lg:px-8'"
+          :style="plate ? { '--backdrop-plate': `url(${plate})` } : undefined"
+        >
+          <!--
+            ⚠ The layer is a SIBLING of the page, first in the document and inside the gutter's own
+            box. First, so everything the page draws paints over it without a single band knowing it
+            is there — one `position: relative` above, no z-index ladder, and no page needing to opt
+            in. Inside the gutter's box, because the bleed is expressed as a negative of that exact
+            padding: `--backdrop-bleed` carries the gutter's current value at each breakpoint, so the
+            plate reaches the window edge at 1440 and at 820 without either number being written
+            twice. The classes are in `style.css` — see that block for the crop arithmetic.
+
+            Decorative, so `aria-hidden` and no `alt` text: a screen reader announcing "a truck on a
+            highway" before the day's numbers is noise. The words that sit on it stay legible by the
+            veil rather than by a scrim, measured in DASHBOARD-TEMPLATE-V2.md §4.0.
+          -->
+          <template v-if="plate">
+            <div
+              class="page-backdrop [--backdrop-bleed:1rem] sm:[--backdrop-bleed:1.5rem] lg:[--backdrop-bleed:2rem]"
+              aria-hidden="true"
+            >
+              <div class="page-backdrop__plate"></div>
+              <div class="page-backdrop__veil"></div>
+            </div>
+            <!--
+              ⚠ This wrapper is not decoration, and the bug it fixes is invisible in a unit test.
+              CSS paints a POSITIONED descendant above an in-flow non-positioned one whatever the
+              document order says, so a `z-index: 0` layer drawn first still covers the page: probed
+              in the built stylesheet 2026-09-20, a white KPI card under a plate simply disappeared,
+              with the truck rendered over the top of it. Making the page content positioned puts it
+              back on top — this is the prototype's `.page > .band { position: relative }` rule,
+              applied once by the shell so that not one band has to know the layer exists.
+
+              ⚠ And it is inside `v-if` rather than always present: a full-bleed route has no
+              backdrop, and giving the live map an extra static wrapper would break the `h-full`
+              chain its outlet depends on. A page without a plate keeps exactly the DOM it had.
+            -->
+            <div class="relative"><slot /></div>
+          </template>
+          <slot v-else />
         </div>
       </main>
     </div>
