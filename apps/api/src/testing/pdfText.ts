@@ -55,6 +55,11 @@ export async function pdfText(pdf: Buffer): Promise<string> {
  * PLACE on its sheet — that needs a raster and a pair of eyes.
  */
 export async function pdfPageTexts(pdf: Buffer): Promise<string[]> {
+  return (await pageStreams(pdf)).map(decodeShownText);
+}
+
+/** Each page's decoded content stream, in sheet order. */
+async function pageStreams(pdf: Buffer): Promise<string[]> {
   const { inflateSync } = await import("node:zlib");
   const { PDFArray, PDFDocument, PDFStream } = await import("pdf-lib");
   const doc = await PDFDocument.load(pdf, { ignoreEncryption: true });
@@ -71,11 +76,58 @@ export async function pdfPageTexts(pdf: Buffer): Promise<string[]> {
   return doc.getPages().map((page) => {
     const contents = page.node.Contents();
     if (!contents) return "";
-    const body =
-      contents instanceof PDFArray
-        ? contents.asArray().map((ref) => inflate(doc.context.lookup(ref, PDFStream))).join("\n")
-        : inflate(contents as InstanceType<typeof PDFStream>);
-    return decodeShownText(body);
+    return contents instanceof PDFArray
+      ? contents.asArray().map((ref) => inflate(doc.context.lookup(ref, PDFStream))).join("\n")
+      : inflate(contents as InstanceType<typeof PDFStream>);
+  });
+}
+
+/** One run of drawn text, where pdfkit put it. `y` is points DOWN from the top of the sheet. */
+export interface DrawnLine {
+  page: number;
+  x: number;
+  y: number;
+  /** The point size in force, which is how a caption is told from the body beneath it. */
+  size: number;
+  text: string;
+}
+
+/**
+ * Every run of text a pdfkit document drew, with its position — for the claims text cannot carry.
+ *
+ * ── ⚠ WHY THIS EXISTS BESIDE `pdfPageTexts` AND DOES NOT REPLACE IT (AUD-8, 2026-09-20) ───────
+ * Five defects in a row have had the same shape: every string is in the content stream whether the
+ * layout is right or wrong, so a text assertion is green either way. AUD-8 is the purest case —
+ * `Version v0-draft` printed identically when it sat 1.96pt above the rows it looked like one of
+ * and when it sat 9.84pt above them, and only the second is a caption. What discriminates is where
+ * the renderer put it, which is what this returns.
+ *
+ * ⚠ **It reads the OUTPUT, not a helper's opinion of the output.** AUD-19 shipped a test that asked
+ * a placement function where a notice should go; the draw loop ignored the function, the mutant
+ * survived and the collision stayed in the document. So this parses the drawn stream and nothing
+ * else.
+ *
+ * ⚠ It is still not a PDF parser. pdfkit sets its text matrix per run as `1 0 0 1 x y Tm` inside a
+ * flipped `1 0 0 -1 0 H cm`, so `H - y` is the distance down the page — true of every run this
+ * module's documents emit and NOT true of PDFs in general. Rotated text (the band `stamp.ts` draws)
+ * uses a different matrix and is deliberately not matched, which is why the band never appears here.
+ */
+export async function pdfDrawnLines(pdf: Buffer): Promise<DrawnLine[]> {
+  const { PDFDocument } = await import("pdf-lib");
+  const heights = (await PDFDocument.load(pdf, { ignoreEncryption: true }))
+    .getPages()
+    .map((p) => p.getHeight());
+
+  const run = /BT\s+1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm\s+\/\w+ ([\d.]+) Tf\s+(.*?)\s*ET/gs;
+  return (await pageStreams(pdf)).flatMap((stream, page) => {
+    const height = heights[page] ?? 792;
+    return [...stream.matchAll(run)].map((m) => ({
+      page,
+      x: Number(m[1]),
+      y: height - Number(m[2]),
+      size: Number(m[3]),
+      text: decodeShownText(m[4] ?? ""),
+    }));
   });
 }
 
@@ -103,4 +155,26 @@ function decodeShownText(stream: string): string {
 export async function pdfPageCount(pdf: Buffer): Promise<number> {
   const { PDFDocument } = await import("pdf-lib");
   return (await PDFDocument.load(pdf, { ignoreEncryption: true })).getPageCount();
+}
+
+/**
+ * Where a page's horizontal rules were stroked — points down from the top, per sheet.
+ *
+ * ⚠ A rule is not text and `pdfDrawnLines` cannot see one, which matters because a rule is how
+ * these documents separate a header block from a body. On the permissions PDF's first sheet it sat
+ * 7.65pt under the lede and 10.39pt above the carrier rows, so it read as an UNDERLINE on the lede
+ * rather than as the separator it is — a fact no assertion about words could reach (AUD-8).
+ *
+ * ⚠ These coordinates are already the distance down the page. pdfkit flips the whole content stream
+ * once with `1 0 0 -1 0 792 cm` and then un-flips inside each text block, so paths are drawn in the
+ * flipped space and text is not — which is why this does not subtract from the page height and
+ * `pdfDrawnLines` does.
+ */
+export async function pdfDrawnRules(pdf: Buffer): Promise<Array<{ page: number; y: number }>> {
+  const stroke = /(-?[\d.]+) (-?[\d.]+) m\s+(-?[\d.]+) (-?[\d.]+) l\s+S/g;
+  return (await pageStreams(pdf)).flatMap((stream, page) =>
+    [...stream.matchAll(stroke)]
+      .filter((m) => m[2] === m[4])
+      .map((m) => ({ page, y: Number(m[2]) })),
+  );
 }

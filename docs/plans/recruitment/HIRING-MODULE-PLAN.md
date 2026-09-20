@@ -3920,6 +3920,116 @@ every time.
   `maxRows`, and **is imported by nothing**. Whether the submit path should use it is a question
   about validation rather than about printing, so it was not answered here.
 
+- **2026-09-20 — AUD-8 BUILT.** Branch `claude/hiring-aud8`. ⚠ **A different renderer from the last
+  five steps**: PDFKit through `lib/pdfDraw.ts`, not pdf-lib through `packet/`. None of the packet's
+  machinery is involved and none of its assumptions carried over.
+
+  **Measured before anything was changed**, on the permissions PDF rendered with all five
+  authorizations — four releases and the 7001(c) consent, one of them revoked — because the unit
+  fixture carries two and two is what hid AUD-4. Ink-scanned in the label column at 300 dpi, page 7
+  section 2: the heading's ink ends at y242.16, `Version v0-draft · method esign` runs
+  y249.12–256.80, and `Signed as` begins at y258.72. **6.96pt above it, 1.92pt below it** — the
+  caption sat three and a half times nearer the rows than the heading, in the labels' own grey, at
+  the label column's own left edge, and 1.92 is *tighter than the 5.52pt the table's own rows leave
+  between themselves*. That is the whole finding: it was not merely close to the rows, it was closer
+  to them than they were to each other, so it read as one of them with its value missing. The same
+  two numbers to the point on every instrument page's `Version v0-draft` (page 4: 6.96 / 1.96).
+
+  **The fix is a new primitive, not a change to `muted()`, and the DQ binder decided it.** ⚠ The
+  handoff's blast-radius note said seven call sites in `dqBinder/render.ts`; **it is fourteen**, and
+  reading them settled the design rather than merely bounding it. The binder has never had AUD-8 —
+  because it writes `title(); moveDown(0.3); muted(); moveDown(…)` at every one of its lede lines, by
+  hand, at **0.8, 0.8, 1.2, 1, 0.6, 0.6 and 0.4**. Seven hand-written trailing leads, six different
+  values, one relationship. That is simultaneously the proof that a caption needs trailing air and
+  the proof that the call site is the wrong place to put it (`CLAUDE.md`, *deriving beats
+  restating*). And the binder's OTHER seven muted lines are closing sentences, eyebrows over titles
+  and `Reason: …` footnotes — lines with nothing under them, which would have been moved on no
+  evidence had the air gone into the shared primitive. So `muted()` is untouched, `caption()` is
+  `muted()` plus one constant, and **the binder's 14 call sites and its own tests are unchanged and
+  green** — a stated decision, not an omission.
+
+  `CAPTION_LEAD_BELOW = 0.8` is that family's centre. After: **6.96 above, 9.84 below**, and 9.84 >
+  the 5.52 the rows leave between themselves, so it can no longer be read as a row.
+
+  ⚠ **It is six call sites, not the three the finding names**, and the extra three are the same root
+  in the same two documents. `render.ts:199` is the FILED §391.21 application's own lede — the first
+  line a reader sees, drawn with the same `muted()`. `questionnairePage.ts:51` had a hand-written
+  `moveDown(0.3)` = 2.95pt under the line against 6.96 above it, which is the defect with a copied
+  constant in front of it. `certificate.ts:48` had `moveDown(0.5)` = 5.49 against 6.96 — a copy that
+  happened to land just short of the heading's own air, so the lede floated between the two.
+  ⚠ `permissionsDocument.ts:163` (the Clearinghouse footnote) and `certificate.ts:126` (the closing
+  sentence) stay `muted()`: **the distinction is whether a line introduces a block or closes one**,
+  and :217 was the lede the finding meant.
+
+  **The keep-together, which is the trap the handoff named and it was real.** `partHeight()`'s note
+  branch returned the glyphs alone — right for `muted()`, ~7.9pt short for `caption()` — so every
+  section carrying a note would have measured as fitting and drawn its last rows over the boundary.
+  AUD-4 reopened by arithmetic, invisible to every existing test. It now adds
+  `currentLineHeight(true) * CAPTION_LEAD_BELOW`, and a new test gives one section four captions so
+  the shortfall compounds past any single row's slack.
+
+  ⚠ **No assertion about text can see any of this, so a geometry reader was written.**
+  `testing/pdfText.ts` gains `pdfDrawnLines` (every drawn run with its baseline, x and point size)
+  and `pdfDrawnRules` (where a horizontal rule was stroked). Both read the OUTPUT — AUD-19's lesson,
+  where a test asked a placement helper where a notice should go and the draw loop ignored it. ⚠ The
+  two readers treat the y axis differently ON PURPOSE and the comment says why: pdfkit flips the
+  whole stream once and un-flips inside each text block, so a path's y is already the distance down
+  the page and a text run's is not.
+
+  **Mutations: 11 run, 11 red — and two of them were green first, which is the part worth reading.**
+  · The eleven: `CAPTION_LEAD_BELOW` → 0 (the defect itself) and → 0.3 (air, but not enough);
+  `partHeight` drops the trailing term; `section()` draws its note with `muted()` again; `muted()`
+  GAINS the caption's air; `FIELD_ROW` 14 → 20; `caption()` draws without moving the cursor; and the
+  four call sites — instrument page, consent page, the permissions lede, the filed application's
+  lede — each reverted to `muted()`.
+  · ⚠ **Survivor 1 — the `muted()` mutant.** The test compared `caption()`'s trailing step with
+  `muted()`'s, so when `muted()` gained the air `caption()` had twice as much and was still the
+  greater. **Two helpers compared only to each other cannot say what either should be.** Fixed by
+  rendering a muted line long enough to WRAP: the leading between its own last two lines is
+  pdfkit's, no `moveDown` touches it, and it is the ruler both steps are measured against. ⚠ And
+  both measured steps now land on a line of the SAME size, because pdfkit seats a new baseline off
+  the incoming font's ascender — a `body()` follower sits 0.718pt lower for that reason alone and
+  nothing to do with leading, which is exactly how a 0.72 would get written into a test as spacing.
+  · ⚠ **Survivor 2 — the permissions lede.** It compared title→lede against lede→`Carrier`, and the
+  second span crosses the lede's own SECOND LINE, so it is larger whatever the leading is. Vacuous,
+  and it passed on the defect. ⚠ What is actually wrong on that sheet is invisible to a text reader:
+  the **rule** sat 7.65pt under the lede and 10.39pt above the rows — an underline on the lede, not a
+  separator between two blocks. Hence `pdfDrawnRules`, and the assertion is now against the lede's
+  own leading (7.65 < 9.83 before, 15.51 > 9.83 after).
+  · ⚠ Six of the eleven kill an assertion no other mutant reaches — including `FIELD_ROW` 14 → 20,
+  which is the only one that fires the "not merely a roomier row" clause and is why that clause is
+  not decoration.
+
+  **Established by looking, at 150 and 300 dpi, in colour**, on all eight pages: the lede, the
+  consent page, three instrument pages, the revoked page and the certificate.
+
+  ⚠ **Scoped OUT deliberately, said rather than drifted into.** **AUD-9 is a separate change.** Its
+  red `REVOKED …` lines DO move — they no longer hang off `Version v0-draft` as a continuation of it,
+  which the 300 dpi crop shows — but AUD-9's finding is that a revocation is *typeset as the least
+  important thing on its page*, and it still is: body-size red prose between the version line and the
+  disclosure. That is a prominence decision (band? box? above the heading?) with an owner in it, not
+  a leading relationship. Not started. **AUD-10, AUD-11, Q-HM14 and the web surfaces: untouched.**
+
+  ⚠ **Found on the way, and NOT fixed — record it before the next person re-derives it.** At five
+  instruments the certificate's closing sentence can land on a sheet of its own, 97% white. ⚠ It is
+  **pre-existing, and measured to be so**: the code at `0a3deb7`, handed the 130-character user agent
+  `pdfDraw.test.ts` itself calls *"a real user agent"*, already renders 8 pages with that tail alone
+  on the last. With the same input AUD-8 renders 8 pages too and puts section 6 ON the last sheet
+  with it, which is better. What AUD-8 changes is the threshold: with a SHORT user agent the tail now
+  spills where it did not. The honest fix is a keep-together for a trailing colophon — a second unit
+  above `section()`'s — which is a mechanism and deserves its own step. **Raise as AUD-20 rather than
+  tune `CAPTION_LEAD_BELOW` to a fixture**, which would have been the workaround: no value in a sane
+  range saves the page anyway (0.8 → 0.6 buys 11.8pt against ~39pt of tail).
+
+  ⚠ **`pdfDraw.ts` is 469 lines.** Warn is 450, budget 500. It was 422. There is no room for the
+  next fix — split it first.
+
+  **Gates** (after the last edit): `lint:boundaries` · `lint:filesize` · `lint:funcsize` ·
+  `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` · `lint:upserts` ·
+  `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **4012 passed, 331 files.** ⚠ **No migration.** ⚠
+  **Freeze-bound** — this changes how a packet prints and must land before C1.
+
 ---
 
 ## 11. Sources

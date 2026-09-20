@@ -168,12 +168,54 @@ export function body(doc: PDFKit.PDFDocument, text: string, color = INK): void {
     .text(winAnsi(text), { width: CONTENT_WIDTH });
 }
 
+/**
+ * Small grey text, with NO leading relationship to whatever comes next — a closing sentence under a
+ * rule, an eyebrow over a title, a trailing footnote. ⚠ For a line that INTRODUCES the block under
+ * it, use `caption()` below; this one keeps its shape deliberately (AUD-8).
+ */
 export function muted(doc: PDFKit.PDFDocument, text: string): void {
   doc
     .fillColor(MUTED)
     .font("Helvetica")
-    .fontSize(8.5)
+    .fontSize(MUTED_SIZE)
     .text(winAnsi(text), { width: CONTENT_WIDTH });
+}
+
+/** ⚠ Named because `partHeight()` MEASURES a muted line before it is drawn: one size, not two. */
+const MUTED_SIZE = 8.5;
+
+/**
+ * The air under a caption, in multiples of its own line.
+ *
+ * ── ⚠ WHY A CAPTION OWNS ITS OWN TRAILING AIR AND `muted()` DOES NOT (AUD-8, 2026-09-20) ──────
+ * `muted()` sets an ink and a size and says nothing about what follows it, so a metadata line drawn
+ * with it landed against the next block at whatever leading that block happened to use. Measured on
+ * the permissions PDF: the certificate's `Version v0-draft · method esign` sat **6.75pt** under its
+ * heading and **1.96pt** above `Signed as` — three times nearer the rows than the heading — at the
+ * label column's own left edge, in the labels' own grey. It read as a table row whose value had
+ * gone missing. The same two numbers, to the point, on every instrument page's `Version v0-draft`.
+ *
+ * ⚠ **The binder had already solved it seven times by hand, which is the evidence for the number
+ * rather than an argument for it.** `dqBinder/render.ts` writes `muted(); moveDown(…)` at every one
+ * of its lede lines and has never had this defect — at 0.8, 0.8, 1.2, 1, 0.6, 0.6 and 0.4. Seven
+ * call sites, six values, one relationship: exactly the copied constant this repo's rule says to
+ * derive instead. 0.8 is that family's centre and puts ~7.9pt under an 8.5pt line, comfortably more
+ * than the 6.96 above it — so the caption binds upward and the block below starts clear of it.
+ *
+ * ⚠ **`partHeight()` reads this.** A caption that grew taller without the section's keep-together
+ * measurement growing with it would strand rows on the next sheet, which is AUD-4 reopened.
+ */
+const CAPTION_LEAD_BELOW = 0.8;
+
+/**
+ * A metadata line that introduces the block under it — a version, a citation, a document's lede.
+ *
+ * It is `muted()` plus the one thing `muted()` cannot know: that something follows, and that this
+ * line belongs to the heading above rather than to the first row below.
+ */
+export function caption(doc: PDFKit.PDFDocument, text: string): void {
+  muted(doc, text);
+  doc.moveDown(CAPTION_LEAD_BELOW);
 }
 
 /** The vertical step one label/value row takes when its value is a single line. */
@@ -230,14 +272,14 @@ export function field(doc: PDFKit.PDFDocument, label: string, value: string): vo
  *
  * ⚠ A union rather than two arrays, because the ORDER matters — the certificate's citation line sits
  * between the heading and the first row, and a shape that could not express that would push the
- * caller back to calling `muted` and `field` by hand, which is the thing `section` exists to stop.
+ * caller back to calling `caption` and `field` by hand, which is the thing `section` exists to stop.
  */
 export type SectionPart = { note: string } | { label: string; value: string };
 
 /**
  * How tall this part will be when drawn, without drawing it.
  *
- * ⚠ **It mirrors `field()`'s and `muted()`'s own layout, and it is allowed to be conservative in one
+ * ⚠ **It mirrors `field()`'s and `caption()`'s own layout, and it is allowed to be conservative in one
  * direction only.** Over-estimating costs a little white space at the foot of a page;
  * under-estimating strands rows on the next one with nothing naming them, which is the defect this
  * whole mechanism exists to remove (AUD-4). `heightOfString` reads the CURRENT font, so each branch
@@ -245,8 +287,13 @@ export type SectionPart = { note: string } | { label: string; value: string };
  */
 function partHeight(doc: PDFKit.PDFDocument, part: SectionPart): number {
   if ("note" in part) {
-    doc.font("Helvetica").fontSize(8.5);
-    return doc.heightOfString(winAnsi(part.note), { width: CONTENT_WIDTH });
+    doc.font("Helvetica").fontSize(MUTED_SIZE);
+    // ⚠ The trailing air too, not just the glyphs: `section()` draws its notes through `caption()`,
+    // which advances the cursor past the line it wrote. A measurement that stopped at the text
+    // would under-report every section carrying a note by ~8pt — and under-reporting is the one
+    // direction this function is not allowed to be wrong in (AUD-4, and see the note above).
+    return doc.heightOfString(winAnsi(part.note), { width: CONTENT_WIDTH })
+      + doc.currentLineHeight(true) * CAPTION_LEAD_BELOW;
   }
   doc.font("Helvetica").fontSize(9);
   const label = doc.heightOfString(winAnsi(part.label), { width: 130 });
@@ -298,7 +345,7 @@ export function section(
 
   heading(doc, title);
   for (const part of parts) {
-    if ("note" in part) muted(doc, part.note);
+    if ("note" in part) caption(doc, part.note);
     else field(doc, part.label, part.value);
   }
 }

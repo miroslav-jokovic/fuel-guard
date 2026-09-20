@@ -3,7 +3,7 @@ import {
   readableAnswers,
   type QuestionnaireQuestion,
 } from "@silvicom/shared";
-import { field, heading, muted, rule } from "../../../lib/pdfDraw.js";
+import { caption, field, heading, rule } from "../../../lib/pdfDraw.js";
 import type { ApplicationPdfInput } from "./render.js";
 
 /**
@@ -48,12 +48,14 @@ export function questionnaireSection(doc: PDFKit.PDFDocument, input: Application
 
   doc.addPage();
   heading(doc, `${input.carrier.name} — the carrier's own questions`);
-  muted(
+  // ⚠ `caption`, and its hand-written `moveDown(0.3)` went with it: 2.95pt under the line against
+  // the 6.96pt of the heading's own air above left this reading as the first question rather than
+  // as a note about all of them (AUD-8). One constant for the relationship, in `pdfDraw.ts`.
+  caption(
     doc,
     `Questionnaire ${definition.id} version ${definition.version}. These questions are the carrier's `
     + "and are not part of 49 CFR §391.21.",
   );
-  doc.moveDown(0.3);
 
   for (const question of definition.questions) {
     const value = answers[question.id];

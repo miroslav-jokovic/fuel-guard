@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { pdfPageTexts } from "../testing/pdfText.js";
-import { PAGE_HEIGHT, body, field, newDrawing, section, winAnsi } from "./pdfDraw.js";
+import { pdfDrawnLines, pdfPageTexts } from "../testing/pdfText.js";
+import {
+  PAGE_HEIGHT, body, caption, field, heading, muted, newDrawing, section, winAnsi,
+} from "./pdfDraw.js";
 
 /**
  * `winAnsi` is the last thing every drawn string passes through, so what it cannot represent shows up
@@ -253,5 +255,144 @@ describe("a section, at the foot of a sheet", () => {
     expect(pages[0]).toContain("9. A section with more rows");
     expect(pages[0]).toContain("opening line");
     expect(pages.every((t) => t.trim().length > 0)).toBe(true);
+  });
+});
+
+/**
+ * A metadata line and the block it introduces (AUD-8, 2026-09-20).
+ *
+ * ── ⚠ WHY NOT ONE OF THESE ASSERTS A STRING ───────────────────────────────────────────────────
+ * The defect was `Version v0-draft · method esign` printing in the certificate's LABEL column,
+ * 6.96pt under its heading and 1.96pt above `Signed as` — so it read as a table row whose value had
+ * gone missing, which is the one thing on that page a reader must not conclude. Every character of
+ * it is in the content stream at either spacing, so `pdfPageTexts` is green on the defect and on
+ * the fix alike. Five findings in a row have had exactly this shape. What discriminates is where
+ * the renderer put the baseline, which is what `pdfDrawnLines` reads back out of the drawn page.
+ */
+describe("a caption and the block it introduces", () => {
+  const ROWS = [
+    { note: "Version v1 · method esign" },
+    { label: "Signed as", value: "Susan Godfrey" },
+    { label: "Signed", value: "2026-08-21 17:54:00 UTC" },
+    { label: "From address", value: "203.0.113.9" },
+  ];
+
+  /**
+   * ⚠ The two relationships, and neither survives alone. "Nearer the heading" without the second
+   * is satisfied by a caption sitting one hair closer, which still reads as a row; "clear of the
+   * rows" without the first is satisfied by one floating in the middle of the page, attached to
+   * nothing. Both are read off the same render.
+   */
+  it("sits nearer the heading it qualifies than the rows it introduces", async () => {
+    const { doc, done } = newDrawing("a captioned section");
+    section(doc, "2. Consumer report disclosure and authorization", ROWS);
+    doc.end();
+
+    const lines = await pdfDrawnLines(await done);
+    // ⚠ Exact text, never `includes`: `Signed as` and `Signed` are both labels on this section and
+    // a substring match hands back the first, which made the row pitch measure zero.
+    const at = (text: string): number => {
+      const line = lines.find((l) => l.text === text);
+      expect(line, text).toBeDefined();
+      return line!.y;
+    };
+    const headingToCaption = at("Version v1 \u00b7 method esign") - at("2. Consumer report disclosure and authorization");
+    const captionToFirstRow = at("Signed as") - at("Version v1 \u00b7 method esign");
+    // The whole finding, in one comparison: it used to be 15.34 down from the heading and 10.18
+    // above the rows, and a caption that is nearer the thing under it is a label for that thing.
+    expect(captionToFirstRow).toBeGreaterThan(headingToCaption);
+
+    // ⚠ And it may not merely be a slightly roomier ROW. The rows step 14pt; a caption that stepped
+    // 14pt too would clear the comparison above and still read as one of them.
+    const rowPitch = at("From address") - at("Signed");
+    expect(rowPitch).toBeGreaterThan(0);
+    expect(captionToFirstRow).toBeGreaterThan(rowPitch);
+  });
+
+  /**
+   * ⚠ **The trailing air has to be MEASURED as well as drawn, and this is the term that proves it.**
+   * `partHeight` predicts a section's height to decide the page break (AUD-4). The note branch used
+   * to return the glyphs alone, which is right for `muted()` and ~8pt short for `caption()` — so a
+   * section measured as fitting would draw its last row over the boundary and strand it, which is
+   * AUD-4 reopened by arithmetic. The room left below is between the two answers on purpose: this
+   * section fits under the honest measurement and does not under the short one.
+   */
+  it("counts a caption's trailing air toward the section's height", async () => {
+    const { doc, done } = newDrawing("a caption at the foot of a sheet");
+    // Five captioned notes, so the ~8pt each one adds compounds past any single row's slack.
+    const withNotes = [
+      { note: "Version v1 · method esign" },
+      { label: "Signed as", value: "Susan Godfrey" },
+      { note: "Countersigned under 49 CFR §391.23(a)(2)" },
+      { label: "Signed", value: "2026-08-21 17:54:00 UTC" },
+      { note: "Received at the carrier's own server, not the signer's device" },
+      { label: "From address", value: "203.0.113.9" },
+      { note: "49 CFR §391.21(b)(12)" },
+      { label: "Method", value: "esign" },
+    ];
+    while (doc.y < PAGE_HEIGHT - doc.page.margins.bottom - 148) body(doc, "filler");
+    section(doc, "7. An act explained line by line", withNotes);
+    doc.end();
+
+    const pages = await pdfPageTexts(await done);
+    const withHeading = pages.filter((t) => t.includes("7. An act explained line by line"));
+    expect(withHeading).toHaveLength(1);
+    for (const part of withNotes) {
+      if ("note" in part) expect(withHeading[0], part.note).toContain(part.note);
+      else expect(withHeading[0], part.label).toContain(part.value);
+    }
+    const strays = pages.filter((t) => !t.includes("7. An act") && /From address|Method/.test(t));
+    expect(strays).toEqual([]);
+  });
+
+  /**
+   * ⚠ `muted()` keeps its own shape, and that is the deliberate half of this change. The DQ binder
+   * draws fourteen muted lines that are closing sentences, eyebrows and footnotes — things with
+   * nothing under them — and folding the caption's air into the shared primitive would have moved
+   * all of them on no evidence. So the two differ by exactly one relationship, and this says so.
+   */
+  it("leaves a caption clear of what follows where a muted line does not", async () => {
+    /**
+     * ⚠ **A WRAPPED line is the ruler, and the first version of this test had none — it compared
+     * the two helpers to each other and a mutant that gave `muted()` the caption's air survived,
+     * because `caption()` then had twice as much and was still the greater of the two.** Two
+     * helpers compared only to one another cannot say what either of them should be. A muted line
+     * long enough to wrap carries pdfkit's own 8.5pt leading BETWEEN its own lines, which no
+     * `moveDown` touches — so the step from its last line to whatever follows is measurable against
+     * a step that came from the renderer rather than from this file.
+     */
+    const WRAPS = `${"padding ".repeat(60)}MUTED-RULER-END`;
+    const { doc, done } = newDrawing("muted beside caption");
+    heading(doc, "A heading");
+    muted(doc, WRAPS);
+    // ⚠ Both steps measured below land on a line of the SAME size as the one above it, because
+    // pdfkit seats a new baseline off the incoming font's ascender — a `body()` follower sits 0.72pt
+    // lower for that reason alone, which has nothing to do with leading and would be read as some.
+    muted(doc, "PLAIN-FOLLOWER");
+    heading(doc, "Another heading");
+    caption(doc, "CAPTIONED-METADATA-LINE");
+    muted(doc, "CAPTION-FOLLOWER");
+    doc.end();
+
+    const lines = await pdfDrawnLines(await done);
+    const at = (text: string): number => {
+      const line = lines.find((l) => l.text.includes(text));
+      expect(line, text).toBeDefined();
+      return line!.y;
+    };
+    // ⚠ The last two lines of that block, by index — a wrapped run is several runs, and asking for
+    // the distance between its FIRST and LAST gives however many lines it happened to take.
+    const last = lines.findIndex((l) => l.text.includes("MUTED-RULER-END"));
+    expect(last).toBeGreaterThan(0);
+    const ownLeading = lines[last]!.y - lines[last - 1]!.y;
+    expect(ownLeading).toBeGreaterThan(0);
+
+    // `muted()` stops where its text stopped. The DQ binder's fourteen call sites are closing
+    // sentences, eyebrows and footnotes that add their own spacing by hand, and they must keep the
+    // spacing they have — which is what makes this change safe to make without touching them.
+    expect(at("PLAIN-FOLLOWER") - at("MUTED-RULER-END")).toBeCloseTo(ownLeading, 3);
+
+    // A caption does not: it owns the gap between itself and the block it introduces.
+    expect(at("CAPTION-FOLLOWER") - at("CAPTIONED-METADATA-LINE")).toBeGreaterThan(ownLeading);
   });
 });
