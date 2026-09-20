@@ -139,14 +139,25 @@ export function title(doc: PDFKit.PDFDocument, text: string): void {
   doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(19).text(winAnsi(text));
 }
 
+/**
+ * The air a heading sits in, in multiples of its own line.
+ *
+ * ⚠ Named because `section()` below has to PREDICT a heading's height before drawing it, and two
+ * copies of `0.7` — one that draws and one that measures — would drift the first time somebody
+ * loosened the spacing. The measurement reads these.
+ */
+const HEADING_LEAD_ABOVE = 0.7;
+const HEADING_LEAD_BELOW = 0.25;
+const HEADING_SIZE = 12;
+
 export function heading(doc: PDFKit.PDFDocument, text: string): void {
   doc
-    .moveDown(0.7)
+    .moveDown(HEADING_LEAD_ABOVE)
     .fillColor(NAVY)
     .font("Helvetica-Bold")
-    .fontSize(12)
+    .fontSize(HEADING_SIZE)
     .text(winAnsi(text))
-    .moveDown(0.25);
+    .moveDown(HEADING_LEAD_BELOW);
 }
 
 export function body(doc: PDFKit.PDFDocument, text: string, color = INK): void {
@@ -212,6 +223,84 @@ export function field(doc: PDFKit.PDFDocument, label: string, value: string): vo
     .text(winAnsi(value), MARGIN + 134, y, { width: CONTENT_WIDTH - 134 });
   doc.x = MARGIN;
   doc.y = doc.page === startPage ? Math.max(doc.y, labelBottom, y + FIELD_ROW) : doc.y;
+}
+
+/**
+ * One piece of a section: a note under its heading, or a label/value row.
+ *
+ * ⚠ A union rather than two arrays, because the ORDER matters — the certificate's citation line sits
+ * between the heading and the first row, and a shape that could not express that would push the
+ * caller back to calling `muted` and `field` by hand, which is the thing `section` exists to stop.
+ */
+export type SectionPart = { note: string } | { label: string; value: string };
+
+/**
+ * How tall this part will be when drawn, without drawing it.
+ *
+ * ⚠ **It mirrors `field()`'s and `muted()`'s own layout, and it is allowed to be conservative in one
+ * direction only.** Over-estimating costs a little white space at the foot of a page;
+ * under-estimating strands rows on the next one with nothing naming them, which is the defect this
+ * whole mechanism exists to remove (AUD-4). `heightOfString` reads the CURRENT font, so each branch
+ * sets the same font and size the drawing call will.
+ */
+function partHeight(doc: PDFKit.PDFDocument, part: SectionPart): number {
+  if ("note" in part) {
+    doc.font("Helvetica").fontSize(8.5);
+    return doc.heightOfString(winAnsi(part.note), { width: CONTENT_WIDTH });
+  }
+  doc.font("Helvetica").fontSize(9);
+  const label = doc.heightOfString(winAnsi(part.label), { width: 130 });
+  doc.font("Helvetica-Bold").fontSize(9.5);
+  const value = doc.heightOfString(winAnsi(part.value), { width: CONTENT_WIDTH - 134 });
+  // The same three-way max `field()` applies — a row is as tall as its taller half, never shorter
+  // than one step.
+  return Math.max(label, value, FIELD_ROW);
+}
+
+/**
+ * A heading and the rows under it, drawn on a page that can hold the whole of it (AUD-4).
+ *
+ * ── ⚠ WHAT WAS WRONG, AND WHY `field()`'S KEEP-TOGETHER WAS NOT ENOUGH ────────────────────────
+ * Measured 2026-09-19 on the permissions PDF p8→p9 and the §391.21 summary p9→p10, at 100 dpi:
+ * section 6's heading, its citation line and two of its four rows sat on one page, and
+ * `From address` and `Browser` opened the next one with **nothing saying what act they belonged
+ * to** — under a heading numbered 7, which is a different instrument. The stranded pair reads as
+ * part of the section that follows it.
+ *
+ * ⚠ **Do not read the old behaviour as "there was no keep-together".** `field()` has had one since
+ * 2026-09-11, pinned by *"keeps them together, and leaves no page carrying only the label"*; it
+ * holds a LABEL to its VALUE, and it did that correctly here. What had none was the SECTION — the
+ * heading and the rows under it — which is the unit a reader needs. The fix is one level up from
+ * where the last one went.
+ *
+ * ── ⚠ AND IT REFUSES TO BREAK FOR A SECTION NO PAGE COULD HOLD ───────────────────────────────
+ * A section taller than the text block of an empty page is drawn where it stands. Turning the page
+ * for it would buy nothing — it would break across the next boundary anyway — and would leave a
+ * blank sheet in a filed §391.51 document to prove it. `field()`'s own keep-together still protects
+ * each row inside it. There is no such section today; the branch exists because a browser string is
+ * caller-supplied and a filed document must render whatever was stored.
+ */
+export function section(
+  doc: PDFKit.PDFDocument,
+  title: string,
+  parts: readonly SectionPart[],
+): void {
+  doc.font("Helvetica-Bold").fontSize(HEADING_SIZE);
+  const line = doc.currentLineHeight(true);
+  const needed =
+    line * (HEADING_LEAD_ABOVE + HEADING_LEAD_BELOW)
+    + doc.heightOfString(winAnsi(title), { width: CONTENT_WIDTH })
+    + parts.reduce((total, part) => total + partHeight(doc, part), 0);
+
+  const floor = PAGE_HEIGHT - doc.page.margins.bottom;
+  const wholePage = floor - doc.page.margins.top;
+  if (doc.y + needed > floor && needed <= wholePage) doc.addPage();
+
+  heading(doc, title);
+  for (const part of parts) {
+    if ("note" in part) muted(doc, part.note);
+    else field(doc, part.label, part.value);
+  }
 }
 
 export function rule(doc: PDFKit.PDFDocument): void {
