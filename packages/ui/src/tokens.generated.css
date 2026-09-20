@@ -268,6 +268,19 @@
   --danger-surface: light-dark(oklch(96% 0.0197 20), oklch(30.0% 0.055 20));
   --danger-text: light-dark(oklch(48% 0.18 27), oklch(78% 0.12 27));
 
+  /* ⚠ Not `--surface-muted`. A grey pill inside a strip that has just stopped being grey is the
+     one neutral left on the control, and the eye goes to the count rather than to the tab.
+     Measured 2026-09-20 over the well: `--ink-tertiary` reads 4.80:1 in light and 4.61:1 in dark
+     on this ground, which an 11px figure needs. ⚠ `lint:ui-contrast` cannot check it — a
+     translucent value has no ratio until it is composited — so those two numbers are the record. */
+  --control-count: color-mix(in oklab, var(--ramp-brand-200) 42%, transparent); /* a tab's trailing count, unselected — translucent, so it reads the same over the well and over the pill */
+
+  /* Different ramp steps per scheme, for the reason the chip needs them. Over the pill, brand-100
+     measures 4.66:1 against `--selected-strong` in light but 4.10:1 in dark, under the 4.5:1 WCAG
+     1.4.3 asks of an 11px figure. brand-50 in dark measures 4.92:1 — it is DARKER than the dark
+     pill rather than lighter, which is what the dark ramp gives you below 100. */
+  --control-count-selected: light-dark(var(--ramp-brand-100), var(--ramp-brand-50)); /* … and selected: brand-100 in light, brand-50 in dark */
+
   /* ⚠ NOT `--ink-inverse`, which is the obvious reach and is wrong here: it flips to oklch(21.5% 0
      0) in dark, where it would put a near-black glyph on a saturated chip. `--ink-inverse` means
      "ink for an inverted SURFACE", and a chip's ground is saturated in both schemes rather than
@@ -502,6 +515,8 @@
   --color-danger-solid-foreground: var(--danger-solid-foreground);
   --color-danger-surface: var(--danger-surface);
   --color-danger-text: var(--danger-text);
+  --color-control-count: var(--control-count);
+  --color-control-count-selected: var(--control-count-selected);
   --color-chip-glyph: var(--chip-glyph);
   --color-chip-danger-from: var(--chip-danger-from);
   --color-chip-danger-to: var(--chip-danger-to);

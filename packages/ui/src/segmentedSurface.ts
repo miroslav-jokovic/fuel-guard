@@ -47,14 +47,59 @@ export const SEGMENTED_SEGMENT =
   "rounded-control px-3 font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 
 /**
- * The selected segment — the pill.
+ * The pill — the raised object the selection sits on.
  *
- * ⚠ The ring and the elevation are both load-bearing now, where before the strip had neither. On a
- * grey well a white pill separated on lightness alone (1.222:1 in light); on the brand ground that
+ * ⚠ The ring and the elevation are both load-bearing, where before the strip had neither. On a grey
+ * well a white pill separated on lightness alone (1.222:1 in light); on the brand ground that
  * figure is 1.076:1, which is a hue difference and not a value one. An object that is not lighter
  * than its ground has to be raised above it, so `shadow-card` stops being decoration.
+ *
+ * ⚠ It is the same LOOK in both widgets and no longer the same MECHANISM, which is the one place
+ * this module's "shared" claim needs reading carefully. In `AppSegmentedControl` these classes sit
+ * on the chosen button. In `AppTabs` they sit on a single absolutely-positioned element that
+ * travels, because a selection that teleports between four backgrounds cannot be interrupted and
+ * carries no sense of having MOVED (D-DT9/D-DT10). One constant, so the two cannot drift; two
+ * mechanisms, because only one of them is worth a spring — eleven segmented controls per
+ * permissions row, each springing, is motion nobody asked for.
  */
-export const SEGMENTED_SELECTED = "bg-surface text-ink shadow-card ring-1 ring-edge-subtle";
+export const SEGMENTED_PILL = "bg-surface shadow-card ring-1 ring-edge-subtle";
 
 /** Every segment that is not the selected one. */
 export const SEGMENTED_IDLE = "text-ink-muted hover:text-ink-secondary";
+
+/**
+ * The selected segment's INK, and it is a different answer per widget (D-DT16).
+ *
+ * A tab strip is navigation, where brand means "you are here", so the selected tab takes brand ink
+ * for its label and its count. A segmented control ANSWERS something — None / View / Manage — and
+ * the answer is a value, not a place; three brand-tinted controls in one form row would each claim
+ * to be the thing you are looking at. Its chosen segment stays `--ink`. (This is the same
+ * distinction the plan draws for its `--sm` period switcher, arriving early because the two
+ * widgets already exist.)
+ *
+ * ⚠ `--selected-strong`, not `--action-primary`, and the substitution is measured rather than
+ * stylistic. D-DT16 names `--action-primary`; on the pill's `--surface` that is 5.29:1 in light but
+ * **4.37:1 in dark**, and a 14px tab label is normal-size text, which WCAG 1.4.3 puts at 4.5:1.
+ * `--selected-strong` is the role the system already has for "selected, emphatic", is the identical
+ * value in light, and measures 5.62:1 in dark. `lint:ui-contrast` pins both.
+ */
+export const SEGMENTED_SELECTED_INK = "text-ink";
+export const SEGMENTED_NAVIGATION_INK = "text-selected-strong";
+
+/**
+ * A tab's trailing count.
+ *
+ * ⚠ Not `--surface-muted`: a grey pill inside a strip that just stopped being grey is the one
+ * neutral left on the control, and the eye goes to it rather than to the tab. The ground is a
+ * translucent brand tint so it reads the same over the well and over the pill; the count follows
+ * its label into brand when its tab is selected, so one selection is stated once in every part of
+ * the tab rather than in the label alone.
+ *
+ * ⚠ The SELECTED ground needs different ramp steps per scheme, for the reason the chip does. Over
+ * the pill, `--ramp-brand-100` measures 4.66:1 against the count's ink in light and 4.10:1 in dark
+ * — under the 4.5:1 an 11px figure needs. `--control-count-selected` is brand-100 in light and
+ * brand-50 in dark, which measures 4.66:1 and 4.92:1.
+ */
+export const SEGMENTED_COUNT = "rounded-full px-1.5 text-2xs font-semibold transition";
+export const SEGMENTED_COUNT_IDLE = "bg-control-count text-ink-tertiary";
+export const SEGMENTED_COUNT_SELECTED = "bg-control-count-selected text-selected-strong";

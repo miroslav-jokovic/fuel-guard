@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { SEGMENTED_IDLE, SEGMENTED_SEGMENT, SEGMENTED_SELECTED, SEGMENTED_WELL } from "../segmentedSurface";
+import {
+  SEGMENTED_IDLE,
+  SEGMENTED_PILL,
+  SEGMENTED_SEGMENT,
+  SEGMENTED_SELECTED_INK,
+  SEGMENTED_WELL,
+} from "../segmentedSurface";
 
 /**
  * A segmented control — one answer from a short, fixed set, all of it visible at once.
@@ -118,7 +124,7 @@ function onKey(event: KeyboardEvent): void {
         option.value === modelValue
           ? inherited
             ? 'text-ink-secondary ring-1 ring-inset ring-edge-strong'
-            : SEGMENTED_SELECTED
+            : `${SEGMENTED_PILL} ${SEGMENTED_SELECTED_INK}`
           : SEGMENTED_IDLE,
       ]"
       :aria-checked="option.value === modelValue"

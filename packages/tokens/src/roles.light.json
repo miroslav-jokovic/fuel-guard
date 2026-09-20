@@ -346,6 +346,28 @@
         "silvicom.expose": "color"
       }
     },
+    "control-count": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ramp-brand-200) 42%, transparent)",
+      "$description": "a tab's trailing count, unselected \u2014 translucent, so it reads the same over the well and over the pill",
+      "$extensions": {
+        "silvicom.section": [
+          "\u26a0 Not `--surface-muted`. A grey pill inside a strip that has just stopped being grey is the one neutral left on the control, and the eye goes to the count rather than to the tab. Measured 2026-09-20 over the well: `--ink-tertiary` reads 4.80:1 in light and 4.61:1 in dark on this ground, which an 11px figure needs. \u26a0 `lint:ui-contrast` cannot check it \u2014 a translucent value has no ratio until it is composited \u2014 so those two numbers are the record."
+        ],
+        "silvicom.expose": "color"
+      }
+    },
+    "control-count-selected": {
+      "$type": "color",
+      "$value": "var(--ramp-brand-100)",
+      "$description": "\u2026 and selected: brand-100 in light, brand-50 in dark",
+      "$extensions": {
+        "silvicom.section": [
+          "Different ramp steps per scheme, for the reason the chip needs them. Over the pill, brand-100 measures 4.66:1 against `--selected-strong` in light but 4.10:1 in dark, under the 4.5:1 WCAG 1.4.3 asks of an 11px figure. brand-50 in dark measures 4.92:1 \u2014 it is DARKER than the dark pill rather than lighter, which is what the dark ramp gives you below 100."
+        ],
+        "silvicom.expose": "color"
+      }
+    },
     "chip-glyph": {
       "$type": "color",
       "$value": "oklch(100% 0 0)",

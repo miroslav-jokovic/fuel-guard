@@ -106,6 +106,20 @@ const pairs = [
   ["success status / tint", "--ramp-success-700", "--ramp-success-50", 4.5],
   ["info status / tint", "--ramp-info-700", "--ramp-info-50", 4.5],
   /**
+   * The segmented well's selected state (D-DT16).
+   *
+   * ⚠ The plan names `--action-primary` for the selected tab's label. On the pill's `--surface`
+   * that measures 5.29:1 in light and 4.37:1 in DARK, and a 14px tab label is normal-size text,
+   * which WCAG 1.4.3 puts at 4.5:1. `--selected-strong` is the role the system already has for
+   * "selected, emphatic", is the identical value in light, and clears both. The count's SELECTED
+   * ground needs its own per-scheme steps for the same reason, which is what
+   * `--control-count-selected` is. ⚠ Its idle ground cannot be checked here at all — a translucent
+   * `color-mix(… , transparent)` has no ratio until it is composited — so the two measurements
+   * (4.80:1 light, 4.61:1 dark over the well) are recorded in the token's own comment instead.
+   */
+  ["segmented selected label / pill", "--selected-strong", "--surface", 4.5],
+  ["segmented selected count / its ground", "--selected-strong", "--control-count-selected", 4.5],
+  /**
    * The solid icon chip, BOTH stops (D-DT17 §4.2b).
    *
    * 3:1, not 4.5: the glyph is a non-text graphic, which is what WCAG 1.4.11 governs. Both stops

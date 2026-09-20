@@ -4,8 +4,8 @@ import AppTabs from "./components/AppTabs.vue";
 import AppSegmentedControl from "./components/AppSegmentedControl.vue";
 import {
   SEGMENTED_IDLE,
+  SEGMENTED_PILL,
   SEGMENTED_SEGMENT,
-  SEGMENTED_SELECTED,
   SEGMENTED_WELL,
 } from "./segmentedSurface";
 
@@ -70,13 +70,30 @@ describe("segmented surface", () => {
     }
   });
 
-  it("raises the selected segment the same way in both", () => {
-    const selectedTab = tabs("exports").findAll('[role="tab"]')[1]!.classes();
+  /**
+   * ⚠ The two widgets draw the pill on DIFFERENT elements — the segmented control paints its chosen
+   * button, the tab strip travels one absolutely-positioned span — so this cannot compare the same
+   * selector in both. What it can compare, and what matters, is that the look comes from one
+   * constant: the pill element and the chosen segment carry the same classes.
+   */
+  it("raises the selected segment and the travelling pill from one recipe", () => {
+    const pill = tabs("exports").get("span[aria-hidden='true']").classes();
     const selectedSegment = segments("view").findAll('[role="radio"]')[1]!.classes();
-    for (const cls of classesOf(SEGMENTED_SELECTED)) {
-      expect(selectedTab).toContain(cls);
+    for (const cls of classesOf(SEGMENTED_PILL)) {
+      expect(pill).toContain(cls);
       expect(selectedSegment).toContain(cls);
     }
+  });
+
+  /**
+   * ⚠ D-DT16's split, and it is the one thing about these two widgets that must NOT be shared. A
+   * tab strip is navigation, where brand means "you are here"; a segmented control answers a
+   * question, and an answer is a value rather than a place.
+   */
+  it("gives the selected tab brand ink and the chosen segment plain ink", () => {
+    expect(tabs("exports").findAll('[role="tab"]')[1]!.classes()).toContain("text-selected-strong");
+    expect(segments("view").findAll('[role="radio"]')[1]!.classes()).toContain("text-ink");
+    expect(segments("view").findAll('[role="radio"]')[1]!.classes()).not.toContain("text-selected-strong");
   });
 
   it("gives every unselected segment the same idle ink", () => {
