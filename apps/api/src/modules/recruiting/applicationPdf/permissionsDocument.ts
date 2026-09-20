@@ -6,7 +6,9 @@ import {
   type ApplicationProgressState,
   type AuthorizationPurpose,
 } from "@silvicom/shared";
-import { caption, field, heading, muted, newDrawing, rule, title } from "../../../lib/pdfDraw.js";
+import {
+  DANGER, INK, caption, field, heading, muted, newDrawing, rule, title,
+} from "../../../lib/pdfDraw.js";
 import { certificate } from "./certificate.js";
 import { consentPage, instrumentPage, type SignedConsent, type SignedInstrument } from "./instrumentPages.js";
 import type { ApplicationPdfInput } from "./render.js";
@@ -131,14 +133,23 @@ function sourceDigest(input: PermissionsDocumentInput): string {
 function summary(doc: PDFKit.PDFDocument, input: PermissionsDocumentInput): void {
   heading(doc, "What has been signed");
 
+  /**
+   * ⚠ **The STATUS leads, and on a lapsed row it is drawn in DANGER (AUD-9).** This column read
+   * `Agreed 2026-09-11 · WITHDRAWN 2026-09-17` — the first two words of a withdrawn consent and of a
+   * live one were identical, in identical ink, so five rows of this table could only be told apart
+   * by reading each of them to the end. The office reads THIS page to answer "what may we rely on";
+   * a reader scanning the left edge of the value column now gets the answer there.
+   * ⚠ Colour does not carry it alone: the word is first and it is in capitals (D-AVI22).
+   */
   field(
     doc,
     "Consent to sign electronically",
     !input.consent
       ? "Not agreed yet"
       : input.consent.withdrawn_at
-        ? `Agreed ${date(input.consent.consented_at)} · WITHDRAWN ${date(input.consent.withdrawn_at)}`
+        ? `WITHDRAWN ${date(input.consent.withdrawn_at)} · agreed ${date(input.consent.consented_at)}`
         : `Agreed ${date(input.consent.consented_at)} · version ${input.consent.disclosure_version}`,
+    input.consent?.withdrawn_at ? DANGER : INK,
   );
 
   for (const purpose of APPLICATION_RELEASE_ORDER) {
@@ -151,8 +162,9 @@ function summary(doc: PDFKit.PDFDocument, input: PermissionsDocumentInput): void
       live
         ? `Signed ${date(live.auth.accepted_at)} · wording ${live.auth.disclosure_version}`
         : lapsed
-          ? `Signed ${date(lapsed.auth.accepted_at)} · REVOKED ${date(lapsed.revoked?.at)}`
+          ? `REVOKED ${date(lapsed.revoked?.at)} · signed ${date(lapsed.auth.accepted_at)}`
           : "Not signed yet",
+      !live && lapsed ? DANGER : INK,
     );
   }
 
@@ -240,8 +252,12 @@ export async function renderPermissionsDocument(input: PermissionsDocumentInput)
       doc,
       input.consent,
       input.consent.withdrawn_at
-        ? `WITHDRAWN ${stamp(input.consent.withdrawn_at)}. Withdrawal stops the electronic path going `
-          + "forward under 7001(c)(1)(B)(i)(II); it does not undo signatures already given."
+        ? {
+            headline: `WITHDRAWN ${stamp(input.consent.withdrawn_at)}`,
+            detail:
+              "Withdrawal stops the electronic path going forward under 7001(c)(1)(B)(i)(II); it "
+              + "does not undo signatures already given.",
+          }
         : null,
     );
   }
@@ -252,8 +268,12 @@ export async function renderPermissionsDocument(input: PermissionsDocumentInput)
       instrument.auth,
       input.signatureMark,
       instrument.revoked
-        ? `REVOKED ${stamp(instrument.revoked.at)}. The carrier may not rely on this release for any `
-          + `screening act after that moment. Reason given: ${blank(instrument.revoked.reason)}`
+        ? {
+            headline: `REVOKED ${stamp(instrument.revoked.at)}`,
+            detail:
+              "The carrier may not rely on this release for any screening act after that moment. "
+              + `Reason given: ${blank(instrument.revoked.reason)}`,
+          }
         : null,
     );
   }

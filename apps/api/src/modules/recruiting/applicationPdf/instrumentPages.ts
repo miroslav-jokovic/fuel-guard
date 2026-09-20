@@ -1,4 +1,6 @@
-import { DANGER, MARGIN, body, caption, field, heading } from "../../../lib/pdfDraw.js";
+import {
+  CONTENT_WIDTH, DANGER, MARGIN, body, caption, field, heading, rule, winAnsi,
+} from "../../../lib/pdfDraw.js";
 import { purposeLabel } from "./certificate.js";
 
 /**
@@ -36,18 +38,49 @@ const blank = (v: string | null | undefined): string => (v && v.trim() !== "" ? 
 const date = (iso: string | null | undefined): string => (iso ? iso.slice(0, 10) : "—");
 
 /**
- * The note, when the caller has one, in the house's DANGER ink and at reading size.
+ * Whether the instrument on this page is still in force — and if not, the two things that says.
  *
- * ⚠ Not `muted()`, and the rasterised page is why. A revoked release and a withdrawn consent are the
- * most load-bearing sentences these pages carry — they are the difference between a lawful basis and
- * the absence of one — and drawn muted they came out the same weight and colour as *"Version
- * v0-draft"*, a line nobody reads. ⚠ It is also the one place in this family where colour is allowed
- * to carry meaning, and it does not carry it alone: the word REVOKED is the first thing in the
- * sentence, so a photocopy in black and white says the same thing (D-AVI22's rule, which is about a
- * preview whose INK differs from the filing — this line exists on neither filing nor preview).
+ * ⚠ A HEADLINE and a DETAIL rather than one sentence, because the renderer sets them differently and
+ * a caller that handed over prose would leave the typography to a substring search. The headline is
+ * the status and its moment; the detail is what follows from it.
  */
-function note(doc: PDFKit.PDFDocument, text: string): void {
-  body(doc, text, DANGER);
+export interface Standing {
+  /** `REVOKED 2026-09-16 09:12:00 UTC` — the status FIRST, so a photocopy in black and white leads with it. */
+  headline: string;
+  detail: string;
+}
+
+/**
+ * The revocation notice: the one fact on this page that changes what the carrier may do (AUD-9).
+ *
+ * ── ⚠ THIS IS THE SECOND ESCALATION, AND THE FIRST ONE'S REASONING WAS RIGHT ──────────────────
+ * It began as `muted()`, which drew it the same weight and colour as *"Version v0-draft"*, a line
+ * nobody reads. That was raised and fixed by moving it to DANGER ink at reading size — correct as
+ * far as it went, and **not far enough**: at reading size, in the flow, between the version caption
+ * and the disclosure, it reads as the page's opening paragraph. Measured 2026-09-20 on the rendered
+ * document, it was the same 9.5pt as the disclosure body under it and separated from it by 5.5pt —
+ * *less* than the 10.98pt between that body's own lines. It was not typeset as a status at all; it
+ * was typeset as the first paragraph of the wording, in red.
+ *
+ * So it is now BOUNDED — a DANGER rule above and below — which is what makes it read as a stamp on
+ * the page rather than as prose in its flow, and the headline is bold. A bounded block is the one
+ * shape on these pages that cannot be mistaken for body copy.
+ *
+ * ⚠ **Colour still does not carry it alone, and that is D-AVI22's rule rather than a preference.**
+ * The word REVOKED (or WITHDRAWN) is the first thing in the headline, the headline is BOLD, and the
+ * two rules are structural — so a black-and-white photocopy, which is how a DOT auditor will most
+ * likely see this, says everything the colour says.
+ */
+function standingNotice(doc: PDFKit.PDFDocument, standing: Standing): void {
+  rule(doc, DANGER);
+  doc
+    .fillColor(DANGER)
+    .font("Helvetica-Bold")
+    .fontSize(9.5)
+    .text(winAnsi(standing.headline), MARGIN, doc.y, { width: CONTENT_WIDTH });
+  doc.x = MARGIN;
+  body(doc, standing.detail, DANGER);
+  rule(doc, DANGER);
   doc.moveDown(0.4);
 }
 
@@ -111,12 +144,12 @@ export function drawnMark(doc: PDFKit.PDFDocument, mark: Buffer | null): void {
 export function consentPage(
   doc: PDFKit.PDFDocument,
   consent: SignedConsent,
-  standing?: string | null,
+  standing?: Standing | null,
 ): void {
   doc.addPage();
   heading(doc, "Consent to transact electronically");
   caption(doc, `15 U.S.C. 7001(c) · version ${consent.disclosure_version}`);
-  if (standing) note(doc, standing);
+  if (standing) standingNotice(doc, standing);
   body(doc, blank(consent.disclosure_text));
   doc.moveDown(0.5);
   body(doc, blank(consent.intent_statement));
@@ -134,12 +167,12 @@ export function instrumentPage(
   doc: PDFKit.PDFDocument,
   auth: SignedInstrument,
   mark: Buffer | null,
-  standing?: string | null,
+  standing?: Standing | null,
 ): void {
   doc.addPage();
   heading(doc, `Authorization — ${purposeLabel(auth.purpose)}`);
   caption(doc, `Version ${auth.disclosure_version}`);
-  if (standing) note(doc, standing);
+  if (standing) standingNotice(doc, standing);
   // The exact text that was signed, from the row, not from today's constant: a document showing
   // current wording beside an old signature would misrepresent what somebody agreed to.
   body(doc, blank(auth.disclosure_text));
