@@ -51,7 +51,30 @@ const PRINTED_NAME_LINES: ReadonlyArray<readonly [id: string, caption: string]> 
   ["p28.driver_owner_name", "Driver/Owner Name:"],
   ["p31.driver_name", "Driver name:"],
   ["p31.owner_operator_name", "Owner Operator Name:"],
+  /**
+   * ⚠ **The caption is the carrier's sentence with its own blank left in it** (AUD-7). Q-PKT10 says
+   * the continuation sheet must name a cut answer in the carrier's words, and the carrier's words
+   * here are a sentence rather than a label — there is no `Name:` to quote. Quoting the sentence
+   * around the blank is the nearest true thing; inventing `Owner-operator name` would put a caption
+   * on the sheet that appears nowhere on the paper it continues.
+   */
+  ["p31.aka_op", "I ______ aka (OP)"],
 ];
+
+/**
+ * ⚠ **Page 31 now prints the applicant's name in THREE places, and that is one ruling, not three.**
+ *
+ * `p31b` is `party: "driver"` in the placement inventory and its `what` reads *"the owner-operator
+ * and leased-driver agreement, as the owner-operator"* — the applicant already signs page 31 in both
+ * roles, so naming them in the owner-operator's sentence asserts nothing the ceremony does not
+ * already make them assert. AUD-17 settled it for `Owner Operator Name:`; this is the same line of
+ * the same argument and deliberately not a new decision.
+ *
+ * ⚠ **If Q-HM14 is answered (b) — a structured `applying_as: company_driver | owner_operator` —
+ * then all THREE of page 31's owner-operator blanks become conditional on it together.** They are
+ * named next to each other here so that the day somebody gates one, the other two are impossible to
+ * miss. `Witness Name:` stays out of it in every case: `p31w` is a third person.
+ */
 
 /**
  * The dates that stand ALONE on a signing page rather than beside the mark.

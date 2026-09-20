@@ -102,12 +102,39 @@ describe("every printed-name line prints the same name", () => {
       "p28.driver_owner_name",
       "p31.driver_name",
       "p31.owner_operator_name",
+      // ⚠ AUD-7's mid-sentence blank. It is page 31's THIRD name and belongs in this list rather
+      // than in a test of its own, because the failure it guards against is the one this whole
+      // block exists for: a name line added on the wrong side of the `signed_name` / payload split.
+      "p31.aka_op",
       // ⚠ Page 22's sits beside its mark and is filled by `markSides`, which is the whole point of
-      // asserting it in the same breath as the other seven.
+      // asserting it in the same breath as the other eight.
       "p22.printed_name",
       "p15.name",
     ];
     for (const id of nameLines) expect(textAt(r, id), id).toBe("Marija Ana Varmeda");
+  });
+
+  /**
+   * AUD-7: the blank inside `I ______ aka (OP) read and understood the agreement above.`
+   *
+   * ⚠ **A TEXT assertion cannot see what was wrong with this line, and could not have found it.**
+   * The defect was that nothing was drawn at all, and "page 31 does not contain the name" was false
+   * before the fix too — `Driver name:` and `Owner Operator Name:` both carried it. What identifies
+   * this blank is its POSITION, which is why the assertion is on the line id and why the geometry
+   * half lives next door in `packetSigningGeometry.test.ts`.
+   *
+   * ⚠ **The discriminator is that it is a DIFFERENT line from the other two**, not merely that some
+   * line on page 31 has the name. A filler that pushed the name to `p31.driver_name` twice would
+   * satisfy a page-level check and leave the sentence blank, which is the defect.
+   */
+  it("names the owner-operator inside the sentence that declares they read it", () => {
+    const r = fill({});
+    const ids = ["p31.aka_op", "p31.driver_name", "p31.owner_operator_name"];
+    for (const id of ids) expect(textAt(r, id), id).toBe("Marija Ana Varmeda");
+    const lines = ids.map((id) => r.placed.find((v) => v.line.id === id)!.line);
+    expect(new Set(lines.map((l) => `${l.x1}|${l.y}`)).size, "three blanks, three places").toBe(3);
+    // ⚠ `Witness Name:` is a third person (`p31w`) and must stay empty however the rest is filled.
+    expect(r.placed.some((v) => v.line.id.includes("witness"))).toBe(false);
   });
 
   it("drops a middle name it does not have rather than printing two spaces", () => {

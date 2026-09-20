@@ -158,6 +158,31 @@ export const PACKET_SIGNING_FIELD_LINES: readonly PacketFieldLine[] = [
     note: "The underscores after `Owner Operator Name:`, above the owner-operator's pair. ⚠ `Witness Name:` below it takes the same shape and is NOT ours — p31w is a third party." },
 
   /**
+   * ⚠ **The packet's only blank in the MIDDLE of a sentence** (AUD-7, 2026-09-19), and that is why
+   * AUD-17's sweep found it in neither pass: both passes enumerated ruled lines and caption-led runs,
+   * and this is neither. The carrier printed *"I _________ aka (OP) read and understood the agreement
+   * above."* as ONE text run — a glyph for `I`, a space, forty-one underscores, then the rest of the
+   * sentence — so there is no rule to find and no caption the blank follows.
+   *
+   * ⚠ **It is bounded on BOTH sides by the carrier's own words, which no other blank in this table
+   * is.** Everything else runs to a margin; this one has `aka (OP)` immediately after it, and a value
+   * that overruns does not run into white space, it runs into the sentence that gives the name its
+   * meaning. Drawn at full length without the fitter it prints straight through `aka (OP)` — which
+   * is how `x2` was settled, by rendering exactly that and looking at 300 dpi.
+   *
+   * ⚠ **`x2` CANNOT BE CHECKED BY A TEST and the test below says so rather than pretending.** The
+   * end of a line of underscores is not a run whose x anything can read: the whole sentence is a
+   * single `TJ` array with per-glyph kerning, so the interior positions exist only as advance widths
+   * inside a font this repo does not parse. Same position as `PAGE_1_NAME_COLUMNS` in
+   * `packetFieldGeometry.ts`, and handled the same way — measured off a coordinate ruler drawn
+   * across the line at 2pt intervals, confirmed by putting a value under it. What DOES hold the
+   * value inside this span at render time is `packetOverlay.test.ts`'s *"draws nothing past the span
+   * its geometry gives it"*, which is about the span rather than about this number.
+   */
+  { id: "p31.aka_op", page: 31, x1: 60.8, x2: 244.0, y: 494.4, source: "seen",
+    note: "The forty-one underscores inside `I ____ aka (OP) read and understood the agreement above.` ⚠ Not a rule and not caption-led — a blank mid-sentence, with the carrier's own words on both sides of it." },
+
+  /**
    * ⚠ **Page 26's answer is an X in a BOX, and it is the only two-cell box in the packet.**
    *
    * §40.25(j)'s two-year question — *did you test positive or refuse a pre-employment test for a job
