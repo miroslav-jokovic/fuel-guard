@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
-import { pdfDrawnLines, pdfDrawnRules, pdfText } from "../../../testing/pdfText.js";
+import { pdfDrawnLines, pdfDrawnRules, pdfPageTexts, pdfText } from "../../../testing/pdfText.js";
 import { MARGIN } from "../../../lib/pdfDraw.js";
 import { applicationPermissionsPdf, isPermissionsError } from "./permissions.js";
 import { renderApplicationPdf, type ApplicationPdfInput } from "./render.js";
@@ -516,6 +516,49 @@ describe("printing what an applicant has signed", () => {
       expect(MARGIN - band!.y, `page ${page + 1}: the band stands clear of the text block`)
         .toBeGreaterThan(band!.size * 2);
     }
+  });
+
+  /**
+   * The certificate's closing note is never the only thing on a sheet (AUD-20).
+   *
+   * ⚠ **`pdfDraw.test.ts` pins the MECHANISM and cannot pin this.** That suite proves `section()`
+   * keeps a colophon with its rows at every height on the page; it says nothing about whether this
+   * document still draws its closing note loose in the flow underneath the section, which is what it
+   * did until today and what the defect actually was.
+   *
+   * ⚠ **The fixture is the one that reproduced it**, not a convenient one: THREE instruments and a
+   * real 130-character user agent on every act, which is what put `to its source.` alone on page 7
+   * of 7 with 0.9% of the text block used. Two instruments, or a short user agent, and the note lands
+   * mid-sheet whatever the code does — so a test written on the default fixture would be green on
+   * the defect.
+   */
+  it("keeps the certificate's closing note on the sheet that carries the last act", async () => {
+    const LONG_UA =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 "
+      + "(KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+    const onLongUa = (over: Record<string, unknown>) => grant({ ...over, accepted_user_agent: LONG_UA });
+
+    const pages = await pdfPageTexts(await rendered(seed({
+      authorizations: [
+        onLongUa({}),
+        onLongUa({ id: "auth-psp", purpose: "psp", disclosure_text: PSP_TEXT, accepted_at: "2026-09-11T14:09:01Z" }),
+        onLongUa({ id: "auth-mvr", purpose: "mvr", disclosure_text: "MVR-DISCLOSURE-BODY", accepted_at: "2026-09-11T14:10:20Z" }),
+      ],
+      consent: { ...CONSENT, applicant_user_agent: LONG_UA },
+      application: { ...CERTIFIED_APPLICATION, applicant_user_agent: LONG_UA },
+    })));
+
+    const TAIL = "to its source.";
+    const sheet = pages.findIndex((t) => t.includes("Certified the application"));
+    expect(sheet, "the last act is on the document").toBeGreaterThanOrEqual(0);
+    expect(pages[sheet], "the note ends on the sheet that carries the last act").toContain(TAIL);
+    // ⚠ And no sheet is left holding a fragment of it. This is the assertion that fails on the
+    // defect: the page above kept `…can be matched` and this one took the three words after it.
+    const strays = pages
+      .map((text, i) => ({ text, i }))
+      .filter(({ text, i }) => i !== sheet && text.includes(TAIL))
+      .map(({ i }) => i);
+    expect(strays, "no other sheet carries part of the closing note").toEqual([]);
   });
 
   /**

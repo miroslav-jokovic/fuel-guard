@@ -281,18 +281,48 @@ function partHeight(doc: PDFKit.PDFDocument, part: SectionPart): number {
  * blank sheet in a filed §391.51 document to prove it. `field()`'s own keep-together still protects
  * each row inside it. There is no such section today; the branch exists because a browser string is
  * caller-supplied and a filed document must render whatever was stored.
+ *
+ * ── ⚠ AND THE TRAILING COLOPHON TRAVELS WITH IT (AUD-20, 2026-09-20) ─────────────────────────
+ * A document's closing note — the rule and the small paragraph that says what the page is — used to
+ * be two calls the caller made after the last section, in the flow, with nothing binding them to it
+ * or to each other. Measured on the permissions PDF at three instruments and a real 130-character
+ * user agent: **page 7 of 7 carried the three words `to its source.` and nothing else — 0.9% of the
+ * text block.** Not the whole sentence on its own sheet, which is how the finding was first
+ * recorded; the WRAP of that sentence, split mid-clause across a page boundary.
+ *
+ * Passing it here rather than exporting a `colophon()` for the caller to pair with a
+ * `colophonHeight()` is the point: this is the third keep-together in this file, and the first two
+ * (`field()`, and the section itself) each measure what they are about to draw. A measuring function
+ * and a drawing function, called separately by somebody else, are the two copies of one constant
+ * that `HEADING_LEAD_ABOVE` exists to have avoided. One argument, one measurement, no way to reserve
+ * room for one thing and draw another.
  */
 export function section(
   doc: PDFKit.PDFDocument,
   title: string,
   parts: readonly SectionPart[],
+  /** The document's closing note, drawn under a rule and never parted from this section (AUD-20). */
+  opts: { colophon?: string } = {},
 ): void {
+  /**
+   * ⚠ **Measured FIRST, before the rows, and the order is load-bearing.** Every measurement in this
+   * file leaves pdfkit holding the font it measured with, and `heading()` below moves down by the
+   * CURRENT font's line height — so whatever runs last here decides the air above the heading.
+   * `partHeight()` has always run last and always left Helvetica-Bold 9.5; AUD-8's measurements of
+   * that air were taken against it. Measuring the colophon after the rows leaves 8.5 behind instead,
+   * and **the heading then sits 1.04pt higher** — measured both ways on the same section, with and
+   * without a colophon, which is the only way to see it. A page-break fix that quietly re-spaced
+   * every section carrying a closing note would have been a layout change nobody asked for. With the
+   * measurement first, a section draws identically whether or not it was given one.
+   */
+  const tail = opts.colophon === undefined ? 0 : colophonHeight(doc, opts.colophon);
   doc.font("Helvetica-Bold").fontSize(HEADING_SIZE);
   const line = doc.currentLineHeight(true);
   const needed =
     line * (HEADING_LEAD_ABOVE + HEADING_LEAD_BELOW)
     + doc.heightOfString(winAnsi(title), { width: CONTENT_WIDTH })
-    + parts.reduce((total, part) => total + partHeight(doc, part), 0);
+    + parts.reduce((total, part) => total + partHeight(doc, part), 0)
+    + tail;
 
   const floor = PAGE_HEIGHT - doc.page.margins.bottom;
   const wholePage = floor - doc.page.margins.top;
@@ -303,6 +333,27 @@ export function section(
     if ("note" in part) caption(doc, part.note);
     else field(doc, part.label, part.value);
   }
+  if (opts.colophon !== undefined) {
+    rule(doc);
+    muted(doc, opts.colophon);
+  }
+}
+
+/**
+ * How much room the closing note needs, rule included.
+ *
+ * ⚠ **The rule's own air is measured at 9.5pt BOLD and that is not a typo.** `rule()` moves down by
+ * 0.4 of a line twice and does not set a font, so what it costs depends on whatever was drawn last —
+ * which, for every section that has rows, is `field()`'s value at Helvetica-Bold 9.5. Measuring at
+ * the colophon's own 8.5 would under-report the gap by about a point, and under-reporting is the one
+ * direction a reservation may not be wrong in: `partHeight()`'s header says why, and AUD-20 is what
+ * being short by a line looks like on paper.
+ */
+function colophonHeight(doc: PDFKit.PDFDocument, text: string): number {
+  doc.font("Helvetica-Bold").fontSize(9.5);
+  const ruleAir = doc.currentLineHeight(true) * 0.8;
+  doc.font("Helvetica").fontSize(MUTED_SIZE);
+  return ruleAir + doc.heightOfString(winAnsi(text), { width: CONTENT_WIDTH });
 }
 
 /** ⚠ The colour is a parameter because a DANGER pair bounds the revocation notice (AUD-9); every

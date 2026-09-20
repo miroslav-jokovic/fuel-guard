@@ -2,7 +2,7 @@ import {
   AUTHORIZATION_PURPOSE_LABELS,
   type AuthorizationPurpose,
 } from "@silvicom/shared";
-import { caption, field, heading, muted, rule, section } from "../../../lib/pdfDraw.js";
+import { caption, field, heading, rule, section } from "../../../lib/pdfDraw.js";
 import type { ApplicationPdfInput } from "./render.js";
 
 /**
@@ -96,6 +96,19 @@ export function certificate(
     doc.moveDown(0.4);
   });
 
+  /**
+   * ⚠ The sentence has to name what the footer's digest is actually over, and the third caller made
+   * that a parameter rather than a guess. `stampPages` stamps the digest of the SOURCE, and B2's
+   * permissions PDF is drawn from the signed rows rather than from the answers — a page telling a
+   * reader to match it against "the answers" when the digest is over something else is a claim
+   * nobody can check, which on an evidence document is worse than saying nothing.
+   */
+  const source = opts.source ?? (input.preview ? "answers" : "certified answers");
+  const closing =
+    "Each act above is stored with the exact text that was shown at the time, not a reference to "
+    + "wording that may since have changed. The identifier in the footer of every page is the digest "
+    + `of the ${source} this document was drawn from, so a page can be matched to its source.`;
+
   section(
     doc,
     `${(input.esignConsent ? 2 : 1) + input.authorizations.length}. Certified the application`,
@@ -114,21 +127,12 @@ export function certificate(
             { label: "Browser", value: blank(input.applicantUserAgent) },
           ]),
     ],
-  );
-
-  rule(doc);
-  /**
-   * ⚠ The sentence has to name what the footer's digest is actually over, and the third caller made
-   * that a parameter rather than a guess. `stampPages` stamps the digest of the SOURCE, and B2's
-   * permissions PDF is drawn from the signed rows rather than from the answers — a page telling a
-   * reader to match it against "the answers" when the digest is over something else is a claim
-   * nobody can check, which on an evidence document is worse than saying nothing.
-   */
-  const source = opts.source ?? (input.preview ? "answers" : "certified answers");
-  muted(
-    doc,
-    "Each act above is stored with the exact text that was shown at the time, not a reference to "
-    + "wording that may since have changed. The identifier in the footer of every page is the digest "
-    + `of the ${source} this document was drawn from, so a page can be matched to its source.`,
+    /**
+     * ⚠ **The closing note belongs to the last act, not to the flow after it (AUD-20).** Drawn by
+     * hand below this call, it was bound to nothing: at three instruments and a real user agent the
+     * permissions document ended with a sheet carrying the three words `to its source.` The section
+     * reserves the room for it now, so the two either share a page or move to the next one together.
+     */
+    { colophon: closing },
   );
 }
