@@ -132,12 +132,43 @@ export const useSessionStore = defineStore("session", () => {
     const { data } = await supabase.auth.getSession();
     session.value = data.session;
     supabase.auth.onAuthStateChange((_event, s) => {
+      /**
+       * ⚠ Nothing to do when the token has not actually changed. supabase-js emits `INITIAL_SESSION`
+       * the moment you subscribe, replaying the very session `getSession()` returned two lines above
+       * — so without this the listener would clear and re-fetch on EVERY page load, immediately
+       * after `init()`'s own `loadSurfaces()` had just filled them. The user-visible cost is a
+       * greeting that reads "Good evening", then "Good evening, Miki", then "Good evening" again,
+       * then settles: a flicker introduced by the fix for the missing name, which would have been a
+       * poor trade. Compared on the access token because that is the thing whose change actually
+       * means "different claims".
+       */
+      if (s?.access_token === session.value?.access_token) {
+        session.value = s;
+        return;
+      }
       session.value = s;
       // A new token can be a different member of a different org, so the screen answers that came
-      // with the old one must not outlive it. Cleared rather than refetched: `null` is "no denials",
-      // which is the safe reading while the next `loadSurfaces()` is in flight.
+      // with the old one must not outlive it. `null` is "no denials", which is the safe reading
+      // while the replacement is in flight.
       surfaces.value = null;
       fullName.value = null;
+      /**
+       * ⚠ **And then FETCH them again.** This call is the whole of the 2026-09-20 fix, and its
+       * absence is instructive: the comment above already said "while the next `loadSurfaces()` is
+       * in flight", so the intention was written down and read as done. Nothing scheduled it.
+       * `loadSurfaces` ran in exactly one place — `init()` — and the router guard runs `init()` only
+       * `if (!session.initialized)`, which is once per PAGE LOAD.
+       *
+       * So a visitor booting on /login initialised with no session, signed in, had both values
+       * cleared by this listener, and then rendered the app from `null` until they pressed reload:
+       * the dashboard greeted them with no name, and `AppShell` built the sidebar and the section
+       * guard read denials from "no denials". Reported as "I have to refresh the page".
+       *
+       * Fire-and-forget on purpose — this callback is synchronous and supabase-js does not await it.
+       * `identitySeq` below is what keeps the resulting race honest.
+       */
+      identitySeq += 1;
+      void loadSurfaces();
     });
     // Before `initialized`, so the router guard — which awaits this whole function — never resolves
     // a route against an answer that has not arrived. A failure leaves `null`, which denies nothing.
@@ -145,10 +176,32 @@ export const useSessionStore = defineStore("session", () => {
     initialized.value = true;
   }
 
+  /**
+   * Which identity the in-flight `/api/me` belongs to.
+   *
+   * Bumped by the auth listener rather than by `loadSurfaces` itself, and that placement is the
+   * point: a sign-OUT must also invalidate a request that is already in the air, or the person who
+   * just logged out watches their own name reappear in the greeting a moment later. Incrementing
+   * inside `loadSurfaces` could not do that, because `loadSurfaces` declines to run at all when
+   * there is no session.
+   *
+   * There is always more than one auth event per login to worry about: `LoginPage` signs in and then
+   * immediately rotates the token (`await session.refresh()`, audit B3), so this listener fires
+   * twice in a row and two `/api/me` calls overlap on every single sign-in. Same person both times,
+   * so the stale answer is harmless today — but the clearing above exists precisely because the next
+   * token can be a different member of a different org, and an unguarded last-write-wins would hand
+   * that org's screen the previous one's answers.
+   */
+  let identitySeq = 0;
+
   /** Fetch this caller's screen entitlements. Silent on failure, for the reason `surfaces` states. */
   async function loadSurfaces() {
     if (!session.value) return;
+    const seq = identitySeq;
     const res = await apiFetch<{ surfaces?: SurfaceClaim; fullName?: string | null }>("/api/me");
+    // A newer identity has arrived while this was in flight (or we signed out). Its own call owns
+    // these refs now; writing here would be the older answer winning by finishing later.
+    if (seq !== identitySeq) return;
     surfaces.value = res.ok ? (res.data?.surfaces ?? {}) : null;
     fullName.value = res.ok ? (res.data?.fullName ?? null) : null;
   }
