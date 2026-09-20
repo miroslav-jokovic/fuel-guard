@@ -3682,6 +3682,72 @@ every time.
   is deliberately scoped to the applicant's ANSWERS so that it neither fails on the notice nor
   decides the notice's size by accident.
 
+- **2026-09-19 — AUD-7 CLOSED. The packet's last blank, and it is mid-sentence.** Branch
+  `claude/hiring-aud7`.
+
+  **Three of AUD-7's four were already fixed by AUD-17** — p3 `Printed name`, p31 `Driver name:` and
+  `Owner Operator Name:` — verified at the call sites rather than taken on trust before starting.
+  What was left is the one the audit listed last: **`I ______ aka (OP)`** on page 31.
+
+  **Why AUD-17's twenty-eight-coordinate sweep missed it, which is the finding to carry forward.**
+  Both of that sweep's passes enumerated things with edges — ruled lines, and runs led by a caption.
+  This blank is neither. The carrier printed *"I _________ aka (OP) read and understood the agreement
+  above."* as ONE text run: a glyph for `I`, a space, **forty-one underscores**, then the rest of the
+  sentence. There is no rule and no caption, so nothing either pass looked for was present.
+
+  **⚠ It is the only blank in the packet with the carrier's own words on BOTH sides of it.** Every
+  other blank runs out into white space; this one has `aka (OP)` immediately after it. Rendered at
+  full length without the fitter, a long name prints straight through `aka (OP) read and understood`
+  — it does not just look untidy, it destroys the phrase that gives the name its meaning. That is how
+  `x2 = 244.0` was settled: by drawing exactly that and looking at 300 dpi.
+
+  **Measured, not computed.** `y = 494.4` is **derived from a proven precedent rather than guessed**:
+  page 2's `Yes______`/`No_______` entries sit at 167.8 and 122.0 while their template runs are at
+  170.8 and 125.0 — exactly `FIELD_BASELINE_LIFT` apart, in both pairs. The spans came off a 2pt
+  coordinate ruler drawn across the line and rasterised at 600 dpi, then confirmed by putting a value
+  under it.
+
+  **⚠ The entry PASSES `packetSigningGeometry.test.ts`'s rule check without being declared rule-less,
+  and it is declared rule-less anyway.** `ruleCovering` finds a stroke at y493.2 running
+  52.8→253.1 that brackets the blank inside the 1.2pt tolerance — but that stroke is **the top border
+  of the table row BELOW the sentence**, in a document whose paragraphs sit in table cells. It starts
+  at the text margin, not at the blank, and ends at the next row's width. Left out of `NOT_ON_A_RULE`
+  the entry would have been held still by a coincidence, and a later re-measurement could move the
+  blank while the border stayed put and the test stayed green.
+
+  **⚠ `x2` cannot be checked by any test, and the test says so rather than pretending.** The end of a
+  line of underscores is not a run whose x anything can read: the sentence is a single `TJ` array
+  with per-glyph kerning, so interior positions exist only as advance widths inside a font this repo
+  does not parse. This is `PAGE_1_NAME_COLUMNS`'s position exactly and is handled the same way. What
+  holds the value inside the span at RENDER time is AUD-5's *"draws nothing past the span its
+  geometry gives it"*, which is about the span and not about the number — and it covers this line
+  automatically, because `packetFieldFill` places it. Verified end to end: a 51-character name shrinks
+  to the 8pt floor, cuts on a word boundary, stays clear of `aka (OP)`, and reaches the continuation
+  sheet in full under the carrier's own wording.
+
+  **⚠ Page 31 now prints the applicant's name in THREE places, and that is one ruling and not three.**
+  `p31b` is `party: "driver"` and its `what` reads *"…as the owner-operator"* — the applicant already
+  signs page 31 in both roles, so naming them in the owner-operator's own sentence asserts nothing
+  the ceremony does not already make them assert. AUD-17 settled it for `Owner Operator Name:`; this
+  is the same argument and deliberately not a new decision. **If Q-HM14 is answered (b) — a
+  structured `applying_as` — all THREE of page 31's owner-operator blanks become conditional on it
+  together**, and they are named beside each other in `PRINTED_NAME_LINES` so that gating one makes
+  the other two impossible to miss. `Witness Name:` stays out of it in every case (`p31w`).
+
+  **Mutations: 6 run, 6 red, first pass.** Removing the fill; moving `x1` to the sentence start (over
+  the printed `I`); pushing `x1` past the underscores; dropping `y` to the line below; pointing the
+  fill at `p31.driver_name` so page 31 still shows the name but the sentence stays blank; and letting
+  `x2` escape the sentence's own table cell. ⚠ The fifth is the one worth keeping — a page-level
+  "does page 31 contain the name" check is green on it, which is why the assertion is per line id.
+
+  **Gates** (after the last edit): `lint:boundaries` · `lint:filesize` · `lint:funcsize` ·
+  `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` · `lint:upserts` ·
+  `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **3998 passed, 331 files**. ⚠ **No migration.**
+
+  **⚠ Freeze-bound**, like everything that changes printing. Production holds no filed packet, so
+  this reaches every document filed from here.
+
 ---
 
 ## 11. Sources

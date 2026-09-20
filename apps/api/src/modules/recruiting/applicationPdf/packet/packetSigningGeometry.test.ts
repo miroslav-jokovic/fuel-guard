@@ -48,6 +48,16 @@ const ruleCovering = (page: number, y: number, x1: number, x2: number): boolean 
 const NOT_ON_A_RULE = new Set([
   "p31.driver_name",
   "p31.owner_operator_name",
+  /**
+   * ⚠ **This one PASSES the rule test without being here, and that is exactly why it is here**
+   * (AUD-7, 2026-09-19). `ruleCovering` finds a stroke at y493.2 running 52.8→253.1 that brackets
+   * the blank within the 1.2pt tolerance — but that stroke is the TOP BORDER OF THE TABLE ROW
+   * BELOW the sentence, in a document whose paragraphs sit in table cells. It starts at the text
+   * margin rather than at the blank, and it ends at the next row's width. Left out of this set, the
+   * entry would be held still by a coincidence, and the day a re-measurement moved the blank the
+   * test would stay green because the border had not moved.
+   */
+  "p31.aka_op",
   "p26.prior_test.yes",
   "p26.prior_test.no",
 ]);
@@ -98,6 +108,51 @@ describe("the signing table, against the carrier's own pages", () => {
     // ⚠ `Owner Operator Name:` is eight characters longer than `Driver name:`, so its blank cannot
     // begin at or before the other's. Derived from the two captions rather than from the numbers.
     expect(owner.x1).toBeGreaterThan(driver.x1);
+  });
+
+  /**
+   * AUD-7: the packet's only blank in the MIDDLE of a sentence.
+   *
+   * ⚠ **It is bounded on BOTH sides by the carrier's words**, which nothing else in this table is.
+   * Every other blank runs out into white space; this one has `aka (OP)` immediately after it, so a
+   * value that overruns destroys the sentence that gives the name its meaning rather than just
+   * looking untidy.
+   *
+   * ⚠ **`x2`'s exact value CANNOT be checked here, and this says so rather than pretending** — the
+   * same position `packetFieldGeometry.ts` takes on `PAGE_1_NAME_COLUMNS`. The end of a line of
+   * underscores is not a run whose x anything can read: the whole sentence is one `TJ` array with
+   * per-glyph kerning, so the interior positions are advance widths inside a font this repo does not
+   * parse. 244.0 was measured off a 2pt coordinate ruler and confirmed by drawing a value under it
+   * at 300 dpi. What holds the value inside the span at RENDER time is
+   * `packetOverlay.test.ts`'s "draws nothing past the span its geometry gives it".
+   *
+   * What IS checkable is everything else, and it is what a mutant would break first.
+   */
+  it("puts page 31's mid-sentence blank on its underscores, after a one-letter word", () => {
+    const line = signingLineFor("p31.aka_op")!;
+    const run = pages[30]!.runs.find(
+      (r) => Math.abs(r.y - (line.y + FIELD_BASELINE_LIFT)) <= 1.2 && r.text.includes("aka (OP)"),
+    );
+    expect(run, "no `aka (OP)` run at the blank's baseline").toBeDefined();
+    expect(run!.text.startsWith("I "), "the sentence opens with the one-letter word").toBe(true);
+    expect(run!.text, "the blank is printed underscores, not a rule").toMatch(/_{4,}/);
+
+    /**
+     * ⚠ **`x1 > run.x` alone is NOT the assertion, for the reason the driver-name test states** —
+     * it is satisfied by any x to the right, including ones that print the name over the carrier's
+     * own words. What bounds it here is that the word the blank follows is a SINGLE LETTER: `I `
+     * cannot be 12pt wide at the carrier's type, so a blank starting more than that far along is
+     * over the underscores' left end or past it.
+     */
+    expect(line.x1, "starts after the printed `I `").toBeGreaterThan(run!.x);
+    expect(line.x1, "a one-letter word cannot be this wide").toBeLessThan(run!.x + 12);
+
+    // ⚠ The span must stay inside the TABLE CELL the sentence is in, whose own borders are real
+    // strokes: y508.4 and y494.4, both running 52.8 → 478.6. This is a genuine bound off the
+    // carrier's paper and is NOT the 244.0 measurement, which no test can check.
+    expect(ruleCovering(31, 494.4, 52.8, 478.6), "the sentence's own cell floor").toBe(true);
+    expect(line.x2, "must end inside the sentence's cell").toBeLessThan(478.6);
+    expect(line.x2, "a span that ends before it starts is not a span").toBeGreaterThan(line.x1);
   });
 
   /**
