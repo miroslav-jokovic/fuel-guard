@@ -3608,6 +3608,80 @@ every time.
   diagonally through sections 4 and 5's rows on the permissions certificate. It is legible and it is
   the next thing a reader notices on that page.
 
+- **2026-09-19 — AUD-5 BUILT. One grid prints at one size.** Branch `claude/hiring-aud5`.
+
+  **Reproduced before anything was changed.** A throwaway harness rendered the packet with three
+  accidents of very different lengths and fifteen employers, and `pdftoppm -r 150/-r 300` on p2 and
+  p12 showed it: the accident grid's `NATURE` column at 11pt, 11pt, 6pt, and the §391.23 verification
+  log alternating 11pt `Swift` against 6pt `Midwest Regional Carriers of…` down two columns for
+  fifteen rows. A second harness printed the size every cell CHOSE, which is what turned an
+  impression into a measurement: `p12.employment` used four sizes (11 / 10 / 8 / 6) in one table.
+
+  **The cause is that nothing had a concept of a grid.** `drawFieldValues` called `fitText` per
+  field; `fitText` walks 11pt down in half-points, so each of the eleven sizes was available to each
+  cell independently. `p12.employment` col0 came out uniform only because every date is the same
+  length — an accident, not a rule.
+
+  **The obvious fix was measured and rejected.** "Size the column at its worst cell" gives page 12's
+  address column 6pt for all fifteen rows to accommodate one street address. The rule shipped instead
+  is **a group takes the largest size at which EVERY member fits, bounded below by a floor; a member
+  that does not fit at the floor is CUT there and reproduced in full on the continuation sheet.** One
+  long answer can cost a grid its 11pt; it can never cost the grid legibility.
+
+  **⚠ The owner's-call question — "does this move an answer off the form?" — was answered by
+  measurement, and the answer is NO.** Floors of 6, 7 and 8 all produce **the identical 21 cut cells
+  and 11 continued rows**; nothing in the packet's grids fits at 7pt and not at 8pt. The produced
+  **continuation sheet is byte-identical before and after** (`pdftotext -f 32 -l 32`, diff clean).
+  Floor 9 is the first that is not free — 36 cut cells, 16 rows — because `2010-01-01 — 2011-01-01`
+  stops fitting p12's 99pt date column, which would cut every date on the verification log. So the
+  floor is **8**, and no §8 blocker was needed; had it moved a single row, it would have gone there
+  instead of being chosen here.
+
+  **The unit of uniformity is the GRID, not the column, and that was settled by looking.** Both were
+  built and rendered. Per-column leaves p12 reading `8 | 8 | 8 | 11 | 11` on every row — the two
+  columns nobody strained stay large and the table reads as two forms spliced together. Per-grid cuts
+  the same 21 cells and continues the same 11 rows, so the larger unit is uniformity for free.
+
+  **The adjacent gap is closed, and it was worse than the defect.** `packetFit.ts` had cited
+  `packetOverlay.test.ts`'s *"draws nothing past the span its geometry gives it"* since AUD-1 as the
+  thing that catches an overrun. **No test of that name existed anywhere in the repo** and
+  `lint:comment-claims` was green throughout — it checks that a claim quotes a title-shaped string,
+  not that the title resolves. ⚠ **That is a live hole in a gate this plan's §0 tells people to
+  trust**, and it is not fixed here; widening the checker is its own step. The test is now written.
+  It reads the drawn runs back out of the produced page — which the same comment said was
+  impossible, wrongly: `pdf-lib` brackets the carrier's content in `q … Q` and appends OUR operators
+  after the `Q`, so they are in unmodified page points, the very space `packetFieldGeometry.ts`
+  measured in. The bracketing is what makes our runs readable; it spoils only `packetTemplate.ts`'s
+  reader, which applies one page transform to the whole file. Both comments are corrected in place.
+
+  **Mutations: 6 run, 4 killed on the first pass, 2 survived — and one of the survivors was a real
+  defect.** Dropping the `- 4` inset from the new size pass left every assertion green: the size
+  comes out half a point too large, `fitAtSize` then cuts honestly, nothing overruns, every grid
+  still prints at one size — and an answer that needed no cutting leaves the carrier's page for a
+  rounding error. *"keeps a value that fits only once the inset is counted"* now holds it, on a
+  measured fixture (`A friend who drives here` is 102.48pt at 9.5pt in p01.heard_from's 103.3pt rule
+  and 97.08pt at 9pt — the only band where the two passes can disagree). The second survivor, the
+  `?? FIELD_MIN_SIZE` fallback, is unreachable by construction and is documented as such rather than
+  pinned by a contrived assertion, which is the choice `packetGrid.ts` made about `fillGrid`'s
+  `capacity` bound.
+
+  **⚠ No text assertion can see any of this** — every word is in the content stream at every size —
+  which is why all five new tests are claims about drawn SIZES and drawn WIDTHS.
+
+  **Gates** (after the last edit): `lint:boundaries` · `lint:filesize` · `lint:funcsize` ·
+  `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` · `lint:upserts` ·
+  `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **3996 passed, 331 files**. ⚠ **No migration.**
+
+  **⚠ Freeze-bound**, like everything that changes printing: `ensureApplicationPdf` renders once and
+  keeps those bytes. Production holds no filed packet, so this reaches every document filed from here.
+
+  ⚠ **Found while measuring, NOT fixed, and not AUD-5's:** the continuation notice under a grid is
+  drawn at 6.5pt (`CONTINUATION_NOTICE_SIZE`), so after this change it is the smallest type on the
+  page — 6.5pt under an 8pt grid. That is AUD-8's question about metadata leading. The new floor test
+  is deliberately scoped to the applicant's ANSWERS so that it neither fails on the notice nor
+  decides the notice's size by accident.
+
 ---
 
 ## 11. Sources

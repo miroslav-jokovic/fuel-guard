@@ -34,7 +34,51 @@ const INK = rgb(0.1, 0.1, 0.1);
  * today so this change moves nothing on the page — what it buys is that either can move alone.
  */
 const FIELD_TEXT_SIZE = 11;
-const FIELD_MIN_SIZE = 6;
+/**
+ * ⚠ **6pt until AUD-5, 2026-09-19, and the change to 8 costs NOTHING that reaches the paper.**
+ *
+ * The floor is where a CUT value lands, so raising it shortens the ellipsised preview on the form —
+ * and the worry that it would therefore push more of an applicant's answer onto the continuation
+ * sheet was measured rather than argued. Against the fifteen-employer §391.23 log and the
+ * three-accident grid, floors of 6, 7 and 8 all produce **21 cut cells and 11 continued rows** —
+ * the identical set. Nothing in the packet's grids fits at 7pt and not at 8pt, so no value changes
+ * side. Floor 9 is the first that does (36 cut cells, 16 rows) because `2010-01-01 — 2011-01-01` no
+ * longer fits page 12's 99pt date column at 9pt, which would cut every date on the verification log
+ * — so 8 is the largest free floor and 9 is not free at any price.
+ *
+ * What it buys is that 6pt type no longer appears on a signed federal form. Measured with
+ * `pdftoppm -r 300` on packet p2 and p12: 6pt is the size the eye reads as a different document.
+ */
+const FIELD_MIN_SIZE = 8;
+
+/**
+ * ⚠ **THE UNIT OF UNIFORMITY IS ONE GRID — not one cell, and not one column** (AUD-5, 2026-09-19).
+ *
+ * The defect: `drawFieldValues` called `fitText` per field, independently, so each cell picked from
+ * the eleven half-point sizes on its own. Page 2's accident grid printed its three `NATURE` rows at
+ * 11pt, 11pt and 6pt; page 12's employment log alternated 11pt `Swift` against 6pt `Midwest Regional
+ * Carriers of…` down two columns for fifteen rows. Nothing in the code had a concept of a column, a
+ * row or a grid when it chose a size, so nothing could have made them agree.
+ *
+ * ⚠ **"Size the column at its worst cell" is the obvious fix and it is wrong** — it hands the column
+ * to its longest value, and page 12's address column would print fifteen rows at the floor to
+ * accommodate one street address. The floor above is what makes a group size safe: a group takes the
+ * largest size at which every member fits, and a member that does not fit even at the floor is CUT
+ * there and reproduced in full on the continuation sheet rather than dragging its neighbours down.
+ * One value can therefore cost a grid its 11pt, but it can never cost the grid legibility.
+ *
+ * ⚠ **Per GRID rather than per COLUMN, decided by looking at both at 150 and 300 dpi.** Per-column
+ * leaves page 12 reading `8 | 8 | 8 | 11 | 11` across every row — the two columns nobody's answer
+ * strained stay large, and the row reads as a table assembled from two forms. The measured cost of
+ * going one level up is nil: per-grid-floor-8 and per-column-floor-8 cut the same 21 cells and
+ * continue the same 11 rows. It is uniformity for free, so it is taken at the larger unit.
+ *
+ * ⚠ A STANDALONE line is its own group, and that is not a special case — it is a group of one, and
+ * falls out of the same rule. It has no siblings to agree with; what it gains is the raised floor.
+ */
+function uniformityGroup(field: PlacedFieldValue): string {
+  return field.line.cell ? `grid:${field.line.cell.tableId}` : `line:${field.line.id}`;
+}
 
 /**
  * The block id for cut answers that belong to no grid.
@@ -69,6 +113,14 @@ interface FittedText {
  * passes. What catches it is a GEOMETRIC claim — `packetOverlay.test.ts`'s *"draws nothing past the
  * span its geometry gives it"* — or looking at the raster.
  *
+ * ⚠ **That citation was a lie from AUD-1 until AUD-5 wrote the test, on 2026-09-19.** No test of
+ * that name existed anywhere in the repo — `grep -rn "draws nothing past the span" apps/api/src`
+ * returned nothing — and `lint:comment-claims` stayed green throughout, because it checks that a
+ * claim quotes a title-shaped string and not that the title resolves to a test. So for its whole
+ * life the property this module exists to guarantee was guarded by a sentence about itself. It is
+ * now a real assertion that reads the drawn runs back out of the produced page; `packetOverlay.
+ * test.ts`'s header says how, and why that can be done honestly when the template reader cannot.
+ *
  * ⚠ **Cutting is a last resort and never a silent one.** `packetContinuation.ts` had the right
  * instinct written down — *"a truncated conviction is the silent loss this whole sheet prevents"* —
  * and drew the reverse conclusion from it, that overrunning was the lesser harm. It is not:
@@ -78,9 +130,13 @@ interface FittedText {
  *
  * ⚠ **Exported for its test, and that is the only reason** — `packetOverlay.ts` is its one caller.
  * The guarantee it makes — *what comes back is never wider than the span it was given* — is the one
- * claim here that can be checked without a raster, and it cannot be checked through the renderer:
- * a produced page's coordinates stop being readable honestly once pdf-lib has bracketed the
- * carrier's content in `q … Q`. `packetFit.test.ts` pins it by "is never returned wider than the
+ * claim here checkable without a raster. ⚠ It was written here that it *"cannot be checked through
+ * the renderer, because a produced page's coordinates stop being readable honestly once pdf-lib has
+ * bracketed the carrier's content in `q … Q`"*. **That inference is backwards and AUD-5 measured
+ * it**: the bracket closes before our operators are appended, so the `Q` restores the identity
+ * transform and everything we draw is in unmodified page points — the very space this module's
+ * geometry was measured in. The bracketing is what makes our runs readable, not what spoils them.
+ * It spoils `packetTemplate.ts`'s reader, which applies one page transform to the whole file. `packetFit.test.ts` pins it by "is never returned wider than the
  * span it was given" and, so the helper cannot pass by cutting everything, by "says it was cut, and
  * is left alone when it fits". What the renderer then DOES with a cut value is pinned next door in
  * `packetOverlay.test.ts` by "is on the continuation sheet in full, and is not on the page it came
@@ -93,14 +149,61 @@ export function fitText(
   start: number,
   floor: number,
 ): FittedText {
-  for (let size = start; size >= floor; size -= 0.5) {
-    if (font.widthOfTextAtSize(text, size) <= width) return { size, text, cut: false };
+  const size = fitGroupSize(font, [{ text, width }], start, floor);
+  return { size, ...fitAtSize(font, text, width, size) };
+}
+
+/** One member of a uniformity group: what it says, and the span it has to say it in. */
+export interface FitCandidate {
+  text: string;
+  width: number;
+}
+
+/**
+ * The largest size at or below `start` at which EVERY candidate fits its OWN span, or `floor`.
+ *
+ * ⚠ **`every`, and each against its own width** — this is the whole of the group rule, and both
+ * halves matter. A grid's columns are different widths, so a size that fits the 206pt `NATURE`
+ * column says nothing about the 47pt `INJURIES` one; asking each member about its own span is what
+ * lets the unit of uniformity be a GRID and not only a column.
+ *
+ * ⚠ **It returns `floor` when nothing fits, and the caller must not read that as "it fits at the
+ * floor".** It does not — `fitAtSize` is what discovers that and cuts. Keeping the two apart is
+ * exactly the seam `fittedSize` did not have before AUD-1, where one function chose a size and was
+ * also trusted to have made the text fit at it, and a full-length string was drawn at 6pt straight
+ * through the next column.
+ */
+export function fitGroupSize(
+  font: PDFFont,
+  candidates: readonly FitCandidate[],
+  start: number,
+  floor: number,
+): number {
+  for (let size = start; size > floor; size -= 0.5) {
+    if (candidates.every((c) => font.widthOfTextAtSize(c.text, size) <= c.width)) return size;
   }
+  return floor;
+}
+
+/**
+ * The text drawable at an ALREADY CHOSEN size — the input, or as much as fits, with an ellipsis.
+ *
+ * ⚠ Split out of `fitText` by AUD-5 because the size is no longer this value's own business: it is
+ * the group's, and by the time a cell is drawn the decision has been made for it by siblings it
+ * never sees. The CUT stays per value, because two cells sharing a size do not share a length.
+ */
+export function fitAtSize(
+  font: PDFFont,
+  text: string,
+  width: number,
+  size: number,
+): { text: string; cut: boolean } {
+  if (font.widthOfTextAtSize(text, size) <= width) return { text, cut: false };
   // ⚠ By WORD first, so a cut answer still ends on a word a reader can act on; by character only
   // when one word is itself wider than the column, which `Featherstonehaugh-Villanueva` in a 90pt
   // rule genuinely is. A character slice alone would print half a surname and call it an answer.
   const fits = (candidate: string): boolean =>
-    font.widthOfTextAtSize(`${candidate}\u2026`, floor) <= width;
+    font.widthOfTextAtSize(`${candidate}\u2026`, size) <= width;
   const words = text.split(/\s+/);
   let keep = "";
   for (const word of words) {
@@ -112,7 +215,7 @@ export function fitText(
     keep = text;
     while (keep.length > 1 && !fits(keep)) keep = keep.slice(0, -1);
   }
-  return { size: floor, text: `${keep.trimEnd()}\u2026`, cut: true };
+  return { text: `${keep.trimEnd()}\u2026`, cut: true };
 }
 
 /**
@@ -195,6 +298,34 @@ function cutBlocks(
 }
 
 /**
+ * The size every group of placed values settles on, keyed by `uniformityGroup`.
+ *
+ * ⚠ **The same `width - 4` the draw loop uses**, and the duplication is deliberate rather than
+ * extracted: the inset is a drawing decision (a value starts 2pt inside its rule, so it has 4pt less
+ * room than the rule is long), and a size chosen against a width the drawing does not use is the one
+ * way this pass can lie. They are written next to each other so a change to one is visibly a change
+ * to the other.
+ *
+ * ⚠ Blank values are excluded, exactly as the draw loop skips them. A `""` fits at 11pt and would
+ * silently vote for the largest size in a group whose real members need the floor — harmless here
+ * because `every` takes the minimum, but it would make the group's membership disagree with what is
+ * on the paper, and `placeValue` already trims for the same reason.
+ */
+function groupSizes(font: PDFFont, fields: readonly PlacedFieldValue[]): Map<string, number> {
+  const groups = new Map<string, FitCandidate[]>();
+  for (const field of fields) {
+    const text = field.text.trim();
+    if (!text) continue;
+    const key = uniformityGroup(field);
+    groups.set(key, [...(groups.get(key) ?? []), { text, width: field.line.x2 - field.line.x1 - 4 }]);
+  }
+  return new Map(
+    [...groups].map(([key, candidates]) =>
+      [key, fitGroupSize(font, candidates, FIELD_TEXT_SIZE, FIELD_MIN_SIZE)] as const),
+  );
+}
+
+/**
  * Draw every placed answer onto the loaded packet, and hand back the ones that had to be cut.
  *
  * ⚠ **Values are drawn before marks, so that if a coordinate is ever wrong enough for the two to
@@ -215,12 +346,26 @@ export async function drawFieldValues(
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const cut: PlacedFieldValue[] = [];
 
+  // ⚠ **Two passes, and the first one is AUD-5's whole fix.** Sizes are decided for every group
+  // before anything is drawn, because a cell's size is a fact about its SIBLINGS and the single pass
+  // this replaced had already drawn half of them by the time it met the value that should have
+  // governed them all. The draw order below is unchanged and still matters — see the note above.
+  const sizes = groupSizes(font, fields);
+
   for (const field of fields) {
     const text = field.text.trim();
     if (!text) continue;
     const page = doc.getPage(field.line.page - 1);
     const width = field.line.x2 - field.line.x1;
-    const fit = fitText(font, text, width - 4, FIELD_TEXT_SIZE, FIELD_MIN_SIZE);
+    // ⚠ The `??` is unreachable and NO TEST CAN FAIL ON IT — mutating it to `FIELD_TEXT_SIZE`
+    // leaves every assertion green, because `groupSizes` walks this same list under this same blank
+    // filter and therefore holds a key for every field this loop can reach. Said here rather than
+    // pinned by a contrived assertion, which is the choice `packetGrid.ts` made about `fillGrid`'s
+    // `capacity` bound for the same reason. The floor is nonetheless the right branch to write: it
+    // is the only fallback that can be too SMALL rather than too large, and a size that is too large
+    // is the one that draws through the next column.
+    const size = sizes.get(uniformityGroup(field)) ?? FIELD_MIN_SIZE;
+    const fit = { size, ...fitAtSize(font, text, width - 4, size) };
     if (fit.cut) cut.push(field);
     // ⚠ `fit.text`, never `text`. That substitution IS the fix: the old line passed the untouched
     // string with a size it did not fit at, and pdf-lib drew it across the column boundary.
