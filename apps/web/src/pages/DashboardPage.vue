@@ -148,8 +148,23 @@ const EXPORTS = [
       1296, y 340, measured 2026-09-20) where it was unreadable; and the tab strip ran the full
       width between them. Every comp in `docs/design examples/` draws this as one row — tabs left,
       scope right — and none of them puts a control on the plate.
+
+      ⚠ **This row is NOT dropped on a workspace tab, unlike the hero above it.** It carried
+      `v-if="!workspace"` until 2026-09-20 and that was a trap, not a saving: the tab strip lives in
+      this row, so selecting Dispatch unmounted the only control that could select anything else. An
+      admin who opened the live map had no way back to Fleet overview short of editing `?tab=` by
+      hand, and Customize went with it — `TabWidgets` teleports into `#dashboard-actions` BY ID, so
+      the target vanishing takes the button with it silently.
+
+      The hero's reasoning does not transfer. That is ~200px of decorative plate in front of a
+      surface whose whole complaint is height; this is a ~36px row of NAVIGATION, and `min-h-0
+      flex-1` on the widgets below already lets the map shrink to fit whatever is above it. The
+      controls that genuinely have nothing to say on the map — the range picker and Export — are
+      gated on `activeKey === 'fleet'` a few lines down, which is where a per-tab decision belongs.
+      Pinned by "keeps the strip after picking the workspace tab, so there is a way back" and
+      "keeps the Customize teleport target on the workspace tab" in `DashboardPage.shell.test.ts`.
     -->
-    <div v-if="!workspace" class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <AppTabs
         v-if="showsStrip"
         v-model="activeKey"

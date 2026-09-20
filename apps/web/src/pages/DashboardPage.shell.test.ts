@@ -164,6 +164,71 @@ describe("the tab strip actually switches the dashboard", () => {
      */
     expect(replaced.at(-1)?.query).toMatchObject({ tab: "dispatch" });
   });
+
+  /**
+   * ⚠ **The strip has to survive the tab it selects.** Reported by the owner 2026-09-20: an admin who
+   * opened Dispatch had no way back to Fleet overview.
+   *
+   * D-DR24 drops the hero and the page's vertical rhythm on a workspace tab, which is right — 200px
+   * of scenery in front of a map that needs height. But the control row was inside the same
+   * `v-if="!workspace"`, and the control row is where the tab strip lives. So picking Dispatch
+   * unmounted the only control that could pick anything else, and the sole escape was editing `?tab=`
+   * by hand. It is a trap rather than a missing feature: the act of selecting the tab destroyed the
+   * means of deselecting it.
+   *
+   * The test above could not catch it because it asserts only which CONTENT rendered. This one
+   * asserts the way back is still on screen, which is the thing a reader actually needs.
+   */
+  it("keeps the strip after picking the workspace tab, so there is a way back", async () => {
+    sessionMock.role = "admin";
+    sessionMock.canView = grants("fuel", "dispatch", "accounting");
+    const w = mountShell();
+
+    await w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"))!.trigger("click");
+    expect(w.find('[data-test="dispatch-tab"]').exists(), "the map should be open").toBe(true);
+
+    const fleetTab = w.findAll('[role="tab"]').find((t) => t.text().includes("Fleet overview"));
+    expect(fleetTab, "a Fleet overview tab must still be reachable from the map").toBeTruthy();
+
+    // And it must actually work, not merely be painted: a strip that is present but inert would
+    // satisfy the assertion above and strand the reader just as completely.
+    await fleetTab!.trigger("click");
+    expect(w.find('[data-test="fleet-tab"]').exists(), "clicking it should return to Fleet overview").toBe(true);
+    expect(replaced.at(-1)?.query).toMatchObject({ tab: "fleet" });
+  });
+
+  /**
+   * The teleport target is load-bearing markup: `TabWidgets` moves Customize into `#dashboard-actions`
+   * BY ID, so an element that disappears on the workspace tab takes Customize with it — silently, in
+   * a production build. It went the same way as the strip, inside the same `v-if`.
+   */
+  it("keeps the Customize teleport target on the workspace tab", async () => {
+    sessionMock.role = "admin";
+    sessionMock.canView = grants("fuel", "dispatch", "accounting");
+    const w = mountShell();
+
+    await w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"))!.trigger("click");
+    expect(w.find("#dashboard-actions").exists(), "TabWidgets teleports Customize here by id").toBe(true);
+  });
+
+  /**
+   * The height budget, which nothing pinned until the control row stopped being dropped.
+   *
+   * A workspace tab is a flex column filling the height `AppShell` gave it, and the row above the map
+   * now permanently spends ~36px of it. `min-h-0` is what lets the widgets SHRINK inside that column
+   * — without it a canvas grows to its content and pushes the strip back off screen, which is the
+   * same symptom by a different route. `flex-1` is what makes it take the rest.
+   */
+  it("lets the workspace tab's widgets shrink to whatever the row leaves them", async () => {
+    sessionMock.role = "admin";
+    sessionMock.canView = grants("fuel", "dispatch", "accounting");
+    const w = mountShell();
+
+    await w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"))!.trigger("click");
+    const widgets = w.find('[data-test="dispatch-tab"]');
+    expect(widgets.classes()).toContain("min-h-0");
+    expect(widgets.classes()).toContain("flex-1");
+  });
 });
 
 /**
