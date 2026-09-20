@@ -281,7 +281,20 @@ onBeforeUnmount(() => {
     ref="strip"
     class="relative flex text-sm"
     :class="[
-      orientation === 'vertical' ? 'flex-col gap-0.5' : `gap-1 p-1 ${SEGMENTED_WELL}`,
+      /*
+       * ⚠ `w-fit max-w-full`, and it is the difference between a control and a bar.
+       *
+       * The horizontal strip was a plain block `flex`, so the well ran the full width of whatever
+       * held it — on the Dashboard, a 1104px pale band with two tabs at the left end of it and a
+       * photograph behind it. `AppSegmentedControl` shares this exact well and has always been
+       * `inline-grid`, so the two widgets that deliberately share one surface disagreed about the
+       * one property that decides how the surface READS. A segmented well is the ground its
+       * segments stand on; it has no business being wider than they are.
+       *
+       * `max-w-full` is what keeps `scrollable` honest: a fit-width box may exceed its parent, and
+       * a strip of twelve tabs has to scroll inside the page rather than widen it.
+       */
+      orientation === 'vertical' ? 'flex-col gap-0.5' : `w-fit max-w-full gap-1 p-1 ${SEGMENTED_WELL}`,
       scrollable ? 'overflow-x-auto' : '',
     ]"
     role="tablist"

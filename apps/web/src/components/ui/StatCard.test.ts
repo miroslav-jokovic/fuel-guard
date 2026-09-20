@@ -86,12 +86,13 @@ describe("StatCard anatomy", () => {
   });
 
   /**
-   * The chip changes SIDE as well as size between the two anatomies, and the KPI side is the one
-   * fourteen surfaces depend on. Asserting the hero chip precedes the label — and the KPI chip
-   * follows it — is what stops a future tidy-up from unifying them and silently reflowing all
-   * fourteen.
+   * The chip changes SIZE between the two anatomies and no longer changes SIDE (D-DT21). It did
+   * until 2026-09-20, and the Dashboard is where that cost was paid: the hero row led with its
+   * chips and the operating-metric strip beneath it trailed with its own, which reads as two
+   * components rather than one. Asserting the chip precedes the label in BOTH anatomies is what
+   * stops the split being reintroduced as a local tidy-up on one of the fourteen KPI surfaces.
    */
-  it("leads with the icon chip in hero and trails with it in kpi", () => {
+  it("leads with the icon chip in both anatomies", () => {
     const icon = { icon: TruckIcon, tone: "success" };
     // The claim is ORDER, so the marker is the icon itself rather than the chip's size class.
     // Asserting `size-11` here made this fail the day the chip became `size-10` for fidelity to the
@@ -104,7 +105,8 @@ describe("StatCard anatomy", () => {
     expect(hero.icon).toBeLessThan(hero.label);
 
     const kpi = posOf(mountCard(icon).html());
-    expect(kpi.icon).toBeGreaterThan(kpi.label);
+    expect(kpi.icon).toBeGreaterThan(-1);
+    expect(kpi.icon).toBeLessThan(kpi.label);
   });
 
   it("omits the icon chip entirely when no icon is given", () => {

@@ -133,8 +133,38 @@ const EXPORTS = [
          property of the DASHBOARD, and on this tab the dashboard is a map. -->
     <PageHeader v-if="!workspace" :title="greetingLine">
       Here's what's happening with your fleet today.
-      <template #actions>
-        <div v-if="activeKey === 'fleet'" class="flex flex-wrap items-center gap-3">
+    </PageHeader>
+
+    <!--
+      ── THE CONTROL ROW (D-DT20) ────────────────────────────────────────────────────────────────
+      One row under the hero holding everything that scopes the page: the tab strip at the left, the
+      window and the exports at the right, and — teleported in from `TabWidgets`, which owns it —
+      Customize.
+
+      ⚠ These three used to sit in three different places, and the reason they are one row now is
+      the reason the page read as amateur. The range picker and Export were `PageHeader`'s actions,
+      which puts them in the top-right corner OF THE PHOTOGRAPH; Customize was a right-aligned row
+      that `TabWidgets` drew above its grid, which put it squarely on the truck's cab at 1440 (x
+      1296, y 340, measured 2026-09-20) where it was unreadable; and the tab strip ran the full
+      width between them. Every comp in `docs/design examples/` draws this as one row — tabs left,
+      scope right — and none of them puts a control on the plate.
+    -->
+    <div v-if="!workspace" class="flex flex-wrap items-center justify-between gap-3">
+      <AppTabs
+        v-if="showsStrip"
+        v-model="activeKey"
+        :tabs="tabItems"
+        label="Dashboard view"
+        id-prefix="dashboard"
+      />
+      <!--
+        ⚠ The id is a teleport TARGET (`TabWidgets`), so it is load-bearing markup rather than a
+        hook for styling: renaming it moves the Customize button back onto the photograph, silently.
+        It is `ml-auto` so the scope controls stay right-aligned when there is no strip to push
+        them — a role with one tab gets no strip at all (`showsTabStrip`).
+      -->
+      <div id="dashboard-actions" class="ml-auto flex flex-wrap items-center gap-2">
+        <template v-if="activeKey === 'fleet'">
           <DateRangeFilter v-model:from="from" v-model:to="to" />
 
           <Menu v-if="session.can('settings') || session.readOnly" as="div" class="relative">
@@ -176,17 +206,9 @@ const EXPORTS = [
               </MenuItems>
             </transition>
           </Menu>
-        </div>
-      </template>
-    </PageHeader>
-
-    <AppTabs
-      v-if="showsStrip"
-      v-model="activeKey"
-      :tabs="tabItems"
-      label="Dashboard view"
-      id-prefix="dashboard"
-    />
+        </template>
+      </div>
+    </div>
 
     <!--
       LM9: one renderer over `DASHBOARD_WIDGETS`, not a component per tab. The two hand-written tab

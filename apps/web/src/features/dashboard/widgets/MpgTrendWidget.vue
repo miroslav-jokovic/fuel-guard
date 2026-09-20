@@ -7,15 +7,30 @@
  * identical distances, because the fleet filled more tanks on the third. The old daily line looked
  * smooth only because its miles and gallons had been spread across the same interval together.
  */
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { ChartConfiguration } from "chart.js";
+import { GaugeIcon } from "@silvicom/ui/icons";
 import BaseChart from "@/components/BaseChart.vue";
 import ChartCard from "../ChartCard.vue";
 import { useFleetWidgetData, type FleetRange } from "../fleetWidgetData";
 import { viz, areaFill, lastPointRadius, trendOptions, fmtDay } from "@/lib/chartTheme";
 
 const props = defineProps<{ range: FleetRange }>();
-const { mpgWeeks, mpgTotal } = useFleetWidgetData(computed(() => props.range));
+const { mpgWeeks, mpgTotal, mpgSub } = useFleetWidgetData(computed(() => props.range));
+
+/** The week under the pointer (D-DT11), formatted as this card's own series: MPG, week beginning. */
+const scrub = ref<{ label: string; value: number } | null>(null);
+
+/**
+ * At rest the readout is the WINDOW's own MPG, not the mean of the weeks under it — D-MPG6, and the
+ * same figure the hero tile carries. `mpgTotal` can be null with weeks still drawn (too little
+ * measured distance over the window as a whole), and a dash is the honest answer there.
+ */
+const readout = computed(() => {
+  if (scrub.value) return `${scrub.value.value} MPG`;
+  return mpgTotal.value?.mpg != null ? `${mpgTotal.value.mpg} MPG` : "—";
+});
+const caption = computed(() => (scrub.value ? `week of ${fmtDay(scrub.value.label)}` : mpgSub.value));
 
 // A week the endpoint withheld renders as an honest GAP (`spanGaps: false`) rather than as a zero —
 // a fleet does not do 0 MPG.
@@ -39,7 +54,16 @@ const mpgChart = computed<ChartConfiguration>(() => ({
       pointHoverBackgroundColor: viz.brand, pointHoverBorderColor: viz.pointHalo, pointHoverBorderWidth: 2,
     }],
   },
-  options: trendOptions({ series: "Fleet MPG", format: (v) => `${v} MPG`, tickFormat: (v) => String(v), beginAtZero: false }),
+  options: trendOptions({
+    series: "Fleet MPG",
+    format: (v) => `${v} MPG`,
+    tickFormat: (v) => String(v),
+    // ⚠ No `dataMax`: this scale does not begin at zero (a fleet's MPG lives in a 2-wide band and a
+    // 0-based axis flattens it), and `niceScale` is a ladder anchored at zero. `trendOptions`
+    // ignores it under `beginAtZero: false` anyway; not passing it says so at the call site.
+    beginAtZero: false,
+    onScrub: (p) => { scrub.value = p; },
+  }),
 }));
 </script>
 
@@ -47,6 +71,10 @@ const mpgChart = computed<ChartConfiguration>(() => ({
   <ChartCard
     title="Fleet MPG trend"
     subtitle="Measured miles ÷ the fuel behind them · week beginning · gaps mean too little measured distance"
+    :icon="GaugeIcon"
+    tone="brand"
+    :readout="readout"
+    :caption="caption"
   >
     <BaseChart :config="mpgChart" :height="260" />
     <table class="sr-only">

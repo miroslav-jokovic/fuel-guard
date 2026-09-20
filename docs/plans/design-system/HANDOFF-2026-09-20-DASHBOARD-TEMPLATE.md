@@ -1,7 +1,7 @@
 # Handoff — dashboard template v2 → design system, 2026-09-20
 
 **Read this, then `DASHBOARD-TEMPLATE-V2.md` beside it.** That plan is the decision log (D-DT1…
-D-DT19, port plan T1–T13, open questions Q-DT1…Q-DT7) and **§10 is its progress log** — what
+D-DT21, port plan T1–T13, open questions Q-DT1…Q-DT9) and **§10 is its progress log** — what
 actually happened, dated, with the measurements. This file is only "where the work stopped" and the
 traps worth not paying for twice.
 
@@ -14,6 +14,9 @@ Two tranches are on `main`:
 - **Tranche 1** — F1 (chip tone vocabulary) and F3 (`lint:tokens` gradient stops). PR #920, merge
   `3d4999f`; docs corrected in #921, merge `ada75ca`.
 - **Tranche 2** — **F2, F4, T4, T10, T12**. PR #922, merge `16d3ebb`, all eight checks green.
+- **Tranche 3** — **D-DT20, D-DT21, T5, T6, most of T7**, plus a donut layout defect that predates
+  this work. Driven by the owner's review of the shipped page, not by §7's order. See the plan's
+  §10 entry dated 2026-09-20 "tranche 3".
 
 There is no outstanding branch. Start from `main`.
 
@@ -44,15 +47,24 @@ usually already there.
 
 | # | Work | Notes |
 |---|---|---|
-| **T5/T6** | Trend readout + nice axis steps in `lib/chartTheme.ts` | D-DT11's readout-as-tooltip and D-DT12's measured viewBox. T6 also affects `FleetTrendChart` — check the finance snapshots |
+| **T1** | Delta pill | **blocked on Q-DT4**, and now the most visible gap against the comps — every comp carries `↓12% vs. previous 30 days` on all four KPI tiles and both trend cards. Needs DR2b: a SECOND set of the page's eight range-scoped queries |
+| **Q-DT9** | Legend → ring hover, the other half of D-DT14 | needs a decision on what CLICKING a legend row does; three lint rules say a hoverable row must be a real control |
 | **T8** | Grid template as span classes | `tabWidgetsLayout.test.ts` asserts the current layout; it is the thing that has to change |
 | **T2/T3** | Card edge-light, `@container` spark | T2's tint must come from a `--viz-*` role passed in, never a hue |
-| **T7** | Donut track ring, centre swap, bi-directional hover | `DonutBreakdown.test.ts` exists; the centre becomes stateful |
 | **Q-DT7** | The chip's sizes are not the comps' — 40/24 and 36/20 against a specified 40/21 and 32/17.5 | Its own change, with the two call sites screenshotted before and after. §10 has the measurement |
-| **T1** | Delta pill | **blocked on Q-DT4** — three of the four KPI deltas have no data behind them and the fourth can never have any |
 | **T11** | Duotone chip glyphs | **blocked on Q-DT5** — the free icon set is stroke-only |
 
 ## Traps — read before starting
+
+- **A `<Teleport>` resolves its target ONCE and caches it on the vnode.** Even when it mounts
+  `disabled`. A child's `onMounted` runs before the parent's subtree reaches the document, so
+  `document.querySelector` in the child says the target is missing, and flipping `:disabled` later
+  moves the content to `null` — it just stays where it was, silently, in a production build. Key the
+  Teleport on the flag so it remounts.
+- **A container query on the element that declares `@container` never matches.** It matches
+  descendants. Both donuts stacked at every width for one build because of it, and the audit meant
+  to catch it passed — a stacked legend cannot clip. Measure the resolved `grid-template-columns`
+  beside any "nothing is truncated" claim.
 
 Each of these cost time in this session and none of them is visible to a gate.
 

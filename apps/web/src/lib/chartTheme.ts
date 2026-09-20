@@ -1,4 +1,5 @@
 import type { ChartOptions, TooltipItem } from "chart.js";
+import { niceScale } from "./niceScale";
 
 /**
  * Shared chart look, driven by the design tokens in
@@ -326,6 +327,22 @@ interface TrendOptionArgs {
   beginAtZero?: boolean;
   /** How an x label is written out (defaults to `fmtDay`; monthly series pass `fmtMonth`). */
   labelFormat?: (raw: string) => string;
+  /**
+   * The series' own maximum, for a "nice" y axis (D-DT12, `lib/niceScale.ts`).
+   *
+   * Handed in rather than read off the chart because options are built from the data anyway and the
+   * caller already has it. Omit it and the axis is Chart.js's own division of the range, which is
+   * what drew `$15.3K / $30.7K / $46K` on the spend card. Ignored unless `beginAtZero`: a rate-like
+   * series is zoomed to its range and a ladder anchored at zero says nothing about it.
+   */
+  dataMax?: number;
+  /**
+   * D-DT11 — the readout IS the tooltip. Called with the point under the pointer, and with `null`
+   * when the pointer leaves, so the card's header can show the value being pointed at in the same
+   * slot and the same type as the period total. Passing it SUPPRESSES the floating tooltip: two
+   * readings of one number, one of them following the cursor, is the thing this replaces.
+   */
+  onScrub?: (point: { label: string; value: number } | null) => void;
 }
 
 /**
@@ -338,11 +355,29 @@ export function trendOptions({
   series,
   beginAtZero = true,
   labelFormat = fmtDay,
+  dataMax,
+  onScrub,
 }: TrendOptionArgs): ChartOptions<"line" | "bar"> {
+  const nice = beginAtZero && dataMax !== undefined ? niceScale(dataMax) : undefined;
   return {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: "index", intersect: false },
+    /**
+     * ⚠ Reads the ELEMENTS Chart.js hands it, not the pointer position. With `mode: "index"` the
+     * array holds one element per dataset at the nearest x, so `[0]` is the point under the
+     * pointer on a single-series card; an empty array is the pointer leaving the plot, which has
+     * to reach the header as `null` or the readout freezes on the last value it saw.
+     */
+    onHover: onScrub
+      ? (_event, elements, chart) => {
+          const hit = elements[0];
+          if (!hit) return onScrub(null);
+          const label = String(chart.data.labels?.[hit.index] ?? "");
+          const value = Number(chart.data.datasets[hit.datasetIndex]?.data[hit.index] ?? Number.NaN);
+          onScrub(Number.isFinite(value) ? { label, value } : null);
+        }
+      : undefined,
     plugins: {
       // A single series is named by the card title; several must name themselves.
       legend: {
@@ -351,6 +386,9 @@ export function trendOptions({
         labels: { color: viz.tick, font: FONT, boxWidth: 10, boxHeight: 10, usePointStyle: true, padding: 16 },
       },
       tooltip: {
+        // Off when the header is doing the job (D-DT11): the number you are pointing at belongs in
+        // the big type, not in a box beside the cursor repeating it.
+        enabled: onScrub === undefined,
         backgroundColor: resolve("--surface-inverse"),
         titleColor: resolve("--ramp-neutral-50"),
         bodyColor: resolve("--ramp-neutral-200"),
@@ -387,6 +425,9 @@ export function trendOptions({
       },
       y: {
         beginAtZero,
+        // The nice ladder decides the top of the axis as well as the gap, so the last gridline is
+        // the axis maximum rather than a step past the data (D-DT12).
+        max: nice?.max,
         grid: { color: viz.grid, drawTicks: false },
         border: { display: false },
         ticks: {
@@ -394,6 +435,7 @@ export function trendOptions({
           font: FONT,
           padding: 8,
           maxTicksLimit: 5,
+          stepSize: nice?.stepSize,
           callback: (value) => tickFormat(Number(value)),
         },
       },

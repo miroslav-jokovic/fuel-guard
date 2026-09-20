@@ -628,3 +628,97 @@ call site, so it is recorded here rather than folded into a restyle that only to
 Candidates: (a) move to 40/20 and 32/17, matching the comps and `AppBadge`'s density; (b) keep the
 incumbent sizes and correct §4.2b. **Recommendation: (a)**, as its own change, with the two call
 sites screenshotted before and after.
+
+**2026-09-20 — tranche 3, the owner's four readings.** Driven by the owner's own review of the
+shipped page rather than by §7's order: *"our tabs are across the image looking bad"*, *"icons in
+cards … are mixed"*, *"in the examples we have redesigned charts and donuts and here we don't have
+this"*, *"cards are not in the way I have provided examples"*. Each one is answered below with what
+was measured; T5, T6 and most of T7 land as part of it.
+
+**D-DT20 (new) — the control row, and the plate stops above it.** The three controls that scope
+this page sat in three places: the range picker and Export were `PageHeader`'s actions (top-right
+corner of the photograph), Customize was a right-aligned row `TabWidgets` drew for itself, and the
+tab strip ran the full width between them. Measured at 1440 with `getBoundingClientRect`: the
+backdrop occupied y 116–516 while the control row sat at y 276–316 and Customize at (1296, 340) —
+on the truck's cab, mid-grey on mid-grey. All eleven comps end the plate ABOVE the controls. So:
+one row, tabs left and scope right; `--backdrop-h` 400 → **144**, which is where the mask reaches
+`transparent` 16px above the row (116 + 144 = 260 against the row's 276); and the plate's crop goes
+`auto 132%` → `cover` at `right 70%`, because at 144px the old rule scaled the frame to 445px wide
+inside an 864px box — a small photograph with a hard left edge in the corner, which is what the
+first build of the shorter band actually showed.
+
+> ⚠ **A `<Teleport>` resolves its target ONCE, at the vnode's first mount, and caches it.** Customize
+> is owned by `TabWidgets` (which knows whether there is anything to customize) and belongs in the
+> page's row, so it teleports into `#dashboard-actions`. A child's `onMounted` runs before its
+> parent's subtree is in the document, so the target resolved to `null`; flipping `:disabled`
+> afterwards moved the button to nowhere and it stayed on the photograph, with no warning in a
+> production build. `:key` on the flag — remounting the Teleport once the row is really there — is
+> the fix. Two builds read as "the teleport silently does nothing" before the cache was the answer.
+
+**D-DT21 (new) — the chip leads in both anatomies.** D-DR2 moved the chip left in the hero and left
+the KPI chip on the right so that fourteen surfaces would not reflow. The Dashboard is where that
+caution was paid for: four hero tiles leading with a chip, nine operating-metric tiles trailing with
+one, eight inches apart, which is what the owner read as "mixed". All eleven comps lead in both
+bands. `StatCard` now renders one chip whose SIZE still varies (md/sm) and whose side does not, and
+`OperatingMetricsWidget` follows; `StatCard.test.ts`'s "leads with the icon chip in both anatomies"
+is the pin, proved by moving the chip back and watching it go red.
+
+**T5/T6 — the readout, and axes a reader can hold.** `ChartCard` grew the anatomy §4.3 measures off
+the comps: a 32px chip leading the title, and a **readout row** — the period's own figure in
+`text-2xl`, with what it is OF beside it. D-DT11's swap ships with it: `trendOptions({ onScrub })`
+hands the point under the pointer to the card's header and turns the floating tooltip OFF, so the
+number you are pointing at is the number in the big type. Verified in the browser rather than
+asserted: the spend card reads **$840,381 at rest and $43,783 with the pointer on a bar**. The
+spend readout is summed from the SAME series the bars draw, not from `s.totalSpend`, so the
+headline cannot disagree with the chart under it. T6 is `lib/niceScale.ts` — the 1/2/2.5/5 ladder —
+which turns `$15.3K / $30.7K / $46K / $61.3K` into `$0 / $20K / $40K / $60K / $80K`. It is its own
+module because it is pure arithmetic and `chartTheme.ts` needs a DOM to be tested at all.
+
+> ⚠ The first draft of `niceScale.test.ts` claimed the 2.5 rung rescued the plot's HEIGHT. It does
+> not — it buys the INTERVAL COUNT (a series topping out at 880 takes four intervals with it and
+> two without, on the same 1,000 axis). The test and the module's header now say that instead.
+
+**T7 — track, centre swap, and one direction of the hover.** The track is an SVG circle behind the
+canvas, not a second dataset (a second doughnut dataset is a second concentric ring, beside the
+first rather than behind it); its stroke is the PAINTED band, with the arcs' 3px border subtracted,
+because the first build showed 3px of grey outside every arc all the way round and read as a halo.
+Hovering an arc trades the centre total for that slice's own value and name, reversibly, and lights
+its legend row.
+
+**Q-DT9 (new) — the legend does NOT drive the ring, and the reason is worth recording.** D-DT14 asks
+for bi-directional hover. Built, it failed `lint`: a row that answers a pointer must answer a
+keyboard (`mouse-events-have-key-events`), a focusable row must do something when activated
+(`no-static-element-interactions`), and the only honest "something" is a click that PINS the slice —
+a new affordance, on touch as well, that no comp draws and nobody asked for. The rows are plain text
+again. Candidates: (a) ship click-to-pin with `aria-pressed`, which also gives touch the per-slice
+figure it can never hover for; (b) leave the ring as the only driver and delete the second half of
+D-DT14. **Recommendation: (a)**, as its own change.
+
+**A defect found on the way, and the audit that nearly missed it.** `DonutBreakdown` laid its ring
+and legend out on `sm:` — a VIEWPORT rule inside a card, the same class of error as D-DR17. At 1024
+the dashboard grid is already two-up, so the card body is 300px, and `scrollWidth - clientWidth`
+reported **every legend label on both donuts clipped** — "Moving fuel" by 72px — with `truncate`
+throwing nothing. It is an `@container` query at 26rem now. ⚠ The first build put `@container` and
+`@[26rem]:` on the SAME element, where a container query can never match (it matches descendants),
+so both donuts stacked at every width — **and the truncation audit reported "none", because a
+stacked legend has the whole card to itself.** A measurement that passes when the layout collapses
+is not a measurement of the layout; the audit now reports the resolved column count beside it
+(2 at 1440, 1 at 1024).
+
+**Q-DT8 (new) — the comps' KPI chip is a PALE TINT, not the shipped gradient.** Measured off
+`card 4.png` and `card1.png` at 3×, 2026-09-20: both draw a pale tinted rounded square with a
+COLOURED glyph — `ramp-50`-ish ground, `ramp-600`-ish stroke — and §4.2b's "solid gradient, white
+glyph … this is the `card 4` / `card1` treatment" does not describe either of them. The gradient
+shipped in F4 with measured contrast and the owner's review called the icons updated rather than
+wrong, so nothing is being reverted on this reading alone. Candidates: (a) keep the gradient and
+correct §4.2b's provenance; (b) return the chip to the comps' pale tint, which is a change at 22
+call sites. **Recommendation: (a)** — with the owner asked directly, because this is taste on a
+surface they have now looked at twice.
+
+Still open from §7 after this tranche: **T1** (delta pill — still blocked on Q-DT4, and now the most
+visible remaining gap against the comps: every comp carries `↓12% vs. previous 30 days` on all four
+KPI tiles and on both trend cards, and `useDashboard` still fetches no previous window. DR2b costs a
+SECOND set of the page's eight range-scoped queries, including another month of fills, which is a
+product decision rather than a polish one), **T2** (card edge-light), **T3** (`@container` spark —
+the incumbent `flex-wrap` + `min-w-32` still works and wraps correctly at 1440), **T8** (grid
+spans), **T11** (blocked on Q-DT5), **T13**, and **Q-DT7**.

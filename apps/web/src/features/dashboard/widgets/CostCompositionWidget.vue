@@ -7,6 +7,7 @@
  * and its own title said so while the gate above it said the opposite.
  */
 import { computed } from "vue";
+import { ChartBarSquareIcon } from "@silvicom/ui/icons";
 import ChartCard from "../ChartCard.vue";
 import DonutBreakdown from "../DonutBreakdown.vue";
 import { useFleetWidgetData, type FleetRange } from "../fleetWidgetData";
@@ -31,7 +32,12 @@ const costTotal = computed(() => costSlices.value.reduce((n, x) => n + x.value, 
 </script>
 
 <template>
-  <ChartCard title="Where fuel dollars go" subtitle="Moving fuel vs idle waste vs reefer · this range">
+  <ChartCard
+    title="Where fuel dollars go"
+    subtitle="Moving fuel vs idle waste vs reefer · this range"
+    :icon="ChartBarSquareIcon"
+    tone="info"
+  >
     <DonutBreakdown
       :items="costSlices"
       :center-value="`$${fmtCompact(costTotal)}`"

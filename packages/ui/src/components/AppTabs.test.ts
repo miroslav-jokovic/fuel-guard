@@ -106,4 +106,27 @@ describe("AppTabs markup contract", () => {
     await w.findAll("button")[2]!.trigger("click");
     expect(w.emitted("update:modelValue")?.at(-1)).toEqual(["audit"]);
   });
+
+  /**
+   * ── THE WELL IS AS WIDE AS ITS TABS (D-DT20) ──────────────────────────────────────────────────
+   * It was a block `flex`, so on any page that gave it room the well ran the full width — on the
+   * Dashboard, a 1104px pale band with two tabs at the left end of it, drawn across the hero
+   * photograph. `AppSegmentedControl` shares this exact well (`segmentedSurface.ts`) and has always
+   * been `inline-grid`, so the two widgets that deliberately share one surface disagreed about the
+   * property that decides how that surface reads.
+   *
+   * `max-w-full` is asserted beside it because it is what keeps `scrollable` honest: a fit-width box
+   * may exceed its parent, and a strip of twelve tabs has to scroll inside the page, not widen it.
+   */
+  it("sizes the horizontal well to its tabs, and never past its parent", () => {
+    const strip = mountTabs("drivers").get('[role="tablist"]');
+    expect(strip.classes()).toContain("w-fit");
+    expect(strip.classes()).toContain("max-w-full");
+  });
+
+  /** The vertical rail is a different object: it sits on the page ground and fills its column. */
+  it("does not constrain the vertical rail's width", () => {
+    const rail = mountTabs("drivers", { orientation: "vertical" }).get('[role="tablist"]');
+    expect(rail.classes()).not.toContain("w-fit");
+  });
 });
