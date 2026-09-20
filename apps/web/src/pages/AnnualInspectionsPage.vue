@@ -28,6 +28,7 @@ import {
   type InspectionSummary,
 } from "@/features/maintenance/useAnnualInspections";
 import { useSessionStore } from "@/stores/session";
+import { formatDate } from "@/lib/format";
 
 /**
  * The annual inspection register.
@@ -225,7 +226,7 @@ async function discardDraft(row: InspectionSummary) {
           {{ row.verdict }}
         </AppBadge>
       </template>
-      <template #cell-next_due_on="{ row }">{{ row.next_due_on ?? "—" }}</template>
+      <template #cell-next_due_on="{ row }">{{ formatDate(row.next_due_on) }}</template>
       <template #cell-decal_serial="{ row }">{{ row.decal_serial ?? "—" }}</template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.canView('maintenance')">

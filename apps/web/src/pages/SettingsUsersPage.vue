@@ -16,6 +16,7 @@ import { BADGE_BASE, inviteTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { formatDate } from "@/lib/format";
 
 const toast = useToastStore();
 const session = useSessionStore();
@@ -398,7 +399,7 @@ onMounted(load);
         <template #cell-role="{ row }">
           <AppSelect :model-value="row.role" :options="roleOptions" @update:model-value="changeRole(row.userId, String($event))" />
         </template>
-        <template #cell-joinedAt="{ row }">{{ new Date(row.joinedAt).toLocaleDateString() }}</template>
+        <template #cell-joinedAt="{ row }">{{ formatDate(row.joinedAt) }}</template>
         <template #actions="{ row }">
           <KebabMenu>
             <BaseButton class="kebab-item" @click="openRename(row)">{{ row.fullName ? "Edit name" : "Add name" }}</BaseButton>

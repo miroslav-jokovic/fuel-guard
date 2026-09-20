@@ -6,6 +6,7 @@ import {
 } from "@silvicom/ui/icons";
 import { computed } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
+import { formatDisplayDate } from "@silvicom/shared";
 
 /**
  * From/To date range on VueDatePicker (themed via the --dp-* token block in
@@ -80,8 +81,7 @@ const presetDates = computed(() =>
 );
 
 /* Trigger label, e.g. "Jul 1 – Jul 13" / "Jul 13" */
-const fmtDay = (d: string) =>
-  new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const fmtDay = (d: string) => formatDisplayDate(d, d);
 const display = computed(() => {
   if (props.from && props.to && props.from !== props.to) return `${fmtDay(props.from)} – ${fmtDay(props.to)}`;
   const one = props.from ?? props.to;

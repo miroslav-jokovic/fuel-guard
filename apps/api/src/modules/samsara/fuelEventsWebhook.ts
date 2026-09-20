@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
 import { makeSender } from "../../lib/mailer.js";
 import { FUEL_EVENT_DROP, FUEL_EVENT_DROP_UNVERIFIED } from "../fuel/index.js";
+import { formatDisplayDateTime } from "@silvicom/shared";
 
 export interface SamsaraWebhookHeaders {
   signature?: string; // X-Samsara-Signature: "v1=<hex>"
@@ -182,7 +183,7 @@ async function notifyFuelDrop(
     .maybeSingle();
   if (!org || !org.notifications_enabled || !(org.notification_emails?.length > 0)) return;
 
-  const when = new Date(ev.happenedAt).toLocaleString();
+  const when = formatDisplayDateTime(ev.happenedAt);
   const where = ev.address ? ` near ${ev.address}` : "";
   const mag = ev.dropPct != null ? ` (~${ev.dropPct}% drop)` : "";
   const subject = `⚠ Possible fuel theft: sudden fuel drop on ${unit}`;

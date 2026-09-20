@@ -24,6 +24,7 @@ import { computed } from "vue";
 import { formatRuleId } from "@silvicom/shared";
 import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
 import { nearMissMarker } from "@/lib/badges";
+import { formatDateTime } from "@/lib/format";
 
 export interface NearMiss {
   fueledAt: string;
@@ -62,13 +63,7 @@ const anyEntries = computed(() => props.entries.length > 0);
 /** True when the API truncated the window — worth saying out loud rather than implying a total. */
 const truncated = computed(() => props.total > props.entries.length);
 
-const fmt = (iso: string) =>
-  new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+const fmt = (iso: string) => formatDateTime(iso);
 </script>
 
 <template>

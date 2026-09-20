@@ -44,6 +44,7 @@ export * from "./reconcile/pilotExportTieOut.js";
 export * from "./reconcile/pilotStatement.js";
 export * from "./reconcile/pilotStatementTieOut.js";
 export * from "./calendarDay.js";
+export * from "./displayDate.js";
 export * from "./csv.js";
 export * from "./efsCards.js";
 export * from "./fuelSpend/index.js";

@@ -19,6 +19,7 @@ import {
   type CertTestResult,
   type ClientCertSummary,
 } from "./useEfsClientCert";
+import { formatDate as fmtDate, formatDateTime } from "@/lib/format";
 
 /**
  * EFS client certificate (mutual TLS) — admin card.
@@ -57,9 +58,6 @@ function clearForm(): void {
   form.caPem = "";
 }
 
-function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
-}
 
 function expiryLabel(cert: ClientCertSummary): string {
   if (cert.expiryState === "expired") return `Expired ${fmtDate(cert.notAfter)}`;
@@ -161,7 +159,7 @@ async function onWithdraw(): Promise<void> {
           </p>
           <p v-if="active.lastHandshakeAt" class="mt-1 text-xs" :class="active.lastHandshakeOk ? 'text-success-600' : 'text-danger-600'">
             Last handshake {{ active.lastHandshakeOk ? "succeeded" : "FAILED" }}
-            {{ new Date(active.lastHandshakeAt).toLocaleString() }}
+            {{ formatDateTime(active.lastHandshakeAt) }}
             <span v-if="active.lastHandshakeError"> — {{ active.lastHandshakeError }}</span>
           </p>
         </div>

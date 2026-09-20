@@ -140,10 +140,10 @@ describe("normalizeWindow", () => {
 
 describe("describeWindow", () => {
   it("reads as a range, in UTC so it cannot drift a day by browser locale", () => {
-    expect(describeWindow({ from: "2026-08-05", to: "2026-08-12" })).toBe("Aug 5 – Aug 12");
+    expect(describeWindow({ from: "2026-08-05", to: "2026-08-12" })).toBe("08/05 – 08/12");
   });
 
   it("collapses a single day to one date", () => {
-    expect(describeWindow({ from: "2026-08-12", to: "2026-08-12" })).toBe("Aug 12");
+    expect(describeWindow({ from: "2026-08-12", to: "2026-08-12" })).toBe("08/12");
   });
 });

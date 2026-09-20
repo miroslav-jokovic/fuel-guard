@@ -10,6 +10,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import { formatDateTime as fmtDateTime } from "@/lib/format";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useDetectionCoverage();
 const { data: capacity } = useCapacityHealth();
@@ -32,15 +33,6 @@ const paged = computed(() =>
 );
 
 const fmtPct = (n: number) => `${Math.round(n)}%`;
-const fmtDateTime = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "—";
 
 // Higher coverage = greener; blind share inverts the scale.
 const covTone = (p: number) =>

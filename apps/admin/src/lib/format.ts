@@ -1,15 +1,11 @@
-/** Compact absolute date (or a dash). */
-export function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
+/**
+ * The console's dates come from the same definition the product uses — `MM/DD/YYYY` from
+ * `@silvicom/shared` (D-DS17, extended from the picker to the whole product on 2026-09-20).
+ *
+ * These were a third and fourth independent implementation before that, and carried the same
+ * calendar-day fault as the ones in `apps/web`: `new Date("2026-09-20")` is UTC midnight, rendered in
+ * local time, so a US-timezone operator read an org's creation date a day early. The names stay so the
+ * five call sites do not churn; the arithmetic is no longer here.
+ */
 
-/** Date + time (for short-lived things like session expiry). */
-export function fmtDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-}
+export { formatDisplayDate as fmtDate, formatDisplayDateTime as fmtDateTime } from "@silvicom/shared";

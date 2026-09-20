@@ -1,3 +1,4 @@
+import { formatDisplayDayShort } from "../displayDate.js";
 /**
  * The reporting window — what it is, what it may be, and what to do with a bad one.
  *
@@ -125,7 +126,6 @@ export function describeFixes(fixes: readonly WindowFix[]): string | null {
 
 /** "Aug 5 – Aug 12" / "Aug 12" — the label the trigger shows. */
 export function describeWindow(w: SpendWindow): string {
-  const fmt = (d: Ymd) =>
-    new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const fmt = (d: Ymd) => formatDisplayDayShort(d, d);
   return w.from === w.to ? fmt(w.from) : `${fmt(w.from)} – ${fmt(w.to)}`;
 }

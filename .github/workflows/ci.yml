@@ -184,6 +184,15 @@ jobs:
       - name: Comment proof-claims cite real tests
         run: pnpm lint:comment-claims
 
+      # Added 2026-09-20. D-DS17 pinned MM/dd/yyyy on 2026-08-31 but stated it for a COMPONENT, so
+      # only the two date pickers obeyed it and nothing could see the drift: 13 duplicate fmtDate
+      # definitions, ~30 inline toLocaleDateString calls handing the ordering to the viewer's browser,
+      # and raw ISO printed into every date box of the federal DOT application packet. Turned on at
+      # ZERO violations — the sweep that fixed them is in the same commit as this line, which is the
+      # only moment turning a gate on is cheap.
+      - name: Dates are shown one way, from one definition
+        run: pnpm lint:date-format
+
       # Added 2026-08-26 (re-founding, docs/ARCHITECTURE.md §6). Four tables merged two days
       # earlier with zero application code; this would have failed that merge.
       - name: Every table has a producer

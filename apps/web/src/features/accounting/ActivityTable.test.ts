@@ -59,7 +59,7 @@ beforeEach(() => {
 describe("ActivityTable", () => {
   it("shows each period's loads, revenue, billed miles and the rate between them", () => {
     const t = render().text();
-    expect(t).toContain("Jul 6 – Jul 12");
+    expect(t).toContain("07/06 – 07/12");
     expect(t).toContain("62");
     expect(t).toContain("$482,000");
     expect(t).toContain("148,041");
@@ -74,8 +74,8 @@ describe("ActivityTable", () => {
    */
   it("puts the newest period first", () => {
     const t = render().text();
-    expect(t.indexOf("Jul 13")).toBeGreaterThan(-1);
-    expect(t.indexOf("Jul 13")).toBeLessThan(t.indexOf("Jul 6 –"));
+    expect(t.indexOf("07/13")).toBeGreaterThan(-1);
+    expect(t.indexOf("07/13")).toBeLessThan(t.indexOf("07/06 –"));
   });
 
   it("prints a dash, never $0.00, when a period's bills carried no distance", () => {

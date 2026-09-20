@@ -14,6 +14,7 @@ import {
   uploadLovesExport, syncLoves,
   type LocationsIngestResult, type PostedIngestResult,
 } from "./useStationData";
+import { formatDateTime } from "@/lib/format";
 
 const toast = useToastStore();
 const locLoading = ref(false);
@@ -111,7 +112,7 @@ async function onLovesFile(files: File[]) {
     const r = await uploadLovesExport(file);
     lovesStatus.value =
       `Love's: ${r.stationsUpserted} stations, ${r.pricesInserted.toLocaleString()} prices` +
-      (r.observedAt ? ` (as of ${new Date(r.observedAt).toLocaleString()})` : "");
+      (r.observedAt ? ` (as of ${formatDateTime(r.observedAt)})` : "");
     toast.success("Love's loaded", `${r.stationsUpserted} stations placed.`);
   } catch (e) {
     toast.error("Could not load Love's", e instanceof Error ? e.message : undefined);

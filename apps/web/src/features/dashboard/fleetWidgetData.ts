@@ -15,6 +15,7 @@ import { computed, type Ref } from "vue";
 import { useDashboard } from "./useDashboard";
 import { useFleetMpgSeries } from "@/composables/useFleetMpg";
 import { useSessionStore } from "@/stores/session";
+import { formatDisplayDayShort } from "@silvicom/shared";
 
 export interface FleetRange {
   from: string;
@@ -22,7 +23,7 @@ export interface FleetRange {
 }
 
 /** Human label for the active window, in the picker's own "Jul 1 – Jul 13" style. */
-const labelDay = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const labelDay = (d: string) => formatDisplayDayShort(d, d);
 
 export function useFleetWidgetData(range: Ref<FleetRange>) {
   const session = useSessionStore();

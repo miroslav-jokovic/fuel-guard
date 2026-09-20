@@ -16,6 +16,7 @@ import { useToastStore } from "@/stores/toast";
 import { isAnalyzing } from "@/features/hazmat/useHazmatLoads";
 import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
 import { useDefensePacket } from "@/features/hazmat/useDefensePacket";
+import { formatDateTime } from "@/lib/format";
 
 interface HazmatPanelRecord {
   id: string;
@@ -97,10 +98,7 @@ const tankStateLabel = (value: string): string =>
 
 function when(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return formatDateTime(iso, iso);
 }
 
 // ── actions ──────────────────────────────────────────────────────────────────

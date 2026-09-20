@@ -9,6 +9,7 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import { BADGE_BASE, toneClass, type BadgeTone } from "@/lib/badges";
 import { useFuelPlanHistory, useDeleteFuelPlan, useDeleteFuelPlans, type PlanHistoryRow } from "./useFuelPlan";
 import { useToastStore } from "@/stores/toast";
+import { formatDateTime as fmtDate } from "@/lib/format";
 
 const toast = useToastStore();
 const { data, isLoading, error, isFetching, refetch } = useFuelPlanHistory();
@@ -127,7 +128,6 @@ const columns: DataTableColumn[] = [
   { key: "status", label: "Status" },
 ];
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
 </script>
 

@@ -18,6 +18,7 @@ import {
   type ApplicationInvitation,
   useDriverApplicationQuery,
 } from "@/features/recruitment/useApplicationInvites";
+import { formatDate } from "@/lib/format";
 
 /**
  * Inviting an applicant to fill in their own §391.21 application (H5b).
@@ -143,7 +144,7 @@ const columns: DataTableColumn[] = [
           <h3 class="text-sm font-semibold text-ink">Application received</h3>
           <p class="mt-1 text-sm text-ink-muted">
             Certified by {{ applicationQ.data.value.application.signed_name }} on
-            {{ applicationQ.data.value.application.certified_at.slice(0, 10) }}. The PDF carries every
+            {{ formatDate(applicationQ.data.value.application.certified_at) }}. The PDF carries every
             answer and every signature, with the dates this system recorded them.
           </p>
         </div>
@@ -167,12 +168,12 @@ const columns: DataTableColumn[] = [
         :retrying="invitesQ.isFetching.value"
         empty-text="No application link has been sent yet."
       >
-        <template #cell-created_at="{ row }">{{ row.created_at.slice(0, 10) }}</template>
+        <template #cell-created_at="{ row }">{{ formatDate(row.created_at) }}</template>
         <template #cell-email="{ row }">
           <span v-if="row.email">{{ row.email }}</span>
           <span v-else class="text-ink-muted">—</span>
         </template>
-        <template #cell-expires_at="{ row }">{{ row.expires_at.slice(0, 10) }}</template>
+        <template #cell-expires_at="{ row }">{{ formatDate(row.expires_at) }}</template>
         <template #cell-state="{ row }">
           <span :class="[BADGE_BASE, toneClass(stateBadge(row).tone)]">
             {{ stateBadge(row).label }}

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { AppBadge } from "@silvicom/ui";
 import { inspectionExpiry } from "@silvicom/shared";
+import { formatDate } from "@/lib/format";
 
 /**
  * A unit's annual-inspection standing, as the roster shows it (D-AVI16).
@@ -45,7 +46,7 @@ const label = computed(() => {
     <AppBadge v-if="status.state !== 'valid'" :tone="tone">{{ label }}</AppBadge>
     <span v-else class="text-ink-secondary">{{ label }}</span>
     <span v-if="status.state === 'expiring' || status.state === 'expired'" class="text-xs text-ink-tertiary">
-      {{ status.expiresOn }}
+      {{ formatDate(status.expiresOn) }}
     </span>
   </span>
 </template>

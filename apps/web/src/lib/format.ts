@@ -1,5 +1,7 @@
 /** Small display-only formatters for table cells. Pure, no locale deps. */
 
+import { formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
+
 /**
  * Format a US/NANP phone number for display: "(512) 555-0134".
  *
@@ -21,27 +23,17 @@ export function formatPhone(raw: string | null | undefined): string {
   return `(${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6)}`;
 }
 
-export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const day = iso.slice(0, 10);
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+/**
+ * The product's date, `MM/DD/YYYY`, defined once in `@silvicom/shared` (D-DS17, extended from the
+ * picker to the whole product on 2026-09-20).
+ *
+ * These stay as named re-exports rather than being deleted in favour of the shared names: 14 modules
+ * already import `formatDate` from here, and a rename touching all of them would bury the one change
+ * that matters — the shape of the string — in an import churn nobody could review. The definition is
+ * shared; only the local name survives.
+ */
+export const formatDate = formatDisplayDate;
+export const formatDateTime = formatDisplayDateTime;
 
 /**
  * What a driver edit turned out to mean, as a sentence — or null when it meant only itself (R6a).

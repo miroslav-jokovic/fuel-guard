@@ -52,7 +52,7 @@ describe("fleetProvenanceLine", () => {
   it("states the period, the sweep, the tie-out and the denominator", () => {
     const line = fleetProvenanceLine(report());
     expect(line).toContain("July 2026");
-    expect(line).toContain("McLeod ledger swept Aug 28, 2026");
+    expect(line).toContain("McLeod ledger swept 08/28/2026");
     expect(line).toContain("residual $0.00");
     expect(line).toContain("172 trucks");
     expect(line).toContain("1,552,337 measured miles");
@@ -85,7 +85,7 @@ describe("fleetProvenanceLine", () => {
     );
     expect(line).not.toContain("tie to the ledger");
     expect(line).not.toContain("residual");
-    expect(line).toContain("McLeod ledger swept Aug 28, 2026");
+    expect(line).toContain("McLeod ledger swept 08/28/2026");
   });
 
   /** Prose, not a table: a withheld denominator leaves the clause out rather than printing a dash. */
@@ -108,7 +108,7 @@ describe("fleetTrust", () => {
     const chip = fleetTrust(report());
     expect(chip.tone).toBe("success");
     expect(chip.label).toContain("Ties to ledger");
-    expect(chip.label).toContain("swept Aug 28, 2026");
+    expect(chip.label).toContain("swept 08/28/2026");
     expect(chip.title).toBe(fleetProvenanceLine(report()));
   });
 

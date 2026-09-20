@@ -32,6 +32,7 @@ import {
   type DispatchStopDetail,
   type LoadAction,
 } from "@/features/dispatch/useDispatchLoads";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * One load, as a page (LD2).
@@ -81,10 +82,7 @@ const canReassign = computed(() => !!load.value && !isTerminal(load.value.status
 // ── formatting ───────────────────────────────────────────────────────────────
 function when(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return formatDateTime(iso, iso);
 }
 function apptLabel(start: string | null | undefined, end: string | null | undefined): string {
   if (!start) return "No appointment window";

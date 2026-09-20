@@ -244,8 +244,8 @@ describe("previewing an application before it is signed", () => {
     });
 
     // The date appears when one is given, which is what makes its absence here a measurement.
-    expect(await textOf(dated)).toContain("2026-09-12");
-    expect(await textOf(preview.pdf)).not.toContain("2026-09-12");
+    expect(await textOf(dated)).toContain("09/12/2026");
+    expect(await textOf(preview.pdf)).not.toContain("09/12/2026");
   });
 
   /**

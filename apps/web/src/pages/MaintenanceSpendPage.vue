@@ -10,6 +10,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { formatDate as fmtDate } from "@/lib/format";
 
 /**
  * Repair spend — the shop's own list of what the ledger booked against maintenance (R7 of the
@@ -38,7 +39,6 @@ const total = computed(() => data.value?.total ?? 0);
 const pending = computed(() => data.value?.pendingSources ?? null);
 const canReadFinance = computed(() => session.canView("accounting"));
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const fmtUsd = (n: number | string) => Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
 const columns: DataTableColumn[] = [

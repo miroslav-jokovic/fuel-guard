@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatDisplayDayShort } from "./displayDate.js";
 
 /**
  * Notifications (Phase 5N, decision D53).
@@ -238,7 +239,7 @@ export function notificationDayGroup(iso: string, nowMs: number): string {
   const diff = day(nowMs) - day(t);
   if (diff <= 0) return "Today";
   if (diff === 1) return "Yesterday";
-  return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return formatDisplayDayShort(new Date(t), iso);
 }
 
 /** The badge cap — a bell reading "99+" is more useful than one reading "1,284". */

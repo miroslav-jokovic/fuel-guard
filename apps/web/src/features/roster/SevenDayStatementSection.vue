@@ -15,6 +15,7 @@ import {
   useRecordSevenDayStatement,
   useSevenDayStatementsQuery,
 } from "@/features/roster/useSevenDayStatements";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 /**
  * The §395.8(j)(2) seven-day work statement, on the driver's page (P7, D-PKT7).
@@ -119,14 +120,14 @@ async function submit(): Promise<void> {
       >
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <p class="text-sm font-medium text-ink">
-            {{ sevenDayTotal(s.days) }} hours in the seven days before {{ s.statement_date }}
+            {{ sevenDayTotal(s.days) }} hours in the seven days before {{ formatDate(s.statement_date) }}
           </p>
           <!-- Newest first, so the first row is the one in force. A correction is a new statement. -->
           <span v-if="i === 0" class="text-xs text-ink-muted">Current</span>
         </div>
         <p class="mt-1 text-xs text-ink-muted">
-          Signed by {{ s.signed_name }} on {{ s.signed_on }} · last relieved
-          {{ s.last_relieved_at.slice(0, 16).replace("T", " ") }}
+          Signed by {{ s.signed_name }} on {{ formatDate(s.signed_on) }} · last relieved
+          {{ formatDateTime(s.last_relieved_at) }}
         </p>
       </li>
     </ul>

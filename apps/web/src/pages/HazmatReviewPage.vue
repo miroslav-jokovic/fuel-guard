@@ -12,6 +12,7 @@ import { useReviewQueueQuery } from "@/features/hazmat/useHazmatReview";
 import { emptyQueueFilter, filterReviewQueue } from "@/features/hazmat/reviewModel";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
+import { formatDateTime as fmtDate } from "@/lib/format";
 
 const { data: loads, isLoading, isError, error, isFetching, refetch } = useReviewQueueQuery();
 const { data: vehicles } = useVehiclesQuery();
@@ -34,7 +35,6 @@ const emptyText = computed(() =>
 
 const lineCount = (load: HazmatLoadRow): number => Array.isArray(load.declared_lines) ? load.declared_lines.length : 0;
 const lineLabel = (load: HazmatLoadRow): string => `${lineCount(load)} product${lineCount(load) === 1 ? "" : "s"}`;
-const fmtDate = (iso: string): string => new Date(iso).toLocaleString();
 const waitingHours = (iso: string): number => Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 3_600_000));
 const waitingLabel = (iso: string): string => {
   const hours = waitingHours(iso);

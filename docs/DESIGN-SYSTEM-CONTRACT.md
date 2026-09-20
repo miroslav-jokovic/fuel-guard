@@ -117,6 +117,46 @@ first.
 
 ---
 
+## 1.4 Dates — one shape, one definition (D-DS18)
+
+**A date is shown as `MM/DD/YYYY`. Everywhere. From one function.**
+
+| Shape | Function | Where |
+|---|---|---|
+| `09/20/2026` | `formatDisplayDate` | every date shown as a field, a cell or a sentence |
+| `09/20/2026 2:03 PM` | `formatDisplayDateTime` | a date that also needs its moment — audit rows, sync stamps |
+| `09/20` | `formatDisplayDayShort` | chart axis ticks and dense rows, where the year is already established |
+
+All three live in `packages/shared/src/displayDate.ts` and are re-exported in `apps/web` as
+`formatDate` / `formatDateTime` from `@/lib/format`, and in `apps/admin` as `fmtDate` / `fmtDateTime`.
+`lint:date-format` fails any `toLocale*String` call that formats a date outside eight named carve-outs.
+
+**Why this section exists, and why D-DS17 was not enough.** D-DS17 pinned `MM/dd/yyyy` on 2026-08-31,
+but stated it as a property of `DatePickerBase.vue`. So the two pickers obeyed it and nothing else did
+— a rule written about a component cannot be checked against a product. By 2026-09-20 there were 13
+near-duplicate `fmtDate` definitions, ~30 inline `toLocaleDateString` calls (most passing `undefined`
+as the locale, which hands the ordering to the *viewer's* browser: `2026/09/20` on `ja` or `zh`,
+`20/09/2026` on `en-GB`), and raw ISO on screen in a dozen places — including `packetDraw.ts`, which
+printed `2026-09-20` into every date box of the 22-page federal DOT application packet.
+
+**A date is a calendar day, not a moment.** `formatDisplayDate` reads the leading `YYYY-MM-DD`
+characters and ignores any time part, so no timezone is ever consulted. This is not a detail:
+`new Date("2026-09-20").toLocaleDateString(...)` parses UTC midnight and renders it *locally*, printing
+**Sep 19** in every US timezone, and four of the 13 deleted copies shipped with exactly that bug.
+Rendering a `timestamptz` in the reader's own zone is a **semantic** change to what a date means here,
+not a formatting one, and needs its own decision.
+
+**What is deliberately not a date:** a month heading (`July 2026`), a time of day, a weekday, and a
+clock pinned to somebody else's timezone (a fuel station's local time, F-H2). Each is a carve-out in
+`scripts/check-date-format.mjs` naming the question it answers.
+
+**Known blind spot, stated rather than left to be found:** raw ISO reaching a template —
+`{{ row.expires_at }}` — is invisible to the gate, which would have to know that `expires_at` holds a
+date, and a name is not a type. Eleven such sites were fixed by hand on 2026-09-20; a twelfth would
+pass CI. If you interpolate a column straight into a template, that is on you.
+
+---
+
 ## 2. Typography
 
 ### 2.1 Family

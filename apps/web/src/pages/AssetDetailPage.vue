@@ -37,6 +37,7 @@ import { useLocationsQuery } from "@/features/inventory/useInventory";
 import { BADGE_BASE, assetMovementMarker, assetStatusBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import { formatDate as fmtDate, formatDateTime as fmtWhen } from "@/lib/format";
 
 /**
  * One asset: what it is, who has it, and everywhere it has been (INVENTORY-PLAN.md I8).
@@ -95,12 +96,8 @@ const REASON_ICONS: Record<AssetMovementReason, Icon> = {
   retired: ArchiveBoxIcon,
 };
 
-const fmtWhen = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
 
 /**
  * Where a movement put the thing, as a sentence.

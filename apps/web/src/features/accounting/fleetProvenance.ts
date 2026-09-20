@@ -1,4 +1,5 @@
 import type { FleetReportResponse } from "./useFleetReport";
+import { formatDisplayDate } from "@silvicom/shared";
 
 /**
  * The report's provenance, in one line under the page title (G8).
@@ -34,10 +35,7 @@ export function monthName(key: string): string {
 
 /** "2026-08-28T21:02:56Z" → "28 Aug 2026". Dates only: the hour of a sweep is not the reader's question. */
 function sweepDay(stamp: string): string {
-  const d = new Date(stamp);
-  return Number.isNaN(d.getTime())
-    ? stamp
-    : d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+  return formatDisplayDate(stamp, stamp);
 }
 
 export function fleetProvenanceLine(report: FleetReportResponse): string {

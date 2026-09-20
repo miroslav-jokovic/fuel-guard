@@ -10,6 +10,7 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { formatDate as fmt } from "@/lib/format";
 
 /** All state + logic for AnomaliesPage.vue: filters, columns, sorting, pagination, selection, bulk actions. */
 export function useAnomaliesPage() {
@@ -309,7 +310,6 @@ async function rowAction(
 // Rebuild + Re-sync Samsara moved to Settings → Data & Sync (with live progress + freshness).
 
 const selectedRow = ref<Anomaly | null>(null);
-const fmt = (iso: string) => new Date(iso).toLocaleDateString();
   return {
     filters, search, reeferOnly, setReeferOnly,
     status, severity, vehicleIds, statusOptions, severityOptions, unitOptions,
