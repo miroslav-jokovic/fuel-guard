@@ -7,12 +7,19 @@ D-DT19, port plan T1–T13, open questions Q-DT1…Q-DT6); this file is only "wh
 
 ## State
 
-**Branch `claude/design-system-chip-vocabulary`, branched from `origin/main`. Committed: NO.
-Pushed: NO. No PR.** All gates green (list below). The working tree also carries unrelated
-untracked junk (`docs/Kowlage-Base/`, the `docs/design examples/*.png` the user added, a
-modification to `docs/plans/mcleod/mail.md`) — **none of it is mine; do not commit it.**
+**Tranche 1 is MERGED TO MAIN.** PR #920, commit `6974947`, merge commit `3d4999f`, 2026-09-20.
+All eight CI jobs green. Start from `main`; there is no outstanding branch.
 
-The change set is exactly:
+> ⚠ This section said "Committed: NO. Pushed: NO. No PR." when the file was written, and was
+> committed inside the very PR that made it false. A handoff that describes its own branch state
+> is stale the moment it merges — describe what is IN MAIN, and let `git log` carry the rest.
+
+The working tree at the time also carried unrelated untracked files (`docs/Kowlage-Base/`, the
+`docs/design examples/*.png`, a modification to `docs/plans/mcleod/mail.md`). They were
+deliberately left out of the commit and are **still uncommitted** — they are the user's, not this
+work's.
+
+What landed:
 
 ```
 new   packages/ui/src/components/AppIconChip.vue
@@ -99,10 +106,21 @@ Two corrections made along the way, both worth not re-deriving:
   ⚠ `ignore-value` only matches rules in `hook-lib.mjs`'s `directValueRules`; for anything else the
   value-scoped form silently never fires and you need `--file` with `*`.
 
-## Gates run, all green
+## Gates
 
-`lint:tokens` · `lint:ui-adoption` · `lint:filesize` · `lint:boundaries` · `lint:comment-claims` ·
-ESLint · `vue-tsc` on web + ui + admin · web tests 2081 · ui tests 95.
+Locally: `lint:tokens` · `lint:ui-adoption` · `lint:filesize` · `lint:boundaries` ·
+`lint:comment-claims` · ESLint · `vue-tsc` on web + ui + admin · web tests 2081 · ui tests 95.
+In CI, all eight jobs on run 35533388327: `gates`, `typecheck-build`, `test-api`, `test-web`,
+`test-packages`, `matrices`, `native-android`, `build`.
+
+⚠ **`lint:comment-claims` failed on the first commit attempt and is worth knowing about.** The new
+`raw-imports.d.ts` named `AppIconChip.test.ts` without quoting a test title, and the gate did not
+fire until the file was `git add`ed — untracked files are invisible to it. Fixed by citing the real
+title. **`git add` a new file BEFORE running the gates**, or a gate you believe you have satisfied
+has simply not looked.
+
+⚠ `pnpm --filter @silvicom/web build` fails locally on missing `VITE_SUPABASE_URL` /
+`VITE_SUPABASE_ANON_KEY`; CI's `typecheck-build` is the job that proves the build, and it passed.
 
 ⚠ `pnpm lint` is **not** the gate set (`lint:boundaries` and `lint:filesize` fail CI independently),
 and `lint:tokens` is an `apps/web` script — `pnpm --filter @silvicom/web lint:tokens`, never a bare

@@ -1,12 +1,20 @@
 # Dashboard template v2 — card, tab, trend and donut redesign
 
-> **Status: PROPOSAL.** Nothing here is merged. The artifact is
+> **Status: PROPOSAL, except where marked SHIPPED.** The artifact is
 > `prototypes/dashboard-v2.html`, which is interactive and built against the product's own token
 > sheet; this document is its decision log. Decision IDs are **D-DT1…D-DT19** and are not ratified —
 > they exist so the port plan in §7 can cite them.
 >
 > Read first: `docs/DESIGN-SYSTEM-CONTRACT.md` (canonical), `apps/web/CLAUDE.md`,
 > `docs/plans/design-system/DESIGN-REFRESH-2026-09.md` (D-DR1…D-DR25, which this continues).
+>
+> **SHIPPED so far — PR #920, merge `3d4999f`, 2026-09-20:** the *vocabulary* half of D-DT17
+> (`AppIconChip`, seven tones, deliberately a no-op on screen) and the `lint:tokens` gradient-stop
+> rule from Q-DT6's neighbourhood. The chip's gradient TREATMENT in §4.2b has **not** shipped —
+> it is a change to one map, blocked only on the dark-mode ramp question in the handoff. Everything
+> else here is still a proposal.
+>
+> Where the work stopped: `HANDOFF-2026-09-20-DASHBOARD-TEMPLATE.md` beside this file.
 
 ## 0. How to look at it
 
