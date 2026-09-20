@@ -3850,6 +3850,76 @@ every time.
   only one that cannot be wrong on a page nobody has rasterised yet, and AUD-1 already wrote down
   that `TemplateTextRun` carries exactly what it needs.
 
+- **2026-09-19 — AUD-19 BUILT, the day it was found.** Branch `claude/hiring-aud19`.
+
+  **⚠ It is TWO grids, not one — the finding as written was incomplete.** A survey of all eight of
+  the packet's grids against the carrier's own runs found `p16.references` colliding exactly as
+  `p12.employment` does: notice at y88.2, the footer's `FOR DEPARTMENT OF…` at y85.2. Both grids run
+  to the foot of their sheet. The original entry named page 12 because that is the page that
+  happened to be rasterised.
+
+  **⚠ And `p16.references` is REACHABLE, which took checking.** The questionnaire caps references at
+  `maxRows: 3`, matching the carrier's three rows — so the grid looks like it can never overflow. It
+  can: `maxRows` is enforced in `QuestionnaireTable.vue`'s `canAdd` and by
+  `questionnaireAnswersSchema`, and **`questionnaireAnswersSchema` is imported by nothing in
+  `apps/api`** — `applicationContract.ts` validates `questionnaire_answers` as
+  `z.record(z.string(), z.unknown())`. The cap is a UI convenience, not a server rule.
+
+  **There is no room below either grid, and that is measured rather than argued.** Ink-scanned on
+  the blank template at 600 dpi, page 12: the grid's bottom rule ends at y97.04, the footer's ink
+  begins at y93.20 — **3.84pt of clear space**. Page 16: the same 3.84pt. A 6.5pt line of Helvetica
+  needs about 6pt of box. No drop fits, and shrinking the type is the wrong direction on the day
+  AUD-5 finished raising the floor to 8pt.
+
+  **So the notice goes ABOVE on those two, and where exactly is also measured.** Page 12's employment
+  log is **473pt of continuous ink** from its heading row at y570.40 to its last rule at y97.12 —
+  there is no gap inside it and none below, so the only adjacent space is the 14.4pt band above its
+  heading, between it and the identity block. Page 16's references grid has 1.68pt above its heading
+  and 153pt of continuous ink below, so its notice goes above the printed instruction that
+  introduces the section, in the 34.3pt band under the section rule. ⚠ Page 16's y moved 278.5 → 283
+  **because of the raster**: at 278.5 it cleared the ink and still read as a squeezed extra line of
+  `Please provide 3 personal references…`.
+
+  **⚠ A TABLE OF TWO EXCEPTIONS, not a rule that searches for white space.** The carrier's paper does
+  not move, so where a notice fits is a fact to measure once and assert against their page — the
+  same reason every other coordinate in this area is a table. The test checks **all eight** grids, so
+  a grid that stops having room becomes a failing test rather than a collision nobody looks for.
+
+  **⚠ The first version of the test was wrong in a way worth recording, and a mutant caught it.** It
+  asked a new `continuationNoticePlacement(tableId, lastRowY)` helper where the notice *would* go and
+  compared THAT against the carrier's geometry. Mutating the draw loop to ignore the exception table
+  **while the helper still honoured it** left the test green and the collision back in the document.
+  A test that interrogates a description of intent cannot see the renderer disagreeing with it. The
+  helper was deleted and the assertion now reads the drawn run out of the produced page with
+  `drawnRuns`, which is why this lives in `packetOverlay.test.ts` rather than next to the other
+  continuation tests.
+
+  **⚠ A second false pass, caught the same way.** The fixture first overflowed every grid in one
+  render — but page 2 carries FOUR of the eight, so `find` returned the topmost notice every time and
+  `p02.licences` was checked four times while the accident, experience and conviction notices were
+  never looked at. It passed. What gave it away was the drift assertion failing with *"expected
+  552.4 to be less than 484.4"*. One grid per render now, with `toHaveLength(1)` so a page that grows
+  a second notice cannot be measured as if it had one.
+
+  **Mutations: 9 run, 9 red.** Both exceptions removed (the original defect, and the failure names it:
+  *"p12.employment: notice at y88.9 hits FOR DEPARTMENT OF… at y85.9"*); each exception removed
+  alone; each pushed onto the nearest printed line; p12 nudged onto a rule; a THIRD grid moved "to
+  be safe"; and p16 parked in the page's widest white space, clear of everything and 111pt from its
+  grid. Each of the three assertions is exercised by at least one.
+
+  ⚠ **The drift bound is 100pt and is a DRIFT bound, not a certificate of attribution.** Whether a
+  reader attributes the notice to the right grid depends on what sits between them — nothing on page
+  12, the carrier's own two-line instruction on page 16 — and only the raster judges that. Said
+  plainly in the test rather than dressed up as proof.
+
+  **Gates** (after the last edit): all ten named · root `lint` · `typecheck` — green.
+  `pnpm --filter @silvicom/api test`: **4007 passed, 331 files**, twice. ⚠ **No migration.**
+  ⚠ **Freeze-bound.**
+
+  ⚠ **Left open, found on the way:** `questionnaireAnswersSchema` exists, enforces every question's
+  `maxRows`, and **is imported by nothing**. Whether the submit path should use it is a question
+  about validation rather than about printing, so it was not answered here.
+
 ---
 
 ## 11. Sources

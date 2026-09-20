@@ -167,6 +167,46 @@ const CONTINUATION_NOTICE_DROP = 9;
 const CONTINUATION_NOTICE_SIZE = 6.5;
 
 /**
+ * The two grids whose notice goes ABOVE them, because below them there is no room (AUD-19).
+ *
+ * —— ⚠ THE DEFECT THIS FIXES IS ONE THE COMMENT BELOW SAID COULD NOT HAPPEN ——————————————
+ * AUD-1 removed a notice for STANDALONE rules because it drew through the carrier's printed
+ * instruction on page 16, and kept the GRID notice on the reasoning that *"`fieldTableFor` gives the
+ * grid's last rule and the space under it is measured and empty"*. That is true of the grid and
+ * false of the page. `p12.employment` and `p16.references` both run to the foot of their sheet, and
+ * what is under their last rule is the carrier's own footer: measured on the blank template at 600
+ * dpi, page 12 has **3.84pt** of clear space between the grid's bottom rule at y97.04 and the ink of
+ * `FOR DEPARTMENT OF TRANSPORTATION VERIFICATION PURPOSE ONLY` at y93.20. Page 16 has the same
+ * 3.84pt. A 6.5pt line of Helvetica needs about 6pt of box, so it does not fit at any drop — the
+ * notice and the carrier's footer were printed on top of each other, and neither was readable.
+ *
+ * ⚠ **Shrinking the drop cannot help and shrinking the TYPE would be the wrong fix.** 3.84pt holds
+ * about 4pt type; AUD-5 has just finished establishing 8pt as the floor below which this document
+ * stops reading as one document, and this notice is already the smallest thing on the page.
+ *
+ * ⚠ **Above, and not merely somewhere clear.** Page 12's employment log is 473pt of CONTINUOUS ink
+ * from its heading row at y570.40 to its last rule at y97.12 — there is no gap inside it and none
+ * below it, so the only space adjacent to that grid is the 14.4pt band immediately above its
+ * heading, between it and the identity block. Page 16's references grid has 1.68pt above its
+ * heading row and 153pt of continuous ink below that, so its notice goes above the printed
+ * instruction that introduces the section, in the 34.3pt band under the section rule.
+ *
+ * ⚠ **Measured, then LOOKED AT at 200 dpi**, which is what moved page 16's from 278.5 to 283: at
+ * 278.5 it cleared the ink but sat 4pt off `Please provide 3 personal references…` and read as a
+ * squeezed extra line of that instruction rather than as its own sentence.
+ *
+ * ⚠ **A table of exceptions rather than a rule that searches for space**, for the reason every other
+ * coordinate in this module is a table: the carrier's paper does not move, so where the notice fits
+ * is a fact to be measured once and asserted against their page, not re-derived per render.
+ * `packetContinuation.test.ts` checks all eight grids against the template's own runs and rules, so
+ * a grid that stops having room is a failing test rather than a collision nobody looks for.
+ */
+const NOTICE_ABOVE_GRID: Readonly<Record<string, number>> = {
+  "p12.employment": 575,
+  "p16.references": 283,
+};
+
+/**
  * The draft band, across the diagonal of one sheet (A2).
  *
  * ⚠ **pdf-lib, not `stamp.ts`.** The band next door does the same job on the §391.21 summary and
@@ -352,8 +392,9 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
     const page = doc.getPage(table.page - 1);
     page.drawText(continuationNoticeFor(over), {
       x: table.columns[0]! + 2,
-      // ⚠ BELOW the grid's last rule, not in its last row — that row may hold an answer.
-      y: lastRow - CONTINUATION_NOTICE_DROP,
+      // ⚠ BELOW the grid's last rule, not in its last row — that row may hold an answer — EXCEPT
+      // on the two grids that reach the foot of their sheet, where below is the carrier's footer.
+      y: NOTICE_ABOVE_GRID[over.tableId] ?? lastRow - CONTINUATION_NOTICE_DROP,
       size: CONTINUATION_NOTICE_SIZE,
       font: fieldFont,
       color: INK,
@@ -406,3 +447,4 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
 
 /** Every place this renderer knows how to draw — the table's ids, for a caller that wants to check. */
 export const overlayKnowsPlacements = (): string[] => PACKET_MARK_LINES.map((l) => l.id);
+
