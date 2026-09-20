@@ -7,10 +7,11 @@ import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream, Standard
 import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
 import type { DriverApplication } from "@silvicom/shared";
 import { packetFieldFill } from "./packetFieldValues.js";
+import type { PacketFieldOverflow } from "./packetGrid.js";
 import { renderPacketOverlay } from "./packetOverlay.js";
 import { PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { pageText, readPacketTemplate } from "./packetTemplate.js";
-import { fieldCell, fieldLineFor } from "./packetFieldGeometry.js";
+import { fieldCell, fieldLineFor, PACKET_FIELD_TABLES } from "./packetFieldGeometry.js";
 
 /**
  * The marks, drawn onto the carrier's packet.
@@ -761,6 +762,134 @@ describe("a value the carrier's column is too narrow for", () => {
       if (run!.size < 11) shrunk += 1;
     }
     expect(shrunk, "fixture shrank nothing, so the floor was never approached").toBeGreaterThan(0);
+  });
+});
+
+/**
+ * AUD-19 — the continuation notice must land on no printed word of the carrier's.
+ *
+ * —— ⚠ THIS IS A CLAIM `packetOverlay.ts` USED TO MAKE IN PROSE, AND IT WAS FALSE —————————
+ * AUD-1 built a notice for STANDALONE rules, found it drawing through page 16's printed
+ * instruction, and removed it — while keeping the GRID notice on the argument that *"`fieldTableFor`
+ * gives the grid's last rule and the space under it is measured and empty"*. Nothing had measured
+ * it. It is true of six grids and false of two: `p12.employment` and `p16.references` both run to
+ * the foot of their sheet, and what is under their last rule is the carrier's own footer. The notice
+ * and `FOR DEPARTMENT OF TRANSPORTATION VERIFICATION PURPOSE ONLY` were printed on top of each
+ * other, and neither was readable.
+ *
+ * ⚠ **Asserted on the DRAWN run, not on a function that says where the notice should go.** The
+ * first version of this test asked a `continuationNoticePlacement` helper and compared THAT against
+ * the carrier's geometry — and a mutant that made the draw loop ignore the placement table while the
+ * helper still honoured it **passed**. A test that interrogates a description of intent cannot see
+ * the renderer disagreeing with it, which is the whole failure mode this file's header is about. So
+ * the helper was deleted and this reads the run out of the produced page.
+ */
+describe("the notice pointing at the continuation sheet", () => {
+  /**
+   * ⚠ A conservative envelope around a CARRIER run, because the reader gives a baseline and not an
+   * ink box and we do not have their font. Measured on the blank template at 600 dpi: their footer's
+   * ink stands 7.32pt above its baseline and their body text drops about 1.5pt below it, so −3/+9
+   * covers every run in the packet with room to spare. Too generous is the safe direction — it can
+   * only reject a placement that would in fact have been fine.
+   */
+  const RUN_ABOVE = 9;
+  const RUN_BELOW = 3;
+
+  /**
+   * ONE grid's overflow, rendered on its own.
+   *
+   * ⚠ **One grid per render, and the first version of this overflowed them all at once.** Page 2
+   * carries FOUR of the packet's eight grids, so a single render puts four notices on it and
+   * `find` returns the topmost one every time — the test then checked `p02.licences` four times and
+   * never looked at the accident, experience or conviction notices at all. It passed. What gave it
+   * away was the second assertion below failing with `expected 552.4 to be less than 484.4`: the
+   * licence grid's notice, being measured against the experience grid's band.
+   */
+  const noticeFor = async (table: (typeof PACKET_FIELD_TABLES)[number]) => {
+    const overflow: PacketFieldOverflow[] = [{
+      tableId: table.id,
+      label: `${table.id} heading`,
+      columns: ["A", "B"],
+      page: table.page,
+      rows: [["one", "two"], ["three", "four"]],
+    }];
+    const pdf = await renderPacketOverlay({ marks: [], fields: [], overflow });
+    const runs = await drawnRuns(pdf, table.page);
+    const hits = runs.filter((r) => /more entr|too long for/.test(r.text));
+    // ⚠ Exactly one, so a page that grew a second notice cannot be measured as if it had one.
+    expect(hits, `notices drawn on page ${table.page} for ${table.id}`).toHaveLength(1);
+    return hits[0]!;
+  };
+
+  it("lands on no printed word of the carrier's, on every grid it can be drawn for", async () => {
+    const blank = await readPacketTemplate();
+
+    let checked = 0;
+    for (const table of PACKET_FIELD_TABLES) {
+      const notice = await noticeFor(table);
+
+      const top = notice.y + 0.718 * notice.size;
+      const bottom = notice.y - 0.207 * notice.size;
+      const page = blank[table.page - 1]!;
+      for (const run of page.runs) {
+        const clear = run.y - RUN_BELOW > top || run.y + RUN_ABOVE < bottom;
+        expect(clear, `${table.id}: notice at y${notice.y} hits "${run.text.trim().slice(0, 44)}" at y${run.y.toFixed(1)}`).toBe(true);
+      }
+      // ⚠ Rules too — a notice struck through by one of the carrier's own lines is the same defect
+      // with a thinner offender, and the grid's own border sits a few points off the default drop.
+      for (const rule of page.rules) {
+        const clear = rule.y1 > top || rule.y1 < bottom;
+        expect(clear, `${table.id}: notice at y${notice.y} is struck by a rule at y${rule.y1.toFixed(1)}`).toBe(true);
+      }
+      checked += 1;
+    }
+    /**
+     * ⚠ All eight, and asserted as a count. Two of them are the ones that moved; a test of just
+     * those would pass on a renderer hand-fed the right answers and say nothing about the sixth
+     * grid somebody re-measures next year.
+     */
+    expect(checked).toBe(PACKET_FIELD_TABLES.length);
+    expect(checked).toBeGreaterThan(7);
+  });
+
+  /**
+   * ⚠ **The half that stops "clear of everything" being satisfied by drawing it anywhere.** A
+   * renderer that put every notice in the middle of the page's widest white space would pass the
+   * test above and tell a reader nothing about which grid continues.
+   *
+   * ⚠ **This is a DRIFT bound and not a certificate of attribution, and it is worth being plain
+   * about which.** Whether a reader attributes the notice to the right grid was settled by looking
+   * at 200 dpi, because it depends on what sits between them — on page 12 nothing does, and on page
+   * 16 the carrier's own two-line instruction does, which is the compromise that page's layout
+   * forces and which the raster is the only judge of. What a number CAN hold is that the notice
+   * never wanders to the top of the sheet or into the footer: 100pt is wider than any gap the two
+   * exceptions actually use (50.4pt on page 12, 94.4pt on page 16) and far narrower than the page.
+   */
+  it("keeps each notice near the grid it belongs to", async () => {
+    const DRIFT = 100;
+    for (const table of PACKET_FIELD_TABLES) {
+      const notice = await noticeFor(table);
+      const first = table.rows[0]!;
+      const last = table.rows[table.rows.length - 1]!;
+      const distance = notice.y > first ? notice.y - first : notice.y < last ? last - notice.y : 0;
+      expect(distance, `${table.id}: notice is ${distance.toFixed(1)}pt from its grid`).toBeLessThan(DRIFT);
+    }
+  });
+
+  /**
+   * ⚠ **Exactly two grids deviate from the default, and they are named.** Without this the
+   * exception table could silently grow — a later step moving a third notice "to be safe" would
+   * pass everything above, and the packet would quietly stop reading the way it was measured to.
+   */
+  it("moves only the two grids that have no room below them", async () => {
+    const DROP = 9;
+    const moved: string[] = [];
+    for (const table of PACKET_FIELD_TABLES) {
+      const notice = await noticeFor(table);
+      const belowDefault = table.rows[table.rows.length - 1]! - DROP;
+      if (Math.abs(notice.y - belowDefault) > 0.01) moved.push(table.id);
+    }
+    expect(moved.sort()).toEqual(["p12.employment", "p16.references"]);
   });
 });
 
