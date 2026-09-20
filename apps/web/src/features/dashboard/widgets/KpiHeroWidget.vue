@@ -27,13 +27,13 @@ const statsRaw = computed(() => {
       label: "Fuel spend", money: true as const,
       value: s.value ? `$${fmtCompact(s.value.totalSpend)}` : "—",
       valueTitle: s.value ? fmtMoney(s.value.totalSpend) : undefined,
-      sub: rangeLabel.value, icon: CurrencyDollarIcon, tone: "text-success-600 bg-success-50",
+      sub: rangeLabel.value, icon: CurrencyDollarIcon, tone: "success" as const,
       spark: s.value?.spendTrend.map((p) => p.value), sparkColor: viz.spend, to: "/transactions",
     },
     {
       label: "Fleet avg MPG",
       value: mpgTotal.value?.mpg != null ? String(mpgTotal.value.mpg) : "—",
-      valueTitle: mpgTitle.value, sub: mpgSub.value, icon: GaugeIcon, tone: "text-brand-600 bg-brand-50",
+      valueTitle: mpgTitle.value, sub: mpgSub.value, icon: GaugeIcon, tone: "brand" as const,
       // A weekly spark, because there is no honest daily point to draw (D-MPG6).
       spark: mpgWeeks.value.map((p) => p.mpg), sparkColor: viz.brand, to: "/driver-performance",
     },
@@ -45,14 +45,19 @@ const statsRaw = computed(() => {
       value: s.value ? `$${fmtCompact(s.value.idleCostUsd)}` : "—",
       valueTitle: s.value ? fmtMoney(s.value.idleCostUsd) : undefined,
       sub: s.value ? `${Math.round(s.value.idleHours).toLocaleString()} idle hrs` : undefined,
-      icon: FireIcon, tone: "text-caution-700 bg-caution-50", to: "/idling",
+            // ⚠ This tile was the ONE chip in the app pairing caution-**700** with caution-50; the other
+      // 21 all paired 600. Folding it into the closed `caution` tone normalises it to 600, which is
+      // a real (small) change of pixels on this tile and the only one in the vocabulary refactor.
+      // Both steps clear 3:1 on caution-50 for a 24px glyph, so it is a consistency fix, not a
+      // contrast one. The same outlier existed on OperatingMetricsWidget's "Declined attempts".
+      icon: FireIcon, tone: "caution" as const, to: "/idling",
     },
     {
       label: "Active alerts",
       value: s.value ? String(alerts) : "—",
       sub: s.value ? `${s.value.openAnomalies} open case${s.value.openAnomalies === 1 ? "" : "s"}` : undefined,
       icon: ShieldExclamationIcon,
-      tone: alerts > 0 ? "text-danger-600 bg-danger-50" : "text-ink-muted bg-surface-muted",
+      tone: alerts > 0 ? ("danger" as const) : ("neutral" as const),
       to: "/anomalies",
     },
   ];

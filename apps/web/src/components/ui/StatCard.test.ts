@@ -92,7 +92,7 @@ describe("StatCard anatomy", () => {
    * fourteen.
    */
   it("leads with the icon chip in hero and trails with it in kpi", () => {
-    const icon = { icon: TruckIcon, tone: "text-success-600 bg-success-50" };
+    const icon = { icon: TruckIcon, tone: "success" };
     // The claim is ORDER, so the marker is the icon itself rather than the chip's size class.
     // Asserting `size-11` here made this fail the day the chip became `size-10` for fidelity to the
     // comp — a test reporting a deliberate resize as a broken layout is a test measuring the wrong
@@ -109,7 +109,7 @@ describe("StatCard anatomy", () => {
 
   it("omits the icon chip entirely when no icon is given", () => {
     expect(mountCard({}).find("svg").exists()).toBe(false);
-    expect(mountCard({ icon: TruckIcon, tone: "text-success-600 bg-success-50" }).find("svg").exists()).toBe(true);
+    expect(mountCard({ icon: TruckIcon, tone: "success" }).find("svg").exists()).toBe(true);
   });
 
   it("is inert markup with no `to` and no `pressed`", () => {

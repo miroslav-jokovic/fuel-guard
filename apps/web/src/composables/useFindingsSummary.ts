@@ -1,3 +1,4 @@
+import type { ChipTone } from "@silvicom/ui";
 import { useQuery } from "@tanstack/vue-query";
 import { type Icon } from "@silvicom/ui/icons";
 import { apiFetch } from "@/lib/api";
@@ -64,7 +65,7 @@ export interface LedgerTile {
    * read as a deliberate omission instead of an oversight. Typed properly the chip is one `v-if`.
    */
   icon: Icon;
-  tone: string;
+  tone: ChipTone;
   to: { path: string; query?: Record<string, string> };
   /**
    * Marks a tile that renders a CURRENCY figure, so `applyMoneyGate` can remove it for a caller
@@ -97,7 +98,7 @@ export function ledgerTiles(
       value: fmt.int(summary.open),
       sub: "need somebody",
       icon: icons.open,
-      tone: summary.open > 0 ? "text-warning-600 bg-warning-50" : "text-success-600 bg-success-50",
+      tone: summary.open > 0 ? "warning" : "success",
       to: { path: "/findings" },
     });
   }
@@ -112,7 +113,7 @@ export function ledgerTiles(
       valueTitle: fmt.money(summary.recoveredThisQuarter),
       sub: quarterLabel(summary.quarterFrom),
       icon: icons.money,
-      tone: "text-success-600 bg-success-50",
+      tone: "success",
       to: { path: "/findings", query: { state: "closed" } },
     });
   }

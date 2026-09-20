@@ -156,7 +156,7 @@ const unitPath = (u: UnitKitDto) =>
           :muted="lowTotal === 0"
           :sub="lowTotal === 0 ? 'Nothing at its reorder point' : 'Shelves at or below their reorder point'"
           :icon="ExclamationTriangleIcon"
-          tone="text-warning-600 bg-warning-50"
+          tone="warning"
           :loading="lowStock.isLoading.value"
           to="/shop/inventory?stock=low"
         />
@@ -166,7 +166,7 @@ const unitPath = (u: UnitKitDto) =>
           :muted="shortTotal === 0"
           :sub="shortTotal === 0 ? 'Every unit has its kit' : 'Trucks and trailers missing something'"
           :icon="TruckIcon"
-          :tone="shortTotal > 0 ? 'text-danger-600 bg-danger-50' : 'text-ink-muted bg-surface-muted'"
+          :tone="shortTotal > 0 ? 'danger' : 'neutral'"
           :loading="shortUnits.isLoading.value"
           to="/shop/units?kit=short"
         />
@@ -176,7 +176,7 @@ const unitPath = (u: UnitKitDto) =>
           :muted="(today?.total ?? 0) === 0"
           sub="Ledger rows since midnight"
           :icon="ArrowsRightLeftIcon"
-          tone="text-info-600 bg-info-50"
+          tone="info"
           :loading="todayLoading"
         />
         <!-- `pendingSources` is the API's own sentence about why the store is empty; the page it
@@ -186,7 +186,7 @@ const unitPath = (u: UnitKitDto) =>
           :value="spend?.pendingSources ? '—' : fmtMoney(spend?.totalAmount ?? 0)"
           :sub="spend?.pendingSources ?? 'Booked in the last full month'"
           :icon="GaugeIcon"
-          tone="text-success-600 bg-success-50"
+          tone="success"
           :loading="spendLoading"
           to="/shop/repair-spend"
         />
