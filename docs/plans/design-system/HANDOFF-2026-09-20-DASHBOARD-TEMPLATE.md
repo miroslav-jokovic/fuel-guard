@@ -13,7 +13,9 @@ Two tranches are on `main`:
 
 - **Tranche 1** — F1 (chip tone vocabulary) and F3 (`lint:tokens` gradient stops). PR #920, merge
   `3d4999f`; docs corrected in #921, merge `ada75ca`.
-- **Tranche 2** — **F2, F4, T4, T10, T12**, on `claude/design-system-segmented-well`.
+- **Tranche 2** — **F2, F4, T4, T10, T12**. PR #922, merge `16d3ebb`, all eight checks green.
+
+There is no outstanding branch. Start from `main`.
 
 > ⚠ Describe what is IN MAIN and let `git log` carry the rest. The first version of this file said
 > "Committed: NO" and was committed inside the very PR that made it false.

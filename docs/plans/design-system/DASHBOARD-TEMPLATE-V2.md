@@ -559,7 +559,9 @@ vocabulary (22 hand-written pairs across 5 files → one map, seven names identi
 deliberately a no-op on screen; `lint:tokens` gained the gradient-stop rule. Handoff corrected in
 PR #921, merge `ada75ca`.
 
-**2026-09-20 — F2 shipped: one well, de-greyed once.** `packages/ui/src/segmentedSurface.ts` owns
+**2026-09-20 — F2, F4, T4, T10 and T12 shipped together in PR #922, merge `16d3ebb`.**
+
+**F2: one well, de-greyed once.** `packages/ui/src/segmentedSurface.ts` owns
 the well-and-pill recipe and both `AppTabs` and `AppSegmentedControl` read it; the copies had
 already drifted (`shadow-card` on one pill, absent from the other). D-DT16's ground is two new role
 tokens, `--control-well` and `--control-well-edge` — chroma 0.0119 light / 0.0140 dark, confirmed
