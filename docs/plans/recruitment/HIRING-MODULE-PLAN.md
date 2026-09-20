@@ -4024,6 +4024,88 @@ every time.
   ⚠ **`pdfDraw.ts` is 469 lines.** Warn is 450, budget 500. It was 422. There is no room for the
   next fix — split it first.
 
+- **2026-09-20 — AUD-9 BUILT.** Branch `claude/hiring-aud9`. Same renderer as AUD-8 (PDFKit through
+  `lib/pdfDraw.ts`).
+
+  **This is the SECOND escalation of this line, and the first one's reasoning was right as far as it
+  went.** The notice began as `muted()`; that was raised and fixed by moving it to DANGER ink at
+  reading size, and `instrumentPages.ts` still carries the comment explaining why. Not far enough:
+  measured on the rendered document, the revocation was the **same 9.5pt as the disclosure body
+  under it and separated from it by 5.49pt — less than the 10.98pt between that body's own lines.**
+  It was not typeset as a status at all. It was typeset as the first paragraph of the wording, in
+  red, which is exactly what the finding says.
+
+  **It is BOUNDED now** — a DANGER rule above and below, the headline bold, the status word first.
+  A bounded block is the one shape on these pages that cannot be mistaken for body copy.
+  ⚠ **Colour still does not carry it alone (D-AVI22).** The word REVOKED/WITHDRAWN leads, the
+  headline is Helvetica-Bold, and the two rules are structural — so the black-and-white photocopy a
+  DOT auditor will actually hold says everything the colour says. That constraint is why the answer
+  is a box and not simply a brighter red.
+
+  ⚠ **`standing` is now `{ headline, detail }`, not a sentence.** A caller that hands over prose
+  leaves the typography to a substring search; the split lets the renderer set the status and its
+  consequence differently. One caller (`permissionsDocument.ts`) — the filed application passes no
+  `standing` at all, which is A2's one permitted difference and is unchanged.
+
+  ⚠ **THE SUMMARY COLUMN WAS THE BIGGER HALF, AND THE AUDIT DID NOT NAME IT.** Page one read
+  `Signed 2026-09-13 · REVOKED 2026-09-16` beside `Signed 2026-09-11 · wording v0-draft` — a lapsed
+  row and a live one opening with the same word in the same ink, so five rows could be told apart
+  only by reading each of them to the end. **This is the page the office reads to answer "what may
+  we rely on".** The status leads now (`REVOKED 2026-09-16 · signed 2026-09-13`) and a lapsed row is
+  drawn in DANGER; a live one is untouched. Same finding, the page that matters more — the AUD-19
+  shape, where the finding named the page that happened to be rasterised.
+
+  **Two primitives gained a parameter**: `rule(doc, color)` and `field(doc, …, valueColor)`. Both
+  default to the house value, so every existing caller is byte-identical. ⚠ `pdfDraw.ts` 469 → 477;
+  the split it is owed is still owed. Eight lines of parameter is not the "next fix" the AUD-8 entry
+  warned against, and saying so here rather than quietly is the point.
+
+  **The geometry reader grew the two things these claims need**: `DrawnLine` now carries `font` and
+  `color`. ⚠ `font` is the raw resource name (`/F1`, `/F2`) **on purpose** — resolving it to a
+  typeface means reading the page's font dictionary, and a test asserting `/F2` would pin pdfkit's
+  allocation order rather than a weight. Compare against a run known to be bold; every `field()`
+  value is one. ⚠ `color` is tracked as STREAM STATE, because `scn` precedes the `BT` block it
+  applies to and persists — and lowercase only, since `SCN` sets the STROKE colour and the two
+  interleave on any page carrying a rule.
+
+  **Mutations: 10 run, 10 red.** Rules removed; headline un-bolded; headline in INK; **detail drawn
+  bold so "bold" stops discriminating**; notice moved below the wording; status word moved back
+  behind the date; summary reverted on each of its two rows; a lapsed row's colour removed; and
+  **every** summary row coloured, so colour stops meaning anything.
+  ⚠ **The first attempt at the "detail is bold too" mutant was a NO-OP and read as a survivor** —
+  it set the font before `body()`, and `body()` sets its own. A mutant that does not change the
+  output is not evidence about the test. Redone as an inline bold draw; red.
+  ⚠ **And the test caught me in AUD-19's own trap on the first run.** `find(l => l.text.startsWith
+  ("REVOKED"))` now matches the SUMMARY row first, because this very change made the summary open
+  with that word — so every assertion after it measured the wrong page. The notice stamps to the
+  second, the summary carries a date; the finder keys on `UTC`.
+
+  **Established by looking** at 150 and 300 dpi on the revoked release, the withdrawn consent and
+  the summary, with two revocations and a withdrawal in one render.
+
+  ⚠ **FOUND ON THE WAY, NOT FIXED, AND IT IS WORSE THAN AUD-9 WAS — raised as AUD-21.**
+  **Every newline in a stored disclosure prints as `?`.** `winAnsi()`'s catch-all folds anything
+  outside WinAnsi to `?`, and `\n` (U+000A) is outside it — so pdfkit never sees the break it would
+  have honoured. Measured: `esignConsentBody()` composes the 15 U.S.C. 7001(c) consent with **16**
+  newlines, all 16 print as `?`, and **the source text contains no `?` of its own** — so every
+  question mark a reader sees in that consent is corruption. It reads
+  *"You can have these on paper instead?You do not have to do any of this electronically…"* and
+  *"…send you one.??You can change your mind?"*. The five `DISCLOSURES` carry no newline and are
+  unaffected; `carrierWording.ts:174` composes a carrier's own wording the same way and is.
+  ⚠ **This is AUD-3's family exactly** — `winAnsi` folding something it should have left alone, on
+  a document that gets filed — and AUD-3's own fix comment says the catch-all turns *"anything that
+  survives and is genuinely unrepresentable"* into `?`. A line break is not unrepresentable; it is
+  the one control character this renderer must keep. ⚠ **It is on the FILED §391.21 application as
+  well as on this document**, so it is freeze-bound and should go before C1.
+  **Recommendation: take AUD-21 before AUD-10 and AUD-11.** It is a one-line change to a function
+  that already has a test file, and it is the statutory consent text being unreadable.
+
+  **Gates** (after the last edit): `lint:boundaries` · `lint:filesize` · `lint:funcsize` ·
+  `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` · `lint:upserts` ·
+  `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.
+  `pnpm --filter @silvicom/api test`: **4014 passed, 331 files.** ⚠ **No migration.** ⚠
+  **Freeze-bound.**
+
   **Gates** (after the last edit): `lint:boundaries` · `lint:filesize` · `lint:funcsize` ·
   `lint:comment-claims` · `lint:table-writers` · `lint:table-modules` · `lint:upserts` ·
   `lint:migrations` · `lint:migration-ordering` · `lint:rls` · root `lint` · `typecheck` — all green.

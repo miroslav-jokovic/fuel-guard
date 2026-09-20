@@ -89,6 +89,25 @@ export interface DrawnLine {
   y: number;
   /** The point size in force, which is how a caption is told from the body beneath it. */
   size: number;
+  /**
+   * The font RESOURCE name — `/F1`, `/F2` — not a typeface.
+   *
+   * ⚠ Deliberately raw. Resolving it to "Helvetica-Bold" means reading the page's font dictionary,
+   * and a test that hardcoded `/F2` would pin an allocation order rather than a weight. Compare a
+   * run's font with that of a run known to be bold (any `field()` value is) and the assertion says
+   * what it means (AUD-9).
+   */
+  font: string;
+  /**
+   * The fill colour in force when the run was drawn, `#rrggbb`.
+   *
+   * ⚠ Carried because DANGER is the one place in this family where colour is allowed to mean
+   * something, so "is this drawn as a warning" is a real question a test must be able to ask. It is
+   * tracked as STREAM STATE — the `scn` operator precedes the `BT` block and persists — so this
+   * reads the last fill set before each run. ⚠ Lowercase `scn` only: `SCN` sets the STROKE colour,
+   * and the two interleave on any page carrying a rule.
+   */
+  color: string;
   text: string;
 }
 
@@ -118,16 +137,34 @@ export async function pdfDrawnLines(pdf: Buffer): Promise<DrawnLine[]> {
     .getPages()
     .map((p) => p.getHeight());
 
-  const run = /BT\s+1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm\s+\/\w+ ([\d.]+) Tf\s+(.*?)\s*ET/gs;
+  // ⚠ One alternation, scanned in ORDER, because the fill colour is state set outside the run it
+  // applies to — two passes would have to re-derive which `scn` was in force and could not.
+  const token =
+    /(?<r>[\d.]+) (?<g>[\d.]+) (?<b>[\d.]+) scn|BT\s+1 0 0 1 (?<x>-?[\d.]+) (?<y>-?[\d.]+) Tm\s+(?<font>\/\w+) (?<size>[\d.]+) Tf\s+(?<body>.*?)\s*ET/gs;
+  const hex = (v: string): string =>
+    Math.round(Number(v) * 255).toString(16).padStart(2, "0");
+
   return (await pageStreams(pdf)).flatMap((stream, page) => {
     const height = heights[page] ?? 792;
-    return [...stream.matchAll(run)].map((m) => ({
-      page,
-      x: Number(m[1]),
-      y: height - Number(m[2]),
-      size: Number(m[3]),
-      text: decodeShownText(m[4] ?? ""),
-    }));
+    let fill = "#000000";
+    const lines: DrawnLine[] = [];
+    for (const m of stream.matchAll(token)) {
+      const g = m.groups!;
+      if (g.r !== undefined) {
+        fill = `#${hex(g.r)}${hex(g.g!)}${hex(g.b!)}`;
+        continue;
+      }
+      lines.push({
+        page,
+        x: Number(g.x),
+        y: height - Number(g.y!),
+        size: Number(g.size),
+        font: g.font!,
+        color: fill,
+        text: decodeShownText(g.body ?? ""),
+      });
+    }
+    return lines;
   });
 }
 

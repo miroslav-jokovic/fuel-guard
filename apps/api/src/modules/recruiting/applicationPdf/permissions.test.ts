@@ -323,6 +323,104 @@ describe("printing what an applicant has signed", () => {
   });
 
   /**
+   * How a revocation is TYPESET, which is a different question from whether it is printed (AUD-9).
+   *
+   * ⚠ **The test above pins the words and passed throughout the defect.** A revocation was drawn as
+   * red prose at reading size, in the flow, between the version caption and the disclosure — the
+   * same 9.5pt as the wording under it and separated from it by less than that wording's own line
+   * spacing. Every string was on the page. It simply read as the opening paragraph of the
+   * disclosure rather than as the one fact on the sheet that changes what the carrier may do.
+   *
+   * ⚠ **Three claims, because any one alone is satisfiable by something still wrong**: bounded (so
+   * it is not body copy), the status word FIRST and bold (so a black-and-white photocopy leads with
+   * it — D-AVI22 forbids colour carrying alone), and clear of the wording it is not part of.
+   */
+  it("bounds a revocation so it cannot be read as the first paragraph of the wording", async () => {
+    const revocation = grant({
+      id: "auth-fcra-revoked",
+      revokes: "auth-fcra",
+      revoke_reason: "The applicant withdrew it by telephone.",
+      accepted_at: "2026-09-12T09:00:00Z",
+    });
+    const pdf = await rendered(seed({ authorizations: [grant(), PSP_GRANT, revocation] }));
+    const lines = await pdfDrawnLines(pdf);
+
+    /**
+     * ⚠ **`UTC`, and the first version of this test was wrong without it.** The summary on sheet one
+     * now opens its lapsed rows with `REVOKED` too, so a bare `startsWith("REVOKED")` returns the
+     * SUMMARY row — a different page, with no notice and no wording on it — and every assertion
+     * below then measures the wrong thing. The notice stamps to the second (`stamp()`); the summary
+     * carries a date (`date()`). AUD-19 lost a whole test to `find` answering with the wrong one.
+     */
+    const headline = lines.find((l) => l.text.startsWith("REVOKED") && l.text.endsWith("UTC"));
+    expect(headline, "the headline leads with the status word").toBeDefined();
+    expect(headline!.color).toBe("#a11c1c");
+
+    // ⚠ Bold is asserted against a run KNOWN to be bold on the same sheet rather than against a
+    // literal `/F2`, which would pin pdfkit's resource-allocation order and not a weight. Every
+    // `field()` value is Helvetica-Bold, and `Signed`'s value is on this page.
+    const onPage = lines.filter((l) => l.page === headline!.page);
+    const boldValue = onPage.find((l) => l.text === "Susan Godfrey");
+    expect(boldValue, "a known-bold run to measure against").toBeDefined();
+    expect(headline!.font).toBe(boldValue!.font);
+    // ...and the detail under it is NOT bold, so "bold" above is a real distinction on this page.
+    const detail = onPage.find((l) => l.text.startsWith("The carrier may not rely"));
+    expect(detail, "the detail sentence").toBeDefined();
+    expect(detail!.font).not.toBe(boldValue!.font);
+    expect(detail!.color).toBe("#a11c1c");
+
+    // ⚠ BOUNDED: the instrument page draws no rule of its own, so the two here are the notice's,
+    // and they must sit either side of it. A page whose notice lost its box has none at all.
+    const rules = (await pdfDrawnRules(pdf)).filter((r) => r.page === headline!.page);
+    expect(rules).toHaveLength(2);
+    expect(rules[0]!.y).toBeLessThan(headline!.y);
+    expect(rules[1]!.y).toBeGreaterThan(detail!.y);
+
+    // And the wording begins below the box, not inside it.
+    const wording = onPage.find((l) => l.text.includes(FCRA_TEXT));
+    expect(wording, "the disclosure text").toBeDefined();
+    expect(wording!.y).toBeGreaterThan(rules[1]!.y);
+  });
+
+  /**
+   * ⚠ **The summary column is the page the office actually reads, and the audit did not name it.**
+   * It read `Signed 2026-09-13 · REVOKED 2026-09-16` — a lapsed row and a live one opened with the
+   * same word in the same ink, so five rows could only be told apart by reading each to its end.
+   * The status leads now, and a lapsed row is drawn in DANGER. ⚠ The live row is asserted too: a
+   * document that coloured every row would satisfy the first half and say nothing.
+   */
+  it("opens a lapsed summary row with its status, and leaves a live one alone", async () => {
+    const revocation = grant({
+      id: "auth-fcra-revoked",
+      revokes: "auth-fcra",
+      revoke_reason: "The applicant withdrew it by telephone.",
+      accepted_at: "2026-09-12T09:00:00Z",
+    });
+    const lines = await pdfDrawnLines(
+      await rendered(
+        seed({
+          authorizations: [grant(), PSP_GRANT, revocation],
+          consent: { ...CONSENT, withdrawn_at: "2026-09-17T11:30:00Z" },
+        }),
+      ),
+    );
+    // The summary is on sheet one; the instrument pages repeat these words with other geometry.
+    const summary = lines.filter((l) => l.page === 0);
+    const value = (starts: string): (typeof lines)[number] => {
+      const line = summary.find((l) => l.text.startsWith(starts));
+      expect(line, starts).toBeDefined();
+      return line!;
+    };
+
+    expect(value("REVOKED 2026-09-12").color).toBe("#a11c1c");
+    expect(value("WITHDRAWN 2026-09-17").color).toBe("#a11c1c");
+    // ⚠ The release still in force: same column, same page, ordinary ink and opening with `Signed`.
+    const live = value("Signed 2026-09-11");
+    expect(live.color).toBe("#1a1a1a");
+    expect(live.x).toBe(value("REVOKED 2026-09-12").x);
+  });
+
+  /**
    * ⚠ Where `preview.ts` refuses, this one does not, and the difference is deliberate: the filed
    * record is the carrier's 31-page packet, which has no page for the releases, the consent or the
    * certificate of completion. After filing this is still the only document that carries them.

@@ -247,7 +247,13 @@ const FIELD_ROW = 14;
  * about text can see it**: every word is on the page, at coordinates nothing checks. Found by
  * rasterising at 110 dpi and looking at it, which is why every step that changes printing does that.
  */
-export function field(doc: PDFKit.PDFDocument, label: string, value: string): void {
+export function field(
+  doc: PDFKit.PDFDocument,
+  label: string,
+  value: string,
+  /** ⚠ DANGER only, and only where the WORD already says it — D-AVI22 forbids colour carrying alone. */
+  valueColor = INK,
+): void {
   if (doc.y + FIELD_ROW > PAGE_HEIGHT - doc.page.margins.bottom) doc.addPage();
   const startPage = doc.page;
   const y = doc.y;
@@ -259,7 +265,7 @@ export function field(doc: PDFKit.PDFDocument, label: string, value: string): vo
   // Where the LABEL ended, before the value moves the cursor — a row is as tall as its taller half.
   const labelBottom = doc.y;
   doc
-    .fillColor(INK)
+    .fillColor(valueColor)
     .font("Helvetica-Bold")
     .fontSize(9.5)
     .text(winAnsi(value), MARGIN + 134, y, { width: CONTENT_WIDTH - 134 });
@@ -350,10 +356,12 @@ export function section(
   }
 }
 
-export function rule(doc: PDFKit.PDFDocument): void {
+/** ⚠ The colour is a parameter because a DANGER pair bounds the revocation notice (AUD-9); every
+ *  other caller wants the house rule and gets it by saying nothing. */
+export function rule(doc: PDFKit.PDFDocument, color = RULE): void {
   doc.moveDown(0.4);
   doc
-    .strokeColor(RULE)
+    .strokeColor(color)
     .lineWidth(0.5)
     .moveTo(MARGIN, doc.y)
     .lineTo(PAGE_WIDTH - MARGIN, doc.y)
