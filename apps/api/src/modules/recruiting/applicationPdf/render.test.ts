@@ -217,6 +217,100 @@ describe("the rendered application", () => {
     expect(pdf).toContain("declared no accidents");
   });
 
+  /**
+   * ── EVERY PARAGRAPH SAYS SOMETHING, INCLUDING THE ONES WITH NOTHING IN THEM (AUD-11) ────────
+   *
+   * ⚠ **This is the general form of the defect, and it is worth a test of its own because the
+   * specific ones below cannot see the next section somebody adds.** (b)(3) printed a heading and
+   * then the next heading: a reader of a §391.21 form cannot tell that from a paragraph the
+   * document never asked about, and on a filed qualification record those are very different
+   * things. Written against the DRAWN RUNS in order, so it reads the document the way a reader
+   * does — the citation, and then whatever is actually under it.
+   *
+   * ⚠ It does not catch (b)(6)'s own silence, which was a lone em dash — a run, and therefore not a
+   * heading. A dash IS drawn, so only a test that knows what the dash means can fail on it; that is
+   * the next test, and this comment is here so the pair is not mistaken for a duplicate.
+   */
+  it("never draws a §391.21 heading with the next heading directly under it", async () => {
+    const lines = await pdfDrawnLines(await renderApplicationPdf(input({
+      application: {
+        ...APPLICATION, addresses: [], experience: null, equipment_experience: [],
+        accidents: [], violations: [], employers: [],
+      } as unknown as DriverApplication,
+    })));
+    const isCitation = (t: string): boolean => t.startsWith("§391.21(b)(");
+    const cited = lines.filter((l) => isCitation(l.text));
+    // The guard on the guard: a walk that found no citations would pass every assertion below.
+    expect(cited.length, "the regulation's own paragraphs are on the page").toBeGreaterThanOrEqual(9);
+
+    for (const heading of cited) {
+      const next = lines[lines.indexOf(heading) + 1];
+      expect(next, `${heading.text} is not the last thing on the document`).toBeDefined();
+      expect(isCitation(next!.text), `${heading.text} has an answer under it, not another heading`)
+        .toBe(false);
+    }
+  });
+
+  /**
+   * (b)(6) asks for two things in one sentence, so a silence there needs to say WHICH half (AUD-11).
+   *
+   * ⚠ **The lone em dash this replaces was the purest form of the defect in this document**: it is
+   * drawn, so the structural test above passes on it; it sits where a value goes, so it reads as an
+   * answer; and it says nothing about which of the paragraph's two halves is missing. The test that
+   * covered this line before asserted `pdf.byteLength > 1000` and was green throughout.
+   *
+   * ⚠ Each case is SLICED to the (b)(6) block. `Not answered.` is the right sentence in three other
+   * paragraphs of this document, so an unscoped `toContain` would be green on a document where
+   * (b)(6) still printed a dash — the exact shape of vacuous assertion this file keeps failing to.
+   */
+  it("names which half of (b)(6) is missing, and says nothing about the half that is not", async () => {
+    const equipment = [{ equipment_class: "tractor_semi_trailer", equipment_type: "Van", from: "2020-01", to: null, approx_miles: "250000" }];
+    const block = async (over: Record<string, unknown>): Promise<string> => {
+      const text = pdfText(await renderApplicationPdf(input({
+        application: { ...APPLICATION, ...over } as unknown as DriverApplication,
+      })));
+      return text.slice(text.indexOf("§391.21(b)(6)"), text.indexOf("§391.21(b)(7)"));
+    };
+
+    // The narrative given, the equipment never listed.
+    const noEquipment = await block({ equipment_experience: [] });
+    expect(noEquipment).toContain("Eight years, dry van and reefer.");
+    expect(noEquipment).toContain("The type of equipment operated was not answered.");
+    expect(noEquipment).not.toContain("nature and extent");
+
+    // The equipment listed, the narrative never given.
+    const noNarrative = await block({ experience: null, equipment_experience: equipment });
+    expect(noNarrative).toContain("The nature and extent of the experience was not answered.");
+    expect(noNarrative).toContain("Tractor and semi-trailer");
+    expect(noNarrative).not.toContain("type of equipment operated");
+
+    // ⚠ Neither half: ONE sentence, and it is the one the rest of the document uses. Two sentences
+    // here would read as two separate faults rather than as a paragraph nobody answered.
+    const neither = await block({ experience: null, equipment_experience: [] });
+    expect(neither).toContain("Not answered.");
+    expect(neither).not.toContain("nature and extent");
+    expect(neither).not.toContain("type of equipment operated");
+    // ...and the em dash it used to print is gone, rather than joined by a sentence.
+    expect(neither).not.toMatch(/[—–-]\s*$/);
+  });
+
+  /**
+   * (b)(3) has no "declared none" and should not grow one (AUD-11).
+   *
+   * ⚠ The sentence is `Not answered.` and not `The applicant declared no addresses.` because the
+   * contract carries exactly three declaration flags — accidents, violations, employment — and an
+   * address is not a thing anybody can truthfully declare none of. An empty (b)(3) is an omission
+   * and can only be one, which is a fact about the regulation rather than about this renderer.
+   */
+  it("says an empty (b)(3) was not answered, rather than printing a bare heading", async () => {
+    const text = pdfText(await renderApplicationPdf(input({
+      application: { ...APPLICATION, addresses: [] } as unknown as DriverApplication,
+    })));
+    const block = text.slice(text.indexOf("§391.21(b)(3)"), text.indexOf("§391.21(b)(4)"));
+    expect(block).toContain("Not answered.");
+    expect(block).not.toContain("declared no");
+  });
+
   it("survives an application whose optional dates were never answered", async () => {
     const sparse = { ...APPLICATION, cdl_expires_at: null, experience: null } as unknown as DriverApplication;
     const pdf = await renderApplicationPdf(input({ application: sparse }));
