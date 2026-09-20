@@ -131,7 +131,7 @@ const EXPORTS = [
     <!-- ⚠ Not rendered on a workspace tab: the hero plate and the greeting are 200px of scenery in
          front of a surface whose whole complaint was that it is not tall enough. The greeting is a
          property of the DASHBOARD, and on this tab the dashboard is a map. -->
-    <PageHeader v-if="!workspace" :title="greetingLine" hero="/hero/highway-dawn.webp" hero-dark="/hero/highway-night.webp">
+    <PageHeader v-if="!workspace" :title="greetingLine">
       Here's what's happening with your fleet today.
       <template #actions>
         <div v-if="activeKey === 'fleet'" class="flex flex-wrap items-center gap-3">

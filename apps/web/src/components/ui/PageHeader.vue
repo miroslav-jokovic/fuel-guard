@@ -2,58 +2,17 @@
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { buildTrail } from "@/lib/breadcrumbs";
-import { useColorScheme } from "@/composables/useColorScheme";
+import { hasHeroPlate } from "@/lib/layout";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
 
 const props = withDefaults(
   defineProps<{
     title?: string;
     description?: string;
-    /**
-     * A decorative plate behind the header (D-DR15, DESIGN-REFRESH-2026-09.md) — the dashboard's
-     * greeting band. A URL under `public/hero/`, or undefined for the plain header every other
-     * page uses.
-     *
-     * ── WHY THIS IS A PROP HERE AND NOT A SECOND COMPONENT ────────────────────────────────────
-     * The comps draw breadcrumbs, an h1, a subtitle and right-aligned actions over the plate —
-     * which is this component's exact anatomy, already built and already carrying G2's breadcrumb
-     * trail. A `HeroBanner` beside it would have to re-derive the trail and re-declare the actions
-     * slot, and would then be a second place where "what a page header is" is decided. The plate is
-     * a background, so it is a property of the header rather than a different kind of header.
-     *
-     * ⚠ Decorative, so `alt=""` and `aria-hidden`: a screen reader announcing "a truck on a
-     * highway" before the day's numbers is noise. The contrast of `--ink` over every shipped plate
-     * is measured in the plan's §5 — all three clear 9.2:1 over the zone the text occupies — which
-     * is why there is no scrim under the words.
-     */
-    hero?: string;
-    /**
-     * The same plate photographed at NIGHT, shown when the reader is in dark mode (D-DR19).
-     *
-     * ── WHY A SECOND FILE AND NOT A FILTER ON THE FIRST ───────────────────────────────────────
-     * Measured 2026-09-16, on the rendered band rather than the source: in light mode the dawn
-     * plate sits at **1.85:1** against the page it fades into, and in dark mode the SAME plate sits
-     * at **6.54:1** — 3.5× the separation, because the page went from L≈1.0 to L≈0.014 and the
-     * photograph did not follow. That is a luminous slab on a near-black page, and it is what a
-     * reader means by "too much contrast".
-     *
-     * A CSS `brightness()` filter was the cheap answer and is the wrong one: dimming a dawn sky
-     * produces a grey dawn sky, not a night. The sky's HUE, the headlights, the fall of light on
-     * the trailer and the stars are all different photographs, not the same one turned down.
-     *
-     * ⚠ It FALLS BACK to `hero` when absent, so the two plates that have no night variant
-     * (`prairie-dusk`, `coast-mist`) behave exactly as before rather than failing to render. That
-     * fallback is a known compromise, not a feature: those two keep the 6.54:1 problem in dark mode
-     * and need their own night plate before they are used on this band. Recorded in §5 rather than
-     * left for somebody to rediscover.
-     */
-    heroDark?: string;
   }>(),
   {
     title: undefined,
     description: undefined,
-    hero: undefined,
-    heroDark: undefined,
   },
 );
 const route = useRoute();
@@ -61,14 +20,16 @@ const router = useRouter();
 const resolvedTitle = computed(() => props.title ?? (route.meta.title as string) ?? "Silvicom 360");
 
 /**
- * Which plate to hang behind the header (D-DR19).
+ * Is this header standing on the page backdrop (D-DT18)?
  *
- * Derived from the scheme the reader already chose, exactly as D-DR8 derives the live map's
- * basemap — `useColorScheme` is the one place that answers "is this reader in dark mode", and a
- * prop asking the CALLER to decide would make the dashboard the second.
+ * ⚠ Until 2026-09-20 the plate was this component's own `hero` prop, drawn as an `<img>` inside a
+ * card band. D-DT15 took the card away and D-DT18 took the photograph away as well — a plate that
+ * lives inside the header has to END where the header ends, and the only tool left for the ending
+ * was a fade dissolving it into empty canvas a few pixels above the tab strip. That is a picture
+ * that ran out. `AppShell` draws it as a page layer now, and all this header needs to know is that
+ * something is behind it: a greeting standing on a photograph takes no bottom rule and no card.
  */
-const { isDark } = useColorScheme();
-const plate = computed(() => (isDark.value && props.heroDark ? props.heroDark : props.hero));
+const onBackdrop = computed(() => hasHeroPlate(route));
 
 /**
  * The breadcrumb trail (G2, UI-GAPS-PLAN.md), walked from `meta.parent` by `lib/breadcrumbs.ts`.
@@ -99,27 +60,17 @@ const trail = computed(() =>
        * there for the same reason. The plain header keeps `items-end`, where actions should line up
        * with the baseline of the title rather than float above it.
        */
-      hero ? 'sm:items-start' : 'sm:items-end',
-      hero
-        ? 'relative isolate min-h-36 overflow-hidden rounded-surface bg-surface px-5 py-6 shadow-card ring-1 ring-edge-subtle sm:px-6'
-        : 'border-b border-edge-subtle pb-5',
+      onBackdrop ? 'sm:items-start' : 'sm:items-end',
+      /*
+       * ⚠ No surface, no ring, no elevation, and no bottom rule (D-DT15/D-DT18). A card made a
+       * photograph look like a widget and put a border around the one element on the page that is
+       * not a control; the rule below it would now be a line drawn across the middle of a
+       * photograph. The height is the band's own — 136px, the prototype's — so the greeting sits
+       * level with the subject rather than above it.
+       */
+      onBackdrop ? 'relative min-h-34 justify-center py-2' : 'border-b border-edge-subtle pb-5',
     ]"
   >
-    <!--
-      The plate is masked rather than overlaid with a gradient in a background colour. A gradient
-      needs a COLOUR, which would have to be `--surface` and would then be wrong the moment this
-      header sits on anything else; a mask fades the image to transparent and lets whatever is
-      behind show through, so the band works on any surface without knowing which one it is on.
-      It also means no colour token is involved, so nothing here can drift from the palette.
-    -->
-    <img
-      v-if="plate"
-      :src="plate"
-      alt=""
-      aria-hidden="true"
-      class="pointer-events-none absolute inset-y-0 right-0 -z-10 h-full w-3/4 select-none object-cover
-             [object-position:center_62%] [mask-image:linear-gradient(to_right,transparent,black_55%)]"
-    />
     <div class="min-w-0">
       <BreadcrumbTrail :trail="trail" />
       <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ resolvedTitle }}</h1>

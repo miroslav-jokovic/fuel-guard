@@ -108,8 +108,16 @@ const STRUCTURAL = new Set([
   "ellipsis", "clip",
 ]);
 
-/** `border-spacing-2`, `ring-offset-4` … a structural head with a value after it. */
-const STRUCTURAL_HEADS = ["spacing", "offset", "opacity"];
+/**
+ * `border-spacing-2`, `ring-offset-4` … a structural head with a value after it.
+ *
+ * ⚠ `linear`, `radial` and `conic` joined them on 2026-09-20 with the chip's gradient (D-DT17).
+ * `bg-linear-140` names an ANGLE, not a colour, but the rule below cannot tell — it saw a `bg-`
+ * utility whose suffix matched no role and reported it. The gradient STOPS beside it
+ * (`from-chip-danger-from`) are real colour roles and are still checked; it is only the direction
+ * that is structural.
+ */
+const STRUCTURAL_HEADS = ["spacing", "offset", "opacity", "linear", "radial", "conic"];
 
 /** `border-b-2`, `border-l-4`, `divide-y-0` — a side with a WIDTH, which names no colour. */
 const SIDE_WIDTH = /^[trblxyse]-\d+$/;

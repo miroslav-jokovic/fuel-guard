@@ -34,6 +34,25 @@ declare module "vue-router" {
      * navigation while deciding the outlet.
      */
     fullBleed?: boolean | ((route: { query?: Record<string, unknown> }) => boolean);
+    /**
+     * A photographic plate behind this page, drawn by `AppShell` as a PAGE layer (D-DT18).
+     *
+     * ⚠ It is meta rather than a prop on `PageHeader` because of what the layer is: it starts at
+     * the top of the content area, bleeds past the right gutter and descends BEHIND whatever bands
+     * the page renders, which the header cannot own — it would have to be taller than itself. The
+     * shell owns the gutter the bleed negates, so the shell owns the plate, and the only thing the
+     * route has to say is which one.
+     *
+     * `heroDark` is the same view photographed at NIGHT and falls back to `hero` when absent
+     * (D-DR19): dimming a dawn sky produces a grey dawn sky, not a night, so the two plates without
+     * a night variant keep the contrast problem measured there rather than a filtered pretence.
+     *
+     * ⚠ A `fullBleed` route must not declare one. The live map fills its outlet edge to edge, so a
+     * decorative layer under it is invisible at best; `heroPlate` in `lib/layout.ts` is where that
+     * is enforced, on the same argument that put `isFullBleed` there.
+     */
+    hero?: string;
+    heroDark?: string;
   }
 }
 import { authRoutes } from "./routes/auth";

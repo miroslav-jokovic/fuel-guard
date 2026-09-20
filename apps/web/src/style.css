@@ -1,5 +1,10 @@
 @import "@silvicom/ui/tokens.css";
-@source "../../../packages/ui/src/**/*.vue";
+/* ⚠ `.ts` as well as `.vue`, since 2026-09-20. `segmentedSurface.ts` holds the tab strip's
+   well-and-pill classes as constants, and a `.vue`-only glob does not scan it — Tailwind then
+   emits nothing for `bg-control-well`, the well renders TRANSPARENT and `ring-1` falls back to
+   currentColor, which reads as a design mistake rather than as a missing utility. Found by
+   `getComputedStyle` on the built page; no gate can see it. */
+@source "../../../packages/ui/src/**/*.{vue,ts}";
 
 html {
   background: var(--canvas);
@@ -241,6 +246,101 @@ body {
   .sidebar-account-item:hover {
     color: var(--ink);
     background: var(--sidebar-hover);
+  }
+
+  /* ── The page backdrop (D-DT18, D-DT19) ───────────────────────────────────────────────────────
+     Written here rather than as utilities on the element because two of its three parts are
+     multi-stop gradients — a four-stop mask and a five-stop veil — and a gradient with four stops
+     inside an arbitrary Tailwind value is a string nobody can review. The numbers are the
+     prototype's, so `prototypes/dashboard-v2.html` and this block can be diffed line for line.
+
+     ⚠ `--backdrop-bleed` is the shell's own gutter, handed in by `AppShell` rather than restated:
+     the layer has to end exactly where the page padding does on the right, and the gutter is
+     responsive (16 / 24 / 32px). A literal here would be right at one breakpoint and wrong at two.
+
+     `--backdrop-h` is where "the photograph stops mattering" is decided. 400px puts the last
+     visible trace level with the top of the operating-metrics band on a 1440 desktop. The tablet
+     override is not cosmetic: that breakpoint makes the KPI row two-up and twice as tall, so a
+     400px layer would still be showing under the second row of tiles. */
+  .page-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: calc(var(--backdrop-bleed, 0px) * -1);
+    height: var(--backdrop-h, 400px);
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  /* ⚠ NOT `cover`, and the reason is arithmetic rather than taste (D-DT19). The source is 1920×822
+     (2.34:1) and this box is about 975×400 (2.44:1) — near-identical aspects — so `cover` crops
+     almost nothing and renders the entire frame, sky and all. The subject sits at x 62–98%,
+     y 44–82% of that frame (measured off a 10% grid overlay, 2026-09-20), which `cover` parks at
+     y 176–328: below the greeting it is meant to sit beside. At the old band's 136px the crop was
+     so hard that `center 62%` happened to land on the subject; at 400px that accident stops
+     working. `auto 132%` from `right bottom` crops the sky off the top instead and puts the truck
+     at roughly y 105–310 — level with the greeting, the road continuing underneath into the fade.
+
+     ⚠ Four mask stops, not two: a straight linear ramp reads as a mechanical wipe and the eye finds
+     its midpoint. Solid for the first half, then a long ease out. */
+  .page-backdrop__plate {
+    position: absolute;
+    inset: 0 0 0 28%;
+    background-image: var(--backdrop-plate);
+    background-size: auto 132%;
+    background-position: right bottom;
+    background-repeat: no-repeat;
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 46%,
+      rgba(0, 0, 0, 0.62) 68%,
+      rgba(0, 0, 0, 0.24) 86%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 46%,
+      rgba(0, 0, 0, 0.62) 68%,
+      rgba(0, 0, 0, 0.24) 86%,
+      transparent 100%
+    );
+  }
+
+  /* The greeting sits ON the plate, so this is a legibility guarantee rather than a nicety: opaque
+     `--canvas` across the text zone, then a ramp that has finished before the truck's cab. The
+     veil ends in the CANVAS rather than in a surface colour because the canvas is the ground the
+     photograph is actually lying on — a frameless plate must dissolve into the page, not into a
+     card that is not there. */
+  .page-backdrop__veil {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      var(--canvas) 0%,
+      var(--canvas) 34%,
+      color-mix(in oklab, var(--canvas) 80%, transparent) 50%,
+      color-mix(in oklab, var(--canvas) 18%, transparent) 72%,
+      transparent 88%
+    );
+  }
+
+  /* ⚠ The product's breakpoint, not the prototype's. The prototype switches at 1200px; this app's
+     scale is Tailwind's, where the neighbouring step is `xl` at 1280. Adding a 1200px breakpoint
+     for one decorative layer would add a breakpoint to the design system, which D-DT5 is explicit
+     about not doing — every responsive rule in this redesign collapses SPANS at the existing
+     widths. 328px rather than the prototype's 330 for the same reason: it is the spacing scale's
+     step, and two pixels of a fade nobody can locate is not worth a literal. */
+  @media (max-width: 1279px) {
+    .page-backdrop {
+      height: 328px;
+    }
+
+    .page-backdrop__plate {
+      inset: 0 0 0 44%;
+    }
   }
 }
 

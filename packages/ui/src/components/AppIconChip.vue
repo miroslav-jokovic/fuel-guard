@@ -53,9 +53,13 @@ withDefaults(
     /**
      * `md` leads a hero KPI tile; `sm` trails a dense one and leads a card header.
      *
-     * Both sizes were measured off the reference comps rather than chosen: the glyph is 50% of the
-     * chip in every comp sampled, which is why 40/20 and 32/17 rather than a single icon size with
-     * two boxes around it.
+     * ⚠ The sizes are the INCUMBENT ones and they are not the comps': measured in a browser
+     * 2026-09-20, `md` renders 40px with a 24px glyph and `sm` 36px with a 20px glyph — a glyph at
+     * 60% and 56% of its chip. The comps sample at 50% (40/20 and 32/17), and the version of this
+     * comment before this one asserted those figures as if they were what the code does. They were
+     * never measured against it. Resizing is a real visual change at every call site, so it is
+     * recorded as an open question in `DASHBOARD-TEMPLATE-V2.md` rather than smuggled into a
+     * restyle that only touches colour.
      */
     size?: "md" | "sm";
   }>(),
@@ -63,24 +67,31 @@ withDefaults(
 );
 
 /**
- * ⚠ The values are the INCUMBENT pairs, not a tidied version of them, and two of them look wrong
- * until you check what they replaced:
+ * ⚠ **This is the restyle the vocabulary above was closed for (D-DT17 §4.2b), and it is a change
+ * of style rather than a tuning of the old one.** What was here until 2026-09-20 was the incumbent
+ * `text-<hue>-600 bg-<hue>-50` pair — a pale tint with a coloured glyph, the `dashboard 3`
+ * treatment. This is the `card 4` one: a solid two-stop gradient down one hue's ramp, a white
+ * glyph on it, a 28%-white top edge where the light catches a solid object, and the chip's own
+ * colour cast on the card beneath it.
  *
- *   · `neutral` is `text-ink-muted bg-surface-muted` and NOT a neutral ramp step, because that is
- *     what `KpiHeroWidget` and `MaintenanceHomePage` were both passing for their zero case.
- *   · every other tone is `text-<hue>-600 bg-<hue>-50` — the 600/50 pairing, where `AppBadge` uses
- *     700/50. They differ because a badge carries TEXT at 12px and a chip carries a 20px glyph, so
- *     the badge needs the darker step to clear 4.5:1 and the chip does not. Aligning them here
- *     would have been a silent visual change inside a refactor that promises none.
+ * Everything colour lives in `packages/tokens/src/roles.*.json` as `--chip-<tone>-from|to` and
+ * `--elevation-chip-<tone>`, because the two stops are NOT the same ramp steps in both schemes and
+ * a utility cannot say that — light is 500→700, dark is 600→300, measured per tone. The
+ * `control-well` comment in that file carries the numbers; the short version is that the dark ramps
+ * turn over between 300 and 400, so the light pair renders as a pale chip in dark and the white
+ * glyph drops to 1.78:1 on it.
+ *
+ * ⚠ Both stops come from ONE hue's ramp, never across two. A green→blue chip invents a colour
+ * relationship the token system does not have, and that is how a palette stops meaning anything.
  */
 const tones: Record<ChipTone, string> = {
-  danger: "text-danger-600 bg-danger-50",
-  caution: "text-caution-600 bg-caution-50",
-  warning: "text-warning-600 bg-warning-50",
-  success: "text-success-600 bg-success-50",
-  info: "text-info-600 bg-info-50",
-  brand: "text-brand-600 bg-brand-50",
-  neutral: "text-ink-muted bg-surface-muted",
+  danger: "bg-linear-140 from-chip-danger-from to-chip-danger-to shadow-chip-danger",
+  caution: "bg-linear-140 from-chip-caution-from to-chip-caution-to shadow-chip-caution",
+  warning: "bg-linear-140 from-chip-warning-from to-chip-warning-to shadow-chip-warning",
+  success: "bg-linear-140 from-chip-success-from to-chip-success-to shadow-chip-success",
+  info: "bg-linear-140 from-chip-info-from to-chip-info-to shadow-chip-info",
+  brand: "bg-linear-140 from-chip-brand-from to-chip-brand-to shadow-chip-brand",
+  neutral: "bg-linear-140 from-chip-neutral-from to-chip-neutral-to shadow-chip-neutral",
 };
 
 /**
@@ -97,10 +108,16 @@ const glyphs: Record<"md" | "sm", string> = { md: "size-6", sm: "size-5" };
 
 <template>
   <span
-    class="inline-flex shrink-0 items-center justify-center"
+    class="inline-flex shrink-0 items-center justify-center text-chip-glyph"
     :class="[boxes[size], tones[tone]]"
     aria-hidden="true"
   >
-    <AppIcon :icon="icon" :class="glyphs[size]" />
+    <!--
+      Stroke 2.2, not the 1.5 every other AppIcon takes (D-DT17 §4.2b). A white stroke on a
+      saturated ground loses roughly a third of its apparent weight to the light around it: the
+      same glyph that reads as bold in `ramp-700` on `ramp-100` reads as spidery in white on
+      `ramp-500`. The number is the prototype's, measured on a 24 grid at 3×.
+    -->
+    <AppIcon :icon="icon" :class="glyphs[size]" :stroke-width="2.2" />
   </span>
 </template>

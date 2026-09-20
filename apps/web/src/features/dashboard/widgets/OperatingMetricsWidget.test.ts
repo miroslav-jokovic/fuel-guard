@@ -77,10 +77,11 @@ describe("the operating-metrics strip's tile anatomy (DR7a)", () => {
 
     // Two different tones, read off the rendered chips rather than off the source: "Fill-ups" is
     // brand, "Miles driven" is success. A template painting every chip one colour passes the count
-    // above and fails here.
+    // above and fails here. (The class NAMES changed on 2026-09-20 — `bg-brand-50` became the
+    // gradient head `from-chip-brand-from` when D-DT17's restyle landed — the question did not.)
     const classes = chips.map((c) => c.attributes("class") ?? "");
-    expect(classes.some((c) => c.includes("bg-brand-50"))).toBe(true);
-    expect(classes.some((c) => c.includes("bg-success-50"))).toBe(true);
+    expect(classes.some((c) => c.includes("from-chip-brand-from"))).toBe(true);
+    expect(classes.some((c) => c.includes("from-chip-success-from"))).toBe(true);
     // Copied from `StatCard`'s `size="kpi"` branch, and pinned so the two cannot drift apart
     // silently — D-DR2 moved the chip left in the HERO anatomy only.
     for (const c of classes) expect(c).toContain("size-9");

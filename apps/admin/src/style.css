@@ -2,7 +2,12 @@
    Tailwind + the Silvicom 360 token layer). @source makes Tailwind v4 scan the shared UI package's
    components so their utility classes are generated (node_modules isn't scanned by default). */
 @import "@silvicom/ui/tokens.css";
-@source "../../../packages/ui/src/**/*.vue";
+/* ⚠ `.ts` as well as `.vue`, since 2026-09-20. `segmentedSurface.ts` holds the tab strip's
+   well-and-pill classes as constants, and a `.vue`-only glob does not scan it — Tailwind then
+   emits nothing for `bg-control-well`, the well renders TRANSPARENT and `ring-1` falls back to
+   currentColor, which reads as a design mistake rather than as a missing utility. Found by
+   `getComputedStyle` on the built page; no gate can see it. */
+@source "../../../packages/ui/src/**/*.{vue,ts}";
 
 html {
   background: var(--canvas);

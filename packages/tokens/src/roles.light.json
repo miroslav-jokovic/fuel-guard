@@ -152,6 +152,26 @@
         "silvicom.expose": "color"
       }
     },
+    "control-well": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ramp-brand-100) 58%, var(--surface))",
+      "$description": "light #F5F6FF, dark #292A31 \u2014 measured 2026-09-20",
+      "$extensions": {
+        "silvicom.section": [
+          "the ground a segmented control sits in \u2014 brand-tinted, not grey (D-DT16)",
+          "A well used to be `--surface-muted`, and a grey slab spends a solid block of ink saying \"these three things belong together\", which proximity already said for free \u2014 on the page's only large neutral field, given to a control rather than to data. \u26a0 `--ramp-brand-50` alone is NOT the answer: at chroma 0.0061 it is technically brand and visually grey, which was the original complaint. 58% of brand-100 (chroma 0.0205) lands at 0.0119 in light and 0.0140 in dark. The value carries no `light-dark()` of its own because both its arguments have one. Measured 2026-09-20: the ground is 1.004:1 against `--canvas` in light, so the well is read from its ring and the pill from its elevation \u2014 the way a raised object separates, not the way a hole does. Idle label contrast goes UP, not down: `--ink-muted` reads 5.48:1 here against 4.82:1 on `--surface-muted` (light) and 5.67:1 against 5.33:1 (dark)."
+        ],
+        "silvicom.expose": "color"
+      }
+    },
+    "control-well-edge": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ramp-brand-200) 50%, transparent)",
+      "$description": "the well's own hairline \u2014 1.11:1 on the ground in light, 1.23:1 in dark",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
     "shadow-tint-1": {
       "$type": "color",
       "$value": "color-mix(in oklab, var(--ink) 5%, transparent)",
@@ -324,6 +344,227 @@
       "$value": "oklch(48% 0.18 27)",
       "$extensions": {
         "silvicom.expose": "color"
+      }
+    },
+    "control-count": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--ramp-brand-200) 42%, transparent)",
+      "$description": "a tab's trailing count, unselected \u2014 translucent, so it reads the same over the well and over the pill",
+      "$extensions": {
+        "silvicom.section": [
+          "\u26a0 Not `--surface-muted`. A grey pill inside a strip that has just stopped being grey is the one neutral left on the control, and the eye goes to the count rather than to the tab. Measured 2026-09-20 over the well: `--ink-tertiary` reads 4.80:1 in light and 4.61:1 in dark on this ground, which an 11px figure needs. \u26a0 `lint:ui-contrast` cannot check it \u2014 a translucent value has no ratio until it is composited \u2014 so those two numbers are the record."
+        ],
+        "silvicom.expose": "color"
+      }
+    },
+    "control-count-selected": {
+      "$type": "color",
+      "$value": "var(--ramp-brand-100)",
+      "$description": "\u2026 and selected: brand-100 in light, brand-50 in dark",
+      "$extensions": {
+        "silvicom.section": [
+          "Different ramp steps per scheme, for the reason the chip needs them. Over the pill, brand-100 measures 4.66:1 against `--selected-strong` in light but 4.10:1 in dark, under the 4.5:1 WCAG 1.4.3 asks of an 11px figure. brand-50 in dark measures 4.92:1 \u2014 it is DARKER than the dark pill rather than lighter, which is what the dark ramp gives you below 100."
+        ],
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-glyph": {
+      "$type": "color",
+      "$value": "oklch(100% 0 0)",
+      "$description": "white in BOTH schemes — see why",
+      "$extensions": {
+        "silvicom.section": [
+          "⚠ NOT `--ink-inverse`, which is the obvious reach and is wrong here: it flips to oklch(21.5% 0 0) in dark, where it would put a near-black glyph on a saturated chip. `--ink-inverse` means \"ink for an inverted SURFACE\", and a chip's ground is saturated in both schemes rather than inverted in one. The stops above are chosen so white clears 3:1 on every tone in both schemes, which is what makes one glyph colour the right answer."
+        ],
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-top-edge": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, oklch(100% 0 0) 28%, transparent)",
+      "$description": "light catching the top of a solid object; an ingredient, not a utility"
+    },
+    "chip-danger-from": {
+      "$type": "color",
+      "$value": "var(--ramp-danger-500)",
+      "$extensions": {
+        "silvicom.expose": "color",
+        "silvicom.section": [
+          "the solid icon chip (D-DT17). One hue's ramp, two stops, a white glyph and the chip's own colour cast on the card beneath — the `card 4` treatment, which concentrates a tile's colour into its 40px chip so the tile's ground can stay neutral and the four KPI figures stay comparable (that is D-DT1 pushed further, not reversed). ⚠ THE STOPS ARE NOT THE SAME STEPS IN BOTH SCHEMES, and they cannot be: the dark ramps turn over between 300 and 400 (dark `success-400` is L 79%, `success-300` is 48%), so the light pair 500→700 renders as a PALE chip in dark and the white glyph drops to 1.78:1 on it. Measured 2026-09-20 across all seven tones: light 500→700 holds the glyph at 3.27:1 worst (danger) and 3.73:1 best; dark 600→300 holds it at 3.29:1 worst (success) and 5.29:1 best. Both clear WCAG 1.4.11's 3:1 for a non-text graphic. Neutral is the one tone whose dark `from` is 500 rather than 600, because its dark ramp turns one step earlier — 600 (L 45.5%) is DARKER than 300 (L 49.9%), which would light the chip from below while every other tone lit it from above."
+        ]
+      }
+    },
+    "chip-danger-to": {
+      "$type": "color",
+      "$value": "var(--ramp-danger-700)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-danger-glow": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--chip-danger-to) 55%, transparent)",
+      "$extensions": {
+        "silvicom.section": [
+          "The glow is the chip's OWN foot colour, read from the `to` stop rather than restated, so a re-stepped gradient cannot leave a cast from the colour it used to be. It carries no scheme of its own for the same reason — `--chip-*-to` already has one. Not exposed to Tailwind: it is an ingredient of the elevation below, never a utility."
+        ]
+      }
+    },
+    "elevation-chip-danger": {
+      "$type": "dimension",
+      "$value": "inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-danger-glow)",
+      "$extensions": {
+        "silvicom.expose": "shadow"
+      }
+    },
+    "chip-caution-from": {
+      "$type": "color",
+      "$value": "var(--ramp-caution-500)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-caution-to": {
+      "$type": "color",
+      "$value": "var(--ramp-caution-700)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-caution-glow": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--chip-caution-to) 55%, transparent)"
+    },
+    "elevation-chip-caution": {
+      "$type": "dimension",
+      "$value": "inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-caution-glow)",
+      "$extensions": {
+        "silvicom.expose": "shadow"
+      }
+    },
+    "chip-warning-from": {
+      "$type": "color",
+      "$value": "var(--ramp-warning-500)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-warning-to": {
+      "$type": "color",
+      "$value": "var(--ramp-warning-700)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-warning-glow": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--chip-warning-to) 55%, transparent)"
+    },
+    "elevation-chip-warning": {
+      "$type": "dimension",
+      "$value": "inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-warning-glow)",
+      "$extensions": {
+        "silvicom.expose": "shadow"
+      }
+    },
+    "chip-success-from": {
+      "$type": "color",
+      "$value": "var(--ramp-success-500)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-success-to": {
+      "$type": "color",
+      "$value": "var(--ramp-success-700)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-success-glow": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--chip-success-to) 55%, transparent)"
+    },
+    "elevation-chip-success": {
+      "$type": "dimension",
+      "$value": "inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-success-glow)",
+      "$extensions": {
+        "silvicom.expose": "shadow"
+      }
+    },
+    "chip-info-from": {
+      "$type": "color",
+      "$value": "var(--ramp-info-500)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-info-to": {
+      "$type": "color",
+      "$value": "var(--ramp-info-700)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-info-glow": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--chip-info-to) 55%, transparent)"
+    },
+    "elevation-chip-info": {
+      "$type": "dimension",
+      "$value": "inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-info-glow)",
+      "$extensions": {
+        "silvicom.expose": "shadow"
+      }
+    },
+    "chip-brand-from": {
+      "$type": "color",
+      "$value": "var(--ramp-brand-500)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-brand-to": {
+      "$type": "color",
+      "$value": "var(--ramp-brand-700)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-brand-glow": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--chip-brand-to) 55%, transparent)"
+    },
+    "elevation-chip-brand": {
+      "$type": "dimension",
+      "$value": "inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-brand-glow)",
+      "$extensions": {
+        "silvicom.expose": "shadow"
+      }
+    },
+    "chip-neutral-from": {
+      "$type": "color",
+      "$value": "var(--ramp-neutral-500)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-neutral-to": {
+      "$type": "color",
+      "$value": "var(--ramp-neutral-700)",
+      "$extensions": {
+        "silvicom.expose": "color"
+      }
+    },
+    "chip-neutral-glow": {
+      "$type": "color",
+      "$value": "color-mix(in oklab, var(--chip-neutral-to) 55%, transparent)"
+    },
+    "elevation-chip-neutral": {
+      "$type": "dimension",
+      "$value": "inset 0 1px 0 0 var(--chip-top-edge), 0 5px 12px -4px var(--chip-neutral-glow)",
+      "$extensions": {
+        "silvicom.expose": "shadow"
       }
     },
     "shape-detail": {

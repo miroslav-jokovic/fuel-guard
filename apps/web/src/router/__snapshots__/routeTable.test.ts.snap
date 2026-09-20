@@ -516,6 +516,8 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "fullBleed": [Function],
+      "hero": "/hero/highway-dawn.webp",
+      "heroDark": "/hero/highway-night.webp",
       "requiresAuth": true,
       "title": "Dashboard",
     },

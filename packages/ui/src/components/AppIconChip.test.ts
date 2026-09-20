@@ -3,42 +3,45 @@ import { mount } from "@vue/test-utils";
 import AppIconChip from "./AppIconChip.vue";
 import AppIcon from "./AppIcon.vue";
 import { TruckIcon } from "../icons";
-// Vite's `?raw` rather than `node:fs`: `import.meta.url` is not a file URL under vitest's
-// transform (it throws `ERR_INVALID_URL_SCHEME`), and a cwd-relative path would depend on whether
-// the runner started in `packages/ui` or at the repo root. CI does the latter.
+// Vite's `?raw`, which works for a `.vue` file. (It does NOT for a `.css` one: measured
+// 2026-09-20 under vitest 4.1.9, `tokens.generated.css?raw` resolves, throws nothing and yields a
+// string of LENGTH 0 — so the sheet-level rules about these tokens live in `lint:ui-contrast`,
+// which reads the file from node, rather than here where their failure could be silent.)
 import badgeSource from "./AppBadge.vue?raw";
 
 /**
  * `AppIconChip` (D-DT17, `docs/plans/design-system/DASHBOARD-TEMPLATE-V2.md` §4.2b).
  *
- * ⚠ What is pinned here is that CLOSING THE VOCABULARY CHANGED NOTHING ON SCREEN. This component
- * replaced 22 hand-written `tone="text-success-600 bg-success-50"` strings across 5 files, and the
- * only way that refactor is safe to merge is if every tone still resolves to the exact pair its
- * call sites were passing. The strings below are therefore duplicated ON PURPOSE — they are the
- * incumbent values copied from the call sites before the change, so if somebody edits the `tones`
- * map they have to come here and say so deliberately.
+ * ⚠ These expectations CHANGED on 2026-09-20, exactly as the version before them said they would.
+ * What they used to pin was that closing the vocabulary changed nothing on screen — every tone
+ * resolving to the pale `text-<hue>-600 bg-<hue>-50` pair its 22 call sites had hand-written. The
+ * restyle that refactor existed to unblock has now landed, so the same eight assertions go red and
+ * are re-aimed at the treatment that replaced it: one hue's ramp, two stops, a white glyph.
  *
- * The restyle these unblock (gradient ground, white glyph) is expected to CHANGE these
- * expectations. That is the signal working, not a broken test.
+ * What this file pins is what the COMPONENT does: which tone reaches for which tone's tokens, that
+ * the glyph is thickened for a white-on-colour stroke, that the default is the calm tone. Whether
+ * those tokens exist, stay on one hue's ramp in both schemes, and hold the glyph above 3:1 is a
+ * question about the SHEET, and `lint:ui-contrast` asks it there — a test that read the sheet from
+ * here would be asking a gate's question in a browser package that deliberately has no `node`
+ * types.
  */
+const TONES = ["danger", "caution", "warning", "success", "info", "brand", "neutral"] as const;
+
 const mountChip = (props: Record<string, unknown> = {}) =>
   mount(AppIconChip, { props: { icon: TruckIcon, ...props } });
 
 describe("AppIconChip tone vocabulary", () => {
-  /** The pairs the 24 call sites were passing, verbatim. */
-  const INCUMBENT: [string, string][] = [
-    ["danger", "text-danger-600 bg-danger-50"],
-    ["caution", "text-caution-600 bg-caution-50"],
-    ["warning", "text-warning-600 bg-warning-50"],
-    ["success", "text-success-600 bg-success-50"],
-    ["info", "text-info-600 bg-info-50"],
-    ["brand", "text-brand-600 bg-brand-50"],
-    ["neutral", "text-ink-muted bg-surface-muted"],
-  ];
-
-  it.each(INCUMBENT)("resolves tone=%s to the pair its call sites hand-wrote", (tone, pair) => {
+  it.each(TONES)("draws tone=%s as a gradient down that tone's own ramp", (tone) => {
     const cls = mountChip({ tone }).get("span").classes();
-    for (const c of pair.split(" ")) expect(cls).toContain(c);
+    expect(cls).toContain("bg-linear-140");
+    expect(cls).toContain(`from-chip-${tone}-from`);
+    expect(cls).toContain(`to-chip-${tone}-to`);
+    expect(cls).toContain(`shadow-chip-${tone}`);
+  });
+
+  /** The white stroke needs the weight back that a saturated ground takes off it (§4.2b). */
+  it("thickens the glyph's stroke for a white-on-colour glyph", () => {
+    expect(mountChip().findComponent(AppIcon).props("strokeWidth")).toBe(2.2);
   });
 
   /**
@@ -47,7 +50,7 @@ describe("AppIconChip tone vocabulary", () => {
    * paint a calm figure in a colour that means something.
    */
   it("defaults to neutral rather than to a hue", () => {
-    expect(mountChip().get("span").classes()).toContain("bg-surface-muted");
+    expect(mountChip().get("span").classes()).toContain("from-chip-neutral-from");
   });
 
   /**
@@ -99,6 +102,6 @@ describe("AppIconChip tone vocabulary", () => {
     const badgeTones = [...union!.matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
 
     expect(badgeTones.length).toBe(7);
-    expect([...badgeTones].sort()).toEqual(INCUMBENT.map(([t]) => t).sort());
+    expect([...badgeTones].sort()).toEqual([...TONES].sort());
   });
 });

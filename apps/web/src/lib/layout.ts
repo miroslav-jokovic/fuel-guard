@@ -91,3 +91,44 @@ export function sidebarIsCollapsed(input: {
 }): boolean {
   return input.override ?? (input.fullBleed || input.stored);
 }
+
+/**
+ * Which photographic plate, if any, sits behind this route's page (D-DT18/D-DT19).
+ *
+ * ── WHY THE SHELL ASKS AND THE HEADER NO LONGER DOES ───────────────────────────────────────────
+ * The plate used to live inside `PageHeader`'s hero band, which meant it had to END where that band
+ * ended — and the only tool left for the ending was a fade that dissolved the photograph into empty
+ * canvas a few pixels above the tab strip. That is a picture that ran out. D-DT18 makes it a layer
+ * of the PAGE: it starts at the top, bleeds past the right gutter, and descends through the tab row
+ * and into the KPI row, where the opaque cards occlude it and it survives only in the gutters
+ * between them. Nothing about it ends; the content covers it up, which is what depth looks like.
+ *
+ * A layer that tall cannot belong to the header, and the bleed negates a gutter `AppShell` owns, so
+ * the shell draws it and the route says which one. This function is the whole of "which one".
+ *
+ * ⚠ It refuses a plate on a full-bleed route, and that refusal is the reason it exists rather than
+ * `route.meta.hero` being read at the call site. The dashboard is a document on most tabs and a
+ * workspace on the one holding the live map (D-DR24) — the SAME route, with and without gutters —
+ * so "does this page want a backdrop" is not answerable from the meta alone. Asking `isFullBleed`
+ * here keeps the two answers in one place; reading the meta directly in `AppShell` would have put a
+ * decorative layer under the live map on the day somebody gave the dashboard a plate.
+ *
+ * Two functions, because two callers ask different questions: `AppShell` needs the URL to draw, and
+ * `PageHeader` needs only to know that something is behind it — a greeting that sits ON a plate
+ * takes no bottom rule and no card, and it must not have to know which photograph to work that
+ * out. The scheme is therefore an argument of the first and not of the second.
+ */
+export function hasHeroPlate(route: { meta: RouteMeta; query?: Record<string, unknown> }): boolean {
+  return !isFullBleed(route) && Boolean(route.meta.hero);
+}
+
+export function heroPlate(
+  route: { meta: RouteMeta; query?: Record<string, unknown> },
+  isDark: boolean,
+): string | null {
+  if (!hasHeroPlate(route)) return null;
+  const { hero, heroDark } = route.meta;
+  // ⚠ Falls back to the day plate rather than rendering nothing (D-DR19): two of the four shipped
+  // plates have no night variant, and a missing file is not a reason to drop the layer.
+  return (isDark && heroDark) || hero || null;
+}

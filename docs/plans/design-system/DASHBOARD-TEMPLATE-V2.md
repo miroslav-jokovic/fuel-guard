@@ -8,11 +8,11 @@
 > Read first: `docs/DESIGN-SYSTEM-CONTRACT.md` (canonical), `apps/web/CLAUDE.md`,
 > `docs/plans/design-system/DESIGN-REFRESH-2026-09.md` (D-DR1…D-DR25, which this continues).
 >
-> **SHIPPED so far — PR #920, merge `3d4999f`, 2026-09-20:** the *vocabulary* half of D-DT17
-> (`AppIconChip`, seven tones, deliberately a no-op on screen) and the `lint:tokens` gradient-stop
-> rule from Q-DT6's neighbourhood. The chip's gradient TREATMENT in §4.2b has **not** shipped —
-> it is a change to one map, blocked only on the dark-mode ramp question in the handoff. Everything
-> else here is still a proposal.
+> **SHIPPED so far:** F1/F3 (PR #920), then F2, F4, T4, T10 and T12 — the shared segmented
+> surface and its de-grey, the chip's gradient with its per-scheme ramp steps, the sliding pill with
+> brand selection, and the page backdrop. **§10 is the progress log**, with the measurements and the
+> two places this document turned out to be wrong (D-DT16's `--action-primary` fails 4.5:1 in dark;
+> the chip's shipped sizes are not §4.2b's). Everything else here is still a proposal.
 >
 > Where the work stopped: `HANDOFF-2026-09-20-DASHBOARD-TEMPLATE.md` beside this file.
 
@@ -545,3 +545,84 @@ JS. That is a deliberate exception, reasoned at the call site — the compositor
 is a 1px pill under `scaleX()`, which smears an 8px corner radius into an ellipse and stretches the
 1px ring into a visible band. The pill is `position: absolute`, so the reflow is confined to one
 out-of-flow node for ~340ms, once per click.
+
+---
+
+## 10. Progress log
+
+Appended, dated, newest last. The tables above are the DESIGN; this is what happened to it. (Rows
+are not edited in place — two sessions editing the same table row conflict, and the history of a
+decision is worth more than a tidy table.)
+
+**2026-09-20 — F1, F3 shipped.** PR #920, merge `3d4999f`. `AppIconChip` closed the chip tone
+vocabulary (22 hand-written pairs across 5 files → one map, seven names identical to `AppBadge`'s),
+deliberately a no-op on screen; `lint:tokens` gained the gradient-stop rule. Handoff corrected in
+PR #921, merge `ada75ca`.
+
+**2026-09-20 — F2 shipped: one well, de-greyed once.** `packages/ui/src/segmentedSurface.ts` owns
+the well-and-pill recipe and both `AppTabs` and `AppSegmentedControl` read it; the copies had
+already drifted (`shadow-card` on one pill, absent from the other). D-DT16's ground is two new role
+tokens, `--control-well` and `--control-well-edge` — chroma 0.0119 light / 0.0140 dark, confirmed
+by `getComputedStyle` on the built page. Idle label contrast goes UP (5.48:1 against 4.82:1 light,
+5.67:1 against 5.33:1 dark) and the pill, no longer lighter than its ground (1.076:1), now needs
+its ring and elevation.
+
+> ⚠ **Tailwind's `@source` glob was `packages/ui/src/**/*.vue`.** Moving class strings into a `.ts`
+> file made them invisible to the scanner: `bg-control-well` emitted nothing, the well rendered
+> TRANSPARENT and `ring-1` fell back to `currentColor`. It reads as a design mistake and is a build
+> one; no gate can see it. Both apps' globs now cover `{vue,ts}`.
+
+**2026-09-20 — F4 shipped: the chip's gradient, and the elevation its glow needed.** Seven tones ×
+(`--chip-<tone>-from|to`, `--chip-<tone>-glow`, `--elevation-chip-<tone>`), plus `--chip-glyph` and
+`--chip-top-edge`. Measured, and it settles the handoff's open question about the dark ramp:
+
+| | head → foot | worst white-glyph contrast |
+|---|---|---|
+| light | 500 → 700 | 3.27:1 (danger) |
+| dark | 600 → 300 | 3.29:1 (success) |
+| dark, if light's steps were reused | 500 → 700 | **1.78:1** (success) |
+
+`neutral` is the one tone whose dark head is 500, because its ramp turns a step earlier — dark
+`neutral-600` (L 45.5%) is DARKER than `neutral-300` (49.9%) and would light the chip from below.
+⚠ The glyph is `--chip-glyph` (white in BOTH schemes) and **not** `--ink-inverse`, which flips to
+oklch(21.5% 0 0) in dark and would put a near-black glyph on a saturated chip. `lint:ui-contrast`
+learned to follow a `var()` chain and now checks all 14 stops plus two structural rules (every tone
+declares its full set; both stops stay on one hue's ramp in both schemes).
+
+**2026-09-20 — T4 + T10 shipped: the pill travels, and selection is brand.** One absolutely
+positioned element, `transform` + `width`, critically damped spring (ω = 2π/0.34), integrating from
+the LIVE value so a mid-flight re-target continues from where the pill is. Measured in the built
+page: 77 → 187.23px against a target of 188 over 426ms, monotonic, no overshoot. **`AppTabs.test.ts`
+is untouched** — the acceptance criterion — and the pill's own tests are in `AppTabsPill.test.ts`.
+
+> ⚠ **D-DT16 names `--action-primary` for the selected label and that value fails in dark.** On the
+> pill's `--surface` it measures 5.29:1 light but **4.37:1 dark**, and a 14px tab label is
+> normal-size text (WCAG 1.4.3, 4.5:1). Shipped as `--selected-strong`: the role the system already
+> has for "selected, emphatic", identical in light, 5.62:1 in dark. Same for the count's selected
+> ground — brand-100 is 4.10:1 in dark, so `--control-count-selected` is brand-100 light /
+> brand-50 dark (4.66:1 / 4.92:1).
+
+**2026-09-20 — T12 shipped: the backdrop is the SHELL's.** `meta.hero` / `meta.heroDark` read
+through `heroPlate()` in `lib/layout.ts`, which refuses a plate whenever the outlet is full-bleed —
+the dashboard is the same route with and without gutters, so the meta alone cannot answer. The
+plate left `PageHeader` entirely (T9's frameless hero arrives with it) and its "which photograph"
+tests moved to `layout.test.ts`.
+
+> ⚠ **A `z-index: 0` layer drawn FIRST still covers the page.** CSS paints a positioned descendant
+> above an in-flow non-positioned one whatever the document order says: probed against the built
+> stylesheet, a white KPI card under the plate DISAPPEARED. The shell wraps the page in one
+> positioned element — the prototype's `.page > .band { position: relative }` applied once — inside
+> the `v-if`, because an extra wrapper would break the live map's `h-full` chain.
+
+Still open from §7: **T1** (delta pill — blocked on Q-DT4), **T2** (card edge-light), **T3**
+(`@container` spark), **T5/T6** (trend readout + nice axis steps), **T7** (donut), **T8** (grid
+spans), **T11** (duotone glyphs — blocked on Q-DT5), **T13** (the chip's `--sm` geometry, below).
+
+**Q-DT7 (new). The chip's sizes are not the comps'.** Measured in a browser 2026-09-20: `md` is
+40px with a 24px glyph and `sm` is 36px with 20px — a glyph at 60% and 56% of its chip, where the
+comps sample 50% and §4.2b specifies 40/21 and 32/17.5. The component's own comment claimed the
+comps' figures and had never been checked against the code. Resizing is a visible change at every
+call site, so it is recorded here rather than folded into a restyle that only touched colour.
+Candidates: (a) move to 40/20 and 32/17, matching the comps and `AppBadge`'s density; (b) keep the
+incumbent sizes and correct §4.2b. **Recommendation: (a)**, as its own change, with the two call
+sites screenshotted before and after.

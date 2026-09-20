@@ -26,6 +26,11 @@ export const coreRoutes: RouteRecordRaw[] = [
       requiresAuth: true,
       title: "Dashboard",
       fullBleed: (route) => tabIsWorkspace(String(route.query?.tab ?? "")),
+      // The page backdrop (D-DT18). ⚠ `fullBleed` above and this are not in conflict: `heroPlate`
+      // refuses a plate whenever the outlet is edge to edge, so the map tab drops it and the
+      // document tabs keep it — one route, both answers, neither restated here.
+      hero: "/hero/highway-dawn.webp",
+      heroDark: "/hero/highway-night.webp",
     },
   },
   {

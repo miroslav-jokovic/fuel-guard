@@ -1,5 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import {
+  SEGMENTED_IDLE,
+  SEGMENTED_PILL,
+  SEGMENTED_SEGMENT,
+  SEGMENTED_SELECTED_INK,
+  SEGMENTED_WELL,
+} from "../segmentedSurface";
 
 /**
  * A segmented control — one answer from a short, fixed set, all of it visible at once.
@@ -16,6 +23,13 @@ import { computed, ref, watch } from "vue";
  * chosen one, a ROVING TABINDEX so exactly one segment is in the page's tab order, and Left/Right
  * (Home/End) moving the selection — the same contract `AppTabs` keeps, because both are "pick one of
  * these" and a keyboard user should not have to learn two.
+ *
+ * ── WHAT IT LOOKS LIKE IS NOT DECIDED HERE ────────────────────────────────────────────────────
+ * The well, the pill and the idle ink come from `../segmentedSurface`, shared with `AppTabs`
+ * (D-DT16). Both files had hand-written the same recipe and drifted — this one's pill carried
+ * `shadow-card`, the tab strip's did not — which is what made the de-grey a two-file edit instead
+ * of a one-map one. Density stays here: `p-0.5` and `min-h-8`, because a permissions table draws
+ * eleven of these per role and four more pixels each is a page taller.
  *
  * `inherited` draws the chosen segment outlined rather than filled. It exists for a layered answer
  * — a person's cell that is FOLLOWING their role rather than holding its own value — so the page
@@ -91,8 +105,8 @@ function onKey(event: KeyboardEvent): void {
 
 <template>
   <div
-    class="inline-grid auto-cols-fr grid-flow-col rounded-surface bg-surface-muted p-0.5 text-sm"
-    :class="disabled ? 'opacity-60' : ''"
+    class="inline-grid auto-cols-fr grid-flow-col p-0.5 text-sm"
+    :class="[SEGMENTED_WELL, disabled ? 'opacity-60' : '']"
     role="radiogroup"
     :aria-label="label"
     :aria-disabled="disabled || undefined"
@@ -104,14 +118,15 @@ function onKey(event: KeyboardEvent): void {
       ref="buttons"
       type="button"
       role="radio"
-      class="min-h-8 rounded-control px-3 font-medium whitespace-nowrap transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed"
-      :class="
+      class="min-h-8 whitespace-nowrap disabled:cursor-not-allowed"
+      :class="[
+        SEGMENTED_SEGMENT,
         option.value === modelValue
           ? inherited
             ? 'text-ink-secondary ring-1 ring-inset ring-edge-strong'
-            : 'bg-surface text-ink shadow-card'
-          : 'text-ink-muted hover:text-ink-secondary'
-      "
+            : `${SEGMENTED_PILL} ${SEGMENTED_SELECTED_INK}`
+          : SEGMENTED_IDLE,
+      ]"
       :aria-checked="option.value === modelValue"
       :tabindex="index === activeIndex ? 0 : -1"
       :disabled="disabled"

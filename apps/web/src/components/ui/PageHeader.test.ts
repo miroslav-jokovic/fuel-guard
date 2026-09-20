@@ -15,6 +15,14 @@ function routerFor(path: string) {
     history: createMemoryHistory(),
     routes: [
       { path: "/", name: "dashboard", component: stub, meta: { title: "Dashboard" } },
+      // A route that carries a plate, so the header's two chromes can be compared on the same
+      // component rather than inferred from a prop that no longer exists.
+      {
+        path: "/greeting",
+        name: "greeting",
+        component: stub,
+        meta: { title: "Good morning", hero: "/hero/highway-dawn.webp" },
+      },
       { path: "/hazmat", name: "hazmat", component: stub, meta: { title: "HazmatGuard" } },
       {
         path: "/hazmat/loads",
@@ -52,47 +60,45 @@ async function mountAt(path: string, attach = false, props: Record<string, unkno
 }
 
 /**
- * The hero plate (D-DR15) — the dashboard's greeting band.
+ * The header that stands on the page backdrop (D-DT18, and D-DR15 before it).
  *
- * The plate is DECORATION, and the whole accessibility claim rests on it saying so: an empty `alt`
- * plus `aria-hidden`, so a screen reader reaches the greeting rather than describing a photograph of
- * a truck first. That is the kind of attribute a later "tidy-up" adds a helpful description to, so
- * it is asserted rather than trusted.
+ * ⚠ These assertions used to be about an `<img>` this component owned. The plate is `AppShell`'s
+ * layer now — a photograph that has to end where its header ends is a picture that ran out — so
+ * what is left here is the header's half of the arrangement: it knows something is behind it, and
+ * it drops the card and the rule it would otherwise draw across the middle of a photograph. WHICH
+ * plate, and whether there is one at all, is `lib/layout.test.ts`.
  */
-describe("PageHeader hero plate (D-DR15)", () => {
+describe("PageHeader on the page backdrop (D-DT18)", () => {
   afterEach(() => document.body.replaceChildren());
 
-  it("renders no plate at all for the ordinary header", async () => {
-    const w = await mountAt("/");
-    expect(w.find("img").exists()).toBe(false);
-    // The plain header keeps its rule; the hero variant replaces it with a card edge.
-    expect(w.get("header").classes()).toContain("border-b");
+  it("draws no plate of its own, on any route", async () => {
+    expect((await mountAt("/")).find("img").exists()).toBe(false);
+    expect((await mountAt("/greeting")).find("img").exists()).toBe(false);
   });
 
-  it("carries the plate as decoration, never as content", async () => {
-    const w = await mountAt("/", false, { hero: "/hero/highway-dawn.webp" });
-    const img = w.get("img");
-    expect(img.attributes("src")).toBe("/hero/highway-dawn.webp");
-    expect(img.attributes("alt")).toBe("");
-    expect(img.attributes("aria-hidden")).toBe("true");
-    expect(w.get("header").classes()).not.toContain("border-b");
+  it("keeps its rule on an ordinary page and drops it on a backdrop", async () => {
+    expect((await mountAt("/")).get("header").classes()).toContain("border-b");
+
+    const onPlate = (await mountAt("/greeting")).get("header").classes();
+    expect(onPlate).not.toContain("border-b");
+    // ⚠ And no card either (D-DT15): a surface, a ring and an elevation made a photograph look
+    // like a widget and put a border around the one element on the page that is not a control.
+    for (const chrome of ["bg-surface", "ring-1", "shadow-card", "rounded-surface"]) {
+      expect(onPlate).not.toContain(chrome);
+    }
   });
 
   /**
-   * The greeting has to sit ON the band rather than beside it, so the plate is pinned behind the
-   * text with a negative z-index and is not clickable. A plate that captured pointer events would
-   * swallow clicks on the header's own action buttons, which sit over it on a wide screen.
+   * The greeting stands level with the subject of the photograph rather than above it, which is
+   * what the band's own height buys — 136px, the prototype's, measured against the plate's crop.
    */
-  it("keeps the plate behind the text and out of the way of the actions", async () => {
-    const w = await mountAt("/", false, { hero: "/hero/highway-dawn.webp" });
-    const classes = w.get("img").classes();
-    expect(classes).toContain("-z-10");
-    expect(classes).toContain("pointer-events-none");
-    expect(w.get("header").classes()).toContain("isolate");
+  it("gives the greeting the band's height, and the plain header none", async () => {
+    expect((await mountAt("/greeting")).get("header").classes()).toContain("min-h-34");
+    expect((await mountAt("/")).get("header").classes()).not.toContain("min-h-34");
   });
 
-  it("has no axe violations with a plate behind it", async () => {
-    const w = await mountAt("/", true, { hero: "/hero/highway-dawn.webp", title: "Good morning, Miki" });
+  it("has no axe violations on the backdrop", async () => {
+    const w = await mountAt("/greeting", true, { title: "Good morning, Miki" });
     const result = await axe.run(w.element as HTMLElement, {
       rules: { "color-contrast": { enabled: false } },
     });
@@ -153,59 +159,5 @@ describe("PageHeader breadcrumbs (G2)", () => {
       rules: { "color-contrast": { enabled: false } },
     });
     expect(result.violations.map((v) => v.id)).toEqual([]);
-  });
-});
-
-/**
- * The night plate (D-DR19) — dark mode gets a different photograph, not the same one dimmed.
- *
- * ⚠ These drive the scheme through `useColorScheme().set()` rather than stubbing the composable.
- * It is module-level state writing one CSS property on `<html>`, so it is honest to exercise in a
- * test — and stubbing it would leave the thing under test (that `PageHeader` reads the SAME answer
- * the rest of the app reads) unasserted, which is the whole point of deriving rather than asking.
- */
-describe("PageHeader night plate (D-DR19)", () => {
-  const DAY = "/hero/highway-dawn.webp";
-  const NIGHT = "/hero/highway-night.webp";
-
-  afterEach(async () => {
-    const { useColorScheme } = await import("@/composables/useColorScheme");
-    useColorScheme().set("light");
-  });
-
-  const setScheme = async (value: "light" | "dark") => {
-    const { useColorScheme } = await import("@/composables/useColorScheme");
-    useColorScheme().set(value);
-  };
-
-  it("hangs the day plate in light mode and the night plate in dark", async () => {
-    await setScheme("light");
-    const day = await mountAt("/", false, { hero: DAY, heroDark: NIGHT });
-    expect(day.find("img").attributes("src")).toBe(DAY);
-
-    await setScheme("dark");
-    const night = await mountAt("/", false, { hero: DAY, heroDark: NIGHT });
-    expect(night.find("img").attributes("src")).toBe(NIGHT);
-  });
-
-  /**
-   * ⚠ The compromise, asserted so it is a decision rather than a surprise. `prairie-dusk` and
-   * `coast-mist` have no night variant yet, and a caller passing only `hero` must keep rendering
-   * its plate — not nothing. It also documents the cost: that caller keeps the 6.54:1 band in dark
-   * mode until its own night plate exists.
-   */
-  it("falls back to the day plate when a caller has no night variant", async () => {
-    await setScheme("dark");
-    const w = await mountAt("/", false, { hero: DAY });
-    expect(w.find("img").attributes("src")).toBe(DAY);
-  });
-
-  // The plate stays DECORATION in either scheme — the D-DR15 claim must not survive only in light.
-  it("keeps the night plate decorative", async () => {
-    await setScheme("dark");
-    const w = await mountAt("/", false, { hero: DAY, heroDark: NIGHT });
-    const img = w.find("img");
-    expect(img.attributes("alt")).toBe("");
-    expect(img.attributes("aria-hidden")).toBe("true");
   });
 });
