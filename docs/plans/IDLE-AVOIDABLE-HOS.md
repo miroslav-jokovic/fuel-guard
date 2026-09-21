@@ -1,6 +1,13 @@
 # Avoidable idling — HOS-framed, evidence-based model (PLAN)
 
 > **⚠ DORMANT (2026-08-26 truth pass):** dormant since 2026-07-18 — re-validate before building.
+>
+> **⚠ SUPERSEDED IN PART (2026-09-20):** re-audited against production in
+> `docs/plans/fuel/DATA-PRECISION-AUDIT-2026-09-20.md` §3. Read that first. The two mechanisms this
+> plan rests on were built and have never produced an answer: the temperature envelope is `evidenced`
+> for **zero** trucks (D-IDLE3) and `optimized_cycling` has fired **zero** times against 36 trucks
+> flagged for it (D-IDLE4). The binding constraint is not the model — it is that `has_apu` is null on
+> **203 of 272** vehicles, so the verdict layer refuses 75% of the fleet (D-IDLE2).
 
 **Status:** proposal for review. No code changes beyond the APU source-of-truth fix already applied.
 **Goal:** a per-truck avoidable-idle number that is duty-aware, temperature-aware and equipment-aware — no
