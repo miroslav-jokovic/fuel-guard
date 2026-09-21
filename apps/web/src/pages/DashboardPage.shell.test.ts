@@ -85,13 +85,19 @@ function mountShell() {
          * still reads `fleet-tab` / `dispatch-tab` and still asserts the same thing — which tab's
          * content the shell chose to render.
          */
-        TabWidgets: { props: ["tab"], template: '<div :data-test="tab + \'-tab\'" />' },
+        TabWidgets: {
+          props: ["tab", "range"],
+          // `data-range` added 2026-09-21: the window the shell chose is only observable here.
+          template: '<div :data-test="tab + \'-tab\'" :data-range="range ? range.from + \'\u2192\' + range.to : undefined" />',
+        },
         DateRangeFilter: { template: '<div data-test="range-filter" />' },
         PageHeader: { template: "<div><slot /><slot name=\"actions\" /></div>" },
         Menu: { template: '<div data-test="export-menu"><slot /></div>' },
         MenuButton: true,
-        MenuItems: true,
-        MenuItem: true,
+        MenuItems: { template: "<div><slot /></div>" },
+        // Renders its slot so the export buttons exist to be clicked (the `active` slot prop is
+        // headlessui's keyboard-focus flag and only drives a background class).
+        MenuItem: { template: "<div><slot :active=\"false\" /></div>" },
         RouterLink: true,
       },
     },
@@ -322,9 +328,15 @@ describe("the window the page asks about", () => {
    */
   it("ends the default window today on the carrier's clock, not tomorrow on UTC's", () => {
     const w = mountShell();
-    const filter = w.find('[data-test="range-filter"]');
-    expect(filter.exists()).toBe(true);
-    expect(w.vm.range).toEqual({ from: "2026-08-21", to: "2026-09-20" });
+
+    // Read off the RANGE THE TABS ARE GIVEN, not off the component instance. `<script setup>`
+    // bindings are not on a component's public type, so `w.vm.range` is a `vue-tsc` error — it runs
+    // fine under vitest, which does not typecheck, and only the typecheck says so. (It said so
+    // locally too, at exit code 2; `pnpm -s typecheck` silences the child output, so the failure
+    // looked like silence. Check the exit code, not the output.) Reading the rendered prop is the
+    // better assertion anyway: it is what the page actually hands its tabs.
+    const tab = w.find("[data-range]");
+    expect(tab.attributes("data-range")).toBe("2026-08-21→2026-09-20");
     expect(new Date().toISOString().slice(0, 10)).toBe("2026-09-21"); // what it used to answer
   });
 
@@ -335,7 +347,10 @@ describe("the window the page asks about", () => {
    */
   it("exports the same window it is showing, bounded on the carrier's clock", async () => {
     const w = mountShell();
-    await w.vm.exportReport("/api/reports/transactions.csv", "transactions.csv");
+    // Click the real menu item, so this asserts what a reader pressing "Transactions CSV" gets.
+    const item = w.findAll("button").find((b) => b.text().includes("Transactions CSV"));
+    expect(item, "the Transactions CSV export button").toBeTruthy();
+    await item!.trigger("click");
 
     const url = vi.mocked(downloadReport).mock.calls.at(-1)?.[0] ?? "";
     const q = new URLSearchParams(url.slice(url.indexOf("?")));
