@@ -292,6 +292,20 @@ const API_ALLOW = new Set([
   // page and the fuel-spend report use, read through `idle`'s index (Q9). `movingSpend` is a fuel
   // figure that depends on the idle basis, so an endpoint without this edge could not produce it.
   "insights -> idle",
+  // ── FleetPal's two edges (FLEETPAL-INTEGRATION-PLAN.md F5, D-FP1/D-FP2) ──────────────────────
+  //   · fleetpal -> roster — the matcher needs the candidate set, and `vehicles`/`trailers` are
+  //     roster's. It reads them through `listEquipmentIdentities`, which is the same door the
+  //     §396.17 inspection already uses ("maintenance -> roster" above), and it asks for RETIRED
+  //     equipment as well because a truck sold in June still owns the repairs it had in May.
+  //     A direct `.from("vehicles")` would also have passed `lint:table-access` as a read, which is
+  //     precisely why this edge is declared: reaching past an owner because no gate happens to stop
+  //     you is how `drivers` came to be written from 54 files.
+  //   · maintenance -> fleetpal — the reconciliation screen is reached through the MAINTENANCE
+  //     section, so its router lives there and calls the collector's exported functions. Nothing in
+  //     `maintenance` parses a FleetPal payload (D-ARC1); it lists rows the collector staged and
+  //     asks it to re-resolve them.
+  "fleetpal -> roster",
+  "maintenance -> fleetpal",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
