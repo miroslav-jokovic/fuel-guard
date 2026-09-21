@@ -7,8 +7,12 @@ import {
   groupRollupByVehicle,
   idleScore,
   type IdleCapability,
+  todayInZone,
+  shiftDay,
+  daysInRange,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import type { IdleDateFilter } from "./useIdleScores";
 import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
 import { fetchRollupRows, fetchDayPrices } from "@/composables/useIdleBreakdown";
@@ -33,20 +37,17 @@ export interface DriverIdleRow {
   score: number | null; // avoidable ÷ engine-on
 }
 
-function bounds(f: IdleDateFilter) {
+function bounds(f: IdleDateFilter, zone: string) {
   // Compare on the picked calendar date directly (`day` is a calendar date; see useIdleBreakdown).
-  const toDate = f.to ? f.to.slice(0, 10) : new Date().toISOString().slice(0, 10);
-  const fromDate = f.from
-    ? f.from.slice(0, 10)
-    : new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const days = Math.max(
-    1,
-    Math.round(
-      (Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) /
-        86_400_000,
-    ),
-  );
-  return { fromDate, toDate, days };
+  /*
+   * `idle_rollup_days.day` is a `date`, so the picked day IS the value to compare — no instant, no
+   * slice back out of one (D-PREC5 case 1). The defaults read today on the CARRIER's clock; they
+   * were `new Date().toISOString().slice(0, 10)`, a UTC day, which after 19:00 Central made the
+   * default window end tomorrow (D-PREC6).
+   */
+  const toDate = f.to ?? todayInZone(new Date(), zone);
+  const fromDate = f.from ?? shiftDay(toDate, -WINDOW_DAYS);
+  return { fromDate, toDate, days: daysInRange(fromDate, toDate) };
 }
 
 const hrs = (sec: number) => Math.round(sec / 360) / 10;
@@ -60,11 +61,14 @@ const hrs = (sec: number) => Math.round(sec / 360) / 10;
  * confident trucks, so no one is scored on thin data — all identical semantics to the raw-table version.
  */
 export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<IdleCostBasis>) {
+  // The window is resolved on the carrier's clock, and the zone is in the key so the query re-runs
+  // when the org row answers rather than keeping the fallback's numbers on screen.
+  const { zone } = useOrgTimezone();
   return useQuery({
-    queryKey: ["idle_drivers", filters, computed(() => toValue(costBasis) ?? DEFAULT_COST_BASIS)],
+    queryKey: ["idle_drivers", filters, zone, computed(() => toValue(costBasis) ?? DEFAULT_COST_BASIS)],
     refetchInterval: 120_000,
     queryFn: async (): Promise<DriverIdleRow[]> => {
-      const { fromDate, toDate, days } = bounds(toValue(filters));
+      const { fromDate, toDate, days } = bounds(toValue(filters), zone.value);
       const cb = toValue(costBasis) ?? DEFAULT_COST_BASIS;
 
       const [rows, dayPrices] = await Promise.all([

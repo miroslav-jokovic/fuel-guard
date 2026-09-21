@@ -16,6 +16,8 @@
  * and the web app can use one implementation.
  */
 
+import { wallClockInZone, wallClockToUtc } from "./calendarDay.js";
+
 export const EFS_TIME_ZONE = "America/Chicago";
 
 export interface EfsWallClock {
@@ -27,32 +29,9 @@ export interface EfsWallClock {
   second: number;
 }
 
-const FORMATTER = new Intl.DateTimeFormat("en-US", {
-  timeZone: EFS_TIME_ZONE,
-  hour12: false,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
-
 /** What an instant looks like on a clock in Central Time. */
 export function efsWallClock(at: Date): EfsWallClock {
-  const parts: Record<string, string> = {};
-  for (const part of FORMATTER.formatToParts(at)) {
-    if (part.type !== "literal") parts[part.type] = part.value;
-  }
-  return {
-    year: Number(parts.year),
-    month: Number(parts.month),
-    day: Number(parts.day),
-    // Some ICU builds still emit "24" for midnight under hour12:false. Normalise rather than trust it.
-    hour: Number(parts.hour) % 24,
-    minute: Number(parts.minute),
-    second: Number(parts.second),
-  };
+  return wallClockInZone(at, EFS_TIME_ZONE);
 }
 
 /**
@@ -77,13 +56,7 @@ export function efsWallClockToUtc(
   minute = 0,
   second = 0,
 ): number {
-  const wanted = Date.UTC(year, month - 1, day, hour, minute, second, 0);
-  let ts = wanted;
-  for (let pass = 0; pass < 2; pass++) {
-    const seen = efsWallClock(new Date(ts));
-    ts += wanted - Date.UTC(seen.year, seen.month - 1, seen.day, seen.hour, seen.minute, seen.second, 0);
-  }
-  return ts;
+  return wallClockToUtc({ year, month, day, hour, minute, second }, EFS_TIME_ZONE);
 }
 
 /** The next occurrence of a Central-Time hour:minute strictly after `now`, as an epoch ms. */

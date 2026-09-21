@@ -36,12 +36,19 @@ const props = defineProps<{ range: FleetRange }>();
 const range = computed(() => props.range);
 const { s, isLoading, canSeeMoney, mpgTotal, mpgSub, mpgTitle, rangeLabel } = useFleetWidgetData(range);
 
-// The same UTC bounds `useDashboard` uses, so the fill count and miles cover exactly the fills
-// behind the spend/gallons/MPG figures taken from the summary — the whole row stays consistent.
-const fuelRange = computed<FuelFilters>(() => ({
-  from: new Date(`${range.value.from}T00:00:00`).toISOString(),
-  to: new Date(`${range.value.to}T23:59:59.999`).toISOString(),
-}));
+/*
+ * The picked days, passed THROUGH (D-PREC5, queue item 4).
+ *
+ * `fuel_range_totals` declares `p_from`/`p_to` as `date` and filters `business_date` (0312) — a
+ * calendar column. So there is no instant in this question, and the code that invented one was the
+ * defect: `new Date(`${from}T00:00:00`).toISOString()` is the BROWSER's midnight, and Postgres cast
+ * it straight back to a day one later. Measured 2026-09-20 for a Central viewer asking 08/09–08/09:
+ * 104 fills and 11,471 gallons instead of 45 and 4,788, beside neighbouring tiles that were right.
+ * The comment here used to claim these were "the same UTC bounds `useDashboard` uses"; that stopped
+ * being true when `business_date` landed (FUEL-T1 / D-FUI11), and the Fuel page had always passed
+ * the day straight through. This card is now the third caller to agree with the other two.
+ */
+const fuelRange = computed<FuelFilters>(() => ({ from: range.value.from, to: range.value.to }));
 const { data: fuelTotals, isLoading: fuelLoading } = useFuelRangeTotals(fuelRange);
 const { data: findings } = useFindingsSummaryQuery();
 

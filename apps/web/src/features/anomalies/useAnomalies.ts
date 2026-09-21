@@ -2,7 +2,9 @@ import { type Ref, computed, toValue } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { Anomaly, AnomalyTransition, FuelTransaction } from "@silvicom/shared";
 import { cardIsIdentifiable, isFullCardNumber, sameCardFill } from "@silvicom/shared";
+import { dayRangeInstants } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { apiFetch } from "@/lib/api";
 
 /** Extended transaction row for the anomaly detail view (includes card/geo + fueling-event audit fields). */
@@ -59,14 +61,24 @@ export interface AnomalyFilters {
   vehicleIds?: string[];
   ruleId?: string;
   reeferOnly?: boolean; // only cases whose correlated signals include a reefer axis
-  from?: string; // YYYY-MM-DD (created_at ≥)
-  to?: string; // YYYY-MM-DD (created_at ≤, end of day)
+  /** YYYY-MM-DD. A CALENDAR day — resolved to instants in the carrier's zone at the query. */
+  from?: string;
+  to?: string;
 }
 
 /** Anomaly queue, filtered, sorted by severity then recency (client-side sort for enum ranking). */
 export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
+  /*
+   * `fueled_at` is a `timestamptz`, so a picked day has to become an instant interval — and in the
+   * CARRIER's zone (D-PREC5 case 2, queue item 4). It used to be `${f.from}T00:00:00`: a naive
+   * string with no zone, which PostgREST resolves as UTC, so the queue showed a UTC day rather than
+   * the operating day every other fuel surface reports. The zone is in the KEY as well as the query
+   * — it starts at the column's default and changes once the org row answers, and a query that did
+   * not re-run on that change would keep showing the guess.
+   */
+  const { zone } = useOrgTimezone();
   return useQuery({
-    queryKey: ["anomalies", filters],
+    queryKey: ["anomalies", filters, zone],
     // Surface anomalies from background EFS ingestion + scoring without a manual reload. Matches the
     // dashboard cadence; Vue Query pauses polling when the tab is hidden, so it stays rate-friendly.
     refetchInterval: 120_000,
@@ -86,8 +98,12 @@ export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
       if (f.reeferOnly) q = q.contains("evidence", { axes: ["reefer"] });
       else q = q.not("evidence", "cs", '{"axes":["reefer"]}');
       // Filter by the FUELING date (not detection time, which a rebuild resets to "today").
-      if (f.from) q = q.gte("fueled_at", `${f.from}T00:00:00`);
-      if (f.to) q = q.lte("fueled_at", `${f.to}T23:59:59`);
+      if (f.from || f.to) {
+        const { start, endExclusive } = dayRangeInstants(f.from ?? f.to!, f.to ?? f.from!, zone.value);
+        if (f.from) q = q.gte("fueled_at", start);
+        // `.lt` against the day AFTER `to`, never `.lte` against a T23:59:59 that drops a second.
+        if (f.to) q = q.lt("fueled_at", endExclusive);
+      }
       const { data, error } = await q;
       if (error) throw new Error(error.message);
       const when = (a: Anomaly) => a.fueled_at ?? a.created_at;

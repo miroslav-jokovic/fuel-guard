@@ -22,10 +22,11 @@ import { ArrowDownTrayIcon, ChevronDownIcon, CsvIcon, PdfIcon } from "@silvicom/
 import { ref, computed, watch } from "vue";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
 import { useRoute, useRouter } from "vue-router";
-import { tabIsWorkspace } from "@silvicom/shared";
+import { dayRangeInstants, shiftDay, tabIsWorkspace, todayInZone } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { greeting } from "@/lib/greeting";
@@ -39,11 +40,22 @@ const router = useRouter();
 // Date range scoping the whole page (YYYY-MM-DD | undefined). Default window: the last 30 days.
 const from = ref<string>();
 const to = ref<string>();
-const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+/*
+ * D-PREC6: the default window used to run to TOMORROW. `isoDay` was
+ * `d.toISOString().slice(0, 10)` — a UTC day — so after 19:00 Central the last-30-days default
+ * ended on the next calendar date and began a day late. That is why the window reproducing the
+ * owner's 8.61 MPG on 2026-09-20 was 08/22 – 09/21 rather than 08/21 – 09/20.
+ *
+ * "Today" is a question about a clock, and the clock this product means is the CARRIER's, never the
+ * viewer's — a dispatcher in Chicago and an accountant in Berlin must be shown the same 30 days.
+ */
+const { zone } = useOrgTimezone();
 const range = computed(() => {
-  const end = new Date();
-  const start = new Date(end.getTime() - 30 * 86400_000);
-  return { from: from.value ?? isoDay(start), to: to.value ?? isoDay(end) };
+  const today = todayInZone(new Date(), zone.value);
+  // -30, not -29: the span is left exactly as it was. The audit's finding is the ENDPOINT (this
+  // window was 08/22–09/21 instead of 08/21–09/20, both 31 days inclusive), and quietly narrowing
+  // the default would move every number on the page for a reason nobody asked for.
+  return { from: from.value ?? shiftDay(today, -30), to: to.value ?? today };
 });
 
 // ── Which dashboards this caller may see ─────────────────────────────────────────────────────────
@@ -97,10 +109,18 @@ const exporting = ref(false);
 async function exportReport(path: string, filename: string) {
   exporting.value = true;
   try {
-    // Match the on-screen window exactly (the report endpoints read from/to; the old ?days= was ignored).
-    const fromIso = new Date(`${range.value.from}T00:00:00`).toISOString();
-    const toIso = new Date(`${range.value.to}T23:59:59.999`).toISOString();
-    await downloadReport(`${path}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`, filename);
+    /*
+     * Match the on-screen window exactly. These endpoints filter `fuel_transactions.fueled_at`, a
+     * `timestamptz` — so unlike the cards above, this range genuinely IS an instant interval, and
+     * the only defensible zone for it is the carrier's (D-PREC5 case 2). Built at the browser's
+     * midnight until 2026-09-21, which is how a CSV could hold a different set of fills than the
+     * screen it was exported from.
+     */
+    const { start, endExclusive } = dayRangeInstants(range.value.from, range.value.to, zone.value);
+    await downloadReport(
+      `${path}?from=${encodeURIComponent(start)}&to=${encodeURIComponent(endExclusive)}`,
+      filename,
+    );
   } catch (e) {
     toast.error("Export failed", e instanceof Error ? e.message : undefined);
   } finally {

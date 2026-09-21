@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { VueQueryPlugin } from "@tanstack/vue-query";
 import type { AppSection, UserRole } from "@silvicom/shared";
 
 /**
@@ -30,6 +31,18 @@ const sessionMock = {
 };
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => sessionMock }));
+// The export URL is the assertion — what it downloads is `download.ts`'s business, not this test's.
+vi.mock("@/features/reports/download", () => ({ downloadReport: vi.fn(async () => undefined) }));
+/*
+ * ⚠ A zone that is NOT this machine's, deliberately. The claim under test is "the CARRIER's clock,
+ * never the viewer's", and a CI box running America/Chicago makes those two indistinguishable — a
+ * mutant that swapped `zone.value` for `Intl.DateTimeFormat().resolvedOptions().timeZone` survived
+ * the first draft of these tests for exactly that reason. Denver is UTC-6 in September where
+ * Chicago is UTC-5, so every expectation below is an hour away from what the viewer's clock gives.
+ */
+vi.mock("@/composables/useOrgTimezone", () => ({
+  useOrgTimezone: () => ({ zone: { value: "America/Denver" }, isResolved: { value: true } }),
+}));
 /**
  * ⚠ `useRouter` is mocked as well as `useRoute` since D-DR24: the page writes the open tab back into
  * `?tab=`, because the SHELL reads the tab from the URL to decide whether its outlet is a document or
@@ -44,6 +57,7 @@ vi.mock("vue-router", async (importOriginal) => ({
 }));
 
 import DashboardPage from "@/pages/DashboardPage.vue";
+import { downloadReport } from "@/features/reports/download";
 
 /** `canView` built from an explicit allow-list, so a test states the GRANTS it is giving. */
 const grants = (...allowed: AppSection[]) => (s: AppSection) => allowed.includes(s);
@@ -51,9 +65,19 @@ const grants = (...allowed: AppSection[]) => (s: AppSection) => allowed.includes
 function mountShell() {
   return mount(DashboardPage, {
     global: {
+      /*
+       * ⚠ `VueQueryPlugin` since 2026-09-21 (D-PREC5/6, queue item 4). The stub note below used to
+       * say the tabs were stubbed so vue-query never entered a test about which tab is chosen, and
+       * that is still why they are stubbed — but the SHELL itself now reads the carrier's operating
+       * timezone through `useOrgTimezone`, because its default window and its export URLs are both
+       * statements about a day and a day is only a day on some clock. The plugin is here, and no
+       * Supabase call is: the query never resolves in this test and the composable falls back to the
+       * column's own default, which is exactly the behaviour a caller gets on first paint.
+       */
+      plugins: [VueQueryPlugin],
       stubs: {
         // Both tabs are stubbed: their contents have their own tests, and mounting the real fleet
-        // tab would drag vue-query and Supabase into a test about which tab is chosen.
+        // tab would drag Supabase into a test about which tab is chosen.
         /**
          * ⚠ ONE stub since LM9, where there were two. `FleetOverviewTab` and `DispatchTab` are gone:
          * the shell now renders `TabWidgets` for whichever tab is active, and the catalogue decides
@@ -61,13 +85,19 @@ function mountShell() {
          * still reads `fleet-tab` / `dispatch-tab` and still asserts the same thing — which tab's
          * content the shell chose to render.
          */
-        TabWidgets: { props: ["tab"], template: '<div :data-test="tab + \'-tab\'" />' },
+        TabWidgets: {
+          props: ["tab", "range"],
+          // `data-range` added 2026-09-21: the window the shell chose is only observable here.
+          template: '<div :data-test="tab + \'-tab\'" :data-range="range ? range.from + \'\u2192\' + range.to : undefined" />',
+        },
         DateRangeFilter: { template: '<div data-test="range-filter" />' },
         PageHeader: { template: "<div><slot /><slot name=\"actions\" /></div>" },
         Menu: { template: '<div data-test="export-menu"><slot /></div>' },
         MenuButton: true,
-        MenuItems: true,
-        MenuItem: true,
+        MenuItems: { template: "<div><slot /></div>" },
+        // Renders its slot so the export buttons exist to be clicked (the `active` slot prop is
+        // headlessui's keyboard-focus flag and only drives a background class).
+        MenuItem: { template: "<div><slot :active=\"false\" /></div>" },
         RouterLink: true,
       },
     },
@@ -270,5 +300,62 @@ describe("the header's fleet-only controls", () => {
     const w = mountShell();
     expect(w.find('[data-test="dispatch-tab"]').exists()).toBe(true);
     expect(w.find('[data-test="range-filter"]').exists()).toBe(false);
+  });
+});
+
+/**
+ * D-PREC5 and D-PREC6 at the shell, which is where both of them lived.
+ *
+ * Neither of these could fail before 2026-09-21 because nothing asked the page what window it had
+ * chosen — 2,105 web tests passed while the default window ended TOMORROW for every reader west of
+ * Greenwich after their evening, and while the exports covered a different set of fills than the
+ * screen they were taken from.
+ */
+describe("the window the page asks about", () => {
+  const AFTER_UTC_ROLLOVER = new Date("2026-09-21T02:00:00.000Z"); // 21:00 on the 20th, Central
+
+  beforeEach(() => {
+    sessionMock.canView = grants("fuel", "dispatch");
+    vi.useFakeTimers();
+    vi.setSystemTime(AFTER_UTC_ROLLOVER);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /*
+   * D-PREC6. `isoDay` was `d.toISOString().slice(0, 10)`, so at this instant the default window ran
+   * to 2026-09-21 — tomorrow, on the carrier's clock. It is why the window that reproduced the
+   * owner's 8.61 MPG was 08/22 – 09/21 rather than 08/21 – 09/20.
+   */
+  it("ends the default window today on the carrier's clock, not tomorrow on UTC's", () => {
+    const w = mountShell();
+
+    // Read off the RANGE THE TABS ARE GIVEN, not off the component instance. `<script setup>`
+    // bindings are not on a component's public type, so `w.vm.range` is a `vue-tsc` error — it runs
+    // fine under vitest, which does not typecheck, and only the typecheck says so. (It said so
+    // locally too, at exit code 2; `pnpm -s typecheck` silences the child output, so the failure
+    // looked like silence. Check the exit code, not the output.) Reading the rendered prop is the
+    // better assertion anyway: it is what the page actually hands its tabs.
+    const tab = w.find("[data-range]");
+    expect(tab.attributes("data-range")).toBe("2026-08-21→2026-09-20");
+    expect(new Date().toISOString().slice(0, 10)).toBe("2026-09-21"); // what it used to answer
+  });
+
+  /*
+   * D-PREC5. The exports filter `fuel_transactions.fueled_at`, a `timestamptz`, so they DO take an
+   * instant interval — in the carrier's zone. Built at the BROWSER's midnight until this landed,
+   * which under this test's UTC clock is a five-hour error in both bounds.
+   */
+  it("exports the same window it is showing, bounded on the carrier's clock", async () => {
+    const w = mountShell();
+    // Click the real menu item, so this asserts what a reader pressing "Transactions CSV" gets.
+    const item = w.findAll("button").find((b) => b.text().includes("Transactions CSV"));
+    expect(item, "the Transactions CSV export button").toBeTruthy();
+    await item!.trigger("click");
+
+    const url = vi.mocked(downloadReport).mock.calls.at(-1)?.[0] ?? "";
+    const q = new URLSearchParams(url.slice(url.indexOf("?")));
+    expect(q.get("from")).toBe("2026-08-21T06:00:00.000Z"); // MDT, UTC-6 — Chicago would be 05:00
+    // The day AFTER `to`, exclusive — never a T23:59:59.999 that drops the last sliver of a second.
+    expect(q.get("to")).toBe("2026-09-21T06:00:00.000Z");
   });
 });
