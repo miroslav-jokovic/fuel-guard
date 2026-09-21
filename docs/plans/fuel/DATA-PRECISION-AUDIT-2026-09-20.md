@@ -777,6 +777,43 @@ Append dated lines at the END of this section. Do not edit rows above.
   `priceSource`'s survival on the wire — each mutant killed a test that named it. Nothing on the web
   changed: `useIdleCostBasis` still computes its own basis until the composable swap, and until then
   the page and the endpoint differ by the 1.8% in (3).
+- **2026-09-21** — **Queue item 5, step 3 built.** `GET /api/dashboard?from&to` answers the whole
+  screen. The seam Q8 asked for is now a SHAPE and not a convention: `DashboardMeasurements` in
+  `packages/shared/src/dashboard.ts` is what was measured, `summariseDashboard` is what is
+  concluded, and `aggregateDashboard` — still the report's path, since `summary.pdf` already holds
+  its rows — became `summariseDashboard(measureDashboard(...))`. **Two producers, one verdict**,
+  pinned structurally rather than by a fixture that could drift ("agrees on every field" in
+  `dashboardSummarise.test.ts`).
+  - **Four calls, not ten, and each remaining one is a boundary rather than a shortcut.**
+    `dashboard_summary(p_from, p_to, p_org)` for the measurements; `countDeclinedAttempts` through
+    `fuel`'s index because `declined_transactions` is sealed raw (§7.2b); `resolveIdleCostBasis`
+    through `idle`'s index (Q9, new edge `insights -> idle`); `telematics_coverage_buckets(p_org)`
+    for the all-time share. Measured against production over the last 31 days on 2026-09-21: the
+    browser's sequence is **15 round trips and 1,791 ms**, moving 2,009 fills and 4,974 idle rows
+    over the wire; the endpoint's three parallel calls are **302 ms / 130 ms / 209 ms**, and the
+    basis is cached.
+  - ⚠ **`p_org` is the whole tenancy story here, and it is asserted rather than commented.** BOTH
+    functions are `security invoker` and `coalesce(p_org, auth_org_id())` — a correct filter for a
+    browser session and NO filter at all for `apps/api`, whose service role bypasses RLS and whose
+    `auth_org_id()` is null. That is the 0247 defect verbatim, so "passes p_org to BOTH
+    security-invoker functions" is the first test in `dashboardSummary.test.ts`.
+  - **Idle moved from a pre-multiplied figure to seconds + a basis.** `DashboardExtras` used to take
+    `idleHours` and `idleCostUsd`, with "hours × gal/h × $/gal" done in `useDashboard.ts`; the
+    browser held the only copy of that rule and the API was about to write a second. It now takes
+    `idleSec` + `costBasis` and the multiplication happens once, in `summariseDashboard`.
+  - **The mount is auth-only, deliberately, and the argument is in the ledger.** The Dashboard is
+    `gate: ALWAYS`, its money is gated per ELEMENT in the browser (`moneyGate.ts`, LM-F), and the
+    rows are readable by every org member under 0004's RLS today — so a section gate here would
+    refuse the page its own tiles without closing anything. Making the money a permission is
+    **LM-F2**, still open, and doing it under cover of this refactor would have been a narrowing
+    nobody asked for. A window that is not two calendar days is refused with a 400 rather than
+    coerced, because coercing one is how the viewer's timezone got into the figures (D-PREC5).
+  - Mutation-checked eight ways, all killed: `p_org` dropped from each function, the decline window
+    swapped for the calendar one, the day validation disabled, the zero-fill removed, `coveragePct`
+    returning 0 instead of null, the basis ignored, and the `movingSpend` floor removed.
+  **Nothing on screen changed yet** — `useDashboard` still reads PostgREST; step 4 is the atomic
+  swap to one `apiFetch`, and it must also delete the composable's grandfathered `fuel_prices` line
+  in `check-table-access.mjs` when `useIdleCostBasis` follows it.
 
 ---
 
@@ -879,7 +916,8 @@ which was a wart rationalised rather than removed. **§7.1's "10 reads become 1"
    the dashboard can depend on it rather than race it. ← **step 2, this PR** (what it
    turned out to need is in §6's 2026-09-21 entry)
 3. **The dashboard endpoint** — function + `aggregateDashboard`, returning `DashboardSummary`
-   **unchanged**.
+   **unchanged**. ← **step 3, this PR** (it is
+   `summariseDashboard` rather than `aggregateDashboard` — see §6's entry)
 4. **The web swap** — `useDashboard` becomes one `apiFetch`. Ten reads become one.
 
 Only step 4 changes what anybody sees, and it flips atomically. Because the returned SHAPE is

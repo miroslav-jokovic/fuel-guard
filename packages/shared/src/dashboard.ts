@@ -2,6 +2,7 @@ import type { AnomalySeverity } from "./constants.js";
 import type { FuelTransaction } from "./fuel.js";
 import type { Anomaly } from "./anomaly.js";
 import type { Vehicle, Driver } from "./fleet.js";
+import type { IdleCostBasisInput } from "./idleBreakdown.js";
 
 /**
  * Pure dashboard aggregation (docs/04 Phase 7). The web fetches org-scoped rows (RLS-protected) and
@@ -77,11 +78,20 @@ export interface DashboardOptions {
 }
 
 /** Secondary inputs so the range-scoped dashboard can also show idle waste, declines, etc. Pure.
- *  Idle arrives PRE-AGGREGATED (hours from idle_rollup_days + the org's cost basis) so the dashboard
- *  tile shows the SAME numbers as the Idling page instead of a parallel per-event computation. */
+ *  Idle arrives PRE-AGGREGATED (seconds from idle_rollup_days + the org's cost basis) so the
+ *  dashboard tile shows the SAME numbers as the Idling page instead of a parallel per-event
+ *  computation — these are the inputs the fills themselves cannot supply. */
 export interface DashboardExtras {
-  idleHours?: number;
-  idleCostUsd?: number;
+  /**
+   * Idle seconds over the range. SECONDS and not hours, and a BASIS rather than a dollar figure,
+   * because "hours × gal/h × $/gal" is a rule and this file is where the dashboard's rules live
+   * (Q9). It used to arrive as `idleHours` + `idleCostUsd` with the multiplication done in
+   * `useDashboard.ts`, which left the browser holding one copy of the rule and the API about to
+   * write a second.
+   */
+  idleSec?: number;
+  /** Burn rate + $/gal from `resolveIdleCostBasis` (idle module) — the Idling page's own basis. */
+  costBasis?: IdleCostBasisInput;
   declinedCount?: number;
   /** Driver per anomaly TRANSACTION (txn id → driver id) — the alert set is CURRENT-state (all time),
    *  so its drivers cannot be derived from the range-scoped `transactions` argument. Without this map
@@ -96,6 +106,39 @@ export interface DashboardExtras {
    * showing only the first converts an unanswered question into a reassuring answer.
    */
   allTimeCoveragePct?: number | null;
+}
+
+/**
+ * What was MEASURED, before any judgement is applied to it (queue item 5, Q8 —
+ * `docs/plans/fuel/DATA-PRECISION-AUDIT-2026-09-20.md` §7.2).
+ *
+ * This is the seam the audit asked for: sums, counts and groupings are facts and can be taken where
+ * the rows are (migration 0347's `dashboard_summary`, one round trip); rounding, zero-filling,
+ * null-for-unknown and the moving-spend floor are product judgements and stay in
+ * `summariseDashboard` below. Two producers, ONE verdict — `aggregateDashboard` folds rows into this
+ * shape for the report that already holds them, and the API fills it straight from SQL.
+ *
+ * Everything here is UNROUNDED and SPARSE on purpose. A day with no spend is simply absent: whether
+ * it counts as a real $0 day is the verdict's question, and the two callers must not be able to
+ * answer it differently.
+ */
+export interface DashboardMeasurements {
+  totalSpend: number;
+  totalGallons: number;
+  reeferSpend: number;
+  coveredTxns: number;
+  totalTxns: number;
+  /** Spend per day, bucketed in the org's zone. Sparse and in no required order. */
+  spendByDay: { date: string; value: number }[];
+  /** Open cases by severity; an absent severity means none, which the verdict turns into a 0. */
+  severityCounts: Partial<Record<AnomalySeverity, number>>;
+  /** ⚠ ALL-TIME open cases, not range-scoped (D-PREC7) — see `aggregateDashboard`'s SCOPES note. */
+  openAnomalies: number;
+  /** Already ordered by critical desc, then count desc, and cut to five. */
+  topVehiclesByRisk: RiskRow[];
+  topDriversByRisk: RiskRow[];
+  /** Idle seconds over the range, from the pre-aggregated rollup. Hours and dollars are verdicts. */
+  idleSec: number;
 }
 
 /** YYYY-MM-DD of an instant in a timezone (cached Intl formatter per tz). */
@@ -146,6 +189,28 @@ export function aggregateDashboard(
   opts: DashboardOptions = {},
   extra: DashboardExtras = {},
 ): DashboardSummary {
+  return summariseDashboard(measureDashboard(transactions, anomalies, vehicles, drivers, opts, extra), extra);
+}
+
+/**
+ * Fold rows into the same MEASUREMENTS migration 0347 takes in SQL (Q8).
+ *
+ * Kept for the caller that already holds the rows — `GET /api/reports/summary.pdf` reads its own
+ * window and has no reason to ask the database to count what it is holding. The Dashboard does not
+ * come through here any more: it asks `dashboard_summary` and hands the answer straight to
+ * `summariseDashboard`, which is the same verdict this function's result flows into.
+ *
+ * Of the extras it reads only `anomalyDrivers` and `idleSec` — both measurements the fills cannot
+ * supply.
+ */
+export function measureDashboard(
+  transactions: DashboardTransaction[],
+  anomalies: DashboardAnomaly[],
+  vehicles: Pick<Vehicle, "id" | "unit_number">[],
+  drivers: Pick<Driver, "id" | "full_name">[],
+  opts: DashboardOptions = {},
+  extra: DashboardExtras = {},
+): DashboardMeasurements {
   let totalSpend = 0;
   let totalGallons = 0;
   let reeferSpend = 0;
@@ -167,19 +232,11 @@ export function aggregateDashboard(
     spendByDay.set(d, (spendByDay.get(d) ?? 0) + cost);
   }
 
-  const seenDays = [...spendByDay.keys()].sort();
-  const allDays = seenDays.length ? dateRangeDays(seenDays[0]!, seenDays[seenDays.length - 1]!) : [];
-
-  const spendTrend: TrendPoint[] = allDays.map((date) => ({
-    date,
-    value: round2(spendByDay.get(date) ?? 0), // zero-fill: a no-spend day is a real $0 day
-  }));
-
   // Anomalies (active = not superseded).
   const active = anomalies.filter((a) => a.status !== "superseded");
   const open = active.filter((a) => a.status === "open" || a.status === "investigating");
-  const anomaliesBySeverity = emptySeverity();
-  for (const a of open) anomaliesBySeverity[a.severity] += 1;
+  const severityCounts = emptySeverity();
+  for (const a of open) severityCounts[a.severity] += 1;
 
   // Risk per vehicle / driver (by open anomaly counts).
   const vehLabel = new Map(vehicles.map((v) => [v.id, v.unit_number]));
@@ -207,24 +264,76 @@ export function aggregateDashboard(
   const byRisk = (a: RiskRow, b: RiskRow) =>
     b.criticalCount - a.criticalCount || b.anomalyCount - a.anomalyCount;
 
-  const idleCostUsd = round2(extra.idleCostUsd ?? 0);
-  const idleHours = round2(extra.idleHours ?? 0);
-  const reeferSpendR = round2(reeferSpend);
-  const tractorSpend = round2(totalSpend - reeferSpend);
-  const movingSpend = round2(Math.max(0, tractorSpend - idleCostUsd));
-  const coveragePct = totalTxns > 0 ? Math.round((coveredTxns / totalTxns) * 100) : null;
-
   return {
-    totalSpend: round2(totalSpend),
-    totalGallons: round2(totalGallons),
+    totalSpend,
+    totalGallons,
+    reeferSpend,
+    coveredTxns,
+    totalTxns,
+    spendByDay: [...spendByDay].map(([date, value]) => ({ date, value })),
+    severityCounts,
     openAnomalies: open.length,
-    spendTrend,
-    anomaliesBySeverity,
     topVehiclesByRisk: [...vehRisk.values()].sort(byRisk).slice(0, 5),
     topDriversByRisk: [...drvRisk.values()].sort(byRisk).slice(0, 5),
+    idleSec: extra.idleSec ?? 0,
+  };
+}
+
+/**
+ * Turn measurements into the view the Dashboard renders — the ~10% of this file that is JUDGEMENT
+ * rather than arithmetic, and the reason migration 0347 deliberately returns neither rounding nor
+ * null-for-unknown (Q8, §7.2).
+ *
+ * Each rule below has an argument behind it, and each is now applied exactly once whether the
+ * measurements were folded from rows or counted in SQL:
+ *
+ *  - **The day series is zero-filled between the first and last day that saw spend**, not across
+ *    the requested window. A no-spend day INSIDE the fuelling period is a real $0 day and used to
+ *    disappear, which masked lost import days; padding beyond the data would instead invent $0 days
+ *    at the edges of a window nobody fuelled in.
+ *  - **`coveragePct` is null, not 0, when there is nothing to divide** — the same rule
+ *    `allTimeCoveragePct` follows: no fills, no percentage.
+ *  - **`allTimeCoveragePct` is `?? null` and never `?? 0`**, because 0% corroborated is an alarming
+ *    claim to make on the strength of a missing argument.
+ *  - **`movingSpend` has a floor at zero.** Idle cost is an estimate over a basis and tractor spend
+ *    is a fact; a fleet that idled more than it bought would otherwise draw a negative donut slice.
+ *  - **Idle dollars are hours × gal/h × $/gal**, computed here from seconds and the basis, so the
+ *    tile, the Idling page and the fuel-spend report cannot drift apart (Q9).
+ */
+export function summariseDashboard(m: DashboardMeasurements, extra: DashboardExtras = {}): DashboardSummary {
+  const spendByDay = new Map(m.spendByDay.map((d) => [d.date, d.value]));
+  const seenDays = [...spendByDay.keys()].sort();
+  const allDays = seenDays.length ? dateRangeDays(seenDays[0]!, seenDays[seenDays.length - 1]!) : [];
+  const spendTrend: TrendPoint[] = allDays.map((date) => ({
+    date,
+    value: round2(spendByDay.get(date) ?? 0), // zero-fill: a no-spend day is a real $0 day
+  }));
+
+  const anomaliesBySeverity = emptySeverity();
+  for (const [severity, n] of Object.entries(m.severityCounts)) {
+    if (severity in anomaliesBySeverity) anomaliesBySeverity[severity as AnomalySeverity] = n ?? 0;
+  }
+
+  const idleHoursRaw = m.idleSec / 3600;
+  const basis = extra.costBasis;
+  const idleCostUsd = round2(basis ? idleHoursRaw * basis.idleGalPerHour * basis.fuelPricePerGal : 0);
+  const idleHours = round2(idleHoursRaw);
+  const reeferSpend = round2(m.reeferSpend);
+  const tractorSpend = round2(m.totalSpend - m.reeferSpend);
+  const movingSpend = round2(Math.max(0, tractorSpend - idleCostUsd));
+  const coveragePct = m.totalTxns > 0 ? Math.round((m.coveredTxns / m.totalTxns) * 100) : null;
+
+  return {
+    totalSpend: round2(m.totalSpend),
+    totalGallons: round2(m.totalGallons),
+    openAnomalies: m.openAnomalies,
+    spendTrend,
+    anomaliesBySeverity,
+    topVehiclesByRisk: m.topVehiclesByRisk,
+    topDriversByRisk: m.topDriversByRisk,
     idleCostUsd,
     idleHours,
-    reeferSpend: reeferSpendR,
+    reeferSpend,
     movingSpend,
     coveragePct,
     // `?? null` and never `?? 0`: a figure nobody supplied is unknown, and 0% corroborated is an

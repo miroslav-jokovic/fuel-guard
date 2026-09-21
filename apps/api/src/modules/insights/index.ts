@@ -8,3 +8,11 @@
  */
 export { reportsRouter } from "./routes/reports.js";
 export { aiRouter } from "./routes/ai.js";
+/**
+ * The fleet Dashboard in one call (queue item 5 step 3). It lives in `insights` for the reason the
+ * module exists: a read-only harness over many owners' data, writing none of it — and it reaches the
+ * two owners it cannot measure in SQL (`fuel`'s declined count, `idle`'s cost basis) through their
+ * own indexes.
+ */
+export { dashboardRouter } from "./routes/dashboard.js";
+export { readDashboardSummary } from "./dashboardSummary.js";

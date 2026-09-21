@@ -30,6 +30,6 @@ export { readFleetIdleVerdict } from "./fuelIdleVerdict.js";
  * Q9's one basis. Exported because three readers need the SAME answer: this module's fleet verdict,
  * the Idling endpoint below it, and the Dashboard endpoint §7.2c step 3 adds.
  */
-export { resolveIdleCostBasis } from "./idleCostBasis.js";
+export { resolveIdleCostBasis, __resetIdleCostBasisCache } from "./idleCostBasis.js";
 export { idleRouter } from "./routes/index.js";
 export { backfillTemperatures } from "./weatherBackfill.js";

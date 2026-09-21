@@ -173,8 +173,10 @@ describe("aggregateDashboard extras (idle / reefer / coverage / declines)", () =
       txn({ id: "x2", total_cost: 100, tank_type: "reefer", samsara_recon_at: null }),
     ];
     const s = aggregateDashboard(rows, [], vehicles, drivers, {}, {
-      idleHours: 1.5,
-      idleCostUsd: 30,
+      // 1.5 h at 2 gal/h and $10/gal = $30. The dollars are computed from the BASIS now rather than
+      // handed over pre-multiplied, so the rule has one home (Q9) — same figures either way.
+      idleSec: 5400,
+      costBasis: { idleGalPerHour: 2, fuelPricePerGal: 10 },
       declinedCount: 4,
     });
     expect(s.reeferSpend).toBe(100);
