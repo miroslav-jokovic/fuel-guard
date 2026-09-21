@@ -562,7 +562,7 @@ RPC — **never a partial `.upsert()`** (`lint:upserts`).
 asserting the row count and `updated_at` are unchanged; the watermark advances only on success; and
 a deliberately mangled payload is rejected with a named error rather than a 500.
 
-### F7 — Defects, issues, expirations — *next-numbered migration*
+### F7 — Defects, issues, expirations — **DONE 2026-09-21 (migration 0350)**
 
 The bounded-re-read tier (§2.7). `fleetpal_defects`, `fleetpal_issues`, `fleetpal_expirations`.
 
@@ -1155,3 +1155,41 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next is F7** (defects, issues, expirations — the bounded-re-read tier), then **F8**, the
   scheduler that finally runs all of this on a cadence.
+
+- **2026-09-21 · F7 DONE (migration 0350) — the bounded-re-read tier.**
+  `fleetpal_defects`, `fleetpal_issues`, `fleetpal_expirations` plus three `stage_fleetpal_*`
+  functions, and `ingest/condition.ts` — which is the file that has to keep saying, out loud, that
+  **these three siblings sync three different ways because the vendor made them different.**
+
+  Issues watermark (they carry `updated`). Defects are the open list in full PLUS everything
+  `detected_after` the last window, merged by id, with **a day of overlap** because the two clocks
+  are not the same clock. Expirations are `is_completed=false` in full.
+
+  **Neither half of the defect strategy is enough alone, and the code says which failure each
+  covers.** `is_resolved=false` on its own never returns a defect that was repaired between two
+  sweeps, so our copy would show it open for ever; `detected_after` on its own misses one detected
+  before the window and resolved inside it, because that filter is about DETECTION and not about
+  change. The residual gap — detected long ago, resolved recently, already dropped off the open
+  list — is stated in the header rather than papered over.
+
+  **Two facts recorded in the schema because no surface may invent them.** `Defect.dvirs` is stored
+  as the opaque `text[]` it is: there is no `/v1/dvirs` in the 71 paths, so it is evidence of how
+  long a defect went unrepaired and never something to follow. `Expiration.target_status` names a
+  unit-status id nothing exposes — F4 found 8 distinct opaque status ids on the live units and no
+  resolver for any of them — so it is stored opaque and left unlabelled.
+
+  **⚠ Expirations is EMPTY on the live account** (0 rows, F4). This path is proved against the
+  vendor's documented shape and nothing real, so F11 must not present an empty list as "nothing
+  expires". The ingest still advances its position when it finds none, so "we looked and there was
+  nothing" stays distinguishable from "we never looked".
+
+  **Mutation proofs, two, restored by copying the bytes back:** dropping the `detected_after` half
+  failed *"pulls the open list AND everything detected since the last window"*; writing the defect
+  position as a watermark failed *"writes a WINDOW position — a defect has no `updated` to watermark
+  on"*.
+
+  **Verified by:** all 41 `lint:*` gates, `pnpm typecheck`, the extended matrix
+  (`RESULT: 93 passed, 0 failed` — the F7 tables ride F6's matrix rather than re-applying 350
+  migrations to say the same things), 4,158 api tests green.
+
+  **Next is F8**, the scheduler — the step that makes any of F6 or F7 actually run.

@@ -5,6 +5,7 @@ import { runIngest } from "./run.js";
 import { workOrdersIngest, jobItemsIngest, serviceHistoryIngest } from "./repair.js";
 import { ingestPmSchedules } from "./equipment.js";
 import { ingestShops } from "./reference.js";
+import { ingestDefects, ingestExpirations } from "./condition.js";
 
 /**
  * The repair-record ingest (FLEETPAL-INTEGRATION-PLAN.md F6).
@@ -263,5 +264,93 @@ describe("what the mapping carries", () => {
     } as never) as Record<string, unknown>;
     expect(mapped.quantity).toBe(2.5);
     expect(mapped.unit_of_measure).toBe("hr");
+  });
+});
+
+describe("the bounded re-read tier (F7)", () => {
+  const defect = (over: Record<string, unknown> = {}) => ({
+    url: "https://openapi.fleetpal.io/v1/defects/DF1",
+    id: "DF1",
+    unit: "zeabsRcL",
+    dvirs: ["DV1", "DV2"],
+    name: "Air leak",
+    description: "hissing",
+    severity: "MAJOR",
+    component: "013",
+    complaint: "AB",
+    detected_on: "2026-09-01T10:00:00Z",
+    is_resolved: false,
+    resolved_on: null,
+    driver_comment: "hissing at the gladhand",
+    repair_note: null,
+    ...over,
+  });
+
+  it("⚠ pulls the open list AND everything detected since the last window — neither half is enough", async () => {
+    // `is_resolved=false` alone never returns a defect repaired between two sweeps, so our copy
+    // would show it open for ever. `detected_after` alone misses one detected before the window and
+    // resolved inside it.
+    const { client, urls } = clientWith([page([defect()]), page([defect({ id: "DF2" })])]);
+    const rec = createSupabaseRecorder({
+      tables: {
+        fleetpal_sync_state: () => ({
+          data: [{ resource: "defects", watermark: null, window_end: "2026-09-20T00:00:00Z", last_run_at: null, last_error: null, rows_seen: 0 }],
+          error: null,
+        }),
+      },
+      rpc: () => ({ data: 2, error: null }),
+    });
+    const result = await ingestDefects({ admin: rec.client, client, orgId: ORG });
+    expect(result.error).toBeNull();
+    expect(urls[0]).toContain("is_resolved=false");
+    expect(urls[1]).toContain("detected_after=");
+    // A day of overlap, because the two clocks are not the same clock.
+    expect(urls[1]).toContain("2026-09-19T00%3A00%3A00");
+  });
+
+  it("⚠ merges the two halves by id, so an open recent defect is staged once", async () => {
+    const { client } = clientWith([page([defect()]), page([defect()])]);
+    const rec = createSupabaseRecorder({
+      tables: {
+        fleetpal_sync_state: () => ({
+          data: [{ resource: "defects", watermark: null, window_end: "2026-09-20T00:00:00Z", last_run_at: null, last_error: null, rows_seen: 0 }],
+          error: null,
+        }),
+      },
+      rpc: () => ({ data: 1, error: null }),
+    });
+    await ingestDefects({ admin: rec.client, client, orgId: ORG });
+    const staged = rec.rpcs().find((c) => c.fn === "stage_fleetpal_defects")!.args as { p_rows: unknown[] };
+    expect(staged.p_rows).toHaveLength(1);
+  });
+
+  it("⚠ writes a WINDOW position — a defect has no `updated` to watermark on", async () => {
+    const { client } = clientWith([page([defect()]), page([])]);
+    const rec = recorderWith();
+    await ingestDefects({ admin: rec.client, client, orgId: ORG });
+    const written = rec.writtenRows("fleetpal_sync_state")[0]!;
+    expect(written.window_end).toEqual(expect.any(String));
+    expect(written.watermark).toBeUndefined();
+  });
+
+  it("keeps the unresolvable DVIR ids as the opaque array they are", async () => {
+    const { client } = clientWith([page([defect()]), page([])]);
+    const rec = recorderWith();
+    await ingestDefects({ admin: rec.client, client, orgId: ORG });
+    const staged = rec.rpcs().find((c) => c.fn === "stage_fleetpal_defects")!.args as {
+      p_rows: Record<string, unknown>[];
+    };
+    expect(staged.p_rows[0]!.dvir_fleetpal_ids).toEqual(["DV1", "DV2"]);
+  });
+
+  it("asks expirations only for the outstanding ones, and records the position even when there are none", async () => {
+    // Zero rows on the live account (F4). The position still moves, so "we looked and there was
+    // nothing" is distinguishable from "we never looked" on the collector's status read.
+    const { client, urls } = clientWith([page([])]);
+    const rec = recorderWith();
+    const result = await ingestExpirations({ admin: rec.client, client, orgId: ORG });
+    expect(urls[0]).toContain("is_completed=false");
+    expect(result.fetched).toBe(0);
+    expect(rec.writtenRows("fleetpal_sync_state")[0]!.window_end).toEqual(expect.any(String));
   });
 });

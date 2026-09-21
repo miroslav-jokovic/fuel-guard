@@ -93,6 +93,12 @@ const STAGING = [
   "fleetpal_meters",
   "fleetpal_pm_schedules",
   "fleetpal_pm_intervals",
+  // F7's bounded-re-read tier (migration 0350). Same module, same deny-all posture, same ingest
+  // shape — so they are asserted here rather than in a second matrix that would re-apply all 350
+  // migrations to say the same things.
+  "fleetpal_defects",
+  "fleetpal_issues",
+  "fleetpal_expirations",
 ];
 
 const stage = (fn, org, rows) => db.query(`select ${fn}($1::uuid, $2::jsonb) as n`, [org, JSON.stringify(rows)]);
@@ -221,6 +227,55 @@ ok("staging an empty page writes nothing and does not raise — a sweep with no 
 ok("and a null page is treated the same, rather than reaching jsonb_to_recordset with nothing",
   (await sqlstate(`select stage_fleetpal_meters($1::uuid, null)`, [ORG])) === null);
 
+
+// ── 9. the bounded-re-read tier (0350, F7) ─────────────────────────────────────────────────────
+//
+// The failure these guard is the one the tier exists for: a defect that was REPAIRED between two
+// sweeps. `is_resolved=false` alone never returns it again, so our copy would show it open for
+// ever; the ingest's second half re-reads by detection date to catch exactly that, and the staging
+// function has to let the flag flip in place rather than keeping the first answer it saw.
+
+await stage("stage_fleetpal_defects", ORG, [{
+  fleetpal_id: "DF1", unit_fleetpal_id: "zeabsRcL", name: "Air leak", severity: "MAJOR",
+  component: "013", complaint: "AB", detected_on: "2026-09-01T10:00:00Z", is_resolved: false,
+  resolved_on: null, driver_comment: "hissing at the gladhand", repair_note: null,
+  dvir_fleetpal_ids: ["DV1", "DV2"],
+}]);
+ok("a defect's DVIR ids are stored as the opaque array they are — no endpoint resolves them",
+  (await one(`select array_length(dvir_fleetpal_ids,1) n from fleetpal_defects where org_id=$1 and fleetpal_id='DF1'`, [ORG])).n === 2);
+
+await stage("stage_fleetpal_defects", ORG, [{
+  fleetpal_id: "DF1", unit_fleetpal_id: "zeabsRcL", name: "Air leak", severity: "MAJOR",
+  component: "013", complaint: "AB", detected_on: "2026-09-01T10:00:00Z", is_resolved: true,
+  resolved_on: "2026-09-20T14:00:00Z", driver_comment: "hissing at the gladhand",
+  repair_note: "replaced gladhand seal", dvir_fleetpal_ids: ["DV1", "DV2"],
+}]);
+const resolved = await one(
+  `select is_resolved, resolved_on, repair_note from fleetpal_defects where org_id=$1 and fleetpal_id='DF1'`, [ORG]);
+ok("⚠ a defect that resolved between sweeps flips IN PLACE — the whole reason the tier re-reads by detection date",
+  resolved.is_resolved === true && resolved.repair_note === "replaced gladhand seal",
+  JSON.stringify(resolved));
+ok("and it is still one row, not a second copy of the same defect",
+  (await count("fleetpal_defects", ORG)) === 1);
+
+await stage("stage_fleetpal_expirations", ORG, [{
+  fleetpal_id: "EX1", unit_fleetpal_id: "zeabsRcL", name: "Registration",
+  expiration_date: "2026-12-31T00:00:00Z", threshold_value: 30, threshold_type: "DAY",
+  alters_unit_status: true, target_status: "roJGhzCu", is_completed: false, status: "PLANNED",
+}]);
+ok("an expiration keeps the vendor's own derived status rather than one we recomputed",
+  (await one(`select status from fleetpal_expirations where org_id=$1 and fleetpal_id='EX1'`, [ORG])).status === "PLANNED");
+ok("⚠ and `target_status` is stored as the opaque unit-status id it is — nothing exposes those ids (§2.10.5)",
+  (await one(`select target_status from fleetpal_expirations where org_id=$1 and fleetpal_id='EX1'`, [ORG])).target_status === "roJGhzCu");
+
+await stage("stage_fleetpal_issues", ORG, [{
+  fleetpal_id: "IS1", unit_fleetpal_id: "zeabsRcL", name: "Vibration at speed",
+  priority: "HIGH", status: "OPEN", reported: "2026-09-18T00:00:00Z",
+  vendor_created_at: "2026-09-18T00:00:00Z", vendor_updated_at: "2026-09-18T00:00:00Z",
+}]);
+ok("an issue stages and stays one row across a re-run, like everything else in this collector",
+  (await count("fleetpal_issues", ORG)) === 1);
+
 // ── 8. no client may call the ingest or read what it wrote ─────────────────────────────────────
 // ⚠ Inside a transaction, because `set local role` lasts for the transaction and PGlite runs each
 // statement in its own when there is none — which silently leaves the query running as the OWNER.
@@ -247,6 +302,7 @@ for (const role of ["anon", "authenticated"]) {
     "stage_fleetpal_vendors", "stage_fleetpal_shops", "stage_fleetpal_work_orders",
     "stage_fleetpal_jobs", "stage_fleetpal_job_items", "stage_fleetpal_service_history",
     "stage_fleetpal_meters", "stage_fleetpal_pm_schedules", "stage_fleetpal_pm_intervals",
+    "stage_fleetpal_defects", "stage_fleetpal_issues", "stage_fleetpal_expirations",
   ]) {
     const r = await asClient(role, `select ${fn}($1::uuid, '[]'::jsonb)`, [ORG]);
     ok(`⚠ ${role} cannot call ${fn} — EXECUTE is granted to PUBLIC by default, so the revoke is the whole defence`,

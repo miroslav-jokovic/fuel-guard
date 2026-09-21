@@ -245,6 +245,18 @@
       "module": "fleetpal",
       "layer": "raw"
     },
+    "fleetpal_defects": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_issues": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_expirations": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
     "fleetpal_webhook_deliveries": {
       "module": "fleetpal",
       "layer": "infra"
