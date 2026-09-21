@@ -24,7 +24,7 @@ import { membersRouter } from "./modules/org/index.js";
 import { dashboardLayoutRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
 import { anomaliesRouter } from "./modules/anomalies/index.js";
-import { reportsRouter, aiRouter } from "./modules/insights/index.js";
+import { reportsRouter, aiRouter, dashboardRouter } from "./modules/insights/index.js";
 import { iftaRouter } from "./modules/ifta/index.js";
 import { accountingRouter } from "./modules/accounting/index.js";
 import { billingRouter } from "./modules/billing/index.js";
@@ -203,6 +203,9 @@ function mountApiRouters(app: Express, env: Env): void {
   // The caller's own Dashboard arrangement (LM10, D-DW3). A preference, not a permission, so it sits
   // beside saved views rather than beside the two access routers above: no role gate, no audit row.
   app.use("/api/dashboard-layout", dashboardLayoutRouter());
+  // The fleet Dashboard's own figures (queue item 5 step 3), beside the arrangement above: ten
+  // browser reads become one call. Mounted AFTER the longer prefix, the /api/me precedent.
+  app.use("/api/dashboard", dashboardRouter());
   app.use("/api/auth", authRouter()); // PUBLIC driver-login exchange (its own throttles + uniform errors)
   // Step-up password re-verification (audit P0-4). Behind requireAuth internally; shares the
   // /api/auth strictLimiter above, which is the right budget for a password oracle.

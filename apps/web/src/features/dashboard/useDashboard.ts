@@ -159,8 +159,7 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
 
       // Bucket trend days in the ORG's timezone — UTC slicing mis-dated evening fills.
       const tz = (orgRes.data?.operating_hours as { tz?: string } | null)?.tz ?? null;
-      const idleHours = idleRows.reduce((s, r) => s + Number(r.idle_sec), 0) / 3600;
-      const basis = toValue(costBasis);
+      const idleSec = idleRows.reduce((s, r) => s + Number(r.idle_sec), 0);
       return aggregateDashboard(
         txns,
         anoms,
@@ -168,8 +167,11 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
         (drvRes.data ?? []) as { id: string; full_name: string }[],
         { tz },
         {
-          idleHours,
-          idleCostUsd: idleHours * basis.idleGalPerHour * basis.fuelPricePerGal,
+          // Seconds and the BASIS, not a pre-multiplied dollar figure: "hours × gal/h × $/gal" moved
+          // into `summariseDashboard` with queue item 5, so the browser, the API and the fuel-spend
+          // report apply it once (Q9). Same arithmetic, one home.
+          idleSec,
+          costBasis: toValue(costBasis),
           declinedCount: declinedRes.count ?? 0,
           anomalyDrivers,
           allTimeCoveragePct: allTimeCoverage(coverageRes),

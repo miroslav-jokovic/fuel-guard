@@ -288,6 +288,10 @@ const API_ALLOW = new Set([
   "samsara -> fuel",
   "org -> fuel",
   "insights -> fuel",
+  // Queue item 5 step 3: the dashboard endpoint prices idled hours with the SAME basis the Idling
+  // page and the fuel-spend report use, read through `idle`'s index (Q9). `movingSpend` is a fuel
+  // figure that depends on the idle basis, so an endpoint without this edge could not produce it.
+  "insights -> idle",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

@@ -28,3 +28,8 @@ export { learnStationGeocodes } from "./stationGeocodeLearning.js";
 export { registerDiscountRuleRoutes } from "./routes/discountRules.js";
 export { registerFuelExportRoutes } from "./routes/exports.js";
 export { FUEL_EVENT_DROP, FUEL_EVENT_DROP_UNVERIFIED } from "./fuelEventTypes.js";
+/**
+ * The declined-attempt count, exposed because `declined_transactions` is raw-layer and sealed here:
+ * the dashboard endpoint asks this module rather than reading the table (queue item 5, §7.2b).
+ */
+export { countDeclinedAttempts } from "./declinedCount.js";

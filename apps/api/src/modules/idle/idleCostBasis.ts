@@ -27,7 +27,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pickIdleCostBasis, type IdleCostBasis } from "@silvicom/shared";
-import { readRecentDieselMedian } from "../posted-prices/index.js";
+import { readRecentDieselMedian, __resetDieselMedianCache } from "../posted-prices/index.js";
 
 export async function resolveIdleCostBasis(admin: SupabaseClient, orgId: string): Promise<IdleCostBasis> {
   const [settings, truckStopMedian] = await Promise.all([
@@ -52,4 +52,16 @@ async function readIdleSettings(
     settingsGalPerHour: row?.idle_gal_per_hour == null ? null : Number(row.idle_gal_per_hour),
     settingsPricePerGal: row?.fuel_price_per_gal == null ? null : Number(row.fuel_price_per_gal),
   };
+}
+
+/**
+ * Drop everything this resolver reads through a cache. For tests only.
+ *
+ * It is re-exposed HERE, rather than every consumer reaching for `posted-prices`' own reset,
+ * because a module that consumes the basis (the dashboard endpoint) has no business importing the
+ * price collector to clear a cache it never knew existed — `lint:boundaries` says so, and it is
+ * right: the cache is an implementation detail of THIS resolver as far as its callers are concerned.
+ */
+export function __resetIdleCostBasisCache(): void {
+  __resetDieselMedianCache();
 }

@@ -58,7 +58,23 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   // is nobody else's business. A section gate here would invent a capability nobody needs: whichever
   // widgets a caller may see, they may certainly decide which of them to look at.
   ["/api/dashboard-layout", "the caller's own Dashboard arrangement — a list of widget keys that grants nothing (the resolver never sees the catalogue) and reveals nothing; isolated by org_id + user_id on every query and by 0343's own-row RLS"],
-]);
+
+  // Queue item 5 step 3. The FIGURES, beside the arrangement above, and open for the same reason the
+  // findings strip on this page is: the Dashboard is `gate: ALWAYS` in surfaceCatalogue, so every
+  // role that can sign in lands on it, and the money it carries is gated per ELEMENT in the browser
+  // (`moneyGate.ts`) because neither candidate section expresses the rule — a dispatcher holds
+  // `fuel: view` by design, and `accounting` is right for the dollars and wrong for the page.
+  //
+  // ⚠ It NARROWS nothing and WIDENS nothing: it answers exactly the rows `ftxn_select` (0004,
+  // `org_id = auth_org_id()`, no section check) already gives every member of the org over
+  // PostgREST, which is where this screen read them from until it moved server-side. Closing that —
+  // making the money a permission rather than a rendering rule — is LM-F2 in LIVE-MAP-PLAN.md, a
+  // migration-shaped change with its own owner. Doing it here, under cover of a refactor, would be
+  // a narrowing nobody asked for and nobody could find later.
+  [
+    "/api/dashboard",
+    "the fleet Dashboard's figures, for a surface every signed-in role lands on (gate: ALWAYS). The money split is per element in the browser (moneyGate.ts, LM-F) and the underlying rows are readable by every org member under 0004's RLS today, so a section gate here would refuse the page's own tiles without closing anything; LM-F2 is where that boundary moves (queue item 5 step 3, 2026-09-21)",
+  ],]);
 
 /**
  * ROUTES with no role, section, module or step-up gate anywhere in their stack, each with the
