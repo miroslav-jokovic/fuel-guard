@@ -4,7 +4,9 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { buildFuelSpendRollup } from "./fuelSpendRollup.js";
 import { runFuelPolicyScanForWindow } from "./fuelPolicyScan.js";
 import { resolveFuelTransactionStations } from "../fuel/index.js";
-import { markFuelSweepComplete } from "../org/index.js";
+import { markFuelSweepComplete, startJob, startJobHeartbeat, finishJob, JobConflictError } from "../org/index.js";
+import { runFuelSweepFreshnessOnce, FUEL_SWEEP_JOB_KIND } from "./fuelSweepFreshness.js";
+import { BOOT_DELAY_MS, CHECK_INTERVAL_MS, REBUILD_DAYS, SWEEP_DUE_AFTER_MS } from "./fuelSweepCadence.js";
 
 /**
  * Nightly rebuild of the daily fuel-spend rollup (migration 0244).
@@ -31,9 +33,11 @@ import { markFuelSweepComplete } from "../org/index.js";
  * to add another. Its window is this one, translated into whole calendar months; see
  * `fuelPolicyScan.ts` for why a month rather than the fortnight.
  *
- * Run in EXACTLY ONE process (see `startAllSchedulers`). This scheduler has no job-ledger guard, and
- * two processes rebuilding the same window would race each other's sweep: the loser's rows carry the
- * older timestamp and the winner deletes them.
+ * Run in EXACTLY ONE process (see `startAllSchedulers`) — two processes rebuilding the same window
+ * would race each other's sweep, the loser's rows carrying the older timestamp and the winner
+ * deleting them. Since 2026-09-21 that is no longer a convention held by deployment alone: each
+ * org's sweep claims the (org, `fuel_spend_rollup`) slot in the job ledger, so a second process is
+ * refused by the database. See `sweepThroughLedger`.
  *
  * ── ⚠ AND WHY IT IS NOT A BARE 24-HOUR INTERVAL ANY MORE (0324) ─────────────────────────────────
  * It was `setInterval(run, 24h)` with a deliberate "NOT run on boot", whose reasoning was sound in
@@ -52,19 +56,6 @@ import { markFuelSweepComplete } from "../org/index.js";
  * got wrong in the other direction — a gap longer than a day is noticed instead of being skipped.
  */
 const DAILY_MS = 24 * 60 * 60 * 1000;
-const REBUILD_DAYS = 14;
-
-/**
- * How often to LOOK, and how stale a sweep must be before it is redone.
- *
- * The gap between them is what stops a daily cadence drifting later every day: at a 6-hour check, a
- * 24-hour due window would sweep every 24–30 hours and lose most of a day a week. Twenty hours means
- * the check that lands nearest each 24-hour mark is the one that fires.
- */
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const SWEEP_DUE_AFTER_MS = 20 * 60 * 60 * 1000;
-/** Long enough that a boot storm during a deploy loop does not stampede the database. */
-const BOOT_DELAY_MS = 2 * 60 * 1000;
 
 const ymd = (d: Date): string => d.toISOString().slice(0, 10);
 
@@ -84,10 +75,131 @@ export function isFuelSweepDue(lastSweptAt: string | null | undefined, now: Date
 }
 
 /**
- * Sweep every org whose turn it is. Exported so the due logic is testable without a timer.
+ * One org's sweep: stations, then the rollup, then the policy scan. Extracted from the loop so the
+ * ledger can wrap it (below) without the loop growing another level of indentation — and so the
+ * order of the three, which is load-bearing, is readable in one screen.
  */
-export async function runDueFuelSweeps(admin: SupabaseClient, now: Date = new Date()): Promise<void> {
-  const { data, error } = await admin.from("organizations").select("id, last_fuel_sweep_at");
+async function sweepOneOrg(
+  admin: SupabaseClient,
+  orgId: string,
+  from: string,
+  to: string,
+): Promise<Record<string, unknown>> {
+  // Cheap after the first run: only fills with no station are scanned.
+  const st = await resolveFuelTransactionStations(admin, orgId);
+  if (st.resolved > 0) {
+    console.log(
+      `[fuel-spend] org ${orgId}: ${st.resolved} of ${st.scanned} unplaced fill(s) resolved to a station` +
+        (st.topUnmatched.length > 0 ? `; biggest gap ${st.topUnmatched[0]!.key} (${st.topUnmatched[0]!.fills} fills)` : ""),
+    );
+  }
+  const r = await buildFuelSpendRollup(admin, orgId, from, to);
+  if (r.written > 0 || r.deleted > 0) {
+    console.log(
+      `[fuel-spend] org ${orgId}: ${r.written} truck-day(s) written, ${r.deleted} swept, ` +
+        `${r.rejectedIntervals} odometer interval(s) refused, ${r.unattributedFills} fill(s) with no truck` +
+        (r.defUnmatched > 0 ? `, ${r.defUnmatched} DEF line(s) with no matching unit` : ""),
+    );
+  }
+
+  /*
+   * The policy scan rides the same sweep (C6). It runs AFTER the rollup and after station
+   * resolution, in that order and not by accident: `policyFindings` groups by brand and by
+   * state, and a fill whose station has not been resolved yet carries a null brand — which
+   * `analyzePolicyExceptions` counts as off-network, correctly but prematurely. Scanning
+   * first would file a finding against a truck for a Pilot fill nobody had placed yet, and
+   * close it again the following night.
+   *
+   * Its window is the same trailing fortnight, translated into the calendar months it
+   * touches, because a month is the unit its baseline is measured over. See the scan's header.
+   */
+  let scansFailed = 0;
+  for (const scan of await runFuelPolicyScanForWindow(admin, orgId, from, to)) {
+    if (scan.error) {
+      scansFailed += 1;
+      console.error(`[fuel-spend] org ${orgId}: policy scan ${scan.month} failed: ${scan.error}`);
+    } else if (scan.filed > 0 || scan.closed > 0) {
+      console.log(
+        `[fuel-spend] org ${orgId}: policy ${scan.month} — ${scan.filed} finding(s) ` +
+          `(${scan.inserted} new, ${scan.refreshed} refreshed, ${scan.closed} closed)`,
+      );
+    }
+  }
+
+  return { stationsResolved: st.resolved, written: r.written, deleted: r.deleted, rejectedIntervals: r.rejectedIntervals, unattributedFills: r.unattributedFills, scansFailed };
+}
+
+/**
+ * Run one org's sweep THROUGH the job ledger. Returns whether it completed.
+ *
+ * ── WHY THE LEDGER, AS OF 2026-09-21 (queue item 3 of DATA-PRECISION-AUDIT-2026-09-20.md) ──────
+ * The `catch` below used to be the entire failure story: one `console.error` line, and a scheduler
+ * that went on failing every six hours for seven days while `last_fuel_sweep_at` sat still. The
+ * ledger is what turns that into something a human can find without grepping Railway — an `error`
+ * column, a `finished_at`, a row `GET /api/org/jobs/failed` returns, and the input
+ * `fuelSweepFreshness.ts` reads to raise a finding. ⚠ No PAGE renders that endpoint as of
+ * 2026-09-21, which is why the finding, not the row, is the deliverable of queue item 3; a Data &
+ * sync card for this kind is recorded in the plan as the follow-up it is.
+ *
+ * It also closes the hole this file's own header admits to: "This scheduler has no job-ledger guard,
+ * and two processes rebuilding the same window would race each other's sweep." `startJob` claims the
+ * (org, kind) slot, so a second process is now REFUSED by the database rather than trusted not to
+ * exist. A conflict is a skip, not a failure — the other holder is doing the work.
+ *
+ * ⚠ A ledger that cannot be written must not stop the rebuild. Observability that gates the work it
+ * observes has converted a reporting outage into a data outage, which is strictly worse than the
+ * silence it was added to fix — so a non-conflict `startJob` error is logged and the sweep proceeds
+ * with no job row.
+ */
+async function sweepThroughLedger(
+  admin: SupabaseClient,
+  orgId: string,
+  from: string,
+  to: string,
+  now: Date,
+): Promise<boolean> {
+  let jobId: string | null = null;
+  try {
+    jobId = await startJob(admin, orgId, FUEL_SWEEP_JOB_KIND);
+  } catch (e) {
+    if (e instanceof JobConflictError) {
+      console.log(`[fuel-spend] org ${orgId}: a rebuild is already running; skipping this check`);
+      return false;
+    }
+    console.error(`[fuel-spend] org ${orgId}: could not open a job row, sweeping unledgered:`, e instanceof Error ? e.message : e);
+  }
+  const stopHeartbeat = jobId ? startJobHeartbeat(admin, jobId) : null;
+  try {
+    const stats = await sweepOneOrg(admin, orgId, from, to);
+    /*
+     * Stamped only after the org's sweep completes without throwing, so a failure retries at the
+     * next check instead of being marked done. A policy scan that reports `scan.error` does NOT
+     * throw and does not block the stamp: it is logged, counted into `stats.scansFailed`, and a
+     * month that fails persistently would otherwise re-run the whole fortnight every six hours.
+     */
+    await markFuelSweepComplete(admin, orgId, now);
+    if (jobId) await finishJob(admin, jobId, { status: "done", stats });
+    return true;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[fuel-spend] org ${orgId} rollup failed:`, message);
+    if (jobId) await finishJob(admin, jobId, { status: "failed", error: message });
+    return false;
+  } finally {
+    stopHeartbeat?.();
+  }
+}
+
+/**
+ * Sweep every org whose turn it is, then say so when one of them has stopped being swept. Exported
+ * so the due logic is testable without a timer.
+ *
+ * The freshness pass runs for EVERY org on EVERY check, not only the ones swept: an org whose sweep
+ * keeps failing is never "due" again in any useful sense — it is due every time and completes none
+ * of them — and that is precisely the org the pass exists for.
+ */
+export async function runDueFuelSweeps(admin: SupabaseClient, env: Env, now: Date = new Date()): Promise<void> {
+  const { data, error } = await admin.from("organizations").select("id, last_fuel_sweep_at, created_at");
   if (error) throw new Error(error.message);
 
   const to = ymd(now);
@@ -95,56 +207,26 @@ export async function runDueFuelSweeps(admin: SupabaseClient, now: Date = new Da
 
   // Sequential and independently guarded: one carrier's bad odometer data must not stop the next
   // carrier's spend report from being rebuilt.
-  for (const org of (data ?? []) as { id: string; last_fuel_sweep_at: string | null }[]) {
-    if (!isFuelSweepDue(org.last_fuel_sweep_at, now)) continue;
-    try {
-          // Cheap after the first run: only fills with no station are scanned.
-          const st = await resolveFuelTransactionStations(admin, org.id);
-          if (st.resolved > 0) {
-            console.log(
-              `[fuel-spend] org ${org.id}: ${st.resolved} of ${st.scanned} unplaced fill(s) resolved to a station` +
-                (st.topUnmatched.length > 0 ? `; biggest gap ${st.topUnmatched[0]!.key} (${st.topUnmatched[0]!.fills} fills)` : ""),
-            );
-          }
-          const r = await buildFuelSpendRollup(admin, org.id, from, to);
-          if (r.written > 0 || r.deleted > 0) {
-            console.log(
-              `[fuel-spend] org ${org.id}: ${r.written} truck-day(s) written, ${r.deleted} swept, ` +
-                `${r.rejectedIntervals} odometer interval(s) refused, ${r.unattributedFills} fill(s) with no truck` +
-                (r.defUnmatched > 0 ? `, ${r.defUnmatched} DEF line(s) with no matching unit` : ""),
-            );
-          }
+  for (const org of (data ?? []) as { id: string; last_fuel_sweep_at: string | null; created_at: string | null }[]) {
+    let lastSweptAt = org.last_fuel_sweep_at;
+    if (isFuelSweepDue(lastSweptAt, now) && (await sweepThroughLedger(admin, org.id, from, to, now))) {
+      lastSweptAt = now.toISOString();
+    }
 
-          /*
-           * The policy scan rides the same sweep (C6). It runs AFTER the rollup and after station
-           * resolution, in that order and not by accident: `policyFindings` groups by brand and by
-           * state, and a fill whose station has not been resolved yet carries a null brand — which
-           * `analyzePolicyExceptions` counts as off-network, correctly but prematurely. Scanning
-           * first would file a finding against a truck for a Pilot fill nobody had placed yet, and
-           * close it again the following night.
-           *
-           * Its window is the same trailing fortnight, translated into the calendar months it
-           * touches, because a month is the unit its baseline is measured over. See the scan's header.
-           */
-          for (const scan of await runFuelPolicyScanForWindow(admin, org.id, from, to)) {
-            if (scan.error) {
-              console.error(`[fuel-spend] org ${org.id}: policy scan ${scan.month} failed: ${scan.error}`);
-            } else if (scan.filed > 0 || scan.closed > 0) {
-              console.log(
-                `[fuel-spend] org ${org.id}: policy ${scan.month} — ${scan.filed} finding(s) ` +
-                  `(${scan.inserted} new, ${scan.refreshed} refreshed, ${scan.closed} closed)`,
-              );
-            }
-          }
-      /*
-       * Stamped only after the org's sweep completes without throwing, so a failure retries at the
-       * next check instead of being marked done. A policy scan that reports `scan.error` does NOT
-       * throw and does not block the stamp: it is logged above, and a month that fails persistently
-       * would otherwise re-run the whole fortnight every six hours forever.
-       */
-      await markFuelSweepComplete(admin, org.id, now);
+    // In its own try: a notification that cannot be sent must not stop the next carrier's rebuild.
+    try {
+      const fresh = await runFuelSweepFreshnessOnce(
+        admin,
+        env,
+        org.id,
+        { lastSweptAt, orgCreatedAt: org.created_at },
+        now,
+      );
+      if (fresh.length) {
+        console.log(`[fuel-freshness] org ${org.id}: ${fresh.length} new finding(s) — ${fresh.map((f) => f.title).join("; ")}`);
+      }
     } catch (e) {
-      console.error(`[fuel-spend] org ${org.id} rollup failed:`, e instanceof Error ? e.message : e);
+      console.error(`[fuel-freshness] org ${org.id} failed:`, e instanceof Error ? e.message : e);
     }
   }
 }
@@ -157,7 +239,7 @@ export function startFuelSpendRollupScheduler(env: Env): void {
     if (inFlight) return;
     inFlight = true;
     try {
-      await runDueFuelSweeps(getSupabaseAdmin(env));
+      await runDueFuelSweeps(getSupabaseAdmin(env), env);
     } catch (e) {
       console.error("[fuel-spend] rollup sweep failed:", e instanceof Error ? e.message : e);
     } finally {

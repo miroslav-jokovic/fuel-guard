@@ -180,6 +180,14 @@ const API_ALLOW = new Set([
   // (P1.6); it owns no tables and writes none.
   "insights -> org",
   "insights -> anomalies",
+  // ── who to tell, asked of the owner of `memberships` (2026-09-21) ────────────────────────────
+  // "which members may manage <section>" was written out by hand in three modules before the fuel
+  // sweep needed a fourth, and each copy paired a service-role read of org's table with a role list
+  // that has to agree with the section matrix. That is the shape this repo's no-workarounds rule
+  // names outright — a hand-written role list beside a derived matrix — so the question now goes to
+  // `usersWhoManage` in org's index, the same arrow these modules already draw for its job ledger.
+  "evidence -> org",
+  "financial -> org",
   // The planner reads live truck state (fuel level, HOS, location) through the collector's
   // typed fetchers — routing's stop-selection math needs where the truck IS. The deeper
   // vendor/math split inside fuelPlanning is the routing module's named debt (P1.7).
@@ -226,6 +234,12 @@ const API_ALLOW = new Set([
   // D-FIN3: a stale McLeod financial sweep or a failed finance job becomes a finding the office
   // sees — the same notify() fabric, the dqAlertScheduler shape, through messaging's index.
   "financial -> messaging",
+  // The fuel half of the same ruling (DATA-PRECISION-AUDIT queue item 3): a nightly `fuel_spend_days`
+  // rebuild that throws, or a sweep marker that stops moving, becomes a finding the fuel manager
+  // sees. It earned the edge the hard way — the rebuild failed every six hours for seven days in
+  // 2026-09 with `console.error` as its only reader, and fleet MPG read 8.61 against a true 6.91
+  // until somebody noticed by eye.
+  "fuel-spend -> messaging",
   "fuel -> messaging",
   "recruiting -> messaging",
   "roster -> messaging",

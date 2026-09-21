@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { rolesThatManage, type AppSection } from "@silvicom/shared";
 
 /**
  * "Which role does this person hold in THIS org?" — asked by every per-user permission route
@@ -39,4 +40,34 @@ export async function lookupMemberRole(
   if (error) return { ok: false, reason: "db_error" };
   if (!data) return { ok: false, reason: "not_found" };
   return { ok: true, role: (data as { role: string }).role };
+}
+
+/**
+ * "Who in this org may MANAGE <section>?" — the recipient set behind every office-facing alert.
+ *
+ * ── WHY IT MOVED HERE ──────────────────────────────────────────────────────────────────────────
+ * It was written out by hand three times before the fuel sweep needed a fourth: `officeUserIds` in
+ * `financial/officeRecipients.ts` (accounting), a file-private one in `evidence/dqAlertScheduler.ts`
+ * (roster), and — had this not been extracted — one in `fuel-spend` (fuel). Each copy is six lines
+ * and each one carries the same two load-bearing details as `lookupMemberRole` above: the `.eq`
+ * that confines a service-role read to one tenant, and the role list DERIVED from the section matrix
+ * rather than typed out. A hand-written role list beside a derived matrix is the workaround this
+ * repo names explicitly; three of them is the shape that precedes a fourth that disagrees.
+ *
+ * The SECTION is the argument because that is the only thing the three copies differed in — who
+ * hears a finance finding, a qualification lapse and a fuel-feed failure are three different answers
+ * to one question, and `rolesThatManage` already holds all three.
+ */
+export async function usersWhoManage(
+  admin: SupabaseClient,
+  orgId: string,
+  section: AppSection,
+): Promise<string[]> {
+  const { data, error } = await admin
+    .from("memberships")
+    .select("user_id")
+    .eq("org_id", orgId)
+    .in("role", rolesThatManage(section));
+  if (error) throw new Error(error.message);
+  return [...new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id))];
 }

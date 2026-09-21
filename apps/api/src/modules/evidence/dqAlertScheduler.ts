@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { planDqAlerts, rolesThatManage, type DqAlert } from "@silvicom/shared";
+import { planDqAlerts, type DqAlert } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { getComplianceOverview } from "./complianceOverview.js";
 import { notify } from "../messaging/index.js";
 import { runApplicationNudgesOnce } from "../recruiting/index.js";
+import { usersWhoManage } from "../org/index.js";
 
 /**
  * DQ expiry alerts (DQF execution plan C3) — the digestScheduler shape, applied to qualifications:
@@ -22,7 +23,6 @@ import { runApplicationNudgesOnce } from "../recruiting/index.js";
  *   - No driver notifications, ever (D-DQ13: the file is company-only).
  */
 const CHECK_INTERVAL_MS = 6 * 3_600_000;
-const OFFICE_ROLES = rolesThatManage("roster"); // admin, fleet_manager, safety_manager
 
 async function sentKeys(admin: SupabaseClient, orgId: string): Promise<Set<string>> {
   const { data, error } = await admin
@@ -34,15 +34,9 @@ async function sentKeys(admin: SupabaseClient, orgId: string): Promise<Set<strin
   return new Set(((data ?? []) as { dedupe_key: string | null }[]).map((r) => r.dedupe_key ?? ""));
 }
 
-async function officeUserIds(admin: SupabaseClient, orgId: string): Promise<string[]> {
-  const { data, error } = await admin
-    .from("memberships")
-    .select("user_id")
-    .eq("org_id", orgId)
-    .in("role", OFFICE_ROLES);
-  if (error) throw new Error(error.message);
-  return [...new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id))];
-}
+/** Who hears a qualification finding: every member holding `roster` manage (D-DQ13). */
+const officeUserIds = (admin: SupabaseClient, orgId: string): Promise<string[]> =>
+  usersWhoManage(admin, orgId, "roster");
 
 function alertEmail(alerts: DqAlert[]): { subject: string; text: string; html: string } {
   const lines = alerts.map((a) => `  • ${a.title}${a.goodUntil ? ` (good until ${a.goodUntil})` : ""}`);
