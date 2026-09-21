@@ -737,3 +737,63 @@ Append dated lines at the END of this section. Do not edit rows above.
   ⚠ Two inline `operating_hours` reads remain in `useDashboard.ts` and `useDriverPerformance.ts`.
   They are inside the browser-side aggregation that item 5 moves behind the API, so converting them
   now would be work done twice; `useOrgTimezone`'s header says so rather than leaving it to be found.
+
+---
+
+## 7. Queue item 5 — survey before the build (2026-09-21)
+
+Measured, not estimated. Nothing below is built; this section exists so the build is mechanical and
+so the two decisions in it are taken by the owner rather than by whoever types first.
+
+### 7.1 What the browser actually reads
+
+`useDashboard.ts` is described in §1 as paging "six raw tables". It is **ten reads across six
+modules**, and `useIdleCostBasis` — a second composable feeding the same fold — is two of them:
+
+| read | table | owner module | layer | cross-module reader needed? |
+|---|---|---|---|---|
+| fills, paged | `fuel_transactions` | `fuel` | core | edge exists (`insights -> fuel`) |
+| open cases, paged | `anomalies` | `anomalies` | derived | edge exists |
+| case → driver, N×100 `.in()` | `fuel_transactions` | `fuel` | core | same edge |
+| unit numbers | `vehicles` | `roster` | core | **new edge** `insights -> roster` |
+| driver names | `drivers` | `roster` | core | same |
+| operating timezone | `organizations` | `org` | core | edge exists |
+| idle seconds, paged | `idle_rollup_days` | `idle` | derived | **new edge** `insights -> idle` |
+| declined count (head) | `declined_transactions` | `fuel` | **raw** | ⚠ **sealed** — must go through `fuel`'s index |
+| all-time coverage | `telematics_coverage_buckets()` | rpc | — | unsealed |
+| burn rate + price | `idle_settings`, `fuel_prices` | `idle` / prices | unsealed | new edge covers it |
+
+⚠ **`declined_transactions` is `layer: raw`**, so `check-table-access.mjs` seals it to its collector:
+the API may not select it directly the way the browser does. The browser gets away with all ten
+because RLS scopes them; **the API reads with the service role and every one of these needs its own
+`.eq("org_id")`, proven by `expectOrgScoped`.** That is the single biggest source of new surface
+area in this item, and the reason it is not a mechanical copy of the composable.
+
+### 7.2 Two decisions, both owner's
+
+- **Q8 — RPC or Express endpoint?** The repo has BOTH precedents and they disagree.
+  `FUEL-SPEND-RELIABILITY-PLAN.md` §1.4 ("Aggregation belongs where the rows are") rules for a
+  set-based SQL function on the `security invoker` + `coalesce(p_org, auth_org_id())` pattern (D-FC1,
+  0247), and `fuel_range_totals` (0312) is exactly that shape — already feeding the dashboard's own
+  operating card. This audit's §5 instead says "ask the API, which asks the harness".
+  **Recommendation: the Express endpoint, with the heavy reductions pushed into SQL.**
+  `aggregateDashboard` is 239 lines of tested pure TypeScript; re-expressing it as SQL would be a
+  second implementation of the same arithmetic, which is the copy-with-a-delay-fuse this repo names
+  outright. But the two reads that PAGE — fills and `idle_rollup_days` — should become set-based
+  aggregates, because paging a window into memory to sum it is the actual cost. That split is the
+  house rule already recorded elsewhere: **SQL returns a measurement, TypeScript owns the verdict.**
+- **Q9 — does the cost basis move with it?** `useIdleCostBasis` resolves burn rate and $/gal
+  (truck-stop median → settings → default) in the browser and hands them to the fold, and the Idling
+  page uses the same composable so the two screens agree. Moving the dashboard server-side without
+  moving this leaves the basis computed in two places against one number.
+  **Recommendation: move it, and have the Idling page read the same server answer** — otherwise item
+  5 fixes the dashboard's aggregation and creates a fresh second source of truth beside it.
+
+### 7.3 Size, honestly
+
+Four owner modules need exported readers that do not exist yet, two new boundary edges, one sealed
+table to route through `fuel`'s index, a contract in `packages/shared`, the endpoint, the web swap,
+and org-scoping tests on every new query. **This is not a one-sitting change**, and a half-moved
+aggregation — some tiles server-side, some still folded in the browser — is worse than either end
+state, because the two halves would disagree exactly like the 8.61-vs-6.8 symptom that opened this
+audit. It should be started with the decisions above already taken.
