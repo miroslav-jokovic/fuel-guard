@@ -155,6 +155,91 @@ describe("miles are allocated across the interval they were driven over", () => 
   });
 });
 
+/**
+ * Migration 0244 stores `miles` at 2dp and `mpg_gallons` at 3dp and then asserts
+ * `check ((miles = 0) = (mpg_gallons = 0))`. A slice that rounds away on one side and survives on the
+ * other therefore writes a row the database refuses — and `writeRows` upserts in chunks, so the throw
+ * takes the rest of the batch with it and `sweepStale` never runs.
+ *
+ * That is not hypothetical. `fuel_spend_days` was frozen from 2026-09-13 to 2026-09-20 for the whole
+ * carrier on ONE truck-day, which made fleet MPG read 8.61 against a true ~6.9, and the only evidence
+ * anywhere was a line in the API log (`docs/plans/fuel/DATA-PRECISION-AUDIT-2026-09-20.md` D-PREC1).
+ *
+ * Both directions are pinned, because the obvious half-fix — "skip a day whose miles round to zero" —
+ * passes the first of these and fails the second.
+ */
+describe("a slice too small to round is taken whole or not at all", () => {
+  /** Every emitted row must satisfy the database's own predicate. */
+  const pairHolds = (r: ReturnType<typeof derive>) =>
+    r.rows.every((x) => (x.miles === 0) === (x.mpgGallons === 0));
+
+  it("drops a day whose miles round away, rather than leaving its gallons behind", () => {
+    // The real thing, from vehicle 1f8dcd84 on 2026-09-13: a 158-gallon fill taken 0.2 miles after
+    // the previous one — a second pump, or a re-swipe. Spread over four days by drive time, the
+    // 13th's share of 0.2 miles is 0.0015 (rounds to 0.00) and of 158.06 gallons is 1.156 (survives).
+    const r = derive({
+      from: "2026-09-06", to: "2026-09-20",
+      fills: [
+        fill({ fueledAt: "2026-09-12T16:17:00Z", state: null, gallons: 134.39, milesSinceLast: 857 }),
+        fill({ fueledAt: "2026-09-16T12:00:00Z", state: null, gallons: 158.06, milesSinceLast: 0.2 }),
+      ],
+      engineDays: [
+        engine("2026-09-13", 600), engine("2026-09-14", 24857),
+        engine("2026-09-15", 35127), engine("2026-09-16", 21458),
+      ],
+    });
+
+    expect(pairHolds(r)).toBe(true);
+    const thirteenth = row(r, "2026-09-13")!;
+    expect(thirteenth.miles).toBe(0);
+    expect(thirteenth.mpgGallons).toBe(0);
+
+    // The three days whose share DOES survive still carry it — the guard drops a slice, not an interval.
+    for (const day of ["2026-09-14", "2026-09-15", "2026-09-16"]) {
+      expect(row(r, day)!.miles).toBeGreaterThan(0);
+      expect(row(r, day)!.mpgGallons).toBeGreaterThan(0);
+    }
+
+    // ⚠ And no FUEL is lost: the gallons live on the fill's own day independently of the allocation,
+    // so the period still ties to the bill. Only the MPG denominator gives up the rounding artefact.
+    expect(row(r, "2026-09-16")!.gallonsTractor).toBe(158.06);
+  });
+
+  it("drops a day whose gallons round away, which is the mirror case a miles-only guard misses", () => {
+    // The partner of the fill above: 2.59 gallons against 940.5 miles, because the odometer was
+    // mis-paired across the split. At a 0.017% drive-time share the gallons round to 0.000 while the
+    // miles round to 0.16 — the violation pointing the other way.
+    const r = derive({
+      from: "2026-09-16", to: "2026-09-18",
+      fills: [
+        fill({ fueledAt: "2026-09-16T12:00:00Z", state: null, gallons: 100, milesSinceLast: 600 }),
+        fill({ fueledAt: "2026-09-18T12:00:00Z", state: null, gallons: 2.59, milesSinceLast: 940.5 }),
+      ],
+      engineDays: [engine("2026-09-17", 5), engine("2026-09-18", 30000)],
+    });
+
+    expect(pairHolds(r)).toBe(true);
+    const seventeenth = row(r, "2026-09-17")!;
+    expect(seventeenth.miles).toBe(0);
+    expect(seventeenth.mpgGallons).toBe(0);
+    expect(row(r, "2026-09-18")!.miles).toBeGreaterThan(0);
+  });
+
+  it("leaves an ordinary allocation untouched — the guard is a floor, not a filter", () => {
+    const r = derive({
+      from: "2026-08-17", to: "2026-08-23",
+      fills: [
+        fill({ fueledAt: "2026-08-17T12:00:00Z", milesSinceLast: null }),
+        fill({ fueledAt: "2026-08-20T12:00:00Z", gallons: 150, milesSinceLast: 900 }),
+      ],
+      engineDays: [engine("2026-08-18", 3600), engine("2026-08-19", 7200), engine("2026-08-20", 7200)],
+    });
+    expect(pairHolds(r)).toBe(true);
+    expect(r.rows.reduce((a, x) => a + x.miles, 0)).toBeCloseTo(900, 1);
+    expect(r.rows.reduce((a, x) => a + x.mpgGallons, 0)).toBeCloseTo(150, 2);
+  });
+});
+
 describe("the odometer gate", () => {
   it("refuses an impossible interval, keeps its gallons, and counts the refusal", () => {
     const r = derive({

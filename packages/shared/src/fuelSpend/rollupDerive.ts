@@ -247,6 +247,25 @@ export function deriveFuelSpendRollup(input: DeriveInput): DeriveResult {
  * Weighted by drive seconds when the engine feed covers the interval, evenly when it does not. Days
  * outside the requested window are still weighted (the truck drove on them) but produce no row, so a
  * window boundary cannot inflate the days inside it.
+ *
+ * ── ⚠ THE TWO HALVES ARE STORED AT DIFFERENT SCALES, AND A SLICE CAN VANISH ON ONLY ONE ─────────
+ * `miles` lands in a 2dp column and `mpg_gallons` in a 3dp one, so a slice small enough to round
+ * away on one side and survive on the other writes a row that migration 0244's
+ * `fuel_spend_days_miles_pair` — `check ((miles = 0) = (mpg_gallons = 0))` — refuses. That is not a
+ * rejected row: `writeRows` upserts in CHUNKS, so the throw takes the rest of the batch with it and
+ * `sweepStale` never runs, leaving the table HALF written.
+ *
+ * It happened. Measured 2026-09-20: `fuel_spend_days` had been frozen since 2026-09-13 for the whole
+ * carrier, on ONE truck-day, and the only evidence was a line in the API log. The input was a split
+ * fill — 158.06 gallons taken 0.2 miles after the previous fill, a second pump or a re-swipe — whose
+ * 0.2 miles spread over four days round to 0.00 while its gallons round to 1.565.
+ * `docs/plans/fuel/DATA-PRECISION-AUDIT-2026-09-20.md` D-PREC1 has the measurement.
+ *
+ * So a slice is taken WHOLE or not at all: if either half rounds away, neither is applied. The
+ * alternative — scaling both to the same precision — keeps a fictional 0.004-mile day alive for the
+ * sake of the gallons attached to it, and this rollup's whole job is to pair gallons with miles
+ * somebody actually drove. The discarded fuel is a rounding artefact; the gallons stay on the fuel
+ * side of the row (`gallonsTractor`) regardless, so no fuel leaves the period's totals.
  */
 function allocate(
   at: (vehicleId: string | null, day: string) => SpendRollupRow,
@@ -265,6 +284,10 @@ function allocate(
     const share = total > 0 ? weights[i]! / total : 1 / days.length;
     if (share <= 0) continue;
     if (day < window.from || day > window.to) continue;
+    // Both halves of this day's slice, or neither — see the header. Rounded INDEPENDENTLY of the
+    // running totals on purpose: once a slice is accepted, `miles` is at least 0.01 and
+    // `mpgGallons` at least 0.001, and both only grow, so the pair cannot come apart later.
+    if (r2(miles * share) === 0 || r3(gallons * share) === 0) continue;
     const row = at(vehicleId, day);
     row.miles = r2(row.miles + miles * share);
     row.mpgGallons = r3(row.mpgGallons + gallons * share);
