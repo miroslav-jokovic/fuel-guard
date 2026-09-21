@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "worker": "tsx src/worker.ts",
     "psp:uat": "tsx src/scripts/pspUatProbe.ts",
+    "fleetpal:smoke": "tsx src/scripts/fleetpalSmoke.ts",
     "seed:psp-qa": "tsx src/scripts/seedPspQaDrivers.ts",
     "demo:loads": "tsx src/modules/loads/seedDemoLoads.ts",
     "build": "tsc -p tsconfig.json --noEmit",

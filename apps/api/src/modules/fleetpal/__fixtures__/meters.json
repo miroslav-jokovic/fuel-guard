@@ -1,0 +1,40 @@
+{
+  "count": 135631,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/meters/hZ7oES6S",
+      "id": "hZ7oES6S",
+      "unit": "aHh8r3Wu",
+      "type": "ODOMETER",
+      "value": 8667240,
+      "source": "SAMSARA",
+      "timestamp": "2026-09-21T21:16:33Z",
+      "created": "2026-09-21T21:30:41.999952Z",
+      "updated": "2026-09-21T21:30:41.999975Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/meters/u5K4citG",
+      "id": "u5K4citG",
+      "unit": "aHh8r3Wu",
+      "type": "ENGINE_HOURS",
+      "value": 129,
+      "source": "SAMSARA",
+      "timestamp": "2026-09-21T21:15:45Z",
+      "created": "2026-09-21T21:30:41.892295Z",
+      "updated": "2026-09-21T21:30:41.892318Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/meters/maajF7Th",
+      "id": "maajF7Th",
+      "unit": "zeabsRcL",
+      "type": "ODOMETER",
+      "value": 2685250,
+      "source": "SAMSARA",
+      "timestamp": "2026-09-21T20:49:57Z",
+      "created": "2026-09-21T21:30:42.288226Z",
+      "updated": "2026-09-21T21:30:42.288253Z"
+    }
+  ]
+}

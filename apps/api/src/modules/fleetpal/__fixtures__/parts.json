@@ -1,0 +1,55 @@
+{
+  "count": 7452,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/parts/7JfSwkJu",
+      "id": "7JfSwkJu",
+      "number": null,
+      "description": "Alternator Assembly",
+      "type": "VENDOR_HIDDEN",
+      "universal_product_code": "",
+      "component": "B84mvA59",
+      "manufacturer": null,
+      "manufacturer_part_number": "",
+      "unit_of_measure": null,
+      "position_applicable": false,
+      "serialized_part": false,
+      "created": "2026-09-21T21:29:19.894886Z",
+      "updated": "2026-09-21T21:30:29.325454Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/parts/PXguf7aL",
+      "id": "PXguf7aL",
+      "number": null,
+      "description": "Pulley - Generator Or Alternator",
+      "type": "VENDOR_HIDDEN",
+      "universal_product_code": "",
+      "component": "BtKqoWyk",
+      "manufacturer": null,
+      "manufacturer_part_number": "",
+      "unit_of_measure": null,
+      "position_applicable": false,
+      "serialized_part": false,
+      "created": "2026-09-21T21:28:55.159164Z",
+      "updated": "2026-09-21T21:30:29.331473Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/parts/2tXTjyro",
+      "id": "2tXTjyro",
+      "number": null,
+      "description": "Sensor - Wheel Speed",
+      "type": "VENDOR_HIDDEN",
+      "universal_product_code": "",
+      "component": "DwbQXJFE",
+      "manufacturer": null,
+      "manufacturer_part_number": "",
+      "unit_of_measure": null,
+      "position_applicable": false,
+      "serialized_part": false,
+      "created": "2026-09-21T19:17:49.551151Z",
+      "updated": "2026-09-21T19:18:34.745236Z"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "count": 4010,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-invoices/fVN5wBtF",
+      "id": "fVN5wBtF",
+      "purchase_order": "htogZmNa",
+      "type": "STANDARD",
+      "number": "WI012764",
+      "date": "2026-09-21",
+      "amount": 1808.1,
+      "payable_to": null,
+      "payment_term": null,
+      "created": "2026-09-21T20:38:19.345940Z",
+      "updated": "2026-09-21T20:38:19.345960Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-invoices/qtJTjjuX",
+      "id": "qtJTjjuX",
+      "purchase_order": "cSjbGNG7",
+      "type": "STANDARD",
+      "number": "4010489436",
+      "date": "2026-08-04",
+      "amount": 802.01,
+      "payable_to": null,
+      "payment_term": null,
+      "created": "2026-09-21T19:09:35.093817Z",
+      "updated": "2026-09-21T19:09:35.093834Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-invoices/YhdtsEBs",
+      "id": "YhdtsEBs",
+      "purchase_order": "tT3VgAWx",
+      "type": "STANDARD",
+      "number": "12845",
+      "date": "2026-09-21",
+      "amount": 795,
+      "payable_to": "i2KFJmdU",
+      "payment_term": null,
+      "created": "2026-09-21T19:02:05.709515Z",
+      "updated": "2026-09-21T19:02:05.709539Z"
+    }
+  ]
+}

@@ -57,6 +57,9 @@ const RESOURCES = [
   "POInvoice",
   "POReceipt",
   "POReceiptItem",
+  // Not a stored object and not in the usual envelope — F4 found the catalogue answers a bare
+  // `results` array, and F15 subscribes by the `key` it lists.
+  "WebhookEvent",
 ];
 
 /**

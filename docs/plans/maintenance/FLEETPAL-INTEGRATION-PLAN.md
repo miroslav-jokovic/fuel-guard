@@ -200,6 +200,25 @@ month, what fraction of the GL maintenance family FleetPal actually saw. **No do
 The spec warns that a vendor invoice `number` is not unique across vendors, so the match key is
 `(payable_to → vendor, number)`, never `number` alone.
 
+> **⚠ Measured 2026-09-21 (F4): `payable_to` is null on 3,269 of 4,010 invoices — 81.5%.** The spec
+> declares it `nullable` and says it names the payee *when that differs from the location that
+> supplied the goods*, so a carrier that pays its suppliers directly leaves it null forever. F1 had
+> typed it as required, which is the second half of the finding: the contract would have rejected
+> the first real page it ever fetched.
+>
+> The bridge is not dead, but **its vendor key is `vendor_location`, with `payable_to` read as the
+> override it is** — `coalesce(payable_to, vendor_location)` is the vendor of record, and it is
+> populated on every row.
+>
+> **The McLeod side is worse, and it is the part that needs a ruling.** `Vendor.code` — offered by
+> the vendor's own documentation as "the match key when syncing from an accounting system", i.e. the
+> field that would join straight to `mcleod_ap_vouchers.vendor_id` — is populated on **1 of 761
+> vendors**. So the join has to fall back to the invoice number plus a name comparison against
+> McLeod's vendor master, which is a fuzzy match this repo does not do (D-FS5 forbids parsing
+> McLeod's free text for exactly this reason). **Q9 below** records the choice; A3's fallback
+> ("report coverage as a bound, and say so on the page") is the recommendation, and F9 does not
+> start until it is ruled.
+
 ### 2.5 FleetPal has no on-hand quantity — anywhere
 
 `Part` is `number` · `description` · `type` · `universal_product_code` · `component` ·
@@ -245,6 +264,32 @@ stability across runs.
 `work_order.completed` is the one event key the spec names; the catalogue is dynamic and
 `GET /v1/webhook-events` against the live account is the only way to enumerate it (**F4**).
 
+**Enumerated 2026-09-21 (F4) — thirty-eight keys, not one:**
+
+```
+defect.resolved                 issue.closed              purchase_order.opened      unit.archived
+expiration.completed            issue.in_progress         purchase_order.vendor_completed
+fault_code.ignored              issue.opened              sales_order.canceled       unit.status_changed
+fault_code.resolved             issue.scheduled           sales_order.closed         unit.unarchived
+fault_rule.applied              member.archived           sales_order.opened         vehicle.matched
+invitation.accepted             member.unarchived         so_invoice.canceled        vendor.archived
+invitation.sent                 pm_schedule.due_soon      so_invoice.closed          vendor.unarchived
+purchase_order.canceled         purchase_order.closed     so_invoice.opened          vendor_location.archived
+purchase_order.drafted          work_order.canceled       work_order.closed          vendor_location.unarchived
+work_order.completed            work_order.opened         work_order.pended
+```
+
+Three of these change what F15 is worth. **`pm_schedule.due_soon`** is the PM worklist (F11) arriving
+as a push rather than as a nightly recompute. **`work_order.opened` / `.pended` / `.closed`** make the
+in-flight repair visible without polling work-orders + jobs + job-items on a cadence, which §2.1 had
+assumed was the only way. **`unit.status_changed`** is the only signal we will ever get about the
+opaque unit-status ids of §2.10.5 — the event fires, the status itself stays unresolvable.
+
+⚠ **`fault_code.*` and `fault_rule.applied` fire for data no endpoint serves** (§2.10.7 — there is no
+`/v1/fault-codes`). A subscriber would receive an event whose referenced resource cannot be fetched
+back, which breaks the repo's standing webhook rule at the vendor rather than in our code. Do not
+subscribe to them. The same is true of `invitation.*` and `member.*`: no `/v1/members` exists.
+
 The delivery rules matter and are easy to get wrong:
 - Verify `X-Fleetpal-Signature` = `sha256=` + HMAC-SHA256 over **`"{timestamp}.{rawBody}"`**, keyed
   with the subscription secret, `timestamp` being `X-Fleetpal-Timestamp` verbatim and `rawBody`
@@ -276,8 +321,13 @@ reports read in words, no contract is signed, and a later decision to license ch
 1. **DVIRs are dangling.** `Defect.dvirs` is an array of ids and **there is no `/v1/dvirs`
    endpoint**. We get defects, never the inspection report they came from. Anything the product
    wants to say about DVIRs must come from our own driver app.
-2. **No technician.** `total_labor_hours` exists; who turned the wrench does not. No labour
-   productivity, no mechanic scorecard.
+2. **No technician — *corrected 2026-09-21 (F4)*: an unresolvable one.** `JobItem` carries a
+   `technician` field the spec does not declare at all, populated on the labour lines (9 of 50 rows
+   in the first sample). It is an opaque member id, and **there is no `/v1/members` endpoint** among
+   the 71 — so we can tell that two repairs were done by the same person and never which person.
+   That is the `Defect.dvirs` shape again (§2.10.1): an id with nothing to resolve it against. It is
+   enough for "one technician's jobs come back more often than another's" and not enough to name
+   them, so any surface built on it is anonymous by construction, not by policy.
 3. **No wheel or axle position on a line.** `Part.position_applicable` is a boolean on the
    *catalogue*; `JobItem` carries no position value. Per-position tyre tracking is impossible.
 4. **No warranty flag.** No warranty-recovery reporting is derivable.
@@ -285,8 +335,12 @@ reports read in words, no contract is signed, and a later decision to license ch
    and nothing exposes those ids. `Unit` itself has only `archived`.
 6. **No current meter on `Unit`.** Reconstruct from `/v1/meters`, or take it from a service-history
    row.
-7. **No fault codes, no telematics.** That stays Samsara's, and it is a reason the meter push
-   (§2.11) is worth doing.
+7. **No fault codes, no telematics — and FleetPal has them.** *Refined 2026-09-21 (F4):* the event
+   catalogue carries `fault_code.ignored`, `fault_code.resolved` and `fault_rule.applied`, so the
+   vendor plainly holds fault data; the REST API exposes no endpoint that serves it. The conclusion
+   is unchanged and the reason is not: fault codes stay Samsara's because FleetPal will not hand
+   them over, not because FleetPal does not have them. If a `/v1/fault-codes` ever appears, this is
+   the paragraph to revisit.
 
 Each of these is a gap in the *vendor*, not in this plan. None is worked around; where the product
 needs the fact, the fact comes from our own source or the product does not claim it.
@@ -460,7 +514,7 @@ tested against fixtures hand-built from the spec's own examples.
 **Done when:** unit tests cover the pagination walk, a 429 retry, a field-keyed 400, and the two
 conversions; and a mutation removing the `next`-follow makes a test fail.
 
-### F4 — The live smoke — **the only step the API key gates**
+### F4 — The live smoke — **DONE 2026-09-21** — *no migration* — the only step the API key gated
 
 Half a day, the first afternoon the credential exists, and its output is a document rather than a
 feature.
@@ -640,14 +694,16 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 | Q3 | What does "upload the inventory we have in FleetPal" bring? | **The catalogue.** FleetPal has no quantity; the opening balance is a count. Owner, 2026-09-10. | D-FP11 |
 | Q5 | Is VIN a viable match key? | **Yes** — 200/207 tractors, 228/234 trailers. Thirteen active units fall back to unit number. Measured 2026-09-10. | D-FP7 |
 | Q6 | Does the collector need a roster column? | **No.** `fleetpal_units` carries the mapping. | D-FP7 |
+| Q7 | Is FleetPal actually used for purchasing, or only for work orders? | **Used, heavily.** 3,969 purchase orders, 4,010 invoices, 1,077 receipts and 1,936 receipt items on the live account; 2,899 of the POs name a work order. Measured F4, 2026-09-21. | D-FP12, D-FP13 hold |
+| Q8 | Does FleetPal hold enough history to be worth a backfill, and from when? | **Yes — from 2025-01-01.** 5,264 of 5,295 work orders are completed, the earliest on 2025-01-01, 3,008 in 2025 and 2,256 in 2026. A full walk is 21 months. Measured F4, 2026-09-21. | — |
 
 ### 6.2 Open
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
 | **Q4** | Which stock location does an ingested movement land in when an org has more than one? | (a) the org's default location, with the row labelled as FleetPal-sourced; (b) a dedicated `FleetPal receiving` location; (c) refuse to ingest until a shop maps FleetPal shops → our locations | **(c) for receipts, (a) for consumption.** A receipt has a real physical destination and guessing it puts stock on the wrong shelf; a consumption is a decrement whose location matters less than its existence. Blocks **F13** only; measure at F4 whether more than one location is even in use |
-| **Q7** | Is FleetPal actually used for purchasing at Silvicom, or only for work orders? | (a) yes — D-FP12/D-FP13 hold; (b) no — receipts never appear, and our `receive` verb goes back to being primary | **Measured at F4, not decided here.** If (b), D-FP12 is re-opened rather than built around |
-| **Q8** | Does FleetPal hold enough history to be worth a backfill, and from when? | (a) full history via `service-history` with no `period_start`; (b) from a chosen date | **(a), bounded by what F4 measures.** `service-history` has `period_start`/`period_end`, so a backfill is a paged walk and not a special path |
+
+| **Q9** | With `Vendor.code` populated on 1 of 761 vendors (F4), how does the coverage ratio join FleetPal invoices to `mcleod_ap_vouchers`? | (a) invoice number alone, accepting that a number is not unique across vendors and reporting the result as an upper bound; (b) invoice number **plus** a normalised vendor-name comparison against McLeod's vendor master; (c) ask the shop to populate `Vendor.code` from McLeod's vendor ids and wait; (d) do not print a ratio, and print only the FleetPal-invoiced total with the unmatched-unit count beside it | **(a), stated as a bound.** It is A3's own fallback, it needs no ruling from anybody outside this repo, and a bound that is honest about being a bound is worth more than a point estimate built on a fuzzy name match D-FS5 forbids elsewhere. (b) is the same class of guess that put free-text unit parsing out of bounds; (c) is right and slow, and nothing stops it happening later — a populated `code` upgrades (a) to an exact figure with no code change beyond the join. **Blocks F9**, which D-FP4 binds to the first cost figure |
 
 ### 6.3 Assumptions — each retired by the step that needs it
 
@@ -928,3 +984,81 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   **F0–F3 are done and the credential is still not needed.** Next is **F4**, the live smoke, which
   is the one step that is: enumerate `GET /v1/webhook-events`, record real fixtures over these, and
   measure the match rate and the rate limit.
+
+- **2026-09-21 · F4 DONE — the live smoke, and the five things a document could not have told us.**
+  `apps/api/src/scripts/fleetpalSmoke.ts` (`pnpm --filter @silvicom/api fleetpal:smoke`), read-only,
+  94 requests, no writes. Evidence in `docs/FleetPal/smoke-runs/<stamp>/` (gitignored); redacted
+  fixtures for sixteen resources now in `apps/api/src/modules/fleetpal/__fixtures__/`.
+
+  **The account, measured.** `GET /status` 200 with no key; the key authenticates and A1 holds — it
+  reads every resource in §2.7. One shop (Silvicom, Inc, labour rate $95/h).
+
+  | Resource | Rows | | Resource | Rows |
+  |---|---:|---|---|---:|
+  | units | 474 | | parts | 7,452 |
+  | work-orders | 5,295 | | vendors | 761 |
+  | jobs | 12,861 | | shops | 1 |
+  | job-items | 35,121 | | purchase-orders | 3,969 |
+  | service-history | 12,783 | | purchase-order-invoices | 4,010 |
+  | meters | 135,631 | | purchase-order-receipts | 1,077 |
+  | pm-schedules | 1,037 | | purchase-order-receipt-items | 1,936 |
+  | defects | 604 | | issues | 298 |
+  | expirations | **0** | | | |
+
+  **1. Three contracts were wrong, and each would have failed on the first real page.**
+  `PurchaseOrder.payable_to` and `POInvoice.payable_to` were typed as required where the spec says
+  `nullable` and the server says null 81.5% of the time. `Part.type` is declared `integer` by the
+  spec and answers the string `"VENDOR_HIDDEN"` — a vendor/spec divergence, not our misreading, now
+  accepted as either with `FLEETPAL_PART_TYPES` recording what was observed. And
+  `GET /v1/webhook-events/` **is not the `count`/`next`/`previous` envelope**: the catalogue ships
+  whole in a bare `results` array, which F1 modelled not at all and the probe's first run assumed
+  wrongly. `fleetpalWebhookEventSchema` and `fleetpalWebhookEventListSchema` now exist, and
+  `WebhookEvent` is the manifest's nineteenth resource.
+
+  **2. The gate cannot see a field the spec never had, so the probe now measures it.** Five
+  resources send fields the document does not declare: `Unit` (`status`, `domicile`, `division`,
+  `division_data`, `vmrs_equipment_category_data`), `JobItem` (`technician` — §2.10.2 is corrected
+  above), `PMSchedule` (`most_urgent_percent`, `most_urgent_status`, `most_urgent_type`) and
+  `Vendor` (`archived`). `lint:fleetpal-contract` compares schemas against a manifest generated from
+  the spec, so it catches a field the spec has and we missed and is **structurally blind** to the
+  reverse; `z.looseObject` then accepts it in silence. The probe reports `undeclared:` per resource,
+  which is the only place the live payload and the manifest meet.
+
+  **3. Identity: 415 by VIN, 11 by number, 48 unmatched** — against the full roster of 517 rows (235
+  active + 37 retired vehicles, 221 active + 24 retired trailers). 464 of 474 units carry a VIN, all
+  474 carry a number, none is archived. A2 holds: the number fallback resolves 11 of the 59 the VIN
+  misses. The 48 are mostly sold or superseded units (`"494 - old"`, `"183 - SOLD"`), which is the
+  reconciliation §2.6 said somebody could finish in an afternoon.
+
+  ⚠ **FleetPal's unit list is not one row per truck.** Eight VINs appear **twice** and eight numbers
+  appear twice — an old record and its replacement, both live. `fleetpal_units` is unique on
+  `(org_id, fleetpal_id)` and not on `vehicle_id`, so 0334 already permits this; **F5's matcher must
+  not assume 1:1 and F9's per-unit cost must SUM across every `fleetpal_units` row for a vehicle**,
+  or it will report half the repair spend for eight trucks and nobody will see the seam. Ten units
+  have no VIN at all and resolve by number or not at all.
+
+  **4. The coverage bridge needs a ruling before F9 — Q9 above.** `payable_to` null on 81.5% of
+  invoices (join on `coalesce(payable_to, vendor_location)`), and `Vendor.code` — the vendor's own
+  suggested accounting-system key — populated on **1 of 761**. 2,899 of 3,969 POs name a work order,
+  so the FleetPal half of the chain is sound; it is the McLeod half that has no exact key.
+
+  **5. The rate limit cannot be measured, so the cap stays 1.** 94 sequential requests, zero 429s,
+  and **no limiter headers of any kind** — the client now records `retry-after`, `x-ratelimit-*` and
+  `ratelimit-*` per request and all 94 came back empty. Latency p50 1.64s, p95 2.29s, max 2.68s. A4
+  is neither confirmed nor refuted: an hourly sweep is comfortable at these latencies, and with no
+  published limit the `Retry-After` path in F3 remains the whole defence. F8 keeps `KIND_CAPS` at 1.
+
+  **Also worth having.** Q7 and Q8 are answered above (purchasing is used heavily; history runs from
+  2025-01-01, 3,008 work orders completed in 2025 and 2,256 in 2026). Work-order `updated` spreads
+  across 2025-03…2026-09 rather than clustering on an import date, so the `updated_after` watermark
+  of §2.7 is meaningful on real data. `job-items` takes a `unit` filter, which F9 can read per truck
+  instead of walking 35,121 rows. Unit `status` is one of eight opaque ids and `/v1/units` has no
+  status endpoint to resolve them — §2.10.5 confirmed, with `unit.status_changed` as the only signal.
+  Ownership is `OWN` 454 / `CUSTOMER` 20. Expirations is empty, so F7's expiration half ships
+  untested against real data by necessity, and the plan should say so rather than imply coverage.
+
+  **Verified by:** `pnpm typecheck` (api + shared), `lint:fleetpal-contract --self-test` and the gate
+  itself (19 resources, 16 vocabularies), and the probe's own run against the live account.
+
+  **Next is F5** (identity resolution), which needs no credential and now has a measured target to
+  hit: 415/11/48, eight duplicate VINs, ten VIN-less units.
