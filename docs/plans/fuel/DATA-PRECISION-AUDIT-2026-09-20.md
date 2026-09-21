@@ -319,6 +319,62 @@ windowing artefact on our side** — which means a plain re-run may reproduce it
 action is a re-run PLUS a look at why McLeod has no August AP/BILL/FUEL/SET for company `TMS`
 (`tools/mcleod-agent/inspect.mjs`, read-only, same connection). See **Q10**.
 
+### D-PREC12 — the financial sweep reads a hand-made COPY of McLeod, restored 2026-09-10 and never since
+
+**Measured 2026-09-21, read-only against the carrier's SQL Server (10.0.1.171) over the office
+network.** This supersedes the "owner just needs to re-run the sweep" framing above: re-running it
+today cannot produce a different answer, and the reason is not McLeod and not our code.
+
+**1. There are two databases and two logins, and only one pair can see the GL.**
+
+| login | database | of the agent's 20 tables | GL |
+|---|---|---|---|
+| `silvicom_dispatch_ro` (`tools/mcleod-agent/.env`) | `lme` — **live** | 8 readable: `continuity`, `movement`, `movement_order`, `orders`, `stop`, `tractor`, `trailer`, `users` | **DENIED** |
+| `NikiAnalytics` (`.env.sandbox`) | `lme_analytics` | **all 20 readable** | readable |
+
+`SELECT permission was denied on the object 'gl_ledger'` — and on `gl_ledger_hist`,
+`billing_history`, `drs_settle_hist`, `drs_deduct_hist`, `voucher`, `voucher_hist`, `fuel_detail`,
+`fuel_detail_hist`, `gl_account` and `driver`. Every table exists; none is absent. So the
+`--financial` sweep cannot run against live `lme` with the credential this checkout carries.
+
+**2. `lme_analytics` is a RESTORE, and it is stale.** `msdb.dbo.restorehistory`:
+
+| database | last restore |
+|---|---|
+| `lme` | 2022-11-28 (the live database, restored once at setup) |
+| **`lme_analytics`** | **2026-09-10T11:36:54** |
+
+Corroborated independently: `movement` holds 279,411 rows in `lme` and 278,276 in `lme_analytics`,
+and the newest date on a `movement` column reads 2026-09-18 live against 2026-09-09 in the copy.
+
+**3. That is the whole of D-PREC9.** `org_integrations.mcleod_financial.last_synced_at` is
+2026-09-10 **18:01Z — about six and a half hours after the restore**. The sweep ran that afternoon
+against a copy taken that morning and staged faithfully what the copy held. Nothing has refreshed
+the copy since, so **no sweep run after 2026-09-10 can stage anything newer, however often it is
+run.** The staleness is a restore schedule, not a forgotten command.
+
+**4. Our staging is not wrong — it matches the copy line for line.** McLeod `gl_ledger` for company
+`TMS`, read directly:
+
+| month | modules | lines | abs | our `mcleod_gl_totals` |
+|---|---|---|---|---|
+| 2026-06 | 14 | 29,427 | $46.75M | 29,427 / $46.75M ✓ |
+| 2026-07 | 12 | 26,473 | $43.03M | 26,473 / $43.03M ✓ |
+| **2026-08** | **1 (`RJ`)** | **38** | **$0.42M** | 38 / $0.42M ✓ |
+| 2026-09 | — | — | — | — |
+
+Posting by day: **2026-07-31 is a normal month-end** (AP 10, BILL 153, CASH 94, DED 6, DRS 1,111,
+FUEL 363, GJ 10, OFF 85, RJ 6, SET 258, SETV 2). **From 2026-08-03 every posting is `RJ` and
+nothing else**, a handful a day, last on 08-31, then nothing at all.
+
+**5. The "postings moved to another company code" hypothesis is REFUTED.** `TMS4` exists and is
+tiny — 255 lines in June, 266 in July, 100 in August. August's missing ~$43M is not there.
+
+**⚠ What this still cannot answer, and why.** Whether the carrier has posted August to the GL in
+the eleven days *since* the snapshot is invisible from here: the only credential that can read the
+GL points at the frozen copy, and the credential pointed at live `lme` is denied on the GL. That is
+the gap, and closing it is item 6's remaining owner action — see the queue note under §5.
+
 ### D-PREC10 — every month close is `open`, with six-figure drifts, since March
 
 | Month | GL revenue | billing drift | fuel residual | settlement drift |
@@ -702,6 +758,13 @@ Ordered. Items 1–3 are repair; 4–6 are the architecture the owner asked for;
 | **10** | Idling: fix or retire `optimized_cycling` (D-IDLE-F) | A flag on 36 trucks that has never once fired |
 | **11** | Idling: jurisdictional limits (D-IDLE-E) | New capability; needs Q6 first |
 
+⚠ **Item 6's row is superseded and is left standing per the append-don't-edit rule.** Its "why
+here" is wrong twice over: the finance section is NOT running on July (§2's correction), and
+"re-run the sweep" is not the owner action (**D-PREC12** — the sweep reads a copy of McLeod
+restored 2026-09-10 and never refreshed, so a re-run re-stages the same snapshot). Item 6's CODE is
+complete (PRs #938–#940). What remains is an infrastructure decision about which database and
+credential the financial sweep reads, and **Q10**.
+
 ---
 
 ## 6. Progress log
@@ -950,6 +1013,44 @@ August — did not, and §2 now carries the correction and the trace above it.
 3. **D-PREC10 is untouched** — every close is still `open` with six-figure drifts, and §2 already
    holds it as a separate question.
 
+**2026-09-21 (later) — item 6's owner action is NOT "re-run the sweep". D-PREC12, measured.**
+
+Ran the diagnosis from the office network instead of guessing at it. The carrier's SQL Server is
+reachable from here, so the blocker was never the VPN. Three facts, each read-only:
+
+- **The agent's own `.env` credential (database `lme`, live) is DENIED on every table the financial
+  sweep needs** — both GL tables, billing, settlements, deductions, vouchers, fuel detail,
+  `gl_account`, `driver`. It reads the eight dispatch tables and nothing else. All 20 tables exist;
+  this is a GRANT boundary, not a schema difference.
+- **The credential that CAN read the GL points at `lme_analytics`, which `msdb.dbo.restorehistory`
+  says was restored 2026-09-10T11:36:54 and never since.** Live `lme` shows 279,411 `movement` rows
+  to the copy's 278,276.
+- **`mcleod_financial.last_synced_at` is 2026-09-10 18:01Z — six and a half hours after that
+  restore.** So D-PREC9's 11-day staleness is a restore schedule, not a forgotten command, and
+  **re-running `--financial` today would re-stage the same snapshot. I did not run it, for that
+  reason.**
+
+Our staging is vindicated: it matches the copy line for line (29,427 / 26,473 / **38**). Posting by
+day shows 2026-07-31 as a normal month-end across eleven modules, and **every posting from
+2026-08-03 onward is `RJ` alone**. The company-code hypothesis is refuted — `TMS4` carries 100 lines
+in August, not the missing ~$43M.
+
+**So the owner action changed shape**, and it is two things, neither of which is running the agent:
+
+1. **Refresh `lme_analytics` from `lme`** (or repoint the sweep at live `lme`). Until then every
+   sweep is a no-op.
+2. **Decide which credential the financial sweep should use.** Today its freshness is a person's
+   restore habit. Either the dispatch login gets SELECT on the finance tables in `lme`, or the sweep
+   is given a credential that reads `lme` directly.
+
+**Open, and not answerable from here:** whether the carrier has posted August to the GL in the
+eleven days *since* the snapshot. The only GL-capable credential reads the frozen copy; the
+live-capable one is denied on the GL. Testing whether the analytics login can also reach live `lme`
+was refused by this session's sandbox as credential exploration and was **not** worked around — it
+is a one-line question for the owner.
+
+**Q10 is unaffected and still the right blocker.** Whatever the books say, the product should not
+publish a month that came back with one module of fourteen.
 
 ---
 
