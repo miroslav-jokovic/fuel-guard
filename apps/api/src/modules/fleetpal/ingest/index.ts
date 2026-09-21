@@ -1,3 +1,4 @@
+import { ingestDefects, ingestExpirations, issuesIngest } from "./condition.js";
 import { ingestPmSchedules, metersIngest } from "./equipment.js";
 import { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";
 import { ingestShops, vendorsIngest } from "./reference.js";
@@ -31,10 +32,16 @@ export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResul
   results.push(await runIngest(ctx, serviceHistoryIngest));
   results.push(await runIngest(ctx, metersIngest));
   results.push(await ingestPmSchedules(ctx));
+  // F7's bounded-re-read tier, last: it is the only part that does not watermark, so a sweep that
+  // dies before it costs a re-read of an open list rather than a window of history.
+  results.push(await runIngest(ctx, issuesIngest));
+  results.push(await ingestDefects(ctx));
+  results.push(await ingestExpirations(ctx));
   return results;
 }
 
 export { runIngest } from "./run.js";
+export { ingestDefects, ingestExpirations, issuesIngest } from "./condition.js";
 export { ingestPmSchedules, metersIngest } from "./equipment.js";
 export { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";
 export { ingestShops, vendorsIngest } from "./reference.js";

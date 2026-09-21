@@ -61,6 +61,9 @@ export { resolveStagedUnits, type ResolveOutcome } from "./resolveUnits.js";
 export {
   sweepRepairRecord,
   runIngest,
+  ingestDefects,
+  ingestExpirations,
+  issuesIngest,
   ingestPmSchedules,
   ingestShops,
   metersIngest,
