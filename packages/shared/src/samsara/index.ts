@@ -105,6 +105,7 @@ export {
   computeTelematicsCoverage,
   coverageFromBuckets,
   telematicsCoverageBuckets,
+  allTimeCoveragePct,
 } from "./telematicsCoverage.js";
 export type {
   TelematicsCoverageBucket,

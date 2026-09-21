@@ -32,7 +32,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  coverageFromBuckets,
+  allTimeCoveragePct,
   summariseDashboard,
   type CalendarDay,
   type DashboardMeasurements,
@@ -118,15 +118,13 @@ const riskRows = (rows: RiskRowRow[] | null | undefined): RiskRow[] =>
 /**
  * The all-time coverage share, or null when there is no evidence for one.
  *
- * ⚠ `coverageFromBuckets([]).coveragePct` is **0, not null** — `pct(n, d)` returns 0 for an empty
- * denominator, which is right for a per-month row and wrong for this tile. Passing it through would
- * print "0% all time" for a carrier whose history is empty or whose RPC failed: an alarming claim
- * made on the strength of no answer at all. The rule mirrors `coveragePct`'s own — no fills, no
- * percentage — and it is not thrown on, because the rest of the Dashboard is fine without it.
+ * The rule — null rather than the 0 an empty denominator produces, and counts NUMBERed because
+ * PostgREST returns a bigint as text — is `allTimeCoveragePct` in `@silvicom/shared`, where the
+ * browser's copy of it moved when this endpoint took over the fold (step 4). It is not thrown on:
+ * this is one figure on one tile and the rest of the Dashboard is fine without it, which is also
+ * why a failed RPC and an empty history give the same answer.
  */
 async function readAllTimeCoverage(admin: SupabaseClient, orgId: string): Promise<number | null> {
   const { data } = await admin.rpc("telematics_coverage_buckets", { p_org: orgId });
-  const cells = ((data ?? []) as TelematicsCoverageBucket[]).map((b) => ({ ...b, fills: Number(b.fills) }));
-  const summary = coverageFromBuckets(cells);
-  return summary.fills > 0 ? summary.coveragePct : null;
+  return allTimeCoveragePct(data as TelematicsCoverageBucket[] | null);
 }

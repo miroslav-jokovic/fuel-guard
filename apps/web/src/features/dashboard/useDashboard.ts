@@ -1,182 +1,67 @@
 import { type Ref, toValue } from "vue";
 import { keepPreviousData, useQuery } from "@tanstack/vue-query";
-import {
-  aggregateDashboard,
-  coverageFromBuckets,
-  type DashboardSummary,
-  type FuelTransaction,
-  type Anomaly,
-  type TelematicsCoverageBucket,
-} from "@silvicom/shared";
-import { supabase } from "@/lib/supabase";
-import { efsRejectDayWindow } from "@/lib/stationTime";
-import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
+import type { DashboardSummary } from "@silvicom/shared";
+import { apiFetch, type ApiResult } from "@/lib/api";
 
-// PostgREST caps a single response at 1000 rows. A month of fleet fills is several thousand, so a plain
-// select silently returns only the first 1000 (in an undefined order) — which left the dashboard charts
-// showing partial/incorrect data for many dates. Page through in 1000-row windows to fetch the full set.
-const PAGE = 1000;
-
-/** Fetch every row of a query by paging with .range() until a short page signals the end. */
-async function fetchAllPaged<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await build(offset, offset + PAGE - 1);
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as T[];
-    out.push(...batch);
-    if (batch.length < PAGE) break;
-  }
-  return out;
+/**
+ * The executive dashboard for one window — ONE call (queue item 5 step 4,
+ * `docs/plans/fuel/DATA-PRECISION-AUDIT-2026-09-20.md` §7.2c).
+ *
+ * ── WHAT THIS FILE USED TO BE ───────────────────────────────────────────────────────────────────
+ * Ten reads across six modules: fills and idle days each paged 1,000 rows at a time,
+ * `declined_transactions` — a sealed raw table — read straight from the browser, a chunked
+ * `N × 100` `.in()` loop to attach a driver to every flagged fill, and the org's `operating_hours`
+ * fetched inline so the trend could be bucketed in the carrier's own zone. D-PREC8 named that as
+ * the architectural root of the audit's date defects: a component that builds its own window cannot
+ * see the org's timezone, the station's business date, or how fresh the tables it is dividing are.
+ * All three are COLUMNS, and none of them is reachable from here.
+ *
+ * It is now `GET /api/dashboard`, which measures in SQL (migration 0347), asks `fuel` for the
+ * declined count and `idle` for the cost basis through their own module interfaces, and applies the
+ * same `summariseDashboard` verdict this file's `aggregateDashboard` call used to. The returned
+ * SHAPE is `DashboardSummary`, unchanged — which is what made this a substitution rather than a
+ * rewrite: every widget, every test and every snapshot binds to exactly what it bound to before.
+ *
+ * Measured over 31 days of production data on 2026-09-21: 15 round trips and 1,791 ms became three
+ * parallel server-side calls of 302 / 130 / 209 ms, with 2,009 fills and 4,974 idle rows no longer
+ * crossing the wire at all.
+ *
+ * ⚠ The window is two CALENDAR DAYS, `YYYY-MM-DD`, and the API refuses anything else with a 400
+ * rather than coercing it (D-PREC5). An instant is what put the viewer's timezone into these
+ * figures in the first place, and the picker has always emitted days.
+ */
+interface DashboardEnvelope {
+  ok: boolean;
+  data?: DashboardSummary;
+  error?: { message?: string };
 }
 
 /**
- * Executive dashboard summary for an explicit date range (org-scoped via RLS). `range` holds inclusive
- * YYYY-MM-DD bounds (the page defaults them to the last 30 days), and every window below is now a
- * window of DAYS rather than of instants (FUEL-T1, D-FUI11) — see the note on the fills query.
+ * The request, as a path. Split out so a test can read it: the two things that can go wrong here —
+ * sending an instant instead of a day, or swapping the bounds — are silent, and both are the shape
+ * of defect this queue item exists to close.
  */
-/**
- * The all-time coverage share for the tile, or null when there is no evidence for one.
- *
- * ⚠ `coverageFromBuckets([]).coveragePct` is **0, not null** — `pct(n, d)` returns 0 for an empty
- * denominator, which is right for a per-month row and wrong for this tile. Passing it through would
- * print "0% all time" on the Dashboard of any carrier whose RPC failed, whose history is empty, or
- * whose RLS returns them nothing — an alarming claim made on the strength of no answer at all.
- * Caught by rendering the page against an empty result, not by a unit test, which is why the case is
- * now in one.
- *
- * Not thrown on either: this is one figure on one tile, and the rest of the Dashboard is fine
- * without it. Null makes the tile show its windowed figure alone — exactly what it did before 0322.
- *
- * The rule mirrors `coveragePct`'s own: no fills, no percentage.
- */
-export function allTimeCoverage(res: { data: unknown; error: unknown }): number | null {
-  // ONE guard, not two. An explicit `if (res.error) return null` above this was redundant —
-  // supabase-js sets `data` to null on a failed call, so the no-fills rule already covers it — and a
-  // branch no test can make fail is a branch that is not really there. The rule below covers a failed
-  // read, an empty history and an RLS scope that returns this viewer nothing, which are the same
-  // answer: we do not know.
-  const cells = ((res.data ?? []) as TelematicsCoverageBucket[]).map((b) => ({ ...b, fills: Number(b.fills) }));
-  const summary = coverageFromBuckets(cells);
-  return summary.fills > 0 ? summary.coveragePct : null;
+export function dashboardPath(range: { from: string; to: string }): string {
+  return `/api/dashboard?${new URLSearchParams({ from: range.from, to: range.to }).toString()}`;
+}
+
+/** The API's standard `{ ok, data }` envelope, inside apiFetch's own result. */
+export function unwrapDashboardResponse(res: ApiResult<DashboardEnvelope>): DashboardSummary {
+  const body = res.data;
+  if (!res.ok || !body?.ok || !body.data) {
+    throw new Error(body?.error?.message ?? res.error?.message ?? "Could not load the dashboard");
+  }
+  return body.data;
 }
 
 export function useDashboard(range: Ref<{ from: string; to: string }>) {
-  // The SAME burn-rate + $/gal basis the Idling page uses, so the idle tile matches that page exactly.
-  const costBasis = useIdleCostBasis();
   return useQuery({
-    queryKey: ["dashboard", range, costBasis],
+    queryKey: ["dashboard", range],
     // Reflect background sync + nightly-reconcile results without a manual reload.
     refetchInterval: 120_000,
     // Changing the range keeps the previous frame (dimmed) instead of a skeleton flash.
     placeholderData: keepPreviousData,
-    queryFn: async (): Promise<DashboardSummary> => {
-      const { from: fromDay, to: toDay } = toValue(range);
-      // The declines window in the station-agnostic zone EFS prints rejects in (see the query below).
-      const rejectWindow = efsRejectDayWindow(fromDay, toDay);
-      const [txns, anoms, vehRes, drvRes, orgRes, idleRows, declinedRes, coverageRes] = await Promise.all([
-        // Ordered + paged so every fill in the window is aggregated (not just an arbitrary first 1000).
-        fetchAllPaged<FuelTransaction>((lo, hi) =>
-          supabase
-            .from("fuel_transactions")
-            // `computed_mpg` is no longer selected: M4 moved fleet MPG off the fills this page holds and
-            // onto `GET /api/fueling/fleet-mpg`, whose numerator is two odometer readings. A column fetched
-            // for a figure nothing computes any more is how the next author concludes it is still used.
-            .select("id, vehicle_id, driver_id, fueled_at, gallons, total_cost, tank_type, samsara_recon_at")
-            .eq("is_canonical", true)
-            // FUEL-T1 / D-FUI11. This built its bounds with `new Date(`${fromDay}T00:00:00`)` — the
-            // BROWSER's midnight — and compared them to a UTC instant, so the same picked range
-            // returned a different set of fills depending on where the viewer was sitting, and a
-            // different set again from the Fuel Log beside it. `business_date` (0287) is the station's
-            // own day, stored, so this window is now the same window the Fuel Log uses and the same
-            // KIND of window `idle_rollup_days` below has always used.
-            .gte("business_date", fromDay)
-            .lte("business_date", toDay)
-            .order("fueled_at", { ascending: true })
-            .range(lo, hi),
-        ),
-        // Alert cards are CURRENT-STATE, not range-scoped: the "Active alerts" tile links to the
-        // Alerts page, which shows open cases with NO date filter — so the tile, the severity donut,
-        // and the risk lists must count exactly that set or the numbers read as "wrong data" the
-        // moment someone clicks through. (Spend/MPG stay range-scoped; the scopes differ on purpose.)
-        fetchAllPaged<Anomaly>((lo, hi) =>
-          supabase
-            .from("anomalies")
-            .select("id, transaction_id, vehicle_id, severity, status")
-            .in("status", ["open", "investigating"])
-            .order("id", { ascending: true })
-            .range(lo, hi),
-        ),
-        supabase.from("vehicles").select("id, unit_number"),
-        supabase.from("drivers").select("id, full_name"),
-        supabase.from("organizations").select("operating_hours").maybeSingle(),
-        // Idle hours over the same window from the PRE-AGGREGATED rollup (~trucks×days rows) — the same
-        // source the Idling page reads, so the two screens can no longer disagree.
-        fetchAllPaged<{ idle_sec: number | string }>((lo, hi) =>
-          supabase
-            .from("idle_rollup_days")
-            .select("idle_sec")
-            .gte("day", toValue(range).from)
-            .lte("day", toValue(range).to)
-            .order("day", { ascending: true })
-            .order("vehicle_id", { ascending: true })
-            .range(lo, hi),
-        ),
-        // Declined-attempt count over the same window (head count -> no rows pulled). Bounded in
-        // CENTRAL, because that is the zone EFS prints reject times in whatever the station's own zone
-        // is — the same window the Rejections page uses, so the tile and the page agree.
-        supabase
-          .from("declined_transactions")
-          .select("id", { count: "exact", head: true })
-          .gte("declined_at", rejectWindow.gte)
-          .lt("declined_at", rejectWindow.lt),
-        // D-SAM7: the coverage tile's all-time denominator, beside its windowed one. ⚠ Counted by
-        // `telematics_coverage_buckets()` (0322) rather than read row by row — the service that used
-        // to compute this paged the entire fill history 1,000 rows at a time, 16 sequential round
-        // trips over 15,948 production rows, which is why the figure could not live on this page at
-        // all (Q-SAM8). `p_org` is OMITTED deliberately: the function is `security invoker` and
-        // coalesces to `auth_org_id()`, so this reads exactly the fills RLS already lets this viewer
-        // see — the same scope as the windowed figure beside it, for every role including a driver.
-        supabase.rpc("telematics_coverage_buckets"),
-      ]);
-      // Driver attribution for the alert set: its fills can be OLDER than the visible range, so the
-      // range-scoped `txns` can't resolve them — fetch driver_id for exactly the flagged fills.
-      // Chunked .in() (URL-length safety); the open-alert set is small, so this is a handful of calls.
-      const anomalyDrivers = new Map<string, string | null>();
-      const txnIds = [...new Set(anoms.map((a) => a.transaction_id).filter(Boolean))] as string[];
-      for (let i = 0; i < txnIds.length; i += 100) {
-        const { data: tRows, error: tErr } = await supabase
-          .from("fuel_transactions")
-          .select("id, driver_id")
-          .in("id", txnIds.slice(i, i + 100));
-        if (tErr) throw new Error(tErr.message);
-        for (const t of (tRows ?? []) as { id: string; driver_id: string | null }[]) {
-          anomalyDrivers.set(t.id, t.driver_id);
-        }
-      }
-
-      // Bucket trend days in the ORG's timezone — UTC slicing mis-dated evening fills.
-      const tz = (orgRes.data?.operating_hours as { tz?: string } | null)?.tz ?? null;
-      const idleSec = idleRows.reduce((s, r) => s + Number(r.idle_sec), 0);
-      return aggregateDashboard(
-        txns,
-        anoms,
-        (vehRes.data ?? []) as { id: string; unit_number: string }[],
-        (drvRes.data ?? []) as { id: string; full_name: string }[],
-        { tz },
-        {
-          // Seconds and the BASIS, not a pre-multiplied dollar figure: "hours × gal/h × $/gal" moved
-          // into `summariseDashboard` with queue item 5, so the browser, the API and the fuel-spend
-          // report apply it once (Q9). Same arithmetic, one home.
-          idleSec,
-          costBasis: toValue(costBasis),
-          declinedCount: declinedRes.count ?? 0,
-          anomalyDrivers,
-          allTimeCoveragePct: allTimeCoverage(coverageRes),
-        },
-      );
-    },
+    queryFn: async (): Promise<DashboardSummary> =>
+      unwrapDashboardResponse(await apiFetch<DashboardEnvelope>(dashboardPath(toValue(range)))),
   });
 }

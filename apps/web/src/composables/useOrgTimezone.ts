@@ -28,10 +28,11 @@ import { supabase } from "@/lib/supabase";
  * the zone arriving with the session rather than as a query, which is a change to `init()`'s
  * contract and belongs with queue item 5, not here.
  *
- * ⚠ It does NOT yet replace all four inline reads. `useDashboard.ts` and `useDriverPerformance.ts`
- * still read `operating_hours` themselves — both are inside the browser-side aggregation that queue
- * item 5 (D-PREC8) moves behind the API, and converting them here would be work done twice.
- * `useAnomalyDetail.ts` reads the whole org row for other fields as well.
+ * ⚠ It does NOT yet replace every inline read. `useDashboard.ts` no longer has one — queue item 5
+ * step 4 moved its whole fold behind `GET /api/dashboard`, where the zone is read in SQL from the
+ * column itself, which is what "both are inside the browser-side aggregation that item 5 moves"
+ * meant when this said four. `useDriverPerformance.ts` is the one that remains, for the same reason
+ * as before; `useAnomalyDetail.ts` reads the whole org row for other fields as well.
  */
 const FALLBACK_ZONE = "America/Chicago";
 
