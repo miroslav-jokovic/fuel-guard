@@ -769,25 +769,81 @@ because RLS scopes them; **the API reads with the service role and every one of 
 `.eq("org_id")`, proven by `expectOrgScoped`.** That is the single biggest source of new surface
 area in this item, and the reason it is not a mechanical copy of the composable.
 
-### 7.2 Two decisions, both owner's
+### 7.2 Two decisions — RULED 2026-09-21
 
-- **Q8 — RPC or Express endpoint?** The repo has BOTH precedents and they disagree.
-  `FUEL-SPEND-RELIABILITY-PLAN.md` §1.4 ("Aggregation belongs where the rows are") rules for a
-  set-based SQL function on the `security invoker` + `coalesce(p_org, auth_org_id())` pattern (D-FC1,
-  0247), and `fuel_range_totals` (0312) is exactly that shape — already feeding the dashboard's own
-  operating card. This audit's §5 instead says "ask the API, which asks the harness".
-  **Recommendation: the Express endpoint, with the heavy reductions pushed into SQL.**
-  `aggregateDashboard` is 239 lines of tested pure TypeScript; re-expressing it as SQL would be a
-  second implementation of the same arithmetic, which is the copy-with-a-delay-fuse this repo names
-  outright. But the two reads that PAGE — fills and `idle_rollup_days` — should become set-based
-  aggregates, because paging a window into memory to sum it is the actual cost. That split is the
-  house rule already recorded elsewhere: **SQL returns a measurement, TypeScript owns the verdict.**
-- **Q9 — does the cost basis move with it?** `useIdleCostBasis` resolves burn rate and $/gal
-  (truck-stop median → settings → default) in the browser and hands them to the fold, and the Idling
-  page uses the same composable so the two screens agree. Moving the dashboard server-side without
-  moving this leaves the basis computed in two places against one number.
-  **Recommendation: move it, and have the Idling page read the same server answer** — otherwise item
-  5 fixes the dashboard's aggregation and creates a fresh second source of truth beside it.
+⚠ **Q8's premise was wrong, and it is corrected here rather than quietly dropped.** §7.2 as first
+written said the repo holds two contradicting precedents. It does not. **D-FC1 is a SECURITY
+contract, not a mechanism preference**: 0246 was `security invoker` and relied on RLS, which is true
+for a browser session and false for `apps/api` reading with the service role — so a server-rendered
+PDF read every carrier in the database. `coalesce(p_org, auth_org_id())` is the fix for THAT. §1.4
+says "if you write a set-based function, give it this contract"; it never says "prefer SQL to an
+endpoint". And `telematics_coverage_buckets()` (0322) already replaced a paged browser read **on
+this very dashboard** — 16 sequential round trips over 15,948 rows, "which is why the figure could
+not live on this page at all" (Q-SAM8). That is the same precedent, not a competing one.
+
+- **Q8 — RULED: all three, at a named seam.** `aggregateDashboard` is three kinds of work wearing one
+  name. Roughly 90% is set-based arithmetic — `sum`, `count filter`, `group by` day, `order by
+  critical desc limit 5` — and that is the part that pages 1,400+ fills into the browser. The chunked
+  `N×100 .in()` lookup for anomaly drivers exists ONLY because the browser cannot join; in SQL it is
+  a join and the loop disappears. The remaining ~10% is product judgement its own comments already
+  defend: `coveragePct` null rather than 0, `allTimeCoveragePct ?? null` and never `?? 0` ("0%
+  corroborated is an alarming claim to make on the strength of a missing argument"), `round2`,
+  `movingSpend`'s floor at zero, and zero-filling `spendTrend` so a no-spend day is a real $0 day.
+  So: **SQL returns the measurements, TypeScript owns the verdict, the API is the door.** The
+  reduction belongs in SQL because that is where the facts are — the org timezone, `business_date`
+  and the roll-up watermark are all columns, and D-PREC8's own diagnosis is that the browser "has no
+  access to" them. It is reached through the endpoint rather than called from the browser for three
+  independent reasons: the browser must stop reading six modules' tables whatever happens to the
+  arithmetic; the endpoint is where role and money gating live; and `declined_transactions` is sealed
+  `raw`, so something server-side must route through `fuel`'s index regardless.
+- **Q9 — RULED: the basis moves, and the Idling page reads the same answer.** Forced, not chosen.
+  `movingSpend = max(0, tractorSpend − idleCostUsd)` is a FUEL figure that depends on the IDLE basis,
+  so once the fold runs server-side the server cannot produce it without the basis — leaving
+  `movingSpend` to be assembled in the browser from server parts, which rebuilds the exact split this
+  item exists to remove. The resolver moves into the `idle` module (`idle_settings` is idle's data),
+  is exposed through idle's index, and is consumed by BOTH the dashboard endpoint and an idling
+  endpoint. One resolver, two readers. ⚠ `priceSource` (`truck_stops | settings | default`) must
+  travel on the contract: the Idling page DISPLAYS it, and a contract that drops it silently removes
+  an explanation that page gives today.
+
+### 7.2a The trap, written where the SQL is and not where the composable was
+
+**D-PREC7 is an asymmetry, and it is deliberate.** Four cards — severity, top vehicles, top drivers,
+active alerts — are NOT range-scoped, so each agrees with the Alerts page it links to; the fills are.
+Anyone writing this function "cleanly" against one window will silently range-scope all four and
+change what they show, **and no test will fail**. Migration 0347's header says so for that reason.
+
+### 7.2b One more seam the ruling implies: a RULE stays in TypeScript, a FACT moves to SQL
+
+The org timezone moves into SQL: it is a COLUMN — a fact, not a rule — so 0347 reads it itself and
+buckets the spend series on the carrier's day.
+
+⚠ **The declined-attempt count went the other way, and the GATE decided it, not me.** The first
+draft of 0347 counted declines, taking the window as `p_declined_from` / `p_declined_to` parameters
+because EFS prints reject times in a fixed zone whatever the station's own zone is — a rule about a
+vendor, already written once in `efsRejectDayWindow` and not one to copy into SQL. `lint:boundaries`
+refused the migration: `declined_transactions` is `layer = raw` and sealed to its collector, and
+**all 24 existing `raw-access-waiver` lines are the OWNER acting on its own table** — not one is a
+foreign reader taking a shortcut. A waiver here would have been the first of a new kind.
+
+So the count stays with `fuel` and the endpoint asks through that module's index. The function is
+better for it: those two parameters existed only to carry a window the function could not compute,
+which was a wart rationalised rather than removed. **§7.1's "10 reads become 1" is therefore
+"10 become 2"** — and that is the honest figure.
+
+### 7.2c Sequence — four steps, none leaving a split state
+
+1. **The migration alone** — the function, with no reader. (`lint:migration-ordering` wants exactly
+   this, and a function nothing calls cannot break a deploy window.) ← **step 1, this PR**
+2. **The cost-basis resolver** in `idle`, server-side, plus the idling endpoint. Q9's half FIRST, so
+   the dashboard can depend on it rather than race it.
+3. **The dashboard endpoint** — function + `aggregateDashboard`, returning `DashboardSummary`
+   **unchanged**.
+4. **The web swap** — `useDashboard` becomes one `apiFetch`. Ten reads become one.
+
+Only step 4 changes what anybody sees, and it flips atomically. Because the returned SHAPE is
+identical, step 4 is a pure substitution and every existing dashboard test keeps its meaning — which
+is the property that makes a move this size safe to attempt at all.
 
 ### 7.3 Size, honestly
 
