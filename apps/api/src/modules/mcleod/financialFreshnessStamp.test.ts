@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { stampFinancialSynced, readFinancialSyncedAt, FINANCIAL_PROVIDER } from "./tmsIngest.js";
+import { stampFinancialSynced, readFinancialSyncedAt, readFinancialIntegration, FINANCIAL_PROVIDER } from "./tmsIngest.js";
 
 /**
  * D-FIN3: the financial sweep stamps its OWN provider row. Update when it exists, a FULL insert
@@ -41,5 +41,27 @@ describe("readFinancialSyncedAt", () => {
     const never = createSupabaseRecorder({ tables: { org_integrations: [] } });
     expect(await readFinancialSyncedAt(never.client, ORG)).toBeNull();
     expectOrgScoped(never, ORG);
+  });
+});
+
+/**
+ * The distinction `readFinancialSyncedAt` cannot draw, and the reason it has to be drawn somewhere
+ * (D-PREC11, 2026-09-21): a null stamp means "never swept" only when there is a row to be swept.
+ */
+describe("readFinancialIntegration", () => {
+  it("a stamped row is configured and carries its stamp", async () => {
+    const rec = createSupabaseRecorder({ tables: { org_integrations: [{ last_synced_at: "2026-08-28T21:02:00.000Z" }] } });
+    expect(await readFinancialIntegration(rec.client, ORG)).toEqual({ configured: true, lastSyncedAt: "2026-08-28T21:02:00.000Z" });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("a row with no stamp is configured and never swept", async () => {
+    const rec = createSupabaseRecorder({ tables: { org_integrations: [{ last_synced_at: null }] } });
+    expect(await readFinancialIntegration(rec.client, ORG)).toEqual({ configured: true, lastSyncedAt: null });
+  });
+
+  it("NO row is not configured — the case that read as 'never swept' and raised a false critical", async () => {
+    const rec = createSupabaseRecorder({ tables: { org_integrations: [] } });
+    expect(await readFinancialIntegration(rec.client, ORG)).toEqual({ configured: false, lastSyncedAt: null });
   });
 });

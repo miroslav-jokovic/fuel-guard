@@ -162,15 +162,49 @@ export async function stampFinancialSynced(admin: SupabaseClient, orgId: string)
     .insert({ org_id: orgId, provider: FINANCIAL_PROVIDER, enabled: true, config: {}, last_synced_at: at });
 }
 
-/** When the financial sweep last landed for this org, or null if it never has. */
-export async function readFinancialSyncedAt(admin: SupabaseClient, orgId: string): Promise<string | null> {
+/**
+ * The financial integration row as two separate facts, because collapsing them is a bug with a
+ * measurable cost.
+ *
+ * `readFinancialSyncedAt` answers null for two situations that are not the same situation: the
+ * carrier has a McLeod financial integration that has never been swept, and the tenant has no
+ * McLeod at all. The freshness check (D-FIN3) read the second as the first and planned a critical
+ * "the sweep has never run" for an org that has nothing to sweep. Measured on production
+ * 2026-09-21: `FuelGuard EFS QA` (07fe4058) holds zero rows in `org_integrations`, and the only
+ * thing hiding the false finding was a statement timeout upstream of it (D-PREC11) — so repairing
+ * the timeout would have started delivering it daily.
+ *
+ * `configured` is the existence of the row, not `enabled`: a carrier who has switched the sweep
+ * off still has a sweep whose staleness means something, and `enabled` is the switch for the agent,
+ * not for the monitor.
+ */
+export interface FinancialIntegration {
+  /** Whether this org has a `mcleod_financial` row at all — i.e. whether McLeod finance applies. */
+  configured: boolean;
+  /** When the financial sweep last landed, or null if it never has. Always null when unconfigured. */
+  lastSyncedAt: string | null;
+}
+
+export async function readFinancialIntegration(admin: SupabaseClient, orgId: string): Promise<FinancialIntegration> {
   const { data } = await admin
     .from("org_integrations")
     .select("last_synced_at")
     .eq("org_id", orgId)
     .eq("provider", FINANCIAL_PROVIDER)
     .maybeSingle();
-  return ((data as { last_synced_at?: string | null } | null)?.last_synced_at) ?? null;
+  const row = data as { last_synced_at?: string | null } | null;
+  return { configured: row !== null, lastSyncedAt: row?.last_synced_at ?? null };
+}
+
+/**
+ * When the financial sweep last landed for this org, or null if it never has.
+ *
+ * Derived from `readFinancialIntegration` rather than issuing its own read, so the two can never
+ * disagree about the row they are both describing. Callers that must distinguish "never swept"
+ * from "no McLeod" ask for the integration instead.
+ */
+export async function readFinancialSyncedAt(admin: SupabaseClient, orgId: string): Promise<string | null> {
+  return (await readFinancialIntegration(admin, orgId)).lastSyncedAt;
 }
 
 async function unitMap(

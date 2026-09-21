@@ -24,6 +24,8 @@ export {
   disableTmsIntegration,
   stampFinancialSynced,
   readFinancialSyncedAt,
+  readFinancialIntegration,
+  type FinancialIntegration,
   FINANCIAL_PROVIDER,
 } from "./tmsIngest.js";
 export { registerMcleodIntegrationRoutes } from "./routes/integration.js";

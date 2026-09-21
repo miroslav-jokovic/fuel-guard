@@ -3,7 +3,7 @@ import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { notify } from "../messaging/index.js";
-import { readFinancialSyncedAt } from "../mcleod/index.js";
+import { readFinancialIntegration, type FinancialIntegration } from "../mcleod/index.js";
 import { recentFailedJobs, type FailedJobRow } from "../../queue/metrics.js";
 import { officeUserIds } from "./officeRecipients.js";
 import { runMonthClosesOnce } from "./monthClose.js";
@@ -38,17 +38,36 @@ export interface FreshnessFinding {
   entityId: string | null;
 }
 
-/** Pure: what to say about a sweep stamp and a set of failed jobs, as of `now`. Exported for its test. */
+/**
+ * Pure: what to say about a McLeod financial integration and a set of failed jobs, as of `now`.
+ * Exported for its test.
+ *
+ * ── WHY IT TAKES THE INTEGRATION AND NOT JUST THE STAMP (2026-09-21, D-PREC11) ─────────────────
+ * It used to take `lastSweptAt: string | null`, which cannot tell a carrier whose sweep has never
+ * run from a tenant that has no McLeod to sweep. Both are null, and the first reading is the one
+ * that produces a critical finding. Measured on production 2026-09-21: `FuelGuard EFS QA`
+ * (07fe4058) has no `org_integrations` row at all and would have been told daily that its McLeod
+ * financial sweep had never run.
+ *
+ * The failed-job half is deliberately NOT gated on the same condition. The jobs this reports are
+ * EFS jobs, not McLeod ones — that same org holds 12 failed `efs_soap_posted` runs in the last
+ * seven days — so skipping an org without McLeod would trade a false finding for a true silence,
+ * which is the worse of the two. The sweep findings are about McLeod; the job findings are about
+ * the queue; only the first has a reason to check whether McLeod applies.
+ */
 export function planFreshnessFindings(
   orgId: string,
-  lastSweptAt: string | null,
+  integration: FinancialIntegration,
   failed: FailedJobRow[],
   now: Date,
 ): FreshnessFinding[] {
   const findings: FreshnessFinding[] = [];
   const day = now.toISOString().slice(0, 10);
+  const { configured, lastSyncedAt: lastSweptAt } = integration;
   const ageHours = lastSweptAt ? (now.getTime() - Date.parse(lastSweptAt)) / 3_600_000 : null;
-  if (ageHours === null) {
+  if (!configured) {
+    // Nothing to say about a sweep this org does not have. Falls through to the jobs below.
+  } else if (ageHours === null) {
     findings.push({
       title: "McLeod financial sweep has never run",
       body: "No settlements, billing or ledger totals have ever landed for this organisation. The finance pages are empty until the agent's --financial sweep runs.",
@@ -98,11 +117,11 @@ export async function runFinancialFreshnessOnce(
   now: Date = new Date(),
 ): Promise<FreshnessFinding[]> {
   const since = new Date(now.getTime() - 7 * 86_400_000).toISOString();
-  const [lastSweptAt, failed] = await Promise.all([
-    readFinancialSyncedAt(admin, orgId),
+  const [integration, failed] = await Promise.all([
+    readFinancialIntegration(admin, orgId),
     recentFailedJobs(admin, orgId, FINANCE_JOB_KINDS, since),
   ]);
-  const planned = planFreshnessFindings(orgId, lastSweptAt, failed, now);
+  const planned = planFreshnessFindings(orgId, integration, failed, now);
   if (!planned.length) return [];
   const sent = await alreadySent(admin, orgId, planned.map((f) => f.dedupeKey));
   const fresh = planned.filter((f) => !sent.has(f.dedupeKey));
