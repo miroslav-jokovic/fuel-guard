@@ -575,7 +575,7 @@ that no endpoint resolves it (§2.10.1).
 **Done when:** a defect that flips to resolved between runs is picked up by the `detected_after`
 half, proved by a fixture pair.
 
-### F8 — The scheduler and the job kinds — *no migration*
+### F8 — The scheduler and the job kinds — **DONE 2026-09-21** — *no migration*
 
 `fleetpal_sync` job kinds joined to the `JobKind` union, registered in `queue/handlers/index.ts`,
 `KIND_CAPS` set from F4's measurement (1 until then). One poller in `startAllSchedulers`, after
@@ -1193,3 +1193,51 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   migrations to say the same things), 4,158 api tests green.
 
   **Next is F8**, the scheduler — the step that makes any of F6 or F7 actually run.
+
+- **2026-09-21 · F8 DONE — the sweep runs on a cadence, and the register says who owns it.**
+  `fleetpal_sync` joins the `JobKind` union with a handler registered in `queue/handlers/index.ts`
+  and `KIND_CAPS.fleetpal_sync = 1`; `modules/fleetpal/scheduler.ts` dispatches per org through the
+  jobs ledger; `startFleetpalScheduler` is in `startAllSchedulers`. `docs/WORKER-DEPLOYMENT.md`
+  gains a table of the four vendor-calling schedulers, what bounds each, and why this one's bound is
+  the weakest.
+
+  **⚠ `FLEETPAL_SYNC_ENABLED` defaults to FALSE.** Every other flag in this integration could
+  default on; this one cannot. `RUN_SCHEDULERS_IN_PROCESS` defaults to **true**, so a service nobody
+  hands that variable to runs the whole scheduler set — which is exactly how `@fleetguard/web` came
+  to run every poller beside `api` until 2026-09-05. Against a vendor that publishes no rate limit
+  and sends no limiter headers (F4: 94 requests, zero `X-RateLimit-*`, zero 429s), a second polling
+  process would double the request rate **invisibly**: the ledger refuses the overlapping dispatch,
+  so the only symptom is a request count nobody watches. Opting in per environment makes the second
+  copy a deliberate act.
+
+  **One cadence, not two — the plan's own proposal, measured away.** F8 was written as "the repair
+  record hourly, the catalogues daily". Every resource in the sweep is watermarked or bounded, so an
+  hourly pass over a quiet collection asks `updated_after=<an hour ago>` and gets an empty page: the
+  cost of "too often" is one round trip per resource and the cost of "not often enough" is a report
+  built on yesterday's vendor list. One hourly sweep, `FLEETPAL_SYNC_HOURS` to change it, and a
+  comment naming F12's parts catalogue as the thing that could make this worth revisiting.
+
+  **The sweep order is units → repair record → resolve**, and the job fails only when EVERY resource
+  failed. One bad page on `job-items` must not freeze the watermarks of the other seven behind a red
+  job nobody can read.
+
+  **`orgsWithFleetpal` requires the switch ON *and* a key stored.** An enabled row with no key is a
+  401 per tick for ever; a sealed key with the switch off is the kill switch working, and a
+  scheduler that ignored it would make the switch decorative.
+
+  **Mutation proofs, two, restored by copying the bytes back:** deleting the handler registration
+  failed *"has a registered handler — a kind with none queues for ever and looks healthy"* (the
+  failure F8's done-when exists for), and dropping the `api_key_sealed is not null` filter failed
+  *"needs the switch ON *and* a key stored — neither half alone"*.
+
+  **Verified by:** all 41 `lint:*` gates (`lint:boundaries` caught the undeclared `fleetpal -> org`
+  edge and it is now declared with its reason), `pnpm typecheck`, 4,165 api tests green.
+
+  **⚠ Nothing sweeps in production until two things happen**, both owner acts: `FLEETPAL_SYNC_ENABLED=true`
+  on `@fleetguard/api` only, and the key stored per org through `setApiKey` (which needs
+  `SECRETS_ENCRYPTION_KEY`, already set there). Until then the collector is built, tested and idle.
+
+  **Next is F9** — per-unit cost and the coverage ratio — **and it is BLOCKED on Q9**, the ruling
+  about how the ratio joins FleetPal invoices to `mcleod_ap_vouchers` now that `Vendor.code` is
+  known to be populated on 1 of 761. D-FP4 binds the ratio to the first cost figure, so F9 cannot
+  ship half of itself while the question is open.

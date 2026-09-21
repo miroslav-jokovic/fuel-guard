@@ -1,4 +1,5 @@
 import { registerHandler } from "../registry.js";
+import { fleetpalSyncHandler } from "./fleetpal.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { dqBinderHandler } from "./dqBinder.js";
@@ -67,4 +68,7 @@ export function registerAllHandlers(): void {
   registerHandler("financial_projection", financialProjectionHandler);
   registerHandler("dq_binder", dqBinderHandler);
   registerHandler("document_derive", documentDeriveHandler);
+  // The FleetPal sweep (F8). Vendor-calling, so it shares the bounded lane the Samsara and EFS
+  // kinds use — and its cap is 1 because FleetPal publishes no rate limit at all (F4).
+  registerHandler("fleetpal_sync", fleetpalSyncHandler);
 }

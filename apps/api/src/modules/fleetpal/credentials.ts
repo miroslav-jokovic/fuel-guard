@@ -160,3 +160,24 @@ export async function recordSweep(
     .update({ last_synced_at: outcome.at, last_error: outcome.error })
     .eq("org_id", orgId);
 }
+
+/**
+ * Every org whose FleetPal integration is switched on AND holds a key.
+ *
+ * Both halves matter and the scheduler must not settle for either alone. A row with `enabled=true`
+ * and no key is an org somebody started configuring, and dialling the vendor for it produces a 401
+ * per tick for ever; a sealed key with `enabled=false` is the kill switch, and honouring it is the
+ * whole point of having one separate from the key.
+ *
+ * The envelope is not opened here — this answers "is there one", and `getApiKey` is where a key is
+ * actually unsealed, once, by the job that is about to send it.
+ */
+export async function orgsWithFleetpal(admin: SupabaseClient): Promise<string[]> {
+  const { data, error } = await admin
+    .from("fleetpal_credentials")
+    .select("org_id, enabled, api_key_sealed")
+    .eq("enabled", true)
+    .not("api_key_sealed", "is", null);
+  if (error || !data) return [];
+  return (data as { org_id: string }[]).map((r) => r.org_id);
+}

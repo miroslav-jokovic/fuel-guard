@@ -46,7 +46,17 @@ export type JobKind =
    * `GET /api/org/jobs/failed` returns (no page renders that endpoint yet — 2026-09-21), and the
    * (org, kind) slot the fuel scheduler's own header noted it was missing.
    */
-  | "fuel_spend_rollup";
+  | "fuel_spend_rollup"
+  /**
+   * One FleetPal sweep for one org: the repair record (F6), the bounded-re-read tier (F7) and the
+   * identity resolution (F5), in that order. It is a KIND rather than a bare interval callback for
+   * the reason `fuel_spend_rollup` became one — a scheduler that owns its own failures has
+   * `console.error` as its only evidence, and this one calls a vendor whose rate limit we could not
+   * measure (F4: no limiter headers at all), so its failures are exactly what an operator needs to
+   * see. A kind gives it an error column, a `finished_at`, a row `GET /api/org/jobs/failed`
+   * returns, and the (org, kind) slot that stops two sweeps overlapping on one carrier.
+   */
+  | "fleetpal_sync";
 
 /**
  * P0-3 (2026-08 audit) — ONE per-org mutex across every path that writes fuel_transactions scoring
