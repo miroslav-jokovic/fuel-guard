@@ -592,10 +592,18 @@ means nothing.
 - **Q1.** D-PREC1's fix: drop an allocation whose miles round to zero (and its gallons with it), or
   round both at the same scale? The first is safer — it never invents a gallon with no mile — and
   loses a rounding artefact's worth of fuel. **Recommendation: drop the pair.**
-- **Q2.** Should `getFleetMpg` **withhold** a window whose fuel data does not reach the window's end,
+- ~~**Q2.** Should `getFleetMpg` **withhold** a window whose fuel data does not reach the window's end,
   or report it with a warning? Finance withholds (`latestReportableMonth`). **Recommendation:
   withhold, for the same reason** — a per-mile figure over part of a period reads plausibly and is
-  wrong.
+  wrong.~~ **ANSWERED 2026-09-21, and the recommendation above was the wrong half.** Withholding
+  declines to report a bias that can simply be removed: the bias exists because the numerator's
+  window and the denominator's window are different lengths, so making them the SAME length fixes it
+  outright. `resolveFleetMpgWindow` therefore **clamps** `to` to the roll-up's watermark before
+  either source is read, and refuses only the two cases a clamp cannot rescue — nothing to clamp to
+  (the roll-up never ran, or stops before the window opens), and a clamp that would answer a
+  materially different question (below `MIN_WINDOW_COVERED`, 0.5). The clamped case is reported, not
+  hidden: `partial`, `requestedTo` and `fuelThrough` travel on the wire and the trend card prints the
+  sentence. Built in queue item 2; `fleetMpgWindow.ts` carries the reasoning.
 - **Q3.** D-PREC4: does the Fuel Spend page move to measured odometer miles, or does it keep allocated
   miles and label them? Moving it makes one definition true; keeping it means the spend report stays a
   report about its own rollup. **Recommendation: keep allocated, label it on the page, and put the
@@ -639,3 +647,21 @@ Append dated lines at the END of this section. Do not edit rows above.
   D-IDLE1..D-IDLE6 measured; D-IDLE-A..F proposed. Nothing built. Root cause of the reported
   8.6-vs-6.8 symptom is D-PREC1, reproduced exactly (8.61 total against 6.28/6.83/6.82/7.10 weeks).
   Regulatory research for §3.3 done from primary and secondary sources, cited inline.
+- **2026-09-21** — **Queue item 1 merged** (PR #929, `cc1b60a`). `allocate()` now takes a day-slice
+  whole or not at all. Verified end to end in production: the sweep ran at 01:41 UTC and rebuilt
+  09-13 → 09-20 with `gallons_tractor` matching `fuel_transactions` **to the gallon on every day**
+  (09-15 went from 431 to 7,589); the carrier's sweep marker moved for the first time since
+  2026-09-15 08:55; and fleet MPG fell from **8.61 to 6.91**, with the 09-14 week going from a
+  withheld 22.82 to 6.98. Predicted ~6.9 from the weekly figures before touching anything.
+  ⚠ One loose end from §2 closed while watching it: the `last_fuel_sweep_at` of 22:31 quoted in the
+  audit belonged to the *FuelGuard EFS QA* org, not to Silvicom — the carrier's own marker had been
+  stuck at 2026-09-15 08:55 for **136.6 hours**, which is why no manual backfill was needed.
+- **2026-09-21** — **Queue item 2 built.** `resolveFleetMpgWindow` + `fleetMpgWindowNote`
+  (`packages/shared/src/fuelSpend/fleetMpgWindow.ts`), read by `getFleetMpg` / `getFleetMpgSeries`
+  before either source is fetched. **Q2's recorded recommendation was revised** — see §4: the answer
+  is to clamp first and refuse second, not to refuse. `FleetMpgPeriod` gains `requestedTo`, `partial`
+  and `fuelThrough`; the trend card prints the sentence and the hero tile's caption gives the dates
+  precedence over the coverage percentage (the term that read 0.966 throughout the outage).
+  Mutation-checked six ways: clamping the label only, clamping the gallons only (the original bug),
+  dropping the refusal override, bucketing over the requested window, removing the floor, and — on
+  the web side — a caption that never renders and one that always does.

@@ -259,7 +259,21 @@ export function reportableMpg(period: { mpg: number | null; mpgUsable: boolean }
 export interface FleetMpgPeriod extends FleetMpg {
   /** The period, echoed back as the caller's own inclusive days. */
   from: string;
+  /**
+   * The day the measurement CLOSES on, which is not always the day the caller asked about: it is
+   * clamped to how far the gallons reach, so that both sources are cut on the same day
+   * (`fleetMpgWindow.ts`). Compare with `requestedTo`, or read `partial`.
+   */
   to: string;
+  /** What the caller asked for. Equal to `to` unless the period is `partial`. */
+  requestedTo: string;
+  /**
+   * The answer is about a SHORTER period than the question. Not a quality flag — the figure is
+   * unbiased — but a surface printing it against the requested dates is mislabelling it.
+   */
+  partial: boolean;
+  /** The last day the fuel roll-up has derived, so "why is this partial" is answerable on the row. */
+  fuelThrough: string | null;
   /** The fleet clock the days were resolved on — the boundary both sources were cut at. */
   timezone: string;
   /** Trucks that bought fuel in the period. The population `truckCoverage` is a share of. */

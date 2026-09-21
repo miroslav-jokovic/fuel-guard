@@ -13,10 +13,16 @@ import { GaugeIcon } from "@silvicom/ui/icons";
 import BaseChart from "@/components/BaseChart.vue";
 import ChartCard from "../ChartCard.vue";
 import { useFleetWidgetData, type FleetRange } from "../fleetWidgetData";
+import { fleetMpgWindowNote } from "@silvicom/shared";
 import { viz, areaFill, lastPointRadius, trendOptions, fmtDay } from "@/lib/chartTheme";
 
 const props = defineProps<{ range: FleetRange }>();
 const { mpgWeeks, mpgTotal, mpgSub } = useFleetWidgetData(computed(() => props.range));
+
+/** Non-null only when the window was clamped to the roll-up's reach — see the template. */
+const windowNote = computed(() =>
+  fleetMpgWindowNote(mpgTotal.value ?? { partial: false, to: "", requestedTo: "" }),
+);
 
 /** The week under the pointer (D-DT11), formatted as this card's own series: MPG, week beginning. */
 const scrub = ref<{ label: string; value: number } | null>(null);
@@ -87,6 +93,14 @@ const mpgChart = computed<ChartConfiguration>(() => ({
         </tr>
       </tbody>
     </table>
-    <p v-if="mpgTotal?.reason" class="mt-3 text-xs text-ink-tertiary">{{ mpgTotal.reason }}</p>
+    <!--
+      The roll-up's reach, stated on the card rather than only in a tooltip. This is the card that
+      made the 2026-09-13 outage visible at all — a headline of 8.61 sitting above five weeks of
+      6.3–7.1 — so it is the right place for the sentence explaining a short window. `windowNote`
+      and `reason` are mutually exclusive by construction: a refused period carries a reason, an
+      answered-but-short one carries a note.
+    -->
+    <p v-if="windowNote" class="mt-3 text-xs text-ink-tertiary">{{ windowNote }}</p>
+    <p v-else-if="mpgTotal?.reason" class="mt-3 text-xs text-ink-tertiary">{{ mpgTotal.reason }}</p>
   </ChartCard>
 </template>

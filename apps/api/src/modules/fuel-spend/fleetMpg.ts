@@ -2,10 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   computeFleetMpg,
   periodBounds,
+  resolveFleetMpgWindow,
   zonedWallTimeToUtcIso,
   type FleetMilesSource,
   type FleetMpgPeriod,
   type FleetMpgSeries,
+  type FleetMpgWindow,
   type SpendGrain,
 } from "@silvicom/shared";
 import { eachPage } from "../../lib/paging.js";
@@ -33,13 +35,24 @@ import { readFleetDistancePeriods, type FleetDistanceResult } from "../samsara/i
  * the period's total, so `measuredShare` tells the reader exactly how much of the fleet's fuel the
  * figure speaks for. Nothing is dropped quietly; things are dropped loudly or not at all.
  *
+ * ── THE GALLONS' OWN REACH BOUNDS THE WINDOW (D-PREC2, 2026-09-21) ─────────────────────────────
+ * The miles come from a collector that reaches ~now; the gallons come from a nightly DERIVATION that
+ * reaches yesterday at best. A window past the derivation's reach has miles in its tail and no
+ * gallons, and reads high by roughly the reciprocal of the covered share. It happened: the sweep
+ * died on 2026-09-13 and this endpoint answered **8.61 MPG against a true 6.91** for a week, while
+ * `measuredShare` read 0.966 and could not see it — that term is about TRUCKS and this failure is
+ * about TIME. So `resolveFleetMpgWindow` clamps `to` to `max(day)` in `fuel_spend_days` before
+ * either source is read, which makes the two windows the same window; the reasoning, and why
+ * clamping beats refusing, is in `fleetMpgWindow.ts`.
+ *
  * ── THE TANK BOUNDARY, WHICH IS REAL AND IS NOT SOLVED HERE ────────────────────────────────────
  * Fuel is bought in one instant and burned over the following days, so a period's purchases are not
  * exactly its consumption. Over a month the two ends cancel to second order on a steady fleet; over
  * a single day they do not, and a caller asking for one day is asking a question the data cannot
- * answer well. `measuredShare` does not detect this — it is a coverage figure, not a timing one — so
- * it is stated here rather than papered over. The fix, if it is ever needed, is tank-level
- * reconciliation (the fuel module already models it), not a fudge in this file.
+ * answer well. Note this is a DIFFERENT problem from the one above and the clamp does not touch it:
+ * clamping aligns the two windows, it does not make a day's purchases equal a day's burn. The fix,
+ * if it is ever needed, is tank-level reconciliation (the fuel module already models it), not a
+ * fudge in this file.
  *
  * ── WHY TRACTOR GALLONS AND NOT ALL GALLONS (D-MPG5) ───────────────────────────────────────────
  * Reefer fuel runs a refrigeration unit and DEF is an emissions consumable; neither moves a truck.
@@ -145,6 +158,30 @@ function foldGallons(days: readonly GallonDay[], from: string, to: string): Gall
   return { byVehicle, unattributed, total };
 }
 
+/**
+ * How far the daily fuel roll-up has actually derived, org-wide — `max(day)` in `fuel_spend_days`.
+ *
+ * ⚠ Read ORG-WIDE even when the caller scoped to a handful of trucks, and read as a MAXIMUM rather
+ * than as a count of rows. How far the sweep got is a property of the sweep, not of the trucks; and
+ * a day on which no truck happened to fuel still gets rows from the engine feed, so the maximum
+ * tracks the derivation's reach instead of the fleet's fuelling habits. Scoping it to the caller's
+ * trucks would make a filtered screen believe the feed was stale because those three trucks were
+ * parked.
+ *
+ * Null when the table holds nothing at all for this org — which `resolveFleetMpgWindow` turns into a
+ * sentence about the feed, not into `computeFleetMpg`'s "no tractor fuel was purchased".
+ */
+async function readFuelThrough(admin: SupabaseClient, orgId: string): Promise<string | null> {
+  const { data } = await admin
+    .from("fuel_spend_days")
+    .select("day")
+    .eq("org_id", orgId)
+    .order("day", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as { day?: string } | null)?.day ?? null;
+}
+
 /** The fleet's operating clock — the boundary both the odometer slots and the spend days are cut on. */
 async function readTimezone(admin: SupabaseClient, orgId: string): Promise<string> {
   const { data } = await admin
@@ -177,8 +214,9 @@ const instants = (from: string, to: string, tz: string): { fromIso: string; toIs
 function pairPeriod(
   distance: FleetDistanceResult,
   fuel: GallonsByVehicle,
-  period: { from: string; to: string; timezone: string },
+  period: { window: FleetMpgWindow; timezone: string },
 ): FleetMpgResult {
+  const w = period.window;
   const measuredMiles = new Map<string, number>();
   for (const v of distance.perVehicle) {
     if (v.miles != null) measuredMiles.set(v.vehicleId, v.miles);
@@ -213,8 +251,19 @@ function pairPeriod(
 
   return {
     ...mpg,
-    from: period.from,
-    to: period.to,
+    // ⚠ The window's refusal OVERRULES `computeFleetMpg`'s verdict, and only ever downward. A period
+    // whose gallons stop before it opens divides real miles by nothing, which that function reports
+    // as "no tractor fuel was purchased in this period" — a true statement about the TABLE and a
+    // false one about the fleet, and the one that sends a reader to look at their fuel cards instead
+    // of at the roll-up. It can never turn a withheld figure back on: `?? mpg.reason` keeps whatever
+    // the arithmetic already refused.
+    mpg: w.refusal != null ? null : mpg.mpg,
+    reason: w.refusal ?? mpg.reason,
+    from: w.from,
+    to: w.to,
+    requestedTo: w.requestedTo,
+    partial: w.partial,
+    fuelThrough: w.fuelThrough,
     timezone: period.timezone,
     trucksFuelled: fuel.byVehicle.size,
     unattributedGallons: Math.round(fuel.unattributed * 100) / 100,
@@ -265,12 +314,16 @@ export async function getFleetMpg(
   to: string,
   vehicles: VehicleScope = null,
 ): Promise<FleetMpgResult> {
-  const tz = await readTimezone(admin, orgId);
+  const [tz, fuelThrough] = await Promise.all([readTimezone(admin, orgId), readFuelThrough(admin, orgId)]);
+  // ⚠ Resolved BEFORE either source is read, not applied to the answer afterwards. Both reads below
+  // take `w.to`, which is what makes the odometer difference and the gallons cover the same days —
+  // clamping the label alone would leave the bias exactly where it was.
+  const w = resolveFleetMpgWindow(from, to, fuelThrough);
   const [[distance], gallonDays] = await Promise.all([
-    readFleetDistancePeriods(admin, orgId, [instants(from, to, tz)]),
-    readTractorGallonDays(admin, orgId, from, to, vehicles),
+    readFleetDistancePeriods(admin, orgId, [instants(w.from, w.to, tz)]),
+    readTractorGallonDays(admin, orgId, w.from, w.to, vehicles),
   ]);
-  return pairPeriod(distance!, foldGallons(gallonDays, from, to), { from, to, timezone: tz });
+  return pairPeriod(distance!, foldGallons(gallonDays, w.from, w.to), { window: w, timezone: tz });
 }
 
 /**
@@ -303,18 +356,29 @@ export async function getFleetMpgSeries(
   grain: FleetMpgSeries["grain"],
   vehicles: VehicleScope = null,
 ): Promise<FleetMpgSeries> {
-  const tz = await readTimezone(admin, orgId);
-  const buckets = bucketWindow(from, to, grain);
+  const [tz, fuelThrough] = await Promise.all([readTimezone(admin, orgId), readFuelThrough(admin, orgId)]);
+  const total = resolveFleetMpgWindow(from, to, fuelThrough);
+  /**
+   * ⚠ The buckets are cut over the CLAMPED window, so the trend never draws a week made of miles
+   * with no gallons — which is exactly the week that gave the 2026-09-14 bucket 22.82 MPG on 7,318
+   * gallons while its neighbours held ~50,000. A bucket that survives this is therefore never itself
+   * partial (its end is at or before the watermark by construction), and it is resolved anyway
+   * rather than assumed so: the flag on a row should be a measurement of that row, not an inference
+   * from its neighbour.
+   */
+  const buckets = bucketWindow(total.from, total.to, grain).map((b) =>
+    resolveFleetMpgWindow(b.from, b.to, fuelThrough),
+  );
   // The window itself leads, so `distances[0]` is the total and the buckets follow in order. One
   // fetch of the staging table covers all of them (M4, `readFleetDistancePeriods`).
-  const windows = [{ from, to }, ...buckets];
+  const windows = [total, ...buckets];
   const [distances, gallonDays] = await Promise.all([
     readFleetDistancePeriods(admin, orgId, windows.map((w) => instants(w.from, w.to, tz))),
-    readTractorGallonDays(admin, orgId, from, to, vehicles),
+    readTractorGallonDays(admin, orgId, total.from, total.to, vehicles),
   ]);
 
   const paired = windows.map((w, i) =>
-    pairPeriod(distances[i]!, foldGallons(gallonDays, w.from, w.to), { ...w, timezone: tz }),
+    pairPeriod(distances[i]!, foldGallons(gallonDays, w.from, w.to), { window: w, timezone: tz }),
   );
   return { total: paired[0]!, periods: paired.slice(1), grain };
 }

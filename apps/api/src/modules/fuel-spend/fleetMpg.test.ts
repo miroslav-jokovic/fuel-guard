@@ -46,7 +46,21 @@ const reading = (vehicleId: string, at: string, meters: number, source = "obd"):
  * array answers a July question with June's rows, and the odometer read's whole correctness is which
  * window it asked for (see samsaraOdometerReads.test.ts's header for the mutant that proved it).
  */
-const seed = (readings: Reading[], days: SpendDay[], tz = "America/Chicago") =>
+/**
+ * `fuelThrough` is the roll-up's WATERMARK — how far `fuel_spend_days` has been derived, which
+ * `getFleetMpg` clamps its window to (D-PREC2). It is deliberately a separate knob from `days`
+ * rather than `max(day)` over them, because that is what it is in production: the watermark is
+ * org-wide over the whole table, and a test seeding two truck-days in September is not saying the
+ * sweep stopped in September.
+ *
+ * The default is past every window in this file, i.e. "the roll-up is up to date" — the condition
+ * every test written before 2026-09-21 already assumed. Tests that care set it.
+ */
+const seed = (
+  readings: Reading[],
+  days: SpendDay[],
+  { tz = "America/Chicago", fuelThrough = "2099-12-31" }: { tz?: string; fuelThrough?: string | null } = {},
+) =>
   createSupabaseRecorder({
     tables: {
       organizations: [{ id: ORG, operating_hours: { tz } }],
@@ -67,6 +81,17 @@ const seed = (readings: Reading[], days: SpendDay[], tz = "America/Chicago") =>
           q.ops.find((o) => o.method === method && o.args[0] === "day")?.args[1] as string | undefined;
         const lo = at("gte");
         const hi = at("lte");
+        /**
+         * ⚠ The WATERMARK read (`readFuelThrough`) is the one query here with no day bounds: it
+         * orders by day descending and takes one row. The recorder RECORDS `.order()` and `.limit()`
+         * and does not apply them — `.maybeSingle()` hands back `rows[0]` — so a fixture that
+         * ignored the ordering would make the watermark whichever row happened to be declared
+         * first, and every window in this file would clamp to it. Answered explicitly rather than
+         * by sorting `days`, for the reason on `seed`.
+         */
+        if (lo === undefined && hi === undefined) {
+          return fuelThrough == null ? [] : [{ day: fuelThrough }];
+        }
         const scope = q.ops.find((o) => o.method === "in" && o.args[0] === "vehicle_id")?.args[1] as
           | string[]
           | undefined;
@@ -81,6 +106,18 @@ const seed = (readings: Reading[], days: SpendDay[], tz = "America/Chicago") =>
       },
     },
   });
+
+/**
+ * The GALLONS reads of `fuel_spend_days`, excluding the watermark read.
+ *
+ * Two different queries hit this table now and they answer different questions: one asks how far the
+ * roll-up has derived (org-wide, no day bounds), the other asks for the period's fuel (day-bounded,
+ * possibly truck-scoped). Selecting by SHAPE rather than by position, because `[0]` silently became
+ * the wrong query the moment the watermark read was added in front of it — which is how three
+ * assertions in this file started testing the wrong thing at once.
+ */
+const gallonReads = (rec: ReturnType<typeof seed>) =>
+  rec.forTable("fuel_spend_days").filter((q) => q.ops.some((o) => o.method === "gte" && o.args[0] === "day"));
 
 /** 800,000 m ≈ 497.1 miles; 100 gallons → ~4.97 MPG. Two trucks make the pairing visible. */
 const READINGS = [
@@ -167,9 +204,7 @@ describe("getFleetMpg", () => {
     // started giving reefer fills an MPG could not leak them in (D-MPG5).
     const rec = seed(READINGS, [{ vehicle_id: "v1", gallons_tractor: 100 }]);
     await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03");
-    const select = rec
-      .forTable("fuel_spend_days")[0]!
-      .ops.find((o) => o.method === "select")!.args[0] as string;
+    const select = gallonReads(rec)[0]!.ops.find((o) => o.method === "select")!.args[0] as string;
     expect(select).toContain("gallons_tractor");
     expect(select).not.toContain("gallons_reefer");
     expect(select).not.toContain("gallons_def");
@@ -231,8 +266,12 @@ describe("getFleetMpg — scoped to named trucks", () => {
     const rec = seed(READINGS, [{ vehicle_id: "v1", gallons_tractor: 100 }]);
     const r = await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03", []);
     expect(r.gallons).toBe(0);
+    // ⚠ The WATERMARK read still happens and should: how far the roll-up got is org-wide, not a
+    // property of the trucks named, so scoping it to an empty list would make every filtered screen
+    // believe the feed had never run. It is only the GALLONS read that is skipped.
+    expect(gallonReads(rec)).toEqual([]);
     expect(r.mpg).toBeNull();
-    expect(rec.forTable("fuel_spend_days")).toEqual([]); // nothing to ask for
+    expect(gallonReads(rec)).toEqual([]); // nothing to ask for
   });
 });
 
@@ -243,17 +282,19 @@ describe("getFleetMpg — scoped to named trucks", () => {
  * over almost identical distances, because the fleet filled more tanks on the third. The series that
  * replaces it has to hold two properties that a naive implementation loses quietly.
  */
+/** Two Monday-start weeks: 2026-08-31 → 09-06 and 09-07 → 09-13. File-scoped since the clamp tests
+ *  at the bottom measure the same two weeks against a stalled roll-up. */
+const WEEK_READINGS = [
+  reading("v1", "2026-08-30T23:50:00Z", 663_000_000),
+  reading("v1", "2026-09-06T23:50:00Z", 663_800_000), // +497.1 miles in week one
+  reading("v1", "2026-09-13T23:50:00Z", 664_600_000), // +497.1 miles in week two
+];
+const WEEK_DAYS = [
+  { day: "2026-09-02", vehicle_id: "v1", gallons_tractor: 100 },
+  { day: "2026-09-09", vehicle_id: "v1", gallons_tractor: 50 },
+];
+
 describe("getFleetMpgSeries", () => {
-  /** Two Monday-start weeks: 2026-08-31 → 09-06 and 09-07 → 09-13. */
-  const WEEK_READINGS = [
-    reading("v1", "2026-08-30T23:50:00Z", 663_000_000),
-    reading("v1", "2026-09-06T23:50:00Z", 663_800_000), // +497.1 miles in week one
-    reading("v1", "2026-09-13T23:50:00Z", 664_600_000), // +497.1 miles in week two
-  ];
-  const WEEK_DAYS = [
-    { day: "2026-09-02", vehicle_id: "v1", gallons_tractor: 100 },
-    { day: "2026-09-09", vehicle_id: "v1", gallons_tractor: 50 },
-  ];
 
   it("buckets on Monday-start weeks and folds each bucket's own fuel", async () => {
     const rec = seed(WEEK_READINGS, WEEK_DAYS);
@@ -296,12 +337,107 @@ describe("getFleetMpgSeries", () => {
     const rec = seed(WEEK_READINGS, WEEK_DAYS);
     await getFleetMpgSeries(rec.client, ORG, "2026-08-31", "2026-09-13", "week");
     expect(rec.forTable("samsara_odometer_readings").length).toBe(1);
-    expect(rec.forTable("fuel_spend_days").length).toBe(1);
+    expect(gallonReads(rec).length).toBe(1);
+    // Plus exactly ONE watermark read for the whole series, not one per bucket: how far the roll-up
+    // got is a property of the roll-up, so asking it six times would be six answers to one question.
+    expect(rec.forTable("fuel_spend_days").length).toBe(2);
   });
 
   it("scopes every tenant query to one organization", async () => {
     const rec = seed(WEEK_READINGS, WEEK_DAYS);
     await getFleetMpgSeries(rec.client, ORG, "2026-08-31", "2026-09-13", "week");
     expectOrgScoped(rec, ORG, { exempt: ORG_LOOKUP });
+  });
+});
+
+/**
+ * The roll-up's reach bounds the window (D-PREC2).
+ *
+ * `fleetMpgWindow.test.ts` proves the RULE. What is only testable here is that the rule reaches the
+ * two READS — because clamping the label alone would leave the bias exactly where it was, and the
+ * answer would still be miles-over-a-month divided by gallons-over-three-weeks.
+ */
+describe("getFleetMpg — bounded by how far the fuel roll-up has derived", () => {
+  it("asks BOTH sources for the clamped window, not just the gallons", async () => {
+    const rec = seed(READINGS, [{ vehicle_id: "v1", gallons_tractor: 100 }], { fuelThrough: "2026-09-02" });
+    const r = await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03");
+
+    expect(r.to).toBe("2026-09-02");
+    expect(r.requestedTo).toBe("2026-09-03");
+    expect(r.partial).toBe(true);
+    expect(r.fuelThrough).toBe("2026-09-02");
+
+    // ⚠ The ODOMETER read is the half that matters and the half a label-only fix would miss. Chicago
+    // is UTC−5 in September, so an inclusive 2 Sept ends at 05:00Z on the 3rd — the clamped day, not
+    // the requested one. Mutate the service to clamp only the gallons and this is what fails.
+    const odo = rec.forTable("samsara_odometer_readings")[0]!;
+    const hi = odo.ops.find((o) => o.method === "lte" && o.args[0] === "reading_at")!.args[1];
+    expect(hi).toBe("2026-09-03T05:00:00.000Z");
+
+    const gal = gallonReads(rec)[0]!;
+    expect(gal.ops.find((o) => o.method === "lte" && o.args[0] === "day")!.args[1]).toBe("2026-09-02");
+  });
+
+  it("still answers, and the figure is about the days it names", async () => {
+    /**
+     * ⚠ The readings have to sit inside the CLAMPED window, and the first draft of this test got
+     * that wrong in a way worth keeping a note about: `READINGS` closes on 2026-09-03T23:50Z, which
+     * is past the clamped end (2026-09-03T05:00Z, i.e. the start of the 3rd in Chicago), so v1 had
+     * one bounding reading and no distance. The clamp really does narrow the odometer read — which
+     * is the point of the test above — and a fixture that ignores it proves nothing.
+     */
+    const rec = seed(
+      [
+        reading("v1", "2026-08-31T23:50:00Z", 663_000_000),
+        reading("v1", "2026-09-02T23:50:00Z", 663_800_000), // +497.1 miles, inside the clamp
+      ],
+      [{ vehicle_id: "v1", gallons_tractor: 100 }],
+      { fuelThrough: "2026-09-02" },
+    );
+    const r = await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03");
+    expect(r.mpg).toBe(4.97);
+    expect(r.reason).toBeNull();
+    expect(r.partial).toBe(true);
+  });
+
+  it("withholds with a sentence about the FEED when the roll-up has never run", async () => {
+    const rec = seed(READINGS, [{ vehicle_id: "v1", gallons_tractor: 100 }], { fuelThrough: null });
+    const r = await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03");
+    expect(r.mpg).toBeNull();
+    expect(r.reason).toMatch(/roll-up has not produced a single day/i);
+    // The provenance still travels with a withheld figure (D-MPG1).
+    expect(r.milesSource).toBe("measured");
+  });
+
+  it("does not turn a figure the ARITHMETIC withheld back on", async () => {
+    // A healthy window whose fuel is only 40% measured: `computeFleetMpg` refuses on the coverage
+    // floor, and a window that is perfectly fine must not overwrite that refusal with `null`.
+    const rec = seed(READINGS, [
+      { vehicle_id: "v1", gallons_tractor: 100 },
+      { vehicle_id: "v9", gallons_tractor: 150 },
+    ]);
+    const r = await getFleetMpg(rec.client, ORG, "2026-09-01", "2026-09-03");
+    expect(r.mpg).toBeNull();
+    expect(r.reason).toMatch(/measured distance behind it/i);
+  });
+});
+
+describe("getFleetMpgSeries — bounded by the same reach", () => {
+  it("cuts the BUCKETS over the clamped window, so no week is miles with no gallons", async () => {
+    // The 2026-09-14 week is exactly the shape that read 22.82 MPG on 7,318 gallons during the
+    // outage: real miles, almost no fuel. A series that stops at the watermark cannot draw it.
+    const rec = seed(WEEK_READINGS, WEEK_DAYS, { fuelThrough: "2026-09-08" });
+    const s = await getFleetMpgSeries(rec.client, ORG, "2026-08-31", "2026-09-13", "week");
+
+    expect(s.total.to).toBe("2026-09-08");
+    expect(s.total.partial).toBe(true);
+    expect(s.periods.map((p) => [p.from, p.to])).toEqual([
+      ["2026-08-31", "2026-09-06"],
+      ["2026-09-07", "2026-09-08"],
+    ]);
+    // ⚠ A bucket that survives the clamp is NOT itself partial — its end is at or before the
+    // watermark by construction — so the flag stays a fact about the row rather than about the row
+    // above it. A surface that dimmed every bucket of a partial series would be wrong twice.
+    expect(s.periods.every((p) => !p.partial)).toBe(true);
   });
 });
