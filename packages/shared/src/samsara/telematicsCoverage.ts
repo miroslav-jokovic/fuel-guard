@@ -131,6 +131,29 @@ export function telematicsCoverageBuckets(
 }
 
 /**
+ * The all-time coverage share for the Dashboard tile, or **null when there is no evidence for one**.
+ *
+ * ⚠ The whole function is that null. `coverageFromBuckets([]).coveragePct` is **0**, because
+ * `pct(n, d)` returns 0 for an empty denominator — correct for a per-month row, and on this tile it
+ * reads as "nothing this carrier has ever bought has been corroborated", which is a serious claim to
+ * make because a read came back empty or an RPC failed. The rule mirrors the windowed figure's own:
+ * no fills, no percentage.
+ *
+ * ⚠ It also NUMBERS the counts, because they do not always arrive as numbers: PostgREST returns a
+ * bigint as a string, and `0 + "8" + "2"` is `"082"` — a total of 82 against 8 corroborated, which
+ * is a believable 9.8% rather than an obvious error.
+ *
+ * It moved here from `useDashboard.ts` when the Dashboard's fold went server-side (queue item 5
+ * step 4): the browser and the API were about to answer the same question, and a rule found by
+ * rendering an empty tile is not one to re-derive from its symptoms a second time.
+ */
+export function allTimeCoveragePct(buckets: readonly TelematicsCoverageBucket[] | null | undefined): number | null {
+  const cells = (buckets ?? []).map((b) => ({ ...b, fills: Number(b.fills) }));
+  const summary = coverageFromBuckets(cells);
+  return summary.fills > 0 ? summary.coveragePct : null;
+}
+
+/**
  * The verdict — the only place a raw column state becomes pending, no-data or reconciled.
  *
  * Both entry points run this: the row-based `computeTelematicsCoverage` counts first and then calls

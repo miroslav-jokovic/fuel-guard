@@ -814,6 +814,33 @@ Append dated lines at the END of this section. Do not edit rows above.
   **Nothing on screen changed yet** — `useDashboard` still reads PostgREST; step 4 is the atomic
   swap to one `apiFetch`, and it must also delete the composable's grandfathered `fuel_prices` line
   in `check-table-access.mjs` when `useIdleCostBasis` follows it.
+- **2026-09-21** — **Queue item 5, step 4 built — the item is COMPLETE.** `useDashboard.ts` went from
+  180 lines to 51: one `apiFetch("/api/dashboard?from&to")` returning the same `DashboardSummary`,
+  so every widget, test and snapshot binds to what it bound to before. `useIdleCostBasis.ts` went the
+  same way onto `GET /api/idle/cost-basis`, which is the half of Q9 that makes the Idling page and
+  the Dashboard read ONE answer rather than two that agree by construction.
+  - **The ratchets moved, which is the part that proves the reads are gone.**
+    `check-table-access.mjs` is down from 33 grandfathered sites to **31**:
+    `declined_transactions <- useDashboard.ts` and `fuel_prices <- useIdleCostBasis.ts` are deleted,
+    not waived. A browser no longer touches a sealed raw table anywhere on this screen.
+  - ⚠ **The Idling page's idle price moves by 1.8% TODAY, and that is the defect closing.** The
+    composable asked `fuel_prices` for `.limit(5000)` against PostgREST's 1,000-row cap, so the page
+    has been showing the median of the most recent 1,000 rows rather than of its own 14-day window:
+    **$5.978 → $5.873**, against fills that actually ran $5.79–$6.22. Anyone comparing a screenshot
+    from yesterday will see it; it is the number getting closer to the fact, not further.
+  - **A rule moved rather than being re-derived.** `allTimeCoverage` — null and never the 0 an empty
+    denominator produces, counts NUMBERed because PostgREST returns a bigint as text — is now
+    `allTimeCoveragePct` in `@silvicom/shared`, with its five assertions moved verbatim from the web
+    test file. It was found by rendering an empty tile once; it should not have to be found twice.
+  - `useOrgTimezone.ts`'s header said "`useDashboard.ts` and `useDriverPerformance.ts` still read
+    `operating_hours` themselves — both inside the browser-side aggregation that item 5 moves behind
+    the API". Half of that is now history, so it says so; the zone is read in SQL from the column.
+  - Mutation-checked: the window bounds swapped in the request path, a refusal swallowed instead of
+    thrown (which would draw a healthy fleet out of a failed request), and the pending basis
+    claiming the `truck_stops` tier it has not read — each killed a test that named it.
+  **What item 5 leaves behind:** ten browser reads became two server ones, the browser reads no
+  sealed table, and the four cards' window asymmetry (D-PREC7) survived the move — pinned by 0347's
+  matrix rather than by anybody remembering it.
 
 ---
 
@@ -918,7 +945,8 @@ which was a wart rationalised rather than removed. **§7.1's "10 reads become 1"
 3. **The dashboard endpoint** — function + `aggregateDashboard`, returning `DashboardSummary`
    **unchanged**. ← **step 3, this PR** (it is
    `summariseDashboard` rather than `aggregateDashboard` — see §6's entry)
-4. **The web swap** — `useDashboard` becomes one `apiFetch`. Ten reads become one.
+4. **The web swap** — `useDashboard` becomes one `apiFetch`. Ten reads become one. ← **step 4, this PR** (with
+   `useIdleCostBasis` alongside it, which is Q9's other half)
 
 Only step 4 changes what anybody sees, and it flips atomically. Because the returned SHAPE is
 identical, step 4 is a pure substitution and every existing dashboard test keeps its meaning — which
