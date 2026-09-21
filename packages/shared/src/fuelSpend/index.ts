@@ -12,6 +12,7 @@ export * from "./carriedFuel.js";
 export * from "./stateFuelCost.js";
 export * from "./ancillary.js";
 export * from "./fleetEfficiency.js";
+export * from "./fleetMpgWindow.js";
 export * from "./mileageAgreement.js";
 export * from "./spendPeriodTotals.js";
 export * from "./operatingBridge.js";

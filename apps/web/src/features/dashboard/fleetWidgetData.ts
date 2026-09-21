@@ -15,7 +15,7 @@ import { computed, type Ref } from "vue";
 import { useDashboard } from "./useDashboard";
 import { useFleetMpgSeries } from "@/composables/useFleetMpg";
 import { useSessionStore } from "@/stores/session";
-import { formatDisplayDayShort } from "@silvicom/shared";
+import { fleetMpgWindowNote, formatDisplayDayShort } from "@silvicom/shared";
 
 export interface FleetRange {
   from: string;
@@ -50,9 +50,18 @@ export function useFleetWidgetData(range: Ref<FleetRange>) {
     const t = mpgTotal.value;
     if (t == null) return "measured miles ÷ fuel";
     if (t.mpg == null) return "not enough measured distance";
+    /**
+     * ⚠ A PARTIAL window outranks the coverage percentage in the one line a tile has, and that
+     * ordering is the finding rather than a preference. Both are true at once and they answer
+     * different questions: "97% of fuel measured" is about which TRUCKS are behind the number, and
+     * during the 2026-09-13 outage it read 97% while five of the window's thirty days had miles and
+     * no gallons at all (D-PREC3). The reader who needs to act needs the dates, not the percentage.
+     */
+    if (t.partial) return `measured to ${formatDisplayDayShort(t.to, t.to)}`;
     return t.measuredShare == null ? "measured miles ÷ fuel" : `${Math.round(t.measuredShare * 100)}% of fuel measured`;
   });
-  const mpgTitle = computed(() => mpgTotal.value?.reason ?? undefined);
+  /** The hover, which is where the full sentence goes when the tile only had room for the dates. */
+  const mpgTitle = computed(() => fleetMpgWindowNote(mpgTotal.value ?? { partial: false, to: "", requestedTo: "" }) ?? mpgTotal.value?.reason ?? undefined);
 
   const rangeLabel = computed(() => {
     const { from: f, to: t } = range.value;

@@ -41,9 +41,23 @@ const seed = () =>
     tables: {
       organizations: [{ id: ORG, operating_hours: { tz: "America/Chicago" } }],
       samsara_odometer_readings: [],
-      fuel_spend_days: [],
+      /**
+       * Empty of GALLONS, but with the roll-up's watermark answered — the unbounded, descending,
+       * one-row query `readFuelThrough` makes.
+       *
+       * The distinction is the whole reason these are two queries. "The roll-up has not run" and
+       * "the roll-up has run and the fleet bought nothing" are different answers to "what is our
+       * MPG", and this file is about the ROUTE's contract, so it holds the feed healthy and lets the
+       * arithmetic be the thing that withholds. `fleetMpg.test.ts` owns the stalled-feed cases.
+       */
+      fuel_spend_days: (q) =>
+        q.ops.some((o) => o.method === "gte" && o.args[0] === "day") ? [] : [{ day: "2099-12-31" }],
     },
   });
+
+/** The GALLONS reads, not the watermark read — see the fixture above, and `fleetMpg.test.ts`. */
+const gallonReads = (rec: SupabaseRecorder) =>
+  rec.forTable("fuel_spend_days").filter((q) => q.ops.some((o) => o.method === "gte" && o.args[0] === "day"));
 
 beforeAll(async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -106,13 +120,16 @@ describe("GET /api/fueling/fleet-mpg", () => {
 
   it("passes a validated truck list to the database and drops anything that is not a UUID", async () => {
     await get(`/api/fueling/fleet-mpg?from=2026-09-01&to=2026-09-07&vehicles=${V1},not-a-uuid`);
-    const filters = holder.rec!.forTable("fuel_spend_days")[0]!.filters().map((f) => [f.col, f.val]);
+    const filters = gallonReads(holder.rec!)[0]!.filters().map((f) => [f.col, f.val]);
     expect(filters).toEqual(expect.arrayContaining([["org_id", ORG], ["vehicle_id", [V1]]]));
   });
 
   it("treats an absent `vehicles` as the whole fleet, not as an empty scope", async () => {
     await get("/api/fueling/fleet-mpg?from=2026-09-01&to=2026-09-07");
-    const q = holder.rec!.forTable("fuel_spend_days")[0]!;
+    // ⚠ `gallonReads`, not `forTable(...)[0]`. The watermark query carries `org_id` and no
+    // `vehicle_id` too, so indexing position 0 would satisfy both assertions below while the gallons
+    // read had vanished entirely — a discriminator that has stopped discriminating.
+    const q = gallonReads(holder.rec!)[0]!;
     // The read happened — an empty scope would have skipped it entirely — and it named no truck.
     expect(q.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }]));
     expect(q.ops.some((o) => o.method === "in" && o.args[0] === "vehicle_id")).toBe(false);
