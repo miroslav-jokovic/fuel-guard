@@ -358,6 +358,23 @@ const EnvSchema = z.object({
   // (e.g. "Silvicom 360 <miki@silvicominc.com>") once you have DNS access to verify silvicominc.com
   // in resend.com/domains.
   MAIL_FROM: z.string().default("Silvicom 360 <onboarding@resend.dev>"),
+
+  /**
+   * FleetPal — the maintenance collector (FLEETPAL-INTEGRATION-PLAN.md F4, D-FP1).
+   *
+   * ⚠ **These two are for the hand-run smoke probe only** (`pnpm fleetpal:smoke`). The running
+   * product NEVER reads a FleetPal key from the environment: a key carries its issuing user's role
+   * AND company, so it is per-org by construction, and `fleetpal_credentials.api_key_sealed` is
+   * where an org's key lives — sealed, with an AAD binding it to that org (`credentials.ts`). An
+   * environment variable would be a second, org-blind source of truth for a secret that is not
+   * global, and the first multi-org sweep would send one carrier's key to another carrier's data.
+   *
+   * The probe is exempt because it predates any stored credential: F4 exists to find out what the
+   * vendor answers before there is a row to put a key in, and `SECRETS_ENCRYPTION_KEY` is set in
+   * production and absent locally, so sealing one locally is not possible anyway.
+   */
+  FLEETPAL_API_KEY: z.string().optional(),
+  FLEETPAL_BASE_URL: z.string().url().default("https://openapi.fleetpal.io"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

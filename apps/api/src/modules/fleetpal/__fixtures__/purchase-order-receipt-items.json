@@ -1,0 +1,40 @@
+{
+  "count": 1936,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-receipt-items/dCocuF9x",
+      "id": "dCocuF9x",
+      "receipt": "ijr53Cj2",
+      "purchase_order_item": "eXkxkE5t",
+      "type": "RECEIVE",
+      "quantity": 40,
+      "price": 28,
+      "total": 1120,
+      "created": "2026-09-18T19:41:36.123240Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-receipt-items/eApiyxT7",
+      "id": "eApiyxT7",
+      "receipt": "ijr53Cj2",
+      "purchase_order_item": "dN36fzTs",
+      "type": "RECEIVE",
+      "quantity": 40,
+      "price": 43,
+      "total": 1720,
+      "created": "2026-09-18T19:41:36.097186Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-receipt-items/W3JBueQj",
+      "id": "W3JBueQj",
+      "receipt": "bCuTudTs",
+      "purchase_order_item": "m9MjUjNL",
+      "type": "RECEIVE",
+      "quantity": 20,
+      "price": 228,
+      "total": 4560,
+      "created": "2026-09-18T19:31:22.516645Z"
+    }
+  ]
+}

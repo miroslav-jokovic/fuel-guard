@@ -1,0 +1,115 @@
+{
+  "count": 1037,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/pm-schedules/ZcP3WBso",
+      "id": "ZcP3WBso",
+      "unit": "TVYrtF5Z",
+      "name": "REDACTED",
+      "description": "",
+      "component": "DhZGw9o9",
+      "reason_for_repair": "fEfwJVJk",
+      "last_done": "2026-07-31T20:02:00Z",
+      "auto_create_wo": false,
+      "most_urgent_status": "PLANNED",
+      "most_urgent_type": "TIME",
+      "most_urgent_percent": 14,
+      "intervals": [
+        {
+          "id": "F2CmtUim",
+          "type": "TIME",
+          "value_int": 365,
+          "value_time_type": "DAY",
+          "threshold_int": 30,
+          "threshold_time_type": "DAY",
+          "last_done_meter_value": null,
+          "current_meter": 0,
+          "due_int": null,
+          "due_time": "2027-07-01T20:02:00Z",
+          "overdue_int": null,
+          "overdue_time": "2027-07-31T20:02:00Z",
+          "status": "PLANNED",
+          "passed_percent_till_overdue": 14,
+          "remaining_till_overdue": 312,
+          "order": 0
+        }
+      ],
+      "created": "2026-09-14T20:02:49.711825Z",
+      "updated": "2026-09-14T20:02:49.711849Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/pm-schedules/aHBv5YQC",
+      "id": "aHBv5YQC",
+      "unit": "TVYrtF5Z",
+      "name": "REDACTED",
+      "description": "",
+      "component": "ycjGUQFD",
+      "reason_for_repair": "fEfwJVJk",
+      "last_done": "2026-07-31T20:01:00Z",
+      "auto_create_wo": false,
+      "most_urgent_status": "PLANNED",
+      "most_urgent_type": "TIME",
+      "most_urgent_percent": 28,
+      "intervals": [
+        {
+          "id": "tv7K2yUr",
+          "type": "TIME",
+          "value_int": 6,
+          "value_time_type": "MONTH",
+          "threshold_int": 30,
+          "threshold_time_type": "DAY",
+          "last_done_meter_value": null,
+          "current_meter": 0,
+          "due_int": null,
+          "due_time": "2027-01-01T20:01:00Z",
+          "overdue_int": null,
+          "overdue_time": "2027-01-31T20:01:00Z",
+          "status": "PLANNED",
+          "passed_percent_till_overdue": 28,
+          "remaining_till_overdue": 131,
+          "order": 0
+        }
+      ],
+      "created": "2026-09-14T20:02:20.036443Z",
+      "updated": "2026-09-14T20:02:20.036466Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/pm-schedules/NaSCiPgp",
+      "id": "NaSCiPgp",
+      "unit": "G8ykbUk6",
+      "name": "REDACTED",
+      "description": "",
+      "component": "RqNmhPwy",
+      "reason_for_repair": "fEfwJVJk",
+      "last_done": "2026-08-31T19:59:00Z",
+      "auto_create_wo": false,
+      "most_urgent_status": "PLANNED",
+      "most_urgent_type": "ODOMETER",
+      "most_urgent_percent": 29,
+      "intervals": [
+        {
+          "id": "LC7kp95H",
+          "type": "ODOMETER",
+          "value_int": 56327040,
+          "value_time_type": null,
+          "threshold_int": 8046720,
+          "threshold_time_type": null,
+          "last_done_meter_value": 1609,
+          "current_meter": 16693220,
+          "due_int": 48281929,
+          "due_time": null,
+          "overdue_int": 56328649,
+          "overdue_time": null,
+          "status": "PLANNED",
+          "passed_percent_till_overdue": 29,
+          "remaining_till_overdue": 39635429,
+          "order": 0
+        }
+      ],
+      "created": "2026-09-14T20:00:14.539751Z",
+      "updated": "2026-09-14T20:00:14.539773Z"
+    }
+  ]
+}

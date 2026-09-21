@@ -320,6 +320,11 @@
       "total",
       "type",
       "url"
+    ],
+    "WebhookEvent": [
+      "description",
+      "key",
+      "sample_payload"
     ]
   },
   "enums": {

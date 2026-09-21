@@ -54,6 +54,7 @@ const SCHEMA_OF = {
   POInvoice: "fleetpalPoInvoiceSchema",
   POReceipt: "fleetpalPoReceiptSchema",
   POReceiptItem: "fleetpalPoReceiptItemSchema",
+  WebhookEvent: "fleetpalWebhookEventSchema",
 };
 
 /**

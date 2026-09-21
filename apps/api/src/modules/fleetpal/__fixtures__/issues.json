@@ -1,0 +1,55 @@
+{
+  "count": 298,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/issues/e86owKmr",
+      "id": "e86owKmr",
+      "name": "REDACTED",
+      "unit": "cLW7Dc8m",
+      "description": "floor repair, visible cracks between wood, rear steel plate damaged",
+      "priority": "LOW",
+      "component": "HkQdYDaw",
+      "reason_for_repair": "8f7kAR7N",
+      "complaint": null,
+      "reported": "2026-09-18T16:16:00Z",
+      "status": "OPEN",
+      "reason_closed": "",
+      "created": "2026-09-18T16:17:36.597544Z",
+      "updated": "2026-09-18T16:17:36.597563Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/issues/Gy8nsQEp",
+      "id": "Gy8nsQEp",
+      "name": "REDACTED",
+      "unit": "pAZBYUVS",
+      "description": "passenger side floor and pannel damage",
+      "priority": "LOW",
+      "component": "HkQdYDaw",
+      "reason_for_repair": "8f7kAR7N",
+      "complaint": null,
+      "reported": "2026-09-18T16:10:00Z",
+      "status": "OPEN",
+      "reason_closed": "",
+      "created": "2026-09-18T16:12:15.688652Z",
+      "updated": "2026-09-18T16:12:15.688674Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/issues/tqtKq6f9",
+      "id": "tqtKq6f9",
+      "name": "REDACTED",
+      "unit": "tuG56d7U",
+      "description": "",
+      "priority": "LOW",
+      "component": "9QhEPXkf",
+      "reason_for_repair": "8f7kAR7N",
+      "complaint": null,
+      "reported": "2026-09-18T15:55:00Z",
+      "status": "OPEN",
+      "reason_closed": "",
+      "created": "2026-09-18T15:56:00.794629Z",
+      "updated": "2026-09-18T15:56:00.794646Z"
+    }
+  ]
+}

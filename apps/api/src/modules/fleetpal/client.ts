@@ -56,6 +56,37 @@ export interface FleetpalRequestLog {
   attempts: number;
   ms: number;
   error: string | null;
+  /**
+   * Whatever the vendor said about its own limiter on this response, verbatim.
+   *
+   * The spec documents `Retry-After` and nothing else, and a limiter we have not measured is the
+   * reason `KIND_CAPS` is pinned at 1 (plan F8). F4's probe reads these to set it from evidence.
+   * Recorded as an allowlist rather than every header, because a log of all of them would carry
+   * whatever the CDN in front of the vendor decides to add — including, one day, something
+   * request-identifying.
+   */
+  rateLimit: Record<string, string>;
+}
+
+/** The limiter headers worth keeping. Lowercase: `Headers.get` is case-insensitive, keys are not. */
+const RATE_LIMIT_HEADERS = [
+  "retry-after",
+  "x-ratelimit-limit",
+  "x-ratelimit-remaining",
+  "x-ratelimit-reset",
+  "ratelimit-limit",
+  "ratelimit-remaining",
+  "ratelimit-reset",
+] as const;
+
+function limiterHeaders(headers: Headers | null): Record<string, string> {
+  if (!headers) return {};
+  const out: Record<string, string> = {};
+  for (const name of RATE_LIMIT_HEADERS) {
+    const value = headers.get(name);
+    if (value !== null) out[name] = value;
+  }
+  return out;
 }
 
 export class FleetpalClient {
@@ -100,15 +131,24 @@ export class FleetpalClient {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       let status: number | null = null;
+      let headers: Headers | null = null;
       try {
         const res = await this.doFetch(target, {
           headers: { Authorization: `Bearer ${this.apiKey}`, Accept: "application/json" },
           signal: controller.signal,
         });
         status = res.status;
+        headers = res.headers;
         if (res.ok) {
           const body = (await res.json()) as unknown;
-          this.log.push({ path: target, status, attempts, ms: Date.now() - started, error: null });
+          this.log.push({
+            path: target,
+            status,
+            attempts,
+            ms: Date.now() - started,
+            error: null,
+            rateLimit: limiterHeaders(headers),
+          });
           // A shape we cannot parse is OUR bug or a vendor change, and either way it is not
           // retryable — so it becomes a validation error rather than another round trip.
           const parsed = schema.safeParse(body);
@@ -143,6 +183,7 @@ export class FleetpalClient {
         attempts,
         ms: Date.now() - started,
         error: lastError.message,
+        rateLimit: limiterHeaders(headers),
       });
       if (!lastError.retryable || attempts > this.maxRetries) throw lastError;
       await this.sleep(this.backoffMs(lastError, attempts));

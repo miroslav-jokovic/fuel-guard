@@ -175,3 +175,30 @@ export const fleetpalErrorSchema = z.looseObject({
   non_field_errors: fleetpalFieldErrorSchema.optional(),
 });
 export type FleetpalFieldError = z.infer<typeof fleetpalFieldErrorSchema>;
+
+// ── the webhook catalogue ───────────────────────────────────────────────────────────────────────
+
+/**
+ * One entry in the event catalogue — what `GET /v1/webhook-events/` answers (F15, §2.8).
+ *
+ * ⚠ **It is NOT the `count`/`next`/`previous` envelope every other collection uses.** The vendor
+ * says the catalogue is small and fixed, so it ships whole as a bare `results` array. F1 modelled
+ * no schema for it at all and F4's probe reached for `paginated()` out of habit; the live account
+ * answered with no `count` and the parse failed, which is the cheapest possible version of finding
+ * this out. Anything that walks this collection with `walk()` will fail the same way.
+ *
+ * The entry carries no id — it is a catalogue row, not a stored object — so `key` is the identity,
+ * and `key` is also what `event_key` takes when subscribing.
+ */
+export const fleetpalWebhookEventSchema = z.looseObject({
+  key: z.string(),
+  description: z.string(),
+  /** A representative body, in the shape a subscriber receives. Shape only; never a real row. */
+  sample_payload: z.unknown(),
+});
+export type FleetpalWebhookEvent = z.infer<typeof fleetpalWebhookEventSchema>;
+
+/** The catalogue's own envelope: `results` and nothing else. */
+export const fleetpalWebhookEventListSchema = z.looseObject({
+  results: z.array(fleetpalWebhookEventSchema),
+});

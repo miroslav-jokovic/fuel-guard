@@ -1,0 +1,25 @@
+{
+  "count": 1,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/shops/farh5tje",
+      "id": "farh5tje",
+      "name": "REDACTED",
+      "code": null,
+      "contact": "REDACTED",
+      "email": "REDACTED",
+      "phone": "REDACTED",
+      "website": "",
+      "address": "REDACTED",
+      "address_2": "",
+      "city": "Melrose Park",
+      "state": "IL",
+      "zip_code": "60160",
+      "country": "USA",
+      "hourly_labor_rate": 95,
+      "created": "2025-03-17T19:20:18.342709Z"
+    }
+  ]
+}

@@ -22,6 +22,14 @@ import { fleetpalId, money, timestamp } from "./primitives.js";
 // ── the catalogue ───────────────────────────────────────────────────────────────────────────────
 
 /**
+ * The `Part.type` members observed on the live account, 2026-09-21. **Not from the spec** — the
+ * spec says this field is an integer (see `fleetpalPartSchema`), so there is no `PartTypeEnum` to check against
+ * and this list is measured, not derived. A value outside it is not an error; it is a thing to look
+ * at, which is exactly what the F12 catalogue sync must decide about.
+ */
+export const FLEETPAL_PART_TYPES = ["VENDOR_HIDDEN"] as const;
+
+/**
  * A catalogue part. **No quantity — see the file header.**
  *
  * ⚠ **`serialized_part` is a gift rather than a gap.** FleetPal already marks which entries are
@@ -34,17 +42,23 @@ import { fleetpalId, money, timestamp } from "./primitives.js";
  * `JobItem` carries no position VALUE (§2.10.3), so per-position tyre history is not derivable
  * however useful it would be. The flag is stored; nothing can act on it yet.
  *
- * `type` is a read-only integer distinguishing our own catalogue entries from ones that arrived on
- * a vendor's quote. It is an internal discriminator with no documented vocabulary, so it is kept as
- * the opaque number it is.
+ * ⚠ **`type` is where the spec and the live server disagree** (measured F4, 2026-09-21). The
+ * document declares `{"type": "integer", "readOnly": true}` and describes it as distinguishing our
+ * own catalogue entries from ones that arrived on a vendor's quote; the account answers the STRING
+ * `"VENDOR_HIDDEN"`. So the field is a vocabulary the spec has not caught up with, and the contract
+ * accepts both rather than believing the document over the server — the same posture as every other
+ * vocabulary here, and the reason `FLEETPAL_PART_TYPES` exists is so a member we have not seen is
+ * noticed by `lint:fleetpal-contract`'s reader rather than swallowed.
  */
+
 export const fleetpalPartSchema = z.looseObject({
   url: z.string(),
   id: fleetpalId,
   /** Unique per company, compared case-insensitively. Renumbering is why F12 needs `fleetpal_id`. */
   number: z.string().nullable(),
   description: z.string(),
-  type: z.number().int(),
+  /** Spec says integer, the server says `"VENDOR_HIDDEN"`. Both are accepted — see the header. */
+  type: z.union([z.string(), z.number().int()]),
   /** Unique per company when set, so it works as a scan-to-match key — the same role our `upc` has. */
   universal_product_code: z.string(),
   component: z.string(),
@@ -135,7 +149,15 @@ export const fleetpalPurchaseOrderSchema = z.looseObject({
   status: z.string(),
   shop: fleetpalId,
   vendor_location: fleetpalId,
-  payable_to: fleetpalId,
+  /**
+   * ⚠ **Null on every purchase order on the live account** (measured F4, 2026-09-21), and the spec
+   * agrees it is `nullable` — F1 typed it as required and would have rejected the first real page.
+   * It is only set when the payee DIFFERS from the location that supplied the goods, so a fleet
+   * that pays its suppliers directly leaves it null forever. §2.4's coverage bridge therefore
+   * cannot join on it alone; F9 reads the vendor through `vendor_location` and treats `payable_to`
+   * as the override it is.
+   */
+  payable_to: fleetpalId.nullable(),
   /** Set only when `type` is `WORK_ORDER`. The join from a repair to what it cost to buy. */
   work_order: fleetpalId.nullable(),
   description: z.string(),
@@ -174,7 +196,8 @@ export const fleetpalPoInvoiceSchema = z.looseObject({
   number: z.string(),
   date: timestamp,
   amount: money,
-  payable_to: fleetpalId,
+  /** Nullable, and null in practice — see the note on `PurchaseOrder.payable_to`. */
+  payable_to: fleetpalId.nullable(),
   payment_term: fleetpalId.nullable(),
   created: timestamp,
   updated: timestamp,

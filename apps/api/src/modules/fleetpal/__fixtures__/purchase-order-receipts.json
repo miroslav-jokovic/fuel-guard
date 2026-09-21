@@ -1,0 +1,46 @@
+{
+  "count": 1077,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-receipts/ijr53Cj2",
+      "id": "ijr53Cj2",
+      "purchase_order": "oek6Seqy",
+      "invoice": "gvFzYR8s",
+      "number": 1,
+      "shipping_tax": 0,
+      "sales_tax": 0,
+      "miscellaneous_tax": 0,
+      "discount": 0,
+      "total": 2840,
+      "created": "2026-09-18T19:41:36.077823Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-receipts/bCuTudTs",
+      "id": "bCuTudTs",
+      "purchase_order": "gH3AdJp3",
+      "invoice": "fQEkCN7n",
+      "number": 1,
+      "shipping_tax": 5,
+      "sales_tax": 0,
+      "miscellaneous_tax": 100,
+      "discount": 0,
+      "total": 9865,
+      "created": "2026-09-18T19:31:22.453906Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-receipts/hek2nXiW",
+      "id": "hek2nXiW",
+      "purchase_order": "2wvkLMFm",
+      "invoice": "Qcqkz5aT",
+      "number": 1,
+      "shipping_tax": 0,
+      "sales_tax": 0,
+      "miscellaneous_tax": 0,
+      "discount": 0,
+      "total": 104.14,
+      "created": "2026-09-18T19:04:16.922963Z"
+    }
+  ]
+}

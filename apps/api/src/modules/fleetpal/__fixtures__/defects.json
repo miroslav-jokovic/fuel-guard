@@ -1,0 +1,61 @@
+{
+  "count": 604,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/defects/FfYhA35y",
+      "id": "FfYhA35y",
+      "unit": "j6TKGHtd",
+      "dvirs": [
+        "3qGSbdVh"
+      ],
+      "name": "REDACTED",
+      "description": null,
+      "severity": null,
+      "component": "coDyF8rL",
+      "complaint": null,
+      "detected_on": "2026-09-19T11:14:53.092000Z",
+      "is_resolved": true,
+      "resolved_on": "2026-09-21T16:05:42Z",
+      "driver_comment": "Right side front tandem leaking hub oil.",
+      "repair_note": null
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/defects/gVqVZU5z",
+      "id": "gVqVZU5z",
+      "unit": "j6TKGHtd",
+      "dvirs": [
+        "3qGSbdVh"
+      ],
+      "name": "REDACTED",
+      "description": null,
+      "severity": null,
+      "component": "coDyF8rL",
+      "complaint": null,
+      "detected_on": "2026-09-19T11:14:53.092000Z",
+      "is_resolved": true,
+      "resolved_on": "2026-09-21T16:05:42Z",
+      "driver_comment": "Right side front tandem leaking hub oil.",
+      "repair_note": null
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/defects/TsgEDNky",
+      "id": "TsgEDNky",
+      "unit": "sK3mgNmX",
+      "dvirs": [
+        "NfUKgi2N"
+      ],
+      "name": "REDACTED",
+      "description": null,
+      "severity": null,
+      "component": "Mwuj4Xfn",
+      "complaint": null,
+      "detected_on": "2026-09-17T09:17:22.872000Z",
+      "is_resolved": true,
+      "resolved_on": "2026-09-18T12:15:27Z",
+      "driver_comment": "Cracked windshield. ",
+      "repair_note": null
+    }
+  ]
+}
