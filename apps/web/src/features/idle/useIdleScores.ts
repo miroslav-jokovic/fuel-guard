@@ -5,16 +5,31 @@ import {
   type IdleRow,
   type IdleSummary,
   type IdleClassification,
+  type CalendarDay,
+  dayRangeInstants,
+  todayInZone,
+  shiftDay,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const PAGE = 1000;
 const WINDOW_DAYS = 30;
 
 /** Date window for the idle views. Both bounds optional; unset `from` defaults to the last 30 days. */
 export interface IdleDateFilter {
-  from?: string; // ISO (inclusive)
-  to?: string; // ISO (inclusive — pass an end-of-day time for a timestamp column)
+  /**
+   * A CALENDAR day, `YYYY-MM-DD` — never an instant (D-PREC5, queue item 4).
+   *
+   * It used to be "ISO (inclusive), pass an end-of-day time for a timestamp column", and the
+   * consequence was the round trip the audit named: `useIdlingPage` decorated the picker's day with
+   * `T00:00:00`/`T23:59:59`, and `rangeBounds` here immediately did `f.to.slice(0, 10)` to get the
+   * day back. Two consumers wanted a day, two wanted an instant, and the type could not say which —
+   * so it carried the one shape that is wrong for both. The day travels; whichever consumer needs
+   * instants resolves them in the carrier's zone at the query.
+   */
+  from?: CalendarDay;
+  to?: CalendarDay;
 }
 
 interface RawIdleRow {
@@ -30,19 +45,26 @@ interface RawIdleRow {
   vehicles: { unit_number: string } | null;
 }
 
-/** Default `from` when the caller hasn't set a range — preserves the historical last-30-days behavior. */
-const defaultFrom = () => new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
+/*
+ * `idle_events.started_at` is a `timestamptz`, so the picked days become an instant interval here
+ * (D-PREC5 case 2) — in the carrier's zone. The default was
+ * `new Date(Date.now() - 30 * 86_400_000).toISOString()`, an instant 30×24h back from NOW, which is
+ * not the same as "thirty days ago" on either side of a DST boundary and never began at a midnight.
+ */
 
 /**
  * Load idle events in the selected date range (RLS-scoped) and aggregate into the driver leaderboard +
  * fleet idle-$ summary. Read-only; the heavy lifting is the shared pure aggregator.
  */
 export function useIdleScores(filters: Ref<IdleDateFilter>) {
+  const { zone } = useOrgTimezone();
   return useQuery({
-    queryKey: ["idle_scores", filters],
+    queryKey: ["idle_scores", filters, zone],
     queryFn: async (): Promise<IdleSummary> => {
       const f = toValue(filters);
-      const fromIso = f.from ?? defaultFrom();
+      const toDay = f.to ?? todayInZone(new Date(), zone.value);
+      const fromDay = f.from ?? shiftDay(toDay, -WINDOW_DAYS);
+      const { start: fromIso, endExclusive } = dayRangeInstants(fromDay, toDay, zone.value);
       const rows: IdleRow[] = [];
       for (let offset = 0; ; offset += PAGE) {
         let q = supabase
@@ -53,7 +75,7 @@ export function useIdleScores(filters: Ref<IdleDateFilter>) {
           .gte("started_at", fromIso)
           .order("started_at", { ascending: false })
           .range(offset, offset + PAGE - 1);
-        if (f.to) q = q.lte("started_at", f.to);
+        q = q.lt("started_at", endExclusive);
         const { data, error } = await q;
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as unknown as RawIdleRow[];

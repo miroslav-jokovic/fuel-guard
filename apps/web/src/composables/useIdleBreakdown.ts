@@ -6,8 +6,13 @@ import {
   type IdleCapability,
   type FleetIdleVerdict,
   type TruckIdleVerdict,
+  type CalendarDay,
+  todayInZone,
+  shiftDay,
+  daysInRange,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
 
 /**
@@ -16,8 +21,18 @@ import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
  * a composable reaching back into a feature is the same boundary violation pointing the other way.
  */
 export interface IdleDateFilter {
-  from?: string; // ISO (inclusive)
-  to?: string; // ISO (inclusive — pass an end-of-day time for a timestamp column)
+  /**
+   * A CALENDAR day, `YYYY-MM-DD` — never an instant (D-PREC5, queue item 4).
+   *
+   * It used to be "ISO (inclusive), pass an end-of-day time for a timestamp column", and the
+   * consequence was the round trip the audit named: `useIdlingPage` decorated the picker's day with
+   * `T00:00:00`/`T23:59:59`, and `rangeBounds` here immediately did `f.to.slice(0, 10)` to get the
+   * day back. Two consumers wanted a day, two wanted an instant, and the type could not say which —
+   * so it carried the one shape that is wrong for both. The day travels; whichever consumer needs
+   * instants resolves them in the carrier's zone at the query.
+   */
+  from?: CalendarDay;
+  to?: CalendarDay;
 }
 
 const DEFAULT_COST_BASIS: IdleCostBasis = {
@@ -49,21 +64,18 @@ export interface IdleBreakdown {
   fleet: IdleFleet;
 }
 
-function rangeBounds(f: IdleDateFilter) {
+function rangeBounds(f: IdleDateFilter, zone: string) {
   // `idle_rollup_days.day` is a calendar date and the picker gives calendar dates, so we compare on the
   // picked YYYY-MM-DD DIRECTLY (round-tripping through Date shifted the end date for browsers west of UTC).
-  const toDate = f.to ? f.to.slice(0, 10) : new Date().toISOString().slice(0, 10);
-  const fromDate = f.from
-    ? f.from.slice(0, 10)
-    : new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const days = Math.max(
-    1,
-    Math.round(
-      (Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) /
-        86_400_000,
-    ),
-  );
-  return { fromDate, toDate, days };
+  /*
+   * `idle_rollup_days.day` is a `date`, so the picked day IS the value to compare — no instant, no
+   * slice back out of one (D-PREC5 case 1). The defaults read today on the CARRIER's clock; they
+   * were `new Date().toISOString().slice(0, 10)`, a UTC day, which after 19:00 Central made the
+   * default window end tomorrow (D-PREC6).
+   */
+  const toDate = f.to ?? todayInZone(new Date(), zone);
+  const fromDate = f.from ?? shiftDay(toDate, -WINDOW_DAYS);
+  return { fromDate, toDate, days: daysInRange(fromDate, toDate) };
 }
 
 
@@ -149,11 +161,14 @@ export async function fetchDayPrices(fromDate: string, toDate: string): Promise<
  * math is unchanged from the raw-table version. Fleet avoidable totals count CONFIDENT trucks only.
  */
 export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<IdleCostBasis>) {
+  // The window is resolved on the carrier's clock, and the zone is in the key so the query re-runs
+  // when the org row answers rather than keeping the fallback's numbers on screen.
+  const { zone } = useOrgTimezone();
   return useQuery({
-    queryKey: ["idle_breakdown", filters, computed(() => toValue(costBasis) ?? DEFAULT_COST_BASIS)],
+    queryKey: ["idle_breakdown", filters, zone, computed(() => toValue(costBasis) ?? DEFAULT_COST_BASIS)],
     refetchInterval: 120_000,
     queryFn: async (): Promise<IdleBreakdown> => {
-      const { fromDate, toDate } = rangeBounds(toValue(filters));
+      const { fromDate, toDate } = rangeBounds(toValue(filters), zone.value);
       const cb = toValue(costBasis) ?? DEFAULT_COST_BASIS;
 
       const [rows, dayPrices] = await Promise.all([

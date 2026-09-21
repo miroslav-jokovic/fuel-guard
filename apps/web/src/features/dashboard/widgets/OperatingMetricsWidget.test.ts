@@ -32,8 +32,13 @@ const SUMMARY = {
 vi.mock("../useDashboard", () => ({
   useDashboard: () => ({ data: computed(() => SUMMARY), isLoading: ref(false), isFetching: ref(false) }),
 }));
+/** Captures the filters this card hands the RPC — the assertion for D-PREC5 lives on them. */
+const rangeTotalsArgs: Array<{ from?: string; to?: string }> = [];
 vi.mock("@/composables/useFuelLog", () => ({
-  useFuelRangeTotals: () => ({ data: computed(() => ({ fillUps: 210, totalMiles: 251_000 })), isLoading: ref(false) }),
+  useFuelRangeTotals: (filters: { value: { from?: string; to?: string } }) => {
+    rangeTotalsArgs.push(filters.value);
+    return { data: computed(() => ({ fillUps: 210, totalMiles: 251_000 })), isLoading: ref(false) };
+  },
 }));
 vi.mock("@/composables/useFleetMpg", () => ({
   useFleetMpgSeries: () => ({
@@ -115,5 +120,34 @@ describe("the operating-metrics strip's tile anatomy (DR7a)", () => {
     const value = wrapper.findAll("dd")[0]!.attributes("class") ?? "";
     expect(value).toContain("font-bold");
     expect(value).toContain("text-lg");
+  });
+});
+
+
+/**
+ * D-PREC5, measured. This card asked `fuel_range_totals` for a window built with
+ * `new Date(`${from}T00:00:00`).toISOString()` — the BROWSER's midnight — and the RPC's parameters
+ * are `date`, so Postgres cast it back to a calendar day one later. For a Central viewer asking
+ * 08/09 → 08/09 on 2026-09-20 that was **104 fills and 11,471 gallons instead of 45 and 4,788**,
+ * beside neighbouring tiles on the same card that were right.
+ */
+describe("the window this card asks about (D-PREC5)", () => {
+  it("passes the picked calendar days through, undecorated", async () => {
+    rangeTotalsArgs.length = 0;
+    await renderStrip();
+
+    expect(rangeTotalsArgs[0]).toEqual({ from: "2026-09-01", to: "2026-09-15" });
+  });
+
+  // The shape of the bug, stated so a reintroduction cannot pass: anything with a `T` in it is an
+  // instant, and an instant is the one thing a `date` parameter must never be handed.
+  it("sends nothing that looks like an instant", async () => {
+    rangeTotalsArgs.length = 0;
+    await renderStrip();
+
+    const sent = rangeTotalsArgs[0]!;
+    expect(sent.from).not.toContain("T");
+    expect(sent.to).not.toContain("T");
+    expect(sent.to).not.toContain("Z");
   });
 });

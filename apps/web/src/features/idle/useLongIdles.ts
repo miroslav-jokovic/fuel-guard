@@ -5,8 +5,12 @@ import {
   type LongIdleInput,
   type LongIdleRow,
   type IdleClassification,
+  dayRangeInstants,
+  todayInZone,
+  shiftDay,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import type { IdleDateFilter } from "./useIdleScores";
 
 const PAGE = 1000;
@@ -35,11 +39,20 @@ interface RawLongIdleRow {
  * pure helper.
  */
 export function useLongIdles(filters: Ref<IdleDateFilter>) {
+  /*
+   * `idle_events.started_at` is a `timestamptz`, so here the picked days DO become an instant
+   * interval (D-PREC5 case 2) — resolved in the carrier's zone, not the viewer's. This is the same
+   * filter object the rollup readers take; they compare it against a `date` column and so pass the
+   * day straight through. One window, two columns, two correct readings.
+   */
+  const { zone } = useOrgTimezone();
   return useQuery({
-    queryKey: ["long_idles", filters],
+    queryKey: ["long_idles", filters, zone],
     queryFn: async (): Promise<LongIdleRow[]> => {
       const f = toValue(filters);
-      const from = f.from ?? new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
+      const toDay = f.to ?? todayInZone(new Date(), zone.value);
+      const fromDay = f.from ?? shiftDay(toDay, -WINDOW_DAYS);
+      const { start: from, endExclusive } = dayRangeInstants(fromDay, toDay, zone.value);
       const rows: LongIdleInput[] = [];
       for (let offset = 0; ; offset += PAGE) {
         let q = supabase
@@ -51,7 +64,7 @@ export function useLongIdles(filters: Ref<IdleDateFilter>) {
           .gte("started_at", from)
           .order("duration_sec", { ascending: false })
           .range(offset, offset + PAGE - 1);
-        if (f.to) q = q.lte("started_at", f.to);
+        q = q.lt("started_at", endExclusive);
         const { data, error } = await q;
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as unknown as RawLongIdleRow[];

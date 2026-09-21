@@ -6,6 +6,8 @@ import {
 } from "@silvicom/ui/icons";
 import { ref, computed, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
+import { dayRangeInstants, shiftDay, todayInZone } from "@silvicom/shared";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { AppSelect } from "@silvicom/ui";
@@ -20,17 +22,31 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 
 const toast = useToastStore();
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-const from = ref<string | undefined>(iso(new Date(Date.now() - 30 * 86400_000)));
-const to = ref<string | undefined>(iso(new Date()));
+/*
+ * D-PREC6: `iso()` was `d.toISOString().slice(0, 10)`, a UTC day, so this page's default window
+ * also ended tomorrow for anybody west of Greenwich after their evening. Today is read on the
+ * CARRIER's clock — see `useOrgTimezone`.
+ */
+const { zone } = useOrgTimezone();
+const today = computed(() => todayInZone(new Date(), zone.value));
+const from = ref<string | undefined>();
+const to = ref<string | undefined>();
+const fromDay = computed(() => from.value ?? shiftDay(today.value, -30));
+const toDay = computed(() => to.value ?? today.value);
 
 const rangeLabel = computed(() => (from.value && to.value ? `${from.value} → ${to.value}` : "last 30 days"));
+/*
+ * These report endpoints filter `fuel_transactions.fueled_at`, a `timestamptz`, so this range IS an
+ * instant interval (D-PREC5 case 2) — and it is built in the carrier's zone, not the viewer's. The
+ * old form interpolated a naive `T00:00:00` / `T23:59:59` with no zone at all, which the server then
+ * parsed in ITS zone: a window whose meaning depended on where the API happened to be running.
+ * `endExclusive` is the day AFTER `to`, so the last second of the range can no longer be dropped.
+ */
 function query(extra?: Record<string, string>) {
-  const parts: string[] = [];
-  if (from.value) parts.push(`from=${encodeURIComponent(`${from.value}T00:00:00`)}`);
-  if (to.value) parts.push(`to=${encodeURIComponent(`${to.value}T23:59:59`)}`);
+  const { start, endExclusive } = dayRangeInstants(fromDay.value, toDay.value, zone.value);
+  const parts = [`from=${encodeURIComponent(start)}`, `to=${encodeURIComponent(endExclusive)}`];
   for (const [k, v] of Object.entries(extra ?? {})) parts.push(`${k}=${encodeURIComponent(v)}`);
-  return parts.length ? `?${parts.join("&")}` : "";
+  return `?${parts.join("&")}`;
 }
 
 const busy = ref<string | null>(null);

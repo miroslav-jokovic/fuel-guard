@@ -616,6 +616,15 @@ means nothing.
   unblocks 139 trucks.
 - **Q6.** D-IDLE-E: is jurisdictional idling compliance in scope for Silvicom 360, or is it a
   separate module? It is a safety/compliance surface, not a fuel one.
+- **Q7 (new, 2026-09-21, raised by queue item 4).** The report endpoints
+  (`/api/reports/transactions.csv`, `summary.pdf`) filter `fuel_transactions.fueled_at`; the
+  dashboard card beside their button filters `business_date`. Item 4 made both windows correct **in
+  their own terms** — the exports now carry carrier-zone instants, the card passes calendar days —
+  but they are still answering two different questions, so an export can contain a fill the card did
+  not count, at a station whose business date fell either side of its own midnight. Moving the
+  exports onto `business_date` would make one definition true; it would also change which fills
+  appear in a CSV a customer may already have reconciled against. **Owner's call, and deliberately
+  NOT taken while shipping item 4** — the same shape as Q3 (D-PREC4), and probably the same answer.
 
 ---
 
@@ -704,3 +713,27 @@ Append dated lines at the END of this section. Do not edit rows above.
   /api/org/jobs/failed` now returns these rows and **no page renders that endpoint** — a Data & sync
   card for `fuel_spend_rollup` needs a manual-trigger endpoint the rollup does not have, so it was
   recorded here rather than half-built.
+- **2026-09-21** — **Queue item 4 built.** The browser no longer invents instants.
+  `packages/shared/src/calendarDay.ts` (which already held `exclusiveEndYmd`) gains the vocabulary
+  the five surfaces were missing: `todayInZone`, `dayRangeInstants`, `shiftDay`, `daysInRange`, and
+  the zone-parameterised wall-clock pair — `efsTime.ts`'s two-pass DST fixed point, generalised, with
+  `efsTime.ts` now calling it so there is one implementation rather than two. **The rule it encodes
+  is that the COLUMN decides**, not taste: a `date` column takes the picked `YYYY-MM-DD` untouched,
+  a `timestamptz` column takes a half-open instant interval in the CARRIER's zone, and a UTC instant
+  is what the old code produced by accident and what nothing should choose on purpose.
+  `apps/web/src/composables/useOrgTimezone.ts` is where that zone comes from.
+  Fixed: `OperatingMetricsWidget` (passes days through — this is the 104-fills-instead-of-45 card),
+  `DashboardPage` (default window + both exports), `ReportsPage`, `useAnomalies`, and the idle four
+  (`useIdleBreakdown`, `useIdleDrivers`, `useLongIdles`, `useIdleScores`). `IdleDateFilter` now says
+  `CalendarDay`: it used to carry a decorated instant that two of its four readers immediately sliced
+  back to a day, which is the round trip D-PREC5 is about, inside one type.
+  ⚠ Every zone-dependent query carries the zone in its KEY — it starts at the column's default and
+  changes when the org row lands, and a query that did not re-run on that change would keep the
+  guess's numbers on screen.
+  Mutation-checked: five mutants on the dashboard and the widget, all killed — but only after a
+  **surviving** one was fixed. Swapping the carrier's zone for the viewer's changed nothing any test
+  could see, because CI runs on America/Chicago; the tests now pin a carrier zone of America/Denver
+  precisely so the two cannot coincide. **Q7 opened in §4** and deliberately not answered here.
+  ⚠ Two inline `operating_hours` reads remain in `useDashboard.ts` and `useDriverPerformance.ts`.
+  They are inside the browser-side aggregation that item 5 moves behind the API, so converting them
+  now would be work done twice; `useOrgTimezone`'s header says so rather than leaving it to be found.
