@@ -19,6 +19,7 @@ import { startDqExportSweeper } from "./modules/evidence/index.js";
 import { startPatternSweepScheduler } from "./modules/anomalies/index.js";
 import { startFuelSpendRollupScheduler } from "./modules/fuel-spend/index.js";
 import { startFinancialProjectionScheduler, startFinancialFreshnessScheduler } from "./modules/financial/index.js";
+import { startFleetpalScheduler } from "./modules/fleetpal/index.js";
 import { startInprocessJobDrain } from "./queue/inprocessDrain.js";
 
 /**
@@ -60,5 +61,6 @@ export function startAllSchedulers(env: Env): void {
   startPatternSweepScheduler(env); // durable enrichment requests survive queue dispatch outages
   startFuelSpendRollupScheduler(env); // 0244: nightly re-derivation of the daily fuel-spend rollup
   startFinancialProjectionScheduler(env); // P3.4: nightly projection of staging into financial_entries
+  startFleetpalScheduler(env); // hourly per-org FleetPal sweep (F8); OFF unless FLEETPAL_SYNC_ENABLED
   startFinancialFreshnessScheduler(env); // D-FIN3: six-hourly — a stale McLeod financial sweep or a failed finance job becomes a finding in the office inbox + one email
 }

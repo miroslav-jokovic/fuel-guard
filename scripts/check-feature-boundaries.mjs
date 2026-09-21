@@ -306,6 +306,12 @@ const API_ALLOW = new Set([
   //     asks it to re-resolve them.
   "fleetpal -> roster",
   "maintenance -> fleetpal",
+  //   · fleetpal -> org — the poller asks the jobs ledger when this org last finished a sweep
+  //     (`lastDoneJob`), which is the same arrow `efs`, `fuel`, `roster` and `samsara` already draw
+  //     for the ledger's own bookkeeping. The ledger is what stops two sweeps overlapping on one
+  //     carrier, and a scheduler that kept its own idea of "last run" in memory would forget it on
+  //     every deploy (F8).
+  "fleetpal -> org",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

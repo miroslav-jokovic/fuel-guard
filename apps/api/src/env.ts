@@ -375,6 +375,21 @@ const EnvSchema = z.object({
    */
   FLEETPAL_API_KEY: z.string().optional(),
   FLEETPAL_BASE_URL: z.string().url().default("https://openapi.fleetpal.io"),
+  /**
+   * The collector's kill switch and its cadence (F8).
+   *
+   * **Default OFF.** A sweep calls a carrier's live maintenance vendor on a timer, and the one
+   * thing worse than not polling is polling from two processes — `RUN_SCHEDULERS_IN_PROCESS`
+   * defaults to true, so a service nobody gave that variable to runs every scheduler, which is
+   * exactly how `@fleetguard/web` came to run the whole set alongside the api until 2026-09-05.
+   * Opting in per environment makes the second copy a deliberate act rather than a default.
+   *
+   * Hourly, because every resource in the sweep is watermarked or bounded: an hourly pass over a
+   * quiet collection asks `updated_after=<an hour ago>` and gets an empty page, so "too often"
+   * costs one round trip per resource and "not often enough" costs a report built on yesterday.
+   */
+  FLEETPAL_SYNC_ENABLED: z.coerce.boolean().default(false),
+  FLEETPAL_SYNC_HOURS: z.coerce.number().min(1).default(1),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

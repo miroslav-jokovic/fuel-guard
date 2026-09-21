@@ -29,9 +29,11 @@
  * what keeps D-INV10's split — the shelf is ours, the repair job is FleetPal's — from eroding one
  * convenient exception at a time.
  */
+export { startFleetpalScheduler, isFleetpalSyncDue } from "./scheduler.js";
 export {
   getCredential,
   getApiKey,
+  orgsWithFleetpal,
   setApiKey,
   setEnabled,
   recordSweep,

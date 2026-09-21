@@ -62,6 +62,11 @@ const KIND_CAPS: Record<string, number> = {
   hazmat_extract: 2,
   hazmat_analyze: 4,
   dq_binder: 2,
+  // ⚠ ONE. FleetPal publishes no rate limit and sends no limiter headers — 94 sequential requests
+  // on 2026-09-21 returned not one `X-RateLimit-*` and not one 429 — so there is no measured budget
+  // to spend and the `Retry-After` path in the client is the only defence. A cap above 1 would be a
+  // guess made on a carrier's live maintenance system (plan F4, F8).
+  fleetpal_sync: 1,
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };

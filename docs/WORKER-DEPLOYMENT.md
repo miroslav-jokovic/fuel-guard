@@ -46,6 +46,28 @@ Running schedulers in-process is only safe on ONE instance — scale the API pas
 3. Deploy. Confirm in logs: API prints "in-process schedulers disabled…"; worker prints
    "[FuelGuard worker] starting background schedulers".
 
+## The schedulers that call a vendor, and what each one is bounded by
+
+| Scheduler | Cadence | Owning service | Bound |
+|---|---|---|---|
+| `startEfsSoapPoller` | minutes | `api` (WEX-whitelisted) | EFS's own service account; `EFS_SOAP_ENABLED` |
+| `startEfsCardSyncScheduler` | daily | `api` | WEX guide p11: excessive polling can suspend the account |
+| `startSamsaraScheduler` | minutes | `api` | Samsara's published rate limit, `samsaraFetch` |
+| **`startFleetpalScheduler`** | **hourly** | **`api`** | **nothing published — see below** |
+
+⚠ **FleetPal (F8, added 2026-09-21) publishes no rate limit and sends no limiter headers at all.**
+94 sequential requests on 2026-09-21 returned not one `X-RateLimit-*` and not one 429, so there is no
+measured budget to spend against. Three consequences, all deliberate:
+
+- `FLEETPAL_SYNC_ENABLED` defaults to **false**. The sweep is opted into per environment, which
+  makes a second polling process a deliberate act rather than a default. `RUN_SCHEDULERS_IN_PROCESS`
+  defaults to *true*, and that default is exactly how `@fleetguard/web` came to run the whole
+  scheduler set alongside `api` until 2026-09-05.
+- `KIND_CAPS.fleetpal_sync = 1` in `worker.ts`. One sweep at a time, fleet-wide.
+- The jobs ledger's `(org_id, kind)` slot refuses an overlapping sweep for one carrier — which also
+  means a second polling process would be **invisible**: its dispatches would be refused and the
+  only symptom would be a request count nobody is watching.
+
 ## Safety model
 - The `jobs` ledger (partial unique index on `(org_id, kind)`) already prevents two concurrent runs of the
   same per-org work across processes.
