@@ -37,7 +37,16 @@ export type JobKind =
   | "data_retention" // daily retention-policy enforcement (services/dataRetention.ts)
   | "dq_binder" // assemble an auditor's sample of §391.51 files into one PDF (DQ-BINDER-PLAN)
   | "document_derive" // thumb + normalized WebP for one compliance document (DQF plan B2/B3)
-  | "financial_projection"; // project staging into financial_entries; payload.full = the 2024-01-01 backfill (D-FS3)
+  | "financial_projection" // project staging into financial_entries; payload.full = the 2024-01-01 backfill (D-FS3)
+  /**
+   * Nightly `fuel_spend_days` rebuild (DATA-PRECISION-AUDIT queue item 3). It ran outside the ledger
+   * until 2026-09-21, and a one-line allocation bug therefore failed every six hours for SEVEN DAYS
+   * with `console.error` as the only evidence — found by eye, on a dashboard tile, a week later.
+   * A kind here is what gives that failure an error column, a `finished_at`, a row that
+   * `GET /api/org/jobs/failed` returns (no page renders that endpoint yet — 2026-09-21), and the
+   * (org, kind) slot the fuel scheduler's own header noted it was missing.
+   */
+  | "fuel_spend_rollup";
 
 /**
  * P0-3 (2026-08 audit) — ONE per-org mutex across every path that writes fuel_transactions scoring

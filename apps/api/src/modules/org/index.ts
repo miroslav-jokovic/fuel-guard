@@ -15,6 +15,7 @@ export { invitesRouter } from "./routes/invites.js";
 export { publicInvitesRouter } from "./routes/publicInvites.js";
 export { deliverInvite, type InviteDelivery } from "./inviteDelivery.js";
 export { membersRouter } from "./routes/members.js";
+export { usersWhoManage } from "./memberLookup.js";
 export { savedViewsRouter } from "./routes/savedViews.js";
 export { dashboardLayoutRouter } from "./routes/dashboardLayout.js";
 export { auditRouter } from "./routes/audit.js";

@@ -665,3 +665,42 @@ Append dated lines at the END of this section. Do not edit rows above.
   Mutation-checked six ways: clamping the label only, clamping the gallons only (the original bug),
   dropping the refusal override, bucketing over the requested window, removing the floor, and — on
   the web side — a caption that never renders and one that always does.
+- **2026-09-21** — **Queue item 3 built.** The sweep no longer fails in private. Three parts, in the
+  order they matter:
+  1. **The failure became a row.** `runDueFuelSweeps` now runs each org's sweep through the job
+     ledger as kind `fuel_spend_rollup` (`sweepThroughLedger`), so a throw leaves a `failed` row
+     carrying Postgres's own error text and a `finished_at` — the evidence that did not exist
+     between 09-13 and 09-20, when one `console.error` line every six hours was the whole record.
+     It also closes the hole `fuelSpendRollupScheduler.ts`'s own header admitted to: the (org, kind)
+     slot means a second process is now REFUSED by the database rather than trusted not to exist.
+     ⚠ A ledger that cannot be written does NOT stop the rebuild — observability that gates the work
+     it observes turns a reporting outage into a data outage, which is worse than the silence.
+  2. **The silence became a finding.** `fuelSweepFreshness.ts` is `financialFreshness.ts`'s shape
+     (D-FIN3) applied to fuel: a failed attempt is a warning keyed by the job id, a marker older
+     than `SWEEP_STALE_AFTER_MS` is a warning keyed by the DAY (so it re-alerts daily while down,
+     not every six hours and not once ever), and past 72 hours it is critical. It goes to
+     `rolesThatManage("fuel")` — not the accounting office — as `notify()` rows plus ONE email a run.
+  3. **The threshold is derived, not chosen.** `fuelSweepCadence.ts` now holds the sweep's promise in
+     one place, read by both the scheduler that keeps it and the pass that judges it.
+     `SWEEP_STALE_AFTER_MS = SWEEP_DUE_AFTER_MS + 2 × CHECK_INTERVAL_MS` = 32h, which is exactly "the
+     sweep came due and then two consecutive attempts did not complete it". A healthy org's marker is
+     never older than 26h at a check, so 26h says nothing and a number like "a day" would have been
+     a false alarm every night.
+  The freshness pass runs for **every** org on every check, not only the swept ones — an org whose
+  sweep keeps failing is due at every check and completes none of them, which is precisely the org
+  the pass exists for.
+  Mutation-checked nineteen ways; eighteen were killed on the first pass and the survivor was real:
+  swapping the recipients from `fuel` to `accounting` changed nothing any test could see, because
+  `supabaseRecorder` does not apply filters. Pinned by asserting the roles the query actually carried
+  against `rolesThatManage("fuel")` — read from the matrix, never re-typed.
+  Along the way, `usersWhoManage(admin, orgId, section)` was extracted to org's `memberLookup.ts` and
+  the two hand-written copies in `financial/officeRecipients.ts` and `evidence/dqAlertScheduler.ts`
+  now call it. Three copies of "a service-role read of someone else's table, paired with a role list
+  that has to agree with the section matrix" was one short of a fourth that disagrees.
+  ⚠ **Stated rather than discovered later:** the pass rides the fuel scheduler's own timer, so a
+  scheduler that is not running cannot report that it is not running. The case it genuinely cannot
+  see is `RUN_SCHEDULERS_IN_PROCESS=false` on the `api` service itself; the reader-facing half of
+  that is already covered by item 2's window clamp. **Follow-up, not a blocker:** `GET
+  /api/org/jobs/failed` now returns these rows and **no page renders that endpoint** — a Data & sync
+  card for `fuel_spend_rollup` needs a manual-trigger endpoint the rollup does not have, so it was
+  recorded here rather than half-built.
