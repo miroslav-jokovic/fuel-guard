@@ -737,6 +737,46 @@ Append dated lines at the END of this section. Do not edit rows above.
   ⚠ Two inline `operating_hours` reads remain in `useDashboard.ts` and `useDriverPerformance.ts`.
   They are inside the browser-side aggregation that item 5 moves behind the API, so converting them
   now would be work done twice; `useOrgTimezone`'s header says so rather than leaving it to be found.
+- **2026-09-21** — **Queue item 5, step 1 merged** (PR #934, `dba4a4d`): migration 0347's
+  `dashboard_summary`, a function with no reader, verified applied in production and present in
+  `pg_proc` with the `p_org` + `security invoker` posture D-FC1 asks for.
+- **2026-09-21** — **Queue item 5, step 2 built.** The idle cost basis is server-side, and there is
+  now ONE of it. `pickIdleCostBasis` (pure, `packages/shared/src/idleCostBasis.ts`) holds the
+  three-tier rule; `resolveIdleCostBasis` (`apps/api/src/modules/idle/idleCostBasis.ts`) is the I/O;
+  `GET /api/idle/cost-basis` is the door, gated `safety: view` because that is what
+  `surfaceCatalogue` gates the Idling surface on. Four things worth writing down, each measured:
+  1. **The report and the page disagreed, and the report was the wrong one.** `fuelIdleVerdict`
+     resolved its own basis from `idle_settings` alone, so a day with no `fuel_price_days` row was
+     charged **$4.000/gal** in the fuel-spend document and the truck-stop median on screen. Against
+     production on 2026-09-21 that median is **$5.873/gal**, and what the fleet actually paid those
+     days was **$5.79–$6.22** (`fuel_price_days.actual_price_per_gal`, 09-10 → 09-21). So the
+     report's unpriced days were understated by about a third, and unifying moves the number toward
+     the fact. Priced days are untouched — they were already charged what the fleet paid.
+  2. **The board is read through its owner, not through a waiver.** `fuel_prices` is `layer: raw`
+     and sealed to `posted-prices` by `check-table-access.mjs`, so the median is computed there
+     (`readRecentDieselMedian`) and `idle` calls it across a new `idle -> posted-prices` edge. This
+     is §7.2b's declined-attempt ruling applied a second time: all 24 existing `raw-access-waiver`
+     lines are an owner acting on its own table, and a foreign reader taking a shortcut would have
+     been a new kind. A new arrow instead of a new hole.
+  3. **The Idling page's median has never been the window it claims.** The composable asked
+     `fuel_prices` for `.limit(5000)`; PostgREST caps a response at 1,000, so the page has been
+     taking the median of the 1,000 most recent rows. Measured 2026-09-21: **$5.978 capped against
+     $5.873 over the whole 14 days**, a 1.8% difference. The server read pages, so this is a defect
+     closed, not a definition changed — and it is the number the page will show once its composable
+     is swapped.
+  4. **Reading it costs 1,545 ms, so it is cached for five minutes.** 7,503 rows over 14 days is 8
+     sequential round trips, measured against production. That is affordable once and unaffordable
+     on every Dashboard load, which is what step 3 puts in front of it, so `dieselMedian.ts` holds
+     the `liveMapBoardCache` pattern: promise cached per org, failures never cached, TTL of 5
+     minutes — the same interval the browser composable refetched on, so no surface becomes staler
+     than it was. ⚠ **Its proper home is SQL** (§7.2b: a median over a window is a FACT), and it is
+     not there because a function and its first reader cannot ship in one merge — the deploy window
+     would serve the reader for ~3 minutes against a schema without the function. That is a
+     migration PR of its own, recorded here rather than routed around.
+  Mutation-checked: the tier order, the org filter, the paging past the cap, the section gate, and
+  `priceSource`'s survival on the wire — each mutant killed a test that named it. Nothing on the web
+  changed: `useIdleCostBasis` still computes its own basis until the composable swap, and until then
+  the page and the endpoint differ by the 1.8% in (3).
 
 ---
 
@@ -834,9 +874,10 @@ which was a wart rationalised rather than removed. **§7.1's "10 reads become 1"
 ### 7.2c Sequence — four steps, none leaving a split state
 
 1. **The migration alone** — the function, with no reader. (`lint:migration-ordering` wants exactly
-   this, and a function nothing calls cannot break a deploy window.) ← **step 1, this PR**
+   this, and a function nothing calls cannot break a deploy window.) ← **step 1, merged, PR #934**
 2. **The cost-basis resolver** in `idle`, server-side, plus the idling endpoint. Q9's half FIRST, so
-   the dashboard can depend on it rather than race it.
+   the dashboard can depend on it rather than race it. ← **step 2, this PR** (what it
+   turned out to need is in §6's 2026-09-21 entry)
 3. **The dashboard endpoint** — function + `aggregateDashboard`, returning `DashboardSummary`
    **unchanged**.
 4. **The web swap** — `useDashboard` becomes one `apiFetch`. Ten reads become one.

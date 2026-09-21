@@ -54,6 +54,7 @@ import { tmsIngestRouter } from "./modules/mcleod/index.js";
 import { jobsRouter } from "./modules/org/index.js";
 import { dispatchRouter } from "./modules/loads/index.js";
 import { liveMapRouter } from "./modules/livemap/index.js";
+import { idleRouter } from "./modules/idle/index.js";
 import { hazmatRouter } from "./modules/hazmat/index.js";
 import { publicHazmatRouter } from "./modules/hazmat/index.js";
 import { publicApplicationRouter } from "./modules/recruiting/index.js";
@@ -249,6 +250,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
   app.use("/api/livemap", liveMapRouter()); // the dispatcher's board (LM6) — gated dispatch:view
+  app.use("/api/idle", idleRouter()); // the idle cost basis (Q9) — gated safety:view
   mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated
   app.use("/api/hazmat", hazmatRouter());
   app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)

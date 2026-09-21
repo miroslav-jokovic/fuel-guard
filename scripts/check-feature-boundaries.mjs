@@ -169,6 +169,12 @@ const API_ALLOW = new Set([
   "insights -> fuel-spend",
   // The idle rollup finishes by deriving the price days its dollars are priced with.
   "idle -> fuel",
+  // Q9 (docs/plans/fuel/DATA-PRECISION-AUDIT-2026-09-20.md §7.2): the idle cost basis prices an
+  // idled gallon off the posted board. It takes the median through posted-prices' own reader rather
+  // than a `raw-access-waiver` on `fuel_prices`, because §7.2b ruled the identical case that way —
+  // all 24 existing waivers are an owner acting on its own table, and a foreign shortcut would have
+  // been a new kind. This edge IS that ruling: a new arrow instead of a new hole.
+  "idle -> posted-prices",
   // Scoring judges a fill against the truck Samsara actually saw — the tank reconciliation.
   "anomalies -> samsara",
   // GPS co-location pairing: the collector infers which tractor a trailer travels with, but the

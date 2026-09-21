@@ -25,3 +25,9 @@ export { runRoadRangerFetch } from "./roadRangerIngest.js";
 export { ingestLovesExport, upsertLoves } from "./lovesIngest.js";
 export { runLovesApiSync } from "./lovesApiClient.js";
 export { registerNetworkRoutes } from "./routes/networks.js";
+/**
+ * The board's own answer to "what does diesel cost right now" — the first READ this collector
+ * exposes, added for Q9 so `idle` can price idled gallons without reaching into `fuel_prices`
+ * (raw-layer, sealed to this module by check-table-access.mjs).
+ */
+export { readRecentDieselMedian, DIESEL_MEDIAN_TTL_MS, __resetDieselMedianCache } from "./dieselMedian.js";

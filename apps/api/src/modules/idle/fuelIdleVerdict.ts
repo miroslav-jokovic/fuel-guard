@@ -25,9 +25,7 @@ import {
   type IdleVehicle,
 } from "@silvicom/shared";
 import { eachPage } from "../../lib/paging.js";
-
-/** Matches the Idling page's fallback when the org has configured neither. */
-const DEFAULT_BASIS = { idleGalPerHour: 0.8, fuelPricePerGal: 4.0 };
+import { resolveIdleCostBasis } from "./idleCostBasis.js";
 
 const num = (v: unknown): number => (v == null ? 0 : Number(v) || 0);
 
@@ -41,7 +39,9 @@ export async function readFleetIdleVerdict(
     readRollupRows(admin, orgId, from, to),
     readVehicles(admin, orgId),
     readDayPrices(admin, orgId, from, to),
-    readCostBasis(admin, orgId),
+    // Q9: the report used to resolve its own two-tier basis here, and charged unpriced days a third
+    // of a dollar-a-gallon less than the page did for the same fleet. One resolver now, three readers.
+    resolveIdleCostBasis(admin, orgId),
   ]);
   if (rows.length === 0 || vehicles.length === 0) return null;
 
@@ -155,17 +155,4 @@ async function readDayPrices(
     if (Number.isFinite(price) && price > 0) out.set(r.day, price);
   }
   return out;
-}
-
-async function readCostBasis(admin: SupabaseClient, orgId: string): Promise<{ idleGalPerHour: number; fuelPricePerGal: number }> {
-  const { data } = await admin
-    .from("idle_settings")
-    .select("idle_gal_per_hour, fuel_price_per_gal")
-    .eq("org_id", orgId)
-    .maybeSingle();
-  const s = data as { idle_gal_per_hour?: number | string; fuel_price_per_gal?: number | string } | null;
-  return {
-    idleGalPerHour: Number(s?.idle_gal_per_hour) || DEFAULT_BASIS.idleGalPerHour,
-    fuelPricePerGal: Number(s?.fuel_price_per_gal) || DEFAULT_BASIS.fuelPricePerGal,
-  };
 }
