@@ -1,5 +1,5 @@
 {
-  "//": "Table → owning module + layer (raw|core|derived|infra). D-SEP2: this manifest, not ARCHITECTURE.md prose, is the machine-read ownership record. Checked by scripts/check-table-modules.mjs (every live table present, no dead entries, writer paths vs owner, cross-module migration ratchet). raw = collector staging, frozen at ingest; core = canonical/user-authored; derived = harness calculation output, rebuildable; infra = credentials/caches/queues/counters/logs.",
+  "//": "Table \u2192 owning module + layer (raw|core|derived|infra). D-SEP2: this manifest, not ARCHITECTURE.md prose, is the machine-read ownership record. Checked by scripts/check-table-modules.mjs (every live table present, no dead entries, writer paths vs owner, cross-module migration ratchet). raw = collector staging, frozen at ingest; core = canonical/user-authored; derived = harness calculation output, rebuildable; infra = credentials/caches/queues/counters/logs.",
   "tables": {
     "anomalies": {
       "module": "anomalies",
@@ -206,6 +206,42 @@
       "layer": "infra"
     },
     "fleetpal_units": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_vendors": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_shops": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_work_orders": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_jobs": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_job_items": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_service_history": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_meters": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_pm_schedules": {
+      "module": "fleetpal",
+      "layer": "raw"
+    },
+    "fleetpal_pm_intervals": {
       "module": "fleetpal",
       "layer": "raw"
     },

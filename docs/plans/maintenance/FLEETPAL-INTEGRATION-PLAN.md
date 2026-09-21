@@ -547,7 +547,7 @@ manual-link verb for the 13, writing `match_method='manual'`.
 number that collides between a tractor and a trailer, and a unit that matches nothing; and
 `expectOrgScoped` passes on the read.
 
-### F6 — Schema and ingest: the repair record — *next-numbered migration*
+### F6 — Schema and ingest: the repair record — **DONE 2026-09-21 (migration 0349)**
 
 The core of the plan. Tables `fleetpal_work_orders`, `fleetpal_jobs`, `fleetpal_job_items`,
 `fleetpal_service_history`, `fleetpal_meters`, `fleetpal_pm_schedules` (+ intervals),
@@ -1103,3 +1103,55 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next is F6**, the repair record's schema and ingest — the first FleetPal migration since 0334,
   and the step everything after it stands on.
+
+- **2026-09-21 · F6 DONE (migration 0349) — the repair record, staged.**
+  Eight tables (`fleetpal_vendors`, `fleetpal_shops`, `fleetpal_work_orders`, `fleetpal_jobs`,
+  `fleetpal_job_items`, `fleetpal_service_history`, `fleetpal_meters`, `fleetpal_pm_schedules`) plus
+  `fleetpal_pm_intervals`, all `layer=raw`, all deny-all, all org-scoped. Nine `stage_fleetpal_*`
+  functions, each set-based, idempotent on `(org_id, fleetpal_id)`, `security definer` with EXECUTE
+  revoked from `public`/`anon`/`authenticated`. The ingest is `modules/fleetpal/ingest/`: one file
+  per resource family, `runIngest` owning the walk-stage-advance loop, `sweepRepairRecord` the order.
+
+  **⚠ There are deliberately NO foreign keys between these tables.** Every pair is unique on
+  `(org_id, fleetpal_id)` so a composite FK would be possible and would carry the org for free. It
+  is still wrong: the sweep pages each resource separately by `updated_after`, so a job whose parent
+  work order did not change in this window arrives with no parent staged — and an FK would turn that
+  ordinary case into a failed sweep. The matrix pins the tolerance so nobody "tidies" one in.
+
+  **⚠ No `technician` column, though the server sends one.** Staging F4's undeclared field would
+  mean adding a contract field the spec-derived manifest does not have, which `lint:fleetpal-contract`
+  refuses — correctly. The finding lives in §2.10.2; the database does not carry a half-fact.
+
+  **Two findings from writing the matrix, both of them the matrix doing its job:**
+  - **The first `asClient` helper proved nothing.** `set local role` lasts for a TRANSACTION, and
+    PGlite runs each statement in its own when there is none — so the "browser" queries ran as the
+    table owner and the file cheerfully reported anon reading a carrier's repair history and calling
+    the ingest. Wrapped in `begin`/`rollback` (0334's shape), all 30 of those assertions flipped. A
+    matrix that cannot fail is worse than no matrix, and this one failed for the wrong reason first.
+  - **`lint:table-access` wanted the migration's own waiver line.** A `.sql` file has no module
+    directory, so the gate cannot read ownership out of it; the waiver is how the authoring PR names
+    the collector that consented. 0334 had the same line for the same reason.
+
+  **Measured decisions in the schema:** `odometer` is `bigint` because this fleet reaches 663,000,000
+  metres (412,000 miles) and an `integer` would have failed years later on one truck; money is
+  `numeric` throughout and the five-way split is stored as sent, never recomputed, because a total
+  that disagrees with its parts is a fact about the vendor's data; `quantity` is `numeric(14,3)`
+  because a LABOR line's quantity is HOURS.
+
+  **Mutation proofs, four, each restored by copying the bytes back:** setting the watermark from the
+  clock failed *"moves to the highest `updated` SEEN, not to the clock"*; writing the shop position
+  as a watermark failed *"writes a WINDOW position, never a watermark"*; advancing past a failed
+  stage failed *"does not move when the stage call failed"*; and advancing when the PM intervals
+  failed to write failed *"leaves the watermark where it was when the intervals failed to stage"*.
+
+  **Verified by:** all 41 `lint:*` gates by name (`lint:table-access` caught the missing waiver),
+  `pnpm typecheck`, the new `supabase/tests/fleetpal-repair-record.test.mjs` (69 assertions,
+  `RESULT: 69 passed`), `rls.test.mjs` (158 tables covered, 0 unseedable), 4,153 api tests green.
+
+  **⚠ Nothing calls the ingest yet, and that is the deploy window being respected.** 0349's
+  functions are served ~3 minutes before `migrate.yml` applies them; the scheduler that calls them is
+  **F8**, a separate merge. A reader shipping in this PR would have spent that window asking
+  PostgREST for a function the database did not have.
+
+  **Next is F7** (defects, issues, expirations — the bounded-re-read tier), then **F8**, the
+  scheduler that finally runs all of this on a cadence.
