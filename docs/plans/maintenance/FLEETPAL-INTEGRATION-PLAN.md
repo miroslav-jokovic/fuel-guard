@@ -534,7 +534,7 @@ feature.
 written into §2.8. **If FleetPal turns out not to be used for purchasing** (step 4's last item),
 D-FP12/D-FP13 are re-opened as a question here rather than built around.
 
-### F5 — Identity resolution — *no migration*
+### F5 — Identity resolution — **DONE 2026-09-21** — *no migration*
 
 `modules/fleetpal/unitMatch.ts` — a **pure** matcher: `(fleetpalUnit, ourVehicles, ourTrailers) →
 {vehicleId?, trailerId?, method}`. VIN first (normalised uppercase, both sides), `unit_number`
@@ -1062,3 +1062,44 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next is F5** (identity resolution), which needs no credential and now has a measured target to
   hit: 415/11/48, eight duplicate VINs, ten VIN-less units.
+
+- **2026-09-21 · F5 DONE — the matcher, the resolver, and the screen's three verbs.**
+  `modules/fleetpal/unitMatch.ts` is the pure decision (VIN → number → unmatched, the vendor's
+  equipment category a tie-breaker and never a decision); `resolveUnits.ts` fetches, compares and
+  writes; `maintenance/routes/fleetpalUnits.ts` is `GET /api/maintenance/fleetpal/units`,
+  `POST …/units/resolve` and `POST …/units/:fleetpalId/link`, view roles on the read and manage on
+  both writes. `fleetpalUnitLinkSchema` is in shared, beside the vendor contracts and marked as ours.
+
+  **Two module edges are declared rather than taken.** `fleetpal -> roster` (the candidate set, read
+  through `listEquipmentIdentities`) and `maintenance -> fleetpal` (the section a shop manager
+  arrives through) are now in `check-feature-boundaries.mjs`'s `API_ALLOW` with their reasons. The
+  first would have passed `lint:table-access` as a bare `.from("vehicles")` read — which is exactly
+  why it is written down instead.
+
+  **⚠ The roster is read with `activeOnly: false`, and that is a measurement not a preference.** A
+  truck sold in June still owns the repairs it had in May. 36 of the 474 units match by VIN only
+  once the 61 retired rows are in the candidate set, so the active-only version would have silently
+  orphaned their history — the failure would have looked like a slightly smaller fleet.
+
+  **Ambiguity resolves to `unmatched`, with a reason.** Four reasons, because "add the VIN in
+  FleetPal", "you have two trucks with one number" and "this unit was sold" are three different jobs
+  for three different people. Our roster has no duplicate VIN and no duplicate unit number across
+  517 rows (measured 2026-09-21, including across the two tables), so the branch costs nothing today
+  and is what stops an imported duplicate from re-pointing a truck's history tomorrow.
+
+  **A manual link is never overwritten by a re-resolve, and an unchanged match is never re-written.**
+  The first is the `stageUnit` failure in a second place — a nightly job quietly undoing a person's
+  answer; the second keeps the audit trail free of a row per unit per run.
+
+  **Mutation proofs, four, each restored by copying the bytes back:** dropping the manual guard
+  failed *"never overwrites a manual link"*; dropping the no-op guard failed *"writes nothing when
+  the resolution has not changed"*; flipping the roster read to `activeOnly: true` failed *"asks the
+  roster for RETIRED equipment too"*; and letting ambiguity resolve by sort order failed both
+  *"refuses to choose when nothing breaks the tie"* and *"refuses a VIN that picks out two of our
+  rows"*.
+
+  **Verified by:** all 41 `lint:*` gates by name (`lint:boundaries` caught both undeclared edges),
+  `pnpm typecheck` (api + shared), 4,140 api tests green, `expectOrgScoped` on the resolver's reads.
+
+  **Next is F6**, the repair record's schema and ingest — the first FleetPal migration since 0334,
+  and the step everything after it stands on.

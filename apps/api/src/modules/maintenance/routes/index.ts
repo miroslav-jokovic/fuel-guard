@@ -16,6 +16,7 @@ import { inventoryAssetsRouter } from "./inventoryAssets.js";
 import { inventoryAssetTypesRouter } from "./inventoryAssetTypes.js";
 import { inventoryUnitsRouter, kitExpectationsRouter } from "./inventoryUnits.js";
 import { inventoryLabelsRouter } from "./inventoryLabels.js";
+import { fleetpalUnitsRouter } from "./fleetpalUnits.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -82,6 +83,11 @@ export function maintenanceRouter(): Router {
   router.use("/inventory/units", inventoryUnitsRouter());
   router.use("/inventory/kit-expectations", kitExpectationsRouter());
   router.use("/inventory", inventoryStockRouter());
+
+  // The FleetPal reconciliation (FLEETPAL-INTEGRATION-PLAN.md F5). The collector itself lives in
+  // `modules/fleetpal`; this is the door a shop manager reaches it through, and its census is what
+  // D-FP14 requires beside every per-unit cost figure F9 will print.
+  router.use("/fleetpal", fleetpalUnitsRouter());
 
   router.get(
     "/spend",

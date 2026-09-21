@@ -40,3 +40,34 @@ export * from "./fleetpal/primitives.js";
 export * from "./fleetpal/equipment.js";
 export * from "./fleetpal/repair.js";
 export * from "./fleetpal/purchasing.js";
+
+// ── OUR OWN API, WHICH IS NOT THE VENDOR'S WIRE ─────────────────────────────────────────────────
+//
+// Everything re-exported above models what FleetPal sends us. What follows models what OUR client
+// sends US — the reconciliation screen's verbs (F5). They live in this file rather than in
+// `fleetpal/`, because `lint:fleetpal-contract` holds that directory against a manifest generated
+// from the vendor's spec, and a schema of ours in there would be a field the vendor never declared.
+
+import { z } from "zod";
+
+/**
+ * Link one FleetPal unit to one of our vehicles or trailers by hand, or break the link.
+ *
+ * The manual link exists because §2.6 refuses to guess: VIN decides, unit number is the fallback,
+ * and what is left over stays visible so a person can finish it. Measured 2026-09-21, that is 48
+ * units of 474 — mostly sold or superseded equipment, which is exactly the population a matcher
+ * should not be inventing joins for.
+ *
+ * ⚠ **`unlink` is not "delete the row"** — it returns the unit to `unmatched`, where it is still
+ * counted and still shown. A FleetPal unit we have chosen not to map is a fact about the
+ * reconciliation, and D-FP14 requires that the count of unmatched units travels beside every
+ * per-unit cost figure the product prints.
+ */
+export const fleetpalUnitLinkSchema = z.union([
+  z.object({
+    kind: z.enum(["tractor", "trailer"]),
+    equipmentId: z.string().uuid(),
+  }),
+  z.object({ unlink: z.literal(true) }),
+]);
+export type FleetpalUnitLink = z.infer<typeof fleetpalUnitLinkSchema>;

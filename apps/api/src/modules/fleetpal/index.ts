@@ -46,6 +46,18 @@ export {
   type SyncPosition,
 } from "./syncState.js";
 export { listUnits, countUnmatched, stageUnit, setMatch, type FleetpalUnitRow } from "./units.js";
+export {
+  matchFleetpalUnit,
+  normaliseUnitNumber,
+  normaliseVin,
+  censusOf,
+  type MatchCensus,
+  type MatchableUnit,
+  type Roster,
+  type RosterCandidate,
+  type UnitMatch,
+} from "./unitMatch.js";
+export { resolveStagedUnits, type ResolveOutcome } from "./resolveUnits.js";
 export { claimDelivery, finishDelivery, listRecentDeliveries } from "./deliveries.js";
 export { FleetpalClient, MAX_PAGE_SIZE, type FleetpalClientOptions, type FleetpalRequestLog } from "./client.js";
 export {
