@@ -1,0 +1,61 @@
+-- 0348: the index that lets the finance freshness check finish
+--
+-- Queue item 6 of docs/plans/fuel/DATA-PRECISION-AUDIT-2026-09-20.md, D-PREC11. No reader: this is
+-- an index, so nothing names it and the deploy window (CLAUDE.md) cannot be split by it.
+--
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- THE MEASUREMENT
+--
+-- `[finance-freshness] org 07fe4058-cc72-4a69-b3e9-29b4cf1c6a44 failed: canceling statement due to
+-- statement timeout` — in the Railway log of @fleetguard/api every six hours since the check
+-- shipped. The audit recorded the symptom; this is the cause, EXPLAIN (ANALYZE, BUFFERS) on
+-- production 2026-09-21 against exactly the query `recentFailedJobs` issues:
+--
+--   Limit  (cost=14791.67..14791.80 rows=50) (actual time=11195.751..11195.756 rows=12 loops=1)
+--     ->  Sort  Sort Key: finished_at
+--           ->  Index Scan using idx_jobs_org_kind_created on jobs  (actual rows=12 loops=1)
+--                 Index Cond: ((org_id = '07fe4058…') AND (kind = ANY ('{financial_projection,
+--                              efs_window_refetch,efs_soap_posted}')))
+--                 Filter: ((finished_at >= '2026-09-14…') AND (status = 'failed'))
+--                 Rows Removed by Filter: 58970
+--                 Buffers: shared hit=37330 read=12316
+--   Execution Time: 11195.914 ms
+--
+-- `jobs` is 182,150 rows / 133 MB, and that org alone holds 58,982 `efs_soap_posted` rows.
+-- `idx_jobs_org_kind_created` leads on (org_id, kind) but carries neither `status` nor
+-- `finished_at`, so the scan heap-fetches all 58,982 to return 12, then sorts them. PostgREST
+-- connects as `authenticator`, whose `statement_timeout` is 8s (`pg_roles`; `service_role` has no
+-- override of its own). 11.2s > 8s, every run, permanently.
+--
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- WHY THIS IS THE FIX AND "SKIP THE ORG" IS NOT
+--
+-- The tempting repair is to stop running the check for a tenant with no McLeod, since that is the
+-- org that times out. It is the wrong one, and the same measurement says so: the heavy query is
+-- about EFS jobs, not McLeod ones, and 07fe4058 holds TWELVE failed `efs_soap_posted` runs in the
+-- last seven days — newest 2026-09-21 17:59Z — that nobody has been told about, because the check
+-- dies before it can say so. That org has produced zero `finance:%` rows in `notification_events`,
+-- ever. Skipping it would convert an accidental blindness into a deliberate one: exactly the
+-- routing-around this repo's "no workarounds" rule names. The false "sweep has never run" finding
+-- for a McLeod-less tenant is a real defect too, and is fixed in its own merge on the TypeScript
+-- side, not by silencing the org.
+--
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- THE SHAPE, AND WHY EACH PART OF IT
+--
+-- Partial on `status = 'failed'`: 3,748 of 182,150 rows qualify (2%), so the index is small and
+-- costs almost nothing to maintain — a job is written many times on its way through the queue but
+-- enters this index only if it ends badly.
+--
+-- `finished_at` is in the KEY, not just implied by the predicate, because `recentFailedJobs` both
+-- ranges on it (`>= sinceIso`) and ORDERS by it — the Sort node above is a second, separate cost
+-- the composite removes. The column order is the query's: org_id and kind are equalities, so they
+-- lead; finished_at is the range and the sort, so it comes last and stays usable for both.
+--
+-- NOTE ON LOCKING, per 0066's note: a plain CREATE INDEX blocks writes to `jobs` while it builds,
+-- and `supabase db push` runs each migration in a transaction so CREATE INDEX CONCURRENTLY is not
+-- available here. On 133 MB that build is a second or two, and the queue's writers retry, so the
+-- brief block is accepted rather than worked around with an out-of-band psql step nothing records.
+create index if not exists idx_jobs_failed_recent
+  on jobs (org_id, kind, finished_at)
+  where status = 'failed';
