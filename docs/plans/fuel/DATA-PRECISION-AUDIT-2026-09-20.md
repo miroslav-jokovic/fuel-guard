@@ -280,10 +280,44 @@ August's sweep landed 2% of a normal month. The system knows: `finance_month_clo
 scheduler fired the right finding — `[finance-freshness] org 86d6b3ea…: 1 new finding(s) — McLeod
 financial sweep is 10 days old`.
 
-**The Fleet report's guard is the good news here.** `latestReportableMonth` (`reportPeriod.ts:145`)
+~~**The Fleet report's guard is the good news here.** `latestReportableMonth` (`reportPeriod.ts:145`)
 excludes a month that is missing or was swept before it ended, and `fleetProvenanceLine` prints
 "figures as of". So the finance section should be opening on **July**, not on an empty August. That
-is exactly the mechanism §1 is missing, working. It should be lifted, not re-invented.
+is exactly the mechanism §1 is missing, working. It should be lifted, not re-invented.~~
+
+⚠ **CORRECTED 2026-09-21, on the way into queue item 6. The guard does not hold, and the report is
+opening on August.** The paragraph above was written from the guard's intent, not from a trace of
+it. Traced end to end against production today:
+
+| step | what it decides about 2026-08 |
+|---|---|
+| `assessLedgerMonths` (`ledgerMonths.ts`) | complete when `day(sweptAt) > periodEnd`; `2026-09-10 > 2026-09-01` → **complete**, so August is NOT in `monthsPartial` |
+| `computeFleetTrend` (`fleetTrend.ts:85`) | `missing` only when `m.ledger.length === 0`; August has 7 rows in `mcleod_gl_totals` → **a plotted point** |
+| `latestReportableMonth` | newest non-missing point → **`2026-08`** |
+| `FleetReportPage.vue:57` | opens there, and `openedEarlierNote` stays null because `latest === calendarCap` |
+
+So the page opens on August reading **earned $0.00, spent $10,619.37, kept −$10,619.37** — the
+2026-09-03 incident ($0 / $8,430) recurring through a door G11 does not watch. **G11 tests WHEN the
+sweep ran; this failure is WHAT it brought back.** A sweep that runs on the 10th and returns one
+posting module of fourteen passes every test in the codebase.
+
+And it is one module, not a thin spread of a normal month — that detail was not in the table above
+and it is the whole diagnosis. Measured 2026-09-21 on `mcleod_gl_days`:
+
+| month | post modules | rows | lines (`mcleod_gl_totals`) | abs amount |
+|---|---|---|---|---|
+| 2026-06 | 14 (AP, BILL, CASH, DED, DEDV, DRS, FUEL, GJ, MISC, OFF, RJ, SET, SETV, WIRE) | 1,206 | 29,427 | $46.75M |
+| 2026-07 | 12 | 1,152 | 26,473 | $43.03M |
+| **2026-08** | **1 — `RJ` only** | **23** | **38** | **$0.42M** |
+| 2026-09 | — | — | — | — |
+
+The 09-10 run DID reach August: June and July each carry a single `swept_at` covering the whole
+month, so the window ran back to at least 06-01, and September 1–9 was inside it too and returned
+nothing. `GL_CONTROL_TOTALS` already unions `gl_ledger` + `gl_ledger_hist` (D-MC11), and
+`company_id` is `TMS` in every month including August. **So this is McLeod's answer, not a
+windowing artefact on our side** — which means a plain re-run may reproduce it, and the owner
+action is a re-run PLUS a look at why McLeod has no August AP/BILL/FUEL/SET for company `TMS`
+(`tools/mcleod-agent/inspect.mjs`, read-only, same connection). See **Q10**.
 
 ### D-PREC10 — every month close is `open`, with six-figure drifts, since March
 
@@ -625,6 +659,28 @@ means nothing.
   exports onto `business_date` would make one definition true; it would also change which fills
   appear in a CSV a customer may already have reconciled against. **Owner's call, and deliberately
   NOT taken while shipping item 4** — the same shape as Q3 (D-PREC4), and probably the same answer.
+- **Q10 (new, 2026-09-21, raised by queue item 6 — the blocker behind D-PREC9's correction).** What
+  makes a month REPORTABLE, once "the sweep ran after the month ended" has been shown not to be
+  enough? August 2026 was swept on the 10th of September, ten days after it closed, and came back
+  with one posting module of fourteen — so it passes `assessLedgerMonths`, becomes a point in
+  `computeFleetTrend`, and the fleet report opens on "$0 earned". The capability that is missing is
+  a rule about the CONTENT of a swept month, and there is no honest place to invent one without a
+  ruling, so item 6 shipped the timeout fix and stopped here rather than picking a threshold.
+  Candidates:
+    - **(a) Derive from the month's own neighbours.** A month is reportable when its ledger carries
+      the revenue-bearing posting modules the preceding complete months carried. Nothing is typed
+      out, nothing is a constant, and it keeps working when the carrier adds a module.
+    - **(b) Gate on `finance_month_closes.gl_revenue > 0`.** One column, trivially testable — but it
+      is a threshold wearing a fact's clothes, and it says nothing about a month that lost only its
+      expense modules.
+    - **(c) Refuse a month whose line count is a small fraction of the trailing median.** Honest
+      about being a heuristic; needs a constant, which is the thing this plan keeps finding at the
+      root of its own defects.
+  **Recommendation: (a).** It is the only one of the three that DERIVES the answer instead of
+  restating it, and this repo's register is explicit that a copy is a workaround with a delay fuse.
+  Note that (a) is a rule about *which months may be reported*, not a repair for August — August
+  needs the sweep (owner action), and (a) is what stops the next empty month being published as a
+  number while the owner is running it.
 
 ---
 
@@ -841,6 +897,59 @@ Append dated lines at the END of this section. Do not edit rows above.
   **What item 5 leaves behind:** ten browser reads became two server ones, the browser reads no
   sealed table, and the four cards' window asymmetry (D-PREC7) survived the move — pinned by 0347's
   matrix rather than by anybody remembering it.
+
+**2026-09-21 — queue item 6, the code half. Two PRs; the sweep itself is still owed by the owner.**
+
+Re-measured all four of D-PREC9/D-PREC11's figures against production before touching anything.
+Three confirmed. The fourth — §2's claim that the Fleet report's guard keeps the page off an empty
+August — did not, and §2 now carries the correction and the trace above it.
+
+- **The timeout is a missing index, not a tenant that should be skipped (#939, migration 0348).**
+  `EXPLAIN (ANALYZE, BUFFERS)` on the exact query `recentFailedJobs` issues: **11,195 ms**, `Rows
+  Removed by Filter: 58970` to return 12, `Buffers: shared hit=37330 read=12316`.
+  `idx_jobs_org_kind_created` leads on `(org_id, kind)` and carries neither `status` nor
+  `finished_at`, so the scan heap-fetches all 58,982 of that org's `efs_soap_posted` rows and then
+  sorts them. `authenticator`'s `statement_timeout` is 8s (`pg_roles`; `service_role` has no
+  override of its own), so it has been cancelled on every run since the check shipped. New partial
+  index on `(org_id, kind, finished_at) where status = 'failed'` — 2% of the table, and
+  `finished_at` in the key removes the Sort node as well as the heap fetches.
+- **What the silence cost, measured.** Org 07fe4058 has produced **zero** `finance:%` rows in
+  `notification_events`, ever, while holding **12 failed `efs_soap_posted` runs in the last seven
+  days** (newest 2026-09-21 17:59Z). Meanwhile org 86d6b3ea's check DOES complete and has fired
+  `finance:stale:86d6b3ea…:<day>` **every day from 09-15 to 09-21**, six recipients each.
+  **D-PREC9 is not a monitoring gap — the monitor is correct and has been unheeded for a week.**
+  That is why "skip the org with no McLeod" was refused: the heavy query is about EFS jobs, not
+  McLeod ones, so skipping would trade one false alarm for twelve true silences.
+- **The false alarm the index would have unmasked (#938).** `readFinancialSyncedAt` answers null
+  for both "integration exists, never swept" and "no McLeod at all"; `planFreshnessFindings` read
+  the second as the first, and 07fe4058 has no `org_integrations` row. New
+  `readFinancialIntegration` returns `{ configured, lastSyncedAt }` and `readFinancialSyncedAt`
+  now DERIVES from it rather than issuing its own read. Shipped ahead of the index on purpose:
+  repairing the timeout first would have started delivering the false critical daily.
+- Mutation-checked, bytes restored from a backup copy and each restore verified by grep:
+  `configured: true` unconditionally (2 tests died), the `!configured` guard dropped (3 died), and
+  the job findings gated on `configured` too — i.e. exactly the "skip the org" fix argued against
+  (2 died, which is the test refusing that shape by name).
+- ⚠ `pnpm test` failed once on `sectionAccess.test.ts > reads only this member's own overrides`
+  with `Invalid CSRF token`. Known api flake, root cause still open: 3/3 in isolation, and the full
+  api suite green on re-run (338 files / 4,094 tests) on a branch that changes no TypeScript.
+
+**What item 6 does NOT close, and why it stopped rather than improvising.**
+
+1. **The sweep is an owner action and is still owed.** Behind the carrier VPN:
+   `cd tools/mcleod-agent && node --env-file=.env agent.mjs --financial --harden`. But a re-run
+   alone may not be the fix — the 09-10 run already covered August and McLeod returned one module
+   of fourteen, with `company_id = TMS` throughout and `gl_ledger`/`gl_ledger_hist` already unioned.
+   So the owner also needs to find out why McLeod holds no August AP/BILL/FUEL/SET for `TMS`
+   (`inspect.mjs` is read-only against the same connection). Nothing downstream can be verified
+   against a month that is still empty.
+2. **The reportable-month rule is a missing capability, now logged as Q10 with a recommendation**
+   rather than routed around. Item 6 will not pick a content threshold for a month without a
+   ruling; until Q10 is answered, the fleet report will keep opening on any month whose sweep ran
+   late enough, however little it brought back.
+3. **D-PREC10 is untouched** — every close is still `open` with six-figure drifts, and §2 already
+   holds it as a separate question.
+
 
 ---
 
