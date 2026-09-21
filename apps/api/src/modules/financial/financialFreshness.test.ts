@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { testEnv } from "../../testing/testEnv.js";
 import { planFreshnessFindings, runFinancialFreshnessOnce, STALE_AFTER_HOURS } from "./financialFreshness.js";
+import type { FinancialIntegration } from "../mcleod/index.js";
 
 /**
  * D-FIN3's done-when, at service grain: a stale sweep and a failed finance job each become ONE
@@ -12,6 +13,10 @@ import { planFreshnessFindings, runFinancialFreshnessOnce, STALE_AFTER_HOURS } f
 const ORG = "org1";
 const NOW = new Date("2026-09-03T18:00:00.000Z");
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
+/** A carrier that HAS a McLeod financial integration, swept whenever. */
+const swept = (lastSyncedAt: string | null): FinancialIntegration => ({ configured: true, lastSyncedAt });
+/** A tenant with no `mcleod_financial` row at all — production's 07fe4058 (D-PREC11). */
+const noMcleod: FinancialIntegration = { configured: false, lastSyncedAt: null };
 
 const notifyCalls: Array<Record<string, unknown>> = [];
 vi.mock("../messaging/index.js", () => ({
@@ -36,26 +41,26 @@ beforeEach(() => {
 
 describe("planFreshnessFindings", () => {
   it("says nothing when the sweep is fresh and no job failed", () => {
-    expect(planFreshnessFindings(ORG, hoursAgo(5), [], NOW)).toEqual([]);
-    expect(planFreshnessFindings(ORG, hoursAgo(STALE_AFTER_HOURS - 0.5), [], NOW)).toEqual([]);
+    expect(planFreshnessFindings(ORG, swept(hoursAgo(5)), [], NOW)).toEqual([]);
+    expect(planFreshnessFindings(ORG, swept(hoursAgo(STALE_AFTER_HOURS - 0.5)), [], NOW)).toEqual([]);
   });
 
   it("a sweep older than 26 hours is a warning keyed by the day, so it re-alerts once a day while down", () => {
-    const [f] = planFreshnessFindings(ORG, hoursAgo(30), [], NOW);
+    const [f] = planFreshnessFindings(ORG, swept(hoursAgo(30)), [], NOW);
     expect(f?.severity).toBe("warning");
     expect(f?.dedupeKey).toBe("finance:stale:org1:2026-09-03");
     expect(f?.title).toBe("McLeod financial sweep is 1 day old");
   });
 
   it("three days without a sweep is critical, and it names the stamp the pages are reading from", () => {
-    const [f] = planFreshnessFindings(ORG, hoursAgo(6 * 24), [], NOW);
+    const [f] = planFreshnessFindings(ORG, swept(hoursAgo(6 * 24)), [], NOW);
     expect(f?.severity).toBe("critical");
     expect(f?.title).toBe("McLeod financial sweep is 6 days old");
     expect(f?.body).toContain("2026-08-28 18:00 UTC");
   });
 
   it("a sweep that never ran is critical and keyed by the day", () => {
-    const [f] = planFreshnessFindings(ORG, null, [], NOW);
+    const [f] = planFreshnessFindings(ORG, swept(null), [], NOW);
     expect(f?.severity).toBe("critical");
     expect(f?.dedupeKey).toBe("finance:never-swept:org1:2026-09-03");
   });
@@ -63,7 +68,7 @@ describe("planFreshnessFindings", () => {
   it("a failed job is its own finding, keyed by the job id, carrying the database's error text", () => {
     const fs = planFreshnessFindings(
       ORG,
-      hoursAgo(1),
+      swept(hoursAgo(1)),
       [{ id: "job-9", kind: "efs_window_refetch", error: "refetch failed for 1/3 window(s): numeric field overflow", finished_at: hoursAgo(2) }],
       NOW,
     );
@@ -76,6 +81,27 @@ describe("planFreshnessFindings", () => {
       entityId: "job-9",
     });
     expect(fs[0]!.body).toContain("numeric field overflow");
+  });
+
+  /**
+   * D-PREC11's second half. `readFinancialSyncedAt` answered null for both "never swept" and "no
+   * McLeod", and the planner read the second as the first; production's 07fe4058 would have been
+   * told every day that a sweep it does not have had never run. The pair below pins the two halves
+   * of the ruling: no sweep finding, and the EFS jobs still reported — because skipping the org
+   * outright would have traded one false alarm for twelve true silences.
+   */
+  it("a tenant with no McLeod integration is told nothing about a sweep it does not have", () => {
+    expect(planFreshnessFindings(ORG, noMcleod, [], NOW)).toEqual([]);
+  });
+
+  it("...but its failed EFS jobs are still findings: the jobs are the queue's, not McLeod's", () => {
+    const fs = planFreshnessFindings(
+      ORG,
+      noMcleod,
+      [{ id: "job-12", kind: "efs_soap_posted", error: "SOAP fault: 500", finished_at: hoursAgo(2) }],
+      NOW,
+    );
+    expect(fs.map((f) => f.dedupeKey)).toEqual(["finance:job-failed:job-12"]);
   });
 });
 
@@ -128,6 +154,17 @@ describe("runFinancialFreshnessOnce", () => {
     expect(notifyCalls).toHaveLength(0);
     expect(emails).toHaveLength(0);
     expect(rec.queries.some((q) => q.table === "memberships")).toBe(false);
+  });
+
+  it("no org_integrations row at all: no sweep finding, and the failed EFS job is still reported", async () => {
+    // `syncedAt: undefined` leaves `org_integrations` EMPTY — the shape production's 07fe4058 is
+    // in. The row-with-a-null-stamp case is `syncedAt: null` and is the test below it.
+    const rec = recorder({
+      failed: [{ id: "job-12", kind: "efs_soap_posted", error: "SOAP fault: 500", finished_at: hoursAgo(2) }],
+    });
+    const fresh = await runFinancialFreshnessOnce(rec.client, env, ORG, NOW);
+    expect(fresh.map((f) => f.dedupeKey)).toEqual(["finance:job-failed:job-12"]);
+    expect(notifyCalls.every((c) => c.dedupeKey === "finance:job-failed:job-12")).toBe(true);
   });
 
   it("no notification e-mail configured: the ledger rows are still written, the email is not sent", async () => {
