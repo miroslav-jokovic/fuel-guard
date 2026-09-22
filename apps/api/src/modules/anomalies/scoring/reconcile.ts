@@ -300,6 +300,33 @@ async function suppressSystematicStationOffset(
   };
 }
 
+/**
+ * Has this fill's evidence already been re-asked recently enough that asking again is waste?
+ *
+ * TWO conditions, and the first is what keeps the collector tier working. A fill is only exempt from
+ * refresh if it has evidence to refresh — `reconAt != null` means a live reconciliation has actually
+ * SUCCEEDED here. `claimReconBatch` (`backfill.ts:76`) selects on `samsara_recon_at is null`, so
+ * every fill that tier claims fails this test and reaches the live branch exactly as before. The
+ * cooldown for fills that have never worked is `SAMSARA_RECON_RETRY_HOURS`, and it stays the tier's
+ * business; this one governs the disjoint population the tier never touches.
+ *
+ * A new fill also fails the test (nothing stored), so a first import still reconciles immediately.
+ * What is bounded is the RE-score of a fill that already answered — which, before Q6c, had no bound
+ * at all outside `skipRecon`.
+ *
+ * ⚠ Measured before it was written (2026-09-22): the production reconciler re-run read-only over 55
+ * fills from the three stuck imports returned evidence identical to what was stored in 55 of 55
+ * cases, across 56–199 previous refreshes, changing no field and upgrading no basis. The refresh is
+ * a no-op on settled evidence; this is not a guess about vendor behaviour.
+ */
+function reconRefreshedRecently(stored: ReconResult, env: Env): boolean {
+  if (env.SAMSARA_RECON_REFRESH_HOURS <= 0) return false; // 0 restores always-refresh
+  if (stored.reconAt == null || stored.reconCheckedAt == null) return false;
+  const checkedMs = Date.parse(stored.reconCheckedAt);
+  if (!Number.isFinite(checkedMs)) return false; // an unparseable stamp is not evidence of freshness
+  return Date.now() - checkedMs < env.SAMSARA_RECON_REFRESH_HOURS * 3_600_000;
+}
+
 /** Resolve live or stored evidence without allowing a failed refresh to erase a prior successful result. */
 export async function resolveReconciliation(
   admin: SupabaseClient,
@@ -316,6 +343,10 @@ export async function resolveReconciliation(
 
   if (txn.vehicleId && opts.skipRecon) {
     // Rules-only rebuild: stored reconciliation is authoritative and metadata is preserved.
+  } else if (txn.vehicleId && reconRefreshedRecently(stored, env)) {
+    // Settled evidence, re-asked recently — reuse it, and touch NOTHING. Falling through to the live
+    // branch would stamp `reconCheckedAt` and bump `reconEvidenceVersion` even when the answer is
+    // identical, which is the whole cost this bound exists to remove (Q6c).
   } else if (txn.vehicleId && opts.reconUnavailable) {
     result = {
       ...stored,
