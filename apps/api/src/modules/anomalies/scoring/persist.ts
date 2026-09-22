@@ -137,10 +137,40 @@ export function sanitizeOutcomePatch(patch: Record<string, unknown>): Record<str
   return patch;
 }
 
-/** Convert the computed outcome to the snake_case JSON contract consumed by Postgres. */
-export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown> {
+/**
+ * Convert the computed outcome to the snake_case JSON contract consumed by Postgres, in TWO halves.
+ *
+ * ── WHY IT IS SPLIT (migration 0356, DATA-LIFECYCLE-PLAN Q6d) ───────────────────────────────────
+ * `result_hash` hashes this whole patch, and the patch contains `samsara_recon_checked_at` — a wall
+ * clock, stamped on every pass that is not `skipRecon`. So two attempts on one fill under one
+ * engine version can never share a `result_hash` unless both skipped reconciliation, and the column
+ * reports how often we re-asked Samsara rather than whether the judgement moved. Q6 was analysed
+ * three times off that number and was wrong each time; one of those analyses rejected a real fix.
+ *
+ * `verdict` is the judgement and the measurements it rests on. `evidence` is everything persisted
+ * alongside it: the telematics record, the reconciliation status, and the derivation stamp. When
+ * evidence changes and the verdict does not, that is exactly the case `verdict_hash` exists to make
+ * visible.
+ *
+ * ⚠ THE KEY SET COMES FROM THE `verdict` LITERAL ITSELF — `Object.keys(verdict)` below — and not
+ * from a list of verdict field names kept somewhere nearby. A second list is a copy with a delay
+ * fuse: the day someone adds a rule output to the patch and forgets the list, `verdict_hash` stops
+ * covering it and nothing fails. There is one definition of what a verdict is, and it is the shape
+ * of that object.
+ *
+ * ⚠ `sanitizeOutcomePatch` runs on the MERGED patch, before the verdict is read back out, because it
+ * can move a field name into `case_gates.out_of_range` — and that annotation is itself part of the
+ * verdict (it records why detection was limited). Sanitising the halves separately would lose it
+ * from whichever half did not carry `case_gates`.
+ */
+export function buildTxnOutcomePatch(a: TxnOutcomeArgs): {
+  patch: Record<string, unknown>;
+  verdict: Record<string, unknown>;
+} {
   const { txn, previousTxn, intermediateGallons, assessment, ruleCtx, recon, attribution } = a;
-  return sanitizeOutcomePatch({
+
+  /** The judgement about this fill, and the derived measurements the judgement rests on. */
+  const verdict: Record<string, unknown> = {
     miles_since_last: milesSinceLast(txn, previousTxn),
     computed_mpg: computedMpg(txn, previousTxn, intermediateGallons),
     has_anomaly: assessment.level !== "clear",
@@ -153,11 +183,8 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown>
     // counted per rule by `entityRisk` to rank trucks and drivers, and a weightless rule must not
     // move anybody up a risk list. Here it is evidence a reviewer can see and nothing more.
     case_signals_unscored: assessment.unscoredSignals,
-    // Which generation of the rules produced the verdict above. The nightly sweep claims the lowest
-    // stamps first, so a derivation change converges over several passes instead of the three-hour
-    // full-history sweep it used to take (0318).
-    scoring_version: SCORING_VERSION,
-    // WP6: WHY detection was limited on this fill (ineligible rules + the gating inputs).
+    // WP6: WHY detection was limited on this fill (ineligible rules + the gating inputs). A verdict
+    // about the verdict, so it belongs on this side of the split.
     case_gates: {
       ...summarizeFillGates(computeFillConfidence(ruleCtx)),
       fuel_balance: ruleCtx.fuelBalance ?? null,
@@ -165,6 +192,22 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown>
     // WP-ATTR: the logbook attribution verdict (+ the contradicting logbook truck when suspect).
     attribution_verdict: attribution.verdict,
     logbook_vehicle_id: attribution.verdict === "suspect" ? attribution.logbookVehicleId : null,
+  };
+
+  /**
+   * Everything persisted alongside the judgement: the telematics record, the reconciliation status,
+   * and the derivation stamp.
+   *
+   * `scoring_version` sits HERE and not in the verdict, which is the one placement worth arguing.
+   * It identifies which generation of the rules produced the verdict — a producer stamp, not a
+   * judgement — and `engineVersion` is already in the tuple both hashes are taken over. Putting a
+   * second producer stamp inside the verdict half would make every SCORING_VERSION bump look like
+   * every fill's verdict changing, which is precisely the failure `verdict_hash` exists to end.
+   * (The nightly sweep claims the lowest stamps first, so a derivation change converges over several
+   * passes instead of the three-hour full-history sweep it used to take — 0318.)
+   */
+  const evidence: Record<string, unknown> = {
+    scoring_version: SCORING_VERSION,
     samsara_odometer: recon.crossSourceOdometer,
     samsara_odometer_at: recon.crossSourceOdometerAt,
     samsara_odometer_source: recon.crossSourceOdometerSource,
@@ -189,7 +232,14 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown>
     samsara_recon_status: recon.reconStatus,
     samsara_recon_error: recon.reconError,
     samsara_recon_evidence_version: recon.reconEvidenceVersion,
-  });
+  };
+
+  const patch = sanitizeOutcomePatch({ ...verdict, ...evidence });
+  // Read the verdict back OUT of the sanitised patch, by its own keys — so a value the numeric
+  // bounds nulled (and named in `case_gates.out_of_range`) is hashed as the null that was actually
+  // persisted, not the 14,000 MPG that was computed.
+  const sanitizedVerdict = Object.fromEntries(Object.keys(verdict).map((k) => [k, patch[k]]));
+  return { patch, verdict: sanitizedVerdict };
 }
 
 function casePayload(caseFired: RuleResult[]): Record<string, unknown> | null {
@@ -206,7 +256,7 @@ function casePayload(caseFired: RuleResult[]): Record<string, unknown> | null {
 /** Create the durable attempt before the atomic persistence call begins. */
 export async function startScoringAttempt(
   admin: SupabaseClient,
-  input: { orgId: string; txnId: string; engineVersion: string; resultHash: string },
+  input: { orgId: string; txnId: string; engineVersion: string; resultHash: string; verdictHash: string },
 ): Promise<ScoringAttempt> {
   const id = randomUUID();
   const { data, error } = await admin
@@ -217,6 +267,9 @@ export async function startScoringAttempt(
       transaction_id: input.txnId,
       engine_version: input.engineVersion,
       result_hash: input.resultHash,
+      // 0356. The payload identity above changes on every live reconciliation because the payload
+      // carries a wall clock; this one changes when and only when the judgement does.
+      verdict_hash: input.verdictHash,
       status: "running",
     })
     .select("id")

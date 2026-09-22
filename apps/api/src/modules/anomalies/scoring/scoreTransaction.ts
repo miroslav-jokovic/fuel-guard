@@ -352,7 +352,7 @@ export async function scoreTransaction(
   // (or one physically-impossible one) become a single "theft_case" alert.
   const assessment = correlateSignals(fired);
   const caseFired = makeCaseFired(assessment);
-  const outcome = buildTxnOutcomePatch({
+  const { patch: outcome, verdict } = buildTxnOutcomePatch({
     txn,
     previousTxn: inputs.consumption.previousTxn,
     intermediateGallons: inputs.consumption.intermediateGallons,
@@ -366,7 +366,14 @@ export async function scoreTransaction(
     orgId,
     txnId,
     engineVersion,
+    // Two digests over the same tuple, differing only in how much of the outcome they cover (0356).
+    // `resultHash` is the PAYLOAD identity — it answers "would this write have changed the row" —
+    // and it moves on every live reconciliation, because the payload carries
+    // `samsara_recon_checked_at`, a wall clock. `verdictHash` covers the judgement half alone, so it
+    // moves when and only when the judgement does. Asking the first question of the second column is
+    // what made Q6 wrong three times over.
     resultHash: scoringResultHash({ txnId, engineVersion, caseFired, outcome }),
+    verdictHash: scoringResultHash({ txnId, engineVersion, caseFired, verdict }),
   });
 
   // The database RPC commits anomaly reconciliation, the transaction outcome, and attempt completion
