@@ -1,6 +1,7 @@
 import { ingestDefects, ingestExpirations, issuesIngest } from "./condition.js";
 import { ingestPmSchedules, metersIngest } from "./equipment.js";
 import { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";
+import { poInvoicesIngest, purchaseOrdersIngest } from "./purchasing.js";
 import { ingestShops, vendorsIngest } from "./reference.js";
 import { runIngest } from "./run.js";
 import type { IngestContext, IngestResult } from "./types.js";
@@ -30,6 +31,11 @@ export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResul
   results.push(await runIngest(ctx, jobsIngest));
   results.push(await runIngest(ctx, jobItemsIngest));
   results.push(await runIngest(ctx, serviceHistoryIngest));
+  // The invoice bridge (F9b). After the work order it points at, for the same reason as everything
+  // above it — a purchase order whose repair has never been staged reads as an orphan rather than
+  // as the ordinary delta it is. 0351 has no foreign key to make that an error.
+  results.push(await runIngest(ctx, purchaseOrdersIngest));
+  results.push(await runIngest(ctx, poInvoicesIngest));
   results.push(await runIngest(ctx, metersIngest));
   results.push(await ingestPmSchedules(ctx));
   // F7's bounded-re-read tier, last: it is the only part that does not watermark, so a sweep that
@@ -40,16 +46,6 @@ export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResul
   return results;
 }
 
-/**
- * ── ⚠ `purchaseOrdersIngest` AND `poInvoicesIngest` ARE NOT IN THE SWEEP ABOVE, ON PURPOSE ─────
- * They are exported (below) and tested, and nothing calls them yet. Their `stage_fleetpal_*`
- * functions arrive in migration 0351, and Railway serves a merge ~2m44s before `migrate.yml`
- * applies its migration (`docs/MIGRATION-DISCIPLINE.md` §the-deploy-window). A sweep tick inside
- * that window would ask PostgREST for two functions the database did not yet have — which is the
- * exact reason F6 shipped its ingest with no caller and F8 shipped the caller separately. The
- * difference now is that the scheduler already exists, so the window is real rather than
- * hypothetical, and the line that adds these two to `sweepRepairRecord` is F9b's first commit.
- */
 export { runIngest } from "./run.js";
 export { poInvoicesIngest, purchaseOrdersIngest } from "./purchasing.js";
 export { ingestDefects, ingestExpirations, issuesIngest } from "./condition.js";
