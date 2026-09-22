@@ -346,15 +346,40 @@ The split is by origin of the row, not by its age:
 - **`audit_logs` keeps** every act that changed something a regulator, an auditor or a carrier would
   ask about — human or system. Append-only, never pruned, multi-year, reclassified `core`. Low
   volume: ~1,200 rows/30d today once the sync noise is gone.
-- **A sync produces a counter, not a row per entity.** One row per collector run in a new
+- ~~**A sync produces a counter, not a row per entity.** One row per collector run in a new
   `sync_runs` table (`infra`, partitioned, 90-day retention) carrying `examined` / `changed` /
-  `failed` counts — which is the number anybody actually wants, and which today cannot be read at
-  all without counting 925,341 rows.
+  `failed` counts.~~ **WITHDRAWN 2026-09-22, not built.** The counter already exists: `jobs.stats`
+  records `{"total": 206, "created": 0, "updated": 206, "assigned": 182}` per `sync_vehicles` run and
+  the equivalent for `sync_stats`, measured in production. A `sync_runs` table would have been a
+  second source of truth for a number already kept — a copy is a workaround with a delay fuse
+  (CLAUDE.md). Anything wanting per-run sync counts reads the job ledger.
 
 **The invariant, corrected by §2.2:** not "an audit row must have an actor" — system acts
-legitimately have none. It is: **an audit row must record a change.** A scheduler-emitted action
-must be diff-gated (a real before/after) or aggregated into a run counter. `vehicle.update` firing
-485×/vehicle/day records no change and is therefore not an audit event.
+legitimately have none. It is: **an audit row must record a change** that somebody could be asked
+about.
+
+⚠ **AMENDED 2026-09-22, when L2 opened and read the mechanism.** The sentence that stood here —
+"`vehicle.update` firing 485×/vehicle/day records no change" — **is false**, and the plan asserted it
+without checking. What is actually true:
+
+- The writer is **not application code**. It is a database trigger: `audit_vehicles` /
+  `audit_drivers`, `AFTER INSERT OR UPDATE OR DELETE FOR EACH ROW EXECUTE audit_row_change('vehicle')`.
+  No amount of grepping `apps/api` would ever have found it.
+- `audit_row_change()` has **no OLD/NEW comparison** — but that is not the cause either, because
+- the machine writers **already diff-gate**. `samsaraStatsFeed.ts:240` compares each field and
+  updates only when `Object.keys(patch).length > 0`.
+
+So the rows are **real column changes**: `current_odometer` and `samsara_fuel_percent` on a moving
+truck, measured at 20.2 updates per vehicle per hour across 272 of 272 vehicles, with **zero**
+`vehicle.insert` or `vehicle.delete` in seven days. The trigger is doing exactly what it was built to
+do. **The defect is that live telemetry lives on a `core` entity table and is therefore inside an
+audit trigger built for business changes.** See Q5 — this is now a fork the owner must settle.
+
+⚠ **The trap in the obvious fix.** `if old is not distinct from new then return new` **would never
+fire**: `set_updated_at()` is a BEFORE UPDATE trigger that sets `updated_at = now()`
+unconditionally, so by the time the AFTER trigger runs, `new` always differs. Any comparison must
+exclude the machine-stamped columns explicitly — `to_jsonb(old) - 'updated_at'` — and a version that
+did not would have shipped, changed nothing, and looked correct.
 
 ⚠ `audit_logs` is append-only and pinned in `RETENTION_FORBIDDEN`. Nothing in this decision deletes
 a historical row. The 4.7M existing rows are dealt with by Q1, which is the owner's call, not this
@@ -494,6 +519,43 @@ from the Supabase dashboard settles it.
 **Q4 — is PITR enabled?** At $100/mo per 7-day window it changes the §2.8 arithmetic materially, and
 it makes restore time a first-class reason for L7 rather than a secondary one.
 
+**Q5 — telemetry on a `core` entity table. THE L2 BLOCKER, opened 2026-09-22.** `vehicles` carries
+`current_odometer`, `samsara_fuel_percent`, `samsara_fuel_at` and ~30 `idle_*` learned/evidence
+columns alongside `vin`, `plate`, `ownership_type`, `insurance_expires_at` and `has_apu`. One table,
+two lifetimes: identity that changes a few times a year and telemetry that changes every three
+minutes. `audit_vehicles` cannot tell them apart, so the compliance ledger takes ~10 GB/year of
+odometer readings. Three candidate answers:
+
+- **(a) Column ignore-list in the trigger.** `audit_row_change` takes a per-table set of
+  machine-maintained columns and skips the row when the changed set is a subset of it. Smallest
+  change; one migration; no reader moves. **Cost:** the ignore-list is a second place that knows
+  which columns are machine-owned, and it will rot the first time somebody adds a telemetry column
+  and forgets — so it needs its own gate, which is real work. Recovers substantially all of the
+  ~10 GB/year.
+- **(b) Move telemetry off `vehicles` into its own table.** The honest fix: `vehicles` becomes what
+  the registry already calls it (`core`, `growth: "fleet"`), and telemetry becomes `time`-growth with
+  a retention window like every other feed. **Cost:** every reader of `current_odometer` /
+  `samsara_fuel_percent` moves, which is a wide blast radius across fuel, live map and dashboards,
+  and it is a rename-shaped migration needing the four-step dance. Removes the problem instead of
+  filtering it, and stops the next telemetry column recreating it.
+- **(c) Route machine-origin audit rows to a separate table.** Keeps every row, moves the volume out
+  of `audit_logs`. **Cost:** preserves the conflation D-LIFE4 exists to end, and the new table
+  inherits the same growth with no reader.
+
+**Recommendation: (a) now, (b) on the record as the real fix.** (a) is one migration plus a gate and
+recovers the bytes this quarter; (b) is correct and is a separate programme that should be planned
+on its own rather than smuggled into a lifecycle step. Shipping (a) **without** writing (b) down
+would be precisely the labelled-workaround case in CLAUDE.md, so the ignore-list carries a comment
+naming (b) as what removes it. ⚠ (c) is not recommended and is recorded only so it is not
+rediscovered as novel.
+
+**Also owed before L2 builds:** the exact writer mix behind 20.2 updates/vehicle/hour is NOT
+established. `SAMSARA_STATS_SYNC_MINUTES` defaults to 20, which would give 3/hour — the measured
+rate implies ~3 minutes in production, and the Railway variable could not be read non-interactively.
+Four other pinned writers touch `vehicles` (`learnVehicle.ts`, `persist.ts`, `idleCapabilitySync.ts`,
+`samsaraVehicleSync.ts`). The ignore-list must be derived from all of them, not from the stats feed
+alone.
+
 ---
 
 ## 8. Progress log
@@ -524,3 +586,36 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   drivers — possibly a fourth instance of the `vehicle.update` loop, flagged for L2; and
   `vehicle_engine_days` carries a 400-day prune rule that is in tension with `idle_rollup_days` being
   the long-horizon store, raised for L9 rather than changed here.
+- **2026-09-22 — L2 opened, and stopped on a corrected premise.** No code written. Reading the
+  mechanism before changing it found that `D-LIFE4`'s central factual claim was wrong: the writer is
+  the `audit_vehicles` / `audit_drivers` **database trigger** (`audit_row_change`), not application
+  code; the trigger has no OLD/NEW comparison but that is not the cause, because the machine writers
+  already diff-gate (`samsaraStatsFeed.ts:240`); and the rows are therefore **genuine** telemetry
+  changes — 20.2 updates per vehicle per hour, 272 of 272 vehicles, **zero** inserts or deletes in
+  seven days. `D-LIFE4` is amended in place and **Q5** now carries the fork (column ignore-list vs
+  moving telemetry off `vehicles`) with a recommendation. Also found and recorded: a naive
+  `old is not distinct from new` guard **cannot ever fire**, because `set_updated_at()` is a BEFORE
+  trigger that bumps `updated_at` unconditionally — a fix written without checking that would have
+  shipped, changed nothing, and looked right.
+- **2026-09-22 — L2 built as Q5(a)** (`claude/data-lifecycle-l2`). Migration **0352** gives
+  `audit_row_change` an optional second trigger argument: a comma-separated ignore list consulted on
+  UPDATE only, so a row is written when at least one NON-ignored column actually changed. INSERT and
+  DELETE are never filtered, and a column added later is audited **by default** — the safe direction
+  to fail. `audit_vehicles` ignores live telemetry, learned tank/odometer calibration and the derived
+  `idle_*` family; `audit_drivers` ignores the HOS position block. The list is by MEANING, not by
+  author: `samsaraVehicleSync` writes `vin`, `plate` and `unit_number` and `samsaraDriverSync` writes
+  `cdl_number`, all of which stay audited, because a machine changing a VIN is *more* interesting to
+  an auditor than a human doing it. `has_apu` / `apu_type` / `has_optimized_idle` stay audited too —
+  they grant idle avoidability and are admin-set.
+  **Verification:** `supabase/tests/audit-telemetry-ignored.test.mjs`, 20 assertions, and two
+  mutations against the real migration prove it can fail in *both* directions — removing `updated_at`
+  turns the whole filter into a no-op (6 failures, the trap the header warns about), and adding `vin`
+  and `has_apu` to the list silences a VIN change (4 failures). Bytes restored and md5-verified.
+  `rls` (542 assertions), `identity-provenance`, `equipment-section-split` and `restricted-records`
+  all still green.
+  **`audit_logs` gained a budget** (500 rows/day, ~12× the measured non-telemetry rate of ~40/day)
+  and `BUDGET_WAIVED` in `check-table-lifecycle.mjs` is now **empty**, exactly as its comment
+  promised in L1. ⚠ The budget is PROVISIONAL until the post-0352 rate is measured in production.
+  **`sync_runs` was withdrawn, not built** — `jobs.stats` already carries the per-run counts.
+  ⚠ **This is a labelled workaround.** Q5(b) — moving telemetry off `vehicles`/`drivers` — is what
+  removes 0352, and the migration header says so in its own register.

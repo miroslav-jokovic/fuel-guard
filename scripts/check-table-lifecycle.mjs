@@ -50,12 +50,13 @@ const GROWTH = ["time", "fleet", "static", "unmeasured"];
 const PARTITIONS = [null, "month"];
 
 /**
- * A `growth: "time"` table must carry a budget. `audit_logs` is the one exception and it is a RULING,
- * not an oversight: the measured 2026-09-21 rate is 97% sync noise that L2 removes, and a budget set
- * against today's number would enshrine the defect as the allowance. It gains one in the same merge
- * that diff-gates the writer. This list may only shrink.
+ * A `growth: "time"` table must carry a budget. The list is EMPTY as of 2026-09-22 and that is the
+ * point: `audit_logs` was its only entry, waived because the measured rate was 97% sync noise and a
+ * budget set against it would have enshrined the defect as the allowance. Migration 0352 stopped the
+ * trigger recording telemetry, so the table got a real budget in the same merge, exactly as this
+ * comment promised. The list may only grow with the same kind of written reason, and may only shrink.
  */
-const BUDGET_WAIVED = new Set(["audit_logs"]);
+const BUDGET_WAIVED = new Set([]);
 
 /**
  * Tables with zero rows in production on 2026-09-21, measured — not guessed — via pg_class over the
