@@ -97,6 +97,12 @@ interface RawDriverLogs {
   logs?: RawLog[]; // tolerated fallback
 }
 
+/** Two adjacent logs of the same status and truck separated by no more than this are one duty segment,
+ *  not two. Sized against the measurement in `parseHosLogs`' header: Samsara's per-24h clipping leaves a
+ *  gap of exactly 1 ms (1,105 of 1,105 boundary records), so a second is three orders of magnitude of
+ *  headroom, while still refusing to assert continuity across a gap a reader would notice. */
+const CONTINUATION_GAP_MS = 1_000;
+
 const startOf = (l: RawLog): number => Date.parse(l.logStartTime ?? l.startTime ?? l.time ?? "");
 const endOf = (l: RawLog): number => Date.parse(l.logEndTime ?? l.endTime ?? "");
 const statusOf = (l: RawLog): HosStatus => normalizeHosStatus(l.hosStatusType ?? l.dutyStatus);
@@ -127,6 +133,31 @@ const vehicleOf = (l: RawLog): string | null =>
  * real segment spanning that instant was already stored by an earlier run, when its true start was
  * inside the window. What a cold start loses is the leading sliver of the oldest segment, which then
  * reads as uncovered — the honest answer, and the one the overlay is built to handle.
+ *
+ * ⚠ L4 saw ONE boundary. There is one per 24 HOURS (DATA-LIFECYCLE-PLAN L4c, measured 2026-09-22 by
+ * probing the live API read-only at two different request phases). Samsara clips the in-force status at
+ * EVERY `startTime + k × 24h`, not only at k = 0, and stamps the k-th one a further k ms along:
+ *
+ *     start 2026-09-10T00:00:00.000Z  →  artefact at 2026-09-11T00:00:00.001Z  (n = 1,105 drivers)
+ *     start 2026-09-09T13:37:11.000Z  →  artefacts at 09-10T13:37:11.001Z and 09-11T13:37:11.002Z
+ *
+ * The instants follow OUR request, so they are not duty transitions. They are also not droppable the
+ * way k = 0 is, because Samsara gives each one an explicit `logEndTime` and the run continues past it:
+ * of 1,105 boundary records in that window, **1,105 had the same status, the same vehicle and a gap of
+ * exactly 1 ms from their predecessor** — every one a continuation fragment of the segment before it.
+ * Dropping them would delete real coverage; keeping them stores one fake duty change per driver per
+ * day (~33,000 rows a run) and fragments a three-day rest into three rows.
+ *
+ * So they are COALESCED, not dropped, which needs no knowledge of the request phase at all: a duty
+ * segment is a maximal run of one status, so two adjacent logs with the same status and the same truck
+ * separated by less than `CONTINUATION_GAP_MS` are one segment. That is true of Samsara's clipping and
+ * would be true of any other source that fragments the same way — and it caught a SECOND family nobody
+ * had named: the ELD's own daily restatement at midnight in the carrier's timezone, which re-opens an
+ * unchanged status at 05:00 UTC every day. On a real 30-day window (2026-09-22) the two families
+ * together were 61 instants and 67,336 of 128,154 segments; coalescing leaves 1 instant and 48,766
+ * segments while asserting **the same 2,904,115,5xx seconds of duty coverage, to 28 s**. The one
+ * surviving cluster is the first local midnight after the window start — the head of each driver's
+ * coverage, not a fake transition, and inside the orphan sweep's floor where it can be superseded.
  */
 export function parseHosLogs(
   data: unknown[],
@@ -169,6 +200,7 @@ export function parseHosLogs(
   const segments: HosSegment[] = [];
   for (const [driverId, byStart] of byDriver) {
     const starts = [...byStart.keys()].sort((a, b) => a - b);
+    const run: HosSegment[] = [];
     for (let i = 0; i < starts.length; i++) {
       const startMs = starts[i]!;
       const rec = byStart.get(startMs)!;
@@ -176,16 +208,38 @@ export function parseHosLogs(
       const endMs =
         rec.endMs ?? (i + 1 < starts.length ? starts[i + 1]! : (opts.windowEndMs ?? null));
       if (endMs != null && endMs <= startMs) continue; // drop zero/negative-length
-      if (opts.windowStartMs != null && startMs === opts.windowStartMs) continue; // clipped at the boundary
+      const prev = run[run.length - 1];
+      if (
+        prev != null &&
+        // Never coalesce INTO the run clipped to our own request instant: that one is dropped below, and
+        // a driver who holds one status across the whole window (the ~916 Samsara ids with no roster
+        // activity are off-duty for all 30 days) would otherwise merge into it and be dropped entire.
+        // Measured 2026-09-22: coalescing across it cut asserted coverage from 2.90 Gs to 0.42 Gs.
+        prev.startMs !== opts.windowStartMs &&
+        prev.status === rec.status &&
+        (prev.vehicleId ?? null) === rec.vehicleId &&
+        prev.endMs != null &&
+        startMs >= prev.endMs &&
+        startMs - prev.endMs <= CONTINUATION_GAP_MS
+      ) {
+        prev.endMs = endMs; // same status, same truck, no real gap — one segment, not two
+        continue;
+      }
       // vehicleId is only present when the log carried one — existing consumers comparing whole
       // segment objects are untouched by the WP-ATTR field.
-      segments.push({
+      run.push({
         driverId,
         status: rec.status,
         startMs,
         endMs,
         ...(rec.vehicleId != null ? { vehicleId: rec.vehicleId } : {}),
       });
+    }
+    // The window-start drop is applied AFTER coalescing, so the whole run clipped to our own request
+    // instant goes, not just its first fragment.
+    for (const seg of run) {
+      if (opts.windowStartMs != null && seg.startMs === opts.windowStartMs) continue;
+      segments.push(seg);
     }
   }
   segments.sort((a, b) => a.startMs - b.startMs || a.driverId.localeCompare(b.driverId));

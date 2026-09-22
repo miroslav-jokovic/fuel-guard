@@ -244,6 +244,14 @@ The mechanism, end to end:
 2. Samsara answers a windowed `/fleet/hos/logs` query by **clipping the duty status already in force
    at `startTime` to the query boundary**, so `logStartTime` comes back as *our request instant*.
    `parseHosLogs` keyed a segment on it, and the upsert key is (org, samsara_driver_id, started_at).
+
+   ⚠ **CORRECTED 2026-09-22 by L4c — the clip is not at the boundary, it is at every 24 hours from
+   it.** This paragraph says "the query boundary" and L4 built to that sentence, dropping the one log
+   starting exactly at `startTime`. Probing the live API read-only at two request phases shows a clip
+   at every `startTime + k × 24h`, the k-th stamped a further k ms along: a start of
+   `2026-09-10T00:00:00.000Z` returns 1,105 records at `2026-09-11T00:00:00.001Z`, and moving the
+   start to `13:37:11` moves them to `09-10T13:37:11.001Z` and `09-11T13:37:11.002Z`. L4 removed 1 of
+   30. See §8's L4c entry for what the remaining 29 cost and why they are coalesced, not dropped.
 3. The orphan sweep — the only code that deletes from this table — reads back
    `started_at >= startIso`. The previous run's boundary row starts ~30 minutes *before* the new
    `startIso`. **It is below the sweep's own floor, so it can never be seen again.**
@@ -874,3 +882,46 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   **Q7 opened**: L4 stops the production but deletes nothing — the ~1.4 M existing artefact rows are
   below the sweep's floor and 400 days from retention. Recommended (a), a bounded audited delete;
   it is an owner's call, not a merge's side effect.
+
+- **2026-09-22 — L4c: L4 removed 1 of 30 boundary artefacts, and the other 29 were never the same
+  kind of thing** (`claude/data-lifecycle-l4c`). The step was the handoff's ten-minute verification of
+  L4 in production. It failed: rows were still landing at instants shared by ~1,100 drivers, now at
+  calendar midnights, 33,245 of them in the first post-fix run. The millisecond column is what gave it
+  away — `.000 .001 .002 .003 .004 .005 .006` and then `.000` again, a seven-day sawtooth resetting
+  exactly on `HOS_FETCH_CHUNK_DAYS`. Settled by probing the live API read-only at two request phases
+  rather than by reasoning: a start of `2026-09-10T00:00:00.000Z` returns 1,105 records at
+  `2026-09-11T00:00:00.001Z`; moving the start to `13:37:11` moves them to `13:37:11.001` and
+  `.002`. **Samsara clips the in-force status at every `startTime + k × 24h`, not only at k = 0**, and
+  §2.9 is corrected in place to say so.
+  **Why they could not be dropped the way k = 0 was.** Each clipped record carries an explicit
+  `logEndTime` and the status continues past it: of 1,105 boundary records in that window, 1,105 had
+  the same status, the same vehicle, and a gap of **exactly 1 ms** from the log before them. They are
+  continuation fragments, so dropping them deletes real coverage; keeping them stores one fake duty
+  change per driver per day and files a three-day rest as three rows. `parseHosLogs` therefore
+  COALESCES: same status, same truck, gap ≤ `CONTINUATION_GAP_MS` (1 s, against a measured 1 ms) is one
+  segment. The rule needs no knowledge of the request phase, which is why it also swept up a second
+  family nobody had named — the ELD's own daily restatement at local midnight (05:00 UTC).
+  **Measured on a real 30-day production window, both parsers over byte-identical raw data:**
+
+  | | main | L4c |
+  |---|---|---|
+  | segments | 128,154 | **48,766** (−61.9%) |
+  | instants shared by >500 drivers | 61 | **1** |
+  | rows at those instants | 67,336 | **1,039** |
+  | duty seconds asserted | 2,904,115,514 | **2,904,115,542** (+28 s) |
+
+  Coverage is identical to within the 1 ms gaps now filled — which is the assertion that matters, and
+  the one that caught a defect in this step's own first draft. Coalescing initially ran across the
+  window-start fragment too, so a driver holding one status for the whole window merged into the run
+  L4 drops and was discarded entire: coverage fell to 0.42 Gs, an 85% loss, concentrated in exactly the
+  ~916 Samsara ids with no roster activity that §2.9 flags as reachable through
+  `driver_vehicle_assignments`. The parser now refuses to coalesce into the dropped run, and the
+  ≤24 h the window's first fragment still surrenders is the trade L4 made and §2.9 already accepts.
+  **Verification.** Four mutations of the real file, each killing exactly the test written for it and
+  no others — coalescing disabled; `CONTINUATION_GAP_MS` widened to an hour; the vehicle guard removed;
+  the window-start drop moved back inside the fragment loop — bytes restored with `cp` and md5-verified
+  after each. The surviving cluster is the first local midnight after the window start: the head of
+  each driver's coverage, above the orphan sweep's floor, superseded rather than stranded.
+  **What this does not do.** It does not delete the 33,245 rows the post-fix run already wrote, nor
+  Q7's ~1.4 M. Those are orphans under the new parser and inside the sweep's window, so the sweep
+  removes the 33,245 on its own; Q7's remain below the floor and still need the owner's ruling.
