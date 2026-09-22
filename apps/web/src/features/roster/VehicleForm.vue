@@ -8,6 +8,7 @@ import {
   APU_TYPE_LABELS,
   deriveHasApu,
   suggestIdleEquipment,
+  isStatusFromTms,
   type Vehicle,
   type VehicleInput,
   type Driver,
@@ -52,6 +53,15 @@ const form = reactive({
 });
 
 const errors = ref<Record<string, string>>({});
+
+// Q-7: once McLeod has linked this truck, the roster sweep writes its status on every run, so an
+// office edit here would stick for an hour and then silently revert. The value is shown, read-only,
+// with its source named — and it is changed in McLeod, which is where D-FC0 says it is decided.
+const statusFromTms = computed(() =>
+  props.vehicle
+    ? isStatusFromTms({ link: props.vehicle.mcleod_tractor_id, identity_source: props.vehicle.identity_source })
+    : false,
+);
 
 // In-form idle-equipment suggestion from make/model/year (admin confirms with one click; never auto-applied).
 const idleSuggestion = computed(() =>
@@ -116,9 +126,10 @@ function onSubmit() {
           :options="FUEL_TYPES.map((f) => ({ value: f, label: f }))"
         />
       </FormField>
-      <FormField label="Status">
+      <FormField label="Status" :hint="statusFromTms ? 'Set in McLeod. Change it there.' : undefined">
         <AppSelect
           v-model="form.status"
+          :disabled="statusFromTms"
           :options="VEHICLE_STATUSES.map((s) => ({ value: s, label: s }))"
         />
       </FormField>

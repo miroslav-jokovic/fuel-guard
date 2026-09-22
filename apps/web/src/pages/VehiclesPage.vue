@@ -4,7 +4,7 @@ import {
   PlusIcon,
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@silvicom/shared";
+import { VEHICLE_STATUSES, isStatusFromTms, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -253,7 +253,12 @@ async function onRetire(v: Vehicle) {
       <template #actions="{ row }">
         <KebabMenu v-if="session.can('equipment')">
           <BaseButton class="kebab-item" @click="openEdit(row)">Edit vehicle</BaseButton>
-          <BaseButton v-if="row.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(row)">Retire vehicle</BaseButton>
+          <!-- Q-7: a McLeod-linked truck is retired in McLeod, and the next sweep would un-retire it here. -->
+          <BaseButton
+            v-if="row.status !== 'retired' && !isStatusFromTms({ link: row.mcleod_tractor_id, identity_source: row.identity_source })"
+            class="kebab-item kebab-item-danger"
+            @click="onRetire(row)"
+          >Retire vehicle</BaseButton>
         </KebabMenu>
       </template>
       <template #footer>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tmsLoadsPayloadSchema, tmsDispatchersPayloadSchema, deriveVehicleStatus } from "./tms.js";
+import { tmsLoadsPayloadSchema, tmsDispatchersPayloadSchema, deriveVehicleStatus, isStatusFromTms } from "./tms.js";
 
 /**
  * The route parses the payload with `tmsLoadsPayloadSchema.safeParse` BEFORE `ingestLoads` sees it
@@ -97,5 +97,27 @@ describe("the lifecycle status a TMS row implies", () => {
     // park a running truck.
     expect(deriveVehicleStatus({ purchased_at: "2020-12-21" })).toBe("active");
     expect(deriveVehicleStatus({ purchased_at: "2020-12-21", in_shop: null })).toBe("active");
+  });
+});
+
+/**
+ * Q-7 (2026-09-22): the office sees a status read-only exactly when the roster sweep would overwrite
+ * it. The ingest reads the same `TMS_CLAIMABLE_SOURCES`, so the two cannot disagree about which rows
+ * the sweep writes — these pin the three shapes that decide it.
+ */
+describe("isStatusFromTms", () => {
+  it("is McLeod's when the row is linked and the sweep may claim it", () => {
+    expect(isStatusFromTms({ link: "552", identity_source: "samsara" })).toBe(true);
+    expect(isStatusFromTms({ link: "552", identity_source: "mcleod" })).toBe(true);
+  });
+
+  it("stays the office's on a row the office has claimed — the sweep skips its whole patch", () => {
+    expect(isStatusFromTms({ link: "552", identity_source: "manual" })).toBe(false);
+    expect(isStatusFromTms({ link: "552", identity_source: "efs" })).toBe(false);
+  });
+
+  it("stays the office's on a row McLeod has never linked", () => {
+    expect(isStatusFromTms({ link: null, identity_source: "samsara" })).toBe(false);
+    expect(isStatusFromTms({ link: "", identity_source: "mcleod" })).toBe(false);
   });
 });

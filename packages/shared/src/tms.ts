@@ -334,6 +334,30 @@ export function deriveVehicleStatus(r: {
   return r.in_shop === true ? "maintenance" : "active";
 }
 
+/**
+ * Provenances whose identity the TMS roster sweep may claim. A row the office has claimed (`manual`)
+ * or one another integration owns (`efs`) is never patched — `rosterIngest` skips the WHOLE patch.
+ * Lives here, not in the ingest, because the web has to answer the same question before an edit.
+ */
+export const TMS_CLAIMABLE_SOURCES: readonly string[] = ["samsara", "mcleod"];
+
+/**
+ * Does the TMS decide this vehicle's (or trailer's) status? (Q-7, answered 2026-09-22 as option (a).)
+ *
+ * True exactly when the roster sweep writes `status` on its next run: the row carries a TMS link and a
+ * claimable provenance. Merge 4 made the sweep a writer of `status`, and `VehicleForm` had always been
+ * the other — so an office edit on such a row stuck until the next sweep and then silently reverted.
+ * The answer is not a second writer with a tiebreak: membership and lifecycle are McLeod's (D-FC0), so
+ * the office sees the value read-only with the source named, and changes it where it is mastered.
+ *
+ * Rejected, and recorded on the plan: adding `status` to 0241's claim trigger. That claim is
+ * whole-row, so one person marking a truck as in the shop would stop McLeod refreshing its VIN,
+ * plate, registration and inspection date for good — the defect 0286 unpicked, widened.
+ */
+export function isStatusFromTms(row: { link: string | null | undefined; identity_source?: string | null }): boolean {
+  return Boolean(row.link) && TMS_CLAIMABLE_SOURCES.includes(row.identity_source ?? "");
+}
+
 export const tmsTrailerInputSchema = z.object({
   /** `dbo.trailer.id`, trimmed. */
   external_id: z.string().trim().min(1).max(64),

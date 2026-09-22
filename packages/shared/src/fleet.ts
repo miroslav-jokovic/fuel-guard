@@ -101,6 +101,12 @@ export interface Vehicle {
   /** Stamped by the identity sync when the mapped Samsara vehicle no longer exists (likely replaced);
    *  cleared if it reappears. Surfaces a "retire?" prompt — never auto-retires (0184). */
   samsara_missing_since?: string | null;
+  /** `dbo.tractor.id` once the McLeod roster sweep has matched this truck; null until then. */
+  mcleod_tractor_id?: string | null;
+  /** Who owns this row's identity (`samsara`, `mcleod`, `efs`, `manual`). With `mcleod_tractor_id` it
+   *  decides whether the office may edit `status` at all — `isStatusFromTms` (Q-7). Optional on the
+   *  wire for the same reason as the driver's: the column is NOT NULL, not every read selects it. */
+  identity_source?: string;
   /** Manual source of truth: is the truck ENGINE-OFF capable at rest (real APU / battery HVAC / shore power)? null = unknown/unset. */
   has_apu?: boolean | null;
   /** Idle-reduction equipment detail (refines has_apu). null = unknown/unset. */
@@ -284,6 +290,10 @@ export interface Trailer {
   status: VehicleStatus;
   assigned_vehicle_id: string | null;
   samsara_asset_id: string | null;
+  /** `dbo.trailer.id` once the McLeod roster sweep has matched this trailer; null until then. */
+  mcleod_trailer_id?: string | null;
+  /** See `Vehicle.identity_source` — with `mcleod_trailer_id` it decides `isStatusFromTms` (Q-7). */
+  identity_source?: string;
   created_at: string;
   updated_at: string;
   /** See `Vehicle.dot_annual_inspection_expires_at`. */

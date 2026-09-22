@@ -82,10 +82,9 @@ const FULL_TRAILER = {
  * the fix there was to scope the claim to one column rather than to widen it.
  *
  * So a hand-edited vehicle status is expected to be overwritten by the next sweep, and that is a
- * position rather than an oversight. It does leave `VehicleForm.vue` offering a status field whose
- * value the sweep may revert within the hour — recorded as an open question on the plan rather than
- * papered over here, because the honest answers (drop the field, or give status its own `*_source`
- * column the way 0286 did) are both larger than this merge.
+ * position rather than an oversight. Q-7 closed the gap it left on 2026-09-22: `VehicleForm` and
+ * `TrailerForm` show a status the sweep writes read-only (`isStatusFromTms`), so there is no office
+ * edit left for the sweep to revert.
  */
 const NOT_CLAIMED = new Set(["status"]);
 

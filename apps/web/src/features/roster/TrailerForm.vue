@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { reactive, ref, computed } from "vue";
 import {
   TRAILER_TYPE_LABELS,
   TRAILER_TYPES,
@@ -8,6 +8,7 @@ import {
   type Trailer,
   type TrailerInput,
   type Vehicle,
+  isStatusFromTms,
 } from "@silvicom/shared";
 import { AppSelect } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
@@ -16,6 +17,14 @@ import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 
 const props = defineProps<{ trailer?: Trailer | null; vehicles: Vehicle[]; submitting?: boolean }>();
+
+// Q-7: the roster sweep writes a McLeod-linked trailer's status on every run (E5), so an edit here
+// would silently revert. Shown read-only with its source named — see `VehicleForm`.
+const statusFromTms = computed(() =>
+  props.trailer
+    ? isStatusFromTms({ link: props.trailer.mcleod_trailer_id, identity_source: props.trailer.identity_source })
+    : false,
+);
 const emit = defineEmits<{ submit: [input: TrailerInput]; cancel: [] }>();
 
 const form = reactive({
@@ -132,8 +141,12 @@ function onSubmit() {
           :invalid="!!errors.reefer_tank_capacity_gal"
         />
       </FormField>
-      <FormField label="Status">
-        <AppSelect v-model="form.status" :options="VEHICLE_STATUSES.map((s) => ({ value: s, label: s }))" />
+      <FormField label="Status" :hint="statusFromTms ? 'Set in McLeod. Change it there.' : undefined">
+        <AppSelect
+          v-model="form.status"
+          :disabled="statusFromTms"
+          :options="VEHICLE_STATUSES.map((s) => ({ value: s, label: s }))"
+        />
       </FormField>
     </div>
 
