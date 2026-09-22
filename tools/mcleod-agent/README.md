@@ -131,3 +131,19 @@ blend two of the four legal entities that share those tables. Those properties a
 
 A question that fails on a permission error reports the error and the remaining questions still run —
 the pack is meant to be usable on a login whose grants we do not control.
+
+## Keeping the roster current (E6, D-MR2)
+
+The roster sweep is meant to run continuously, every two minutes, on a machine inside the carrier's
+network. On a Mac:
+
+```sh
+sh tools/mcleod-agent/launchd/install-roster-sweep.sh            # install / refresh
+sh tools/mcleod-agent/launchd/install-roster-sweep.sh uninstall  # stop
+tail -f ~/Library/Logs/silvicom-mcleod-roster.log
+```
+
+It runs `ROSTER_MODE=identity` — never `reconcile`, which still retires by absence — and posts a
+checkpoint after every read, so the Vehicles, Trailers and Drivers pages can say *"From McLeod, as of
+…"*, and say it in the caution colour once an hour passes without a read. Retirement (`--retire`) stays
+a run an operator starts.

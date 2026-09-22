@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { TmsRosterCheckpoint } from "@silvicom/shared";
 import {
   unitResolver,
   driverResolver,
@@ -128,6 +129,44 @@ export async function touchLastSynced(admin: SupabaseClient, orgId: string, prov
     .update({ last_synced_at: new Date().toISOString() })
     .eq("org_id", orgId)
     .eq("provider", provider);
+}
+
+/**
+ * When McLeod's roster was last READ — its own freshness row (E6, FLEET-CENSUS Q-6; D-MR2).
+ *
+ * `touchLastSynced` stamps the `mcleod` row from every TMS route: roster, movements, loads, driver
+ * time. So its `last_synced_at` answers "did the agent post anything", and on 2026-09-22 it read
+ * 09-17 while the roster itself had last been swept on 09-14 by hand. A second reason it cannot
+ * serve: the roster routes only fire when a row CHANGED, so an agent sweeping an unchanged roster
+ * every two minutes would stamp nothing and read as stopped.
+ *
+ * So the roster gets the row the financial sweep got for the same reason (D-FIN3,
+ * `stampFinancialSynced`): provider `mcleod_roster`, no token, stamped by the agent's checkpoint
+ * after every read. Created by a FULL insert on first stamp (never a partial upsert — `lint:upserts`),
+ * updated after. `config.counts` is what that read saw.
+ */
+export const ROSTER_PROVIDER = "mcleod_roster";
+
+export async function stampRosterRead(
+  admin: SupabaseClient,
+  orgId: string,
+  counts: TmsRosterCheckpoint["counts"],
+): Promise<void> {
+  const at = new Date().toISOString();
+  const { data, error } = await admin
+    .from("org_integrations")
+    .update({ last_synced_at: at, config: { counts } })
+    .eq("org_id", orgId)
+    .eq("provider", ROSTER_PROVIDER)
+    .select("org_id");
+  if (error) throw new Error(`Could not stamp the roster read: ${error.message}`);
+  if ((data ?? []).length > 0) return;
+  // No row yet. A concurrent first stamp loses on the primary key, which is the right answer — the
+  // other one carries the same minute.
+  const { error: insErr } = await admin
+    .from("org_integrations")
+    .insert({ org_id: orgId, provider: ROSTER_PROVIDER, enabled: true, config: { counts }, last_synced_at: at });
+  if (insErr && insErr.code !== "23505") throw new Error(`Could not stamp the roster read: ${insErr.message}`);
 }
 
 /**

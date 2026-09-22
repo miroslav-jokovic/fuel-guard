@@ -996,3 +996,27 @@ real incidents in this checkout:
   not dropping the spend-days, keeping the pulled device — each fails the assertion named for it.
   · **Owed after deploy:** `POST /api/fuel/spend-rollup` for 2026-08-24 onward, so the history row's
   spend-days pick up the moved telemetry; the nightly rollup only reaches back 14 days.
+
+- **2026-09-22 (Q-6 answered by measurement, E6 built)** — **Q-6 was not an open question, it was an
+  unbuilt decision.** The owner's machine is what runs the agent: its `roster-state.json` was written
+  in the same minute as the 2026-09-14 19:11 reconcile, and production's `mcleod.last_synced_at` read
+  09-17 while the roster had last been read on 09-14 — that stamp is touched by movements and loads
+  too. And `MCLEOD-ROSTER-SYNC-PLAN.md` had already ruled the answer as **D-MR2**: a two-minute sweep,
+  shown as "as of HH:MM". Neither half was ever built.
+  · **A second gap under the first:** the agent posts only CHANGED rows, so a healthy sweep of a quiet
+  roster stamps nothing. A freshness line built on ingest writes would call a working agent stopped.
+  The agent now posts `POST /api/tms/roster/checkpoint` after every read, stamping its own row —
+  `provider = 'mcleod_roster'`, the `mcleod_financial` pattern (D-FIN3) — with the counts it saw. It
+  tolerates a 404, so an agent upgraded before the API cannot die on it.
+  · **The counts it reports were themselves wrong.** `ROSTER_COUNTS` was a hand-written copy of the
+  census predicates, kept for one log line; #963 and #970 replaced the real ones and the copy kept
+  the old, so the agent reported 228 tractors while sending 193. Deleted — the counts are now the
+  lengths of the rows just read.
+  · `RosterFreshnessLine` in the `#freshness` slot of Vehicles, Trailers and Drivers: ordinary
+  metadata while read inside the hour (`ROSTER_STALE_AFTER_MINUTES`, thirty missed sweeps), the
+  caution box when late or never read, silent for a carrier with no McLeod or when it cannot be
+  fetched. Trailers' description stopped saying "pulled from Samsara".
+  · The schedule: `tools/mcleod-agent/launchd/` — a launchd job on the office Mac, identity every two
+  minutes, restarted if it exits. **Never `reconcile`** until F14's second half. Retirement stays an
+  operator's run. ⚠ One Mac is a single point of failure by construction; the freshness line is what
+  makes that failure visible instead of silent, and an always-on in-network host is the upgrade.

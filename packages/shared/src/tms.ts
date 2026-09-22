@@ -426,3 +426,43 @@ export const tmsRetireInputSchema = z.object({
 });
 export type TmsRetireInput = z.infer<typeof tmsRetireInputSchema>;
 export const tmsRetirePayloadSchema = z.object({ retire: z.array(tmsRetireInputSchema).max(2000) });
+
+// ── Roster freshness (E6, FLEET-CENSUS-AND-IDLE-TRUTH-PLAN Q-6; D-MR2) ──────────────────────────────
+
+/**
+ * What the agent reports after every READ of McLeod's roster, changed or not.
+ *
+ * A separate call from the roster payloads because those carry only CHANGED rows (the agent diffs
+ * against its own state), so a healthy sweep over an unchanged roster sends nothing at all — and a
+ * stamp derived from ingest writes would read "stale" on exactly the days nothing happened. The
+ * counts are McLeod's own active totals, so a surface can say what the read saw, not only when.
+ */
+export const tmsRosterCheckpointSchema = z.object({
+  counts: z.object({
+    drivers: z.number().int().min(0),
+    vehicles: z.number().int().min(0),
+    trailers: z.number().int().min(0),
+  }),
+});
+export type TmsRosterCheckpoint = z.infer<typeof tmsRosterCheckpointSchema>;
+
+/** `GET /api/integrations/mcleod/roster-freshness`. `readAt` null means McLeod has never been read. */
+export interface RosterFreshness {
+  /** Whether the org has a McLeod roster at all. False → the surface says nothing. */
+  configured: boolean;
+  readAt: string | null;
+  counts: TmsRosterCheckpoint["counts"] | null;
+}
+
+/**
+ * How long after the last read the roster is called stale. D-MR2 set a 2-minute sweep, so an hour
+ * is thirty missed sweeps: not a slow night but a stopped agent — which, run from one office machine
+ * on the carrier's network, is what a laptop asleep or off-site looks like.
+ */
+export const ROSTER_STALE_AFTER_MINUTES = 60;
+
+export function rosterFreshnessState(readAt: string | null, now: Date): "never" | "fresh" | "stale" {
+  if (!readAt) return "never";
+  const ms = now.getTime() - Date.parse(readAt);
+  return Number.isFinite(ms) && ms <= ROSTER_STALE_AFTER_MINUTES * 60_000 ? "fresh" : "stale";
+}

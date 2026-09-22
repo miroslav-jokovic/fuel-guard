@@ -21,6 +21,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
+import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -173,7 +174,7 @@ async function onRetire(t: Trailer) {
 <template>
   <div class="space-y-6">
     <PageHeader
-      description="Trailers pulled from Samsara. Type (Reefer / Dry) is set by you with the buttons below — only reefers are checked against reefer (ULSR) fuel. Paired tractor is inferred from GPS co-location over the last 5 days; Status is the trailer's active/retired state."
+      description="Trailers in your fleet, from McLeod. Type (Reefer / Dry) is set by you with the buttons below — only reefers are checked against reefer (ULSR) fuel. Paired tractor is inferred from GPS co-location over the last 5 days; Status is the trailer's active/retired state."
     >
       <template #actions>
         <template v-if="session.can('equipment')">
@@ -182,6 +183,7 @@ async function onRetire(t: Trailer) {
           </BaseButton>
         </template>
       </template>
+      <template #freshness><RosterFreshnessLine /></template>
     </PageHeader>
 
     <DataWorkspace>
