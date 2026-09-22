@@ -14,7 +14,33 @@ export function utcDate(iso: string): string {
   return new Date(iso).toISOString().slice(0, 10);
 }
 
-/** Pick the temperature (°F) for the hour nearest an event time from a day's hourly series (Open-Meteo shape).
+/**
+ * Already carries a zone designator — a trailing `Z`, or a `±HH:MM` / `±HHMM` offset.
+ *
+ * ⚠ THIS EXISTS BECAUSE THE SERIES HAS TWO SOURCES THAT DISAGREE ABOUT FORMAT, AND ONE OF THEM WAS
+ * SILENTLY UNPARSEABLE FOR MONTHS. Open-Meteo sends naive UTC (`2026-06-14T00:00`), which needs a
+ * `Z` appended. `weather_cache` is read back through PostgREST, which serialises `timestamptz` as
+ * `2026-06-14T00:00:00+00:00` — verified against the live REST endpoint 2026-09-22. The previous
+ * test, `raw.endsWith("Z")`, was false for the second shape, so the helper built
+ * `…+00:00Z`, `Date.parse` returned **NaN**, every cached hour was skipped, and the function
+ * returned null. A temperature was therefore only ever available from a LIVE fetch — and since the
+ * cell is cached immediately after, the SECOND read of any cell was null forever.
+ *
+ * Measured cost: `idle_park_sessions` ambient coverage ran Apr 36% · May 39% · Jun 46% · Jul 18% ·
+ * **Aug 0% · Sep 0.18%** (80 h known against 63,683 h unknown), collapsing exactly when park
+ * sessions gained their own lat/lng and stopped borrowing `idle_events.air_temp_f`. Downstream,
+ * `computeAvoidable` scores an Optimized-Idle truck on `insideSec` alone, so zero evidence meant
+ * zero avoidable AND `envelopeCanJudge` false — 17 trucks left the idle verdict without a trace and
+ * `optimized_envelope_status` has never once read `evidenced`. 734,136 cached hours had never been
+ * read. Full write-up: `docs/plans/roster/FLEET-CENSUS-AND-IDLE-TRUTH-PLAN.md` §1.11 (D-FC6).
+ *
+ * A bare calendar date (`2026-06-14`) must NOT match: its trailing `-14` is a two-digit group, and
+ * an offset needs four digits after the sign.
+ */
+const hasZoneDesignator = (iso: string): boolean => /(?:Z|[+-]\d{2}:?\d{2})$/.test(iso);
+
+/** Pick the temperature (°F) for the hour nearest an event time from a day's hourly series.
+ *  Accepts BOTH shapes the series arrives in — see `hasZoneDesignator`.
  *  Returns null when there's no series, no finite reading, or the nearest hour is more than ~90 min away. */
 export function pickHourlyTempF(
   hourly: { time: string[]; temperatureF: (number | null)[] } | null | undefined,
@@ -27,7 +53,7 @@ export function pickHourlyTempF(
   let bestDiff = Infinity;
   for (let i = 0; i < hourly.time.length; i++) {
     const raw = hourly.time[i]!;
-    const ht = Date.parse(raw.endsWith("Z") ? raw : raw + "Z"); // Open-Meteo UTC times omit the trailing Z
+    const ht = Date.parse(hasZoneDesignator(raw) ? raw : raw + "Z");
     if (!Number.isFinite(ht)) continue;
     const d = Math.abs(ht - t);
     if (d < bestDiff) {
