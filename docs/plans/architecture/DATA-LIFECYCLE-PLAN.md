@@ -751,6 +751,58 @@ The leading hypothesis, **unconfirmed**, is the Samsara recon tier: `SAMSARA_REC
 re-walks fills that already have `samsara_recon_at` set, the rescan is self-sustaining. Confirming it
 needs the two Railway variables (same blocker as Q5) and a read of the recon tier's selection query.
 
+⚠ **ANSWERED 2026-09-22. It is not the recon tier — it is `efs_process_import` failing and being
+restarted 56 times a day, re-scoring a whole historical import each time.** The recon hypothesis is
+ruled out on volume: both variables are **unset in production**, so the defaults apply
+(`SAMSARA_RECON_SYNC_MINUTES` 60, `SAMSARA_RECON_BATCH` 250) — **250 fills an hour against a measured
+2,000–7,500**, 10–30× short. `backfill` is ruled out the same way: 38 runs a day at `count: 33`.
+
+The real chain, each link measured:
+
+1. **The work is a rescan of ancient fills.** Of 6,480 attempts in three hours, **6,131 (94.6%) were
+   on fills older than 120 days**; only 18 were on fills newer than two days.
+2. **`efsSync.ts:250` scopes the rescore to the entire import, not to what changed.** `touchedIds`
+   starts as the changed rows and then adds *every* row sharing that `import_id`. One repaired row
+   therefore rescores the whole batch.
+3. **An import batch is ~2,300 rows spanning 31–36 days, and they are historical** — the five largest
+   run from 2026-01-01 to 2026-07-28. At the observed ~50 transactions/minute that is **~46 minutes**.
+4. **The lease is five minutes.** `JOB_LEASE_MS` (`jobs.ts:142`) is `5 * 60_000`, heartbeat-renewed —
+   confirmed on the live rows: `updated_at 16:45:50` + 5 min = `lease_expires_at 16:50:50`. Whenever
+   one scoring batch takes longer than five minutes — which Samsara's rate limiting makes routine —
+   the lease lapses while the job is still working.
+5. **The next job to arrive kills it.** The reclaim is not a sweeper; it is in `startJob`'s unique-slot
+   conflict path (`jobs.ts:200-226`): a new `efs_process_import` collides, sees `lease_expires_at` in
+   the past, marks the running job `failed` with *"reclaimed (lease expired / interrupted run)"* and
+   inserts itself. Over 24 h: **146 done (avg 0.9 min), 56 failed (avg 72.5 min)**.
+6. **The replacement starts from the beginning**, rescoring the same ~2,300 ancient fills, and the
+   next arrival kills it too. The burst profile is the signature — ~50 attempts/minute for 30–70
+   minutes, a gap, then the identical burst, with boundaries matching the job rows exactly
+   (13:52→15:06 failed, 15:06→15:56 failed, 15:56→16:32 failed, 16:32→ running).
+
+⚠ `locked_by` is **null** on these rows, so the queue's own 30-minute lease and the renewal
+`inprocessDrain.ts` documents (2026-09-05) are not involved at all — this path runs inline through
+`jobs.ts`. **Two lease clocks exist and only one of them is being kept alive**, which is the same
+two-sources-of-truth shape as `D-SEP3`'s half-migrated strangler.
+
+**This is `D-LIFE11` again, and the largest instance yet**: 139.7 attempts per transaction is not
+telemetry volume, it is one defect retried 56 times a day. It is also the driver behind `L3`'s table,
+so L3 caps the symptom exactly as its own header says.
+
+**Candidate fixes, none of them shipped — this needs the owner, because all three change behaviour in
+the EFS ingest path:**
+
+- **(a) Scope the rescore to what changed** — drop the import-wide `select` at `efsSync.ts:250` and
+  rescore `toUpdate` only. Removes ~99% of the work. ⚠ The import-wide select is deliberate ("everything
+  the repair touched needs re-scoring"), so this needs whoever owns that repair to confirm a neighbouring
+  row cannot be invalidated by a repair to its sibling.
+- **(b) Make the lease outlive the work** — raise `JOB_LEASE_MS` for this kind, or heartbeat inside
+  the scoring loop rather than between batches. Stops the retry storm without reducing the work.
+- **(c) Resume instead of restart** — checkpoint the scored ids so a reclaimed run continues, the
+  pattern `jobs.ts:323` already describes for the recon backfill.
+
+**Recommendation: (b) first, then (a).** (b) is small, cannot change a verdict, and stops 56 restarts
+a day on its own; (a) is the real fix but needs the ownership question answered first.
+
 **Recommendation: do not fold this into L3.** L3's window is safe and independently justified.
 This is a scoring-engine question, not a lifecycle one, and it wants its own measurement — the prize
 is CPU and Samsara API quota at least as much as the 12 GB/year retention already caps.
@@ -981,3 +1033,28 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   45-day window HAS fired (oldest row 2026-08-09, a 44-day span against `keepDays: 45`), and the
   table is 1,023 MB with 389 MB of indexes, all three of which are used. There is no index drop
   available on either table, so the remaining lever on this storage is `L7`, which still needs `Q1`.
+
+- **2026-09-22 — Q6 answered: the full-fleet rescan is one job failing and restarting 56 times a day**
+  (`claude/data-lifecycle-q6`). Investigation only; nothing is changed in the scoring path, because
+  every candidate fix alters behaviour in EFS ingest and wants the owner. The plan's leading
+  hypothesis — the Samsara recon tier re-walking reconciled fills — is **ruled out on volume**: both
+  `SAMSARA_RECON_SYNC_MINUTES` and `SAMSARA_RECON_BATCH` are unset in production, so the defaults of
+  60 minutes and 250 give 250 fills an hour against a measured 2,000–7,500. `backfill` falls the same
+  way at 38 runs a day of 33.
+  **What it actually is.** `efsSync.ts:250` collects every row sharing an `import_id` for rescoring,
+  not the rows that changed; an import batch is ~2,300 rows spanning 31–36 days of HISTORY; that is
+  ~46 minutes of scoring; `JOB_LEASE_MS` is five minutes; and the reclaim sits in `startJob`'s
+  unique-slot conflict path, so the next scheduled import finds an expired lease, marks the working
+  job `failed`, and starts the same 2,300-row rescan over. **146 done at 0.9 min, 56 failed at
+  72.5 min, in 24 hours.** 94.6% of attempts in a three-hour sample were on fills older than 120 days.
+  **The method that found it**, after two code-reading passes had not: correlate `scoring_attempts`
+  per minute against `jobs` per minute. The bursts are ~50/minute for 30–70 minutes with gaps between,
+  and the burst boundaries match the failed job rows to the minute. A job that runs for an hour and
+  dies is invisible in a run COUNT and obvious in a duration — `where extract(epoch from (updated_at -
+  created_at)) > 300` is the query that ended the search.
+  ⚠ **`locked_by` is null on these rows**, so the queue's 30-minute lease and the renewal
+  `inprocessDrain.ts` added on 2026-09-05 never applied — this path runs inline through `jobs.ts`.
+  Two lease clocks exist, one is kept alive, and the one that decides reclaim is the other. Worth
+  reading next to `D-SEP3`: the same two-sources-of-truth shape, in the queue rather than in a table.
+  **This is the largest `D-LIFE11` instance so far.** 139.7 attempts per transaction is not telemetry
+  volume; it is one defect retried. L3 caps its storage and, as L3's own header says, prunes a symptom.
