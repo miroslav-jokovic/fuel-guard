@@ -9,6 +9,7 @@ import { collectTxnIds, loadThresholds, loadOperatingHours } from "./loaders.js"
 import type { BackfillOpts, ScoreOpts } from "./loaders.js";
 import { scoreTransaction, learnVehicleValues } from "./scoreTransaction.js";
 import { reconcileCardMultiForOrg } from "./cardMultiReconcile.js";
+import { cascadeFloorIso, importVehicleEarliest } from "./cascadeScope.js";
 
 export async function scoreWithCascade(admin: SupabaseClient, env: Env, orgId: string, txnId: string): Promise<void> {
   await scoreTransaction(admin, env, orgId, txnId);
@@ -394,22 +395,29 @@ export async function scoreImport(
   return total;
 }
 
-/** Re-score every fill for ONE vehicle in chain order. Used by the post-import cascade (skipRecon). */
+/**
+ * Re-score ONE vehicle's fills in chain order. Used by the post-import cascade (skipRecon). `fromIso`
+ * starts the walk at a floor instead of the vehicle's first fill — see cascadeScope.ts for why the
+ * floor is safe; omitted, it walks the whole history as it always did.
+ */
 export async function scoreVehicle(
   admin: SupabaseClient,
   env: Env,
   orgId: string,
   vehicleId: string,
-  opts: ScoreOpts = {},
+  opts: ScoreOpts & { fromIso?: string } = {},
 ): Promise<number> {
+  const { fromIso, ...scoreOpts } = opts;
   const PAGE = 1000;
   const ids: string[] = [];
   for (let offset = 0; ; offset += PAGE) {
-    const { data } = await admin
+    let q = admin
       .from("fuel_transactions")
       .select("id")
       .eq("org_id", orgId)
-      .eq("vehicle_id", vehicleId)
+      .eq("vehicle_id", vehicleId);
+    if (fromIso) q = q.gte("fueled_at", fromIso);
+    const { data } = await q
       .order("fueled_at", { ascending: true })
       .order("created_at", { ascending: true })
       .range(offset, offset + PAGE - 1);
@@ -417,28 +425,24 @@ export async function scoreVehicle(
     ids.push(...batch);
     if (batch.length < PAGE) break;
   }
-  for (const id of ids) await scoreTransaction(admin, env, orgId, id, opts);
+  for (const id of ids) await scoreTransaction(admin, env, orgId, id, scoreOpts);
   return ids.length;
 }
 
-/** Distinct vehicle ids attributed to an import's fuel rows. */
+/** Distinct vehicle ids attributed to an import's fuel rows (paged — see importVehicleEarliest). */
 export async function affectedVehicleIds(admin: SupabaseClient, orgId: string, importId: string): Promise<string[]> {
-  const { data } = await admin
-    .from("fuel_transactions")
-    .select("vehicle_id")
-    .eq("org_id", orgId)
-    .eq("import_id", importId)
-    .not("vehicle_id", "is", null);
-  const set = new Set<string>();
-  for (const r of (data ?? []) as { vehicle_id: string | null }[]) if (r.vehicle_id) set.add(r.vehicle_id);
-  return [...set];
+  return [...(await importVehicleEarliest(admin, orgId, importId)).keys()];
 }
 
 /**
  * Score an import, then AUTO-CASCADE: importing history changes MPG baselines and over-fuel windows for
- * the affected vehicles' neighboring fills, so re-score every fill of just those vehicles (skipRecon —
- * the new rows already did a live Samsara recon; neighbors reuse stored values). Scoped to the import's
- * vehicles, never the whole org — this is what removes the manual "go press Rebuild" step.
+ * the affected vehicles' neighboring fills, so re-score those vehicles' fills (skipRecon — the new rows
+ * already did a live Samsara recon; neighbors reuse stored values). Scoped to the import's vehicles,
+ * never the whole org — this is what removes the manual "go press Rebuild" step.
+ *
+ * Each vehicle's walk starts at `cascadeFloorIso` of the import's earliest fill for it, not at the
+ * vehicle's first fill: fills before the floor cannot change except through the learned gates, whose
+ * drift Q6e accepted (DATA-LIFECYCLE-PLAN §7). cascadeScope.ts carries the argument.
  */
 export async function scoreImportWithCascade(
   admin: SupabaseClient,
@@ -448,10 +452,16 @@ export async function scoreImportWithCascade(
   onProgress?: ProgressFn,
 ): Promise<{ scored: number; cascaded: number; vehicles: number }> {
   const scored = await scoreImport(admin, env, orgId, importId, onProgress);
-  const vehicleIds = await affectedVehicleIds(admin, orgId, importId);
+  const earliest = await importVehicleEarliest(admin, orgId, importId);
+  // `?? 48` is the fallback `scoreTransaction` applies to the same field; the floor must be computed
+  // from the window the scorer will actually use, or it is a floor for a different window.
+  const cumulativeWindowHours = (await loadThresholds(admin, orgId)).cumulativeWindowHours ?? 48;
   let cascaded = 0;
-  for (const vId of vehicleIds) cascaded += await scoreVehicle(admin, env, orgId, vId, { skipRecon: true });
+  for (const [vId, firstIso] of earliest) {
+    const fromIso = cascadeFloorIso(firstIso, cumulativeWindowHours);
+    cascaded += await scoreVehicle(admin, env, orgId, vId, { skipRecon: true, fromIso });
+  }
   // Auto-clear "one card, multiple trucks" cases that Samsara explains as one driver changing trucks.
   await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
-  return { scored, cascaded, vehicles: vehicleIds.length };
+  return { scored, cascaded, vehicles: earliest.size };
 }

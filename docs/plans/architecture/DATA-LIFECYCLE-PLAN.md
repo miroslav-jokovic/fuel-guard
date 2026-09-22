@@ -926,7 +926,7 @@ docstring says it is. **Recommendation: the second column**, and note it lands i
 its reader per `lint:migration-ordering`.
 
 
-**Q6e — what should a historical verdict be scored against? OPENED 2026-09-22, blocks fix (a).** A
+**Q6e — what should a historical verdict be scored against? OPENED 2026-09-22; RULED (c) by the owner the same day.** A
 fill's verdict reads the vehicle's CURRENT learned gates (`context.ts:27`), not their values as of the
 fill, and every live fill re-learns them while the live path cascades only 5 fills forward. So
 history is already scored against stale gates between imports, and the import cascade's full-history
@@ -1467,3 +1467,34 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   last-write-wins); (c) accept drift: bound the cascade, re-sync history only on an explicit rebuild.
   **Recommendation: (c)** — (b) is the right answer and costs a new table; (a) makes every live fill a
   full-history rescore; (c) is what the live path already does, and makes the import path agree with it.
+
+- **2026-09-22 (later still) — Q6e RULED (c); fix (a)'s first half built: the cascade starts at a
+  floor** (`claude/q6-cascade-prefix-bound`). The owner accepted the recommendation: history is not
+  re-synced to the vehicle's current learned gates as a side effect of an import; an explicit rebuild
+  does that. With drift in (iii) accepted, what remains is provable from the code alone, so this half
+  does NOT wait on the `verdict_hash` measurement: an imported fill N moves an earlier fill X only
+  through X's two-sided `cumulative_window_hours` window or through business-time drift, so nothing
+  with `fueled_at < min(N.fueled_at) − W − 2·drift` can change. `scoreImportWithCascade` now starts
+  each vehicle's walk there (`cascadeScope.ts`), instead of at the vehicle's first fill.
+  **Drift is MEASURED, not derived** — nothing in the code bounds `samsara_recon_at − fueled_at`. Over
+  the 16,205 fills whose business time is `samsara_recon_at`, it peaked at **18.0 h, 0 over 24 h**;
+  the margin is 24 h per side. A fill beyond it would be left stale until a rebuild, not corrupted.
+  ⚠ **Found on the way: `affectedVehicleIds` never paged.** PostgREST caps a response at 1,000 rows and
+  one production import held 2,151 fills, so vehicles could silently drop out of the cascade — and with
+  a floor, a truncated read is worse: it gives a floor too LATE. The read now pages and throws on error
+  (it used to treat an error as "no vehicles").
+  ⚠ **The forward half stays deferred, and one of its assumptions is now known false.** `verdict_hash`
+  hashes `{txnId, engineVersion, caseFired, verdict}` — the ENGINE is inside it, and the engine moves on
+  every deploy (38–50 a day). So a convergence walk cannot compare a fill's new `verdict_hash` with the
+  one from its previous attempt across a deploy; it would see "changed" every time and walk to the end.
+  The measurement (same-engine pairs) is unaffected; the convergence BUILD needs an engine-free
+  comparison — an in-memory digest over the verdict alone, compared within one cascade run — and that
+  is the design to argue after the measurement, not the `verdict_hash` column as the previous entry
+  implied.
+  Pinned by `cascadeScope.test.ts` (6) and the rewritten `scoringCascade.test.ts` (2, now on the
+  recorder with `expectOrgScoped`). Nine mutations, all killed: drop the drift margin, earliest→latest,
+  no paging, drop the org filter, swallow the read error, floor not applied, floor not passed,
+  floor leaking into `scoreTransaction`'s opts, window hard-coded to 48.
+  **Expected effect, to be measured after deploy rather than claimed:** the share of scoring attempts
+  on fills older than 120 days (61% on 2026-09-22 19:30 UTC) should fall to roughly the share of
+  imports that genuinely carry old fills.
