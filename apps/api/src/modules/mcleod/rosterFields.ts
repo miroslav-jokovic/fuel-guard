@@ -165,6 +165,16 @@ export function trailerPatch(r: TmsTrailerInput): Record<string, unknown> {
   // `registration_expires_at` is absent and stays absent: McLeod's `tag_expire_date` is populated on
   // ZERO of 235 active trailers. The tractor path writes it because there the column has 175 values.
 
+  // `status`, unconditionally, for E0's reason (see `vehiclePatch`): until 2026-09-22 this builder
+  // never wrote it, so a trailer McLeod carries as active and we had retired stayed retired through
+  // every sweep — trailer 532167, 17 settled movements in 60 days, is in exactly that state (E5).
+  // Always `active` rather than derived, and that is measured, not skipped: trailers have no
+  // reservation shape (every `'A'` row without a purchase date is a fixture or carries a model year)
+  // and McLeod's `trailer_status = 'S'` is not a shop — all 39 such trailers are moving. A trailer
+  // in the active sweep is a trailer in service. Office-owned rows never reach this patch
+  // (`CLAIMABLE` in `applyOutcome`), and the hand-edit question is the vehicles' Q-7.
+  p.status = "active";
+
   // `unit_number` is NOT written. Silvicom 360 prefixes reefers with `R` and McLeod does not; the ingest
   // normalises for MATCHING and leaves the stored value alone, because renaming ~46 trailers is a
   // user-visible decision for a human (D-MR11). `assigned_vehicle_id`, `pairing_source` and

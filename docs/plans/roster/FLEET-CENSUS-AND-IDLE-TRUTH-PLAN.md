@@ -911,3 +911,31 @@ real incidents in this checkout:
   landed on the retired row since the swap are **not** misattributed to another truck. They are unit
   732's own fills on one of unit 732's two rows, and where they end up is decided by Q-9's merge
   rather than by a re-attribution decision of their own.
+
+- **2026-09-22 (E5 — the trailer census)** — **§1.8b's premise was wrong, and E5 as written would have
+  been a no-op at best.** Measured against the live McLeod before any code: the nine `'A'` trailers
+  with no purchase date are **eight test fixtures and one 2014 Utility reefer** (534115) carrying a
+  VIN, a model year and a link. Trailers have **no reservation shape**, so the purchase-date clause is
+  deliberately NOT carried over; it could only ever drop a real trailer. The part of E5 that mattered
+  was the other half, `outservice_date`, and it is D-FC2 again. Three `'A'` trailers carry one: a fixture,
+  **532167** (dated 2020-05-04; **17 settled movements in the 60 days** before the measurement,
+  retired here as `R532167`), and **536132** (dated 2026-06-25; McLeod still `'A'`, last movement
+  2026-07-23, `trailer_status = 'I'`).
+  · **G1 had a trailer twin.** `trailerPatch` never wrote `status`, so fixing the predicate alone
+  would have linked R532167 on the next identity sweep and left it retired. It now writes `active`,
+  with the same claim-trigger carve-out as the vehicles' (`rosterFields.claimParity.test.ts`).
+  · **`trailer_status` is not the tractor's letter.** `S` is on **39 of 223** trailers and **all 39
+  moved** in the 30 days measured (16.4 movements each against 13.5 for `A`). Mapping it to
+  `maintenance` by analogy with D-FC9 would have parked 17% of the trailer fleet. It is not read.
+  · Predicates: active = `is_active = 'A'` + a serial number (G5) + the fixture-name fence;
+  retirement = `is_active <> 'A'` alone (all 172 deactivated rows carry an `outservice_date` anyway).
+  **Live dry run through the new queries: 223 active (link = identity), 172 retiring, 0 overlap**, was
+  221 / 175. The plan's "231 → 222 with the 9 named" was never going to be the number.
+  · Delta on the next identity sweep: **two trailers reactivate**, R532167 and 536132, both
+  samsara-sourced and unlinked, so both claimable. 536132 is the one to watch: McLeod calls it
+  active and it has not moved since July. We follow McLeod (D-FC0), and if that is wrong it is
+  McLeod's flag to change.
+  · Mutation-proved: dropping the status write fails *"un-retires a trailer McLeod still carries,
+  matched across the R prefix (E5)"* and the carve-out test; putting either `outservice_date` clause
+  back fails *"the trailer census does not read outservice_date in either direction"*.
+  · Like everything since merge 4, **inert until the agent runs** (Q-6).

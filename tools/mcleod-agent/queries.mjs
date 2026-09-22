@@ -24,8 +24,8 @@
  *   driver   `is_active = 'Y'`                              → 164 rows; 163 of them have HOS in the
  *                                                             last 180 days. `status_code` is NULL on
  *                                                             every row in the table and is not used.
- *   trailer  `is_active = 'A' AND outservice_date IS NULL`      → 235
- * The tractor predicate was re-measured and replaced on 2026-09-22 — see `rosterQueries.vehicles`.
+ * The tractor and trailer predicates were re-measured and replaced on 2026-09-22 — see
+ * `rosterQueries.vehicles` and `rosterQueries.trailers`.
  */
 
 /** Columns needed to MATCH a row to an existing FuelGuard record. Sent in every mode. */
@@ -157,12 +157,31 @@ export function rosterQueries(mode = "link") {
        AND t.service_status = 'A'
        AND (t.purchase_date IS NOT NULL OR NULLIF(LTRIM(RTRIM(t.model_year)), '') IS NOT NULL)
        AND NULLIF(LTRIM(RTRIM(t.serial_number)), '') IS NOT NULL`,
+    /**
+     * The trailer census, and it is NOT the tractor predicate with the letters changed (E5, measured
+     * 2026-09-22 against the carrier's McLeod — 231 rows are `is_active = 'A'`, this selects 223).
+     *
+     *  · **`outservice_date` is gone, for D-FC2's reason exactly.** Three `'A'` trailers carried one;
+     *    one was a test fixture, and trailer 532167 carries 2020-05-04 while it ran 17 settled
+     *    movements in the 60 days before the measurement. The clause kept it out of the roster and the
+     *    retirement sweep below nominated it in the same breath, so it sits retired here today.
+     *  · **No purchase-date clause, deliberately asymmetric with P4.** The plan (§1.8b) expected nine
+     *    reserved trailers; measured, the nine with no purchase date are eight fixtures and one 2014
+     *    reefer that carries a VIN, a model year and a link. Trailers have no reservation shape, so a
+     *    clause written for one would describe nothing today and could only ever drop a real trailer.
+     *  · **A serial number**, G5's rule: all eight fixtures lack one, so they are excluded because they
+     *    are not equipment. The two name patterns stay as a second fence, since a fixture that somebody
+     *    later gives a VIN would otherwise walk in.
+     *  · **`trailer_status` is NOT read.** The owner's S-means-shop ruling is about the TRACTOR column.
+     *    On trailers S is 39 of 223 rows and every one of the 39 moved in the 30 days measured, at 16.4
+     *    movements each against 13.5 for the A rows. Whatever it means here, it is not a shop.
+     */
     trailers: `
     SELECT${TRAILER_MATCH}${full ? "," + TRAILER_IDENTITY : ""}
       FROM dbo.trailer AS r
      WHERE r.company_id = @companyId
        AND r.is_active = 'A'
-       AND r.outservice_date IS NULL
+       AND NULLIF(LTRIM(RTRIM(r.serial_number)), '') IS NOT NULL
        -- Sandbox-only fixture trailers are not carrier equipment and must never enter the roster.
        AND LTRIM(RTRIM(r.id)) NOT LIKE 'TEST%'
        AND LTRIM(RTRIM(r.id)) <> 'TSTROMAN'`,
@@ -228,6 +247,14 @@ export function retirementQueries() {
       FROM dbo.tractor AS t
      WHERE t.company_id = @companyId
        AND t.service_status <> 'A'`,
+    /**
+     * `is_active <> 'A'` alone, since 2026-09-22 (E5), for the tractor's reason: all 172 trailers
+     * McLeod has deactivated also carry an `outservice_date`, so the OR'd clause earned nothing and
+     * nominated the three `'A'` rows that happen to carry one — 532167 among them, in service.
+     * The one trailer with a NULL `is_active` (`NONE`, no VIN) still falls through both sweeps.
+     *
+     * Counts, 2026-09-22: 172 rows, down from 175.
+     */
     trailers: `
     SELECT
       LTRIM(RTRIM(r.id))                           AS external_id,
@@ -235,7 +262,7 @@ export function retirementQueries() {
       CONVERT(varchar(10), r.outservice_date, 23)  AS out_of_service_at
       FROM dbo.trailer AS r
      WHERE r.company_id = @companyId
-       AND (r.is_active <> 'A' OR r.outservice_date IS NOT NULL)`,
+       AND r.is_active <> 'A'`,
   };
 }
 

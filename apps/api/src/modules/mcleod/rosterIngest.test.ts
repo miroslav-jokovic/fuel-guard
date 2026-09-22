@@ -673,6 +673,26 @@ describe("the fields the recon found", () => {
     expect(rec.writtenRows("trailers")[0]).not.toHaveProperty("registration_expires_at");
   });
 
+  it("un-retires a trailer McLeod still carries, matched across the R prefix (E5)", async () => {
+    // Trailer 532167: `is_active = 'A'` in McLeod, 17 settled movements in the 60 days before
+    // 2026-09-22, and retired here because the old predicate read a 2020 outservice_date. Stored as
+    // R532167, samsara-sourced, never linked — the whole path the next identity sweep will take.
+    const rec = seed({ trailers: [trailer({ id: "t-532167", unit_number: "R532167", status: "retired" })] });
+    const r = await ingestTrailers(rec.client, ORG, [
+      { external_id: "532167", unit_number: "532167", vin: "1JJV532B2KL112167", purchased_at: "2018-06-11" },
+    ], "identity");
+    expect(r.updated).toBe(1);
+    expect(rec.writtenRows("trailers")[0]).toMatchObject({ status: "active", mcleod_trailer_id: "532167" });
+  });
+
+  it("leaves a trailer's status alone in link mode", async () => {
+    // Link mode writes the key and nothing else; a status landing there would reactivate a trailer on
+    // a sweep that read no identity columns at all.
+    const rec = seed({ trailers: [trailer({ status: "retired" })] });
+    await ingestTrailers(rec.client, ORG, [{ external_id: "532159", unit_number: "532159" }], "link");
+    expect(rec.writtenRows("trailers")[0]).not.toHaveProperty("status");
+  });
+
   it("still writes nothing at all in report mode", async () => {
     const rec = seed({ trailers: [trailer()] });
     await ingestTrailers(rec.client, ORG, [
