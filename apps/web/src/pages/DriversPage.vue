@@ -15,6 +15,7 @@ import SlideOver from "@/components/SlideOver.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
+import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -312,6 +313,7 @@ async function onSubmit(input: DriverInput) {
           </BaseButton>
         </template>
       </template>
+      <template #freshness><RosterFreshnessLine /></template>
     </PageHeader>
 
     <DataWorkspace>

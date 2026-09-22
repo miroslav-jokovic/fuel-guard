@@ -23,7 +23,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { rosterQueries, retirementQueries, ROSTER_COUNTS } from "./queries.mjs";
+import { rosterQueries, retirementQueries } from "./queries.mjs";
 
 /** Trim + empty-to-null. `char(n)` columns arrive space-padded even after a SQL-side RTRIM. */
 const s = (v) => {
@@ -280,8 +280,10 @@ export async function fetchRoster({
         const res = await pool.request().input("companyId", mssql.VarChar(32), companyId).query(q[entity]);
         out[entity] = res.recordset.map(MAP[entity]);
       }
-      const counts = await pool.request().input("companyId", mssql.VarChar(32), companyId).query(ROSTER_COUNTS);
-      out.counts = Object.fromEntries(counts.recordset.map((r) => [r.entity, r.n]));
+      // The counts ARE the rows just read. Until 2026-09-22 they came from a second query that restated
+      // the census predicates by hand; #963 and #970 replaced the real ones, the copy kept the old
+      // ones, and the agent went on reporting 228 tractors while sending 193.
+      out.counts = { drivers: out.drivers.length, vehicles: out.vehicles.length, trailers: out.trailers.length };
       return out;
     },
   );

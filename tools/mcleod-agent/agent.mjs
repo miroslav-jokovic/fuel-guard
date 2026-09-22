@@ -500,6 +500,31 @@ async function runRoster() {
     if (res.unmatched.length) log(`roster: ${entity} unmatched → ${res.unmatched.slice(0, 25).join(", ")}${res.unmatched.length > 25 ? "…" : ""}`);
   }
   saveState(CFG.rosterStatePath, nextState);
+  if (!CFG.dryRun && CFG.rosterMode !== "report") await sendRosterCheckpoint(roster.counts);
+}
+
+/**
+ * Tell FuelGuard the roster was READ, whether or not anything changed (E6, D-MR2).
+ *
+ * The sweep above posts only CHANGED rows, so on a quiet day it posts nothing, and a freshness stamp
+ * built on those posts would call a healthy two-minute sweep stopped. A report is not a read of
+ * record (it moves nothing), and a dry run never talks to FuelGuard at all.
+ *
+ * Deliberately NOT `postToFuelGuard`: that exits the process on any 4xx, which is right for a payload
+ * FuelGuard refuses and wrong here — an agent upgraded before the API that serves this route would
+ * otherwise die on its first 404 and stop sweeping the roster it had just swept correctly.
+ */
+async function sendRosterCheckpoint(counts) {
+  try {
+    const res = await fetch(`${CFG.ingestUrl}/api/tms/roster/checkpoint`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${CFG.ingestToken}` },
+      body: JSON.stringify({ counts }),
+    });
+    if (!res.ok) log(`roster: checkpoint not recorded (HTTP ${res.status}) — the sweep itself succeeded`);
+  } catch (e) {
+    log(`roster: checkpoint not recorded (${e.message}) — the sweep itself succeeded`);
+  }
 }
 
 /** Push the rows that have LEFT the active roster, each with an explicit status. */

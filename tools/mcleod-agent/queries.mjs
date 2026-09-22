@@ -813,16 +813,6 @@ export const OFFICE_SETTLEMENT_LINES = `
        AND g.transaction_date >= @windowStart
        AND g.transaction_date <  @windowEnd`;
 
-/** A cheap liveness + scoping check: the row counts the three predicates select. */
-export const ROSTER_COUNTS = `
-    SELECT 'drivers'  AS entity, COUNT(*) AS n FROM dbo.driver  WHERE company_id = @companyId AND is_active = 'Y'
-    UNION ALL
-    SELECT 'vehicles', COUNT(*) FROM dbo.tractor WHERE company_id = @companyId AND service_status = 'A' AND outservice_date IS NULL
-    UNION ALL
-    SELECT 'trailers', COUNT(*) FROM dbo.trailer
-     WHERE company_id = @companyId AND is_active = 'A' AND outservice_date IS NULL
-       AND LTRIM(RTRIM(id)) NOT LIKE 'TEST%' AND LTRIM(RTRIM(id)) <> 'TSTROMAN'`;
-
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // Billing — P3.3, the earnings side (unblocked by recon F1/F2, answered 2026-08-27)
 // ═══════════════════════════════════════════════════════════════════════════════════════════════

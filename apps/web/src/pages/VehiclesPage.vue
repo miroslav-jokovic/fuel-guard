@@ -17,6 +17,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
+import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -164,6 +165,7 @@ async function onRetire(v: Vehicle) {
           </BaseButton>
         </template>
       </template>
+      <template #freshness><RosterFreshnessLine /></template>
     </PageHeader>
 
     <DataWorkspace>

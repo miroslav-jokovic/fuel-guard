@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tmsLoadsPayloadSchema, tmsDispatchersPayloadSchema, deriveVehicleStatus, isStatusFromTms } from "./tms.js";
+import { tmsLoadsPayloadSchema, tmsDispatchersPayloadSchema, deriveVehicleStatus, isStatusFromTms, rosterFreshnessState } from "./tms.js";
 
 /**
  * The route parses the payload with `tmsLoadsPayloadSchema.safeParse` BEFORE `ingestLoads` sees it
@@ -119,5 +119,21 @@ describe("isStatusFromTms", () => {
   it("stays the office's on a row McLeod has never linked", () => {
     expect(isStatusFromTms({ link: null, identity_source: "samsara" })).toBe(false);
     expect(isStatusFromTms({ link: "", identity_source: "mcleod" })).toBe(false);
+  });
+});
+
+describe("rosterFreshnessState", () => {
+  const now = new Date("2026-09-22T20:00:00Z");
+  it("is never when McLeod has not been read", () => {
+    expect(rosterFreshnessState(null, now)).toBe("never");
+  });
+  it("is fresh inside the hour — thirty 2-minute sweeps", () => {
+    expect(rosterFreshnessState("2026-09-22T19:00:00Z", now)).toBe("fresh");
+  });
+  it("is stale the moment the hour passes", () => {
+    expect(rosterFreshnessState("2026-09-22T18:59:59Z", now)).toBe("stale");
+  });
+  it("treats an unreadable stamp as stale, never as fresh", () => {
+    expect(rosterFreshnessState("not a date", now)).toBe("stale");
   });
 });

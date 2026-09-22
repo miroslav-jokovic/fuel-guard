@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireRole, requireOrg, requireAnySection } from "../../../middleware/auth.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -9,6 +9,7 @@ import {
   enableTmsIntegration,
   disableTmsIntegration,
 } from "../tmsIngest.js";
+import { readRosterFreshness } from "../rosterFreshness.js";
 
 /** McLeod integration config — enable/rotate/disable the on-prem agent's ingest token. Moved
  *  here from routes/integrations.ts at the P1.6 split (2026-08-27); paths unchanged. */
@@ -22,6 +23,18 @@ export function registerMcleodIntegrationRoutes(router: Router): void {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       res.json(await getTmsIntegrationStatus(admin, req.auth!.orgId!, "mcleod"));
+    }),
+  );
+
+  // "Roster from McLeod, as of …" on the equipment pages (E6, D-MR2). Anyone who can see the roster
+  // or the equipment may see when it was last read — it is the provenance of rows they already see.
+  router.get(
+    "/mcleod/roster-freshness",
+    requireOrg,
+    requireAnySection(["equipment", "view"], ["roster", "view"]),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json(await readRosterFreshness(admin, req.auth!.orgId!));
     }),
   );
 

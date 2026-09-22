@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The McLeod roster sweep, kept running on a Mac inside the carrier's network (E6, D-MR2, Q-6).
+  Installed by install-roster-sweep.sh, which fills in the three __PLACEHOLDERS__. Do not hand-edit
+  the installed copy in ~/Library/LaunchAgents; re-run the script instead.
+
+  identity, never reconcile: reconcile retires by ABSENCE and still reads a NULL link as absence
+  (FLEET-CENSUS F14, second half unbuilt). Retirement stays an operator's run (`--retire`).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.silvicom.mcleod-roster</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>--env-file=.env</string>
+    <string>agent.mjs</string>
+    <string>--roster</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__AGENT_DIR__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- Set here, so they win over .env: Node's env-file never overrides an existing variable. -->
+    <key>ROSTER_MODE</key>
+    <string>identity</string>
+    <key>INTERVAL_MINUTES</key>
+    <string>2</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- The agent loops by itself; this restarts it if it exits (a refused payload, a reboot). -->
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+  <key>StandardOutPath</key>
+  <string>__LOG__</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG__</string>
+</dict>
+</plist>

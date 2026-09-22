@@ -11,12 +11,14 @@ import {
   tmsVehiclesPayloadSchema,
   tmsTrailersPayloadSchema,
   tmsRetirePayloadSchema,
+  tmsRosterCheckpointSchema,
 } from "@silvicom/shared";
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../tmsIngest.js";
 import { ingestLoads } from "../tmsLoadIngest.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.js";
 import { reconcileAbsentFromTms, retireFromTms } from "../rosterRetire.js";
 import { isTmsRosterMaster } from "../rosterMastery.js";
+import { stampRosterRead } from "../tmsIngest.js";
 import type { RosterMode } from "../rosterIngest.js";
 
 /** The modes this build understands, safest first. Anything else is refused — see the route below. */
@@ -160,14 +162,31 @@ export function tmsIngestRouter(): Router {
             return;
           }
         }
-        // A REPORT is not a sync. `last_synced_at` drives the "as of HH:MM" freshness
-        // the operator reads (D-MR2), and a rehearsal that deliberately moved no data must not
-        // claim the roster was just refreshed.
+        // A REPORT is not a sync, and a rehearsal that deliberately moved no data must not claim
+        // anything was refreshed. The "as of HH:MM" the operator reads (D-MR2) is NOT this stamp —
+        // it fires only for changed rows — but the roster's own checkpoint row below (E6).
         if (mode !== "report") await touchLastSynced(admin, orgId, provider);
         res.json(result);
       }),
     );
   }
+
+  // The agent's checkpoint after every READ of the roster, changed or not (E6, D-MR2). The routes
+  // above fire only for rows that CHANGED, so without this a healthy sweep of an unchanged roster
+  // stamps nothing and reads as a stopped agent. See `rosterFreshness.ts`.
+  router.post(
+    "/roster/checkpoint",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsRosterCheckpointSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("invalid_payload", parsed.error.issues[0]?.message ?? "invalid payload"));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      await stampRosterRead(admin, req.tms!.orgId, parsed.data.counts);
+      res.json({ ok: true });
+    }),
+  );
 
   // Retirement is its own endpoint, not a mode on the sweeps above. It is the one operation that takes
   // capability away from a person and the only one that touches the retention clock, so it happens when
