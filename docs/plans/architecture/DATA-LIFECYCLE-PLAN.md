@@ -1354,3 +1354,38 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   **VERIFIED IN PRODUCTION 2026-09-22 18:2x UTC: all three runs are `abandoned`** at attempts 234,
   236 and 236, within ~20 minutes of 0354 applying, exactly as 0354's header predicted and with no
   manual data write. Q6a is CLOSED.
+
+- **2026-09-22 (later still) — Q6c SHIPPED: a settled fill is no longer re-asked every pass**
+  (`claude/q6c-recon-refresh-bound`, `SAMSARA_RECON_REFRESH_HOURS`, default 24). `scoreImport` passes
+  no `skipRecon` and, unlike the collector tier, had **no bound at all**, so every re-score of an
+  import re-fetched every one of its fills from Samsara.
+  **Measured BEFORE it was written, which is the part that matters given Q6's history.** The
+  production reconciler — `reconcileWithSamsara` itself, which contains no insert/update/upsert/rpc
+  and is therefore safe to run read-only, not a re-implementation of it — was re-run over **55 fills
+  sampled from the three stuck imports**: 30 `tank_confirmed` and **all 25 `stop_estimated`**,
+  spanning January to May, carrying 56 to 199 previous refreshes. It returned evidence **identical to
+  what was stored in 55 of 55 cases** — no field changed, no basis upgraded. The `stop_estimated` half
+  is the decisive one: those are the fills a refresh could legitimately have improved, and ~105
+  refreshes each had not improved one of them. The refresh is a no-op on settled evidence, measured
+  rather than argued.
+  **The default is 24 h and not 0 for one reason**: a live refresh is still the path by which a
+  CORRECTED STATION PIN reaches an old fill. One refresh per fill per day keeps that path open and
+  removes ~91% of the calls. `0` disables the bound and restores the old behaviour.
+  ⚠ **The condition is "has this fill EVER succeeded", not "was it checked recently", and that is
+  what keeps the collector tier alive.** `claimReconBatch` selects `samsara_recon_at is null`
+  (`backfill.ts:76`), so a bound keyed on recency alone would have refused the tier's own claims —
+  the tier would claim a fill and the reconciler would decline to fetch it, silently undoing SAM-S3
+  and re-opening the historical hole it exists to close. Keying on prior SUCCESS makes the two
+  populations disjoint by construction. It is its own env knob rather than a reuse of
+  `SAMSARA_RECON_RETRY_HOURS` for the same reason: retry asks "when do we try a fill that never
+  worked", refresh asks "when do we re-ask one that already answered".
+  ⚠ **Checked, not assumed: the skip branch does not change any rule input.** The live branch ends in
+  `applyReconciledContext`, which the skip branch does not call — but `toTxnView` already derives
+  `eventAt`, `timeConfirmed`, `fueledAtPrecision` and the station pin from the STORED columns by the
+  identical predicate (`tank_confirmed || (samsara_recon_at != null && samsara_location_matched)`),
+  and says so in its own comment: "derived from stored columns, so prior fills reconstruct correctly
+  on rebuild". That equivalence is what the `skipRecon` path has always relied on.
+  `suppressSystematicStationOffset` still runs — it sits outside the branches.
+  Pinned by 7 cases in `reconRefreshBound.test.ts`. Four mutations: drop the ever-succeeded condition
+  (fails the collector-tier exemption), remove the bound (1), invert the window (2), treat an
+  unparseable stamp as fresh (1).

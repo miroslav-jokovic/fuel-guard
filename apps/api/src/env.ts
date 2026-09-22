@@ -97,6 +97,13 @@ const EnvSchema = z.object({
   // fills Samsara has no history for would be re-claimed on every tick and, oldest-first, would wedge
   // the tier on them forever — see `BackfillOpts.reconClaim`.
   SAMSARA_RECON_RETRY_HOURS: z.coerce.number().min(1).default(72),
+  // How long before a fill that ALREADY HAS successful evidence is re-asked. A different question
+  // from RETRY_HOURS above, on a disjoint population — retry asks "when do we try a fill that never
+  // worked", refresh asks "when do we re-ask one that already answered" — so it is its own knob.
+  // 24h, not 0, because a live refresh is still how a CORRECTED STATION PIN reaches an old fill;
+  // 0 disables the bound. The measurement behind both the bound and the number (55 of 55 sampled
+  // fills returned identical evidence) is on `reconRefreshedRecently` in scoring/reconcile.ts.
+  SAMSARA_RECON_REFRESH_HOURS: z.coerce.number().min(0).default(24),
   // Tier 2 — identity (vehicles, drivers, assignments): changes slowly, refresh rarely. Hours.
   SAMSARA_IDENTITY_SYNC_HOURS: z.coerce.number().min(0.1).default(12),
   SAMSARA_DRIVER_SCORE_SYNC_HOURS: z.coerce.number().min(0.1).default(6),
