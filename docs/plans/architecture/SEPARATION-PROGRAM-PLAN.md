@@ -393,7 +393,17 @@ pinned in advance. Program-specific additions:
 - **P2.2 — DONE 2026-08-27 (PR #329, migration 0262) — `vehicles` learner split.**
   Two per-domain satellites (tank→anomalies, idle→idle); guards fire on meaning, not presence
   (odometer_offset's 0.0 default caught by the matrix's first run). learned_tank_capacity_gal
-  reserved; the 0119 autofix writer-flip is the named follow-up. `vehicle_learned_state` (or per-domain: tank + idle
+  reserved; the 0119 autofix writer-flip is the named follow-up.
+  **⚠ The retirement half is UNDONE and now owned elsewhere (noted 2026-09-22).** The legacy columns
+  still carry their `DEPRECATED 0262` comments, the mirror trigger still runs, and the writers never
+  migrated — so the satellites and their legacy columns are both live. Measured on that date: the
+  mirror has no diff gate, so an odometer write rewrites both satellites as well as the 447-byte
+  `vehicles` row, and `vehicles` + both satellites + `vehicle_positions` have taken **14.55 M updates
+  and 27,573 autovacuum cycles across 932 rows** in 122 days. `odometer_offset` has already drifted on
+  one vehicle. The writer-flip, the column drop and the retirement of `DATA-LIFECYCLE-PLAN`'s 0352
+  workaround are planned together in **`docs/plans/architecture/TELEMETRY-SEPARATION-PLAN.md`**
+  (`D-TEL*`), which also adds the two satellites 0262 did not cover (the Samsara live feed and the
+  driver HOS block). `vehicle_learned_state` (or per-domain: tank + idle
   envelope) satellite; `0119`-style autofix writes the satellite and NEVER master data;
   master `tank_capacity_gal` reverts to human/collector truth. Same view+migrate-writers
   pattern.
