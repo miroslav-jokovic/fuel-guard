@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DRIVER_STATUSES, isInServiceVehicleStatus } from "@silvicom/shared";
 import { readVehiclePositions } from "../samsara/index.js";
+import { readRecentlyFuelledVehicleIds } from "../fuel/index.js";
 import { writeAudit } from "../../lib/audit.js";
 
 /**
@@ -23,39 +24,52 @@ import { writeAudit } from "../../lib/audit.js";
  *    over verbatim from `samsaraDriverSync` where it was written after a thin response nearly
  *    deactivated a fleet. It matters more here: McLeod holds 1,299 non-active driver records against
  *    164 active ones, so a mis-scoped sweep has an eight-to-one lever on the roster.
- *  · **Never retires a truck the telematics feed saw in the last 24 hours** (F6, below). The volume
- *    guard above catches a broken query; this one catches a WRONG one, which is the failure that
- *    actually happened — the retire predicate read `outservice_date`, a column this McLeod instance
- *    never clears, and so nominated units 552, 555 and 569 while drivers were running them.
+ *  · **Never retires a truck that is plainly still working** — one the telematics feed saw in the
+ *    last 24 hours, or one that bought diesel in the last 7 days (F6 widened by F14, below). The
+ *    volume guard above catches a broken query; this one catches a WRONG one, which is the failure
+ *    that actually happened, twice over: the retire predicate read `outservice_date`, a column this
+ *    McLeod instance never clears, and nominated units 552, 555 and 569 while drivers were running
+ *    them; and the reconcile read a MISSING McLeod link as absence and retired 33 vehicles on
+ *    2026-09-14, 11 of them still fuelling.
  */
 
 /**
- * ── THE MOVING-TRUCK GUARD (F6) ─────────────────────────────────────────────────────────────────
- * A retirement is a claim about the world: this truck is gone. A GPS fix from this morning is the
- * world answering back, and the two cannot both be true. So a vehicle whose last fix is younger than
- * this window is held out of the retirement and REPORTED — never silently retired, never silently
- * dropped from the report either.
+ * ── THE LIVING-TRUCK GUARD (F6, widened by F14) ─────────────────────────────────────────────────
+ * A retirement is a claim about the world: this truck is gone. Anything the truck did this week is
+ * the world answering back, and the two cannot both be true. So a vehicle showing signs of life is
+ * held out of the retirement and REPORTED — never silently retired, never silently dropped from the
+ * report either.
  *
- * 24 hours, not one: the fleet parks over a weekend and a gateway that has not reported since
- * yesterday afternoon is an ordinary parked truck, not evidence of anything. The window only has to
- * be short enough that a genuinely disposed truck clears it, which one does within a day of its
- * gateway coming out.
+ * ⚠ **It shipped reading only telematics, and that was not enough.** On 2026-09-14 a reconcile sweep
+ * retired 33 vehicles, 11 of them still fuelling. The one the carrier noticed was unit 732, whose
+ * GATEWAY HAD BEEN SWAPPED a fortnight earlier — so the feed had nothing to say about it, while its
+ * fuel card had eleven fills to offer, the most recent that same morning. A guard that reads one
+ * signal is a guard against one failure. (§1.7b of the plan; the swap itself is §1.7a.)
  *
- * ⚠ This guard is the reason a wrong predicate is now LOUD rather than silent, so it ships in the
- * same merge as F1/F2's new predicates rather than after them. It is deliberately NOT a veto on the
- * whole sweep — one contradicted truck says nothing about the other 458 — and deliberately NOT
- * permanent: the truck is offered again on the next sweep, and once the gateway stops reporting it
- * retires normally with no human in the loop.
+ * TWO SIGNALS, TWO WINDOWS, and the asymmetry is the point rather than an oversight:
+ *
+ *   · **a gateway reports continuously**, so 24 hours of silence is meaningful. Not one hour — the
+ *     fleet parks overnight and over weekends, and a truck that has not reported since yesterday
+ *     afternoon is a parked truck, not evidence of anything.
+ *   · **a fuel card is used episodically.** A truck that fuels twice a week is silent for days at a
+ *     time in perfect health, so 24 hours of no fills says nothing at all. Seven days is the shortest
+ *     window in which an ordinary working truck is certain to have bought something.
+ *
+ * Both are deliberately NOT a veto on the whole sweep — one contradicted truck says nothing about the
+ * other 458 — and neither is permanent: the truck is offered again on the next sweep, and once it
+ * genuinely stops moving and stops fuelling it retires with no human in the loop.
  */
 const FRESH_FIX_HOURS = 24;
+const RECENT_FUEL_DAYS = 7;
 
 /**
- * Vehicle ids whose current position is younger than the window.
+ * Vehicle ids that have done something recently enough to contradict a retirement.
  *
- * Read through samsara's own interface rather than `.from("vehicle_positions")`: that table is
- * `layer=raw, module=samsara` and `check-table-access.mjs` seals a raw table to its collector, which
- * is the data-plane half of D-ARC1. The `mcleod -> samsara` edge this creates is declared in
- * `check-feature-boundaries.mjs` with the same reason written above it.
+ * Both reads go through their owning module's interface rather than `.from()`: `vehicle_positions` is
+ * `layer=raw, module=samsara` and `check-table-access.mjs` seals a raw table to its collector, while
+ * `fuel_transactions` is fuel's table and a collector deciding things about another module's data is
+ * how a schema becomes everybody's problem (D-ARC1/D-ARC3). Both edges — `mcleod -> samsara` and
+ * `mcleod -> fuel` — are declared in `check-feature-boundaries.mjs` with their reasons.
  *
  * A fix whose timestamp does not parse is not counted as fresh. That direction is chosen knowingly:
  * the alternative — treating an unreadable timestamp as evidence of life — would let one malformed
@@ -63,17 +77,25 @@ const FRESH_FIX_HOURS = 24;
  * a healthy guard doing its job. `vehicle_positions.sampled_at` is `timestamptz` and PostgREST
  * renders it with a `+00:00` offset, which `Date.parse` reads correctly as it stands; the parse is
  * pinned by a test carrying that exact spelling, because appending a `Z` to it is how the weather
- * cache spent three weeks returning NaN (D-FC6).
+ * cache spent three weeks returning NaN (D-FC6). The fuel half has no such hazard — the comparison is
+ * made by Postgres, against a timestamp we send it.
  */
-async function freshFixVehicleIds(admin: SupabaseClient, orgId: string): Promise<Set<string>> {
+async function vehiclesShowingLife(admin: SupabaseClient, orgId: string): Promise<Set<string>> {
+  const now = Date.now();
+  const alive = new Set<string>();
+
   const { rows } = await readVehiclePositions(admin, orgId);
-  const cutoff = Date.now() - FRESH_FIX_HOURS * 60 * 60 * 1000;
-  const fresh = new Set<string>();
+  const fixCutoff = now - FRESH_FIX_HOURS * 60 * 60 * 1000;
   for (const row of rows) {
     const at = Date.parse(row.sampled_at);
-    if (Number.isFinite(at) && at >= cutoff) fresh.add(row.vehicle_id);
+    if (Number.isFinite(at) && at >= fixCutoff) alive.add(row.vehicle_id);
   }
-  return fresh;
+
+  const fuelSince = new Date(now - RECENT_FUEL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { vehicleIds } = await readRecentlyFuelledVehicleIds(admin, orgId, fuelSince);
+  for (const id of vehicleIds) alive.add(id);
+
+  return alive;
 }
 
 export interface RetireInput {
@@ -93,8 +115,9 @@ export interface RetireResult {
   skippedOwned: string[];
   /** McLeod cleared a termination date. Surfaced for a human; never applied. */
   rehires: string[];
-  /** Vehicles held back because telematics saw them inside `FRESH_FIX_HOURS` (F6). External ids, so
-   *  the operator reading the agent's report can look the contradiction up in McLeod directly. */
+  /** Vehicles held back because they are plainly still working — a fix inside `FRESH_FIX_HOURS` or a
+   *  fill inside `RECENT_FUEL_DAYS` (F6/F14). External ids, so the operator reading the agent's
+   *  report can look the contradiction up in McLeod directly. */
   heldMoving: string[];
   /** `externalId:message` for rows whose UPDATE was refused by the database. */
   failed: string[];
@@ -182,7 +205,7 @@ export async function retireFromTms(
   // Only vehicles have a telematics fix to contradict the payload with. Read once for the batch: this
   // is one query for the whole sweep, against ~200 rows, and doing it per candidate would be a query
   // per truck for a guard that usually fires on none of them.
-  const freshFix = entity === "vehicles" ? await freshFixVehicleIds(admin, orgId) : new Set<string>();
+  const showingLife = entity === "vehicles" ? await vehiclesShowingLife(admin, orgId) : new Set<string>();
 
   for (const input of rows) {
     const row = byLink.get(input.external_id);
@@ -197,7 +220,7 @@ export async function retireFromTms(
     // Checked BEFORE the already-in-the-right-state test so a truck the feed contradicts is reported
     // every sweep, not just the first one. A held truck that has genuinely gone stops appearing here
     // as soon as its gateway does.
-    if (freshFix.has(row.id)) {
+    if (showingLife.has(row.id)) {
       out.heldMoving.push(input.external_id);
       continue;
     }
@@ -292,11 +315,11 @@ export async function reconcileAbsentFromTms(
   // a weaker claim than a nomination. A truck falls out of this reconciliation for any reason the
   // ACTIVE predicate is narrow — which is exactly what F1 just changed — and a telematics fix from
   // this morning is the one piece of evidence that outranks "McLeod did not mention it".
-  const freshFix = entity === "vehicles" ? await freshFixVehicleIds(admin, orgId) : new Set<string>();
+  const showingLife = entity === "vehicles" ? await vehiclesShowingLife(admin, orgId) : new Set<string>();
 
   for (const row of candidates) {
     const patch: Record<string, unknown> = {};
-    if (freshFix.has(String(row.id))) {
+    if (showingLife.has(String(row.id))) {
       heldMoving.push(String(row.id));
       continue;
     }

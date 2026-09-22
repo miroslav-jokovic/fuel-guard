@@ -33,3 +33,9 @@ export { FUEL_EVENT_DROP, FUEL_EVENT_DROP_UNVERIFIED } from "./fuelEventTypes.js
  * the dashboard endpoint asks this module rather than reading the table (queue item 5, §7.2b).
  */
 export { countDeclinedAttempts } from "./declinedCount.js";
+/**
+ * "Which trucks have bought diesel lately?" — asked by the McLeod roster sweep before it retires
+ * anything, because a truck that is fuelling has not been sold (F14). Exposed here rather than read
+ * across: `fuel_transactions` is this module's table.
+ */
+export { readRecentlyFuelledVehicleIds, type RecentFuelResult } from "./recentFuelReads.js";
