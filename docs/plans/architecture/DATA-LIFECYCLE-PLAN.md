@@ -1389,3 +1389,21 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   Pinned by 7 cases in `reconRefreshBound.test.ts`. Four mutations: drop the ever-succeeded condition
   (fails the collector-tier exemption), remove the bound (1), invert the window (2), treat an
   unparseable stamp as fresh (1).
+
+- **2026-09-22 (later still) — Q6d part 1: `verdict_hash` column** (`claude/q6d-verdict-hash-column`,
+  migration 0356). Schema only; the writer is the next merge, because a merge is SERVED ~3 minutes in
+  while `migrate.yml` waits for CI green, and a writer shipped here would insert a column the database
+  does not have — every scoring attempt in the fleet failing for that window.
+  **A SECOND column, not a redefinition of the first.** Dropping the recon metadata out of
+  `result_hash` is one line and would silently redefine the 2,427,180 hashes already stored: old rows
+  computed under the old definition, new rows under the new, and nothing in the table saying which is
+  which. A comparison across that boundary would be meaningless and would look fine. `result_hash`
+  keeps the payload identity its docstring claims — the right answer to "would this write have changed
+  the row" — and `verdict_hash` answers the other question.
+  Nullable, no default, no backfill: null means "written before the verdict hash existed", which is
+  true and is the only honest value for 2.4M existing rows. No new index — the question walks one
+  transaction's attempts in order, which `idx_scoring_attempts_transaction_started` already serves.
+  ⚠ A first draft of this migration cited L5's 139 ms → 3,879 ms timing as evidence that the
+  transaction index is live. That measurement is `idx_scoring_attempts_org_started`'s — a different
+  index and a different query. Corrected before commit, and noted here because a borrowed number
+  reads exactly like a measured one.
