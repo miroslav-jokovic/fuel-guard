@@ -122,6 +122,105 @@ describe("the bad-fetch guard", () => {
 });
 
 /**
+ * ── THE RETIREMENT PAYLOAD, FOR EQUIPMENT ───────────────────────────────────────────────────────
+ * `retireFromTms` had coverage for drivers only, and the vehicle half was a silent no-op the whole
+ * time: `tmsRetireInputSchema` carries `inactive | terminated`, `vehicles.status` is the
+ * `vehicle_status` enum, and writing the one into the other fails with 22P02 — an error the old
+ * `if (!upErr) out.retired++` discarded, so the endpoint reported `retired: 0` and no failure.
+ * The reconcile path below maps correctly, which is why nothing noticed.
+ */
+const veh = (over: Record<string, unknown> = {}) => ({
+  id: "v-1", org_id: ORG, mcleod_tractor_id: "T900", status: "active", identity_source: "mcleod", ...over,
+});
+/** A position row as PostgREST renders one: `timestamptz` with a `+00:00` offset, never a `Z`. */
+const fixAt = (msAgo: number) =>
+  new Date(Date.now() - msAgo).toISOString().replace("T", " ").replace("Z", "+00:00");
+const seedVehicle = (rows: Record<string, unknown>[], positions: Record<string, unknown>[] = []) =>
+  createSupabaseRecorder({ tables: { vehicles: rows, vehicle_positions: positions } });
+
+describe("retiring a truck McLeod says has gone", () => {
+  it("writes the vocabulary the column actually holds, not the payload's word for a person", async () => {
+    const rec = seedVehicle([veh()]);
+    const r = await retireFromTms(rec.client, ORG, "vehicles", [
+      { external_id: "T900", status: "inactive" },
+    ]);
+    expect(r.retired).toBe(1);
+    expect(r.failed).toEqual([]);
+    expect(rec.writtenRows("vehicles")[0]!.status).toBe("retired");
+  });
+
+  it("refuses to retire a truck whose gateway reported inside the last 24 hours", async () => {
+    // F6. The predicate that produced this payload read `outservice_date`, which this McLeod instance
+    // never clears — so it nominated units 552, 555 and 569 while drivers were running them, three
+    // trucks whose fixes were minutes old when the plan was measured on 2026-09-22.
+    const rec = seedVehicle([veh()], [{ vehicle_id: "v-1", sampled_at: fixAt(2 * 60 * 60 * 1000) }]);
+    const r = await retireFromTms(rec.client, ORG, "vehicles", [
+      { external_id: "T900", status: "inactive" },
+    ]);
+    expect(r.heldMoving).toEqual(["T900"]);
+    expect(r.retired).toBe(0);
+    expect(rec.writtenRows("vehicles")).toHaveLength(0);
+  });
+
+  it("retires a truck whose last fix is older than the window", async () => {
+    // The guard is a contradiction test, not a veto: a gateway that came out three days ago no longer
+    // says anything, and the truck retires with no human in the loop.
+    const rec = seedVehicle([veh()], [{ vehicle_id: "v-1", sampled_at: fixAt(3 * 24 * 60 * 60 * 1000) }]);
+    const r = await retireFromTms(rec.client, ORG, "vehicles", [
+      { external_id: "T900", status: "inactive" },
+    ]);
+    expect(r.heldMoving).toEqual([]);
+    expect(r.retired).toBe(1);
+  });
+
+  it("leaves a truck that is already out of the operating fleet alone", async () => {
+    // An `ordered` row whose reservation McLeod cancelled: nothing to take away, and clearing a
+    // reservation is F5/E6's question rather than a side effect of a retirement sweep.
+    const rec = seedVehicle([veh({ status: "ordered" })]);
+    const r = await retireFromTms(rec.client, ORG, "vehicles", [
+      { external_id: "T900", status: "inactive" },
+    ]);
+    expect(r.retired).toBe(0);
+    expect(r.unchanged).toBe(1);
+    expect(rec.writtenRows("vehicles")).toHaveLength(0);
+  });
+
+  it("counts a truck in the shop as part of the fleet the bad-fetch cap is measured against", async () => {
+    /**
+     * Three of this org's four trucks are in a shop, and the payload asks for all three. That is a
+     * broken query however the trucks are parked, and the cap refuses the whole call.
+     *
+     * Spelling the denominator `=== "active"` instead of asking `IN_SERVICE_VEHICLE_STATUSES` — which
+     * is what this file said until 2026-09-22, and what the E3 audit converted line 191 but not line
+     * 97 for — makes the cap read a one-truck fleet and a payload of zero: the guard falls silent and
+     * all three are retired. That is the mutation this test exists to fail on (D-FC11).
+     */
+    const rec = seedVehicle([
+      veh({ id: "v-1", mcleod_tractor_id: "T1", status: "maintenance" }),
+      veh({ id: "v-2", mcleod_tractor_id: "T2", status: "maintenance" }),
+      veh({ id: "v-3", mcleod_tractor_id: "T3", status: "maintenance" }),
+      veh({ id: "v-4", mcleod_tractor_id: "T4" }),
+    ]);
+    const r = await retireFromTms(rec.client, ORG, "vehicles", [
+      { external_id: "T1", status: "inactive" },
+      { external_id: "T2", status: "inactive" },
+      { external_id: "T3", status: "inactive" },
+    ]);
+    expect(r.refused).toMatch(/bad fetch/);
+    expect(r.retired).toBe(0);
+    expect(rec.writtenRows("vehicles")).toHaveLength(0);
+  });
+
+  it("org-scopes its read and its writes", async () => {
+    const rec = seedVehicle([veh()]);
+    await retireFromTms(rec.client, ORG, "vehicles", [
+      { external_id: "T900", status: "inactive" },
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+});
+
+/**
  * `reconcileAbsentFromTms` had NO coverage, and the one-way trap it carried could only have been
  * found by reading it: the vehicle branch asked `row.status === "active"`, so the first row ever
  * written with `maintenance` — a value that has sat in the `vehicle_status` enum since migration
@@ -156,6 +255,36 @@ describe("reconciling vehicles McLeod no longer carries", () => {
     const r = await reconcileAbsentFromTms(rec.client, ORG2, "vehicles", fiftyOthers);
     expect(r.retired).toBe(0);
     expect(rec.writtenRows("vehicles")).toHaveLength(0);
+  });
+
+  it("holds back a truck the telematics feed saw this morning, and says so", async () => {
+    // F6 matters MORE here than on the payload path: absence is a weaker claim than a nomination, and
+    // a truck falls out of this reconciliation for any reason the ACTIVE predicate is narrow — which
+    // is exactly what F1 changed in the same merge.
+    const rec = createSupabaseRecorder({
+      tables: {
+        vehicles: [v()],
+        vehicle_positions: [{ vehicle_id: "v-1", sampled_at: fixAt(90 * 60 * 1000) }],
+      },
+    });
+    const r = await reconcileAbsentFromTms(rec.client, ORG2, "vehicles", fiftyOthers);
+    expect(r.retired).toBe(0);
+    expect(r.heldMoving).toEqual(["v-1"]);
+    expect(rec.writtenRows("vehicles")).toHaveLength(0);
+  });
+
+  it("records the contradiction in the audit row even when nothing changed", async () => {
+    // A sweep that changed nothing BECAUSE the guard held everything is what a wrong predicate looks
+    // like from the inside, and the agent's response is read on the carrier's network and discarded.
+    const rec = createSupabaseRecorder({
+      tables: {
+        vehicles: [v()],
+        vehicle_positions: [{ vehicle_id: "v-1", sampled_at: fixAt(60 * 1000) }],
+      },
+    });
+    await reconcileAbsentFromTms(rec.client, ORG2, "vehicles", fiftyOthers);
+    const audit = rec.writtenRows("audit_logs")[0] as { meta?: { heldMoving?: string[] } } | undefined;
+    expect(audit?.meta?.heldMoving).toEqual(["v-1"]);
   });
 
   it("org-scopes its read and its writes", async () => {

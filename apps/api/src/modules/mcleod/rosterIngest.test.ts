@@ -323,6 +323,52 @@ describe("identity mode (M4)", () => {
     expect(p.make).toBe("Freightliner");
   });
 
+  /**
+   * ── E0: THE SWEEP CAN FINALLY CHANGE A TRUCK'S STATUS ───────────────────────────────────────────
+   * §4a's G1 is the finding these four pin: `vehiclePatch` never wrote `status` and `rosterIngest`
+   * hardcoded `"active"` on INSERT only, so every lifecycle change McLeod reports — a truck going
+   * into a shop, a reservation becoming a real truck, a retired row McLeod still carries — was a
+   * silent no-op. The rule itself lives in `deriveVehicleStatus` and is unit-tested in shared; these
+   * prove the sweep actually applies it, which is the half a pure function cannot prove about itself.
+   */
+  it("moves a truck McLeod reports in its shop to maintenance", async () => {
+    const rec = seed({ vehicles: [vehicle({ mcleod_tractor_id: "789" })] });
+    await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789", purchased_at: "2020-12-21", in_shop: true },
+    ], "identity");
+    expect(rec.writtenRows("vehicles")[0]!.status).toBe("maintenance");
+  });
+
+  it("brings a truck back out of the shop when McLeod stops reporting one", async () => {
+    // The reverse direction has to work too, or a truck reaches `maintenance` and stays there — and
+    // `rosterRetire` would then refuse to retire it, which is the one-way trap G2 describes.
+    const rec = seed({ vehicles: [vehicle({ mcleod_tractor_id: "789", status: "maintenance" })] });
+    await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789", purchased_at: "2020-12-21", in_shop: false },
+    ], "identity");
+    expect(rec.writtenRows("vehicles")[0]!.status).toBe("active");
+  });
+
+  it("un-retires a truck McLeod still carries — membership is McLeod's decision (D-FC0)", async () => {
+    // The owner's own example: unit 552 was retired here while a driver ran it, because the retire
+    // predicate read an `outservice_date` from 2022. Twelve rows are in that state today.
+    const rec = seed({ vehicles: [vehicle({ mcleod_tractor_id: "552", status: "retired" })] });
+    const r = await ingestVehicles(rec.client, ORG, [
+      { external_id: "552", vin: "3AKJHHDR4LSLL4083", unit_number: "552", purchased_at: "2019-03-04" },
+    ], "identity");
+    expect(r.updated).toBe(1);
+    expect(rec.writtenRows("vehicles")[0]!.status).toBe("active");
+  });
+
+  it("does not touch the status of a row the office owns", async () => {
+    // The ownership rule runs ABOVE the patch, so E0 inherits it rather than restating it.
+    const rec = seed({ vehicles: [vehicle({ mcleod_tractor_id: "789", identity_source: "manual" })] });
+    await ingestVehicles(rec.client, ORG, [
+      { external_id: "789", vin: "3AKJHHDR4LSLL4083", unit_number: "789", in_shop: true },
+    ], "identity");
+    expect(rec.writes()).toEqual([]);
+  });
+
   it("writes is_reefer in both directions but never touches pairing", async () => {
     const rec = seed({ trailers: [trailer({ mcleod_trailer_id: "532159" })] });
     await ingestTrailers(rec.client, ORG, [
@@ -457,6 +503,11 @@ describe("create mode (M5)", () => {
     const row = rec.writtenRows("vehicles")[0]!;
     expect(row.tank_capacity_gal).toBe(0);
     expect(row.unit_number).toBe("789");
+    // A created truck takes the DERIVED status, not a literal. This payload carries neither a
+    // purchase date nor a model year, which is what a reserved unit number looks like, so `ordered`
+    // is the honest answer — and the literal `status: "active"` that used to sit beside the patch
+    // would have said the carrier owns a truck it has not taken delivery of (D-FC10).
+    expect(row.status).toBe("ordered");
   });
 
   it("does not flag a MATCHED truck for completion — it already has a capacity", async () => {

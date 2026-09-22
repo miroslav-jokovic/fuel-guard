@@ -471,6 +471,31 @@ This is the difference between the plan fixing today's roster and fixing the ros
 read it. **Recommendation:** say which of the two it is — "171 of 193 trucks reported engine time" is
 falsifiable; "175 trucks" is not.
 
+**Q-7 — Does the office keep a hand-editable vehicle status? (OWNER ANSWER NEEDED; opened by merge 4)**
+
+E0 made the sweep a writer of `vehicles.status`, and `VehicleForm.vue` has always offered the field.
+Two writers, one column, and since 2026-09-22 the sweep runs the more often of the two — so an office
+edit is now expected to be reverted, silently, within the hour.
+
+The obvious move is the wrong one. 0241's `claim_identity_for_office` trigger would freeze the row on
+any hand edit of a column the sync owns, and that claim is **whole-row**: adding `status` to its
+argument list means one person marking a truck as in the shop also stops McLeod refreshing that
+truck's VIN, plate, registration and inspection date, permanently. That is the defect 0286 had to
+unpick for `dot_annual_inspection_expires_at` — one certified inspection cost a trailer its VIN — in
+a wider form. So `status` is NOT in the trigger's list, and `rosterFields.claimParity.test.ts` now
+carries its first named carve-out saying so.
+
+| candidate | cost |
+|---|---|
+| **(a) make the field read-only, show McLeod as its source** | Honest and cheap. Matches D-FC0 exactly: membership and lifecycle are McLeod's. Costs the office the ability to park a truck the TMS has not parked. |
+| (b) give `status` its own `status_source`, the 0286 pattern | Correct in the general case and a migration plus a branch in the sweep. Worth it only if the carrier actually needs a local override McLeod cannot express. |
+| (c) add `status` to the 0241 trigger | **Rejected** — whole-row claim; one status edit costs the truck every other McLeod-maintained field. |
+| (d) leave both writers, say nothing | Rejected. This is the "second source of truth because the first is inconvenient" shape the repo's no-workarounds rule is named for, with the added cruelty that the losing writer is a human being who watched their edit stick and then vanish. |
+
+**Recommendation: (a)**, unless the owner names a case where the office must park a truck McLeod
+still reports as running. It is one field's `disabled` and a source label, and it can become (b)
+later without anything to undo.
+
 ---
 
 ## §4a — Pre-implementation audit, 2026-09-22
@@ -722,3 +747,44 @@ real incidents in this checkout:
   rather than discovered later. And a cancelled reservation leaves an `ordered` row with nothing to
   clear it, since the retire sweep only reaches in-service rows; that is F5/E6 territory and is 53
   rows at most.
+
+- **2026-09-22 (merge 4 — E0 + F1 + F2 + F3 + F6)** — The census predicate is McLeod's own active
+  flag, and the sweep can finally act on what it reads. Re-measured against the live LoadMaster
+  immediately before the PR, through the agent's real `fetchRoster`, not by hand:
+  **P4 selects 193** (was 228 — 53 reserved unit numbers out, 18 running trucks in), **12 of them
+  carry `tractor_status = 'S'`** and land on `maintenance`, **0 rows have neither a purchase date nor
+  a model year**, the retirement payload is **459** (was 478), and the two sweeps **overlap on
+  nothing**. Units 552, 555 and 569 are no longer nominated for retirement.
+  · **E0/F3** — `vehiclePatch` writes `status`, derived by `deriveVehicleStatus` in
+  `packages/shared/src/tms.ts` (no purchase date and no model year → `ordered`; shop → `maintenance`;
+  else `active`), applied through the existing `applyOutcome` UPDATE, so no new `.from("vehicles")`
+  writer and no `lint:table-modules` entry. It is the ONE field `vehiclePatch` writes
+  unconditionally, because it is derived rather than supplied — there is no "McLeod did not fill it
+  in" case to protect. Un-retiring is the intended direction (D-FC0), and office-owned rows never
+  reach the patch at all.
+  · **The vendor letter does not cross the wire.** `tractor_status` is selected in `queries.mjs` and
+  mapped to a neutral `in_shop` boolean in `roster.mjs`; `tms.ts` never learns a McLeod spelling.
+  Verified on the live payload: `tractor_status` is not a key on any of the 193 rows.
+  · **F6** ships on BOTH retirement paths, and the reconcile path needed it more: absence is a weaker
+  claim than a nomination, and a truck drops out of a reconciliation for any reason the ACTIVE
+  predicate is narrow — which is what F1 just changed. `heldMoving` is reported and lands in the
+  `mcleod.roster_reconciled` audit row, which is now written even when the guard held everything,
+  because a sweep that changed nothing for that reason is what a wrong predicate looks like from the
+  inside. Read through `readVehiclePositions` (samsara's own interface — `vehicle_positions` is
+  `layer=raw`), so `check-feature-boundaries.mjs` gains `mcleod -> samsara` with its reason.
+  ⚠ **Found while shipping F2, and fixed in the same merge: `/roster/vehicles/retire` had never been
+  able to retire a truck.** `tmsRetireInputSchema` carries `inactive | terminated` — the vocabulary
+  of a person leaving — and `vehicles.status` is the `vehicle_status` enum, so every equipment
+  retirement failed with 22P02 and `if (!upErr) out.retired++` discarded the error. The endpoint
+  answered `retired: 0` with no failure, which is indistinguishable from a sweep with nothing to do.
+  The payload's word is now mapped to the row's (`retired`), failures are REPORTED in `failed[]`, and
+  the bad-fetch cap counts `IN_SERVICE_VEHICLE_STATUSES` rather than the literal `"active"` E3 left
+  at line 97 — which would have put the 12 shop trucks outside its own denominator.
+  Verification: 12 mutations, 12 killed, each named in the PR. First run of that battery reported 7
+  of 7 SURVIVED and was itself the bug — `pnpm vitest | tail` returns `tail`'s status, the exact trap
+  the merge-3 working rules record. api 4223 · shared 3080 · agent 6 new.
+  ⚠ **Q-7, new and unanswered (see §4).** `status` is deliberately NOT in 0241's claim-trigger
+  column list, so the parity test carries its first named carve-out: the claim is whole-row, and a
+  hand-edited status would stop McLeod refreshing that truck's VIN, plate, registration and
+  inspection date for good — the defect 0286 had to unpick, in a wider form. The consequence is that
+  `VehicleForm.vue` still offers a status field the next sweep may revert within the hour.

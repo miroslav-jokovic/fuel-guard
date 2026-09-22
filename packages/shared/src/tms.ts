@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { LoadStatus } from "./loadsContract.js";
+import type { VehicleStatus } from "./constants.js";
 
 /**
  * TMS (dispatch) integration contract — the NEUTRAL shape the on-prem sync agent POSTs to Silvicom 360 after it
@@ -289,8 +290,49 @@ export const tmsVehicleInputSchema = z.object({
   annual_inspection_performed_at: isoDate.nullish(),
   /** `purchase_date` — 190 of 190 active tractors, every one in the past (measured 2026-08-24). */
   purchased_at: isoDate.nullish(),
+  /**
+   * Is the carrier's shop holding this truck? A NEUTRAL fact, and deliberately not the TMS letter that
+   * produced it: McLeod spells this `tractor_status = 'S'`, and the rule this whole file states — the
+   * agent owns the vendor mapping, Silvicom 360 never learns a vendor schema — means the letter stops
+   * at `roster.mjs`. It arrives here as the thing the letter MEANS, which is also the only form
+   * `deriveVehicleStatus` below can be tested against without a SQL Server.
+   *
+   * Absent (not false) when the agent is in a mode that does not read the sub-status at all, which is
+   * why the derivation treats absent and false alike: "no evidence of a shop" is not "in a shop".
+   */
+  in_shop: z.boolean().nullish(),
 });
 export type TmsVehicleInput = z.infer<typeof tmsVehicleInputSchema>;
+
+/**
+ * The truck's LIFECYCLE state, derived from what the TMS reports rather than restated beside it
+ * (FLEET-CENSUS-AND-IDLE-TRUTH-PLAN.md E0/F3, D-FC9, D-FC10).
+ *
+ * Until 2026-09-22 the roster sweep had NO path to a status at all: `vehiclePatch` never wrote the
+ * column and `rosterIngest` hardcoded `"active"` on insert, so a truck McLeod parked in a shop and a
+ * unit number the carrier had merely reserved were both stored as a running truck. §4a's G1 is the
+ * finding; this function is the rule that replaces it, and it is pure so that the rule can be argued
+ * with in a unit test instead of in production.
+ *
+ * ── WHY "NOT DELIVERED" IS DECIDED BY A DATE AND NOT BY A VIN ───────────────────────────────────
+ * Measured against McLeod on 2026-09-22: 54 of the 247 `service_status = 'A'` tractors carry neither
+ * a purchase date nor a model year, have never been dispatched, and hold no gateway — they are unit
+ * numbers reserved against an order (§1.2). 53 of those 54 DO carry a serial number, so a VIN says
+ * nothing about whether a truck exists; the purchase date and the model year are what separate an
+ * asset from a reservation. A reserved row that later gains either one becomes `active` on the next
+ * sweep with no intervention, which is the self-healing property assumption A2 rests on.
+ *
+ * Order is load-bearing: `ordered` is tested FIRST because a truck the carrier has not taken delivery
+ * of cannot be in its shop, whatever sub-status the TMS happens to be carrying on the row.
+ */
+export function deriveVehicleStatus(r: {
+  purchased_at?: string | null;
+  year?: number | null;
+  in_shop?: boolean | null;
+}): VehicleStatus {
+  if (!r.purchased_at && !r.year) return "ordered";
+  return r.in_shop === true ? "maintenance" : "active";
+}
 
 export const tmsTrailerInputSchema = z.object({
   /** `dbo.trailer.id`, trimmed. */

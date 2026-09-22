@@ -119,7 +119,27 @@ const MAP = {
     unit_number: s(r.unit_number),
     ...("make" in r
       ? {
-          status: "active", // the query selects in-service tractors only
+          status: "active", // membership: the query selects rows McLeod carries as in service
+          /**
+           * McLeod's shop flag, sent as the FACT and not as the letter.
+           *
+           * `tractor_status` is an operational sub-status (`A` running, `V` available, `I` winding
+           * down, `S` shop, `~` reserved) and this is the one value FuelGuard acts on: a truck in a
+           * shop is still owned, insured, inspected and counted, but it is not running, and the
+           * product has held a `maintenance` state for it since 0001 with nothing ever writing one.
+           *
+           * The mapping lives here for the reason this whole file exists — FuelGuard never learns a
+           * McLeod column name or a McLeod code. `deriveVehicleStatus` in `@silvicom/shared` turns
+           * this boolean, the purchase date and the model year into the stored status, which is where
+           * that rule can be unit-tested without a SQL Server.
+           *
+           * ⚠ The reading of `S` is the owner's, corroborated by behaviour and not by McLeod's
+           * `labelfile` (this login cannot reach it): the 12 rows carrying it have a 40-day median
+           * since their last dispatch, 12 of 12 still hold a gateway, and only 2 hold a driver
+           * (§1.3, Q-2). If it turns out to mean something else, these trucks are `maintenance`
+           * instead of `active` — still in the fleet, still inspected, still on the map.
+           */
+          in_shop: s(r.tractor_status) === "S",
           make: s(r.make),
           model: s(r.model),
           year: year(r.model_year),

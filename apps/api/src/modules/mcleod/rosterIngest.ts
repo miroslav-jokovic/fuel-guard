@@ -391,8 +391,11 @@ export async function ingestVehicles(
     // with zero and reported in `needsCompletion` — exactly what `samsaraVehicleSync` does, and for
     // exactly the same reason: a guessed capacity silently degrades every fuel anomaly on that truck.
     const unit = r.unit_number ?? r.external_id;
-    const insert =
-      mode === "create" ? { ...patch, unit_number: unit, tank_capacity_gal: 0, status: "active" } : null;
+    // `status` is NOT restated here. It used to be `status: "active"`, which was true of every row the
+    // old predicate selected and stopped being true on 2026-09-22, when the sweep started carrying
+    // shop trucks and reserved unit numbers (F1). The patch already carries the derived value and a
+    // literal beside a derivation is the copy-with-a-delay-fuse this repo's register is named for.
+    const insert = mode === "create" ? { ...patch, unit_number: unit, tank_capacity_gal: 0 } : null;
     const before = out.created;
     await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf, inspectionOwned, insert, WRITES[mode]);
     // Only a truck that was actually inserted needs finishing — a matched one already has its capacity.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tmsLoadsPayloadSchema, tmsDispatchersPayloadSchema } from "./tms.js";
+import { tmsLoadsPayloadSchema, tmsDispatchersPayloadSchema, deriveVehicleStatus } from "./tms.js";
 
 /**
  * The route parses the payload with `tmsLoadsPayloadSchema.safeParse` BEFORE `ingestLoads` sees it
@@ -58,5 +58,44 @@ describe("the dispatcher roster payload", () => {
       dispatchers: [{ external_id: "loadmaster", display_name: "McLeod Administrator", is_system: true }],
     }).dispatchers[0]!;
     expect(d.is_system).toBe(true);
+  });
+});
+
+/**
+ * `deriveVehicleStatus` is the whole of E0's rule (FLEET-CENSUS-AND-IDLE-TRUTH-PLAN.md, D-FC9/D-FC10).
+ * It is pure so that "which trucks are in the fleet" can be argued with here rather than in
+ * production — the roster sweep had no path to a status at all until 2026-09-22, and the two values
+ * it now writes had between them never appeared on a row in this database.
+ */
+describe("the lifecycle status a TMS row implies", () => {
+  it("calls a row with no purchase date and no model year an ORDER, not a truck", () => {
+    // Measured against McLeod 2026-09-22: 54 of 247 active tractors look like this — no dispatch
+    // history, no gateway, one shared inservice_date. 53 of the 54 DO carry a serial number, so a VIN
+    // cannot tell them apart from equipment and these two dates can.
+    expect(deriveVehicleStatus({ purchased_at: null, year: null })).toBe("ordered");
+  });
+
+  it("accepts either date as evidence the truck exists", () => {
+    expect(deriveVehicleStatus({ purchased_at: "2020-12-21", year: null })).toBe("active");
+    expect(deriveVehicleStatus({ purchased_at: null, year: 2021 })).toBe("active");
+  });
+
+  it("puts a delivered truck the shop is holding into maintenance", () => {
+    // 12 trucks on 2026-09-22. The value has sat in the `vehicle_status` enum since 0001 with nothing
+    // ever writing one, which is how `equipmentInspection` came to drop them from the §396.17 roster.
+    expect(deriveVehicleStatus({ purchased_at: "2020-12-21", in_shop: true })).toBe("maintenance");
+  });
+
+  it("reads a truck the carrier has not taken delivery of as ordered even if the TMS flags a shop", () => {
+    // Order is load-bearing: a truck that does not exist yet cannot be in a shop, whatever sub-status
+    // the row happens to be carrying.
+    expect(deriveVehicleStatus({ purchased_at: null, year: null, in_shop: true })).toBe("ordered");
+  });
+
+  it("treats an ABSENT shop flag as no evidence of a shop, not as evidence of one", () => {
+    // Link mode does not read the sub-status at all, so `undefined` arrives routinely and must not
+    // park a running truck.
+    expect(deriveVehicleStatus({ purchased_at: "2020-12-21" })).toBe("active");
+    expect(deriveVehicleStatus({ purchased_at: "2020-12-21", in_shop: null })).toBe("active");
   });
 });

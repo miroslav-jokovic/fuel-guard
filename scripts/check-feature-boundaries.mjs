@@ -102,6 +102,14 @@ const API_ALLOW = new Set([
   // holds the write-only-on-change invariant because insert_certification supersedes uncondition-
   // ally and this sweep runs nightly against a table nothing may prune.
   "mcleod -> evidence",
+  // The retirement sweep asks the telematics feed whether a truck McLeod says is gone was driving
+  // this morning (F6, FLEET-CENSUS-AND-IDLE-TRUTH-PLAN.md). A retirement is a claim about the world
+  // and a fresh GPS fix is the world contradicting it, so the guard cannot be built out of McLeod's
+  // own data — it has to reach the other collector. Narrow by construction: readVehiclePositions
+  // only, through samsara's index, because `vehicle_positions` is layer=raw and check-table-access
+  // seals it to its owner. The reverse edge ("samsara -> mcleod") has been here since the roster
+  // syncs learned to defer on identity; this is the same cross-collector rule read the other way.
+  "mcleod -> samsara",
   // ── the §396.17 annual inspection's three reads-and-writes-through-owners (D-AVI10) ───────────
   // maintenance owns the report; it owns none of what a report has to be made of. All three edges
   // go through the owner's index, which is exactly the shape D-ARC3 asks for rather than a leak:
