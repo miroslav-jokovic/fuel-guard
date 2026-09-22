@@ -497,6 +497,27 @@ Immediately actionable from §2.5: `idx_scoring_attempts_org_started` (164 MB, 0
 `idx_audit_action_trgm` (112 MB, 38 scans, 8 distinct values). ~276 MB reclaimable.
 `idx_audit_org_time` (349 MB, 68 scans) backs the audit UI — **review, do not drop blind.**
 
+⚠ **CORRECTED 2026-09-22 by L5, which is DECLINED on its own measurement. Neither index is dead,
+both are the planner's chosen path, and the ~276 MB is not reclaimable.** The decision above is kept
+because the PRINCIPLE survives and only its two examples fall; see §8's L5 entry for the method.
+
+| index | scans (re-measured) | with it | without it | verdict |
+|---|---|---|---|---|
+| `idx_audit_action_trgm` | 40 | **457 ms** | **57,287 ms** (2,531,818 rows dropped by filter) | **KEEP** — 125× |
+| `idx_scoring_attempts_org_started` | 10 | **139–352 ms** warm | **3,879–6,263 ms** | **KEEP** — 11–45× |
+
+Two premises were wrong. `audit_logs.action` has **100 distinct values, not 8**, over 5,063,829 rows,
+so a trigram index is the right structure and not an obvious mistake — and the audit UI's filter is
+`ilike('action', '<prefix>%')`, which the planner serves from exactly that index. And a low
+`idx_scan` count measures HOW OFTEN A PAGE IS VISITED, not whether the index earns its keep: both of
+these back real but rarely-opened screens (`AuditPage.vue`, `scoringHealth.ts`), and on the visit they
+do get they are the difference between a third of a second and a minute.
+
+⚠ **The growth judge `D-LIFE9` must not be built on `idx_scan` alone, or it will raise exactly this
+finding, and a future reader will action it.** A judge needs the counterfactual — the cost of the
+query WITHOUT the index — which `EXPLAIN (ANALYZE)` inside `begin; set local enable_*scan = off;
+… rollback;` gives safely, without dropping anything or taking a lock.
+
 ### D-LIFE9 — the growth judge closes the loop
 A scheduled pass samples `pg_class` / `pg_stat_user_indexes` into a small `table_growth_days`
 (`derived`, per-table-per-day, ~200 rows/day, self-hosting under its own budget) and raises a
@@ -553,7 +574,7 @@ Each step is one PR unless stated.
 | **L3** | `scoring_attempts` → `RETENTION_RULES` at 45 d; investigate the 136×/txn rescore loop | **~12 GB/yr** + wasted compute | L1 |
 | **L4** | ~~Null-driver `hos_duty_segments` ruling (Q2) + retention 400→120 d~~ **RE-SCOPED 2026-09-22 (§2.9, `D-LIFE11`): anchor the HOS window to the calendar day + drop the boundary-clipped segment.** Neither original leg survived measurement | **~6.7 GB/yr and ~21× write amplification** | L1 |
 | **L4b** | Delete the ~1.4 M rows L4 stopped producing (`Q7`) — needs an owner ruling, not a merge | ~0.9 GB now | L4, Q7 |
-| **L5** | Drop the two dead indexes (`D-LIFE8`) | ~276 MB now | — |
+| ~~**L5**~~ | ~~Drop the two dead indexes (`D-LIFE8`)~~ — **DECLINED 2026-09-22, neither is dead; both are 11–125× on their query.** See `D-LIFE8` | **0 MB**, not 276 | — |
 | **L6** | `pg_partman` + `pg_cron` install, `partman` schema, **plus the `D-LIFE10` alarm** | mechanism | L1 |
 | **L7** | Partition `audit_logs` — Merge A (DDL) then Merge B (drain) per `D-LIFE3` | bounded working set on the largest table | L6, Q1 |
 | **L8** | The growth judge + `table_growth_days` (`D-LIFE9`) | the observation leg | L1 |
@@ -925,3 +946,38 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   **What this does not do.** It does not delete the 33,245 rows the post-fix run already wrote, nor
   Q7's ~1.4 M. Those are orphans under the new parser and inside the sweep's window, so the sweep
   removes the 33,245 on its own; Q7's remain below the floor and still need the owner's ruling.
+
+- **2026-09-22 — L5 is DECLINED, and the step is the measurement that declined it**
+  (`claude/data-lifecycle-l5`). The queue called this one "no dependencies, cheap": drop two dead
+  indexes, reclaim ~276 MB. Re-measuring before dropping — which the step's own instruction demanded
+  — found neither index dead and both load-bearing, so **nothing is dropped and no migration is
+  written**. The counterfactual was taken safely, without dropping anything and without taking an
+  `ACCESS EXCLUSIVE` lock on a 5 M-row production table, by running `EXPLAIN (ANALYZE)` inside
+  `begin; set local enable_bitmapscan = off; … rollback;`.
+
+  | index | with it | without it | |
+  |---|---|---|---|
+  | `idx_audit_action_trgm` (113 MB) | 457 ms | **57,287 ms** | 125×, 2,531,818 rows dropped by filter |
+  | `idx_scoring_attempts_org_started` (169 MB) | 139–352 ms | 3,879–6,263 ms | 11–45× |
+
+  **Both premises in `D-LIFE8` were wrong.** `audit_logs.action` has **100 distinct values, not 8**,
+  over 5,063,829 rows — so a trigram index is the correct structure, and the audit UI's filter is
+  `ilike('action', '<prefix>%')`, served from exactly that index. And `idx_scan` counts how often a
+  PAGE IS VISITED, not whether an index earns its keep: 40 scans and 10 scans in 122 days are two
+  rarely-opened screens (`AuditPage.vue`, `scoringHealth.ts`), and on the visits they do get, these
+  indexes are the difference between a third of a second and a minute.
+  ⚠ **This measurement nearly went the other way, and the reason is worth keeping.** The first
+  comparison on `scoring_attempts` showed the fallback FASTER (4.10 s seq vs 6.17 s index) and an
+  index-only scan doing 129,396 heap fetches, which reads like an index that has stopped paying for
+  itself on a write-heavy table. It was a cold index against a warm heap. Alternating the two plans
+  three times each reversed it: warm, the index is 139 ms and the sequential scan is still ~4–6 s.
+  **One timing against another timing is not a measurement unless both are warm** — the same lesson
+  as calibrating a renderer against a ruler rather than against a second renderer.
+  **What this means for `L8`.** The growth judge must NOT raise "index with zero scans" on `idx_scan`
+  alone: built that way it would raise exactly this finding, and a future reader would action it and
+  take a 125× regression on the audit page. A judge needs the counterfactual, and the
+  `set local enable_*scan = off` recipe above is how it can be taken safely.
+  **The space L5 promised does not exist.** `scoring_attempts` is already at its steady state — L3's
+  45-day window HAS fired (oldest row 2026-08-09, a 44-day span against `keepDays: 45`), and the
+  table is 1,023 MB with 389 MB of indexes, all three of which are used. There is no index drop
+  available on either table, so the remaining lever on this storage is `L7`, which still needs `Q1`.
