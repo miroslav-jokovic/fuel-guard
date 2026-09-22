@@ -174,8 +174,18 @@ function feedFreshness(f: EfsSoapFeedStatus): { label: string; warn: boolean } {
   const pending = f.processingPending
     ? ` ${f.processingPending} batch${f.processingPending === 1 ? "" : "es"} awaiting scoring/alerts.`
     : "";
+  // An abandoned batch (migration 0354) has stopped retrying and needs a person. It is stated in its
+  // own clause, ahead of the error text, because "0 batches awaiting" with no other change is
+  // precisely how the three runs that motivated the ceiling stayed invisible for 25 days: a count
+  // falling to zero reads as work finished, and this is the opposite of finished.
+  const abandoned = f.processingAbandoned
+    ? ` ${f.processingAbandoned} batch${f.processingAbandoned === 1 ? " has" : "es have"} stopped retrying and need${f.processingAbandoned === 1 ? "s" : ""} attention.`
+    : "";
   const processingError = f.processingLastError ? ` Processing error: ${f.processingLastError.slice(0, 160)}` : "";
-  return { label: `Last polled ${ago}${success}.${pending}${processingError}`, warn: Boolean(f.processingLastError) };
+  return {
+    label: `Last polled ${ago}${success}.${pending}${abandoned}${processingError}`,
+    warn: Boolean(f.processingLastError) || Boolean(f.processingAbandoned),
+  };
 }
 
 const postedFreshness = computed(() =>

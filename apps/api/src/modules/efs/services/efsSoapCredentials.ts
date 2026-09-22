@@ -3,9 +3,9 @@ import type { Env } from "../../../env.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { invalidateOrgSoapCaches } from "../lib/soapCaches.js";
 import { open, seal, secretAad } from "../../../lib/secretBox.js";
-import { describeTlsMaterial, envTlsMaterial, type EfsTlsMaterial } from "../lib/soapClient.js";
+import { envTlsMaterial, type EfsTlsMaterial } from "../lib/soapClient.js";
 import { efsEndpointHost, validateEfsSoapEnvironment } from "./efsSoapCredentialIdentity.js";
-import { CERT_EXPIRY_WARN_DAYS, listCerts, loadActiveMaterial, type StoredCertSummary } from "./efsSoapClientCerts.js";
+import { loadActiveMaterial } from "./efsSoapClientCerts.js";
 
 /**
  * EFS SOAP integration credentials — CRUD + non-secret status.
@@ -50,48 +50,6 @@ export interface EfsSoapCredentials {
    */
   tls: EfsTlsMaterial | null;
 }
-
-export interface EfsSoapStatus {
-  configured: boolean;
-  enabled: boolean;
-  environment: "sandbox" | "production" | null;
-  endpointUrl: string | null;
-  accountId: string | null;
-  posted: {
-    lastPolledAt: string | null;
-    lastSuccessAt: string | null;
-    lastError: string | null;
-    processingPending: number;
-    processingLastError: string | null;
-  };
-  rejected: {
-    lastPolledAt: string | null;
-    lastSuccessAt: string | null;
-    lastError: string | null;
-    processingPending: number;
-    processingLastError: string | null;
-  };
-  /** Transport security, described without exposing any key material. */
-  tls: {
-    /** Human summary, e.g. "client certificate (PEM, CN=...) + per-org". */
-    description: string;
-    /** "org" when a stored certificate is presenting, "env" for the deploy-wide fallback, else null. */
-    source: "org" | "env" | null;
-    /** The active stored certificate, when there is one. Never includes the private key. */
-    activeCert: StoredCertSummary | null;
-    /** True when a certificate is presenting and it expires within the warning band. */
-    expiringSoon: boolean;
-  };
-}
-
-/** Zero-configured status — reported to the UI when no row exists AND no env fallback is set. */
-const EMPTY_STATUS: Omit<EfsSoapStatus, "configured" | "enabled" | "tls"> = {
-  environment: null,
-  endpointUrl: null,
-  accountId: null,
-  posted: { lastPolledAt: null, lastSuccessAt: null, lastError: null, processingPending: 0, processingLastError: null },
-  rejected: { lastPolledAt: null, lastSuccessAt: null, lastError: null, processingPending: 0, processingLastError: null },
-};
 
 interface DbRow {
   org_id: string;
@@ -352,82 +310,6 @@ export async function disableEfsSoapCredentials(admin: SupabaseClient, orgId: st
     .eq("org_id", orgId);
   if (error) throw new Error(error.message);
   invalidateOrgSoapCaches(orgId);
-}
-
-/**
- * Non-secret status for the settings UI. NEVER returns password, cursors (opaque provider tokens),
- * or anything that could leak credential material. Safe to expose to admin-role clients.
- */
-export async function getEfsSoapStatus(
-  admin: SupabaseClient,
-  env: Env,
-  orgId: string,
-): Promise<EfsSoapStatus> {
-  const creds = await getEfsSoapCredentials(admin, env, orgId);
-  const tls = await tlsStatus(admin, orgId, creds?.tls ?? null);
-  if (!creds) return { configured: false, enabled: false, ...EMPTY_STATUS, tls };
-  const { data: processing } = await admin
-    .from("efs_processing_runs")
-    .select("feed, status, last_error")
-    .eq("org_id", orgId)
-    .in("status", ["pending", "running", "failed"])
-    .order("updated_at", { ascending: false })
-    .limit(100);
-  const processingRows = (processing ?? []) as { feed: "posted" | "rejected"; status: string; last_error: string | null }[];
-  const processingFor = (feed: "posted" | "rejected") => {
-    const rows = processingRows.filter((r) => r.feed === feed);
-    return {
-      processingPending: rows.length,
-      processingLastError: rows.find((r) => r.status === "failed")?.last_error ?? null,
-    };
-  };
-  return {
-    configured: true,
-    enabled: creds.enabled && env.EFS_SOAP_ENABLED, // both must be true for the poller to run
-    environment: creds.environment,
-    endpointUrl: creds.endpointUrl,
-    accountId: creds.accountId,
-    posted: {
-      lastPolledAt: creds.postedLastPolledAt,
-      lastSuccessAt: creds.postedLastSuccessAt,
-      lastError: creds.postedLastError,
-      ...processingFor("posted"),
-    },
-    rejected: {
-      lastPolledAt: creds.rejectedLastPolledAt,
-      lastSuccessAt: creds.rejectedLastSuccessAt,
-      lastError: creds.rejectedLastError,
-      ...processingFor("rejected"),
-    },
-    tls,
-  };
-}
-
-/**
- * Transport-security block for the settings UI. Reads the ACTIVE certificate's metadata (never its
- * key) so an admin can see, in one place: what identity we present, who issued it, when it expires,
- * and whether the last handshake actually worked. That last field is what makes an EFS-side
- * enrolment problem visible before it becomes a silent gap in the fuel feed.
- */
-async function tlsStatus(
-  admin: SupabaseClient,
-  orgId: string,
-  material: EfsTlsMaterial | null,
-): Promise<EfsSoapStatus["tls"]> {
-  let activeCert: StoredCertSummary | null = null;
-  if (material?.source === "org") {
-    const certs = await listCerts(admin, orgId, new Date(), 5);
-    activeCert = certs.find((c) => c.status === "active") ?? null;
-  }
-  const expiringSoon = activeCert
-    ? activeCert.expiryState === "expiring" || activeCert.expiryState === "expired"
-    : !!material?.notAfter && Date.parse(material.notAfter) - Date.now() <= CERT_EXPIRY_WARN_DAYS * 86_400_000;
-  return {
-    description: describeTlsMaterial(material),
-    source: material?.source ?? null,
-    activeCert,
-    expiringSoon,
-  };
 }
 
 export type FeedName = "posted" | "rejected";

@@ -1322,3 +1322,35 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   `getEfsSoapStatus` counts only `pending`/`running`/`failed`, so an abandoned run drops out of the
   operator surface entirely — trading a loud permanent loop for a silent permanent stop. That is the
   next merge, and it reads a value that already exists by then.
+
+- **2026-09-22 (later still) — Q6b's second half: an abandoned run is now LOUD**
+  (`claude/q6b-abandoned-visibility`). 0354 gave a permanently-stuck run somewhere to die; on its own
+  that traded a loud failure for a silent one. `getEfsSoapStatus` selected
+  `pending`/`running`/`failed`, so an abandoned run **drops out of the query entirely** and the
+  operator watches the batch count fall to zero — the same picture as work that finished. The three
+  runs the ceiling was written for were invisible for 25 days while being 48.9% of all scoring, and a
+  fix whose only visible effect is a number going down would have preserved exactly that.
+  `processingAbandoned` is counted separately and is NOT folded into `processingPending`: nothing will
+  pick an abandoned run up, so counting it as pending reports work in progress that does not exist.
+  Its `last_error` outranks a `failed` run's, because a failed run is mid-ladder and its error may be
+  transient while an abandoned run's error is the final word on that import.
+  ⚠ **The `EfsSoapStatus` shape is declared TWICE** — inline in `efsSoapCredentials.ts` and again in
+  `apps/web/src/features/settings/useEfsSoap.ts` — against the rule that `packages/shared` is the only
+  home for an api/web contract. That predates this merge and is not made worse by it, but it is a
+  copy with a delay fuse and it is recorded here rather than left silent; the field had to be added in
+  both places by hand, which is exactly the cost the rule exists to prevent.
+  The web field is declared OPTIONAL for the deploy window: for the few minutes a new SPA is served by
+  the old API it is simply absent, and a missing field read as `undefined` renders nothing, where a
+  required field read as `0` would assert "nothing abandoned" — the one answer that is actively wrong.
+  Pinned by three cases in `efsSoapCredentials.test.ts`; the fixture HONOURS the `.in("status", …)`
+  filter rather than returning a flat array, so dropping `abandoned` from the query fails two of them
+  (a flat array could never catch that). Mutations: drop it from the filter (2 fail), count abandoned
+  as pending (1), remove the error precedence (1).
+  ⚠ Adding one field pushed `efsSoapCredentials.ts` to 509 lines, over the 500-line budget
+  (`lint:filesize`). Split rather than waived, along a seam that was already there:
+  `efsSoapStatus.ts` now holds everything that READS and renders (369 + 153 lines), while
+  `efsSoapCredentials.ts` keeps what stores, seals and rotates. **Nothing in the new module touches a
+  password** — that is the property worth keeping the two apart for, not the line count.
+  **VERIFIED IN PRODUCTION 2026-09-22 18:2x UTC: all three runs are `abandoned`** at attempts 234,
+  236 and 236, within ~20 minutes of 0354 applying, exactly as 0354's header predicted and with no
+  manual data write. Q6a is CLOSED.

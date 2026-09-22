@@ -18,6 +18,16 @@ export interface EfsSoapFeedStatus {
   lastError: string | null;
   processingPending: number;
   processingLastError: string | null;
+  /**
+   * Runs that reached the attempt ceiling (migration 0354) and will never be retried. Separate from
+   * `processingPending` because an abandoned run is not waiting for anything — it needs a person.
+   *
+   * Optional ONLY for the deploy window: this field ships in the same merge as the API that returns
+   * it, and for the few minutes the new SPA is served by the old API it is simply absent. Reading a
+   * missing field as `undefined` renders nothing; declaring it required would make it read as 0,
+   * which is the one answer that is actively wrong here.
+   */
+  processingAbandoned?: number;
 }
 
 /** Non-secret status shape returned by GET /api/integrations/efs-soap/config. */
