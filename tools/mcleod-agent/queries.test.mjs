@@ -66,3 +66,34 @@ test("the two sweeps cannot both claim a tractor, and neither claims a NULL", ()
   assert.match(vehicles("identity"), /t\.service_status = 'A'/);
   assert.match(retirementQueries().vehicles, /t\.service_status <> 'A'/);
 });
+
+// ── Trailers (E5) — the same D-FC2 finding, a different census ─────────────────────────────────────
+// Measured 2026-09-22: 231 trailers are `is_active = 'A'`, 223 are selected, 172 retire.
+
+const trailers = (mode) => rosterQueries(mode).trailers;
+
+test("the trailer census does not read outservice_date in either direction", () => {
+  // Trailer 532167 carries 2020-05-04 and ran 17 settled movements in the 60 days measured; the
+  // clause kept it out of the active sweep AND put it in the retirement sweep, so it is retired here.
+  assert.ok(!/outservice_date IS/.test(trailers("identity")), "the active sweep must not read outservice_date");
+  const retire = retirementQueries().trailers;
+  assert.match(retire, /r\.is_active <> 'A'/);
+  assert.ok(!/outservice_date IS NOT NULL/.test(retire), "retirement must not infer from outservice_date");
+});
+
+test("a trailer fixture is excluded by rule — it has no VIN — and the name fence stays", () => {
+  const q = trailers("identity");
+  assert.match(q, /NULLIF\(LTRIM\(RTRIM\(r\.serial_number\)\), ''\) IS NOT NULL/);
+  assert.match(q, /NOT LIKE 'TEST%'/);
+});
+
+test("the trailer census is not the tractor's with the letters changed", () => {
+  const q = trailers("identity");
+  // No reservation shape exists for trailers: the nine 'A' rows without a purchase date are eight
+  // fixtures and one 2014 reefer with a model year. A purchase-date clause could only drop a trailer.
+  assert.ok(!/purchase_date IS NOT NULL/.test(q), "trailers have no reservation clause");
+  // trailer_status 'S' is 39 of 223 rows, all 39 moving. It is not the tractor's shop letter.
+  assert.ok(!/trailer_status/.test(q), "trailer_status is not read");
+  const where = (s) => s.slice(s.indexOf("WHERE"));
+  assert.equal(where(trailers("link")), where(trailers("identity")));
+});

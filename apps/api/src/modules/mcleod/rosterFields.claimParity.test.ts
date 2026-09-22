@@ -98,12 +98,17 @@ describe("0241's claim trigger covers exactly what the McLeod sync writes", () =
   it("names every carve-out — a column excused here must actually be written", () => {
     // Otherwise the exclusion list becomes a place to hide a column that no longer exists, and the
     // parity check quietly stops covering the thing it is named for.
-    const written = new Set(Object.keys(vehiclePatch(FULL_VEHICLE)));
-    for (const column of NOT_CLAIMED) expect(written.has(column)).toBe(true);
+    for (const patch of [vehiclePatch(FULL_VEHICLE), trailerPatch(FULL_TRAILER)]) {
+      const written = new Set(Object.keys(patch));
+      for (const column of NOT_CLAIMED) expect(written.has(column)).toBe(true);
+    }
   });
 
   it("trailers", () => {
-    expect(new Set(triggerColumns("trailers"))).toEqual(new Set(Object.keys(trailerPatch(FULL_TRAILER))));
+    // `status` joined `trailerPatch` on 2026-09-22 (E5) and takes the same carve-out, for the same
+    // whole-row reason: a claimed trailer would stop receiving its VIN and inspection date.
+    const written = Object.keys(trailerPatch(FULL_TRAILER)).filter((c) => !NOT_CLAIMED.has(c));
+    expect(new Set(triggerColumns("trailers"))).toEqual(new Set(written));
   });
 
   it("drivers mirror DRIVER_IDENTITY_FIELDS, so PostgREST and resolveDriverUpdate agree", () => {
