@@ -99,6 +99,10 @@ const STAGING = [
   "fleetpal_defects",
   "fleetpal_issues",
   "fleetpal_expirations",
+  // F9's invoice bridge (migration 0351) — same module, same deny-all posture, same set-based
+  // ingest, so likewise asserted here rather than in a third matrix.
+  "fleetpal_purchase_orders",
+  "fleetpal_po_invoices",
 ];
 
 const stage = (fn, org, rows) => db.query(`select ${fn}($1::uuid, $2::jsonb) as n`, [org, JSON.stringify(rows)]);
@@ -276,6 +280,87 @@ await stage("stage_fleetpal_issues", ORG, [{
 ok("an issue stages and stays one row across a re-run, like everything else in this collector",
   (await count("fleetpal_issues", ORG)) === 1);
 
+// ── 10. the invoice bridge (0351, F9) ──────────────────────────────────────────────────────────
+//
+// The coverage ratio D-FP4 binds to every cost figure is computed from these two tables, so the
+// failures below are failures of the ratio rather than of a staging table:
+//
+//   * A COLLAPSED VENDOR PAIR. `payable_to` is null on 81.5% of the live account and the vendor of
+//     record is `coalesce(payable_to, vendor_location)` — computed at READ. If the ingest had
+//     collapsed it, "the payee is the supplier" and "the payee was never recorded" would be one row
+//     and the distinction could never be recovered.
+//   * A UNIQUE CONSTRAINT ON THE INVOICE NUMBER. There must not be one. The number is not unique
+//     across vendors (the vendor's own documentation says so), and a collision is the fact the
+//     bound is made OF — it is counted at read and reported, never rejected at write. A unique
+//     index here would turn the honest answer into a failed sweep.
+//   * A NEGATED CREDIT. The vendor sends a CREDIT with a POSITIVE amount and the type as the sign.
+
+await stage("stage_fleetpal_purchase_orders", ORG, [
+  { fleetpal_id: "htogZmNa", number: 3991, reference_number: "PO-3991", po_type: "WORK_ORDER",
+    status: "CLOSED", shop_fleetpal_id: "farh5tje", vendor_location_fleetpal_id: "oe7DPadx",
+    payable_to_fleetpal_id: null, work_order_fleetpal_id: "dAP6VYUL", invoices_count: 1,
+    total_invoices: 1808.10, payments_count: 0, total_payments: null, total_items: 0 },
+  { fleetpal_id: "tT3VgAWx", number: 3990, reference_number: "PO-3990", po_type: "WORK_ORDER",
+    status: "CLOSED", shop_fleetpal_id: "farh5tje", vendor_location_fleetpal_id: "BuRxy8Zc",
+    payable_to_fleetpal_id: "i2KFJmdU", work_order_fleetpal_id: "xgaLuofk", invoices_count: 1,
+    total_invoices: 795.00, payments_count: 0, total_payments: null, total_items: 0 },
+]);
+const vendorOfRecord = await db.query(
+  `select fleetpal_id, coalesce(payable_to_fleetpal_id, vendor_location_fleetpal_id) as vendor,
+          payable_to_fleetpal_id is null as payee_unrecorded
+     from fleetpal_purchase_orders where org_id=$1 order by fleetpal_id`, [ORG]);
+ok("⚠ both vendor columns survive staging, so the read can coalesce them AND still see which it used",
+  vendorOfRecord.rows[0].vendor === "oe7DPadx" && vendorOfRecord.rows[0].payee_unrecorded === true &&
+  vendorOfRecord.rows[1].vendor === "i2KFJmdU" && vendorOfRecord.rows[1].payee_unrecorded === false,
+  JSON.stringify(vendorOfRecord.rows));
+ok("⚠ a null `total_payments` stays null rather than becoming a zero nobody asserted (D-FIN10)",
+  (await one(`select total_payments from fleetpal_purchase_orders where org_id=$1 and fleetpal_id='htogZmNa'`, [ORG])).total_payments === null);
+
+// ⚠ Staged through `sqlstate` rather than `stage`, because the failure this guards is a CONSTRAINT
+// and an uncaught one kills the process before the RESULT line — which `run-tests.mjs` reads as
+// "did not execute" rather than as this assertion going red. Proved by adding `unique` to
+// `idx_fleetpal_po_invoices_org_number` and watching the whole matrix die at nbtinsert.c:673.
+const collided = await sqlstate(`select stage_fleetpal_po_invoices($1::uuid, $2::jsonb)`, [ORG, JSON.stringify([
+  { fleetpal_id: "fVN5wBtF", purchase_order_fleetpal_id: "htogZmNa", invoice_type: "STANDARD",
+    invoice_number: "WI012764", invoice_date: "2026-09-21T00:00:00Z", amount: 1808.10,
+    payable_to_fleetpal_id: null },
+  // ⚠ The SAME invoice number from a different purchase order. This is the collision Q9 accepts and
+  // the whole reason the ratio is a bound rather than a figure.
+  { fleetpal_id: "qtJTjjuX", purchase_order_fleetpal_id: "cSjbGNG7", invoice_type: "STANDARD",
+    invoice_number: "WI012764", invoice_date: "2026-08-04T00:00:00Z", amount: 802.01,
+    payable_to_fleetpal_id: null },
+])]);
+ok("⚠ two invoices may share a number — it is NOT unique across vendors, and a constraint here would fail the sweep over the fact the bound is made of",
+  collided === null &&
+  (await one(`select count(*)::int n from fleetpal_po_invoices where org_id=$1 and invoice_number='WI012764'`, [ORG])).n === 2,
+  String(collided));
+
+// The credit is staged in its OWN call rather than riding the batch above. A batch is atomic, so
+// one rolled-back page would take every later assertion's data with it and they would die reading
+// `undefined` instead of reporting — which is what the unique-index mutation did on the first
+// version of this block, and a matrix that cannot reach its RESULT line reads as "did not execute".
+await stage("stage_fleetpal_po_invoices", ORG, [
+  { fleetpal_id: "CR001", purchase_order_fleetpal_id: "htogZmNa", invoice_type: "CREDIT",
+    invoice_number: "WI012764-C", invoice_date: "2026-09-22T00:00:00Z", amount: 250.50,
+    payable_to_fleetpal_id: null },
+]);
+const credit = await one(`select amount, invoice_type from fleetpal_po_invoices where org_id=$1 and fleetpal_id='CR001'`, [ORG]);
+ok("⚠ a CREDIT keeps its POSITIVE amount and says so in its type — the sign is the type, and summing without reading it overstates spend by twice every credit note",
+  Number(credit?.amount) === 250.50 && credit?.invoice_type === "CREDIT", JSON.stringify(credit));
+ok("an invoice whose purchase order has never been staged is accepted, like every other child in this collector",
+  (await sqlstate(`select stage_fleetpal_po_invoices($1::uuid, $2::jsonb)`,
+    [ORG, JSON.stringify([{ fleetpal_id: "ORPHAN", purchase_order_fleetpal_id: "NEVER-SEEN", invoice_type: "STANDARD", invoice_number: "X1", amount: 1 }])])) === null);
+
+await stage("stage_fleetpal_po_invoices", ORG, [
+  { fleetpal_id: "fVN5wBtF", purchase_order_fleetpal_id: "htogZmNa", invoice_type: "STANDARD",
+    invoice_number: "WI012764", invoice_date: "2026-09-21T00:00:00Z", amount: 1750.00,
+    payable_to_fleetpal_id: null },
+]);
+const restaged = await one(`select amount from fleetpal_po_invoices where org_id=$1 and fleetpal_id='fVN5wBtF'`, [ORG]);
+ok("re-staging a corrected invoice updates it in place — a re-run cannot double the numerator of the ratio",
+  Number(restaged?.amount) === 1750.00 &&
+  (await one(`select count(*)::int n from fleetpal_po_invoices where org_id=$1 and fleetpal_id='fVN5wBtF'`, [ORG])).n === 1);
+
 // ── 8. no client may call the ingest or read what it wrote ─────────────────────────────────────
 // ⚠ Inside a transaction, because `set local role` lasts for the transaction and PGlite runs each
 // statement in its own when there is none — which silently leaves the query running as the OWNER.
@@ -303,6 +388,7 @@ for (const role of ["anon", "authenticated"]) {
     "stage_fleetpal_jobs", "stage_fleetpal_job_items", "stage_fleetpal_service_history",
     "stage_fleetpal_meters", "stage_fleetpal_pm_schedules", "stage_fleetpal_pm_intervals",
     "stage_fleetpal_defects", "stage_fleetpal_issues", "stage_fleetpal_expirations",
+    "stage_fleetpal_purchase_orders", "stage_fleetpal_po_invoices",
   ]) {
     const r = await asClient(role, `select ${fn}($1::uuid, '[]'::jsonb)`, [ORG]);
     ok(`⚠ ${role} cannot call ${fn} — EXECUTE is granted to PUBLIC by default, so the revoke is the whole defence`,
