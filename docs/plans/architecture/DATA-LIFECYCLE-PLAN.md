@@ -1291,3 +1291,34 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   so it cannot report a write that happened inside an interval and was overwritten. The split was
   discarded. **A column that stores only the most recent event cannot answer a question about whether
   an event occurred in a window** — the same error as reading a count to answer a question about state.
+
+- **2026-09-22 (later still) — Q6b SHIPPED: a processing run now has somewhere to die, and Q6a
+  resolves itself as a consequence** (`claude/q6b-run-attempt-ceiling`, migration 0354). The ceiling
+  and the terminal status ship in ONE migration because the CHECK must already permit `abandoned`
+  before anything writes it, and one file is what guarantees that order. **100 attempts**, and the
+  number is measured rather than picked: among the 7,566 runs that DID succeed the worst needed
+  **66**, with 56/54/53/46/46/45 behind it, so a ceiling of 5 or 10 would abandon work that goes on
+  to complete — silently, which is the worst thing this change could introduce. Erring long only
+  delays abandoning a dead run; erring short destroys a live one. Same asymmetry migration 0317
+  states for the lease.
+  **The ceiling lives in `claim_efs_processing_run`, not in TypeScript**, because the failure mode
+  never reaches TypeScript: `processEfsProcessingRun`'s catch block writes `failed` with a backoff,
+  and these three runs die mid-pass with the process, so they advance only through 0317's
+  stranded-reclaim branch — which is exactly why `attempts` climbs while `last_error` stays null. A
+  ceiling anywhere else is a ceiling the real failure walks around. It is tested on the claimed row
+  under its lock and BEFORE the increment, so the run is abandoned on the attempt that would have
+  been 101, and two racing workers cannot both spend it.
+  **Q6a needs no owner UPDATE after all.** All three runs are past 100, so each self-abandons on its
+  next claim — within ~20 minutes of the migration applying. The recommendation recorded against Q6a
+  (mark the rows terminal by hand) is withdrawn in favour of the same rule that will catch the
+  fourth one.
+  Pinned by `supabase/tests/efs-run-attempt-ceiling.test.mjs` — 14 assertions, and four mutations
+  prove they can fail: `>=` → `>` (4 fail), exempting the `running` branch (1), overwriting
+  `last_error` instead of coalescing (1), and removing the ceiling entirely (6). `last_error` is
+  written only when empty, because a run that recorded a real diagnosis has said something more
+  useful than the sentence this migration writes.
+  ⚠ **Still owed, and deliberately not in this merge:** the abandoned state is quiet. `dueRunIds`
+  stops offering an abandoned run for free, which is the whole behaviour change, but
+  `getEfsSoapStatus` counts only `pending`/`running`/`failed`, so an abandoned run drops out of the
+  operator surface entirely — trading a loud permanent loop for a silent permanent stop. That is the
+  next merge, and it reads a value that already exists by then.
