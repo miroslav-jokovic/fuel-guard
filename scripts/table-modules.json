@@ -1,701 +1,1920 @@
 {
   "//": "Table \u2192 owning module + layer (raw|core|derived|infra). D-SEP2: this manifest, not ARCHITECTURE.md prose, is the machine-read ownership record. Checked by scripts/check-table-modules.mjs (every live table present, no dead entries, writer paths vs owner, cross-module migration ratchet). raw = collector staging, frozen at ingest; core = canonical/user-authored; derived = harness calculation output, rebuildable; infra = credentials/caches/queues/counters/logs.",
+  "//lifecycle": "D-LIFE1, docs/plans/architecture/DATA-LIFECYCLE-PLAN.md. Every table declares how it grows. growth: time = row count grows with elapsed time; fleet = bounded by fleet/org size; static = reference data; unmeasured = empty in production when this landed, legal ONLY while listed in check-table-lifecycle.mjs's UNMEASURED ratchet, which may only shrink. retention_days MIRRORS RETENTION_RULES in apps/api/src/modules/org/dataRetention.ts and is the window IN FORCE, never a proposal \u2014 the gate fails if the two disagree, so a window and its registry entry move in one commit. null = no rule (evidence, or a rollup small enough to keep forever). budget_rows_per_day is fleet-wide and is checked by the L8 growth judge, NOT by the gate: a gate cannot see production.",
   "tables": {
     "anomalies": {
       "module": "anomalies",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "business records, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "anomaly_thresholds": {
       "module": "anomalies",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "anomaly_transitions": {
       "module": "anomalies",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "budget derived from production 2026-09-21: 0 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "applicant_dispositions": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "application_captures": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "D-APP10 \u2014 staged licence and medical-card photographs for somebody who never applied. 90d rule predates this plan."
+      }
     },
     "application_drafts": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "D-APP2 \u2014 a half-typed \u00a7391.21 form holding PII for somebody who never applied. 90d rule predates this plan."
+      }
     },
     "application_edits": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "application_invitations": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "budget derived from production 2026-09-21: 0 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "application_packet_marks": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "asset_movements": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "asset_types": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "audit_logs": {
       "module": "org",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "D-LIFE4: evidence, append-only, RETENTION_FORBIDDEN. Budget null BY RULING, not omission: the sync noise measured 2026-09-21 (485 rows/vehicle/day; actor_id null on 925,341 of 925,341 vehicle.update rows) is removed at L2, and a budget set before that would enshrine it. L7 partitions it (pkey takes 3 scans, so nothing looks it up by id). retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "card_write_counters": {
       "module": "efs",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "one row per card per day; a counter bounded by the card fleet."
+      }
     },
     "case_pattern_reports": {
       "module": "anomalies",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "certifications": {
       "module": "evidence",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "evidence, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "declined_transactions": {
       "module": "fuel",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "raw declines, RETENTION_FORBIDDEN; feeds declinedScoring. retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "declined_txn_scores": {
       "module": "anomalies",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "bounded by declined_transactions; measured on updated_at."
+      }
     },
     "device_push_tokens": {
       "module": "messaging",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "documents": {
       "module": "evidence",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "evidence, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "dq_exports": {
       "module": "evidence",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_account_closure_requests": {
       "module": "driver-app",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_app_feature_overrides": {
       "module": "driver-app",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_app_features": {
       "module": "driver-app",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_applications": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_authorizations": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "driver_duty_sessions": {
       "module": "driver-app",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_employment_history": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_performance_settings": {
       "module": "performance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_performance_weeks": {
       "module": "performance",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_scores": {
       "module": "performance",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "business records, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "driver_time_off": {
       "module": "roster",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "driver_vehicle_assignments": {
       "module": "roster",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 10000,
+        "why": "\u26a0 core layer with a MACHINE write rate \u2014 147,115 rows against 272 vehicles and 302 drivers, 3,210/day. Measured on updated_at, so the insert/update split is UNKNOWN. Flagged for L2: this may be a fourth instance of the vehicle.update loop."
+      }
     },
     "driver_write_counters": {
       "module": "driver-app",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "drivers": {
       "module": "roster",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "duty_equipment_segments": {
       "module": "driver-app",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "efs_capability_promotions": {
       "module": "efs",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "efs_capability_proofs": {
       "module": "efs",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "efs_card_control_approvers": {
       "module": "efs",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "efs_card_control_settings": {
       "module": "efs",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "efs_card_mutations": {
       "module": "efs",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "budget derived from production 2026-09-21: 0 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "efs_cards": {
       "module": "efs",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "efs_processing_runs": {
       "module": "efs",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "operational run log for EFS post-acquisition scoring. Measured 176/day. Retention unruled \u2014 L9."
+      }
     },
     "efs_soap_client_certs": {
       "module": "efs",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "efs_soap_credentials": {
       "module": "efs",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "efs_transactions": {
       "module": "efs",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "raw EFS feed, RETENTION_FORBIDDEN; ancillary non-fuel spend reads it directly (D-FS6). Measured 406/day. retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "employer_inquiries": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "esign_consents": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "finance_month_closes": {
       "module": "financial",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "financial_entries": {
       "module": "financial",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "core financial records projected from McLeod staging. Measured 1,801/day over a 25-day span \u2014 that is a BACKFILL, not a steady rate; re-measure before trusting this budget."
+      }
     },
     "fleetpal_credentials": {
       "module": "fleetpal",
-      "layer": "infra"
-    },
-    "fleetpal_sync_state": {
-      "module": "fleetpal",
-      "layer": "infra"
-    },
-    "fleetpal_units": {
-      "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_vendors": {
-      "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_shops": {
-      "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_work_orders": {
-      "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_jobs": {
-      "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_job_items": {
-      "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_service_history": {
-      "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_meters": {
-      "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_pm_schedules": {
-      "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_pm_intervals": {
-      "module": "fleetpal",
-      "layer": "raw"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fleetpal_defects": {
       "module": "fleetpal",
-      "layer": "raw"
-    },
-    "fleetpal_issues": {
-      "module": "fleetpal",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fleetpal_expirations": {
       "module": "fleetpal",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_issues": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_job_items": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_jobs": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_meters": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_pm_intervals": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_pm_schedules": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_po_invoices": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fleetpal_purchase_orders": {
-    "module": "fleetpal",
-    "layer": "raw"
-  },
-  "fleetpal_po_invoices": {
-    "module": "fleetpal",
-    "layer": "raw"
-  },
-  "fleetpal_webhook_deliveries": {
       "module": "fleetpal",
-      "layer": "infra"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_service_history": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_shops": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_sync_state": {
+      "module": "fleetpal",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_units": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_vendors": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_webhook_deliveries": {
+      "module": "fleetpal",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fleetpal_work_orders": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fuel_cards": {
       "module": "fuel",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "fuel_discount_rules": {
       "module": "fuel",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fuel_events": {
       "module": "samsara",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 4 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "fuel_exception_events": {
       "module": "fuel-spend",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 4 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "fuel_exceptions": {
       "module": "fuel-spend",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 4 rows/day, x3 headroom. Measured on updated_at, so the rate is rows TOUCHED, not added. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "fuel_plans": {
       "module": "routing",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fuel_price_days": {
       "module": "fuel",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "per station-day price rollup, joined by fuel_spend_lines (0246)."
+      }
     },
     "fuel_prices": {
       "module": "posted-prices",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "raw posted-price feed. Measured 888/day. Retention unruled \u2014 L9."
+      }
     },
     "fuel_prices_posted": {
       "module": "posted-prices",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "raw posted-price rows from the public table."
+      }
     },
     "fuel_recon_runs": {
       "module": "fuel-spend",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fuel_spend_days": {
       "module": "fuel-spend",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "THE pattern this plan protects: one row per truck per day (0244). 272 trucks \u2192 ~100k rows/yr, ~0.04 GB/yr. No retention rule and none wanted; it IS the history."
+      }
     },
     "fuel_statement_lines": {
       "module": "fuel-spend",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fuel_statements": {
       "module": "fuel-spend",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fuel_stations": {
       "module": "fuel",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "fuel_transactions": {
       "module": "fuel",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "core evidence \u2014 the fuel bill, RETENTION_FORBIDDEN. Measured 205/day; 1,268 B average row, wide (73 columns) but NOT payload-bloated (40 kB TOAST in the whole table). retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "fuel_txn_dispositions": {
       "module": "fuel",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "fuel_txn_recon": {
       "module": "samsara",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "1:1 with fuel_transactions; same reasoning as fuel_txn_scores."
+      }
     },
     "fuel_txn_scores": {
       "module": "anomalies",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "1:1 with fuel_transactions (17,289 = 17,289, measured 2026-09-21) \u2014 bounded BY that table, not independently time-growing. Measured on updated_at, so 576/day is rescoring churn, not growth."
+      }
     },
     "geocode_cache": {
       "module": "routing",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "a cache; re-fetched on demand. Retention unruled \u2014 L9."
+      }
     },
     "hazmat_documents": {
       "module": "hazmat",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "hazmat_loads": {
       "module": "hazmat",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "hazmat_policies": {
       "module": "hazmat",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "hazmat_reviews": {
       "module": "hazmat",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "hazmat_runs": {
       "module": "hazmat",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "hos_duty_segments": {
       "module": "samsara",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "raw ELD duty segments. Measured 29,819/day, of which 68.7% carry no driver_id (Q2). L4 proposes 400d\u2192120d once Q2 is ruled; the window here stays the one in force. Budget below measured rate on purpose \u2014 L4 should remove two-thirds of it."
+      }
     },
     "idle_events": {
       "module": "idle",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "idling events; idle_rollup_days carries history beyond the window. Measured 2,482/day. L5 proposes 400d\u2192180d."
+      }
     },
     "idle_park_sessions": {
       "module": "idle",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "per-park sessions feeding the avoidable-idle algorithm. Measured 491/day. L5 proposes 400d\u2192180d."
+      }
     },
     "idle_rollup_days": {
       "module": "idle",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "one row per truck per day; the reason idle_events and idle_park_sessions can be pruned at all. No rule, and none wanted."
+      }
     },
     "idle_settings": {
       "module": "idle",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "idle_telemetry_windows": {
       "module": "idle",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "raw telemetry windows; its 400d rule predates this plan and is kept."
+      }
     },
     "import_rows": {
       "module": "efs",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "imports": {
       "module": "efs",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "raw import envelopes. Measured 212/day. Retention unruled \u2014 L9."
+      }
     },
     "integration_credentials": {
       "module": "org",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "inventory_assets": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "invites": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "jobs": {
       "module": "org",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "the job ledger. Its 90d rule predates this plan and is about to fire for the first time (oldest row 78d at 2026-09-21) \u2014 D-LIFE5 leaves it UNCHANGED so it proves itself."
+      }
     },
     "kit_expectations": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "load_events": {
       "module": "loads",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 5 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "load_external_payloads": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 5 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "load_stop_photos": {
       "module": "loads",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 1095,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "proof-of-delivery photographs; its 1095d (3-year) rule predates this plan and is kept."
+      }
     },
     "load_stops": {
       "module": "loads",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 11 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "loads": {
       "module": "loads",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 5 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "maintenance_inspectors": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "maintenance_print_profiles": {
       "module": "maintenance",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "mcleod_ap_vouchers": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "budget derived from production 2026-09-21: 55 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "mcleod_billing": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "budget derived from production 2026-09-21: 424 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "mcleod_deductions": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "budget derived from production 2026-09-21: 372 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "mcleod_gl_accounts": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "mcleod_gl_days": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "budget derived from production 2026-09-21: 79 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "mcleod_gl_totals": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "budget derived from production 2026-09-21: 48 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "mcleod_movements": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "budget derived from production 2026-09-21: 839 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "mcleod_office_lines": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 15 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "mcleod_settlements": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "budget derived from production 2026-09-21: 753 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "memberships": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "message_reports": {
       "module": "messaging",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "message_threads": {
       "module": "messaging",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "messages": {
       "module": "messaging",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "migration_markers": {
       "module": "org",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "notification_events": {
       "module": "messaging",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "delivery queue for Expo Push. Retention unruled \u2014 L9."
+      }
     },
     "notification_preferences": {
       "module": "messaging",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "notification_reads": {
       "module": "messaging",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "org_disclosures": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "org_integrations": {
       "module": "org",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "org_modules": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "org_role_surface_access": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "org_section_access": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "org_usage_month": {
       "module": "org",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "organizations": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "part_movements": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "part_stock": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "parts": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "pattern_sweep_requests": {
       "module": "anomalies",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 7 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
     },
     "platform_admins": {
       "module": "org",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "platform_audit_log": {
       "module": "org",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "psp_requests": {
       "module": "psp",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "qualification_records": {
       "module": "evidence",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "route_fuel_settings": {
       "module": "routing",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "route_geometries": {
       "module": "routing",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 180,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "cached route shapes; its 180d rule predates this plan and is kept."
+      }
     },
     "samsara_feed_alerts": {
       "module": "samsara",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "samsara_feed_cursors": {
       "module": "samsara",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "samsara_ifta_fetches": {
       "module": "samsara",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "raw fetch envelopes for the IFTA report."
+      }
     },
     "samsara_ifta_jurisdiction_miles": {
       "module": "samsara",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "raw IFTA jurisdiction miles. Measured 820/day. Retention unruled \u2014 L9."
+      }
     },
     "samsara_odometer_readings": {
       "module": "samsara",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "raw odometer readings; the distance rule differences BOUNDING readings, so history has value. Measured 1,629/day over 17 days."
+      }
     },
     "saved_views": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "scoring_attempts": {
       "module": "anomalies",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "derived and rebuildable. Measured 2026-09-21: 136 attempts per fuel transaction, 75,041/day; its own idx_scoring_attempts_org_started had 0 scans. NO retention rule exists today \u2014 L3 adds 45d and investigates the rescore loop. Budget is deliberately below the measured rate so the L8 judge fires until it is fixed."
+      }
     },
     "seven_day_statements": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "driver-facing statement cache; its 400d rule predates this plan and is kept."
+      }
     },
     "sms_consents": {
       "module": "recruiting",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "station_geocode_learned": {
       "module": "fuel",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "learned station geocodes \u2014 small and valuable; measured on updated_at."
+      }
     },
     "stock_count_sessions": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "stock_locations": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "support_impersonation_grants": {
       "module": "org",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "thread_participants": {
       "module": "messaging",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "tms_dispatchers": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "tms_movements": {
       "module": "mcleod",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "trailers": {
       "module": "roster",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "user_dashboard_layout": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "user_profiles": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "user_section_access": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "user_surface_access": {
       "module": "org",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "vehicle_engine_days": {
       "module": "idle",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "one row per truck per day (0076): drive/idle/off. \u26a0 It DOES carry a 400d rule today, which is in tension with idle_rollup_days being the long-horizon store \u2014 raised as a question by L9, not changed here."
+      }
     },
     "vehicle_idle_learned": {
       "module": "idle",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "vehicle_inspection_items": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "evidence \u2014 \u00a7396.17 inspection line items, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "vehicle_inspections": {
       "module": "maintenance",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "evidence, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+      }
     },
     "vehicle_positions": {
       "module": "samsara",
-      "layer": "raw"
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
     },
     "vehicle_tank_learned": {
       "module": "anomalies",
-      "layer": "derived"
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "vehicles": {
       "module": "roster",
-      "layer": "core"
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      }
     },
     "weather_cache": {
       "module": "idle",
-      "layer": "infra"
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 10000,
+        "why": "a cache; re-fetched on demand. Measured 8,634/day. L5 proposes 400d\u219290d. D-LIFE7: NEVER partitioned \u2014 its PK is the natural key (lat_grid, lng_grid, hour_utc) and adding a time column would change dedup semantics."
+      }
     }
   }
 }

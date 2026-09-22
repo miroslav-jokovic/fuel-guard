@@ -203,6 +203,14 @@ jobs:
       - name: No new table writers
         run: pnpm lint:table-writers
 
+      # Added 2026-09-22 (D-LIFE1/D-LIFE2, docs/plans/architecture/DATA-LIFECYCLE-PLAN.md). This repo
+      # budgeted source FILES at 500 lines and nothing at all for a table writing 3M rows/month, which
+      # is how audit_logs, scoring_attempts and hos_duty_segments came to be 94% of a ~31 GB/year
+      # trajectory while retention ran 381 times in a week and deleted nothing. Turned on at ZERO
+      # violations: the declarations for all 174 tables are in the same commit as this line.
+      - name: Every table declares how it grows
+        run: pnpm lint:table-lifecycle
+
       # Regenerates the rule catalogue AND packages/ui/src/tokens.generated.css from their DTCG
       # sources, then fails if either differs from what was committed. It had existed since the
       # codegen work but was never wired in here, so for its whole life it enforced nothing —
