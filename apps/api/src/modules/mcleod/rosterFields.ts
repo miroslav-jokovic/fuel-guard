@@ -1,5 +1,5 @@
 import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@silvicom/shared";
-import { deriveFullName } from "@silvicom/shared";
+import { deriveFullName, deriveVehicleStatus } from "@silvicom/shared";
 
 /**
  * What the McLeod sync is allowed to write to a row it owns, and nothing else (M4).
@@ -20,9 +20,15 @@ import { deriveFullName } from "@silvicom/shared";
  * where the carrier simply has not filled a field in. `samsaraDriverSync` learned the same rule the
  * hard way ("a null in one response must never wipe a good stored value").
  *
- * Status and termination are deliberately ABSENT from every builder. Retiring a row is M6, it has
- * retention consequences (`drivers.termination_date` starts the clock and the evidence tables are
- * append-only), and it needs the mass-deactivation guard that M6 brings with it.
+ * Status and termination are deliberately ABSENT from the DRIVER and TRAILER builders. Retiring a
+ * person is M6, it has retention consequences (`drivers.termination_date` starts the clock and the
+ * evidence tables are append-only), and it needs the mass-deactivation guard that M6 brings with it.
+ *
+ * The VEHICLE builder gained `status` on 2026-09-22 (E0) and the distinction is the retention clock,
+ * not a change of heart: a tractor's lifecycle state starts no clock and holds no evidence, and
+ * leaving it unwritten meant a truck in the shop and a reserved unit number were both stored as a
+ * running truck. Retirement still does NOT happen here — `rosterRetire.ts` owns taking a truck out,
+ * with its own bad-fetch cap and its own telematics guard.
  */
 
 /** Fields McLeod owns on a driver row it has claimed. Phone is NOT here — see below. */
@@ -98,6 +104,27 @@ export function vehiclePatch(r: TmsVehicleInput): Record<string, unknown> {
   }
 
   set("purchased_at", r.purchased_at);
+
+  /**
+   * ── THE ONE FIELD THIS BUILDER WRITES UNCONDITIONALLY, AND WHY ──────────────────────────────────
+   * Every other line above omits a value McLeod did not supply, because McLeod's coverage is uneven
+   * and a blind write would erase good data. `status` is the exception on purpose: it is not a field
+   * the carrier fills in, it is DERIVED from fields it does (`deriveVehicleStatus`), so there is no
+   * "McLeod did not supply it" case to protect — the derivation always has an answer.
+   *
+   * This is E0, and it exists because the pre-implementation audit found the sweep had no path to a
+   * status at all (§4a G1): `vehiclePatch` never wrote the column and `rosterIngest` hardcoded
+   * `"active"` on INSERT only, so a truck moving into the shop, a reserved unit number becoming a
+   * real truck, and a retired row McLeod still carries as active were all silent no-ops. Measured
+   * against McLeod 2026-09-22: 12 trucks are in the shop right now and 12 currently-retired rows are
+   * in the active sweep.
+   *
+   * Un-retiring is the intended direction, not an accident of it. D-FC0: membership in the roster is
+   * McLeod's decision, and a row it reports as active is active — the owner's example was unit 552,
+   * retired here while a driver ran it. Rows the office owns never reach this patch at all; the
+   * `CLAIMABLE` check in `applyOutcome` drops them before it is applied.
+   */
+  p.status = deriveVehicleStatus(r);
 
   // `tank_capacity_gal` is NOT here. It is NOT NULL, it drives fuel detection, and `learnVehicle`
   // refines it from observed fills. McLeod's `tractor.fuel_capacity` is a static spec number, and

@@ -24,8 +24,8 @@
  *   driver   `is_active = 'Y'`                              → 164 rows; 163 of them have HOS in the
  *                                                             last 180 days. `status_code` is NULL on
  *                                                             every row in the table and is not used.
- *   tractor  `service_status = 'A' AND outservice_date IS NULL` → 190
  *   trailer  `is_active = 'A' AND outservice_date IS NULL`      → 235
+ * The tractor predicate was re-measured and replaced on 2026-09-22 — see `rosterQueries.vehicles`.
  */
 
 /** Columns needed to MATCH a row to an existing FuelGuard record. Sent in every mode. */
@@ -80,7 +80,15 @@ const VEHICLE_IDENTITY = `
       NULLIF(LTRIM(RTRIM(t.tag_state)), '')      AS plate_state,
       CONVERT(varchar(10), t.tag_expire_date, 23)  AS registration_expires_at,
       CONVERT(varchar(10), t.inspection_date, 23)  AS annual_inspection_performed_at,
-      CONVERT(varchar(10), t.purchase_date, 23)    AS purchased_at`;
+      CONVERT(varchar(10), t.purchase_date, 23)    AS purchased_at,
+      -- An OPERATIONAL sub-status, and never membership (D-FC9). Read here only so roster.mjs can
+      -- turn 'S' into the neutral in_shop flag the wire contract carries; the letter itself stops
+      -- there, like every other McLeod spelling in this file. (No backticks in this comment: it
+      -- lives inside a JS template literal, and one ended a sweep in silence on 2026-08-28.)
+      -- Distribution within P4, 2026-09-22:
+      -- A 148 · V 16 · I 15 · S 12 · null 2. The S reading is the owner's and is corroborated by
+      -- behaviour rather than by a labelfile this login can reach (§1.3, assumption A1, Q-2).
+      NULLIF(LTRIM(RTRIM(t.tractor_status)), '')   AS tractor_status`;
 
 const TRAILER_MATCH = `
       LTRIM(RTRIM(r.id))                         AS external_id,
@@ -119,12 +127,36 @@ export function rosterQueries(mode = "link") {
       FROM dbo.driver AS d
      WHERE d.company_id = @companyId
        AND d.is_active = 'Y'`,
+    /**
+     * P4 — membership in the roster, and NOTHING else (D-FC1, D-FC2, G5; measured 2026-09-22).
+     *
+     * `service_status = 'A'` is McLeod's own active flag and is the whole membership test: the two
+     * clauses under it do not narrow the fleet, they exclude rows that describe no truck at all.
+     *
+     *  · **A purchase date or a model year** — 54 of the 247 `'A'` tractors carry neither, have never
+     *    been dispatched, hold no gateway, and share one `inservice_date`. They are unit numbers
+     *    RESERVED against an order (§1.2), and 53 of the 54 do carry a serial number, so a VIN cannot
+     *    tell them apart from a truck. One of these two dates can. They rejoin the sweep by
+     *    themselves the moment the carrier fills one in.
+     *  · **A serial number** — excludes `MCTEST`, the vendor's own test row, BY RULE rather than by
+     *    the accident that it also lacks a purchase date (G5). A record with no VIN is not equipment.
+     *
+     * `outservice_date IS NULL` was here until 2026-09-22 and is gone on purpose (D-FC2): this McLeod
+     * instance does not CLEAR that column when a truck returns to service, so units 552, 555 and 569
+     * carry dates from 2022, 2023 and 2021 while drivers run them today. Reading it excluded 18
+     * running trucks from the roster and nominated them for retirement in the same breath.
+     *
+     * Counts, measured against the carrier's McLeod on 2026-09-22: 247 rows are `'A'`; this selects
+     * **193**, of which 12 are in a shop (`tractor_status = 'S'`). The predicate it replaced selected
+     * 228 — 53 reservations in, 18 running trucks out.
+     */
     vehicles: `
     SELECT${VEHICLE_MATCH}${full ? "," + VEHICLE_IDENTITY : ""}
       FROM dbo.tractor AS t
      WHERE t.company_id = @companyId
        AND t.service_status = 'A'
-       AND t.outservice_date IS NULL`,
+       AND (t.purchase_date IS NOT NULL OR NULLIF(LTRIM(RTRIM(t.model_year)), '') IS NOT NULL)
+       AND NULLIF(LTRIM(RTRIM(t.serial_number)), '') IS NOT NULL`,
     trailers: `
     SELECT${TRAILER_MATCH}${full ? "," + TRAILER_IDENTITY : ""}
       FROM dbo.trailer AS r
@@ -169,6 +201,25 @@ export function retirementQueries() {
       FROM dbo.driver AS d
      WHERE d.company_id = @companyId
        AND (d.is_active <> 'Y' OR d.is_active IS NULL)`,
+    /**
+     * `service_status <> 'A'` alone, since 2026-09-22 (D-FC2, F2).
+     *
+     * The `OR t.outservice_date IS NOT NULL` that used to sit here was wrong in both directions at
+     * once. Wrong in fact: this instance never clears the column, so it nominated 19 rows whose
+     * `service_status` is `'A'` — including units 552, 555 and 569, which were dispatched 25, 27 and
+     * 33 times in the last 60 days and whose gateways were reporting minutes before this was
+     * measured. And redundant even where it was right: of the 472 tractors McLeod has genuinely
+     * deactivated, 471 carry an `outservice_date` too, so the clause earned one row and cost 18.
+     *
+     * The sweeps stay deliberately non-complementary. `service_status` is NULL on one tractor and one
+     * trailer, and NULL satisfies neither `= 'A'` nor `<> 'A'`, so those rows fall through both and
+     * are left alone. Retiring a row on the strength of a NULL is the inference this design exists to
+     * avoid. Note the asymmetry with P4 above and keep it: a row that is not a truck (no purchase
+     * date, no serial) leaves the ACTIVE sweep without being nominated for retirement, because "this
+     * is a reservation" and "this truck is gone" are different statements.
+     *
+     * Counts, 2026-09-22: 459 rows, down from 478.
+     */
     vehicles: `
     SELECT
       LTRIM(RTRIM(t.id))                           AS external_id,
@@ -176,7 +227,7 @@ export function retirementQueries() {
       CONVERT(varchar(10), t.outservice_date, 23)  AS out_of_service_at
       FROM dbo.tractor AS t
      WHERE t.company_id = @companyId
-       AND (t.service_status <> 'A' OR t.outservice_date IS NOT NULL)`,
+       AND t.service_status <> 'A'`,
     trailers: `
     SELECT
       LTRIM(RTRIM(r.id))                           AS external_id,

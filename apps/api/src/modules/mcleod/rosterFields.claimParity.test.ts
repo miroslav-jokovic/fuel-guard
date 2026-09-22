@@ -69,9 +69,37 @@ const FULL_TRAILER = {
   axle_count: 2,
 };
 
+/**
+ * ── THE ONE COLUMN THE SYNC WRITES AND THE TRIGGER DELIBERATELY DOES NOT CLAIM ──────────────────
+ * `status` joined `vehiclePatch` on 2026-09-22 (E0) and is NOT in 0241's argument list, which the set
+ * comparison below would otherwise read as the first failure direction. It is the second one that
+ * applies here, and it is worse:
+ *
+ * The claim is WHOLE-ROW. A truck whose status somebody touched in the office would stop receiving
+ * its VIN, plate, registration and inspection date from McLeod — for good, for a field McLeod is the
+ * declared master of (D-FC0: "we follow the source McLeod"). That is the same shape as the defect
+ * 0286 had to unpick, where one certified inspection cost a trailer its VIN for a whole sweep, and
+ * the fix there was to scope the claim to one column rather than to widen it.
+ *
+ * So a hand-edited vehicle status is expected to be overwritten by the next sweep, and that is a
+ * position rather than an oversight. It does leave `VehicleForm.vue` offering a status field whose
+ * value the sweep may revert within the hour — recorded as an open question on the plan rather than
+ * papered over here, because the honest answers (drop the field, or give status its own `*_source`
+ * column the way 0286 did) are both larger than this merge.
+ */
+const NOT_CLAIMED = new Set(["status"]);
+
 describe("0241's claim trigger covers exactly what the McLeod sync writes", () => {
   it("vehicles", () => {
-    expect(new Set(triggerColumns("vehicles"))).toEqual(new Set(Object.keys(vehiclePatch(FULL_VEHICLE))));
+    const written = Object.keys(vehiclePatch(FULL_VEHICLE)).filter((c) => !NOT_CLAIMED.has(c));
+    expect(new Set(triggerColumns("vehicles"))).toEqual(new Set(written));
+  });
+
+  it("names every carve-out — a column excused here must actually be written", () => {
+    // Otherwise the exclusion list becomes a place to hide a column that no longer exists, and the
+    // parity check quietly stops covering the thing it is named for.
+    const written = new Set(Object.keys(vehiclePatch(FULL_VEHICLE)));
+    for (const column of NOT_CLAIMED) expect(written.has(column)).toBe(true);
   });
 
   it("trailers", () => {
