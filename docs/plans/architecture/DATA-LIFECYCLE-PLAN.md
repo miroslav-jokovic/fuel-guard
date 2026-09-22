@@ -751,57 +751,57 @@ The leading hypothesis, **unconfirmed**, is the Samsara recon tier: `SAMSARA_REC
 re-walks fills that already have `samsara_recon_at` set, the rescan is self-sustaining. Confirming it
 needs the two Railway variables (same blocker as Q5) and a read of the recon tier's selection query.
 
-⚠ **ANSWERED 2026-09-22. It is not the recon tier — it is `efs_process_import` failing and being
-restarted 56 times a day, re-scoring a whole historical import each time.** The recon hypothesis is
-ruled out on volume: both variables are **unset in production**, so the defaults apply
-(`SAMSARA_RECON_SYNC_MINUTES` 60, `SAMSARA_RECON_BATCH` 250) — **250 fills an hour against a measured
-2,000–7,500**, 10–30× short. `backfill` is ruled out the same way: 38 runs a day at `count: 33`.
+⚠ **ANSWERED 2026-09-22. It is not the recon tier. Every EFS import re-scores the ENTIRE fill
+history of every vehicle it touches, oldest-first, and the job is killed before it ever reaches the
+recent ones.**
 
-The real chain, each link measured:
+The recon hypothesis is ruled out on volume: both variables are **unset in production**, so the
+defaults apply (`SAMSARA_RECON_SYNC_MINUTES` 60, `SAMSARA_RECON_BATCH` 250) — **250 fills an hour
+against a measured 2,000–7,500**. The `backfill` JOB KIND is ruled out the same way, 38 runs a day of
+33 — though `backfill.ts` is where the real mechanism lives, which is why the kind is a red herring.
 
-1. **The work is a rescan of ancient fills.** Of 6,480 attempts in three hours, **6,131 (94.6%) were
-   on fills older than 120 days**; only 18 were on fills newer than two days.
-2. **`efsSync.ts:250` scopes the rescore to the entire import, not to what changed.** `touchedIds`
-   starts as the changed rows and then adds *every* row sharing that `import_id`. One repaired row
-   therefore rescores the whole batch.
-3. **An import batch is ~2,300 rows spanning 31–36 days, and they are historical** — the five largest
-   run from 2026-01-01 to 2026-07-28. At the observed ~50 transactions/minute that is **~46 minutes**.
-4. **The lease is five minutes.** `JOB_LEASE_MS` (`jobs.ts:142`) is `5 * 60_000`, heartbeat-renewed —
-   confirmed on the live rows: `updated_at 16:45:50` + 5 min = `lease_expires_at 16:50:50`. Whenever
-   one scoring batch takes longer than five minutes — which Samsara's rate limiting makes routine —
-   the lease lapses while the job is still working.
-5. **The next job to arrive kills it.** The reclaim is not a sweeper; it is in `startJob`'s unique-slot
-   conflict path (`jobs.ts:200-226`): a new `efs_process_import` collides, sees `lease_expires_at` in
-   the past, marks the running job `failed` with *"reclaimed (lease expired / interrupted run)"* and
-   inserts itself. Over 24 h: **146 done (avg 0.9 min), 56 failed (avg 72.5 min)**.
-6. **The replacement starts from the beginning**, rescoring the same ~2,300 ancient fills, and the
-   next arrival kills it too. The burst profile is the signature — ~50 attempts/minute for 30–70
-   minutes, a gap, then the identical burst, with boundaries matching the job rows exactly
-   (13:52→15:06 failed, 15:06→15:56 failed, 15:56→16:32 failed, 16:32→ running).
+The chain, each link measured:
 
-⚠ `locked_by` is **null** on these rows, so the queue's own 30-minute lease and the renewal
-`inprocessDrain.ts` documents (2026-09-05) are not involved at all — this path runs inline through
-`jobs.ts`. **Two lease clocks exist and only one of them is being kept alive**, which is the same
-two-sources-of-truth shape as `D-SEP3`'s half-migrated strangler.
+1. **`scoreVehicle` is unbounded in time** (`backfill.ts:400`). It pages `fuel_transactions` for one
+   `vehicle_id` with **no date predicate at all**, `order fueled_at ascending`, and scores every row.
+2. **`scoreImportWithCascade` calls it once per affected vehicle** (`backfill.ts:443`). The cascade is
+   deliberate and documented — "importing history changes MPG baselines and over-fuel windows for the
+   affected vehicles' neighbouring fills" — but it re-scores **every** fill of those vehicles, not the
+   neighbouring ones, and the set grows with history forever.
+3. **One import touches ~58 vehicles holding 5,640 fills.** Measured on the 15:56–16:32 run.
+4. **The job never finishes.** It scored **973 of those 5,640 (17%)** before being reclaimed. Over
+   24 h: **146 done (avg 0.9 min, the small imports) and 56 failed (avg 72.5 min)**, killed by
+   `startJob`'s unique-slot conflict path (`jobs.ts:200-226`) when a later import finds the lease stale.
+5. **The replacement restarts from the oldest fill**, so the same prefix is re-scored forever. This is
+   why **94.6% of attempts (6,131 of 6,480 in three hours) are on fills older than 120 days** and only
+   18 are on fills newer than two days.
 
-**This is `D-LIFE11` again, and the largest instance yet**: 139.7 attempts per transaction is not
-telemetry volume, it is one defect retried 56 times a day. It is also the driver behind `L3`'s table,
-so L3 caps the symptom exactly as its own header says.
+⚠ **This is a correctness finding, not only a cost one.** Because the walk is oldest-first and is
+killed at ~17%, the cascade's re-scoring **never reaches recent fills** — the ones whose MPG baseline
+and over-fuel window the cascade exists to correct. The work is not merely wasted; it is spent on the
+wrong end of the history.
 
-**Candidate fixes, none of them shipped — this needs the owner, because all three change behaviour in
-the EFS ingest path:**
+⚠ **Two lease clocks, and the one being renewed is not the one that decides reclaim.** `locked_by` is
+null on these rows: production runs `JOB_EXECUTION_MODE=inprocess`, so `dispatchJob` → `runJob`, and
+the queue's 30-minute lease plus the renewal `inprocessDrain.ts` documents (2026-09-05) never apply.
+Same two-sources-of-truth shape as `D-SEP3`, in the queue rather than in a table. Worth fixing, but it
+is the amplifier here, not the cause.
 
-- **(a) Scope the rescore to what changed** — drop the import-wide `select` at `efsSync.ts:250` and
-  rescore `toUpdate` only. Removes ~99% of the work. ⚠ The import-wide select is deliberate ("everything
-  the repair touched needs re-scoring"), so this needs whoever owns that repair to confirm a neighbouring
-  row cannot be invalidated by a repair to its sibling.
-- **(b) Make the lease outlive the work** — raise `JOB_LEASE_MS` for this kind, or heartbeat inside
-  the scoring loop rather than between batches. Stops the retry storm without reducing the work.
-- **(c) Resume instead of restart** — checkpoint the scored ids so a reclaimed run continues, the
-  pattern `jobs.ts:323` already describes for the recon backfill.
+**Candidate fixes — owner's ruling needed, because all of them change scoring behaviour:**
 
-**Recommendation: (b) first, then (a).** (b) is small, cannot change a verdict, and stops 56 restarts
-a day on its own; (a) is the real fix but needs the ownership question answered first.
+- **(a) Bound the cascade to the neighbourhood its own docstring describes.** The justification is
+  MPG baselines and over-fuel windows, both of which have finite lookbacks; the code takes the whole
+  history instead. This is the real fix and it removes ~99% of the work.
+- **(b) Let the job finish** (raise the lease for this kind, or stop the conflict-path reclaim).
+  ⚠ **On its own this makes things WORSE**: finishing means ~112 minutes of scoring per import, and the
+  posted feed opens an import every ~30 seconds.
+- **(c) Walk newest-first**, so the fills that matter are scored before the kill. A one-line ordering
+  change that fixes the correctness half without touching the cost half.
+
+**Recommendation: (a), with (c) as the immediate mitigation if (a) needs design time.** ⚠ This
+REVERSES the earlier recommendation of "(b) first" recorded in this plan on the same day — that was
+written when the mechanism was believed to be a lease lapse, and (b) is now the one option that must
+not ship alone.
 
 **Recommendation: do not fold this into L3.** L3's window is safe and independently justified.
 This is a scoring-engine question, not a lifecycle one, and it wants its own measurement — the prize
@@ -1034,27 +1034,30 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   table is 1,023 MB with 389 MB of indexes, all three of which are used. There is no index drop
   available on either table, so the remaining lever on this storage is `L7`, which still needs `Q1`.
 
-- **2026-09-22 — Q6 answered: the full-fleet rescan is one job failing and restarting 56 times a day**
-  (`claude/data-lifecycle-q6`). Investigation only; nothing is changed in the scoring path, because
-  every candidate fix alters behaviour in EFS ingest and wants the owner. The plan's leading
-  hypothesis — the Samsara recon tier re-walking reconciled fills — is **ruled out on volume**: both
-  `SAMSARA_RECON_SYNC_MINUTES` and `SAMSARA_RECON_BATCH` are unset in production, so the defaults of
-  60 minutes and 250 give 250 fills an hour against a measured 2,000–7,500. `backfill` falls the same
-  way at 38 runs a day of 33.
-  **What it actually is.** `efsSync.ts:250` collects every row sharing an `import_id` for rescoring,
-  not the rows that changed; an import batch is ~2,300 rows spanning 31–36 days of HISTORY; that is
-  ~46 minutes of scoring; `JOB_LEASE_MS` is five minutes; and the reclaim sits in `startJob`'s
-  unique-slot conflict path, so the next scheduled import finds an expired lease, marks the working
-  job `failed`, and starts the same 2,300-row rescan over. **146 done at 0.9 min, 56 failed at
-  72.5 min, in 24 hours.** 94.6% of attempts in a three-hour sample were on fills older than 120 days.
-  **The method that found it**, after two code-reading passes had not: correlate `scoring_attempts`
-  per minute against `jobs` per minute. The bursts are ~50/minute for 30–70 minutes with gaps between,
-  and the burst boundaries match the failed job rows to the minute. A job that runs for an hour and
-  dies is invisible in a run COUNT and obvious in a duration — `where extract(epoch from (updated_at -
-  created_at)) > 300` is the query that ended the search.
-  ⚠ **`locked_by` is null on these rows**, so the queue's 30-minute lease and the renewal
-  `inprocessDrain.ts` added on 2026-09-05 never applied — this path runs inline through `jobs.ts`.
-  Two lease clocks exist, one is kept alive, and the one that decides reclaim is the other. Worth
-  reading next to `D-SEP3`: the same two-sources-of-truth shape, in the queue rather than in a table.
-  **This is the largest `D-LIFE11` instance so far.** 139.7 attempts per transaction is not telemetry
-  volume; it is one defect retried. L3 caps its storage and, as L3's own header says, prunes a symptom.
+- **2026-09-22 — Q6 answered: every EFS import re-scores each affected vehicle's whole history,
+  oldest-first, and never reaches the recent fills** (`claude/data-lifecycle-q6`). Investigation only;
+  nothing in the scoring path is changed, because every candidate fix alters scoring behaviour.
+  The plan's leading hypothesis — the Samsara recon tier — is **ruled out on volume**: both
+  `SAMSARA_RECON_*` variables are unset in production, so the defaults give 250 fills an hour against
+  a measured 2,000–7,500.
+  **The mechanism.** `scoreVehicle` (`backfill.ts:400`) pages a vehicle's `fuel_transactions` with **no
+  date predicate**, ordered `fueled_at ascending`, and scores every row; `scoreImportWithCascade`
+  (`backfill.ts:443`) calls it once per vehicle the import touched. One import touches ~58 vehicles
+  holding **5,640 fills**; the run scored **973 of them (17%)** before being reclaimed. 146 done at
+  0.9 min and 56 failed at 72.5 min in 24 hours. The replacement restarts from the oldest fill, which
+  is why **94.6% of attempts are on fills older than 120 days** and 18 of 6,480 were on fills newer
+  than two days. The cascade is deliberate and documented; what is not deliberate is that it takes the
+  whole history rather than the "neighbouring fills" its own docstring names.
+  ⚠ **It is a correctness finding too.** Killed at 17% of an oldest-first walk, the cascade never
+  reaches the recent fills whose MPG baseline and over-fuel window it exists to correct.
+  **Three measurements corrected earlier drafts of this same entry, and the last one reversed its
+  recommendation.** (i) Run COUNTS hid it — a job that runs an hour and dies looks like any other row;
+  `where extract(epoch from (updated_at - created_at)) > 300` is what surfaced it. (ii) The first
+  write-up blamed `efsSync.ts:250`'s import-wide select and "~2,300 rows of one import"; one window's
+  scored set spans **26 import_ids**, which killed that claim. (iii) The recommendation was "raise the
+  lease first" until the 973-of-5,640 measurement showed that finishing means ~112 minutes of scoring
+  per import against an import opened every ~30 seconds — **(b) is now the one option that must not
+  ship alone.** Recommendation is (a) bound the cascade, with (c) newest-first as the mitigation.
+  ⚠ `locked_by` is null on these rows — production is `JOB_EXECUTION_MODE=inprocess`, so `runJob`
+  owns them and the queue's 30-minute lease and `inprocessDrain.ts`'s renewal never apply. Two lease
+  clocks, and the renewed one is not the one that decides reclaim. The amplifier, not the cause.
