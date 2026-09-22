@@ -23,7 +23,14 @@
 export { syncIdleFoundation } from "./idleFoundationSync.js";
 export { syncIdleRollup } from "./idleRollup.js";
 export { syncIdleDutyEvidence } from "./idleDutyEvidenceSync.js";
-export { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
+/**
+ * `idleCalendarStartIso` joined the public surface on 2026-09-22 (DATA-LIFECYCLE-PLAN L4) because the
+ * HOS feed has to start its window on the same calendar boundary the idle feeds reading that table
+ * already use. It was internal while the only callers were in this module; a second module needing the
+ * identical anchor is the point at which a shared answer belongs on the surface rather than being
+ * re-derived next door.
+ */
+export { IDLE_SOURCE_WINDOW_DAYS, idleCalendarStartIso } from "./idleWindow.js";
 export { organizationTimezone } from "./idleCapabilitySync.js";
 export { readFleetIdleVerdict } from "./fuelIdleVerdict.js";
 /**

@@ -47,7 +47,7 @@ describe("syncHosDutySegments (end-to-end)", () => {
     });
 
     const res = await syncHosDutySegments(rec.client, env, ORG, {
-      startIso: iso(T0),
+      startIso: iso(T0 - H),
       endIso: iso(T0 + 10 * H),
       hosFetcher,
     });
@@ -105,7 +105,7 @@ describe("syncHosDutySegments (end-to-end)", () => {
       data: [{ driver: { id: "op1" }, logs: [{ logStartTime: iso(T0), dutyStatus: "driving" }] }],
     });
     const res = await syncHosDutySegments(rec.client, env, ORG, {
-      startIso: iso(T0),
+      startIso: iso(T0 - H),
       endIso: iso(T0 + 10 * H),
       hosFetcher,
     });
@@ -122,7 +122,7 @@ describe("syncHosDutySegments (end-to-end)", () => {
     const hosFetcher = async () => ({ data: [{ unexpected: true, entries: [{ ts: "x" }] }] });
     const res = await syncHosDutySegments(rec.client, env, ORG, {
       hosFetcher,
-      startIso: iso(T0),
+      startIso: iso(T0 - H),
       endIso: iso(T0 + H),
     });
     expect(res).toEqual({ fetched: 0, upserted: 0, removed: 0 });
@@ -137,7 +137,7 @@ describe("syncHosDutySegments (end-to-end)", () => {
     const rec = createSupabaseRecorder({ tables: { drivers: [] } });
     const res = await syncHosDutySegments(rec.client, env, ORG, {
       hosFetcher: async () => ({ data: [] }),
-      startIso: iso(T0),
+      startIso: iso(T0 - H),
       endIso: iso(T0 + H),
     });
     expect(res).toEqual({ fetched: 0, upserted: 0, removed: 0 });
@@ -264,7 +264,7 @@ describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {
       ],
     });
     const res = await syncHosDutySegments(rec.client, env, ORG, {
-      startIso: iso(T0),
+      startIso: iso(T0 - H),
       endIso: iso(T0 + 10 * H),
       hosFetcher,
     });
@@ -302,7 +302,7 @@ describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {
       ],
     });
     const res = await syncHosDutySegments(rec.client, env, ORG, {
-      startIso: iso(T0),
+      startIso: iso(T0 - H),
       endIso: iso(T0 + 10 * H),
       hosFetcher,
     });
@@ -333,7 +333,7 @@ describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {
       ],
     });
     await syncHosDutySegments(rec.client, env, ORG, {
-      startIso: iso(T0),
+      startIso: iso(T0 - H),
       endIso: iso(T0 + 10 * H),
       hosFetcher,
     });
@@ -380,6 +380,60 @@ describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {
     expect(calls.at(-1)).toEqual([iso(T0 + 29 * D), iso(endMs)]);
     expect(calls).toHaveLength(5);
   });
+
+  /**
+   * DATA-LIFECYCLE-PLAN L4 — the window starts on a CALENDAR DAY, so two runs in the same day request
+   * the same `startTime` and Samsara's boundary-clipped reply carries the same key both times.
+   *
+   * The test that came before this one could not see the difference: its `endIso` was already midnight,
+   * where `now - 30d` and the calendar anchor agree. Production never is. Measured 2026-09-22: 27 runs a
+   * day, each a different millisecond, each minting a row per driver that the orphan sweep could not
+   * reach because it reads back `started_at >= startIso` — ~30,000 rows a day, kept for good.
+   */
+  /** The other half of the same fix: the anchor is useless unless the parser is told where it is. */
+  it("never stores the segment Samsara clipped to the window start", async () => {
+    const rec = createSupabaseRecorder({ tables: { drivers: [{ id: "d1", samsara_driver_id: "op1" }] } });
+    const hosFetcher = async () => ({
+      data: [
+        {
+          driver: { id: "op1" },
+          hosLogs: [
+            { logStartTime: iso(T0), hosStatusType: "sleeperBed" }, // clipped to our startTime
+            { logStartTime: iso(T0 + 3 * H), hosStatusType: "driving" },
+          ],
+        },
+      ],
+    });
+    const res = await syncHosDutySegments(rec.client, env, ORG, {
+      startIso: iso(T0),
+      endIso: iso(T0 + 5 * H),
+      hosFetcher,
+    });
+    const rows = rec.writtenRows("hos_duty_segments");
+    expect(rows.map((r) => r.started_at)).toEqual([iso(T0 + 3 * H)]);
+    expect(res.fetched).toBe(1);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("anchors the rolling window to the calendar day, so re-runs within a day ask for the same instant", async () => {
+    const D = 86_400_000;
+    const windows: string[] = [];
+    const run = async (endMs: number) => {
+      const rec = createSupabaseRecorder({ tables: { drivers: [] } });
+      await syncHosDutySegments(rec.client, env, ORG, {
+        endIso: iso(endMs),
+        hosFetcher: async (s: string) => {
+          windows.push(s);
+          return { data: [] };
+        },
+      });
+    };
+    // Two runs on the same UTC day, 34 minutes and 79 milliseconds apart — the real cadence.
+    await run(T0 + 31 * D + 9 * H + 17 * 60_000 + 123);
+    await run(T0 + 31 * D + 9 * H + 51 * 60_000 + 202);
+    expect(windows[0]).toBe(iso(T0 + D)); // midnight, not 09:17:00.123 minus 30 days
+    expect(windows[0]).toBe(windows[5]!); // …and the second run asked for exactly the same instant
+  });
 });
 
 describe("syncHosDutySegments — logbook vehicle capture (WP-ATTR)", () => {
@@ -402,7 +456,7 @@ describe("syncHosDutySegments — logbook vehicle capture (WP-ATTR)", () => {
       ],
     });
     await syncHosDutySegments(rec.client, env, ORG, {
-      startIso: iso(T0),
+      startIso: iso(T0 - H),
       endIso: iso(T0 + 10 * H),
       hosFetcher,
     });
@@ -422,7 +476,7 @@ describe("syncHosDutySegments — logbook vehicle capture (WP-ATTR)", () => {
       ],
     });
     await syncHosDutySegments(rec.client, env, ORG, {
-      startIso: iso(T0),
+      startIso: iso(T0 - H),
       endIso: iso(T0 + H),
       hosFetcher,
     });

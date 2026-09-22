@@ -17,7 +17,7 @@ import {
   type SamsaraGpsSnapshotFetcher,
 } from "./lib/samsara.js";
 import { NoSamsaraTokenError } from "../samsara/index.js";
-import { IDLE_SOURCE_WINDOW_DAYS } from "../idle/index.js";
+import { IDLE_SOURCE_WINDOW_DAYS, idleCalendarStartIso } from "../idle/index.js";
 
 export interface HosSyncResult {
   fetched: number; // duty-status segments parsed from the window
@@ -176,11 +176,21 @@ export async function syncHosDutySegments(
 
   const days = opts.sinceDays ?? DEFAULT_SINCE_DAYS;
   const endIso = opts.endIso ?? new Date().toISOString();
-  const startIso = opts.startIso ?? new Date(Date.parse(endIso) - days * 86_400_000).toISOString();
+  // The rolling window starts on a CALENDAR DAY, not on "now minus N days". `idleCalendarStartIso` is the
+  // same anchor the idle feeds this table serves already use, and its own comment gives the reason: keep the
+  // window stable while a sync runs across the moving boundary. hosSync was the one caller computing a raw
+  // instant, and that is what made the boundary artefact permanent — Samsara clips the in-force duty status
+  // to `startTime`, so a start that moved every run minted a fresh key every run (see parseHosLogs'
+  // `windowStartMs`). Measured 2026-09-22: 67,632 of 126,266 fetched segments were written on EVERY run,
+  // 35.3M inserts against 34.2M deletes for a 1.65M-row table, and ~30,000 rows a day left behind for good.
+  const startIso = opts.startIso ?? idleCalendarStartIso(endIso, days);
 
   const fetchHos = opts.hosFetcher ?? makeSamsaraHosLogsFetcher(env, token);
   const rawData = await fetchHosLogsChunked(fetchHos, Date.parse(startIso), Date.parse(endIso));
-  const segments = parseHosLogs(rawData, { windowEndMs: Date.parse(endIso) });
+  const segments = parseHosLogs(rawData, {
+    windowEndMs: Date.parse(endIso),
+    windowStartMs: Date.parse(startIso),
+  });
   warnOnShapeMismatch(rawData, segments.length);
   if (segments.length === 0) return { fetched: 0, upserted: 0, removed: 0 };
 

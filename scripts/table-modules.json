@@ -1011,7 +1011,7 @@
         "retention_days": 400,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "raw ELD duty segments. Measured 29,819/day, of which 68.7% carry no driver_id (Q2). L4 proposes 400d\u2192120d once Q2 is ruled; the window here stays the one in force. Budget below measured rate on purpose \u2014 L4 should remove two-thirds of it."
+        "why": "raw ELD duty segments. The 29,819/day measured at L1 was almost entirely a writer artefact, not ELD volume: 72.5% of the last 45 days sat at 334 shared instants, one row per driver per sync run, stranded below the next run's window start where the orphan sweep could not see it (L4, 2026-09-22). Genuine rate is ~3,100/day \u2014 ~2,000 duty transitions plus ~1,100 daily-boundary logs \u2014 which is why the 5,000 budget set at L1 is the right ceiling and was already the right ceiling. 400 days is the window IN FORCE and stays: the scoring attribution check reads segments around any fill it rescores, and 9,406 of 17,297 fills are older than 120 days (L4 declined the 400\u2192120 leg; see the plan's \u00a78)."
       }
     },
     "idle_events": {
