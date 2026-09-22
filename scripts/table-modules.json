@@ -1668,10 +1668,10 @@
       "layer": "derived",
       "lifecycle": {
         "growth": "time",
-        "retention_days": null,
+        "retention_days": 45,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "derived and rebuildable. Measured 2026-09-21: 136 attempts per fuel transaction, 75,041/day; its own idx_scoring_attempts_org_started had 0 scans. NO retention rule exists today \u2014 L3 adds 45d and investigates the rescore loop. Budget is deliberately below the measured rate so the L8 judge fires until it is fixed."
+        "why": "derived and rebuildable. Measured 2026-09-21: 139.7 attempts per fuel transaction, 75,041/day, and its own idx_scoring_attempts_org_started had 0 scans. L3 set 45d \u2014 DERIVED, not chosen: scoringHealth() is the only reader and clamps its window to at most 30 days, so 30 is the floor and 45 leaves a fortnight of headroom. \u26a0 Budget stays deliberately BELOW the measured rate so the L8 judge keeps firing: retention caps the storage but does not stop the rescan (plan Q6)."
       }
     },
     "seven_day_statements": {
