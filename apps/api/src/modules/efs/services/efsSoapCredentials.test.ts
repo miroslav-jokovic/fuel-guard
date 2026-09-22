@@ -16,6 +16,7 @@ import {
   upsertEfsSoapCredentials,
   type EfsSoapCredentials,
 } from "./efsSoapCredentials.js";
+import { getEfsSoapStatus } from "./efsSoapStatus.js";
 import { testEnv } from "../../../testing/testEnv.js";
 
 const ORG = "org-1";
@@ -235,5 +236,76 @@ describe("EFS credential rotation", () => {
     const second = await getPolicyCached(env, orgCreds, 14, { fetchImpl: rec.fetchImpl });
     expect(second.policy?.description).toBe("Linehaul");
     expect(rec.calls()).toBe(4);
+  });
+});
+
+/**
+ * Q6b's second half (migration 0354 added the terminal `abandoned` status; this is its surface).
+ *
+ * The ceiling stops a run that can never finish. On its own that trades a LOUD failure for a SILENT
+ * one: `getEfsSoapStatus` used to select `pending`/`running`/`failed`, so an abandoned run simply
+ * drops out of the query and the operator watches the count fall to zero — indistinguishable from
+ * work that completed. The three runs the ceiling was written for were invisible for 25 days while
+ * being 48.9% of all scoring, and a fix whose only visible effect is a number going down would have
+ * preserved exactly that.
+ *
+ * The fixture HONOURS the `.in("status", …)` filter rather than returning a flat array, so these
+ * assertions fail if the query stops asking for `abandoned` — which a flat array could never catch.
+ */
+describe("EFS processing status — an abandoned run must not go quiet", () => {
+  const runRow = (status: string, lastError: string | null = null) => ({
+    org_id: ORG,
+    feed: "posted" as const,
+    status,
+    last_error: lastError,
+  });
+
+  /** Returns only the rows whose status the query actually asked for. */
+  const runsHonouringFilter = (rows: ReturnType<typeof runRow>[]) => (q: { filters(): Array<{ col: string; val: unknown }> }) => {
+    const wanted = q.filters().find((f) => f.col === "status")?.val;
+    const list = Array.isArray(wanted) ? (wanted as string[]) : null;
+    return list ? rows.filter((r) => list.includes(r.status)) : rows;
+  };
+
+  const statusFor = async (rows: ReturnType<typeof runRow>[]) => {
+    const db = createSupabaseRecorder({
+      tables: {
+        efs_soap_credentials: [credentialRow("plain-password", null)],
+        efs_processing_runs: runsHonouringFilter(rows),
+      },
+    });
+    return getEfsSoapStatus(db.client, env, ORG);
+  };
+
+  it("counts an abandoned run separately and does not call it pending", async () => {
+    const status = await statusFor([
+      runRow("pending"),
+      runRow("running"),
+      runRow("abandoned", "abandoned after 235 attempts without completing (attempt ceiling, migration 0354)"),
+    ]);
+
+    expect(status.posted.processingAbandoned).toBe(1);
+    // Two genuinely in flight. Counting the abandoned one here would report work in progress that
+    // nothing will ever pick up.
+    expect(status.posted.processingPending).toBe(2);
+  });
+
+  it("surfaces the abandoned run's error ahead of a retrying one's", async () => {
+    const status = await statusFor([
+      runRow("failed", "EFS SOAP 503 — retrying"),
+      runRow("abandoned", "abandoned after 235 attempts without completing (attempt ceiling, migration 0354)"),
+    ]);
+
+    // A `failed` run is mid-ladder and its error may be transient; an abandoned run's error is the
+    // final word on that import, and it is the one an operator has to act on.
+    expect(status.posted.processingLastError).toContain("attempt ceiling");
+  });
+
+  it("reports nothing abandoned when nothing is, and leaves the pending count alone", async () => {
+    const status = await statusFor([runRow("pending"), runRow("failed", "transient")]);
+
+    expect(status.posted.processingAbandoned).toBe(0);
+    expect(status.posted.processingPending).toBe(2);
+    expect(status.posted.processingLastError).toBe("transient");
   });
 });

@@ -10,9 +10,9 @@ import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import {
   disableEfsSoapCredentials,
   getEfsSoapCredentials,
-  getEfsSoapStatus,
   upsertEfsSoapCredentials,
 } from "../services/efsSoapCredentials.js";
+import { getEfsSoapStatus } from "../services/efsSoapStatus.js";
 import { pingEfsSoap } from "../lib/efsSoap.js";
 import { recordHandshake } from "../services/efsSoapClientCerts.js";
 import { allowPrivateEndpoints, checkOutboundUrl } from "../../../lib/ssrfGuard.js";
