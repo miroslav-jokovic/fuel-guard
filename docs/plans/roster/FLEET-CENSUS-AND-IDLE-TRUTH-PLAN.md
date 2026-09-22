@@ -559,8 +559,8 @@ carries its first named carve-out saying so.
 still reports as running. It is one field's `disabled` and a source label, and it can become (b)
 later without anything to undo.
 
-**Q-9 — Unit 732 is one truck in two rows. Where does its history end up? (OWNER ANSWER NEEDED;
-opened by F4, which is deferred until this is answered)**
+**Q-9 — ~~Unit 732 is one truck in two rows. Where does its history end up?~~ DECIDED 2026-09-22: (a),
+delegated by the owner. Built as 0357–0359; see the progress log.**
 
 The gateway swap of 2026-08-24 split one truck across two rows, and each half holds real data:
 
@@ -959,3 +959,39 @@ real incidents in this checkout:
   · Mutation-proved: dropping the link test from the predicate fails *"stays the office's on a row
   McLeod has never linked"*; un-disabling either select fails its form's *"shows a McLeod-linked
   … status read-only, and says where it is set"*.
+- **2026-09-22 (the identity sweep ran — merges 4, 5 and E5 are now real)** — Run by hand from the
+  owner's machine at the owner's instruction, `ROSTER_MODE=identity --full`, after production had
+  been confirmed serving #970. Result, read back from production rather than from the agent's log:
+  **181 active + 12 `maintenance` + 53 `ordered` + 26 retired** trucks (the prediction was 181 + 12),
+  552 / 555 / 563 / 569 re-linked and active, **trailers 223 active** with R532167 and 536132 back.
+  ⚠ **568 did not return, and the reason is the owner's vocabulary, not a defect.** McLeod's
+  link sits on `568 - OLD`, 97 fills on a retired `568`, and Samsara carries BOTH `568 - OLD` and
+  `568 - SOLD` for one VIN. Owner-stated: *`- OLD` = the device was changed; `- SOLD` = the truck
+  was sold and is out of the fleet.* So 568 is a sold truck McLeod still reports as active — the
+  same position as Q-4's wind-down units (eight trucks carry a `- SOLD` Samsara record while McLeod
+  keeps them `'A'`; three of them fuelled in the past week). Not merged, deliberately: the fix is
+  McLeod's flag, after which the retirement sweep retires it (D-FC0).
+
+- **2026-09-22 (Q-9 decided, and the merge found a tax-filing defect first)** — (a) as recommended:
+  the history row survives. Researching the move found what the plan had not measured:
+  · **IFTA would have lost three weeks of one truck.** `samsara_ifta_jurisdiction_miles` was unique
+  on (vehicle, month, jurisdiction) and `monthsToSync` re-fetches the last three closed months. After
+  a merge, re-fetching August would upsert the new gateway's eight days over the old gateway's
+  twenty-four. **0357** adds a key naming the device (index only — the deploy window); **0358** drops
+  the vehicle-only key in the same merge as the writer that upserts on the wide one. Every reader
+  sums, so no total moves.
+  · **The move is ~650 rows, not 59**, across ten tables — the plan counted only the two day
+  rollups. None is evidence; the 102 fills, 347 financial entries and the card never move.
+  · **0359** merges through every foreign key into `vehicles` generically, resolves the measured
+  collisions (spend-days dropped and rebuilt — derived; swap-day engine and idle seconds summed with
+  coverage capped; the later odometer reading kept; the live device's position kept; both devices'
+  IFTA kept) and FAILS, rolling back, if anything still references the retired row. The retired row
+  becomes `732-merged-698c08f1`: no link, device or VIN. Not deleted (§1.8a).
+  · Checked before writing: 0241 exempts a write with no JWT role, so the survivor is not claimed for
+  the office; McLeod is roster master, so the Samsara sync is link-only and will never recreate
+  `732 - OLD` (it carries no VIN, so it cannot match by VIN either).
+  · `supabase/tests/merge-unit-732.test.mjs`, 30 assertions over production's shapes. Mutations:
+  un-capping coverage, keeping the earlier odometer reading, dropping `identity_source = 'mcleod'`,
+  not dropping the spend-days, keeping the pulled device — each fails the assertion named for it.
+  · **Owed after deploy:** `POST /api/fuel/spend-rollup` for 2026-08-24 onward, so the history row's
+  spend-days pick up the moved telemetry; the nightly rollup only reaches back 14 days.
