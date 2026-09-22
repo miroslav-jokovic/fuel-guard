@@ -612,7 +612,7 @@ trustworthy document in the repo.
 
 ## 7. Open questions — owner rulings required
 
-**Q1 — the 4.7M existing `audit_logs` rows.** `D-LIFE4` stops the noise; it does not decide what
+**Q1 — the 4.7M existing `audit_logs` rows. RULED (a) by the owner 2026-09-22 — leave them; L7 partitions around them.** `D-LIFE4` stops the noise; it does not decide what
 happens to 924k/week of already-written actor-less `vehicle.update` rows. Candidates:
 (a) leave them, partition around them, let them age out of the hot set — **recommended**, it decides
 nothing irreversible and L7 delivers the working-set benefit anyway; (b) migrate them to `sync_runs`
@@ -652,7 +652,7 @@ A 120-day window would flip those fills' logbook verdict from a real answer to `
 next rescore — degrading evidence to buy 194,404 rows, 11.8% of a table whose other 72.5% was the
 defect. Revisit only after Q6 bounds what actually gets rescored.
 
-**Q7 — the ~1.4 M rows L4 stopped producing. OPENED 2026-09-22.** §2.9's artefact accrued at ~30,000
+**Q7 — the ~1.4 M rows L4 stopped producing. OPENED 2026-09-22; RULED (a) by the owner the same day — see §8 for what (a) turned out to cover and its execution state.** §2.9's artefact accrued at ~30,000
 rows/day from 2026-08-04, and L4 stops the production but deletes nothing: the rows sit below the
 orphan sweep's floor, and retention will not reach them for 400 days. They are identifiable exactly
 — `started_at` shared by ~1,100 drivers at a single millisecond, matching a `sync_hos` run instant
@@ -666,13 +666,13 @@ This table is NOT in `RETENTION_FORBIDDEN` (raw telematics, re-fetchable from Sa
 and rebuilt daily), so (a) is permitted — but a 1.4 M-row delete on production is the owner's call,
 not a merge's side effect.
 
-**Q3 — what compute tier is this project on?** Not measured. `D-LIFE0` is about working set vs. RAM,
+**Q3 — what compute tier is this project on? ANSWERED 2026-09-22: Micro — 948 MB RAM, 2 vCPU, and it is swapping (§8).** Was: not measured. `D-LIFE0` is about working set vs. RAM,
 
 **Q3 — what compute tier is this project on?** Not measured. `D-LIFE0` is about working set vs. RAM,
 and the thresholds in `D-LIFE5` should be tightened if the instance is Micro or Small. One reading
 from the Supabase dashboard settles it.
 
-**Q4 — is PITR enabled?** At $100/mo per 7-day window it changes the §2.8 arithmetic materially, and
+**Q4 — is PITR enabled? ANSWERED 2026-09-22: no — daily physical backups, 7-day retention (§8).** At $100/mo per 7-day window it changes the §2.8 arithmetic materially, and
 it makes restore time a first-class reason for L7 rather than a secondary one.
 
 **Q5 — telemetry on a `core` entity table. THE L2 BLOCKER, opened 2026-09-22.** `vehicles` carries
@@ -1498,3 +1498,48 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   **Expected effect, to be measured after deploy rather than claimed:** the share of scoring attempts
   on fills older than 120 days (61% on 2026-09-22 19:30 UTC) should fall to roughly the share of
   imports that genuinely carry old fills.
+
+- **2026-09-22 (later still) — Q1 and Q7 ruled (a); Q3 and Q4 answered by measurement.** The owner
+  accepted every recommendation in §7.
+  **Q1 (a):** the 4.7 M existing `audit_logs` rows stay where they are; L7 partitions around them.
+  **Q4 — PITR is OFF.** `supabase backups list` returns `pitr_enabled: false`, `walg_enabled: true` and
+  8 daily physical backups (2026-09-15 → 09-22, ~08:40 UTC). So a restore goes back to the last daily
+  backup — up to ~24 h of data lost — and how long it takes grows with database size. That makes
+  `D-LIFE0`'s "bounded restore" a direct reason for L7, not a secondary one, and the $100/mo PITR line
+  is not in §2.8's arithmetic.
+  **Q3 — the instance is MICRO, and the working set does not fit.** Read exactly from the project's
+  Prometheus endpoint (`/customer/v1/privileged/metrics`, service-role auth), not inferred:
+  `node_memory_MemTotal_bytes` **948,195,328** (Micro's 1 GB), 2 CPUs, 1 GB swap, `/data` 8.4 GB with
+  3.4 GB free. `pg_settings` agrees (shared_buffers 256 MB, effective_cache_size 768 MB,
+  max_connections 60). The database is **4,057 MB — 4.3× RAM**. At 20:3x UTC only 182 MB was
+  available, swap was **538 of 1,074 MB used**, and it was **active, not just parked**: across two
+  scrapes 301 s apart, 33,300 pages swapped in and 62,788 swapped out (~0.4 MB/s in, ~0.8 MB/s out).
+  Postgres's own buffer hit rate reads 99.46%, which is why nothing flagged this — that number counts
+  hits in `shared_buffers` and cannot see the OS paging underneath it.
+  What this changes: `D-LIFE0` is binding NOW, not a projection. Every step that shrinks the hot set
+  (L7, and the `D-LIFE5` windows not yet applied — `idle_events`/`idle_park_sessions` 180 d,
+  `weather_cache` 90 d) moves up. Each window still has to be re-measured against its readers before
+  it ships, as `D-LIFE5` requires — "tighter because Micro" is a reason to do the measurement, not a
+  substitute for it. The alternative lever is a compute upgrade; that is a cost call for the owner and
+  is recorded here, not taken.
+  **Q7 (a) turned out to be two families, and only one of them is a delete.** Measured on production
+  before any write: the artefact is **1,156 instants, 1,253,950 rows**, every one older than 30 days,
+  all in the real-fleet org. Classifying each sampled row against the driver's IMMEDIATELY preceding
+  segment:
+  | family | instants | rows | sample | verdict |
+  |---|---|---|---|---|
+  | rolling window start (L4's artefact) | 1,018 | 1,106,152 | **3,272 of 3,272 fully covered** by a same-status predecessor | pure duplicates — deleting loses no duty time |
+  | 05:00 UTC ELD restatement (L4c's) | 138 | ~148 k | 3,225 continuations, **8 real status changes** | NOT duplicates — deleting opens a gap at every one |
+  So (a) was applied to the first family only. The second can only be cleaned by COALESCING (extend the
+  predecessor's `ended_at`, then delete the fragment) — that rewrites real rows, which is more than
+  the ruling covered, and it is left for its own ruling rather than folded in.
+  **Execution is BLOCKED on a permission, not on a decision.** The Claude Code auto-mode classifier
+  refused the production delete (and a read right after it), which is the guardrail working as
+  `fuelguard-prod-db-access` describes; it was not worked around. The exact SQL is prepared for the
+  owner to run in the Supabase SQL editor: `docs/plans/architecture/Q7-hos-artefact-delete.sql`. It is one `DO` block holding the 1,018 instants as literals.
+  The coverage check sits INSIDE the `DELETE`, so each row is proved covered at the moment it is
+  removed; each run handles at most 100 instants and writes one
+  `integration.samsara.hos_artefacts_deleted` audit row, and you re-run it until it reports 0. Checked
+  on PGlite against a fixture before handing over: a covered duplicate goes; a gap, a status change, a
+  row with no predecessor and another org's identical row all stay; a re-run reports 0. Nothing has
+  been deleted yet — **verify with the two queries at the file's foot after the last run.**
