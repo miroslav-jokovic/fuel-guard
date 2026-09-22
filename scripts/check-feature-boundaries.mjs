@@ -312,6 +312,20 @@ const API_ALLOW = new Set([
   //     carrier, and a scheduler that kept its own idea of "last run" in memory would forget it on
   //     every deploy (F8).
   "fleetpal -> org",
+  //   · fleetpal -> mcleod — the coverage bound's DENOMINATOR and its accounts-payable side, both
+  //     through McLeod's own exported readers (`readLedgerTotalsRange`, `readVoucherNumbersWindow`)
+  //     and never a `.from("mcleod_*")`, which `lint:table-access` would refuse outright. The edge
+  //     exists because D-FP4 makes the ratio part of the feature: FleetPal cannot print a dollar
+  //     without saying what fraction of the ledger's maintenance family it saw, and only McLeod
+  //     knows that family's total. No money travels the other way — D-FLEET2 makes the general
+  //     ledger the entire financial input and this arrow is a READ (F9b).
+  //   · fleetpal -> samsara — cost per mile needs miles, and IFTA jurisdiction mileage is samsara's
+  //     raw layer. Read through `readVehicleMonthlyMiles`, the same door the CPM harness uses. It
+  //     is a MAINTENANCE metric on a maintenance page and it does not enter the fleet report
+  //     (D-FP3); the arrow is here so that the day the mileage source changes, one export records
+  //     who depended on it.
+  "fleetpal -> mcleod",
+  "fleetpal -> samsara",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

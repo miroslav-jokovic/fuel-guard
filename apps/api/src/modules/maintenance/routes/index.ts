@@ -16,6 +16,7 @@ import { inventoryAssetsRouter } from "./inventoryAssets.js";
 import { inventoryAssetTypesRouter } from "./inventoryAssetTypes.js";
 import { inventoryUnitsRouter, kitExpectationsRouter } from "./inventoryUnits.js";
 import { inventoryLabelsRouter } from "./inventoryLabels.js";
+import { fleetpalCostRouter } from "./fleetpalCost.js";
 import { fleetpalUnitsRouter } from "./fleetpalUnits.js";
 
 const spendSchema = z.object({
@@ -88,6 +89,13 @@ export function maintenanceRouter(): Router {
   // `modules/fleetpal`; this is the door a shop manager reaches it through, and its census is what
   // D-FP14 requires beside every per-unit cost figure F9 will print.
   router.use("/fleetpal", fleetpalUnitsRouter());
+
+  // Per-unit maintenance cost and its coverage bound (F9b). Mounted at the section root rather
+  // than under `/fleetpal`, because `/units/:kind/:id/maintenance` is a question about OUR unit —
+  // the caller holds a `vehicles`/`trailers` id and never a FleetPal one, and a path that said
+  // `fleetpal` would invite the opposite. `/fleetpal/coverage` inside it is the one route that
+  // really is about the vendor's own figures.
+  router.use(fleetpalCostRouter());
 
   router.get(
     "/spend",

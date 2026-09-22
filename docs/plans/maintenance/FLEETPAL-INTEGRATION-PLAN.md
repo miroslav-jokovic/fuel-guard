@@ -381,6 +381,7 @@ This is also what finally feeds `vehicles.next_pm_due_odometer` / `next_pm_due_a
 | **D-FP13** | **A `PART` job item is an `issued` movement**, carrying `work_order_ref`, `unit_cost` and the resolved `vehicle_id`/`trailer_id`. Its movement id is derived from the FleetPal job-item id, so a replay is a no-op. **It is not a spend event** — D-INV11 stands, GL `30230000` already holds the money. | §2.5, D-INV11 |
 | **D-FP14** | **The unmatched unit is a first-class state, not an error.** Every read model reports its unmatched count, and no surface silently drops rows it could not resolve. | §2.6 |
 | **D-FP15** | **The coverage ratio is a stated LOWER bound, and everything excluded could only raise it.** Q9(a) joins FleetPal's invoice number to `mcleod_ap_vouchers.invoice_number` with no vendor key, so the join has error in both directions: a number FleetPal formats differently is a missed match, and a number that collides across vendors is a false one. The headline therefore counts **only a FleetPal invoice number that matches exactly ONE maintenance-family voucher in the month** — unmatched numbers and multi-voucher collisions are excluded from it and reported beside it. Since the numerator is a subset sum of the denominator's own family, the ratio cannot exceed 100% and cannot overstate; "at least X%" is then true by construction rather than by hope. The page says "at least", in those words. | Owner Q9(a), 2026-09-21 |
+| **D-FP17** | **`mcleod_ap_vouchers` has no expense dimension, so FleetPal supplies the classification.** `ap_glid` is the accounts-payable CONTROL account, not the expense account — measured on production 2026-09-21 it is `20000000` on 1,278 of 1,658 rows and null on the other 380, one distinct non-null value in the table. The expense distribution lives on voucher DETAIL rows this stack does not stage, so a voucher header cannot be filtered to the maintenance family at all. Every FleetPal invoice is against a maintenance purchase order, so a voucher matched by number IS maintenance spend on FleetPal's evidence. The integration supplies the dimension McLeod is missing — §2.2's sentence about per-unit cost, arriving again from the other direction. | F9b, measured |
 | **D-FP16** | **The invoice number is stored exactly as the vendor entered it.** No trim, no case fold, no zero-stripping, anywhere between the wire and the join. Every one of those is a normalisation that would be indistinguishable at read from a real match, and would turn D-FP15's stated bound back into the guess Q9 rejected. | 0351; F9a |
 
 ---
@@ -611,7 +612,7 @@ functions, and `modules/fleetpal/ingest/purchasing.ts`. Both resources carry `up
 endpoints take `updated_after`, so both are plain `runIngest` watermarks — the easy tier, unlike
 F7's three siblings. **Deliberately not wired into `sweepRepairRecord`**: that line is F9b's.
 
-#### F9b — the read models — *no migration*
+#### F9b — the read models — **DONE 2026-09-21** — *no migration*
 
 The read model, and the first per-truck repair cost the product has ever been able to print.
 
@@ -630,6 +631,23 @@ that prints cost without it does not merge.
 
 **Done when:** the coverage endpoint reproduces, for one month, a hand-computed ratio recorded in
 §8; and a test asserts the cost endpoint refuses to answer when coverage cannot be computed.
+
+### F9c — VMRS descriptions, resolved live — *no migration*
+
+F9's description asked for the component "description resolved live per D-FP8" and F9's done-when
+did not, so F9b ships the CODE and this step turns it into words. Splitting it is deliberate rather
+than convenient: resolving a description means holding a decrypted per-org API key on a READ path
+and paying a vendor round trip (p95 2.29s, F4) inside a page render, which is a caching and
+key-handling design of its own and not a line in a cost endpoint. A code is useless to a shop
+manager, so **this lands before F10**, which is the step that renders the words.
+
+`modules/fleetpal/vmrs.ts` — resolve `/v1/vmrs-*` on demand into a short-lived in-process cache,
+render, drop. Nothing persisted, ever: the code is a fact about a repair we performed and the
+English is licensed TMC material whose distribution tier the owner declined on 2026-09-10 (D-FP8).
+
+**Done when:** a component code renders as words on the unit's maintenance file; nothing writes a
+description to any table (asserted, not assumed); and a vendor failure degrades to the bare code
+rather than to an error — a repair report that cannot say "ALTERNATOR" must still say "013".
 
 ### F10 — Web: the unit's maintenance file — *no migration*
 
@@ -1355,3 +1373,108 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next is F9b** — wire the two ingests into `sweepRepairRecord`, then the cost endpoint and the
   coverage endpoint in ONE PR, because D-FP4 does not allow the first without the second.
+
+- **2026-09-21 · F9b DONE — the first per-truck repair cost, and the bound that lets it be printed.**
+  `GET /api/maintenance/fleetpal/coverage` and `GET /api/maintenance/units/:kind/:id/maintenance`,
+  both in `maintenance/routes/fleetpalCost.ts`; the arithmetic is pure in
+  `packages/shared/src/fleetpal/coverage.ts`; the reads are `modules/fleetpal/coverage.ts` and
+  `modules/fleetpal/unitCost.ts`. F9a's two ingests are now in `sweepRepairRecord`.
+
+  **THE BOUND, HAND-COMPUTED ON REAL DATA — July 2026**, the done-when this step exists for. The
+  FleetPal side walked live from `/v1/purchase-order-invoices`, the McLeod side read from production
+  with `supabase db query --linked`, and the two put through the same `computeCoverage` the endpoint
+  calls:
+
+  | | |
+  |---|---:|
+  | FleetPal invoiced (217 invoices) | **$215,782.05** |
+  | GL maintenance family (15 signed accounts) | **$219,301.48** |
+  | Confirmed in the AP ledger | **$127,601.11** |
+  | **The bound** | **at least 58.2%** |
+  | matched exactly one voucher | 57 |
+  | matched several (collisions, excluded) | **0** |
+  | matched nothing (excluded) | 160 |
+  | matched but the amounts disagreed | 4 of 57 |
+
+  **Read the 98% and the 58% together, because that gap IS the answer.** FleetPal's raw invoicing is
+  98.4% of the ledger's maintenance family, which looks like near-total coverage and is exactly the
+  plausible-but-wrong figure D-FIN10 refuses — it is a ratio of two unjoined totals and would read
+  as 98% coverage whether or not a single invoice were the same invoice. Only 58.2% can be shown to
+  be the same money. The other 40 points are not missing maintenance; they are maintenance we cannot
+  *prove*, and the ruling's own words — "at least" — are what makes the page honest about which.
+
+  **⚠ 160 of 217 numbers matched nothing, and the vendor's own data says why.** July's invoice
+  numbers include `"137286201 and 137290236"`, `"CHK955 and 400167"`, `"RECEIPT: 9086"`,
+  `"30472000053 Paid already"`, `"tlz50008508 - receipt of BOrder"` and
+  `"Paid by company CCard - JOEL"`. That last one will never match a voucher because it never was
+  one. This is a free-text field a human types, which is the strongest possible argument for D-FP16
+  — any normaliser we wrote would make some of these match something, and nobody could afterwards
+  tell which figures were evidence and which were our own tidying. **0 collisions** across 183
+  distinct numbers also retires the worst fear in Q9: the ambiguity the ruling accepted did not
+  occur once in a real month.
+
+  **⚠ August 2026 cannot be answered AT ALL, and that is the D-FP4 refusal firing on production.**
+  `mcleod_gl_totals` has no swept row for August — the last swept month is July — so the endpoint
+  returns **409 `coverage_unavailable`** for any window touching it rather than a cost figure with
+  no denominator. This is the owner's outstanding McLeod sweep showing up as a refusal instead of as
+  a wrong number, which is the entire point of the rule.
+
+  **⚠ `mcleod_ap_vouchers` cannot be filtered to maintenance, and D-FP17 records why.** The obvious
+  numerator — "maintenance-family vouchers FleetPal matched" — does not exist: `ap_glid` is the
+  accounts-payable CONTROL account, `20000000` on 1,278 of 1,658 rows and null on the rest, one
+  distinct non-null value in the whole table. The expense distribution is on voucher detail rows
+  nothing stages. FleetPal supplies the classification instead, because every invoice it holds is
+  against a maintenance purchase order. Had this not been measured, the reader would have been
+  written, the gate would have passed, and the bound would have been computed against a denominator
+  of every voucher in the company.
+
+  **The refusal is a 409, not a 200 with a null.** A caller that forgets to check a null prints the
+  cost anyway; a caller that ignores a 409 prints nothing. And the bound is computed BEFORE the cost
+  in the handler, so there is no code path that produces a cost figure without one.
+
+  **⚠ Per-unit cost SUMS across every `fleetpal_units` row for a vehicle.** Eight VINs appear twice
+  at the vendor (F4), so the read is an `.in()` over every mapped id and the test asserts the QUERY
+  rather than its result — a recorder that does not filter cannot fail an `.eq()` on the first id.
+
+  **Mutation proofs, twelve, each restored by copying the bytes back.** Four on the pure bound
+  (counting a collision, counting an unmatched number, a null denominator becoming a zero ratio, a
+  CREDIT adding), four on the reads (taking the first mapped unit, `?? 0` on a null total, a trailer
+  taking vehicle mileage, the denominator not filtering to the signed family), one on the route
+  (deleting the `coverageIsPrintable` gate, which failed all three D-FP4 tests), and three more
+  below.
+
+  **⚠ Two mutations SURVIVED and both fixes are the finding, not the mutation.**
+  - **The one-day downtime floor.** `Math.max(1, …)` could be deleted with every test green: the
+    fixture ran 17:00→21:30 and `Math.ceil(4.5h / 24h)` is already 1. The floor is only load-bearing
+    when the two stamps are EQUAL, which is what a shop stamping both at close actually sends, so
+    that case is now explicit and says why.
+  - **The null denominator.** `?? null → ?? 0` left all seventeen tests green, because the pure
+    layer maps a ZERO denominator to a null ratio too — so the 409 fired either way and no assertion
+    could see the difference. What the difference reaches is the page: a null prints a dash and a
+    zero prints "$0.00", i.e. "the company spent nothing on maintenance in August". It did not; we
+    have not swept it. The coverage endpoint now asserts the null directly.
+
+  **And one assertion was simply wrong about arithmetic.** 663,000,000 metres is **411,969** miles,
+  not the 412,000 this plan and 0349's header both round it to. Asserting the round number failed,
+  which is the test doing its job; a conversion is pinned to what the divisor produces and never to
+  a figure quoted in prose.
+
+  **Two module edges declared rather than taken:** `fleetpal -> mcleod` (the denominator and the AP
+  vouchers, through McLeod's exported readers — `readVoucherNumbersWindow` is new, because
+  `readApVouchersWindow` does not select `invoice_number` and widening it would change a shape every
+  financial caller depends on) and `fleetpal -> samsara` (`readVehicleMonthlyMiles` for cost per
+  mile, a MAINTENANCE metric that does not enter the fleet report, D-FP3).
+
+  **Verified by:** all 40 `lint:*` gates by name with `$?` checked, `pnpm typecheck`, 4,193 api
+  tests, 3,054 shared tests, and the July hand-computation above.
+
+  **⚠ What is NOT proved end to end, and why.** The endpoint reads `fleetpal_po_invoices`, which is
+  empty in production because nothing sweeps yet — `FLEETPAL_SYNC_ENABLED=true` on `@fleetguard/api`
+  and a key stored per org are both owner acts. So the table reads are proved by the route tests and
+  the arithmetic by the July figures above, and the two meet for the first time on the day the sweep
+  is switched on. The first real run should reproduce **58.2% for July 2026**; a materially different
+  number means the staging lost something the live walk had, and that is the check to make.
+
+  **Next is F9c** — VMRS descriptions resolved live (D-FP8) — which F9's prose asked for and F9's
+  done-when did not, and which lands before F10 because "013" is not an answer a shop manager can
+  use.

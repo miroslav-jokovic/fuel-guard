@@ -60,9 +60,13 @@ export {
   type UnitMatch,
 } from "./unitMatch.js";
 export { resolveStagedUnits, type ResolveOutcome } from "./resolveUnits.js";
+export { readCoverage, monthsBetween, type CoverageAnswer } from "./coverage.js";
+export { readUnitCost, resolveUnitIds, type UnitCostAnswer, type UnitRepair } from "./unitCost.js";
 export {
   sweepRepairRecord,
   runIngest,
+  purchaseOrdersIngest,
+  poInvoicesIngest,
   ingestDefects,
   ingestExpirations,
   issuesIngest,

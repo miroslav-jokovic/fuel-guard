@@ -40,6 +40,7 @@ export * from "./fleetpal/primitives.js";
 export * from "./fleetpal/equipment.js";
 export * from "./fleetpal/repair.js";
 export * from "./fleetpal/purchasing.js";
+export * from "./fleetpal/coverage.js";
 
 // ── OUR OWN API, WHICH IS NOT THE VENDOR'S WIRE ─────────────────────────────────────────────────
 //
