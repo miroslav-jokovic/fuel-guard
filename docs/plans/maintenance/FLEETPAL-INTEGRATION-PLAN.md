@@ -380,6 +380,8 @@ This is also what finally feeds `vehicles.next_pm_due_odometer` / `next_pm_due_a
 | **D-FP12** | **Stock arriving is received in FleetPal and ingested** (carried forward from INVENTORY-PLAN Q9, ruled (a) 2026-09-09). Our `receive` verb stays manual-only for stock bought outside a purchase order, and the drawer already says so. The ingest writes `received` movements with an id derived from FleetPal's receipt-item id. | INVENTORY-PLAN Q9 |
 | **D-FP13** | **A `PART` job item is an `issued` movement**, carrying `work_order_ref`, `unit_cost` and the resolved `vehicle_id`/`trailer_id`. Its movement id is derived from the FleetPal job-item id, so a replay is a no-op. **It is not a spend event** — D-INV11 stands, GL `30230000` already holds the money. | §2.5, D-INV11 |
 | **D-FP14** | **The unmatched unit is a first-class state, not an error.** Every read model reports its unmatched count, and no surface silently drops rows it could not resolve. | §2.6 |
+| **D-FP15** | **The coverage ratio is a stated LOWER bound, and everything excluded could only raise it.** Q9(a) joins FleetPal's invoice number to `mcleod_ap_vouchers.invoice_number` with no vendor key, so the join has error in both directions: a number FleetPal formats differently is a missed match, and a number that collides across vendors is a false one. The headline therefore counts **only a FleetPal invoice number that matches exactly ONE maintenance-family voucher in the month** — unmatched numbers and multi-voucher collisions are excluded from it and reported beside it. Since the numerator is a subset sum of the denominator's own family, the ratio cannot exceed 100% and cannot overstate; "at least X%" is then true by construction rather than by hope. The page says "at least", in those words. | Owner Q9(a), 2026-09-21 |
+| **D-FP16** | **The invoice number is stored exactly as the vendor entered it.** No trim, no case fold, no zero-stripping, anywhere between the wire and the join. Every one of those is a normalisation that would be indistinguishable at read from a real match, and would turn D-FP15's stated bound back into the guess Q9 rejected. | 0351; F9a |
 
 ---
 
@@ -585,7 +587,31 @@ half, proved by a fixture pair.
 handler is registered (a kind in the union with no handler is the failure this step exists to
 avoid).
 
-### F9 — Per-unit maintenance cost, and the coverage ratio — *no migration*
+### F9 — Per-unit maintenance cost, and the coverage ratio — **split into F9a and F9b, 2026-09-21**
+
+**⚠ This step was written as "no migration" and that was wrong.** The coverage ratio's numerator is
+FleetPal's own invoiced total, reached along `work_order → /v1/purchase-orders →
+/v1/purchase-order-invoices` (§2.4). F6 staged the repair record, F7 the condition tier, F12 stages
+the parts catalogue and F13 reads receipt ITEMS straight into `recordMovement` without staging
+them — **no step in F0–F15 ever staged purchase orders or their invoices.** The contracts have been
+in `packages/shared/src/fleetpal/purchasing.ts` since F1 and were corrected against the live account
+at F4; there was simply no table for the answer to land in. Under D-FP4, that did not make the ratio
+a missing extra: it made the cost figure unprintable, and therefore F9 unbuildable as specified.
+
+The alternative — computing the ratio live per request by walking 3,969 purchase orders and 4,010
+invoices through an API with a measured p95 of 2.29s per page and no published rate limit (F4) — is
+the collector run from a web request, not a read model. So the bridge is built rather than routed
+around, and F9 becomes two merges because a `stage_*` function and its caller cannot ship together
+(the deploy window; F6 set the precedent and F8 was the other half of it):
+
+#### F9a — the invoice bridge — **DONE 2026-09-21 (migration 0351)**
+
+`fleetpal_purchase_orders` and `fleetpal_po_invoices`, their two set-based `stage_fleetpal_*`
+functions, and `modules/fleetpal/ingest/purchasing.ts`. Both resources carry `updated` and both
+endpoints take `updated_after`, so both are plain `runIngest` watermarks — the easy tier, unlike
+F7's three siblings. **Deliberately not wired into `sweepRepairRecord`**: that line is F9b's.
+
+#### F9b — the read models — *no migration*
 
 The read model, and the first per-truck repair cost the product has ever been able to print.
 
@@ -593,7 +619,9 @@ The read model, and the first per-truck repair cost the product has ever been ab
   hours, VMRS component (description resolved live per D-FP8), meter at the time, downtime days
   from `started`→`completed`.
 - `GET /api/maintenance/fleetpal/coverage?from&to` — the §2.4 bridge: FleetPal invoiced total over
-  the GL maintenance family, per month, plus the unmatched-unit count (D-FP14).
+  the GL maintenance family, per month, plus the unmatched-unit count (D-FP14). Reported as a
+  **stated lower bound** per D-FP15, counting only the unambiguous single-voucher matches and
+  printing the excluded collisions beside it.
 - Cost per mile per truck joins `samsara_ifta_jurisdiction_miles`. **It is a maintenance metric on a
   maintenance page** and it does not enter the fleet report (D-FP3).
 
@@ -696,14 +724,14 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 | Q6 | Does the collector need a roster column? | **No.** `fleetpal_units` carries the mapping. | D-FP7 |
 | Q7 | Is FleetPal actually used for purchasing, or only for work orders? | **Used, heavily.** 3,969 purchase orders, 4,010 invoices, 1,077 receipts and 1,936 receipt items on the live account; 2,899 of the POs name a work order. Measured F4, 2026-09-21. | D-FP12, D-FP13 hold |
 | Q8 | Does FleetPal hold enough history to be worth a backfill, and from when? | **Yes — from 2025-01-01.** 5,264 of 5,295 work orders are completed, the earliest on 2025-01-01, 3,008 in 2025 and 2,256 in 2026. A full walk is 21 months. Measured F4, 2026-09-21. | — |
+| **Q4** | Which stock location does an ingested movement land in when an org has more than one? | **(c) for receipts, (a) for consumption** — the plan's own recommendation, ruled by the owner on **2026-09-21**. A receipt has a real physical destination and guessing it puts stock on the wrong shelf, so it waits for a shop→location mapping; a consumption is a decrement whose location matters less than its existence, so it lands in the org's default location with the row labelled FleetPal-sourced. **Unblocks F13.** | D-FP12, D-FP13 |
+| **Q9** | With `Vendor.code` populated on 1 of 761 vendors (F4), how does the coverage ratio join FleetPal invoices to `mcleod_ap_vouchers`? | **(a), stated as a bound** — ruled by the owner on **2026-09-21**. The join is on the invoice number ALONE and the answer is reported as "at least X%", said in those words on the page and not only in a tooltip. (b)'s normalised vendor-name comparison is the same class of guess D-FS5 bans for McLeod's free-text units, and (c) is right but waits on somebody outside this repo — nothing stops it happening later, and a populated `code` upgrades this to an exact figure with no code change beyond the join. **Unblocks F9.** | D-FP4, D-FP15 |
 
 ### 6.2 Open
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
-| **Q4** | Which stock location does an ingested movement land in when an org has more than one? | (a) the org's default location, with the row labelled as FleetPal-sourced; (b) a dedicated `FleetPal receiving` location; (c) refuse to ingest until a shop maps FleetPal shops → our locations | **(c) for receipts, (a) for consumption.** A receipt has a real physical destination and guessing it puts stock on the wrong shelf; a consumption is a decrement whose location matters less than its existence. Blocks **F13** only; measure at F4 whether more than one location is even in use |
-
-| **Q9** | With `Vendor.code` populated on 1 of 761 vendors (F4), how does the coverage ratio join FleetPal invoices to `mcleod_ap_vouchers`? | (a) invoice number alone, accepting that a number is not unique across vendors and reporting the result as an upper bound; (b) invoice number **plus** a normalised vendor-name comparison against McLeod's vendor master; (c) ask the shop to populate `Vendor.code` from McLeod's vendor ids and wait; (d) do not print a ratio, and print only the FleetPal-invoiced total with the unmatched-unit count beside it | **(a), stated as a bound.** It is A3's own fallback, it needs no ruling from anybody outside this repo, and a bound that is honest about being a bound is worth more than a point estimate built on a fuzzy name match D-FS5 forbids elsewhere. (b) is the same class of guess that put free-text unit parsing out of bounds; (c) is right and slow, and nothing stops it happening later — a populated `code` upgrades (a) to an exact figure with no code change beyond the join. **Blocks F9**, which D-FP4 binds to the first cost figure |
+| — | *(none open)* | | |
 
 ### 6.3 Assumptions — each retired by the step that needs it
 
@@ -1241,3 +1269,89 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   about how the ratio joins FleetPal invoices to `mcleod_ap_vouchers` now that `Vendor.code` is
   known to be populated on 1 of 761. D-FP4 binds the ratio to the first cost figure, so F9 cannot
   ship half of itself while the question is open.
+
+- **2026-09-21 · Q9 and Q4 RULED by the owner.** Q9 → **(a)**: the coverage ratio joins on the
+  invoice number alone and is reported as a bound, in those words, on the page. `Vendor.code` is
+  populated on 1 of 761 (F4), so there is no exact key into `mcleod_ap_vouchers`, and a normalised
+  vendor-name match is the class of guess D-FS5 bans; a populated `code` later upgrades this to an
+  exact figure with no code change beyond the join. Q4 → **(c) for receipts, (a) for consumption**,
+  the plan's own recommendation. §6.2 is now empty and F9 and F13 are both unblocked.
+
+- **2026-09-21 · F9a DONE (migration 0351) — the half of the coverage ratio nobody had staged.**
+  `fleetpal_purchase_orders` and `fleetpal_po_invoices`, two `stage_fleetpal_*` functions, and
+  `ingest/purchasing.ts`. Both are plain watermarked `runIngest` resources — `PurchaseOrder` and
+  `POInvoice` each carry `updated` and each endpoint takes `updated_after`, which makes this the
+  easy tier and the whole file 105 lines.
+
+  **⚠ The finding this step exists for: F9 could not be built as written.** The plan said *no
+  migration*, and §2.4's bridge runs `work_order → /v1/purchase-orders →
+  /v1/purchase-order-invoices`. F6 staged the repair record, F7 the condition tier, F12 stages the
+  parts catalogue, F13 reads receipt ITEMS straight through `recordMovement` without staging them —
+  **and no step in F0–F15 ever staged purchase orders or their invoices.** The contracts had been in
+  `packages/shared/src/fleetpal/purchasing.ts` since F1 and were corrected against the live account
+  at F4, the client could walk both collections, and there was no table for the answer. Under D-FP4
+  that is not a missing extra: the ratio is bound to the first cost figure, so the gap made the cost
+  figure unprintable and F9 unbuildable. The only alternative was to compute the ratio per request
+  by walking 3,969 + 4,010 rows through an API measured at p95 2.29s per page with no published
+  rate limit — the collector run from a web request.
+
+  **Two merges, because the scheduler already exists.** F6 shipped its ingest with no caller and F8
+  shipped the caller, and at the time that was a precaution. It is not any more: `fleetpal_sync`
+  runs hourly, so a sweep tick inside the ~2m44s between Railway serving this merge and
+  `migrate.yml` applying 0351 would ask PostgREST for two functions the database does not have.
+  `purchaseOrdersIngest` and `poInvoicesIngest` are exported and tested and nothing calls them; the
+  line that adds them to `sweepRepairRecord` is F9b's first commit.
+
+  **⚠ Both vendor columns are stored, and the coalesce lives at READ.** `payable_to` is null on
+  81.5% of the live account (F4) because the vendor sets it only when the payee DIFFERS from the
+  supplying location. Collapsing the pair on the way in would store an interpretation and destroy
+  its input — "the payee is the supplier" and "the payee was never recorded" would become one row,
+  unrecoverably. The matrix pins both halves, including which one the coalesce used.
+
+  **⚠ `invoice_number` carries NO unique constraint, on purpose.** It is not unique across vendors —
+  the vendor's own documentation says so — and a collision is the fact D-FP15's bound is made OF: it
+  is counted at read and excluded from the headline, never rejected at write. A unique index there
+  turns the honest answer into a failed sweep, which is what the mutation proved (the whole matrix
+  died at `nbtinsert.c:673` before it could reach its RESULT line, i.e. as "did not execute").
+
+  **D-FP15 and D-FP16 are new**, and D-FP15 is the part of Q9(a) the ruling did not have to settle.
+  Joining on a number alone has error in BOTH directions — a differently-formatted number is a
+  missed match and a colliding number is a false one — so "at least X%" is not automatically true.
+  It becomes true by counting only a FleetPal invoice number that matches **exactly one**
+  maintenance-family voucher in the month: the numerator is then a subset sum of the denominator's
+  own family, the ratio cannot exceed 100%, and everything excluded could only raise it. D-FP16 is
+  why that survives: the number is stored exactly as entered, no trim, no case fold, no
+  zero-stripping, anywhere between the wire and the join.
+
+  **Mutation proofs, nine, each restored by copying the bytes back.** Seven on the mapping:
+  coalescing the vendor pair at ingest failed *"keeps `payable_to` and `vendor_location` APART, null
+  and all"*; dropping the work-order id failed *"keeps the work-order id — without it a dollar
+  cannot reach a truck"*; `?? 0` on a null total failed *"carries a null `total_payments` as null,
+  never as zero"*; negating a CREDIT failed *"keeps a CREDIT's type beside its POSITIVE amount, and
+  derives no sign"*; reading `created` instead of `date` failed *"keeps the invoice date, which is
+  the month the ratio is grouped by"*; dropping the purchase-order id failed *"keeps the
+  purchase-order id"*. Two on the migration: the unique index above, and coalescing the vendor pair
+  inside the stage function failed *"both vendor columns survive staging"*.
+
+  **⚠ One mutation SURVIVED, and fixing the test is the finding.**
+  `.trim().toUpperCase().replace(/^0+/, "")` on the invoice number left all ten tests green. F4's
+  three real numbers — `WI012764`, `4010489436`, `12845` — are already uppercase, already trimmed
+  and have no leading zero, so a normaliser and the identity are indistinguishable against the
+  recorded page. The assertion that D-FP16 rests on was proving nothing. The discriminating case is
+  now synthetic and says why in place: `" 0012845\t"` is the shape the assertion is ABOUT rather
+  than one the account has happened to produce, and a supplier who pads to eight digits plus one
+  data-entry space are both ordinary.
+
+  **A second matrix finding, about the matrix rather than the schema.** The unique-index mutation
+  first killed the process at the CREDIT assertion, which was reading `undefined` because its row
+  rode the rolled-back batch above it. A staging call is atomic, so one refused page takes every
+  later assertion's data with it and they die instead of reporting — and a matrix that cannot reach
+  its RESULT line is read by `run-tests.mjs` as "did not execute", not as red. The credit is now
+  staged in its own call and the reads are guarded.
+
+  **Verified by:** all 41 `lint:*` gates by name, `pnpm typecheck`, the extended matrix
+  (`RESULT: 111 passed, 0 failed`, up from 93), the new
+  `modules/fleetpal/ingest/purchasing.test.ts` (10 tests), and the full api suite.
+
+  **Next is F9b** — wire the two ingests into `sweepRepairRecord`, then the cost endpoint and the
+  coverage endpoint in ONE PR, because D-FP4 does not allow the first without the second.

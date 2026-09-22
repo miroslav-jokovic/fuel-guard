@@ -40,7 +40,18 @@ export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResul
   return results;
 }
 
+/**
+ * ── ⚠ `purchaseOrdersIngest` AND `poInvoicesIngest` ARE NOT IN THE SWEEP ABOVE, ON PURPOSE ─────
+ * They are exported (below) and tested, and nothing calls them yet. Their `stage_fleetpal_*`
+ * functions arrive in migration 0351, and Railway serves a merge ~2m44s before `migrate.yml`
+ * applies its migration (`docs/MIGRATION-DISCIPLINE.md` §the-deploy-window). A sweep tick inside
+ * that window would ask PostgREST for two functions the database did not yet have — which is the
+ * exact reason F6 shipped its ingest with no caller and F8 shipped the caller separately. The
+ * difference now is that the scheduler already exists, so the window is real rather than
+ * hypothetical, and the line that adds these two to `sweepRepairRecord` is F9b's first commit.
+ */
 export { runIngest } from "./run.js";
+export { poInvoicesIngest, purchaseOrdersIngest } from "./purchasing.js";
 export { ingestDefects, ingestExpirations, issuesIngest } from "./condition.js";
 export { ingestPmSchedules, metersIngest } from "./equipment.js";
 export { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";

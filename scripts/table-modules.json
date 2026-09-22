@@ -257,7 +257,15 @@
       "module": "fleetpal",
       "layer": "raw"
     },
-    "fleetpal_webhook_deliveries": {
+    "fleetpal_purchase_orders": {
+    "module": "fleetpal",
+    "layer": "raw"
+  },
+  "fleetpal_po_invoices": {
+    "module": "fleetpal",
+    "layer": "raw"
+  },
+  "fleetpal_webhook_deliveries": {
       "module": "fleetpal",
       "layer": "infra"
     },
