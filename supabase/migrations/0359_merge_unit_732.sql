@@ -64,6 +64,15 @@
 -- production by hand, since a skip is silent by design.
 --
 -- Proved by `supabase/tests/merge-unit-732.test.mjs` against production's shapes.
+--
+-- cross-module-waiver: merging two rows of one truck is by definition every module that hangs data
+-- off `vehicles` — fuel-spend, samsara, idle, anomalies, roster — and the re-parent is generic over
+-- the FK graph precisely so that no module's table is left pointing at a retired row. Nothing here
+-- writes a module's data in a new shape; each row keeps its columns and changes only its vehicle_id,
+-- except the named collisions above, which are derived rows resolved the way each rollup would.
+-- raw-access-waiver: `samsara_odometer_readings`, `vehicle_positions` and `idle_telemetry_windows` are
+-- raw telemetry of THIS truck. They are re-parented or de-duplicated on collision, never re-derived,
+-- and this is a one-off audited act (FLEET-CENSUS F4), not a reader or a writer that recurs.
 
 do $merge$
 declare

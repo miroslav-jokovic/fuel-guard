@@ -6,4 +6,7 @@
 -- which no row holds until 0359 merges unit 732. After it applies, a truck may carry one row per
 -- device per month per jurisdiction — which is what a mid-month gateway swap produces. Every reader
 -- sums (see 0357), so no total moves.
+--
+-- raw-access-waiver: `samsara_ifta_jurisdiction_miles` is samsara's own raw table and this file only
+-- drops a constraint on it — no read, no write, no row touched; the writer is samsara's own sync.
 alter table public.samsara_ifta_jurisdiction_miles drop constraint if exists samsara_ifta_miles_unique;

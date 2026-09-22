@@ -959,6 +959,7 @@ real incidents in this checkout:
   · Mutation-proved: dropping the link test from the predicate fails *"stays the office's on a row
   McLeod has never linked"*; un-disabling either select fails its form's *"shows a McLeod-linked
   … status read-only, and says where it is set"*.
+
 - **2026-09-22 (the identity sweep ran — merges 4, 5 and E5 are now real)** — Run by hand from the
   owner's machine at the owner's instruction, `ROSTER_MODE=identity --full`, after production had
   been confirmed serving #970. Result, read back from production rather than from the agent's log:

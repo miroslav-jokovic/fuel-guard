@@ -99,7 +99,7 @@ const miles = async (vehicle, jurisdiction, taxable, o = {}) =>
        (org_id, vehicle_id, samsara_vehicle_id, period_year, period_month, jurisdiction,
         recognised, taxable_meters, total_meters, tax_paid_liters, fetch_id)
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-     on conflict (org_id, vehicle_id, period_year, period_month, jurisdiction) do update set
+     on conflict (org_id, vehicle_id, samsara_vehicle_id, period_year, period_month, jurisdiction) do update set
        taxable_meters = excluded.taxable_meters, total_meters = excluded.total_meters,
        tax_paid_liters = excluded.tax_paid_liters, fetch_id = excluded.fetch_id,
        fetched_at = now()`,
@@ -200,6 +200,21 @@ const mine = await asClient(ORG, "admin", `select count(*)::int n from samsara_i
 const theirs = await asClient(OTHER, "admin", `select count(*)::int n from samsara_ifta_jurisdiction_miles`);
 ok("a member reads only their own carrier's miles", mine.rows[0]?.n > 0 && theirs.rows[0]?.n === 1,
   JSON.stringify([mine.rows[0], theirs.rows[0]]));
+
+// ── 8. a swapped gateway keeps both devices' miles on one truck (0357/0358, FLEET-CENSUS Q-9) ─────
+// Unit 732's gateway was replaced on 2026-08-24, so August comes from two Samsara ids. Keyed
+// without the device, re-fetching the new gateway's days would overwrite the old gateway's.
+const V732 = await truck(ORG, "732");
+await miles(V732, "IL", 1000, { month: 8, sid: "s-old" });
+await miles(V732, "IL", 400, { month: 8, sid: "s-new" });
+await miles(V732, "IL", 450, { month: 8, sid: "s-new" }); // the new gateway's month, re-fetched
+const aug = (await db.query(
+  `select samsara_vehicle_id, total_meters from samsara_ifta_jurisdiction_miles
+    where vehicle_id=$1 and period_month=8 order by 1`, [V732])).rows;
+ok("two devices on one truck keep a row each for the same month and jurisdiction", aug.length === 2, JSON.stringify(aug));
+ok("…and re-fetching one device leaves the other's miles alone",
+  Number(aug.find((r) => r.samsara_vehicle_id === "s-old")?.total_meters) === 1000 &&
+  Number(aug.find((r) => r.samsara_vehicle_id === "s-new")?.total_meters) === 450, JSON.stringify(aug));
 
 await db.close();
 
