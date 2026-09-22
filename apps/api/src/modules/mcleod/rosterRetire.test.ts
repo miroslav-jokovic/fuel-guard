@@ -135,8 +135,30 @@ const veh = (over: Record<string, unknown> = {}) => ({
 /** A position row as PostgREST renders one: `timestamptz` with a `+00:00` offset, never a `Z`. */
 const fixAt = (msAgo: number) =>
   new Date(Date.now() - msAgo).toISOString().replace("T", " ").replace("Z", "+00:00");
-const seedVehicle = (rows: Record<string, unknown>[], positions: Record<string, unknown>[] = []) =>
-  createSupabaseRecorder({ tables: { vehicles: rows, vehicle_positions: positions } });
+/**
+ * ⚠ `fuel_transactions` is a FUNCTION fixture, not an array, and it has to be: the recorder does not
+ * apply filters, so a flat array would hand every seeded fill back as though it were inside the
+ * window and "an old fill does not hold a truck" would pass against a guard that had no window at
+ * all. Answering on `q.filters()` makes the fixture honour the `gte` the read actually sends.
+ */
+const seedVehicle = (
+  rows: Record<string, unknown>[],
+  positions: Record<string, unknown>[] = [],
+  fills: { vehicle_id: string; fueled_at: string }[] = [],
+) =>
+  createSupabaseRecorder({
+    tables: {
+      vehicles: rows,
+      vehicle_positions: positions,
+      fuel_transactions: (q) => {
+        const since = q.filters().find((f) => f.col === "fueled_at")?.val as string | undefined;
+        const kept = since ? fills.filter((f) => f.fueled_at >= since) : fills;
+        return kept.map((f) => ({ vehicle_id: f.vehicle_id }));
+      },
+    },
+  });
+/** A fill timestamp `n` days ago, in the ISO spelling `readRecentlyFuelledVehicleIds` compares against. */
+const filledDaysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
 describe("retiring a truck McLeod says has gone", () => {
   it("writes the vocabulary the column actually holds, not the payload's word for a person", async () => {
@@ -170,6 +192,37 @@ describe("retiring a truck McLeod says has gone", () => {
       { external_id: "T900", status: "inactive" },
     ]);
     expect(r.heldMoving).toEqual([]);
+    expect(r.retired).toBe(1);
+  });
+
+  /**
+   * ── F14: THE GATEWAY CAME OUT AND THE TRUCK KEPT WORKING ──────────────────────────────────────
+   * Unit 732, 2026-09-14. Its Samsara device had been swapped a fortnight earlier, so the telematics
+   * half of the guard had nothing to say — and its fuel card had eleven fills to offer, the most
+   * recent that same morning. The sweep retired it anyway. A guard that reads one signal is a guard
+   * against one failure.
+   */
+  it("refuses to retire a truck whose card bought diesel this week, even with no telematics at all", async () => {
+    const rec = seedVehicle([veh()], [], [{ vehicle_id: "v-1", fueled_at: filledDaysAgo(1) }]);
+    const r = await retireFromTms(rec.client, ORG, "vehicles", [{ external_id: "T900", status: "inactive" }]);
+    expect(r.heldMoving).toEqual(["T900"]);
+    expect(r.retired).toBe(0);
+    expect(rec.writtenRows("vehicles")).toHaveLength(0);
+  });
+
+  it("retires a truck that has neither moved nor fuelled", async () => {
+    // Both signals silent is what a disposed truck actually looks like, and the guard must not become
+    // a reason nothing ever retires.
+    const rec = seedVehicle([veh()], [], [{ vehicle_id: "v-1", fueled_at: filledDaysAgo(30) }]);
+    const r = await retireFromTms(rec.client, ORG, "vehicles", [{ external_id: "T900", status: "inactive" }]);
+    expect(r.heldMoving).toEqual([]);
+    expect(r.retired).toBe(1);
+  });
+
+  it("does not hold a truck on a fill older than the window", async () => {
+    // 8 days against a 7-day window — the boundary, so the window is a window and not a decoration.
+    const rec = seedVehicle([veh()], [], [{ vehicle_id: "v-1", fueled_at: filledDaysAgo(8) }]);
+    const r = await retireFromTms(rec.client, ORG, "vehicles", [{ external_id: "T900", status: "inactive" }]);
     expect(r.retired).toBe(1);
   });
 
@@ -265,6 +318,34 @@ describe("reconciling vehicles McLeod no longer carries", () => {
       tables: {
         vehicles: [v()],
         vehicle_positions: [{ vehicle_id: "v-1", sampled_at: fixAt(90 * 60 * 1000) }],
+      },
+    });
+    const r = await reconcileAbsentFromTms(rec.client, ORG2, "vehicles", fiftyOthers);
+    expect(r.retired).toBe(0);
+    expect(r.heldMoving).toEqual(["v-1"]);
+    expect(rec.writtenRows("vehicles")).toHaveLength(0);
+  });
+
+  /**
+   * ── THE 2026-09-14 SWEEP, RECONSTRUCTED ───────────────────────────────────────────────────────
+   * `reconcileAbsentFromTms` builds candidates as `!activeSet.has(String(row[link] ?? ""))`, so a row
+   * with NO McLeod link reads as absent and is retired. That took 33 vehicles in one call, 11 of them
+   * still fuelling — including the truck the carrier asked about, which had lost its link because a
+   * gateway swap created a second row that McLeod then matched by VIN.
+   *
+   * This is that row: unlinked, no telematics (device out), fuelling today. The guard is what stands
+   * between it and retirement, since nothing about the link tells you whether a truck exists.
+   */
+  it("does not retire an UNLINKED truck that is still buying diesel", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        vehicles: [v({ mcleod_tractor_id: null })],
+        vehicle_positions: [],
+        fuel_transactions: (q) => {
+          const since = q.filters().find((f) => f.col === "fueled_at")?.val as string | undefined;
+          const at = filledDaysAgo(0);
+          return !since || at >= since ? [{ vehicle_id: "v-1" }] : [];
+        },
       },
     });
     const r = await reconcileAbsentFromTms(rec.client, ORG2, "vehicles", fiftyOthers);

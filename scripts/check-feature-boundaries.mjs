@@ -110,6 +110,13 @@ const API_ALLOW = new Set([
   // seals it to its owner. The reverse edge ("samsara -> mcleod") has been here since the roster
   // syncs learned to defer on identity; this is the same cross-collector rule read the other way.
   "mcleod -> samsara",
+  // The same guard's second signal, added after the first proved insufficient (F14). A gateway can be
+  // swapped out while the truck keeps working — unit 732's was, and the sweep retired it on
+  // 2026-09-14 while its card was still buying diesel — so the retirement guard asks fuel "has this
+  // truck bought anything lately?" as well as asking telematics "has it moved?". Narrow by
+  // construction: readRecentlyFuelledVehicleIds only, through fuel's index, returning ids and never
+  // transactions, so the roster sweep cannot start having opinions about gallons.
+  "mcleod -> fuel",
   // ── the §396.17 annual inspection's three reads-and-writes-through-owners (D-AVI10) ───────────
   // maintenance owns the report; it owns none of what a report has to be made of. All three edges
   // go through the owner's index, which is exactly the shape D-ARC3 asks for rather than a leak:
