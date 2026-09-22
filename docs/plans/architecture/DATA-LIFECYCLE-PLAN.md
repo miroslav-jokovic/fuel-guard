@@ -926,6 +926,16 @@ docstring says it is. **Recommendation: the second column**, and note it lands i
 its reader per `lint:migration-ordering`.
 
 
+**Q6e — what should a historical verdict be scored against? OPENED 2026-09-22, blocks fix (a).** A
+fill's verdict reads the vehicle's CURRENT learned gates (`context.ts:27`), not their values as of the
+fill, and every live fill re-learns them while the live path cascades only 5 fills forward. So
+history is already scored against stale gates between imports, and the import cascade's full-history
+walk is the only — erratic — re-sync. (a) gates as they are NOW: keep a full-history pass on every
+gate change, including on the live path; (b) gates as they WERE: needs as-of calibration history,
+which does not exist; (c) accept drift: bound the cascade, re-sync history only on an explicit
+rebuild. **Recommendation: (c)**, pending the `verdict_hash` measurement in §8's 2026-09-22 entry for
+#971 — it is what the live path already does, and it makes the import path agree with it.
+
 ## 8. Progress log
 
 Append dated lines at the END. Never edit a row above (see `plan-progress-log-not-table-rows`).
@@ -1407,3 +1417,53 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   transaction index is live. That measurement is `idx_scoring_attempts_org_started`'s — a different
   index and a different query. Corrected before commit, and noted here because a borrowed number
   reads exactly like a measured one.
+
+- **2026-09-22 (later still) — Q6d part 2 shipped; fix (a) re-argued, and NOT built**
+  (`claude/q6d-verdict-hash-writer`, #971, merged `00ca2a8`). Opened only after 0356 was confirmed
+  applied — production `information_schema` showed `verdict_hash text NULL` and both services'
+  `/api/version` reported `schema.state = "current"`. Rebased on main before opening, which surfaced
+  one stale citation: the code comments said "0355", taken mid-PR by `reserved_units_ordered`; they
+  now say 0356. **VERIFIED IN PRODUCTION 2026-09-22 19:44 UTC:** the first 27 attempts after the 19:40:18 deploy all `succeeded`, all 27 carry a `verdict_hash`, 0 failed, one engine version.
+  **Fix (a) is un-killed but its case has changed, and the instrument to decide it only starts
+  accumulating now.** Three things, each checked rather than carried over:
+  1. **The urgency fell by ~6× when Q6a closed.** Last hour before this entry: **670 attempts** (≈16k a
+     day, against 97,182 when the three stuck runs were alive), and **all 11 EFS runs `succeeded`**,
+     3.4 min average, 23.1 max. The cascade now FINISHES, so the correctness half of the original
+     argument — "killed at 17%, never reaches the recent fills" — no longer holds. What remains is
+     cost: 410 of the 670 (61%) are still fills older than 120 days, because `scoreVehicle` still walks
+     the whole history. That half runs `skipRecon`, so it is database and CPU, not Samsara quota.
+  2. **A fill's verdict reads three things, and a date bound is wrong for two of them.** From the code:
+     (i) its PREDECESSORS in business time — 12 before and 12 after `fueled_at`, the latter filtered
+     back to earlier-in-business-time rows (`consumptionContext.ts:134`, `:140`, `:145`) — and it reads
+     their VERDICTS (`odoBad`, `contaminatesBaseline`), so a changed verdict can propagate forward
+     fill-to-fill with no fixed horizon; (ii) a TWO-SIDED `cumulativeWindowHours` window, default
+     48 h, around its anchor (`scoreTransaction.ts:308`), so an imported fill also moves fills up to
+     48 h BEFORE it; (iii) the vehicle's CURRENT learned gates — `tank_sensor_reliable`,
+     `tank_residual_sigma`, `observed_max_fill_gal`, `sensor_capacity_*`, `odometer_offset`
+     (`context.ts:27`) — not their values as of the fill. `baseline_mpg` is write-once
+     (`persist.ts:376`) and is not one of them.
+     So a fixed "N days" bound under-reaches (i) and cannot express (iii), which is vehicle-wide.
+  3. **The honest shape of (a), if the measurement supports it:** per affected vehicle, start at the
+     earliest imported fill minus the window, walk FORWARD, and stop once K consecutive fills come out
+     with an unchanged `verdict_hash` — a convergence bound, which is exactly what the column makes
+     possible and `result_hash` never could. Plus a full-history pass ONLY when `learnVehicleValues`
+     actually changed a gate, which is knowable since Q-TEL4's `setIfChanged`.
+  ⚠ **(iii) is an owner question, not a detail.** Every live fill already re-learns the gates, and the
+  live path cascades only 5 fills forward (`scoreWithCascade`, `backfill.ts:21`, `:25`). So between
+  imports, history is ALREADY scored against stale gates; the import cascade is the only thing that
+  re-syncs it, erratically, whenever an import happens to touch the truck. Whether a historical
+  verdict is meant to reflect the calibration as it WAS or as it IS decides whether the full-history
+  pass is a feature or the bug. **Recorded as Q6e in §7 and below; not assumed either way.**
+  ⚠ Side finding, unmeasured: `scoreWithCascade`'s 5-fill forward bound is below the 12 predecessors
+  a verdict reads, so the live path may under-cascade. Same measurement answers it.
+  **The measurement, owed on or after 2026-09-23 19:40 UTC (≥ 24 h of `verdict_hash`):** consecutive
+  attempt pairs on one transaction, SAME `engine_version`, both `verdict_hash` non-null; change rate by
+  distance in fills from the vehicle's earliest fill in the triggering import, split by whether that
+  vehicle's learned gates moved in the window. Build (a) as above if changes beyond ~12 fills are ~0
+  outside gate moves; otherwise the bound is wrong and this entry is the fourth revision.
+  **Q6e — what should a historical verdict be scored against?** (a) the gates as they are NOW —
+  keeps the full-history pass on gate change, and argues the live path should do it too; (b) the gates
+  as they WERE at the fill — needs as-of calibration history, which does not exist (the columns are
+  last-write-wins); (c) accept drift: bound the cascade, re-sync history only on an explicit rebuild.
+  **Recommendation: (c)** — (b) is the right answer and costs a new table; (a) makes every live fill a
+  full-history rescore; (c) is what the live path already does, and makes the import path agree with it.
