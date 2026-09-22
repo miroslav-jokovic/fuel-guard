@@ -37,6 +37,27 @@ describe("retention policy (the config itself)", () => {
   });
 
   /**
+   * L3 (DATA-LIFECYCLE-PLAN). `scoring_attempts` was 12.1 GB/year — the single largest line in the
+   * 2026-09-21 growth audit, larger than `audit_logs` — with no rule at all, in a policy whose first
+   * principle is that derived and reproducible data is pruned.
+   *
+   * The number is DERIVED and that derivation is what this test protects. `scoringHealth()` clamps
+   * its own window to `Math.min(Math.max(trunc(windowDays), 1), 30)` days, so 30 is the hard floor
+   * below which the health page starts reading a window the data no longer covers — and it would do
+   * it silently, showing a healthy-looking zero rather than an error. Anybody tightening this window
+   * to recover more space has to come past this assertion and lower the reader's clamp with it.
+   */
+  it("keeps scoring_attempts longer than the widest window scoringHealth can ask for", () => {
+    const rule = RETENTION_RULES.find((r) => r.table === "scoring_attempts");
+    expect(rule, "scoring_attempts must carry a retention rule (L3)").toBeDefined();
+    // The clamp in scoringHealth.ts. Restated here as a number because importing the module would
+    // pull the whole anomalies read path into a config test; if that clamp moves, this must too.
+    const SCORING_HEALTH_MAX_WINDOW_DAYS = 30;
+    expect(rule!.keepDays).toBeGreaterThan(SCORING_HEALTH_MAX_WINDOW_DAYS);
+    expect(rule!.timeColumn).toBe("started_at"); // the indexed column (idx_scoring_attempts_org_started)
+  });
+
+  /**
    * The hazmat evidence table, pinned 2026-09-07 (SCANNER-UPGRADE-PLAN.md §6 Q1, owner ruling).
    *
    * Asserted on its own rather than folded into the list above, because what makes it worth a test

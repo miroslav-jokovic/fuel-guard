@@ -43,7 +43,10 @@ import { join } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const MANIFEST = join(ROOT, "scripts", "table-modules.json");
-const RETENTION_TS = join(ROOT, "apps", "api", "src", "modules", "org", "dataRetention.ts");
+// The POLICY file, not the runner: the rules were split out of dataRetention.ts on 2026-09-22 when
+// L3 pushed it past the 500-line budget. Pointing at the wrong one parses an empty rule set and this
+// gate passes while enforcing nothing — so the self-test below asserts the parse found rules at all.
+const RETENTION_TS = join(ROOT, "apps", "api", "src", "modules", "org", "dataRetentionPolicy.ts");
 const SCHEMA_SNAPSHOT = join(ROOT, "supabase", "schema.generated.sql");
 
 const GROWTH = ["time", "fleet", "static", "unmeasured"];
@@ -74,7 +77,10 @@ export function parseRetention(ts) {
   for (const m of body.matchAll(/table:\s*"([a-z_]+)"[\s\S]{0,400}?keepDays:\s*(\d+)/g)) {
     rules[m[1]] ??= Number(m[2]);
   }
-  const f = ts.match(/RETENTION_FORBIDDEN[^=]*=\s*\[([\s\S]*?)\]/);
+  // Anchored on the DECLARATION, not the first mention. Both files name RETENTION_FORBIDDEN in prose
+  // before declaring it, and an unanchored match starts inside that comment and captures a slice of
+  // RETENTION_RULES instead — which is how this gate briefly claimed scoring_attempts was forbidden.
+  const f = ts.match(/export const RETENTION_FORBIDDEN[^=]*=\s*\[([\s\S]*?)\]/);
   const forbidden = new Set(f ? [...f[1].matchAll(/"([a-z_]+)"/g)].map((x) => x[1]) : []);
   return { rules, forbidden };
 }
@@ -147,6 +153,11 @@ function selfTest(manifest, retention) {
     const m = { tables: { [ruledTable]: { module: "x", layer: "raw", lifecycle: { growth: "time", retention_days: null, partition: null, budget_rows_per_day: 10, why: "a sentence long enough to pass the shape check" } } } };
     if (!run(m).length) fails.push("retention-agreement detector did not fire on a rule the registry omits");
   }
+
+  // The parse must actually find something. A renamed or moved policy file yields {} and every
+  // agreement check below then trivially passes — enforcing nothing, loudly looking fine.
+  if (Object.keys(retention.rules).length === 0) fails.push("parseRetention found no rules — RETENTION_TS is pointing at the wrong file");
+  if (retention.forbidden.size === 0) fails.push("parseRetention found no RETENTION_FORBIDDEN entries");
 
   // partitionedIn must actually recognise a partitioned table
   if (!partitionedIn("create table public.foo (id uuid, created_at timestamptz) partition by range (created_at);").has("foo")) fails.push("partitionedIn did not recognise a partitioned table");

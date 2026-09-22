@@ -549,6 +549,32 @@ would be precisely the labelled-workaround case in CLAUDE.md, so the ignore-list
 naming (b) as what removes it. ⚠ (c) is not recommended and is recorded only so it is not
 rediscovered as novel.
 
+**Q6 — what rescans the whole fleet's fills every hour? OPENED BY L3, 2026-09-22.** L3 caps the
+storage; this is the work behind it, and it is compute as well as bytes.
+
+Measured: **2,415,317 attempts against 17,293 fuel transactions = 139.7 per transaction.** The hourly
+profile is the decisive part — between 2,000 and 7,500 **distinct** transactions are rescored *every
+hour*, against roughly 200 genuinely new fills a day. So this is a continuous full-fleet rescan, not
+new work arriving.
+
+Two things it is **not**, both checked:
+
+- **Not deploy-driven.** `scoringEngineVersion()` is `rs-<RULESET_HASH>+<commit>` and there are 677
+  distinct values — but that spans months, nowhere near hourly, and `persist.ts:50-58` documents the
+  commit half as deliberate.
+- **Not rule churn.** Those 677 versions cover **6 distinct ruleset hashes**, two of which carry 99%
+  of the rows (1,985,028 + 423,230). By the engine's own content hash, ~99% of these rescores could
+  not have changed a verdict.
+
+The leading hypothesis, **unconfirmed**, is the Samsara recon tier: `SAMSARA_RECON_BATCH` fills every
+`SAMSARA_RECON_SYNC_MINUTES` re-walk fills to attach telematics, and each pass rescores. If it
+re-walks fills that already have `samsara_recon_at` set, the rescan is self-sustaining. Confirming it
+needs the two Railway variables (same blocker as Q5) and a read of the recon tier's selection query.
+
+**Recommendation: do not fold this into L3.** L3's window is safe and independently justified.
+This is a scoring-engine question, not a lifecycle one, and it wants its own measurement — the prize
+is CPU and Samsara API quota at least as much as the 12 GB/year retention already caps.
+
 **Also owed before L2 builds:** the exact writer mix behind 20.2 updates/vehicle/hour is NOT
 established. `SAMSARA_STATS_SYNC_MINUTES` defaults to 20, which would give 3/hour — the measured
 rate implies ~3 minutes in production, and the Railway variable could not be read non-interactively.
@@ -619,3 +645,32 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   **`sync_runs` was withdrawn, not built** — `jobs.stats` already carries the per-run counts.
   ⚠ **This is a labelled workaround.** Q5(b) — moving telemetry off `vehicles`/`drivers` — is what
   removes 0352, and the migration header says so in its own register.
+- **2026-09-22 — L3 built** (`claude/data-lifecycle-l3`). `scoring_attempts` joins `RETENTION_RULES`
+  at **45 days** — the largest single line in the audit at 12.1 GB/year, larger than `audit_logs`,
+  and until today it had no rule at all in a policy whose first principle is that derived and
+  reproducible data is pruned. **45 is DERIVED, not chosen:** `scoringHealth()` is the only reader
+  and clamps its own window to at most 30 days, so 30 is the hard floor and 45 leaves a fortnight;
+  `backfill.ts` only names the table in an error string. The 0156 idempotency guard needs seconds.
+  `dataRetention.test.ts` pins the 45 > 30 relationship and was proven to fail at 30 — the failure
+  mode it guards is silent, since a health page reading past the horizon shows a healthy-looking zero
+  rather than an error.
+  **L1's gate did its job on the very next step:** adding the rule while the registry still said
+  `null` failed `lint:table-lifecycle` with "they move together (D-LIFE2)", which is exactly the drift
+  it exists to catch. 14 windows now mirrored, up from 13.
+  **Q6 opened, and deliberately not folded in here.** Retention caps the storage; it does not stop
+  the work. 139.7 attempts per transaction, and 2,000–7,500 DISTINCT transactions rescored every hour
+  against ~200 new fills a day — a continuous full-fleet rescan whose driver is not yet confirmed.
+  Ruled out: deploy churn (677 engine versions span months) and rule churn (those 677 cover just 6
+  ruleset hashes, two carrying 99%). The prize there is CPU and Samsara quota, not bytes.
+  **Two things the step forced that were not in its scope.** `dataRetention.ts` hit 526 lines against
+  the 500-line budget, so the POLICY (the `RetentionRule` interface, `RETENTION_RULES`,
+  `RETENTION_FORBIDDEN`) split into `dataRetentionPolicy.ts`, re-exported so no call site or test
+  moved — `lint:filesize` says plainly that a waiver is the deliberate alternative to a split, and
+  there was a real seam. And repointing the gate at the new file exposed **a latent bug in L1's own
+  parser**: `parseRetention` matched `RETENTION_FORBIDDEN` on its first MENTION rather than its
+  declaration, so a prose reference above the declaration could capture a slice of `RETENTION_RULES`
+  instead. ⚠ L1 shipped CORRECT — the old file's layout happened to land on the right block, verified
+  by re-running the old regex against the old file — but it was one comment away from wrong. The
+  match is anchored on `export const` now, and the self-test gained a detector that fails when the
+  parse finds no rules at all, which is the shape this class of bug takes: a gate enforcing nothing
+  while printing a tick.
