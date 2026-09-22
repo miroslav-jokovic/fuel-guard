@@ -305,6 +305,39 @@ audited, and shrink the ignore list by one fewer name. **Recommendation: (b)**, 
 otherwise mislead every reader after this, and the dance is the price of the rename being correct.
 ⚠ Do not fold this into TS4 without the ruling — 50 files is not a detail.
 
+**Q-TEL4 — ANSWERED 2026-09-22, and it is not 20%.** The writer is `learnVehicle.ts`, gated on
+`Object.keys(vehUpdate).length` — "was a value computed", never "did it change" — and the candidates
+guessed below were both wrong. `pg_stat_statements` attributes it directly rather than by inference,
+and every statement runs at `rows/call = 1.00`, so these are real tuple rewrites and not scans that
+match nothing:
+
+| family | tuple writes on `vehicles` | share | step that owns it |
+|---|---|---|---|
+| tank calibration (`learnVehicle`) | **2,350,324** | **48.8%** | `TS4` — scheduled LAST |
+| live feed | 2,159,619 | 44.8% | `TS1`–`TS3` |
+| `assigned_driver_id` | 215,996 | 4.5% | unowned |
+| idle | 89,952 | 1.9% | `TS5` |
+
+Over a 12-minute production window the learner issued **375 tuple writes while an md5 of all 272
+vehicles' six learned columns did not move at all**, against ~200 fills a day that could move one.
+⚠ **This also corrects §2.2b, and the correction is methodological**: that pass snapshotted values 8
+minutes apart and concluded the calibration family was quiet because only `odometer_offset` moved, on
+one truck. A snapshot diff cannot see a no-op write BY CONSTRUCTION — it compares values, and the
+defect is a write that leaves values identical. `odometer_offset` looked different only because it is
+the one column that already had a diff gate. Fixed on `claude/telemetry-noop-writes`: the vehicle row
+that was already read once is now also the diff basis, and every learner compares before it writes.
+⚠ The comparison must go through `n()` — PostgREST returns `numeric` as a STRING, so a strict `===`
+is false on every run and the gate would be no gate while reading like one. Pinned by "compares
+against Postgres' string numerics, not just JS numbers", which survived two earlier drafts of itself
+that were vacuous.
+**Still open, deliberately NOT fixed here** — `persist.ts:328` writes `current_odometer` (32,414
+calls) and `baseline_mpg` (23,645) with the same ungated shape. Together 1.2%, and `current_odometer`
+is one of the four columns `TS1`–`TS3` moves, so it belongs to `TS3`'s flip rather than to this
+change. Named here so it is not rediscovered as a surprise: a writer that patches unconditionally
+will follow the columns into the new satellite.
+
+*Superseded — the original question and its guesses, kept because the reasoning is instructive:*
+
 **Q-TEL4 — 20% of the writes change nothing. Which statement issues them? OPENED 2026-09-22.**
 26 of 131 rewrites in the measured window moved only `updated_at`. A no-op UPDATE costs exactly what
 a real one costs — a new tuple, the `set_updated_at()` trigger, the audit trigger's 91-column
@@ -349,3 +382,35 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   owed is settled here by full-row snapshot diff (§2.2b): the live feed is the writer, and **26 of 131
   rewrites in the measured window changed nothing at all** — `Q-TEL4`, and the third instance in three
   days of a write that runs forever and changes nothing.
+
+- **2026-09-22 — Q-TEL4 answered, and the queue's premise is wrong by half**
+  (`claude/telemetry-noop-writes`). The question was which statement issues the writes that change
+  nothing. `pg_stat_statements` answers it directly — it was available all along, and it is the
+  instrument §2.2b's snapshot diff cannot substitute for, because a snapshot compares VALUES and the
+  defect is a write that leaves values identical. The writer is `learnVehicle.ts`, committing whatever
+  it recomputed from the last 30 fills, gated on `Object.keys(vehUpdate).length`. Measured: **375
+  tuple writes in a 12-minute production window while an md5 of all 272 vehicles' six learned columns
+  did not move**, and the family is **48.8% of this table's 4.8M writes** — larger than the live feed's
+  44.8%. Neither candidate named in Q-TEL4 was involved.
+  **This reorders the queue.** `TS1`–`TS3` is introduced as "~90% of 14.55M updates" and starts with
+  the live feed; on `vehicles` the live feed is 44.8% and the strangler `TS4` retires is 48.8%. The
+  14.55M figure spans other tables (`vehicle_positions` alone is 4.26M) and is not disputed here —
+  what is corrected is the claim that the live feed is the biggest writer OF THIS TABLE. The cheapest
+  win was neither: a diff gate in one file, no migration, no new table, no deploy-window exposure.
+  **The fix is the idiom this repo already had.** `samsaraStatsFeed.ts` carries DIFF-BEFORE-WRITE and
+  a comment recording the same class of defect found in 2026-08 — "862k+ vehicle updates, most of them
+  writing identical values". The learner never got it. The vehicle row it already read once is now
+  also the diff basis, moved above the learners to serve that fourth job.
+  **Two drafts of this change were wrong, and the tests caught both.** The first invented a
+  `COLUMN_SCALE` table to round each value to its column's declared scale before comparing — deleted
+  once measured, because every learner already rounds (`learnOdometerOffset` → integer,
+  `learnTankSensorReliability` → 3 dp, `learnSensorCapacity` → 1 dp) and the table would only have
+  restated the schema. The second shipped a test for that imagined trap which passed under mutation,
+  i.e. proved nothing. The real trap is the WIRE TYPE: PostgREST returns `numeric` as a string, so
+  `"0.991" === 0.991` is false and the gate would have written as often as no gate. It is pinned now
+  by a test with a Postgres-shaped fixture AND a positive control asserting the learner is reached at
+  all — without the control, a fixture that silently learned nothing would also write nothing and pass.
+  **Verification.** Four mutations of the real file, bytes restored by `cp` and md5-verified after
+  each: no gate at all; strict `===` without `n()`; the diff basis dropped; the boolean path ungated.
+  The `===` mutation SURVIVED two earlier versions of the test and is the reason the fixture was
+  rebuilt against a calibrated learner output rather than a guessed one.

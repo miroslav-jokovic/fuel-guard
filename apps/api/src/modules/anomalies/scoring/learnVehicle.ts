@@ -5,6 +5,39 @@ import { writeAudit } from "../../../lib/audit.js";
 import { n } from "./loaders.js";
 
 /**
+ * DIFF-BEFORE-WRITE, the idiom `samsaraStatsFeed.ts` already uses for the live feed and for the same
+ * reason — its comment records 862k vehicle updates "most of them writing identical values".
+ *
+ * WHY THIS FUNCTION EXISTS (measured 2026-09-22, TELEMETRY-SEPARATION-PLAN Q-TEL4). The learner
+ * recomputes from the last 30 fills on every scoring run and used to commit whatever it produced,
+ * gated on `Object.keys(vehUpdate).length` — "was a value computed", never "did it change". Over a
+ * 12-minute production window that issued **375 tuple writes while an md5 of all 272 vehicles' six
+ * learned columns did not move at all**, and the family is 48.8% of this table's 4.8M writes
+ * (`pg_stat_statements`), against ~200 fills a day that could move a learned value.
+ *
+ * A no-op UPDATE costs exactly what a real one costs: a new tuple, `set_updated_at()`, the audit
+ * trigger's 91-column comparison, and 0262's mirror into both satellites.
+ *
+ * ⚠ THE COMPARISON GOES THROUGH `n()`, AND THAT IS THE WHOLE GATE. PostgREST returns `numeric` as a
+ * STRING — `odometer_offset` comes back as `"10.0"`, `tank_fill_ratio` as `"0.991"` — so a strict
+ * `===` against the learner's number is false for every column on every run, and the gate would
+ * silently be no gate at all while looking like one. Every learner already rounds to its column's
+ * scale (`learnOdometerOffset` → integer, `learnTankSensorReliability` → 3 dp,
+ * `learnSensorCapacity` → 1 dp, all verified 2026-09-22), so once both sides are numbers an exact
+ * comparison is right and no scale table is needed here — one would only restate the schema.
+ */
+function setIfChanged(
+  patch: Record<string, unknown>,
+  current: Record<string, unknown> | null | undefined,
+  column: string,
+  value: number | boolean,
+): void {
+  const cur = current?.[column];
+  const unchanged = typeof value === "boolean" ? cur === value : cur != null && n(cur) === value;
+  if (!unchanged) patch[column] = value;
+}
+
+/**
  * Learn the per-vehicle values that GATE the rules — odometer offset, tank-sensor reliability, and observed
  * (combined) capacity — from the vehicle's own reconciled history, and persist them. Extracted so a bulk
  * rebuild can run it ONCE per vehicle BEFORE scoring, converging the values in a single pass (fixes the
@@ -29,6 +62,19 @@ export async function learnVehicleValues(
   }
   const vehUpdate: Record<string, unknown> = {};
 
+  // The vehicle row is read ONCE — for the nameplate ceiling, the auto-fix decision, the audit context,
+  // AND (Q-TEL4) as the diff basis every learner below compares against before it writes. It moved above
+  // the learners to serve that fourth job; the read itself is the same single read it always was.
+  const { data: vehRow } = await admin
+    .from("vehicles")
+    .select(
+      "org_id, tank_capacity_gal, tank_capacity_source, observed_max_fill_gal, tank_sensor_reliable, tank_fill_ratio, tank_residual_sigma, sensor_capacity_gal, sensor_capacity_samples",
+    )
+    .eq("id", vehicleId)
+    .single();
+  const veh = (vehRow ?? null) as Record<string, unknown> | null;
+  const enteredCapacityGal = veh ? Number(veh.tank_capacity_gal) : undefined;
+
   // Odometer offset (dash − Samsara), OBD-only, median over the last 10 clustered pairs. Manual is never
   // overwritten.
   if (odometerOffsetSource !== "manual") {
@@ -47,9 +93,9 @@ export async function learnVehicleValues(
       .map((p) => ({ entered: Number(p.odometer), samsara: Number(p.samsara_odometer) }))
       .reverse();
     const learned = learnOdometerOffset(pairs);
-    if (learned && learned.offset !== odometerOffset) {
-      vehUpdate.odometer_offset = learned.offset;
-      vehUpdate.odometer_offset_source = "auto";
+    if (learned) {
+      setIfChanged(vehUpdate, { odometer_offset: odometerOffset }, "odometer_offset", learned.offset);
+      if (vehUpdate.odometer_offset !== undefined) vehUpdate.odometer_offset_source = "auto";
     }
   }
 
@@ -78,18 +124,13 @@ export async function learnVehicleValues(
       .reverse();
     const rel = learnTankSensorReliability(tankPairs);
     if (rel) {
-      vehUpdate.tank_sensor_reliable = rel.reliable;
-      vehUpdate.tank_fill_ratio = rel.ratio;
+      setIfChanged(vehUpdate, veh, "tank_sensor_reliable", rel.reliable);
+      setIfChanged(vehUpdate, veh, "tank_fill_ratio", rel.ratio);
       // WP-BEH: THIS truck's measured sensor noise — sizes the precision-scaled tank_fill_short
       // tolerance (3σ clamped 8–30%) and the chronic-short threshold.
-      vehUpdate.tank_residual_sigma = rel.ratioSigma;
+      setIfChanged(vehUpdate, veh, "tank_residual_sigma", rel.ratioSigma);
     }
   }
-
-  // The vehicle row is read ONCE for the capacity learners below (nameplate ceiling + the auto-fix
-  // decision + the audit context).
-  const { data: veh } = await admin.from("vehicles").select("org_id, tank_capacity_gal, tank_capacity_source, observed_max_fill_gal").eq("id", vehicleId).single();
-  const enteredCapacityGal = veh ? Number(veh.tank_capacity_gal) : undefined;
 
   // Observed (combined) capacity FIRST — corroborated high single-fill volume. Besides raising the
   // effective capacity, it is the PHYSICAL FLOOR the sensor measurement must respect (a fill can't
@@ -111,7 +152,9 @@ export async function learnVehicleValues(
     const gallons = ((fillRows ?? []) as { gallons: number | string }[]).map((r) => Number(r.gallons)).reverse();
     const learnedCap = learnObservedMaxFill(gallons, { nameplateGal: enteredCapacityGal });
     if (learnedCap) {
-      vehUpdate.observed_max_fill_gal = learnedCap.gallons;
+      setIfChanged(vehUpdate, veh, "observed_max_fill_gal", learnedCap.gallons);
+      // The downstream auto-fix decision needs the value regardless of whether it is being WRITTEN —
+      // unchanged still means current.
       observedMaxFillGal = learnedCap.gallons;
     }
   }
@@ -146,8 +189,8 @@ export async function learnVehicleValues(
       .reverse();
     const cap = learnSensorCapacity(obs);
     if (cap) {
-      vehUpdate.sensor_capacity_gal = cap.gallons;
-      vehUpdate.sensor_capacity_samples = cap.samples;
+      setIfChanged(vehUpdate, veh, "sensor_capacity_gal", cap.gallons);
+      setIfChanged(vehUpdate, veh, "sensor_capacity_samples", cap.samples);
 
       // WP-CAP part 2 — SELF-HEALING RECORD: when the measurement is rock-solid (≥8 clustered
       // observations) and the entered capacity is missing or >15% off it, rewrite tank_capacity_gal to
