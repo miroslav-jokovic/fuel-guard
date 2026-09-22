@@ -1020,3 +1020,14 @@ real incidents in this checkout:
   minutes, restarted if it exits. **Never `reconcile`** until F14's second half. Retirement stays an
   operator's run. ⚠ One Mac is a single point of failure by construction; the freshness line is what
   makes that failure visible instead of silent, and an always-on in-network host is the upgrade.
+
+- **2026-09-22 (correction, owner-stated — a sold truck is Active until pickup)** — The entry above
+  read eight McLeod-active trucks carrying a Samsara `- SOLD` record (506, 550, 557, 568, 572, 592,
+  594, 607) as McLeod being stale. **It is not.** Owner: *"they are sold, but they have status Active
+  … because the title is still not released to the buyer; the moment they pick them up they will
+  become inactive."* So `- SOLD` beside a McLeod-active truck means **sold, awaiting pickup**, and
+  keeping them in service is D-FC0 working as intended. Nothing is owed: at pickup McLeod sets
+  `service_status = 'I'`, and the next `--retire` run retires the row here. 568 is the one of the
+  eight that also shows a split row (`568 - OLD` linked, history on `568`); it is left unmerged on
+  purpose, since it leaves the fleet at pickup and a merge would move history onto a truck about to
+  be retired.
