@@ -1,0 +1,62 @@
+-- 0353 — the `ordered` vehicle_status enum value, and NOTHING ELSE.
+--
+-- Isolated per the 0077/0210/0266/0279 convention: Postgres will not let a newly-added enum value be
+-- USED in the transaction that adds it. Nothing in this repository writes or reads `ordered` yet —
+-- the derived predicates land in the next merge (E2/E3), and the 53 rows that will carry it are set
+-- in a later, audited act (F5). That ordering is deliberate: Railway serves a merge ~3 minutes before
+-- `migrate.yml` applies the schema, so a writer shipped alongside its value fails on live traffic for
+-- the width of the deploy window (docs/MIGRATION-DISCIPLINE.md §the-deploy-window — 2m44s, measured).
+--
+-- ── WHAT IT MEANS, AND WHY THE ROWS ARE NOT TRUCKS YET ──────────────────────────────────────────
+-- Measured against McLeod production and the Samsara API on 2026-09-22: McLeod carries 54 `tractor`
+-- rows with `service_status = 'A'` and NO `purchase_date` and NO `model_year`. All 54 share
+-- `inservice_date = 2026-09-04`, hold no driver and no fleet, and have **zero `continuity` rows
+-- ever** — not one has been dispatched. None exists in Samsara. 53 of them do carry a serial/VIN,
+-- which is why VIN is NOT the discriminator here and `purchase_date` is: the carrier has reserved
+-- unit numbers 812–864 against an order whose trucks have not been bought.
+--
+-- They are not fiction and they are not retired equipment. There is a measured delivery pipeline:
+-- every purchased truck gets a Samsara gateway 1–6 weeks after `purchase_date` (units 805 and 809
+-- were registered 2026-09-21, unit 808 on 2026-09-22, while this was being written). These rows
+-- become real trucks on a schedule, and `ordered` is the state they occupy until they do.
+--
+-- ── WHY NOT SIMPLY DELETE THEM ──────────────────────────────────────────────────────────────────
+-- That was the first recommendation and it was wrong. `vehicles.id` is referenced by 33 foreign
+-- keys: 9 ON DELETE RESTRICT, 11 SET NULL, and **13 ON DELETE CASCADE** — among them
+-- `idle_rollup_days`, `vehicle_engine_days`, `fuel_spend_days`, `idle_park_sessions`,
+-- `samsara_odometer_readings`, `vehicle_positions` and `fleetpal_units`. These 53 rows have zero
+-- dependants today, so deleting THEM is safe; the hazard is the mechanism, which would silently
+-- destroy thirteen tables of history the next time it were pointed at a truck that had any. This
+-- repository has already been bitten by exactly that once (`merge_driver`, and the cascade list it
+-- had to grow).
+--
+-- ── WHY AN ENUM VALUE RATHER THAN A DERIVED FLAG ────────────────────────────────────────────────
+-- Because `drivers` already answers this exact question this exact way. `DRIVER_STATUSES` carries
+-- `applicant` — a record that exists and is not yet an operating asset — and
+-- `EMPLOYED_DRIVER_STATUSES = DRIVER_STATUSES.filter(s => s !== "applicant")` is spread into
+-- `.in("status", ...)` at both the API route and the web composable. A truck on order is the same
+-- shape, and symmetry beats invention. Deriving it from `purchase_date` at every read site instead
+-- would be a second definition of "real truck" in every reader, which is the shape this repo's
+-- register calls a workaround.
+--
+-- ⚠ ONE-WAY DOOR. Postgres has no `ALTER TYPE ... DROP VALUE`. This value cannot be removed without
+-- recreating `vehicle_status` and rewriting every column that uses it. It is accepted because this
+-- is a LIFECYCLE state on an asset that already has a lifecycle (`active | maintenance | retired`,
+-- 0001), not a feature flag — and because `IN_SERVICE_VEHICLE_STATUSES` (next merge) means a later
+-- reader never has to know it exists.
+--
+-- ── NO OTHER SQL CHANGES, AND THAT WAS CHECKED RATHER THAN ASSUMED ──────────────────────────────
+-- `pg_proc` was searched for any function branching on a vehicle status value: there is none. The
+-- three functions whose source contains "retired" (`record_part_movement`, `move_asset`,
+-- `guard_fleetpal_unit_match`) mention it only in comments, and `move_asset`'s own status column
+-- belongs to `inventory_assets`, not to `vehicles`. No CHECK constraint exists on `vehicles.status`
+-- — the enum IS the constraint. No RLS policy compares it.
+--
+-- ⚠ One count-consumer lives in SQL and therefore CANNOT be caught by the TypeScript gate that
+-- ships with E4: `platform_org_overview` counts `vehicles` per org with no status filter at all, so
+-- it will include ordered trucks in the internal platform console. That is recorded in the plan's
+-- E3 enumeration rather than fixed here, because this file changes the type and nothing else.
+--
+-- Plan: docs/plans/roster/FLEET-CENSUS-AND-IDLE-TRUTH-PLAN.md — D-FC10, §1.8a, §4a (G1–G8).
+
+alter type vehicle_status add value if not exists 'ordered';

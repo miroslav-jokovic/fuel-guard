@@ -378,11 +378,11 @@ makes each copy wrong in a different direction.
 | **F1** | Replace the active predicate with P4 (`queries.mjs:123-127`); add `tractor_status` to `VEHICLE_MATCH`/`VEHICLE_IDENTITY`. | Dry run selects 193, not 228; the 53 reserved numbers are named in its output. |
 | **F2** | Replace the retire predicate with `service_status <> 'A'` (`queries.mjs:177-179`) — drop the `outservice_date` clause entirely (D-FC2). | 552, 555, 569, 556, 568, 607, 720, 721, 732, 550, 563, 578 leave the retire payload. |
 | **F3** | Map `tractor_status='S'` → `maintenance`, else `active`, on the ingest patch (D-FC9). **No migration.** | 12 rows land in `maintenance`, a status that has held zero rows since 0001; all 12 still render on the map. |
-| **F4** | Merge 732's duplicate: one row, `unit_number = '732'`, McLeod-linked. Audited act, human-reviewed, not a sync side effect (D-FC5). | No `vehicles` row has a gateway-serial unit number; 732 renders as `732`. |
+| **F4** | Merge 732's duplicate: one row, `unit_number = '732'`, McLeod-linked. Audited act, human-reviewed, not a sync side effect (D-FC5). ⚠ **Ordered, not atomic** — `(org_id, unit_number)` is unconditionally unique (G9), so the retired twin is renamed or removed FIRST; a single `update … set unit_number` fails with 23505. | No `vehicles` row has a gateway-serial unit number; 732 renders as `732`; the 23505 path has a test. |
 | **E0** | **Give the ingest a status-reconcile path** (G1). Status becomes part of the update patch, derived from McLeod by one pure function in `packages/shared` — `ordered` \| `maintenance` \| `active`. Routed through the existing `applyOutcome` update, never a new `.from("vehicles")` write site. | A unit test drives all three transitions; mutating the derivation to a constant fails it. `lint:table-modules` still reports 60 grandfathered sites, not 61. |
 | **E1** | Migration, **value only, nothing else in the file**: `alter type vehicle_status add value if not exists 'ordered';` — per the 0077/0210/0266/0279 convention, with their ONE-WAY-DOOR header. | `pg_enum` carries the value in production; no code references it yet. |
 | **E2** | `VEHICLE_STATUSES` gains `ordered`; add `IN_SERVICE_VEHICLE_STATUSES` (D-FC11). Zod schemas in `fleet.ts:37,258` follow the constant, so they need no edit. | `pnpm typecheck` forces every exhaustive `switch` on `VehicleStatus` to be revisited — that is the audit doing its job, not a failure. |
-| **E3** | Enumerate every vehicle status comparison with E4 in report mode (G4), then convert. Covers **both** directions: `= "active"` sites that would lose shop trucks (`equipmentInspection.ts:205`, `askData.ts:415`) **and** `<> "retired"` sites that would gain 53 `ordered` trucks (`useIdleBreakdown.ts:181`, `useIdleDrivers.ts:84`, `useIdleConfidence.ts:72`, `useIdleCapabilities.ts:62`, +7 API) — G3. **Includes `rosterRetire.ts:191`** so a `maintenance` truck stays retirable (G2). Enumerate count-consumers at the same time (G7). | The §396.17 roster returns 193, not 181; the idle denominator does **not** move when 53 `ordered` rows appear; a mutation flipping either filter back fails a test by name. |
+| **E3** | Enumerate every vehicle status comparison with E4 in report mode (G4) **and by querying `pg_proc` (G10 — a PL/pgSQL comparison is invisible to a TypeScript gate)**, then convert. Covers **both** directions: `= "active"` sites that would lose shop trucks (`equipmentInspection.ts:205`, `askData.ts:415`) **and** `<> "retired"` sites that would gain 53 `ordered` trucks (`useIdleBreakdown.ts:181`, `useIdleDrivers.ts:84`, `useIdleConfidence.ts:72`, `useIdleCapabilities.ts:62`, +7 API) — G3. **Includes `rosterRetire.ts:191`** so a `maintenance` truck stays retirable (G2). Enumerate count-consumers at the same time (G7). | The §396.17 roster returns 193, not 181; the idle denominator does **not** move when 53 `ordered` rows appear; a mutation flipping either filter back fails a test by name. |
 | **E4** | Gate `lint:vehicle-status`: a `status` literal on a `vehicles` query outside `packages/shared` fails the build. Add it to `package.json` **and** to `ci.yml`'s `gates` job by name, with its `"//lint:vehicle-status"` comment — per CLAUDE.md, a gate in neither list is not a gate. | The gate fails on a deliberately reintroduced `eq("status","active")` and passes on the audited tree. |
 | **F5** | Set the 53 reserved rows to `ordered` (E1+E2 deployed first). Audited service-role act. | Roster lands on 193 in-service + 53 ordered; map foot and idle denominator agree with McLeod. |
 | **E5** | Apply the same `purchase_date` clause and `outservice_date` removal to the **trailer** query (§1.8b, 9 rows). Scoped separately; not urgent. | Trailer active count moves 231 → 222 with the 9 named. |
@@ -558,6 +558,41 @@ All 272 vehicle rows carry `updated_at` of today, so it **did** run today — bu
 row is 2026-09-01 while the 53 reserved rows were created 2026-09-08→14. **Fixing the predicate
 without establishing the cadence leaves the roster correct only on days somebody remembers.** New
 question **Q-6**, new item **E6**.
+
+### G9 — `(org_id, unit_number)` is unconditionally unique, so F4 cannot rename in place
+
+Found while writing E1's migration (2026-09-22). `vehicles` carries **two** unique indexes on the
+same pair:
+
+```
+vehicles_org_id_unit_number_key    UNIQUE (org_id, unit_number)                      -- no predicate
+uq_vehicles_org_unit_active        UNIQUE (org_id, unit_number) WHERE status='active'
+```
+
+⚠ **The first draft of this note claimed the partial index left `maintenance` and `ordered` rows
+unprotected. That was wrong** — it was written after reading only the second index, which is a strict
+subset of the first and therefore redundant. Unit numbers are unique per org **regardless of
+status**, so F3 and F5 create no uniqueness hole and **no index migration is needed**.
+
+What it does constrain is **F4**. Today unit 732 is two rows — `732` (retired, samsara-sourced) and
+`G6AA-5HS-XTC` (active, McLeod-linked). Renaming the second to `732` **violates
+`vehicles_org_id_unit_number_key`** while the first exists. So F4 is ordered, not atomic: rename or
+remove the retired twin **first**, then rename the survivor. A single `update … set unit_number` will
+fail with 23505, and that failure is the constraint doing its job rather than an obstacle to route
+around.
+
+### G10 — one status consumer lives in SQL, where E4's gate cannot see it
+
+`platform_org_overview` counts `vehicles` per org with **no status filter at all**, so the internal
+platform console will include `ordered` trucks once F5 runs. Checked at the same time and worth
+recording as a shape: **E4's gate scans TypeScript**, so a comparison written in PL/pgSQL is
+invisible to it. E3's enumeration must query `pg_proc`, not only grep the repo.
+
+Verified alongside it, and the reason no other SQL change ships with E1: **no database function
+branches on a vehicle status value.** The three functions whose source contains "retired"
+(`record_part_movement`, `move_asset`, `guard_fleetpal_unit_match`) mention it only in comments, and
+`move_asset`'s status column belongs to `inventory_assets`. No CHECK constraint exists on
+`vehicles.status` — the enum is the constraint. No RLS policy compares it.
 
 ### Assumptions still standing, stated rather than buried
 
