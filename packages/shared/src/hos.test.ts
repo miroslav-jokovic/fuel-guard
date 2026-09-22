@@ -119,6 +119,41 @@ describe("parseHosLogs", () => {
     );
     expect(segs[0]).toEqual({ driverId: "5", status: "sleeper", startMs: T0, endMs: T0 + H });
   });
+
+  /**
+   * DATA-LIFECYCLE-PLAN L4. Samsara answers a windowed query by clipping the duty status already in
+   * force to `startTime`, so the first log of every driver comes back starting at OUR request instant.
+   * Stored, it is a duty transition that never happened AND a row key no later run can reproduce —
+   * which is how 72.5% of hos_duty_segments' last 45 days came to be one artefact. The drop is keyed on
+   * exact equality with the window start: a log a millisecond later is a real transition and stays.
+   */
+  it("drops the log clipped to the window start, and only that one", () => {
+    const data = [
+      {
+        driver: { id: 42 },
+        logs: [
+          { logStartTime: iso(T0), dutyStatus: "sleeperBed" }, // clipped at the boundary
+          { logStartTime: iso(T0 + 1), dutyStatus: "onDuty" }, // one ms later — a real transition
+          { logStartTime: iso(T0 + 2 * H), dutyStatus: "driving" },
+        ],
+      },
+    ];
+    const segs = parseHosLogs(data, { windowEndMs: T0 + 3 * H, windowStartMs: T0 });
+    expect(segs).toEqual<HosSegment[]>([
+      { driverId: "42", status: "on_duty", startMs: T0 + 1, endMs: T0 + 2 * H },
+      { driverId: "42", status: "driving", startMs: T0 + 2 * H, endMs: T0 + 3 * H },
+    ]);
+  });
+
+  it("keeps the boundary log when no window start is given (the parser is not opinionated on its own)", () => {
+    const segs = parseHosLogs(
+      [{ driver: { id: 42 }, logs: [{ logStartTime: iso(T0), dutyStatus: "sleeperBed" }] }],
+      { windowEndMs: T0 + H },
+    );
+    expect(segs).toEqual<HosSegment[]>([
+      { driverId: "42", status: "sleeper", startMs: T0, endMs: T0 + H },
+    ]);
+  });
 });
 
 describe("hosOverlapSeconds", () => {

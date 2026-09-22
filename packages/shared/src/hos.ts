@@ -109,8 +109,29 @@ const vehicleOf = (l: RawLog): string | null =>
  * logEndTime when present; otherwise it runs to the driver's next log start, and the final open log to
  * `windowEndMs` (or null). Robust to a driver recurring across pages — logs are gathered, de-duped by start,
  * and ordered before segments are built.
+ *
+ * `windowStartMs` — WHEN GIVEN, a log whose start is EXACTLY the requested window start is dropped as a
+ * clipping artefact rather than stored as a duty transition.
+ *
+ * WHY (measured on production 2026-09-22, DATA-LIFECYCLE-PLAN L4). Samsara clips the duty status that is
+ * already in force at `startTime` to the query boundary, so `logStartTime` comes back as OUR request
+ * instant, not the driver's. The caller's window start was `new Date()` minus 30 days — a different
+ * millisecond on every run — so each run minted a row per driver at an instant no other run would ever
+ * use again, and the orphan sweep reads back `started_at >= startIso`, which is BELOW the next run's
+ * start. The rows were therefore unreachable by the only code that deletes them. Proof, from the
+ * database: 1,100 rows at `2026-08-22 00:01:52.633`, and a `sync_hos` job at `2026-09-21 00:01:52.554` —
+ * the same instant plus 30 days, once per driver on the account, for all 27 runs that day. 72.5% of the
+ * table's last 45 days (366,374 of 505,634 rows) is this one artefact, accruing ~30,000 rows a day.
+ *
+ * Nothing is lost by dropping it: the row asserts a duty change that did not happen, and the driver's
+ * real segment spanning that instant was already stored by an earlier run, when its true start was
+ * inside the window. What a cold start loses is the leading sliver of the oldest segment, which then
+ * reads as uncovered — the honest answer, and the one the overlay is built to handle.
  */
-export function parseHosLogs(data: unknown[], opts: { windowEndMs?: number } = {}): HosSegment[] {
+export function parseHosLogs(
+  data: unknown[],
+  opts: { windowEndMs?: number; windowStartMs?: number } = {},
+): HosSegment[] {
   // Gather every driver's logs (a driver may recur across pages). Keyed by start instant → status + its own
   // end (from logEndTime when Samsara supplies it).
   const byDriver = new Map<
@@ -155,6 +176,7 @@ export function parseHosLogs(data: unknown[], opts: { windowEndMs?: number } = {
       const endMs =
         rec.endMs ?? (i + 1 < starts.length ? starts[i + 1]! : (opts.windowEndMs ?? null));
       if (endMs != null && endMs <= startMs) continue; // drop zero/negative-length
+      if (opts.windowStartMs != null && startMs === opts.windowStartMs) continue; // clipped at the boundary
       // vehicleId is only present when the log carried one — existing consumers comparing whole
       // segment objects are untouched by the WP-ATTR field.
       segments.push({

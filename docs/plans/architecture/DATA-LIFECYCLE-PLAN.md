@@ -120,6 +120,13 @@ over 30 days. The correct invariant is narrower and is `D-LIFE4`.
   ingest is correct; we are storing two-thirds unattributable ELD time at 615 B/row.
   ⚠ An earlier pass of this audit read "1,230 duplicate groups, one segment copied 917 times" — that
   was `GROUP BY` folding all NULL `driver_id` into one group, not duplication. Do not re-raise it.
+  ⚠⚠ **CORRECTED 2026-09-22 at L4 — "ingest is correct" was the wrong conclusion, and uniqueness on
+  (driver, started_at, ended_at) is the reason it looked right.** Every row IS unique on that triple,
+  because the writer minted a fresh `started_at` on every run. 72.5% of the table's last 45 days
+  (366,374 of 505,634 rows) sits at 334 shared instants, one row per driver per `sync_hos` run;
+  another 9.8% is the real daily-boundary log; **the genuine per-driver segments are 89,728 rows, of
+  which 231 — 0.26% — have no driver.** There was never two-thirds of unattributable ELD time to
+  rule on. The mechanism, the proof and the fix are in §2.9 and `D-LIFE11`.
 
 ### 2.4 Retention has never deleted a row
 
@@ -138,6 +145,14 @@ Every table is younger than its own window. **Not one rule has ever fired; 381 r
 no-ops.** `jobs` at 78 days will be the first, and it is the only rule that has ever been anywhere
 near proving itself. The windows were set by intuition before there was anything to measure them
 against, which is the same failure mode as the 400-day default itself.
+
+⚠ **Read this table's "Oldest row" as `created_at`, which for two of its rows is NOT the column the
+rule prunes on (found at L4, 2026-09-22).** `hos_duty_segments` compares `started_at`, whose oldest
+value is **2026-04-07 — 168 days, not 48**: the feed was first switched on 2026-08-04 and backfilled
+history behind it. The conclusion above survives (168 < 400, still a no-op), but a table's distance
+from its own window can only be measured on the column in its `RetentionRule.timeColumn`, and this
+pass measured all six the same way. `idle_events` and `vehicle_engine_days` also prune on
+`started_at` / `day`; re-measure before quoting their age at L8.
 
 ### 2.5 Indexes are added and never reviewed
 
@@ -215,6 +230,51 @@ Optimising for the disk line item would be optimising the cheapest thing on the 
 
 ⚠ Prices read 2026-09-21 from public sources; verify at supabase.com/pricing before budgeting.
 The compute tier this project actually runs on has **not** been measured — see Q3.
+
+### 2.9 The third table's growth is not data — it is one moving millisecond (measured 2026-09-22, L4)
+
+`hos_duty_segments` was the last of the three, and it does not belong in the same category as the
+other two. `audit_logs` and `scoring_attempts` were writing real rows that nobody needed for long.
+This table was writing rows that describe **something that never happened**, and could not stop.
+
+The mechanism, end to end:
+
+1. `syncHosDutySegments` computed its window as `new Date()` minus 30 days — a different millisecond
+   on every run, and it runs ~27 times a day (`jobs` where `kind = 'sync_hos'`, 49 runs in 48 h).
+2. Samsara answers a windowed `/fleet/hos/logs` query by **clipping the duty status already in force
+   at `startTime` to the query boundary**, so `logStartTime` comes back as *our request instant*.
+   `parseHosLogs` keyed a segment on it, and the upsert key is (org, samsara_driver_id, started_at).
+3. The orphan sweep — the only code that deletes from this table — reads back
+   `started_at >= startIso`. The previous run's boundary row starts ~30 minutes *before* the new
+   `startIso`. **It is below the sweep's own floor, so it can never be seen again.**
+
+The proof is an equality, not an inference: 1,100 rows start at exactly `2026-08-22 00:01:52.633`,
+and a `sync_hos` job started at `2026-09-21 00:01:52.554` — the same instant plus thirty days, plus
+the 79 ms our own `new Date()` took to be called. There are 27 such instants for that day, one per
+run, each carrying one row for each of the 1,109 Samsara driver ids on the account.
+
+What it costs, measured:
+
+| | |
+|---|---|
+| Rows stranded, per run | **1,109** — one per driver on the account |
+| Rows stranded, per day | **~30,000** (2026-09-21: 30,890 rows survived, 29,782 of them at 27 run instants) |
+| Share of the last 45 days | **72.5%** (366,374 of 505,634 rows); a further 9.8% is the real daily boundary |
+| Genuine per-driver segments | **89,728 in 45 days** — ~2,000/day, of which **231 have no driver** |
+| Writes per run | 67,632 of 126,266 fetched segments — ~33,000 inserts + ~34,000 `ended_at` rewrites |
+| Since the feed was switched on | `n_tup_ins` **35,299,153**, `n_tup_del` **34,188,450**, `n_tup_upd` **36,427,915**, for `n_live_tup` **1,655,661** — **~21× write amplification**, and 211 autovacuums in 49 days |
+
+The storage line (~6.7 GB/year) is the least of it. The interesting number is the last row: this one
+table has written and deleted ~70 M tuples to hold 1.65 M, which is `D-LIFE0`'s "IOPS and vacuum
+debt" column made concrete — and it is the reason the growth audit's §2.1 rate for this table
+(894,423 rows/30 d) was never a measure of ELD volume.
+
+⚠ A second, smaller thing the same measurement found: we ingest HOS logs for **1,109 Samsara driver
+ids while the roster maps 193**. The 916 unmapped ones contribute almost no real duty activity
+(they are the source of the daily-boundary rows, ~915/day), but **31 of them have rows in
+`driver_vehicle_assignments`**, which is how `deriveAssignedVehicleSegments` reaches a truck without
+a `driver_id`. That is 4,208 rows a month that a null-driver rule would have deleted while they were
+in use. See Q2.
 
 ---
 
@@ -447,6 +507,30 @@ Therefore: `premake` generously (≥ 6 months), and the growth judge alarms when
 is less than **60 days** ahead of the write head — well before the cliff. **This alarm ships in the
 same merge as the first partitioned table, never after it.**
 
+### D-LIFE11 — a table that grows from a defect gets the defect fixed, not a shorter window
+
+Added 2026-09-22 at L4, from §2.9. Retention, partitioning and budgets all assume the rows are
+**real**: that something wanted them written, and the only question is how long they stay. Two of
+the three tables in this audit fit that. `hos_duty_segments` did not — 72.5% of it is one writer
+artefact — and every instrument in this plan would have shown it as healthy demand:
+
+- a **retention window** caps the artefact instead of removing it, and refills at 30,000 rows a day;
+- a **partition** makes the artefact cheap to scan and does not delete one row of it;
+- the **L1 budget** was already breached (29,819/day against 5,000) and said only "too much", which
+  reads as "shorten the window" — the wrong next question, and the one L4 was written to ask;
+- the **L8 growth judge** will say the same thing again, unless it is read as "why?" not "how long?".
+
+So the rule: **before a window is shortened or a table is partitioned, the growth rate must be
+attributable to a writer and a reason.** For this table that meant ten minutes of `group by
+started_at having count(*) > 500` — the artefact announces itself the moment rows are counted by
+instant instead of by day. A rate nobody can attribute is a defect until proven otherwise.
+
+⚠ The corollary, which cost this plan two wrong premises in three steps: `audit_logs` (L2) and
+`hos_duty_segments` (L4) were BOTH writer defects wearing a lifecycle problem's clothes, and in both
+cases the plan's own account of the cause was wrong before the measurement. `scoring_attempts` may
+be the third — Q6 is exactly this question, still open, with the CPU and the Samsara quota still
+burning behind a window that now caps only the bytes.
+
 ---
 
 ## 5. The queue
@@ -459,7 +543,8 @@ Each step is one PR unless stated.
 | **L1** | `lifecycle` block in `table-modules.json` for all 174 tables + `lint:table-lifecycle` + CI registration | the missing discipline | — |
 | **L2** | Diff-gate the entity-sync audit writes; add `sync_runs` (`D-LIFE4`) | **~10 GB/yr**, in the one table that cannot be pruned | L1 |
 | **L3** | `scoring_attempts` → `RETENTION_RULES` at 45 d; investigate the 136×/txn rescore loop | **~12 GB/yr** + wasted compute | L1 |
-| **L4** | Null-driver `hos_duty_segments` ruling (Q2) + retention 400→120 d | **~4.5 GB/yr** | L1, Q2 |
+| **L4** | ~~Null-driver `hos_duty_segments` ruling (Q2) + retention 400→120 d~~ **RE-SCOPED 2026-09-22 (§2.9, `D-LIFE11`): anchor the HOS window to the calendar day + drop the boundary-clipped segment.** Neither original leg survived measurement | **~6.7 GB/yr and ~21× write amplification** | L1 |
+| **L4b** | Delete the ~1.4 M rows L4 stopped producing (`Q7`) — needs an owner ruling, not a merge | ~0.9 GB now | L4, Q7 |
 | **L5** | Drop the two dead indexes (`D-LIFE8`) | ~276 MB now | — |
 | **L6** | `pg_partman` + `pg_cron` install, `partman` schema, **plus the `D-LIFE10` alarm** | mechanism | L1 |
 | **L7** | Partition `audit_logs` — Merge A (DDL) then Merge B (drain) per `D-LIFE3` | bounded working set on the largest table | L6, Q1 |
@@ -505,12 +590,54 @@ nothing irreversible and L7 delivers the working-set benefit anyway; (b) migrate
 counters and delete; (c) delete outright. **(b) and (c) are deletions from a `RETENTION_FORBIDDEN`
 table and need an explicit audited service-role act, never a side effect.** Recommend (a).
 
-**Q2 — null-driver `hos_duty_segments`.** 1.13M rows, 68.7% of the table. Does anything read duty
-segments with no driver? `idleDutyEvidenceSync` keys the duty overlay **by driver**, so a null-driver
-row cannot participate — but that needs confirming at the call site before deleting, and it is
-possible they are staged awaiting a driver mapping that arrives later. Recommend: **stop ingesting
-them** if the mapping never arrives, or stage them with a 30-day TTL if it does. Either way L4 is
-~4.5 GB/year and the largest single win after L2/L3.
+**Q2 — null-driver `hos_duty_segments`. ANSWERED 2026-09-22 at L4, and the question was wrong.**
+~~1.13M rows, 68.7% of the table. Does anything read duty segments with no driver?
+`idleDutyEvidenceSync` keys the duty overlay **by driver**, so a null-driver row cannot participate —
+but that needs confirming at the call site before deleting. Recommend: stop ingesting them.~~
+
+Both halves failed at the call site. Taking them in the order that matters:
+
+1. **Null-driver rows ARE read.** `mapSegments` (`idleDutyEvidenceSync.ts:222`) keeps a row that has
+   no `driver_id` and no `vehicle_id` as long as it has a `samsara_driver_id`, writes it as
+   `driverId: "unresolved"`, and files it under `bySamsaraDriver` — which
+   `deriveAssignedVehicleSegments` then walks to reach a truck through
+   `driver_vehicle_assignments`. That path is not incidental; it is the v2 fix for incident
+   2026-08-11 ("5 of 177 trucks had confident data"), because sleeper and off-duty logs — the ones
+   that decide overnight idle — almost never name a vehicle. Measured: **221 Samsara driver ids have
+   assignments while only 193 are mapped to a `drivers` row**, so **31 drivers, 4,208 rows a month,
+   reach a truck with no `driver_id` at all.** "Stop ingesting them" would have re-opened the
+   incident for those trucks.
+2. **There was no two-thirds of unattributable ELD time.** Of the genuine per-driver segments in the
+   last 45 days, **231 of 89,728 (0.26%)** have no driver. The 1.13 M was §2.9's writer artefact,
+   which happens to mint a row for each of the 1,109 Samsara driver ids on the account while the
+   roster maps 193 — that ratio, not ELD reality, is where "68.7% null" came from.
+3. **The writer already ruled on this, in a comment, in 2026-08.** `hosSync.ts` stores an unresolved
+   segment deliberately — "so a later driver match can link it, and On-Duty/rest attribution is not
+   lost" — and the sync re-walks a rolling 30 days, so a mapping that arrives within the window
+   back-fills itself. The plan proposed to overturn a decision it had not read.
+
+**No ruling is needed and none is taken.** The 400→120 leg is declined too, on its own measurement:
+the scoring attribution check reads segments around any fill it rescores, and **9,406 of 17,297 fuel
+transactions are older than 120 days** while Q6's rescan re-scores 2,000–7,500 of them every hour.
+A 120-day window would flip those fills' logbook verdict from a real answer to `unknown` on their
+next rescore — degrading evidence to buy 194,404 rows, 11.8% of a table whose other 72.5% was the
+defect. Revisit only after Q6 bounds what actually gets rescored.
+
+**Q7 — the ~1.4 M rows L4 stopped producing. OPENED 2026-09-22.** §2.9's artefact accrued at ~30,000
+rows/day from 2026-08-04, and L4 stops the production but deletes nothing: the rows sit below the
+orphan sweep's floor, and retention will not reach them for 400 days. They are identifiable exactly
+— `started_at` shared by ~1,100 drivers at a single millisecond, matching a `sync_hos` run instant
+minus the window — so a bounded delete is straightforward to write and to verify. Candidates:
+(a) delete them in bounded batches as an explicit, audited service-role act, **recommended** —
+~0.9 GB and, more usefully, a duty timeline that stops being fragmented at arbitrary instants;
+(b) leave them and let the 400-day window take them in 2027 — costs nothing to decide, but the
+fragments keep splitting real segments in every overlay read until then; (c) shorten the window to
+reach them sooner — rejected, that is `D-LIFE11`'s exact mistake and would also take real history.
+This table is NOT in `RETENTION_FORBIDDEN` (raw telematics, re-fetchable from Samsara for 30 days
+and rebuilt daily), so (a) is permitted — but a 1.4 M-row delete on production is the owner's call,
+not a merge's side effect.
+
+**Q3 — what compute tier is this project on?** Not measured. `D-LIFE0` is about working set vs. RAM,
 
 **Q3 — what compute tier is this project on?** Not measured. `D-LIFE0` is about working set vs. RAM,
 and the thresholds in `D-LIFE5` should be tightened if the instance is Micro or Small. One reading
@@ -674,3 +801,40 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   match is anchored on `export const` now, and the self-test gained a detector that fails when the
   parse finds no rules at all, which is the shape this class of bug takes: a gate enforcing nothing
   while printing a tick.
+
+- **2026-09-22 — L4 built, but not the L4 that was written down** (`claude/data-lifecycle-l4`). The
+  step was "rule on null-driver rows (Q2), then 400→120". Measurement killed both legs and found the
+  real cause underneath them, which is §2.9 and `D-LIFE11`: **72.5% of this table's last 45 days is
+  one writer artefact** — `syncHosDutySegments` took its window start from `new Date()` minus 30
+  days, Samsara clips the in-force duty status to `startTime`, and the orphan sweep reads back
+  `started_at >= startIso`, so every run minted ~1,109 rows at an instant the next run's sweep could
+  never see. ~30,000 rows a day, kept for good. The proof is an equality: 1,100 rows at
+  `2026-08-22 00:01:52.633` against a `sync_hos` job at `2026-09-21 00:01:52.554`.
+  **The fix is two lines and no migration.** The window now starts on a calendar day — via
+  `idleCalendarStartIso`, the anchor the idle feeds reading this table already use, whose own comment
+  gives the reason — so re-runs within a day ask for the same instant and collide on the same key;
+  and `parseHosLogs` learned `windowStartMs`, dropping the segment clipped to the boundary, which is
+  a duty transition that never happened. Nothing is lost: the driver's real segment spanning that
+  instant was stored by an earlier run, when its true start was inside the window.
+  **Verification.** Three mutations of the real files, each failing exactly one test and no others —
+  parser keeps the clipped row; writer reverts to the rolling instant; writer stops passing
+  `windowStartMs` — bytes restored by `cp` and md5-verified after each. The pre-existing suite needed
+  ten fixture edits: every one placed its first log exactly on the window start, which is precisely
+  the case that is now unreadable, so the windows moved an hour earlier rather than the assertions
+  changing. ⚠ The suite's one window test could not have caught this: its `endIso` was midnight,
+  where `now - 30d` and the calendar anchor agree. Production never is. The new test uses 09:17:00.123
+  and 09:51:00.202 on the same day and asserts both runs ask for the same instant.
+  **Two corrections to earlier passes, both in place.** §2.3's "ingest is correct, the rows are
+  perfectly unique on (driver, started_at, ended_at)" — they are unique *because* the writer minted a
+  fresh `started_at` every run; uniqueness on a column the defect generates proves nothing. And
+  §2.4's age table reads `created_at` while `hos_duty_segments` prunes on `started_at`: 168 days, not
+  48. Both conclusions survive; both numbers were measured on the wrong column.
+  **Q2 is answered, not ruled on** — null-driver rows are read (`mapSegments` files them under
+  `bySamsaraDriver`, and 31 Samsara drivers reach a truck through `driver_vehicle_assignments` with
+  no `driver_id` at all, 4,208 rows/month), genuine unattributed ELD time is 231 rows in 45 days, and
+  the writer had already ruled on staging them in a 2026-08 comment the plan never read. 400→120 is
+  declined with its own number: 9,406 of 17,297 fills are older than 120 days and Q6 rescores them
+  hourly, so the window would trade real logbook verdicts for 11.8% of a table.
+  **Q7 opened**: L4 stops the production but deletes nothing — the ~1.4 M existing artefact rows are
+  below the sweep's floor and 400 days from retention. Recommended (a), a bounded audited delete;
+  it is an owner's call, not a merge's side effect.
