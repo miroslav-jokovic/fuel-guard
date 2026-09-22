@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@silvicom/shared";
-import { deriveFullName } from "@silvicom/shared";
+import { deriveFullName, TMS_CLAIMABLE_SOURCES } from "@silvicom/shared";
 import { driverPatch, vehiclePatch, trailerPatch } from "./rosterFields.js";
 import { recordSyncedCredentials } from "../evidence/index.js";
 import {
@@ -126,8 +126,9 @@ const empty = (): RosterIngestResult => ({
   credentialFailures: [],
 });
 
-/** Provenances whose identity McLeod may claim. See the header for why the other two are excluded. */
-const CLAIMABLE = new Set(["samsara", "mcleod"]);
+/** Provenances whose identity McLeod may claim. See the header for why the other two are excluded.
+ *  Read from @silvicom/shared since 2026-09-22, because the web asks the same question (Q-7). */
+const CLAIMABLE = new Set(TMS_CLAIMABLE_SOURCES);
 
 /** The link half of the write surface, per entity. */
 const LINK_COLUMNS = {

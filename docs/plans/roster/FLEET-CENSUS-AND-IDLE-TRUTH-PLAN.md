@@ -534,7 +534,7 @@ This is the difference between the plan fixing today's roster and fixing the ros
 read it. **Recommendation:** say which of the two it is — "171 of 193 trucks reported engine time" is
 falsifiable; "175 trucks" is not.
 
-**Q-7 — Does the office keep a hand-editable vehicle status? (OWNER ANSWER NEEDED; opened by merge 4)**
+**Q-7 — ~~Does the office keep a hand-editable vehicle status?~~ DECIDED 2026-09-22: (a), delegated by the owner ("make these decisions based on analysis and research").** Built as `isStatusFromTms` in `@silvicom/shared`; see the progress log.
 
 E0 made the sweep a writer of `vehicles.status`, and `VehicleForm.vue` has always offered the field.
 Two writers, one column, and since 2026-09-22 the sweep runs the more often of the two — so an office
@@ -939,3 +939,23 @@ real incidents in this checkout:
   matched across the R prefix (E5)"* and the carve-out test; putting either `outservice_date` clause
   back fails *"the trailer census does not read outservice_date in either direction"*.
   · Like everything since merge 4, **inert until the agent runs** (Q-6).
+
+- **2026-09-22 (Q-7 decided and built — the office no longer edits a status McLeod writes)** — The owner
+  delegated Q-6/Q-7/Q-9 to analysis. Q-7 went to **(a)**, as recommended: nothing in the carrier's
+  data asks for a local override McLeod cannot express — `tractor_status` already carries the shop,
+  and a wind-down truck is McLeod's to deactivate (Q-4). (b) remains available later with nothing
+  to undo.
+  · **One rule, derived.** `isStatusFromTms` (`packages/shared/src/tms.ts`) is true exactly when the
+  sweep writes the row: a TMS link AND a claimable provenance. The claimable set moved out of
+  `rosterIngest.ts` into `TMS_CLAIMABLE_SOURCES` beside it, so the ingest and the web read ONE list —
+  a copy in the web would have been the second definition this plan's register forbids.
+  · **Three office writers of status found, not one.** `VehicleForm`/`TrailerForm` (now disabled
+  with *"Set in McLeod. Change it there."*), the per-row **Retire** action on both pages (hidden for
+  McLeod-linked rows), and the trailers page's **bulk Retire** (leaves McLeod-linked rows out and
+  says how many in the toast). The vehicles' bulk update only ever touched idle equipment.
+  · **Not enforced in the database, deliberately.** A PostgREST write that goes round the form is
+  reverted by the next sweep, which is the same outcome the rule describes; a trigger would be a
+  second place to maintain `TMS_CLAIMABLE_SOURCES` in SQL. Stated rather than implied.
+  · Mutation-proved: dropping the link test from the predicate fails *"stays the office's on a row
+  McLeod has never linked"*; un-disabling either select fails its form's *"shows a McLeod-linked
+  … status read-only, and says where it is set"*.

@@ -2,7 +2,7 @@
 import { AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, type Trailer, type TrailerInput } from "@silvicom/shared";
+import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, isStatusFromTms, type Trailer, type TrailerInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import {
   useTrailersQuery,
@@ -127,11 +127,23 @@ async function onSubmit(input: TrailerInput) {
   }
 }
 
+const statusFromTms = (t: Trailer) =>
+  isStatusFromTms({ link: t.mcleod_trailer_id, identity_source: t.identity_source });
+
 async function bulkSet(patch: { is_reefer?: boolean; status?: Trailer["status"] }) {
+  // Q-7: a status write on a McLeod-linked trailer is reverted by the next roster sweep, so a bulk
+  // retire leaves those rows out and says how many — rather than reporting a change that won't hold.
+  const ids = [...selected.value];
+  const byId = new Map((trailers.value ?? []).map((t) => [t.id, t]));
+  const writable = patch.status ? ids.filter((id) => !statusFromTms(byId.get(id)!)) : ids;
+  const skipped = ids.length - writable.length;
   try {
-    const n = await bulkUpdate.mutateAsync({ ids: [...selected.value], patch });
+    const n = await bulkUpdate.mutateAsync({ ids: writable, patch });
     selected.value = new Set();
-    toast.success(`Updated ${n} trailer${n === 1 ? "" : "s"}`);
+    toast.success(
+      `Updated ${n} trailer${n === 1 ? "" : "s"}`,
+      skipped ? `${skipped} set in McLeod were left alone. Retire them there.` : undefined,
+    );
   } catch (e) {
     toast.error("Bulk update failed", e instanceof Error ? e.message : undefined);
   }
@@ -261,7 +273,7 @@ async function onRetire(t: Trailer) {
             {{ row.is_reefer ? "Unmark reefer" : "Mark as reefer" }}
           </BaseButton>
           <BaseButton
-            v-if="row.status !== 'retired'"
+            v-if="row.status !== 'retired' && !statusFromTms(row)"
             class="kebab-item kebab-item-danger"
             @click="onRetire(row)"
           >

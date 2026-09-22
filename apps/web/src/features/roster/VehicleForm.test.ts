@@ -72,4 +72,40 @@ describe("VehicleForm", () => {
     expect(payload.tank_capacity_gal).toBe(120);
     expect(payload.baseline_mpg).toBe(6.4);
   });
+
+  /**
+   * Q-7 (2026-09-22). Once McLeod links a truck, the roster sweep writes its status on every run, so
+   * an office edit would stick for an hour and silently revert. The field is shown read-only with its
+   * source named; a row the office has claimed, or McLeod has never linked, stays editable.
+   */
+  const vehicle = (over: Record<string, unknown>) =>
+    ({
+      id: "v1", org_id: "o1", unit_number: "552", make: null, model: null, year: 2019, plate: null,
+      vin: null, fuel_type: "diesel", tank_capacity_gal: 200, baseline_mpg: null, current_odometer: 0,
+      status: "maintenance", assigned_driver_id: null, samsara_vehicle_id: null,
+      samsara_fuel_percent: null, samsara_fuel_at: null, created_at: "", updated_at: "", ...over,
+    }) as never;
+  const statusSelect = (w: ReturnType<typeof mount>) =>
+    w.findAll("select").find((s) => s.findAll("option").some((o) => o.element.value === "maintenance"))!;
+
+  it("shows a McLeod-linked truck's status read-only, and says where it is set", () => {
+    const w = mount(VehicleForm, {
+      props: { drivers, vehicle: vehicle({ mcleod_tractor_id: "552", identity_source: "samsara" }) },
+    });
+    expect(statusSelect(w).attributes("disabled")).toBeDefined();
+    expect(w.text()).toContain("Set in McLeod");
+  });
+
+  it("keeps the status editable on a row the office has claimed", () => {
+    const w = mount(VehicleForm, {
+      props: { drivers, vehicle: vehicle({ mcleod_tractor_id: "552", identity_source: "manual" }) },
+    });
+    expect(statusSelect(w).attributes("disabled")).toBeUndefined();
+    expect(w.text()).not.toContain("Set in McLeod");
+  });
+
+  it("keeps the status editable on a truck McLeod has never linked", () => {
+    const w = mount(VehicleForm, { props: { drivers, vehicle: vehicle({ mcleod_tractor_id: null, identity_source: "samsara" }) } });
+    expect(statusSelect(w).attributes("disabled")).toBeUndefined();
+  });
 });
