@@ -130,8 +130,8 @@
         "growth": "time",
         "retention_days": null,
         "partition": null,
-        "budget_rows_per_day": null,
-        "why": "D-LIFE4: evidence, append-only, RETENTION_FORBIDDEN. Budget null BY RULING, not omission: the sync noise measured 2026-09-21 (485 rows/vehicle/day; actor_id null on 925,341 of 925,341 vehicle.update rows) is removed at L2, and a budget set before that would enshrine it. L7 partitions it (pkey takes 3 scans, so nothing looks it up by id). retention_days null because the table is in RETENTION_FORBIDDEN."
+        "budget_rows_per_day": 500,
+        "why": "D-LIFE4: evidence, append-only, RETENTION_FORBIDDEN \u2014 never pruned. Budget set by L2 (migration 0352), which stopped the trigger recording telemetry. Basis: everything that was NOT vehicle.update/driver.update measured 1,191 rows/30d \u2248 40/day on 2026-09-21, plus identity and compliance changes which are rare (zero vehicle.insert or vehicle.delete in seven days); 500/day is ~12x headroom. \u26a0 PROVISIONAL until the post-0352 rate is measured in production \u2014 re-measure and tighten. L7 partitions this table (its pkey takes 3 scans, so nothing looks it up by id)."
       }
     },
     "card_write_counters": {

@@ -346,10 +346,13 @@ The split is by origin of the row, not by its age:
 - **`audit_logs` keeps** every act that changed something a regulator, an auditor or a carrier would
   ask about — human or system. Append-only, never pruned, multi-year, reclassified `core`. Low
   volume: ~1,200 rows/30d today once the sync noise is gone.
-- **A sync produces a counter, not a row per entity.** One row per collector run in a new
+- ~~**A sync produces a counter, not a row per entity.** One row per collector run in a new
   `sync_runs` table (`infra`, partitioned, 90-day retention) carrying `examined` / `changed` /
-  `failed` counts — which is the number anybody actually wants, and which today cannot be read at
-  all without counting 925,341 rows.
+  `failed` counts.~~ **WITHDRAWN 2026-09-22, not built.** The counter already exists: `jobs.stats`
+  records `{"total": 206, "created": 0, "updated": 206, "assigned": 182}` per `sync_vehicles` run and
+  the equivalent for `sync_stats`, measured in production. A `sync_runs` table would have been a
+  second source of truth for a number already kept — a copy is a workaround with a delay fuse
+  (CLAUDE.md). Anything wanting per-run sync counts reads the job ledger.
 
 **The invariant, corrected by §2.2:** not "an audit row must have an actor" — system acts
 legitimately have none. It is: **an audit row must record a change** that somebody could be asked
@@ -594,3 +597,25 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   `old is not distinct from new` guard **cannot ever fire**, because `set_updated_at()` is a BEFORE
   trigger that bumps `updated_at` unconditionally — a fix written without checking that would have
   shipped, changed nothing, and looked right.
+- **2026-09-22 — L2 built as Q5(a)** (`claude/data-lifecycle-l2`). Migration **0352** gives
+  `audit_row_change` an optional second trigger argument: a comma-separated ignore list consulted on
+  UPDATE only, so a row is written when at least one NON-ignored column actually changed. INSERT and
+  DELETE are never filtered, and a column added later is audited **by default** — the safe direction
+  to fail. `audit_vehicles` ignores live telemetry, learned tank/odometer calibration and the derived
+  `idle_*` family; `audit_drivers` ignores the HOS position block. The list is by MEANING, not by
+  author: `samsaraVehicleSync` writes `vin`, `plate` and `unit_number` and `samsaraDriverSync` writes
+  `cdl_number`, all of which stay audited, because a machine changing a VIN is *more* interesting to
+  an auditor than a human doing it. `has_apu` / `apu_type` / `has_optimized_idle` stay audited too —
+  they grant idle avoidability and are admin-set.
+  **Verification:** `supabase/tests/audit-telemetry-ignored.test.mjs`, 20 assertions, and two
+  mutations against the real migration prove it can fail in *both* directions — removing `updated_at`
+  turns the whole filter into a no-op (6 failures, the trap the header warns about), and adding `vin`
+  and `has_apu` to the list silences a VIN change (4 failures). Bytes restored and md5-verified.
+  `rls` (542 assertions), `identity-provenance`, `equipment-section-split` and `restricted-records`
+  all still green.
+  **`audit_logs` gained a budget** (500 rows/day, ~12× the measured non-telemetry rate of ~40/day)
+  and `BUDGET_WAIVED` in `check-table-lifecycle.mjs` is now **empty**, exactly as its comment
+  promised in L1. ⚠ The budget is PROVISIONAL until the post-0352 rate is measured in production.
+  **`sync_runs` was withdrawn, not built** — `jobs.stats` already carries the per-run counts.
+  ⚠ **This is a labelled workaround.** Q5(b) — moving telemetry off `vehicles`/`drivers` — is what
+  removes 0352, and the migration header says so in its own register.
