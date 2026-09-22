@@ -108,4 +108,71 @@ describe("learnVehicleValues — a rejected write is not learned state", () => {
     await learnVehicleValues(rec.client, "v1", { odometerOffset: 0, odometerOffsetSource: "auto" });
     expect(rec.writtenRows("vehicles")).toEqual([{ odometer_offset: 10, odometer_offset_source: "auto" }]);
   });
+
+  /**
+   * TELEMETRY-SEPARATION-PLAN Q-TEL4. The learner recomputes from the last 30 fills on every scoring
+   * run, and its write was gated on `Object.keys(vehUpdate).length` — "was a value computed", never
+   * "did it change". Measured on production 2026-09-22: 375 tuple writes in a 12-minute window while
+   * an md5 of all 272 vehicles' six learned columns did not move, and the family is 48.8% of this
+   * table's 4.8M writes. A no-op UPDATE costs a full tuple, `set_updated_at()`, the audit trigger's
+   * 91-column comparison and 0262's mirror into both satellites.
+   */
+  it("writes nothing when the learned values already equal what the row holds", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        fuel_transactions: fuelTransactions,
+        vehicles: [{ org_id: ORG, tank_capacity_gal: 240, tank_capacity_source: "entered", observed_max_fill_gal: null, odometer_offset: 10 }],
+      },
+    });
+    await learnVehicleValues(rec.client, "v1", { odometerOffset: 10, odometerOffsetSource: "auto" });
+    expect(rec.writtenRows("vehicles")).toEqual([]);
+  });
+
+  /**
+   * Twelve tank-confirmed fills whose observed rise trails the billed gallons by a constant. Calibrated
+   * against the learner rather than guessed: `learnTankSensorReliability` returns exactly
+   * `{ reliable: true, ratio: 0.991, ratioSigma: 0 }` for this input (verified 2026-09-22).
+   */
+  const tankRows = Array.from({ length: 12 }, (_, i) => ({
+    samsara_tank_observed_gal: 100 + i,
+    gallons: 101 + i,
+    fueling_time_basis: "tank_confirmed",
+    attribution_verdict: "ok",
+  }));
+  const withTankRows = (q: RecordedQuery) => {
+    const select = q.ops.find((o) => o.method === "select")?.args[0];
+    if (typeof select !== "string") return [];
+    if (select.startsWith("odometer, samsara_odometer")) return odometerPairs;
+    if (select.startsWith("samsara_tank_observed_gal")) return tankRows;
+    return [];
+  };
+  const vehicleHolding = (extra: Record<string, unknown>) => [
+    { org_id: ORG, tank_capacity_gal: "240.0", tank_capacity_source: "entered", observed_max_fill_gal: null, ...extra },
+  ];
+
+  /** The positive control for the test below: without it, a fixture that silently learned NOTHING would
+   *  also write nothing, and would pass while proving nothing. */
+  it("writes the learned reliability when the row holds something else", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { fuel_transactions: withTankRows, vehicles: vehicleHolding({ tank_fill_ratio: "0.5", tank_residual_sigma: "0", tank_sensor_reliable: true }) },
+    });
+    await learnVehicleValues(rec.client, "v1", { odometerOffset: 10, odometerOffsetSource: "auto" });
+    expect(rec.writtenRows("vehicles")).toEqual([{ tank_fill_ratio: 0.991 }]);
+  });
+
+  /**
+   * The trap that would make the gate no gate at all — and it is not rounding, because every learner
+   * already rounds to its column's scale. It is the WIRE TYPE: PostgREST returns `numeric` as a STRING,
+   * so a truck whose stored `tank_fill_ratio` is `"0.991"` is compared against the learner's `0.991`
+   * and a strict `===` is false — for every numeric column, on every run, forever. The gate would then
+   * write exactly as often as no gate while reading like one, which is the shape `lint:comment-claims`
+   * and L1's parser bug both exist to catch. This fixture is Postgres-shaped on purpose.
+   */
+  it("compares against Postgres' string numerics, not just JS numbers", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { fuel_transactions: withTankRows, vehicles: vehicleHolding({ tank_fill_ratio: "0.991", tank_residual_sigma: "0", tank_sensor_reliable: true }) },
+    });
+    await learnVehicleValues(rec.client, "v1", { odometerOffset: 10, odometerOffsetSource: "auto" });
+    expect(rec.writtenRows("vehicles")).toEqual([]);
+  });
 });
