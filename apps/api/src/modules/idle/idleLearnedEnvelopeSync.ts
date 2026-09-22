@@ -3,6 +3,7 @@ import {
   learnIdleTemperatureEnvelope,
   type IdleEnvelopeObservation,
   type IdleLearnedEnvelopeStatus,
+  IN_SERVICE_VEHICLE_STATUSES,
 } from "@silvicom/shared";
 
 export interface IdleLearnedEnvelopeSyncResult {
@@ -82,7 +83,7 @@ async function readVehicles(admin: SupabaseClient, orgId: string): Promise<Vehic
     .from("vehicles")
     .select("id, has_optimized_idle")
     .eq("org_id", orgId)
-    .neq("status", "retired");
+    .in("status", [...IN_SERVICE_VEHICLE_STATUSES]);
   requireDatabaseSuccess(error, "vehicle read");
   return (data ?? []) as VehicleRow[];
 }

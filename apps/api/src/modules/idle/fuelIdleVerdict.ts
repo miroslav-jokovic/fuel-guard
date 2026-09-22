@@ -23,6 +23,7 @@ import {
   type IdleBreakdownRollupRow,
   type IdleCapability,
   type IdleVehicle,
+  IN_SERVICE_VEHICLE_STATUSES,
 } from "@silvicom/shared";
 import { eachPage } from "../../lib/paging.js";
 import { resolveIdleCostBasis } from "./idleCostBasis.js";
@@ -119,7 +120,7 @@ async function readVehicles(admin: SupabaseClient, orgId: string): Promise<IdleV
         .from("vehicles")
         .select("id, unit_number, has_apu, has_optimized_idle, idle_capability")
         .eq("org_id", orgId)
-        .neq("status", "retired")
+        .in("status", [...IN_SERVICE_VEHICLE_STATUSES])
         .range(a, b),
     (batch) => {
       for (const v of batch) {

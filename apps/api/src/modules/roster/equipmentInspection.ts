@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { InspectionSubjectType } from "@silvicom/shared";
+import { IN_SERVICE_VEHICLE_STATUSES, type InspectionSubjectType } from "@silvicom/shared";
 import { fetchAllPaged } from "../../lib/paging.js";
 
 /**
@@ -186,6 +186,14 @@ export async function listEquipmentIdentities(
   kind: InspectionSubjectType,
   options: EquipmentListOptions = {},
 ): Promise<EquipmentIdentity[] | EquipmentError> {
+  /**
+   * "Active" here has always meant "still part of the fleet", not "on the road this minute" — which
+   * is why `resolveUnits.ts` turns it OFF to reach a truck sold in June that still owns its repairs.
+   * Since 0353 that intent is `IN_SERVICE_VEHICLE_STATUSES`, and the difference is not cosmetic: a
+   * literal `status = 'active'` would drop the 12 trucks McLeod reports as being in a shop out of
+   * the §396.17 annual-inspection roster, which is precisely the equipment whose inspection someone
+   * has to be tracking (D-FC11, FLEET-CENSUS-AND-IDLE-TRUTH-PLAN.md §1.8a).
+   */
   const activeOnly = options.activeOnly ?? true;
   type Row = {
     id: string;
@@ -202,14 +210,14 @@ export async function listEquipmentIdentities(
     const rows = await fetchAllPaged<Row>((from, to) =>
       kind === "tractor"
         ? (activeOnly
-            ? admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).eq("status", "active")
+            ? admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId).in("status", [...IN_SERVICE_VEHICLE_STATUSES])
             : admin.from("vehicles").select("id, unit_number, vin, plate").eq("org_id", orgId)
           )
             .order("unit_number", { ascending: true })
             .order("id", { ascending: true })
             .range(from, to)
         : (activeOnly
-            ? admin.from("trailers").select("id, unit_number, vin, plate, is_reefer, trailer_type").eq("org_id", orgId).eq("status", "active")
+            ? admin.from("trailers").select("id, unit_number, vin, plate, is_reefer, trailer_type").eq("org_id", orgId).in("status", [...IN_SERVICE_VEHICLE_STATUSES])
             : admin.from("trailers").select("id, unit_number, vin, plate, is_reefer, trailer_type").eq("org_id", orgId)
           )
             .order("unit_number", { ascending: true })

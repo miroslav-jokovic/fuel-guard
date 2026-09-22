@@ -692,3 +692,33 @@ real incidents in this checkout:
   agent**, so "when McLeod changes, our list updates" is currently unverified — Q-6 and E6. Four
   standing assumptions listed explicitly rather than left implicit. §7 adds the parallel-session
   protocol and reserves five branch names. Still nothing implemented.
+
+- **2026-09-22 (merge 3 — E2 + E3 + E4)** — The vocabulary is now derived everywhere.
+  `IN_SERVICE_VEHICLE_STATUSES` and `isInServiceVehicleStatus` added beside `VEHICLE_STATUSES`,
+  mirroring `EMPLOYED_DRIVER_STATUSES` three lines below them. **E3's authoritative enumeration is
+  8 `.from("vehicles")` chains** (not the 17 §1.8a guessed — G4 said the number would be produced,
+  not asserted, and it was): `fuelIdleVerdict.ts`, `idleLearnedEnvelopeSync.ts`, `askData.ts`,
+  `equipmentInspection.ts`, and the four web idle composables — plus `rosterRetire.ts` (G2) which is
+  TS logic rather than a query. All converted; `equipmentInspection`'s **trailer** branch converted
+  with it, since a trailer in a shop had the same bug.
+  ⚠ **An existing test caught the change and that is the point**: `equipmentInspection.test.ts`
+  asserted `val: "active"` on the default listing. It was pinning a spelling the intent had outgrown,
+  and it is now updated to the in-service set with the reason recorded in place.
+  ⚠ **`useIdleCapabilities.ts:58` was missing from §1.8a's list entirely** — the first enumeration
+  script ended a chain at any line not starting with `.`, which a multi-line `.select()` argument
+  does. That is why **E4 parses the AST instead of matching text**: a second regex walker, written to
+  fix the first, then swallowed sibling queries inside a `Promise.all([...])` and attributed one
+  row's filter to the query above it. A gate whose failure mode is a false negative certifies an
+  absence it cannot see. `lint:vehicle-status` is proved against three planted violations —
+  `.eq` literal, `.neq` literal, and one inside a `.vue` script block — exits 1 on each and 0 clean.
+  Registered in `package.json` with its `//lint:vehicle-status` key **and** by name in `ci.yml`'s
+  `gates` job.
+  Verification: typecheck 0 · lint 0 · 15 named gates each 0 · shared 3068 · api **4205** · web
+  **2109**. Mutation-proved: reverting `rosterRetire` to `=== "active"` fails exactly *"retires a
+  truck that is in the SHOP"*; reverting `equipmentInspection` to `.eq("status","active")` fails two
+  inspection tests by name.
+  ⚠ Carried forward, not fixed here: `trailers` shares `vehicle_status` and the **trailer form now
+  offers `ordered`**, a value no trailer will hold until E5 — cosmetic, named in `constants.ts`
+  rather than discovered later. And a cancelled reservation leaves an `ordered` row with nothing to
+  clear it, since the retire sweep only reaches in-service rows; that is F5/E6 territory and is 53
+  rows at most.

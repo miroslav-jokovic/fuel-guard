@@ -132,6 +132,14 @@ jobs:
       - name: Upsert-as-update guard
         run: pnpm lint:upserts
 
+      # A vehicle status spelled out at a call site is right until the next enum value exists, then
+      # silently wrong in whichever direction that site happened to pick. 0353 added `ordered` and
+      # `maintenance` had sat in the enum since 0001 with no row ever holding it, so both spellings
+      # were already live bugs: `= active` drops shop trucks out of the §396.17 inspection roster,
+      # `<> retired` admits trucks the carrier has not taken delivery of into the idle denominators.
+      - name: Vehicle status is derived, never spelled out
+        run: pnpm lint:vehicle-status
+
       # Audit 2026-08-09 finding 5.2: a test file that is never collected reads as coverage it has
       # not earned. This repo had shipped that bug three times before anything checked for it.
       - name: Test collection

@@ -104,9 +104,42 @@ export const APU_TYPE_LABELS: Record<ApuType, string> = {
   none: "None",
 };
 
-/** Vehicle lifecycle status (mirrors the `vehicle_status` Postgres enum). */
-export const VEHICLE_STATUSES = ["active", "maintenance", "retired"] as const;
+/**
+ * Vehicle lifecycle status (mirrors the `vehicle_status` Postgres enum; `ordered` added by 0353).
+ *
+ * `ordered` is a truck the carrier has bought or reserved and does not yet operate — McLeod carries
+ * 54 such `tractor` rows with no `purchase_date`, no `model_year`, no driver and zero dispatch
+ * history, against reserved unit numbers 812–864. It is the equipment twin of `applicant` below:
+ * the record exists, the asset does not yet. See `FLEET-CENSUS-AND-IDLE-TRUTH-PLAN.md` D-FC10.
+ *
+ * ⚠ `trailers.status` uses this same enum, and no trailer is ever `ordered` today (E5 is a separate,
+ * unstarted item). The trailer form therefore offers a value it will not produce. Cosmetic, named
+ * here rather than discovered: the alternative — a narrower list for forms — would stop an `ordered`
+ * vehicle round-tripping through its own edit form, which is the worse of the two.
+ */
+export const VEHICLE_STATUSES = ["ordered", "active", "maintenance", "retired"] as const;
 export type VehicleStatus = (typeof VEHICLE_STATUSES)[number];
+
+/**
+ * The statuses that mean "this truck is part of the operating fleet". **Read this; never spell a
+ * status out at a call site** — `lint:vehicle-status` fails the build on one that does.
+ *
+ * A truck in the SHOP is in service: it is inspected, insured, financed, dispatched against and
+ * counted. Excluded are only the two ends — not yet delivered, and gone.
+ *
+ * ⚠ It is an INCLUSION list on purpose, and the reason is three lines below in
+ * `EMPLOYED_DRIVER_STATUSES`: an exclusion (`status !== "retired"`) silently admits every status
+ * added later, which is how `FleetReadiness` broke. Measured on production 2026-09-22, the two
+ * spellings already disagree by 53 rows — every `.neq("status","retired")` in the idle surfaces was
+ * about to start counting trucks the carrier has not taken delivery of.
+ */
+export const IN_SERVICE_VEHICLE_STATUSES = VEHICLE_STATUSES.filter(
+  (s) => s !== "ordered" && s !== "retired",
+);
+
+/** True when a vehicle row describes a truck the carrier currently operates (incl. one in the shop). */
+export const isInServiceVehicleStatus = (status: string | null | undefined): boolean =>
+  (IN_SERVICE_VEHICLE_STATUSES as readonly string[]).includes(status ?? "");
 
 /**
  * Driver status (free text in DB; constrained here for the UI).

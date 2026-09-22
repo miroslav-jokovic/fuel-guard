@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DRIVER_STATUSES } from "@silvicom/shared";
+import { DRIVER_STATUSES, isInServiceVehicleStatus } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 
 /**
@@ -188,7 +188,21 @@ export async function reconcileAbsentFromTms(
         patch.archived_at = new Date().toISOString();
         archived++;
       }
-    } else if (row.status === "active") {
+      // `candidates` is `Record<string, unknown>` here, exactly as the `String(row[link] ?? "")`
+      // above treats it; the cast is the same shape, not a new liberty.
+    } else if (isInServiceVehicleStatus(row.status as string | null)) {
+      /**
+       * `=== "active"` until 2026-09-22, and that was a ONE-WAY TRAP waiting for its first
+       * `maintenance` row. Nothing in this database had ever held one — the value has existed in
+       * `vehicle_status` since 0001 and never been written — so a truck McLeod parks in a shop
+       * would have become permanently un-retirable here: the sweep would decline to touch it, and
+       * decline again every day after, silently, for as long as McLeod kept reporting it gone.
+       *
+       * The same applies to `ordered` in the other direction, and the predicate covers both by
+       * asking the question the retire sweep actually means — "is this still part of the fleet?" —
+       * rather than naming one of the statuses that answers yes (D-FC11, and the exclusion-list
+       * lesson `EMPLOYED_DRIVER_STATUSES` records two doors down in the same constants file).
+       */
       patch.status = "retired";
       retired++;
     }

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  IN_SERVICE_VEHICLE_STATUSES,
+  isInServiceVehicleStatus,
+  VEHICLE_STATUSES,
   APP_NAME,
   DRIVER_STATUSES,
   EMPLOYED_DRIVER_STATUSES,
@@ -90,5 +93,42 @@ describe("runAllRules stub", () => {
       operatingHours: { start: "05:00", end: "20:00", tz: "America/Chicago" },
     });
     expect(result).toEqual([]);
+  });
+});
+
+/**
+ * The vocabulary, not a spelling of it. `vehicle_status` gained `ordered` in 0353 and had carried
+ * `maintenance` since 0001 without a single row ever holding one, so both literal spellings in the
+ * product were already wrong in opposite directions — `= "active"` dropping shop trucks out of the
+ * §396.17 inspection roster, `!== "retired"` admitting 53 trucks the carrier has not taken delivery
+ * of into the idle denominators (D-FC11).
+ */
+describe("IN_SERVICE_VEHICLE_STATUSES", () => {
+  it("counts a truck in the shop as part of the operating fleet", () => {
+    // The whole reason the predicate is not `= "active"`: a shop truck is inspected, insured,
+    // financed and counted. 12 of this carrier's trucks sit here.
+    expect(IN_SERVICE_VEHICLE_STATUSES).toContain("maintenance");
+    expect(isInServiceVehicleStatus("maintenance")).toBe(true);
+  });
+
+  it("excludes both ends — not yet delivered, and gone", () => {
+    expect(IN_SERVICE_VEHICLE_STATUSES).not.toContain("ordered");
+    expect(IN_SERVICE_VEHICLE_STATUSES).not.toContain("retired");
+    expect(isInServiceVehicleStatus("ordered")).toBe(false);
+    expect(isInServiceVehicleStatus("retired")).toBe(false);
+  });
+
+  it("is derived from the enum, so a value added later is a decision and not a leak", () => {
+    // Pins the INCLUSION property rather than the current membership: were this rewritten as an
+    // exclusion (`s !== "retired"`), `ordered` would silently rejoin — which is exactly the failure
+    // EMPLOYED_DRIVER_STATUSES records for FleetReadiness, and exactly what 53 rows were about to do.
+    for (const s of IN_SERVICE_VEHICLE_STATUSES) expect(VEHICLE_STATUSES).toContain(s);
+    expect(IN_SERVICE_VEHICLE_STATUSES.length).toBe(VEHICLE_STATUSES.length - 2);
+  });
+
+  it("refuses a status it has never heard of, and null", () => {
+    expect(isInServiceVehicleStatus("in_shop")).toBe(false);
+    expect(isInServiceVehicleStatus(null)).toBe(false);
+    expect(isInServiceVehicleStatus(undefined)).toBe(false);
   });
 });

@@ -104,11 +104,17 @@ describe("listEquipmentIdentities", () => {
     expectOrgScoped(rec, ORG);
   });
 
-  it("filters to active by DEFAULT, so a retired unit never invents phantom work", async () => {
+  it("filters to the IN-SERVICE statuses by DEFAULT, so a retired unit never invents phantom work", async () => {
+    // Was `val: "active"` until 2026-09-22. The intent never changed — "still part of the fleet" —
+    // but the spelling excluded `maintenance`, a value the enum has carried since 0001 with no row
+    // ever holding it. This assertion broke when the reader was corrected, which is the safety net
+    // doing its job rather than a regression (D-FC11).
     const rec = createSupabaseRecorder({ tables: { trailers: [trailerRow()] } });
     await listEquipmentIdentities(rec.client, ORG, "trailer");
     const filters = rec.forTable("trailers")[0]!.filters();
-    expect(filters).toContainEqual(expect.objectContaining({ col: "status", val: "active" }));
+    const status = filters.find((f) => f.col === "status");
+    expect(status, "the default listing must still narrow by status").toBeDefined();
+    expect(status!.val).toEqual(expect.arrayContaining(["active", "maintenance"]));
   });
 
   it("drops the status filter only when asked explicitly", async () => {
@@ -169,5 +175,42 @@ describe("listEquipmentIdentities", () => {
     });
     const r = await listEquipmentIdentities(rec.client, ORG, "trailer");
     expect(r).toEqual({ error: "Could not list the equipment records", code: "db_error" });
+  });
+});
+
+/**
+ * The §396.17 roster and the shop (D-FC11, plan §1.8a).
+ *
+ * `activeOnly` has always meant "still part of the fleet" — `resolveUnits.ts` turns it OFF precisely
+ * to reach a truck sold in June that still owns its repairs. Until 2026-09-22 it was spelled
+ * `= "active"`, which was indistinguishable from the intent only because `maintenance` had never
+ * been written to a single row since migration 0001. McLeod reports 12 of this carrier's trucks as
+ * being in a shop; the literal would have dropped every one of them out of the annual-inspection
+ * roster, which is exactly the equipment whose inspection somebody has to be tracking.
+ *
+ * ⚠ ASSERTED ON THE FILTER, NOT ON THE ROWS. `createSupabaseRecorder` does not actually apply
+ * `.in()`, so a flat-array fixture returns the shop truck whatever the query asked for — a test
+ * shaped that way passes against the bug and certifies nothing. The function fixture below reads
+ * the filters the reader really sent.
+ */
+describe("listEquipmentIdentities — a truck in the shop is still in the fleet", () => {
+  const statusFilter = (rec: ReturnType<typeof createSupabaseRecorder>) =>
+    rec.forTable("vehicles")[0]!.filters().find((f) => f.col === "status");
+
+  it("asks for every in-service status, not only 'active'", async () => {
+    const rec = createSupabaseRecorder({ tables: { vehicles: (): unknown[] => [vehicleRow()] } });
+    await listEquipmentIdentities(rec.client, ORG, "tractor", { activeOnly: true });
+    const f = statusFilter(rec);
+    expect(f, "the roster must filter on status at all").toBeDefined();
+    expect(f!.val).toEqual(expect.arrayContaining(["active", "maintenance"]));
+    expect(f!.val).not.toContain("ordered");
+    expect(f!.val).not.toContain("retired");
+  });
+
+  it("asks for no status at all when the caller wants history", async () => {
+    // resolveUnits.ts depends on this: a repair from March belongs to the truck that had it.
+    const rec = createSupabaseRecorder({ tables: { vehicles: (): unknown[] => [vehicleRow()] } });
+    await listEquipmentIdentities(rec.client, ORG, "tractor", { activeOnly: false });
+    expect(statusFilter(rec)).toBeUndefined();
   });
 });

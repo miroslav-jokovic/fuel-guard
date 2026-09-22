@@ -10,6 +10,7 @@ import {
   todayInZone,
   shiftDay,
   daysInRange,
+  IN_SERVICE_VEHICLE_STATUSES,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
@@ -178,7 +179,7 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
       const { data: vdata, error: verr } = await supabase
         .from("vehicles")
         .select("id, unit_number, has_apu, has_optimized_idle, idle_capability")
-        .neq("status", "retired");
+        .in("status", [...IN_SERVICE_VEHICLE_STATUSES]);
       if (verr) throw new Error(verr.message);
 
       // The verdict itself is PURE and lives in @silvicom/shared, so the fuel-spend report can reach
