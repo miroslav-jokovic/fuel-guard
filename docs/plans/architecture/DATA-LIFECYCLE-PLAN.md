@@ -729,7 +729,17 @@ files** mention any of the 43 columns, but the browser reads most of these value
 rather than the database, and the 15 direct `.from("vehicles")` sites in the SPA contain exactly one
 `select("*")`. That one is the silent hazard, and it is named in `D-TEL5`.
 
-**Q6 — what rescans the whole fleet's fills every hour? OPENED BY L3, 2026-09-22.** L3 caps the
+**Q6 — what rescans the whole fleet's fills every hour? OPENED BY L3, 2026-09-22.**
+
+⚠ **ANSWERED 2026-09-22 (third and final revision) — read the LAST entry of §8 first, not this
+section.** Everything below that is derived from `result_hash` change rates is an artefact: the hash
+contains `samsara_recon_checked_at`, a wall clock stamped on every non-`skipRecon` pass, so it counts
+live reconciliations and not verdicts. The answer is three `efs_processing_runs` rows stuck since
+2026-08-28 and retried 235 times, which are 48.9% of all scoring in the product. The chain of
+reasoning below is kept because the order in which it was wrong is the point of `D-LIFE11` — but do
+not act on the age-band table or on recommendations (a)/(b)/(c) as they are stated here.
+
+L3 caps the
 storage; this is the work behind it, and it is compute as well as bytes.
 
 Measured: **2,415,317 attempts against 17,293 fuel transactions = 139.7 per transaction.** The hourly
@@ -878,6 +888,43 @@ changed nothing but `updated_at`** — a no-op UPDATE that still costs a tuple, 
 of `D-LIFE11`'s shape in three days.
 
 ---
+
+
+**Q6a — the three stuck EFS processing runs: resolve them how? OPENED 2026-09-22.** Runs
+`7516924d`, `6f0c6a6c` and `b9f1f710` have been `running` since 2026-08-28 / 2026-09-05 with 233–235
+attempts and have never completed. They are 47,522 scoring attempts and ~47,500 live Samsara
+reconciliation calls per day, against fills from January–May 2026. Candidates: (i) mark the three rows
+terminal and leave their imports scored as they stand — cheapest, and their fills already hold 85–133
+generations of recon evidence, so nothing is lost that has not already been collected many times over;
+(ii) run each once to completion out of band, with recon suppressed, then mark terminal; (iii) leave
+them and fix only the retry ceiling, which stops the 236th attempt but not the 235 already spent.
+**Recommendation: (i).** These are writes to production, so this is Miki's, not a merge.
+
+**Q6b — a run that has failed 235 times must not be offered a 236th: what is the ceiling?** Nothing
+consults `efs_processing_runs.attempts`; it is incremented and never read. There is no dead-letter
+state. Candidates: a fixed ceiling (5? 10?) moving the run to a terminal `abandoned` status with
+`last_error` preserved and a console warning in the shape `dueRunIds` already uses for stranded runs;
+or an exponential `next_attempt_at` ladder with no ceiling, which slows the loop without ending it.
+**Recommendation: a ceiling.** A retry that has never once succeeded in 235 tries is not a retry.
+
+**Q6c — should `scoreImport` skip a live recon for a fill that already has one?** `claimReconBatch`
+already carries the right predicate (`samsara_recon_at is null`, `backfill.ts:76`); `scoreImport` has
+none, so it re-fetches evidence it successfully collected on every previous pass. The counter-argument
+is real and is why this is a question and not a change: a live refresh is how corrected station
+coordinates and recovered fueling instants reach an old fill, and `mergeReconciliation` exists to
+let a better measurement win. **Recommendation: bound it by age of the last SUCCESSFUL recon rather
+than by its existence** — refresh evidence older than some window, never refresh the same fill twice
+in one day. The number wants measuring; nothing in this plan measures it yet.
+
+**Q6d — split `result_hash` into a verdict hash and a payload hash?** As long as
+`samsara_recon_checked_at` is inside the hashed payload, `scoring_attempts` cannot answer "did this
+fill's verdict change" — three revisions of Q6 measured the clock instead. Candidates: exclude the
+recon metadata (`samsara_recon_checked_at`, `samsara_recon_evidence_version`) from the hashed value —
+one line, but it silently changes the meaning of 2.4 M stored hashes; or add a second column
+`verdict_hash` over the verdict-bearing fields only, leaving `result_hash` as the payload identity its
+docstring says it is. **Recommendation: the second column**, and note it lands in two merges behind
+its reader per `lint:migration-ordering`.
+
 
 ## 8. Progress log
 
@@ -1138,3 +1185,109 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   measurement and each was written more confidently than its evidence. That belongs next to the
   defects in `D-LIFE11`: a mechanism believed but not measured is a hypothesis, and writing it into a
   plan does not promote it.
+
+- **2026-09-22 (later still) — scoring IS idempotent; the instrument was the defect, and Q6's answer is
+  three stuck runs, not a design** (`claude/q6-idempotence`, third revision, and the last one that is
+  supported by a measurement rather than by an argument). The task set for this session was "score one
+  fill twice under one engine with no import between, and diff the outcome". That experiment cannot be
+  run in production without writing, so it was run as a natural experiment instead: every pair of
+  CONSECUTIVE scoring attempts on the same transaction under the same `engine_version`, over 24 h
+  (48,797 pairs).
+
+  **Result: 0.34%.** Outside three imports named below, 28,290 same-engine pairs produced 97 hash
+  changes. Of those 97, 72 were fills that had a live Samsara reconciliation inside the window — the
+  artefact described next — leaving **24 pairs, 0.085%, of movement that is not otherwise explained**.
+  The engine re-scores a fill to the same answer. The sliding-input hypothesis (`learnVehicle`'s
+  rolling last-30-fills window shifting what a historical score reads) is NOT what these numbers show,
+  and it is withdrawn.
+
+  ⚠ **`result_hash` cannot answer the question it was asked, and every rate computed from it is void.**
+  `scoringResultHash({ txnId, engineVersion, caseFired, outcome })` (`persist.ts:79`) hashes the
+  outcome patch, and `buildTxnOutcomePatch` (`persist.ts:141`) carries `samsara_recon_checked_at` —
+  which `resolveReconciliation` sets to `new Date().toISOString()` on EVERY pass that is not
+  `skipRecon` (`reconcile.ts:322`, `:330`, `:336`), whether the live refresh succeeded, returned no
+  data, or failed. Two attempts on one fill under one engine therefore **cannot** share a hash unless
+  both ran under `skipRecon`. The hash is a payload identity, exactly as its docstring says; it was
+  read here as a verdict identity, and it is a clock. This is the same shape as the labelPdf flake:
+  an indirect timestamp inside a value that is compared for equality.
+
+  **So the age-band table is an artefact, and fix (a) is un-killed.** Split the same 24 h by whether a
+  fill belongs to the three imports below: **62.37% change on 20,507 pairs inside them, 0.34% on
+  28,290 pairs outside**. Those three imports cover 2026-01-01 → 2026-05-18 — i.e. they sit entirely
+  inside the ">120 d" band, and they ARE the 18.70% that the second revision used to rule out bounding
+  the cascade. The 0.10–0.13% measured at 15–120 days was never evidence that old fills settle; it is
+  what a `skipRecon` rebuild path looks like when its hash is stable. **Bounding the cascade is back on
+  the table on its merits; nothing measured has been shown to argue against it.**
+
+  **Q6's actual answer.** Three `efs_processing_runs` rows have never completed and are being retried
+  forever:
+
+  | run | import | created | attempts | fills | span |
+  |---|---|---|---|---|---|
+  | `7516924d` | `d184c165` | 2026-08-28 17:25 | 233 | 2,151 | 2026-01-01 → 02-03 |
+  | `6f0c6a6c` | `187127b6` | 2026-08-28 17:23 | 235 | 853 | 2026-05-06 → 05-18 |
+  | `b9f1f710` | `57317aa4` | 2026-09-05 13:51 | 235 | 1,172 | 2026-04-17 → 05-05 |
+
+  Every other run in the table — **7,566 of them** — is `succeeded`. These three are the only rows not
+  in a terminal state, and they are the whole of the "continuous full-fleet rescan":
+
+  - **47,522 scoring attempts in 24 h across their 4,176 fills** — 11.4 complete passes per fill per
+    day — against 97,182 attempts fleet-wide. **48.9% of all scoring in the product is these three
+    rows.**
+  - `processEfsProcessingRun` → `scoreImportWithCascade` → `scoreImport`, and `scoreImport` passes no
+    `skipRecon` (`backfill.ts:364`), so **each of those 47,522 attempts makes a live Samsara
+    reconciliation call** on a fill that is four to nine months old. The cascade half DOES pass
+    `skipRecon: true` (`backfill.ts:453`) and is not the expensive half — that correction matters,
+    because the docstring naming `skipRecon` sits above the cascade and was read as covering both.
+  - The receipts are on the rows: `samsara_recon_evidence_version` averages **85.2 / 116.7 / 132.5**
+    across the three imports and reaches **235** — that column increments only on a SUCCESSFUL live
+    refresh (`reconcile.ts:172`). 3,906 fills older than 120 days were live-reconciled in the last
+    24 h; in the 15–120 day range the figure is **zero**. The fills nobody can see are the only ones
+    being refreshed.
+  - A run is offered again because nothing consults `attempts`. The column is incremented and never
+    read: there is no ceiling, no dead-letter state, and no terminal status short of success. A run
+    that has failed 235 times is dispatched a 236th time on the same terms as its first.
+
+  **Why they cannot finish, and why "let the job finish" still fails.** The `jobs` row for these runs
+  is reclaimed on age (`STALE_JOB_MS = 2 h`, `jobs.ts:137`) because `lease_expires_at` is null under
+  `JOB_EXECUTION_MODE=inprocess` — but the observed lifetimes are 28, 29, 36, 50, 72, 74, **190 and
+  374 minutes**, so age is not the binding constraint. Two overnight runs got 3.2 h and 6.2 h
+  uninterrupted and still did not reach the end. A pass is ~2,151 live recons plus a full-history
+  cascade over 139–155 vehicles; the daytime runs are cut short by ordinary deploys (38–50 commits a
+  day on `main`), and the quiet-hours runs simply are not long enough. **No lease value fixes this**,
+  which is the second revision's conclusion reached by a different road.
+
+  **Step 2 (re-measure Q-TEL4 over ≥ 24 h) is answered and does not need the wait.** Q-TEL4 gated
+  writes to `vehicles`; the churn being counted is `samsara_recon_checked_at` on `fuel_transactions`.
+  The two do not touch, so the gate cannot have moved that rate by any mechanism. The window was also
+  unusable on its own terms: the stuck-import share of same-engine pairs was **42% before 16:13 UTC and
+  67% after** — job mix, exactly as suspected. **1.12% vs 6.00% was never a result and should not be
+  cited.**
+
+  **Recommendation — none of (a), (b) or (c) first.** Ordering a loop differently does not stop the
+  loop: (c) newest-first, offered as safe to ship alone, would only re-reconcile the NEWEST of the
+  Jan–May fills 11 times a day instead of the oldest, and it is withdrawn as a first step for these
+  three runs. The order is:
+
+  1. **Resolve the three runs.** They are three rows, not a design, and they are 48.9% of scoring and
+     substantially all of the Samsara reconciliation spend. This is a production write → owner ruling
+     (see Q6a).
+  2. **Give a run somewhere to die** — an attempt ceiling and a terminal state, so the 236th attempt is
+     impossible (Q6b). This is the missing capability; retrying forever is not a policy anybody chose.
+  3. **Stop re-fetching evidence that already succeeded.** `claimReconBatch` has exactly the right
+     predicate — `samsara_recon_at is null` (`backfill.ts:76`) — and `scoreImport` has no predicate at
+     all. A fill reconciled successfully 133 times over does not need a 134th (Q6c).
+  4. **Then** re-open bounding the cascade (a) on its own merits, with an instrument that works.
+
+  ⚠ **Fix the instrument before measuring anything here again** (Q6d). While
+  `samsara_recon_checked_at` is inside the hashed payload, "did this fill's verdict change" has no
+  answer in `scoring_attempts` — the next person to ask will measure the clock, as this plan did three
+  times.
+
+  ⚠ **A method note that belongs with `D-LIFE11`, since it cost most of a day across two sessions.**
+  The first classification attempt in this session split pairs by whether any of the vehicle's fills
+  had moved in between, using `fuel_transactions.updated_at` — and found 28% change with "nothing
+  touched". That number is meaningless: `updated_at` is last-write-wins and holds one instant per row,
+  so it cannot report a write that happened inside an interval and was overwritten. The split was
+  discarded. **A column that stores only the most recent event cannot answer a question about whether
+  an event occurred in a window** — the same error as reading a count to answer a question about state.
