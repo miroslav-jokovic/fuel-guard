@@ -145,6 +145,101 @@ describe("parseHosLogs", () => {
     ]);
   });
 
+  /**
+   * DATA-LIFECYCLE-PLAN L4c. The clip is not one boundary, it is one per 24 hours: probing the live API
+   * read-only on 2026-09-22 at a start of 2026-09-10T00:00:00.000Z returned 1,105 records at
+   * 2026-09-11T00:00:00.001Z, and moving the start to 13:37:11 moved them to 13:37:11 — they follow our
+   * request, not the driver. All 1,105 carried the same status, the same vehicle and a gap of exactly
+   * 1 ms from the log before them, so each is a continuation and dropping it would delete real coverage.
+   * The fixture below is that shape: one rest spanning a boundary, arriving as two fragments 1 ms apart.
+   */
+  it("coalesces a status fragmented at a 24-hour boundary back into one segment", () => {
+    const data = [
+      {
+        driver: { id: 42 },
+        logs: [
+          { logStartTime: iso(T0 + H), logEndTime: iso(T0 + 24 * H), dutyStatus: "sleeperBed" },
+          { logStartTime: iso(T0 + 24 * H + 1), logEndTime: iso(T0 + 30 * H), dutyStatus: "sleeperBed" },
+          { logStartTime: iso(T0 + 30 * H), logEndTime: iso(T0 + 31 * H), dutyStatus: "driving" },
+        ],
+      },
+    ];
+    const segs = parseHosLogs(data, { windowEndMs: T0 + 31 * H, windowStartMs: T0 });
+    expect(segs).toEqual<HosSegment[]>([
+      { driverId: "42", status: "sleeper", startMs: T0 + H, endMs: T0 + 30 * H },
+      { driverId: "42", status: "driving", startMs: T0 + 30 * H, endMs: T0 + 31 * H },
+    ]);
+  });
+
+  it("refuses to coalesce across a real gap, a status change, or a different truck", () => {
+    const seg = (logs: unknown[]) =>
+      parseHosLogs([{ driver: { id: 9 }, logs }], { windowEndMs: T0 + 40 * H });
+
+    // A gap wider than a continuation: two segments, and the uncovered time stays uncovered.
+    expect(
+      seg([
+        { logStartTime: iso(T0), logEndTime: iso(T0 + H), dutyStatus: "offDuty" },
+        { logStartTime: iso(T0 + H + 1_001), logEndTime: iso(T0 + 2 * H), dutyStatus: "offDuty" },
+      ]),
+    ).toHaveLength(2);
+
+    // Same instant, different status — a real transition.
+    expect(
+      seg([
+        { logStartTime: iso(T0), logEndTime: iso(T0 + H), dutyStatus: "offDuty" },
+        { logStartTime: iso(T0 + H + 1), logEndTime: iso(T0 + 2 * H), dutyStatus: "onDuty" },
+      ]),
+    ).toHaveLength(2);
+
+    // Same status, different logbook truck — WP-ATTR attribution must not be merged away.
+    expect(
+      seg([
+        {
+          logStartTime: iso(T0),
+          logEndTime: iso(T0 + H),
+          dutyStatus: "onDuty",
+          vehicle: { id: "111" },
+        },
+        {
+          logStartTime: iso(T0 + H + 1),
+          logEndTime: iso(T0 + 2 * H),
+          dutyStatus: "onDuty",
+          vehicle: { id: "222" },
+        },
+      ]),
+    ).toHaveLength(2);
+  });
+
+  /**
+   * The dropped fragment is the one clipped to our request instant AND NOTHING ELSE. A later fragment of
+   * the same status must not coalesce backwards into it: a driver holding one status across the whole
+   * window — which is every one of the ~916 Samsara ids with no roster activity, off-duty for all 30 days
+   * — would merge into the dropped run and vanish. Measured on a real 30-day window 2026-09-22: allowing
+   * that merge cut the coverage the parser asserts from 2.90 Gs to 0.42 Gs, an 85% loss. The window's
+   * first ≤24h is still surrendered, which is the trade L4 made and §2.9 accepts; this keeps the rest.
+   */
+  it("does not coalesce a later fragment backwards into the dropped window-start run", () => {
+    const segs = parseHosLogs(
+      [
+        {
+          driver: { id: 42 },
+          logs: [
+            { logStartTime: iso(T0), logEndTime: iso(T0 + 24 * H), dutyStatus: "offDuty" },
+            { logStartTime: iso(T0 + 24 * H + 1), logEndTime: iso(T0 + 48 * H), dutyStatus: "offDuty" },
+            { logStartTime: iso(T0 + 48 * H + 2), logEndTime: iso(T0 + 50 * H), dutyStatus: "offDuty" },
+            { logStartTime: iso(T0 + 50 * H), logEndTime: iso(T0 + 51 * H), dutyStatus: "driving" },
+          ],
+        },
+      ],
+      { windowEndMs: T0 + 51 * H, windowStartMs: T0 },
+    );
+    // T0's fragment goes; the two after it are one rest, not two rows and not nothing.
+    expect(segs).toEqual<HosSegment[]>([
+      { driverId: "42", status: "off_duty", startMs: T0 + 24 * H + 1, endMs: T0 + 50 * H },
+      { driverId: "42", status: "driving", startMs: T0 + 50 * H, endMs: T0 + 51 * H },
+    ]);
+  });
+
   it("keeps the boundary log when no window start is given (the parser is not opinionated on its own)", () => {
     const segs = parseHosLogs(
       [{ driver: { id: 42 }, logs: [{ logStartTime: iso(T0), dutyStatus: "sleeperBed" }] }],
