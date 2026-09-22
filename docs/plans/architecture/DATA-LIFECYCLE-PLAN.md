@@ -676,6 +676,30 @@ would be precisely the labelled-workaround case in CLAUDE.md, so the ignore-list
 naming (b) as what removes it. ⚠ (c) is not recommended and is recorded only so it is not
 rediscovered as novel.
 
+**⚖ RULED 2026-09-22, later the same day: (b) is adopted and has its own plan —
+`docs/plans/architecture/TELEMETRY-SEPARATION-PLAN.md` (`D-TEL*`). 0352 stands until it lands.**
+Two things measured while scoping it changed the answer's shape, and both are why (b) is smaller and
+more urgent than this question assumed:
+
+- **The target pattern is already built.** Migration **0262** (2026-08-27, `D-SEP3`,
+  `SEPARATION-PROGRAM-PLAN` P2.2) created `vehicle_tank_learned` and `vehicle_idle_learned` — which
+  hold **32 of the 39 `vehicles` columns in 0352's ignore list** — backfilled them, and left the legacy columns
+  in place with `DEPRECATED` comments saying they "retire when their writers migrate". The writers
+  never migrated and no plan owned the step. (b) is therefore not a new programme; it is the
+  retirement half of a strangler this repo already started, plus one satellite for the live feed and
+  one for the driver HOS block.
+- **The half-migrated state costs more than either end state.** 0262's mirror trigger has no diff
+  gate, so an odometer write — which touches no learner column — rewrites both satellites as well as
+  the 447-byte `vehicles` row. `vehicles` + the two satellites + `vehicle_positions` are **932 rows
+  taking 14.55 M updates and 27,573 autovacuum cycles in 122 days**. Waiting is not free, and "a copy
+  is a workaround with a delay fuse" is already measurable: `odometer_offset` disagrees between
+  `vehicles` and its satellite on one vehicle.
+
+⚠ The estimate in (b) above — "a wide blast radius" — was checked rather than inherited: **53 source
+files** mention any of the 43 columns, but the browser reads most of these values from API responses
+rather than the database, and the 15 direct `.from("vehicles")` sites in the SPA contain exactly one
+`select("*")`. That one is the silent hazard, and it is named in `D-TEL5`.
+
 **Q6 — what rescans the whole fleet's fills every hour? OPENED BY L3, 2026-09-22.** L3 caps the
 storage; this is the work behind it, and it is compute as well as bytes.
 
@@ -708,6 +732,18 @@ rate implies ~3 minutes in production, and the Railway variable could not be rea
 Four other pinned writers touch `vehicles` (`learnVehicle.ts`, `persist.ts`, `idleCapabilitySync.ts`,
 `samsaraVehicleSync.ts`). The ignore-list must be derived from all of them, not from the stats feed
 alone.
+
+**⚖ SETTLED 2026-09-22 while scoping Q5(b), by measurement rather than by reading the variable.** All
+91 columns of all 272 rows, snapshotted eight minutes apart and diffed key by key: **131 rows
+rewritten; `samsara_fuel_at` on 105, `current_odometer` on 83, `samsara_fuel_percent` on 62,
+`odometer_offset` on 1, and no idle column at all.** The live feed is the writer — the four columns
+that have no satellite — while the two families that do have one contributed a single row between
+them. 0352's ignore list was derived correctly from all five writers, so nothing there changes; what
+changes is the ORDER of the fix, which is why `TELEMETRY-SEPARATION-PLAN` starts with the live feed
+(`D-TEL2`). ⚠ The same diff found something no value-level query could: **26 of those 131 rewrites
+changed nothing but `updated_at`** — a no-op UPDATE that still costs a tuple, the audit trigger's
+91-column comparison and the 0262 mirror. That is `Q-TEL4` over there, and it is the third instance
+of `D-LIFE11`'s shape in three days.
 
 ---
 
