@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/vue-query";
+import { IN_SERVICE_VEHICLE_STATUSES } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
 export type IdleCapability = "apu" | "ecu_optimized" | "continuous_only" | "unknown";
@@ -59,7 +60,7 @@ export function useIdleCapabilities() {
         .select(
           "unit_number, has_apu, apu_type, has_optimized_idle, idle_capability, idle_optimized_pct",
         )
-        .neq("status", "retired");
+        .in("status", [...IN_SERVICE_VEHICLE_STATUSES]);
       if (error) throw new Error(error.message);
       const rows = (
         (data ?? []) as {

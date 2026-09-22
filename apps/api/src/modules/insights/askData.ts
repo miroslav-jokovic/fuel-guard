@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, CASE_RULE_ID, computeSubjectMpg, odometerAccuracy, type OdoRow, type SubjectFill } from "@silvicom/shared";
+import { AI_MODELS, CASE_RULE_ID, computeSubjectMpg, IN_SERVICE_VEHICLE_STATUSES, odometerAccuracy, type OdoRow, type SubjectFill } from "@silvicom/shared";
 import { FUEL_EVENT_DROP } from "../fuel/index.js";
 import type { Env } from "../../env.js";
 import { anthropicClient } from "../../lib/anthropic.js";
@@ -412,7 +412,9 @@ async function runTool(admin: SupabaseClient, orgId: string, name: string, input
   if (name === "fleet_roster") {
     const [vTot, vAct, dTot, dAct, tTot, tAct] = await Promise.all([
       admin.from("vehicles").select("id", { count: "exact", head: true }).eq("org_id", orgId),
-      admin.from("vehicles").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("status", "active"),
+      // "active" here means "in the operating fleet", which since 0353 includes a truck in the shop
+      // and excludes one the carrier has ordered but not taken delivery of (D-FC11).
+      admin.from("vehicles").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", [...IN_SERVICE_VEHICLE_STATUSES]),
       admin.from("drivers").select("id", { count: "exact", head: true }).eq("org_id", orgId),
       admin.from("drivers").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("status", "active"),
       admin.from("trailers").select("id", { count: "exact", head: true }).eq("org_id", orgId),

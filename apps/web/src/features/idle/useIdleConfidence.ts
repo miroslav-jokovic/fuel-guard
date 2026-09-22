@@ -3,6 +3,7 @@ import {
   computeIdleConfidence,
   computeIdleAgreement,
   type IdleConfidenceResult,
+  IN_SERVICE_VEHICLE_STATUSES,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 
@@ -69,7 +70,7 @@ export function useIdleConfidence() {
       const { data: vdata, error: verr } = await supabase
         .from("vehicles")
         .select("id, has_apu, apu_type, has_optimized_idle, idle_capability, idle_states_sec")
-        .neq("status", "retired");
+        .in("status", [...IN_SERVICE_VEHICLE_STATUSES]);
       if (verr) throw new Error(verr.message);
       const rawVehicles = (vdata ?? []) as {
         id: string;

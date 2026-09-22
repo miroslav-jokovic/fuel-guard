@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { retireFromTms } from "./rosterRetire.js";
+import { reconcileAbsentFromTms, retireFromTms } from "./rosterRetire.js";
 
 /**
  * Retirement is the one operation here that takes capability away from a person, so nearly every test
@@ -118,5 +118,49 @@ describe("the bad-fetch guard", () => {
       { external_id: "D0001", status: "terminated", termination_date: "2026-08-18" },
     ]);
     expectOrgScoped(rec, ORG);
+  });
+});
+
+/**
+ * `reconcileAbsentFromTms` had NO coverage, and the one-way trap it carried could only have been
+ * found by reading it: the vehicle branch asked `row.status === "active"`, so the first row ever
+ * written with `maintenance` — a value that has sat in the `vehicle_status` enum since migration
+ * 0001 with nothing ever writing it — would have become permanently un-retirable. McLeod reports 12
+ * trucks in a shop; the sweep would have declined to touch them, silently, every day, for as long
+ * as McLeod kept reporting them gone (D-FC11, plan §4a G2).
+ */
+const ORG2 = ORG;
+const v = (over: Record<string, unknown> = {}) => ({
+  id: "v-1", org_id: ORG2, mcleod_tractor_id: "T900", status: "active", ...over,
+});
+/** The reconcile refuses a roster under 50 rows outright, so the payload has to clear that floor. */
+const fiftyOthers = Array.from({ length: 50 }, (_, i) => `T${i + 1}`);
+
+describe("reconciling vehicles McLeod no longer carries", () => {
+  it("retires a truck that is in the SHOP, not only one that is on the road", async () => {
+    const rec = createSupabaseRecorder({ tables: { vehicles: [v({ status: "maintenance" })] } });
+    const r = await reconcileAbsentFromTms(rec.client, ORG2, "vehicles", fiftyOthers);
+    expect(r.refused).toBeUndefined();
+    expect(r.retired).toBe(1);
+    expect(rec.writtenRows("vehicles")[0]!.status).toBe("retired");
+  });
+
+  it("still retires an ordinary active truck", async () => {
+    const rec = createSupabaseRecorder({ tables: { vehicles: [v()] } });
+    const r = await reconcileAbsentFromTms(rec.client, ORG2, "vehicles", fiftyOthers);
+    expect(r.retired).toBe(1);
+  });
+
+  it("leaves a truck alone once it is already retired", async () => {
+    const rec = createSupabaseRecorder({ tables: { vehicles: [v({ status: "retired" })] } });
+    const r = await reconcileAbsentFromTms(rec.client, ORG2, "vehicles", fiftyOthers);
+    expect(r.retired).toBe(0);
+    expect(rec.writtenRows("vehicles")).toHaveLength(0);
+  });
+
+  it("org-scopes its read and its writes", async () => {
+    const rec = createSupabaseRecorder({ tables: { vehicles: [v({ status: "maintenance" })] } });
+    await reconcileAbsentFromTms(rec.client, ORG2, "vehicles", fiftyOthers);
+    expectOrgScoped(rec, ORG2);
   });
 });
