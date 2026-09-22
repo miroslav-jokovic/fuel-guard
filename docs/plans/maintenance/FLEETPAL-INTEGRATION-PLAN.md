@@ -181,6 +181,55 @@ number covering an unknown fraction of $1.38M in front of somebody who reads it 
 That is exactly the plausible-but-wrong figure D-FIN10 exists to refuse, and it is why D-FP4 makes
 the coverage ratio part of the feature rather than a footnote.
 
+> **⚠ CORRECTED 2026-09-21 — the direction of the disagreement was backwards, and it is bigger than
+> this paragraph assumed.** Everything above predicted FleetPal would be a SUBSET of the ledger: "an
+> unknown fraction of $1.38M". Measured for July 2026 against the live account and production:
+>
+> | | July 2026 |
+> |---|---:|
+> | McLeod GL maintenance family (15 signed accounts) | **$219,301.48** |
+> | FleetPal service history — per-unit repairs, 208 units, 1,047 jobs | **$314,030.49** |
+>
+> FleetPal is a **superset**, by 43%. The five-way split says why: parts $153,246.53, **labour
+> $100,883.60 over 982.6 hours**, services $55,456.55, fees and tax $4,443.81. The gap is $94,729
+> and the labour line is $100,884. Strip labour and FleetPal reads **$213,147**, which lands within
+> **2.8%** of the GL family and within **1.2%** of FleetPal's own purchase-order invoices
+> ($215,782.05) — two independent corroborations of one seam.
+>
+> The reading: labour costed into a repair by the shop is **payroll in McLeod**, filed under wages
+> and never under the maintenance family. Not proved which of those 982.6 hours are in-house versus
+> billed on a vendor work order, so the mechanism is strongly indicated rather than established —
+> but the arithmetic consequence is certain and is now **D-FP18**: a reconciliation that compares
+> FleetPal's per-unit total to the GL family will be wrong every month by roughly the shop's
+> payroll.
+
+### 2.3a Neither source can answer "trucks or trailers" alone — and only one of them is close
+
+Measured July 2026. McLeod's maintenance family names the equipment type on **four** of its fifteen
+accounts and nowhere else:
+
+| Attribution | Accounts | July |
+|---|---|---:|
+| Trailer, explicitly | Trailer Repair · OTR Trailer Tires | **$36,781.52** |
+| Truck, explicitly | OTR Truck Tires · Truck Wash | **$3,808.35** |
+| **Equipment-blind** | Tires ($71,290.62) · OTR Repairs over $1000 ($39,002.82) · Shop Parts ($37,401.48) · OTR Repairs under $1000 · Oil Change · Towing · Shop Supplies · Small Tools · Jump Start · Repairs and Maintenance | **$178,711.61** |
+
+**81.5% of the ledger's maintenance spend cannot be attributed to an equipment type at all** — the
+largest account in the family, Tires at $71,290.62, covers both. FleetPal attributes **100%** of it,
+because every repair names a unit: all 1,047 July jobs resolved to a tractor or a trailer with none
+left over.
+
+| FleetPal, July 2026 | total | labour | ex-labour | jobs | units |
+|---|---:|---:|---:|---:|---:|
+| Tractors | $204,856.88 | $61,019.26 | $143,837.62 | 615 | 116 |
+| Trailers | $109,173.61 | $39,864.34 | $69,309.28 | 432 | 92 |
+
+Two things fall out. **Trailers are a third of the repair bill** and the ledger can see a fifth of
+that. And **trailers are more labour-heavy** — 36.5% of their cost against 29.8% for tractors — so
+the D-FP18 seam is not a constant and cannot be corrected with one fleet-wide percentage. This is
+**D-FP19**, and it is the clearest statement of why this collector exists: the split the shop
+manages by is one FleetPal knows exactly and the ledger mostly cannot.
+
 ### 2.4 The invoice bridge — how coverage is measured without touching Finance
 
 FleetPal chains work to money:
@@ -381,6 +430,8 @@ This is also what finally feeds `vehicles.next_pm_due_odometer` / `next_pm_due_a
 | **D-FP13** | **A `PART` job item is an `issued` movement**, carrying `work_order_ref`, `unit_cost` and the resolved `vehicle_id`/`trailer_id`. Its movement id is derived from the FleetPal job-item id, so a replay is a no-op. **It is not a spend event** — D-INV11 stands, GL `30230000` already holds the money. | §2.5, D-INV11 |
 | **D-FP14** | **The unmatched unit is a first-class state, not an error.** Every read model reports its unmatched count, and no surface silently drops rows it could not resolve. | §2.6 |
 | **D-FP15** | **The coverage ratio is a stated LOWER bound, and everything excluded could only raise it.** Q9(a) joins FleetPal's invoice number to `mcleod_ap_vouchers.invoice_number` with no vendor key, so the join has error in both directions: a number FleetPal formats differently is a missed match, and a number that collides across vendors is a false one. The headline therefore counts **only a FleetPal invoice number that matches exactly ONE maintenance-family voucher in the month** — unmatched numbers and multi-voucher collisions are excluded from it and reported beside it. Since the numerator is a subset sum of the denominator's own family, the ratio cannot exceed 100% and cannot overstate; "at least X%" is then true by construction rather than by hope. The page says "at least", in those words. | Owner Q9(a), 2026-09-21 |
+| **D-FP18** | **Per-unit cost has TWO values and every surface names which one it is showing.** (a) **Operational cost** — the vendor's `total`, labour included. What a truck cost to keep running, and the headline on any maintenance surface, because it is the question a fleet manager is asking. (b) **External spend** — `total` less `total_labor`. The ONLY value that may be compared to the GL maintenance family, because the shop's own hours are payroll in McLeod and are not in that family. Measured July 2026: $314,030.49 against $213,146.89, a 43% difference (§2.3). A comparison built on (a) is wrong by the shop's payroll every month; a per-truck report built on (b) understates what the truck cost. Neither is a correction of the other and no surface may quietly switch between them. | §2.3, measured 2026-09-21 |
+| **D-FP19** | **Equipment-type totals come from FleetPal, never from the ledger.** McLeod names the type on 4 of 15 maintenance accounts — $36,781.52 trailer, $3,808.35 truck, and **$178,711.61 (81.5%) equipment-blind** in July 2026, its largest account (Tires, $71,290.62) covering both. FleetPal attributes 100%: all 1,047 July jobs resolved to a tractor or a trailer. So "trucks versus trailers" is a FleetPal answer, the GL family is **not decomposable** by type, and no surface may present a split of it as though it were. The D-FP18 seam also differs by type — labour is 36.5% of trailer cost and 29.8% of tractor cost — so one fleet-wide labour percentage cannot correct it. | §2.3a, measured 2026-09-21 |
 | **D-FP17** | **`mcleod_ap_vouchers` has no expense dimension, so FleetPal supplies the classification.** `ap_glid` is the accounts-payable CONTROL account, not the expense account — measured on production 2026-09-21 it is `20000000` on 1,278 of 1,658 rows and null on the other 380, one distinct non-null value in the table. The expense distribution lives on voucher DETAIL rows this stack does not stage, so a voucher header cannot be filtered to the maintenance family at all. Every FleetPal invoice is against a maintenance purchase order, so a voucher matched by number IS maintenance spend on FleetPal's evidence. The integration supplies the dimension McLeod is missing — §2.2's sentence about per-unit cost, arriving again from the other direction. | F9b, measured |
 | **D-FP16** | **The invoice number is stored exactly as the vendor entered it.** No trim, no case fold, no zero-stripping, anywhere between the wire and the join. Every one of those is a normalisation that would be indistinguishable at read from a real match, and would turn D-FP15's stated bound back into the guess Q9 rejected. | 0351; F9a |
 
@@ -649,6 +700,38 @@ English is licensed TMC material whose distribution tier the owner declined on 2
 description to any table (asserted, not assumed); and a vendor failure degrades to the bare code
 rather than to an error — a repair report that cannot say "ALTERNATOR" must still say "013".
 
+### F9d — The roll-up: per-period, per-type, fleet-wide — *migration likely*
+
+F9b answers **one truck, one window, one total**. That is the unit's file and it is not a report:
+"weekly, monthly and yearly expenses for each truck" and "trucks versus trailers" are both a loop
+over that endpoint today, and twelve calls each recomputing a monthly coverage bound is not a
+report. Nothing in F0–F15 covered this, which is the same gap F9a found one layer down.
+
+- `GET /api/maintenance/fleetpal/rollup?from&to&bucket=week|month|year&kind=tractor|trailer|all` —
+  per-unit rows bucketed by period, with **both D-FP18 values on every row** (operational and
+  external) and the type split from D-FP19. Paginated: 208 units × 12 months is 2,496 rows and
+  PostgREST caps a response at 1,000 whatever `.limit()` says.
+- The fleet-wide total per bucket, beside the GL maintenance family for the same months — the
+  reconciliation this collector exists for. **The comparison uses the EXTERNAL value only**
+  (D-FP18), and the page says so where the reader can see it, not in a tooltip.
+- **⚠ The coverage bound stays MONTHLY.** A weekly bucket sits inside a month and inherits that
+  month's bound; it does not get a bound of its own, because the GL is a monthly grain and a weekly
+  denominator does not exist. A week therefore prints its month's "at least X%", labelled as the
+  month's. **Q10** below records the alternative.
+- **⚠ A yearly bucket is gated by the LEDGER, not by FleetPal.** FleetPal holds 21 months from
+  2025-01-01; `mcleod_gl_totals` held 8 (2025-12 → 2026-07) when this was written. D-FP4 refuses any
+  window touching an unswept month, so a calendar year is unanswerable until the sweep runs forward.
+  That is the rule working, and the page must say *which month* is missing rather than returning a
+  bare 409 the reader cannot act on.
+- Whether this needs a migration is a measurement, not a guess: 12,783 service-history rows is small
+  enough to aggregate live, and the first thing this step does is measure the query rather than
+  reach for a rollup table. A materialised total is a second source of truth (D-FLEET9) and is only
+  worth it if the live read is actually slow.
+
+**Done when:** a month's fleet-wide external total reconciles to the July figures in §2.3 within the
+seam D-FP18 names; a tractor/trailer split reproduces §2.3a; a weekly bucket names the month whose
+bound it carries; and a window touching an unswept month says which month rather than 409-ing blind.
+
 ### F10 — Web: the unit's maintenance file — *no migration*
 
 On `/shop/units/:kind/:id` (the surface exists): repair history, cost split, downtime, open defects,
@@ -749,7 +832,7 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
 | # | Question | Candidates | Recommendation |
 |---|---|---|---|
-| — | *(none open)* | | |
+| **Q10** | A weekly bucket has no coverage bound of its own — the GL is monthly. What does a weekly row print? | (a) inherit the containing month's bound, labelled as the month's; (b) print no bound on a weekly row and show it only on the month header; (c) refuse weekly buckets entirely and offer month/year only | **(a).** D-FP4 says cost never appears without its ratio, and (b) puts a cost figure on a row with no ratio on it — the exact shape the rule forbids, rescued only by the reader looking up. (c) throws away the bucket a shop manager actually uses. The label is what makes (a) honest: "at least X% — July", on a row covering one week of July. **Blocks F9d only** |
 
 ### 6.3 Assumptions — each retired by the step that needs it
 
@@ -1477,4 +1560,63 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next is F9c** — VMRS descriptions resolved live (D-FP8) — which F9's prose asked for and F9's
   done-when did not, and which lands before F10 because "013" is not an answer a shop manager can
-  use.
+  use. **Then F9d**, the roll-up (added 2026-09-21, see the entry below).
+
+- **2026-09-21 · The labour seam, the equipment split, and the roll-up nobody had scoped.**
+  No code. Three measurements against the live account and production, two new decisions
+  (**D-FP18**, **D-FP19**), a correction to §2.3, a new step **F9d** and a new question **Q10**.
+
+  **§2.3 was backwards, and that is the headline.** It predicted FleetPal would cover "an unknown
+  fraction of $1.38M" — a subset of the ledger. Measured for July 2026, FleetPal's per-unit repair
+  total is **$314,030.49** against a GL maintenance family of **$219,301.48**: a **superset, by
+  43%**. Every reconciliation built on the old assumption would have reported ~$95k of phantom
+  ledger spend, every month, and the arithmetic would have looked fine.
+
+  **The five-way split names the cause in one line.** parts $153,246.53 · **labour $100,883.60 over
+  982.6 hours** · services $55,456.55 · fees and tax $4,443.81. The gap is $94,729 and the labour
+  line is $100,884. Strip labour: FleetPal reads **$213,146.89**, within **2.8%** of the GL family
+  and within **1.2%** of FleetPal's own PO invoices ($215,782.05) — two independent corroborations
+  that arrive from different tables. Shop hours are payroll in McLeod, filed under wages, never
+  under the maintenance family.
+
+  ⚠ **Which of those 982.6 hours are in-house versus billed on a vendor work order is NOT measured.**
+  The mechanism is strongly indicated and not established. What is certain is the arithmetic
+  consequence, and D-FP18 is written on the consequence rather than on the explanation: per-unit
+  cost has two values — **operational** (labour in, the headline a fleet manager wants) and
+  **external** (labour out, the only one comparable to the ledger) — and no surface may switch
+  between them quietly.
+
+  **⚠ 81.5% of the ledger's maintenance cannot be attributed to an equipment type at all.** McLeod
+  names the type on 4 of the family's 15 accounts: Trailer Repair and OTR Trailer Tires
+  ($36,781.52), OTR Truck Tires and Truck Wash ($3,808.35). The other **$178,711.61** is blind, and
+  the single largest account in the family — Tires, $71,290.62 — covers both. FleetPal attributes
+  **100%**: all 1,047 July jobs resolved to a tractor or a trailer with **none left over**, which
+  also re-proves F5's matcher against a month of real work rather than a fixture.
+
+  | July 2026 | total | labour | ex-labour | jobs | units |
+  |---|---:|---:|---:|---:|---:|
+  | Tractors | $204,856.88 | $61,019.26 | $143,837.62 | 615 | 116 |
+  | Trailers | $109,173.61 | $39,864.34 | $69,309.28 | 432 | 92 |
+
+  **Trailers are a third of the repair bill and the ledger can see a fifth of that.** They are also
+  more labour-heavy — 36.5% of their cost against 29.8% for tractors — so **the D-FP18 seam is not a
+  constant and cannot be corrected with one fleet-wide percentage**. That is D-FP19, and it is the
+  sharpest statement yet of why this collector exists: the split the shop manages by is one FleetPal
+  knows exactly and the ledger mostly cannot.
+
+  **F9d is new, and the gap it fills is the same shape as F9a's.** F9b answers one truck, one
+  window, one total. "Weekly, monthly and yearly per truck" and "trucks versus trailers" are both a
+  loop over that endpoint today, and twelve calls each recomputing a monthly bound is not a report.
+  Nothing in F0–F15 covered it. Two constraints are written into the step rather than discovered in
+  it: **the coverage bound stays MONTHLY** — a weekly bucket inherits its month's bound and says so
+  (**Q10**) — and **a yearly bucket is gated by the LEDGER, not by FleetPal**, which holds 21 months
+  from 2025-01-01 against the ledger's 8 (2025-12 → 2026-07).
+
+  **Measured, not assumed, in three places:** the account names and July amounts came from
+  `mcleod_gl_accounts` joined to `mcleod_gl_totals`; the FleetPal totals from a live walk of
+  `/v1/service-history`; the equipment split from matching a live walk of `/v1/units` against
+  production's 272 vehicles and 245 trailers by VIN then number, the same order the shipped matcher
+  uses. 205 tractor / 221 trailer / 48 unmatched, which reproduces F4's census exactly.
+
+  **Next is F9c** (VMRS descriptions), then **F9d**, then F10. F9d wants Q10 ruled first, and it is
+  the only open question in §6.2.
