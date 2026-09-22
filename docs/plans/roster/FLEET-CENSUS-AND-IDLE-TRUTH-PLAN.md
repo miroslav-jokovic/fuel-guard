@@ -182,6 +182,68 @@ would recognise sits retired beside it.
 
 Blast radius: **exactly one** such row. The 10 `- OLD` / `- SOLD` rows are all correctly retired.
 
+#### 1.7a What `- OLD` means, and a wrong turn worth recording (2026-09-22, owner-corrected)
+
+While implementing F4 I read the two rows' **different `samsara_vehicle_id`s** — one named `732`, one
+named `732 - OLD` — as two physical trucks, rewrote this section to say so, and built the migration
+around it. **The owner rejected it and was right.** The rule, owner-stated:
+
+> *"trucks marked with OLD are marked like that when the Samsara device is replaced, we don't remove
+> this we just rename them old"*
+
+The vendor data agrees with the carrier, and I had already fetched it without reading it properly:
+
+| `samsara_vehicle_id` | name | gateway | VIN | driver |
+|---|---|---|---|---|
+| 281474996337444 | `732 - OLD` | **`{serial: "", model: "none"}`** — no device | none | none |
+| 281475005971830 | `732` | `G6AA-5HS-XTC`, model VG55NA | 3HSDZAPR3TN519824 | ANTHONY CASTILLO |
+
+**One truck, one gateway swap.** The `- OLD` record is the decommissioned DEVICE's record, kept and
+renamed rather than deleted. §1.7's original reading stands.
+
+**The lesson is the one §0.2 already records and I repeated anyway: a vendor's NAME is not a
+measurement.** The first pass of this plan matched Samsara names to unit numbers and called 56 trucks
+gateway-less; this pass read a name suffix and called one truck two. The gateway field was in the
+same API response both times.
+
+D-FC5 therefore stands unchanged — **one physical truck is one row** — and F4 is a **merge**, not a
+rename. It is also bigger than it looked: the two rows split this truck's life down the middle
+(the old row 102 fills, 123 idle days, 217 spend-days and a learned 240-gal tank; the new row 30
+engine-days), so the merge decides where that history ends up. **F4 is deferred out of merge 5 and
+needs an owner answer first — see Q-9.**
+
+### 1.7b Why unit 732 is RETIRED, and the ten trucks retired beside it — ANSWERED 2026-09-22
+
+The owner's question ("I don't know why 732 is getting retired — it is active in McLeod and Samsara
+and currently dispatched") has one event behind it, found in `audit_logs`:
+
+```
+2026-09-14 19:11:20   mcleod.roster_reconciled   retired: 33
+```
+
+`reconcileAbsentFromTms` builds its candidate set as `!activeSet.has(String(row[link] ?? ""))`, so a
+row with **no McLeod link at all** reads as `""`, is never in the active set, and is retired. That is
+deliberate for genuinely stale Samsara rows — its docstring says so — and it is **indiscriminate**:
+it cannot tell a legacy row from a live truck McLeod happens to have linked somewhere else.
+
+Unit 732 lost its link because the gateway swap created a SECOND row (`G6AA-5HS-XTC`, 2026-08-24,
+from `samsaraVehicleSync`), and McLeod's tractor 732 matched that row by VIN. The row holding the
+truck's whole history was left unlinked, and the next reconcile retired it.
+
+**That sweep retired 11 trucks that were still fuelling**, in two distinct groups:
+
+| units | McLeod link | fills in 30 d | cause |
+|---|---|---|---|
+| 569, 552, 555, **732**, 568, 563 | **none** | 19, 17, 14, 11, 8, 2 | **the NULL-link rule — NOT fixed by merge 4** |
+| 607, 550, 578, 556, 551 | present | 8, 4, 4, 2, 1 | the stale `outservice_date` predicate — fixed by F1/F2 (#963) |
+
+The second group is already handled. The first is a live defect with nothing in front of it: the next
+reconcile sweep retires the same rows again. New item **F14**.
+
+⚠ **F6 would not have saved 732.** The guard reads telematics fixes, and 732's last fix is
+2026-08-24 — the day its device came out. It took a fuel fill that same day and eleven since.
+**A fill is evidence of life too**, and F14 carries that.
+
 ### 1.8 The roster delta P4 produces
 
 | | today | under P4 |
@@ -395,6 +457,7 @@ makes each copy wrong in a different direction.
 | **F11** | Net the APU burn out of avoidable cost (D-FC8). | Avoidable dollars fall ~25% on APU trucks; hours unchanged. |
 | **F12** | Seed `vehicle_positions` from `GET /fleet/vehicles/stats?types=gps` on a slow cadence. | Unit 802 acquires a position and renders offline rather than absent. |
 | **F13** | Fill the 122 NULL equipment flags. **Not derivable from McLeod** — `sys.columns` on `tractor` has no APU/idle/aux/power column (direct query). Needs a carrier spec list or a data-entry pass. | `has_apu` NULL count on the real fleet reaches zero. |
+| **F14** | **An UNLINKED row is not an absent truck** (§1.7b). `reconcileAbsentFromTms` reads `String(row[link] ?? "")` and so retires every vehicle McLeod has never linked — it took 6 live trucks on 2026-09-14, including the one the owner asked about. Two halves: the reconcile must decide on evidence rather than on a missing link, and **F6's guard must read FUEL as well as telematics**, because 732's device was out while its card was still buying diesel. | A synthetic reconcile over a roster missing an unlinked, recently-fuelled truck retires nothing and reports it; removing either half fails a test by name. The 6 rows return to `active` and stay there across two consecutive reconcile sweeps. |
 
 **Sequencing — five merges, and the order is load-bearing.**
 
@@ -495,6 +558,34 @@ carries its first named carve-out saying so.
 **Recommendation: (a)**, unless the owner names a case where the office must park a truck McLeod
 still reports as running. It is one field's `disabled` and a source label, and it can become (b)
 later without anything to undo.
+
+**Q-9 — Unit 732 is one truck in two rows. Where does its history end up? (OWNER ANSWER NEEDED;
+opened by F4, which is deferred until this is answered)**
+
+The gateway swap of 2026-08-24 split one truck across two rows, and each half holds real data:
+
+| row | name | link | Samsara device | tank | history |
+|---|---|---|---|---|---|
+| `de57e742` | `732` | **none** | 281474996337444 — the pulled device | **240 gal, learned** | 102 fills (from 2026-01-01, 11 of them since the swap, latest today), 123 idle days, 217 spend-days |
+| `698c08f1` | `G6AA-5HS-XTC` | `mcleod_tractor_id = 732` | 281475005971830 — the live device | 0 | 30 engine-days, 29 spend-days |
+
+The end state is not in doubt — **one row, named `732`, McLeod-linked, carrying the live Samsara
+device id, the learned 240-gal tank and all of the history**. What needs an answer is how to get
+there, because the two candidates move different data:
+
+| option | what moves | cost |
+|---|---|---|
+| **(a) keep `de57e742`** (the history row): write the McLeod link, VIN and live `samsara_vehicle_id` onto it, move the newer row's 30 engine-days and 29 spend-days across, then retire the duplicate | 59 derived rows | Smallest move, and it is all **derived** data that a re-run recomputes. The fuel history — the part that cannot be recomputed — never moves. |
+| **(b) keep `698c08f1`** (the McLeod-linked row): move 102 fills, 123 idle days and 217 spend-days onto it | 442 rows, 102 of them fuel | Re-parents evidence. Every moved fill re-scores against a different tank (240 vs 0) and envelope. |
+
+**Recommendation: (a)**, and it is not close: it moves a quarter of the rows, and none of what it
+moves is evidence. ⚠ Neither option is a `delete` — `vehicles.id` has **33 inbound foreign keys, 13
+of them CASCADE** (§1.8a), and `merge_driver`'s history in this repo is the reason a merge here has
+to name every one of them rather than trust a cascade ([[merge-driver-cascade-trap]]).
+
+⚠ **Until this is answered, unit 732 renders on the map as `G6AA-5HS-XTC`** and its fuel history sits
+on a row marked retired. F14 is what stops the retired half being retired AGAIN; it does not merge
+anything.
 
 ---
 
@@ -788,3 +879,35 @@ real incidents in this checkout:
   hand-edited status would stop McLeod refreshing that truck's VIN, plate, registration and
   inspection date for good — the defect 0286 had to unpick, in a wider form. The consequence is that
   `VehicleForm.vue` still offers a status field the next sweep may revert within the hour.
+
+- **2026-09-22 (merge 5 — F5 only; F4 DEFERRED)** — Migration `0355`, data only, no schema change.
+  **F4 was implemented, then withdrawn before it merged, because its premise was wrong.** I read two
+  `samsara_vehicle_id`s and a `- OLD` name suffix as two physical trucks and rewrote §1.7 to say so.
+  The owner corrected it: `- OLD` is how this fleet renames a Samsara record when a GATEWAY is
+  REPLACED. The vendor data had said the same thing all along in a field I had already fetched and
+  not read — `732 - OLD` carries `gateway: {serial: "", model: "none"}`. §1.7a records the wrong turn
+  in full, because it is the SECOND time this plan has mistaken a vendor's name for a measurement
+  (§0.2 was the first). F4 is a merge, not a rename, and it now waits on **Q-9**.
+  · **F5 shipped alone** and is unchanged in substance: McLeod's own 53 ids, pinned, with three
+  same-table guards. The reasoning that matters is still that the obvious predicate over our own
+  columns selects **60** rows — units 804–809 and 811 ride along on a stale `purchased_at` — and that
+  unit 811 defeats the "no gateway, no fills" guard too, because a purchased truck waiting for its
+  gateway IS a truck (D-FC4).
+  · **The owner's actual question is answered in §1.7b, and it was bigger than unit 732.** One
+  `mcleod.roster_reconciled` event on 2026-09-14 retired **33 vehicles, 11 of them still fuelling**.
+  Two causes: five had the stale-`outservice_date` problem F1/F2 fixed, and **six were retired for
+  having no McLeod link at all** — `reconcileAbsentFromTms` reads a NULL link as absence. That defect
+  is untouched by merge 4 and will fire again on the next reconcile. New item **F14**, which also
+  carries the F6 lesson: **the guard reads telematics and 732's device was out while its card was
+  still buying diesel**, so it must read fuel too.
+  · ⚠ Migration number collision, exactly as §7 predicted: the parallel session merged
+  `0354_efs_processing_run_attempt_ceiling.sql` while this work was in flight, so this file is
+  **0355**. The branch was rebuilt on the new `origin/main` rather than renumbered in place.
+  Verification: matrix `supabase/tests/reserved-units-ordered.test.mjs` applies every migration up to
+  0355, seeds the six production shapes and applies it — 12 assertions, all green, including
+  *"unit 811 — a purchased truck still waiting for its gateway — is NOT marked"*, which is the one
+  the destructive version fails.
+  · A question the withdrawn F4 raised and the correct reading dissolves: the 11 fills that have
+  landed on the retired row since the swap are **not** misattributed to another truck. They are unit
+  732's own fills on one of unit 732's two rows, and where they end up is decided by Q-9's merge
+  rather than by a re-attribution decision of their own.
