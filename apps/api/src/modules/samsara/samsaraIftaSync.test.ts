@@ -80,6 +80,19 @@ describe("syncIftaMilesForMonth", () => {
     expect(rows.find((r) => r.jurisdiction === "AZ")).toMatchObject({ vehicle_id: "v2", samsara_vehicle_id: "s-2" });
   });
 
+  it("keys a month's miles by DEVICE, so a swapped gateway cannot overwrite the one it replaced", async () => {
+    // Unit 732's gateway was replaced on 2026-08-24. Keyed without the device, re-fetching August
+    // after the merge would upsert the new gateway's eight days over the old one's twenty-four.
+    const rec = seed();
+    await run(rec, TWO_TRUCKS);
+    const upsert = rec
+      .writes()
+      .find((q) => q.table === "samsara_ifta_jurisdiction_miles")!
+      .ops.find((o) => o.method === "upsert")!;
+    const key = String((upsert.args[1] as { onConflict: string }).onConflict).split(",");
+    expect(key).toEqual(["org_id", "vehicle_id", "samsara_vehicle_id", "period_year", "period_month", "jurisdiction"]);
+  });
+
   it("counts a vehicle it cannot map instead of dropping it silently", async () => {
     const rec = seed();
     const r = await run(rec, [

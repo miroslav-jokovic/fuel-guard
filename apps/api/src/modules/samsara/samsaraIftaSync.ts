@@ -136,10 +136,17 @@ export async function syncIftaMilesForMonth(
     // kind `lint:upserts` forbids — Postgres checks NOT NULL before conflict arbitration, and every
     // NOT NULL column above is present. Re-fetching a month is the ordinary case (Samsara restates the
     // recent 72 hours), so the conflict target is the natural key and the write is idempotent.
+    //
+    // The natural key names the DEVICE since 0357/0358. A truck whose gateway was swapped mid-month
+    // reports that month from two Samsara vehicle ids, and one `vehicles` row must hold both: keyed
+    // without the device, re-fetching the month would upsert the new gateway's days over the old
+    // gateway's and a filing would lose them silently (unit 732, August 2026 — FLEET-CENSUS Q-9).
+    // A retired device is no longer on any vehicle, so its rows are never re-fetched, and they are
+    // never overwritten either: nothing else shares their key.
     const { error: upErr } = await admin
       .from("samsara_ifta_jurisdiction_miles")
       .upsert(rows.map((r) => ({ ...r, fetch_id: fetchId, fetched_at: new Date().toISOString() })), {
-        onConflict: "org_id,vehicle_id,period_year,period_month,jurisdiction",
+        onConflict: "org_id,vehicle_id,samsara_vehicle_id,period_year,period_month,jurisdiction",
       });
     if (upErr) throw new Error(`Could not write IFTA miles: ${upErr.message}`);
   }
