@@ -936,6 +936,21 @@ which does not exist; (c) accept drift: bound the cascade, re-sync history only 
 rebuild. **Recommendation: (c)**, pending the `verdict_hash` measurement in §8's 2026-09-22 entry for
 #971 — it is what the live path already does, and it makes the import path agree with it.
 
+**Q9 — where does a PLATFORM alarm go? OPENED 2026-09-22 by L6; must be answered before L7.**
+Every alarm in this repo today notifies an org's office through `notify()` + email to the users who
+manage a section — `fuelSweepFreshness.ts`, `samsaraFeedAlarm.ts`, D-FIN3. That is right for "your
+numbers are stale" and wrong for "the database's partition maintenance stopped": no carrier's office
+can act on it, and there is no org to address it to. There is no platform-level channel: no operator
+address in `env.ts`, no ops inbox, nothing in `apps/admin-api` that pushes. L6 therefore ships a
+reading (`lifecycle_maintenance_health()`), published on `/api/version` and folded into its `ok`, but
+nothing that PUSHES — and D-LIFE10 needs a push before the first partitioned table exists.
+(a) a `PLATFORM_ALERT_EMAIL` env var and a small scheduler in `api` that mails it on a non-`ok`
+state, deduped per state change — cheap, and reusable by every later platform check (the growth
+judge, L8); (b) an external uptime monitor on `/api/version`'s `ok` — no code, but a new vendor and
+it only sees what `ok` folds in; (c) surface it in the admin console — pull-only, the same blind spot.
+**Recommendation: (a)**, built with L8's growth judge as its first two consumers, and (b) on top if
+the owner already has a monitor.
+
 ## 8. Progress log
 
 Append dated lines at the END. Never edit a row above (see `plan-progress-log-not-table-rows`).
@@ -1543,3 +1558,36 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   on PGlite against a fixture before handing over: a covered duplicate goes; a gap, a status change, a
   row with no predecessor and another org's identical row all stay; a re-run reports 0. Nothing has
   been deleted yet — **verify with the two queries at the file's foot after the last run.**
+
+- **2026-09-22 (later still) — L6, merge 1 of 2: pg_partman + pg_cron installed by migration, and the
+  job reports on itself** (`claude/data-lifecycle-l6`, migration **0360**). No table is partitioned;
+  `part_config` is empty and the hourly job (`partman-maintenance`, minute 7) has nothing to make.
+  **Checked before writing, not assumed — the install runs as `postgres`, which is not a superuser.**
+  pg_cron 1.6.4 is superuser-only but on `supautils.privileged_extensions`, already in
+  `shared_preload_libraries`, `cron.database_name = postgres`. **pg_partman is NOT on the privileged
+  list** — which would have failed `migrate.yml` if it needed it — but 5.3.1 is `superuser = false`,
+  and `postgres` owns the database with CREATE, so it may install it. PITR/backups and tier from Q3/Q4
+  are the reason this is worth doing now: L7 needs it, and L7 is what bounds the working set.
+  **The install is guarded, and the guard is not allowed to be silent.** PGlite ships neither
+  extension and every matrix replays every migration, so 0360 installs only when
+  `pg_available_extensions` lists both. A skipped install in production would be invisible — so
+  `lifecycle_maintenance_health()` returns `missing` whenever the job is not there, and merge 2 puts
+  that on `/api/version` and into `ok`. States: missing / inactive / pending / failing / stale (no
+  success in 3 h against an hourly schedule) / ok. ⚠ `cron.job` has no creation time, so "scheduled,
+  never fired once" reads `pending` indefinitely; that one case is checked BY HAND after 0360
+  applies (first run due at the next :07), and everything after the first success is caught by
+  `stale`.
+  **What is deliberately NOT here.** D-LIFE10's premake-headroom alarm ships with the first
+  partitioned table, as D-LIFE10 says; measured over zero tables it would be a vacuously green fold,
+  so `partitioned_tables` is reported (and is `null`, not 0, when partman is absent). And nothing
+  PUSHES: this repo has no platform alert channel — Q9, opened above with a recommendation, and
+  a blocker for L7 rather than a detail of it.
+  `cron.job_run_details` is never pruned by pg_cron itself — 24 rows/day, ~9k/year, negligible; L8's
+  growth judge will see it like any other table.
+  Pinned by `lifecycle-maintenance-health.test.mjs` (17), which shims `cron.job`,
+  `cron.job_run_details` and `partman.part_config` with the extensions' own column names. Nine
+  mutations of 0360: seven killed outright; the anon revoke is a no-op mutant (`revoke … from public` already
+  removes anon's only route, same shape as 0140), and "any job counts" SURVIVED the first fixture —
+  it held one job only — so the fixture now carries an unrelated, succeeding job and that mutant now fails
+  9 cases. **Merge 2** (`/api/version` + `pnpm verify:live` read it) waits for 0360 to apply, per
+  `lint:migration-ordering`.
