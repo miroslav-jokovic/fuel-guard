@@ -798,10 +798,61 @@ is the amplifier here, not the cause.
 - **(c) Walk newest-first**, so the fills that matter are scored before the kill. A one-line ordering
   change that fixes the correctness half without touching the cost half.
 
-**Recommendation: (a), with (c) as the immediate mitigation if (a) needs design time.** ⚠ This
-REVERSES the earlier recommendation of "(b) first" recorded in this plan on the same day — that was
-written when the mechanism was believed to be a lease lapse, and (b) is now the one option that must
-not ship alone.
+⚠ **(a) IS NOT SUPPORTED BY THE MEASUREMENT EITHER. Third revision, same day.** Bounding the cascade
+assumes the old fills it re-scores cannot change. They change more often than any other band.
+
+775,573 attempts over seven days, classified by comparing each attempt's `result_hash` with the
+previous attempt for the SAME transaction. `scoringResultHash` covers `{txnId, engineVersion,
+caseFired, outcome}`, so a deploy forces a new hash whether or not the verdict moved — which is why
+the engine version has to be held constant to see a real change:
+
+| | attempts | share |
+|---|---|---|
+| changed nothing (identical hash) | 319,967 | **41.3%** |
+| hash moved, but the ENGINE moved too — indistinguishable | 337,323 | 43.5% |
+| **hash moved under the SAME engine — a genuine input-driven change** | **101,268** | **13.1%** |
+| first ever scored | 17,015 | 2.2% |
+
+The 43.5% is real deploy churn and not a defect: **38–50 commits land on `main` a day**, every merge
+redeploys, and `scoringEngineVersion()` deliberately carries the commit (`persist.ts:59` argues why).
+
+Change RATE per attempt, by the fill's age — the number that kills (a):
+
+| age of fill | attempts | genuine changes | rate |
+|---|---|---|---|
+| ≤ 2 d | 883 | 153 | 17.33% |
+| 3–14 d | 20,769 | 450 | 2.17% |
+| 15–60 d | 91,844 | 116 | 0.13% |
+| 61–120 d | 125,083 | 122 | 0.10% |
+| **> 120 d** | **536,984** | **100,427** | **18.70%** |
+
+⚠ Read this with its confound stated: the cascade walks oldest-first and dies at 17%, so old fills are
+most of what gets scored at all. The rate controls for that; the *shape* may still be selection. What
+it rules out is the premise (a) rests on — "old fills are settled". A verified sequence shows one
+fill's hash moving four times in ten hours **under one unchanged engine version**
+(`7a6da4dd → c62e29e9 → 269448c4 → e3844e5b`).
+
+**So the real question is not scope, it is IDEMPOTENCE.** The same code, on the same fill, is
+producing different outcomes, which means a scoring input is sliding underneath it. The leading
+candidate is the per-vehicle learned calibration: `learnVehicle` recomputes `baseline_mpg`,
+`tank_fill_ratio` and the capacity figures from a ROLLING LAST-30-FILLS window, so every new fill
+shifts values that every historical fill's score reads. **Unverified**, and it must be verified before
+anything is built — a 56-minute window after Q-TEL4's diff gate deployed (2026-09-22 16:13 UTC) shows
+the same-engine change rate at 1.12% against 6.00% before it, which is suggestive and badly confounded
+by window length and job mix. **Re-measure over ≥ 24 h before treating it as a result.**
+
+**Recommendation: measure idempotence first; build nothing yet.** Score one fill twice under one
+engine with no import in between and diff the outcome; if it differs, the sliding input is the defect
+and neither bounding nor re-ordering the cascade addresses it. (c) — walking newest-first — remains
+safe and useful on its own, because a walk that is always killed at 17% should spend that 17% on the
+fills anyone is looking at.
+
+⚠ This is the THIRD recommendation recorded for Q6 in one day: "(b) raise the lease" (wrong — the
+mechanism was not a lease lapse), "(a) bound the cascade" (wrong — the bounded-out fills are the ones
+that change), and now "measure idempotence first". Each was overturned by the next measurement, and
+each was stated with more confidence than the evidence carried. The lesson belongs in `D-LIFE11`
+alongside the defects: **a mechanism believed but not measured is a hypothesis, and writing it into a
+plan does not promote it.**
 
 **Recommendation: do not fold this into L3.** L3's window is safe and independently justified.
 This is a scoring-engine question, not a lifecycle one, and it wants its own measurement — the prize
@@ -1061,3 +1112,29 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   ⚠ `locked_by` is null on these rows — production is `JOB_EXECUTION_MODE=inprocess`, so `runJob`
   owns them and the queue's 30-minute lease and `inprocessDrain.ts`'s renewal never apply. Two lease
   clocks, and the renewed one is not the one that decides reclaim. The amplifier, not the cause.
+
+- **2026-09-22 (later) — the cascade's scope is not the defect either; scoring is not idempotent**
+  (`claude/data-lifecycle-q6`, second revision). Asked to analyse before building, the measurement
+  overturned the fix this plan had just recommended. 775,573 attempts over seven days, each compared
+  with the previous attempt for the same transaction: **41.3% changed nothing**, 43.5% moved only
+  because the engine version moved, and **13.1% moved under an UNCHANGED engine version** — a genuine,
+  input-driven change. The 43.5% is not a defect: 38–50 commits land on `main` a day, every merge
+  redeploys, and the commit is in the stamp on purpose (`persist.ts:59`).
+  **What killed the fix.** Bounding the cascade to recent fills assumes old fills are settled. By
+  change rate per attempt they are the least settled band measured — **18.70% for fills older than
+  120 days**, against 0.10–0.13% for the 15–120 day range and 17.33% for fills under two days. A
+  verified sequence shows one fill's hash moving four times in ten hours under one engine version.
+  ⚠ The shape may still be selection — the cascade walks oldest-first and dies at 17%, so old fills
+  are most of what gets scored — but the premise the fix rested on is gone either way.
+  **The question is idempotence, not scope.** Identical code on an identical fill is producing
+  different outcomes, so an input is sliding. Leading candidate: `learnVehicle` recomputes
+  `baseline_mpg`, `tank_fill_ratio` and the capacity figures from a ROLLING last-30-fills window, so
+  each new fill shifts values every historical score reads. **Unverified.** A 56-minute window after
+  Q-TEL4's gate deployed shows 1.12% against 6.00% before — suggestive, confounded by window length
+  and job mix, and **not to be treated as a result until re-measured over ≥ 24 h**.
+  **Three recommendations for Q6 were recorded in one day and the first two were wrong**: raise the
+  lease (the mechanism was not a lease lapse), bound the cascade (the bounded-out fills are the ones
+  that change), and now measure idempotence before building. Each was overturned by the next
+  measurement and each was written more confidently than its evidence. That belongs next to the
+  defects in `D-LIFE11`: a mechanism believed but not measured is a hypothesis, and writing it into a
+  plan does not promote it.
