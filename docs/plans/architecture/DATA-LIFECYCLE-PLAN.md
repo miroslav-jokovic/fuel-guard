@@ -751,6 +751,109 @@ The leading hypothesis, **unconfirmed**, is the Samsara recon tier: `SAMSARA_REC
 re-walks fills that already have `samsara_recon_at` set, the rescan is self-sustaining. Confirming it
 needs the two Railway variables (same blocker as Q5) and a read of the recon tier's selection query.
 
+⚠ **ANSWERED 2026-09-22. It is not the recon tier. Every EFS import re-scores the ENTIRE fill
+history of every vehicle it touches, oldest-first, and the job is killed before it ever reaches the
+recent ones.**
+
+The recon hypothesis is ruled out on volume: both variables are **unset in production**, so the
+defaults apply (`SAMSARA_RECON_SYNC_MINUTES` 60, `SAMSARA_RECON_BATCH` 250) — **250 fills an hour
+against a measured 2,000–7,500**. The `backfill` JOB KIND is ruled out the same way, 38 runs a day of
+33 — though `backfill.ts` is where the real mechanism lives, which is why the kind is a red herring.
+
+The chain, each link measured:
+
+1. **`scoreVehicle` is unbounded in time** (`backfill.ts:400`). It pages `fuel_transactions` for one
+   `vehicle_id` with **no date predicate at all**, `order fueled_at ascending`, and scores every row.
+2. **`scoreImportWithCascade` calls it once per affected vehicle** (`backfill.ts:443`). The cascade is
+   deliberate and documented — "importing history changes MPG baselines and over-fuel windows for the
+   affected vehicles' neighbouring fills" — but it re-scores **every** fill of those vehicles, not the
+   neighbouring ones, and the set grows with history forever.
+3. **One import touches ~58 vehicles holding 5,640 fills.** Measured on the 15:56–16:32 run.
+4. **The job never finishes.** It scored **973 of those 5,640 (17%)** before being reclaimed. Over
+   24 h: **146 done (avg 0.9 min, the small imports) and 56 failed (avg 72.5 min)**, killed by
+   `startJob`'s unique-slot conflict path (`jobs.ts:200-226`) when a later import finds the lease stale.
+5. **The replacement restarts from the oldest fill**, so the same prefix is re-scored forever. This is
+   why **94.6% of attempts (6,131 of 6,480 in three hours) are on fills older than 120 days** and only
+   18 are on fills newer than two days.
+
+⚠ **This is a correctness finding, not only a cost one.** Because the walk is oldest-first and is
+killed at ~17%, the cascade's re-scoring **never reaches recent fills** — the ones whose MPG baseline
+and over-fuel window the cascade exists to correct. The work is not merely wasted; it is spent on the
+wrong end of the history.
+
+⚠ **Two lease clocks, and the one being renewed is not the one that decides reclaim.** `locked_by` is
+null on these rows: production runs `JOB_EXECUTION_MODE=inprocess`, so `dispatchJob` → `runJob`, and
+the queue's 30-minute lease plus the renewal `inprocessDrain.ts` documents (2026-09-05) never apply.
+Same two-sources-of-truth shape as `D-SEP3`, in the queue rather than in a table. Worth fixing, but it
+is the amplifier here, not the cause.
+
+**Candidate fixes — owner's ruling needed, because all of them change scoring behaviour:**
+
+- **(a) Bound the cascade to the neighbourhood its own docstring describes.** The justification is
+  MPG baselines and over-fuel windows, both of which have finite lookbacks; the code takes the whole
+  history instead. This is the real fix and it removes ~99% of the work.
+- **(b) Let the job finish** (raise the lease for this kind, or stop the conflict-path reclaim).
+  ⚠ **On its own this makes things WORSE**: finishing means ~112 minutes of scoring per import, and the
+  posted feed opens an import every ~30 seconds.
+- **(c) Walk newest-first**, so the fills that matter are scored before the kill. A one-line ordering
+  change that fixes the correctness half without touching the cost half.
+
+⚠ **(a) IS NOT SUPPORTED BY THE MEASUREMENT EITHER. Third revision, same day.** Bounding the cascade
+assumes the old fills it re-scores cannot change. They change more often than any other band.
+
+775,573 attempts over seven days, classified by comparing each attempt's `result_hash` with the
+previous attempt for the SAME transaction. `scoringResultHash` covers `{txnId, engineVersion,
+caseFired, outcome}`, so a deploy forces a new hash whether or not the verdict moved — which is why
+the engine version has to be held constant to see a real change:
+
+| | attempts | share |
+|---|---|---|
+| changed nothing (identical hash) | 319,967 | **41.3%** |
+| hash moved, but the ENGINE moved too — indistinguishable | 337,323 | 43.5% |
+| **hash moved under the SAME engine — a genuine input-driven change** | **101,268** | **13.1%** |
+| first ever scored | 17,015 | 2.2% |
+
+The 43.5% is real deploy churn and not a defect: **38–50 commits land on `main` a day**, every merge
+redeploys, and `scoringEngineVersion()` deliberately carries the commit (`persist.ts:59` argues why).
+
+Change RATE per attempt, by the fill's age — the number that kills (a):
+
+| age of fill | attempts | genuine changes | rate |
+|---|---|---|---|
+| ≤ 2 d | 883 | 153 | 17.33% |
+| 3–14 d | 20,769 | 450 | 2.17% |
+| 15–60 d | 91,844 | 116 | 0.13% |
+| 61–120 d | 125,083 | 122 | 0.10% |
+| **> 120 d** | **536,984** | **100,427** | **18.70%** |
+
+⚠ Read this with its confound stated: the cascade walks oldest-first and dies at 17%, so old fills are
+most of what gets scored at all. The rate controls for that; the *shape* may still be selection. What
+it rules out is the premise (a) rests on — "old fills are settled". A verified sequence shows one
+fill's hash moving four times in ten hours **under one unchanged engine version**
+(`7a6da4dd → c62e29e9 → 269448c4 → e3844e5b`).
+
+**So the real question is not scope, it is IDEMPOTENCE.** The same code, on the same fill, is
+producing different outcomes, which means a scoring input is sliding underneath it. The leading
+candidate is the per-vehicle learned calibration: `learnVehicle` recomputes `baseline_mpg`,
+`tank_fill_ratio` and the capacity figures from a ROLLING LAST-30-FILLS window, so every new fill
+shifts values that every historical fill's score reads. **Unverified**, and it must be verified before
+anything is built — a 56-minute window after Q-TEL4's diff gate deployed (2026-09-22 16:13 UTC) shows
+the same-engine change rate at 1.12% against 6.00% before it, which is suggestive and badly confounded
+by window length and job mix. **Re-measure over ≥ 24 h before treating it as a result.**
+
+**Recommendation: measure idempotence first; build nothing yet.** Score one fill twice under one
+engine with no import in between and diff the outcome; if it differs, the sliding input is the defect
+and neither bounding nor re-ordering the cascade addresses it. (c) — walking newest-first — remains
+safe and useful on its own, because a walk that is always killed at 17% should spend that 17% on the
+fills anyone is looking at.
+
+⚠ This is the THIRD recommendation recorded for Q6 in one day: "(b) raise the lease" (wrong — the
+mechanism was not a lease lapse), "(a) bound the cascade" (wrong — the bounded-out fills are the ones
+that change), and now "measure idempotence first". Each was overturned by the next measurement, and
+each was stated with more confidence than the evidence carried. The lesson belongs in `D-LIFE11`
+alongside the defects: **a mechanism believed but not measured is a hypothesis, and writing it into a
+plan does not promote it.**
+
 **Recommendation: do not fold this into L3.** L3's window is safe and independently justified.
 This is a scoring-engine question, not a lifecycle one, and it wants its own measurement — the prize
 is CPU and Samsara API quota at least as much as the 12 GB/year retention already caps.
@@ -981,3 +1084,57 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   45-day window HAS fired (oldest row 2026-08-09, a 44-day span against `keepDays: 45`), and the
   table is 1,023 MB with 389 MB of indexes, all three of which are used. There is no index drop
   available on either table, so the remaining lever on this storage is `L7`, which still needs `Q1`.
+
+- **2026-09-22 — Q6 answered: every EFS import re-scores each affected vehicle's whole history,
+  oldest-first, and never reaches the recent fills** (`claude/data-lifecycle-q6`). Investigation only;
+  nothing in the scoring path is changed, because every candidate fix alters scoring behaviour.
+  The plan's leading hypothesis — the Samsara recon tier — is **ruled out on volume**: both
+  `SAMSARA_RECON_*` variables are unset in production, so the defaults give 250 fills an hour against
+  a measured 2,000–7,500.
+  **The mechanism.** `scoreVehicle` (`backfill.ts:400`) pages a vehicle's `fuel_transactions` with **no
+  date predicate**, ordered `fueled_at ascending`, and scores every row; `scoreImportWithCascade`
+  (`backfill.ts:443`) calls it once per vehicle the import touched. One import touches ~58 vehicles
+  holding **5,640 fills**; the run scored **973 of them (17%)** before being reclaimed. 146 done at
+  0.9 min and 56 failed at 72.5 min in 24 hours. The replacement restarts from the oldest fill, which
+  is why **94.6% of attempts are on fills older than 120 days** and 18 of 6,480 were on fills newer
+  than two days. The cascade is deliberate and documented; what is not deliberate is that it takes the
+  whole history rather than the "neighbouring fills" its own docstring names.
+  ⚠ **It is a correctness finding too.** Killed at 17% of an oldest-first walk, the cascade never
+  reaches the recent fills whose MPG baseline and over-fuel window it exists to correct.
+  **Three measurements corrected earlier drafts of this same entry, and the last one reversed its
+  recommendation.** (i) Run COUNTS hid it — a job that runs an hour and dies looks like any other row;
+  `where extract(epoch from (updated_at - created_at)) > 300` is what surfaced it. (ii) The first
+  write-up blamed `efsSync.ts:250`'s import-wide select and "~2,300 rows of one import"; one window's
+  scored set spans **26 import_ids**, which killed that claim. (iii) The recommendation was "raise the
+  lease first" until the 973-of-5,640 measurement showed that finishing means ~112 minutes of scoring
+  per import against an import opened every ~30 seconds — **(b) is now the one option that must not
+  ship alone.** Recommendation is (a) bound the cascade, with (c) newest-first as the mitigation.
+  ⚠ `locked_by` is null on these rows — production is `JOB_EXECUTION_MODE=inprocess`, so `runJob`
+  owns them and the queue's 30-minute lease and `inprocessDrain.ts`'s renewal never apply. Two lease
+  clocks, and the renewed one is not the one that decides reclaim. The amplifier, not the cause.
+
+- **2026-09-22 (later) — the cascade's scope is not the defect either; scoring is not idempotent**
+  (`claude/data-lifecycle-q6`, second revision). Asked to analyse before building, the measurement
+  overturned the fix this plan had just recommended. 775,573 attempts over seven days, each compared
+  with the previous attempt for the same transaction: **41.3% changed nothing**, 43.5% moved only
+  because the engine version moved, and **13.1% moved under an UNCHANGED engine version** — a genuine,
+  input-driven change. The 43.5% is not a defect: 38–50 commits land on `main` a day, every merge
+  redeploys, and the commit is in the stamp on purpose (`persist.ts:59`).
+  **What killed the fix.** Bounding the cascade to recent fills assumes old fills are settled. By
+  change rate per attempt they are the least settled band measured — **18.70% for fills older than
+  120 days**, against 0.10–0.13% for the 15–120 day range and 17.33% for fills under two days. A
+  verified sequence shows one fill's hash moving four times in ten hours under one engine version.
+  ⚠ The shape may still be selection — the cascade walks oldest-first and dies at 17%, so old fills
+  are most of what gets scored — but the premise the fix rested on is gone either way.
+  **The question is idempotence, not scope.** Identical code on an identical fill is producing
+  different outcomes, so an input is sliding. Leading candidate: `learnVehicle` recomputes
+  `baseline_mpg`, `tank_fill_ratio` and the capacity figures from a ROLLING last-30-fills window, so
+  each new fill shifts values every historical score reads. **Unverified.** A 56-minute window after
+  Q-TEL4's gate deployed shows 1.12% against 6.00% before — suggestive, confounded by window length
+  and job mix, and **not to be treated as a result until re-measured over ≥ 24 h**.
+  **Three recommendations for Q6 were recorded in one day and the first two were wrong**: raise the
+  lease (the mechanism was not a lease lapse), bound the cascade (the bounded-out fills are the ones
+  that change), and now measure idempotence before building. Each was overturned by the next
+  measurement and each was written more confidently than its evidence. That belongs next to the
+  defects in `D-LIFE11`: a mechanism believed but not measured is a hypothesis, and writing it into a
+  plan does not promote it.
