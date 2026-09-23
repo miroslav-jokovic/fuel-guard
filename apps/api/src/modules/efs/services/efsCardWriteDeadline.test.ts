@@ -71,7 +71,8 @@ describe("card mutation orchestration deadline", () => {
     const fetchImpl = (async (_input: string | URL, init?: RequestInit) => {
       calls += 1;
       if (calls === 1) return new Response(loginOk, { status: 200 });
-      if (calls === 2) return new Response(CARD_ACTIVE, { status: 200 });
+      // The plan read, then the pre-write re-read (orchestrator/dispatch.ts), both unmoved.
+      if (calls === 2 || calls === 3) return new Response(CARD_ACTIVE, { status: 200 });
       return new Promise<Response>((_resolve, reject) => {
         const signal = init?.signal as AbortSignal | undefined;
         const abort = () => reject(new Error("stalled request aborted"));
@@ -101,6 +102,6 @@ describe("card mutation orchestration deadline", () => {
 
     expect(outcome.status).toBe("sent");
     expect(db.writtenRows("efs_card_mutations").at(-1)).toMatchObject({ status: "sent" });
-    expect(calls).toBe(3);
+    expect(calls).toBe(4);
   });
 });

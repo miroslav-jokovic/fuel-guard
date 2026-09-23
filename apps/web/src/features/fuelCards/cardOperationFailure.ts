@@ -9,9 +9,10 @@ import { CardControlApiError } from "./useCardControl";
  * meant. Out here they can be tested without mounting a drawer, driving a vendor call or faking a
  * toast store — which is what `cardOperationFailure.test.ts` does, one case per branch.
  *
- * A key is NOT rotated for any of these except `idempotency_key_reused`: none of the others opened a
- * ledger row, so the same key is still the right one for the retry the operator is about to make.
- * Rotating on a network blip is how a genuine double-submit stops being caught.
+ * A key is NOT rotated for any of these except `idempotency_key_reused` and a `card_state_changed`
+ * that names a `mutationId`: none of the others opened a ledger row, so the same key is still the
+ * right one for the retry the operator is about to make. Rotating on a network blip is how a genuine
+ * double-submit stops being caught.
  */
 
 export interface OperationFailureHandlers {
@@ -57,6 +58,11 @@ export function handleOperationFailure(error: unknown, on: OperationFailureHandl
     } else {
       on.abandon();
     }
+    // Two sources give this code. The plan-time version check refuses before any ledger row exists,
+    // so the key is unspent. The pre-write re-read (api `orchestrator/dispatch.ts`, 2026-09-22 audit)
+    // refuses AFTER the row opened under this key, and says so with `mutationId` — keep the key and
+    // the operator's retry replays that settled refusal instead of running.
+    if (typeof api.detail.mutationId === "string") on.rekey();
     // The authorised body was authorised against a card that has since moved; re-sending it is the
     // overwrite `expectedVersion` exists to prevent. The parent refetch repairs the mirror, but the
     // payload above is what the drawer shows, because the API read it just now and the mirror has not.

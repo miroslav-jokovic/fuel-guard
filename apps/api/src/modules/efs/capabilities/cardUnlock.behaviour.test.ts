@@ -103,7 +103,7 @@ const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, xml: string, ste
 
 const unlock = (xml: string, stepUp: boolean, rec: SupabaseRecorder) =>
   executeCapability(
-    ctxFor(rec, stub(loginOk, xml, soap(""), ACTIVE), xml, stepUp),
+    ctxFor(rec, stub(loginOk, xml, xml, soap(""), ACTIVE), xml, stepUp),
     resolveCapability(cardUnlockContract, cardUnlockBehaviour, { expectedVersion: versionOf(xml) }),
   );
 

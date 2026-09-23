@@ -2,6 +2,8 @@ import type { CardEdit } from "../lib/efsCardEcho.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { setCardV2, type SetCardResult } from "../lib/efsCardWrite.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
+import { getCardV2 } from "../lib/efsCardOps.js";
+import { CardControlError } from "../services/efsCardControlErrors.js";
 import { cardOpOptions } from "../services/efsCardOperationOptions.js";
 import {
   finalizeFailed,
@@ -80,8 +82,6 @@ export async function applyCardMutation<TBody>(
   let applyLatencyMs: number | null = null;
 
   for (const [index, step] of steps.entries()) {
-    await ledger.markSent(ctx, plan.mutationId, sequenced ? index : null);
-
     // Step 0's edits were built in `plan`, before the ledger row opened, because a refusal thrown
     // from `buildEdits` must leave no row. Every later step builds its own against the document the
     // previous step actually left behind — the only document that can be right by then.
@@ -91,6 +91,17 @@ export async function applyCardMutation<TBody>(
     if (index > 0) allEdits.push(...edits);
 
     const facts = settleFacts(plan, allEdits, sequenced ? { index, label: step.label } : null);
+
+    // BEFORE markSent, so a refusal here leaves step 0's row `pending` → `failed` with no approver
+    // stamped — nothing reached the vendor, and 0197 lets exactly that row settle without one.
+    if (step.mutation.kind === "echo") {
+      const recheck = await recheckBeforeWrite(read, beforeDoc);
+      if (recheck.kind !== "unmoved") {
+        return await refuseMovedCard(ctx, ledger, plan, facts, landedSteps, recheck);
+      }
+    }
+
+    await ledger.markSent(ctx, plan.mutationId, sequenced ? index : null);
     const sent = await dispatchStep(ctx, read, step, beforeDoc, edits, capability.body);
 
     // `echo_unfaithful` is the exception: the request was never sent, so there is nothing to
@@ -291,4 +302,90 @@ async function verifyStep<TBody>(
   }
 
   return { after, landing, readError, applyLatencyMs };
+}
+
+type Recheck =
+  | { kind: "unmoved" }
+  | { kind: "moved"; current: CardDocument }
+  | { kind: "unreadable"; error: EfsSoapError };
+
+/**
+ * Read the card once more, immediately before an echo write, and refuse if it moved.
+ *
+ * ── The gap this closes (EFS security audit, 2026-09-22) ─────────────────────────────────────────
+ * `setCardV2` sends the WHOLE card document back, so whatever it echoes wins. `plan` read the card
+ * and checked `expectedVersion`, but between that read and the write sit the editable-set lookup,
+ * the ledger insert, the approver stamp and a pacing slot — several database round trips during which
+ * an edit made in the WEX portal would be silently overwritten by our older copy. The verify phase
+ * would SEE it as drift afterwards; it could not prevent it.
+ *
+ * Re-reading here moves the check to the last moment we control: the only work left between this
+ * read and the write is serialising the request and waiting for its pacing slot. EFS offers no
+ * compare-and-set — no ETag, no row version on `setCardV2`: its WSDL message is `clientId` + `WSCardv2`
+ * and its response has no parts (guide p136–137, `docs/efs/CardManagementWS.wsdl`) — so that last
+ * interval cannot be closed from our side, and it is written down as the vendor limitation it is
+ * (docs/27 §11).
+ *
+ * Only for `echo` steps. A `direct` step (`deleteOverride`) names one field and carries no document,
+ * so it cannot overwrite anything it did not mean to.
+ *
+ * An unreadable card is refused too — fail closed. "We could not check" is not "it is unchanged", and
+ * the whole point of the read is that the answer matters.
+ */
+async function recheckBeforeWrite(read: ReadCtx, planned: CardDocument): Promise<Recheck> {
+  try {
+    const current = await getCardV2(read.env, read.creds, read.cardNumber, read.opts);
+    return current.version === planned.version ? { kind: "unmoved" } : { kind: "moved", current };
+  } catch (error) {
+    if (!(error instanceof EfsSoapError)) throw error;
+    return { kind: "unreadable", error };
+  }
+}
+
+/**
+ * Settle the refusal, and answer the operator the same way `plan`'s version check does.
+ *
+ * On step 0 nothing has been sent: the row settles `failed` with `attempts: 0` (`finalizeUnsent`), and
+ * a moved card throws the same 409 `card_state_changed` with the fresh document as the plan-time
+ * check, so the drawer reseeds and the operator decides again against what EFS holds now. The
+ * `mutationId` rides along because, unlike the plan-time refusal, this one opened a ledger row under
+ * the request's idempotency key — the client rotates the key on this code, or its retry would replay
+ * this refusal instead of running.
+ *
+ * On a later step of a sequence, earlier steps HAVE landed, so there is no clean refusal to give: it
+ * settles `partial` with the fresh document, the same terminal-but-actionable state as any other
+ * step that stops a sequence midway.
+ */
+async function refuseMovedCard<TBody>(
+  ctx: CardMutationContext,
+  ledger: LedgerAdapter,
+  plan: CardMutationPlan<TBody>,
+  facts: SettleFacts,
+  landedSteps: number,
+  recheck: Exclude<Recheck, { kind: "unmoved" }>,
+): Promise<CardMutationOutcome> {
+  const error = recheck.kind === "moved"
+    ? new EfsSoapError(
+      "The card changed in EFS after it was checked and before the change was sent. Nothing was sent.",
+      "card_moved",
+      { currentVersion: recheck.current.version },
+    )
+    : recheck.error;
+  const current = recheck.kind === "moved" ? recheck.current : null;
+  if (current) await updateMirror(ctx, current);
+
+  if (landedSteps > 0) {
+    return await finalizePartial(ctx, ledger, facts, current, {
+      requestXmlRedacted: null, responseXmlRedacted: null, writeError: error,
+    });
+  }
+
+  const outcome = await finalizeUnsent(ctx, ledger, facts, error);
+  if (!current) return outcome;
+  throw new CardControlError(
+    "This card changed in EFS since the screen was drawn.",
+    "card_state_changed",
+    409,
+    { currentVersion: current.version, card: current.card, mutationId: plan.mutationId },
+  );
 }

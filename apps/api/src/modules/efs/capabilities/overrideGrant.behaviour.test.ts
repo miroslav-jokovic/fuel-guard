@@ -109,7 +109,7 @@ const grant = (afterXml: string, rec: SupabaseRecorder) =>
   executeCapability(
     {
       admin: rec.client, env, creds, orgId: ORG,
-      fetchImpl: stub(loginOk, NO_OVERRIDE, soap(""), afterXml),
+      fetchImpl: stub(loginOk, NO_OVERRIDE, NO_OVERRIDE, soap(""), afterXml),
       efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
       expectedVersion: versionOf(NO_OVERRIDE),
       idempotencyKey: null,
@@ -160,7 +160,7 @@ describe("an override grant whose scope this vendor does not report back", () =>
     const outcome = await executeCapability(
       {
         admin: rec.client, env, creds, orgId: ORG,
-        fetchImpl: stub(loginOk, NO_OVERRIDE, soap(""), COUNT_ONLY),
+        fetchImpl: stub(loginOk, NO_OVERRIDE, NO_OVERRIDE, soap(""), COUNT_ONLY),
         efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
         expectedVersion: versionOf(NO_OVERRIDE),
         idempotencyKey: null,
@@ -324,7 +324,7 @@ describe("a card that takes its product limits from the policy", () => {
     executeCapability(
       {
         admin: rec.client, env, creds, orgId: ORG,
-        fetchImpl: stub(loginOk, xml, soap(""), xml),
+        fetchImpl: stub(loginOk, xml, xml, soap(""), xml),
         efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
         expectedVersion: versionOf(xml),
         idempotencyKey: null,
@@ -375,7 +375,7 @@ describe("a card that is not Active", () => {
     executeCapability(
       {
         admin: recorder().client, env, creds, orgId: ORG,
-        fetchImpl: stub(loginOk, xml, soap(""), xml),
+        fetchImpl: stub(loginOk, xml, xml, soap(""), xml),
         efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
         expectedVersion: versionOf(xml),
         idempotencyKey: null,
@@ -428,7 +428,7 @@ describe("a card already in override", () => {
     executeCapability(
       {
         admin: recorder().client, env, creds, orgId: ORG,
-        fetchImpl: stub(loginOk, ARMED_XML, soap(""), ARMED_XML),
+        fetchImpl: stub(loginOk, ARMED_XML, ARMED_XML, soap(""), ARMED_XML),
         efsCardId: CARD_ID, cardNumber: CARD, userId: USER,
         expectedVersion: versionOf(ARMED_XML),
         idempotencyKey: null,
