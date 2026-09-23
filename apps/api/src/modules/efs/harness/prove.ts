@@ -6,6 +6,7 @@ import type { CardMutationContext } from "../orchestrator/types.js";
 import type { EditsCtx } from "../types.js";
 import type { MountedCapability } from "../registry.js";
 import { observeField, judgeField } from "./configScan.js";
+import { revertProof } from "./proofRevert.js";
 
 /**
  * Prove one capability against one real card, then put the card back (Step 4.5).
@@ -140,6 +141,8 @@ export interface ProveDeps {
   openProof: (capabilityKey: string) => Promise<string>;
   settleProof: (proofId: string, result: ProofOutcome) => Promise<void>;
   setPromotionState: (capabilityKey: string, state: "proving" | "proven" | "denied", proofId: string) => Promise<void>;
+  /** The pause between revert attempts. Omitted means `REVERT_RETRY_PAUSE_MS`; tests pass 0. */
+  revertRetryPauseMs?: number;
 }
 
 /**
@@ -329,14 +332,16 @@ export async function proveCapability(
   // ── OEG-5: revert, through whichever capability undoes this one ─────────────────────────────
   // Attempted even when the apply did not land: `sent` means the write MAY have landed, and a card
   // left changed because the harness assumed otherwise is the failure this whole product prevents.
-  // `revert` was built and accepted before the apply — see `firstRefusal` above.
-  try {
-    const reverted = await dispatch(ctx, revert.capability, revert.body, afterApply ?? before, deps.capabilities);
-    result.oeg5RevertLanded = reverted.status === "succeeded";
-  } catch (error) {
-    result.oeg5RevertLanded = false;
-    result.detail = `${result.detail ?? ""} · revert threw: ${String(error)}`;
-  }
+  // `revert` was built and accepted before the apply — see `firstRefusal` above. `revertProof` owns
+  // the retries and the version fence that makes them safe. When OEG-4's read failed it reads the card
+  // itself. It never sends against `before`: the plan would refuse that as soon as the apply had landed.
+  const reverted = await revertProof(before, afterApply, {
+    send: (from) => dispatch(ctx, revert.capability, revert.body, from, deps.capabilities),
+    read: () => read(ctx),
+    pause: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  }, deps.revertRetryPauseMs);
+  result.oeg5RevertLanded = reverted.landed;
+  if (reverted.notes.length > 0) result.detail = `${result.detail ?? ""} · ${reverted.notes.join(" · ")}`;
   if (result.oeg5RevertLanded === false) {
     result.cardStillChanged = true;
     result.detail = `${result.detail ?? ""} · ⚠ THE CARD IS STILL CHANGED — restore it in the WEX portal`;

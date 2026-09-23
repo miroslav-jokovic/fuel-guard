@@ -6,7 +6,7 @@ import { buildSoapEnvelope, xmlEscape } from "./efsXml.js";
 import { EfsSoapError, parseSoap, responseResult } from "./efsSoapFaults.js";
 
 export { EfsSoapError, parseSoap, responseResult, responseValues } from "./efsSoapFaults.js";
-import { classifyTlsError, soapFetch, type SoapPriority } from "./soapClient.js";
+import { SoapDeadlineError, classifyTlsError, soapFetch, type SoapPriority } from "./soapClient.js";
 import { BlockedEndpointError, allowPrivateEndpoints } from "../../../lib/ssrfGuard.js";
 import { signalEfsBreakerOpened } from "../../../lib/cardControlSignals.js";
 import { NOT_EFS_ENDPOINT_MESSAGE, isEfsEndpointHost } from "../services/efsSoapCredentialIdentity.js";
@@ -129,6 +129,17 @@ export async function requestXml(
     if (error instanceof BlockedEndpointError) {
       throw new EfsSoapError(error.message, "blocked_endpoint", { reason: error.reason });
     }
+    // Still `transport`: every consumer that branches on the code keeps doing what it did. Only the
+    // words change, and they are the words the operator reads. See `SoapDeadlineError`.
+    if (error instanceof SoapDeadlineError) {
+      throw new EfsSoapError(
+        error.reason === "timeout"
+          ? `EFS did not answer the ${operation} request within ${error.timeoutMs} ms`
+          : `EFS ${operation} was stopped: ${error.message}`,
+        "transport",
+        { reason: error.reason, timeoutMs: error.timeoutMs },
+      );
+    }
     // A handshake failure is the single most likely mTLS symptom and the least self-explanatory, so
     // it never reaches the operator as a bare "transport" error. classifyTlsError turns an OpenSSL
     // alert code into the action that fixes it.
@@ -140,8 +151,19 @@ export async function requestXml(
         { code: tlsFailure.code, kind: tlsFailure.kind },
       );
     }
-    throw new EfsSoapError(`EFS ${operation} request failed`, "transport", error);
+    throw new EfsSoapError(`EFS ${operation} request failed (${errorKind(error)})`, "transport", error);
   }
+}
+
+/**
+ * The error's name and code, and never its message. Messages can quote the request, and the request
+ * carries a card number. On 2026-09-23 the whole trace of a failed revert was "request failed" and
+ * nothing else, so the cause had to be worked out from timings.
+ */
+function errorKind(error: unknown): string {
+  const e = error as { name?: unknown; code?: unknown } | null;
+  const name = typeof e?.name === "string" ? e.name : "unknown error";
+  return e?.code === undefined || e.code === null ? name : `${name} ${String(e.code)}`;
 }
 
 // ─── Session state ─────────────────────────────────────────────────────────────────────────────

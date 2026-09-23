@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { __resetSoapPacing, laneTimeoutMs, soapFetch, soapLaneRps } from "./soapClient.js";
+import { SoapDeadlineError, __resetSoapPacing, laneTimeoutMs, soapFetch, soapLaneRps } from "./soapClient.js";
 import { testEnv } from "../../../testing/testEnv.js";
 
 /**
@@ -116,5 +116,56 @@ describe("soapFetch deadlines", () => {
       soapFetch(retrying, "k5", { url, body: "<x/>", fetchImpl: flaky, retry: false }),
     ).rejects.toBeInstanceOf(Error);
     expect(calls).toBe(1);
+  });
+});
+
+/**
+ * A fetch that behaves like the real one about `signal`: it rejects at once on an aborted signal, and
+ * rejects with the signal's reason when it fires mid-request. The stub above ignores `signal`, so it
+ * could not see that every retry after a timeout went out on the SAME, already-fired signal.
+ */
+const hangThenAnswer = (hangs: number) => {
+  const seen = { calls: 0, abortedOnArrival: 0 };
+  const fetchImpl = ((_input: string | URL, init?: RequestInit) => {
+    seen.calls++;
+    const signal = init?.signal;
+    if (signal?.aborted) {
+      seen.abortedOnArrival++;
+      return Promise.reject(signal.reason);
+    }
+    if (seen.calls > hangs) return Promise.resolve(new Response("<ok/>", { status: 200 }));
+    return new Promise<Response>((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+    });
+  }) as typeof fetch;
+  return { seen, fetchImpl };
+};
+
+describe("soapFetch deadlines are per attempt (2026-09-23, ••••6122)", () => {
+  afterEach(() => __resetSoapPacing());
+  const fast = testEnv({ ...env, EFS_SOAP_MAX_RPS: 100, EFS_SOAP_MAX_RETRIES: 2 });
+
+  it("gives a retry after a timeout its own deadline, so the retry can succeed", async () => {
+    const { seen, fetchImpl } = hangThenAnswer(1);
+    const res = await soapFetch(fast, "d1", { url, body: "<x/>", fetchImpl, timeoutMs: 30 });
+    expect(res.status).toBe(200);
+    expect(seen.calls).toBe(2);
+    expect(seen.abortedOnArrival).toBe(0);
+  });
+
+  it("names a timeout as a timeout once the retries are spent", async () => {
+    const { fetchImpl } = hangThenAnswer(99);
+    const failure = await soapFetch(fast, "d2", { url, body: "<x/>", fetchImpl, timeoutMs: 30 }).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(SoapDeadlineError);
+    expect(failure).toMatchObject({ reason: "timeout", timeoutMs: 30 });
+  });
+
+  it("names the caller's deadline as the caller's, and does not retry past it", async () => {
+    const { seen, fetchImpl } = hangThenAnswer(99);
+    const failure = await soapFetch(fast, "d3", {
+      url, body: "<x/>", fetchImpl, timeoutMs: 5_000, signal: AbortSignal.timeout(30),
+    }).catch((e: unknown) => e);
+    expect(failure).toMatchObject({ reason: "caller" });
+    expect(seen.calls).toBe(1);
   });
 });
