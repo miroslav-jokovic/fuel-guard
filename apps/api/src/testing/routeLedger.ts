@@ -27,6 +27,7 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   ["/api/version", "deploy/migration probe — public deliberately; a version endpoint needing a token is one nobody checks"],
   ["/api/public/hazmat", "the public M7 calculator — anonymous by product design; stateless, no tenant data"],
   ["/api/public/invites", "redeeming an emailed invitation — the person has no account yet, so the 256-bit link token in the POST body is the credential; it resolves to exactly one invitation's org and email server-side, refuses every dead link with one answer, and is rate-limited in app.ts (2026-09-04)"],
+  ["/api/public/password-reset", "\"forgot password?\" — the person cannot sign in, so the 256-bit link token in the POST body is the credential; `request` answers one sentence before it looks the address up, `lookup` and `redeem` refuse every dead link with one answer, drivers are never targets, a per-person hourly budget lives in the table, and the prefix is rate-limited in app.ts (0363)"],
   // ⚠ Newly VISIBLE here on 2026-09-17 rather than newly open: the mount was broken across four
   // lines in app.ts, and neither fitness function can see a call that spans a newline — so the one
   // unauthenticated surface that takes a date of birth, a licence number and possibly a Social

@@ -34,6 +34,7 @@ import { router } from "./index";
 /** Every URL worth pinning: one per declared route, with the ambiguous pairs written out. */
 const PROBES = [
   "/login", "/placard-calculator", "/apply/tok_123", "/accept-invite", "/pending", "/use-the-app",
+  "/forgot-password", "/reset-password",
   "/",
   "/assignments",
   // LM8. In `routes/dispatch.ts` beside Loads, and catalogued at `section("dispatch")` — an
@@ -213,6 +214,7 @@ describe("the route table survives being split by area", () => {
       "/accept-invite", // redeems the invitation's own token via /api/public/invites; membership written server-side
       "/apply/:token", // H5b — the applicant's form; the token IS the access control
       "/error",
+      "/forgot-password", // 0363 — asks for a reset link; the API answers one sentence for every address
       "/login",
       "/maintenance",
       "/placard-calculator", // M7 — the free public calculator, deliberately indexable
@@ -220,6 +222,7 @@ describe("the route table survives being split by area", () => {
       // terms and support URLs with no session — and because a policy a driver cannot open without
       // signing in is not a published policy. Deliberately indexable for the same reason.
       "/privacy",
+      "/reset-password", // 0363 — reads the emailed link on load, spends it only with a new password
       "/support",
       "/terms",
     ]);

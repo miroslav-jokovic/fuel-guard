@@ -35,6 +35,16 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/use-the-app",
   },
   {
+    "name": "forgot-password",
+    "params": {},
+    "url": "/forgot-password",
+  },
+  {
+    "name": "reset-password",
+    "params": {},
+    "url": "/reset-password",
+  },
+  {
     "name": "dashboard",
     "params": {},
     "url": "/",
@@ -714,6 +724,16 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
+      "layout": "auth",
+      "noindex": true,
+      "public": true,
+    },
+    "name": "forgot-password",
+    "path": "/forgot-password",
+    "redirect": null,
+  },
+  {
+    "meta": {
       "requiresAuth": true,
       "title": "Fuel Cards",
     },
@@ -1027,6 +1047,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "reports",
     "path": "/reports",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "allowNoOrg": true,
+      "layout": "auth",
+      "noindex": true,
+      "public": true,
+    },
+    "name": "reset-password",
+    "path": "/reset-password",
     "redirect": null,
   },
   {

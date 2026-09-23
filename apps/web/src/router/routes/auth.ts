@@ -64,6 +64,26 @@ export const authRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/auth/AcceptInvitePage.vue"),
     meta: { public: true, allowNoOrg: true, layout: "auth" },
   },
+  /**
+   * "Forgot password?" and the page its emailed link lands on (0363, PASSWORD-RESET-PLAN.md).
+   * `public: true` because the person cannot sign in — that is why they are here. Neither page holds
+   * a credential of its own: the first asks the API to email a link and says the same thing whatever
+   * the address, the second READS the link on load and spends it only with a new password, exactly
+   * as `/accept-invite` does. `allowNoOrg` on the second for the moment between its sign-in and the
+   * navigation, the invite page's reason.
+   */
+  {
+    path: "/forgot-password",
+    name: "forgot-password",
+    component: () => import("@/pages/auth/ForgotPasswordPage.vue"),
+    meta: { public: true, layout: "auth", noindex: true },
+  },
+  {
+    path: "/reset-password",
+    name: "reset-password",
+    component: () => import("@/pages/auth/ResetPasswordPage.vue"),
+    meta: { public: true, allowNoOrg: true, layout: "auth", noindex: true },
+  },
   {
     path: "/pending",
     name: "pending",

@@ -382,6 +382,9 @@
   "parts": [
     "apps/api/src/modules/maintenance/inventory/partsWrite.ts"
   ],
+  "password_resets": [
+    "apps/api/src/modules/org/passwordReset.ts"
+  ],
   "pattern_sweep_requests": [
     "apps/api/src/modules/anomalies/patternSweepRequests.ts",
     "apps/api/src/modules/anomalies/patternSweepScheduler.ts",

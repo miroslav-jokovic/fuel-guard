@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { parseInviteUrl, USER_ROLE_LABELS, type InvitePreview } from "@silvicom/shared";
+import { parseInviteUrl, passwordProblem, PASSWORD_MIN_LENGTH, USER_ROLE_LABELS, type InvitePreview } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { AppFormField as FormField } from "@silvicom/ui";
@@ -94,15 +94,13 @@ async function onSubmit() {
     error.value = "Tell us your name.";
     return;
   }
-  if (password.value.length < 8) {
-    error.value = "Password must be at least 8 characters.";
-    return;
-  }
-  if (password.value !== confirm.value) {
-    error.value = "Passwords do not match.";
-    return;
-  }
   if (!token.value || !invite.value) return;
+  // The same rule, and the same sentence, the API applies (D-PWR7, `passwordResetContract.ts`).
+  const problem = passwordProblem(password.value, invite.value.email, confirm.value);
+  if (problem) {
+    error.value = problem;
+    return;
+  }
   loading.value = true;
   try {
     const res = await apiFetch<{ ok: true; email: string }>("/api/public/invites/redeem", {
@@ -166,7 +164,7 @@ async function onSubmit() {
         <FormField id="nm" v-slot="{ id }" label="Your name" hint="How colleagues will see you across Silvicom 360.">
           <BaseInput :id="id" v-model="fullName" type="text" autocomplete="name" required maxlength="120" />
         </FormField>
-        <FormField id="pw" v-slot="{ id }" label="New password" hint="At least 8 characters.">
+        <FormField id="pw" v-slot="{ id }" label="New password" :hint="`At least ${PASSWORD_MIN_LENGTH} characters.`">
           <BaseInput :id="id" v-model="password" type="password" autocomplete="new-password" required />
         </FormField>
         <FormField id="cf" v-slot="{ id }" label="Confirm password">
