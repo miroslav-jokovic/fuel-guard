@@ -554,6 +554,18 @@ this repo's history meant a snapshot that had not landed.
 4. **Q-GL5 — does the owner accept 156 pending loads appearing on Dispatch → Loads?** Needed before
    L1. Recommendation: yes — it is LM12's intended first week, and it is reversible while the loads
    are unapproved.
+6. **Q-GL6 — what closes a load that LEAVES McLeod's open board?** Found 2026-09-23. The agent sends
+   only `P`/`A` movements, so a load McLeod delivers (`D`) or voids (`V`) simply stops arriving, and
+   nothing on our side reads silence: movement 291013 is delivered in McLeod and still
+   `pending_approval` here, and so is every load from the 2026-09-17 pull that has since left the
+   board. `canceled` exists in the contract but the agent never sets it. Candidates:
+   (a) the agent also reads the status of movements it sent recently and sends `D`/`V` explicitly —
+   a positive statement, the `retirementQueries` pattern, bounded by the ids it already holds;
+   (b) the API retires loads absent from a complete board — rejected, it is the inference-from-absence
+   that `reconcile-retires-unlinked-rows` already cost 33 vehicles and 120 drivers;
+   (c) leave them for dispatch to close by hand — rejected, 158 today and growing daily.
+   **Recommendation: (a)**, as its own step after L4's Done-when is met. A status statement, not an
+   absence, and one more read on `movement` the carrier already granted.
 
 ---
 
@@ -645,3 +657,12 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   Seven mutations, each caught: `user_id` in the row, `is_system` from the name, no stamp on an
   approved load, the id read unscoped, silence clearing a feed-owned load, the insert dropping it,
   and every id reported unknown. **Done-when still owes** the real `--loads` run after deploy.
+- 2026-09-23 — **L4 merged (#993) and the first real `--loads` after it FAILED, correctly
+  stopped at one attempt.** `/api/tms/dispatchers` wrote 16/16 (2 `is_system`). `/api/tms/loads`
+  answered 500 ×3 on `idx_loads_org_ref`: McLeod order 0135136 is a SPLIT (SD on movement 291013,
+  ingested 2026-09-17; SP on 291798, new today) and 0085 made `ref` unique per org, so one order
+  number on two movements refused the whole 143-load insert. Nothing was written — the insert is one
+  statement. Migration `0362` narrows the index to `source = 'manual'`; a TMS load's identity was
+  always `(provider, external_id)`. Matrix `loads-ref-per-source` (9), both mutations caught. **L4's
+  Done-when waits on `0362` being APPLIED, then one `--loads`.** Also found: Q-GL6, loads that leave
+  the board are never closed.
