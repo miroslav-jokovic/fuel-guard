@@ -321,9 +321,18 @@ body {
      picture that ends on its own ground line. Below `xl` the plate is height-fitted (its window is
      too narrow for width to win) and the tyres sit at 193px — 3px into the feather, where a 0.9
      alpha does not read as a fade. */
+  /* ⚠ The plate stops growing at 52.5rem (840px), which is its width at a 1440 window (D-DT22).
+     `cover` fits the photograph to the plate's WIDTH, so a wider plate means a TALLER photograph
+     inside a band that stays 232px — and since the window opens at the bottom, the extra height
+     is taken off the top. The truck's roof sits 48% of the photograph's height above its bottom
+     edge, so it is inside the band only while that height is ≤ 232 / 0.48 ≈ 483px. At 1440 it is
+     360px and the roof lands at 59px; on the owner's ~2470px screen (2026-09-23) the plate was
+     ~1280px wide, the photograph ~550px tall, and the cab was cut off at the roof. Capped, the
+     photograph is framed the same on every screen from 1440 up, right-aligned, and the extra width
+     is canvas, where the plate's own left feather already hands off to the page. */
   .page-backdrop__plate {
     position: absolute;
-    inset: 0 0 0 28%;
+    inset: 0 0 0 max(28%, 100% - 52.5rem);
     background-image: var(--backdrop-plate);
     background-size: cover;
     background-position: right bottom;
