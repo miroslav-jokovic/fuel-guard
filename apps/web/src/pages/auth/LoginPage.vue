@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { useSessionStore } from "@/stores/session";
 import { AppFormField as FormField } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
+import { AppPasswordInput } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 
 const session = useSessionStore();
@@ -39,7 +40,7 @@ async function onSubmit() {
       </FormField>
 
       <FormField id="password" v-slot="{ id }" label="Password">
-        <BaseInput :id="id" v-model="password" type="password" autocomplete="current-password" required />
+        <AppPasswordInput :id="id" v-model="password" autocomplete="current-password" required />
       </FormField>
 
       <p v-if="error" class="text-sm text-danger-600">{{ error }}</p>
