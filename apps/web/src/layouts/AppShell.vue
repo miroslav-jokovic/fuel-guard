@@ -8,6 +8,7 @@ import {
   XMarkIcon,
 } from "@silvicom/ui/icons";
 import { computed, ref, watch } from "vue";
+import { useWindowScroll } from "@vueuse/core";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
@@ -47,6 +48,21 @@ const fullBleed = computed(() => isFullBleed(route));
  */
 const { isDark } = useColorScheme();
 const plate = computed(() => heroPlate(route, isDark.value));
+
+/**
+ * The top bar steps back while the page is at rest on a plate (D-DT22).
+ *
+ * The plate used to start BELOW the bar and the main padding — 88px of empty canvas and a hairline
+ * above a photograph that then began on a hard edge, which read as a strip pasted in rather than a
+ * page that opens on a picture. The plate now runs up behind the bar, and the bar only takes its
+ * material and rule once the page moves: at rest it would be a grey band drawn across the sky; in
+ * motion it is the thing keeping the toggle and the bell legible over whatever scrolls under it.
+ * That is the large-title navigation bar's behaviour, for the same reason. `useWindowScroll`
+ * because the document scrolls, not `<main>` — a full-bleed route has no plate, so its own
+ * overflow container never needs asking.
+ */
+const { y: scrollY } = useWindowScroll();
+const barAtRest = computed(() => Boolean(plate.value) && scrollY.value < 8);
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const modules = useModulesQuery();
@@ -364,7 +380,12 @@ async function signOut() {
     >
       <!-- Sticky header ensures the hamburger toggle is always reachable on mobile. -->
       <header
-        class="sticky top-0 z-chrome flex h-16 shrink-0 items-center border-b border-edge-subtle bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:px-8"
+        class="sticky top-0 z-chrome flex h-16 shrink-0 items-center px-4 transition-colors duration-200 ease-out sm:px-6 lg:px-8"
+        :class="
+          barAtRest
+            ? 'bg-transparent'
+            : 'border-b border-edge-subtle bg-canvas/95 backdrop-blur'
+        "
       >
         <div class="flex items-center gap-x-3">
           <button
@@ -403,7 +424,8 @@ async function signOut() {
         </div>
         <!-- The office bell (DQF plan C6): the web reader of the same per-user inbox the driver
              app renders. -->
-        <div class="ml-auto flex items-center">
+        <!-- `bar-float` while the bar is at rest on a plate (D-DT22): see style.css. -->
+        <div class="ml-auto flex items-center rounded-control" :class="{ 'bar-float': barAtRest }">
           <NotificationBell />
         </div>
       </header>
@@ -448,7 +470,7 @@ async function signOut() {
           -->
           <template v-if="plate">
             <div
-              class="page-backdrop [--backdrop-bleed:1rem] sm:[--backdrop-bleed:1.5rem] lg:[--backdrop-bleed:2rem]"
+              class="page-backdrop [--backdrop-bleed:1rem] [--backdrop-lift:5.5rem] sm:[--backdrop-bleed:1.5rem] lg:[--backdrop-bleed:2rem]"
               aria-hidden="true"
             >
               <div class="page-backdrop__plate"></div>

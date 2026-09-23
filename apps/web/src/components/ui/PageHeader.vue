@@ -73,7 +73,19 @@ const trail = computed(() =>
   >
     <div class="min-w-0">
       <BreadcrumbTrail :trail="trail" />
-      <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ resolvedTitle }}</h1>
+      <!--
+        One step up on a plate (D-DT22): a 24px greeting beside a photograph ~100px tall read as a
+        caption to the picture rather than the page's title — the image out-weighed the words it was
+        there to frame. The plain header keeps 2xl, where it is the largest thing on the page anyway.
+      -->
+      <h1
+        :class="[
+          'font-semibold tracking-tight text-ink',
+          onBackdrop ? 'text-3xl text-balance' : 'text-2xl',
+        ]"
+      >
+        {{ resolvedTitle }}
+      </h1>
       <p v-if="description || $slots.default" class="mt-1 max-w-3xl text-sm text-ink-tertiary">
         <slot>{{ description }}</slot>
       </p>

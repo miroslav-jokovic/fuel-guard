@@ -722,3 +722,31 @@ SECOND set of the page's eight range-scoped queries, including another month of 
 product decision rather than a polish one), **T2** (card edge-light), **T3** (`@container` spark —
 the incumbent `flex-wrap` + `min-w-32` still works and wraps correctly at 1440), **T8** (grid
 spans), **T11** (blocked on Q-DT5), **T13**, and **Q-DT7**.
+
+**2026-09-22 — D-DT22 (new) — the plate opens the page and ends on its road.** The owner read the
+hero as amateur for two reasons, both measured at 1440. (1) **The gap above it:** the layer started
+at the page content, so the 64px top bar (a toggle and a bell, with a hairline) plus `<main>`'s 24px
+padding sat as empty canvas above a photograph that began on a hard edge. The layer now lifts by
+`--backdrop-lift` (5.5rem, handed in by `AppShell` beside `--backdrop-bleed`) to the top of the
+column, and the bar is transparent with no rule while the window is at rest on a plated route,
+taking its `bg-canvas/95` material and rule back on scroll — the large-title bar's behaviour.
+(2) **The fade:** the mask went soft at 46% of a 144px band — mid-trailer — so the tyres and road
+dissolved into grey. The plate is now solid to 78% and feathers across the road only, framed at
+`right 87%` so the cab lands under the bar and the wheels at 167 of 232px. A second, intersected
+mask feathers the plate's own left edge, because at 1100px (44% inset, height-fitted) the veil was
+~85% canvas at that edge and it showed as a seam. The greeting goes `text-2xl` → `text-3xl` on a
+plate only. `--backdrop-h` keeps its meaning, so D-DT20's control-row clearance is unchanged.
+Checked light 1100/1440 and dark 1440; `lint:tokens`, typecheck and the layout/header/shell suites green.
+
+**2026-09-22 — the plates replaced, one photograph at two hours.** The owner's reading: the old
+`highway-dawn`/`highway-night` were two different scenes and not good enough, and the fleet runs
+2027 Freightliner Cascadias. Regenerated with Higgsfield `gpt_image_2_5` (21:9, high, 2k). The day
+frame was chosen from four for size: the first two drew the truck at ~23% of the frame's width tall,
+which in a 232px band is a truck filling the band; the pick draws it at ~13%, x 62–91%, y 52–83%, with
+the left half empty mist for the greeting. The night frame was generated WITH the day frame as its
+image reference and a "relight only, keep everything" prompt, and came back registered to it — same
+ridge, same truck, same lane lines — so dark mode is the same place after sundown rather than a second
+picture. Written over the old filenames (the route table, its snapshot and the prototype all name
+them), 1920 wide, webp q82: 72 KB day, 50 KB night. Framing moved to `right bottom`, mask solid to 82%.
+The bell vanished against the new plate's snow at 1440 in light, so while the bar is at rest it stands
+on `.bar-float`, the map panels' 82% material.
