@@ -111,7 +111,16 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
         expectedVersion: "",
         replaceAll: true,
         allowRemoveDriverId: false,
-        prompts: prompts.map((p, i) => (i === flip ? { ...p, validationType: "REPORT_ONLY" as const } : p)),
+        /**
+         * The value moves into `reportValue`; it is not dropped. `promptsEdits` blanks `matchValue` on
+         * any non-EXACT_MATCH record, which is the vendor's own shape: on 2026-09-23, 0 of 152 mirrored
+         * REPORT_ONLY records carried a matchValue and 151 carried a reportValue. The old flip left
+         * both blank. Its revert failed on ••••6122 (proof `efe2b98a`), and after that "669" existed
+         * nowhere in EFS, only in our ledger. Carried across, a card left behind by a failed revert
+         * still holds its value where the WEX portal shows it, so putting it back is a type change.
+         */
+        prompts: prompts.map((p, i) =>
+          (i === flip ? { ...p, validationType: "REPORT_ONLY" as const, reportValue: p.matchValue } : p)),
       };
     },
     revert: (snap, ctx) => ({

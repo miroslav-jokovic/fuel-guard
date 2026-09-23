@@ -8,6 +8,7 @@ import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { ActionRefusalError } from "../services/efsCardControlErrors.js";
 import { executeCapability } from "../services/efsCardControl.js";
+import { promptsEdits } from "../services/efsCardEdits.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { resolveCapability } from "../orchestrator/resolve.js";
@@ -351,6 +352,19 @@ describe("the proof flips only a safe prompt, and writes every other one back ex
       .filter((p, i) => p.validationType !== restored[i]!.validationType);
     expect(flipped).toHaveLength(1);
     expect(flipped[0]!.validationType).toBe("REPORT_ONLY");
+  });
+
+  it("keeps the flipped prompt's value on the card, in reportValue, so a failed revert loses nothing", () => {
+    // Proof `efe2b98a`, ••••6122: the flip blanked matchValue "669" and the revert failed. After that
+    // the value existed only in our ledger. The flip now writes it where REPORT_ONLY keeps it.
+    const plan = promptsEdits(doc, promptsSetBehaviour.proof!.sample(snap, ctx).prompts, ctx.editableInfoIds);
+    const flipped = plan.after.filter((p, i) => p.validationType !== plan.before[i]!.validationType);
+    expect(flipped).toHaveLength(1);
+    const was = plan.before.find((p) => p.infoId === flipped[0]!.infoId)!;
+    expect(was.matchValue).toBeTruthy();
+    expect(flipped[0]).toEqual({
+      infoId: was.infoId, validationType: "REPORT_ONLY", matchValue: "", reportValue: was.matchValue,
+    });
   });
 
   it("writes an odometer prompt back as ACCRUAL_CHECK with its own value, not as REPORT_ONLY", () => {

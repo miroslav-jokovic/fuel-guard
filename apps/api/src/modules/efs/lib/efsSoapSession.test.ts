@@ -5,6 +5,7 @@ import {
   __resetEfsSessions,
   efsLogin,
   efsSessionDiagnostics,
+  requestXml,
   withEfsSession,
 } from "./efsSoapSession.js";
 import { __resetSoapPacing } from "./soapClient.js";
@@ -423,5 +424,35 @@ describe("the EFS-domain allowlist (2026-09-22 security audit)", () => {
       await efsLogin(strict, { ...creds, endpointUrl }, "live", { fetchImpl: vi.fn() as unknown as typeof fetch }).catch(() => {});
     }
     expect(efsSessionDiagnostics({ ...creds, endpointUrl }).breakerOpenUntil).toBeNull();
+  });
+});
+
+describe("requestXml names what stopped a request (2026-09-23, ••••6122)", () => {
+  afterEach(() => __resetSoapPacing());
+
+  // Real fetch rejects with the signal's reason when the signal fires. The proof's revert read on
+  // ••••6122 failed this way, and the operator was told only "EFS getCardv2 request failed".
+  const hangs = (async (_input: string | URL, init?: RequestInit) =>
+    await new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true });
+    })) as typeof fetch;
+
+  it("says a timeout is a timeout, with the budget it ran out of", async () => {
+    const failure = await requestXml(env, creds, "getCardv2", "<x/>", "interactive", { fetchImpl: hangs, timeoutMs: 30 })
+      .catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(EfsSoapError);
+    expect((failure as EfsSoapError).message).toBe("EFS did not answer the getCardv2 request within 30 ms");
+    expect(failure).toMatchObject({ code: "transport", detail: { reason: "timeout", timeoutMs: 30 } });
+  });
+
+  it("names the error's kind on the fallback instead of saying only 'failed'", async () => {
+    const refused = (async () => {
+      throw Object.assign(new TypeError("fetch failed: card 7083050910386122"), { code: "UND_ERR_SOCKET" });
+    }) as typeof fetch;
+    const failure = await requestXml(env, creds, "getCardv2", "<x/>", "interactive", { fetchImpl: refused })
+      .catch((e: unknown) => e) as EfsSoapError;
+    expect(failure.message).toBe("EFS getCardv2 request failed (TypeError UND_ERR_SOCKET)");
+    // The name and code only: a message can quote the request, and the request carries a PAN.
+    expect(failure.message).not.toContain("7083");
   });
 });

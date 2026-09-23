@@ -51,12 +51,16 @@ const fixture = (name: string): string =>
 const ACTIVE = fixture("getCardV2.full.xml");
 const HELD = ACTIVE.replace("<status>Active</status>", "<status>HOLD</status>");
 
+/** In a `stub` script: this request fails in transit, the way a timed-out read does. */
+const FAILED_READ = Symbol("failed read");
+
 /** Feeds scripted responses in order, and says so loudly when a run asks for one more than expected. */
-function stub(...responses: string[]): typeof fetch {
+function stub(...responses: (string | typeof FAILED_READ)[]): typeof fetch {
   let i = 0;
   return (async () => {
     const next = responses[i++];
     if (next === undefined) throw new Error(`the stub ran out of scripted responses after ${i - 1}`);
+    if (next === FAILED_READ) throw Object.assign(new Error("scripted transit failure"), { name: "TimeoutError" });
     return new Response(next, { status: 200 });
   }) as typeof fetch;
 }
@@ -87,6 +91,7 @@ function harness(
     openProof: async () => "proof-1",
     settleProof: async (_id: string, r: ProofOutcome) => { settled = r; },
     setPromotionState: async (_k: string, state: string) => { states.push(state); },
+    revertRetryPauseMs: 0,
   };
   return { ctx, deps, states, rec, settledResult: () => settled };
 }
@@ -141,6 +146,27 @@ describe("a revert that does not land", () => {
     expect(result.detail).toMatch(/THE CARD IS STILL CHANGED/);
     expect(result.outcome).toBe("denied");
     expect(h.states).toEqual(["proving", "denied"]);
+  });
+
+  /**
+   * Proof `efe2b98a`, 2026-09-23, ••••6122. The apply landed, OEG-4's read worked, and the revert's
+   * FIRST read failed. The harness made one attempt and left the card changed. Here the same failure
+   * is followed by a vendor that answers, through the real orchestrator, and the card must come back.
+   */
+  it("retries a revert whose first read failed, and puts the card back", async () => {
+    const h = harness(stub(
+      loginOk, ACTIVE,
+      ACTIVE, ACTIVE, soap(""), HELD,
+      HELD,
+      FAILED_READ,
+      HELD, HELD, soap(""), ACTIVE));
+    const result = await proveCapability(h.ctx, "card_lock", h.deps);
+
+    expect(result.oeg5RevertLanded).toBe(true);
+    expect(result.cardStillChanged).toBe(false);
+    expect(result.outcome).toBe("proven");
+    // The failed attempt is still on the record. A retry that erased it would hide a slow vendor.
+    expect(result.detail).toMatch(/revert attempt 1: revert threw: EfsSoapError: EFS getCardv2 request failed/);
   });
 });
 

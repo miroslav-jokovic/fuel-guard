@@ -268,9 +268,21 @@ export async function soapFetch(
   // Explicit 0 disables the deadline; undefined takes the lane default. Before this existed neither
   // branch set any timeout at all, so a half-open socket hung until the process died.
   const timeoutMs = opts.timeoutMs === undefined ? laneTimeoutMs(env, priority) : opts.timeoutMs;
-  const requestSignal = opts.signal
-    ? timeoutMs > 0 ? AbortSignal.any([opts.signal, AbortSignal.timeout(timeoutMs)]) : opts.signal
-    : timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined;
+  /**
+   * A FRESH deadline per attempt, built inside the loop below — never one for the whole call.
+   *
+   * It used to be built once, here, and a timer that has fired stays fired: every retry after a
+   * timeout went out on an already-aborted signal and failed in about 1 ms. So a read that timed out
+   * got no real retries. The 2026-09-23 prompts_set proof on ••••6122 lost its revert this way: 10 s
+   * of timeout plus four dead retries, about 15 s in all, and the card was left changed. The old
+   * test's stub ignored `signal`, so it could not see this. The caller's own deadline (`opts.signal`)
+   * still covers every attempt, as before.
+   */
+  const attemptSignal = (): AbortSignal | undefined => {
+    if (timeoutMs <= 0) return opts.signal;
+    const perAttempt = AbortSignal.timeout(timeoutMs);
+    return opts.signal ? AbortSignal.any([opts.signal, perAttempt]) : perAttempt;
+  };
   // Precedence: explicit material (per-org, resolved by the credentials layer) → deploy-wide env →
   // none. An injected fetch (tests) that did NOT ask for TLS bypasses the https path entirely, so the
   // mTLS layer can never interfere with the existing suite.
@@ -301,9 +313,11 @@ export async function soapFetch(
 
   let attempt = 0;
   for (;;) {
-    if (opts.signal?.aborted) throw new Error("EFS request aborted by caller");
+    if (opts.signal?.aborted) throw new SoapDeadlineError("caller", timeoutMs);
     const wait = reserveSlot(slotKey, rps);
     if (wait > 0) await sleep(wait);
+    // Started AFTER the pacing wait, so a queued request does not spend its deadline in the queue.
+    const requestSignal = attemptSignal();
     let out: SoapResponse;
     try {
       if (tls) {
@@ -357,8 +371,11 @@ export async function soapFetch(
     } catch (e) {
       // A refused endpoint is a decision, not a transient failure: retrying re-runs the same checks,
       // reaches the same answer, and burns another paced slot on a request we are never going to make.
-      if (e instanceof BlockedEndpointError || opts.signal?.aborted) throw e;
-      if (attempt >= maxRetries) throw e;
+      if (e instanceof BlockedEndpointError) throw e;
+      if (opts.signal?.aborted) throw new SoapDeadlineError("caller", timeoutMs, e);
+      if (attempt >= maxRetries) {
+        throw requestSignal?.aborted ? new SoapDeadlineError("timeout", timeoutMs, e) : e;
+      }
       await sleep(backoffMs(attempt++));
       continue;
     }
@@ -370,6 +387,32 @@ export async function soapFetch(
       continue;
     }
     return out;
+  }
+}
+
+/**
+ * A request stopped by a deadline. The reason is read from OUR signals, not from the error's text.
+ *
+ * On the fetch branch a fired `AbortSignal.timeout` throws a DOMException `TimeoutError`, code 23.
+ * `classifyTlsError` matches none of its patterns and calls it "unknown". So the operator saw
+ * "EFS getCardv2 request failed" for what was really "EFS did not answer within 10 s" (2026-09-23,
+ * ••••6122). The node:https branch reports the same event differently again. Asking which signal
+ * fired gives one answer for both branches: `timeout` is this attempt's deadline, `caller` is the
+ * operation's (`withEfsCardWriteDeadline`).
+ */
+export class SoapDeadlineError extends Error {
+  constructor(
+    public readonly reason: "timeout" | "caller",
+    public readonly timeoutMs: number,
+    cause?: unknown,
+  ) {
+    super(
+      reason === "timeout"
+        ? `no answer within ${timeoutMs} ms`
+        : "the operation's time budget ran out before the request finished",
+      { cause },
+    );
+    this.name = "SoapDeadlineError";
   }
 }
 
