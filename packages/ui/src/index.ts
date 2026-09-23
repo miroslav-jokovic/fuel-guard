@@ -7,6 +7,7 @@
 // AppInput that nobody used the second name for (removed 2026-08-23, D-DS8).
 export { default as AppButton } from "./components/AppButton.vue";
 export { default as AppInput } from "./components/AppInput.vue";
+export { default as AppPasswordInput } from "./components/AppPasswordInput.vue";
 export { default as AppCard } from "./components/AppCard.vue";
 export { default as AppIcon } from "./components/AppIcon.vue";
 export { default as AppCheckbox } from "./components/AppCheckbox.vue";
