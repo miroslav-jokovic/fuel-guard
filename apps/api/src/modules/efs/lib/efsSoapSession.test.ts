@@ -391,3 +391,37 @@ it("keeps EFS's own faultstring — and its reference number — in the message"
     await expect(efsLogin(env, creds, "live", { fetchImpl: rec.fetchImpl })).rejects.toMatchObject({ code: "session_expired" });
   });
 });
+
+describe("the EFS-domain allowlist (2026-09-22 security audit)", () => {
+  /**
+   * The SSRF gate checks what a name resolves to, then Node resolves it again to connect — a hostile
+   * nameserver can answer differently the second time. Requiring the host to be under efsllc.com
+   * takes the nameserver out of a tenant's hands. The strict env below is production's posture:
+   * without the dev-only private-endpoint flag, which also waives this check.
+   */
+  const strict = testEnv({ EFS_SOAP_MAX_RPS: 100, EFS_SOAP_INTERACTIVE_RPS: 100, EFS_SOAP_MAX_RETRIES: 0 });
+
+  it.each([
+    "https://attacker.test/axis2/services/CardManagementWS/",
+    "https://efsllc.com.attacker.test/axis2/services/CardManagementWS/",
+    "https://notefsllc.com/axis2/services/CardManagementWS/",
+  ])("refuses to log in to %s, before anything is dialled", async (endpointUrl) => {
+    const fetchImpl = vi.fn();
+    const error = await efsLogin(strict, { ...creds, endpointUrl }, "live", { fetchImpl: fetchImpl as unknown as typeof fetch })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(EfsSoapError);
+    expect((error as EfsSoapError).code).toBe("blocked_endpoint");
+    // The REASON, not just the code: without the allowlist the SSRF gate refuses these too — as
+    // unresolvable — so asserting the code alone passes whether or not this check exists.
+    expect((error as EfsSoapError).detail).toMatchObject({ reason: "not_efs_host" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("does not count the refusal toward the login breaker — it is configuration, not a credential", async () => {
+    const endpointUrl = "https://attacker.test/axis2/services/CardManagementWS/";
+    for (let i = 0; i < 4; i++) {
+      await efsLogin(strict, { ...creds, endpointUrl }, "live", { fetchImpl: vi.fn() as unknown as typeof fetch }).catch(() => {});
+    }
+    expect(efsSessionDiagnostics({ ...creds, endpointUrl }).breakerOpenUntil).toBeNull();
+  });
+});

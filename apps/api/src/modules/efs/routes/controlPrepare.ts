@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
+import { redactCardXml } from "../lib/efsCardXml.js";
 import { apiError } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { enforceCardWriteLimit } from "../../../middleware/cardWriteLimit.js";
@@ -160,7 +161,8 @@ export function controlErrorResponse(res: Response, error: unknown): void {
   }
   if (error instanceof EfsSoapError) {
     const status = error.code === "echo_unfaithful" ? 502 : error.code === "rate_limited" ? 429 : 502;
-    res.status(status).json(apiError(`efs_${error.code}`, error.message));
+    // Redacted like read.ts's (2026-09-22 security audit): a vendor fault can quote the card back.
+    res.status(status).json(apiError(`efs_${error.code}`, redactCardXml(error.message)));
     return;
   }
   throw error;

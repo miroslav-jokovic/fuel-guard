@@ -365,6 +365,53 @@ describe("concurrency and caps", () => {
     expect(error).toBeInstanceOf(CardControlError);
     expect(error.status).toBe(503);
   });
+
+  it("does not send the write when the ledger cannot record that it is being sent", async () => {
+    // 2026-09-22 audit: markSent's error was discarded, so the write left behind a row still reading
+    // `pending` with no approver stamped. markSent runs BEFORE the vendor call, so refusing is free.
+    const rec = recorder({
+      efs_card_mutations: (query: { write: { method: string; payload: unknown } | null }) =>
+        query.write?.method === "insert"
+          ? { data: { id: "mutation-1" }, error: null }
+          : query.write?.method === "update" && (query.write.payload as { status?: string }).status === "sent"
+            ? { data: null, error: { message: "connection reset" } }
+            : { data: [], error: null, count: 0 },
+    });
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+    const error = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE))).catch((e) => e);
+
+    expect(error).toBeInstanceOf(CardControlError);
+    expect(error.status).toBe(503);
+    expect(error.detail).toMatchObject({ reason: "ledger_unavailable" });
+    // login + the planning read, and nothing after: the write never left.
+    expect(s.bodies).toHaveLength(2);
+    expect(s.bodies.some((body) => body.includes("setCard"))).toBe(false);
+  });
+
+  it("is not blinded to another operator's in-flight write by a proof run's own row", async () => {
+    // 2026-09-22 audit: the in-flight read took ONE row and then exempted the proof's own. When that
+    // one row was the proof's, the other operator's unresolved write was never looked at. The fixture
+    // honours `.limit()` the way PostgREST does, because the recorder itself does not.
+    const inFlight = [
+      { id: "proof-own", status: "sent", created_at: new Date().toISOString(), proof_run_id: "proof-1" },
+      { id: "someone-else", status: "pending", created_at: new Date().toISOString(), proof_run_id: null },
+    ];
+    const rec = recorder({
+      efs_card_mutations: (query: { write: unknown; ops: Array<{ method: string; args: unknown[] }> }) => {
+        if (query.write) return { data: { id: "mutation-1" }, error: null };
+        if (!query.ops.some((op) => op.method === "in")) return { data: [], error: null, count: 0 };
+        const limit = query.ops.find((op) => op.method === "limit")?.args[0] as number | undefined;
+        return { data: limit === undefined ? inFlight : inFlight.slice(0, limit), error: null };
+      },
+    });
+    const s = stub(loginOk, CARD_ACTIVE);
+    const error = await executeLock({ ...ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), proofRunId: "proof-1" })
+      .catch((e) => e);
+
+    expect(error).toBeInstanceOf(CardControlError);
+    expect(error.code).toBe("mutation_in_flight");
+    expect(error.detail).toMatchObject({ mutationId: "someone-else" });
+  });
 });
 
 describe("the vendor writes our value back in its own casing", () => {

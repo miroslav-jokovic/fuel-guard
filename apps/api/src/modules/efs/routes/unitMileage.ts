@@ -8,6 +8,7 @@ import { enforceCardWriteLimit } from "../../../middleware/cardWriteLimit.js";
 import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { applyMileageOverride, readUnitMileage } from "../services/efsMileageOverride.js";
 import { getEfsSoapCredentials } from "../services/efsSoapCredentials.js";
+import { KILL_SWITCH_REFUSAL } from "./controlRefusal.js";
 
 /**
  * `POST /api/fuel-cards/unit-mileage` — correct the odometer reading EFS holds for one unit
@@ -117,6 +118,23 @@ export function fuelCardUnitMileageRouter(): Router {
     requireRole("admin"),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
+
+      /**
+       * The deploy-wide kill switch, first and before any database work — the same fact, answered in
+       * the same words, as every card capability in `controlPrepare.ts`.
+       *
+       * The ledger, proof run and promotion gate are skipped here on purpose (the header above,
+       * `docs/37` §6). The kill switch was never part of that trade. It is the one lever an operator
+       * pulls when EFS writes must stop NOW, and the 2026-09-22 security audit found this route was
+       * the only vendor write in production it did not reach: switching card control off left
+       * odometer overrides live.
+       */
+      if (!env.EFS_CARD_CONTROL_ENABLED) {
+        const [code, message] = KILL_SWITCH_REFUSAL;
+        res.status(403).json(apiError(code, message));
+        return;
+      }
+
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
 

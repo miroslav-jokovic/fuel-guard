@@ -8,6 +8,8 @@ import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppTextarea } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
+import StepUpPrompt from "@/components/StepUpPrompt.vue";
+import { useStepUpRetry } from "@/composables/useStepUpRetry";
 import {
   expiryTone,
   useActivateClientCert,
@@ -40,6 +42,9 @@ const activate = useActivateClientCert();
 const rollback = useRollbackClientCert();
 const withdraw = useWithdrawClientCert();
 const toast = useToastStore();
+/** Upload, activate, rollback and withdraw change the TLS identity every EFS poll presents, so the
+ *  API asks for a fresh password on each (2026-09-22 security audit). Test does not change it. */
+const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
 
 const form = reactive({ certPem: "", keyPem: "", passphrase: "", caPem: "" });
 const showForm = ref(false);
@@ -87,6 +92,7 @@ async function onUpload(): Promise<void> {
     showForm.value = false;
     toast.success("Certificate staged", "It is not presenting yet — test it against EFS, then activate.");
   } catch (e) {
+    if (holdForStepUp(e, onUpload)) return;
     toast.error("Certificate rejected", e instanceof Error ? e.message : undefined);
   }
 }
@@ -106,6 +112,7 @@ async function onActivate(): Promise<void> {
     testResult.value = null;
     toast.success("Certificate activated", "It is presented from the next EFS call onward.");
   } catch (e) {
+    if (holdForStepUp(e, onActivate)) return;
     toast.error("Activation failed", e instanceof Error ? e.message : undefined);
   }
 }
@@ -115,6 +122,7 @@ async function onRollback(): Promise<void> {
     const r = await rollback.mutateAsync();
     toast.success("Rolled back", `Restored ${r.restored.subject}.`);
   } catch (e) {
+    if (holdForStepUp(e, onRollback)) return;
     toast.error("Rollback failed", e instanceof Error ? e.message : undefined);
   }
 }
@@ -124,6 +132,7 @@ async function onWithdraw(): Promise<void> {
     const r = await withdraw.mutateAsync();
     toast.info("Client certificate withdrawn", `Transport is now: ${r.tls}`);
   } catch (e) {
+    if (holdForStepUp(e, onWithdraw)) return;
     toast.error("Withdrawal failed", e instanceof Error ? e.message : undefined);
   }
 }
@@ -145,6 +154,10 @@ async function onWithdraw(): Promise<void> {
       </BaseButton>
     </div>
 
+    <!-- Replaces the card's body while it shows, the same way CardControlSettingsPage.vue hosts it. -->
+    <StepUpPrompt v-if="stepUpFor" :reason="stepUpFor" @confirmed="confirmed" @cancel="cancel" />
+
+    <template v-else>
     <!-- ── Currently presenting ─────────────────────────────────────────────── -->
     <div v-if="active" class="mt-4 rounded-control bg-surface-subtle p-3">
       <div class="flex items-start gap-2">
@@ -281,5 +294,6 @@ async function onWithdraw(): Promise<void> {
         </li>
       </ul>
     </details>
+    </template>
   </BaseCard>
 </template>

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { apiRefusal } from "@/composables/useStepUpRetry";
 
 /**
  * EFS SOAP client certificate (mutual TLS) — client composables.
@@ -97,7 +98,7 @@ export function useUploadClientCert() {
       });
       // The API's rejections are the actionable ones ("the private key does not match the
       // certificate", "expired on …"), so they are surfaced verbatim rather than replaced.
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not store the certificate");
+      if (!res.ok || !res.data) throw apiRefusal(res.error, "Could not store the certificate");
       return res.data;
     },
     onSuccess: () => invalidateAll(qc),
@@ -143,7 +144,7 @@ export function useActivateClientCert() {
         "/api/integrations/efs-soap/client-cert/activate",
         { method: "POST" },
       );
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not activate the certificate");
+      if (!res.ok || !res.data) throw apiRefusal(res.error, "Could not activate the certificate");
       return res.data;
     },
     onSuccess: () => invalidateAll(qc),
@@ -158,7 +159,7 @@ export function useRollbackClientCert() {
         "/api/integrations/efs-soap/client-cert/rollback",
         { method: "POST" },
       );
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not roll back");
+      if (!res.ok || !res.data) throw apiRefusal(res.error, "Could not roll back");
       return res.data;
     },
     onSuccess: () => invalidateAll(qc),
@@ -172,7 +173,7 @@ export function useWithdrawClientCert() {
       const res = await apiFetch<{ retired: number; tls: string }>("/api/integrations/efs-soap/client-cert", {
         method: "DELETE",
       });
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not withdraw the certificate");
+      if (!res.ok || !res.data) throw apiRefusal(res.error, "Could not withdraw the certificate");
       return res.data;
     },
     onSuccess: () => invalidateAll(qc),

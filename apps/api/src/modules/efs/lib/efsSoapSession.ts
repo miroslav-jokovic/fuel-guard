@@ -7,8 +7,18 @@ import { EfsSoapError, parseSoap, responseResult } from "./efsSoapFaults.js";
 
 export { EfsSoapError, parseSoap, responseResult, responseValues } from "./efsSoapFaults.js";
 import { classifyTlsError, soapFetch, type SoapPriority } from "./soapClient.js";
-import { BlockedEndpointError } from "../../../lib/ssrfGuard.js";
+import { BlockedEndpointError, allowPrivateEndpoints } from "../../../lib/ssrfGuard.js";
 import { signalEfsBreakerOpened } from "../../../lib/cardControlSignals.js";
+import { NOT_EFS_ENDPOINT_MESSAGE, isEfsEndpointHost } from "../services/efsSoapCredentialIdentity.js";
+
+/** Empty for an unparseable URL, which the allowlist then refuses rather than throwing a TypeError. */
+const hostOf = (url: string): string => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
+};
 
 /**
  * EFS `CardManagementWS` session handling and fault classification — everything true of *any*
@@ -64,6 +74,13 @@ export async function requestXml(
   priority: SoapPriority,
   opts: EfsRequestOptions = {},
 ): Promise<{ body: string; headers: Headers }> {
+  // The EFS-domain allowlist, again at dispatch (2026-09-22 security audit; `isEfsEndpointHost`). The
+  // enable route checks it at write time; this is the check that holds for rows that predate it, the
+  // env fallback, and a row edited in the database — the same reasoning soapFetch gives for re-running
+  // the SSRF gate. Every EFS call comes through here, so one check covers the feeds and card control.
+  if (!allowPrivateEndpoints(env) && !isEfsEndpointHost(hostOf(creds.endpointUrl))) {
+    throw new EfsSoapError(NOT_EFS_ENDPOINT_MESSAGE, "blocked_endpoint", { reason: "not_efs_host" });
+  }
   try {
     const response = await soapFetch(env, `${creds.orgId}:${creds.endpointUrl}`, {
       url: creds.endpointUrl,

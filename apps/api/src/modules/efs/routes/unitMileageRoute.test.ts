@@ -371,3 +371,40 @@ describe("showing EFS's reading beside ours", () => {
     expect(vendor.ops).toEqual([]);
   });
 });
+
+describe("the deploy-wide kill switch", () => {
+  it("refuses the odometer write when card control is switched off, before the vendor is dialled", async () => {
+    /**
+     * The 2026-09-22 audit: this was the only EFS write in production that EFS_CARD_CONTROL_ENABLED
+     * did not reach. Its own app, because the suite above is built with the switch ON.
+     */
+    const offEnv = loadEnv({
+      NODE_ENV: "test",
+      SECRETS_ENCRYPTION_KEY: KEY,
+      EFS_CARD_CONTROL_ENABLED: "false",
+    } as NodeJS.ProcessEnv);
+    const offApp = createApp(offEnv);
+    offApp.locals.verifyToken = async () => ADMIN;
+    const offServer = await new Promise<Server>((resolve) => {
+      const s = offApp.listen(0, () => resolve(s));
+    });
+    try {
+      recorder();
+      const vendor = stubVendor([258536, 258900]);
+      const res = await fetch(`http://127.0.0.1:${(offServer.address() as AddressInfo).port}/api/fuel-cards/unit-mileage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
+        body: JSON.stringify({ unit: "688", mileage: 258900 }),
+      });
+      const payload = (await res.json()) as { error: { code: string } };
+
+      expect(res.status).toBe(403);
+      expect(payload.error.code).toBe("card_control_disabled");
+      expect(vendor.ops).toEqual([]);
+      expect(db.forTable("vehicles")).toEqual([]);
+      expect(db.rpcs()).toEqual([]);
+    } finally {
+      await closeTestServer(offServer);
+    }
+  });
+});
