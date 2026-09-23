@@ -24,6 +24,7 @@
  *   node scripts/efs.mjs job efs_card_sync   # watch it
  *   pnpm efs:write-check                 # the ten-proof entitlement gate; prompts: token, password, card
  *   pnpm efs:prove card_lock             # prompts: token, password (step-up), card number
+ *   pnpm efs:restore --mutation-id <uuid>   # undo a proof whose revert failed; same prompts
  *   pnpm efs:promote card_lock --proof <uuid> --reason "OEG green on QA"
  *   pnpm efs:promote card_lock --suspend --reason "override drift on 7670"
  *   pnpm efs:echo-scan
@@ -523,6 +524,35 @@ switch (command) {
     const confirm = await promptVisible(`Type PROVE ${last4} to continue, anything else to stop: `);
     if (confirm.toUpperCase() !== `PROVE ${last4}`) die("Stopped. Nothing was sent.");
     await call(`/api/fuel-cards/prove/${capability}`, { cardNumber: card, confirm }, { stepUp: true });
+    break;
+  }
+
+  /**
+   * Put a card back from a proof's ledger row, when the proof's own revert did not land
+   * (2026-09-23, ••••6122). The API decides what may be restored (harness/restore.ts): only a
+   * proof's own change, only while the card still reads as that change left it. This command only
+   * collects the same things `prove` does, the same way. The mutation id is not secret: it is the
+   * `efs_card_mutations.id` the ledger view shows.
+   */
+  case "restore": {
+    const mutationId = flags["mutation-id"];
+    if (typeof mutationId !== "string" || !/^[0-9a-f-]{36}$/i.test(mutationId)) {
+      die("usage: pnpm efs:restore --mutation-id <efs_card_mutations.id> (the card number is prompted for)");
+    }
+    if (flags.card) {
+      die(
+        "--card refused on purpose: a card number passed as a flag lands in shell history and the\n"
+        + "process table. Run `pnpm efs:restore --mutation-id <uuid>` and paste it at the prompt instead.",
+      );
+    }
+    await getStepUpToken();
+    const card = await promptHidden("Card number (hidden): ", "card number");
+    if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
+    const last4 = card.slice(-4);
+    console.error(`\nThe card you entered ends in ••••${last4}. It will be written back to how it was before change ${mutationId}.`);
+    const confirm = await promptVisible(`Type RESTORE ${last4} to continue, anything else to stop: `);
+    if (confirm.toUpperCase() !== `RESTORE ${last4}`) die("Stopped. Nothing was sent.");
+    await call(`/api/fuel-cards/restore/${mutationId}`, { cardNumber: card, confirm }, { stepUp: true });
     break;
   }
 
