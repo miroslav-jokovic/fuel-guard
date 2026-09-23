@@ -7,7 +7,7 @@ import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { createSupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import type { CardMutationContext } from "../orchestrator/types.js";
 import { capabilityRegistry } from "../registry.js";
-import { proveCapability, type ProofOutcome } from "./prove.js";
+import { PROOF_CARD_IDLE_DAYS, proveCapability, recentlyUsedRefusal, type ProofOutcome } from "./prove.js";
 import { testEnv } from "../../../testing/testEnv.js";
 
 /**
@@ -324,5 +324,91 @@ describe("what the harness may and may not decide", () => {
 
     await expect(proveCapability(h.ctx, "card_lock", { ...h.deps, capabilities: noPlan }))
       .rejects.toThrow(/no proof plan/);
+  });
+});
+
+describe("a proof refuses a card someone is using (2026-09-23)", () => {
+  /**
+   * The incident this pins: `efs:prove card_deactivate` was pointed at a live driver's card that had
+   * fuelled that day, and it went Inactive for five seconds. The stub scripts login and ONE read and
+   * nothing after — a run that tried to write would run the stub dry and settle `error`, not `void`.
+   */
+  const usedAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  const withLastUse = (xml: string, iso: string) =>
+    xml.replace(/<lastUsedDate>[^<]*<\/lastUsedDate>/, `<lastUsedDate>${iso}</lastUsedDate>`);
+
+  it("voids on a card fuelled today, before the precondition and before any write", async () => {
+    const h = harness(stub(loginOk, withLastUse(ACTIVE, usedAgo(0))));
+    const result = await proveCapability(h.ctx, "card_lock", h.deps);
+
+    expect(result.outcome).toBe("void");
+    expect(result.detail).toMatch(/used for fuel 0 day\(s\) ago/);
+    expect(result.detail).toMatch(/Nothing was sent/);
+    expect(h.rec.writtenRows("efs_card_mutations")).toEqual([]);
+  });
+
+  it("proceeds on a card idle past the threshold — the same card, older date", async () => {
+    // The positive control. Without it, a guard that voided EVERY card would pass the case above.
+    const h = harness(stub(loginOk, withLastUse(ACTIVE, usedAgo(PROOF_CARD_IDLE_DAYS + 5))));
+    const result = await proveCapability(h.ctx, "card_lock", h.deps).catch((e) => e);
+    // Past the guard it reaches the write, which this stub has no response for — any outcome except
+    // the idle-card void proves the guard let it through.
+    expect(result.detail ?? String(result)).not.toMatch(/used for fuel/);
+  });
+
+  it("answers from the date alone: never used and long idle pass, recent and unreadable refuse", () => {
+    const now = Date.parse("2026-09-23T17:00:00Z");
+    expect(recentlyUsedRefusal(null, now)).toBeNull();
+    expect(recentlyUsedRefusal("", now)).toBeNull();
+    expect(recentlyUsedRefusal("2026-06-11T09:00:00.000-05:00", now)).toBeNull();
+    expect(recentlyUsedRefusal("2026-09-23T11:10:00.000-05:00", now)).toMatch(/0 day\(s\) ago/);
+    expect(recentlyUsedRefusal("2026-09-01T11:10:00.000-05:00", now)).toMatch(/22 day\(s\) ago/);
+    // "We could not tell" is not "idle".
+    expect(recentlyUsedRefusal("not a date", now)).toMatch(/could not read when this card was last used/);
+  });
+});
+
+describe("a proof checks its own undo before it starts (2026-09-23)", () => {
+  /**
+   * The revert used to be built and validated only after the apply had landed, so a revert the
+   * contract refused left the card changed with no way back. Now both are accepted first. The stub
+   * again scripts only login and one read: reaching the write would run it dry.
+   */
+  const withRevert = (revert: () => { capability: string; body: unknown }) => ({
+    ...capabilities,
+    card_lock: { ...capabilities.card_lock!, proof: { ...capabilities.card_lock!.proof!, revert } },
+  });
+
+  it("refuses to start when the revert would be refused by its contract — nothing is sent", async () => {
+    const h = harness(stub(loginOk, ACTIVE));
+    const deps = {
+      ...h.deps,
+      capabilities: withRevert(() => ({
+        capability: "prompts_set",
+        body: {
+          replaceAll: true, allowRemoveDriverId: false,
+          prompts: [{
+            infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "", reportValue: null, remove: false,
+            value: null, lengthCheck: false, minimum: null, maximum: null,
+          }],
+        },
+      })),
+    };
+    const result = await proveCapability(h.ctx, "card_lock", deps);
+
+    expect(result.outcome).toBe("error");
+    expect(result.detail).toMatch(/the revert would be refused by prompts_set: EXACT_MATCH needs a value/);
+    expect(result.detail).toMatch(/Nothing was sent/);
+    expect(h.rec.writtenRows("efs_card_mutations")).toEqual([]);
+  });
+
+  it("refuses to start when the revert names a capability that does not exist", async () => {
+    const h = harness(stub(loginOk, ACTIVE));
+    const result = await proveCapability(
+      h.ctx, "card_lock", { ...h.deps, capabilities: withRevert(() => ({ capability: "no_such_thing", body: {} })) },
+    );
+
+    expect(result.outcome).toBe("error");
+    expect(result.detail).toMatch(/the revert names "no_such_thing"/);
   });
 });
