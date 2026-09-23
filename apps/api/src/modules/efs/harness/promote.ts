@@ -51,6 +51,19 @@ export interface PromotionAuthority {
   proofRunBy: string | null;
   /** From `efs_soap_credentials.environment` — which EFS this org's writes actually reach. */
   environment: "sandbox" | "production";
+  /**
+   * True when the promoter is the deployment's named owner (`EFS_PROMOTION_OWNER_USER_ID`), the one
+   * principal allowed to accept their own proof on production. See the separation block below.
+   */
+  promoterIsOwner?: boolean;
+}
+
+/**
+ * Is this caller the deployment's named owner? Unset matches nobody — never "everyone" — so a deploy
+ * that has not named an owner keeps the strict two-person rule for all admins.
+ */
+export function isDeploymentOwner(ownerUserId: string | undefined, callerId: string | undefined): boolean {
+  return typeof ownerUserId === "string" && ownerUserId.length > 0 && ownerUserId === callerId;
 }
 
 export interface PromotionDecision {
@@ -201,6 +214,22 @@ export function decidePromotion(
       refusals.push(
         "The cited proof no longer records who ran it, so a second pair of eyes cannot be established. "
           + "Run a fresh proof and cite that one.",
+      );
+    } else if (proof && authority.proofRunBy === authority.promoterId && authority.promoterIsOwner === true) {
+      /**
+       * The owner exception — Miki's ruling, 2026-09-23. A company run by one developer-admin cannot
+       * satisfy "a second person" without borrowing a colleague for a step they cannot judge, which
+       * turns the rule into ceremony. So ONE named principal may accept their own proof.
+       *
+       * What keeps the rule's point: the name lives in a Railway variable, NOT in any table or setting
+       * an admin can edit. The attack this separation exists for is one stolen admin login proving and
+       * enabling live writes alone; an in-app "owner" flag would let that same login name itself owner
+       * first. Every other admin still needs a second person. And it is never silent — recorded here,
+       * so it rides on the promotion's audit row and in the response.
+       */
+      residualRisks.push(
+        "Self-approved by the deployment owner: the same person ran the proof and promoted it on "
+          + "PRODUCTION, under the owner exception (EFS_PROMOTION_OWNER_USER_ID).",
       );
     } else if (proof && authority.proofRunBy === authority.promoterId) {
       refusals.push(
