@@ -16,6 +16,7 @@ import {
   writeStops,
   type EventRow,
 } from "./tmsLoadIngestWriters.js";
+import { knownDispatcherIds } from "./tmsDispatcherIngest.js";
 import {
   AMENDABLE_LOAD_FIELDS,
   tmsMayOverwrite,
@@ -73,6 +74,12 @@ export interface LoadIngestResult {
   canceled: number;
   /** Match keys (unit numbers / employee ids) we could not resolve — reported, never silently dropped. */
   unmatched: string[];
+  /**
+   * Dispatcher ids a load named that `tms_dispatchers` does not hold yet. Reported, never refused:
+   * the column has no foreign key on purpose (0344), so one account the roster has not carried
+   * cannot fail a board.
+   */
+  unknownDispatchers: string[];
   results: TmsLoadResult[];
 }
 
@@ -246,6 +253,9 @@ function classify(
           // Stamped on the insert rather than by a second UPDATE, which is one of the six round trips
           // per load that L11 removed. Same end state.
           external_status: input.external_status ?? null,
+          // TMS attribution, never amendable (L4): who dispatches this load in McLeod. A new row has
+          // nothing to preserve, so silence is written as null here like every other insert field.
+          dispatcher_external_id: input.dispatcher_external_id ?? null,
           external_synced_at: syncedAt,
           ...(autoApprove ? { approved_at: syncedAt } : {}),
         },
@@ -261,7 +271,12 @@ function classify(
         kind: "own",
         priorId: prior.id,
         input,
-        patch: { ...patch, external_status: input.external_status ?? null, external_synced_at: syncedAt },
+        patch: {
+          ...patch,
+          ...(input.dispatcher_external_id !== undefined ? { dispatcher_external_id: input.dispatcher_external_id } : {}),
+          external_status: input.external_status ?? null,
+          external_synced_at: syncedAt,
+        },
         result: { external_id: input.external_id, ref: input.ref, outcome: "updated" },
       };
     }
@@ -310,11 +325,12 @@ export async function ingestLoads(
   provider: string,
   loads: TmsLoadInput[],
 ): Promise<LoadIngestResult> {
-  const [vehicles, trailers, drivers, autoApprove] = await Promise.all([
+  const [vehicles, trailers, drivers, autoApprove, dispatchers] = await Promise.all([
     lookup(admin, "vehicles", orgId),
     lookup(admin, "trailers", orgId),
     driverLookup(admin, orgId),
     autoApproves(admin, orgId, provider),
+    knownDispatcherIds(admin, orgId, provider),
   ]);
 
   // Everything this feed has already written for this org, so the whole batch is one lookup.
@@ -405,7 +421,11 @@ export async function ingestLoads(
     admin,
     orgId,
     syncedAt,
-    reported.map((r) => ({ loadId: r.priorId, externalStatus: r.input.external_status ?? null })),
+    reported.map((r) => ({
+      loadId: r.priorId,
+      externalStatus: r.input.external_status ?? null,
+      dispatcherExternalId: r.input.dispatcher_external_id,
+    })),
   );
   for (const r of reported) {
     // Even an amendment dispatch has not applied is worth recording: it is the evidence behind the
@@ -429,6 +449,9 @@ export async function ingestLoads(
     amended: reported.filter((r) => r.event !== null).length,
     canceled: cancels.length,
     unmatched: [...unmatched],
+    unknownDispatchers: [
+      ...new Set(loads.map((l) => l.dispatcher_external_id).filter((d): d is string => !!d && !dispatchers.has(d))),
+    ],
     // Reported in the order the feed sent them, whatever order the writes happened in.
     results: decisions.map((d) => d.result),
   };

@@ -450,6 +450,9 @@
   "thread_participants": [
     "apps/api/src/modules/messaging/messages.ts"
   ],
+  "tms_dispatchers": [
+    "apps/api/src/modules/mcleod/tmsDispatcherIngest.ts"
+  ],
   "tms_movements": [
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
@@ -459,12 +462,12 @@
     "apps/api/src/modules/samsara/samsaraTrailerSync.ts",
     "apps/web/src/composables/useTrailers.ts"
   ],
+  "user_dashboard_layout": [
+    "apps/api/src/modules/org/routes/dashboardLayout.ts"
+  ],
   "user_profiles": [
     "apps/api/src/modules/org/inviteRedemption.ts",
     "apps/api/src/modules/org/routes/members.ts"
-  ],
-  "user_dashboard_layout": [
-    "apps/api/src/modules/org/routes/dashboardLayout.ts"
   ],
   "user_section_access": [
     "apps/api/src/modules/org/routes/sectionAccess.ts"

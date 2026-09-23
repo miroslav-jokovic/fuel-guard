@@ -626,3 +626,22 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
 - 2026-09-17 — **`0344` confirmed APPLIED in production 340 s after merge** (checked from
   `information_schema`, not from the clock), so L4 is unblocked. Handoff written at
   `HANDOFF-2026-09-17-LOADS.md` — start there in a new session, then read this log's end.
+- 2026-09-23 — **L4 built** (PR pending): `POST /api/tms/dispatchers` → `tmsDispatcherIngest.ts`,
+  complete rows on `(org_id, provider, external_id)` and **no `user_id` key in the row** (D-LM4);
+  `ingestLoads` writes `dispatcher_external_id` on create and on a feed-owned patch, and reports
+  `unknownDispatchers` rather than refusing a board; the agent posts dispatchers before loads each
+  cycle; the `tms_dispatchers` waiver is gone from `check-table-producers.mjs`.
+  ⚠ **The handoff's premise was half wrong.** It said the agent reads the dispatcher and only the
+  ingest discards it. **The agent discarded it too**: `DISPATCH_LOADS` selects it, the test fixture
+  carries `"romann"`, and `mapLoad` never copied it into the payload — no test asserted the output.
+  Fixed, pinned ("the load carries its dispatcher, and an A load carries none"), mutation-proven.
+  Live dry-run after the fix: 150 loads, **112 with a dispatcher = the 112 `P` loads**, 16
+  dispatchers, 2 `is_system` (`lmeadm`, `loadmaster`).
+  **One decision beyond the letter of §3:** the dispatcher is also stamped on loads DISPATCH owns,
+  beside `external_status`, and raises no amendment. It is McLeod attribution that nothing in
+  Silvicom sets, and an approved load is exactly the one on a dispatcher's board — frozen at
+  approval, a reassignment in McLeod would leave it on the wrong board for good. Pinned by "stamps a
+  reassignment onto an APPROVED load without raising an amendment".
+  Seven mutations, each caught: `user_id` in the row, `is_system` from the name, no stamp on an
+  approved load, the id read unscoped, silence clearing a feed-owned load, the insert dropping it,
+  and every id reported unknown. **Done-when still owes** the real `--loads` run after deploy.

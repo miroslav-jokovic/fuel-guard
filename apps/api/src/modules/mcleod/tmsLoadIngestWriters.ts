@@ -69,24 +69,35 @@ export async function writePayloads(
 }
 
 /**
- * Stamp what the TMS currently calls each load.
+ * Stamp what the TMS currently says ABOUT each load: its status word and, when the feed sent one, its
+ * dispatcher.
  *
- * `external_status` is a status word, safe for a driver to see, and it is the field the cancellation
- * path reads. It is stamped even on a load dispatch owns and the feed may not write — that is
- * deliberate: it is the evidence behind the amendment banner they are about to read.
+ * Both are attribution, not dispatch decisions, so both are stamped even on a load dispatch owns and
+ * the feed may not otherwise write. `external_status` is the evidence behind the amendment banner and
+ * the field the cancellation path reads. `dispatcher_external_id` joined it in L4 because an approved
+ * load is exactly the one on a dispatcher's board (LM8's rail filters on it), and McLeod reassigns
+ * loads between dispatchers after they are covered — frozen at approval, a load would stay on the
+ * wrong person's board for the rest of its life. Nothing in Silvicom sets it, so there is no human
+ * decision here for the feed to overwrite.
+ *
+ * A key the feed said nothing about is left out of the stamp rather than written as null: `undefined`
+ * is silence, not a clear (see classify in tmsLoadIngest.ts).
  *
  * Grouped by VALUE rather than issued per load, because one UPDATE can only set one value. The live
- * board carries two (`P` and `A`), so this is two statements for any batch size rather than 157.
+ * board carries two statuses and ~15 dispatchers, so this is at most a few dozen statements for any
+ * batch size rather than one per load.
  */
 export async function stampExternalStatus(
   admin: SupabaseClient,
   orgId: string,
   syncedAt: string,
-  entries: { loadId: string; externalStatus: string | null }[],
+  entries: { loadId: string; externalStatus: string | null; dispatcherExternalId?: string | null }[],
 ): Promise<void> {
   const byValue = new Map<string, string[]>();
   for (const e of entries) {
-    const key = JSON.stringify(e.externalStatus ?? null);
+    const stamp: Record<string, unknown> = { external_status: e.externalStatus ?? null };
+    if (e.dispatcherExternalId !== undefined) stamp.dispatcher_external_id = e.dispatcherExternalId;
+    const key = JSON.stringify(stamp);
     const bucket = byValue.get(key);
     if (bucket) bucket.push(e.loadId);
     else byValue.set(key, [e.loadId]);
@@ -94,11 +105,11 @@ export async function stampExternalStatus(
   for (const [key, ids] of byValue) {
     const { error } = await admin
       .from("loads")
-      .update({ external_status: JSON.parse(key) as string | null, external_synced_at: syncedAt })
+      .update({ ...(JSON.parse(key) as Record<string, unknown>), external_synced_at: syncedAt })
       // Service role bypasses RLS, so this carries its own org filter like every other query here.
       .in("id", ids)
       .eq("org_id", orgId);
-    if (error) console.error(`[tms-loads] external_status not recorded for ${ids.length} load(s): ${error.message}`);
+    if (error) console.error(`[tms-loads] provenance not recorded for ${ids.length} load(s): ${error.message}`);
   }
 }
 
