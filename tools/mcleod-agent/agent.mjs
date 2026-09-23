@@ -561,8 +561,11 @@ async function runRetire() {
 // ── main ────────────────────────────────────────────────────────────────────────────────────────
 /** Sweep one rolling accrual window of settlements + AP vouchers into FuelGuard (P3.2). */
 /**
- * The open board → FuelGuard. Loads only; the dispatcher roster is posted from LM3, when
- * `POST /api/tms/dispatchers` exists. Calling it before then would log a 404 every cycle.
+ * The open board → FuelGuard: the dispatcher roster first, then the loads (L4).
+ *
+ * Dispatchers go first so that an account which appeared since the last cycle is already known when
+ * a load names it. The order is a courtesy, not a dependency: `loads.dispatcher_external_id` has no
+ * foreign key, and the loads ingest reports an unknown dispatcher rather than refusing the board.
  */
 async function runLoads() {
   if (CFG.dryRun) {
@@ -581,6 +584,8 @@ async function runLoads() {
     console.log(JSON.stringify({ loads: res.loads, dispatchers: res.dispatchers }, null, 2));
     return;
   }
+  const d = await postToFuelGuard("/api/tms/dispatchers", { dispatchers: res.dispatchers });
+  log(`loads: dispatchers ${JSON.stringify(d?.data ?? d)}`);
   const out = await postToFuelGuard("/api/tms/loads", { loads: res.loads });
   log(`loads: ingested ${JSON.stringify(out?.data ?? out)}`);
 }

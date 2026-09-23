@@ -115,6 +115,17 @@ test("reefer is read from the trailer type, which is the only place it exists", 
   assert.equal(mapLoad(row({ trailer_type: null }), []).load.equipment, null);
 });
 
+test("the load carries its dispatcher, and an A load carries none", () => {
+  // DISPATCH_LOADS selected this from LM1b onward and mapLoad dropped it on the floor until L4, so a
+  // 158-load production board arrived with 0 dispatchers. The fixture above always carried "romann";
+  // nothing asserted it came out the other side.
+  const { load } = mapLoad(row(), [stop()]);
+  assert.equal(load.dispatcher_external_id, "romann");
+  assert.equal(load.dispatcher_name, "romann");
+  const open = mapLoad(row({ dispatcher_external_id: null, dispatcher_name: null, external_status: "A" }), [stop()]);
+  assert.equal(open.load.dispatcher_external_id, null);
+});
+
 // ── dispatchers ───────────────────────────────────────────────────────────────────────────────
 test("is_system comes from configuration, not from the display name", () => {
   // `loadmaster` and `lmeadm` are BOTH named "McLeod Administrator"; matching on the name would

@@ -7,6 +7,7 @@ import {
   tmsMovementsPayloadSchema,
   driverTimeOffPayloadSchema,
   tmsLoadsPayloadSchema,
+  tmsDispatchersPayloadSchema,
   tmsDriversPayloadSchema,
   tmsVehiclesPayloadSchema,
   tmsTrailersPayloadSchema,
@@ -15,6 +16,7 @@ import {
 } from "@silvicom/shared";
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../tmsIngest.js";
 import { ingestLoads } from "../tmsLoadIngest.js";
+import { ingestDispatchers } from "../tmsDispatcherIngest.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.js";
 import { reconcileAbsentFromTms, retireFromTms } from "../rosterRetire.js";
 import { isTmsRosterMaster } from "../rosterMastery.js";
@@ -262,6 +264,29 @@ export function tmsIngestRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const { orgId, provider } = req.tms!;
       const result = await ingestLoads(admin, orgId, provider, parsed.data.loads);
+      await touchLastSynced(admin, orgId, provider);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * The TMS's dispatcher roster (L4). Who exists, so a load's `dispatcher_external_id` has a name on
+   * the board; never who a dispatcher IS in Silvicom — `user_id` is an office act (LM11) and this
+   * route cannot write it. The agent posts this before `/loads` each cycle, so a new account is
+   * usually known by the time a load names it; when it is not, `/loads` reports it rather than
+   * refusing the board.
+   */
+  router.post(
+    "/dispatchers",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsDispatchersPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "invalid payload"));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { orgId, provider } = req.tms!;
+      const result = await ingestDispatchers(admin, orgId, provider, parsed.data.dispatchers);
       await touchLastSynced(admin, orgId, provider);
       res.json({ ok: true, ...result });
     }),

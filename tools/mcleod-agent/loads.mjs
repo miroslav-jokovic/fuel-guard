@@ -138,6 +138,11 @@ export function mapLoad(row, stopRows) {
       commodity: row.commodity ?? null,
       total_miles: row.total_miles == null ? null : Number(row.total_miles),
       external_status: row.external_status ?? null,
+      // Who dispatches it in McLeod (L4). Selected by DISPATCH_LOADS since LM1b and dropped right here
+      // until 2026-09-23, so the ingest had nothing to persist even after it learned how. Null on an
+      // A load, which no dispatcher has taken yet.
+      dispatcher_external_id: row.dispatcher_external_id ?? null,
+      dispatcher_name: row.dispatcher_name ?? null,
       canceled: false,
       stops: sent,
       raw: {
