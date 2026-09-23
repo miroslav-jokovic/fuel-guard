@@ -40,6 +40,7 @@ import { fuelCardEchoScanRouter } from "./modules/efs/routes/echoScan.js";
 import { fuelCardConfigScanRouter } from "./modules/efs/routes/scan.js";
 import { fuelCardProveRouter } from "./modules/efs/routes/prove.js";
 import { fuelCardPromoteRouter } from "./modules/efs/routes/promote.js";
+import { fuelCardRestoreRouter } from "./modules/efs/routes/restore.js";
 import { fuelCardExperimentsRouter } from "./modules/efs/routes/experiments.js";
 import { fuelCardProbeRouter } from "./modules/efs/routes/probe.js";
 import { fuelCardInventoryRouter } from "./modules/efs/routes/inventory.js";
@@ -269,7 +270,7 @@ function mountApiRouters(app: Express, env: Env): void {
   // ⚠ fuelCardUnitMileageRouter joins settings AHEAD of fuelCardsRouter, for the same reason:
   // `GET /:id` matches the literal path "unit-mileage" and would answer 404 for a card id that
   // never was one. Its POST is safe anywhere, but the pair belongs together.
-  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardUnitMileageRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(env), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter(), fuelCardConfigScanRouter(), fuelCardProveRouter(), fuelCardPromoteRouter(), fuelCardInventoryRouter());
+  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardUnitMileageRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(env), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter(), fuelCardConfigScanRouter(), fuelCardProveRouter(), fuelCardRestoreRouter(), fuelCardPromoteRouter(), fuelCardInventoryRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
