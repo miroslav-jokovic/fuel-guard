@@ -248,6 +248,18 @@ body {
     background: var(--sidebar-hover);
   }
 
+  /* A control standing on the photograph while the top bar is at rest (D-DT22). With the bar's own
+     material gone, the bell's `ink-tertiary` glyph sat directly on the plate, and at 1440 the plate's
+     top-right corner is snow and bright sky — the bell simply vanished (measured 2026-09-22, light).
+     The map panels' 82% surface and blur, for the map panels' reason: the control carries its own
+     ground, so its legibility no longer depends on which hour or which crop is behind it. */
+  .bar-float {
+    background: color-mix(in oklab, var(--surface) 82%, transparent);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--ink) 12%, transparent);
+  }
+
   /* ── The page backdrop (D-DT18, D-DT19) ───────────────────────────────────────────────────────
      Written here rather than as utilities on the element because two of its three parts are
      multi-stop gradients — a four-stop mask and a five-stop veil — and a gradient with four stops
@@ -273,56 +285,65 @@ body {
      still 64px INTO the row, and the screenshot showed the range picker sitting on the truck.
      Guessing at a landing is what produced 400 in the first place; both numbers here are read off
      `getBoundingClientRect`.) */
+  /* ⚠ `--backdrop-lift` is the top bar (4rem) plus `<main>`'s own `py-6` (1.5rem), handed in by
+     `AppShell` beside the bleed and for the same reason (D-DT22). Until 2026-09-22 the layer started
+     at the page content, so 88px of empty canvas and a hairline sat ABOVE the photograph and the
+     photograph began on a hard edge — a strip pasted into the page. Lifted, it starts at the top of
+     the column and the bar stands on the sky; `--backdrop-h` keeps its meaning (how far below the
+     content's first line the plate still matters), so the control-row arithmetic below is unchanged. */
   .page-backdrop {
     position: absolute;
-    top: 0;
+    top: calc(var(--backdrop-lift, 0px) * -1);
     left: 0;
     right: calc(var(--backdrop-bleed, 0px) * -1);
-    height: var(--backdrop-h, 144px);
+    height: calc(var(--backdrop-h, 144px) + var(--backdrop-lift, 0px));
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
   }
 
   /* ⚠ `cover`, and the arithmetic that said otherwise was the arithmetic of a 400px band (D-DT19).
-     The source is 1920×822 (2.34:1). At 400px tall this box was 2.44:1 — so nearly the same shape
-     that `cover` cropped nothing, rendered the whole frame sky and all, and parked the truck below
-     the greeting; `auto 132%` from `right bottom` was the answer to THAT.
+     At 400px `cover` cropped nothing and parked the truck below the greeting; at 144px it scaled to
+     the box's width and the veil alone decided where the picture stopped.
 
-     At 144px the box is 6:1 and the two facts reverse. `auto 132%` scales the frame to 190px tall
-     and therefore 445px WIDE, inside an 864px box — a small photograph with a hard left edge
-     sitting in the corner, which is what the first build of this height actually showed. `cover`
-     scales to the box's width (369px tall, 225 of it cropped) so the plate is FULL of photograph
-     and only the veil decides where it stops. `right 70%` is where the subject lands: y 44–82% of
-     369px is 162–303, and a 144px window opened at 70% of the 225px of slack starts at 158 —
-     the cab and the trailer, with the road underneath. Measured, not eyeballed.
+     Lifted to 232px (D-DT22) the box is ~3.6:1 at 1440 — the plate is 842px wide after its 28% inset,
+     so the 1920×822 source scales to 360px tall with 128px of slack. The plates were regenerated the
+     same day (a 2027 Cascadia, the night frame relit FROM the day frame so the two are one photograph
+     at two hours): the truck spans y 52–83% of the frame (187–299px), and `bottom` opens the window at
+     128px — the cab's roof lands just under the bar at 59px, the tyres at 171px, and the road
+     underneath them is what the fade gets to eat.
 
-     ⚠ Four mask stops, not two: a straight linear ramp reads as a mechanical wipe and the eye finds
-     its midpoint. Solid for the first half, then a long ease out. */
+     ⚠ The fade was the defect the owner named on 2026-09-22 ("the fade on the bottom is not good"),
+     and the reason is measurable: the mask went soft at 46% of a 144px band, i.e. at 66px, which
+     was the middle of the TRAILER. Everything below that — tyres, bumper, road — dissolved into
+     grey, and a truck with no wheels reads as fog, not as a photograph ending. So the plate is solid
+     to 82% (190px, clear of the tyres at 171) and feathers across the last 42px of road only: a
+     picture that ends on its own ground line. Below `xl` the plate is height-fitted (its window is
+     too narrow for width to win) and the tyres sit at 193px — 3px into the feather, where a 0.9
+     alpha does not read as a fade. */
   .page-backdrop__plate {
     position: absolute;
     inset: 0 0 0 28%;
     background-image: var(--backdrop-plate);
     background-size: cover;
-    background-position: right 70%;
+    background-position: right bottom;
     background-repeat: no-repeat;
-    -webkit-mask-image: linear-gradient(
-      to bottom,
-      #000 0%,
-      #000 46%,
-      rgba(0, 0, 0, 0.62) 68%,
-      rgba(0, 0, 0, 0.24) 86%,
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      to bottom,
-      #000 0%,
-      #000 46%,
-      rgba(0, 0, 0, 0.62) 68%,
-      rgba(0, 0, 0, 0.24) 86%,
-      transparent 100%
-    );
+    -webkit-mask-image:
+      linear-gradient(to bottom, #000 0%, #000 82%, rgba(0, 0, 0, 0.55) 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 32%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to bottom, #000 0%, #000 82%, rgba(0, 0, 0, 0.55) 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 32%);
+    mask-composite: intersect;
   }
+
+  /* ⚠ The second mask layer is the plate feathering its OWN left edge, intersected with the first.
+     The veil used to be the only thing hiding that edge, and it only can while the edge falls where
+     the veil is still near-opaque: at 1100px, height-fitted with the 44% inset, the edge sat where
+     the veil was ~85% canvas and showed as a seam straight down the page, darkest across the road
+     (measured 2026-09-22). An edge that dissolves itself is right at every inset without the veil's
+     stops having to know where the plate begins. */
 
   /* The greeting sits ON the plate, so this is a legibility guarantee rather than a nicety: opaque
      `--canvas` across the text zone, then a ramp that has finished before the truck's cab. The
