@@ -15,7 +15,7 @@ import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessu
 import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
-import { heroPlate, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
+import { heroPlate, heroVars, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
 import { useColorScheme } from "@/composables/useColorScheme";
 import { useModulesQuery } from "@/composables/useModules";
 import NotificationBell from "@/components/NotificationBell.vue";
@@ -58,8 +58,7 @@ const plate = computed(() => heroPlate(route, isDark.value));
  * material and rule once the page moves: at rest it would be a grey band drawn across the sky; in
  * motion it is the thing keeping the toggle and the bell legible over whatever scrolls under it.
  * That is the large-title navigation bar's behaviour, for the same reason. `useWindowScroll`
- * because the document scrolls, not `<main>` — a full-bleed route has no plate, so its own
- * overflow container never needs asking.
+ * because the document scrolls, not `<main>`: a full-bleed route has no plate to step back from.
  */
 const { y: scrollY } = useWindowScroll();
 const barAtRest = computed(() => Boolean(plate.value) && scrollY.value < 8);
@@ -156,6 +155,7 @@ const sidebarCollapsed = computed(() =>
     override: collapseOverride.value,
   }),
 );
+const heroStyle = computed(() => heroVars(plate.value, sidebarCollapsed.value));
 function toggleSidebar() {
   const next = !sidebarCollapsed.value;
   // On a workspace the choice is about this visit; on a document it is the preference, and only that
@@ -453,7 +453,7 @@ async function signOut() {
         <div
           class="relative"
           :class="fullBleed ? 'h-full' : 'w-full px-4 sm:px-6 lg:px-8'"
-          :style="plate ? { '--backdrop-plate': `url(${plate})` } : undefined"
+          :style="heroStyle"
         >
           <!--
             ⚠ The layer is a SIBLING of the page, first in the document and inside the gutter's own

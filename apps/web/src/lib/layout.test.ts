@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasHeroPlate, heroPlate, isFullBleed, resolveLayout, sidebarIsCollapsed } from "./layout";
+import { hasHeroPlate, heroPlate, heroVars, isFullBleed, resolveLayout, sidebarIsCollapsed } from "./layout";
 
 describe("resolveLayout (G1)", () => {
   it("signed out, a dead-end page swaps AppShell for the centered auth shell", () => {
@@ -152,5 +152,22 @@ describe("heroPlate (D-DT18)", () => {
     expect(hasHeroPlate(dashboard("map"))).toBe(false);
     // …and a statically full-bleed route with a plate declared on it gets the same answer.
     expect(heroPlate(route({ hero: DAY, fullBleed: true }), false)).toBeNull();
+  });
+});
+
+describe("heroVars (D-DT22)", () => {
+  it("hands a plated page its plate and a room measured past the SIDEBAR it actually has", () => {
+    const open = heroVars("/hero/x.webp", false);
+    expect(open?.["--backdrop-plate"]).toBe("url(/hero/x.webp)");
+    expect(open?.["--hero-room"]).toBe("clamp(0px, 100vw - 17rem - 73rem, 87.5rem)");
+    expect(heroVars("/hero/x.webp", true)?.["--hero-room"]).toContain("100vw - 3.75rem - 73rem");
+  });
+
+  it("declares the growth beside the room, where its var() can resolve", () => {
+    expect(heroVars("/hero/x.webp", false)?.["--hero-grow"]).toBe("calc(var(--hero-room) * 0.035)");
+  });
+
+  it("is nothing at all on a page without a plate", () => {
+    expect(heroVars(null, false)).toBeUndefined();
   });
 });

@@ -132,3 +132,33 @@ export function heroPlate(
   // plates have no night variant, and a missing file is not a reason to drop the layer.
   return (isDark && heroDark) || hero || null;
 }
+
+/**
+ * The custom properties the shell hands to a plated page, or none on a page without a plate.
+ *
+ * `--hero-room` is how much wider than a 1440 window's content the page is, and so how much the hero
+ * may grow. ⚠ Reported by the owner 2026-09-23, twice. At a FIXED 232px band the truck can only be
+ * so large before its roof or its wheels leave the band, so the first fix for a wide screen capped
+ * the photograph at its 1440 width — correct framing, and a small picture parked at the right of a
+ * 2470px screen with empty canvas beside it. The band's height was the real constraint, so the
+ * plate's width AND the band's height now grow together from this one measurement (the arithmetic
+ * is in style.css at `.page-backdrop__plate`). It is the CONTENT width, which is why the sidebar's
+ * width is in it: collapsing the sidebar is more room, and the hero takes it. 73rem is 1104px of
+ * content plus the 2 × 2rem gutter — a 1440 window with the sidebar open, where the plate was
+ * framed; 87.5rem stops the growth at a ~3900px window.
+ *
+ * `--hero-grow` is declared here, beside the room it reads, because a custom property resolves its
+ * `var()`s where it is DECLARED: defined on `:root` it would read an unset room and be 0 everywhere.
+ */
+export function heroVars(
+  plate: string | null,
+  sidebarCollapsed: boolean,
+): Record<string, string> | undefined {
+  if (!plate) return undefined;
+  const sidebar = sidebarCollapsed ? "3.75rem" : "17rem";
+  return {
+    "--backdrop-plate": `url(${plate})`,
+    "--hero-room": `clamp(0px, 100vw - ${sidebar} - 73rem, 87.5rem)`,
+    "--hero-grow": "calc(var(--hero-room) * 0.035)",
+  };
+}
