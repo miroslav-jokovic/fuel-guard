@@ -68,7 +68,7 @@ const trail = computed(() =>
        * photograph. The height is the band's own — 136px, the prototype's — so the greeting sits
        * level with the subject rather than above it.
        */
-      onBackdrop ? 'relative min-h-34 justify-center py-2' : 'border-b border-edge-subtle pb-5',
+      onBackdrop ? 'page-header-on-plate relative justify-center py-2' : 'border-b border-edge-subtle pb-5',
     ]"
   >
     <div class="min-w-0">
