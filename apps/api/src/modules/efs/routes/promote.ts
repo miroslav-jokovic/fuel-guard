@@ -7,7 +7,7 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
-import { decidePromotion, type OrgObservation, type ProofEvidence } from "../harness/promote.js";
+import { decidePromotion, isDeploymentOwner, type OrgObservation, type ProofEvidence } from "../harness/promote.js";
 import { judgeField, observeField } from "../harness/configScan.js";
 import { signalPromotionStateChanged } from "../../../lib/cardControlSignals.js";
 
@@ -202,6 +202,7 @@ export function fuelCardPromoteRouter(): Router {
           promoterId: req.auth!.userId,
           proofRunBy: (row?.run_by as string | null) ?? null,
           environment,
+          promoterIsOwner: isDeploymentOwner(env.EFS_PROMOTION_OWNER_USER_ID, req.auth!.userId),
         },
       );
 

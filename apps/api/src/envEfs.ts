@@ -87,6 +87,10 @@ export const efsEnvFields = {
   EFS_CARD_CONTROL_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
   // Gates the QA entitlement probe endpoint. Staging only, and unset again once the probe has run.
   EFS_CARD_CONTROL_PROBE_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
+  // The ONE user who may accept their own capability proof on production (harness/promote.ts, the
+  // owner exception). A deploy variable on purpose, not a setting: an admin whose login was stolen
+  // must not be able to name themselves. Unset = strict two-person rule for everyone.
+  EFS_PROMOTION_OWNER_USER_ID: z.string().uuid().optional(),
   // Explicit emergency escape hatch for a production probe. Default FALSE so a probe cannot write a live card by accident.
   EFS_ALLOW_PRODUCTION_PROBE: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
   // D1: clear overrides via the dedicated `deleteOverride` operation (guide p27) instead of the

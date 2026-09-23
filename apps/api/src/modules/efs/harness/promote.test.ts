@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidePromotion, type OrgObservation, type ProofEvidence, type PromotionAuthority } from "./promote.js";
+import { decidePromotion, isDeploymentOwner, type OrgObservation, type ProofEvidence, type PromotionAuthority } from "./promote.js";
 
 /**
  * Step 4.6's rule, tested as data.
@@ -274,6 +274,48 @@ describe("who may promote a capability to production", () => {
     expect(decision.refusals).toEqual([]);
   });
 
+  it("lets the deployment OWNER accept their own proof on production, and records that they did", () => {
+    // Miki's ruling, 2026-09-23: a one-admin company cannot supply a second person. The exception is
+    // for the principal named in a deploy variable only, and it is never silent.
+    const decision = decidePromotion("card_lock", greenProof(), org(), authority({
+      environment: "production",
+      promoterId: MAKER,
+      proofRunBy: MAKER,
+      promoterIsOwner: true,
+    }));
+
+    expect(decision.allowed).toBe(true);
+    expect(decision.refusals).toEqual([]);
+    expect(decision.residualRisks.join(" ")).toMatch(/Self-approved by the deployment owner/);
+  });
+
+  it("still refuses any OTHER admin who approves their own proof on production", () => {
+    // The owner flag belongs to one person. Every other admin keeps the two-person rule, which is
+    // what stops one stolen login from proving and enabling live card writes alone.
+    const decision = decidePromotion("card_lock", greenProof(), org(), authority({
+      environment: "production",
+      promoterId: CHECKER,
+      proofRunBy: CHECKER,
+      promoterIsOwner: false,
+    }));
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.refusals.join(" ")).toMatch(/needs a second person/);
+  });
+
+  it("gives the owner no way past the EVIDENCE refusals — the exception is about who, not what", () => {
+    const decision = decidePromotion("card_lock", greenProof({ documentShape: "flat" }), org(), authority({
+      environment: "production",
+      promoterId: MAKER,
+      proofRunBy: MAKER,
+      promoterIsOwner: true,
+    }));
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.refusals.join(" ")).toMatch(/"flat" document/);
+    expect(decision.refusals.join(" ")).not.toMatch(/needs a second person/);
+  });
+
   it("refuses on production when the proof no longer records who ran it, and names the fix", () => {
     // `run_by` is `on delete set null`. A null means separation cannot be established either way, and
     // this is the highest-privilege act in the product — so it fails closed rather than open. The
@@ -318,5 +360,20 @@ describe("who may promote a capability to production", () => {
 
     expect(decision.refusals.join(" ")).toMatch(/"flat" document/);
     expect(decision.refusals.join(" ")).toMatch(/needs a second person/);
+  });
+});
+
+describe("isDeploymentOwner — how the route reads EFS_PROMOTION_OWNER_USER_ID", () => {
+  it("matches only the one named user", () => {
+    expect(isDeploymentOwner(MAKER, MAKER)).toBe(true);
+    expect(isDeploymentOwner(MAKER, CHECKER)).toBe(false);
+  });
+
+  it("matches NOBODY when the variable is unset — never everybody", () => {
+    // `undefined === undefined` is true; a caller with no id must not become the owner of a deploy
+    // that named none. Unset means the strict two-person rule for every admin.
+    expect(isDeploymentOwner(undefined, undefined)).toBe(false);
+    expect(isDeploymentOwner(undefined, MAKER)).toBe(false);
+    expect(isDeploymentOwner("", "")).toBe(false);
   });
 });
