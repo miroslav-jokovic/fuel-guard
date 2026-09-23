@@ -2325,6 +2325,14 @@ async function main() {
         `     m as (insert into memberships (org_id, user_id, role) select '${org}', id, 'dispatcher' from u returning user_id) ` +
         `insert into user_dashboard_layout (org_id, user_id, widget_keys, hidden_keys) ` +
         `select '${org}', user_id, array['dispatch.live-map'], '{}'::text[] from m`,
+      // 0363: two CHECKs the generic synthesiser cannot satisfy by filling every column — a row is
+      // never both consumed AND revoked, and it expires after it was made — plus a token_hash that
+      // must be a SHA-256 hex digest. Each exists so the raw token or an impossible state cannot be
+      // stored; handing the seeder a real live row is cheaper than loosening any of them.
+      password_resets: (org) =>
+        `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-pwr@example.com') returning id) ` +
+        `insert into password_resets (org_id, user_id, token_hash, expires_at) ` +
+        `select '${org}', id, encode(sha256(gen_random_uuid()::text::bytea), 'hex'), now() + interval '1 hour' from u`,
     },
   });
   console.log(

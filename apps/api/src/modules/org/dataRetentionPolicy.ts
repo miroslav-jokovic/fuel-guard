@@ -233,6 +233,17 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "D-PKT7: §395.8(k)(1) asks for six months of supporting documents; 400 days keeps an audit margin without holding a person's working hours indefinitely. Immutable on UPDATE (SD010) but prunable by design — see 0236's header",
   },
+  {
+    // 0363. A reset link is dead within the hour; the row after that is only a hash nobody can use.
+    // The record of who asked, who sent it and whether it was used lives in `audit_logs`
+    // (`auth.password_reset_*`), which is RETENTION_FORBIDDEN — so pruning here forgets nothing.
+    table: "password_resets",
+    timeColumn: "created_at",
+    keepDays: 30,
+    strategy: "id",
+    orgScoped: true,
+    why: "0363: a reset link lives 60 minutes; the durable record of every request and completion is audit_logs (auth.password_reset_*), which this rule cannot touch",
+  },
 ];
 
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */

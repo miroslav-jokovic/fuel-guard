@@ -1520,6 +1520,17 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "password_resets": {
+      "module": "org",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 30,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "emailed reset links (0363). A handful a day at most \u2014 twelve users on 2026-09-23 and three links per person per hour. 30d: a link is dead within an hour, and the durable record of every request and completion is audit_logs, which is RETENTION_FORBIDDEN."
+      }
+    },
     "pattern_sweep_requests": {
       "module": "anomalies",
       "layer": "infra",

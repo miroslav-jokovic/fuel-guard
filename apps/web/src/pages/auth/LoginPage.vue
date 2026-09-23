@@ -42,6 +42,9 @@ async function onSubmit() {
       <FormField id="password" v-slot="{ id }" label="Password">
         <AppPasswordInput :id="id" v-model="password" autocomplete="current-password" required />
       </FormField>
+      <div class="-mt-3 text-right">
+        <RouterLink to="/forgot-password" class="text-sm text-brand-700 underline">Forgot password?</RouterLink>
+      </div>
 
       <p v-if="error" class="text-sm text-danger-600">{{ error }}</p>
 

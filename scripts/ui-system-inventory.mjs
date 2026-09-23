@@ -163,8 +163,12 @@ function verifyAdoption() {
     "ApplyPage.vue",
     "auth/AcceptInvitePage.vue",
     "auth/DriverAppRedirectPage.vue",
+    // 0363: both render in AuthLayout beside LoginPage, for somebody who cannot sign in — the same
+    // no-workspace reason as the four auth pages around them.
+    "auth/ForgotPasswordPage.vue",
     "auth/LoginPage.vue",
     "auth/PendingPage.vue",
+    "auth/ResetPasswordPage.vue",
     // P3's three published documents. Same reason as the placard calculator directly above: they
     // render in `PublicLayout` for a driver or a store reviewer with no session, so there is no
     // workspace for a header to sit in and no breadcrumb trail to walk. `LegalDocument.vue` gives

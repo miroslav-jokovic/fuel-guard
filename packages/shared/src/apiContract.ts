@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { newPasswordSchema } from "./passwordResetContract.js";
 import { USER_ROLES } from "./constants.js";
 import { isEditableSurface } from "./surfaces.js";
 import { SURFACES } from "./surfaceCatalogue.js";
@@ -158,8 +159,9 @@ export type InviteLookupRequest = z.infer<typeof inviteLookupSchema>;
 
 export const inviteRedeemSchema = z.object({
   token: z.string().min(20).max(200),
-  /** The floor is ours; the project's own password policy (GoTrue) may ask for more and says so. */
-  password: z.string().min(8).max(200),
+  /** The rule is `passwordResetContract.ts`'s (D-PWR7), one rule for every password an office user
+   *  chooses; the project's own GoTrue policy may ask for more and says so. */
+  password: newPasswordSchema,
   fullName: fullNameSchema.optional(),
 });
 export type InviteRedeemRequest = z.infer<typeof inviteRedeemSchema>;

@@ -17,6 +17,7 @@ import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate } from "@/lib/format";
+import MemberPasswordResetDrawer from "@/features/settings/MemberPasswordResetDrawer.vue";
 
 const toast = useToastStore();
 const session = useSessionStore();
@@ -217,6 +218,7 @@ async function changeRole(userId: string, newRole: string) {
  * not toggled, and the drawer can say what the roster does for a driver (D-MEM3) where a cell could not.
  */
 const renaming = ref<OrgMember | null>(null);
+const resetting = ref<OrgMember | null>(null); // 0363 — the drawer owns the send and its step-up
 const renameValue = ref("");
 const renameBusy = ref(false);
 function openRename(m: OrgMember) {
@@ -403,6 +405,7 @@ onMounted(load);
         <template #actions="{ row }">
           <KebabMenu>
             <BaseButton class="kebab-item" @click="openRename(row)">{{ row.fullName ? "Edit name" : "Add name" }}</BaseButton>
+            <BaseButton v-if="row.userId !== session.userId" class="kebab-item" @click="resetting = row">Send password reset…</BaseButton>
             <BaseButton v-if="row.userId !== session.userId" class="kebab-item kebab-item-danger" @click="removeMember(row.userId)">Remove member</BaseButton>
           </KebabMenu>
         </template>
@@ -448,6 +451,7 @@ onMounted(load);
         </div>
       </template>
     </SlideOver>
+    <MemberPasswordResetDrawer :member="resetting" @close="resetting = null" />
 
     <section class="space-y-3">
       <h3 class="text-base font-semibold text-ink">Invitations</h3>

@@ -18,7 +18,7 @@ import { requestMetrics } from "./middleware/requestMetrics.js";
 import { applicationIntakeLimiter, isApplicationLink, packetCeremonyLimiter } from "./middleware/applicationLimits.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
-import { invitesRouter, publicInvitesRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
+import { invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
 import { dashboardLayoutRouter, savedViewsRouter } from "./modules/org/index.js";
@@ -157,6 +157,12 @@ function mountPublic(app: Express): void {
   // cannot see a call broken across lines; both pin this prefix as public by design.
   app.use("/api/public/invites", rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false }));
   app.use("/api/public/invites", publicInvitesRouter());
+  // "Forgot password?" (0363, PASSWORD-RESET-PLAN.md). Thirty per fifteen minutes per address: a
+  // person needs three calls (request, lookup, redeem) plus retries, an office shares one address,
+  // and the per-PERSON budget that stops a mailbomb is counted in the table, not here. Same one-line
+  // rule as above for the discovery tests.
+  app.use("/api/public/password-reset", rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: "draft-7", legacyHeaders: false }));
+  app.use("/api/public/password-reset", publicPasswordResetRouter());
   /**
    * TWO buckets on the applicant's link, and the argument for the split is in `applicationLimits.ts`.
    *
@@ -216,6 +222,8 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
   app.use("/api/members", membersRouter());
+  // An admin emails a member a reset link (D-PWR8) — step-up gated, never returns the link.
+  app.use("/api/members", memberPasswordResetRouter());
   // The per-org permission overrides (D-PERM1). Admin-only inside the router; every write audits.
   app.use("/api/section-access", sectionAccessRouter());
   app.use("/api/surface-access", surfaceAccessRouter());

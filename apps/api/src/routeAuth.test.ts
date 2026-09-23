@@ -30,6 +30,9 @@ const PUBLIC_PREFIXES = new Set([
   "/api/auth",
   "/api/public/hazmat",
   "/api/public/invites",
+  // "Forgot password?" — the person cannot sign in, which is why they are here. The token in the
+  // POST body is the credential (routes/publicPasswordReset.ts), rate-limited in app.ts (0363).
+  "/api/public/password-reset",
   "/api/public/application",
   "/api/version",
 ]);

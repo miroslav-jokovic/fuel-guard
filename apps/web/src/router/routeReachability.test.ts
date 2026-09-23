@@ -53,6 +53,7 @@ const WEB_SRC = path.join(process.cwd(), "src");
 const ARRIVED_AT_FROM_OUTSIDE = new Map<string, string>([
   ["/login", "the unauthenticated entry point"],
   ["/accept-invite", "arrived at from an emailed invite link"],
+  ["/reset-password", "arrived at from an emailed password-reset link (0363)"],
   ["/apply/:token", "the applicant's own emailed link — parameterised anyway"],
   ["/pending", "where the router sends a session with no membership yet"],
   ["/use-the-app", "where the router sends a driver-role session"],

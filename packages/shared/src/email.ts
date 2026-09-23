@@ -14,8 +14,10 @@ export interface RenderedEmail {
   text: string;
 }
 
-const esc = (s: string) =>
+/** HTML-escape a value for an email body. Exported for the renderers that live in their own files. */
+export const escapeEmailHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const esc = escapeEmailHtml;
 
 export interface DigestStats {
   alertCount: number;
