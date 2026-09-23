@@ -1,4 +1,4 @@
-import { PROMPT_INPUT_UNSET, type PromptsSetBody, promptsSetContract } from "@silvicom/shared";
+import { EFS_VALIDATION_TYPES, PROMPT_INPUT_UNSET, type PromptsSetBody, promptsSetContract } from "@silvicom/shared";
 import { promptsEdits } from "../services/efsCardEdits.js";
 import { assertPromptRemovalAllowed } from "../routes/controlRefusal.js";
 import { ActionRefusalError } from "../services/efsCardControlErrors.js";
@@ -39,17 +39,46 @@ import type { EditsCtx, PlanCtx, Snapshot } from "../types.js";
 const proofPrompts = (snap: Snapshot, ctx: EditsCtx): PromptsSetBody["prompts"] =>
   (snap.doc?.card.infos ?? [])
     .filter((info) => ctx.editableInfoIds.includes(info.infoId))
+    // A type outside the contract's enum cannot be carried faithfully, so the record is LEFT OUT —
+    // and a record `replaceAll` is not handed stays exactly as it is on the card (`promptsEdits`).
+    .filter((info) => (EFS_VALIDATION_TYPES as readonly string[]).includes(info.validationType ?? ""))
     .map((info) => ({
       infoId: info.infoId,
-      validationType: info.validationType === "EXACT_MATCH" ? "EXACT_MATCH" as const : "REPORT_ONLY" as const,
+      /**
+       * The card's OWN type, verbatim. This used to collapse everything that was not EXACT_MATCH to
+       * REPORT_ONLY, and the revert is built from this same function — so a proof on a card with an
+       * odometer prompt (ACCRUAL_CHECK) would have "restored" it as REPORT_ONLY and zeroed its value
+       * (2026-09-23 review). The proof's whole claim is "exactly one field moved"; that includes
+       * every record it writes back.
+       */
+      validationType: info.validationType as PromptsSetBody["prompts"][number]["validationType"],
       matchValue: info.matchValue,
       reportValue: info.reportValue,
       remove: false,
-      // The proof rewrites the card's OWN records and flips one validationType. It must not also
-      // start configuring length checks or accruals, so every Step 9.2 field goes back unset — the
-      // proof's whole claim is "exactly one field moved".
+      // Length checks and bounds go back UNSET because `promptsEdits` keeps an existing record's own
+      // `lengthCheck`/`minimum`/`maximum` untouched — only `value` is written from the body, and only
+      // for ACCRUAL_CHECK, so that is the one carried from the card.
       ...PROMPT_INPUT_UNSET,
+      value: info.validationType === "ACCRUAL_CHECK" ? accrualValue(info.value) : null,
     }));
+
+const accrualValue = (raw: string | null): number | null => {
+  const parsed = raw === null ? Number.NaN : Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+};
+
+/**
+ * Which prompt the proof flips: the first EXACT_MATCH record that has a value, or -1.
+ *
+ * ONE direction only, on purpose. EXACT_MATCH → REPORT_ONLY stops the pump checking an entry, so a
+ * card left that way by a failed revert still fuels. The reverse makes the pump demand a value the
+ * driver may not type, and a failed revert would strand them. It also had to stop being "whatever is
+ * first": most prompts on the production account are REPORT_ONLY with no value (1,012 of 1,367 on
+ * 2026-09-23), and flipping one of those to EXACT_MATCH is a body the contract refuses — which is
+ * exactly how the first production prompts proof failed.
+ */
+const flipIndex = (prompts: PromptsSetBody["prompts"]): number =>
+  prompts.findIndex((p) => p.validationType === "EXACT_MATCH" && (p.matchValue ?? "").length > 0);
 
 export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
   target: { kind: "card" },
@@ -70,19 +99,21 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
    * proof that added a prompt would consume the reserved empty-`<infos>` card permanently (docs/24
    * §3.3), and one that removed a DRID would trip this capability's own removal precondition.
    *
-   * Voided when the card has no editable prompt to flip: there is nothing to change, so a write
-   * would be a no-op reported as a landing.
+   * Voided when the card has no editable EXACT_MATCH prompt with a value to flip (`flipIndex`):
+   * there is nothing safe to change, so the run stops before anything is sent.
    */
   proof: {
-    precondition: (snap, ctx) => proofPrompts(snap, ctx).length > 0,
-    sample: (snap, ctx): PromptsSetBody => ({
-      expectedVersion: "",
-      replaceAll: true,
-      allowRemoveDriverId: false,
-      prompts: proofPrompts(snap, ctx).map((p, i) => (i === 0
-        ? { ...p, validationType: p.validationType === "EXACT_MATCH" ? "REPORT_ONLY" as const : "EXACT_MATCH" as const }
-        : p)),
-    }),
+    precondition: (snap, ctx) => flipIndex(proofPrompts(snap, ctx)) >= 0,
+    sample: (snap, ctx): PromptsSetBody => {
+      const prompts = proofPrompts(snap, ctx);
+      const flip = flipIndex(prompts);
+      return {
+        expectedVersion: "",
+        replaceAll: true,
+        allowRemoveDriverId: false,
+        prompts: prompts.map((p, i) => (i === flip ? { ...p, validationType: "REPORT_ONLY" as const } : p)),
+      };
+    },
     revert: (snap, ctx) => ({
       capability: "prompts_set",
       body: {

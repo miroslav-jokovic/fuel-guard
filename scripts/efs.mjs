@@ -109,6 +109,22 @@ function promptHidden(prompt, what = "value") {
   });
 }
 
+/** Read a line from the terminal WITH echo — for things that are safe to see, like a typed confirmation. */
+function promptVisible(prompt) {
+  return new Promise((resolve) => {
+    if (!process.stdin.isTTY) die("No terminal available to ask for confirmation. Run this in an interactive shell.");
+    process.stderr.write(prompt);
+    process.stdin.resume();
+    process.stdin.setEncoding("utf8");
+    const onData = (chunk) => {
+      process.stdin.pause();
+      process.stdin.off("data", onData);
+      resolve(String(chunk).trim());
+    };
+    process.stdin.on("data", onData);
+  });
+}
+
 /**
  * The admin token, always prompted for unless `--token-from-env` is passed.
  *
@@ -498,8 +514,15 @@ switch (command) {
     await getStepUpToken();
     const card = await promptHidden("Card number (hidden): ", "card number");
     if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
-    console.error(`Proving ${capability} against \u2022\u2022\u2022\u2022${card.slice(-4)} \u2014 it will be written to twice.`);
-    await call(`/api/fuel-cards/prove/${capability}`, { cardNumber: card, confirm: `PROVE ${card.slice(-4)}` }, { stepUp: true });
+    const last4 = card.slice(-4);
+    // TYPED by the operator, never built from the hidden number (2026-09-23). The route has always
+    // demanded "PROVE <last4>"; this script used to fill it in itself, so the one moment a person
+    // could see WHICH card was about to be written did not exist \u2014 and a live driver's card was
+    // deactivated for five seconds because a different number was typed than the one intended.
+    console.error(`\nThe card you entered ends in \u2022\u2022\u2022\u2022${last4}. ${capability} will write to it twice.`);
+    const confirm = await promptVisible(`Type PROVE ${last4} to continue, anything else to stop: `);
+    if (confirm.toUpperCase() !== `PROVE ${last4}`) die("Stopped. Nothing was sent.");
+    await call(`/api/fuel-cards/prove/${capability}`, { cardNumber: card, confirm }, { stepUp: true });
     break;
   }
 

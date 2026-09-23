@@ -314,6 +314,55 @@ describe("the proof samples the account's prompts, not a constant", () => {
     // OEG-3. An account whose editable ids the card does not carry has nothing to flip, so a write
     // would be a no-op reported as a landing.
     expect(promptsSetBehaviour.proof!.precondition(snap, { editableInfoIds: ["BDAY", "GLCD"] })).toBe(false);
-    expect(promptsSetBehaviour.proof!.precondition(snap, { editableInfoIds: ["ODRD"] })).toBe(true);
+    // The fixture's ODRD is an ACCRUAL_CHECK: editable, but not a SAFE flip (see `flipIndex`), so a
+    // set that reaches only it voids too. DRID is an EXACT_MATCH with a value — the positive control.
+    expect(promptsSetBehaviour.proof!.precondition(snap, { editableInfoIds: ["ODRD"] })).toBe(false);
+    expect(promptsSetBehaviour.proof!.precondition(snap, { editableInfoIds: ["DRID"] })).toBe(true);
+  });
+});
+
+describe("the proof flips only a safe prompt, and writes every other one back exactly (2026-09-23)", () => {
+  /**
+   * The production account's real shape: most prompts are REPORT_ONLY with no value, and the first
+   * one on a card is often one of them. The first production prompts proof flipped the FIRST prompt
+   * to EXACT_MATCH and was refused by the contract — "EXACT_MATCH needs a value to match".
+   */
+  const doc = parseCardDocument(readFileSync(
+    fileURLToPath(new URL("../lib/__fixtures__/efs/getCardV2.full.xml", import.meta.url)), "utf8",
+  ).replace(/<infos>/, [
+    "<infos><infoId>CNTN</infoId><lengthCheck>false</lengthCheck><matchValue></matchValue>",
+    "<maximum>0</maximum><minimum>0</minimum><reportValue></reportValue>",
+    "<validationType>REPORT_ONLY</validationType><value>0</value></infos><infos>",
+  ].join("")));
+  const snap = { doc };
+  const ctx = { editableInfoIds: ["CNTN", "DRID", "UNIT", "ODRD"] };
+  const byId = (body: PromptsSetBody) => Object.fromEntries(body.prompts.map((p) => [p.infoId, p]));
+
+  it("skips a leading REPORT_ONLY prompt and flips the first EXACT_MATCH one", () => {
+    const sample = byId(promptsSetBehaviour.proof!.sample(snap, ctx));
+    expect(sample.CNTN?.validationType).toBe("REPORT_ONLY");
+    expect(sample.DRID?.validationType).toBe("REPORT_ONLY");
+    expect(sample.UNIT?.validationType).toBe("EXACT_MATCH");
+  });
+
+  it("only ever flips TOWARDS report-only — the direction that cannot strand a driver", () => {
+    const restored = (promptsSetBehaviour.proof!.revert(snap, ctx).body as PromptsSetBody).prompts;
+    const flipped = promptsSetBehaviour.proof!.sample(snap, ctx).prompts
+      .filter((p, i) => p.validationType !== restored[i]!.validationType);
+    expect(flipped).toHaveLength(1);
+    expect(flipped[0]!.validationType).toBe("REPORT_ONLY");
+  });
+
+  it("writes an odometer prompt back as ACCRUAL_CHECK with its own value, not as REPORT_ONLY", () => {
+    // The revert is built from the same function. Collapsing ACCRUAL_CHECK to REPORT_ONLY there
+    // would have "restored" the odometer prompt as something else and zeroed its window.
+    const revert = byId(promptsSetBehaviour.proof!.revert(snap, ctx).body as PromptsSetBody);
+    expect(revert.ODRD?.validationType).toBe("ACCRUAL_CHECK");
+    expect(revert.ODRD?.validationType).toBe(doc.card.infos.find((i) => i.infoId === "ODRD")?.validationType);
+  });
+
+  it("voids a card whose prompts are all REPORT_ONLY — nothing is safe to flip", () => {
+    const allReportOnly = { doc: { ...doc, card: { ...doc.card, infos: doc.card.infos.map((i) => ({ ...i, validationType: "REPORT_ONLY" as const, matchValue: "" })) } } };
+    expect(promptsSetBehaviour.proof!.precondition(allReportOnly, ctx)).toBe(false);
   });
 });

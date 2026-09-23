@@ -142,6 +142,59 @@ export interface ProveDeps {
   setPromotionState: (capabilityKey: string, state: "proving" | "proven" | "denied", proofId: string) => Promise<void>;
 }
 
+/**
+ * How long a card must have gone unused before a proof may write to it.
+ *
+ * The 2026-09-23 incident: `efs:prove card_deactivate` was pointed at a live driver's card — fuelled
+ * that same day — because the CLI takes the number hidden and nothing on the server asked whether
+ * anyone was using the card. It went Inactive for five seconds. Thirty days keeps every card the
+ * account actually uses out of reach while leaving the retired and parked cards a proof is meant for.
+ */
+export const PROOF_CARD_IDLE_DAYS = 30;
+
+/**
+ * Why this card is refused for a proof, or null when it is safe to write to.
+ *
+ * Read from the document EFS just returned, never the mirror, which can be a day behind the pump.
+ * Never used (no date) is the ideal proof card. A date that will not parse is refused, not waved
+ * through: "we could not tell when it was last used" is not "it is idle".
+ */
+export function recentlyUsedRefusal(lastUsedDate: string | null, nowMs: number): string | null {
+  if (lastUsedDate === null || lastUsedDate.trim() === "") return null;
+  const usedMs = Date.parse(lastUsedDate);
+  if (!Number.isFinite(usedMs)) {
+    return `could not read when this card was last used ("${lastUsedDate}"), so it cannot be confirmed idle. `
+      + "Use a card nobody is fuelling with.";
+  }
+  const idleDays = (nowMs - usedMs) / 86_400_000;
+  if (idleDays >= PROOF_CARD_IDLE_DAYS) return null;
+  return `this card was used for fuel ${Math.max(0, Math.floor(idleDays))} day(s) ago (${lastUsedDate}). `
+    + `A proof writes to the card twice, so it must be one nobody is using — pick a card unused for at `
+    + `least ${PROOF_CARD_IDLE_DAYS} days. Nothing was sent.`;
+}
+
+/**
+ * The first body its capability's contract refuses, as a sentence, or null when every one is
+ * sendable. Uses `accept`, the same entry point `dispatch` and the router use, so "would be refused
+ * later" and "is refused now" cannot disagree.
+ */
+function firstRefusal(
+  bodies: ReadonlyArray<readonly [capabilityKey: string, body: unknown, label: string]>,
+  version: string,
+  capabilities: Readonly<Record<string, MountedCapability>>,
+): string | null {
+  for (const [capabilityKey, body, label] of bodies) {
+    const capability = capabilities[capabilityKey];
+    if (!capability) return `${label} names "${capabilityKey}", which is not a capability. Nothing was sent.`;
+    const accepted = capability.accept({ ...(body as object), expectedVersion: version });
+    if (!accepted.ok) {
+      return `${label} would be refused by ${capabilityKey}: ${accepted.error.issues[0]?.message}. `
+        + "Nothing was sent.";
+    }
+  }
+  return null;
+}
+
 /** A run that never reached the vendor still has to settle its row, or it stays `running` forever. */
 const voided = (proofId: string, detail: string, outcome: ProofOutcome["outcome"] = "void"): ProofOutcome => ({
   proofId, outcome, detail,
@@ -179,6 +232,11 @@ export async function proveCapability(
     return await settle(voided(proofId, `the planning read failed: ${String(error)}`, "error"));
   }
 
+  // FIRST, before anything else is judged: a proof writes to the card twice, so it must be a card
+  // nobody is fuelling with. See `recentlyUsedRefusal`.
+  const inUse = recentlyUsedRefusal(before.card.lastUsedDate, Date.now());
+  if (inUse) return await settle(voided(proofId, inUse));
+
   const snap = { doc: before };
   /**
    * The same resolved set the write path uses, from the same lookup (Step 9.1).
@@ -199,6 +257,20 @@ export async function proveCapability(
     ));
   }
 
+  /**
+   * Both bodies built — and both ACCEPTED by their capability's own contract — before anything is
+   * sent (2026-09-23 review). The revert used to be built and validated only after the apply had
+   * landed, so a revert body the contract refused left the card changed with no way back. A proof
+   * that cannot prove its own undo must not start.
+   */
+  const sample = plan.sample(snap, editsCtx);
+  const revert = plan.revert(snap, editsCtx);
+  const unsendable = firstRefusal([
+    [capabilityKey, sample, "the change"],
+    [revert.capability, revert.body, "the revert"],
+  ], before.version, deps.capabilities);
+  if (unsendable) return await settle(voided(proofId, unsendable, "error"));
+
   const result: ProofOutcome = {
     proofId, outcome: "denied", detail: null,
     oeg1Entitled: true, oeg2bNoopStable: null, oeg3ChangeLanded: null,
@@ -209,7 +281,7 @@ export async function proveCapability(
   // ── OEG-3: apply ────────────────────────────────────────────────────────────────────────────
   let applied: Awaited<ReturnType<typeof dispatch>>;
   try {
-    applied = await dispatch(ctx, capabilityKey, plan.sample(snap, editsCtx), before, deps.capabilities);
+    applied = await dispatch(ctx, capabilityKey, sample, before, deps.capabilities);
   } catch (error) {
     result.outcome = "error";
     result.detail = `the apply threw: ${String(error)}`;
@@ -257,7 +329,7 @@ export async function proveCapability(
   // ── OEG-5: revert, through whichever capability undoes this one ─────────────────────────────
   // Attempted even when the apply did not land: `sent` means the write MAY have landed, and a card
   // left changed because the harness assumed otherwise is the failure this whole product prevents.
-  const revert = plan.revert(snap, editsCtx);
+  // `revert` was built and accepted before the apply — see `firstRefusal` above.
   try {
     const reverted = await dispatch(ctx, revert.capability, revert.body, afterApply ?? before, deps.capabilities);
     result.oeg5RevertLanded = reverted.status === "succeeded";
