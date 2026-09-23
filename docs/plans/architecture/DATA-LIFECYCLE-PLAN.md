@@ -1591,3 +1591,22 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   it held one job only — so the fixture now carries an unrelated, succeeding job and that mutant now fails
   9 cases. **Merge 2** (`/api/version` + `pnpm verify:live` read it) waits for 0360 to apply, per
   `lint:migration-ordering`.
+
+- **2026-09-23 — L6 merge 2: the maintenance job's state is on `/api/version` and in its `ok`**
+  (`claude/data-lifecycle-l6-reader`). Opened only after 0360 APPLIED — `migrate.yml` succeeded on
+  `3d33808`, production shows `pg_cron@pg_catalog 1.6.4` and `pg_partman@partman 5.3.1`, job 1
+  `partman-maintenance` `7 * * * *` active as `postgres`, and the function read `pending` with
+  `partitioned_tables` 0. **First run checked by hand, as 0360 said it must be:** `succeeded` at 2026-09-23 00:07:00.27 UTC in 39 ms, return `CALL`, and the state moved `pending` → `ok` — so "scheduled, never fired", the one case the function cannot see, is ruled out.
+  `maintenance: { state, lastSucceededAt, partitionedTables }` is published beside `schema`, and `ok`
+  is now `!schema.drift && state ∈ {ok, pending}`. `unknown` (the RPC could not be called) is not
+  healthy, same rule as `schemaVersion.ts`. `/healthz` is deliberately untouched: failing Railway's
+  healthcheck on a maintenance state would roll back a deploy that has nothing to do with it.
+  `pnpm verify:live` prints a `partition upkeep` row and names the state as a problem; against an API
+  older than this merge it prints "not reported" and does not fail, so the check is safe across the
+  deploy window in both directions.
+  Pinned by `maintenanceHealth.test.ts` (10) and one new case in `app.test.ts`. Seven mutations, all
+  killed: the fold into `ok` removed, `pending` treated as unhealthy, only `missing` treated as
+  unhealthy, an unrecognised state passed through, a null table count read as 0, a numeric string left
+  uncoerced, `maintenance` not published.
+  ⚠ Still a PULL surface: `ok` going false is only heard if something watches it. Q9 is open and
+  blocks L7.

@@ -4,6 +4,7 @@ import { asyncHandler } from "../lib/http.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { getBuildInfo } from "../lib/buildInfo.js";
 import { getSchemaStatus } from "../lib/schemaVersion.js";
+import { getMaintenanceHealth, maintenanceHealthy } from "../lib/maintenanceHealth.js";
 
 /**
  * `GET /api/version` — what is actually running (ship-pipeline plan D0.3).
@@ -14,7 +15,10 @@ import { getSchemaStatus } from "../lib/schemaVersion.js";
  * nothing tenant-scoped: no counts, no org ids, no configuration. Registered in the auth fitness
  * test's PUBLIC_PREFIXES with that reasoning; it still sits behind the /api rate limiter.
  *
- * `ok` is false whenever the schema drifts from the code, so a monitor can watch one boolean.
+ * `ok` is false whenever the schema drifts from the code, so a monitor can watch one boolean — and,
+ * since L6 (0360), whenever the database's own partition maintenance job is not healthy. That job
+ * runs inside Postgres where nothing else can see it; `maintenance` says which state it is in, and
+ * nothing about it is tenant-scoped (lib/maintenanceHealth.ts).
  */
 export function versionRouter(): Router {
   const router = Router();
@@ -25,6 +29,7 @@ export function versionRouter(): Router {
       const { env } = getAppLocals(req);
       const build = getBuildInfo();
       const schema = await getSchemaStatus(env);
+      const maintenance = await getMaintenanceHealth(env);
       res.setHeader("Cache-Control", "no-store");
       res.json({
         service: `${APP_NAME} API`,
@@ -35,7 +40,8 @@ export function versionRouter(): Router {
         deploymentId: build.deploymentId,
         startedAt: build.startedAt,
         schema,
-        ok: !schema.drift,
+        maintenance,
+        ok: !schema.drift && maintenanceHealthy(maintenance.state),
       });
     }),
   );

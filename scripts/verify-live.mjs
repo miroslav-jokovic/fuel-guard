@@ -106,6 +106,10 @@ console.log(row("commit", local.commit?.slice(0, 7), live.commitShort, commitOk)
 console.log(row("branch", local.branch, live.branch, local.branch && live.branch ? local.branch === live.branch : null));
 console.log(row("schema version", local.schema, live.schema?.applied, schemaOk));
 console.log(row("code expects", local.schema, live.schema?.expected, null));
+// L6 (0360): the database's own hourly partition maintenance. Absent on an API older than that merge.
+const maint = live.maintenance?.state;
+const maintOk = maint === undefined ? null : maint === "ok" || maint === "pending";
+console.log(row("partition upkeep", "ok", maint ?? "not reported", maintOk));
 console.log(`\n  deployment ${live.deploymentId ?? "—"}   up since ${live.startedAt}`);
 
 const problems = [];
@@ -115,6 +119,12 @@ if (commitOk === null) problems.push("Could not compare commits — one side did
 if (live.schema?.state === "behind") problems.push(`Database is at ${live.schema.applied}, the code expects ${live.schema.expected} — migrations have not been applied. Run the "Apply Supabase migrations" workflow.`);
 if (live.schema?.state === "ahead") problems.push(`Database is at ${live.schema.applied}, ahead of the code's ${live.schema.expected} — a rollback left the schema in front of the API.`);
 if (live.schema?.state === "unknown") problems.push("The API could not read the migration ledger — either Supabase is unconfigured, or migration 0140 has not been applied.");
+if (maintOk === false)
+  problems.push(
+    maint === "unknown"
+      ? "The API could not read the partition maintenance state (lifecycle_maintenance_health, 0360)."
+      : `The database's hourly partition maintenance is "${maint}" (last success ${live.maintenance.lastSucceededAt ?? "never"}) — check cron.job_run_details for the partman-maintenance job.`,
+  );
 if (schemaOk === false && live.schema?.state === "current") problems.push(`Live schema ${live.schema.applied} differs from this checkout's ${local.schema}.`);
 
 if (problems.length === 0) {

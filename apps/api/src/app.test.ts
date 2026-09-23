@@ -71,6 +71,15 @@ describe("GET /api/version", () => {
     expect(body.ok).toBe(false);
   });
 
+  // No Supabase here either, so the maintenance function cannot be called. Same rule as the schema:
+  // "I could not check" is `unknown`, never a healthy state.
+  it("reports partition maintenance as unknown when it cannot be read", async () => {
+    const res = await fetch(`${baseUrl}/api/version`);
+    const body = (await res.json()) as { maintenance: { state: string; partitionedTables: number | null } };
+    expect(body.maintenance.state).toBe("unknown");
+    expect(body.maintenance.partitionedTables).toBeNull();
+  });
+
   it("never leaks anything tenant-scoped", async () => {
     const res = await fetch(`${baseUrl}/api/version`);
     const keys = Object.keys((await res.json()) as Record<string, unknown>).sort();
@@ -80,6 +89,7 @@ describe("GET /api/version", () => {
       "commitShort",
       "deploymentId",
       "env",
+      "maintenance",
       "ok",
       "schema",
       "service",
