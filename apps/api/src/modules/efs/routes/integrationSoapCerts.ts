@@ -1,5 +1,6 @@
 import type { Router } from "express";
 import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -32,7 +33,10 @@ export function registerEfsSoapCertRoutes(router: Router): void {
   //   POST   /efs-soap/client-cert/rollback   — restore the previously-active certificate
   //   DELETE /efs-soap/client-cert            — withdraw; falls back to env material, then plain TLS
   //
-  // Admin-only and fully audited. The private key enters through POST and is never readable again by
+  // Admin-only and fully audited. Upload, activate, rollback and withdraw also need a fresh password
+  // (`requireFreshAuth`), like /efs-soap/enable: each one changes — or stages — the TLS identity every
+  // EFS poll presents. Until the 2026-09-22 security audit the header above claimed that gate and the
+  // routes did not have it. List and test change nothing and stay password-free. The private key enters through POST and is never readable again by
   // any route: every response below is built from metadata columns, so there is no code path that can
   // return key material even by mistake.
 
@@ -81,6 +85,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
     "/efs-soap/client-cert",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -232,6 +237,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
     "/efs-soap/client-cert/activate",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -267,6 +273,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
     "/efs-soap/client-cert/rollback",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -300,6 +307,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
     "/efs-soap/client-cert",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

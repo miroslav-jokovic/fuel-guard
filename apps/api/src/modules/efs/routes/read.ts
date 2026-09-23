@@ -4,6 +4,7 @@ import { mergeEffectiveConfig, policyNumberSchema } from "@silvicom/shared";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getPolicyCached } from "../lib/efsPolicyCache.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
+import { redactCardXml } from "../lib/efsCardXml.js";
 import { getPolicy } from "../lib/efsCardOps.js";
 import { searchLocation } from "../lib/efsLocationSearch.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
@@ -73,10 +74,12 @@ const staleAfterMinutes = (env: { EFS_CARD_SYNC_HOURS: number }): number =>
   Math.round(env.EFS_CARD_SYNC_HOURS * 60) + 120;
 
 /** Map a vendor failure to a status an operator can act on, without echoing EFS verbatim. */
-function efsErrorResponse(res: import("express").Response, error: unknown): void {
+export function efsErrorResponse(res: import("express").Response, error: unknown): void {
   if (!(error instanceof EfsSoapError)) throw error;
   const status = error.code === "account_locked" || error.code === "auth" ? 502 : 502;
-  res.status(status).json(apiError(`efs_${error.code}`, error.message));
+  // Redacted (2026-09-22 security audit): a getCardv2 fault can quote the request back, card number
+  // included, and this route answers fuel:view — the same redactor probe.ts puts on its `error`.
+  res.status(status).json(apiError(`efs_${error.code}`, redactCardXml(error.message)));
 }
 
 export function fuelCardsRouter(): Router {

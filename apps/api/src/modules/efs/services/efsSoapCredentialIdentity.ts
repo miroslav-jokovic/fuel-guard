@@ -12,6 +12,28 @@ export function efsEndpointHost(endpointUrl: string): string {
   return host;
 }
 
+/**
+ * The domain every EFS-issued endpoint lives on: `ws.efsllc.com` (production), `ws.partner.efsllc.com`
+ * (sandbox), and the `qa*` hosts EFS has handed out for testing.
+ *
+ * ── Why a domain allowlist on top of the SSRF address checks ────────────────────────────────────
+ * `lib/ssrfGuard.ts` validates what a name resolves to, and then Node resolves it AGAIN to connect. Its
+ * own header names the residual: a hostile authoritative nameserver with a zero TTL answers public for
+ * the check and private for the connect (security review 2026-09-06 §10, still open on 2026-09-22).
+ * That attack needs the attacker to control the endpoint's DNS. Requiring the host to sit under EFS's
+ * own domain removes the precondition — `efsllc.com` answers to EFS, not to a tenant — and costs
+ * nothing, because the endpoint is a fixed value EFS issues and no real customer has any other.
+ */
+export const EFS_ENDPOINT_DOMAIN = "efsllc.com";
+
+export function isEfsEndpointHost(host: string): boolean {
+  const normalized = host.toLowerCase().replace(/\.$/, "");
+  return normalized === EFS_ENDPOINT_DOMAIN || normalized.endsWith(`.${EFS_ENDPOINT_DOMAIN}`);
+}
+
+export const NOT_EFS_ENDPOINT_MESSAGE =
+  `The endpoint must be the address EFS issued, on ${EFS_ENDPOINT_DOMAIN} (for example https://ws.efsllc.com/axis2/services/CardManagementWS/).`;
+
 /** Validate the operator's environment label against the endpoint it claims to describe. */
 export function validateEfsSoapEnvironment(
   environment: "sandbox" | "production",

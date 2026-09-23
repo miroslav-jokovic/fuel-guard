@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { apiRefusal } from "@/composables/useStepUpRetry";
 
 /**
  * EFS SOAP integration — client composables. Wraps the /api/integrations/efs-soap/* endpoints in
@@ -97,7 +98,7 @@ export function useEnableEfsSoap() {
           accountId: input.accountId ?? null,
         },
       });
-      if (!res.ok) throw new Error(res.error?.message ?? "Could not save credentials");
+      if (!res.ok) throw apiRefusal(res.error, "Could not save credentials");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });
@@ -111,7 +112,7 @@ export function useDisableEfsSoap() {
       const res = await apiFetch<{ enabled: false }>("/api/integrations/efs-soap/disable", {
         method: "POST",
       });
-      if (!res.ok) throw new Error(res.error?.message ?? "Could not disable EFS SOAP");
+      if (!res.ok) throw apiRefusal(res.error, "Could not disable EFS SOAP");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });

@@ -1,4 +1,4 @@
-// FuelGuard — EFS card-control trigger behaviour matrix (Phase 5, migrations 0196 and 0197).
+// FuelGuard — EFS card-control trigger behaviour matrix (Phase 5, migrations 0196 and 0197; 0361).
 //
 // WHY THIS FILE EXISTS. Steps 5.3 and 5.7 both moved a rule INTO the database, for the reason
 // migration 0142 gave in almost these words: "an invariant enforced only by the one caller that
@@ -283,6 +283,99 @@ for (const status of ["sent", "succeeded", "drift_detected", "partial"]) {
   )).id;
   ok("an INSERT of a historical settled row is not rejected — no retroactive approvals invented",
     (await one(`select approved_by from efs_card_mutations where id=$1`, [legacy])).approved_by === null);
+}
+
+console.log("\n-- 0361: what a mutation asked for is frozen at insert; the card cannot cascade it away --");
+
+{
+  // The positive control first. If the settle phase itself is refused, every refusal below is the
+  // trigger rejecting everything rather than rejecting the evidence columns.
+  const id = await openPending();
+  const message = await err(db.query(
+    `update efs_card_mutations
+        set status='sent', approved_by=$2, attempts=1, step_index=0
+      where id=$1`, [id, CHECKER]));
+  const settle = await err(db.query(
+    `update efs_card_mutations
+        set status='succeeded', after_version='v2', reconciled_version='v2', after_document='{"status":"Hold"}',
+            drift=null, request_xml_redacted='<req/>', response_xml_redacted='<res/>',
+            efs_fault_code=null, efs_fault_message=null, completed_at=now()
+      where id=$1`, [id]));
+  ok("markSent and settle still write every OUTCOME column", message === null && settle === null, message ?? settle ?? "");
+}
+
+for (const [column, value] of [
+  ["reason", "'rewritten after the fact'"],
+  ["before_document", `'{"status":"Hold"}'::jsonb`],
+  ["edits", `'[]'::jsonb`],
+  ["intent", "'unlock'"],
+  ["idempotency_key", "'another-key'"],
+  ["step_up", "true"],
+]) {
+  const id = await openPending();
+  const message = await err(db.query(`update efs_card_mutations set ${column} = ${value} where id=$1`, [id]));
+  ok(`rewriting ${column} after insert is REFUSED`,
+    message !== null && /evidence_frozen/.test(message), message ?? "no error raised");
+}
+
+{
+  const id = await openPending();
+  const message = await err(db.query(`update efs_card_mutations set requested_by=$2 where id=$1`, [id, CHECKER]));
+  ok("re-attributing the REQUEST to someone else is REFUSED",
+    message !== null && /evidence_frozen/.test(message), message ?? "no error raised");
+}
+
+{
+  const id = await openPending();
+  await db.query(`update efs_card_mutations set status='sent', approved_by=$2 where id=$1`, [id, CHECKER]);
+  const message = await err(db.query(`update efs_card_mutations set approved_by=$2 where id=$1`, [id, MAKER]));
+  ok("re-attributing a recorded APPROVAL is REFUSED — approved_by is write-once",
+    message !== null && /evidence_frozen/.test(message), message ?? "no error raised");
+}
+
+{
+  // `on delete set null` runs as an UPDATE and fires the trigger. Deleting a user must still work, and
+  // leave their mutations in place with the column cleared.
+  const leaver = (await one(`insert into auth.users (id, email) values (gen_random_uuid(), 'leaver@x.test') returning id`)).id;
+  await db.query(`delete from efs_card_mutations where org_id=$1`, [ORG]);
+  const id = (await one(
+    `insert into efs_card_mutations (org_id, efs_card_id, intent, status, reason, requested_by)
+     values ($1, $2, 'lock', 'pending', 'Truck broken into overnight', $3) returning id`,
+    [ORG, CARD, leaver],
+  )).id;
+  await db.query(`update efs_card_mutations set status='sent', approved_by=$2 where id=$1`, [id, leaver]);
+  const message = await err(db.query(`delete from auth.users where id=$1`, [leaver]));
+  const row = await one(`select requested_by, approved_by from efs_card_mutations where id=$1`, [id]);
+  ok("deleting a USER still works — their set-null foreign keys may clear the columns",
+    message === null && row?.requested_by === null && row?.approved_by === null, message ?? JSON.stringify(row));
+}
+
+{
+  const id = await openPending();
+  const message = await err(db.query(`delete from efs_cards where id=$1`, [CARD]));
+  const survived = await one(`select id from efs_card_mutations where id=$1`, [id]);
+  ok("deleting a CARD that has mutations is REFUSED — its evidence no longer cascades away",
+    message !== null && survived?.id === id, message ?? "the card was deleted");
+}
+
+{
+  // The one sanctioned way these rows disappear (0177's header). NO ACTION rather than RESTRICT is
+  // what keeps it working: the check runs after the org cascade has reached both tables.
+  const org = (await one(`insert into organizations (id, name) values (gen_random_uuid(), 'Leaving Co') returning id`)).id;
+  const card = (await one(
+    `insert into efs_cards (org_id, card_ref_hmac, card_number_sealed, card_last4, status, document, card_version)
+     values ($1, 'hmac-leaving', 'sealed-leaving', '1234', 'Active', '{}'::jsonb, 'v1') returning id`,
+    [org],
+  )).id;
+  await db.query(
+    `insert into efs_card_mutations (org_id, efs_card_id, intent, status, reason, requested_by)
+     values ($1, $2, 'lock', 'failed', 'Closing the account', $3)`,
+    [org, card, MAKER],
+  );
+  const message = await err(db.query(`delete from organizations where id=$1`, [org]));
+  const left = await one(`select count(*)::int as n from efs_card_mutations where org_id=$1`, [org]);
+  ok("deleting an ORGANIZATION still removes its cards and their mutations together",
+    message === null && left.n === 0, message ?? `rows left: ${left.n}`);
 }
 
 console.log("\n-- 0200: the account's prompt vocabulary, and the two things it may not be --");

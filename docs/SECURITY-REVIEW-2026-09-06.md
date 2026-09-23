@@ -116,6 +116,8 @@ The SSRF guard validates resolved IPs, but the HTTP transport resolves the hostn
 
 Evidence: [apps/api/src/lib/ssrfGuard.ts](/Users/miroslavjokovic/Projects/FuelGuard/apps/api/src/lib/ssrfGuard.ts:32), [apps/api/src/modules/efs/lib/soapClient.ts](/Users/miroslavjokovic/Projects/FuelGuard/apps/api/src/modules/efs/lib/soapClient.ts:123).
 
+**Status 2026-09-22 — closed by the preferred fix, the vendor-host allowlist.** An EFS endpoint must sit under `efsllc.com` (`isEfsEndpointHost` in `services/efsSoapCredentialIdentity.ts`). It is refused when an admin saves it (`routes/integrationSoap.ts`) and again before every SOAP call (`requestXml` in `lib/efsSoapSession.ts`, the only path to EFS). Rebinding needs the attacker to control the endpoint's DNS, and `efsllc.com` answers to EFS rather than to a tenant. The two DNS resolutions remain; what an attacker could steer between them does not. The dev-only `EFS_SOAP_ALLOW_PRIVATE_ENDPOINT` waives the allowlist along with the address checks, and production refuses that flag.
+
 ### 11. P3 — Pin issuer and audience in platform JWT verification
 
 The customer verifier does this; the platform verifier calls `jwtVerify` without issuer/audience checks. A local signed test token with deliberately wrong issuer/audience was accepted by that verifier. Production still requires the configured project's signing key and a platform allowlist match, so this is not an arbitrary-token admin takeover.
@@ -207,6 +209,6 @@ Full registry evidence, including every dependency path: [SECURITY-DEPENDENCIES-
 | nanoid | 3.3.15 | High | 3.3.18+ | [advisory 1](https://github.com/advisories/GHSA-28wg-ghj8-5hjv), [advisory 2](https://github.com/advisories/GHSA-2v37-7h3g-55p8) |
 | decode-uri-component | 0.2.2 | Moderate | 0.5.0+ | [advisory 1](https://github.com/advisories/GHSA-vcc3-ghjq-m6fr) |
 | qs | 6.15.3 | Moderate | 6.16.0+ | [advisory 1](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [advisory 2](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) |
-| @xmldom/xmldom | 0.9.10, 0.8.13 | Moderate | 0.8.15+ / 0.9.12+, according to installed branch | [advisory 1](https://github.com/advisories/GHSA-6gmq-8vp8-gcm6) |
+| @xmldom/xmldom | 0.9.10, 0.8.13 | Moderate | 0.8.15+ / 0.9.12+, according to installed branch | [advisory 1](https://github.com/advisories/GHSA-6gmq-8vp8-gcm6) — **2026-09-22:** `apps/api` (the EFS parser) now pins 0.9.12. 0.9.10 is deprecated on the registry as "critical issues". The advisory affects xmldom's serializer, which the API never calls. 0.9.10 and 0.8.13 remain as transitive dependencies of other packages. |
 
 These targets reflect the registry on the review date. Prefer supported parent-package updates and re-audit; they are not instructions to force incompatible transitive majors. In particular, image-size findings occur through Expo/Metro build tooling, while xml parsing and HTTP dependencies deserve API reachability review.

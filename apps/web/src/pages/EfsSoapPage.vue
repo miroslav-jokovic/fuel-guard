@@ -24,6 +24,8 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppSelect, type SelectOption } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import EfsClientCertCard from "@/features/settings/EfsClientCertCard.vue";
+import StepUpPrompt from "@/components/StepUpPrompt.vue";
+import { useStepUpRetry } from "@/composables/useStepUpRetry";
 
 /**
  * EFS SOAP integration — admin settings page.
@@ -49,6 +51,13 @@ const enable = useEnableEfsSoap();
 const disable = useDisableEfsSoap();
 const testConn = useTestEfsSoapConnection();
 const toast = useToastStore();
+/**
+ * Enable and disable are step-up routes (`requireFreshAuth` in integrationSoap.ts), and until the
+ * 2026-09-22 security audit this page had no prompt for them: an admin without a live step-up token
+ * got "Could not save credentials" and nowhere to go. The prompt replaces the form while it shows;
+ * the form's values are reactive state and survive it, so the retry sends exactly what was typed.
+ */
+const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
 
 const envOptions: SelectOption[] = [
   { value: "sandbox", label: "Sandbox" },
@@ -127,6 +136,7 @@ async function onSaveAndEnable() {
     toast.success("EFS SOAP credentials saved", "Polling is enabled.");
     form.soapPassword = ""; // clear the field so it isn't left in the DOM
   } catch (e) {
+    if (holdForStepUp(e, onSaveAndEnable)) return;
     toast.error("Could not save credentials", e instanceof Error ? e.message : undefined);
   }
 }
@@ -136,10 +146,16 @@ async function onDisable() {
     "Disable the EFS SOAP polling and wipe the stored password? You will need to re-enter the password to re-enable.",
   );
   if (!ok) return;
+  await disableConfirmed();
+}
+
+/** Split from `onDisable` so a step-up retry does not ask "are you sure?" a second time. */
+async function disableConfirmed() {
   try {
     await disable.mutateAsync();
     toast.info("EFS SOAP disabled", "Polling stopped and the stored password was cleared.");
   } catch (e) {
+    if (holdForStepUp(e, disableConfirmed)) return;
     toast.error("Could not disable", e instanceof Error ? e.message : undefined);
   }
 }
@@ -254,8 +270,12 @@ const testChipClass = computed(() => {
         </div>
       </BaseCard>
 
+      <BaseCard v-if="stepUpFor" as="section">
+        <StepUpPrompt :reason="stepUpFor" @confirmed="confirmed" @cancel="cancel" />
+      </BaseCard>
+
       <!-- ── Credentials form ─────────────────────────────────────────────────── -->
-      <BaseCard as="section">
+      <BaseCard v-else as="section">
         <h3 class="text-base font-semibold text-ink">
           {{ isConfigured ? "Rotate credentials" : "Enter credentials" }}
         </h3>

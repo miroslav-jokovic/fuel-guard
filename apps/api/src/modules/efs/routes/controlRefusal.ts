@@ -34,11 +34,21 @@ export function assertPromptRemovalAllowed(
   }
 }
 
+/**
+ * The deploy-wide kill switch's refusal, on its own because it is the one reason that is not about a
+ * card scope — `routes/unitMileage.ts` writes to EFS without being a card capability and still has
+ * to answer to the switch, in the same words.
+ */
+export const KILL_SWITCH_REFUSAL: [string, string] = [
+  "card_control_disabled",
+  "Card actions are switched off for this deployment.",
+];
+
 /** One sentence per blocked-by reason, each pointing at what would actually unblock it. */
 export function refusal(blockedBy: string | null, scope: CardScope): [string, string] {
   switch (blockedBy) {
     case "kill_switch":
-      return ["card_control_disabled", "Card actions are switched off for this deployment."];
+      return KILL_SWITCH_REFUSAL;
     case "not_enabled":
       return [
         "card_control_disabled",

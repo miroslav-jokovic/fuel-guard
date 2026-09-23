@@ -99,16 +99,36 @@ import { versionRouter } from "./routes/version.js";
  */
 function mountFuelCardPrefix(app: Express, env: Env, vendorLimiter: RequestHandler): void {
   if (!env.EFS_ROUTES_ENABLED) {
-    app.use("/api/fuel-cards", (_req: Request, res: Response) => {
-      res.status(503).json(apiError(
-        "efs_routes_not_served_here",
-        "Fuel-card operations are served only by the API host, which is the address WEX has whitelisted. "
-          + "This host cannot reach EFS.",
-      ));
-    });
+    app.use("/api/fuel-cards", refuseEfsRoute);
     return;
   }
   app.use("/api/fuel-cards", requireAuth, vendorLimiter);
+}
+
+function refuseEfsRoute(_req: Request, res: Response): void {
+  res.status(503).json(apiError(
+    "efs_routes_not_served_here",
+    "Fuel-card operations are served only by the API host, which is the address WEX has whitelisted. "
+      + "This host cannot reach EFS.",
+  ));
+}
+
+/**
+ * The same refusal for the EFS SOAP connection settings under `/api/integrations/efs-soap`.
+ *
+ * Step 5.10 fenced `/api/fuel-cards` and missed this prefix, found by the 2026-09-22 security audit.
+ * `test-connection` and `client-cert/test` perform a real EFS LOGIN, and from the web host that login
+ * leaves from an address WEX has not whitelisted. Worse than a wasted call: the login breaker in
+ * `efsSoapSession.ts` is per PROCESS, so the api host's breaker never counts the web host's refused
+ * logins — two processes spending one shared account's invalid-login allowance, the lockout that
+ * stops the fuel feed. The whole prefix, not just the two dialling routes: the SPA calls the api host
+ * for all of it (`VITE_API_URL`), so the web host serving the rest is only a second copy to drift.
+ *
+ * Mounted ahead of `integrationsRouter` rather than inside `mountFuelCardPrefix`, because that one
+ * runs after the integration routers are registered and Express answers in registration order.
+ */
+function mountEfsSoapIntegrationGuard(app: Express, env: Env): void {
+  if (!env.EFS_ROUTES_ENABLED) app.use("/api/integrations/efs-soap", refuseEfsRoute);
 }
 
 /**
@@ -228,6 +248,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/ifta", iftaRouter());
   mountFinanceRouters(app);
   app.use("/api/audit", auditRouter());
+  mountEfsSoapIntegrationGuard(app, env);
   app.use("/api/integrations", integrationsRouter());
   // Same base, its own file: routes/integrations.ts is pinned at 831 lines by lint:filesize.
   app.use("/api/integrations", tmsRosterMasterRouter());

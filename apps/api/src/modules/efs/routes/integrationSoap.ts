@@ -16,6 +16,7 @@ import { getEfsSoapStatus } from "../services/efsSoapStatus.js";
 import { pingEfsSoap } from "../lib/efsSoap.js";
 import { recordHandshake } from "../services/efsSoapClientCerts.js";
 import { allowPrivateEndpoints, checkOutboundUrl } from "../../../lib/ssrfGuard.js";
+import { NOT_EFS_ENDPOINT_MESSAGE, isEfsEndpointHost } from "../services/efsSoapCredentialIdentity.js";
 
 /** EFS SOAP integration config — the collector's own credential surface, moved here from
  *  routes/integrations.ts at the P1.6 split (2026-08-27). Paths unchanged; the mTLS
@@ -93,6 +94,13 @@ export function registerEfsSoapIntegrationRoutes(router: Router): void {
           `[integrations] refused EFS SOAP endpoint for org ${orgId}: ${endpoint.reason} — ${endpoint.detail}`,
         );
         res.status(400).json(apiError("invalid_endpoint_url", endpoint.message));
+        return;
+      }
+      // The EFS-domain allowlist (2026-09-22 security audit; `isEfsEndpointHost`). After the SSRF
+      // check, so a private address still gets that check's deliberately uninformative answer. Waived
+      // with the same dev-only flag that waives the address checks, which production refuses.
+      if (!allowPrivateEndpoints(env) && !isEfsEndpointHost(new URL(endpoint.url).hostname)) {
+        res.status(400).json(apiError("invalid_endpoint_url", NOT_EFS_ENDPOINT_MESSAGE));
         return;
       }
       await upsertEfsSoapCredentials(admin, env, orgId, {

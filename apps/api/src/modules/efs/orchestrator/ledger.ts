@@ -75,7 +75,7 @@ export const cardLedger = (): LedgerAdapter => ({
   assertNoneInFlight,
   insertPending,
   markSent: async (ctx, mutationId, stepIndex) => {
-    await ctx.admin
+    const { error } = await ctx.admin
       .from("efs_card_mutations")
       // `attempts: 1` counts DISPATCH attempts of the row, and a sequence is still one attempt at one
       // mutation — a step is not a retry. `step_index` stays null for a single-step capability, so a
@@ -95,6 +95,26 @@ export const cardLedger = (): LedgerAdapter => ({
       })
       .eq("id", mutationId)
       .eq("org_id", ctx.orgId);
+    /**
+     * FAIL CLOSED — the write has NOT left yet. `dispatch.ts` calls this immediately before each
+     * step's vendor call, so a ledger that cannot record "sent" is a reason not to send, and throwing
+     * here is free: nothing reached EFS. The error used to be discarded (2026-09-22 security audit),
+     * so the write went out behind a row still reading `pending` with no approver stamped — the
+     * record of who authorised a live card change silently missing, on exactly the occasion the
+     * database was misbehaving.
+     *
+     * Escaping leaves the row `pending` (step 0) or `sent` (a later step), the visible unresolved
+     * state `applyCardMutation`'s contract names; the reconciler owns stale rows, as for any other
+     * escape. Same refusal as `assertNoneInFlight`'s unreadable ledger, because it is the same fact.
+     */
+    if (error) {
+      throw new CardControlError(
+        "Card changes are paused because the change log is unavailable. Try again shortly.",
+        "org_hourly_cap_reached",
+        503,
+        { reason: "ledger_unavailable", mutationId },
+      );
+    }
   },
   settle: async (ctx, mutationId, patch) => {
     const { error } = await ctx.admin
@@ -313,8 +333,10 @@ async function assertNoneInFlight(ctx: CardMutationContext): Promise<void> {
     //
     // 'partial' is deliberately NOT in this list. It is terminal, it can be days old, and a card that
     // half-applied a sequence is exactly the card an operator needs to be able to act on next.
-    .gte("created_at", new Date(Date.now() - inFlightWindowMs(ctx.env)).toISOString())
-    .limit(1);
+    .gte("created_at", new Date(Date.now() - inFlightWindowMs(ctx.env)).toISOString());
+  // No `.limit(1)`. The proof-run exemption below filters AFTER the read, and with a limit of one the
+  // single row returned could be the proof's own — hiding another operator's in-flight row behind it
+  // (2026-09-22 security audit). The window is under two minutes, so the set is a handful at most.
   // FAIL CLOSED (audit P0-5). This guard exists to stop a second full-document write racing an
   // unresolved first one; waving requests through because the ledger cannot be read makes it
   // decoration exactly when things are already going wrong. (The org cap above normally fails

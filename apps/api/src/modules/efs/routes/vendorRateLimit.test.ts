@@ -316,6 +316,43 @@ describe("a host that cannot reach EFS refuses fuel-card routes outright", () =>
     }
   });
 
+  it.each([
+    ["POST", "/api/integrations/efs-soap/test-connection"],
+    ["POST", "/api/integrations/efs-soap/client-cert/test"],
+    ["GET", "/api/integrations/efs-soap/config"],
+  ])("refuses %s %s — the EFS connection settings move with the prefix", async (method, path) => {
+    // The 2026-09-22 audit: test-connection is a real EFS LOGIN, and from this host it leaves from an
+    // address WEX has not whitelisted, spending the shared account's invalid-login allowance behind
+    // the API host's breaker.
+    const { baseUrl, server } = await openWebHost();
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+        ...(method === "POST" ? { body: "{}" } : {}),
+      });
+      const body = (await response.json()) as { error: { code: string } };
+      expect(response.status).toBe(503);
+      expect(body.error.code).toBe("efs_routes_not_served_here");
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("leaves the other integrations alone", async () => {
+    // The guard sits on the `/api/integrations` base, so too broad a mount would take Samsara and the
+    // TMS settings down with it. Unauthenticated on purpose: that router's own `requireAuth` answers
+    // 401, which proves the request reached it rather than the refusal.
+    const { baseUrl, server } = await openWebHost();
+    try {
+      const response = await fetch(`${baseUrl}/api/integrations/samsara/config`);
+      expect(response.status).toBe(401);
+      await response.arrayBuffer();
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
   it("leaves every other API prefix alone", async () => {
     const { baseUrl, server } = await openWebHost();
     try {
