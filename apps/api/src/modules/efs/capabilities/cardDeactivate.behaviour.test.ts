@@ -105,7 +105,7 @@ const recorder = (): SupabaseRecorder =>
   });
 
 const deactivate = (xml: string, after: string, rec: SupabaseRecorder) => {
-  const { fetchImpl, sent } = recordingStub(loginOk, xml, soap(""), after);
+  const { fetchImpl, sent } = recordingStub(loginOk, xml, xml, soap(""), after);
   const ctx: CardMutationContext = {
     admin: rec.client, env, creds, orgId: ORG, fetchImpl,
     efsCardId: CARD_ID, cardNumber: CARD, userId: USER,

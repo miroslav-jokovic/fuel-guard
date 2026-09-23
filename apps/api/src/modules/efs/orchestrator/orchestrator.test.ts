@@ -172,10 +172,35 @@ afterEach(() => {
 });
 
 describe("a sequence", () => {
+  it("stops PARTIAL, sending nothing more, when the card moves before a later echo step", async () => {
+    // Two echo steps, so the second one re-reads before its write (a `direct` step does not). Step 0
+    // lands; then the WEX portal edits the policy before step 1 is sent. Refusing cleanly is no longer
+    // possible — step 0 is on the card — so the sequence settles partial, and step 1 is never echoed
+    // over the portal's edit.
+    const reactivateStep: ResolvedStep<void> = {
+      label: "Put the card back to Active",
+      mutation: { kind: "echo", buildEdits: (doc) => lockEdits("Active", doc.card.status) },
+      verify: cardEchoVerify<void>(),
+    };
+    const PORTAL_EDITED = CARD_HELD_OVERRIDDEN.replace("<policyNumber>14</policyNumber>", "<policyNumber>27</policyNumber>");
+    const rec = recorder();
+    const s = stub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN, PORTAL_EDITED);
+
+    const outcome = await executeCapability(
+      ctxFor(rec, s.fetchImpl, versionOf(CARD_START)),
+      sequenced(holdStep, reactivateStep),
+    );
+
+    expect(outcome.status).toBe("partial");
+    expect(outcome.faultCode).toBe("card_moved");
+    expect(s.bodies.filter((body) => /setCard/i.test(body))).toHaveLength(1);
+    expect(settled(rec)).toMatchObject({ status: "partial", step_index: 1, efs_fault_code: "card_moved" });
+  });
+
   it("dispatches every step in order and settles succeeded once the last one lands", async () => {
     const rec = recorder();
     // login → plan read → step0 setCardv2 → step0 re-read → step1 deleteOverride → step1 re-read.
-    const s = stub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN, soap(""), CARD_HELD_CLEARED);
+    const s = stub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN, soap(""), CARD_HELD_CLEARED);
 
     const outcome = await executeCapability(
       ctxFor(rec, s.fetchImpl, versionOf(CARD_START)),
@@ -196,7 +221,7 @@ describe("a sequence", () => {
 
   it("writes step_index as it goes, so a crash mid-sequence leaves the step number behind", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN, soap(""), CARD_HELD_CLEARED);
+    const s = stub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN, soap(""), CARD_HELD_CLEARED);
 
     await executeCapability(ctxFor(rec, s.fetchImpl, versionOf(CARD_START)), sequenced(holdStep, clearOverrideStep));
 
@@ -209,7 +234,7 @@ describe("a sequence", () => {
 
   it("reports a direct step's own footprint as DRIFT when the capability does not declare it", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN, soap(""), CARD_HELD_CLEARED);
+    const s = stub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN, soap(""), CARD_HELD_CLEARED);
 
     // Same successful sequence as above, with `vendorMovesFields` emptied. Both steps land and the
     // mutation is still reported as having moved something nobody asked for — because no echo edit
@@ -227,7 +252,7 @@ describe("a sequence", () => {
   it("settles PARTIAL — not failed — when a later step does not land, and names the step", async () => {
     const rec = recorder();
     // Step 0 lands (Hold). Step 1's delete is accepted and changes nothing: the override is still 2.
-    const s = stub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN, soap(""), CARD_HELD_OVERRIDDEN);
+    const s = stub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN, soap(""), CARD_HELD_OVERRIDDEN);
 
     const outcome = await executeCapability(
       ctxFor(rec, s.fetchImpl, versionOf(CARD_START)),
@@ -249,7 +274,7 @@ describe("a sequence", () => {
   it("settles FAILED when the FIRST step does not land — nothing applied, so nothing is partial", async () => {
     const rec = recorder();
     // The lock is accepted and changes nothing. Step 1 must never be reached.
-    const s = stub(loginOk, CARD_START, soap(""), CARD_START);
+    const s = stub(loginOk, CARD_START, CARD_START, soap(""), CARD_START);
 
     const outcome = await executeCapability(
       ctxFor(rec, s.fetchImpl, versionOf(CARD_START)),
@@ -288,7 +313,7 @@ describe("governance gates run in the plan phase, before a row exists", () => {
 
   it("lets the same capability through when the caller DID re-authenticate", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN);
+    const s = stub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN);
 
     const outcome = await executeCapability(
       { ...ctxFor(rec, s.fetchImpl, versionOf(CARD_START)), stepUp: true },
@@ -320,7 +345,7 @@ describe("governance gates run in the plan phase, before a row exists", () => {
 
   it("passes the snapshot to auditMeta, so the meta describes the card the write was planned against", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN);
+    const s = stub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN);
 
     await executeCapability(
       ctxFor(rec, s.fetchImpl, versionOf(CARD_START)),
@@ -354,7 +379,7 @@ describe("the seam refuses what it cannot record", () => {
 describe("a verification that cannot decide", () => {
   it("settles 'sent', not 'failed', when judge answers indeterminate on a document it could read", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN);
+    const s = stub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN);
 
     // The one case here that does not use a shipped verify: no capability today can answer
     // `indeterminate` while holding a document, and the point of the three-valued Landing is that a
@@ -414,7 +439,7 @@ describe("apply latency measures the interval its column names (Step 4.7)", () =
   it("excludes the write itself when the first re-read sees the change", async () => {
     const rec = recorder();
     // login → plan read → setCardv2 (slow) → re-read ALREADY showing Hold.
-    const s = slowWriteStub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN);
+    const s = slowWriteStub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN);
 
     const outcome = await executeCapability(ctxWithRetry(rec, s.fetchImpl, versionOf(CARD_START)), capability());
 
@@ -428,7 +453,7 @@ describe("apply latency measures the interval its column names (Step 4.7)", () =
   it("includes the retry pause when only the second look sees it, and still excludes the write", async () => {
     const rec = recorder();
     // The first re-read still shows the OLD document, so the second look is the one that lands.
-    const s = slowWriteStub(loginOk, CARD_START, soap(""), CARD_START, CARD_HELD_OVERRIDDEN);
+    const s = slowWriteStub(loginOk, CARD_START, CARD_START, soap(""), CARD_START, CARD_HELD_OVERRIDDEN);
 
     const outcome = await executeCapability(ctxWithRetry(rec, s.fetchImpl, versionOf(CARD_START)), capability());
 
@@ -448,14 +473,14 @@ describe("apply latency measures the interval its column names (Step 4.7)", () =
    */
   it("distinguishes a vendor that lands immediately from one that lands only on the second look", async () => {
     const immediate = await executeCapability(
-      ctxWithRetry(recorder(), slowWriteStub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN).fetchImpl, versionOf(CARD_START)),
+      ctxWithRetry(recorder(), slowWriteStub(loginOk, CARD_START, CARD_START, soap(""), CARD_HELD_OVERRIDDEN).fetchImpl, versionOf(CARD_START)),
       capability(),
     );
     // The SOAP session is cached across calls, so the second run would skip its login and read every
     // scripted response one position early — the login envelope would arrive where a card was due.
     __resetEfsSessions();
     const delayed = await executeCapability(
-      ctxWithRetry(recorder(), slowWriteStub(loginOk, CARD_START, soap(""), CARD_START, CARD_HELD_OVERRIDDEN).fetchImpl, versionOf(CARD_START)),
+      ctxWithRetry(recorder(), slowWriteStub(loginOk, CARD_START, CARD_START, soap(""), CARD_START, CARD_HELD_OVERRIDDEN).fetchImpl, versionOf(CARD_START)),
       capability(),
     );
 
@@ -481,7 +506,7 @@ describe("apply latency measures the interval its column names (Step 4.7)", () =
   it("is null when nothing landed — an unlanded write has no apply latency", async () => {
     const rec = recorder();
     // Both looks show the card unchanged: the write was accepted and never applied.
-    const s = slowWriteStub(loginOk, CARD_START, soap(""), CARD_START, CARD_START);
+    const s = slowWriteStub(loginOk, CARD_START, CARD_START, soap(""), CARD_START, CARD_START);
 
     const outcome = await executeCapability(ctxWithRetry(rec, s.fetchImpl, versionOf(CARD_START)), capability());
 
@@ -496,7 +521,7 @@ describe("apply latency measures the interval its column names (Step 4.7)", () =
     // both slow writes; the last-step rule keeps the number a property of the VENDOR, not the recipe.
     const s = slowWriteStub(
       loginOk, CARD_START,
-      soap(""), CARD_HELD_OVERRIDDEN,
+      CARD_START, soap(""), CARD_HELD_OVERRIDDEN,
       soap(""), CARD_HELD_OVERRIDDEN, CARD_HELD_CLEARED,
     );
 

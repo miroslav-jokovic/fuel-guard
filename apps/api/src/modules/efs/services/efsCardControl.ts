@@ -23,7 +23,8 @@ export { resolveCapability } from "../orchestrator/resolve.js";
  * ── The shape of every mutation ──────────────────────────────────────────────────────────────────
  *
  *   plan:   capacity checks → verify.snapshot → expectedVersion → governance → edits → ledger 'pending'
- *   apply:  per step: dispatch → verify.snapshot → verify.judge → settle + audit + mirror
+ *   apply:  per step: [echo: re-read, refuse if moved] → dispatch → verify.snapshot → verify.judge →
+ *           settle + audit + mirror
  *
  * Split into two exported functions even though Phase 1 calls them back to back in one request. That
  * seam is what makes maker-checker a route and a UI rather than a schema migration later: `apply`

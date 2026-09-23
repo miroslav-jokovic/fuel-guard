@@ -43,7 +43,11 @@ export class EfsSoapError extends Error {
       | "declined"
       // OUR OWN guard refused to send a lossy full-document echo. Never a vendor condition — this is
       // a bug in the serializer and must be visible as one. See lib/efsCardXml.ts.
-      | "echo_unfaithful",
+      | "echo_unfaithful"
+      // OUR OWN guard refused to send: the card changed in EFS between the plan's read and the moment
+      // of the write, so echoing the planned document would overwrite that change. Nothing was sent.
+      // See `recheckBeforeWrite` in orchestrator/dispatch.ts.
+      | "card_moved",
     public detail?: unknown,
   ) {
     super(message);

@@ -301,12 +301,14 @@ async function assertOrgCapacity(ctx: CardMutationContext): Promise<void> {
   }
 }
 
-/** Everything one orchestration can legitimately take: read + write + two verify reads, each on its
- *  own interactive deadline, plus the second-look pause, plus pacing margin. */
+/** Everything one orchestration can legitimately take: read + pre-write re-read + write + two verify
+ *  reads, each on its own interactive deadline, plus the second-look pause, plus pacing margin. Five,
+ *  not four, since `recheckBeforeWrite` (dispatch.ts) added the re-read — a window one call short is
+ *  the audit P0-5 defect again, a slow write losing its protection while still mid-flight. */
 function inFlightWindowMs(env: Env): number {
   const perCall = env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS;
   const secondLook = env.EFS_CARD_VERIFY_RETRY_MS;
-  return 4 * perCall + secondLook + 15_000;
+  return 5 * perCall + secondLook + 15_000;
 }
 
 /**

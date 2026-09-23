@@ -138,7 +138,7 @@ describe("a mutation that lands", () => {
     // login → fresh read → setCardV2 → verifying re-read. No fifth call: the mirror is fed from
     // the verifying read itself (audit B5.1) — a fifth stubbed response here would mask a regression
     // that started dialing the vendor again.
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD);
     const outcome = await executeLock(
       { ...ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)) }
     );
@@ -154,7 +154,7 @@ describe("a mutation that lands", () => {
 
   it("records the endpoint host and environment on the ledger row at insert", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD);
 
     await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
@@ -183,7 +183,7 @@ describe("a mutation that lands", () => {
 
     it("stamps approved_by when the write is dispatched, not when the row is opened", async () => {
       const rec = recorder();
-      const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+      const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD);
 
       await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
@@ -204,7 +204,7 @@ describe("a mutation that lands", () => {
       // the same position for loads: a recorded self-approval is a legitimate outcome, and a null
       // would lose the fact that anyone authorised it at all — the hole Step 5.3 closes.
       const rec = recorder();
-      const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+      const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD);
 
       await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
@@ -219,7 +219,7 @@ describe("a mutation that lands", () => {
       // maker-checker is "a route and a UI, not a migration" is untested.
       const APPROVER = "3d4e5f6a-7b8c-4d9e-8f1a-2b3c4d5e6f7a";
       const rec = recorder();
-      const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+      const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD);
 
       await executeLock({ ...ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), approvedBy: APPROVER });
 
@@ -239,7 +239,7 @@ describe("a mutation that lands", () => {
     const HELD_UPPER = CARD_ACTIVE.replace("<status>Active</status>", "<status>HOLD</status>");
     expect(parseCardDocument(ACTIVE_UPPER).card.status).toBe("ACTIVE"); // the replace hit the header
     const rec = recorder();
-    const s = stub(loginOk, ACTIVE_UPPER, soap(""), HELD_UPPER);
+    const s = stub(loginOk, ACTIVE_UPPER, ACTIVE_UPPER, soap(""), HELD_UPPER);
     const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(ACTIVE_UPPER)));
 
     const writeBody = s.bodies.find((b) => b.includes("setCardv2"));
@@ -253,14 +253,14 @@ describe("a mutation that lands", () => {
 
   it("keeps every query and write inside the org", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD);
     await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
     expectOrgScoped(rec, ORG);
   });
 
   it("never writes a card number into the ledger", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD);
     await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
     // Mechanical proof rather than a code-review habit: scan EVERY recorded payload for a card
     // number. The ledger row stores a full card echo as XML, so this is the test that would have
@@ -282,7 +282,7 @@ describe("a mutation that does not land", () => {
       "<soap:Fault xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/'><faultstring>Not Allowed 109491436176</faultstring></soap:Fault>",
     );
     // login → read → REFUSED write → re-read (still Active)
-    const s = stub(loginOk, CARD_ACTIVE, fault, CARD_ACTIVE);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, fault, CARD_ACTIVE);
     const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
     expect(outcome.status).toBe("failed");
@@ -295,7 +295,7 @@ describe("a mutation that does not land", () => {
 
   it("records drift when the card moved in ways no edit named", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD_AND_DRIFTED);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD_AND_DRIFTED);
     const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
     // The lock landed. Something else moved too — EFS wins, the mirror follows, and we say so.
@@ -306,7 +306,7 @@ describe("a mutation that does not land", () => {
 
   it("records 'sent' — not failed — when the verifying re-read itself fails", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), "not xml at all");
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), "not xml at all");
     const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
     // The write went out and we cannot say what became of it. Calling that "failed" would tell an
@@ -314,6 +314,68 @@ describe("a mutation that does not land", () => {
     expect(outcome.status).toBe("sent");
     expect(settled(rec)).toMatchObject({ status: "sent" });
     expect(rec.writtenRows("audit_logs").map((r) => r.action)).toContain("card.mutation_unverified");
+  });
+});
+
+describe("a card that changes between the check and the write (2026-09-22 audit)", () => {
+  /**
+   * `setCardV2` echoes the whole document, so a portal edit landing after `plan` read the card would
+   * be overwritten by our older copy. The re-read immediately before the write is what refuses it.
+   * Scripted as: login → plan read (ACTIVE) → pre-write re-read, which sees the portal's edit.
+   */
+  const PORTAL_EDITED = CARD_ACTIVE.replace("<policyNumber>14</policyNumber>", "<policyNumber>27</policyNumber>");
+  const writes = (bodies: string[]) => bodies.filter((body) => /setCard/i.test(body));
+
+  it("sends nothing, and answers 409 with the card EFS holds now", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, PORTAL_EDITED);
+    const error = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE))).catch((e) => e);
+
+    expect(error).toBeInstanceOf(CardControlError);
+    expect(error.code).toBe("card_state_changed");
+    expect(error.status).toBe(409);
+    expect(error.detail).toMatchObject({ currentVersion: versionOf(PORTAL_EDITED), mutationId: "mutation-1" });
+    // The portal's edit survives because nothing was echoed over it.
+    expect(writes(s.bodies)).toEqual([]);
+  });
+
+  it("settles its row failed — attempts 0, no approver — because nothing reached the vendor", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, PORTAL_EDITED);
+    await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE))).catch(() => {});
+
+    expect(settled(rec)).toMatchObject({ status: "failed", efs_fault_code: "card_moved", attempts: 0 });
+    // markSent never ran, so nothing was approved: 0197 lets a never-sent row settle without one.
+    const updates = rec.forTable("efs_card_mutations").map((q) => q.write?.payload as Record<string, unknown> | undefined);
+    expect(updates.some((payload) => payload?.status === "sent")).toBe(false);
+  });
+
+  it("refreshes the mirror from the re-read, so the page shows the edit that stopped it", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, PORTAL_EDITED);
+    await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE))).catch(() => {});
+
+    const mirrored = rec.writtenRows("efs_cards").at(-1);
+    expect(mirrored?.card_version).toBe(versionOf(PORTAL_EDITED));
+  });
+
+  it("fails closed when the re-read itself fails — 'could not check' is not 'unchanged'", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, "not xml at all");
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
+
+    expect(outcome.status).toBe("failed");
+    expect(writes(s.bodies)).toEqual([]);
+    expect(settled(rec)).toMatchObject({ status: "failed", attempts: 0 });
+  });
+
+  it("still writes when the re-read agrees with the plan — the ordinary path pays one read", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD);
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
+
+    expect(outcome.status).toBe("succeeded");
+    expect(writes(s.bodies)).toHaveLength(1);
   });
 });
 
@@ -377,14 +439,14 @@ describe("concurrency and caps", () => {
             ? { data: null, error: { message: "connection reset" } }
             : { data: [], error: null, count: 0 },
     });
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD);
     const error = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE))).catch((e) => e);
 
     expect(error).toBeInstanceOf(CardControlError);
     expect(error.status).toBe(503);
     expect(error.detail).toMatchObject({ reason: "ledger_unavailable" });
-    // login + the planning read, and nothing after: the write never left.
-    expect(s.bodies).toHaveLength(2);
+    // login + the planning read + the pre-write re-read, and nothing after: the write never left.
+    expect(s.bodies).toHaveLength(3);
     expect(s.bodies.some((body) => body.includes("setCard"))).toBe(false);
   });
 
@@ -424,7 +486,7 @@ describe("the vendor writes our value back in its own casing", () => {
 
   it("counts a lock as SUCCEEDED when the card comes back HOLD", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD_UPPERCASE);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_HELD_UPPERCASE);
     const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
     // Without the casing tolerance this was `failed`: the operator was told "EFS accepted the request
@@ -438,7 +500,7 @@ describe("the vendor writes our value back in its own casing", () => {
   it("still calls it FAILED when the status is a genuinely different state", async () => {
     // The tolerance is case ONLY. A card that came back Active after a lock is a real failure.
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_ACTIVE);
     const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
     expect(outcome.status).toBe("failed");
   });
@@ -446,7 +508,7 @@ describe("the vendor writes our value back in its own casing", () => {
   it("does not let the tolerance swallow real drift on a field nobody edited", async () => {
     const drifted = CARD_HELD_UPPERCASE.replace("<policyNumber>14</policyNumber>", "<policyNumber>27</policyNumber>");
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), drifted);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), drifted);
     const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
     expect(outcome.status).toBe("drift_detected");
     expect(outcome.driftFields).toContain("/policyNumber");
@@ -463,7 +525,7 @@ describe("the second verifying look (audit P0-2)", () => {
   it("records SUCCEEDED when the change lands between the first and second look", async () => {
     const rec = recorder();
     // login → read → write → verify #1 (stale: still Active) → verify #2 (landed: Hold)
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_HELD);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_HELD);
     const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
     const outcome = await executeLock({ ...ctx, env: testEnv({ ...env, EFS_CARD_VERIFY_RETRY_MS: 1 }) });
     expect(outcome.status).toBe("succeeded");
@@ -472,7 +534,7 @@ describe("the second verifying look (audit P0-2)", () => {
 
   it("still records failed/no_change when BOTH looks see an unchanged card", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_ACTIVE);
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_ACTIVE);
     const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
     const outcome = await executeLock({ ...ctx, env: testEnv({ ...env, EFS_CARD_VERIFY_RETRY_MS: 1 }) });
     expect(outcome.status).toBe("failed");
@@ -482,7 +544,7 @@ describe("the second verifying look (audit P0-2)", () => {
   it("keeps the FIRST read's verified verdict when the second look itself fails", async () => {
     const rec = recorder();
     // verify #2 breaks — the mutation is still VERIFIED-failed by look #1, never downgraded to sent.
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, "not xml at all");
+    const s = stub(loginOk, CARD_ACTIVE, CARD_ACTIVE, soap(""), CARD_ACTIVE, "not xml at all");
     const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
     const outcome = await executeLock({ ...ctx, env: testEnv({ ...env, EFS_CARD_VERIFY_RETRY_MS: 1 }) });
     expect(outcome.status).toBe("failed");

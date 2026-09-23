@@ -128,10 +128,9 @@ describe("a revert that does not land", () => {
     // verify — which comes back HELD again, so the revert did NOT land.
     const h = harness(stub(
       loginOk, ACTIVE,
-      ACTIVE, soap(""), HELD,
+      ACTIVE, ACTIVE, soap(""), HELD,
       HELD,
-      HELD, soap(""), HELD,
-    ));
+      HELD, HELD, soap(""), HELD));
     const result = await proveCapability(h.ctx, "card_lock", h.deps);
 
     expect(result.oeg3ChangeLanded).toBe(true);
@@ -156,10 +155,9 @@ describe("OEG-4, the H1 gate", () => {
     const miscased = ACTIVE.replace(/<validationType>EXACT_MATCH<\/validationType>/g, "<validationType>exact_match</validationType>");
     const h = harness(stub(
       loginOk, ACTIVE,
-      ACTIVE, soap(""), miscased,
+      ACTIVE, ACTIVE, soap(""), miscased,
       miscased,
-      miscased, soap(""), ACTIVE,
-    ));
+      miscased, miscased, soap(""), ACTIVE));
     const result = await proveCapability(h.ctx, "prompts_set", h.deps);
 
     expect(result.oeg4Vocabulary).toBe(false);
@@ -174,10 +172,9 @@ describe("OEG-4, the H1 gate", () => {
     // treating it as a failure here would deny every proof that ever ran.
     const h = harness(stub(
       loginOk, ACTIVE,
-      ACTIVE, soap(""), HELD,
+      ACTIVE, ACTIVE, soap(""), HELD,
       HELD,
-      HELD, soap(""), ACTIVE,
-    ));
+      HELD, HELD, soap(""), ACTIVE));
     const result = await proveCapability(h.ctx, "card_lock", h.deps);
 
     expect(result.oeg4Vocabulary).toBe(true);
@@ -203,10 +200,9 @@ describe("OEG-3 and the vendor-blind capability", () => {
     // which IS observable, so the revert must genuinely land for OEG-5.
     const h = harness(stub(
       loginOk, ACTIVE,
-      ACTIVE, soap(""), COUNT_ONLY,
+      ACTIVE, ACTIVE, soap(""), COUNT_ONLY,
       COUNT_ONLY,
-      COUNT_ONLY, soap(""), ACTIVE,
-    ));
+      COUNT_ONLY, COUNT_ONLY, soap(""), ACTIVE));
     const result = await proveCapability(h.ctx, "override_grant", h.deps);
 
     expect(result.oeg3ChangeLanded).toBe(true);
@@ -223,10 +219,9 @@ describe("OEG-3 and the vendor-blind capability", () => {
     // from quietly becoming "any outcome counts".
     const h = harness(stub(
       loginOk, ACTIVE,
-      ACTIVE, soap(""), ACTIVE,
+      ACTIVE, ACTIVE, soap(""), ACTIVE,
       ACTIVE,
-      ACTIVE, soap(""), ACTIVE,
-    ));
+      ACTIVE, ACTIVE, soap(""), ACTIVE));
     const result = await proveCapability(h.ctx, "override_grant", h.deps);
 
     expect(result.oeg3ChangeLanded).toBe(false);
@@ -249,10 +244,9 @@ describe("OEG-3 and the vendor-blind capability", () => {
     const h = harness(
       stub(
         loginOk, ACTIVE,
-        ACTIVE, soap(""), COUNT_ONLY,
+        ACTIVE, ACTIVE, soap(""), COUNT_ONLY,
         COUNT_ONLY,
-        COUNT_ONLY, soap(""), ACTIVE,
-      ),
+        COUNT_ONLY, COUNT_ONLY, soap(""), ACTIVE),
       // Every in-flight lookup sees a FRESH `sent` row belonging to this very proof run.
       (q) => {
         if (q.write?.method === "insert") return { data: { id: "mutation-1" }, error: null };
@@ -279,9 +273,8 @@ describe("OEG-3 and the vendor-blind capability", () => {
     const h = harness(
       stub(
         loginOk, ACTIVE,
-        ACTIVE, soap(""), COUNT_ONLY,
-        COUNT_ONLY,
-      ),
+        ACTIVE, ACTIVE, soap(""), COUNT_ONLY,
+        COUNT_ONLY),
       (q) => {
         if (q.write?.method === "insert") return { data: { id: "mutation-1" }, error: null };
         if (q.filters().some((f) => f.col === "status")) {
@@ -314,10 +307,9 @@ describe("what the harness may and may not decide", () => {
   it("cannot promote — `enabled` is not a state it can write", async () => {
     const h = harness(stub(
       loginOk, ACTIVE,
-      ACTIVE, soap(""), HELD,
+      ACTIVE, ACTIVE, soap(""), HELD,
       HELD,
-      HELD, soap(""), ACTIVE,
-    ));
+      HELD, HELD, soap(""), ACTIVE));
     await proveCapability(h.ctx, "card_lock", h.deps);
 
     // Evidence that can promote itself is not evidence. Only Step 4.6, driven by a person, writes

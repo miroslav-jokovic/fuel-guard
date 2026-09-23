@@ -48,6 +48,19 @@ describe("card_state_changed", () => {
     expect(on.rekey).not.toHaveBeenCalled();
   });
 
+  it("DOES mint a fresh key when the refusal came after a ledger row opened (the pre-write re-read)", () => {
+    // Keeping the key would replay this settled refusal on the operator's retry instead of running it.
+    const on = handlers();
+    const live = { status: "ACTIVE", infos: [] };
+    handleOperationFailure(
+      apiError("changed", "card_state_changed", 409, { currentVersion: "w".repeat(32), card: live, mutationId: "m-1" }),
+      on,
+    );
+
+    expect(on.cardMoved).toHaveBeenCalledWith("w".repeat(32), live);
+    expect(on.rekey).toHaveBeenCalled();
+  });
+
   it("abandons rather than guesses when the 409 carried no usable document", () => {
     // A payload without an `infos` array is not the fresh card. Seeding from it would put invented
     // state on screen and call it EFS's.
