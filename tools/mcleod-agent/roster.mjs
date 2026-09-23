@@ -331,7 +331,10 @@ export async function withPool({ server, port, database, user, password, encrypt
       // Read-only intent is advisory here but correct: it lets a DBA route us to a readable secondary
       // and documents the posture in their connection logs.
       readOnlyIntent: true,
-      appName: "FuelGuard roster agent",
+      // What the carrier's DBA sees as program_name in sys.dm_exec_sessions. Every McLeod read goes
+      // through this pool — roster, loads and discovery alike — so it names the product, not one feed,
+      // and the review routine tells them to look for exactly this string.
+      appName: "Silvicom 360 connector",
     },
     requestTimeout: 120_000,
     pool: { max: 2, min: 0, idleTimeoutMillis: 30_000 },

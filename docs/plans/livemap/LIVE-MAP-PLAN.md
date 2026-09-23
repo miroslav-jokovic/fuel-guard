@@ -2767,3 +2767,27 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   *not worth building* — which is a result, not a gap — and the gate has done its job. Note that #853
   already removed the per-tile double allocation, so the in-process half of the cost is smaller than
   when B3 was written.
+
+- 2026-09-23 — **Probe P5 run against live `lme`, eleven days after it was written. The question for
+  the carrier is now specific; D-LM15's reported-but-unsent stands until they answer.** All-time
+  stop types: SO 289,780 · PU 281,879 · VA 1,441 · **SD 853 · SP 853** · VP 17 · **VN 2** (VN was
+  not in the plan's list; last seen 2021). No CHECK constraint or extended property on
+  `stop.stop_type`, and the login cannot see a code table, so the reading is behavioural:
+  - **SD/SP is a split.** All 853 SD stops have an SP on the same order on a *different* movement;
+    218 at the same location (Melrose Park, Floyd's Truck Center, Outpost, our own yard). A
+    two-movement order: PU → SD drops the trailer, SP → SO picks it up and delivers. If confirmed,
+    SP is a pickup-shaped stop and SD a drop-shaped one; whether either should ask the driver for
+    a BOL is LM2's question, not the data's — the order's paperwork starts at its real PU.
+  - **VA/VP sit at SAIA terminals**, between two dealer deliveries: 512 of the last year's 638 VA
+    stops, on 279 Viking Packing movements (e.g. 291475: Columbia MO → SAIA Toledo → Monroe →
+    SAIA Romulus → Center Line → SAIA Warren → Washington MI). **586 of 633 VA arrivals equal the
+    previous stop's departure to the minute** — cleared in bulk, not visited, which is why P5 alone
+    cannot say whether the truck stops. Not only SAIA: open load 290911 has a VA at Phoenix with no
+    location name on a Sherwin-Williams run.
+  - Open loads carrying one today: **2** (290911 VA, 291798 SP). The widening is worth one load in
+    fifty, so it waits for Alex's answer rather than a guess — the question is in
+    `tools/mcleod-agent/review/SILVICOM-READ-ROUTINE.sql`, question 1.
+  Same session, same login: **`tractor.fleet_id` is the dispatcher's fleet** — on 114 open `P` loads
+  it names the load's dispatcher on 95 of 97 person-dispatched ones, against 70 for
+  `tractor.dispatcher`. The codes are not logins (`ROMAN` ↔ `romann`, `IVO` ↔ `ivok`), so a fleet →
+  dispatcher mapping is needed wherever LM11 links them; question 4 asks whether LME stores one.
