@@ -15,7 +15,7 @@ import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessu
 import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
-import { heroPlate, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
+import { heroPlate, heroVars, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
 import { useColorScheme } from "@/composables/useColorScheme";
 import { useModulesQuery } from "@/composables/useModules";
 import NotificationBell from "@/components/NotificationBell.vue";
@@ -58,8 +58,7 @@ const plate = computed(() => heroPlate(route, isDark.value));
  * material and rule once the page moves: at rest it would be a grey band drawn across the sky; in
  * motion it is the thing keeping the toggle and the bell legible over whatever scrolls under it.
  * That is the large-title navigation bar's behaviour, for the same reason. `useWindowScroll`
- * because the document scrolls, not `<main>` — a full-bleed route has no plate, so its own
- * overflow container never needs asking.
+ * because the document scrolls, not `<main>`: a full-bleed route has no plate to step back from.
  */
 const { y: scrollY } = useWindowScroll();
 const barAtRest = computed(() => Boolean(plate.value) && scrollY.value < 8);
@@ -156,27 +155,7 @@ const sidebarCollapsed = computed(() =>
     override: collapseOverride.value,
   }),
 );
-/**
- * How much wider than a 1440 window's content the page is, and so how much the hero may grow.
- *
- * ⚠ Reported by the owner 2026-09-23, twice. At a FIXED 232px band the truck can only be so large
- * before its roof or its wheels leave the band, so the first fix for a wide screen capped the
- * photograph at its 1440 width — correct framing, and a small picture parked at the right of a
- * 2470px screen with empty canvas beside it. The band's height was the real constraint, so now the
- * plate's width AND the band's height grow together with this one measurement (the arithmetic is in
- * style.css at `.page-backdrop`). It is the content width, not the window's, which is why the
- * sidebar's width is in it: collapsing the sidebar is more room, and the hero takes it.
- * 73rem is 1104px of content plus the 2 × 2rem gutter — a 1440 window with the sidebar open, where
- * the plate was framed. 87.5rem stops the growth at a ~3900px window.
- */
-const heroVars = computed(() => ({
-  "--backdrop-plate": `url(${plate.value})`,
-  "--hero-room": `clamp(0px, 100vw - ${sidebarCollapsed.value ? "3.75rem" : "17rem"} - 73rem, 87.5rem)`,
-  // Declared HERE, beside the room it reads: a custom property resolves its var()s where it is
-  // declared, so defined on :root it would read an unset room and be 0 everywhere.
-  "--hero-grow": "calc(var(--hero-room) * 0.035)",
-}));
-
+const heroStyle = computed(() => heroVars(plate.value, sidebarCollapsed.value));
 function toggleSidebar() {
   const next = !sidebarCollapsed.value;
   // On a workspace the choice is about this visit; on a document it is the preference, and only that
@@ -474,7 +453,7 @@ async function signOut() {
         <div
           class="relative"
           :class="fullBleed ? 'h-full' : 'w-full px-4 sm:px-6 lg:px-8'"
-          :style="plate ? heroVars : undefined"
+          :style="heroStyle"
         >
           <!--
             ⚠ The layer is a SIBLING of the page, first in the document and inside the gutter's own

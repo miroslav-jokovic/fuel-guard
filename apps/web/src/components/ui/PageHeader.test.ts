@@ -93,8 +93,8 @@ describe("PageHeader on the page backdrop (D-DT18)", () => {
    * what the band's own height buys — 136px, the prototype's, measured against the plate's crop.
    */
   it("gives the greeting the band's height, and the plain header none", async () => {
-    expect((await mountAt("/greeting")).get("header").classes()).toContain("min-h-34");
-    expect((await mountAt("/")).get("header").classes()).not.toContain("min-h-34");
+    expect((await mountAt("/greeting")).get("header").classes()).toContain("page-header-on-plate");
+    expect((await mountAt("/")).get("header").classes()).not.toContain("page-header-on-plate");
   });
 
   it("has no axe violations on the backdrop", async () => {
