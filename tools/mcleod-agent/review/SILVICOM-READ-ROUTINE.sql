@@ -1,74 +1,107 @@
 /* =====================================================================================
-   Silvicom 360 - the complete read routine against LME (database: lme)
+   Silvicom 360 - what our loads connector runs against LME (database: lme)
    =====================================================================================
 
-   FOR REVIEW. This file is everything we run against your production server. There is no
-   other statement, no stored procedure, no agent job and no scheduled task beyond what is
-   written below. You can open it, read it, and run it yourself - it is valid T-SQL as it
-   stands and it returns the same rows our connector sees.
+   Hi Alex,
 
-   WHO / WHAT / WHERE
-     login      silvicom_dispatch_ro   (SELECT + VIEW CHANGE TRACKING only - no write anywhere)
+   As promised, here is the routine for you to look over before we schedule anything
+   against the live database. These are the statements our loads connector will run,
+   exactly as it runs them - the file is plain T-SQL, so you can open it in SSMS and
+   execute it yourself. You will get back the same rows we see.
+
+   One thing I want to be upfront about: this file covers the LOADS feed. We also run a
+   smaller roster sync with the same login (drivers, trucks and trailers, so our
+   people and equipment lists match yours). I will send you those queries as well, so you
+   have the full picture of everything we read.
+
+   THE SHORT VERSION
+     login      silvicom_dispatch_ro - it can only read. It has no permission to insert,
+                update or delete anything.
      database   lme
-     host       our connector runs on YOUR network. It opens an OUTBOUND HTTPS connection to
-                us. Nothing of ours connects inbound to your server, and no firewall rule or
-                IP allow-list is required from you.
-     cadence    every 60 seconds (we will start at 10 minutes and tighten only if it earns it)
+     where      our connector runs inside YOUR network (on the Board VM, once it is set
+                up) and sends what it reads OUT to us over HTTPS. Nothing of ours ever
+                connects in to your server, so you do not need to open a firewall port or
+                keep an IP allow-list for us.
+     how often  we would like to start at once every 10 minutes, and only move towards
+                once a minute if it turns out to be worth it.
 
-   WHAT IT COSTS YOU - measured on your own server, 2026-09-17, SET STATISTICS TIME, median of 5
+   HOW MUCH LOAD THIS PUTS ON YOUR SERVER
+     We measured it on your server on 2026-09-17 (SET STATISTICS TIME, median of 5 runs):
      all four statements together      16 ms CPU   /  26 ms elapsed  /  514 rows
-     per day at a 60-second cadence    23 CPU-seconds
+     per day, even at once a minute     23 CPU-seconds
      as a share of this 42-core box    0.0006 %
      added request rate                3 requests/minute = 0.036 % of your ~138/sec baseline
 
    WHAT WE WILL NEVER DO
-     - never write. The login has no INSERT, UPDATE or DELETE permission on any object.
-     - never NOLOCK / READ UNCOMMITTED. A dirty read reaching a financial figure is worse
-       than a query that waits, and at 16 ms these are far too short to need it.
-     - never hold a transaction open, never take a lock we could avoid, never run unbounded.
-     - never read driver.social_security_no. It is not in our grant and we do not want it.
+     - Write anything. The login cannot, and we would not want it to.
+     - Use NOLOCK / READ UNCOMMITTED. At 16 ms these queries do not need it, and we would
+       rather wait a moment than read a half-written row.
+     - Hold a transaction open, take locks we do not need, or run anything unbounded.
+     - Read driver.social_security_no. It is not in our grant and we do not want it.
 
-   HOW WE STAY OUT OF YOUR WRITERS' WAY
-     READ_COMMITTED_SNAPSHOT is OFF on this database, so a long read blocks your writers.
-     Everything below is therefore short, keyed and capped. LOCK_TIMEOUT means WE give up
-     rather than make one of your dispatchers wait; DEADLOCK_PRIORITY LOW means if the server
-     must break a tie, it always breaks it against us.
+   HOW WE STAY OUT OF YOUR DISPATCHERS' WAY
+     READ_COMMITTED_SNAPSHOT is off on this database, so a long-running read could make
+     your users wait. That is why everything below is short and targeted. LOCK_TIMEOUT
+     means that if a row is busy, our query gives up after 5 seconds instead of making
+     anyone wait on us. DEADLOCK_PRIORITY LOW means that if SQL Server ever has to choose
+     between us and one of your users, it always picks us to cancel.
 
-   QUESTIONS FOR YOU - the four things we could not answer by reading the data
-     1. stop_type 'VA' (and 'SP'): what are they? We currently refuse to guess and skip them,
-        which leaves one real movement (290837) showing 6 of its 10 stops on our screen. We
-        would rather map them correctly than guess a stop type onto a driver's checklist.
-     2. movement.status 'A' vs 'P': we read 'A' as available/not yet covered - 46 of them have
-        no dispatcher and no trailer. Is that right?
-     3. The certificate hostname for this SQL Server, so we can connect with TLS. An IP cannot
-        be used as a TLS server name, so today we connect unencrypted inside the VPN and we
-        would prefer not to.
-     4. The grant on dbo.driver includes 11 columns we did not ask for (birth_date, address,
-        city, state, zip, name_of_spouse, licence fields, medical_cert_expire, hire_date). We
-        only need: id, company_id, first_name, name, is_active, termination_date. Please
-        narrow it - we would rather not hold what we do not use.
+   A FEW QUESTIONS WE COULD NOT ANSWER FROM THE DATA
+     1. Stop types. Almost every stop is PU or SO, but a few are VA, and we have also seen
+        VP, SP and SD. What do these mean? Right now we leave them out rather than guess,
+        so a load like movement 290837 shows only 6 of its 10 stops on our side. We would
+        like to show them properly, and we do not want to guess wrong - for example,
+        treating a routing stop as a delivery would ask the driver for a bill of lading
+        that does not exist.
+     2. Movement status. We are reading A as "available / not covered yet" and P as
+        "dispatched / in progress" (with D delivered and V void). The A loads have no
+        dispatcher or trailer yet, so that seems to fit. Can you confirm we have it right?
+     3. Encryption. When we tried an encrypted connection, the SQL Server offered its own
+        self-signed certificate, so today we connect without encryption. Which of these
+        works best for you?
+          a) you install a trusted certificate on the SQL Server and give us the hostname
+             it is issued for,
+          b) we encrypt the connection but accept the current self-signed certificate, or
+          c) we stay unencrypted, since once we are on the Board VM the traffic never
+             leaves your network.
+        We would lean towards (a) or (b), but it is your call.
+     4. Dispatcher fleets. Each dispatcher has their own fleet of trucks, and we want to
+        show that correctly. Where does that assignment live in LME - tractor.fleet_id,
+        tractor.dispatcher, driver.fleet_manager, or somewhere else? We noticed that on
+        about 4 in 10 active loads, the dispatcher on the load is not the one on the
+        truck, so we want to make sure we are reading the right field. If it is
+        driver.fleet_manager, could you add that column (and driver.tractor_id) to our
+        driver grant? They were in our original request but did not make it in.
+
+   And thank you for correcting the grant script and setting all of this up. If you would
+   like any statement below changed, capped differently or removed, just tell me and we
+   will change it before anything is scheduled.
+
+   Thanks,
+   Miki
    ===================================================================================== */
 
 -- ---------------------------------------------------------------------------------------
--- SESSION SETTINGS - applied once, on one connection we hold open. Not per statement.
+-- SESSION SETTINGS - set once, on the single connection we keep open.
 -- ---------------------------------------------------------------------------------------
 SET NOCOUNT ON;
-SET LOCK_TIMEOUT 5000;                          -- 5 s, then WE abort. Your writers never wait on us.
-SET DEADLOCK_PRIORITY LOW;                      -- any tie is broken against us, by design.
+SET LOCK_TIMEOUT 5000;                          -- give up after 5 s instead of making anyone wait.
+SET DEADLOCK_PRIORITY LOW;                      -- if SQL Server has to pick, it cancels us.
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED; -- never READ UNCOMMITTED / NOLOCK.
 
--- Parameters. In the connector these are bound as typed parameters (VarChar/DateTime),
--- never string-concatenated. Declared here so this file runs as-is.
+-- Parameters. Our connector passes these as typed parameters (VarChar/DateTime), never
+-- pasted into the SQL text. They are declared here only so the file runs on its own.
 DECLARE @companyId  varchar(32) = 'TMS';
 DECLARE @staleBefore datetime   = DATEADD(day, -30, GETDATE());
 
 -- ---------------------------------------------------------------------------------------
--- STATEMENT 1 of 4: CHANGE DETECTION
+-- STATEMENT 1 of 4: WHAT CHANGED SINCE LAST TIME
 --
--- Asks which movements changed since our last read. Reads the Change Tracking side
--- tables, not the base table, so it contends with nothing. @sinceVersion is the version
--- we stored at the end of the previous cycle. On the very first run, and after any gap
--- longer than your 10-day retention, we re-baseline instead of guessing.
+-- Asks Change Tracking which movements changed since our last read. It reads the change
+-- tracking side tables, not movement itself, so it does not get in anyone's way.
+-- @sinceVersion is the version we saved at the end of the previous run. On the first run,
+-- or if we have been away longer than your 10-day retention, we do a full re-read
+-- instead of guessing.
 -- ---------------------------------------------------------------------------------------
 DECLARE @sinceVersion bigint = CHANGE_TRACKING_CURRENT_VERSION() - 1000;  -- illustrative
 
@@ -78,11 +111,12 @@ SELECT ct.company_id, ct.id, ct.SYS_CHANGE_OPERATION
 OPTION (MAXDOP 1);
 
 -- ---------------------------------------------------------------------------------------
--- STATEMENT 2 of 4: THE OPEN BOARD
+-- STATEMENT 2 of 4: THE OPEN LOADS
 --
--- The loads a dispatcher is working right now: movement.status P or A, with at least one
--- stop scheduled in the last 30 days. Team drivers are aggregated rather than joined, so
--- a two-driver movement is one row and not two.
+-- The loads your dispatchers are working right now: movement status P or A, with at least
+-- one stop scheduled in the last 30 days. The 30-day limit keeps out one very old
+-- movement (from 2015) that is still marked P. Team drivers are combined into one field, so a
+-- two-driver load comes back as one row, not two.
 -- ---------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(m.company_id)) + ':' + LTRIM(RTRIM(m.id))  AS external_id,
@@ -131,8 +165,8 @@ OPTION (MAXDOP 1);
 -- ---------------------------------------------------------------------------------------
 -- STATEMENT 3 of 4: THE STOPS OF THOSE LOADS
 --
--- Same filter, one row per stop. Note we select longitude raw and negate it in our own
--- code, where a test can pin it - your longitudes are stored west-positive.
+-- The same loads, one row per stop. Your longitudes are stored as positive numbers, so we
+-- read them as they are and flip the sign on our side.
 -- ---------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(s.movement_id))                     AS movement_id,
@@ -162,10 +196,10 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ---------------------------------------------------------------------------------------
--- STATEMENT 4 of 4: THE DISPATCHERS ON THAT BOARD
+-- STATEMENT 4 of 4: THE DISPATCHERS ON THOSE LOADS
 --
--- Scoped to accounts that actually own a load, not the whole users table, because the
--- list exists to be mapped to our own users by hand.
+-- Only the users who actually have an open load, not the whole users table. We use this
+-- short list to match each of your dispatchers to their login on our side.
 -- ---------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(u.id))                AS external_id,
@@ -182,6 +216,6 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ---------------------------------------------------------------------------------------
--- END. There is nothing else. If you would like a statement changed, removed or capped
--- differently, tell us and we will change it before anything is scheduled.
+-- That is the whole loads routine. The roster sync queries will follow separately, as
+-- mentioned at the top. Any questions or changes, just let me know.
 -- ---------------------------------------------------------------------------------------

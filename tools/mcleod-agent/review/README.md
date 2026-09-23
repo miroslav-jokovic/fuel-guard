@@ -1,6 +1,6 @@
 # The read routine, for the carrier's review
 
-`SILVICOM-READ-ROUTINE.sql` is the complete set of statements Silvicom 360 runs against LME. It
+`SILVICOM-READ-ROUTINE.sql` is the complete set of statements the LOADS feed runs against LME. It
 exists because the carrier's IT asked for exactly this, on 2026-09-17:
 
 > *"You can run any discovery queries on the live data but when you are ready to publish a routine
@@ -34,19 +34,30 @@ Say that plainly if asked. Do **not** let this document imply we have already sh
 have not: the plan's own rule is that a promise in writing must be true of the code, and L5 is what
 makes the last of these promises true.
 
-## The four questions it carries
+## The questions it carries
 
-1. **What are stop types `VA` and `SP`?** We refuse to guess a stop kind, because our mapping drives
-   the driver's photo checklist — a yard move called a delivery asks for a bill of lading that does
-   not exist. Today that refusal leaves movement 290837 showing **6 of its 10 stops**.
-2. **Does `movement.status = 'A'` mean available / not yet covered?** 46 of them carry no dispatcher
-   and no trailer, which is what the data looks like, but we would rather be told.
-3. **The TLS certificate hostname**, so we stop connecting unencrypted. TLS will not accept an IP
-   address as a server name.
-4. **Please narrow the `dbo.driver` grant.** It currently includes eleven columns we never asked for
-   — birth date, home address, city, state, zip, spouse's name, licence number/state/date, medical
-   certificate expiry, hire date. We need six: `id`, `company_id`, `first_name`, `name`, `is_active`,
-   `termination_date`.
+Rewritten 2026-09-22 in the owner's voice, as a letter to Alex, after checking each one against the
+research already in `docs/plans/`:
+
+1. **What are stop types `VA`, `VP`, `SP` and `SD`?** Nothing in our docs answers it — probe P5 in
+   `docs/plans/livemap/LIVE-MAP-PLAN.md` §4.2 was designed for exactly this and has never been run.
+   Until it is, the question stays open-ended. Movement 290837 still shows **6 of its 10 stops**.
+2. **Confirm `A` = available, `P` = dispatched.** Asked as a confirmation now, not an open question:
+   the data fits (0% dispatcher and trailer on `A`), and `A`/`P`/`D`/`V` are the only four statuses.
+3. **Encryption, as a choice.** The old wording asked for "the certificate hostname", but
+   `MCLEOD-READ-ONLY-INTEGRATION-HANDOFF.md` §1.2 already recorded that the server presents SQL
+   Server's **self-signed fallback certificate** — there is no hostname to give. Alex now picks:
+   a trusted certificate, encrypt-without-verify, or unencrypted once the agent is on the Board VM.
+4. **Where does a dispatcher's fleet live?** Replaces the old "narrow the `dbo.driver` grant". That
+   request was wrong: the eleven "extra" columns are exactly what the roster sync reads in
+   `identity` mode (`DRIVER_IDENTITY` in `queries.mjs` — CDL, medical expiry, hire date, address, and
+   the email the carrier keeps in `name_of_spouse`), and the launchd sweep runs in that mode against
+   `lme` with this login. Narrowing it would have broken the roster. The new question asks which of
+   `tractor.fleet_id`, `tractor.dispatcher` or `driver.fleet_manager` is the fleet assignment, and
+   for the two columns we asked for and did not get (`driver.fleet_manager`, `driver.tractor_id`).
+
+⚠ **The roster sync's queries are not in the `.sql` yet.** The letter says so and promises them
+separately; until they are sent, the file must not be described as everything we run.
 
 ## Keeping it true
 
