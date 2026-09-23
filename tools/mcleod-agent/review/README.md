@@ -1,7 +1,8 @@
 # The read routine, for the carrier's review
 
-`SILVICOM-READ-ROUTINE.sql` is the complete set of statements Silvicom 360 runs against LME. It
-exists because the carrier's IT asked for exactly this, on 2026-09-17:
+`SILVICOM-READ-ROUTINE.sql` is the complete set of statements this integration runs against `lme`
+with the `silvicom_dispatch_ro` login: the loads feed (1–4), the roster sync (5–7) and the by-hand
+retirement reads (8–10). It exists because the carrier's IT asked for exactly this, on 2026-09-17:
 
 > *"You can run any discovery queries on the live data but when you are ready to publish a routine
 > that will query the live database systematically as we agreed please sent this to us first for a
@@ -9,11 +10,14 @@ exists because the carrier's IT asked for exactly this, on 2026-09-17:
 
 **Send them the `.sql` file.** It is written for a DBA who has never seen this repository, it is
 valid T-SQL as it stands, and it returns the same rows our connector sees — verified by executing
-it against live `lme` on 2026-09-17: four result sets, 178 ms.
+it against live `lme` as one batch on 2026-09-23: ten result sets (0, 151, 309, 16, 165, 193, 223,
+1,310, 459, 172), 212 ms, and `sys.dm_exec_sessions.program_name` read back as the
+`"Silvicom 360 connector"` the letter tells Alex to look for.
 
 ## What it says, in one paragraph
 
-One held connection, four statements, every 60 seconds, from a machine inside the carrier's own
+One held connection, four loads statements — every 10 minutes to start, towards 60 seconds only if
+it earns it — plus the roster's three every 2 minutes, from a machine inside the carrier's own
 network that connects **outbound** to us — so there is no inbound firewall rule and no IP allow-list
 for them to maintain. `LOCK_TIMEOUT 5000` and `DEADLOCK_PRIORITY LOW` mean we lose every contest
 against one of their writers rather than making a dispatcher wait. `MAXDOP 1` means we never take a
@@ -25,31 +29,56 @@ elapsed for all four statements**, 514 rows — **23 CPU-seconds a day** at a 60
 
 ## Honest scope — read before sending
 
-The session settings in the file are the ones **every read we have made has used**, and they are the
-ones the scheduled connector will use. They are **not yet enforced in a single shared helper** in the
-agent — that is step L5 in `docs/plans/mcleod/LOADS-GO-LIVE-PLAN.md`, which moves every call site
-behind one connection and adds the gates that stop a future call site opting out.
+The session settings in the file (`LOCK_TIMEOUT`, `DEADLOCK_PRIORITY LOW`, `READ COMMITTED`) and the
+`OPTION (MAXDOP 1)` after each statement are what the **scheduled** connector will use. **No code in
+this agent sets any of them today** — `git grep LOCK_TIMEOUT -- tools/mcleod-agent/*.mjs` finds only
+the test. That includes the launchd roster sweep, which has run every 2 minutes against live `lme`
+since 2026-09-22 without them (7 ms a cycle, measured 2026-09-23). Making them true is step L5 in
+`docs/plans/mcleod/LOADS-GO-LIVE-PLAN.md`, which moves every call site behind one connection and adds
+the gates that stop a future call site opting out.
 
-Say that plainly if asked. Do **not** let this document imply we have already shipped machinery we
+The letter says this to Alex in so many words (under *How we stay out of your dispatchers' way*).
+An earlier version of this README claimed every read had used the settings; it was not true. Do **not** let this document imply we have already shipped machinery we
 have not: the plan's own rule is that a promise in writing must be true of the code, and L5 is what
 makes the last of these promises true.
 
-## The four questions it carries
+## The questions it carries
 
-1. **What are stop types `VA` and `SP`?** We refuse to guess a stop kind, because our mapping drives
-   the driver's photo checklist — a yard move called a delivery asks for a bill of lading that does
-   not exist. Today that refusal leaves movement 290837 showing **6 of its 10 stops**.
-2. **Does `movement.status = 'A'` mean available / not yet covered?** 46 of them carry no dispatcher
-   and no trailer, which is what the data looks like, but we would rather be told.
-3. **The TLS certificate hostname**, so we stop connecting unencrypted. TLS will not accept an IP
-   address as a server name.
-4. **Please narrow the `dbo.driver` grant.** It currently includes eleven columns we never asked for
-   — birth date, home address, city, state, zip, spouse's name, licence number/state/date, medical
-   certificate expiry, hire date. We need six: `id`, `company_id`, `first_name`, `name`, `is_active`,
-   `termination_date`.
+Rewritten 2026-09-22 in the owner's voice, as a letter to Alex, after checking each one against the
+research already in `docs/plans/`; questions 1 and 4 made specific on 2026-09-23 from live `lme`:
+
+1. **What are stop types `VA`, `VP`, `SP` and `SD`?** Probe P5 (`LIVE-MAP-PLAN.md` §4.2), run
+   2026-09-23. All time: SO 289,780 · PU 281,879 · VA 1,441 · SD 853 · SP 853 · VP 17 · VN 2.
+   **SD/SP are a split**: all 853 SD stops have an SP on the same order on a *different* movement
+   (218 at the same location — Melrose Park, Floyd's Truck Center, Outpost, our own yard). **VA/VP
+   sit at SAIA terminals** (512 of the last year's 638 VA), between two dealer deliveries on the
+   Viking Packing runs (279 movements), and 586 of 633 VA arrivals equal the previous stop's
+   departure to the minute — a stamped clearance, not a visit. The letter asks whether the truck
+   physically stops there, and what separates VA from VP. Movement 291475 shows **5 of its 8
+   stops**. Open today: 290911 (VA at Phoenix, no location name) and 291798 (SP at Cheyenne).
+2. **Confirm `A` = available, `P` = dispatched.** Asked as a confirmation now, not an open question:
+   the data fits (0% dispatcher and trailer on `A`), and `A`/`P`/`D`/`V` are the only four statuses.
+3. **Encryption, as a choice.** The old wording asked for "the certificate hostname", but
+   `MCLEOD-READ-ONLY-INTEGRATION-HANDOFF.md` §1.2 already recorded that the server presents SQL
+   Server's **self-signed fallback certificate** — there is no hostname to give. Alex now picks:
+   a trusted certificate, encrypt-without-verify, or unencrypted once the agent is on the Board VM.
+4. **Where does a dispatcher's fleet live?** Answered from the data on 2026-09-23 and now asked
+   as a confirmation: on 114 open `P` loads, `tractor.fleet_id` names the load's dispatcher on
+   **95 of 97** person-dispatched loads (the other 2 are `marija` on `MIRO` trucks), while
+   `tractor.dispatcher` agrees on 70. The "4 in 10 disagree" was mostly spelling — the fleet code is
+   not the login (`ROMAN` ↔ `romann`, `IVO` ↔ `ivok`, and `users.roman` is a separate *inactive*
+   account). 17 loads carry `loadmaster`; the fleet names their real owner. With that, the request
+   for `driver.fleet_manager` + `driver.tractor_id` was **withdrawn** from the letter.
+   It replaced the old "narrow the `dbo.driver` grant". That
+   request was wrong: the eleven "extra" columns are exactly what the roster sync reads in
+   `identity` mode (`DRIVER_IDENTITY` in `queries.mjs` — CDL, medical expiry, hire date, address, and
+   the email the carrier keeps in `name_of_spouse`), and the launchd sweep runs in that mode against
+   `lme` with this login. Narrowing it would have broken the roster.
 
 ## Keeping it true
 
-`review.test.mjs` asserts the three board statements in the `.sql` are **character-identical** to the
-ones in `queries.mjs`. Change a query and that test fails, which is the point: the carrier must never
+`review.test.mjs` asserts all nine statements with a query builder behind them — the three board
+statements, `rosterQueries("identity")` and `retirementQueries()` — are **character-identical** to
+the ones in `queries.mjs`, and that the `program_name` the letter names is the `appName` in
+`roster.mjs`. (Statement 1, the Change Tracking read, is illustrative until L5 writes it.) Change a query and that test fails, which is the point: the carrier must never
 be reviewing a routine we no longer run. If it fails, update the file **and tell them what changed**.
