@@ -666,3 +666,12 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   always `(provider, external_id)`. Matrix `loads-ref-per-source` (9), both mutations caught. **L4's
   Done-when waits on `0362` being APPLIED, then one `--loads`.** Also found: Q-GL6, loads that leave
   the board are never closed.
+- 2026-09-23 — **L4 DONE, verified from production rows.** `0362` confirmed applied from
+  `pg_indexes` at 14:32 CDT (only `idx_loads_org_ref_manual` present), then one `--loads` at 19:33
+  UTC: 152 received, 145 created, 0 amended, 0 `unknownDispatchers`. In the database:
+  `tms_dispatchers` **16** rows, `is_system` exactly `lmeadm,loadmaster`; of the 152 loads synced,
+  **111 of 111 `P` carry a dispatcher and 0 of 41 `A`** do; every dispatcher id resolves to a
+  roster row; split order 0135136 is two loads (291013, 291798). Unmatched keys reported, not
+  dropped: drivers `EJONES`, `MMCARTHY`, `JFERGUSO` and trailer `TESTTRL`. ⚠ `loads` now holds
+  **303** McLeod rows against a board of 152 — the 2026-09-17 loads that left the board are still
+  `pending_approval`. That is Q-GL6, and it grows with every pull.
