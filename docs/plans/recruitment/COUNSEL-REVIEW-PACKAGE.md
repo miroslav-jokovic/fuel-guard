@@ -1,808 +1,632 @@
-# The counsel review — the eight instruments, the packet's signed pages, and four questions that are not about wording
+# Memorandum for Counsel — Electronic Driver Application and Qualification Instruments
 
-**Created 2026-08-23.** This is the execution artifact for **`APPLICATION-PACKET-PLAN.md` P1** and
-**`APPLICATION-SYSTEM-PLAN.md` A0**, which are the same review and were always going to be. It is
-addressed to counsel; the owner reads §1 and §5.
-
-> **STATUS: the application system is code-complete and legally inert.** Every step of
-> `APPLICATION-SYSTEM-PLAN.md` (A0–A11c) and four of the seven steps of `APPLICATION-PACKET-PLAN.md`
-> (P3, P4, P7, P8) are DONE, live and gate-green. No applicant can sign anything, because
-> `isDraftDisclosure()` refuses a signature under wording no lawyer has read. **This document is the
-> only thing standing between the built system and a usable one.** Nothing here is an engineering
-> task.
-
----
-
-## ⚠ 0a. Correction, 2026-09-15 — the status block above is history, and the ask has NARROWED
-
-**Read this before §0.** The status block was written on 2026-08-23 and every load-bearing sentence
-in it is now false. Leaving it uncorrected would send counsel to draft eight instruments, four of
-which have since been replaced by *their own firm's packet pages* and by a form FMCSA mandates
-verbatim — which is the most expensive mistake available here, because counsel's calendar is the one
-part of this programme that does not go faster when we work harder.
-
-**What changed, and when:**
-
-- **D-WORD1 (#767, main `4e935e0`, 2026-09-14) — the product SHIPS the wording and the settings page
-  is deleted.** The owner ruled that being asked to approve six legal documents before the product
-  worked was the wrong shape. `defaultWording(carrierName)` is now the base that `org_disclosures`
-  overlays, and **every gate opens on deploy**. Versions are PROVENANCE, not counters
-  (`fmcsa-2016-02-11`, `packet-2026-08-21`), so `isDraftDisclosure()` — §6's whole mechanism — has
-  already fired. Nothing in production is `v0-draft`.
-- **Measured on production 2026-09-15**, not estimated: `org_disclosures` holds **0 rows** in both
-  orgs, so the shipped defaults are what an applicant is served; `applicationWordingIsDraft` is
-  false; the §390.32(d) consent gate is armed.
-- **One application has been filed** — 2026-09-14 18:12:51, with four `driver_authorizations` and
-  **`psp` on `fmcsa-2016-02-11`**. So *"no applicant can sign anything"* is not merely stale; a named
-  person has now signed four instruments under the wording described below.
-
-**What that does to §2 and Appendix A.** Four of the eight instruments are no longer ours to draft,
-and asking for drafting on them would be asking counsel to rewrite counsel:
-
-| instrument | what it carries now | what we need from you |
-| --- | --- | --- |
-| `psp` | **FMCSA's mandated form, verbatim** — its notice requires the language "must be used in whole, exactly as provided… as one stand-alone document" | confirmation of the transcription and of the stand-alone condition (see §7.2) — **never a redraft**; publishing other PSP wording is refused by name |
-| `fcra_disclosure` | **your firm's packet page 20**, transcribed | confirmation of electronic use — §7.2 |
-| `previous_employer` | **your firm's packet page 15**, transcribed | confirmation of electronic use — §7.2 |
-| `drug_alcohol` | **your firm's packet page 22**, transcribed | confirmation of electronic use — §7.2 |
-| `clearinghouse` | FMCSA's *sample* (explicitly not mandatory) plus the scope §382.701(b) forces | **still yours to draft** |
-| `ESIGN_CONSENT` (A6) | ours, 15 U.S.C. 7001(c)'s six clauses | **still yours to draft** |
-| `SMS_CONSENT` (A7) | ours | **still yours to draft** |
-| §40.25 letter (A8) | ours | **still yours to draft** |
-
-⚠ **The page numbers in this table are 15/20/22, not 14/19/21.** `packetWording.ts` recorded all
-three one page low and its test asserted the constant against itself; corrected 2026-09-14 by reading
-each page's own printed footer out of `Application 11.pdf` with `pdftotext -layout`. Anything quoting
-14/19/21 predates that fix.
-
-**So the ask in §0 stands, minus the drafting on those four, plus §7.** Everything in §3 (the
-carrier's own signed pages) and §4 (the four questions that are not about wording) is unchanged and
-still open — including **C1/Q7, which has been waiting since 2026-08-20 and is now the item blocking
-the most work.**
-
----
-
-## 0. What is being asked
-
-Eight instruments were written by an engineer as placeholders and shipped deliberately marked as
-placeholders (`v0-draft`). Eighteen further pages of the carrier's own packet are instruments too —
-static text with a signature under it — and one of them is already known to be legally defective.
-
-Counsel is asked for three things, in this order:
-
-1. **Final wording, or approval of ours, for the eight instruments in §2** — the five screening
-   authorizations, the ESIGN consent, the SMS consent, and the §40.25 letter.
-2. **A ruling on the carrier's own signed pages in §3**, starting with page 4, which we believe
-   cannot be adopted at all.
-3. **Answers to §4**, which are not wording questions: an FCRA process that does not exist, a
-   §40.25(j) obligation nothing acts on, a worker-classification contradiction inside one document
-   set, and a §391.23(i) right with no surface behind it.
-
-**What we need back is a version string per instrument.** See §6 — the mechanism is already built and
-the review closes it by itself.
-
----
-
-## 1. The state of the system, so the review is read against reality
-
-### 1.1 What is live
-
-| Capability | State |
+| | |
 |---|---|
-| Invite an applicant, by email, from the Applicants page | live |
-| Seven-screen application on a phone; autosave; abandoned-application nudge | live |
-| Document capture (licence, medical card) from the phone camera | live |
-| §391.21(b)(12) certification with a typed name and an optional drawn mark | live |
-| §391.21-shaped PDF (`render.ts`), filed to `qualification_records` | live |
-| Packet pages 1, 2, 12, 16, 26 rendered in the carrier's own layout | built, **no caller** |
-| Packet static pages 7, 8, 29, 30 as a versioned pack | built, **no caller** |
-| Seven Day Work Statement at the hire (migration 0236) | live |
-| PSP ordering, employer inquiries, hire-with-carry-over | live, **authorization-gated** |
+| **To** | Counsel to Silvicom Inc. |
+| **From** | Silvicom Inc., with the Silvicom 360 product team |
+| **Date** | September 24, 2026 |
+| **Re** | Review of the electronic driver application, its signed instruments, and the adverse-action process |
+| **Status** | Confidential. Prepared to request legal advice. |
+| **Response requested by** | ____________________ |
 
-### 1.2 What is inert, and exactly where it stops
-
-- `recordEsignConsent()` refuses: *"This carrier has not published its final wording yet."*
-- `recordRelease()` refuses: *"This disclosure is still draft wording and cannot be signed."*
-- `DisclosurePanel.vue` therefore shows the five releases **read-only**, each badged `Not final`.
-- `SCREENING_PREREQUISITES` / `hasLiveAuthorization` therefore refuse every PSP order, every §40.25
-  letter and every Clearinghouse query, because each is gated on an authorization that cannot exist.
-- `SMS_PROVIDER=none`, and separately blocked on 10DLC brand registration.
-
-### 1.3 ~~The one thing that is reachable today~~ · **CLOSED 2026-08-23**
-
-⚠ **Fixed after this document was written.** `submitApplication` now refuses while any instrument the
-applicant's path touches is draft, so no §390.32(d)-defective record can be filed at all; the page
-says so on its first screen rather than at the Send button, and the form stays usable and saving.
-The refusal disappears by itself when counsel's versions land — nothing to remember, nothing to turn
-on. **Counsel's answer is still what opens the door; this only guarantees nothing gets through it
-first.** The finding as raised:
-
-`esignConsentRequired()` is deliberately armed by counsel's review rather than by a flag:
-
-```ts
-export const esignConsentRequired = (consentedAt, doc = ESIGN_CONSENT) =>
-  !isDraftDisclosure(doc.version) && !consentedAt;
-```
-
-The reasoning is sound and is written down — requiring the consent today would take the application
-offline with no way through, because the consent itself cannot be recorded against draft text. **The
-consequence is that a driver can complete and certify a §391.21(b) application right now with no
-7001(c) consent behind it and no authorizations signed.** 49 CFR §390.32(d) requires an electronic
-record satisfying a Part 300–399 document requirement to include proof of consent per 15 U.S.C.
-7001(c). An application filed in this window does not have it.
-
-**Nothing has been filed in that window** — the flow has never been walked in a browser by a real
-applicant (`RECRUITING-UI-SURFACE-PLAN` U7 is the walkthrough and is not done). We raise it because
-the window closes the moment §2's review lands, and because a carrier who started inviting drivers
-before that would accumulate defective records silently.
-
-⚠ **And the defect would have been permanent, not transient**, which is the half that decided the
-fix: submitting spends the phase (`submitted_at`), so that invitation's file could never afterwards
-acquire the consent it was missing. The driver would have to be re-invited into an empty form.
-
-**Recommendation:** ~~do not send a real invitation until §2 is answered~~ — **executed in code
-instead.** An invitation sent today reaches a form that fills, saves and refuses to send, and says
-so before the driver starts typing.
+> **About this memorandum.** It was prepared by the product team, not by lawyers. Where it states a
+> reading of a statute or regulation, that reading is offered so you can confirm or correct it
+> quickly. It is not advice, and nothing in it should be relied on as a legal conclusion until you
+> have reviewed it. Every citation was checked against the current text on eCFR, the U.S. Code
+> (Cornell LII) or the issuing agency's site on September 24, 2026.
+>
+> *Repository note:* the working record this memorandum replaces, with its history of corrections,
+> is kept at `COUNSEL-REVIEW-HISTORY-2026-08-23.md`. Section references such as "§7.2" in other
+> plans point to that file.
 
 ---
 
-## 2. Part A — the eight instruments we wrote
+## 1. Executive summary
 
-⚠ **`APPLICATION-PACKET-PLAN.md` P1 says "the five `v0-draft` disclosures". There are eight.** The
-count in the plan predates the ESIGN consent (A4), the SMS consent (A11b) and the §40.25 letter, each
-of which shipped `v0-draft` for the same reason and each of which is blocked by the same predicate.
+Silvicom Inc. now takes driver applications electronically through its Silvicom 360 platform. The
+applicant consents to electronic records, signs four screening authorizations, completes the
+application on a phone, and — once the office has reviewed it — signs the carrier's own 31-page
+application packet electronically in 22 places. Each signature is stored with the exact text
+signed, the text's version, a timestamp, the IP address and the device.
 
-| # | Instrument | Where | Statute | What a signature unlocks |
-|---|---|---|---|---|
-| A1 | Consumer report disclosure and authorization | `DISCLOSURES.fcra_disclosure` | FCRA §604(b)(2) | every consumer report |
-| A2 | PSP disclosure and authorization ⚠ **not counsel's to draft** | `DISCLOSURES.psp` | §391.23; PSP account-holder agreement | the FMCSA PSP pull |
-| A3 | Previous-employer safety performance release | `DISCLOSURES.previous_employer` | §391.23(a)(2), §391.53, §40.25(g) | the §391.23 and §40.25 letters |
-| A4 | Clearinghouse query consent | `DISCLOSURES.clearinghouse` | §382.701(a) | the full query record |
-| A5 | Controlled substances and alcohol testing consent | `DISCLOSURES.drug_alcohol` | Part 382; Part 40 | the testing programme |
-| A6 | Consent to transact electronically (six clauses) | `ESIGN_CONSENT` | 15 U.S.C. 7001(c); §390.32(d) | **everything** — it gates all of the above |
-| A7 | Text message consent | `SMS_CONSENT` | 47 U.S.C. §227; §64.1200(f)(9) | any SMS to an applicant |
-| A8 | §40.25 drug and alcohol history request letter | `EMPLOYER_INQUIRIES.drug_alcohol` | §40.25(b), consent per §40.25(a)(1) | the letter itself |
+**The system is live.** One application was filed on September 14, 2026. **No complete packet
+has been signed yet.** A filed packet is rendered once and preserved unaltered as a
+§391.51 record, so **whatever the packet says when the first applicant signs it is permanent
+for that applicant**. That is why we are asking now.
 
-The full text of all eight is reproduced in **Appendix A**. Three notes on how they are built, because
-they change what a review has to check:
+**We need three kinds of answers from you:**
 
-- **The text is composed server-side, never sent by a client.** What a driver signed is stored as a
-  row holding the exact `body`, the exact `intent`, the version, the timestamp, the IP and the user
-  agent. Counsel's wording therefore reaches the evidence unaltered, and a later revision is visible
-  in the data rather than silent.
-- **A6 is stored as six named clauses, not one paragraph**, one per subparagraph of 7001(c)(1)(B)–(C).
-  The type system refuses a document with a clause missing. Counsel can review it clause by clause
-  with the statute open, and `esignConsentBody()` composes them in statutory order.
-- **A1–A5 are five documents rather than one omnibus consent** because §604(b)(2)'s "solely" is read
-  literally, and each is presented on a screen of its own with nothing else on it. If counsel's view
-  is that fewer documents are acceptable, say so explicitly — the separation is expensive to the
-  applicant and we are paying for it on purpose.
+1. **Six questions about instruments applicants are signing today** (Part A, §4). The most urgent
+   is **packet page 4**, which we believe breaches the FCRA's "stand-alone disclosure" rule. **We
+   have decided to stop collecting signatures on page 4 until you rule on it** (Q1). The platform change ships before any applicant signs the packet.
+2. **Three questions about notices to declined applicants** (Part B, §5). The FMCSA-mandated PSP
+   form that every applicant signs promises specific notices after an adverse decision. The carrier
+   has decided to send them from Silvicom 360 and needs your approval of the notice text.
+3. **Approval of four instruments we drafted or adapted** (Part C, §6), and **four structural
+   questions** (Part D, §7).
 
-⚠ **A2 is the one instrument counsel does not draft.** Verified 2026-08-21 on psp.fmcsa.dot.gov:
-FMCSA mandates the exact text of the *Important Disclosure Regarding Background Reports from the PSP
-Online Service* + Authorization (`PSPDisclosureandAuthorizationForm.pdf`, last updated 2016-02-11),
-to be used **"in whole, exactly as provided, as one stand-alone document, combined with no other
-consent form or language"**. Our A2 body below is placeholder prose that must be *replaced by that
-form verbatim*, not edited. Counsel's pass over A2 is transcription review — and the account-holder
-condition it carries is what §3.7 turns on.
+**What a response looks like** (§9): for each question, *approve*, *approve with changes* (with a
+redline), or *reject* (with your replacement text or instruction). Any change to a signed instrument
+gets a new version identifier. Every later signature carries that identifier, so the record always
+shows which text each person signed.
 
-### 2.1 Specific questions on our wording
+### Priority order
 
-1. **A1 — does our body need the §606 investigative-consumer-report disclosure?** The carrier's own
-   page 4 describes interviews about "reasons for termination of employment" and "work experience",
-   which reads as an investigative consumer report. Ours does not mention §606 at all. If any of the
-   reports actually obtained are investigative, §606(a)–(b) adds a disclosure and a right to request
-   the nature and scope.
-2. **A1 — the authorization has no duration.** The carrier's page 4 asserts an evergreen one ("shall
-   remain on file … at any time during my contract period"); ours is silent. Which is intended, and
-   does the answer change by state?
-3. **A4 — we record that we asked for consent, not the consent itself.** §382.701(a)'s full query
-   consent is given inside the Clearinghouse. Our row is evidence that the applicant was told, not
-   evidence of the consent. Is that the right artifact to hold?
-4. **A6 — the withdrawal clause promises a paper form and no fee.** That is a commitment the carrier
-   has to be able to keep. Confirm the carrier accepts it, or give us wording they can.
-5. **A7 — is the SMS consent required at all, given the applicant is a job applicant?** The clause
-   *"You are NOT required to agree to this in order to apply"* is written to keep it out of
-   §64.1200(a)(2) territory. Confirm.
-6. **A8 — the §40.25 letter is `v0-draft` only because A3's consent is.** The letter itself asks for
-   what §40.25(b) names. If A3 is approved, A8 may be approvable in the same pass.
+| Priority | Questions | Why |
+|---|---|---|
+| **1 — before the first packet is signed** | Q1 page 4 · Q2 certification · Q3 electronic use of pages 15/20/22 · Q4 page 15 and the blanket-release rule · Q5 page 22 · Q6 page 19 | Applicants sign these today, and a signed packet cannot be amended afterwards |
+| **2 — before the first decline based on a report** | Q7 PSP status · Q8 remote-application exception · Q9 notice text | The carrier's signed PSP form already promises these notices |
+| **3 — approve the drafted instruments** | Q10 Clearinghouse · Q11 e-sign consent · Q12 SMS consent · Q13 §40.25 letter | Q12 and Q13 are unused until approved; Q10 and Q11 are in use now |
+| **4 — structural** | Q14 employee vs. owner-operator · Q15 owner-operator agreement · Q16 §391.23(i) rights · Q17 smaller items | Affects how the packet may need to be split, not whether it works today |
 
 ---
 
-## 3. Part B — the carrier's own pages, which are also instruments
+## 2. Background
 
-`docs/plans/recruitment/APPLICATION.xlsx` is the carrier's real application: 31 pages, letterhead on
-every one, `THIS IS NOT AN EMPLOYMENT APPLICATION` and `FOR DEPARTMENT OF TRANSPORTATION VERIFICATION
-PURPOSE ONLY` in every footer. **Eighteen of those pages are static text with a signature or a set of
-initials under them.** D-PKT4 says no packet wording is adopted verbatim without review, so all
-eighteen are in scope, not the five P1 named.
+### 2.1 The hiring process, as the carrier runs it
 
-⚠ **These pages are not yet transcribed into the repo** — that work (P5) is deliberately blocked on
-this review, because transcribing wording that changes means transcribing it twice. Counsel reviews
-the carrier's paper for these; the quotations below are read from the workbook.
+The carrier ruled on this order on September 17, 2026. Steps 1–9 happen **before** the applicant
+travels to the office, and the applicant is not invited to travel until all of them are complete.
+Steps 10–14 happen on the day of arrival.
 
-### 3.1 Page 4 — Independent Contractor Notification & Release · **we recommend it is not adopted**
+| # | Step | Where |
+|---|---|---|
+| 1 | Invitation sent (link by email; SMS once enabled) | remote |
+| 2 | Consent to electronic records, then four authorizations signed | remote, phone |
+| 3 | Application completed | remote, phone |
+| 4 | Office reviews, corrects with the applicant, approves | office |
+| 5 | Motor vehicle record pulled from SambaSafety, outside the platform, and uploaded | office |
+| 6 | FMCSA PSP report obtained | office |
+| 7 | Clearinghouse full query, run in FMCSA's portal and recorded | office |
+| 8 | Pre-employment drug test, verified negative | external collector |
+| 8b | Medical certification verified | office |
+| 9 | Orientation videos and quizzes | remote |
+| 10 | Road test, §391.31 | office, on arrival |
+| 11 | Live orientation | office |
+| 12 | Handbook signed | office |
+| 13 | **The carrier's 31-page packet signed electronically, 22 places** | office |
+| 14 | Hired: qualification file opened, truck assigned | office |
 
-Four defects, any one of which is disqualifying:
+**The point that matters for §5:** consumer reports (the MVR and the PSP report) are obtained at
+steps 5–6. At that time **every contact with the applicant has been by computer, phone or email**.
+Nobody meets the applicant in person until step 10.
 
-- **It bundles the disclosure with an authorization and a liability release.** The all-caps block
-  reads `I AUTHORIZE, WITHOUT RESERVATION ANY PARTY OR AGENCY CONTACTED BY SILVICOM INC TO FURNISH THE
-  ABOVE MENTIONED INFORMATION`. §604(b)(2) requires the disclosure in a document consisting solely of
-  the disclosure; the authorization may accompany it, a release of liability may not.
-- **It names the wrong consumer reporting agency.** `a consumer report … is being requested from DOT
-  Service, Chicago, IL`. We query FMCSA's PSP and an MVR vendor. A disclosure naming an agency we do
-  not use discloses nothing, and the page then treats "DOT" as though the federal Department of
-  Transportation were that agency.
-- **It has the applicant consent to us furnishing their history back to that agency for resale**:
-  `my employment history with your if I am hired, will be supplied by DOT to other companies, which
-  subscribe to DOT Service.` If the carrier does not do this, it should not be signed; if it does,
-  it is a furnisher relationship with §623 duties attached.
-- **It takes the Social Security number on the same page as the disclosure**, which is the "solely"
-  problem again in a second form.
+### 2.2 How a signature is captured
 
-It is also the page the plan cites for typographical corruption: `typyes`, `concerningmy`, `fromDOT`,
-`concering`, `whcihc`, `with your if I am hired`.
+- **Consent first.** Nothing can be signed until the applicant accepts the electronic-records
+  consent (Q11). The applicant gives it in the same browser and on the same screen type used for
+  everything that follows.
+- **One instrument per screen.** Each authorization is shown on its own screen, with nothing else
+  on it, and signed there.
+- **What is stored per signature:** the complete text shown, a sentence stating the signer's intent,
+  the version identifier, the typed name and (optionally) a drawn mark, the time to the second, the
+  IP address and the browser identifier. The server builds the text; the applicant's device only
+  says who signed and where from.
+- **The packet.** The carrier's own PDF is the template. The applicant's answers and marks are
+  placed on it, and the signed result is stored with a cryptographic hash beside a certificate of
+  completion. It is **never re-rendered**.
 
-**Question B1: is page 4 replaced by our A1, deleted, or rewritten?** Our recommendation is that A1
-replaces it and page 4 is dropped, because keeping both puts two contradictory consumer-report
-disclosures in one signed packet — see B4.
+### 2.3 The instruments an applicant signs today
 
-### 3.2 Page 20 — Fair Credit Reporting Act disclosure
+| Instrument | Text source | Version identifier | Status |
+|---|---|---|---|
+| Consent to electronic records | Drafted from 15 U.S.C. 7001(c)(1), six clauses | `15usc7001c-2026-08-21` | **in use** — Q11 |
+| FCRA disclosure and authorization | **Your packet, page 20** | `packet-2026-08-21` | **in use** — Q3 |
+| Previous-employer release (§391.23, §40.25) | **Your packet, page 15** | `packet-2026-08-21` | **in use** — Q3, Q4 |
+| Drug and alcohol testing notification | **Your packet, page 22** | `packet-2026-08-21` | **in use** — Q3, Q5 |
+| PSP disclosure and authorization | **FMCSA's mandatory form**, verbatim, carrier's name filled in | `fmcsa-2016-02-11` | **in use** — no drafting possible |
+| Clearinghouse limited-query consent | FMCSA's published sample, plus one scope paragraph we added | `fmcsa-sample-2026-09-13` | **in use** — Q10 |
+| The 31-page packet, 22 applicant signatures | **Your packet**, printed exactly as written, typographical errors included | — | **in use** — Q1, Q2, Q5, Q6, Q15 |
+| Text-message consent | Placeholder | `v0-draft` | **not in use** — Q12 |
+| §40.25 drug and alcohol history request letter | Placeholder | `v0-draft` | **not in use** — Q13 |
 
-The better of the carrier's two. It is a disclosure plus an authorization and nothing else, which is
-the correct shape. Three things for counsel:
+The platform refuses any signature or send against text whose version is marked `v0-draft`, which
+is why the last two cannot be used until you approve them.
 
-- It cites `Section 604(b) of the Fair Credit Reporting Act (15 U.S.C. 1681-168lu)` — an OCR
-  corruption of 1681u.
-- It says consumer reports may be used `for employment /contract purposes`, which is the
-  classification question again (§4.3).
-- It contains no statement of the right to a copy of the report and is not accompanied by *A Summary
-  of Your Rights Under the FCRA*. §4.1 is the same gap at the process level.
+### 2.4 Production record as of September 24, 2026
 
-⚠ Whatever happens to this page, it stays on a screen of its own in the signing flow. §604(b)(2) is
-the rule `SigningCeremony` was built around and the one placement that can never join a
-walk-me-through queue.
-
-### 3.3 Page 19 — Authorization for driving record check
-
-`By signing below I authorize you to release the information requested to SILVICOM, INC as directed
-by the Federal Motor Carrier Safety Administration Regulations. I hereby release you from any
-liability which might be the result of providing this`
-
-- **A liability release again**, and if the MVR is obtained through a consumer reporting agency
-  rather than direct from the state, this is page 4's defect in miniature.
-- The sentence is unfinished (`the result of providing this`).
-- **The page carries two `Driver signature:` lines and a `Silvicom Inc Representative:` line**, and
-  the heading `AUTHORIZATION FOR DRIVING RECORD CHECK` appears twice. It reads as two forms merged by
-  accident. Counsel should say how many signatures this page actually takes; see §5.2.
-
-### 3.4 Page 22 — Urinalysis notification
-
-Three statements we believe are wrong on the law, in a document the applicant signs:
-
-- `should controlled substance testing produce a positive result. it will medically disqualify me
-  from operating commercial vehicle for this company` — a verified positive is not a medical
-  disqualification. It is a §382.501 prohibition from safety-sensitive functions, a §382.705
-  Clearinghouse report, and a §40.285 return-to-duty process.
-- `my written authorization is required in order for the result of this testing to be provided to
-  either party` — under Part 40 the MRO reports verified results to the employer's DER without a
-  separate authorization.
-- The page does not mention the Clearinghouse at all, which has been the reporting destination since
-  2020.
-
-It also carries a `Company reprsentative's signature` line and a `Witness by` line.
-
-### 3.5 Page 18 — CDL certification of compliance
-
-The substance (single licence; notify the employer and the issuing state of a conviction) is right.
-The citations are not: the page attributes the licensing rules to `Part 383, 392 and 383` — Part 392
-is driving of CMVs, the single-licence rule is §383.21, and the conviction-notification rule is
-§383.31. Since D-UI9 keeps citations in print, a wrong one reaches the printed file. `NOTE: All
-additional licenses must he returned` is the same OCR corruption family.
-
-### 3.6 The thirteen SIGN pages P1 did not name
-
-Pages **3, 5, 6, 9, 10, 11, 13, 15, 25, 27, 28, 31** are static text under a signature or a set of
-initials. They are in scope under D-PKT4 and we have not reviewed them
-line-by-line here. Two are worth naming in advance:
-
-- **Page 15 — past employment verification release.** It takes name, date of birth and SSN and is the
-  paper twin of our A3. Same overlap question as page 4 vs A1.
-- **Page 31 — the Owner Operator & Leased Driver Agreement signature page.** Its body is pages 29–30
-  and **its defects are not spelling**: `shall not he appeasable`, `each party shall appoint one
-  arbitration`, `select a natural arbitrator` (the same sentence later says *neutral*), an unmatched
-  bracket in the service-of-process clause, and — the one that cannot be repaired by any reading — a
-  severability clause with its middle missing: `If any one or more of the provisions contained in the
-  Agreement but the Agreement will be enforceable to the extend applicable.`
-  ⚠ **We reproduce pages 29–30 exactly as the carrier wrote them and correct nothing**, because the
-  gap between a *natural* and a *neutral* arbitrator is the gap between two different agreements.
-  `packetStatic.test.ts` asserts in both directions: no correction may be registered against those
-  pages, and the two worst clauses are asserted to survive the corrector, so a well-meaning tidy-up
-  fails the build. **Question B2: does counsel want to redraft the agreement, or should it stay out
-  of the applicant packet until they do?**
-
-### 3.7 ⚠ B4 — three consumer-report disclosures in one packet
-
-If the packet is adopted as it stands and our instruments stay, an applicant signs **page 4**, **page
-20** and **our A1** — three disclosures about the same consumer reports, naming different agencies,
-with different scopes and different durations. Each one arguably undermines the other two, and the
-"solely" defence for A1 is harder to make when the same signing session carried two more.
-
-**Our recommendation: one consumer-report disclosure survives, and it is A1.** Counsel to confirm.
-
-⚠ **And the PSP form makes this more than a preference.** FMCSA's mandated PSP disclosure must be
-used *"as one stand-alone document, combined with no other consent form or language"* (§2). A signing
-session that hands the applicant page 4, page 20, A1 and A2 in sequence is not obviously compliant
-with that condition, and the condition is a term of the carrier's PSP account-holder agreement — so
-the exposure is the account, not only the statute.
+- **1** application filed (September 14, 2026), with the four authorizations and the PSP form signed.
+- **0** complete packets signed. One internal test walk stopped at 20 of 22 signatures.
+- **1** PSP report obtained. **0** applicants declined through the platform.
 
 ---
 
-## 4. Part C — four questions that are not about wording
+## 3. Decisions the carrier has already made
 
-### 4.1 ⚠ C1 — there is no adverse action process, anywhere · **STEP WRITTEN 2026-08-23 (R10)**
+Recorded so you can review them. Each can be reversed on your advice.
 
-⚠ **Not built, and deliberately not built.** `RECRUITING-SYSTEM-PLAN.md` **R10** now carries the
-step, execution-grade, blocked on **Q-REC8** (does the carrier send these from FuelGuard at all?) and
-on P1 for the notice wording. Two things found while writing it that change what counsel is being
-asked:
-
-- **§604(b)(3)(B) carves out this exact case.** An applicant who applied *by computer* for a position
-  over which the Secretary of Transportation sets qualifications is not owed the pre-adverse copy of
-  the report beforehand; the employer instead has **three business days after** the adverse action to
-  give notice naming the agency and the applicant's right to a free copy and to dispute. The generic
-  pre-adverse-plus-waiting-period design every non-trucking source describes is the wrong shape here.
-  ⚠ **The exception is per-application-CHANNEL**, and this product has both: a driver typed in from a
-  paper form handed in at the office is owed §604(b)(3)(A) in full. **Counsel to confirm our reading
-  that an invited link filled in on a phone is inside the exception** — it picks between two
-  procedures.
-- ~~**There is no way to decline an applicant.**~~ **BUILT 2026-08-23 (0238).** `ApplicantStage` ran
-  `not_started → ready_to_screen` and stopped; `hireApplicant` was the only exit and it went one way.
-  A notice is a consequence of a decision the product could not record — which is also the gap packet
-  page 17 fills on paper, the page §2.4 classified NOT OURS for being carrier-filled. Correct about
-  the packet, and it named a hole nobody had written down. `applicant_dispositions` now records the
-  decision **and whether it rested on a purchased report**, so when you answer §4.1 there is
-  something for the notice to attach to and no timeline to reconstruct. ⚠ **Nothing is sent**, and
-  the recruiter is told so at the moment they tick the box.
-
-⚠ **A third thing, and it is a question for you that has been waiting since 2026-08-20.** Whether a
-**PSP record is an FCRA consumer report** was recorded as counsel's in `HANDOFF-2026-08-20-UAT.md`
-§5, and then sat in a handoff, blocking nothing, in front of nobody who could answer it. It is the
-load-bearing unknown in R10: if a PSP record is a consumer report then most of the declines this
-product exists to inform owe a notice; if it is not, comparatively few do. **Please answer it
-alongside the rest of this section.** Until you do, R10's fallback is to assume yes and send the
-notice — the answer that can only ever be over-inclusive.
-
-For contrast, so the question is narrow: an MVR bought through SambaSafety plainly is a consumer
-report, and a former employer's answer to **our own §391.23 letter** plainly is not, because no
-agency sits between us and them. PSP alone is genuinely unclear.
-
-The finding as raised:
-
-Searched the whole repository: no `adverse action`, no `pre-adverse`, no *Summary of Your Rights*,
-no step in any of the four recruitment plans that owns it.
-
-FCRA §604(b)(3) requires that before taking adverse action based in whole or in part on a consumer
-report, the person taking it provides the applicant with a copy of the report and the CFPB's summary
-of rights — and then, after, an adverse action notice under §615(a). The product buys PSP reports and
-MVRs *precisely so somebody can decline an applicant on them*, and it has no surface for either
-notice, no waiting period, and no record that one was sent.
-
-**This is the largest compliance gap in the feature and it is not a wording question.** It needs a
-decision (does the carrier do this in FuelGuard, or outside it?) and, if inside, a step of its own.
-It is out of scope for the packet plan and belongs in `RECRUITING-SYSTEM-PLAN.md`. — **Written up
-there as R10 and Q-REC8 on 2026-08-23.**
-
-⚠ **One further distinction R10 makes and this section did not:** not every decline owes a notice.
-A PSP record and an MVR bought through SambaSafety are consumer reports; a previous employer's answer
-to **our own §391.23 letter** is not, because no agency sits between us and them. A decline resting
-only on the second owes nothing, and the same fact arriving inside a purchased report changes the
-answer. The test is the SOURCE, not the fact.
-
-### 4.2 ~~C2~~ — a `yes` on the §40.25(j) question obliges the carrier · **BUILT 2026-08-23 (0237)**
-
-⚠ **Acted on after this document was written.** An admission now raises a flag on the driver
-(projected from the certified application by trigger), the hire **warns** and the **load assignment
-refuses** — §40.25(j) bars performing a safety-sensitive function, not being hired, so a gate on the
-hire would have been stricter than the rule while leaving the driving open. The discharge is a
-`return_to_duty` qualification record carrying the §40.305 paperwork, restricted under §382.401(a) to
-admin and safety_manager. **Q-C2b below is still counsel's.** The finding as raised:
-
-P8 shipped page 26's question — *did you test positive or refuse a pre-employment test for a job you
-applied for but did not obtain, in the past two years?* — and stores the answer. §40.25(j) then
-requires the carrier to obtain documentation of the return-to-duty process before the driver performs
-a safety-sensitive function. **Nothing acts on a yes:** no queue entry, no document request, no block
-on hire. Recording the obligation without discharging it is arguably worse than not asking, because
-the file now proves the carrier knew.
-
-The renderer also carries a third state the carrier's form does not have. Applications filed before
-the question existed render as **neither box marked, plus a line saying the form never asked** —
-because `driver_applications` is append-only and an unticked NO would assert something the applicant
-never said. **Question C2b: is counsel content with a third state on the carrier's own form?**
-
-### 4.3 ⚠ C3 — the packet says it is not an employment application; our system says it is
-
-Every page of the carrier's packet footers `THIS IS NOT AN EMPLOYMENT APPLICATION`. Page 4 is headed
-`Independent Contractor Notification & Release` and opens *"In connection with my application for
-Independent contract with you"*. Pages 29–31 are an Owner Operator & Leased Driver Agreement. Page 22
-offers `Pre-Qualification for Contracting a Driver/ Owner Operator` as a box to tick.
-
-Against that, the system it is being rendered by calls the document an **application for employment**
-throughout, because §391.21 does: our A1 body opens *"In connection with your application for
-employment"*, the §391.23 letter says *"is considering {{driver}} for employment"*, and the whole
-qualification file is built as a §391.51 driver qualification file.
-
-Both cannot be true of the same signed packet, and the contradiction is inside one signing session.
-It also reaches further than the paperwork: worker classification drives FCRA's employment-purpose
-basis, the §604(b)(2) analysis, and whether the §391.51 file is the right container at all.
-
-**Question C3: is this carrier hiring employees, contracting owner-operators, or both — and does the
-answer differ per applicant?** If both, the packet has to fork, and that is a product decision this
-plan has not made.
-
-### 4.4 C4 — §391.23(i)–(l) has a comment and no surface
-
-The code knows the rule: `employerInquiryContract.ts` states *"The driver has the right to review the
-information you provide"* in the letter we send, and `employerInquiry.ts` cites §391.23(i) in its
-header. But there is no screen on which a driver reviews what came back, no rebuttal record, and no
-written policy artifact of the kind §391.23(j) contemplates. Post-application, and therefore not
-blocking this review — but it is owed, and counsel should say what the carrier's policy is so it can
-be built against something.
+| Ref | Decision | Date |
+|---|---|---|
+| D-WORD1 | The platform ships the wording in §2.3 by default. The carrier does not have to "publish" anything before applicants can sign. | 2026-09-14 |
+| D-PKT11 | The carrier's packet prints **exactly as your firm wrote it**, typographical errors included. No page is silently corrected. | 2026-09-14 |
+| D-PKT15 | The applicant's §391.21(b)(12) certification is made **by signing packet pages 11, 13 and 17**, not by a separate platform checkbox. | 2026-09-14 |
+| Q-HM2 | No MVR integration. MVRs are pulled from SambaSafety outside the platform and uploaded. | 2026-09-17 |
+| Q-HM5 | Every federal pre-employment requirement except the road test must be complete **before** the applicant is invited to travel. | 2026-09-17 |
+| **L-1** | **Page 4 is withdrawn from electronic signing until you rule on Q1.** The change ships before the first applicant signs the packet; no applicant has signed page 4 so far. | 2026-09-24 |
+| **Q-HM14** | The application asks, as a structured question, whether the applicant is applying as a **company driver or an owner-operator**. The answer drives the page 22 reason and the page 31 owner-operator lines. | 2026-09-24 |
+| **Q-REC8** | **Adverse-action notices are sent from Silvicom 360**, with a record of each. Until you answer Q7, the platform treats every decline resting on a PSP report or an MVR as owing a notice. | 2026-09-24 |
 
 ---
 
-## 5. Findings that change the plans, and which the owner has to rule on
+## 4. Part A — Instruments applicants are signing now
 
-### 5.1 ~~Q-PKT5~~ — page 24 was classified STATIC and is a signed post-hire training record · **FIXED 2026-08-23 (D-PKT10)**
+### Q1. Packet page 4 ("Independent Contractor Notification & Release") · **Priority 1**
 
-⚠ **Resolved after this document was written.** The page is reclassified NOT OURS, removed from the
-static pack (5 pages → 4, 128 transcribed lines → 101), its six corrections are dropped, and
-`packetStatic.test.ts` asserts its absence. It is R7 / `DRIVER-TRAINING-PLAN.md`'s page now.
-**Counsel does not review it as part of the applicant packet.** The finding as raised:
+**Facts.** Page 4 is signed by the applicant. It contains, on one page:
 
-`APPLICATION-PACKET-PLAN.md` §2.2 classifies page 24, `DRIVER SAFETY TRAINING`, as **STATIC** —
-"policy or contract text with nothing to fill". P3 shipped it into the versioned static pack on that
-basis, filed **once per version, identical for everybody**, so no applicant's mark can ever appear on
-it. Reading the page:
+- a consumer-report disclosure naming **"DOT Service, Chicago, IL"** as the reporting agency. The
+  carrier does not use that agency; it uses FMCSA's PSP and SambaSafety;
+- an all-capitals authorization and **release of liability**: *"I AUTHORIZE, WITHOUT RESERVATION ANY
+  PARTY OR AGENCY CONTACTED BY SILVICOM INC TO FURNISH THE ABOVE MENTIONED INFORMATION"*;
+- consent to the carrier furnishing the applicant's history **back to that agency for resale** to
+  subscribers;
+- a field for the applicant's Social Security number.
 
-- `On this day, ____________, 20___, I have completed training of log preparation and other public
-  safety issues.` — a fill-in date and an affirmation of a **completed** training.
-- `DRIVER -PRINT` · `Driver signatrure | Date` · `Instructor's signatrure` — three marks, one of them
-  an instructor's.
-- `I understand that by not followign DOT regulations I will be subject to company disciplinary
-  actions. I am also aware and have been informend of all company fines which will be enforced` — a
-  term creating a liability, not a policy statement.
+In the same signing session the applicant also signs **page 20** (a second FCRA disclosure) and
+**FMCSA's PSP form**. The PSP form must by its own terms be used *"as one stand-alone document"* and
+*"may NOT be included with other consent forms or any other language."*
 
-`packetStatic.ts` lines 126–128 reproduce those three lines as inert labels inside a document nobody
-signs, and D-PKT9's spelling repairs were applied to the page on the ground that pages 7, 8 and 24
-⚠ **(D-PKT9 was reversed on 2026-09-14 by D-PKT11 — nothing is repaired now; counsel reads the
-carrier's own wording, typos included.)**
-are "policy statements, not instruments". **On this reading page 24 is an instrument, and a post-hire
-one** — an applicant cannot truthfully affirm training they have not had, which is the same argument
-that moved pages 21 and 23 out of the application.
+**Law.** FCRA §604(b)(2)(A)(i), 15 U.S.C. 1681b(b)(2)(A)(i): the disclosure must be *"in a document
+that consists solely of the disclosure"*. The authorization may be on the same document
+(§604(b)(2)(A)(ii)). *Syed v. M-I, LLC*, 853 F.3d 492 (9th Cir. 2017), held that a liability waiver
+in the disclosure document violates the "solely" requirement, and that the violation was willful.
+*Gilberg v. California Check Cashing Stores*, 913 F.3d 1169 (9th Cir. 2019), extended this to
+extraneous information more generally. Statutory damages for a willful violation are $100–$1,000
+per consumer, plus punitive damages (15 U.S.C. 1681n).
 
-**Recommendation: page 24 is reclassified NOT OURS and moves to training (`DRIVER-TRAINING-PLAN.md` /
-R7), the way the Seven Day Work Statement moved to the hire under D-PKT7.** That drops the static pack
-from five pages to four and the spelling register loses six entries. It is an owner decision because
-it amends D-PKT1's inventory. — **Accepted and executed 2026-08-23 as D-PKT10.**
+**Our reading.** Page 4 cannot be used as an FCRA disclosure. Page 20 is correctly shaped and
+already serves that purpose. Because a signature on page 4 adds risk and no protection, the carrier
+has **decided to stop collecting it** (decision L-1). Page 4 will not be signed electronically until you rule.
 
-### 5.2 ~~Q-PKT6~~ — the placements are now measured and labelled · **DONE 2026-08-23**
+**What we need.** One of the following:
+(a) confirm that page 4 is deleted from the packet;
+(b) provide a redraft that contains no disclosure, only whatever independent-contractor
+acknowledgment you want kept; or
+(c) instruct otherwise.
+Also: **does the carrier furnish applicant history to "DOT Service" or any other agency?** If it
+does, that is a furnisher relationship with FCRA §623 duties, and we need to know.
 
-⚠ **Re-derived after this document was written**, into `packages/shared/src/packetPlacements.ts`, and
-the answer sharpens the finding: **22 marks are the driver's across NINETEEN pages, and six are not**
-⚠ (p17 added 2026-09-14 — D-PKT12; counsel now also reads its certification and history-inquiry
-authorization, which the excluded classification had kept out of this package)
-— four the carrier's, and **two a witness's**, a third party the plan never contemplated (p22's
-`Witness by`, p31's `Witness Name`). Every anchor is checked against the workbook on every test run.
-Nothing about wording is settled by it; §3 is still counsel's. The finding as raised:
+---
 
-D-PKT6 commits to walking the driver to all 21 placements with a Next button. The inventory that
-produced 21 counted signature lines; it did not ask **whose**. Reading the pages, at least these are
-the carrier's, not the applicant's:
+### Q2. Does the packet's certification satisfy §391.21(b)(12)? · **Priority 1**
 
-| Page | Line |
+**Facts.** Under D-PKT15 the only certification on a filed application is the applicant's signature
+on packet pages 11, 13 and 17:
+
+| Page | Text |
 |---|---|
-| 18 | `Silvicom Inc Representative:` |
-| 19 | `Silvicom Inc Representative:` (twice) |
-| 22 | `Company reprsentative's signature` · `Witness by` |
-| 31 | one of three `Signature | Date` lines |
-
-A ceremony built from the raw count would walk a driver to a line where the company signs. **Before
-P5, the placement inventory must be re-derived with each placement labelled `driver` or `carrier`,
-and the carrier's left unsigned in the applicant's flow.**
-
-⚠ **And it cannot be re-derived by searching for the word "signature".** The packet spells it
-`signatrure` on pages 22, 23 and 24 — a grep for `signature` misses three pages, which is very
-likely how a count of 21 was reached in the first place.
-
-### 5.3 P1's scope is wrong in both directions
-
-As written it names five disclosures and five packet pages. It is **eight instruments** (§2) and
-**eighteen packet pages** (§3). The plan is corrected in place; this section records why.
-
-### 5.4 Two renderers are built and unreachable
-
-`renderApplicationPacketPdf` and `renderStaticPackPdf` have no production caller — P6, the cutover,
-waits on P5, which waits on this review. That is correct sequencing, not an omission, but it means
-**the packet has never been produced for a real submission** and the pages have never been checked
-against the carrier's paper by somebody holding both.
-
----
-
-## 6. What we need back, and what happens when it arrives
-
-**A version string per instrument** — anything that is not `v0…` and does not end `-draft`. That is
-the whole mechanism:
-
-```ts
-export const isDraftDisclosure = (version: string): boolean =>
-  version.startsWith("v0") || version.endsWith("-draft");
-```
-
-The gate is tied to the hazard rather than to a feature flag on purpose: when reviewed wording lands
-and the versions become `v1`, the refusals disappear by themselves on every write path, the ESIGN
-consent starts being required, the `Not final` badges clear, and screening unblocks. Nobody has to
-remember to turn anything on — which matters, because the thing that would need remembering is *"stop
-collecting signatures on text no lawyer has read"*.
-
-Concretely, per instrument, we need: the final `title`, `body` (or the six `clauses` for A6), and
-`intent` sentence, plus the version string. ⚠ **Except A2**, where what we need is confirmation that
-FMCSA's form has been transcribed correctly and that its stand-alone condition is satisfied by how
-the ceremony presents it. Changes of a single character require a new version,
-because the version is stored on every signed row and is how a challenge is answered.
-
-**Order of value if the review has to be staged:** A6 first — it gates all seven others and every
-write path. Then A1–A3, which unblock screening. A4, A5, A7, A8 and the packet pages can follow.
-
-**The first real signature does not go to the carrier.** `APPLICATION-SYSTEM-PLAN.md` A0's own
-Done-when requires it to land in the `FuelGuard EFS QA` org, never against Silvicom.
-
----
-
-## 7. Five questions opened since this package was written · **added 2026-09-15**
-
-§0–§6 above are unchanged and still open. These five were opened by work done between 2026-08-23 and
-2026-09-14 — the carrier's own 31-page packet becoming the filed document, FMCSA's PSP form being
-adopted verbatim, and the 22-place signing ceremony being built. **7.1 and 7.2 are the two that
-decide whether what a driver signed on 2026-09-14 is sound.**
-
-### 7.1 ⚠ Does the packet's own certification satisfy §391.21(b)(12)? · **COUNSEL**
-
-**Why this is now a question.** Until 2026-09-14 the applicant ticked **our** certification box,
-carrying the regulation's sentence, and the carrier's packet was a separate paper exercise. **D-PKT15
-removed that tick** (the owner's ruling): the applicant's certification is now made by signing the
-carrier's own pages, because asking a driver to type their name into our box and then into three of
-the carrier's, each certifying the same fact, was two acts for one obligation. **So the packet's
-words are now the only certification a filed application carries.** If they do not satisfy
-(b)(12), nothing else does.
-
-**The regulation's sentence**, as our own §391.21 renderer still prints it:
-
-> This certifies that **this application was completed by me**, and that all entries on it and
-> information in it are true and complete to the best of my knowledge.
-
-**The three places your packet certifies**, measured off `Application 11.pdf` by reading each page's
-own printed footer:
-
-| page | the packet's words |
-| --- | --- |
 | **11** | "This certifies that **I completed this application**, and that all entries on it and information in it are true and complete to the best of my knowledge." |
-| **13** | "I certify that the answers given herein are true and complete to the best of my knowledge." |
-| **17** | "By signing this statement, I certify that this application **has been completed by me**, and that all…" |
+| 13 | "I certify that the answers given herein are true and complete to the best of my knowledge." |
+| 17 | "By signing this statement, I certify that this application **has been completed by me**, and that all…" |
 
-**The two things we cannot answer, and would be guessing at:**
+**Law.** 49 CFR §391.21(b)(12) requires a certification that *"this application was completed by me,
+and that all entries on it and information in it are true and complete to the best of my
+knowledge,"* and §391.21(b) places it in the application.
 
-1. **Page 11 is the regulation's sentence in the ACTIVE voice.** It differs from (b)(12) in exactly
-   four words — *"I completed this application"* for *"this application was completed by me"* — and
-   is otherwise word for word. Page 17 is closer to the passive original but sits behind a different
-   preamble. Does the substitution matter?
-2. **Is page 11 of 31 "the end of the form"?** (b)(12) places the certification at the end. Page 11
-   is the end of the *application* as your packet lays it out; pages 12–31 are releases, notices and
-   policies. That reading is ours and it is the one the ceremony now depends on. **If the answer is
-   that the certification must sit at the end of the whole 31-page instrument, the ceremony's order
-   changes** — that is a build, and we would rather do it once.
+**Our reading.** Page 11 differs from the regulation only in voice ("I completed" for "was completed
+by me"), and we believe it is sufficient. Page 11 is the last page of the application proper;
+pages 12–31 are releases, notices and policies.
 
-⚠ **This is not academic.** All three pages are signed in the live ceremony, so whichever answer is
-right, the marks already exist on the one filed application.
-
-### 7.2 ⚠ Are your packet pages 15, 20 and 22 fit to be signed ELECTRONICALLY, with our repairs? · **COUNSEL**
-
-Three of the four instruments an applicant signs are now **your firm's own text**, transcribed out of
-`APPLICATION.xlsx` into `packetWording.ts` — page 20 (FCRA), page 15 (past employment / §40.25 /
-§391.23(d)(e)), page 22 (urinalysis). Nobody has asked you whether that is acceptable, and there are
-two distinct questions inside it:
-
-- **They were written for paper.** They are now served on a phone and signed with a typed name plus
-  an optional drawn mark, under a 15 U.S.C. 7001(c) consent the applicant gives first.
-- ⚠ **We changed characters in them.** `WORDING-REVIEW-2026-09-13.md` §2 lists every repair.
-  Nineteen are spelling and must not change the word count (a gate enforces this); **four change
-  characters in ways that carry an argument, and one of those is a STATUTORY CITATION** —
-  `1681-168lu` → `1681-1681u`, an `l` for a `1`. §2.3 lists **seven defects we deliberately LEFT**
-  (`with` for `wish`, a missing `time`), with a test asserting they are still there, so that a future
-  tidy-up cannot silently redraft an instrument your firm wrote.
-
-**What we need back is a yes, a no, or a list.** A yes on our repairs, or your corrected text — either
-lands as a new version string and every signature taken afterwards carries it.
-
-### 7.3 ⚠ FMCSA's PSP form PROMISES an adverse-action sequence we do not perform · **COUNSEL — amends §4.1**
-
-§4.1 deferred R10 on the reasoning that **§604(b)(3)(B) carves trucking out** of the pre-adverse
-copy requirement. **That reasoning is now incomplete, and the change is ours, not the law's.**
-
-Since #764 every applicant reads and signs **FMCSA's mandated PSP disclosure**, whose paragraphs 2
-and 3 *promise them* a copy of the report and a written summary of their FCRA rights before final
-adverse action — and within three business days after it for applications taken by mail, telephone
-or computer. The exact words are at `docs/plans/recruitment/psp-disclosure/`.
-
-**Our reading, which we want confirmed or corrected:** the carve-out governs the **timing** of a
-statutory duty; it does not release the carrier from an undertaking it made in its own signed
-instrument. If that is right, R10 is owed regardless of how §4.1's channel question resolves, and the
-question becomes only *when*, not *whether*.
-
-⚠ **Nothing is sent today.** `applicant_dispositions` (migration 0238) records the decline and
-whether it rested on a purchased report, and the recruiter is told at the moment they tick the box
-that no notice goes out. There is a decision for a notice to attach to and no timeline to
-reconstruct — but there is no notice.
-
-### 7.4 ⚠ §4.1's third question — is a PSP record an FCRA consumer report? — has been open since 2026-08-20 · **COUNSEL, ESCALATED**
-
-Not a new question. It is recorded in §4.1 and was recorded before that in
-`HANDOFF-2026-08-20-UAT.md`, where it blocked nothing. **It now blocks the most work of anything in
-this package**, because with 7.3 it decides whether most declines owe a notice or few do — which is
-the difference between R10 being a small sequence and a large one.
-
-**Our fallback if it stays open:** assume yes and send. Over-inclusive is never wrong, and it is what
-we will build if we have to build before you answer.
-
-### 7.5 Does the carrier send these notices from Silvicom 360 at all? · **OWNER, not counsel** (Q-REC8)
-
-Recorded here so the package is complete, not because counsel answers it. If the carrier's practice
-is that declines go out from somewhere else, R10 is a smaller piece of work — an export and a record
-— and 7.3's answer changes what that export has to contain, not whether it exists.
+**What we need.** (a) Is page 11's wording sufficient? (b) Is it acceptable that the certification
+falls on page 11 of 31, or must it follow every page the applicant fills in? The applicant also
+fills in pages 12, 16 and 26. If it must follow them, we will reorder the signing sequence.
 
 ---
 
-## Appendix A — the eight instruments, verbatim
+### Q3. Electronic use of packet pages 15, 20 and 22 · **Priority 1**
 
-Reproduced from `packages/shared/src/authorizationContract.ts`,
-`packages/shared/src/smsConsentContract.ts` and
-`packages/shared/src/employerInquiryContract.ts` as of 2026-08-23. `{{carrier}}`, `{{driver}}` and
-`{{window}}` are filled in server-side when the document is served.
+**Facts.** Your firm's pages 15 (previous-employer release), 20 (FCRA disclosure) and 22
+(urinalysis notification) are signed twice by each applicant:
 
-⚠ **Every `v0-draft` label in this appendix is now HISTORY — see §0a.** Four of the eight carry real
-text in production as of 2026-09-14: `psp` is FMCSA's mandated form, and `fcra_disclosure`,
-`previous_employer` and `drug_alcohol` are your firm's own packet pages 20, 15 and 22. The bodies
-reproduced below are the placeholders those replaced, kept so the review has a record of what was
-shipped marked-as-placeholder and what superseded it. **A4, A6, A7 and A8 below are still the live
-text and are still yours to draft.**
+1. **At step 2, on screen**, as standalone authorizations. For that version we corrected obvious
+   spelling errors (19 corrections, none changing the word count) and four typographical errors
+   (table below). Seven apparent errors we did **not** correct, because the right word was not
+   certain. They are listed in Appendix B.
+2. **At step 13, on the printed packet**, exactly as written (D-PKT11), errors included.
 
-### A1 · Consumer report disclosure and authorization — `fcra_disclosure`, `v0-draft`
-*Title:* Disclosure regarding background reports
-*Authority:* FCRA §604(b)(2)
+The four typographical corrections:
 
-> In connection with your application for employment, and throughout your employment if you are
-> hired, we may obtain one or more consumer reports about you for employment purposes. These reports
-> may include information about your driving record, your safety performance history with previous
-> employers, and your crash and roadside inspection history. This disclosure is provided to you in a
-> separate document that contains nothing else.
+| Page | As written | As shown on screen | Why |
+|---|---|---|---|
+| 20 | `(15 U.S.C. 1681-168lu)` | `(15 U.S.C. 1681-1681u)` | A lower-case "L" in place of "1" **in the statutory citation** |
+| 20 | `T he purpose` | `The purpose` | Stray space |
+| 15 | `paragrafs (d) and € of Section 391.23` | `paragraphs (d) and (e) of Section 391.23` | Euro sign in place of "(e)" |
+| 15 | `The applicanthas certain` | `The applicant has certain` | Missing space |
 
-*Intent:* I have read this disclosure and I authorize the preparation of consumer reports about me
-for employment purposes.
+**The issue.** The same applicant signs two slightly different texts of the same instrument. Neither
+text was written for electronic signature.
 
-### A2 · PSP disclosure and authorization — `psp`, `v0-draft`
-*Title:* FMCSA Pre-Employment Screening Program (PSP) disclosure and authorization
-*Authority:* 49 CFR §391.23; FMCSA PSP account holder agreement
+**What we need.** (a) Confirm the three pages may be signed electronically under the electronic-records consent (Q11).
+(b) Choose one text: approve our corrected text for **both** the screen and the printed packet, or
+give us a clean redraft of the three pages. We would then print that text in place of the originals.
+Either way, the result gets one new version identifier.
 
-⚠ **The text below is a placeholder that will be DISCARDED, not edited.** It is replaced verbatim by
-FMCSA's own `PSPDisclosureandAuthorizationForm.pdf`. The official form carries fill-in blanks for the
-prospective employer's name; the serving path substitutes the org's legal name server-side, so the
-stored text is the **filled** text the driver actually saw. A2 is the one template in an otherwise
-static catalogue.
+---
 
-> We are requesting your crash and roadside inspection history from the Federal Motor Carrier Safety
-> Administration's Pre-Employment Screening Program (PSP), which draws on the Motor Carrier
-> Management Information System (MCMIS). The record covers crashes from the last five years and
-> roadside inspections from the last three. You may review your own PSP record and may dispute
-> information in it with the FMCSA.
+### Q4. Page 15 and the ban on blanket releases (§40.321(b)) · **Priority 1**
 
-*Intent:* I authorize this company to obtain my PSP record from the FMCSA in connection with my
-application for employment.
+**Facts.** Page 15 authorizes *"the above mentioned employer/school"* to release drug and alcohol
+testing information to Silvicom Inc. The applicant signs page 15 **once**. The carrier then contacts
+every previous employer the applicant listed.
 
-### A3 · Previous-employer safety performance release — `previous_employer`, `v0-draft`
-*Title:* Previous-employer safety performance release
-*Authority:* 49 CFR §391.23(a)(2), §391.53; §40.25(g)
+**Law.**
+- 49 CFR §391.23(f)(1): the carrier must give each previous employer the driver's consent meeting
+  §40.321(b) before drug and alcohol information is released.
+- 49 CFR §40.321(b): the consent must be *"a statement signed by the employee that he or she agrees
+  to the release of a particular piece of information to a particular, explicitly identified, person
+  or organization at a particular time."* **Blanket releases are prohibited**, including a release
+  *"to a category of parties"* such as *"companies to which the employee may apply for employment"*.
+- Since January 6, 2023, the Clearinghouse replaces these letters for FMCSA-regulated previous
+  employers (§391.23(e)(4)). A direct request is still required for employers regulated by other DOT
+  agencies (FAA, FTA, FRA, PHMSA, USCG), and for follow-up testing plans (§391.23(e)(4)(i)–(ii)).
 
-> We are required to investigate your safety performance history with the DOT-regulated employers you
-> have worked for during the preceding three years. This release authorizes those employers to
-> provide us with that history, including accident information and, where applicable, records of your
-> participation in a controlled substances and alcohol testing programme as §40.25(g) requires your
-> specific written consent to release.
+**Our reading.** One signature on a page naming "the above mentioned employer" may be a release to
+a category of parties. Our proposal: the platform generates **one consent per previous employer**
+requiring a §40.25 request. Each consent names the employer, the information (§40.25(b)(1)–(5)), the
+recipient (Silvicom Inc.) and the date, and the applicant signs each one. The page 15 signature
+would continue to cover the §391.23(d) safety-performance inquiry, which is not drug and alcohol
+information.
 
-*Intent:* I authorize my previous DOT-regulated employers to release my safety performance history,
-including drug and alcohol testing records, to this company.
+**What we need.** Confirm the per-employer approach, and approve or redline the consent wording we
+will draft for it (paired with Q13).
 
-### A4 · Clearinghouse query consent — `clearinghouse`, `v0-draft`
-*Title:* Drug & Alcohol Clearinghouse query consent
-*Authority:* 49 CFR §382.701(a)
+---
 
-> We are required to query the FMCSA Drug & Alcohol Clearinghouse for records of any drug or alcohol
-> programme violations before we may permit you to perform a safety-sensitive function, and at least
-> annually thereafter. A full query requires your consent, which you give in the Clearinghouse
-> itself; this record notes that we asked for it.
+### Q5. Page 22 (urinalysis notification) · **Priority 1**
 
-*Intent:* I understand a full Clearinghouse query requires my consent and that I give that consent
-through the FMCSA Clearinghouse.
+**Facts and our concerns.** Page 22 states that:
 
-### A5 · Controlled substances and alcohol testing consent — `drug_alcohol`, `v0-draft`
-*Title:* Controlled substances and alcohol testing consent
-*Authority:* 49 CFR Part 382; Part 40
+- a positive result *"will medically disqualify me from operating commercial vehicle"*. A verified
+  positive is not a medical disqualification. It is a prohibition from safety-sensitive functions
+  (49 CFR §382.501), a Clearinghouse report (§382.705), and a return-to-duty process (Part 40,
+  Subpart O).
+- *"my written authorization is required in order for the result of this testing to be provided to
+  either party"*. The Medical Review Officer reports verified results to the employer without a
+  separate authorization (49 CFR §40.163).
+- The page does not mention the Clearinghouse.
 
-> As a condition of employment in a safety-sensitive function you are subject to pre-employment,
-> random, post-accident, reasonable-suspicion, return-to-duty and follow-up testing for controlled
-> substances and alcohol, conducted under 49 CFR Part 40.
+The page also asks why the test is required ("Pre-Employment Qualification" / "Suspicion of
+Controlled Substance" / "Pre-Qualification Contracting a Driver/Owner Operator" / "Other"). Under
+decision **Q-HM14**, the platform will tick this from the applicant's structured answer
+(company driver or owner-operator), not infer it from free text.
 
-*Intent:* I consent to controlled substances and alcohol testing as required by 49 CFR Part 382.
+**What we need.** A corrected page 22, or approval to replace the two sentences above with wording
+you provide. Also confirm the Q-HM14 approach to the checkbox.
 
-### A6 · Consent to transact electronically — `ESIGN_CONSENT`, `v0-draft`
-*Title:* Agreeing to sign and receive these documents electronically
-*Authority:* 15 U.S.C. 7001(c); 49 CFR §390.32(d)
+---
 
-Stored and served as six named clauses, in statutory order:
+### Q6. Page 19 (driving record authorization) · **Priority 1**
+
+**Facts.** Page 19 carries its heading twice, two identical driver signature lines, two carrier
+countersignature lines, a liability release, and an unfinished sentence (*"…any liability which
+might be the result of providing this"*). The carrier obtains MVRs from **SambaSafety**, a consumer
+reporting agency.
+
+**What we need.** (a) Is page 19 one authorization or two? The platform currently collects both
+signatures. (b) A completed final sentence. (c) Since the MVR comes through a consumer reporting
+agency, confirm that page 19's liability release does not affect the page 20 disclosure, which is a
+separate page signed separately.
+
+---
+
+## 5. Part B — Declined applicants
+
+### Q7. Does a decline based on a PSP report owe a notice? · **Priority 2**
+
+**Law and facts.**
+- *Mowrer v. U.S. Dep't of Transp.*, 14 F.4th 723 (D.C. Cir. 2021), held that FMCSA is **not** a
+  consumer reporting agency in operating MCMIS and the PSP. The court assumed without deciding that
+  the records are consumer reports.
+- 49 U.S.C. 31150(b)(1) requires FMCSA to ensure PSP information is released *"in accordance with
+  the Fair Credit Reporting Act"*.
+- The FMCSA-mandated PSP form, which **every applicant signs**, states that for applications made
+  by computer the carrier *"must provide you within three business days of taking adverse action
+  oral, written or electronic notification"* of four specified facts. It also states that the
+  carrier must provide a copy of the report within three business days of a request. The PSP
+  enrollment agreement adds that applicants must be pointed to consumerfinance.gov/learnmore.
+
+**Our reading.** Whether or not a PSP report is a "consumer report" by statute, the carrier has
+**undertaken the notice in an instrument it has the applicant sign**, and FMCSA's program terms
+require it. The carrier has therefore decided (Q-REC8) to send the notice for every decline based in
+whole or in part on a PSP report. It will do the same for an MVR from SambaSafety, which is plainly
+a consumer report. A decline based only on a previous employer's reply to the carrier's own
+§391.23 inquiry would not trigger a notice, because no reporting agency is involved.
+
+**What we need.** Confirm or correct that approach.
+
+---
+
+### Q8. The remote-application exception · **Priority 2**
+
+**Law.** FCRA §604(b)(3)(B), 15 U.S.C. 1681b(b)(3)(B), replaces the pre-adverse-action copy and
+summary of rights with a notice **within three business days after** the adverse action. It applies
+where the applicant applied *"by mail, telephone, computer, or other similar means"* for a position
+whose qualifications the Secretary of Transportation sets (49 U.S.C. 31502). It also requires, under
+§604(b)(3)(C)(ii), that **"as of the time at which the consumer report is procured"** all contact
+between applicant and employer on the application was by those means.
+
+**Facts.** In the carrier's process (§2.1), reports are obtained at steps 5–6, before any in-person
+contact. An applicant who walks in with a paper application before the reports are pulled is not
+covered by the exception.
+
+**Our reading.** For applicants who applied through the platform link and had no in-person contact
+before the reports were obtained, the three-business-day post-decision notice applies. For anyone
+else, the full pre-adverse sequence applies: a copy of the report and the CFPB *Summary of Your
+Rights*, a waiting period, then the final notice. The platform will record, for each applicant,
+whether any in-person contact preceded the report, and choose the sequence from that record.
+
+**What we need.** (a) Confirm the reading. (b) Tell us the waiting period the carrier should use in
+the in-person sequence.
+
+---
+
+### Q9. Text of the notices · **Priority 2**
+
+We will draft three templates from the statute and the PSP form: (1) the post-decision notice for
+remote applicants, §604(b)(3)(B)(i)(I)–(IV); (2) the pre-adverse-action notice; and (3) the final
+adverse-action notice under §615(a). Each will name the reporting agency (FMCSA, or SambaSafety),
+include its address and toll-free number, state that the agency did not make the decision, and
+explain the rights to a free copy and to dispute.
+
+**What we need.** Approval of the three templates. We will send them separately once drafted. **No
+notice will be sent before you approve them.** Declines are already recorded with the date and
+whether they rested on a purchased report, so no timeline will have to be reconstructed.
+
+---
+
+## 6. Part C — Instruments for approval
+
+### Q10. Clearinghouse limited-query consent · **Priority 3**
+
+**Text.** FMCSA's published sample (*"FMCSA does not require that motor carrier employers … use this
+sample format"*), reproduced word for word, with the carrier's name inserted. The sample leaves the
+scope to the employer. We added this paragraph, marked as ours:
+
+> This consent covers more than one limited query. It applies for as long as I am employed by or
+> under contract to Silvicom Inc, and there is no limit on the number of limited queries that may be
+> conducted during that time. I understand that federal law requires a limited query to be run at
+> least once a year, and that I may withdraw this consent at any time by telling Silvicom Inc in
+> writing — in which case I understand they must stop me performing safety-sensitive functions.
+
+*Intent statement:* "I consent to Silvicom Inc running limited queries of the FMCSA Drug and Alcohol
+Clearinghouse about me, on the terms set out above."
+
+**Law.** 49 CFR §382.701(b)(2) allows limited-query consent that is *"effective for more than one
+year"*. §382.703(a) requires written or electronic consent. The full pre-employment query is
+consented to in FMCSA's own portal (§382.701(a)) and is not part of this instrument.
+
+**What we need.** Approve, or redline the scope paragraph.
+
+### Q11. Consent to electronic records (15 U.S.C. 7001(c)) · **Priority 3**
+
+**Text.** Six clauses, each mapped to the statute. It is in use now.
 
 | Clause | Statute | Text |
 |---|---|---|
-| **You can have these on paper instead** | 7001(c)(1)(B)(i)(I) | You do not have to do any of this electronically. If you would rather fill in this application on paper and sign it by hand, tell the carrier and they will send you one. |
-| **You can change your mind** | 7001(c)(1)(B)(i)(II) | You can withdraw this consent at any time. If you withdraw it before you have sent your application, this link stops working and the carrier will send you a paper form instead; nothing you have already signed is undone, and there is no fee either way. |
-| **What this consent covers** | 7001(c)(1)(B)(ii) | This consent covers this job application and the authorizations that go with it — nothing else, and nothing after you are hired. |
-| **How to withdraw, and how to update your contact details** | 7001(c)(1)(B)(iii) | To withdraw your consent, or to give the carrier a new email address or phone number, contact the carrier directly using the details in the message that sent you this link. |
-| **How to get a paper copy afterwards** | 7001(c)(1)(B)(iv) | After you have sent your application you can ask the carrier for a paper copy of anything you signed, at no charge. |
-| **What you need to read and keep these records** | 7001(c)(1)(C)(i) | You need a device with a current web browser and an internet connection to read and sign these documents, and either a printer or somewhere to save a PDF if you want to keep your own copy. |
+| You can have these on paper instead | 7001(c)(1)(B)(i) | You do not have to do any of this electronically. If you would rather fill in this application on paper and sign it by hand, tell the carrier and they will send you one. |
+| You can change your mind | 7001(c)(1)(B)(i) | You can withdraw this consent at any time. If you withdraw it before you have sent your application, this link stops working and the carrier will send you a paper form instead; nothing you have already signed is undone, and there is no fee either way. |
+| What this consent covers | 7001(c)(1)(B)(ii) | This consent covers this job application and the authorizations that go with it — nothing else, and nothing after you are hired. |
+| How to withdraw and update contact details | 7001(c)(1)(B)(iii) | To withdraw your consent, or to give the carrier a new email address or phone number, contact the carrier directly using the details in the message that sent you this link. |
+| How to get a paper copy afterwards | 7001(c)(1)(B)(iv) | After you have sent your application you can ask the carrier for a paper copy of anything you signed, at no charge. |
+| What you need | 7001(c)(1)(C)(i) | You need a device with a current web browser and an internet connection to read and sign these documents, and either a printer or somewhere to save a PDF if you want to keep your own copy. |
 
-*Intent:* I agree to sign this application and its authorizations electronically, and to receive the
-records that go with them electronically.
+*Intent statement:* "I agree to sign this application and its authorizations electronically, and to
+receive the records that go with them electronically."
 
-### A7 · Text message consent — `SMS_CONSENT`, `v0-draft`
-*Title:* Text message consent
-*Authority:* 47 U.S.C. §227; 47 CFR §64.1200(f)(9)
+**Notes.** 7001(c)(1)(C)(ii) requires consent given in a way that *"reasonably demonstrates"* the
+applicant can access the records. The applicant consents in the same browser that then displays
+every instrument and the PDF copies. 49 CFR §390.32(d) requires this proof of consent for every
+electronic record kept under Parts 300–399.
 
-> PLACEHOLDER — pending counsel. By agreeing, you allow {{carrier}} to send you text messages about
-> your driver application, including a link back to the application you have started. Message
-> frequency is limited to messages about your own application. Message and data rates may apply. You
-> are NOT required to agree to this in order to apply for a position, and agreeing is not a condition
-> of being considered. Reply STOP at any time to stop receiving texts; reply HELP for help.
+**What we need.** (a) Approve or redline. (b) Confirm the carrier can honor paper at no charge.
+(c) **Scope:** the applicant signs the packet (step 13) in the office, after the application is
+submitted. Does "this job application and the authorizations that go with it" cover the packet, or
+should the scope clause name it?
 
-*Intent:* I agree to receive text messages from {{carrier}} about my application.
+### Q12. Text-message consent · **Priority 3**
 
-⚠ Separately blocked on 10DLC brand/campaign registration, opened 2026-08-21. `SMS_PROVIDER=none`
-until it lands, so this instrument is inert twice over.
+**Status.** Placeholder, **not in use**. The platform sends applicants text messages only about
+their own application (a link back to it, a reminder, a notice that the office has approved it). It
+sends no marketing. The carrier's toll-free sending number requires documented opt-in to pass
+carrier verification.
 
-### A8 · §40.25 drug and alcohol history request — `EMPLOYER_INQUIRIES.drug_alcohol`, `v0-draft`
-*Title:* Request for drug and alcohol testing history
-*Authority:* 49 CFR §40.25(b); consent per §40.25(a)(1)
+**Proposed text** (replacing the placeholder):
 
-> PLACEHOLDER — not to be sent. {{carrier}} is considering {{driver}} for a safety-sensitive position
-> and requests the information listed in 49 CFR §40.25(b) for the two years before their application:
-> alcohol tests with a result of 0.04 or higher, verified positive drug tests, refusals to test,
-> other violations of DOT drug and alcohol regulations, and documentation of any completed
-> return-to-duty requirements.
->
-> This request must be accompanied by the driver's specific written consent under §40.25(a)(1). The
-> wording of that consent is not final, so this letter cannot be sent.
+> By checking this box, you agree that Silvicom Inc may send text messages to the mobile number you
+> gave us about your driver application — for example, a link back to your application, reminders,
+> and updates on its status. Message frequency varies with your application. Message and data rates
+> may apply. Agreeing is not a condition of applying or of being considered. Reply STOP to stop
+> receiving texts at any time, or HELP for help.
 
-⚠ **For contrast, the §391.23(d) letter beside it is `v1` and needs no review** — it asks for what
-§390.15(b)(1) names, in the regulation's own terms, and is already sending.
+*Intent statement:* "I agree to receive text messages from Silvicom Inc about my application."
+
+**What we need.** Approve or redline. Also confirm that informational, non-marketing messages to an
+applicant need only this prior express consent, not the prior express *written* consent that 47 CFR
+§64.1200(a)(2) requires for telemarketing.
+
+### Q13. §40.25 drug and alcohol history request · **Priority 3**
+
+**Status.** Placeholder, **not in use**. Paired with Q4.
+
+**Scope, as narrowed by §391.23(e)(4).** Since January 6, 2023, the Clearinghouse full query
+replaces this letter for FMCSA-regulated previous employers. The letter is now needed only for
+(i) previous employers regulated by another DOT agency, and (ii) a follow-up testing plan where the
+applicant has not completed follow-up testing.
+
+**Proposed text:**
+
+> Silvicom Inc is considering [applicant] for a safety-sensitive position. Under 49 CFR §40.25(b) and
+> §391.23(e), and with the applicant's specific written consent enclosed, we request the following
+> for the two years before [date of application]: (1) alcohol tests with a result of 0.04 or higher
+> alcohol concentration; (2) verified positive drug tests; (3) refusals to be tested, including
+> verified adulterated or substituted results; (4) other violations of DOT agency drug and alcohol
+> testing regulations; and (5) for any violation, documentation of the applicant's successful
+> completion of DOT return-to-duty requirements, including any follow-up testing plan. Please reply
+> in writing to [contact] in a form that ensures confidentiality (§40.25(g)). If you hold no such
+> information, please say so.
+
+**What we need.** Approve or redline, together with the per-employer consent in Q4.
 
 ---
 
-## Appendix B — how to read the carrier's packet alongside this
+## 7. Part D — Structural questions
 
-The workbook stores **zero page breaks**: pagination is an Excel print setting, so a page number is
-recoverable only from the footer row that carries it. Every page reference in this document was
-derived that way, and any re-derivation must use the same anchor.
+### Q14. Company drivers and owner-operators · **Priority 4**
 
-| Class | Pages | In this review? |
+**Facts.** The carrier engages both. Every packet page is footed *"THIS IS NOT AN EMPLOYMENT
+APPLICATION"*. Page 4 speaks of an *"application for Independent contract"*, and pages 29–31 are an
+Owner Operator & Leased Driver Agreement. The platform's instruments, like §391.21, call the
+document an application for employment. Under decision Q-HM14 each applicant will be asked which they are applying as.
+
+**Law.** The FTC staff report *40 Years of Experience with the Fair Credit Reporting Act* (July 2011),
+p. 32, reads "employment purposes" to include *"a trucking company that obtains consumer reports on
+individual drivers who own and operate their own equipment"*. Some district courts disagree for
+independent contractors generally (e.g., *Smith v. Mutual of Omaha Ins. Co.*, No. 4:17-cv-00443, 2018 WL 6921119 (S.D. Iowa Oct. 4, 2018)). The
+PSP form states that its "employment" concept follows the definition of "employee" in 49 CFR
+§383.5, which includes independent contractors who drive. 49 CFR Part 391 applies to every driver
+the carrier uses, whatever the relationship.
+
+**Our reading.** Treat both groups identically for FCRA and Part 391 purposes. That errs on the
+inclusive side.
+
+**What we need.** (a) Confirm. (b) Should the footer *"THIS IS NOT AN EMPLOYMENT APPLICATION"* remain
+on a document that is, for §391.21 purposes, the application? (c) Should owner-operators and company
+drivers sign different packets?
+
+### Q15. The Owner Operator & Leased Driver Agreement (pages 29–31) · **Priority 4**
+
+**Facts.** The agreement is printed exactly as written, and the applicant signs page 31 as driver
+and, where applicable, as owner-operator. It contains defects that change meaning, not just spelling:
+
+- *"shall not he appeasable"*;
+- *"select a natural arbitrator"*, where the same sentence later says *neutral*;
+- an unmatched bracket in the service-of-process clause;
+- a severability clause missing its middle: *"If any one or more of the provisions contained in the
+  Agreement but the Agreement will be enforceable to the extend applicable."*
+
+**Question.** Is this agreement intended to be the lease required by 49 CFR §376.12 (truth-in-leasing)
+for owner-operators who lease equipment to the carrier? If so, it may need terms it does not have.
+
+**What we need.** (a) A redraft, or (b) an instruction to take pages 29–31 out of the applicant
+packet until a redraft exists. Under Q-HM14, company drivers are not asked to sign page 31 as
+owner-operator.
+
+### Q16. The applicant's right to review previous-employer information · **Priority 4**
+
+**Facts.** Page 15 contains the notice §391.23(i)(1) requires: the right to review, to have errors
+corrected, and to attach a rebuttal. It also sets the carrier's process: a written request to the
+Safety Manager, and a response within five business days.
+
+**What we need.** (a) Confirm page 15 satisfies §391.23(i)(1). (b) Confirm the carrier's process as
+stated on page 15 is the one to build. The platform will record each request and each response date.
+
+### Q17. Smaller items · **Priority 4**
+
+- **Page 18 citations.** It attributes the single-licence and conviction-notification rules to
+  *"Part 383, 392 and 383"*. The rules are §383.21 and §383.31. May we correct the citation, or do
+  you prefer to redraft the page?
+- **Page 26, §40.25(j).** Applications filed before this question existed show neither box ticked,
+  plus a line saying the form did not ask. Is that acceptable on the carrier's form?
+- **Page 17.** The top half is the applicant's certification and history authorization. The bottom
+  half (interview notes, result) is the carrier's and is not shown to the applicant. Please confirm
+  that is correct.
+
+---
+
+## 8. What the platform already does
+
+So that you can assume the following when you review:
+
+- A signature is refused against any text marked draft, and the refusal names the reason.
+- Nothing can be signed before the electronic-records consent is given.
+- An applicant who admits a prior failed or refused pre-employment test (§40.25(j)) is **blocked from
+  load assignment** until return-to-duty documentation is on file. The hire is allowed; driving is not.
+- Every decline is recorded with its date and whether it rested on a purchased report.
+- Filed records are append-only. A correction is a new record, never an edit.
+- The applicant can download a PDF of what they signed.
+
+---
+
+## 9. Form of response
+
+For each question, please give:
+
+| | |
+|---|---|
+| **Answer** | Approve · Approve with changes · Reject |
+| **Text** | For changes: a redline, or replacement text |
+| **Effective** | Immediately, or a date |
+
+When you change an instrument, the platform assigns a new version identifier. Every signature
+taken after that carries the new identifier, and signatures already taken keep the old one. **You
+do not need to decide whether existing signatures must be re-collected** unless you believe they
+must. If so, please say which, and we will arrange it.
+
+**Attachments:**
+1. `APPLICATION.xlsx` / `Application 11.pdf` — the carrier's 31-page packet (your firm's document).
+2. `PSPDisclosureandAuthorizationForm.pdf` — FMCSA's mandatory PSP form.
+3. `SampleLimitedQueryConsent.pdf` — FMCSA's sample limited-query consent.
+4. A specimen of a filed packet with test data, and its certificate of completion. Available on
+   request, once Q1 is answered.
+
+---
+
+## Appendix A — Authorities cited
+
+| Authority | Subject |
+|---|---|
+| 15 U.S.C. 1681b(b)(2)–(3) (FCRA §604) | Disclosure, authorization, adverse action, remote-application exception |
+| 15 U.S.C. 1681m(a) (FCRA §615) | Adverse-action notice |
+| 15 U.S.C. 1681n | Civil liability for willful noncompliance |
+| 15 U.S.C. 7001(c) (E-SIGN) | Consumer consent to electronic records |
+| 49 U.S.C. 31150 | PSP: FCRA compliance, written consent |
+| 47 U.S.C. 227; 47 CFR 64.1200 | Text messages |
+| 49 CFR 390.32 | Electronic records and signatures under Parts 300–399 |
+| 49 CFR 391.21, 391.23, 391.25, 391.31, 391.51 | Application, investigations, annual review, road test, qualification file |
+| 49 CFR 376.12 | Lease requirements |
+| 49 CFR 382.501, 382.701, 382.703, 382.705 | Prohibition, Clearinghouse queries, consent, reporting |
+| 49 CFR 40.25, 40.163, 40.321 | Previous-employer testing history, MRO reporting, confidentiality |
+| *Syed v. M-I, LLC*, 853 F.3d 492 (9th Cir. 2017) | Liability waiver in FCRA disclosure |
+| *Gilberg v. Cal. Check Cashing Stores*, 913 F.3d 1169 (9th Cir. 2019) | Extraneous information in FCRA disclosure |
+| *Mowrer v. U.S. Dep't of Transp.*, 14 F.4th 723 (D.C. Cir. 2021) | FMCSA is not a consumer reporting agency for the PSP |
+| FTC, *40 Years of Experience with the FCRA* (2011), p. 32 | "Employment purposes" includes owner-operators |
+
+## Appendix B — Apparent errors left as written on pages 15, 20 and 22
+
+We did not correct these because the intended word is a guess, and guessing would change a signed
+instrument. Please correct them in any redraft (Q3).
+
+| Page | Text | Likely intended |
 |---|---|---|
-| **FILL** — takes applicant data | 1, 2, 12, 16, 26 | no — rendered, no wording adopted |
-| **SIGN** — static text plus a mark | 3, 4, 5, 6, 9, 10, 11, 13, 15, 18, 19, 20, 22, 25, 27, 28, 31 | **yes, all of them** |
-| **STATIC** — attached, unsigned | 7, 8, 29, 30 | 29–30 yes (§3.6); 7, 8 no |
-| **NOT OURS** | 14, 17, 21, 23, 24 | no |
+| 15 | "and **with** to review previous employer provided investigative information" | *wish* |
+| 15 | "which may be done at **any including** when applying" | *any time, including* |
+| 15 | "within 30 days SILVICOM INC making them available" | *30 days **of** Silvicom Inc* |
+| 15 | "to furnish SILVICOM INC **they** above requested information" | *the* — this is inside the §40.25 authorization |
+| 20 | "for employment /contract purposes" | spacing only |
+| 22 | "regarding pre-employment**.** contracted drivers / owners" | comma |
+| 22 | "I have been informed and understand**.** that should … a positive result**.** it will" | commas |
+
+## Appendix C — Packet pages the applicant signs
+
+| Page | What is signed | Question |
+|---|---|---|
+| 3 | Orientation and the drug test it includes | — |
+| 4 | Background reports, independent contractor release | **Q1 — withdrawn from signing** |
+| 5, 6, 9 | Initials: qualifications, required documents, company rules | — |
+| 10 | Company rules, part four | — |
+| 11 | Previous-employer permission; application certification | Q2 |
+| 13 | Answers true; application open 45 days | Q2 |
+| 15 | Past employment and testing history release | Q3, Q4, Q16 |
+| 17 | Certification and history authorization (top half) | Q2, Q17 |
+| 18 | Single-licence certification | Q17 |
+| 19 | Driving record authorization (two lines) | Q6 |
+| 20 | FCRA disclosure and authorization | Q3 |
+| 22 | Urinalysis notification | Q3, Q5 |
+| 25 | Receipt of handbooks | — |
+| 26 | §40.25(j) prior test question | Q17 |
+| 27 | Passengers and off-duty logging | — |
+| 28 | Alcohol and drug abuse policy | — |
+| 31 | Owner Operator & Leased Driver Agreement — as driver, and as owner-operator | Q14, Q15 |
+
+Pages 18, 19 and 22 also carry lines for a carrier representative, and pages 22 and 31 a witness
+line. The applicant is not asked to sign those.

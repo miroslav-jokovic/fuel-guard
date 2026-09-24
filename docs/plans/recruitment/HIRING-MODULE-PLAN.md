@@ -861,6 +861,8 @@ Silvicom: finishing that one files the packet and freezes the format at whatever
 
 ### ⚠ Q-HM10 · When does the §391.25 annual-review clock start? (opened by D1, 2026-09-19)
 
+**RULED 2026-09-24 — see the dated entry at the end of §10.** The question is kept below as history.
+
 **D1's row says "build the upload, the file and the annual-review clock". The first two shipped; this
 is the third, and it stopped at a ruling rather than at a line of code.**
 
@@ -903,6 +905,8 @@ missing.
 ---
 
 ### ⚠ Q-HM11 · Does the medical-registry verification apply to a CDL holder? (opened by D1, 2026-09-19)
+
+**RULED 2026-09-24 — see the dated entry at the end of §10.** The question is kept below as history.
 
 **Two things this repo already believes, which cannot both be right.** D-HM9 makes the medical
 certificate step **8b** one of the six federal gates — required before anybody drives, for every
@@ -4516,6 +4520,108 @@ every time.
 
   **Left: the web surfaces** — still never walked at 1440×390. Every finding from the audit is now
   closed.
+
+
+- **2026-09-24 — FOUR QUESTIONS RULED, and the counsel package rewritten as a memorandum.** The owner
+  delegated both: *"for legal package, review and research and analyze and make this professional;
+  all other decisions you can make based on research and analysis."* Every ruling below was taken
+  against the current primary text (eCFR, U.S. Code, the FMCSA forms in this directory), read on
+  2026-09-24, not against this plan's summaries. No code changed in this PR; each ruling that needs a
+  build is listed as a queue item at the end of this entry.
+
+  **The counsel package is now a memorandum.** `COUNSEL-REVIEW-PACKAGE.md` is addressed to counsel
+  and holds only the current state: seventeen numbered questions (Q1–Q17) in four priority bands, each
+  with facts, the authority, our reading and the exact answer wanted, plus a response form. The
+  working record it replaces — every ⚠ correction since 2026-08-23 — moved unchanged to
+  `COUNSEL-REVIEW-HISTORY-2026-08-23.md`, and every "§7.2"-style reference in the other plans points
+  there. ⚠ **The research changed three of the old package's questions, and a reader of the history
+  file should know which:**
+  · **Q7 (is a PSP report a consumer report?) is no longer an open unknown.** *Mowrer v. U.S. Dep't of
+    Transp.*, 14 F.4th 723 (D.C. Cir. 2021), held FMCSA is **not** a consumer reporting agency for the
+    PSP. It no longer matters for R10, because the FMCSA-mandated form every applicant signs
+    **promises** the three-business-day notice in the carrier's own voice, and 49 U.S.C. 31150(b)(1)
+    plus the enrollment agreement impose it contractually. The old fallback ("assume yes and send")
+    was right, and is now the reasoned position rather than a guess.
+  · **The remote-application exception has a condition the old package never quoted.**
+    §604(b)(2)(C)(ii)/(b)(3)(C)(ii): *all* contact must have been remote **"as of the time at which
+    the consumer report is procured"**. D-HM9 puts the MVR and PSP at steps 5–6, before anybody meets
+    the applicant, so the exception fits the carrier's real process — but it is decided per applicant
+    by a FACT the product does not record today (was there in-person contact before procurement?).
+    R10 must record it, not infer it from the invitation channel.
+  · **The §40.25 letter (A8) is much narrower than the plans assume.** §391.23(e)(4), in force since
+    2023-01-06: the Clearinghouse replaces the letter for FMCSA-regulated previous employers. It
+    survives only for employers under another DOT agency and for follow-up testing plans. ⚠ And
+    **§40.321(b) prohibits blanket releases** — "to a category of parties". Page 15 is ONE signature
+    addressed to "the above mentioned employer/school", sent to every employer listed, which is
+    plausibly exactly that. Raised as memorandum Q4 with a proposal: one consent per employer, each
+    naming the employer, the information, the recipient and the date.
+  · **Q-HM11's answer is in §391.23(m) (below), and the memo does not ask counsel about it.**
+
+  **L-1 — RULED: page 4 is withdrawn from electronic signing until counsel answers memorandum Q1.**
+  Page 4 puts a consumer-report disclosure, a "WITHOUT RESERVATION" release of liability, consent to
+  resale to "DOT Service, Chicago" and an SSN field on one page. *Syed v. M-I, LLC*, 853 F.3d 492
+  (9th Cir. 2017) holds a liability waiver in the disclosure document is a **willful** §604(b)(2)(A)(i)
+  violation — $100–$1,000 statutory damages per applicant under §1681n, the class-action shape.
+  Page 20 already is the correctly-shaped disclosure, so a page 4 signature adds exposure and no
+  protection. ⚠ **This is the conservative direction, not a workaround:** it removes a signature
+  rather than routing around a missing one, it is reversible by counsel's answer, and production holds
+  **no signed page 4 on a filed packet** (0 filed packets; the QA walk's p04 mark is on an unfiled
+  test envelope). ⚠ The ceremony goes **22 → 21** driver marks. `PACKET_PLACEMENTS` keeps the row —
+  it is a measurement of the paper — and the withdrawal belongs where the queue is derived
+  (`driverPlacements()`), with the page printing unsigned and the certificate saying why.
+
+  **Q-HM14 — RULED (b): a structured `applying_as: company_driver | owner_operator` on the
+  questionnaire.** Research agreed with the recommendation and added a second reason: memorandum Q14
+  asks counsel whether the two groups need different packets, and **whatever counsel answers, the
+  product needs the fact per applicant** — the FTC's *40 Years* report (2011, p. 32) treats
+  owner-operators as "employment purposes", *Smith v. Mutual of Omaha* (S.D. Iowa 2018) does not, and
+  the PSP form defines "employee" by 49 CFR §383.5, which includes independent contractors. A
+  free-text `position` cannot carry any of that. Page 22's reason box is then derived (company driver
+  → *Pre-Employment Qualification*; owner-operator → *Pre-Qualification Contracting a Driver/Owner
+  Operator*), and **page 31's three OP blanks gate together on it**, as AUD-7 anticipated.
+  ⚠ Freeze-bound: it changes how p22 and p31 print, so it lands before the first real packet.
+
+  **Q-HM11 — RULED (c), and the regulation says so outright.** Read on eCFR 2026-09-24:
+  §391.51(b)(8)(i) keeps the National Registry note for drivers **not required to have a CDL**
+  (§391.23(m)(1)); §391.51(b)(8)(ii) keeps it for CDL holders only **"Through June 22, 2025"**; and
+  §391.23(m)(2) has the carrier verify a CDL holder's medical certification **from the CDLIS MVR**,
+  whose Registry leg also ended 2025-06-22. So **`dqCatalogue`'s `appliesWhen: "no_cdl"` is right
+  about the FILE item, and D-HM9 is right that step 8b is a gate for everybody** — they describe
+  different acts. Ruling: step 8b stays a federal gate for every applicant, with evidence that
+  depends on the licence. CDL holder → the office records that the step-5 MVR shows valid medical
+  certification (a recorded act on the MVR, D1's `RecordedActPanel` shape). No CDL → the
+  `medical_registry_verification` note, as the catalogue already has it. ⚠ The lesson from D-HM9
+  applies twice here: "uploaded" is not "verified", and neither is "the MVR was filed". The MVR
+  showing certification is the fact, and somebody must say they read it.
+
+  **Q-HM10 — RULED (b): anchor on the pre-employment MVR, keep four states, NO fallback anchor.**
+  §391.25(a)–(b) is plain that the inquiry and the review are each due at least every 12 months. The
+  owner's reason for holding (b) was the alert volume, so it was **measured, not argued**: production
+  holds **0** `mvr`, `annual_mvr_review`, `medical_registry_verification`, `clearinghouse_full` or
+  `drug_test` qualification records in either org (169 active drivers in Silvicom Inc, 5 in QA). So
+  the first scheduler run after (b) sends **zero** new alerts, and each alert that follows is one
+  real driver reaching a real anniversary. ⚠ **The "no fallback anchor" half is what keeps that
+  true.** Anchoring the 169 existing drivers on a hire date or a row's `created_at` would invent a
+  date the regulation does not count from and would produce exactly the flood the owner feared, so
+  a driver with no pre-employment MVR on file keeps reading `missing`, as today. `clearinghouse_annual`
+  gets the same treatment, anchored on `clearinghouse_full` (§382.701(b)).
+
+  **Q-REC8 — RULED: the notices are sent from Silvicom 360.** Recorded in `RECRUITING-SYSTEM-PLAN.md`
+  beside the question. Reasons: the carrier's own signed PSP form promises them; the product already
+  holds the decision (`applicant_dispositions`, 0238), the report and the applicant's contact
+  details; and a three-business-day deadline is exactly what a system records well and an inbox
+  records badly. R10 is **unblocked for build and blocked for SEND**: the templates are memorandum Q9
+  and nothing sends before counsel approves them.
+
+  **Queue items these rulings create** (new rows belong in §9 when scheduled — not ticked here):
+  · **L-1 build** — withdraw p04 from `driverPlacements()`; certificate and p04 print say why.
+    Freeze-bound: **before the first real packet.**
+  · **Q-HM14 build** — `applying_as` on the questionnaire contract + wizard; derive p22's reason box
+    and gate p31's OP blanks. Freeze-bound: **before the first real packet.**
+  · **Q-HM11 build** — step 8b's evidence split by licence; a recorded act for the CDL case.
+  · **Q-HM10 build** — anchor `annual_mvr_review` and `clearinghouse_annual`; no fallback anchor.
+  · **R10** — record in-person contact before procurement; three notice templates; send only after
+    counsel approves Q9.
 
 ---
 
