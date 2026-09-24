@@ -1146,6 +1146,17 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "load_dispatches": {
+      "module": "loads",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 300,
+        "why": "no rows yet (LR-D1 is schema only). Budget derived from live lme 2026-09-24: 99.3 new movements/day, one dispatch each plus re-sends, x3 headroom. Append-only evidence of what a driver was sent; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
     "load_events": {
       "module": "loads",
       "layer": "core",

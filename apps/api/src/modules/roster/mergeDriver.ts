@@ -65,6 +65,13 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
    * whole merge rather than silently strand a row — the `financial_entries` failure above, exactly.
    */
   { table: "driver_account_closure_requests", column: "driver_id", orgScoped: true },
+  /*
+   * The office's dispatch of a load (0370, D-LMR6). Mechanical, like the closure request above: a
+   * dispatch is not a signature, and when two driver records are one person the load was sent to
+   * that person. 0370's guard freezes every column but `driver_id` for exactly this move, and its
+   * `on delete restrict` makes a missing entry here abort the merge rather than lose the row.
+   */
+  { table: "load_dispatches", column: "driver_id", orgScoped: true },
 ];
 
 /** Atomically fold a duplicate driver into the canonical one. One rpc = one transaction — the
