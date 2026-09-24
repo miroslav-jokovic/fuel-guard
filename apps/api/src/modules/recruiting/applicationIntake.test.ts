@@ -335,6 +335,7 @@ describe("the link is a session, not a fuse", () => {
       applicationSentAt: "2026-08-19T00:10:00Z",
       reviewRequestedAt: "2026-08-19T00:30:00Z",
       approvedAt: null,
+      signingOpenedAt: null,
       submittedAt: null,
     });
   });
@@ -396,7 +397,7 @@ describe("the link is a session, not a fuse", () => {
       seed(invitation({ consented_at: CONSENTED })).client, env(), TOKEN, APPLICATION, CTX, NOW,
     );
     if (!isIntakeError(result)) throw new Error("expected a refusal");
-    expect(result.message).toContain("reopen your link");
+    expect(result.message).toContain("you sign it in their office");
     // Never `invalid_link`: the link is perfectly good, and sending them back to the recruiter for a
     // replacement would fix nothing.
     expect(result.code).not.toBe("invalid_link");

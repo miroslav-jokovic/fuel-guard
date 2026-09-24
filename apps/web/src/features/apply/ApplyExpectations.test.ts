@@ -89,7 +89,14 @@ describe("the parts of the process nobody expects", () => {
     );
   });
 
-  it("says the last signature is a second visit, so finishing the form is not the end", () => {
-    expect(screen().text()).toContain(APPLY_COPY.expectations.afterwards("Silvicom Inc"));
+  /**
+   * ⚠ AF5 (D-AF3): the last signature is given in the carrier's office, not on a second visit to this
+   * link — and a promise of "we will send you the link" would be an email that never comes.
+   */
+  it("says the last signature is given in the office, so finishing the form is not the end", () => {
+    const afterwards = APPLY_COPY.expectations.afterwards("Silvicom Inc");
+    expect(screen().text()).toContain(afterwards);
+    expect(afterwards).toContain("in their office");
+    expect(afterwards).not.toMatch(/second, short visit|send you the link/);
   });
 });

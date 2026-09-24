@@ -135,8 +135,13 @@ export const APPLY_COPY = {
      */
     signFirst: (carrier: string): string =>
       `${carrier} asks for your licence details and a few signed permissions first. After checking your record, they send you the application itself — we will email you the link.`,
+    /**
+     * ⚠ AF5 (D-AF3): the signing is no longer a visit to this link. It happens in the carrier's
+     * office, on the same visit as the road test — and saying "we will send you the link" would
+     * promise an email that never comes.
+     */
     afterwards: (carrier: string): string =>
-      `When you send it, ${carrier} reads it and then asks you to sign it. That last part is a second, short visit — we will send you the link.`,
+      `When you send it, ${carrier} reads it. You sign it in their office, when you come in for your road test.`,
     savesItself: "Your answers save as you go, so you can stop part-way and open your link again later.",
     start: "Start",
   },

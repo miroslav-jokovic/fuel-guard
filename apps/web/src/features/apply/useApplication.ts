@@ -57,6 +57,12 @@ export interface ApplyPhases {
    * "not sent" — reading `undefined` as unsent would put every applicant on the waiting screen.
    */
   applicationSentAt?: string | null;
+  /**
+   * When the office opened packet signing, in person (AF5, D-AF3, 0369). ⚠ Optional, and read the
+   * way `applicationSentAt` is: only an explicit null means "not opened". An API from before AF5
+   * does not send it, and under that API approval DID open signing.
+   */
+  signingOpenedAt?: string | null;
 }
 
 /**

@@ -16,6 +16,7 @@ import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.
 import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue";
 import ApplicantIdentityCorrection from "@/features/recruitment/ApplicantIdentityCorrection.vue";
 import SendApplicationPanel from "@/features/recruitment/SendApplicationPanel.vue";
+import OpenSigningPanel from "@/features/recruitment/OpenSigningPanel.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
@@ -160,6 +161,13 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         :driver-id="driverId"
       />
 
+      <!-- AF5/D-AF3: the packet is signed in the office, on a link the office opens at the desk. -->
+      <OpenSigningPanel
+        v-else-if="body === 'packet' && invitationId"
+        :invitation-id="invitationId"
+        :driver-id="driverId"
+      />
+
       <template v-else-if="body === 'application'">
         <!-- ⚠ The §391.21(b)(10) employment history is here because it IS the application's content.
              The §391.23 investigation OF that history used to be here too, parked, with a comment
@@ -204,8 +212,8 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       <div v-else-if="body === 'recorded_act' || body === 'packet'" class="space-y-3">
         <p class="text-xs text-ink-secondary">
           <template v-if="body === 'packet'">
-            The applicant signs this on their own link — {{ packetDriverMarkCount() }} places in the
-            packet. The office has no view of the signing itself yet.
+            The applicant signs this in the office — {{ packetDriverMarkCount() }} places in the packet.
+            There is no live invitation to open signing on.
           </template>
           <template v-else>
             Recorded rather than fetched: a record pulled anywhere else still counts, and files the

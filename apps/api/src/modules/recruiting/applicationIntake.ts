@@ -66,8 +66,9 @@ interface InvitationRow {
   driver_id: string;
   token_hash: string;
   /**
-   * The SECOND hash, minted at approval and sent in the approval email (A5b, D-AX15, 0345). Null on
-   * every invitation that has not been approved, and on every row approved before 0345.
+   * The SECOND hash (A5b, D-AX15, 0345). Minted at approval until AF5; since AF5 minted, and
+   * re-minted on every press, by the office's Open signing (`open_packet_signing`, 0369), and handed
+   * back on the office's screen rather than emailed (D-AF3).
    */
   sign_token_hash: string | null;
   expires_at: string;
@@ -84,8 +85,13 @@ interface InvitationRow {
   application_sent_at: string | null;
   /** The driver has finished and handed it to the office (F4) — `requestReview` stamps it. */
   review_requested_at: string | null;
-  /** The office has read it, corrected what it corrected, and asked for a signature (F4). */
+  /** The office has read it and corrected what it corrected (F4). Signing waits for the next stamp. */
   approved_at: string | null;
+  /**
+   * The office opened packet signing, in person (AF5, D-AF3, 0369). `record_packet_mark` refuses
+   * DR036 until it is set, and `recordPacketMark` refuses `packet_not_opened` before reaching it.
+   */
+  signing_opened_at: string | null;
   /** The certified §391.21 application filed — stamped inside `submit_driver_application`. */
   submitted_at: string | null;
 }
@@ -107,6 +113,8 @@ export interface InvitationPhases {
   submittedAt: string | null;
   /** AF4: the office sent the form. The page shows "we have your permissions" until it has. */
   applicationSentAt: string | null;
+  /** AF5: the office opened signing. The page shows "you sign in our office" until it has. */
+  signingOpenedAt: string | null;
 }
 
 export const phasesOf = (row: {
@@ -115,6 +123,7 @@ export const phasesOf = (row: {
   application_sent_at?: string | null;
   review_requested_at?: string | null;
   approved_at?: string | null;
+  signing_opened_at?: string | null;
   submitted_at: string | null;
 }): InvitationPhases => ({
   consentedAt: row.consented_at,
@@ -122,6 +131,7 @@ export const phasesOf = (row: {
   applicationSentAt: row.application_sent_at ?? null,
   reviewRequestedAt: row.review_requested_at ?? null,
   approvedAt: row.approved_at ?? null,
+  signingOpenedAt: row.signing_opened_at ?? null,
   submittedAt: row.submitted_at,
 });
 
@@ -159,11 +169,10 @@ function presentedTokenMatches(row: Pick<InvitationRow, "token_hash" | "sign_tok
  *
  * ── ⚠ TWO DOORS, ONE INVITATION (A5b, D-AX15) ─────────────────────────────────────────────────
  * Somebody later did widen the lookup. `token_hash` is the link the applicant was invited with;
- * `sign_token_hash` is minted when the office approves, so the approval email can carry a link of its
- * own instead of telling a stranger to go and search their inbox (0345). Either opens this invitation
- * and both keep working — the amendment to D-AX14 is that approval ADDS a door rather than moving
- * one, which is what lets `APPLY_FLOW_COPY.handoff.waitingNote` go on promising that the first link
- * still works.
+ * `sign_token_hash` was minted when the office approved, so the approval email could carry a link of
+ * its own (0345); since AF5 it is minted when the office opens signing in person, and shown on the
+ * office's screen (D-AF3, 0369). Either opens this invitation and both keep working — the amendment
+ * to D-AX14 is that the sign link ADDS a door rather than moving one.
  *
  * ⚠ The `.or()` interpolates a value derived from the caller, which is normally how a filter becomes
  * an injection. It is safe by construction and only by construction: `hashInvitationToken` returns a
@@ -196,7 +205,8 @@ export async function resolveInvitation(
     .from("application_invitations")
     .select(
       "id, org_id, driver_id, token_hash, sign_token_hash, expires_at, revoked_at, consented_at, "
-      + "releases_completed_at, application_sent_at, review_requested_at, approved_at, submitted_at",
+      + "releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, "
+      + "submitted_at",
     )
     .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash}`)
     .maybeSingle();

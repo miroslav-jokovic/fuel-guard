@@ -66,7 +66,7 @@ export function recruitmentApplicationInvitesRouter(): Router {
   // ⚠ ONE string literal, never a concatenation: PostgREST's types are inferred from the select text
   // statically, and a `+` turns every read of it into `GenericStringError`.
   const INVITE_COLS =
-    "id, driver_id, email, expires_at, consented_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, submitted_at, revoked_at, created_at";
+    "id, driver_id, email, expires_at, consented_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at";
 
   router.get(
     "/drivers/:driverId/application-invites",

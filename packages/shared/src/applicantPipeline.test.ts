@@ -105,6 +105,7 @@ describe("the stages before an application is filed", () => {
     applicationSentAt: null,
     reviewRequestedAt: null,
     approvedAt: null,
+    signingOpenedAt: null,
     submittedAt: null,
     ...over,
   });

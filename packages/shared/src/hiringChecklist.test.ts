@@ -45,6 +45,7 @@ const complete = (over: Partial<HiringChecklistInputs> = {}): HiringChecklistInp
       applicationSentAt: "2026-09-01T12:00:00Z",
       reviewRequestedAt: "2026-09-02T00:00:00Z",
       approvedAt: "2026-09-03T00:00:00Z",
+      signingOpenedAt: "2026-09-08T00:00:00Z",
       submittedAt: null,
     },
     authorizations: ALL_PERMISSIONS,
@@ -254,7 +255,7 @@ describe("the §391.23 investigation", () => {
   it("refuses to be done on an empty queue when the application has not been filed", () => {
     const c = hiringChecklist(
       complete({
-        phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: null, approvedAt: null, submittedAt: null },
+        phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: null, approvedAt: null, signingOpenedAt: null, submittedAt: null },
         investigation: { outstanding: 0, awaiting: 0 },
       }),
     );
@@ -380,7 +381,7 @@ describe("what each step actually reads", () => {
     const c = hiringChecklist(input({
       invitedAt: "2026-09-01T00:00:00Z",
       authorizations: [...ALL_PERMISSIONS],
-      phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: null, approvedAt: null, submittedAt: null },
+      phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: null, approvedAt: null, signingOpenedAt: null, submittedAt: null },
       hasDraft: true,
     }));
     expect(stateOf(c, "application_filled")).toBe("waiting_on_them");
@@ -395,6 +396,23 @@ describe("what each step actually reads", () => {
     const short = hiringChecklist(complete({ packetMarks: packetDriverMarkCount() - 1 }));
     expect(stateOf(short, "application_signed")).toBe("waiting_on_them");
     expect(stateOf(hiringChecklist(complete()), "application_signed")).toBe("done");
+  });
+
+  /**
+   * ⚠ AF5 (D-AF3, 0369): after approval the next move is the OFFICE's — open signing at the desk —
+   * and only then does the applicant owe the marks. The third case is production's 2026-09-17 walk:
+   * twenty marks from before 0369 and never opened. Reading those marks as "waiting on them" would
+   * tell the office to wait for a signer the database refuses.
+   */
+  it("owes the office the opening, then the applicant the marks", () => {
+    const approved = complete().phases!;
+    const unopened = { ...approved, signingOpenedAt: null };
+    expect(stateOf(hiringChecklist(complete({ phases: unopened, packetMarks: 0 })), "application_signed"))
+      .toBe("waiting_on_us");
+    expect(stateOf(hiringChecklist(complete({ packetMarks: 0 })), "application_signed")).toBe("waiting_on_them");
+    expect(
+      stateOf(hiringChecklist(complete({ phases: unopened, packetMarks: packetDriverMarkCount() - 2 })), "application_signed"),
+    ).toBe("waiting_on_us");
   });
 
   /**
@@ -503,7 +521,7 @@ describe("the one next action", () => {
       // Screening finished, which in the owner's order (plan §3.3) comes before the application.
       qualificationKinds: ["mvr", "clearinghouse_full", "drug_test"],
       psp: { requested: true, reportReceived: true },
-      phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: "2026-09-02T00:00:00Z", approvedAt: null, submittedAt: null },
+      phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: "2026-09-02T00:00:00Z", approvedAt: null, signingOpenedAt: null, submittedAt: null },
     }));
     expect(stateOf(c, "office_approved")).toBe("waiting_on_us");
     expect(c.next).toBe("office_approved");
@@ -518,7 +536,7 @@ describe("the one next action", () => {
     const c = hiringChecklist(input({
       invitedAt: "2026-09-01T00:00:00Z",
       authorizations: [...ALL_PERMISSIONS],
-      phases: { applicationSentAt: null, reviewRequestedAt: null, approvedAt: null, submittedAt: null },
+      phases: { applicationSentAt: null, reviewRequestedAt: null, approvedAt: null, signingOpenedAt: null, submittedAt: null },
     }));
     expect(c.next).toBe("mvr");
     expect(stateOf(c, "application_sent")).toBe("waiting_on_us");
@@ -531,7 +549,7 @@ describe("the one next action", () => {
   it("counts the application as sent from the stamp alone", () => {
     const sent = hiringChecklist(input({
       authorizations: [...ALL_PERMISSIONS],
-      phases: { applicationSentAt: "2026-09-05T00:00:00Z", reviewRequestedAt: null, approvedAt: null, submittedAt: null },
+      phases: { applicationSentAt: "2026-09-05T00:00:00Z", reviewRequestedAt: null, approvedAt: null, signingOpenedAt: null, submittedAt: null },
     }));
     expect(stateOf(sent, "application_sent")).toBe("done");
     expect(stateOf(sent, "application_filled")).toBe("waiting_on_them");

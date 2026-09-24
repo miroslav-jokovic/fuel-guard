@@ -52,6 +52,7 @@ const applicant = (n: number, over: Partial<BoardApplicantInput> = {}): BoardApp
     application_sent_at: "2026-09-01T12:00:00Z",
     review_requested_at: "2026-09-02T00:00:00Z",
     approved_at: "2026-09-03T00:00:00Z",
+    signing_opened_at: "2026-09-08T00:00:00Z",
     submitted_at: null,
   },
   hasDraft: true,
@@ -103,6 +104,7 @@ const asInputs = (over: Record<string, unknown> = {}) => ({
     applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
     approvedAt: "2026-09-03T00:00:00Z",
+    signingOpenedAt: "2026-09-08T00:00:00Z",
     submittedAt: null,
   },
   hasDraft: true,
@@ -241,7 +243,7 @@ describe("how long it has sat still", () => {
       [applicant(1, { authorizations: [], invitation: {
         id: inviteId(1), created_at: "2026-09-10T00:00:00Z",
         application_sent_at: "2026-09-01T12:00:00Z",
-        review_requested_at: null, approved_at: null, submitted_at: null,
+        review_requested_at: null, approved_at: null, signing_opened_at: null, submitted_at: null,
       } })],
       NOW,
     );

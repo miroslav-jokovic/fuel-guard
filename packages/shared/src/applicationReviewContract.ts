@@ -77,7 +77,7 @@ export type ApplicationReviewState = (typeof APPLICATION_REVIEW_STATES)[number];
 export const APPLICATION_REVIEW_STATE_LABELS: Record<ApplicationReviewState, string> = {
   filling: "Still filling it in",
   awaiting_review: "Waiting for you",
-  approved: "Sent back to sign",
+  approved: "Approved, to sign in the office",
   certified: "Signed and filed",
 };
 
@@ -90,6 +90,13 @@ export interface ApplicationPhases {
   applicationSentAt: string | null;
   reviewRequestedAt: string | null;
   approvedAt: string | null;
+  /**
+   * When the office opened packet signing, in person (AF5, D-AF3, 0369). Approval no longer opens
+   * it: `record_packet_mark` refuses DR036 until this is set. ⚠ Required for the reason
+   * `applicationSentAt` is — a builder that forgot it would read as "never opened", and say so to
+   * the office on every approved application.
+   */
+  signingOpenedAt: string | null;
   submittedAt: string | null;
 }
 
@@ -139,7 +146,7 @@ export const APPLICATION_PROGRESS_LABELS: Record<ApplicationProgressState, strin
   not_started: "Not opened yet",
   filling: "Filling it in",
   awaiting_review: "Waiting for you",
-  approved: "Sent back to sign",
+  approved: "Approved, to sign in the office",
   certified: "Signed and filed",
 };
 

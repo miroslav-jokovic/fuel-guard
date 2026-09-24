@@ -53,6 +53,7 @@ interface InvitationRow {
   application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
+  signing_opened_at: string | null;
   submitted_at: string | null;
   revoked_at: string | null;
   created_at: string;
@@ -151,7 +152,7 @@ export function recruitmentEmploymentRouter(): Router {
          */
         admin
           .from("application_invitations")
-          .select("id, driver_id, application_sent_at, review_requested_at, approved_at, submitted_at, revoked_at, created_at")
+          .select("id, driver_id, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at")
           .eq("org_id", orgId)
           .in("driver_id", ids)
           .order("created_at", { ascending: false }),
@@ -246,6 +247,7 @@ export function recruitmentEmploymentRouter(): Router {
                 applicationSentAt: invite.application_sent_at,
                 reviewRequestedAt: invite.review_requested_at,
                 approvedAt: invite.approved_at,
+                signingOpenedAt: invite.signing_opened_at,
                 submittedAt: invite.submitted_at,
               }
             : null,

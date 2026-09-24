@@ -44,8 +44,11 @@ export function applicationInviteBadge(state: string): DqBadge {
       return { label: "Filling it in", tone: "info" };
     case "awaiting_review":
       return { label: "Waiting for you", tone: "warning" };
+    // AF5 (D-AF3): approved, and the office owes the next move — open signing when they come in.
     case "approved":
-      return { label: "Sent back to sign", tone: "brand" };
+      return { label: "Approved, to sign in the office", tone: "warning" };
+    case "signing_open":
+      return { label: "Open for signing", tone: "brand" };
     case "used":
       return { label: "Submitted", tone: "success" };
     case "revoked":

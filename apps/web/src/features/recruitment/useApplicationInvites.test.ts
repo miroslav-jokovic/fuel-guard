@@ -101,17 +101,16 @@ describe("what the office can now tell apart", () => {
     ).toBe("awaiting_review");
   });
 
-  it("and the one where the driver does", () => {
-    expect(
-      inviteState(
-        invite({
-          has_draft: true,
-          review_requested_at: "2026-08-19T10:00:00Z",
-          approved_at: "2026-08-19T11:00:00Z",
-        }),
-        NOW,
-      ),
-    ).toBe("approved");
+  /**
+   * ⚠ AF5 (D-AF3): approval hands the move to the OFFICE — open signing when the applicant is in —
+   * and only the opening hands it to the driver. A missing stamp is an API from before AF5, where
+   * approval did open signing, so it reads as opened rather than stranding every approved row.
+   */
+  it("and, once approved, the office's until signing is opened and the driver's after", () => {
+    const approved = { has_draft: true, review_requested_at: "2026-08-19T10:00:00Z", approved_at: "2026-08-19T11:00:00Z" };
+    expect(inviteState(invite({ ...approved, signing_opened_at: null }), NOW)).toBe("approved");
+    expect(inviteState(invite({ ...approved, signing_opened_at: "2026-08-20T09:00:00Z" }), NOW)).toBe("signing_open");
+    expect(inviteState(invite(approved), NOW)).toBe("signing_open");
   });
 
   it("⚠ lets the LINK's own state outrank the application's", () => {

@@ -386,12 +386,18 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     evidence: null,
   },
   // ⚠ The gate here is SQL, not an opinion: `record_packet_mark` raises DR032 until `approved_at` is
-  // set (migration 0339). The checklist agreeing with the database is the point.
+  // set (migration 0339), and since 0369 DR036 until `signing_opened_at` is. The checklist agreeing
+  // with the database is the point.
+  //
+  // ⚠ `owes: "us"` since AF5, and it was "them". D-AF3 moved signing into the office: after
+  // approval the next move is the office's — open signing at the desk — and only once it is opened
+  // does the applicant owe the marks. The fold reads that opening as the step being in flight, which
+  // is how a step that the office owes first hands over to "Waiting on them" (`hiringChecklist.ts`).
   {
     key: "application_signed", ordinal: "16", label: "Application signed",
-    action: "Sign the application packet",
+    action: "Sign the application packet in the office",
     where: "office", phase: "office_day",
-    federalGate: false, beforeTravel: false, owes: "them", requires: ["office_approved"],
+    federalGate: false, beforeTravel: false, owes: "us", requires: ["office_approved"],
     evidence: { table: "application_packet_marks", label: "Signed packet" },
   },
   // ⚠ Requires every federal gate, because that is what the owner said hiring IS: "hiring is
@@ -426,6 +432,20 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
  * form, and the API reads them from the checklist fold so the warning and the row cannot disagree.
  */
 export const APPLICATION_SEND_WARNS_ON: readonly HiringStepKey[] = ["mvr", "psp", "clearinghouse", "drug_test"];
+
+/**
+ * What "Open signing" warns about when it is not done yet (AF5, D-AF6; plan §3.2).
+ *
+ * ⚠ It WARNS and never refuses, like Send: the only refusal is the SQL's (not approved, AI006), and
+ * whether the applicant is standing in the office is not something software can check. The list is
+ * DERIVED rather than written out — every federal gate that belongs before travel, plus the road
+ * test, which is recorded on the same office day and is the one gate a packet should not be signed
+ * ahead of. A step added to the catalogue with `federalGate && beforeTravel` joins it by itself.
+ */
+export const OPEN_SIGNING_WARNS_ON: readonly HiringStepKey[] = [
+  ...HIRING_STEPS.filter((s) => s.federalGate && s.beforeTravel).map((s) => s.key),
+  "road_test",
+];
 
 /**
  * One step's spec by key, for a caller that holds a key and needs its words.

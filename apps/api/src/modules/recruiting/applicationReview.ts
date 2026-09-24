@@ -76,6 +76,7 @@ interface InvitationRow {
   application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
+  signing_opened_at: string | null;
   submitted_at: string | null;
 }
 
@@ -83,6 +84,7 @@ const phasesOf = (row: InvitationRow): ApplicationPhases => ({
   applicationSentAt: row.application_sent_at,
   reviewRequestedAt: row.review_requested_at,
   approvedAt: row.approved_at,
+  signingOpenedAt: row.signing_opened_at,
   submittedAt: row.submitted_at,
 });
 
@@ -94,7 +96,7 @@ async function invitation(
   const { data } = await admin
     .from("application_invitations")
     // The service role bypasses RLS, so the org filter is the only thing between two carriers.
-    .select("id, org_id, driver_id, email, application_sent_at, review_requested_at, approved_at, submitted_at")
+    .select("id, org_id, driver_id, email, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
@@ -315,7 +317,7 @@ export async function approveApplication(
    * behind a state that says they are not, and `approved_at` is what the certification route reads.
    * A notice that did not go is a sentence in the recruiter's drawer and a line in the log.
    */
-  const notice = await notifyApplicationApproved(admin, env, orgId, invitationId, inv.driver_id, inv.email, now);
+  const notice = await notifyApplicationApproved(admin, env, orgId, inv.driver_id, inv.email, now);
 
   return { approvedAt, notice };
 }

@@ -42,7 +42,7 @@ export const APPLY_FLOW_COPY = {
     failed: "That did not send. Check your signal and try again — nothing you typed is lost.",
     waitingHeading: "They have your application",
     waitingBody: (carrier: string): string =>
-      `${carrier} is reading it now. When they are done you will be asked to sign it, and this same link is where you will do it.`,
+      `${carrier} is reading it now. When they are done, they will contact you about coming to their office, where you sign it.`,
     /**
      * ⚠ It promises an email SINCE Q-AX4 SHIPPED, and the promise is why nothing about the approval
      * ROTATES the token. `notifyApplicationApproved` sends from the approval itself. The applicant is
@@ -57,10 +57,29 @@ export const APPLY_FLOW_COPY = {
      *
      * It stayed silent until then on purpose: this page promised something it could not deliver once
      * already (A1's "you will be asked to sign", made on a link the page had just closed).
+     *
+     * ⚠ **AF5 (D-AF3) made "it is where you will sign" false, so it is gone.** Signing happens in the
+     * office, on a sign link the office opens at the desk (0369); this link will show the applicant
+     * that they are approved, and nothing on it needs doing until they come in.
      */
     waitingNote:
-      "Nothing more to do for the moment. We will email you when they are done — keep this link, it is "
-      + "where you will sign, and it still works.",
+      "Nothing more to do for the moment. We will email you when they are done — this link will show "
+      + "you where things stand.",
+  },
+
+  /**
+   * Approved, and signing not yet opened (AF5, plan §3.1 row 9).
+   *
+   * ⚠ "Approved" is the office having READ the application, not a hire: the road test and orientation
+   * are still ahead. The screen says where the signing happens and who moves next, and promises no
+   * date — the carrier arranges the visit, and a date this page invented would be a promise nobody
+   * made.
+   */
+  signInOffice: {
+    heading: "Your application is approved",
+    body: (carrier: string): string =>
+      `${carrier} has read your application. You sign it in their office, on the same visit as your road test and orientation — they will contact you about coming in.`,
+    note: "Nothing more to do on this link for now. Nothing you filled in has been lost.",
   },
 
   /**

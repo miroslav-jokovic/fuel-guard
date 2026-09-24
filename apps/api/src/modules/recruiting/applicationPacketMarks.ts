@@ -49,6 +49,18 @@ export const PACKET_NOT_APPROVED: IntakeError = {
   message: "The carrier has not finished reviewing this application yet.",
 };
 
+/**
+ * Approved, and not yet opened in the office (AF5, D-AF3, 0369's DR036).
+ *
+ * ⚠ Worded for the applicant who reaches it, because the only way to is from home: a link opened
+ * before the office pressed Open signing at the desk. They have done nothing wrong and nothing is
+ * lost, and what they need to know is where the signing happens.
+ */
+export const PACKET_NOT_OPENED: IntakeError = {
+  code: "packet_not_opened",
+  message: "You sign this in the carrier's office. They will contact you about coming in.",
+};
+
 export const PACKET_ALREADY_FILED: IntakeError = {
   code: "already_submitted",
   message: "This application has already been filed.",
@@ -210,10 +222,13 @@ export async function recordPacketMark(
   const placement = packetPlacementById(body.placement_id);
   if (!placement || placement.party !== "driver") return refused(PACKET_MARK_NOT_THE_DRIVERS);
 
-  // The cheap refusals, before the transaction. The RPC checks both again under its lock — these
-  // keep a ceremony opened on a stale page from reaching the database at all.
+  // The cheap refusals, before the transaction. The RPC checks all three again under its lock —
+  // these keep a ceremony opened on a stale page from reaching the database at all. ⚠ In 0369's
+  // order: unapproved, filed, THEN unopened, so a filed packet that was never opened (production's
+  // one filed row) still says it is filed.
   if (!invitation.approved_at) return refused(PACKET_NOT_APPROVED);
   if (invitation.submitted_at) return refused(PACKET_ALREADY_FILED);
+  if (!invitation.signing_opened_at) return refused(PACKET_NOT_OPENED);
 
   const { data, error } = await admin.rpc("record_packet_mark", {
     p_org: invitation.org_id,
@@ -244,6 +259,9 @@ export async function recordPacketMark(
     }
     if (error.code === "DR033" || /packet_already_filed/.test(error.message)) {
       return refused(PACKET_ALREADY_FILED);
+    }
+    if (error.code === "DR036" || /packet_not_opened/.test(error.message)) {
+      return refused(PACKET_NOT_OPENED);
     }
     if (
       error.code === "DR030"

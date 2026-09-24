@@ -74,7 +74,7 @@ export const HIRING_STEP_STATE_LABELS: Record<HiringStepState, string> = {
 export interface HiringChecklistInputs {
   /** When the invitation was created. Null means nobody has been invited yet. */
   invitedAt?: string | null;
-  /** The live invitation's three stamps — `reviewRequestedAt`, `approvedAt`, `submittedAt`. */
+  /** The live invitation's phase stamps, from the permissions onward (`ApplicationPhases`). */
   phases?: ApplicationPhases | null;
   /** Has the applicant typed anything? The only evidence that exists before they send it (F5). */
   hasDraft?: boolean;
@@ -239,9 +239,14 @@ function evidenceFor(
       // ⚠ Against the DERIVED count, never a stored stamp — `packetDriverMarkCount()` is the whole
       // of 0339's argument for not adding a `packet_signing_completed_at` column that would go stale
       // the next time counsel rules on page 19's duplicate.
+      //
+      // ⚠ In flight once the office has OPENED signing (AF5, D-AF3), and not on the marks. Marks
+      // without an opening exist only from before 0369 — production's 2026-09-17 walk holds twenty —
+      // and that packet cannot take another mark until somebody in the office opens it, so reading
+      // those marks as "waiting on them" would tell the office to wait for a signer who is refused.
       return {
         done: (input.packetMarks ?? 0) >= packetDriverMarkCount(),
-        inFlight: (input.packetMarks ?? 0) > 0,
+        inFlight: Boolean(input.phases?.signingOpenedAt),
       };
     case "employment_investigation": {
       // ⚠ THE GATE IS THE APPLICATION, NOT THE COUNT, and conflating them is the whole defect this

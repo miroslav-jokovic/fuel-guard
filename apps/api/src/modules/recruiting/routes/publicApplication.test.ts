@@ -159,8 +159,10 @@ const seed = (over: Record<string, unknown> | null = {}, extra: Record<string, u
              */
             consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
             // F4: submitting requires an approved application, so the default link is one the office
-            // has read and approved. A test about a phase refusal overrides these two.
+            // has read and approved — and, since AF5 (D-AF3), opened for signing in the office, which
+            // the packet's marks need before anything can be filed. A phase test overrides these.
             review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
+            signing_opened_at: "2026-09-12T09:00:00Z",
             ...over,
           }]
         : [],
@@ -267,6 +269,8 @@ describe("opening the link", () => {
       submittedAt: null,
       // AF4: the office's third act, and the one the page's "we have your permissions" screen reads.
       applicationSentAt: "2026-09-14T09:00:00Z",
+      // AF5: the office's fourth, and the one the page's "you sign it in their office" screen reads.
+      signingOpenedAt: "2026-09-12T09:00:00Z",
     });
   });
 
@@ -455,7 +459,7 @@ describe("certifying before the carrier has approved it", () => {
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: { code: string; message: string } };
     expect(body.error.code).toBe("not_yet_approved");
-    expect(body.error.message).toContain("reopen your link");
+    expect(body.error.message).toContain("you sign it in their office");
   });
 });
 

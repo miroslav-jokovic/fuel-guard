@@ -30,6 +30,7 @@ const STUBS = {
   AuthorizationsPanel: stub("authorizations"),
   ApplicantIdentityCorrection: stub("identity"),
   SendApplicationPanel: stub("send"),
+  OpenSigningPanel: stub("open-signing"),
   EmploymentHistorySection: stub("employment"),
   EmployerInquirySection: stub("inquiry"),
   PspRecordsSection: stub("psp"),
@@ -43,6 +44,7 @@ const COMPLETE: HiringChecklistInputs = {
     applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
     approvedAt: "2026-09-03T00:00:00Z",
+    signingOpenedAt: "2026-09-08T00:00:00Z",
     submittedAt: null,
   },
 };
@@ -246,12 +248,19 @@ describe("the steps with no affordance yet say so, and point at the act", () => 
   });
 
   /**
-   * ⚠ It must NOT claim the office can see the signing. The driver signs on their own link and C1
-   * builds the office's view; saying otherwise is the medical-certificate mistake in a new place.
+   * ⚠ AF5 (D-AF3): the packet is signed in the office, and the office OPENS it from this row. With no
+   * live invitation there is nothing to open, and the fallback says where signing happens rather
+   * than pointing at a link the applicant no longer signs on.
    */
-  it("says the packet is signed on the applicant's own link", async () => {
-    const root = await openOn("application_signed");
-    expect(root.textContent).toContain("their own link");
+  it("opens the packet from the office when there is an invitation to open", async () => {
+    expect(bodyOf(await openOn("application_signed"))).toBe("open-signing");
+  });
+
+  it("says the packet is signed in the office when there is no invitation", async () => {
+    const root = await openOn("application_signed", null);
+    expect(bodies(root)).not.toContain("open-signing");
+    expect(root.textContent).toContain("signs this in the office");
+    expect(root.textContent).not.toContain("their own link");
   });
 });
 

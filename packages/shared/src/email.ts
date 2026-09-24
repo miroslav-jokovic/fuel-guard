@@ -199,10 +199,9 @@ export function renderDigestEmail(
 /**
  * The subject line of the FIRST application email, as one string.
  *
- * ⚠ Extracted because `renderApplicationApprovedEmail` quotes it back to the applicant: the approval
- * email carries no link and tells them to search their inbox for this exact phrase. Two literals
- * would drift the first time somebody improved one of them, and the failure would be an applicant
- * searching for words that were never sent.
+ * Extracted when the linkless approval email quoted it back to the applicant as a phrase to search
+ * their inbox for. Since AF5 nothing quotes it — the approval email sends the applicant to the office,
+ * not to their inbox — and it stays one string because a subject line is still a thing to find.
  */
 export const applicationInviteSubject = (carrier: string): string =>
   `Your driver application for ${carrier}`;
@@ -260,74 +259,46 @@ export function renderApplicationInviteEmail(
 }
 
 /**
- * The applicant has been approved and is being asked back to sign (Q-AX4, D-AX14, amended D-AX15).
+ * The applicant has been approved; the office will be in touch about coming in to sign (Q-AX4,
+ * D-AX14, and since AF5 D-AF3).
  *
- * ── ⚠ IT CARRIES A LINK SINCE A5b — AND THE OLD LINK STILL WORKS ───────────────────────────────
- * It used to carry none, and the reason was not an omission. `application_invitations` stores a
- * SHA-256 and nothing else (0220), so at approval time there was no link to put in an email — the
- * plaintext was returned once, at mint. The nudge next door solves that by ROTATING the token (0232),
- * and that move was rejected here: the waiting screen has already told this applicant "keep this link
- * — it is where you will sign, and it still works", and approval is the exact moment they go and use
- * it. Breaking the one promise the product made them, at the one moment it matters, to save them a
- * search of their own inbox, is not a trade worth making.
+ * ── ⚠ IT CARRIES NO LINK AGAIN, AND THIS TIME ON PURPOSE ──────────────────────────────────────
+ * From A5b (D-AX15, 2026-09-18) until AF5 this email carried a sign link: approval minted a second
+ * token (0345) so the applicant could sign from their inbox. D-AF3 moved signing into the office —
+ * *"in the office: road test and in-office orientation → after that we give him the application to
+ * sign"* — and 0369 refuses every mark until the office opens signing at the desk. A link here would
+ * open a packet that refuses every place on it, which is worse than no link: it looks like the
+ * product is broken, at the one moment the applicant has been told good news.
  *
- * **D-AX15 amends that decision rather than reversing it.** 0345 gave the invitation a SECOND hash,
- * so approval mints a new token instead of rotating the one in the applicant's inbox: this email
- * carries a link, `resolveInvitation` accepts either, and nobody is stranded. The objection had two
- * halves — there is no link to send, and rotating breaks the promise — and only the first was ever
- * about the email.
- *
- * ⚠ `signUrl` is nullable and the no-link copy below is NOT dead code. It is what goes out when the
- * sign token could not be stored, and a caller in that position must not send a link that resolves to
- * nothing. That path still names the EARLIER EMAIL'S SUBJECT LINE, which is why
- * `renderApplicationInviteEmail` above and this function must keep saying the same words, and why
- * `email.test.ts` pins that they do.
+ * So the email says what is true: the application has been read and approved, nothing they filled
+ * in is lost, and the carrier will contact them about the visit where they sign it. The sign link is
+ * minted by the office's Open signing, on the office's screen (`applicationOpenSigning.ts`).
  *
  * ── THE VOICE ─────────────────────────────────────────────────────────────────────────────────
- * The carrier's name first, as every applicant-facing template in this file does — they applied to a
- * trucking company. No deadline and no chase: the office has just made its decision, and this is
- * news, not pressure. ⚠ And the link is offered rather than urged: a driver who still has the first
- * email may use either, so the copy does not tell them the old one is finished — that sentence would
- * be false, and it is the exact sentence the nudge has to say.
+ * The carrier's name first, as every applicant-facing template in this file does. "Approved" means
+ * the application has been read — ⚠ not that they are hired, and the copy does not say they are:
+ * the road test and the orientation are still ahead of them, and a driver who reads "you're hired"
+ * buys a ticket on a promise nobody made.
  */
-export function renderApplicationApprovedEmail(carrier: string, signUrl: string | null = null): RenderedEmail {
-  const earlier = applicationInviteSubject(carrier);
-  const subject = `Your application for ${carrier} is ready to sign`;
-  const opening =
-    `<h2 style="margin:0 0 8px">${esc(carrier)} has read your application</h2>`
-    + `<p style="color:#555">It is ready for your signature. Nothing you filled in has been lost — `
-    + `you will see the application as it now stands, and anything ${esc(carrier)} corrected is `
-    + `marked for you before you sign.</p>`;
-  const openingText =
-    `${carrier} has read your application and it is ready for your signature.\n\n`
-    + `Nothing you filled in has been lost — you will see the application as it now stands, and `
-    + `anything ${carrier} corrected is marked for you before you sign.\n\n`;
-  const html = signUrl
-    ? `<div style="font-family:system-ui,sans-serif;color:#111">`
-      + opening
-      + `<p style="margin:20px 0"><a href="${esc(signUrl)}" style="background:#4f46e5;color:#fff;`
-      + `padding:10px 16px;border-radius:6px;text-decoration:none">Read it and sign →</a></p>`
-      + `<p style="color:#888;font-size:12px">If the button doesn't work, paste this link into your `
-      + `browser: ${esc(signUrl)}</p>`
-      + `<p style="color:#aaa;font-size:12px">The link from the earlier email still works too, if you `
-      + `would rather use that one.</p>`
-      + `</div>`
-    : `<div style="font-family:system-ui,sans-serif;color:#111">`
-      + opening
-      + `<p style="color:#555;margin:20px 0">Open the link from the earlier email &mdash; the one `
-      + `titled <strong>&quot;${esc(earlier)}&quot;</strong> &mdash; and you will be asked to sign.</p>`
-      + `<p style="color:#aaa;font-size:12px">If you cannot find that email, reply to this one or call `
-      + `${esc(carrier)} and they will send you a new link.</p>`
-      + `</div>`;
-  const text = signUrl
-    ? openingText
-      + `Read it and sign: ${signUrl}\n\n`
-      + `The link from the earlier email still works too, if you would rather use that one.`
-    : openingText
-      + `Open the link from the earlier email — the one titled "${earlier}" — and you will be asked to `
-      + `sign.\n\n`
-      + `If you cannot find that email, reply to this one or call ${carrier} and they will send you a `
-      + `new link.`;
+export function renderApplicationApprovedEmail(carrier: string): RenderedEmail {
+  const subject = `${carrier} has approved your application`;
+  const html =
+    `<div style="font-family:system-ui,sans-serif;color:#111">`
+    + `<h2 style="margin:0 0 8px">${esc(carrier)} has read and approved your application</h2>`
+    + `<p style="color:#555">You sign it in their office. ${esc(carrier)} will contact you about `
+    + `coming in — the road test and orientation happen on the same visit.</p>`
+    + `<p style="color:#555">Nothing you filled in has been lost, and anything ${esc(carrier)} `
+    + `corrected is marked for you before you sign.</p>`
+    + `<p style="color:#aaa;font-size:12px">There is nothing to do on your application link until `
+    + `then.</p>`
+    + `</div>`;
+  const text =
+    `${carrier} has read and approved your application.\n\n`
+    + `You sign it in their office. ${carrier} will contact you about coming in — the road test and `
+    + `orientation happen on the same visit.\n\n`
+    + `Nothing you filled in has been lost, and anything ${carrier} corrected is marked for you before `
+    + `you sign.\n\n`
+    + `There is nothing to do on your application link until then.`;
   return { subject, html, text };
 }
 

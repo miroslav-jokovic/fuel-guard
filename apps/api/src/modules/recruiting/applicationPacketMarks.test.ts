@@ -36,6 +36,7 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   releases_completed_at: "2026-09-14T08:30:00Z",
   review_requested_at: "2026-09-14T09:00:00Z",
   approved_at: "2026-09-14T10:00:00Z",
+  signing_opened_at: "2026-09-20T10:00:00Z",
   submitted_at: null,
   ...over,
 });
@@ -150,6 +151,25 @@ describe("the window a packet may be signed in", () => {
     expect(rec.rpcs()).toHaveLength(0);
   });
 
+  /**
+   * ⚠ AF5 (D-AF3, 0369): approved is no longer enough. This is the state production's one unfiled
+   * walk is in — approved on the old rule, never opened — and it is what a driver meets from home.
+   */
+  it("refuses an approved packet the office has not opened in person, and reaches no transaction", async () => {
+    const rec = seed({ inv: invitation({ signing_opened_at: null }) });
+    const result = await recordPacketMark(rec.client, TOKEN, body("p03"), CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("packet_not_opened");
+    expect(isIntakeError(result) && result.message).toContain("office");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  /** ⚠ 0369's order: a filed packet that was never opened says it is FILED, the true reason. */
+  it("answers filed, not unopened, for a filed packet nobody opened", async () => {
+    const rec = seed({ inv: invitation({ signing_opened_at: null, submitted_at: "2026-09-14T11:00:00Z" }) });
+    const result = await recordPacketMark(rec.client, TOKEN, body("p03"), CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("already_submitted");
+  });
+
   it("refuses once the application is filed", async () => {
     const rec = seed({ inv: invitation({ submitted_at: "2026-09-14T11:00:00Z" }) });
     const result = await recordPacketMark(rec.client, TOKEN, body("p03"), CTX, NOW);
@@ -190,6 +210,7 @@ describe("what the transaction refuses", () => {
     ["DR035", "packet_mark_name_changed", "packet_mark_name_changed"],
     ["DR032", "packet_not_yet_approved", "packet_not_yet_approved"],
     ["DR033", "packet_already_filed", "already_submitted"],
+    ["DR036", "packet_not_opened", "packet_not_opened"],
     ["DR030", "application_invitation_not_found", "invalid_link"],
     ["DR031", "application_invitation_unusable", "invalid_link"],
   ])("turns %s into %s", async (code, message, expected) => {

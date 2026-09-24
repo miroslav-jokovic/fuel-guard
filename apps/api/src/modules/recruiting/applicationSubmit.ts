@@ -96,8 +96,8 @@ import { identityOnRecord } from "./applicantIdentity.js";
 export const NOT_YET_APPROVED: IntakeError = {
   code: "not_yet_approved",
   message:
-    "The carrier has not finished checking this application yet. Nothing is lost — reopen your link "
-    + "and it will ask you to sign as soon as they are done.",
+    "The carrier has not finished checking this application yet. Nothing is lost — you sign it in "
+    + "their office, and they will contact you about coming in.",
 };
 
 export const WORDING_NOT_FINAL: IntakeError = {

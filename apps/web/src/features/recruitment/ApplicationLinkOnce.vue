@@ -21,6 +21,12 @@ const props = defineProps<{
    * application's is replaced by sending it again (AF4), which rotates the link on the same row.
    */
   ifLost?: string;
+  /**
+   * The line above a link that was NOT emailed. AF5's sign link is the one that must not be sent on
+   * (D-AF3: it signs the packet, and signing happens in the office), so "send this link to the
+   * applicant" would be exactly the wrong instruction.
+   */
+  heading?: string;
 }>();
 
 const toast = useToastStore();
@@ -37,7 +43,7 @@ const toast = useToastStore();
  */
 const headline = computed((): string => {
   const d = props.delivery;
-  if (!d) return "Send this link to the applicant";
+  if (!d) return props.heading ?? "Send this link to the applicant";
   if (d.sent) return `Emailed to ${d.email}`;
   switch (d.reason) {
     case "no_address":
