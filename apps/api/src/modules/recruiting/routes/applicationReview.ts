@@ -1,5 +1,10 @@
 import { Router } from "express";
-import { applicationEditSchema, type ApplicationEdit } from "@silvicom/shared";
+import {
+  applicantIdentitySchema,
+  applicationEditSchema,
+  type ApplicantIdentity,
+  type ApplicationEdit,
+} from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -12,6 +17,7 @@ import {
 } from "../applicationReview.js";
 import { applicationPreviewPdf, isPreviewError } from "../applicationPdf/preview.js";
 import { applicationPermissionsPdf, isPermissionsError } from "../applicationPdf/permissions.js";
+import { correctApplicantIdentity, isIdentityCorrectionError } from "../applicantIdentity.js";
 
 /**
  * Reading, correcting and approving an applicant's answers (F4).
@@ -37,11 +43,11 @@ export function recruitmentApplicationReviewRouter(): Router {
   const status = (code: string): number =>
     code === "application_not_found"
       ? 404
-      : code === "invalid_edit"
+      : code === "invalid_edit" || code === "invalid_request"
         ? 400
         : code === "application_not_editable" || code === "application_not_reviewable"
           || code === "already_certified" || code === "already_filed" || code === "nothing_to_preview"
-          || code === "nothing_signed_yet"
+          || code === "nothing_signed_yet" || code === "invitation_revoked"
           ? 409
           : 500;
 
@@ -155,6 +161,37 @@ export function recruitmentApplicationReviewRouter(): Router {
         return;
       }
       res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * Correct the applicant's date of birth and licence (AF3, D-AF8) — the office's half of the one
+   * identity writer. It OVERWRITES, on `drivers` and the draft together, so the licence PSP is
+   * ordered against and the licence on the application stay one licence.
+   *
+   * ⚠ `canManage`: this changes the facts a background check is run on. It is not refused on an
+   * expired link — the office corrects identity while it screens, and the owner's order waits on
+   * labs long enough to outlive one (0365's header).
+   */
+  router.post(
+    "/applications/:invitationId/identity",
+    requireOrg,
+    canManage,
+    validateBody(applicantIdentitySchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await correctApplicantIdentity(
+        admin,
+        req.auth!.orgId!,
+        String(req.params.invitationId ?? ""),
+        res.locals.body as ApplicantIdentity,
+        req.auth!.userId,
+      );
+      if (isIdentityCorrectionError(result)) {
+        res.status(status(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ ok: true });
     }),
   );
 

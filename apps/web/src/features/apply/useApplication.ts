@@ -132,6 +132,13 @@ export interface ApplyInvitation {
    * screen this exists to fix.
    */
   packetAdopted?: { signature: string | null; initials: string | null } | null;
+  /**
+   * Whether the date of birth and licence are on file, on the row and in the draft (AF3, D-AF1). A
+   * boolean and never the values — D-APP16 keeps a date of birth off the bare link.
+   *
+   * ⚠ Optional: a bundle cached from before AF3 must read `undefined`, not throw.
+   */
+  identityComplete?: boolean;
 }
 
 /**
@@ -315,6 +322,19 @@ export const confirmApplicationCapture = (
   body: { slot: ApplicationCaptureSlot; content_type: ApplicationCaptureContentType; sha256: string },
 ): Promise<{ slot: ApplicationCaptureSlot; capturedAt: string }> =>
   publicFetch(`/${token}/capture/${captureId}`, { method: "PUT", body: JSON.stringify(body) });
+
+/**
+ * The date of birth and licence, with the permissions (AF3). Fill-only on the server: what comes back
+ * names any field the carrier already held, so the screen can say so — never what it holds.
+ */
+export const recordApplicantIdentity = (
+  token: string,
+  body: { date_of_birth: string; cdl_number: string; cdl_state: string },
+): Promise<{ ok: true; keptExisting: string[] }> =>
+  publicFetch<{ ok: true; keptExisting: string[] }>(`/${token}/identity`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 
 /** Agree to transact electronically. The body is empty: the server composes what was agreed to. */
 export const giveEsignConsent = (token: string): Promise<{ ok: true }> =>

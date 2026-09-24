@@ -132,7 +132,17 @@ const signedPacket = (name = "Susan Godfrey", initials = "SG") =>
     return { placement_id, mark, signed_name: mark === "initials" ? initials : name };
   });
 
-const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
+/**
+ * AF3/D-AF1: identity recorded, on the row AND in the draft, as `record_applicant_identity` leaves
+ * it. `recordRelease` refuses `identity_missing` without both, so every fixture that expects a
+ * signature to land carries this.
+ */
+const IDENTITY_TABLES = {
+  drivers: [{ date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" }],
+  application_drafts: [{ payload: { date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" } }],
+};
+
+const seed = (over: Record<string, unknown> | null = {}, extra: Record<string, unknown> = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       application_invitations: over
@@ -164,6 +174,8 @@ const seed = (over: Record<string, unknown> | null = {}): SupabaseRecorder =>
        * already one the office has approved. A test ABOUT that gate overrides this.
        */
       application_packet_marks: signedPacket(),
+      // Last, so a fixture's own `drivers`/`application_drafts` win over the defaults above.
+      ...extra,
     },
     rpc: {
       submit_driver_application: { application_id: "app-1" },
@@ -665,7 +677,7 @@ describe("the link survives its own submission", () => {
   });
 
   it("still reaches the signing endpoint after submission", async () => {
-    holder.client = seed({ submitted_at: "2026-08-01T00:00:00Z" }).client;
+    holder.client = seed({ submitted_at: "2026-08-01T00:00:00Z" }, IDENTITY_TABLES).client;
     const res = await call(`/${TOKEN}/release`, {
       method: "POST",
       body: JSON.stringify({ purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }),
@@ -693,7 +705,7 @@ describe("signing a release", () => {
   withDraftWording();
 
   it("refuses while the disclosure is draft, with a message aimed at the carrier", async () => {
-    const rec = seed();
+    const rec = seed({}, IDENTITY_TABLES);
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/release`, {
       method: "POST",
@@ -847,7 +859,7 @@ describe("with the carrier's wording published as rows, and no consent given", (
     },
   ];
 
-  const seedPublished = (over: Record<string, unknown> = {}): SupabaseRecorder =>
+  const seedPublished = (over: Record<string, unknown> = {}, extra: Record<string, unknown> = {}): SupabaseRecorder =>
     createSupabaseRecorder({
       tables: {
         application_invitations: [{
@@ -862,6 +874,7 @@ describe("with the carrier's wording published as rows, and no consent given", (
         org_disclosures: PUBLISHED,
         application_drafts: [],
         driver_authorizations: [],
+        ...extra,
       },
       rpc: {
         save_application_draft: { draft_id: "d-1", updated_at: "2026-09-13T10:05:00Z" },
@@ -919,7 +932,7 @@ describe("with the carrier's wording published as rows, and no consent given", (
   });
 
   it("opens all four again once the driver has consented", async () => {
-    const rec = seedPublished({ consented_at: "2026-09-13T11:00:00Z" });
+    const rec = seedPublished({ consented_at: "2026-09-13T11:00:00Z" }, IDENTITY_TABLES);
     holder.client = rec.client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",

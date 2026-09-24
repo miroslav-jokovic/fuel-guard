@@ -25,7 +25,10 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * abandonment spike.
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
+/** The carrier's name once the date of birth is on file (AF3, D-AF8) — see `LicenceFields.vue`. */
+defineProps<{ lockedBy?: string | null }>();
 const copy = APPLY_COPY.identity;
+const lockedHint = APPLY_COPY.identityStep.lockedHint;
 </script>
 
 <template>
@@ -60,8 +63,8 @@ const copy = APPLY_COPY.identity;
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <ApplyField v-slot="f" :path="['date_of_birth']" :label="copy.date_of_birth">
-        <AppDateField v-bind="f" v-model="draft.date_of_birth" />
+      <ApplyField v-slot="f" :path="['date_of_birth']" :label="copy.date_of_birth" :hint="lockedBy ? lockedHint(lockedBy) : undefined">
+        <AppDateField v-bind="f" v-model="draft.date_of_birth" :disabled="Boolean(lockedBy)" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['email']" :label="copy.email">
         <BaseInput v-bind="f" v-model="draft.email" type="email" autocomplete="email" />

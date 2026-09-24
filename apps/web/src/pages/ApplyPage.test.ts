@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { driverPlacements, APPLICATION_FILLING_SECTIONS } from "@silvicom/shared";
+import { driverPlacements, APPLICATION_FILLING_SECTIONS, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 import ApplyPage from "@/pages/ApplyPage.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -507,6 +507,8 @@ describe("the applicant's page", () => {
       esignConsent: {
         version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true,
       },
+      // AF3: identity already given, so the next thing is the first permission.
+      identityComplete: true,
     }));
     const w = mountPage();
     await settle(w);
@@ -516,6 +518,67 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("Type your full name");
     // And the form is not reachable behind it.
     expect(w.text()).not.toContain(step(1));
+  });
+
+  /**
+   * ⚠ AF3/D-AF1: the date of birth and licence come BEFORE the first permission. PSP, the driving
+   * record and the Clearinghouse query run on them before the application exists, and the server
+   * refuses a signature without them — so a page that went straight to the ceremony would walk the
+   * applicant into a refusal on the first tap.
+   */
+  it("asks for the licence before the first permission when it is not on file", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+      releasesSigned: [],
+      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: null, submittedAt: null },
+      draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+      esignConsent: {
+        version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true,
+      },
+      identityComplete: false,
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain("Your driver's licence");
+    expect(w.text()).not.toContain("Your signature");
+    expect(w.text()).not.toContain(step(1));
+  });
+
+  /**
+   * ⚠ And once it is on file the form SHOWS it and does not let it be retyped (D-AF8): the licence
+   * PSP ran against is the licence the application must name. The discriminator is the pair — the
+   * same page with the identity not on file must leave the field editable, or a field that was always
+   * disabled would pass.
+   */
+  it("shows the date of birth on the form and does not let it be retyped once on file", async () => {
+    const formPage = (identityComplete: boolean) => ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+      releasesSigned: [...APPLICATION_RELEASE_ORDER],
+      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      esignConsent: {
+        version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true,
+      },
+      identityComplete,
+    });
+    const dobDisabled = (w: ReturnType<typeof mountPage>) =>
+      w.findAll("input").filter((i) => i.element.disabled).length;
+
+    fetchMock.mockResolvedValue(formPage(true));
+    const locked = mountPage();
+    await settle(locked);
+    expect(locked.text()).toContain("To change this, contact Silvicom Inc.");
+    expect(dobDisabled(locked)).toBeGreaterThan(0);
+    locked.unmount();
+
+    fetchMock.mockResolvedValue(formPage(false));
+    const open = mountPage();
+    await settle(open);
+    expect(open.text()).not.toContain("To change this, contact");
+    expect(dobDisabled(open)).toBe(0);
   });
 
   it("goes straight to the form when the ceremony is already finished", async () => {

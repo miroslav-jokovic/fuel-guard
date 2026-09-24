@@ -57,7 +57,15 @@ export interface CaptureSlotView {
 export function useApplicationCaptures(
   token: Ref<string>,
   already: Ref<ApplicationCaptureView[]>,
-  options: { provider?: CaptureProvider; io?: CaptureIo } = {},
+  options: {
+    provider?: CaptureProvider;
+    io?: CaptureIo;
+    /**
+     * The slots this screen asks for, when it is not all of them (AF3). The identity step takes the
+     * licence's two sides beside the licence number; the documents screen keeps the whole list.
+     */
+    only?: readonly ApplicationCaptureSlot[];
+  } = {},
 ) {
   const provider = options.provider ?? createWebFileProvider(BUNDLED_DEFAULT_CONFIG);
   const io: CaptureIo = { ...DEFAULT_CAPTURE_IO, ...(options.io ?? {}) };
@@ -92,7 +100,7 @@ export function useApplicationCaptures(
   });
 
   const slots = computed<CaptureSlotView[]>(() =>
-    APPLICATION_CAPTURE_REQUESTED.map((slot) => {
+    (options.only ?? APPLICATION_CAPTURE_REQUESTED).map((slot) => {
       const here = local[slot];
       // A slot the server already knows about is done, whatever this tab has done since — a resumed
       // session must not ask a driver to photograph a licence they photographed last week.

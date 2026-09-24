@@ -14,6 +14,7 @@ import { hiringArtifactLink } from "@/features/recruitment/hiringArtifacts";
 import { hiringDrawerBody } from "@/features/recruitment/hiringStepDrawers";
 import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.vue";
 import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue";
+import ApplicantIdentityCorrection from "@/features/recruitment/ApplicantIdentityCorrection.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
@@ -52,6 +53,8 @@ const props = defineProps<{
   driverStatus: string;
   /** The live invitation, resolved by the page. Null before one exists. */
   invitationId: string | null;
+  /** The driver row's date of birth and licence (AF3), read by the page; null while it loads. */
+  identity?: { date_of_birth?: string | null; cdl_number?: string | null; cdl_state?: string | null } | null;
 }>();
 
 const emit = defineEmits<{ close: []; review: [invitationId: string] }>();
@@ -134,13 +137,21 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         @review="emit('review', $event)"
       />
 
-      <AuthorizationsPanel
-        v-else-if="body === 'authorizations'"
-        :invitation-id="invitationId"
-        :rows="authorizationsQ.data.value ?? []"
-        :loading="authorizationsQ.isLoading.value"
-        :error="authorizationsQ.error.value ? 'The signed releases could not be loaded.' : null"
-      />
+      <template v-else-if="body === 'authorizations'">
+        <AuthorizationsPanel
+          :invitation-id="invitationId"
+          :rows="authorizationsQ.data.value ?? []"
+          :loading="authorizationsQ.isLoading.value"
+          :error="authorizationsQ.error.value ? 'The signed releases could not be loaded.' : null"
+        />
+        <!-- AF3/D-AF8: identity is given with the permissions, and corrected here before screening. -->
+        <ApplicantIdentityCorrection
+          v-if="invitationId"
+          :invitation-id="invitationId"
+          :driver-id="driverId"
+          :identity="identity ?? null"
+        />
+      </template>
 
       <template v-else-if="body === 'application'">
         <!-- ⚠ The §391.21(b)(10) employment history is here because it IS the application's content.

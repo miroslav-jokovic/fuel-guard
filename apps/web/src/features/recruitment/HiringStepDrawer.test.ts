@@ -28,6 +28,7 @@ const stub = (name: string) => ({ name, template: `<div data-body="${name}" />` 
 const STUBS = {
   ApplicationInviteCard: stub("invite"),
   AuthorizationsPanel: stub("authorizations"),
+  ApplicantIdentityCorrection: stub("identity"),
   EmploymentHistorySection: stub("employment"),
   EmployerInquirySection: stub("inquiry"),
   PspRecordsSection: stub("psp"),
@@ -111,6 +112,16 @@ describe("a row opens the work behind the step", () => {
    */
   it("opens the signed releases for the permissions step, which had no screen at all before B6", async () => {
     expect(bodyOf(await openOn("permissions_signed"))).toBe("authorizations");
+  });
+
+  /**
+   * AF3/D-AF8: the date of birth and licence are given with the permissions, and the office corrects
+   * them here — before ordering PSP on them. Only with an invitation: the correction writes the
+   * draft of one invitation, and there is no draft without one.
+   */
+  it("puts the identity correction under the releases, and only when there is an invitation", async () => {
+    expect(bodies(await openOn("permissions_signed"))).toEqual(["authorizations", "identity"]);
+    expect(bodies(await openOn("permissions_signed", null))).toEqual(["authorizations"]);
   });
 
   /**

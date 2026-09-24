@@ -21,6 +21,7 @@ import {
   type IntakeError,
   type SubmitContext,
 } from "./applicationIntake.js";
+import { identityOnRecord } from "./applicantIdentity.js";
 
 /**
  * Filing the certified §391.21 application — the last act on the link, and the only irreversible one.
@@ -226,7 +227,21 @@ export async function submitApplication(
   );
   if (packet) return packet;
 
-  const { driverPatch, employment } = planApplicationIntake(body.application);
+  /**
+   * ⚠ **The identity on `drivers` is what gets filed, whatever the client sent (AF3, D-AF8).** The
+   * filed document is built from this request body, and the body is whatever the applicant's tab
+   * held — a tab opened before the office corrected the licence still holds the old one. Filed as
+   * sent, the application would name a different licence from the one PSP was ordered against, and
+   * that disagreement is the one D-AF8 exists to rule out. So the row's three values are laid over
+   * the body here, the same overlay the draft save applies (`identityOnRecord`); columns still null
+   * — an applicant from before AF3 — leave what they typed alone, for the 0231 projection to file.
+   */
+  const application = {
+    ...body.application,
+    ...(await identityOnRecord(admin, invitation.org_id, invitation.driver_id)),
+  };
+
+  const { driverPatch, employment } = planApplicationIntake(application);
   const ssn = sealSsn(env, invitation.org_id, body.ssn);
 
   /**
@@ -245,7 +260,7 @@ export async function submitApplication(
     p_org: invitation.org_id,
     p_invitation: invitation.id,
     p_driver: invitation.driver_id,
-    p_payload: body.application,
+    p_payload: application,
     p_signed_name: body.application.signed_name,
     p_ip: ctx.ip,
     p_user_agent: ctx.userAgent,

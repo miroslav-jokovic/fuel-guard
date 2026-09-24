@@ -18,6 +18,7 @@ import ApplicationFiledCard from "@/features/apply/ApplicationFiledCard.vue";
 import DraftUnlockGate from "@/features/apply/DraftUnlockGate.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
+import IdentityFields from "@/features/apply/IdentityFields.vue";
 import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
 import SignOffScreen from "@/features/apply/SignOffScreen.vue";
 import ApplyExpectations from "@/features/apply/ApplyExpectations.vue";
@@ -63,9 +64,8 @@ import { APPLY_COPY } from "@/features/apply/strings";
  *
  * ── THE AUTHORIZATIONS ARE SIGNED BEFORE THE FORM, NOT AFTER (A5, D-APP4) ─────────────────────
  * §391.21(b)'s certification is the LAST act of an application, and submitting is what makes the
- * application exist — so anything that has to happen with it has to happen before it, or it needs a
- * second link, and the market's whole finding is that a second touch loses people. The order on this
- * page is therefore: consent → the four instruments → the form → review → certify.
+ * application exist — so anything that has to happen with it has to happen before it. The order on
+ * this page is therefore: consent → identity (AF3, D-AF1) → the permissions → the form → certify.
  *
  * While any instrument is still draft wording the ceremony is skipped entirely and the instruments
  * are shown read-only on the last screen, as they were before A5 — the server refuses those
@@ -264,6 +264,17 @@ const ceremonyNeeded = computed(
     && !invitation.data.value?.phases?.releasesCompletedAt
     && !ceremonyDone.value,
 );
+// AF3/D-AF1: identity before the first permission (the server refuses a release without it); on the
+// form the three are shown, not retyped (D-AF8). Once given, the draft holds a date of birth
+// (D-APP16), so it is re-read through the unlock like any resumed draft.
+const identityDone = ref(false);
+const identityComplete = computed(() => Boolean(invitation.data.value?.identityComplete));
+const identityNeeded = computed(() => ceremonyNeeded.value && !identityComplete.value && !identityDone.value);
+const identityLockedBy = computed(() => (identityComplete.value ? invitation.data.value!.carrier : null));
+function identityRecorded(): void {
+  [identityDone.value, restored.value, autosaveEnabled.value] = [true, false, false];
+  void invitation.refetch();
+}
 
 
 /**
@@ -343,7 +354,12 @@ watch(
     />
   </BaseCard>
 
-  <!-- A5/D-APP7: four instruments, four screens, four acts. FCRA §604(b)(2) requires each
+  <BaseCard v-else-if="identityNeeded">
+    <IdentityFields :token="token" :carrier="invitation.data.value?.carrier ?? ''"
+      :captures="invitation.data.value?.captures ?? []" @done="identityRecorded" />
+  </BaseCard>
+
+  <!-- A5/D-APP7: one instrument per screen, one act each. FCRA §604(b)(2) requires each
        disclosure to stand alone, so there is nothing else on screen while one is showing. -->
   <BaseCard v-else-if="ceremonyNeeded">
     <SigningCeremony
@@ -412,9 +428,9 @@ watch(
     />
 
     <BaseCard>
-      <ApplicantDetailsFields v-if="wizard.section.value === 'identity'" v-model="draft" />
+      <ApplicantDetailsFields v-if="wizard.section.value === 'identity'" v-model="draft" :locked-by="identityLockedBy" />
       <AddressHistoryFields v-else-if="wizard.section.value === 'addresses'" v-model="draft" />
-      <LicenceFields v-else-if="wizard.section.value === 'licence'" v-model="draft" />
+      <LicenceFields v-else-if="wizard.section.value === 'licence'" v-model="draft" :locked-by="identityLockedBy" />
       <ApplyEmploymentFields v-else-if="wizard.section.value === 'employment'" v-model="draft" />
       <SafetyHistoryFields v-else-if="wizard.section.value === 'safety'" v-model="draft" />
       <!-- A9: the carrier's own questions, which discharge no CFR paragraph and block nothing. -->

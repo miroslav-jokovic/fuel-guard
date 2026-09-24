@@ -121,9 +121,20 @@ const signedPacket = (
     return { placement_id, mark, signed_name: mark === "initials" ? initials : name };
   });
 
+/**
+ * AF3/D-AF1: identity recorded, on the row AND in the draft, as `record_applicant_identity` leaves
+ * it. `recordRelease` refuses `identity_missing` without both, so every fixture that expects a
+ * signature to land carries this.
+ */
+const IDENTITY_TABLES = {
+  drivers: [{ date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" }],
+  application_drafts: [{ payload: { date_of_birth: "1980-04-01", cdl_number: "PA334554", cdl_state: "PA" } }],
+};
+
 const seed = (
   inv: Record<string, unknown> | null = invitation(),
   packet = signedPacket(),
+  extra: Record<string, unknown> = {},
 ) =>
   createSupabaseRecorder({
     tables: {
@@ -131,6 +142,7 @@ const seed = (
       organizations: [{ name: "Silvicom" }],
       driver_authorizations: [{ id: "auth-1" }],
       application_packet_marks: packet,
+      ...extra,
     },
     rpc: { submit_driver_application: { application_id: "app-1" } },
   });
@@ -332,7 +344,8 @@ describe("the link is a session, not a fuse", () => {
     // a recorded signature on a link the applicant has already submitted through.
     const inv = invitation({ submitted_at: "2026-08-19T00:00:00Z" });
     const result = await recordRelease(
-      seed(inv).client, TOKEN, { purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW,
+      seed(inv, signedPacket(), IDENTITY_TABLES).client, TOKEN,
+      { purpose: "psp", signed_name: "Susan Godfrey", esign_consent: true }, CTX, NOW,
     );
     expect(isIntakeError(result)).toBe(false);
   });
@@ -529,6 +542,25 @@ describe("the carrier's form has to be signed through", () => {
   });
 
   /**
+   * ⚠ AF3/D-AF8: the licence on the filed application is the licence PSP was ordered against. The
+   * body is whatever the applicant's tab held, and this tab holds the licence from before the office
+   * corrected it — the arrangement that files two different licences for one driver.
+   */
+  it("files the identity on the driver row, not the one a stale tab sent", async () => {
+    const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), signedPacket(), {
+      drivers: [{ date_of_birth: "1980-04-01", cdl_number: "CORRECTED-1", cdl_state: "IL" }],
+    });
+    const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
+    expect(isIntakeError(result)).toBe(false);
+    const args = rec.rpcs().find((r) => r.fn === "submit_driver_application")!.args as {
+      p_payload: Record<string, unknown>;
+      p_driver_patch: Record<string, unknown>;
+    };
+    expect(args.p_payload).toMatchObject({ cdl_number: "CORRECTED-1", cdl_state: "IL", first_name: "Susan" });
+    expect(args.p_driver_patch).toMatchObject({ cdl_number: "CORRECTED-1", cdl_state: "IL" });
+  });
+
+  /**
    * ⚠ **The three sets of initials are not the signature, and must not be mistaken for it (Q-PKT8).**
    *
    * This gate compares the payload's `signed_name` against the mark on the paper, and it used to
@@ -701,6 +733,7 @@ describe("the signing ceremony", () => {
   const ceremonyRec = (inv = consented(), rpc: Record<string, unknown> = { authorization_id: "auth-1", signed_count: 1, completed: false }) =>
     createSupabaseRecorder({
       tables: {
+        ...IDENTITY_TABLES,
         application_invitations: [inv],
         driver_authorizations: [{ id: "auth-1" }],
         // The name FMCSA's "I authorize ___" blanks are filled from.
@@ -748,7 +781,7 @@ describe("the signing ceremony", () => {
   it("turns a double-tap into the answer the page can act on", async () => {
     publish();
     const rec = createSupabaseRecorder({
-      tables: { application_invitations: [consented()] },
+      tables: { ...IDENTITY_TABLES, application_invitations: [consented()] },
       rpc: { record_driver_release: { error: { code: "DR023", message: "release_already_signed" } } },
     });
     const result = await recordRelease(
@@ -795,6 +828,7 @@ describe("signing a release", () => {
   const draftOverride = (inv = invitation()) =>
     createSupabaseRecorder({
       tables: {
+        ...IDENTITY_TABLES,
         application_invitations: [inv],
         organizations: [{ name: "Silvicom" }],
         driver_authorizations: [{ id: "auth-1" }],

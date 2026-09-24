@@ -357,6 +357,17 @@ export interface Driver {
    */
   return_to_duty_required?: boolean;
   /**
+   * The date of birth and licence PSP and the driving record are run on (AF3, D-AF8). Written by
+   * `record_applicant_identity` (0365) for an applicant, and by the roster edit for a driver.
+   *
+   * ⚠ Optional on the type for the reason `return_to_duty_required` gives: the name-lookup surfaces
+   * select what they need, and these are PII they have no business asking for. The applicant record
+   * page selects the whole row and hands these three to the identity correction.
+   */
+  date_of_birth?: string | null;
+  cdl_number?: string | null;
+  cdl_state?: string | null;
+  /**
    * Who owns this row's identity — `samsara`, `mcleod`, `efs`, or `manual` once the office has
    * claimed it (`resolveDriverUpdate`).
    *

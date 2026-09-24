@@ -147,6 +147,7 @@ function openReview(invitation: string): void {
       :driver-id="id"
       :driver-status="driver?.status ?? ''"
       :invitation-id="invitationId"
+      :identity="driver ?? null"
       @close="openStepKey = null"
       @review="openReview"
     />
