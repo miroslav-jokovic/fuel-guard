@@ -114,7 +114,7 @@ export function certificate(
     `${(input.esignConsent ? 2 : 1) + input.authorizations.length}. Certified the application`,
     [
       { note: "49 CFR §391.21(b)(12)" },
-      // ⚠ On a preview the acts ABOVE are real — the consent and the four authorizations are signed
+      // ⚠ On a preview the acts ABOVE are real — the consent and the five authorizations are signed
       // before the form — and this last one has not happened. Saying so in a sentence is the point
       // of the page: four rows of em dashes would read as evidence that failed to record rather
       // than as an act still owed.

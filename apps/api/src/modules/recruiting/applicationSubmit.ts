@@ -62,16 +62,15 @@ import {
  *
  * ── WHY MORE THAN THE ESIGN CONSENT, AND WHY NOT THE WHOLE CATALOGUE ──────────────────────────
  * The narrow gate would be `isDraftDisclosure(ESIGN_CONSENT.version)`, which is the one that opens
- * the §390.32(d) hole exactly. It is not enough: while the four releases are draft `ApplyPage` skips
+ * the §390.32(d) hole exactly. It is not enough: while the releases are draft `ApplyPage` skips
  * the ceremony entirely, so a submission files a §391.21 application with **zero** authorizations
  * onto a link that is now spent — a qualification file that can never be completed for that
  * applicant, which §390.32(d) does not describe and which is just as unfixable.
  *
- * ⚠ The whole catalogue would be too much. `disclosuresAreDraft()` also judges `clearinghouse`, and
- * no applicant is ever asked to sign that one — §382.701(a)'s consent is given inside the FMCSA
- * Clearinghouse and it is deliberately absent from `APPLICATION_RELEASE_ORDER`. So the predicate is
- * `applicationWordingIsDraft()`: the 7001(c) consent plus the four instruments this path collects,
- * and nothing the driver has no part in.
+ * ⚠ Not the whole catalogue, although since D-AF4 (2026-09-24) the two cover the same five
+ * instruments. The predicate is `applicationWordingIsDraft()` — the 7001(c) consent plus exactly the
+ * instruments this path collects — so that a purpose added to the catalogue for an office-only
+ * workflow can never start holding a driver's submission on a document the driver has no part in.
  *
  * The gate is tied to the version strings for the same reason every other one here is: when
  * counsel's wording lands the versions become `v1` and this disappears by itself. Nothing has to be

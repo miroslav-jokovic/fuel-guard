@@ -14,7 +14,7 @@ import type { RenderedDocument } from "@/lib/documentDownload";
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
 
 /**
- * The four releases an applicant signed, with the wording version each one was signed against
+ * The releases an applicant signed, with the wording version each one was signed against
  * (B6, and the answer to Q-HUI6).
  *
  * ── WHAT THIS IS FOR, WHICH IS NOT "COMPLETENESS" ─────────────────────────────────────────────
@@ -36,10 +36,10 @@ import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizatio
  * reading `rows[0]` here would let this panel say *signed* about a release the checklist calls
  * outstanding, which is the D-HM2 disagreement in miniature.
  *
- * ⚠ **Four, from `APPLICATION_RELEASE_ORDER` and not from `AUTHORIZATION_PURPOSES`.** The fifth
- * purpose, `clearinghouse`, is consented to inside FMCSA's own portal (D-REC4) and no applicant
- * ever signs it here; listing it would show a permanently missing release for a consent the carrier
- * is not supposed to hold.
+ * ⚠ **From `APPLICATION_RELEASE_ORDER` and not from `AUTHORIZATION_PURPOSES`.** Since D-AF4
+ * (2026-09-24) both hold the same five — the Clearinghouse limited-query consent joined the path —
+ * but a purpose added to the catalogue for an office-only workflow would otherwise show here as a
+ * permanently missing release for a consent the applicant is never asked for.
  */
 const props = defineProps<{
   rows: readonly AuthorizationDetail[];
@@ -163,9 +163,5 @@ const releases = computed<ReleaseRow[]>(() =>
       :rendered="permissionsDocument"
       @close="viewing = false"
     />
-
-    <p class="text-2xs text-ink-tertiary">
-      The Clearinghouse query consent is not listed: it is given inside the FMCSA portal, not here.
-    </p>
   </div>
 </template>

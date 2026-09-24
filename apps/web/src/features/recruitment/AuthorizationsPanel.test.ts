@@ -25,7 +25,7 @@ const BaseModalStub = {
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
 
 /**
- * The four signed releases (B6, and the answer to Q-HUI6).
+ * The signed releases (B6, and the answer to Q-HUI6).
  *
  * ⚠ The rows are built from `APPLICATION_RELEASE_ORDER` rather than from four hand-written purposes,
  * for the reason the fold's own suite gives: a fixture that wrote the list out would keep passing
@@ -109,10 +109,6 @@ describe("what the office can finally see", () => {
   });
 
   /**
-   * ⚠ The fifth purpose is consented to inside FMCSA's own portal (D-REC4). Listing it would show a
-   * permanently missing release for a consent the carrier is not supposed to hold here.
-   */
-  /**
    * ⚠ **The step's done-when is about a person, not an endpoint** (§0, and A11b's lesson: it was
    * marked done while the first invitation had no send path at all). The document B2 renders is
    * reachable only from here, so the assertion that matters is that pressing this asks for THIS
@@ -173,10 +169,18 @@ describe("what the office can finally see", () => {
     expect(printButton(render(ALL, null))).toBeNull();
   });
 
-  it("does not list the Clearinghouse consent as a release the office is missing", () => {
+  /**
+   * ⚠ D-AF4 (2026-09-24) reversed D-REC4: the Clearinghouse LIMITED-query consent is the fifth
+   * release the applicant signs, so the office is owed its row — and the sentence that used to stand
+   * under four rows saying it "is given inside the FMCSA portal" would now contradict the row above
+   * it. Both halves are asserted, because a panel that listed the row and kept the sentence would
+   * pass the first on its own.
+   */
+  it("lists the Clearinghouse consent as the fifth release, with no sentence disowning it", () => {
     const wrapper = render(ALL);
     const items = wrapper.findAll("li").map((li) => li.text());
-    expect(items.some((t) => t.includes("Clearinghouse query consent"))).toBe(false);
-    expect(wrapper.text()).toContain("given inside the FMCSA portal");
+    expect(items).toHaveLength(APPLICATION_RELEASE_ORDER.length);
+    expect(items.some((t) => t.includes("Clearinghouse query consent"))).toBe(true);
+    expect(wrapper.text()).not.toContain("given inside the FMCSA portal");
   });
 });

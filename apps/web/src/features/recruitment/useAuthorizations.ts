@@ -13,7 +13,7 @@ import { apiFetch } from "@/lib/api";
  * with nowhere to go — and recorded it as Q-HUI6 rather than pointing the row at a page that shows
  * something else. This is the reader that closes it.
  *
- * It matters more than "a list is nice to have": the four releases are what make the MVR, the PSP
+ * It matters more than "a list is nice to have": the five releases are what make the MVR, the PSP
  * order and the previous-employer inquiries lawful (`SCREENING_PREREQUISITES`), and the FCRA
  * disclosure's **version** is the fact that decides a dispute about what somebody was shown. A
  * carrier relying on a release it cannot display is relying on something it cannot produce.

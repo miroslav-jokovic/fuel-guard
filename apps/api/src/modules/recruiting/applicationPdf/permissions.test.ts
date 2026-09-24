@@ -295,8 +295,8 @@ describe("printing what an applicant has signed", () => {
 
   /**
    * ⚠ Half of "what has this applicant signed" is what they have NOT. `APPLICATION_RELEASE_ORDER` has
-   * four purposes and this fixture signs two, so a summary that listed only the pages it had would
-   * read as complete while two lawful bases were missing.
+   * five purposes and this fixture signs two, so a summary that listed only the pages it had would
+   * read as complete while three lawful bases were missing.
    */
   it("lists the releases nobody has signed, not only the ones they have", async () => {
     const text = await printed(seed());
@@ -304,8 +304,19 @@ describe("printing what an applicant has signed", () => {
     expect(text).toContain("Controlled substances and alcohol testing consent");
     expect(text).toContain("Not signed yet");
     // And the two that ARE signed do not say it — otherwise the assertion above passes on a document
-    // that says "Not signed yet" against all four.
+    // that says "Not signed yet" against every row.
     expect(text).toContain("wording fcra-2026-08-19");
+  });
+
+  /**
+   * ⚠ D-AF4 (2026-09-24): the Clearinghouse limited-query consent is the fifth release. The paper
+   * lists it as a row, and no longer prints the sentence that said it "is given inside the FMCSA
+   * portal" — which would now sit directly under the row it denies.
+   */
+  it("lists the Clearinghouse consent as a release, with no sentence disowning it", async () => {
+    const text = await printed(seed());
+    expect(text).toContain("Drug & Alcohol Clearinghouse query consent");
+    expect(text).not.toContain("given inside the FMCSA");
   });
 
   /**

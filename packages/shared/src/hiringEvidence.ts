@@ -98,6 +98,31 @@ export function hiringRecordedActKind(key: string): QualificationRecordKind | nu
 }
 
 /**
+ * The `SCREENING_PREREQUISITES` call each recorded act IS — or null when nothing we hold gates it.
+ *
+ * ── WHY THE MVR DOOR WAS OPEN, AND WHY THIS IS A TOTAL RECORD ─────────────────────────────────
+ * `SCREENING_PREREQUISITES.mvr_order` has said since A4 that ordering an MVR needs the FCRA
+ * disclosure, and until 2026-09-24 nothing asked it: `pspOrder.ts` was `missingAuthorizations`'
+ * only caller, so an MVR could be recorded against somebody who had signed nothing
+ * (`APPLICANT-FLOW-PLAN.md` §2.5, AF1). ⚠ A `Record` over every recorded step rather than a lookup
+ * with a default, so the next step added to `HIRING_RECORDED_ACT_STEPS` does not compile until
+ * somebody has said what makes recording it lawful.
+ *
+ * - `clearinghouse` — null. The pre-employment FULL query's consent is given in FMCSA's portal and
+ *   the carrier never holds it; the limited-query consent on the applicant's path authorises a
+ *   different query (§382.703(a)) and would gate this one on the wrong signature.
+ * - `drug_test` — null, although `drug_alcohol` is the Part 382 testing consent. `mvr_order` gates
+ *   ORDERING a consumer report, which is the act FCRA makes conditional; this door records a lab
+ *   result that already exists, and a refusal here would keep a result — a positive one included —
+ *   out of the file for want of a signature, which protects nobody and hides a §382.301 fact.
+ */
+export const HIRING_RECORDED_ACT_PREREQUISITE: Readonly<Record<HiringRecordedActStep, string | null>> = {
+  mvr: "mvr_order",
+  clearinghouse: null,
+  drug_test: null,
+};
+
+/**
  * Step one — register the scan and get somewhere to PUT it.
  *
  * No `kind` field, for `pspImportUploadSchema`'s reason: the route composes it from the step. The id

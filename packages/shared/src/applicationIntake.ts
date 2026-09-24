@@ -60,7 +60,7 @@ export type ApplicationSubmit = z.infer<typeof applicationSubmitSchema>;
  *
  * A separate call per instrument, which is D-HIRE3 expressed in the transport: FCRA §604(b)(2)
  * requires the disclosure to be "in a document that consists SOLELY of the disclosure", and a
- * request body carrying four consents at once is one document carrying four consents. The applicant
+ * request body carrying five consents at once is one document carrying five consents. The applicant
  * sees one, signs one, sends one.
  */
 export const applicationReleaseSchema = z.object({
@@ -75,7 +75,7 @@ export type ApplicationRelease = z.infer<typeof applicationReleaseSchema>;
  * One mark on the carrier's packet, applied at one stop (P5, D-PKT6).
  *
  * ── WHY THIS IS A SECOND SCHEMA AND NOT A PURPOSE ON THE ONE ABOVE ────────────────────────────
- * The four releases are INSTRUMENTS: each carries its own disclosure text, its own version and its
+ * The releases are INSTRUMENTS: each carries its own disclosure text, its own version and its
  * own §604(b)(2) obligation to be the only thing in its document. A packet mark is a PLACE on paper
  * the carrier's lawyers drew — twenty-two of them, six of which sit on pages whose instrument the
  * applicant has already signed on their phone. Putting them in `AUTHORIZATION_PURPOSES` would grow
@@ -186,26 +186,40 @@ export const draftIsLocked = (payload: unknown): boolean => draftDateOfBirth(pay
  */
 export { isDraftDisclosure } from "./authorizationContract.js";
 
-/** Purposes an applicant is asked to sign, in the order they are presented. */
+/**
+ * Purposes an applicant is asked to sign, in the order they are presented.
+ *
+ * ⚠ **Five since 2026-09-24, and the fifth reverses D-REC4 (D-AF4, `APPLICANT-FLOW-PLAN.md`).**
+ * D-REC4 kept `clearinghouse` off this list while the catalogue's text behind it described the FULL
+ * query, whose consent the driver gives inside FMCSA's portal. Since 2026-09-13
+ * (`clearinghouseConsent.ts`, D-WORD1) that text is the LIMITED-query consent — which the carrier
+ * itself must obtain in writing or electronically (§382.703(a)) and needs for every annual query
+ * (§382.701(b)). It is asked for last, after the four releases the carrier's own packet carries.
+ *
+ * ⚠ The full query's consent is still given in FMCSA's portal and nothing here stands in for it:
+ * the `clearinghouse` STEP in `hiringSteps.ts` records that query's result, not this signature.
+ */
 export const APPLICATION_RELEASE_ORDER: readonly AuthorizationPurpose[] = [
   "fcra_disclosure",
   "psp",
   "previous_employer",
   "drug_alcohol",
+  "clearinghouse",
 ];
 
 /**
  * Is any wording the APPLICANT'S PATH depends on still unreviewed? (2026-08-23.)
  *
  * ── WHY THIS IS NOT `disclosuresAreDraft()` ───────────────────────────────────────────────────
- * That predicate judges the whole catalogue, and the catalogue contains one instrument no applicant
- * is ever asked to sign: `clearinghouse`. §382.701(a)'s full-query consent is given inside the FMCSA
- * Clearinghouse, not on our screen — it is deliberately absent from `APPLICATION_RELEASE_ORDER` and
- * belongs to a safety_manager workflow (D-REC4, R5). Gating the applicant's submission on it would
- * make the driver's path wait on a document the driver has nothing to do with.
+ * Until 2026-09-24 the catalogue held one instrument no applicant was asked to sign, `clearinghouse`,
+ * and gating the applicant's submission on it would have made the driver's path wait on a document
+ * the driver had nothing to do with. D-AF4 put it on the path, so today the two predicates judge the
+ * same five instruments. ⚠ Keep this one anyway: its scope is DEFINED as what the path touches, and
+ * the next purpose added to the catalogue for an office-only workflow must not start holding
+ * applicants' submissions by being added.
  *
  * So the scope is exactly the six things that path touches: the 7001(c) consent that makes the
- * electronic record a record at all, and the four releases the ceremony collects.
+ * electronic record a record at all, and the five releases the ceremony collects.
  *
  * ⚠ **The carrier's own published wording is passed IN** (0338). The default is the code's
  * placeholders, and that default is safe HERE — a caller that forgets gets `v0-draft` and therefore

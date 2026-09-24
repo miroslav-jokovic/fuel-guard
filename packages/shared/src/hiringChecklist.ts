@@ -191,9 +191,11 @@ function evidenceFor(
     case "invitation_sent":
       return { done: Boolean(input.invitedAt), inFlight: false };
     case "permissions_signed":
-      // ⚠ All four the applicant is ASKED for, from `APPLICATION_RELEASE_ORDER` rather than from
-      // `AUTHORIZATION_PURPOSES` — the fifth, `clearinghouse`, is signed in FMCSA's portal and no
-      // applicant ever sees it here. Reading the wrong list would hold this step open for ever.
+      // ⚠ Every one the applicant is ASKED for, from `APPLICATION_RELEASE_ORDER` rather than from
+      // `AUTHORIZATION_PURPOSES`. Since D-AF4 (2026-09-24) the two lists hold the same five, but the
+      // catalogue may grow a purpose no applicant signs, and reading it would hold this step open
+      // for ever. ⚠ An applicant who signed the four before D-AF4 reads NOT done until the office
+      // records the Clearinghouse limited-query consent (`POST /authorizations`, wet signature).
       return {
         done: APPLICATION_RELEASE_ORDER.every((p) => hasLiveAuthorization(input.authorizations ?? [], p)),
         inFlight: (input.authorizations ?? []).length > 0,

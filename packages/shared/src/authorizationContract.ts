@@ -394,12 +394,17 @@ export const hasLiveAuthorization = (
  * the first, and the second is required if a PSP report is a consumer report — which is Q7, still
  * open. Requiring both is the answer that is correct either way, and the cost of being wrong in this
  * direction is one extra signature.
+ *
+ * ⚠ **No `clearinghouse_full` entry, since 2026-09-24.** It had no caller, and it named the wrong
+ * instrument: the pre-employment FULL query's consent is given in FMCSA's portal, while the
+ * `clearinghouse` purpose is the LIMITED-query consent (§382.703(a)). An entry saying the one
+ * requires the other would have been the first thing a future caller believed. D-AF4 put the limited
+ * consent on the applicant's path instead (`APPLICATION_RELEASE_ORDER`).
  */
 export const SCREENING_PREREQUISITES: Record<string, readonly AuthorizationPurpose[]> = {
   psp_record: ["psp", "fcra_disclosure"],
   mvr_order: ["fcra_disclosure"],
   previous_employer_inquiry: ["previous_employer"],
-  clearinghouse_full: ["clearinghouse"],
 };
 
 /** Which prerequisites are missing — named, so a refusal can say what to go and get. */

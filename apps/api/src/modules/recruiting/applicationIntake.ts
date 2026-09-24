@@ -10,7 +10,7 @@ import { isSecretBoxConfigured, seal, secretAad } from "../../lib/secretBox.js";
  * Everything here runs UNAUTHENTICATED, for somebody who is not yet anyone. The token is the entire
  * access-control story, so it is treated as a credential end to end: 256 bits of entropy, stored
  * only as a SHA-256, compared in constant time, expiring, and spent ONE PHASE AT A TIME — since 0225
- * the link is a session (D-APP1), not a fuse, because the driver who signs four releases and then
+ * the link is a session (D-APP1), not a fuse, because the driver who signs five releases and then
  * loses signal must find the same link still open at the next step.
  *
  * ── WHAT THIS REFUSES TO DO WITH A DRAFT DISCLOSURE ────────────────────────────────────────────

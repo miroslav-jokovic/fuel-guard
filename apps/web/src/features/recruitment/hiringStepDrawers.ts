@@ -45,7 +45,7 @@ import type { HiringStepKey } from "@silvicom/shared";
 export type HiringDrawerBody =
   /** `ApplicationInviteCard` — the invitation, its state, and the resend/revoke acts. */
   | "invitation"
-  /** `AuthorizationsPanel` — the four releases and the wording version each was signed against. */
+  /** `AuthorizationsPanel` — the five releases and the wording version each was signed against. */
   | "authorizations"
   /** The §391.21 answers, the history they declare and the §391.23 investigation of that history. */
   | "application"

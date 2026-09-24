@@ -66,19 +66,34 @@ const doc = (over: Record<string, unknown> = {}) => ({
   id: DOC, org_id: ORG, subject_type: "driver", subject_id: DRIVER, kind: "mvr", ...over,
 });
 
+/** One signature as `driver_authorizations` holds it — a grant unless `revokes` names another. */
+const auth = (purpose: string, over: Record<string, unknown> = {}) => ({
+  id: `${purpose}-1`, org_id: ORG, driver_id: DRIVER, purpose,
+  accepted_at: "2026-09-01T10:00:00Z", revokes: null, ...over,
+});
+
 /**
  * ⚠ Function fixtures, not flat arrays. The recorder does not apply filters, so a flat
  * `qualification_records: [row]` answers the idempotency lookup for EVERY document id — and the
  * "a second POST replays" test would then pass against a service that never looked.
+ *
+ * ⚠ The default applicant has signed the FCRA disclosure, because since AF1 an MVR cannot be
+ * recorded without it and every test below that is about something else would otherwise be a test
+ * of that refusal. `driver_authorizations` answers by `driver_id` for the same reason as above.
  */
 const seed = (over: {
   drivers?: unknown[];
   documents?: unknown[];
   records?: Array<{ id: string; document_id: string }>;
+  authorizations?: Array<ReturnType<typeof auth>>;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       drivers: over.drivers ?? [{ id: DRIVER, org_id: ORG }],
+      driver_authorizations: (q: RecordedQuery) => {
+        const driverId = q.filters().find((f) => f.col === "driver_id")?.val;
+        return (over.authorizations ?? [auth("fcra_disclosure")]).filter((a) => a.driver_id === driverId);
+      },
       documents: (q: RecordedQuery) => {
         const id = q.filters().find((f) => f.col === "id")?.val;
         return (over.documents ?? []).filter((d) => (d as { id: string }).id === id);
@@ -198,6 +213,71 @@ describe("which steps this door files", () => {
       holder.client = seed().client;
       const res = await call(`/applicants/${DRIVER}/records/${step}`, { token: "admin", body: FILING });
       expect(res.status, step).toBe(400);
+    }
+  });
+});
+
+/**
+ * ⚠ AF1 (`APPLICANT-FLOW-PLAN.md` §2.5). `SCREENING_PREREQUISITES.mvr_order` has named the FCRA
+ * disclosure since A4, and until 2026-09-24 nothing asked it: PSP's order was the fold's only
+ * caller, so a driving record could be put on file for somebody who had signed nothing.
+ */
+describe("what makes recording the act lawful", () => {
+  it("refuses an MVR for an applicant with no FCRA authorization, naming it, and writes nothing", async () => {
+    const rec = seed({ authorizations: [] });
+    holder.client = rec.client;
+    const res = await call(`/applicants/${DRIVER}/records/mvr`, { token: "admin", body: FILING });
+    expect(res.status).toBe(400);
+    expect(await message(res)).toContain("Consumer report disclosure and authorization");
+    expect(rec.writes()).toHaveLength(0);
+  });
+
+  /**
+   * ⚠ The fixture that discriminates: the applicant HAS signed things, just not the one that
+   * matters. A check that asked "has this person signed anything" would pass the empty case above
+   * and let this one through.
+   */
+  it("is not satisfied by the other permissions", async () => {
+    holder.client = seed({
+      authorizations: [auth("psp"), auth("previous_employer"), auth("drug_alcohol"), auth("clearinghouse")],
+    }).client;
+    const res = await call(`/applicants/${DRIVER}/records/mvr`, { token: "admin", body: FILING });
+    expect(res.status).toBe(400);
+  });
+
+  it("is not satisfied by an FCRA authorization that has been revoked", async () => {
+    holder.client = seed({
+      authorizations: [
+        auth("fcra_disclosure"),
+        auth("fcra_disclosure", { id: "revocation-1", revokes: "fcra_disclosure-1" }),
+      ],
+    }).client;
+    const res = await call(`/applicants/${DRIVER}/records/mvr`, { token: "admin", body: FILING });
+    expect(res.status).toBe(400);
+  });
+
+  /** Refused before the upload too — otherwise the office uploads a scan the filing then refuses. */
+  it("refuses to register the MVR's scan on the same grounds", async () => {
+    const rec = seed({ authorizations: [] });
+    holder.client = rec.client;
+    const res = await call(`/applicants/${DRIVER}/records/mvr/document`, {
+      token: "admin",
+      body: { document_id: DOC, sha256: SHA, content_type: "application/pdf" },
+    });
+    expect(res.status).toBe(400);
+    expect(rec.writes()).toHaveLength(0);
+  });
+
+  /**
+   * ⚠ The other two acts are NOT gated, deliberately (`HIRING_RECORDED_ACT_PREREQUISITE`): the full
+   * Clearinghouse query is consented to in FMCSA's portal, and a lab result must reach the file
+   * whatever was signed. Pinned so a "helpful" blanket gate cannot creep in.
+   */
+  it("records the Clearinghouse query and the drug test with nothing signed", async () => {
+    for (const step of ["clearinghouse", "drug_test"]) {
+      holder.client = seed({ authorizations: [] }).client;
+      const res = await call(`/applicants/${DRIVER}/records/${step}`, { token: "safety", body: FILING });
+      expect(res.status, step).toBe(201);
     }
   });
 });

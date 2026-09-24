@@ -47,7 +47,7 @@ const PREVIEW_BAND = "DRAFT - NOT A SIGNED APPLICATION";
  * The summary carried three things the carrier's packet has no page for: which releases the office
  * holds, the e-sign consent, and the §391.21(b)(12) certification block with its progress line. They
  * are not lost facts — they are facts on the wrong document. **B2 is the step that gives them their
- * own banded interim PDF** (the four authorizations + the §7001(c) consent + the certificate of
+ * own banded interim PDF** (the five authorizations + the §7001(c) consent + the certificate of
  * completion), which is the right home for them: the office's question *"what has this applicant
  * signed so far"* is not the same question as *"what will they sign"*, and answering both on one
  * sheet is what made the preview diverge from the filing in the first place. Until B2, the releases

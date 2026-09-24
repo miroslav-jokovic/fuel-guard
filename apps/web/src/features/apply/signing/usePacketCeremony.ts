@@ -25,7 +25,7 @@ export type { AdoptedMarkStyle } from "@/features/apply/signing/usePacketAdoptio
  * one is about the MARKS, and `markFor` and `currentShowsDrawing` are where they meet.
  *
  * ── WHY THIS IS NOT `useSigningCeremony` WITH A DIFFERENT LIST ────────────────────────────────
- * That one walks four INSTRUMENTS, each its own document with its own served text and its own
+ * That one walks five INSTRUMENTS, each its own document with its own served text and its own
  * §604(b)(2) obligation to be the only thing on the screen. This one walks PLACES on one document
  * the driver has already been shown in full on the screen before this. The shapes rhyme and the
  * obligations do not: there is no disclosure to serve per stop, no version to record, and the text

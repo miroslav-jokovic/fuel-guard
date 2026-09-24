@@ -131,16 +131,17 @@ describe("signing", () => {
     signed.fn.mockResolvedValue({ signedCount: 1, completed: false });
   });
 
-  it("presents the four in APPLICATION_RELEASE_ORDER, one at a time", async () => {
+  it("presents every instrument in APPLICATION_RELEASE_ORDER, one at a time", async () => {
     const c = run();
     c.adoptedName.value = "Susan Godfrey";
     await c.adopt();
 
     const seen: string[] = [];
-    for (let i = 0; i < 4; i++) {
+    const count = APPLICATION_RELEASE_ORDER.length;
+    for (let i = 0; i < count; i++) {
       seen.push(c.current.value!.purpose);
       expect(c.position.value).toBe(i + 1);
-      expect(c.total.value).toBe(4);
+      expect(c.total.value).toBe(count);
       await c.sign();
     }
     expect(seen).toEqual([...APPLICATION_RELEASE_ORDER]);
@@ -204,10 +205,13 @@ describe("signing", () => {
     c.adoptedName.value = "Susan Godfrey";
     await c.adopt();
 
-    expect(c.total.value).toBe(2);
+    expect(c.total.value).toBe(3);
     expect(c.current.value!.purpose).toBe("previous_employer");
     await c.sign();
     expect(c.current.value!.purpose).toBe("drug_alcohol");
+    await c.sign();
+    // D-AF4: the Clearinghouse limited-query consent comes last.
+    expect(c.current.value!.purpose).toBe("clearinghouse");
     await c.sign();
     expect(c.complete.value).toBe(true);
   });
