@@ -682,3 +682,14 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   ruling Q-CA1: the change detector costs the carrier ~60 ms against a ~32 ms full sweep; an agent-side
   hash does D-MCC16's job). L2's routine is now built from the code and holds all 24 statements,
   finance included. See `COLLECTOR-AUDIT-2026-09-24.md` §7.
+- 2026-09-24 — **Alex answered Q-GL1 and Q-GL2** (reply to the letter). Q-GL1: `SD`/`SP` are
+  split-trailer stops — one trailer's work split across two movements; `VA`/`VP` on the Viking
+  Packing / SAIA runs are routing or interline points, not a customer pickup or delivery. Leaving
+  VA/VP off the board is right for now; SD/SP may stay off the live map and come back if the trailer
+  path is wanted. So D-LM15 stands for the board, and LOADS-MIRROR LR3 still keeps every stop RAW —
+  the answer is exactly what the projection needs to name them later. Q-GL2: `A` available / not
+  covered, `P` planned / dispatched, `D` delivered, `V` void; a load that leaves the board is not
+  finished until LME says D or V, and the keyed lookup by movement id is correct (Q-GL6 option (a)
+  confirmed). Also: `movement.dispatcher_user_id` is the dispatcher on the load, `tractor.fleet_id`
+  the fleet, not the person (D-LM3 confirmed); `loadmaster` loads are real, EDI included, and are not
+  filtered (they are not — only labelled as having no human dispatcher).

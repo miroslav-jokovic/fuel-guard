@@ -99,6 +99,14 @@ const CFG = {
   // previous months WHOLE (the hardening pass, windows.mjs); --harden forces that on any day.
   financialWindowDays: Number(process.env.FINANCIAL_WINDOW_DAYS ?? 75),
   harden: process.argv.includes("--harden"),
+  // FINANCE_FEED=off keeps the nightly finance sweep out of --service. Alex's order (reply of
+  // 2026-09-24): the finance grants go on the analytics copy first, and onto LME only after one night
+  // there reads right — so for the service's first days the login cannot read a single finance table,
+  // and a sweep would fail at 02:00 and again every 30 minutes, all day, on permission errors. The
+  // connector.env template ships `off`; it is turned on the day the grants land on LME. Unset means
+  // ON, deliberately: a missing line must not silently stop finance for good, where a present `off`
+  // is announced in the service's own start line.
+  financeFeed: (process.env.FINANCE_FEED ?? "on").toLowerCase() !== "off",
   // 'report'   — matches and counts, and writes NOTHING. How §7's numbers get reproduced by the
   //              pipeline against the carrier's live fleet without touching a row. Start here.
   // 'link'     — match keys only; no date of birth or home address is READ, let alone sent.
@@ -204,6 +212,9 @@ function postFail(msg) {
 
 /** POST JSON to FuelGuard with the ingest token, retrying transient failures with backoff. */
 async function postToFuelGuard(path, body) {
+  // The backstop under every dry run: each feed skips its own sends, and this refuses the one a
+  // future feed forgets. A dry run is what gets typed in front of the carrier; it must never write.
+  if (CFG.dryRun) fail(`refusing to POST ${path} during a dry run — a dry run posts nothing`);
   const url = `${CFG.ingestUrl}${path}`;
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
@@ -621,28 +632,41 @@ async function runLoads() {
   log(`loads: ingested ${JSON.stringify(out?.data ?? out)}`);
 }
 
+/**
+ * `--financial --dry-run` runs every statement of the nightly sweep and posts NOTHING — the night on
+ * the analytics copy that Alex asked to watch before the finance grants go onto LME (reply of
+ * 2026-09-24). Until 2026-09-24 this combination did not exist: main() tested --dry-run first and ran
+ * a ROSTER dry run instead, so the command reported the wrong feed's counts and nobody would have
+ * known. The copy is a frozen restore (2026-09-10 at the time of writing), so what that night proves is
+ * the grants, the statements and their cost — posting from it would push two-week-old figures into
+ * production, which is why the dry run replaces every send rather than trusting the caller.
+ */
 async function runFinancial() {
   const { windowStart, windowEnd, hardening } = financialWindow({ trailingDays: CFG.financialWindowDays, harden: CFG.harden });
   log(
-    `financial: sweeping ${windowStart} → ${windowEnd} from ${CFG.sql.database} as company ${CFG.sql.companyId}` +
+    `${CFG.dryRun ? "DRY RUN — nothing will be posted — " : ""}` +
+      `financial: sweeping ${windowStart} → ${windowEnd} from ${CFG.sql.database} as company ${CFG.sql.companyId}` +
       (hardening ? " — HARDENING pass: the two previous months are re-read whole" : ""),
   );
+  const send = CFG.dryRun ? async () => ({ received: 0, upserted: 0 }) : sendBatched;
+  const post = CFG.dryRun ? async () => ({ upserted: 0, staleRemoved: 0 }) : postToFuelGuard;
+  const verb = CFG.dryRun ? "read" : "sent";
 
   const windowExtra = { window_start: windowStart, window_end: windowEnd };
 
   const st = await fetchSettlements({ ...CFG.sql, windowStart, windowEnd });
-  const rs = await sendBatched("/api/tms/settlements", "settlements", st.settlements, windowExtra, 2000);
-  log(`financial: settlements sent=${st.settlements.length} received=${rs.received} upserted=${rs.upserted}`);
+  const rs = await send("/api/tms/settlements", "settlements", st.settlements, windowExtra, 2000);
+  log(`financial: settlements ${verb}=${st.settlements.length} received=${rs.received} upserted=${rs.upserted}`);
 
   // Deductions ride the same fetch — fetchSettlements already reads them (they reconcile the same
   // accrual window) — and land in their own staging (0268): money moving the other way, with its
   // own void state, never a column on the settlement.
-  const rd = await sendBatched("/api/tms/deductions", "deductions", st.deductions, windowExtra, 2000);
-  log(`financial: deductions sent=${st.deductions.length} received=${rd.received} upserted=${rd.upserted}`);
+  const rd = await send("/api/tms/deductions", "deductions", st.deductions, windowExtra, 2000);
+  log(`financial: deductions ${verb}=${st.deductions.length} received=${rd.received} upserted=${rd.upserted}`);
 
   const ex = await fetchExpenses({ ...CFG.sql, windowStart, windowEnd });
-  const rv = await sendBatched("/api/tms/vouchers", "vouchers", ex.vouchers, windowExtra, 1000);
-  log(`financial: vouchers sent=${ex.vouchers.length} received=${rv.received} upserted=${rv.upserted}`);
+  const rv = await send("/api/tms/vouchers", "vouchers", ex.vouchers, windowExtra, 1000);
+  log(`financial: vouchers ${verb}=${ex.vouchers.length} received=${rv.received} upserted=${rv.upserted}`);
 
   // Movement facts — the cents-per-mile denominator (C2 posting; C1's dry run proved the window's
   // mileage against the carrier's own operations report first). The window predicate is
@@ -650,30 +674,30 @@ async function runFinancial() {
   // same sweep horizon. Batches of 500: the payload schema caps `movements` there because each row
   // carries its ordered stops array.
   const mv = await fetchMovementFacts({ ...CFG.sql, windowStart, windowEnd });
-  const rm = await sendBatched("/api/tms/movement-facts", "movements", mv.movements, windowExtra, 500);
-  log(`financial: movement-facts sent=${mv.movements.length} received=${rm.received} upserted=${rm.upserted}`);
+  const rm = await send("/api/tms/movement-facts", "movements", mv.movements, windowExtra, 500);
+  log(`financial: movement-facts ${verb}=${mv.movements.length} received=${rm.received} upserted=${rm.upserted}`);
 
   // Billing — the earnings side, posting unlocked 2026-08-27 the day F1/F2 answered. EVERYTHING in
   // the window is staged, canceled/rebilled flags verbatim (their vocabulary is F3's still-open
   // question); what reaches reports is decided downstream by the documented GL-posted predicate,
   // never here. Windowed on bill_date, the economic date, like the dry-run CLI.
   const bl = await fetchBilling({ ...CFG.sql, windowStart, windowEnd });
-  const rb = await sendBatched("/api/tms/billing", "billing", bl.rows.map(mapBilling), windowExtra, 2000);
-  log(`financial: billing sent=${bl.rows.length} received=${rb.received} upserted=${rb.upserted}`);
+  const rb = await send("/api/tms/billing", "billing", bl.rows.map(mapBilling), windowExtra, 2000);
+  log(`financial: billing ${verb}=${bl.rows.length} received=${rb.received} upserted=${rb.upserted}`);
 
   // The chart of accounts, whole — 123 rows; the classification the GL month totals below are
   // read through (the CPM page's fleet-truth income statement).
   const ga = await fetchGlAccounts(CFG.sql);
-  const rg = await postToFuelGuard("/api/tms/gl-accounts", { accounts: ga.accounts });
-  log(`financial: gl-accounts sent=${ga.accounts.length} upserted=${rg.upserted ?? 0}`);
+  const rg = await post("/api/tms/gl-accounts", { accounts: ga.accounts });
+  log(`financial: gl-accounts ${verb}=${ga.accounts.length} upserted=${rg.upserted ?? 0}`);
 
   // Office payroll at PERSON grain (0276). `fetchLedgerControl` has read these lines since C4 for
   // the coverage report and then thrown them away; OFF is the one expense module with no subledger,
   // so the ledger line is the only record of who was paid. Swept on the rolling window like the
   // other detail, and month-whole totals below stay the control they are checked against.
   const officeWindow = await fetchLedgerControl({ ...CFG.sql, windowStart, windowEnd });
-  const ro = await sendBatched("/api/tms/office-lines", "lines", officeWindow.officeLines, windowExtra, 2000);
-  log(`financial: office-lines sent=${officeWindow.officeLines.length} received=${ro.received} upserted=${ro.upserted}`);
+  const ro = await send("/api/tms/office-lines", "lines", officeWindow.officeLines, windowExtra, 2000);
+  log(`financial: office-lines ${verb}=${officeWindow.officeLines.length} received=${ro.received} upserted=${ro.upserted}`);
 
   // GL control totals — month-grained, unlike everything above: totals are aggregates over a
   // period, so the period must be the stable unit the carrier's own close uses. Every calendar
@@ -682,7 +706,7 @@ async function runFinancial() {
   // freezing the first partial sweep of a month as its truth.
   for (const { periodStart, periodEnd } of monthsTouching(windowStart, windowEnd)) {
     const lc = await fetchLedgerControl({ ...CFG.sql, windowStart: periodStart, windowEnd: periodEnd });
-    const rl = await postToFuelGuard("/api/tms/ledger-totals", {
+    const rl = await post("/api/tms/ledger-totals", {
       company_id: CFG.sql.companyId, // the books are per legal entity (D-FIN8)
       period_start: periodStart,
       period_end: periodEnd,
@@ -873,10 +897,14 @@ async function runService() {
     roster: () => runRoster(),
     financial: () => runFinancial(),
   };
-  log(`service: started (pid ${process.pid}); schedule ${JOBS.map((j) => j.name + (j.everyMs ? ` every ${j.everyMs / 60_000} min` : ` daily at ${j.dailyAtHour}:00 Central`)).join(", ")}`);
+  const jobs = JOBS.filter((j) => j.name !== "financial" || CFG.financeFeed);
+  log(
+    `service: started (pid ${process.pid}); schedule ${jobs.map((j) => j.name + (j.everyMs ? ` every ${j.everyMs / 60_000} min` : ` daily at ${j.dailyAtHour}:00 Central`)).join(", ")}` +
+      (CFG.financeFeed ? "" : "; financial OFF (FINANCE_FEED=off) until the finance grants are on LME"),
+  );
 
   while (!stopping) {
-    for (const name of dueJobs(Date.now(), state.runs)) {
+    for (const name of dueJobs(Date.now(), state.runs, jobs)) {
       if (stopping) break;
       const run = (state.runs[name] ??= {});
       run.attemptedAt = Date.now();
@@ -928,6 +956,12 @@ async function main() {
         }
       }
     }
+    return;
+  }
+  // --financial is tested BEFORE the bare --dry-run below: that one is the ROSTER dry run, and
+  // `--financial --dry-run` used to fall into it and report the roster's counts as if they were finance's.
+  if (CFG.financial && CFG.dryRun) {
+    await runFinancial();
     return;
   }
   if (CFG.dryRun) {

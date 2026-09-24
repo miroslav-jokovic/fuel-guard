@@ -74,7 +74,7 @@ WantedBy=multi-user.target
 
 ## Before it goes on a schedule
 
-We'd like to do these together once the VM is ready:
+As agreed, nothing goes on a timer until we've done these together:
 
 1. **A dry run:** `node --env-file=connector.env agent.mjs --loads --dry-run`. It reads the open
    loads once and prints what it would send. It sends nothing. The count should match the McLeod
@@ -83,6 +83,23 @@ We'd like to do these together once the VM is ready:
    since been delivered or voided in McLeod. That's about 180 movement ids, one keyed read.
 3. **Start the service,** and watch the first few minutes of the log together.
 4. **Switch off the roster sync** on my laptop.
+
+
+## Finance comes later
+
+`connector.env` starts with `FINANCE_FEED=off`, so the service runs loads, closing loads and the
+roster, and leaves the 2:00 AM finance run out. Its first log line says so. The order for finance:
+
+1. The finance grants go on the analytics copy first.
+2. We run the nightly finance statements there once, reading only:
+   `MCLEOD_SQL_DATABASE=lme_analytics node --env-file=connector.env agent.mjs --financial --dry-run`.
+   The name typed in front of the command takes priority over the one in `connector.env`. It prints
+   a count per table and sends nothing.
+3. If that night's counts look right, the same grants go on LME. We set `FINANCE_FEED=on` in
+   `connector.env` and restart the service.
+4. SHOWPLAN is only requested if we still need it after that night.
+
+Once finance runs on this login, the NikiAnalytics login is no longer needed for this work.
 
 
 ## Later updates
