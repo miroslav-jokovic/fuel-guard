@@ -622,14 +622,38 @@ async function runLoads() {
   for (const s of res.skipped) log(`loads: SKIPPED movement ${s.movement_id} - ${s.reason}`);
   for (const n of res.notes) log(`loads: ${n}`);
 
+  log(`mirror: ${describeMirror(res.movements)}`);
   if (CFG.dryRun) {
-    console.log(JSON.stringify({ loads: res.loads, dispatchers: res.dispatchers }, null, 2));
+    console.log(JSON.stringify({ loads: res.loads, dispatchers: res.dispatchers, movements: res.movements }, null, 2));
     return;
   }
   const d = await postToFuelGuard("/api/tms/dispatchers", { dispatchers: res.dispatchers });
   log(`loads: dispatchers ${JSON.stringify(d?.data ?? d)}`);
   const out = await postToFuelGuard("/api/tms/loads", { loads: res.loads });
   log(`loads: ingested ${JSON.stringify(out?.data ?? out)}`);
+  log(`mirror: stored ${JSON.stringify(await postMirror(res.companyId, res.movements))}`);
+}
+
+/**
+ * The raw dispatch mirror (LOADS-MIRROR-PLAN.md LR3): every movement read, with every stop, to
+ * `/api/tms/dispatch-movements`. Beside `/api/tms/loads`, never instead of it, until LR4's projection
+ * reads from the mirror and LR8 retires the old blob. Counts only in the log — Alex's condition.
+ */
+function describeMirror(movements) {
+  const types = {};
+  let stops = 0;
+  for (const m of movements) for (const s of m.stops) { stops++; types[s.stop_type ?? "?"] = (types[s.stop_type ?? "?"] ?? 0) + 1; }
+  return `${movements.length} movement(s), ${stops} stop(s) ${JSON.stringify(types)}`;
+}
+
+/** POST mirror movements in batches of 500 (the contract's cap); returns the summed ingest result. */
+async function postMirror(companyId, movements) {
+  const total = { movements: 0, stops: 0, stopsRemoved: 0, closed: 0 };
+  for (const part of chunk(movements, 500)) {
+    const r = await postToFuelGuard("/api/tms/dispatch-movements", { company_id: companyId, movements: part });
+    for (const k of Object.keys(total)) total[k] += r?.[k] ?? 0;
+  }
+  return total;
 }
 
 /**
@@ -771,9 +795,17 @@ function takeLock(path) {
  * beside the agent and is gitignored, exactly like roster-state.json.
  */
 function loadServiceState() {
-  if (!existsSync(CFG.servicePath)) return { runs: {}, posted: {}, board: [], dispatchersHash: null };
+  // `mirrored` is `posted`'s twin for the raw mirror: a movement's ETA or actual times change without
+  // its load changing, so the two feeds cannot share one hash.
+  if (!existsSync(CFG.servicePath)) return { runs: {}, posted: {}, mirrored: {}, board: [], dispatchersHash: null };
   const s = JSON.parse(readFileSync(CFG.servicePath, "utf8"));
-  return { runs: s.runs ?? {}, posted: s.posted ?? {}, board: s.board ?? [], dispatchersHash: s.dispatchersHash ?? null };
+  return {
+    runs: s.runs ?? {},
+    posted: s.posted ?? {},
+    mirrored: s.mirrored ?? {},
+    board: s.board ?? [],
+    dispatchersHash: s.dispatchersHash ?? null,
+  };
 }
 function saveServiceState(state) {
   writeFileSync(CFG.servicePath, JSON.stringify(state, null, 2));
@@ -786,7 +818,10 @@ async function serviceLoads(state) {
     systemDispatchers: CFG.systemDispatchers,
   });
   for (const s of res.skipped) log(`loads: SKIPPED movement ${s.movement_id} - ${s.reason}`);
-  state.board = res.loads.map((l) => l.external_id);
+  // The board is every MOVEMENT read, not only those that made a load: a movement with no order is
+  // mirrored, and must be close-read when it leaves like any other.
+  const prefix = `${res.companyId}:`;
+  state.board = [...new Set([...res.loads.map((l) => l.external_id), ...res.movements.map((m) => prefix + m.movement_id)])];
 
   const dHash = loadHash(res.dispatchers);
   if (dHash !== state.dispatchersHash) {
@@ -802,6 +837,13 @@ async function serviceLoads(state) {
   } else {
     log(`loads: ${res.loads.length} on the board, none changed`);
   }
+
+  const mirror = res.movements.filter((m) => state.mirrored[prefix + m.movement_id] !== loadHash(m));
+  if (mirror.length) {
+    const r = await postMirror(res.companyId, mirror);
+    for (const m of mirror) state.mirrored[prefix + m.movement_id] = loadHash(m);
+    log(`mirror: ${res.movements.length} movement(s) read, ${mirror.length} changed and stored ${JSON.stringify(r)}`);
+  }
 }
 
 /**
@@ -811,12 +853,18 @@ async function serviceLoads(state) {
 async function serviceClose(state) {
   const onBoard = new Set(state.board);
   const prefix = `${CFG.sql.companyId}:`;
-  const left = Object.keys(state.posted).filter((id) => !onBoard.has(id) && id.startsWith(prefix));
+  const held = new Set([...Object.keys(state.posted), ...Object.keys(state.mirrored)]);
+  const left = [...held].filter((id) => !onBoard.has(id) && id.startsWith(prefix));
   if (!left.length) return;
   const res = await closeMovements(left.map((id) => id.slice(prefix.length)));
   for (const l of res.loads) {
     if (["D", "V"].includes(String(l.external_status ?? "").trim())) delete state.posted[l.external_id];
     else state.posted[l.external_id] = loadHash(l);
+  }
+  for (const m of res.movements) {
+    const key = prefix + m.movement_id;
+    if (["D", "V"].includes(m.movement_status ?? "")) delete state.mirrored[key];
+    else state.mirrored[key] = loadHash(m);
   }
 }
 
@@ -837,6 +885,10 @@ async function closeMovements(movementIds) {
   if (res.loads.length) {
     const out = await postToFuelGuard("/api/tms/loads", { loads: res.loads });
     log(`close: posted ${res.loads.length} ${JSON.stringify(out?.data ?? out)}`);
+  }
+  // McLeod's D or V reaches the mirror too — that is what stamps `closed_at` (LR5).
+  if (res.movements.length) {
+    log(`close: mirror stored ${JSON.stringify(await postMirror(CFG.sql.companyId, res.movements))}`);
   }
   return res;
 }

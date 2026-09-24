@@ -69,7 +69,17 @@ SELECT
       NULLIF(LTRIM(RTRIM(tr.trailer_type)), '')              AS trailer_type,
       NULLIF(LTRIM(RTRIM(o.commodity)), '')                  AS commodity,
       m.move_distance                                        AS total_miles,
-      NULLIF(LTRIM(RTRIM(m.status)), '')                     AS external_status
+      NULLIF(LTRIM(RTRIM(m.status)), '')                     AS external_status,
+      -- LR3 (LOADS-MIRROR-PLAN.md §2): the rest of what the grant already reads, for the raw mirror.
+      LTRIM(RTRIM(m.company_id))                             AS company_id,
+      LTRIM(RTRIM(m.id))                                     AS movement_id,
+      NULLIF(LTRIM(RTRIM(m.loaded)), '')                     AS loaded,
+      NULLIF(LTRIM(RTRIM(o.customer_id)), '')                AS customer_id,
+      o.weight                                               AS weight,
+      NULLIF(LTRIM(RTRIM(o.weight_um)), '')                  AS weight_um,
+      o.pieces                                               AS pieces,
+      o.pallets_how_many                                     AS pallets_how_many,
+      NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno
       FROM dbo.movement AS m
       LEFT JOIN dbo.users AS u
         ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
@@ -111,7 +121,17 @@ SELECT
       s.longitude                                     AS lon_west_positive,
       CONVERT(varchar(19), s.sched_arrive_early, 126) AS appointment_start,
       CONVERT(varchar(19), s.sched_arrive_late, 126)  AS appointment_end,
-      NULLIF(LTRIM(RTRIM(s.status)), '')              AS stop_status
+      NULLIF(LTRIM(RTRIM(s.status)), '')              AS stop_status,
+      -- LR3: the stop's own id and what a dispatcher sees on it. Times as zoneless varchar, like the
+      -- appointment above, so only centralToIso ever decides their zone.
+      LTRIM(RTRIM(s.id))                              AS stop_id,
+      NULLIF(LTRIM(RTRIM(s.location_name)), '')       AS location_name,
+      CONVERT(varchar(19), s.actual_arrival, 126)     AS actual_arrival,
+      CONVERT(varchar(19), s.actual_departure, 126)   AS actual_departure,
+      CONVERT(varchar(19), s.eta, 126)                AS eta,
+      NULLIF(LTRIM(RTRIM(s.contact_name)), '')        AS contact_name,
+      NULLIF(LTRIM(RTRIM(s.phone)), '')               AS phone,
+      NULLIF(LTRIM(RTRIM(s.ponum)), '')               AS ponum
       FROM dbo.stop AS s
       JOIN dbo.movement AS m
         ON m.id = s.movement_id AND m.company_id = s.company_id
@@ -178,7 +198,17 @@ SELECT
       NULLIF(LTRIM(RTRIM(tr.trailer_type)), '')              AS trailer_type,
       NULLIF(LTRIM(RTRIM(o.commodity)), '')                  AS commodity,
       m.move_distance                                        AS total_miles,
-      NULLIF(LTRIM(RTRIM(m.status)), '')                     AS external_status
+      NULLIF(LTRIM(RTRIM(m.status)), '')                     AS external_status,
+      -- LR3 (LOADS-MIRROR-PLAN.md §2): the rest of what the grant already reads, for the raw mirror.
+      LTRIM(RTRIM(m.company_id))                             AS company_id,
+      LTRIM(RTRIM(m.id))                                     AS movement_id,
+      NULLIF(LTRIM(RTRIM(m.loaded)), '')                     AS loaded,
+      NULLIF(LTRIM(RTRIM(o.customer_id)), '')                AS customer_id,
+      o.weight                                               AS weight,
+      NULLIF(LTRIM(RTRIM(o.weight_um)), '')                  AS weight_um,
+      o.pieces                                               AS pieces,
+      o.pallets_how_many                                     AS pallets_how_many,
+      NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno
       FROM dbo.movement AS m
       LEFT JOIN dbo.users AS u
         ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
@@ -215,7 +245,17 @@ SELECT
       s.longitude                                     AS lon_west_positive,
       CONVERT(varchar(19), s.sched_arrive_early, 126) AS appointment_start,
       CONVERT(varchar(19), s.sched_arrive_late, 126)  AS appointment_end,
-      NULLIF(LTRIM(RTRIM(s.status)), '')              AS stop_status
+      NULLIF(LTRIM(RTRIM(s.status)), '')              AS stop_status,
+      -- LR3: the stop's own id and what a dispatcher sees on it. Times as zoneless varchar, like the
+      -- appointment above, so only centralToIso ever decides their zone.
+      LTRIM(RTRIM(s.id))                              AS stop_id,
+      NULLIF(LTRIM(RTRIM(s.location_name)), '')       AS location_name,
+      CONVERT(varchar(19), s.actual_arrival, 126)     AS actual_arrival,
+      CONVERT(varchar(19), s.actual_departure, 126)   AS actual_departure,
+      CONVERT(varchar(19), s.eta, 126)                AS eta,
+      NULLIF(LTRIM(RTRIM(s.contact_name)), '')        AS contact_name,
+      NULLIF(LTRIM(RTRIM(s.phone)), '')               AS phone,
+      NULLIF(LTRIM(RTRIM(s.ponum)), '')               AS ponum
       FROM dbo.stop AS s
       JOIN dbo.movement AS m
         ON m.id = s.movement_id AND m.company_id = s.company_id

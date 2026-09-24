@@ -10,7 +10,9 @@
  * letter and `review/SILVICOM-READ-ROUTINE.sql` must be updated in the same PR.
  */
 
-export const TIME_ZONE = "America/Chicago"; // the carrier's clock; McLeod stores Central wall time
+import { TIME_ZONE, tzOffset, zonedToUtc } from "./centralTime.mjs";
+
+export { TIME_ZONE }; // the carrier's clock; McLeod stores Central wall time (centralTime.mjs owns it)
 
 /** In priority order: when several are due, the first listed runs first. */
 export const JOBS = [
@@ -22,33 +24,9 @@ export const JOBS = [
   { name: "financial", dailyAtHour: 2, retryMs: 30 * 60_000 },
 ];
 
-/** The offset, in ms, of `tz` from UTC at instant `t`. */
-function tzOffset(t, tz) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-      .formatToParts(new Date(t))
-      .filter((p) => p.type !== "literal")
-      .map((p) => [p.type, Number(p.value)]),
-  );
-  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-  return asUtc - Math.floor(t / 1000) * 1000;
-}
-
 /** The UTC instant of a wall-clock hour in `tz` on a given local date. */
 export function zonedHourToUtc(year, month, day, hour, tz = TIME_ZONE) {
-  const guess = Date.UTC(year, month - 1, day, hour);
-  const first = guess - tzOffset(guess, tz);
-  const second = guess - tzOffset(first, tz);
-  return second;
+  return zonedToUtc(year, month, day, hour, 0, 0, tz);
 }
 
 /** The most recent occurrence of `hour`:00 in `tz` at or before `now`. */

@@ -398,3 +398,23 @@ Append a dated line per merge. Never edit a status column.
   recommendation — on the analytics copy first. His stop-type answer (LOADS-GO-LIVE Q-GL1) is what
   LR4 needs: SD/SP are split-trailer stops, VA/VP interline points. **LR3 carries a condition:** the
   new fields go live only after Alex has the regenerated `SILVICOM-READ-ROUTINE.sql`.
+- 2026-09-24 — **0367 merged** (#1011): `mcleod_dispatch_movements.weight_um`, found while writing LR3 —
+  0364 kept the weight without its unit, so LR4 could not have converted or refused a non-pound one.
+- 2026-09-24 — **LR3 built.** `DISPATCH_LOADS` / `DISPATCH_LOAD_STOPS` gain the §2 columns (review file
+  regenerated — **Alex must receive it before this reaches the VM**); `assemble` returns raw movements
+  beside loads, every stop verbatim; `POST /api/tms/dispatch-movements` → `dispatchMovementIngest.ts`,
+  complete rows, `first_seen_at` never rewritten, `closed_at` kept from McLeod's first D/V, a
+  movement's removed stops deleted by id. Contract in `packages/shared/src/tmsDispatchMirror.ts` (not
+  `tms.ts`: 468 of 500 lines). **Live dry run on `lme`: 163 movements, 340 stops — PU 163, SO 172,
+  SP 2, VA 3 — every one through the contract, zero POSTs.** Fill rates: location_name 336/340,
+  actual arrival 127, departure 121, ETA 154, contact 84, PO 53; weight 67/163, all `LB`.
+  ⚠ **A live defect found and fixed on the way:** the load feed has posted McLeod's zoneless Central
+  times bare since L1, and Postgres read them as UTC — every `load_stops.appointment_*` in production
+  is **five hours early** (order 0135527, stop 2: McLeod 17:00, stored 17:00 UTC = noon Central).
+  `centralToIso` (`centralTime.mjs`, DST pinned across 2026-11-01 and 2027-03-14) now converts every
+  McLeod time, for the load feed as much as the mirror. The stored stops correct themselves on the
+  VM: `writeStops` deletes and rewrites the pending stops of every load the feed still owns (all 303
+  are `pending_approval`, none worked), the first `--service` sync re-posts every board load (its
+  state starts empty), and the one-time `--close` re-posts the ~181 that left the board.
+  Ten mutants, each failing by name (append-Z fails 7). Nothing is posted to production from here:
+  the first real run is on the VM, after Alex has the new SQL file.
