@@ -4623,6 +4623,14 @@ every time.
   · **R10** — record in-person contact before procurement; three notice templates; send only after
     counsel approves Q9.
 
+- **2026-09-24, later — THE ORDER CHANGED; `APPLICANT-FLOW-PLAN.md` (PR #999) supersedes D-HM9's
+  sequence.** The owner restated the flow: permissions (with identity) first → PSP/MVR/Clearinghouse
+  /drug test → THEN the application link → approval → videos → travel → road test and orientation →
+  the packet, opened for signing by the office in person. Ruled: D-AF1 identity with the permissions,
+  D-AF2 each permission a DocuSign-style PDF, D-AF3 signing opens only in the office. Its steps
+  AF1–AF7 join this plan's queue; D2–D5 above are unchanged. ⚠ AF5 is freeze-bound alongside L-1
+  and Q-HM14 — all three before the first real packet.
+
 ---
 
 ## 11. Sources

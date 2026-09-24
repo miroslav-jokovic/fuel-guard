@@ -65,31 +65,32 @@ shows which text each person signed.
 
 ### 2.1 The hiring process, as the carrier runs it
 
-The carrier ruled on this order on September 17, 2026. Steps 1–9 happen **before** the applicant
-travels to the office, and the applicant is not invited to travel until all of them are complete.
-Steps 10–14 happen on the day of arrival.
+The carrier set this order on September 24, 2026, replacing the September 17 order. Steps 1–9
+happen **before** the applicant travels to the office, and the applicant is not invited to travel
+until the federal pre-employment requirements are complete. Steps 10–14 happen on the day of
+arrival. *(Steps marked † are being built now; see `APPLICANT-FLOW-PLAN.md`.)*
 
 | # | Step | Where |
 |---|---|---|
-| 1 | Invitation sent (link by email; SMS once enabled) | remote |
-| 2 | Consent to electronic records, then four authorizations signed | remote, phone |
-| 3 | Application completed | remote, phone |
-| 4 | Office reviews, corrects with the applicant, approves | office |
-| 5 | Motor vehicle record pulled from SambaSafety, outside the platform, and uploaded | office |
-| 6 | FMCSA PSP report obtained | office |
-| 7 | Clearinghouse full query, run in FMCSA's portal and recorded | office |
-| 8 | Pre-employment drug test, verified negative | external collector |
-| 8b | Medical certification verified | office |
-| 9 | Orientation videos and quizzes | remote |
+| 1 | Applicant created; link sent by email | remote |
+| 2 | Consent to electronic records; **identity given** (date of birth, licence number and state, licence photos)†; **five permissions signed, each as its own PDF**† | remote, phone |
+| 3 | Office reviews the signed permissions | office |
+| 4 | Motor vehicle record pulled from SambaSafety, outside the platform, and uploaded | office |
+| 5 | FMCSA PSP report obtained | office |
+| 6 | Clearinghouse full query: the driver consents in FMCSA's portal, the result is recorded | office |
+| 7 | Pre-employment drug test at a collection site; verified negative recorded | external |
+| 8 | **Application link sent**†, application completed, office reviews and approves; medical certification verified; previous employers investigated | remote, then office |
+| 9 | Orientation videos and quizzes (being built) | remote |
 | 10 | Road test, §391.31 | office, on arrival |
 | 11 | Live orientation | office |
 | 12 | Handbook signed | office |
-| 13 | **The carrier's 31-page packet signed electronically, 22 places** | office |
-| 14 | Hired: qualification file opened, truck assigned | office |
+| 13 | **The office opens signing in person**†; the carrier's 31-page packet is signed electronically | office |
+| 14 | Hired, or declined | office |
 
-**The point that matters for §5:** consumer reports (the MVR and the PSP report) are obtained at
-steps 5–6. At that time **every contact with the applicant has been by computer, phone or email**.
-Nobody meets the applicant in person until step 10.
+**The point that matters for §5:** the consumer reports (the MVR and the PSP report) are obtained at
+steps 4–5. At that time **every contact with the applicant has been by computer, phone or email**.
+Nobody meets the applicant in person until step 10, and **the application itself is completed after
+the reports are obtained**.
 
 ### 2.2 How a signature is captured
 
@@ -115,7 +116,7 @@ Nobody meets the applicant in person until step 10.
 | Previous-employer release (§391.23, §40.25) | **Your packet, page 15** | `packet-2026-08-21` | **in use** — Q3, Q4 |
 | Drug and alcohol testing notification | **Your packet, page 22** | `packet-2026-08-21` | **in use** — Q3, Q5 |
 | PSP disclosure and authorization | **FMCSA's mandatory form**, verbatim, carrier's name filled in | `fmcsa-2016-02-11` | **in use** — no drafting possible |
-| Clearinghouse limited-query consent | FMCSA's published sample, plus one scope paragraph we added | `fmcsa-sample-2026-09-13` | **in use** — Q10 |
+| Clearinghouse limited-query consent | FMCSA's published sample, plus one scope paragraph we added | `fmcsa-sample-2026-09-13` | **in use** (office, on paper); **becoming the fifth permission on the link**† — Q10 |
 | The 31-page packet, 22 applicant signatures | **Your packet**, printed exactly as written, typographical errors included | — | **in use** — Q1, Q2, Q5, Q6, Q15 |
 | Text-message consent | Placeholder | `v0-draft` | **not in use** — Q12 |
 | §40.25 drug and alcohol history request letter | Placeholder | `v0-draft` | **not in use** — Q13 |
@@ -345,8 +346,8 @@ whose qualifications the Secretary of Transportation sets (49 U.S.C. 31502). It 
 §604(b)(3)(C)(ii), that **"as of the time at which the consumer report is procured"** all contact
 between applicant and employer on the application was by those means.
 
-**Facts.** In the carrier's process (§2.1), reports are obtained at steps 5–6, before any in-person
-contact. An applicant who walks in with a paper application before the reports are pulled is not
+**Facts.** In the carrier's process (§2.1), reports are obtained at steps 4–5, before any in-person
+contact and before the application form. An applicant who walks in with a paper application before the reports are pulled is not
 covered by the exception.
 
 **Our reading.** For applicants who applied through the platform link and had no in-person contact
