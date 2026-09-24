@@ -1,5 +1,5 @@
-// Silvicom 360 — packet signing matrix (migrations 0339 and 0340, APPLICATION-PACKET-PLAN P5 /
-// D-PKT6).
+// Silvicom 360 — packet signing matrix (migrations 0339, 0340 and 0369, APPLICATION-PACKET-PLAN P5 /
+// D-PKT6, APPLICANT-FLOW-PLAN AF5 / D-AF3).
 //
 // The owner's flow ends with the driver being walked to every place the carrier's lawyers drew a
 // line: *"the driver needs to be navigated precisely from place to place and sign all places."*
@@ -16,6 +16,9 @@
 //     `initials` row fixes the initials, each refusing a later stop of its own kind that disagrees —
 //     and NEITHER refusing the other, which is the whole of 0340 (Q-PKT8)
 //   · no phase column is stamped, because "complete" is a count against the TypeScript array
+//   · approval is necessary and no longer sufficient (0369, D-AF3): nothing is signable until the
+//     office opens signing in person, through `open_packet_signing`, which is the one writer of
+//     `signing_opened_at` and of the fresh sign link it hands back
 //
 // Applies EVERY migration, same as rls.test.mjs.
 //
@@ -123,6 +126,15 @@ const invite = async (label, expires = "now() + interval '14 days'") =>
 const approve = (invitation) =>
   db.query(`update application_invitations set approved_at = now() where id = $1`, [invitation]);
 
+// D-AF3: the office's act at the desk. Every walk below that expects to sign goes through it, so the
+// walk exercises the function the route will call rather than a stamp written behind its back.
+const openSigning = (invitation, hash = `sign-${invitation}`, days = 14) =>
+  db.query(`select public.open_packet_signing($1,$2,$3,$4) as opened`, [ORG, invitation, hash, days]);
+const approveAndOpen = async (invitation) => {
+  await approve(invitation);
+  await openSigning(invitation);
+};
+
 // ⚠ The driver's twenty-two stops, in the packet's own page order — the same list and the same ids
 // `driverPlacements()` produces, because the API passes this function what that array holds. Kept
 // here as data rather than imported: a matrix runs against the migrations alone, and an .mjs test
@@ -179,12 +191,105 @@ const tooSoon = await raised(() => mark(EARLY, STOPS[0]));
 ok("an unapproved packet refuses every stop (DR032)", tooSoon?.code === "DR032", String(tooSoon?.code));
 ok("and nothing was written", (await count(`select count(*)::int as n from application_packet_marks where invitation_id = $1`, [EARLY])) === 0);
 
+// ── ...and, since 0369, not until the office has opened signing in person (D-AF3) ───────────────
+// The state production's one unfiled walk is in: approved on the old rule, never opened.
+await approve(EARLY);
+const unopened = await raised(() => mark(EARLY, STOPS[0]));
+ok("an approved packet the office has not opened refuses every stop (DR036)", unopened?.code === "DR036", String(unopened?.code));
+ok("and still nothing was written", (await count(`select count(*)::int as n from application_packet_marks where invitation_id = $1`, [EARLY])) === 0);
+// ⚠ Order: a filed packet that was never opened — production's other row — answers "filed", which is
+// the true reason and the one the ceremony already knows how to show.
+const FILED_UNOPENED = await invite("filed-unopened");
+await approve(FILED_UNOPENED);
+await db.query(`update application_invitations set submitted_at = now() where id = $1`, [FILED_UNOPENED]);
+const filedUnopened = await raised(() => mark(FILED_UNOPENED, STOPS[0]));
+ok("a filed packet that was never opened still answers filed (DR033), not unopened", filedUnopened?.code === "DR033", String(filedUnopened?.code));
+// ...and an unapproved one still answers unapproved, even with a stray opening stamp on it.
+const STRAY = await invite("stray");
+await db.query(`update application_invitations set signing_opened_at = now() where id = $1`, [STRAY]);
+const stray = await raised(() => mark(STRAY, STOPS[0]));
+ok("an opening stamp does not stand in for approval (DR032)", stray?.code === "DR032", String(stray?.code));
+
+// ── opening signing: the office's act, and the one writer of the stamp and the sign link ────────
+const OPEN = await invite("open", "now() - interval '3 days'");
+const notApproved = await raised(() => openSigning(OPEN));
+ok("opening refuses a packet the office has not approved (AI006)", notApproved?.code === "AI006", String(notApproved?.code));
+ok(
+  "and stamps nothing",
+  (await one(`select signing_opened_at, sign_token_hash from application_invitations where id = $1`, [OPEN]))
+    .signing_opened_at === null,
+);
+await approve(OPEN);
+const firstOpen = (await openSigning(OPEN, "sign-first")).rows[0].opened;
+const afterFirst = await one(
+  `select signing_opened_at, sign_token_hash, expires_at > now() + interval '13 days' as revived
+     from application_invitations where id = $1`,
+  [OPEN],
+);
+ok("opening stamps signing_opened_at and returns it", firstOpen !== null && +afterFirst.signing_opened_at === +firstOpen);
+ok("and sets the sign link it was handed", afterFirst.sign_token_hash === "sign-first");
+ok("and revives a link that lapsed while the applicant waited to travel", afterFirst.revived === true);
+const nowSignable = await raised(() => mark(OPEN, STOPS[0]));
+ok("after which the same packet signs", nowSignable === null, String(nowSignable?.code));
+
+// A second press: a closed tab, a lost link. Fresh link, FIRST date, and never a shorter expiry.
+// ⚠ The first opening is backdated a day rather than waited on: two presses inside one test land in
+// the same millisecond, and a stamp that was overwritten with `now()` would read back identical.
+await db.query(
+  `update application_invitations
+      set expires_at = now() + interval '40 days', signing_opened_at = signing_opened_at - interval '1 day'
+    where id = $1`,
+  [OPEN],
+);
+const backdated = (await one(`select signing_opened_at from application_invitations where id = $1`, [OPEN])).signing_opened_at;
+const secondOpen = (await openSigning(OPEN, "sign-second", 14)).rows[0].opened;
+const afterSecond = await one(
+  `select signing_opened_at, sign_token_hash, expires_at > now() + interval '39 days' as kept
+     from application_invitations where id = $1`,
+  [OPEN],
+);
+ok("a second press rotates the sign link", afterSecond.sign_token_hash === "sign-second");
+ok(
+  "and keeps the first opening date",
+  +backdated < +firstOpen && +secondOpen === +backdated && +afterSecond.signing_opened_at === +backdated,
+);
+ok("and never shortens the link", afterSecond.kept === true);
+
+const blank = await raised(() => openSigning(OPEN, ""));
+ok("a missing sign link is refused (AI004)", blank?.code === "AI004", String(blank?.code));
+const noDays = await raised(() => openSigning(OPEN, "sign-x", 0));
+ok("and so is a non-positive extension (AI004)", noDays?.code === "AI004", String(noDays?.code));
+
+const OPEN_REVOKED = await invite("open-revoked");
+await approve(OPEN_REVOKED);
+await db.query(`update application_invitations set revoked_at = now() where id = $1`, [OPEN_REVOKED]);
+const openRevoked = await raised(() => openSigning(OPEN_REVOKED));
+ok("opening refuses a revoked invitation (AI002)", openRevoked?.code === "AI002", String(openRevoked?.code));
+const openFiled = await raised(() => openSigning(FILED_UNOPENED));
+ok("and a filed one, which never signs again (AI003)", openFiled?.code === "AI003", String(openFiled?.code));
+ok(
+  "leaving the filed one unopened",
+  (await one(`select signing_opened_at from application_invitations where id = $1`, [FILED_UNOPENED])).signing_opened_at === null,
+);
+const openMissing = await raised(() => openSigning("00000000-0000-0000-0000-000000000000"));
+ok("and one that does not exist (AI001)", openMissing?.code === "AI001", String(openMissing?.code));
+// Org-scoped: another org's id for the same invitation is "not found", never a write.
+const OTHER = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'U') returning id`)).id;
+const crossOrg = await raised(() =>
+  db.query(`select public.open_packet_signing($1,$2,'sign-cross',14)`, [OTHER, OPEN]),
+);
+ok("and one belonging to another org (AI001)", crossOrg?.code === "AI001", String(crossOrg?.code));
+ok(
+  "without touching its sign link",
+  (await one(`select sign_token_hash from application_invitations where id = $1`, [OPEN])).sign_token_hash === "sign-second",
+);
+
 // ── the walk itself ────────────────────────────────────────────────────────────────────────────
 // ⚠ This loop is itself the regression test for Q-PKT8. It sends the initials at p05, the fifth
 // stop, having sent the signature at the four before it — and under 0339's pin that raised DR035 and
 // threw out of the matrix here. Twenty-two stops completing in one pass is 0340's whole claim.
 const INV = await invite("marija");
-await approve(INV);
+await approveAndOpen(INV);
 const results = [];
 for (const stop of STOPS) results.push((await mark(INV, stop)).rows[0].r);
 
@@ -244,7 +349,7 @@ ok("and nothing was added", (await count(`select count(*)::int as n from applica
 // ways: it must still refuse a second SIGNATURE as hard as 0339 did, and it must stop reading the
 // driver's initials as one.
 const PAIR = await invite("pair");
-await approve(PAIR);
+await approveAndOpen(PAIR);
 await mark(PAIR, STOPS[0]);
 const renamed = await raised(() => mark(PAIR, STOPS[1], "M. Varmeda"));
 ok("a second signature on the same packet is refused (DR035)", renamed?.code === "DR035", String(renamed?.code));
@@ -278,7 +383,7 @@ ok(
 
 // ── and nothing is signable once the application is filed ──────────────────────────────────────
 const FILED = await invite("filed");
-await approve(FILED);
+await approveAndOpen(FILED);
 await mark(FILED, STOPS[0]);
 await db.query(`update application_invitations set submitted_at = now() where id = $1`, [FILED]);
 const afterwards = await raised(() => mark(FILED, STOPS[1]));
@@ -286,13 +391,16 @@ ok("a filed application refuses another mark (DR033)", afterwards?.code === "DR0
 
 // ── the invitation still governs the whole session ─────────────────────────────────────────────
 const REVOKED = await invite("revoked");
-await approve(REVOKED);
+await approveAndOpen(REVOKED);
 await db.query(`update application_invitations set revoked_at = now() where id = $1`, [REVOKED]);
 const revoked = await raised(() => mark(REVOKED, STOPS[0]));
 ok("a revoked invitation cannot be signed on (DR031)", revoked?.code === "DR031", String(revoked?.code));
 
-const EXPIRED = await invite("expired", "now() - interval '1 day'");
-await approve(EXPIRED);
+// ⚠ Lapsed AFTER opening: `open_packet_signing` revives an expired link by design, so opening one
+// that was already expired would test the revival, not the refusal.
+const EXPIRED = await invite("expired");
+await approveAndOpen(EXPIRED);
+await db.query(`update application_invitations set expires_at = now() - interval '1 day' where id = $1`, [EXPIRED]);
 const expired = await raised(() => mark(EXPIRED, STOPS[0]));
 ok("nor an expired one (DR031)", expired?.code === "DR031", String(expired?.code));
 
@@ -303,7 +411,7 @@ ok("nor one that does not exist (DR030)", missing?.code === "DR030", String(miss
 // Keyed on the invitation, never on the driver: the unique index is per link, and the packet a
 // driver signed a year ago is not the packet in front of them now.
 const RESCREEN = await invite("rescreen");
-await approve(RESCREEN);
+await approveAndOpen(RESCREEN);
 const again = await raised(() => mark(RESCREEN, STOPS[0]));
 ok("the same stop can be marked again on a NEW link", again === null, String(again?.code));
 
@@ -330,12 +438,23 @@ ok(
       where routine_name = 'record_packet_mark' and grantee in ('anon','authenticated','PUBLIC')`,
   )) === 0,
 );
+ok(
+  "and so is the opening one, which a browser could otherwise call to open its own packet",
+  (await count(
+    `select count(*)::int as n from information_schema.role_routine_grants
+      where routine_name = 'open_packet_signing' and grantee in ('anon','authenticated','PUBLIC')`,
+  )) === 0
+    && (await count(
+      `select count(*)::int as n from information_schema.role_routine_grants
+        where routine_name = 'open_packet_signing' and grantee = 'service_role'`,
+    )) === 1,
+);
 
 // ⚠ Deleting the invitation DOES take the marks: unlike a `driver_authorizations` row, a packet mark
 // has no meaning without the packet it was made on — it is a place on a document, and the document
 // is the session. 0234 is where the recruiting evidence that must survive a merge lives.
 const DOOMED = await invite("doomed");
-await approve(DOOMED);
+await approveAndOpen(DOOMED);
 await mark(DOOMED, STOPS[0]);
 await db.query(`delete from application_invitations where id = $1`, [DOOMED]);
 ok(
