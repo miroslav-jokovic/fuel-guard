@@ -373,3 +373,13 @@ Append a dated line per merge. Never edit a status column.
   `fetchClosedLoads`, run every 10 minutes by `--service` for loads that left the board, and
   `--close --ids-file` for the one-off backlog. A `V` posts as `canceled: true`; a `D` travels as
   `external_status` until LR4 projects status. Dry run on production's backlog: 181 → 178 D, 3 V.
+- 2026-09-24 — **LR1 built** (migration 0364, `mcleod-dispatch-raw.test.mjs` 28/28, seven mutants
+  each failing by name). Column types read from lme's `INFORMATION_SCHEMA`, not assumed: `decimal`
+  stored as unbounded `numeric`, `loaded` kept as McLeod's `L`/`E`, `pallets` named
+  `pallets_how_many` as McLeod names it. Three departures from §4, each on purpose: **no
+  `source_version`** (L6 was withdrawn with Q-CA1, so nothing would ever write it); stops **cascade
+  from their movement through a composite `(org_id, company_id, movement_id)` FK**, so retention
+  (Q-LMR8) deletes movements only; a **CHECK keeps `longitude` west-negative**, so a lost negation
+  fails the sync instead of drawing the fleet in China. **Growth corrected:** measured on lme over
+  the 28 days to 2026-09-22 it is **99.3 movements and 209.7 stops per day**, not ~180/~310 (those
+  were board-size figures); budgets are 300 and 650 (×3). Producer waivers name LR3.

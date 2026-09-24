@@ -2248,6 +2248,15 @@ async function main() {
         `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-pos', 150) returning id) ` +
         `insert into vehicle_positions (org_id, vehicle_id, lat, lng, sampled_at) ` +
         `select '${org}', id, 44.5, -88.0, now() from v`,
+      // 0364: a stop references its movement through `(org_id, company_id, movement_id)` — composite
+      // again, so the synthesiser would invent a movement belonging to nobody. Handed a real parent
+      // for the same reason as `vehicle_positions` above: the composite key is what guarantees a stop
+      // can never hang off another org's movement.
+      mcleod_dispatch_stops: (org) =>
+        `with m as (insert into mcleod_dispatch_movements (org_id, company_id, movement_id) ` +
+        `values ('${org}', 'TMS', 'rls-mv') returning org_id, company_id, movement_id) ` +
+        `insert into mcleod_dispatch_stops (org_id, company_id, stop_id, movement_id) ` +
+        `select org_id, company_id, 'rls-st', movement_id from m`,
       samsara_ifta_jurisdiction_miles: (org) =>
         `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ifta', 240) returning id) ` +
         `insert into samsara_ifta_jurisdiction_miles ` +
