@@ -3,7 +3,7 @@
 > **2026-09-24 — what to send Alex:** [`LETTER-TO-ALEX.md`](LETTER-TO-ALEX.md) (the letter, in the
 > owner's voice), `SILVICOM-READ-ROUTINE.sql` (24 statements, **built from the code** by
 > `build-routine.mjs` — never edit it by hand; `npm run routine` rebuilds it and `review.test.mjs`
-> fails CI if it is stale) and [`INSTALL-ON-VM.md`](INSTALL-ON-VM.md). CA1–CA5 of
+> fails CI if it is stale) and [`CONNECTOR-ON-THE-VM.md`](CONNECTOR-ON-THE-VM.md). CA1–CA5 of
 > `docs/plans/mcleod/COLLECTOR-AUDIT-2026-09-24.md` have landed, so every promise in the letter is
 > true of the code. The historical notes below describe the hand-written file it replaced.
 >

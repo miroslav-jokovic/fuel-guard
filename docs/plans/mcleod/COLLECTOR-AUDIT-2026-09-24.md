@@ -275,7 +275,7 @@ Append a dated line per merge. Never edit a status column.
   CA4 (as ruled): per-load hash so unchanged loads are never re-posted; the keyed close read
   (`closeReadQueries`, one typed parameter per id). **Dry run on the production backlog: 181 loads
   off the board → McLeod says 178 D, 3 V.** Not posted — that is day one on the VM
-  (`INSTALL-ON-VM.md` §4).
+  (`review/CONNECTOR-ON-THE-VM.md`, "Before it goes on a schedule").
   CA5: `review/build-routine.mjs` builds `SILVICOM-READ-ROUTINE.sql` (24 statements) from the code;
   `review.test.mjs` fails if it is one character stale or a statement is missing. All 24 executed
   through the connector (loads/close/roster/retirement on `lme`, finance on `lme_analytics`).
@@ -296,3 +296,7 @@ Append a dated line per merge. Never edit a status column.
   file ran as one batch: 24 result sets on `lme_analytics`; on `lme` under our login it stops at Part 4
   as it says. A clean install from tracked files only (`npm ci --omit=dev`, 87/87 tests, a live dry
   run of 159 loads) was run from a scratch folder.
+- 2026-09-24 — Owner correction: LME is Silvicom's own McLeod database, and Alex helps maintain it.
+  The documents for him describe rather than instruct (#1003, and this change). `INSTALL-ON-VM.md`
+  becomes `CONNECTOR-ON-THE-VM.md`: requirements and runtime facts, Linux expected, the VM set up as
+  Alex chooses, with a systemd unit given for reference only.
