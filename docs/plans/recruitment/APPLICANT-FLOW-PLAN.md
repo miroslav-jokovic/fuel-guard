@@ -476,3 +476,23 @@ Append a dated line per step. Never edit §4.
     three keys this function set, which reintroduces a second writer. AF3 must make those keys
     server-owned on the draft save path, for example by re-applying them from `drivers` inside
     the save, or by stripping them from the client payload and merging instead of replacing.
+- **2026-09-24** — **AF3 DONE** (#1013, merge `f56163e`). Identity screen between the consent and
+  the first permission. `POST /:token/identity` (fill-only), `identityComplete` on `GET /:token`,
+  `recordRelease` refuses `identity_missing`. The office corrects from the `authorizations` drawer
+  (`POST /applications/:invitationId/identity`, overwrite, audited without values). The form
+  shows the three read-only. 13 of 13 mutants killed. Where the build refines §4's text:
+  · **`identityComplete` needs the ROW and the DRAFT**, not "the draft keys". Draft-only passes a
+    pre-AF3 applicant whose row is empty, so PSP still cannot be ordered. Row-only passes a rehire
+    whose draft is empty, so the form shows blank read-only fields. Tests pin both.
+  · **AF2's autosave hole is closed in TypeScript.** `saveDraft` AND `submitApplication` lay the
+    row's non-null identity over the client payload (`identityOnRecord`), so a stale tab can
+    neither save nor file an old licence. Null columns are left alone, so a pre-AF3 applicant's
+    typed licence still files through 0231. **One gap is left open on purpose:** a correction
+    landing between one save's read and its write is picked up by the next autosave, not by that
+    save. Closing it outright means moving the overlay into `save_application_draft` (a migration
+    on the function the whole form uses). Recommendation: leave it unless a real mismatch is
+    ever seen, because the submit-time overlay already guarantees the FILED document is right.
+  · Captures needed no change: `cdl_front/cdl_back` were already admitted from consent onward.
+    AF4's gate on `medical_card`/`ssn_card` is still owed.
+  · ⚠ **Migration numbers keep moving:** the other chat has taken 0366 and 0367 today, so AF5's
+    migration is **0368 or later**. Re-check at branch time.
