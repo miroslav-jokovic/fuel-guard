@@ -1,4 +1,5 @@
 import { APPLY_FLOW_COPY } from "./strings.flow";
+import { APPLY_IDENTITY_COPY } from "./strings.identity";
 import {
   APPLICATION_SECTION_LABELS,
   CMV_WINDOW_YEARS,
@@ -424,4 +425,5 @@ export const APPLY_COPY = {
    * One object so `strings.test.ts` can walk all of it; see `strings.flow.ts` for the seam.
    */
   ...APPLY_FLOW_COPY,
+  ...APPLY_IDENTITY_COPY,
 } as const;

@@ -23,7 +23,14 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * imply the driver has forgotten something.
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
+/**
+ * The carrier's name once the licence is on file (AF3, D-AF8), else null. The number and the state
+ * are then shown and not editable: PSP was ordered against them, and one writer — the identity step,
+ * or the office's correction — is what keeps the filed application naming that same licence.
+ */
+defineProps<{ lockedBy?: string | null }>();
 const copy = APPLY_COPY.licence;
+const lockedHint = APPLY_COPY.identityStep.lockedHint;
 
 /**
  * The issuing state, from the one catalogue (D-AX5).
@@ -41,11 +48,11 @@ const JURISDICTIONS = jurisdictionOptions();
     <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
-      <ApplyField v-slot="f" :path="['cdl_number']" :label="copy.number">
-        <BaseInput v-bind="f" v-model="draft.cdl_number" />
+      <ApplyField v-slot="f" :path="['cdl_number']" :label="copy.number" :hint="lockedBy ? lockedHint(lockedBy) : undefined">
+        <BaseInput v-bind="f" v-model="draft.cdl_number" :disabled="Boolean(lockedBy)" />
       </ApplyField>
-      <ApplyField v-slot="f" :path="['cdl_state']" :label="copy.state" :hint="copy.stateHint">
-        <ComboSelect v-bind="f" v-model="draft.cdl_state" :options="JURISDICTIONS" />
+      <ApplyField v-slot="f" :path="['cdl_state']" :label="copy.state" :hint="lockedBy ? lockedHint(lockedBy) : copy.stateHint">
+        <ComboSelect v-bind="f" v-model="draft.cdl_state" :options="JURISDICTIONS" :disabled="Boolean(lockedBy)" />
       </ApplyField>
       <ApplyField v-slot="f" :path="['cdl_class']" :label="copy.class" :hint="copy.optional">
         <BaseInput v-bind="f" v-model="draft.cdl_class" maxlength="10" />

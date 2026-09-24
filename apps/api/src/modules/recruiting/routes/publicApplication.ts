@@ -1,10 +1,12 @@
 import { Router } from "express";
 import {
+  applicantIdentitySchema,
   applicationDraftSaveSchema,
   applicationDraftUnlockSchema,
   applicationPacketMarkSchema,
   applicationReleaseSchema,
   applicationSubmitSchema,
+  type ApplicantIdentity,
   type ApplicationDraftSave,
   type ApplicationDraftUnlock,
   type ApplicationPacketMark,
@@ -25,6 +27,7 @@ import { isIntakeError, phasesOf, resolveInvitation } from "../applicationIntake
 import { submitApplication } from "../applicationSubmit.js";
 import { recordRelease, releasesForApplicant, signedReleases } from "../applicationReleases.js";
 import { adoptedPacketMarks, packetStops, recordPacketMark } from "../applicationPacketMarks.js";
+import { identityOnFile, recordApplicantIdentity } from "../applicantIdentity.js";
 
 /**
  * The public application surface — H5, and the only unauthenticated write path in the product that
@@ -107,6 +110,11 @@ export function publicApplicationRouter(): Router {
       // ⚠ What this link has already adopted, so a RESUMED walk does not ask the driver to retype a
       // mark the server has pinned and then refuse them at the next stop (Q-PKT9).
       const packetAdopted = await adoptedPacketMarks(admin, invitation.org_id, invitation.id);
+      // AF3/D-AF1: whether the identity screen still stands between them and the permissions. A
+      // boolean and never the values — D-APP16 keeps a date of birth off the bare link.
+      const identityComplete = await identityOnFile(
+        admin, invitation.org_id, invitation.id, invitation.driver_id,
+      );
 
       res.json({
         // The carrier's name and nothing else about them. An application link is not a directory.
@@ -132,6 +140,7 @@ export function publicApplicationRouter(): Router {
         // Null on both until the first mark lands, which is every application nobody has started
         // signing — the ordinary case.
         packetAdopted,
+        identityComplete,
       });
     }),
   );
@@ -293,6 +302,35 @@ export function publicApplicationRouter(): Router {
     }),
   );
 
+  /**
+   * The applicant's date of birth and licence, with the permissions (AF3, D-AF1).
+   *
+   * Fill-only: a value the carrier already holds is kept, and the answer names which — never what.
+   */
+  router.post(
+    "/:token/identity",
+    validateBody(applicantIdentitySchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await recordApplicantIdentity(
+        admin, String(req.params.token ?? ""), res.locals.body as ApplicantIdentity, new Date(),
+      );
+      if ("code" in result) {
+        const status =
+          result.code === "invalid_link"
+            ? 404
+            : result.code === "invalid_request"
+              ? 400
+              : result.code === "already_submitted" || result.code === "esign_consent_required"
+                ? 409
+                : 500;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json({ ok: true, keptExisting: result.keptExisting });
+    }),
+  );
+
   /** One instrument, one call — FCRA §604(b)(2)'s "solely the disclosure", expressed in transport. */
   router.post(
     "/:token/release",
@@ -311,6 +349,8 @@ export function publicApplicationRouter(): Router {
                 || result.code === "releases_complete"
                 || result.code === "release_already_signed"
                 || result.code === "esign_consent_required"
+                // AF3: identity first. A 409 like its neighbours — the link is good, a screen was skipped.
+                || result.code === "identity_missing"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));

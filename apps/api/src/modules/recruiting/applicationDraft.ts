@@ -14,6 +14,7 @@ import {
   type IntakeError,
 } from "./applicationIntake.js";
 import { loadCarrierWording } from "./carrierWording.js";
+import { identityOnRecord } from "./applicantIdentity.js";
 
 /**
  * The applicant's saved draft (A2) — the other half of what 0225 started.
@@ -143,11 +144,18 @@ export async function saveDraft(
     return { code: "draft_too_large", message: "That is more than this form can hold. Nothing was saved." };
   }
 
+  // ⚠ The identity on `drivers` wins over whatever this tab sent (D-AF8) — see `identityOnRecord`
+  // for why a wholesale replace would otherwise make every stale tab a second identity writer.
+  const payload = {
+    ...body.payload,
+    ...(await identityOnRecord(admin, invitation.org_id, invitation.driver_id)),
+  };
+
   const { data, error } = await admin.rpc("save_application_draft", {
     p_org: invitation.org_id,
     p_invitation: invitation.id,
     p_driver: invitation.driver_id,
-    p_payload: body.payload,
+    p_payload: payload,
     p_section: body.section ?? null,
   });
   if (error) return { code: "draft_save_failed", message: error.message };

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, toRef } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import type { ApplicationCaptureView } from "@silvicom/shared";
+import type { ApplicationCaptureSlot, ApplicationCaptureView } from "@silvicom/shared";
 import { useApplicationCaptures } from "@/features/apply/capture/useApplicationCaptures";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -19,16 +19,26 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * over the whole hiring process. A driver whose camera will not open must still be able to certify
  * and send, or the carrier loses the candidate over a picture a recruiter can ask for by email.
  */
-const props = defineProps<{ token: string; captures: ApplicationCaptureView[] }>();
+const props = defineProps<{
+  token: string;
+  captures: ApplicationCaptureView[];
+  /**
+   * Just these slots, with the caller saying what they are for (AF3: the licence's two sides, on
+   * the identity step). The screen's own introduction is about the whole set, so it is left out.
+   */
+  only?: readonly ApplicationCaptureSlot[];
+}>();
 
 const copy = APPLY_COPY.documents;
-const captures = useApplicationCaptures(toRef(props, "token"), toRef(props, "captures"));
+const captures = useApplicationCaptures(toRef(props, "token"), toRef(props, "captures"), {
+  ...(props.only ? { only: props.only } : {}),
+});
 const anyBusy = computed(() => captures.busy.value !== null);
 </script>
 
 <template>
   <div class="space-y-4">
-    <div>
+    <div v-if="!only">
       <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
       <p class="mt-1 text-sm text-ink-muted">{{ copy.optional }}</p>
     </div>

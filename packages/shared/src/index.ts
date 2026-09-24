@@ -111,6 +111,7 @@ export * from "./applicationContract.js";
 export * from "./applicationRules.js";
 export * from "./applicantPipeline.js";
 export * from "./applicationIntake.js";
+export * from "./applicantIdentity.js";
 export * from "./sevenDayStatement.js";
 export * from "./applicationCaptureContract.js";
 export * from "./applicationSections.js";

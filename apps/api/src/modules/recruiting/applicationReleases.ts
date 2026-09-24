@@ -14,6 +14,7 @@ import {
   type IntakeError,
   type SubmitContext,
 } from "./applicationIntake.js";
+import { IDENTITY_MISSING, identityOnFile } from "./applicantIdentity.js";
 
 /**
  * The five authorizations an applicant signs before the form (A5, D-APP4).
@@ -100,6 +101,13 @@ export async function recordRelease(
   // This path's own phase (D-APP1). The transaction checks it again under a lock; this is the cheap
   // refusal that keeps a finished ceremony from reaching the database at all.
   if (invitation.releases_completed_at) return RELEASES_COMPLETE;
+  // D-AF1 (AF3): identity comes with the permissions, because PSP, the MVR and the Clearinghouse
+  // query all run on it before the application exists — and PSP is ordered on the strength of
+  // exactly these signatures. A full set of permissions for somebody the office still cannot
+  // screen would be a finished step that finishes nothing.
+  if (!(await identityOnFile(admin, invitation.org_id, invitation.id, invitation.driver_id))) {
+    return IDENTITY_MISSING;
+  }
 
   const doc = wording.disclosures[body.purpose];
   if (isDraftDisclosure(doc.version)) {
