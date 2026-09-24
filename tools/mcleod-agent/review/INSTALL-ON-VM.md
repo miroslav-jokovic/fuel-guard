@@ -7,7 +7,7 @@ do it with you on a call. Nothing gets scheduled until you've OK'd the letter an
 ## 1. What the VM needs
 
 - Windows Server 2019 or later, or any current Linux. 2 vCPU, 4 GB RAM and 20 GB disk is plenty.
-- Node.js 22 LTS from nodejs.org. That's the only thing we install besides our own folder.
+- Node.js 22 or newer (LTS) from nodejs.org. That's the only thing we install besides our own folder.
 - Network:
   - LME at 10.0.1.171, port 1433.
   - HTTPS (443) out to `fleetguardapi-production.up.railway.app`.
@@ -18,7 +18,7 @@ do it with you on a call. Nothing gets scheduled until you've OK'd the letter an
 
 Run these in PowerShell as an administrator.
 
-1. Install Node.js 22 LTS. Check it with `node --version`, which should print v22 or later.
+1. Install Node.js 22 or newer (LTS). Check it with `node --version`, which should print v22 or later.
 
 2. Unzip the folder we send you to `C:\Silvicom\connector`. Then install its one dependency (the
    Microsoft SQL driver for Node), pinned to the exact version we tested:
@@ -51,17 +51,27 @@ Run these in PowerShell as an administrator.
    You should see about 160 loads. In SSMS you'll see the session as program_name
    "Silvicom 360 connector" while it runs.
 
-5. Register it as a background task that starts with the VM and restarts itself if it stops:
+5. Register it as a background task that starts with the VM and restarts itself if it stops.
+   The task runs node.exe directly, so stopping the task really stops the connector. The
+   connector writes its own log file, set by CONNECTOR_LOG.
 
    ```powershell
-   $action   = New-ScheduledTaskAction -Execute "cmd.exe" `
-                 -Argument '/c node --env-file=connector.env agent.mjs --service >> connector.log 2>&1' `
+   $node     = (Get-Command node).Source
+   $action   = New-ScheduledTaskAction -Execute $node `
+                 -Argument "--env-file=connector.env agent.mjs --service" `
                  -WorkingDirectory "C:\Silvicom\connector"
    $trigger  = New-ScheduledTaskTrigger -AtStartup
    $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
-                 -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+                 -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew `
+                 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
    Register-ScheduledTask -TaskName "Silvicom 360 connector" -Action $action -Trigger $trigger `
                  -Settings $settings -User "SYSTEM" -RunLevel Highest
+   ```
+
+   Then add this line to `connector.env`, so the log lands in the connector's folder:
+
+   ```
+   CONNECTOR_LOG=C:\Silvicom\connector\connector.log
    ```
 
    **Please don't start it yet.** Registering the task is fine, but it should only start after the
@@ -70,10 +80,13 @@ Run these in PowerShell as an administrator.
 
 ## 2b. Install (Linux)
 
-1. Install Node 22.
-2. Put the folder in `/opt/silvicom/connector` and run `npm ci --omit=dev` there.
-3. Create `connector.env` as in step 3 above, then run `chmod 600 connector.env`.
-4. Add this unit as `/etc/systemd/system/silvicom-connector.service`:
+1. Install Node 22 or newer.
+2. Create a service user: `useradd --system --home /opt/silvicom silvicom`.
+3. Put the folder in `/opt/silvicom/connector`, run `npm ci --omit=dev` there, then
+   `chown -R silvicom /opt/silvicom/connector`.
+4. Create `connector.env` as in step 3 above, then run `chmod 600 connector.env`.
+5. Add this unit as `/etc/systemd/system/silvicom-connector.service`. Adjust the node path if
+   `which node` says otherwise. On Linux, systemd keeps the log, so CONNECTOR_LOG isn't needed.
 
    ```ini
    [Unit]
@@ -91,7 +104,7 @@ Run these in PowerShell as an administrator.
    WantedBy=multi-user.target
    ```
 
-5. Run `systemctl daemon-reload`. As on Windows, don't enable it yet.
+6. Run `systemctl daemon-reload`. As on Windows, don't enable it yet.
 
 
 ## 3. Starting, stopping, logs
@@ -102,14 +115,17 @@ Run these in PowerShell as an administrator.
 | stop | `Stop-ScheduledTask "Silvicom 360 connector"` | `systemctl stop silvicom-connector` |
 | log | `C:\Silvicom\connector\connector.log` | `journalctl -u silvicom-connector` |
 
-You can always stop us from SQL Server's side too: `KILL` the session whose program_name is
-"Silvicom 360 connector", or disable the login. The connector backs off, retries later, and never
-opens more than one connection.
+You can also stop us from SQL Server's side. If you `KILL` the session whose program_name is
+"Silvicom 360 connector", the connector reconnects on its next run, a minute later at most. To
+stop us for good, stop the task, or disable the login. The connector never opens more than one
+connection. If LME is busy (three lock timeouts or timeouts in a row), it pauses for 15 minutes
+on its own.
 
 Only one copy can run at a time. A second copy sees the first one's lock file and refuses to start.
 
-The log grows by one line per feed run, about 150 KB a day. It holds counts and times, never
-driver details.
+The log gets a few lines per feed run, about 300 KB a day. When it passes 20 MB it rolls over to
+`connector.log.1`. It holds counts, times and McLeod ids (movement numbers, driver codes and unit
+numbers), never addresses, licence numbers or other personal details.
 
 
 ## 4. Go-live check, together
