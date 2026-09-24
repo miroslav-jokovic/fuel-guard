@@ -2257,6 +2257,19 @@ async function main() {
         `values ('${org}', 'TMS', 'rls-mv') returning org_id, company_id, movement_id) ` +
         `insert into mcleod_dispatch_stops (org_id, company_id, stop_id, movement_id) ` +
         `select org_id, company_id, 'rls-st', movement_id from m`,
+      // 0370: a dispatch's outcome is constrained across columns — an SMS may read `sent` only with a
+      // recipient and the provider's receipt, anything else only with a reason — and its guard insists
+      // the load and the driver are the row's own org. The synthesiser fills every column and invents
+      // parents that belong to nobody, so it trips both. Handed today's real row instead (not sent,
+      // because SMS is not configured) with real parents, rather than loosening the check that makes
+      // "sent" impossible to write falsely.
+      load_dispatches: (org) =>
+        `with l as (insert into loads (org_id, ref, status, source, provider, external_id) ` +
+        `           values ('${org}', 'RLS-D', 'in_transit', 'tms', 'mcleod', 'RLS-D') returning id), ` +
+        `     d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Dispatched') returning id), ` +
+        `     u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-dispatch@example.com') returning id) ` +
+        `insert into load_dispatches (org_id, load_id, driver_id, sent_by, channel, outcome, outcome_reason, body) ` +
+        `select '${org}', l.id, d.id, u.id, 'sms', 'not_sent', 'sms_not_configured', 'RLS load' from l, d, u`,
       samsara_ifta_jurisdiction_miles: (org) =>
         `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ifta', 240) returning id) ` +
         `insert into samsara_ifta_jurisdiction_miles ` +

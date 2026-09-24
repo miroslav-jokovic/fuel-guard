@@ -519,3 +519,19 @@ Append a dated line per merge. Never edit a status column.
   and "P, nothing done → approved" occurs 0 times today; (2) 26 of the 47 `A` movements already carry
   a driver and a truck (no dispatcher) — "planned", not "uncovered". Both still read "not sent", which
   is what D-LMR5 needs. Ten mutants, each failing by name.
+- 2026-09-24 — **LR-D1 built** (migration 0370 — 0369 went to the applicant flow's #1020, which
+  therefore merges first; `load-dispatches.test.mjs` 27/27, eight mutants each failing by name; a ninth — skipping the DELETE branch — is a no-op, because the UPDATE comparison
+  against a null `new` raises the same LD011). `load_dispatches`: load, driver, `sent_by`, `sent_at`,
+  `channel` (`sms`/`app`), `outcome` (`sent`/`not_sent`/`failed`) + `outcome_reason`, `recipient`,
+  `body` (what the driver was told — the load itself is overwritten by every sync), and
+  `provider_message_id`. **A CHECK makes "sent" unwritable without a recipient and a provider
+  receipt**, so the dark SMS can only ever record `not_sent`. Append-only by trigger (LD011) except
+  `driver_id`, which a roster merge moves: the table is in `DRIVER_REASSIGNMENTS`, and the matrix
+  drives the real list and shows the merge aborting (`on delete restrict`, 23001) without the entry.
+  The guard refuses a load or driver from another org (LD010). RLS on, no policy; `rls.test.mjs`
+  hand-seeds it (167 tables covered). Producer waiver names LR-D2.
+  ⚠ **The driver scopes did NOT move here, on purpose.** `driverLoads.ts` applies 0368's predicate
+  with the service role, so the policy and that reader must change in one merge, and a reader of
+  `load_dispatches` cannot share the merge that creates it (the deploy window). They move in LR-D2,
+  after `information_schema` shows 0370 in production, together with a driver-own-row select policy
+  (the scope's `exists` runs under the driver's RLS, where deny-all would read "never sent").

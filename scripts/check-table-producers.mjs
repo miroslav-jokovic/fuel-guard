@@ -41,6 +41,12 @@ const WAIVERS = new Map([
   // mcleod_dispatch_movements and mcleod_dispatch_stops left it on 2026-09-24 (LOADS-MIRROR-PLAN.md
   // LR3): dispatchMovementIngest.ts writes both behind POST /api/tms/dispatch-movements. Pinned for one
   // merge only, the schema-only LR1 — the same shape as tms_dispatchers above.
+  [
+    "load_dispatches",
+    "LOADS-MIRROR-PLAN.md LR-D1 (0370) ships the table schema-only, because its first reader cannot " +
+      "share the merge that creates it. LR-D2's POST /api/dispatch/loads/:id/dispatch writes it; the " +
+      "entry leaves in that merge, the same shape as tms_dispatchers and the mcleod_dispatch tables.",
+  ],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
