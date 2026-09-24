@@ -19,6 +19,7 @@ import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynce
 import { ingestLoads } from "../tmsLoadIngest.js";
 import { ingestDispatchers } from "../tmsDispatcherIngest.js";
 import { ingestDispatchMovements } from "../dispatchMovementIngest.js";
+import { projectDispatchMovements } from "../dispatchProjection.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.js";
 import { reconcileAbsentFromTms, retireFromTms } from "../rosterRetire.js";
 import { isTmsRosterMaster } from "../rosterMastery.js";
@@ -312,8 +313,13 @@ export function tmsIngestRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const { orgId, provider } = req.tms!;
       const result = await ingestDispatchMovements(admin, orgId, parsed.data.company_id, parsed.data.movements);
+      // LR4: raw → core for exactly the movements just stored. A failure here leaves raw written and
+      // answers 500, so the agent keeps the batch unhashed and sends it again next cycle.
+      const projection = await projectDispatchMovements(
+        admin, orgId, provider, parsed.data.company_id, parsed.data.movements.map((m) => m.movement_id),
+      );
       await touchLastSynced(admin, orgId, provider);
-      res.json({ ok: true, ...result });
+      res.json({ ok: true, ...result, projection });
     }),
   );
 

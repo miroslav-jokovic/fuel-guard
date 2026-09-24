@@ -29,7 +29,7 @@ import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchMovementFacts } from "./movements.mjs";
-import { fetchDispatchLoads, fetchClosedLoads, planLoadPosts, loadHash } from "./loads.mjs";
+import { fetchDispatchLoads, fetchClosedLoads, loadHash } from "./loads.mjs";
 import { holdConnection, releaseConnection, breakerState } from "./connection.mjs";
 import { dueJobs, JOBS } from "./schedule.mjs";
 import { fetchLedgerControl, fetchGlAccounts } from "./ledger.mjs";
@@ -629,15 +629,15 @@ async function runLoads() {
   }
   const d = await postToFuelGuard("/api/tms/dispatchers", { dispatchers: res.dispatchers });
   log(`loads: dispatchers ${JSON.stringify(d?.data ?? d)}`);
-  const out = await postToFuelGuard("/api/tms/loads", { loads: res.loads });
-  log(`loads: ingested ${JSON.stringify(out?.data ?? out)}`);
+  // LR4: the mirror IS the load feed now — the API projects it onto `loads`. `/api/tms/loads` is no
+  // longer posted: two writers of one load would fight over its status every cycle.
   log(`mirror: stored ${JSON.stringify(await postMirror(res.companyId, res.movements))}`);
 }
 
 /**
  * The raw dispatch mirror (LOADS-MIRROR-PLAN.md LR3): every movement read, with every stop, to
- * `/api/tms/dispatch-movements`. Beside `/api/tms/loads`, never instead of it, until LR4's projection
- * reads from the mirror and LR8 retires the old blob. Counts only in the log — Alex's condition.
+ * `/api/tms/dispatch-movements`, which stores it raw and projects it onto `loads` (LR4) — the only
+ * load feed since LR4. Counts only in the log — Alex's condition.
  */
 function describeMirror(movements) {
   const types = {};
@@ -811,7 +811,7 @@ function saveServiceState(state) {
   writeFileSync(CFG.servicePath, JSON.stringify(state, null, 2));
 }
 
-/** The board, posting only loads that changed since they were last posted (and dispatchers likewise). */
+/** The board, storing only movements that changed since they were last stored (and dispatchers likewise). */
 async function serviceLoads(state) {
   const res = await fetchDispatchLoads(CFG.sql, {
     staleDays: CFG.loadsStaleDays,
@@ -828,21 +828,13 @@ async function serviceLoads(state) {
     await postToFuelGuard("/api/tms/dispatchers", { dispatchers: res.dispatchers });
     state.dispatchersHash = dHash;
   }
-  const { changed } = planLoadPosts(res.loads, state.posted);
-  if (changed.length) {
-    const out = await postToFuelGuard("/api/tms/loads", { loads: changed });
-    // The ingest is one statement per table: a 200 means every load in the batch landed.
-    for (const l of changed) state.posted[l.external_id] = loadHash(l);
-    log(`loads: ${res.loads.length} on the board, ${changed.length} changed and posted ${JSON.stringify(out?.data ?? out)}`);
-  } else {
-    log(`loads: ${res.loads.length} on the board, none changed`);
-  }
-
   const mirror = res.movements.filter((m) => state.mirrored[prefix + m.movement_id] !== loadHash(m));
   if (mirror.length) {
     const r = await postMirror(res.companyId, mirror);
     for (const m of mirror) state.mirrored[prefix + m.movement_id] = loadHash(m);
     log(`mirror: ${res.movements.length} movement(s) read, ${mirror.length} changed and stored ${JSON.stringify(r)}`);
+  } else {
+    log(`mirror: ${res.movements.length} movement(s) read, none changed`);
   }
 }
 
@@ -857,10 +849,8 @@ async function serviceClose(state) {
   const left = [...held].filter((id) => !onBoard.has(id) && id.startsWith(prefix));
   if (!left.length) return;
   const res = await closeMovements(left.map((id) => id.slice(prefix.length)));
-  for (const l of res.loads) {
-    if (["D", "V"].includes(String(l.external_status ?? "").trim())) delete state.posted[l.external_id];
-    else state.posted[l.external_id] = loadHash(l);
-  }
+  // `posted` is the pre-LR4 load feed's memory; its entries are still close-read once and then dropped.
+  for (const l of res.loads) delete state.posted[l.external_id];
   for (const m of res.movements) {
     const key = prefix + m.movement_id;
     if (["D", "V"].includes(m.movement_status ?? "")) delete state.mirrored[key];
@@ -882,11 +872,7 @@ async function closeMovements(movementIds) {
     console.log(JSON.stringify({ loads: res.loads }, null, 2));
     return res;
   }
-  if (res.loads.length) {
-    const out = await postToFuelGuard("/api/tms/loads", { loads: res.loads });
-    log(`close: posted ${res.loads.length} ${JSON.stringify(out?.data ?? out)}`);
-  }
-  // McLeod's D or V reaches the mirror too — that is what stamps `closed_at` (LR5).
+  // McLeod's D or V reaches the mirror, which stamps `closed_at` and — projected (LR4) — closes the load.
   if (res.movements.length) {
     log(`close: mirror stored ${JSON.stringify(await postMirror(CFG.sql.companyId, res.movements))}`);
   }

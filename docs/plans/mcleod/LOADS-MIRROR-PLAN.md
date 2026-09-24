@@ -499,3 +499,23 @@ Append a dated line per merge. Never edit a status column.
   Matrix 24/24; eight mutants — six fail by name, and the two on the stops/events scopes cannot fail
   because those policies read `loads` under the driver's RLS (defence in depth, said so in 0368).
   **LR4b waits for `pg_proc` to show this body in production.**
+- 2026-09-24 — **LR4a merged (#1016) and confirmed live**: `pg_proc` shows the 0368 guard, and all
+  three driver-scope policies carry the `released_at` gate.
+- 2026-09-24 — **LR4b built: raw → core.** `projectMcleodMovement` (pure, `@silvicom/shared`) holds
+  every rule — status (D-LMR7), weight and pieces 0 → null (D-LMR8), PU/SO drawn with McLeod's
+  sequence and real stop name, VA/SP kept in raw with a note, McLeod's actuals/ETA/contact in their own
+  columns. `mcleod/dispatchProjection.ts` reads the raw rows BACK (core rebuildable from raw) and
+  resolves codes with the ingest's own resolvers; `loads/mirrorLoads.ts` — the loads module's
+  interface — writes `loads` / `load_stops` / `load_events`, overwriting only McLeod-owned columns
+  (never hazmat, notes, approval or release stamps), clearing only pending stops. Wired into
+  `POST /api/tms/dispatch-movements`. **The agent no longer posts `/api/tms/loads`**: two writers of
+  one load would fight over its status. The route stays until LR6/LR8; since the old feed never ran
+  alongside the mirror in production, LR8's week-long comparison has nothing to compare and becomes
+  "remove the route and `load_external_payloads`".
+  **Measured on today's live board with the real projection:** 164 movements → 47 `A` →
+  pending_approval, 117 `P` → in_transit, 0 refused; drivers unmatched 5 of 143, trucks 0 of 143;
+  weight on 63, null on 101. ⚠ **Two findings for LR7's labels, not the mapping:** (1) every `P` on the
+  board already has its first stop DONE (arrival and departure) — at this carrier `P` means under way,
+  and "P, nothing done → approved" occurs 0 times today; (2) 26 of the 47 `A` movements already carry
+  a driver and a truck (no dispatcher) — "planned", not "uncovered". Both still read "not sent", which
+  is what D-LMR5 needs. Ten mutants, each failing by name.
