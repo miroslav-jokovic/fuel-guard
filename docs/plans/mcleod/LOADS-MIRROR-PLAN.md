@@ -383,3 +383,12 @@ Append a dated line per merge. Never edit a status column.
   fails the sync instead of drawing the fleet in China. **Growth corrected:** measured on lme over
   the 28 days to 2026-09-22 it is **99.3 movements and 209.7 stops per day**, not ~180/~310 (those
   were board-size figures); budgets are 300 and 650 (×3). Producer waivers name LR3.
+- 2026-09-24 — **LR1 merged** (#1005) and **applied in production**, checked from
+  `information_schema`: both tables, 22 and 25 columns, the longitude CHECK, RLS on.
+- 2026-09-24 — **LR2 built** (migration 0366, `loads-mirror-columns.test.mjs` 36/36, five mutants
+  each failing by name). 0365 is the applicant flow's (#1007) and must merge first: `migrate.yml`'s
+  plain `supabase db push` refuses a migration numbered below one already applied.
+  The §4 columns exactly, all nullable with no default. Measured for the name
+  `weight_lbs`: 69 of 69 weighted orders on the open board are `weight_um = 'LB'` — but McLeod's
+  minimum there is **0**, so whether a McLeod zero means "none entered" is a ruling LR4's projection
+  owes, not a default. No reader and no writer in this merge.
