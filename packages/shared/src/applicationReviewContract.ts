@@ -12,7 +12,7 @@ import { z } from "zod";
  * for signing."*
  *
  * ── THE ORDER, AND THE ONE THING THAT DID NOT MOVE (D-AX11) ───────────────────────────────────
- * The four authorizations in `APPLICATION_RELEASE_ORDER` stay at the FRONT. They are what
+ * The authorizations in `APPLICATION_RELEASE_ORDER` (five since D-AF4) stay at the FRONT. They are what
  * `SCREENING_PREREQUISITES` gates PSP, MVR and previous-employer inquiries on — so behind the review
  * they would mean reviewing blind. Only the §391.21(b)(12) certification moves to the end, because a
  * certification of answers the office has since corrected certifies something else.

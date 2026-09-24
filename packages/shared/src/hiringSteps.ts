@@ -247,9 +247,12 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     // `/psp-imports` files one from a report bought on FMCSA's portal (D-HM6).
     evidence: { table: "qualification_records.psp_report", label: "Report" },
   },
-  // ⚠ No prerequisite here, and that is deliberate rather than an omission. §382.701(a)'s full-query
-  // consent is given INSIDE the FMCSA Clearinghouse, not on our screen — `clearinghouse` is
-  // deliberately absent from `APPLICATION_RELEASE_ORDER` (D-REC4), so nothing we hold gates it.
+  // ⚠ No prerequisite here, and that is deliberate rather than an omission. This step is the
+  // pre-employment FULL query (§382.701(a)), and its consent is given INSIDE the FMCSA Clearinghouse,
+  // not on our screen, so nothing we hold gates it. The `clearinghouse` purpose that D-AF4 put in
+  // `APPLICATION_RELEASE_ORDER` on 2026-09-24 is the LIMITED-query consent (§382.703(a)) — the
+  // carrier's standing permission for the annual queries — and requiring it here would gate the full
+  // query on a signature that does not authorise it.
   {
     key: "clearinghouse", ordinal: "7", label: "Clearinghouse query",
     action: "Run the Clearinghouse query",

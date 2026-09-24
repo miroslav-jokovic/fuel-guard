@@ -343,8 +343,18 @@ describe("what each step actually reads", () => {
 
     const all = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z", authorizations: [...ALL_PERMISSIONS] }));
     expect(stateOf(all, "permissions_signed")).toBe("done");
-    // The clearinghouse consent is NOT among them, and adding it changes nothing.
-    expect(APPLICATION_RELEASE_ORDER).not.toContain("clearinghouse");
+  });
+
+  /**
+   * ⚠ D-AF4 (2026-09-24): the Clearinghouse limited-query consent is the fifth permission, so the
+   * four an applicant signed before it — the two production walks the plan's cutover names — no
+   * longer close the step. The office records the fifth on paper; until then this stays open.
+   */
+  it("holds the step open for an applicant who signed only the four from before D-AF4", () => {
+    const four = ["fcra_disclosure", "psp", "previous_employer", "drug_alcohol"].map((p) => auth(p));
+    const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z", authorizations: four }));
+    expect(stateOf(c, "permissions_signed")).toBe("waiting_on_them");
+    expect(APPLICATION_RELEASE_ORDER).toContain("clearinghouse");
   });
 
   /** ⚠ `filling` is not `filled`, however much has been typed. The office has to have received it. */

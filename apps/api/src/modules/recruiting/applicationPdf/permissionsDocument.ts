@@ -7,7 +7,7 @@ import {
   type AuthorizationPurpose,
 } from "@silvicom/shared";
 import {
-  DANGER, INK, caption, field, heading, muted, newDrawing, rule, title,
+  DANGER, INK, caption, field, heading, newDrawing, rule, title,
 } from "../../../lib/pdfDraw.js";
 import { certificate } from "./certificate.js";
 import { consentPage, instrumentPage, type SignedConsent, type SignedInstrument } from "./instrumentPages.js";
@@ -17,7 +17,7 @@ import { stampPages } from "./stamp.js";
 /**
  * ── WHAT THE OFFICE HAS SIGNED FOR, AS A DOCUMENT (B2) ────────────────────────────────────────
  *
- * The four releases and the 15 U.S.C. 7001(c) consent are signed FIRST, before the applicant types a
+ * The five releases and the 15 U.S.C. 7001(c) consent are signed FIRST, before the applicant types a
  * single answer (D-APP5) — and until this they existed only as rows behind a drawer on a screen
  * nobody outside the office can reach. Every screening act the carrier performs rests on one of them:
  * `SCREENING_PREREQUISITES` names the FCRA disclosure as what makes ordering an MVR lawful and the
@@ -37,7 +37,7 @@ import { stampPages } from "./stamp.js";
  *
  * ── AND WHY IT IS BANDED ──────────────────────────────────────────────────────────────────────
  * ⚠ Not "DRAFT": every act on this page is real, dated and signed, and calling it a draft would
- * understate four instruments and a consent. What it is NOT is the application — it is rendered on
+ * understate five instruments and a consent. What it is NOT is the application — it is rendered on
  * demand, nothing hashes it, nothing cites it, and D-AX8 keeps the filed record single. An office
  * that printed this and filed it as the §391.21 application would have the wrong document in the
  * qualification file, and the band is the only thing on a loose photocopy that can say so.
@@ -125,7 +125,7 @@ function sourceDigest(input: PermissionsDocumentInput): string {
 /**
  * The one line per release that answers the office's actual question at a glance.
  *
- * ⚠ It lists `APPLICATION_RELEASE_ORDER` — all four, including the ones NOT signed — because "what
+ * ⚠ It lists `APPLICATION_RELEASE_ORDER` — all five, including the ones NOT signed — because "what
  * has this applicant signed" is half answered by what they have not. A document that printed only
  * the pages it had would read as complete whatever was missing, which is the failure mode a
  * checklist exists to prevent.
@@ -167,16 +167,10 @@ function summary(doc: PDFKit.PDFDocument, input: PermissionsDocumentInput): void
       !live && lapsed ? DANGER : INK,
     );
   }
-
-  // The same sentence `AuthorizationsPanel` shows under the same four rows, and for the same reason:
-  // the fifth purpose is consented to inside FMCSA's own portal (D-REC4), so a reader counting four
-  // against five purposes is owed the explanation on the paper as well as on the screen.
-  doc.moveDown(0.3);
-  muted(
-    doc,
-    "The Drug & Alcohol Clearinghouse query consent is not listed: it is given inside the FMCSA "
-    + "portal, not here.",
-  );
+  // ⚠ Until 2026-09-24 a sentence followed these rows saying the Clearinghouse consent "is given
+  // inside the FMCSA portal, not here". D-AF4 made the limited-query consent the fifth release, so it
+  // is a row above now, and the sentence would print a falsehood beside it. `AuthorizationsPanel`
+  // dropped its copy of the sentence in the same change.
 }
 
 /** What `certificate()` draws its page from — the same input shape the filed document uses. */

@@ -1,10 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  AUTHORIZATION_PURPOSE_LABELS,
   DOCUMENT_CONTENT_TYPES,
+  HIRING_RECORDED_ACT_PREREQUISITE,
   hiringEvidenceDetail,
+  missingAuthorizations,
   hiringRecordedActKind,
   isHiringRecordedActStep,
   validateHiringEvidence,
+  type AuthorizationRow,
   type DocumentContentType,
   type HiringEvidenceFiling,
   type HiringEvidenceUpload,
@@ -89,6 +93,36 @@ function resolveStep(
   return { step, kind };
 }
 
+/**
+ * The step's screening prerequisites, or a refusal naming what is missing (AF1, §391.23(a)(1)).
+ *
+ * ⚠ Read exactly as `pspOrder.ts` reads them — the same four columns, org- AND driver-filtered —
+ * and judged by the same `missingAuthorizations` fold, so "may this be recorded" and "may PSP be
+ * ordered" can never be answered from two different readings of one person's signatures.
+ */
+async function prerequisiteRefusal(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  step: HiringRecordedActStep,
+): Promise<HiringEvidenceError | null> {
+  const call = HIRING_RECORDED_ACT_PREREQUISITE[step];
+  if (!call) return null;
+  const { data } = await admin
+    .from("driver_authorizations")
+    .select("id, purpose, accepted_at, revokes")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId);
+  const missing = missingAuthorizations((data ?? []) as AuthorizationRow[], call);
+  if (missing.length === 0) return null;
+  return {
+    code: "authorization_missing",
+    message: `This can't be recorded until the applicant has signed: ${missing
+      .map((p) => AUTHORIZATION_PURPOSE_LABELS[p])
+      .join(", ")}.`,
+  };
+}
+
 /** The driver must be this org's before anything else is believed about them. */
 async function driverInOrg(
   admin: SupabaseClient,
@@ -128,6 +162,8 @@ export async function registerHiringEvidenceDocument(
   if (!(await driverInOrg(admin, orgId, driverId))) {
     return { code: "not_found", message: "That applicant is not in this organization." };
   }
+  const unauthorized = await prerequisiteRefusal(admin, orgId, driverId, resolved.step);
+  if (unauthorized) return unauthorized;
 
   const registered = await registerDocument(admin, orgId, userId, {
     id: body.document_id,
@@ -173,6 +209,8 @@ export async function fileHiringEvidence(
   if (!(await driverInOrg(admin, orgId, driverId))) {
     return { code: "not_found", message: "That applicant is not in this organization." };
   }
+  const unauthorized = await prerequisiteRefusal(admin, orgId, driverId, resolved.step);
+  if (unauthorized) return unauthorized;
 
   const documentId = body.document_id ?? null;
   if (documentId) {

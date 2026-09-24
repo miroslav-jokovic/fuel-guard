@@ -4,7 +4,7 @@
  * ── WHY THIS IS A SECOND FILE AND NOT A SECOND OPINION ────────────────────────────────────────
  * Split out of `strings.ts` on 2026-09-11 when that file reached the 500-line budget, and along the
  * one seam this copy actually has: everything left there is a QUESTION the form asks, and everything
- * here is the CEREMONY around it — consenting, signing the four authorizations, handing the
+ * here is the CEREMONY around it — consenting, signing the five authorizations, handing the
  * application to the office, coming back to certify it, and every screen that is not a form at all.
  *
  * ⚠ It is spread into `APPLY_COPY` and reached through that, never imported directly by a component.

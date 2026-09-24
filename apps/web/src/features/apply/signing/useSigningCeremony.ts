@@ -6,15 +6,15 @@ import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapt
 /**
  * The ceremony (A5, D-APP7).
  *
- * ── WHY THE SIGNATURE IS ADOPTED ONCE AND AFFIRMED FOUR TIMES ─────────────────────────────────
- * ESIGN's intent-to-sign attaches to *a record*. One "sign all" control across four separate
+ * ── WHY THE SIGNATURE IS ADOPTED ONCE AND AFFIRMED FIVE TIMES ─────────────────────────────────
+ * ESIGN's intent-to-sign attaches to *a record*. One "sign all" control across five separate
  * FCRA-governed instruments is exactly the omnibus consent §604(b)(2) forbids on paper, expressed in
  * a database — and courts read that section's "solely" literally. So each instrument gets its own
  * screen, its own served text, its own intent sentence and its own control.
  *
  * "Easy and fast", which is what the owner asked for, is delivered by the ADOPTION being once: the
  * driver types their name a single time and then each instrument is one tap. It is not delivered by
- * collapsing four documents into one act, because that is the one thing the regulation forbids.
+ * collapsing five documents into one act, because that is the one thing the regulation forbids.
  *
  * ── WHAT IT REFUSES TO DO ─────────────────────────────────────────────────────────────────────
  * Skip. There is no way to reach instrument three without instrument two having landed, because the
@@ -25,7 +25,7 @@ import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapt
  * The drawn mark. It is staged once, at adoption, into A8a's `signature_mark` slot — and if that
  * upload fails, adoption still succeeds and the ceremony carries on. D-APP8 makes the mark
  * decoration: the signature of record is the typed name stored beside the exact disclosure text, and
- * a driver blocked from signing four federally-required authorizations because a PNG would not
+ * a driver blocked from signing five federally-required authorizations because a PNG would not
  * upload would be a product that had confused the ornament for the thing.
  */
 
@@ -68,9 +68,9 @@ export function useSigningCeremony(
    *
    * ⚠ The mark is awaited rather than fired and forgotten, and the failure is swallowed rather than
    * surfaced. Awaited, because the submit transaction promotes whatever is staged AT THAT MOMENT and
-   * a driver who signs four instruments quickly could otherwise certify an application whose mark had
+   * a driver who signs five instruments quickly could otherwise certify an application whose mark had
    * not landed. Swallowed, because it is decoration: a PNG that would not upload must not stand
-   * between a driver and four federally-required signatures.
+   * between a driver and five federally-required signatures.
    */
   async function adopt(): Promise<boolean> {
     if (adoptedName.value.trim().length < 2) return false;

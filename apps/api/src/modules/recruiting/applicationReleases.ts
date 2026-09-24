@@ -16,7 +16,7 @@ import {
 } from "./applicationIntake.js";
 
 /**
- * The four authorizations an applicant signs before the form (A5, D-APP4).
+ * The five authorizations an applicant signs before the form (A5, D-APP4).
  *
  * ── WHY THIS IS ITS OWN MODULE ────────────────────────────────────────────────────────────────
  * Split out of `applicationIntake.ts` on 2026-09-11 when that file reached the 500-line budget, and
@@ -69,7 +69,7 @@ export const RELEASE_ALREADY_SIGNED: IntakeError = {
  * repeated for authorizations. A client-authored disclosure is worth nothing when the file is read.
  *
  * NOT part of the submit transaction, deliberately: FCRA §604(b)(2) makes each instrument its own
- * document, signed on its own, and bundling four of them into one atomic write would model in the
+ * document, signed on its own, and bundling five of them into one atomic write would model in the
  * database exactly the thing the regulation forbids on paper. A half-signed set is a real state that
  * the pipeline already knows how to describe — `applicantProgress` reports which releases are
  * outstanding — rather than an inconsistency to be prevented.
@@ -77,7 +77,7 @@ export const RELEASE_ALREADY_SIGNED: IntakeError = {
  * ⚠ It IS one transaction per SIGNATURE, since A5 (0228). That is not the same thing: the row and
  * the `releases_completed_at` stamp the last one triggers are the same fact written twice, and a
  * signature filed without the stamp would leave the ceremony asking for an instrument already
- * signed. Four documents, four acts, four transactions — and the fourth also closes the phase.
+ * signed. Five documents, five acts, five transactions — and the fifth also closes the phase.
  */
 export async function recordRelease(
   admin: SupabaseClient,

@@ -13,7 +13,7 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * FCRA §604(b)(2) requires the disclosure to be "in a document that consists solely of the
  * disclosure", and courts read `solely` literally — so there is deliberately nothing else on this
  * screen while an instrument is showing: no application fields, no other instrument, no summary of
- * the four. The driver adopts a signature once, and then each document is one tap.
+ * the five. The driver adopts a signature once, and then each document is one tap.
  *
  * The text is the SERVER's, rendered as served. Nothing here paraphrases an instrument, and there is
  * no control that could sign more than one.
