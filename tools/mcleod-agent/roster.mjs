@@ -24,6 +24,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { rosterQueries, retirementQueries } from "./queries.mjs";
+import { withPool } from "./connection.mjs";
 
 /** Trim + empty-to-null. `char(n)` columns arrive space-padded even after a SQL-side RTRIM. */
 const s = (v) => {
@@ -287,63 +288,6 @@ export async function fetchRoster({
       return out;
     },
   );
-}
-
-/**
- * Open a read-only pool, run `fn`, always close.
- *
- * Exported since 2026-08-26 so `movements.mjs` can reuse it. The TLS refusal below is the reason this
- * is shared rather than copied: a second connection helper would be a second place for someone to
- * "fix" an IP-address certificate error by quietly turning encryption off.
- */
-export async function withPool({ server, port, database, user, password, encrypt, trustCert, serverName }, fn) {
-  const mssql = (await import("mssql")).default;
-  const wantEncrypt = encrypt !== false;
-
-  // TLS cannot name an IP address. The carrier's LoadMaster host IS an IP (10.0.1.171), so the default
-  // encrypted connection fails outright with ERR_INVALID_ARG_VALUE from Node's TLS layer.
-  //
-  // The tempting fix is to notice the IP and quietly drop to an unencrypted connection. That is not
-  // done here: silently downgrading transport security because a hostname was inconvenient is how a
-  // credential ends up on the wire in plaintext without anybody deciding it should. Both real fixes are
-  // one line of config, and the operator picks:
-  //   · MCLEOD_SQL_SERVERNAME=<the name on the server's certificate> — keeps TLS, correct answer;
-  //   · MCLEOD_SQL_ENCRYPT=false — no TLS, defensible on a private LAN, but it must be TYPED.
-  const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(String(server)) || String(server).includes(":");
-  if (wantEncrypt && isIpLiteral && !serverName) {
-    throw new Error(
-      `Cannot open an encrypted connection to ${server}: TLS will not accept an IP address as a server name.\n` +
-        `  Either set MCLEOD_SQL_SERVERNAME to the hostname on the SQL Server certificate (keeps encryption),\n` +
-        `  or set MCLEOD_SQL_ENCRYPT=false to connect without TLS (acceptable only on a trusted private network).`,
-    );
-  }
-
-  const pool = await mssql.connect({
-    server,
-    port,
-    database,
-    user,
-    password,
-    options: {
-      encrypt: wantEncrypt,
-      ...(serverName ? { serverName } : {}),
-      trustServerCertificate: trustCert !== false,
-      // Read-only intent is advisory here but correct: it lets a DBA route us to a readable secondary
-      // and documents the posture in their connection logs.
-      readOnlyIntent: true,
-      // What the carrier's DBA sees as program_name in sys.dm_exec_sessions. Every McLeod read goes
-      // through this pool — roster, loads and discovery alike — so it names the product, not one feed,
-      // and the review routine tells them to look for exactly this string.
-      appName: "Silvicom 360 connector",
-    },
-    requestTimeout: 120_000,
-    pool: { max: 2, min: 0, idleTimeoutMillis: 30_000 },
-  });
-  try {
-    return await fn(pool, mssql);
-  } finally {
-    await pool.close();
-  }
 }
 
 /**

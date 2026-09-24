@@ -15,7 +15,7 @@
 
 import process from "node:process";
 import { MOVEMENT_FACTS, MOVEMENT_STOPS, MOVEMENT_FACT_COUNTS } from "./queries.mjs";
-import { withPool } from "./roster.mjs";
+import { withPool } from "./connection.mjs";
 
 /**
  * McLeod stop types, mapped onto the neutral vocabulary.

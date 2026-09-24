@@ -8,7 +8,11 @@ the way we promised. It covers how the connector is built, exactly what it reads
 what that costs your server (measured on APPNEW, not estimated), what we'll never do, and the few
 things we need from you.
 
-Nothing will be scheduled until you've read this and the attached SQL file and told us it's OK.
+Two files come with this letter:
+- SILVICOM-READ-ROUTINE.sql: every statement the connector runs, word for word (24 of them).
+- INSTALL-ON-VM.md: the install steps for the Board VM.
+
+Nothing will be scheduled until you've read this and the SQL file and told us it's OK.
 
 
 1. HOW IT FITS TOGETHER
@@ -32,44 +36,47 @@ Nothing will be scheduled until you've read this and the attached SQL file and t
   plenty; the connector itself uses well under 100 MB of memory.
 - Node.js 22 LTS. The connector has one dependency, the Microsoft SQL driver for Node (mssql).
   Nothing else gets installed.
-- Network: it needs to reach 10.0.1.171 on port 1433, and HTTPS (port 443) out to one address on
-  our side. I'll send the exact hostname with the install notes.
-- It runs as one background service that starts with the VM. We'll give you the install steps,
-  and you or we can stop it at any time by stopping that service.
+- Network: it needs to reach 10.0.1.171 on port 1433, and HTTPS (port 443) out to
+  fleetguardapi-production.up.railway.app.
+- It runs as one background task that starts with the VM (Task Scheduler on Windows, systemd on
+  Linux). You or we can stop it at any time. Only one copy can run; a second one refuses to start.
 - The LME password and our upload token are stored in a config file on the VM, readable only by
   the service account. Neither is in our source code.
 
 
 3. WHAT IT READS, AND HOW OFTEN
 
-Everything is a plain SELECT. The attached SILVICOM-READ-ROUTINE.sql has every statement, word
-for word, so you can open it in SSMS and run it yourself. You'll get back exactly the rows we get.
+Everything is a plain SELECT. SILVICOM-READ-ROUTINE.sql has every statement, word for word, in
+five parts that match a) to e) below, so you can open it in SSMS and run it yourself. You'll get
+back exactly the rows we get. The file is produced from the connector's code, so it can't drift
+from what actually runs.
 
-  a) Open loads - every 60 seconds.
+  a) Open loads - every minute (statements 1-3).
      Movements with status P or A that have a stop in the last 30 days, with their stops, driver,
      truck, trailer and dispatcher. About 160 loads and 335 stops today.
-     We'd also like to add a few columns from tables you've already granted: stop location name,
+     Soon we'd like to add a few columns from tables you've already granted: stop location name,
      actual arrival/departure, ETA, stop contact, PO number, customer code, weight and pieces.
-     We measured it, and it reads the same pages, so it costs no more.
+     We measured it, and it reads the same pages, so it costs no more. They're not in the attached
+     file yet; you'll get the updated file before we add them.
 
-  b) Closing loads - every 10 minutes.
-     For the loads we still have open on our side, we ask LME for their current status by movement
-     id, so we see when one is delivered (D) or voided (V). That's one short keyed read, about 300
-     ids at most.
+  b) Closing loads - every 10 minutes (statements 4-5).
+     For loads we still have open on our side that have left your open board, we ask LME for their
+     current state by movement id, so we see when one is delivered (D) or voided (V). It's a short
+     keyed read with at most 300 ids per statement, and usually only a handful.
 
-  c) Drivers, trucks and trailers - every 15 minutes.
+  c) Drivers, trucks and trailers - every 15 minutes (statements 6-8).
      Today this runs every 2 minutes from my laptop. That's more often than needed, so we'll slow
      it down when it moves to the VM.
 
-  d) Finance - once a night at 2:00 AM Central, plus one extra pass on the first days of each
-     month to catch late entries.
+  d) Finance - once a night at 2:00 AM Central, plus a wider pass on the first days of each month
+     to catch late entries (statements 9-21).
      Settlements, deductions, AP vouchers, fuel, billing history and GL totals for a rolling 75-day
      window. Today this reads the analytics database, which hasn't been refreshed since
      September 10, so our numbers are two weeks old. Moving it to LME fixes that, but it needs the
      grants in section 6.
 
-  e) By hand only, never on a timer: three "who has left" reads (drivers, trucks and trailers
-     marked inactive), which we run when we clean up our roster.
+  e) By hand only, never on a timer: three "who has left" reads (statements 22-24: drivers,
+     trucks and trailers marked inactive), which we run when we clean up our roster.
 
 
 4. WHAT IT COSTS YOUR SERVER
@@ -79,7 +86,8 @@ Measured on APPNEW with SET STATISTICS TIME/IO, median of three runs, on Septemb
   Open loads (3 statements)       about 32 ms CPU, 5,200 + 3,800 pages, all from memory
   Closing loads (300 ids)         under 16 ms CPU, 1,556 pages
   Roster (3 statements)           under 16 ms CPU, about 500 pages
-  Finance, whole nightly run      about 3.7 seconds CPU
+  Finance, whole nightly run      about 3 seconds CPU (measured on the analytics copy, which
+                                  has the same tables and indexes)
 
   Per day, all together:          about 55 CPU-seconds, out of 3.6 million core-seconds a day on
                                   42 cores = 0.0015%
@@ -88,9 +96,10 @@ Measured on APPNEW with SET STATISTICS TIME/IO, median of three runs, on Septemb
 
 To be straight with you: while measuring for this letter we found one of our finance statements
 was far heavier than it needed to be, over 4 seconds of CPU and 3.3 million page reads. It was
-also slightly wrong: two joins didn't check company_id, so on 128 movements it picked up order
-numbers from the TMS2/TMS3 movement with the same id. We're fixing it before it runs anywhere
-near LME. With the fix it takes 0.27 seconds, and the 3.7 seconds above already includes the fix.
+also slightly wrong: its lookups didn't check company_id, so on 128 movements it picked up order
+numbers from the TMS2/TMS3 movement with the same id. It has only ever run against the analytics
+copy. It's fixed now (statement 15): 0.22 seconds, and every statement we run is checked
+automatically for the same mistake.
 
 
 5. HOW WE STAY OUT OF YOUR DISPATCHERS' WAY
@@ -108,9 +117,10 @@ statement runs with:
   automatic back-off                 three timeouts in a row and the connector pauses for 15
                                      minutes before trying again
 
-One honest note: today's manual reads and the laptop roster sync don't set these yet. They've
-been small enough (under 20 ms) that it hasn't mattered, but the VM connector won't be switched
-on until every statement does, and the attached file shows them exactly as they will run.
+All of this is in the connector's code now, in one place that every statement goes through, with
+automatic checks that stop us from adding a statement that skips it. The laptop roster sync
+already runs this way. We checked it on APPNEW from our own session: lock timeout 5000,
+deadlock priority LOW, isolation READ COMMITTED, program_name "Silvicom 360 connector".
 
 
 6. WHAT WE NEED FROM YOU
@@ -120,7 +130,7 @@ on until every statement does, and the attached file shows them exactly as they 
   b) A few more read grants for the same login (silvicom_dispatch_ro):
      - reference_number: SELECT. That's where the pickup (PU) number lives; it's empty in orders
        and stop.
-     - customer: SELECT on the id, name, city and state columns only. We don't need credit,
+     - customer: SELECT on just the customer's id, name, city and state. We don't need credit,
        billing or contact fields.
      - For the nightly finance run: gl_ledger, gl_ledger_hist, gl_account, billing_history,
        drs_settle_hist, drs_deduct_hist, voucher, voucher_hist, fuel_detail, fuel_detail_hist,
@@ -132,8 +142,8 @@ on until every statement does, and the attached file shows them exactly as they 
 
   c) VIEW CHANGE TRACKING: thanks for granting it. We measured it, and at your size asking
      "what changed" costs your server more than simply reading the ~160 open loads (about 60 ms
-     against 32 ms). So we plan not to use it. You can take it back, or leave it in case the board
-     grows a lot.
+     against 32 ms), so the connector doesn't use it. You can take it back, or leave it in case the
+     board grows a lot.
 
 
 7. QUESTIONS WE COULDN'T ANSWER FROM THE DATA
@@ -142,7 +152,7 @@ on until every statement does, and the attached file shows them exactly as they 
      and a second movement picks it up (SP). VA/VP mostly sit at SAIA terminals on the Viking
      Packing dealer runs, and the arrival time usually equals the previous stop's departure. Does
      the truck physically stop there, or is it a routing point? And what's the difference between
-     VA and VP? Until we know, we keep these stops but don't show them to drivers as deliveries.
+     VA and VP? Until we know, we leave these stops out rather than guess.
 
   2. Movement status: are we right that A means available/not covered yet and P means dispatched,
      with D delivered and V void?
@@ -155,7 +165,7 @@ on until every statement does, and the attached file shows them exactly as they 
      We'd lean to (a) or (b), but it's your call.
 
   4. Dispatcher fleets: tractor.fleet_id matched the load's dispatcher on 95 of 97 dispatched
-     loads we checked, so we plan to use it. Is it kept up to date when a truck moves to another
+     loads we checked, so we'd like to use it. Is it kept up to date when a truck moves to another
      dispatcher? And for the loads under "loadmaster" (17 when we checked): are those created
      automatically, for example by EDI?
 
@@ -163,9 +173,9 @@ on until every statement does, and the attached file shows them exactly as they 
 8. WHAT HAPPENS NEXT
 
   1. You look over this letter and the SQL file, and tell us what to change or remove.
-  2. We finish the connector changes above, and send you the final SQL file if anything moved.
-  3. We install on the VM together, run each part once by hand, and compare the results to what
-     we see today.
+  2. You set up the VM and the grants in section 6.
+  3. We install on the VM together (INSTALL-ON-VM.md), run each part once by hand, and compare
+     the results with your board.
   4. Only then do we turn the schedule on, and switch off the laptop sync and the analytics login.
 
 If you want any statement changed, limited differently or removed, just tell me and we'll change

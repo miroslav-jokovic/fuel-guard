@@ -369,3 +369,7 @@ Append a dated line per merge. Never edit a status column.
 - 2026-09-24 — corrected by the collector audit: raw tables renamed `mcleod_dispatch_*` (the
   name `mcleod_movements` is the finance sweep's, 0267); LR5 uses one typed parameter per id
   (compatibility level 110, no `STRING_SPLIT`); the change detector is proposed dropped (Q-CA1).
+- 2026-09-24 — **LR5's agent half is built** (COLLECTOR-AUDIT CA4): `closeReadQueries` +
+  `fetchClosedLoads`, run every 10 minutes by `--service` for loads that left the board, and
+  `--close --ids-file` for the one-off backlog. A `V` posts as `canceled: true`; a `D` travels as
+  `external_status` until LR4 projects status. Dry run on production's backlog: 181 → 178 D, 3 V.

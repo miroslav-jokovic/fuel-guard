@@ -1,10 +1,16 @@
 # The read routine, for the carrier's review
 
-> **2026-09-24: the letter to send is now [`LETTER-TO-ALEX.md`](LETTER-TO-ALEX.md)**, in the owner's
-> voice, covering the VM architecture, every feed including finance, the measured cost and the grant
-> request. It supersedes the letter in this SQL file's header. ⚠ **Do not send it until CA1–CA5 of
-> `docs/plans/mcleod/COLLECTOR-AUDIT-2026-09-24.md` have landed** — it promises the session settings,
-> the finance fix and a SQL file that holds every statement, and today's file does not yet.
+> **2026-09-24 — what to send Alex:** [`LETTER-TO-ALEX.md`](LETTER-TO-ALEX.md) (the letter, in the
+> owner's voice), `SILVICOM-READ-ROUTINE.sql` (24 statements, **built from the code** by
+> `build-routine.mjs` — never edit it by hand; `npm run routine` rebuilds it and `review.test.mjs`
+> fails CI if it is stale) and [`INSTALL-ON-VM.md`](INSTALL-ON-VM.md). CA1–CA5 of
+> `docs/plans/mcleod/COLLECTOR-AUDIT-2026-09-24.md` have landed, so every promise in the letter is
+> true of the code. The historical notes below describe the hand-written file it replaced.
+>
+> **The zip for the VM is built from TRACKED files only**, so no `.env`, state file or password can
+> ride along: `git archive --format=zip -o silvicom-connector.zip HEAD:tools/mcleod-agent` (then
+> check it with `unzip -l`). Never zip the working folder — it holds `.env` (the LME password and the
+> ingest token), `.env.sandbox` and `roster-state.json` (the carrier's driver codes).
 
 `SILVICOM-READ-ROUTINE.sql` is the complete set of statements this integration runs against `lme`
 with the `silvicom_dispatch_ro` login: the loads feed (1–4), the roster sync (5–7) and the by-hand

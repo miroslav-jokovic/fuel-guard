@@ -13,7 +13,7 @@
 
 import process from "node:process";
 import { FUEL_PURCHASES, FUEL_LEDGER_LINES, AP_VOUCHERS } from "./queries.mjs";
-import { withPool } from "./roster.mjs";
+import { withPool } from "./connection.mjs";
 
 const num = (v) => (v == null ? 0 : Number(v));
 

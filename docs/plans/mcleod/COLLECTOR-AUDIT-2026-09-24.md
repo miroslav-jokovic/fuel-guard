@@ -1,6 +1,6 @@
 # McLeod collector — safety and load audit, 2026-09-24
 
-**Status: AUDITED; fixes CA1–CA7 not built.** Every statement the agent can send to McLeod was
+**Status: CA1–CA5 BUILT 2026-09-24 (CA4 as the hash + close read); CA6 (send) and CA7 (VM cut-over) are the owner's and the carrier's.** Every statement the agent can send to McLeod was
 inventoried from the code and **executed against the server** this session: the dispatch, roster
 and retirement statements on live `lme` through `silvicom_dispatch_ro`, the finance statements on
 `lme_analytics` (the only database the finance login can read — §4.3). Three runs each; `SET
@@ -244,3 +244,41 @@ rule L2 set and this audit keeps.
 3. **Q-CA3 — a separate finance login, or one login for everything?** Recommendation: one login
    (`silvicom_dispatch_ro`); two logins double the
    credentials on the VM without narrowing anything, because both would live in the same process.
+
+---
+
+## 7. Progress log
+
+Append a dated line per merge. Never edit a status column.
+
+- 2026-09-24 — audit written; every statement measured on the server (§2).
+- 2026-09-24 — **Owner rulings:** Q-CA1 yes (no change detection; the letter says so), Q-CA2 roster
+  every 15 minutes, Q-CA3 one login. Given as "fix and update all things … I will send this to Alex
+  today".
+- 2026-09-24 — **CA1–CA5 built, one PR.**
+  CA1: `company_id` on the four `MOVEMENT_FACTS` lookups and the `MOVEMENT_FACT_COUNTS` join; measured
+  through the new connector on `lme_analytics`: **218 ms CPU** (was 3,968–4,268), same 6,115 rows.
+  `queries.test.mjs` now fails any statement naming a table alias without `company_id` — it finds
+  exactly these five and nothing else. ⚠ The 148 multi-order rows already in production
+  `mcleod_movements` are corrected only where the next finance sweep's window reaches them; older
+  ones need one backfill. Nothing reads `order_ids` today.
+  CA2: `connection.mjs` is the only door — session settings before and `OPTION (MAXDOP 1)` on its own
+  line after every statement, `max: 1`, 15 s, a breaker (3 busy signals → 15 min, checked before
+  connecting). **Verified on APPNEW from our own session**: `@@LOCK_TIMEOUT` 5000,
+  `deadlock_priority` −5, isolation 2, program_name "Silvicom 360 connector". `lint:agent-syntax`
+  rules (NOLOCK, compat-110 functions, own hints, a pool outside connection.mjs, untyped `.input`)
+  each proven by a scratch violation.
+  CA3: `--service` — one process, `schedule.mjs` (loads 1 min, close 10, roster 15, finance 02:00
+  Central, DST pinned), single-instance lock. Ran 2 minutes against live `lme` posting to a local
+  stub: 162 loads posted once then "none changed", roster ran, finance waited, a second copy refused,
+  SIGINT released the lock.
+  CA4 (as ruled): per-load hash so unchanged loads are never re-posted; the keyed close read
+  (`closeReadQueries`, one typed parameter per id). **Dry run on the production backlog: 181 loads
+  off the board → McLeod says 178 D, 3 V.** Not posted — that is day one on the VM
+  (`INSTALL-ON-VM.md` §4).
+  CA5: `review/build-routine.mjs` builds `SILVICOM-READ-ROUTINE.sql` (24 statements) from the code;
+  `review.test.mjs` fails if it is one character stale or a statement is missing. All 24 executed
+  through the connector (loads/close/roster/retirement on `lme`, finance on `lme_analytics`).
+  ⚠ **Found on the way: the agent's unit tests had never run in CI** — `lint:agent-syntax` was in
+  neither list, so `review.test.mjs` pinned nothing. Now chained onto `lint:cli-streams`.
+  11 mutations run against the new code, each caught and each restored byte-for-byte.

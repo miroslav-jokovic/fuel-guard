@@ -295,6 +295,15 @@ export function retirementQueries() {
  *    `stop.actual_departure` reaches 2215-03-12 — McLeod writes far-future sentinels for unset dates,
  *    so a high-watermark taken from the data walks past every real row and the sync goes quiet forever.
  */
+/*
+ * ⚠ Every lookup below carries `company_id` (CA1, COLLECTOR-AUDIT-2026-09-24.md §3 F2). Until
+ * 2026-09-24 the `movement_order` and `equipment_item` lookups matched on the id alone, and
+ * `movement.id` repeats across companies (TMS 278,276 · TMS2 19,614 · TMS3 311), so 128 of 6,115
+ * movements in a 75-day window carried another company's order numbers — and, because every index
+ * on both tables LEADS with `company_id`, each lookup was a scan inside a spool: 3,968 ms of CPU and
+ * 3,363,782 page reads, against 266 ms and 156,849 scoped. `queries.test.mjs` now fails any
+ * statement that names a table alias without scoping it by company.
+ */
 export const MOVEMENT_FACTS = `
     SELECT
       LTRIM(RTRIM(m.id))                            AS external_id,
@@ -305,14 +314,16 @@ export const MOVEMENT_FACTS = `
       STUFF((
         SELECT ',' + LTRIM(RTRIM(d.equipment_id))
           FROM dbo.equipment_item AS d
-         WHERE d.equipment_group_id = m.equipment_group_id
+         WHERE d.company_id = m.company_id
+           AND d.equipment_group_id = m.equipment_group_id
            AND d.equipment_type_id = 'D'
          ORDER BY d.type_sequence
          FOR XML PATH('')), 1, 1, '')               AS driver_external_ids,
       STUFF((
         SELECT ',' + LTRIM(RTRIM(mo.order_id))
           FROM dbo.movement_order AS mo
-         WHERE mo.movement_id = m.id
+         WHERE mo.company_id = m.company_id
+           AND mo.movement_id = m.id
          ORDER BY mo.sequence
          FOR XML PATH('')), 1, 1, '')               AS order_ids,
       m.move_distance                               AS loaded_miles,
@@ -323,9 +334,9 @@ export const MOVEMENT_FACTS = `
       CONVERT(varchar(19), m.xfer2settle_date, 126) AS settled_at
       FROM dbo.movement AS m
       LEFT JOIN dbo.equipment_item AS tr
-        ON tr.equipment_group_id = m.equipment_group_id AND tr.equipment_type_id = 'T'
+        ON tr.company_id = m.company_id AND tr.equipment_group_id = m.equipment_group_id AND tr.equipment_type_id = 'T'
       LEFT JOIN dbo.equipment_item AS tl
-        ON tl.equipment_group_id = m.equipment_group_id AND tl.equipment_type_id = 'L'
+        ON tl.company_id = m.company_id AND tl.equipment_group_id = m.equipment_group_id AND tl.equipment_type_id = 'L'
      WHERE m.company_id = @companyId
        -- status travels as external_status (V = voided) rather than filtering here (D-FIN5): a trip
        -- voided after its first sweep must reach the store as voided, not linger as run.
@@ -385,7 +396,7 @@ export const MOVEMENT_FACT_COUNTS = `
       CAST(SUM(ISNULL(m.fuel_distance, 0)) AS decimal(18,1)) AS fuel_miles
       FROM dbo.movement AS m
       LEFT JOIN dbo.equipment_item AS tr
-        ON tr.equipment_group_id = m.equipment_group_id AND tr.equipment_type_id = 'T'
+        ON tr.company_id = m.company_id AND tr.equipment_group_id = m.equipment_group_id AND tr.equipment_type_id = 'T'
      WHERE m.company_id = @companyId
        AND m.status <> 'V'
        AND m.xfer2settle_date >= @windowStart
@@ -934,7 +945,7 @@ export const GL_ACCOUNTS = `
  *  · **`move_distance` is the only usable distance.** `pay_distance` and both manifest columns sum
  *    to exactly zero across the year (D-MC15).
  */
-export const DISPATCH_LOADS = `
+const DISPATCH_LOADS_SELECT = `
     SELECT
       LTRIM(RTRIM(m.company_id)) + ':' + LTRIM(RTRIM(m.id))  AS external_id,
       NULLIF(LTRIM(RTRIM(o.id)), '')                         AS ref,
@@ -968,14 +979,19 @@ export const DISPATCH_LOADS = `
       LEFT JOIN dbo.continuity AS cl
         ON cl.movement_id = m.id AND cl.company_id = m.company_id AND cl.equipment_type_id = 'L'
       LEFT JOIN dbo.trailer AS tr
-        ON tr.id = cl.equipment_id AND tr.company_id = m.company_id
+        ON tr.id = cl.equipment_id AND tr.company_id = m.company_id`;
+
+/** The open board: status P or A, with a stop scheduled inside the staleness bound (D-LM14). */
+const BOARD_WHERE = `
      WHERE m.company_id = @companyId
        AND m.status IN ('P', 'A')
        AND EXISTS (
          SELECT 1 FROM dbo.stop AS sb
           WHERE sb.movement_id = m.id
             AND sb.company_id = m.company_id
-            AND sb.sched_arrive_early >= @staleBefore)
+            AND sb.sched_arrive_early >= @staleBefore)`;
+
+export const DISPATCH_LOADS = `${DISPATCH_LOADS_SELECT}${BOARD_WHERE}
      ORDER BY m.id`;
 
 /**
@@ -990,7 +1006,7 @@ export const DISPATCH_LOADS = `
  * `location_id` travels so the shipper's own code is never lost, even though the stop NAME is
  * currently composed from city and state — see the `name` note in `loads.mjs`.
  */
-export const DISPATCH_LOAD_STOPS = `
+const DISPATCH_LOAD_STOPS_SELECT = `
     SELECT
       LTRIM(RTRIM(s.movement_id))                     AS movement_id,
       s.movement_sequence                             AS seq,
@@ -1007,15 +1023,39 @@ export const DISPATCH_LOAD_STOPS = `
       NULLIF(LTRIM(RTRIM(s.status)), '')              AS stop_status
       FROM dbo.stop AS s
       JOIN dbo.movement AS m
-        ON m.id = s.movement_id AND m.company_id = s.company_id
-     WHERE s.company_id = @companyId
-       AND m.status IN ('P', 'A')
-       AND EXISTS (
-         SELECT 1 FROM dbo.stop AS sb
-          WHERE sb.movement_id = m.id
-            AND sb.company_id = m.company_id
-            AND sb.sched_arrive_early >= @staleBefore)
+        ON m.id = s.movement_id AND m.company_id = s.company_id`;
+
+export const DISPATCH_LOAD_STOPS = `${DISPATCH_LOAD_STOPS_SELECT}${BOARD_WHERE.replace("m.company_id = @companyId", "s.company_id = @companyId")}
      ORDER BY s.movement_id, s.movement_sequence`;
+
+/** At most this many movement ids per close read — one typed parameter each (§3 F7: no STRING_SPLIT). */
+export const CLOSE_READ_MAX_IDS = 300;
+
+/**
+ * The close read (LR5; Q-GL6 option (a)): the SAME columns as the board, for movements we still hold
+ * open but which have LEFT the board — so a delivered (D) or voided (V) load is stated to us by McLeod,
+ * never inferred from its absence (the reconcile that retired 33 vehicles and 120 drivers did that).
+ *
+ * `lme` runs at compatibility level 110, where `STRING_SPLIT` and `OPENJSON` do not exist, so an id
+ * set is a list of typed `VarChar(32)` parameters — measured 2026-09-24: 300 ids, 3 ms, 1,556 pages,
+ * every one a seek on the `(company_id, id)` key. `n` is the number of ids, and the placeholders are
+ * generated, never the values: no id is ever spliced into the text.
+ */
+export function closeReadQueries(n) {
+  if (!Number.isInteger(n) || n < 1 || n > CLOSE_READ_MAX_IDS) {
+    throw new Error(`closeReadQueries: n must be 1..${CLOSE_READ_MAX_IDS}, got ${n}`);
+  }
+  const ids = Array.from({ length: n }, (_, i) => `@id${i}`).join(", ");
+  const where = `
+     WHERE m.company_id = @companyId
+       AND m.id IN (${ids})`;
+  return {
+    loads: `${DISPATCH_LOADS_SELECT}${where}
+     ORDER BY m.id`,
+    stops: `${DISPATCH_LOAD_STOPS_SELECT}${where.replace("m.company_id = @companyId", "s.company_id = @companyId")}
+     ORDER BY s.movement_id, s.movement_sequence`,
+  };
+}
 
 /**
  * Every dispatcher who owns a load on the current board, so the office can map them to a user.

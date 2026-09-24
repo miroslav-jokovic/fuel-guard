@@ -14,7 +14,7 @@
 
 import process from "node:process";
 import { GL_CONTROL_TOTALS, OFFICE_SETTLEMENT_LINES, GL_ACCOUNTS } from "./queries.mjs";
-import { withPool } from "./roster.mjs";
+import { withPool } from "./connection.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchSettlements } from "./settlements.mjs";
 

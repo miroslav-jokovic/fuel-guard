@@ -12,7 +12,7 @@
 
 import process from "node:process";
 import { SETTLEMENTS, SETTLEMENT_LEDGER_LINES, SETTLEMENT_DEDUCTIONS } from "./queries.mjs";
-import { withPool } from "./roster.mjs";
+import { withPool } from "./connection.mjs";
 
 const num = (v) => (v == null ? 0 : Number(v));
 
