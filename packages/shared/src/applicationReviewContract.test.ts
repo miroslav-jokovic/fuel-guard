@@ -20,6 +20,7 @@ const phases = (over: Partial<Parameters<typeof applicationReviewState>[0]> = {}
   applicationSentAt: null,
   reviewRequestedAt: null,
   approvedAt: null,
+  signingOpenedAt: null,
   submittedAt: null,
   ...over,
 });
@@ -47,6 +48,7 @@ describe("where an application has got to", () => {
       applicationSentAt: "2026-09-11T09:00:00Z",
       reviewRequestedAt: "2026-09-11T10:00:00Z",
       approvedAt: "2026-09-11T12:00:00Z",
+      signingOpenedAt: "2026-09-11T12:30:00Z",
       submittedAt: "2026-09-11T13:00:00Z",
     })).toBe("certified");
   });

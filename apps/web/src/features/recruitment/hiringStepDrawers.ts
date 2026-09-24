@@ -90,8 +90,8 @@ export type HiringDrawerBody =
    */
   | "record"
   /**
-   * The 22-place signing ceremony. The driver performs it on their own link; the office has no
-   * view of it at all until C1 builds one.
+   * The packet's signing ceremony. Since AF5 (D-AF3) the office OPENS it here, at the desk, and the
+   * applicant signs on the link that press hands back (`OpenSigningPanel`).
    */
   | "packet"
   /**

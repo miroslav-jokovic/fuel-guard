@@ -39,7 +39,7 @@ export const isChecklistError = (v: unknown): v is ChecklistError =>
 
 /** Just enough of the invitation to answer phases — the token hash is never selected. */
 const INVITE_COLS =
-  "id, created_at, application_sent_at, review_requested_at, approved_at, submitted_at, revoked_at";
+  "id, created_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at";
 
 export async function applicantChecklist(
   admin: SupabaseClient,
@@ -110,6 +110,7 @@ export async function applicantChecklist(
           applicationSentAt: invitation.application_sent_at,
           reviewRequestedAt: invitation.review_requested_at,
           approvedAt: invitation.approved_at,
+          signingOpenedAt: invitation.signing_opened_at,
           submittedAt: invitation.submitted_at,
         }
       : null,
@@ -139,6 +140,8 @@ interface InvitationRow {
   application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
+  /** AF5 (0369): when the office opened packet signing, in person. */
+  signing_opened_at: string | null;
   submitted_at: string | null;
   revoked_at: string | null;
 }

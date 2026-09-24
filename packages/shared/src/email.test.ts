@@ -46,70 +46,54 @@ describe("renderApplicationInviteEmail", () => {
   it("does not claim the applicant has already started", () => {
     expect(mail().text).not.toMatch(/still saved|started an application|pick up where/i);
   });
+  it("uses the one subject-line string, so the phrase an applicant searches for is what was sent", () => {
+    expect(mail().subject).toBe(applicationInviteSubject("Silvicom Inc"));
+  });
 });
 
 describe("renderApplicationApprovedEmail", () => {
-  const SIGN_URL = "https://app.test/apply/s1gn-tok3n";
-  const mail = () => renderApplicationApprovedEmail("Silvicom Inc", SIGN_URL);
-  /** No link to send — the fallback, not the decision, since A5b. See below. */
-  const linkless = () => renderApplicationApprovedEmail("Silvicom Inc");
+  const mail = () => renderApplicationApprovedEmail("Silvicom Inc");
+  const all = () => `${mail().subject}\n${mail().html}\n${mail().text}`;
 
   it("puts the CARRIER in the subject, not this product", () => {
-    expect(mail().subject).toBe("Your application for Silvicom Inc is ready to sign");
-    expect(`${mail().subject}${mail().html}${mail().text}`).not.toMatch(/Silvicom 360/);
+    expect(mail().subject).toBe("Silvicom Inc has approved your application");
+    expect(all()).not.toMatch(/Silvicom 360/);
   });
 
   /**
-   * ⚠ THE test in this file, and it says the OPPOSITE of what it said until 2026-09-18.
+   * ⚠ THE test in this file, and it has now said three different things.
    *
-   * It used to assert that this template carries no link, because `application_invitations` stored one
-   * SHA-256 and nothing else (0220) — there was nothing to send. A5b gave the invitation a second hash
-   * (0345, D-AX15), so approval mints a fresh token BESIDE the applicant's original instead of
-   * rotating it, and a link can be sent without breaking the waiting screen's promise that the first
-   * one still works.
-   *
-   * Both bodies, because a text-only client must still be able to sign — the same rule
-   * `renderApplicationInviteEmail` is held to above.
+   * Until 2026-09-18 this template carried no link because there was none to send (0220 stores one
+   * SHA-256). A5b gave the invitation a second hash (0345) and the email carried a sign link. AF5
+   * (D-AF3, 0369) moved signing into the office: every mark is refused until the office opens signing
+   * at the desk, so a link here would open a packet that refuses every place on it. Both bodies,
+   * because a text-only client is the one most likely to be tapped straight through.
    */
-  it("carries the sign link in both bodies", () => {
-    expect(mail().text).toContain(SIGN_URL);
-    expect(mail().html).toContain(SIGN_URL);
+  it("carries no link at all, because signing now happens in the office", () => {
+    expect(all()).not.toMatch(/\/apply\/|https?:\/\/|<a /);
+  });
+
+  it("tells them where they sign, and that the carrier will be in touch about the visit", () => {
+    for (const body of [mail().text, mail().html]) {
+      expect(body).toContain("You sign it in their office");
+      expect(body).toContain("Silvicom Inc will contact you about coming in");
+    }
   });
 
   /**
-   * ⚠ And it does not tell them the old link is finished, which is the sentence the nudge HAS to say
-   * because the nudge really does rotate. Saying it here would be false, and false in the direction
-   * that makes an applicant stop using a link that works.
+   * ⚠ Approved is not hired. The road test and orientation are still ahead, and a driver who reads
+   * "hired" buys a ticket on a promise nobody made.
    */
-  it("says the earlier link still works, rather than that it is dead", () => {
-    expect(mail().text).toContain("still works");
-    expect(`${mail().text}${mail().html}`).not.toMatch(/no longer works|replaces the one/);
+  it("never tells them they are hired", () => {
+    expect(all()).not.toMatch(/\bhired\b|welcome aboard|job offer/i);
   });
 
   /**
-   * ⚠ The no-link copy is NOT dead code: `mintSignLink` returns null when the hash could not be
-   * stored, and a caller in that position must send something the applicant can act on rather than a
-   * link that resolves to nothing. It is the old copy, unchanged, naming the earlier email.
+   * The line it must no longer say: "ready to sign" was the A5b subject, and it is false until the
+   * office opens signing.
    */
-  it("falls back to naming the earlier email when there is no link to send", () => {
-    expect(linkless().text).not.toContain("/apply/");
-    expect(linkless().html).not.toContain("/apply/");
-    expect(linkless().text).toContain('"Your driver application for Silvicom Inc"');
-    expect(linkless().html).toContain("Your driver application for Silvicom Inc");
-  });
-
-  /**
-   * The applicant is told to search their inbox for an exact phrase. Two literals would drift the
-   * first time somebody improved one of them, and the failure would be a driver searching for words
-   * that were never sent — so both templates read it from `applicationInviteSubject`.
-   */
-
-it("quotes the subject line the invitation actually used", () => {
-    // ⚠ The LINKLESS copy: it is the only one that asks the applicant to search their inbox, so it is
-    // the only one whose phrase has to match what was actually sent.
-    expect(linkless().text).toContain(`"${applicationInviteSubject("Silvicom Inc")}"`);
-    expect(renderApplicationInviteEmail("Silvicom Inc", "u", 7).subject)
-      .toBe(applicationInviteSubject("Silvicom Inc"));
+  it("does not say the application is ready to sign on their link", () => {
+    expect(all()).not.toMatch(/ready to sign|read it and sign|still works/i);
   });
 
   it("escapes the carrier name", () => {
@@ -120,7 +104,7 @@ it("quotes the subject line the invitation actually used", () => {
 
   /**
    * The office may have corrected an answer, and §391.21(b)(12) has the applicant swear every entry
-   * is true. Telling them nothing was lost and that changes are marked is what makes the second visit
+   * is true. Telling them nothing was lost and that changes are marked is what makes the signing
    * something other than a surprise.
    */
   it("says their answers survived and that corrections are marked", () => {

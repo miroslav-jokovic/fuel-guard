@@ -108,13 +108,15 @@ const submitted = computed(() => justSent.value || Boolean(invitation.data.value
  * review?") answers with the first box ticked and gets every later state wrong, which is the classic
  * shape of this bug: an approved application has `reviewRequestedAt` set too, and is not waiting.
  */
-const awaitingSignature = computed(
-  () => !submitted.value && Boolean(invitation.data.value?.phases?.approvedAt),
-);
+const approved = computed(() => !submitted.value && Boolean(invitation.data.value?.phases?.approvedAt));
+// AF5/D-AF3: approved, and signing not yet opened in the office. Only an explicit null counts — see
+// `ApplyPhases.signingOpenedAt` — so a page meeting an API from before AF5 still signs on approval.
+const awaitingOffice = computed(() => approved.value && invitation.data.value?.phases?.signingOpenedAt === null);
+const awaitingSignature = computed(() => approved.value && !awaitingOffice.value);
 const awaitingReview = computed(
   () =>
     !submitted.value
-    && !awaitingSignature.value
+    && !approved.value
     && (handedOver.value || Boolean(invitation.data.value?.phases?.reviewRequestedAt)),
 );
 
@@ -353,6 +355,13 @@ watch(
   <BaseCard v-else-if="waitingForApplication">
     <ApplyWaitScreen :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
       :body="APPLY_COPY.permissionsReceived.body(invitation.data.value?.carrier ?? '')" />
+  </BaseCard>
+
+  <!-- AF5 (plan §3.1 row 9): approved, and signing happens in the office. Before the unlock gate: it
+       prints nothing of the application. -->
+  <BaseCard v-else-if="awaitingOffice">
+    <ApplyWaitScreen :heading="APPLY_COPY.signInOffice.heading" :note="APPLY_COPY.signInOffice.note"
+      :body="APPLY_COPY.signInOffice.body(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
 
   <!-- A2/D-APP16: the draft holds a date of birth, so the bare link does not read it back. One

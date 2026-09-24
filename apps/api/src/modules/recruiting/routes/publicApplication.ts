@@ -373,7 +373,8 @@ export function publicApplicationRouter(): Router {
    *
    * ⚠ `packet_not_yet_approved` is a 409 for the reason every other phase refusal here is: the link
    * is fine and the answer is "not yet". The office is still reading the application, and a driver
-   * who opened their link early has done nothing wrong.
+   * who opened their link early has done nothing wrong. `packet_not_opened` (AF5, D-AF3) is the same
+   * answer one step later: approved, and waiting for the office to open signing at the desk.
    */
   router.post(
     "/:token/mark",
@@ -389,6 +390,7 @@ export function publicApplicationRouter(): Router {
           result.code === "invalid_link"
             ? 404
             : result.code === "packet_not_yet_approved"
+                || result.code === "packet_not_opened"
                 || result.code === "already_submitted"
                 || result.code === "packet_mark_already_made"
                 || result.code === "packet_mark_name_changed"

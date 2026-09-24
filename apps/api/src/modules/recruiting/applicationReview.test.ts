@@ -361,47 +361,37 @@ describe("approving it", () => {
    * approved was them reopening their own link on the off-chance — while the recruiter's drawer said
    * "the applicant has been asked to sign it".
    */
-  it("tells the applicant it is ready to sign, with a link of its own", async () => {
+  it("tells the applicant they are approved and will sign in the office", async () => {
     const rec = seed();
     const result = await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
     expect(isReviewError(result)).toBe(false);
     if (isReviewError(result)) return;
 
     expect(result.notice).toMatchObject({ sent: true, email: "susan@example.test", reason: null });
-    const mail = sent.fn.mock.calls[0]![1] as { to: string[]; subject: string; text: string };
+    const mail = sent.fn.mock.calls[0]![1] as { to: string[]; subject: string; text: string; html: string };
     expect(mail.to).toEqual(["susan@example.test"]);
-    expect(mail.subject).toBe("Your application for Silvicom Inc is ready to sign");
+    expect(mail.subject).toBe("Silvicom Inc has approved your application");
+    expect(mail.text).toContain("You sign it in their office");
     /**
-     * ⚠ A5b (D-AX15). This assertion is the REVERSE of what it was until 2026-09-18, when the email
-     * deliberately named the earlier email's subject line instead of carrying a link. Only the first
-     * half of that objection is gone — there was nothing to send — and the second half is the test
-     * below: the link is minted BESIDE the applicant's original one, never over it.
+     * ⚠ AF5 (D-AF3). This assertion has now been reversed twice. Until 2026-09-18 the email carried
+     * no link because there was none to send; A5b (D-AX15) minted one; AF5 moved signing into the
+     * office, where 0369 refuses every mark until the office opens it — so a link here would open a
+     * packet that refuses every place on it.
      */
-    expect(mail.text).toMatch(/https:\/\/app\.test\/apply\/[A-Za-z0-9_-]{43}/);
-    // And the older link is named as still working, because it is.
-    expect(mail.text).toContain("still works");
+    expect(`${mail.text}${mail.html}`).not.toMatch(/\/apply\//);
   });
 
   /**
-   * ⚠ The half of D-AX15 that keeps the waiting screen's promise ("keep this link, it is where you
-   * will sign, and it still works"). A rotation would have satisfied the email assertion above just as
-   * well, and would have stranded anybody who used the first link — so what is asserted here is the
-   * SHAPE of the write, not the presence of a token.
+   * ⚠ And approval MINTS nothing any more. The sign link belongs to the office's Open signing
+   * (`open_packet_signing`, 0369); a token minted here and never sent would be a live credential on
+   * the row with no copy anywhere — and one minted AND sent would be the remote signing D-AF3 removed.
    */
-  it("mints the sign token beside the original rather than over it", async () => {
+  it("writes no token of either kind, only the approval", async () => {
     const rec = seed();
     await approveApplication(rec.client, env(), ORG, INV, { actorId: ACTOR }, NOW);
     const writes = rec.writtenRows("application_invitations") as Record<string, unknown>[];
-    const minted = writes.find((w) => "sign_token_hash" in w);
-    expect(String(minted?.sign_token_hash)).toMatch(/^[0-9a-f]{64}$/);
-    // Nothing anywhere on this path may write `token_hash` — that is what a rotation would look like.
-    expect(writes.some((w) => "token_hash" in w)).toBe(false);
-    // Minted once, ever: the plaintext of a hash already stored is unrecoverable, so a second mint
-    // would silently kill a link that had already been emailed.
-    const update = rec.forTable("application_invitations").find((q) => q.write?.method === "update"
-      && (q.write.payload as Record<string, unknown> | null)?.sign_token_hash !== undefined);
-    expect(update?.ops.some((o) => o.method === "is" && o.args[0] === "sign_token_hash" && o.args[1] === null))
-      .toBe(true);
+    expect(writes).toHaveLength(1);
+    expect(writes.some((w) => "sign_token_hash" in w || "token_hash" in w)).toBe(false);
   });
 
   it("approves anyway when the message cannot be sent, and says so", async () => {

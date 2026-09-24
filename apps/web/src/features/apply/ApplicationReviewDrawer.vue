@@ -176,18 +176,22 @@ const previewDocument = computed<RenderedDocument | null>(() =>
  * with no way of knowing, which is the one state this two-visit flow exists to prevent.
  *
  * `already_notified` is a double-click, not a problem: the first approval sent it.
+ *
+ * ⚠ AF5 (D-AF3): nobody is "asked to sign" by approval any more — the email tells the applicant they
+ * are approved and will sign in the office, and signing opens only when the office presses Open
+ * signing on the checklist's packet row. So the toasts say what was told, and what the office owes.
  */
 function noticeToast(notice: ApprovalNotice): void {
   if (notice.sent) {
     const also = notice.texted ? " and texted" : "";
-    toast.push("success", `Approved — ${notice.email} has been emailed${also} and asked to sign it`);
+    toast.push("success", `Approved — ${notice.email} has been emailed${also}. Open signing when they are in the office.`);
     return;
   }
   if (notice.reason === "already_notified") {
-    toast.push("success", "Approved — the applicant has already been asked to sign it");
+    toast.push("success", "Approved — the applicant has already been told");
     return;
   }
-  const chase = "Call them and ask them to reopen their application link — that is where they sign.";
+  const chase = "Call them to arrange their visit to the office — that is where they sign.";
   if (notice.reason === "no_address") {
     toast.push("warning", "Approved, but we have no email address for this applicant", chase);
     return;

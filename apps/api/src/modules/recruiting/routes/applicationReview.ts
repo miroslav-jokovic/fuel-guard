@@ -19,6 +19,7 @@ import { applicationPreviewPdf, isPreviewError } from "../applicationPdf/preview
 import { applicationPermissionsPdf, isPermissionsError } from "../applicationPdf/permissions.js";
 import { correctApplicantIdentity, isIdentityCorrectionError } from "../applicantIdentity.js";
 import { isApplicationSendError, sendApplication } from "../applicationSend.js";
+import { isOpenSigningError, openPacketSigning } from "../applicationOpenSigning.js";
 
 /**
  * Reading, correcting and approving an applicant's answers (F4).
@@ -49,7 +50,7 @@ export function recruitmentApplicationReviewRouter(): Router {
         : code === "application_not_editable" || code === "application_not_reviewable"
           || code === "already_certified" || code === "already_filed" || code === "nothing_to_preview"
           || code === "nothing_signed_yet" || code === "invitation_revoked"
-          || code === "permissions_incomplete"
+          || code === "permissions_incomplete" || code === "application_not_approved"
           ? 409
           : 500;
 
@@ -218,6 +219,35 @@ export function recruitmentApplicationReviewRouter(): Router {
         req.auth!.userId,
       );
       if (isApplicationSendError(result)) {
+        res.status(status(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * Open packet signing, in the office (AF5, D-AF3, D-AF6).
+   *
+   * Answers with the sign link — the only copy — for the office to open on its own screen, and with
+   * the federal gates and road test still outstanding, which it WARNS about and does not refuse on.
+   * ⚠ It emails nothing: a sign link sent anywhere else would let the packet be signed away from the
+   * office, which is what D-AF3 exists to stop. A second press rotates the link; the first date stays.
+   */
+  router.post(
+    "/applications/:invitationId/open-signing",
+    requireOrg,
+    canManage,
+    asyncHandler(async (req, res) => {
+      const { env } = getAppLocals(req);
+      const result = await openPacketSigning(
+        getSupabaseAdmin(env),
+        env,
+        req.auth!.orgId!,
+        String(req.params.invitationId ?? ""),
+        req.auth!.userId,
+      );
+      if (isOpenSigningError(result)) {
         res.status(status(result.code)).json(apiError(result.code, result.message));
         return;
       }

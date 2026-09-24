@@ -26,6 +26,7 @@ const base = {
     applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
     approvedAt: "2026-09-03T00:00:00Z",
+    signingOpenedAt: "2026-09-08T00:00:00Z",
     submittedAt: null,
   },
   authorizations: APPLICATION_RELEASE_ORDER.map((p) => ({

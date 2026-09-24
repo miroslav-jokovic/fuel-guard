@@ -69,6 +69,8 @@ export interface BoardInvitation {
   application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
+  /** AF5 (0369): when the office opened packet signing, in person. */
+  signing_opened_at: string | null;
   submitted_at: string | null;
 }
 
@@ -167,6 +169,7 @@ export async function boardChecklists(
             applicationSentAt: a.invitation.application_sent_at,
             reviewRequestedAt: a.invitation.review_requested_at,
             approvedAt: a.invitation.approved_at,
+            signingOpenedAt: a.invitation.signing_opened_at,
             submittedAt: a.invitation.submitted_at,
           }
         : null,

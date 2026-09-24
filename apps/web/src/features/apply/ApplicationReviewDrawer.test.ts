@@ -245,7 +245,7 @@ describe("when the answers may still be changed", () => {
 });
 
 describe("approving it", () => {
-  it("asks the server, and says the applicant has been asked to sign", async () => {
+  it("asks the server to approve it", async () => {
     const w = drawer();
     await settle(w);
     apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });

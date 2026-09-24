@@ -42,6 +42,7 @@ interface InvitationRow {
   application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
+  signing_opened_at: string | null;
   submitted_at: string | null;
 }
 
@@ -99,7 +100,7 @@ export async function applicationPermissionsPdf(
   const { data } = await admin
     .from("application_invitations")
     // The service role bypasses RLS, so the org filter is the only thing between two carriers.
-    .select("id, org_id, driver_id, application_sent_at, review_requested_at, approved_at, submitted_at")
+    .select("id, org_id, driver_id, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();
@@ -213,6 +214,7 @@ export async function applicationPermissionsPdf(
         applicationSentAt: invitation.application_sent_at,
         reviewRequestedAt: invitation.review_requested_at,
         approvedAt: invitation.approved_at,
+        signingOpenedAt: invitation.signing_opened_at,
         submittedAt: invitation.submitted_at,
       },
       hasDraft,

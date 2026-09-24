@@ -18,6 +18,8 @@ export interface ApplicationInvitation {
   /** The two the OFFICE owns (0336) — the application is with us, or back with the driver to sign. */
   review_requested_at: string | null;
   approved_at: string | null;
+  /** AF5 (0369): when the office opened packet signing, in person. Optional: absent from an older API. */
+  signing_opened_at?: string | null;
   submitted_at: string | null;
   revoked_at: string | null;
   created_at: string;
@@ -143,6 +145,7 @@ export type InviteState =
   | "filling"
   | "awaiting_review"
   | "approved"
+  | "signing_open"
   | "used"
   | "revoked"
   | "expired";
@@ -170,12 +173,15 @@ export function inviteState(invite: ApplicationInvitation, now: Date): InviteSta
       applicationSentAt: invite.application_sent_at ?? null,
       reviewRequestedAt: invite.review_requested_at,
       approvedAt: invite.approved_at,
+      signingOpenedAt: invite.signing_opened_at ?? null,
       submittedAt: invite.submitted_at,
     },
     invite.has_draft === true,
   );
   if (progress === "awaiting_review") return "awaiting_review";
-  if (progress === "approved") return "approved";
+  // AF5 (D-AF3): approved is the office's move — open signing in the office — until it is opened,
+  // and the applicant's after. ⚠ A MISSING stamp (an older API) reads as opened, as it did there.
+  if (progress === "approved") return invite.signing_opened_at === null ? "approved" : "signing_open";
   if (progress === "filling") return "filling";
   // AF4: the permissions are in and the office has not sent the form — the next move is the office's
   // (screen them, then send it), and "signing" would say the applicant still owes something.

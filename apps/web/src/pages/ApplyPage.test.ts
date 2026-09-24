@@ -441,6 +441,44 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain("They did not change any of your answers.");
   });
 
+  /**
+   * ⚠ AF5 (plan §3.1 row 9, D-AF3): approved is no longer "ready to sign". Until the office opens
+   * signing at the desk the link says where signing happens and asks for nothing — not the packet,
+   * not the Social Security number, not a signature `record_packet_mark` would refuse (DR036). Once
+   * opened, the same link signs. ⚠ Only an explicit null holds it: an API from before AF5 sends no
+   * stamp, and under that API approval DID open signing.
+   */
+  it("⚠ says an approved application is signed in the office, until the office opens signing", async () => {
+    const approvedPage = (signingOpenedAt: string | null) => ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: {
+        consentedAt: "2026-09-09T09:00:00Z", releasesCompletedAt: "2026-09-09T09:10:00Z",
+        reviewRequestedAt: "2026-09-10T09:00:00Z", approvedAt: "2026-09-11T09:00:00Z",
+        signingOpenedAt, submittedAt: null,
+      },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      edits: [],
+      packet: PACKET,
+    });
+
+    fetchMock.mockResolvedValue(approvedPage(null));
+    const waiting = mountPage();
+    await settle(waiting);
+    expect(waiting.text()).toContain(APPLY_COPY.signInOffice.heading);
+    expect(waiting.text()).toContain("You sign it in their office");
+    expect(waiting.text()).not.toContain("Ready for your signature");
+    expect(waiting.text()).not.toContain("Social Security number");
+    // And not "they have your application" either: that screen says the office is still reading.
+    expect(waiting.text()).not.toContain(APPLY_COPY.handoff.waitingHeading);
+    waiting.unmount();
+
+    fetchMock.mockResolvedValue(approvedPage("2026-09-24T12:00:00Z"));
+    const opened = mountPage();
+    await settle(opened);
+    expect(opened.text()).toContain("Ready for your signature");
+    expect(opened.text()).not.toContain(APPLY_COPY.signInOffice.heading);
+  });
+
   it("asks for the Social Security number on the signing screen, and nowhere else", async () => {
     // ⚠ It moved there because D-APP3 keeps it out of every saved draft: a number typed on the first
     // visit is gone by the second, and the second visit is when the file is created.
