@@ -85,6 +85,7 @@ export * from "./hosVehicleTimeline.js";
 export * from "./driverPerformance/index.js";
 export * from "./tms.js";
 export * from "./tmsDispatchMirror.js";
+export * from "./mcleodLoadProjection.js";
 export * from "./tmsCost/index.js";
 export * from "./financialContract.js";
 export * from "./fuelDiscount.js";

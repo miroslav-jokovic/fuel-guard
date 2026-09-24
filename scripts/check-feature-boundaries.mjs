@@ -117,6 +117,13 @@ const API_ALLOW = new Set([
   // construction: readRecentlyFuelledVehicleIds only, through fuel's index, returning ids and never
   // transactions, so the roster sweep cannot start having opinions about gallons.
   "mcleod -> fuel",
+  // The dispatch mirror's projection (LOADS-MIRROR-PLAN.md LR4, D-LMR4): McLeod's raw rows become the
+  // product's loads. The two halves cannot share a module — `mcleod_dispatch_*` is layer=raw and
+  // check-table-access seals it to mcleod, while `loads` / `load_stops` / `load_events` belong to
+  // loads (D-ARC3). So mcleod reads and projects, and writes through loads' interface. Narrow by
+  // construction: applyMirroredLoads only, through loads' index — the collector→core write D-ARC3
+  // asks for, the same shape as "psp -> evidence" above.
+  "mcleod -> loads",
   // ── the §396.17 annual inspection's three reads-and-writes-through-owners (D-AVI10) ───────────
   // maintenance owns the report; it owns none of what a report has to be made of. All three edges
   // go through the owner's index, which is exactly the shape D-ARC3 asks for rather than a leak:

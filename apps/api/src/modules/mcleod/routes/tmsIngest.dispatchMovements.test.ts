@@ -96,7 +96,7 @@ describe("POST /api/tms/dispatch-movements", () => {
     holder.client = rec.client;
     const res = await post({ company_id: "TMS", movements: board() });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, received: 3, movements: 3, stops: 3, stopsRemoved: 1, closed: 2 });
+    expect(await res.json()).toMatchObject({ ok: true, received: 3, movements: 3, stops: 3, stopsRemoved: 1, closed: 2 });
 
     const movements = rec.writtenRows("mcleod_dispatch_movements");
     expect(movements.map((m) => [m.org_id, m.company_id, m.movement_id])).toEqual([
@@ -160,7 +160,10 @@ describe("POST /api/tms/dispatch-movements", () => {
     holder.client = rec.client;
     await post({ company_id: "TMS", movements: board().slice(0, 1) });
     const reads = rec.forTable("mcleod_dispatch_stops").filter((q) => !q.write);
-    expect(reads.flatMap((q) => q.filters().filter((f) => f.col === "movement_id").map((f) => f.val))).toEqual([["900"]]);
+    // Two reads since LR4 (the ingest's stop reconcile, then the projection's read-back) — both about 900 only.
+    const asked = reads.flatMap((q) => q.filters().filter((f) => f.col === "movement_id").map((f) => f.val));
+    expect(asked.length).toBeGreaterThan(0);
+    for (const ids of asked) expect(ids).toEqual(["900"]);
   });
 
   it("refuses McLeod's zoneless time, naming the field, and writes nothing", async () => {

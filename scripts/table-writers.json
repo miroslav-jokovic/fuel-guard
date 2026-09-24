@@ -288,6 +288,7 @@
   ],
   "load_events": [
     "apps/api/src/modules/loads/dispatchLoads/shared.ts",
+    "apps/api/src/modules/loads/mirrorLoads.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"
   ],
   "load_external_payloads": [
@@ -295,11 +296,13 @@
   ],
   "load_stops": [
     "apps/api/src/modules/loads/dispatchLoads/shared.ts",
+    "apps/api/src/modules/loads/mirrorLoads.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts",
     "apps/api/src/modules/loads/seedDemoLoads.ts"
   ],
   "loads": [
     "apps/api/src/modules/loads/dispatchLoads/mutations.ts",
+    "apps/api/src/modules/loads/mirrorLoads.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts",
     "apps/api/src/modules/loads/seedDemoLoads.ts"
   ],

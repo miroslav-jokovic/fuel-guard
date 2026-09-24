@@ -105,6 +105,23 @@ async function driverLookup(admin: SupabaseClient, orgId: string): Promise<KeyRe
   return driverResolver((data ?? []) as DriverKeyRow[]);
 }
 
+/**
+ * The three McLeod-code → Silvicom-id resolvers, as the load ingest uses them — shared with the mirror
+ * projection (LR4) so a truck or driver resolves identically on both paths, never by a second copy of
+ * the D-FG7 / D-FG8 rules.
+ */
+export async function loadEntityResolvers(
+  admin: SupabaseClient,
+  orgId: string,
+): Promise<{ drivers: KeyResolver; vehicles: KeyResolver; trailers: KeyResolver }> {
+  const [vehicles, trailers, drivers] = await Promise.all([
+    lookup(admin, "vehicles", orgId),
+    lookup(admin, "trailers", orgId),
+    driverLookup(admin, orgId),
+  ]);
+  return { drivers, vehicles, trailers };
+}
+
 /** Does this org want ingested loads released without review? Off unless explicitly enabled (D48). */
 async function autoApproves(admin: SupabaseClient, orgId: string, provider: string): Promise<boolean> {
   const { data } = await admin
