@@ -94,6 +94,10 @@ export async function getDriverLoads(
     .eq("org_id", orgId)
     .eq("driver_id", driverId)
     .in("status", [...DRIVER_VISIBLE_STATUSES])
+    // 0368, D-LMR5: a McLeod load reaches a driver only once Silvicom has sent it. Its status is
+    // McLeod's and can be driver-visible (in_transit) with nobody having sent it, so the same predicate
+    // as `loads_driver_scope` applies here — this call is the service role and would otherwise leak.
+    .or("source.neq.tms,released_at.not.is.null")
     .order("created_at", { ascending: false });
 
   const rows = (loads ?? []) as unknown as (Record<string, unknown> & {

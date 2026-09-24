@@ -486,3 +486,16 @@ Append a dated line per merge. Never edit a status column.
   action, SMS for now, the driver app later); D-LMR6/D-LMR7 proposed (a dispatch is its own
   `load_dispatches` row, `loads.status` stays McLeod's); D-LMR8 from research (McLeod weight 0 =
   "not entered" → null in core); the six extra fields accepted. Steps re-ordered: LR4, LR-D1..3, LR6, LR7.
+- 2026-09-24 — **D-LMR6 and D-LMR7 ruled by the owner** ("yes on both"): a dispatch is its own
+  `load_dispatches` row; `loads.status` stays McLeod's.
+- 2026-09-24 — **LR4a built (migration 0368), one merge ahead of the projection.** `loads_status_guard`:
+  a `tms` load enters pending_approval / approved / in_transit / delivered / canceled from any status,
+  on insert or update, with no approver or readiness checks and no `completed_at` stamp (that is the
+  driver's); moves into offered / accepted / draft keep 0142's table; manual loads unchanged; `source`
+  can no longer change. ⚠ **Found while designing it:** `tab.loads` is on by default, so projecting
+  McLeod's departed-`P` to `in_transit` would have put the load on its driver's phone before anyone
+  pressed Dispatch — against D-LMR5. The driver scopes (and `driverLoads.ts`, which reads as the
+  service role) now also require `released_at` for a `tms` load; LR-D2 moves that to `load_dispatches`.
+  Matrix 24/24; eight mutants — six fail by name, and the two on the stops/events scopes cannot fail
+  because those policies read `loads` under the driver's RLS (defence in depth, said so in 0368).
+  **LR4b waits for `pg_proc` to show this body in production.**
