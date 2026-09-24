@@ -1145,6 +1145,9 @@ date.
   *Fallback:* R10 assumes **yes** and sends the notice — the answer that cannot be wrong, only
   over-inclusive, on D-REC7's principle. A notice nobody was owed is a courtesy; a notice somebody
   was owed and did not get is the violation.
+- **Q-REC8 · RULED 2026-09-24: the notices are sent FROM Silvicom 360** (`HIRING-MODULE-PLAN.md` §10,
+  2026-09-24). R10 is unblocked for build and blocked for SEND until counsel approves the templates
+  (`COUNSEL-REVIEW-PACKAGE.md` Q9). The question as raised:
 - **Q-REC8 · Adverse action** (owner, added 2026-08-23): when a purchased report costs an applicant
   the job, does the carrier send the FCRA notices **from FuelGuard**, or from somewhere else? The
   question is not whether the notices are owed — they are — but whose system owes them.
