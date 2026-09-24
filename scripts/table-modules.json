@@ -1256,6 +1256,28 @@
         "why": "budget derived from production 2026-09-21: 372 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
       }
     },
+    "mcleod_dispatch_movements": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 300,
+        "why": "budget derived from live lme 2026-09-24: 99.3 new movements/day by first scheduled stop over the 28 days to 2026-09-22, x3 headroom. One row per movement, updated in place while it is on the board. Retention unruled \u2014 LOADS-MIRROR-PLAN Q-LMR8, DATA-LIFECYCLE-PLAN L9."
+      }
+    },
+    "mcleod_dispatch_stops": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 650,
+        "why": "budget derived from live lme 2026-09-24: 209.7 stops/day over the same 28 days (max 12 on one movement), x3 headroom. Cascades from mcleod_dispatch_movements, so its retention is the movement's \u2014 LOADS-MIRROR-PLAN Q-LMR8."
+      }
+    },
     "mcleod_gl_accounts": {
       "module": "mcleod",
       "layer": "raw",
