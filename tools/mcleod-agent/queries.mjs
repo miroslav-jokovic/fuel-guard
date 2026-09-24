@@ -57,7 +57,7 @@ const DRIVER_IDENTITY = `
       NULLIF(LTRIM(RTRIM(d.city)), '')           AS city,
       NULLIF(LTRIM(RTRIM(d.state)), '')          AS state,
       NULLIF(LTRIM(RTRIM(d.zip)), '')            AS postal_code,
-      -- ⚠ NOT a spouse's name. This carrier stores the driver's EMAIL ADDRESS in name_of_spouse,
+      -- ⚠ NOT a spouse's name. Our team keeps the driver's EMAIL ADDRESS in name_of_spouse,
       -- deliberately and consistently: all 164 active drivers have an '@' in it, while driver.email --
       -- the column actually named for the purpose -- is empty on all 1,463 rows.
       --
@@ -182,7 +182,7 @@ export function rosterQueries(mode = "link") {
      WHERE r.company_id = @companyId
        AND r.is_active = 'A'
        AND NULLIF(LTRIM(RTRIM(r.serial_number)), '') IS NOT NULL
-       -- Sandbox-only fixture trailers are not carrier equipment and must never enter the roster.
+       -- Sandbox-only fixture trailers are not our equipment and must never enter the roster.
        AND LTRIM(RTRIM(r.id)) NOT LIKE 'TEST%'
        AND LTRIM(RTRIM(r.id)) <> 'TSTROMAN'`,
   };
@@ -808,7 +808,7 @@ export const OFFICE_SETTLEMENT_LINES = `
     UNION ALL
     -- The history half. D-MC11 / the live-vs-_hist trap: gl_ledger holds 732,530 rows against
     -- gl_ledger_hist's 1,767,734, and a reading that takes only the live table has already produced
-    -- one wrong conclusion at this carrier. This query read the live half alone until 2026-08-28,
+    -- one wrong conclusion here. This query read the live half alone until 2026-08-28,
     -- which was survivable while its only consumer was a coverage REPORT and is not now that the
     -- rows are staged and a page divides by them.
     SELECT
@@ -863,7 +863,7 @@ export const BILLING_HISTORY = `
       b.total_charges                                AS total_charges,
       b.other_charge                                 AS other_charge,
       b.excisetax_total                              AS excise_tax,
-      -- Both of these are EMPTY at this carrier (0 of 1,640 June bills) and are staged anyway,
+      -- Both of these are EMPTY in our data (0 of 1,640 June bills) and are staged anyway,
       -- because what McLeod asserts here is "nothing" and that is worth recording. The plain
       -- distance column is the one that is filled (1,614 of 1,640, 1,513,720 June miles) and is
       -- the denominator for dispatcher revenue per mile and for weekly proration (0275).
@@ -875,7 +875,7 @@ export const BILLING_HISTORY = `
       LTRIM(RTRIM(b.post_key))                       AS post_key,
       LTRIM(RTRIM(b.post_module))                    AS post_module,
       -- The dispatcher who booked the load. LEFT JOINs on purpose: a bill whose order carries no
-      -- operations user is a fact about the carrier's data entry, and the reports show it as its
+      -- operations user is a fact about our own data entry, and the reports show it as its
       -- own "(unassigned)" bucket rather than dropping the money.
       --
       -- Both joins are 1:1 and were measured before being written (0273's header): all 1,640 June

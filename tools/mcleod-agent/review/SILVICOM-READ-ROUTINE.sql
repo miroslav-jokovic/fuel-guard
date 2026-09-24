@@ -1,34 +1,30 @@
 /* ======================================================================================
-   Silvicom 360 connector - every statement it runs against LME (database: lme)
+   Silvicom 360 connector - every statement it runs against LME (our McLeod database)
    ======================================================================================
 
-   Alex - this is the file my letter refers to. It holds every statement our connector runs,
-   word for word, in the order and with the settings it uses. It is plain T-SQL: open it in
-   SSMS and run it, and you will get back the rows we get. Run it as an administrator: under
-   our own login it stops at Part 4 with a permission error until the finance grants exist.
+   Every statement the connector runs, word for word, in the order and with the settings it
+   uses. It's plain T-SQL: open it in SSMS and run it to get the same rows the connector gets.
+   Run it with an admin login; under the connector's own login it stops at Part 4 with a
+   permission error until the finance grants are in place.
 
-   This file is produced from our connector's code, so it cannot drift from what actually runs;
-   if anything in it ever changes, we will send you the new file before the change goes live.
+   This file is generated from the connector's code, so it always matches what actually runs.
+   If a statement changes, a new version of this file comes out before the change goes live.
 
-   The short version:
      login        silvicom_dispatch_ro - read only, no insert/update/delete anywhere
-     runs on      the Board VM, one program, one connection, sending data OUT to us over HTTPS
+     runs on      the Board VM, one program, one connection, sending data out over HTTPS
      shows up as  program_name "Silvicom 360 connector" in sys.dm_exec_sessions
      statements   24, in five parts, never two at the same time
-
-   Thanks,
-   Miki
    ====================================================================================== */
 
 -- ========================================================================================
--- SESSION SETTINGS - our connector sends these ahead of EVERY statement, and adds
--- OPTION (MAXDOP 1) on its own line after every statement (you will see it below each one).
+-- SESSION SETTINGS - the connector sends these ahead of EVERY statement, and adds
+-- OPTION (MAXDOP 1) on its own line after every statement (shown below each one).
 -- It also stops any statement that runs longer than 15 seconds, and pauses for 15 minutes
 -- after three timeouts in a row.
 -- ========================================================================================
 SET NOCOUNT ON;
-SET LOCK_TIMEOUT 5000;                          -- if a row is busy we give up after 5 s; your users never wait on us
-SET DEADLOCK_PRIORITY LOW;                      -- if SQL Server has to choose, it cancels us
+SET LOCK_TIMEOUT 5000;                          -- if a row is busy, the connector gives up after 5 s; dispatch never waits on it
+SET DEADLOCK_PRIORITY LOW;                      -- if SQL Server has to choose, it cancels the connector
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED; -- never READ UNCOMMITTED / NOLOCK
 
 -- Parameters. The connector passes these as typed parameters, never pasted into the SQL text.
@@ -44,8 +40,8 @@ DECLARE @id2         varchar(32) = '291386';
 -- ========================================================================================
 -- PART 1 - OPEN LOADS (every minute)
 --
--- The loads your dispatchers are working right now, with their stops and dispatchers. About
--- 160 loads and 335 stops at a time. Measured on APPNEW: about 32 ms of CPU for all three.
+-- The loads dispatch is working right now, with their stops and dispatchers. About 160 loads
+-- and 335 stops at a time. About 32 ms of CPU for all three.
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
@@ -100,7 +96,7 @@ OPTION (MAXDOP 1);
 -- ----------------------------------------------------------------------------------------
 -- STATEMENT 2 of 24: THE STOPS OF THOSE LOADS
 --
--- Your longitudes are stored as positive numbers; we flip the sign on our side.
+-- LME stores longitudes as positive numbers; the connector flips the sign.
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(s.movement_id))                     AS movement_id,
@@ -132,7 +128,7 @@ OPTION (MAXDOP 1);
 -- ----------------------------------------------------------------------------------------
 -- STATEMENT 3 of 24: THE DISPATCHERS ON THOSE LOADS
 --
--- Only users who have an open load right now, not the whole users table.
+-- Only users with an open load right now, not the whole users table.
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(u.id))                AS external_id,
@@ -151,10 +147,10 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 -- PART 2 - CLOSING LOADS (every 10 minutes)
 --
--- Loads we still have open on our side but that have left your open board. We ask for their
--- current state by movement id, so we see a delivery (D) or a void (V) because you recorded it,
--- never because a load went missing. At most 300 ids per statement, each one a typed parameter.
--- The ids below are examples so the file runs; measured with 300 ids: under 16 ms CPU, 3 ms.
+-- Loads Silvicom 360 still shows as open but that have left the open board. The connector looks
+-- them up by movement id, so a load is closed because LME says delivered (D) or void (V), never
+-- just because it went missing. At most 300 ids per statement, each one a typed parameter.
+-- The ids below are examples so the file runs. With 300 ids: under 16 ms CPU, 3 ms.
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
@@ -202,7 +198,7 @@ SELECT
 OPTION (MAXDOP 1);
 
 -- ----------------------------------------------------------------------------------------
--- STATEMENT 5 of 24: THEIR STOPS
+-- STATEMENT 5 of 24: STOPS OF THOSE LOADS
 --
 -- Same columns as statement 2.
 -- ----------------------------------------------------------------------------------------
@@ -231,15 +227,16 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 -- PART 3 - DRIVERS, TRUCKS AND TRAILERS (every 15 minutes)
 --
--- Keeps our driver, truck and trailer lists matching yours. Under 16 ms of CPU for all three.
--- Today this runs from my laptop every 2 minutes; on the VM it slows to every 15.
+-- Keeps the driver, truck and trailer lists in Silvicom 360 matching McLeod. Under 16 ms of CPU
+-- for all three. Today this runs from a laptop in the office every 2 minutes; on the VM it
+-- slows to every 15.
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
 -- STATEMENT 6 of 24: ACTIVE DRIVERS
 --
--- Names, licence and medical card expiry, hire date and address. We read the driver's
--- email from name_of_spouse, because that is where your team keeps it.
+-- Names, licence and medical card expiry, hire date and address. The driver's email is
+-- read from name_of_spouse, because that is where our team keeps it.
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(d.id))                         AS external_id,
@@ -259,7 +256,7 @@ SELECT
       NULLIF(LTRIM(RTRIM(d.city)), '')           AS city,
       NULLIF(LTRIM(RTRIM(d.state)), '')          AS state,
       NULLIF(LTRIM(RTRIM(d.zip)), '')            AS postal_code,
-      -- ⚠ NOT a spouse's name. This carrier stores the driver's EMAIL ADDRESS in name_of_spouse,
+      -- ⚠ NOT a spouse's name. Our team keeps the driver's EMAIL ADDRESS in name_of_spouse,
       -- deliberately and consistently: all 164 active drivers have an '@' in it, while driver.email --
       -- the column actually named for the purpose -- is empty on all 1,463 rows.
       --
@@ -331,7 +328,7 @@ SELECT
      WHERE r.company_id = @companyId
        AND r.is_active = 'A'
        AND NULLIF(LTRIM(RTRIM(r.serial_number)), '') IS NOT NULL
-       -- Sandbox-only fixture trailers are not carrier equipment and must never enter the roster.
+       -- Sandbox-only fixture trailers are not our equipment and must never enter the roster.
        AND LTRIM(RTRIM(r.id)) NOT LIKE 'TEST%'
        AND LTRIM(RTRIM(r.id)) <> 'TSTROMAN'
 OPTION (MAXDOP 1);
@@ -341,10 +338,10 @@ OPTION (MAXDOP 1);
 --
 -- A rolling 75-day window of settlements, deductions, AP vouchers, fuel, movements, billing and
 -- the general ledger. Statements 20 and 21 run once for the window and once more for each
--- calendar month it touches (three or four), so a night is 19 to 21 statements. Measured on the
--- analytics copy: about 10 seconds of CPU for the whole night, on one core. These need the
--- finance grants in section 6 of my letter; until then this part fails with a permission error
--- under our login.
+-- calendar month it touches (three or four), so a night is 19 to 21 statements. About 10
+-- seconds of CPU for the whole night, on one core (measured on the analytics copy). These need
+-- the finance grants; until then this part stops with a permission error under the connector's
+-- login.
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
@@ -658,7 +655,7 @@ SELECT
       b.total_charges                                AS total_charges,
       b.other_charge                                 AS other_charge,
       b.excisetax_total                              AS excise_tax,
-      -- Both of these are EMPTY at this carrier (0 of 1,640 June bills) and are staged anyway,
+      -- Both of these are EMPTY in our data (0 of 1,640 June bills) and are staged anyway,
       -- because what McLeod asserts here is "nothing" and that is worth recording. The plain
       -- distance column is the one that is filled (1,614 of 1,640, 1,513,720 June miles) and is
       -- the denominator for dispatcher revenue per mile and for weekly proration (0275).
@@ -670,7 +667,7 @@ SELECT
       LTRIM(RTRIM(b.post_key))                       AS post_key,
       LTRIM(RTRIM(b.post_module))                    AS post_module,
       -- The dispatcher who booked the load. LEFT JOINs on purpose: a bill whose order carries no
-      -- operations user is a fact about the carrier's data entry, and the reports show it as its
+      -- operations user is a fact about our own data entry, and the reports show it as its
       -- own "(unassigned)" bucket rather than dropping the money.
       --
       -- Both joins are 1:1 and were measured before being written (0273's header): all 1,640 June
@@ -747,7 +744,7 @@ SELECT
     UNION ALL
     -- The history half. D-MC11 / the live-vs-_hist trap: gl_ledger holds 732,530 rows against
     -- gl_ledger_hist's 1,767,734, and a reading that takes only the live table has already produced
-    -- one wrong conclusion at this carrier. This query read the live half alone until 2026-08-28,
+    -- one wrong conclusion here. This query read the live half alone until 2026-08-28,
     -- which was survivable while its only consumer was a coverage REPORT and is not now that the
     -- rows are staged and a page divides by them.
     SELECT
@@ -767,7 +764,7 @@ OPTION (MAXDOP 1);
 -- ========================================================================================
 -- PART 5 - WHO HAS LEFT (by hand only, never on a timer)
 --
--- Drivers, trucks and trailers you have marked inactive. We run these when we clean up our lists.
+-- Drivers, trucks and trailers marked inactive in McLeod. Run when the lists are cleaned up.
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
