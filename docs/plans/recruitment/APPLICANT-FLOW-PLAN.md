@@ -446,3 +446,33 @@ and wording changes are version bumps.
 Append a dated line per step. Never edit §4.
 
 - **2026-09-24** — Plan written and verified against `main` `2b5b0f1` and production.
+- **2026-09-24** — **AF1 DONE** (#1006, merge `083f0f4`). `clearinghouse` is the fifth entry in
+  `APPLICATION_RELEASE_ORDER`. The D1 door refuses `authorization_missing` for `mvr` on both the
+  scan registration and the filing, via `HIRING_RECORDED_ACT_PREREQUISITE`, a total `Record` in
+  `hiringEvidence.ts`: `clearinghouse` and `drug_test` are deliberately null. `clearinghouse_full`
+  is deleted. ⚠ **Beyond §2.4's list:** the permissions PDF and `AuthorizationsPanel` both printed
+  *"the Clearinghouse … consent is not listed: it is given inside the FMCSA portal"*, which would
+  have sat directly under the new fifth row, so both sentences are gone and tests now pin their
+  absence. About 20 more present-tense "four" comments were also rewritten. ⚠ **Cutover still owed
+  by the office:** the two production invitations at 4 of 4 now read `permissions_signed` NOT done
+  until their Clearinghouse consent is recorded (`POST /authorizations`, `wet_signature`), as §4
+  AF1 says.
+- **2026-09-24** — **AF2 DONE** (#1007, merge `7ae8634`), **as migration 0365, not 0364**:
+  `0364_mcleod_dispatch_raw.sql` (#1005) merged while it was in flight. **AF5's migration is
+  therefore 0366.** Matrix `applicant-flow-phases.test.mjs`, 39 assertions, 8 of 8 migration
+  mutants killed. Three places where the build refines §4's text, each taken for the reason given:
+  · `record_applicant_identity` merges into the draft **the values that ended up on `drivers`**,
+    not the typed ones. Otherwise an applicant who re-submits after the office's correction would
+    leave the row (fill-only, office value kept) and the draft (typed value) disagreeing, which is
+    exactly the split D-AF8 exists to prevent. It returns the NAMES of the kept columns
+    (`kept_existing`) and never their values (D-APP16).
+  · Expiry refuses the applicant's identity write but **not the office's**, and
+    `send_application_invitation` **revives an expired link** instead of refusing it. §2.8's
+    reason: this order waits on labs and travel and outlives 14 days. §3.2 refuses send only for
+    revoked, and submitted is refused too. Errcodes: AI001 not found · AI002 revoked/expired ·
+    AI003 submitted · AI004 invalid · AI005 permissions not complete.
+  · ⚠ **For AF3, and it is a real hole if skipped:** `save_application_draft` (0226) REPLACES
+    `payload` wholesale, so an autosave from a tab opened before the identity write can erase the
+    three keys this function set, which reintroduces a second writer. AF3 must make those keys
+    server-owned on the draft save path, for example by re-applying them from `drivers` inside
+    the save, or by stripping them from the client payload and merging instead of replacing.
