@@ -523,3 +523,37 @@ Append a dated line per step. Never edit §4.
     both, since signing moves to the office (D-AF3).
   · ⚠ **Migration numbers:** the other chat has now also used 0368, so **AF5's migration is 0369
     or later**. Re-check at branch time AND again right before merging.
+- **2026-09-24** — **AF5 DONE, in two merges**: migration **0369** (#1020, merge `077b67b`) and its
+  reader (#1022, merge `4a64a82`). An approved applicant cannot sign until somebody in the office
+  opens signing from the packet row. `record_packet_mark` refuses **DR036**, and `recordPacketMark`
+  refuses `packet_not_opened` (409). The press returns a fresh sign link on the office's screen,
+  audited as `compliance.packet_signing_opened`, and warns without refusing on
+  `OPEN_SIGNING_WARNS_ON` (derived: every `federalGate && beforeTravel` step, plus `road_test`).
+  0369's matrix killed 12 of 12 mutants and the TypeScript battery 18 of 18. I checked 0369 in
+  production's `pg_proc` before the reader merged. Where the build refines §4's text:
+  · **Two merges, not one.** §4 read the migration as safe to ship with its reader because it only
+    reads a column from AF2. It also adds a FUNCTION, and the route that calls it would have been
+    served ~2m44s before the function existed. `lint:migration-ordering` cannot see functions
+    (0340's header), so I held the rule by hand. The window this opened (no packet markable between
+    0369 applying and #1022 being served) affected nobody, as §4 predicted.
+  · **Refusal order is unapproved → filed → unopened**, in both SQL and TypeScript, not "before its
+    approval check". Production's filed row was never opened, and it keeps answering "filed".
+  · **Open signing emails nothing**, the one deliberate exception to D-AF7. A sign link sent
+    anywhere else would let the packet be signed away from the office, which is what D-AF3
+    removed. The panel opens a tab inside the click and points it at the link after the response,
+    because a `window.open` after an `await` is a blocked pop-up.
+  · **`application_signed` now `owes: "us"`**. It is in flight when OPENED, not when marked, so
+    production's 2026-09-17 walk (20 marks, never opened) reads as the office's move rather than
+    "waiting on them" for a signer the database refuses.
+  · **More copy than §4 listed was false and is rewritten**: `handoff.waitingBody` and
+    `waitingNote` ("keep this link, it is where you will sign"), submit's `not_yet_approved`
+    message, the office's approval toasts ("asked to sign it"), and the `approved` labels ("Sent
+    back to sign" → "Approved, to sign in the office"). Invitations gain a `signing_open` state.
+  · The page and the invitation list read a MISSING `signingOpenedAt` as opened, as AF4 did for
+    `applicationSentAt`: under an older API, approval did open signing.
+  · `lint:table-writers` ratcheted down: the approval notice no longer writes `application_invitations`.
+  · ⚠ **For the office, when it next walks this in "FuelGuard EFS QA":** approve, then check that
+    the applicant's link shows "Your application is approved… you sign it in their office". Press
+    **Open signing on this screen** on the packet row, sign every mark and file. That end-to-end walk
+    (§4 Verify) is not done yet; the tests and the 390/1440 renders cover the pieces.
+  · **Next: L-1 and Q-HM14** (freeze-bound, `HIRING-MODULE-PLAN.md` §10 2026-09-24), then AF6, AF7.
