@@ -51,6 +51,12 @@ export interface ApplyPhases {
   reviewRequestedAt: string | null;
   approvedAt: string | null;
   submittedAt: string | null;
+  /**
+   * When the office sent the application form (AF4, 0365). Null while the link carries only the
+   * permissions. ⚠ Optional: an API from before AF4 does not send it, and ONLY an explicit null means
+   * "not sent" — reading `undefined` as unsent would put every applicant on the waiting screen.
+   */
+  applicationSentAt?: string | null;
 }
 
 /**

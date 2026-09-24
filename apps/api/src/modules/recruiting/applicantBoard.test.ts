@@ -49,6 +49,7 @@ const applicant = (n: number, over: Partial<BoardApplicantInput> = {}): BoardApp
   invitation: {
     id: inviteId(n),
     created_at: "2026-09-01T00:00:00Z",
+    application_sent_at: "2026-09-01T12:00:00Z",
     review_requested_at: "2026-09-02T00:00:00Z",
     approved_at: "2026-09-03T00:00:00Z",
     submitted_at: null,
@@ -99,6 +100,7 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
 const asInputs = (over: Record<string, unknown> = {}) => ({
   invitedAt: "2026-09-01T00:00:00Z",
   phases: {
+    applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
     approvedAt: "2026-09-03T00:00:00Z",
     submittedAt: null,
@@ -238,6 +240,7 @@ describe("how long it has sat still", () => {
       ORG,
       [applicant(1, { authorizations: [], invitation: {
         id: inviteId(1), created_at: "2026-09-10T00:00:00Z",
+        application_sent_at: "2026-09-01T12:00:00Z",
         review_requested_at: null, approved_at: null, submitted_at: null,
       } })],
       NOW,

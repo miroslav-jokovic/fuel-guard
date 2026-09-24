@@ -29,6 +29,7 @@ const STUBS = {
   ApplicationInviteCard: stub("invite"),
   AuthorizationsPanel: stub("authorizations"),
   ApplicantIdentityCorrection: stub("identity"),
+  SendApplicationPanel: stub("send"),
   EmploymentHistorySection: stub("employment"),
   EmployerInquirySection: stub("inquiry"),
   PspRecordsSection: stub("psp"),
@@ -39,6 +40,7 @@ const STUBS = {
 const COMPLETE: HiringChecklistInputs = {
   invitedAt: "2026-09-01T00:00:00Z",
   phases: {
+    applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
     approvedAt: "2026-09-03T00:00:00Z",
     submittedAt: null,
@@ -119,6 +121,12 @@ describe("a row opens the work behind the step", () => {
    * them here — before ordering PSP on them. Only with an invitation: the correction writes the
    * draft of one invitation, and there is no draft without one.
    */
+  /** AF4: the office's act between screening and the form has its own body — and needs an invitation. */
+  it("opens the send panel for the application-sent step, and only when there is an invitation", async () => {
+    expect(bodies(await openOn("application_sent"))).toEqual(["send"]);
+    expect(bodies(await openOn("application_sent", null))).toEqual([]);
+  });
+
   it("puts the identity correction under the releases, and only when there is an invitation", async () => {
     expect(bodies(await openOn("permissions_signed"))).toEqual(["authorizations", "identity"]);
     expect(bodies(await openOn("permissions_signed", null))).toEqual(["authorizations"]);

@@ -74,7 +74,7 @@ export function nudgeEmail(
  * compiling. One `const` keeps the literal and the margin both.
  */
 const CANDIDATE_COLS =
-  "id, driver_id, email, expires_at, revoked_at, submitted_at, nudged_at, review_requested_at, approved_at";
+  "id, driver_id, email, expires_at, revoked_at, submitted_at, nudged_at, review_requested_at, approved_at, application_sent_at";
 
 /**
  * Every live invitation for one org, joined to whatever draft it holds.
@@ -85,6 +85,10 @@ const CANDIDATE_COLS =
  * abandonment" is a rule about somebody's inbox, and `applicationNudge.ts`'s header argues at length
  * that every one of those lives in the pure fold where it can be read back and tested without a
  * database. A column selected but not filtered looks redundant; it is the fold's input.
+ *
+ * ⚠ `application_sent_at` too (AF4), and its absence would fail SILENT rather than loud: the fold
+ * skips an unsent application, the row is cast rather than typed, and a column nobody selected reads
+ * `undefined` — so every candidate would look unsent and the sweep would quietly nudge nobody, ever.
  */
 async function candidates(admin: SupabaseClient, orgId: string): Promise<NudgeCandidate[]> {
   const { data, error } = await admin

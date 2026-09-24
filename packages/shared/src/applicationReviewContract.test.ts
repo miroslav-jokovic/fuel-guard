@@ -17,6 +17,7 @@ import {
  */
 
 const phases = (over: Partial<Parameters<typeof applicationReviewState>[0]> = {}) => ({
+  applicationSentAt: null,
   reviewRequestedAt: null,
   approvedAt: null,
   submittedAt: null,
@@ -43,6 +44,7 @@ describe("where an application has got to", () => {
     // Every earlier stamp is still set on a filed application. A forward reading calls this
     // "awaiting review" and puts a signed document back in the office's queue.
     expect(applicationReviewState({
+      applicationSentAt: "2026-09-11T09:00:00Z",
       reviewRequestedAt: "2026-09-11T10:00:00Z",
       approvedAt: "2026-09-11T12:00:00Z",
       submittedAt: "2026-09-11T13:00:00Z",

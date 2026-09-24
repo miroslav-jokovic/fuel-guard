@@ -42,6 +42,7 @@ const JUST_INVITED: HiringChecklistInputs = { invitedAt: "2026-09-01T00:00:00Z" 
 const COMPLETE: HiringChecklistInputs = {
   invitedAt: "2026-09-01T00:00:00Z",
   phases: {
+    applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
     approvedAt: "2026-09-03T00:00:00Z",
     submittedAt: null,

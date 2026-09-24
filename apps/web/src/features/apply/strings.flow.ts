@@ -21,6 +21,21 @@ export const APPLY_FLOW_COPY = {
    * certifies a document that no longer exists. So the driver sends it, the carrier reads it, and the
    * signature is asked for on the document as it finally stands.
    */
+  /**
+   * The end of the FIRST visit since AF4 (plan §3.1 row 5): permissions in, application not sent.
+   *
+   * ⚠ It says the link will CHANGE, and that is not optional. Sending the application rotates the
+   * token (0365, 0232's reasoning), so the link on screen right now stops working the moment the
+   * office sends the form. A driver who bookmarked it and came back would meet "not valid" with no
+   * idea why — so the promise here is "we will send you a new link", never "keep this one".
+   */
+  permissionsReceived: {
+    heading: "We have your permissions",
+    body: (carrier: string): string =>
+      `Thank you. ${carrier} will check your driving record and safety history, then send you the application itself.`,
+    note: "Nothing more to do for now. We will email you a new link for the application — this one will stop working when it arrives.",
+  },
+
   handoff: {
     send: (carrier: string): string => `Send it to ${carrier}`,
     sending: "Sending…",

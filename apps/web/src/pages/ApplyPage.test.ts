@@ -581,6 +581,50 @@ describe("the applicant's page", () => {
     expect(dobDisabled(open)).toBe(0);
   });
 
+  /**
+   * ⚠ AF4 (plan §3.1 row 5): the first visit ends with the permissions. The form is the office's to
+   * send, the server refuses a draft before it is sent, and the screen says what happens next —
+   * including that THIS link will be replaced, because sending rotates it.
+   *
+   * ⚠ Three cases, and the third is the discriminator: an API from before AF4 sends no
+   * `applicationSentAt` at all, and a page reading `undefined` as "not sent" would strand every
+   * applicant on this screen during a deploy.
+   */
+  it("waits for the office after the permissions, until the application is sent", async () => {
+    const page = (applicationSentAt?: string | null) => ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+      releasesSigned: [...APPLICATION_RELEASE_ORDER],
+      phases: {
+        consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null,
+        ...(applicationSentAt === undefined ? {} : { applicationSentAt }),
+      },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
+      identityComplete: true,
+    });
+
+    fetchMock.mockResolvedValue(page(null));
+    const waiting = mountPage();
+    await settle(waiting);
+    expect(waiting.text()).toContain("We have your permissions");
+    expect(waiting.text()).toContain("this one will stop working");
+    expect(waiting.text()).not.toContain(step(1));
+    waiting.unmount();
+
+    fetchMock.mockResolvedValue(page("2026-08-22T09:00:00Z"));
+    const sent = mountPage();
+    await settle(sent);
+    expect(sent.text()).not.toContain("We have your permissions");
+    expect(sent.text()).toContain(step(1));
+    sent.unmount();
+
+    fetchMock.mockResolvedValue(page(undefined));
+    const olderApi = mountPage();
+    await settle(olderApi);
+    expect(olderApi.text()).toContain(step(1));
+  });
+
   it("goes straight to the form when the ceremony is already finished", async () => {
     fetchMock.mockResolvedValue(ok({
       carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",

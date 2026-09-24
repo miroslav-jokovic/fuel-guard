@@ -3,6 +3,7 @@ import { type ApplicationPath } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import {
   ALREADY_SUBMITTED,
+  APPLICATION_NOT_SENT,
   isIntakeError,
   resolveInvitation,
   type IntakeError,
@@ -93,6 +94,9 @@ export async function requestReview(
   if (isIntakeError(invitation)) return invitation;
   if (invitation.submitted_at) return ALREADY_SUBMITTED;
   if (invitation.review_requested_at) return { reviewRequestedAt: invitation.review_requested_at };
+  // AF4: nothing to hand over before the office has sent the form. Checked before the draft read,
+  // because AF3's identity step leaves a draft behind on the permissions visit.
+  if (!invitation.application_sent_at) return APPLICATION_NOT_SENT;
 
   // There has to BE an application. The draft is what the office opens, and stamping a phase over an
   // empty one puts a row in somebody's queue with nothing in it.

@@ -66,6 +66,7 @@ const onThisPage = (what: string): HiringArtifactLink => ({
 const DESTINATIONS: Record<HiringEvidenceTable, (driverId: string) => HiringArtifactLink> = {
   "application_invitations": () => onThisPage("The invitation"),
   "application_invitations.approved_at": () => onThisPage("The approved application"),
+  "application_invitations.application_sent_at": () => onThisPage("The sent application"),
   "driver_applications": () => onThisPage("The application"),
   // ⚠ Was the one real gap. **Q-HUI6 was CLOSED by B6**: `AuthorizationsPanel` is the drawer behind
   // the Permissions row, so the releases now have a screen and this entry stops claiming otherwise.

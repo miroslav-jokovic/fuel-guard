@@ -13,7 +13,15 @@ import type { ApplicationInviteDelivery } from "@/features/recruitment/useApplic
  * wording that drifts, and a recruiter who reads the softer of the two loses a link believing it can
  * be fetched back.
  */
-const props = defineProps<{ link: string; delivery?: ApplicationInviteDelivery | null }>();
+const props = defineProps<{
+  link: string;
+  delivery?: ApplicationInviteDelivery | null;
+  /**
+   * What to do if it is lost. An invitation's link is replaced by a new invitation; a SENT
+   * application's is replaced by sending it again (AF4), which rotates the link on the same row.
+   */
+  ifLost?: string;
+}>();
 
 const toast = useToastStore();
 
@@ -60,8 +68,8 @@ async function copyLink(link: string): Promise<void> {
       <BaseButton size="sm" @click="copyLink(link)">Copy the link</BaseButton>
       <p class="text-xs text-ink-muted">
         <template v-if="delivery?.sent">Their copy is in the email. </template>It is shown once here.
-        We keep only a fingerprint of it, so it cannot be shown again — create a new invitation if it
-        is lost.
+        We keep only a fingerprint of it, so it cannot be shown again —
+        {{ ifLost ?? "create a new invitation if it is lost." }}
       </p>
     </div>
   </div>

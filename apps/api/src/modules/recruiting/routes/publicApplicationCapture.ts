@@ -31,7 +31,7 @@ import { isIntakeError } from "../applicationIntake.js";
  */
 function captureStatus(code: string): number {
   if (code === "invalid_link") return 404;
-  if (code === "already_submitted" || code === "esign_consent_required") return 409;
+  if (code === "already_submitted" || code === "esign_consent_required" || code === "application_not_sent") return 409;
   if (code === "capture_upload_failed") return 422;
   return 500;
 }

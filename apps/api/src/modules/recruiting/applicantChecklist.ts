@@ -38,7 +38,8 @@ export const isChecklistError = (v: unknown): v is ChecklistError =>
   typeof v === "object" && v !== null && (v as ChecklistError).code === "not_found";
 
 /** Just enough of the invitation to answer phases — the token hash is never selected. */
-const INVITE_COLS = "id, created_at, review_requested_at, approved_at, submitted_at, revoked_at";
+const INVITE_COLS =
+  "id, created_at, application_sent_at, review_requested_at, approved_at, submitted_at, revoked_at";
 
 export async function applicantChecklist(
   admin: SupabaseClient,
@@ -106,6 +107,7 @@ export async function applicantChecklist(
     invitedAt: invitation?.created_at ?? null,
     phases: invitation
       ? {
+          applicationSentAt: invitation.application_sent_at,
           reviewRequestedAt: invitation.review_requested_at,
           approvedAt: invitation.approved_at,
           submittedAt: invitation.submitted_at,
@@ -133,6 +135,8 @@ export async function applicantChecklist(
 interface InvitationRow {
   id: string;
   created_at: string;
+  /** AF4 (0365): when the office sent the application form. */
+  application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
   submitted_at: string | null;

@@ -15,6 +15,7 @@ import { hiringDrawerBody } from "@/features/recruitment/hiringStepDrawers";
 import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.vue";
 import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue";
 import ApplicantIdentityCorrection from "@/features/recruitment/ApplicantIdentityCorrection.vue";
+import SendApplicationPanel from "@/features/recruitment/SendApplicationPanel.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
@@ -152,6 +153,12 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
           :identity="identity ?? null"
         />
       </template>
+
+      <SendApplicationPanel
+        v-else-if="body === 'send_application' && invitationId"
+        :invitation-id="invitationId"
+        :driver-id="driverId"
+      />
 
       <template v-else-if="body === 'application'">
         <!-- ⚠ The §391.21(b)(10) employment history is here because it IS the application's content.

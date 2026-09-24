@@ -26,7 +26,7 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   expires_at: "2026-10-01T00:00:00Z",
   revoked_at: null,
   consented_at: "2026-09-09T09:00:00Z",
-  releases_completed_at: "2026-09-09T09:10:00Z",
+  releases_completed_at: "2026-09-09T09:10:00Z", application_sent_at: "2026-09-14T09:00:00Z",
   review_requested_at: null,
   approved_at: null,
   submitted_at: null,

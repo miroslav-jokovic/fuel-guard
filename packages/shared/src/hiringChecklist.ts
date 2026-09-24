@@ -200,6 +200,10 @@ function evidenceFor(
         done: APPLICATION_RELEASE_ORDER.every((p) => hasLiveAuthorization(input.authorizations ?? [], p)),
         inFlight: (input.authorizations ?? []).length > 0,
       };
+    case "application_sent":
+      // 0365's stamp, set the first time the office presses Send (AF4). Backfilled for everybody who
+      // was already past their permissions on 2026-09-24, because the old order opened the form then.
+      return { done: Boolean(input.phases?.applicationSentAt), inFlight: false };
     case "application_filled":
       // Sent to the office, or anything after that. `filling` is not done, however much is typed.
       return {

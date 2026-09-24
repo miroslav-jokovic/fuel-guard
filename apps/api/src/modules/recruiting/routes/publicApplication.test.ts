@@ -157,7 +157,7 @@ const seed = (over: Record<string, unknown> | null = {}, extra: Record<string, u
              * fixture of a driver who has not started, not of an ordinary one — the consent is the
              * first act on the link. The tests that are ABOUT the gate override it back to null.
              */
-            consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
+            consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
             // F4: submitting requires an approved application, so the default link is one the office
             // has read and approved. A test about a phase refusal overrides these two.
             review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
@@ -192,7 +192,7 @@ const seedWithDraft = (payload: Record<string, unknown>): SupabaseRecorder =>
         id: "inv-1", org_id: ORG, driver_id: DRIVER,
         token_hash: hashInvitationToken(TOKEN),
         expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-        consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
+        consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
       }],
       organizations: [{ name: "Silvicom Inc" }],
       application_drafts: [{ payload, furthest_section: "identity", updated_at: "2026-08-21T09:00:00Z" }],
@@ -265,6 +265,8 @@ describe("opening the link", () => {
       reviewRequestedAt: "2026-09-10T09:00:00Z",
       approvedAt: "2026-09-11T09:00:00Z",
       submittedAt: null,
+      // AF4: the office's third act, and the one the page's "we have your permissions" screen reads.
+      applicationSentAt: "2026-09-14T09:00:00Z",
     });
   });
 
@@ -277,7 +279,7 @@ describe("opening the link", () => {
           id: "inv-1", org_id: ORG, driver_id: DRIVER,
           token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-          consented_at: null, releases_completed_at: null,
+          consented_at: null, releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z",
           review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
           submitted_at: null,
         }],
@@ -340,7 +342,7 @@ describe("sending it to the carrier to read", () => {
           id: "inv-1", org_id: ORG, driver_id: DRIVER,
           token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-          consented_at: null, releases_completed_at: null,
+          consented_at: null, releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z",
           review_requested_at: null, approved_at: null, submitted_at: null,
         }],
         application_drafts: [{ invitation_id: "inv-1" }],
@@ -744,7 +746,7 @@ describe("photographing a document from the link", () => {
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
           // Consented — see `seed`. Since D-WORD1 a capture is a write like any other and the
           // §390.32(d) gate refuses it before the consent exists.
-          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
+          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
         }],
         organizations: [{ name: "Silvicom Inc" }],
       },
@@ -866,7 +868,7 @@ describe("with the carrier's wording published as rows, and no consent given", (
           id: "inv-1", org_id: ORG, driver_id: DRIVER,
           token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-          consented_at: null, releases_completed_at: null, submitted_at: null,
+          consented_at: null, releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
           review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
           ...over,
         }],
@@ -998,7 +1000,7 @@ describe("what the applicant is served once the carrier has published", () => {
           id: "inv-1", org_id: ORG, driver_id: DRIVER,
           token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-          consented_at: "2026-09-13T11:00:00Z", releases_completed_at: null, submitted_at: null,
+          consented_at: "2026-09-13T11:00:00Z", releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
         }],
         organizations: [{ name: "Silvicom Inc" }],
         org_disclosures: LIVE,
@@ -1056,7 +1058,7 @@ describe("what the applicant is served once the carrier has published", () => {
           id: "inv-1", org_id: ORG, driver_id: DRIVER,
           token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
+          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
           review_requested_at: "2026-09-10T09:00:00Z", approved_at: "2026-09-11T09:00:00Z",
         }],
         organizations: [{ name: "Silvicom Inc" }],
@@ -1140,7 +1142,7 @@ describe("the packet a driver reads before signing it, as a route", () => {
           id: "inv-1", org_id: ORG, driver_id: DRIVER,
           token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
-          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: "2026-09-15T08:00:00Z",
+          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: "2026-09-15T08:00:00Z", application_sent_at: "2026-09-14T09:00:00Z",
           // ⚠ Unapproved on purpose (D-HUI12): reading does not wait for the office, and the
           // ordinary case for this route is a link nobody in the office has opened yet.
           review_requested_at: null, approved_at: null, submitted_at: null,

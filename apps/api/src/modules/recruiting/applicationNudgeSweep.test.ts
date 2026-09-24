@@ -33,6 +33,8 @@ const seed = (over: {
         id: "inv-1", driver_id: DRIVER, email: "susan@example.test",
         expires_at: "2026-09-01T00:00:00Z", revoked_at: null, submitted_at: null, nudged_at: null,
         review_requested_at: null, approved_at: null,
+        // Sent: the office gave them the form, and they stopped filling it in (AF4).
+        application_sent_at: "2026-08-10T09:00:00Z",
         ...over.invitation,
       }],
       application_drafts: over.draft === null ? [] : [{
@@ -164,6 +166,21 @@ describe("an applicant the office is sitting on", () => {
     );
     expect(columns).toContain("review_requested_at");
     expect(columns).toContain("approved_at");
+    // ⚠ AF4. Unselected, it reads `undefined`, the fold treats that as "not sent", and the sweep
+    // stops nudging anybody at all — silently, because nothing errors.
+    expect(columns).toContain("application_sent_at");
+  });
+
+  /**
+   * AF4: somebody whose permissions are in and whose form has not been SENT is waiting on the
+   * office's screening. Their identity draft goes stale in two days; they have abandoned nothing.
+   */
+  it("neither alerts the office nor rotates the link of an applicant waiting for the form", async () => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ invitation: { application_sent_at: null } });
+    expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
+      .toEqual({ stalled: 0, emailed: 0, messaged: 0 });
+    expect(rec.rpcs()).toEqual([]);
   });
 });
 

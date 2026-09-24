@@ -95,6 +95,17 @@ export const APPLICATION_CAPTURE_SLOT_LABELS: Record<ApplicationCaptureSlot, str
  * else" invites a folder of receipts into an evidence bucket; it exists in the vocabulary so a later
  * step can ask for something specific without a migration.
  */
+/**
+ * The slots that belong to the APPLICATION, not to the permissions visit (AF4, D-AF1).
+ *
+ * Since 2026-09-24 the link is visited twice: permissions and identity first — the licence's two
+ * sides are photographed there, beside the licence number (AF3) — and the application only once the
+ * office has sent it. The medical certificate and the Social Security card are the application's
+ * documents, asked on its documents screen, so they are refused until the application is sent rather
+ * than left open on a visit that never asks for them.
+ */
+export const APPLICATION_ONLY_CAPTURE_SLOTS: readonly ApplicationCaptureSlot[] = ["medical_card", "ssn_card"];
+
 export const APPLICATION_CAPTURE_REQUESTED: readonly ApplicationCaptureSlot[] = [
   "cdl_front",
   "cdl_back",

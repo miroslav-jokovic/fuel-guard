@@ -19,17 +19,15 @@ import DraftUnlockGate from "@/features/apply/DraftUnlockGate.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
 import IdentityFields from "@/features/apply/IdentityFields.vue";
+import ApplyWaitScreen from "@/features/apply/ApplyWaitScreen.vue";
 import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
 import SignOffScreen from "@/features/apply/SignOffScreen.vue";
 import ApplyExpectations from "@/features/apply/ApplyExpectations.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
 import { emptyDraft, fromDraftPayload, type ApplicationDraft } from "@/features/apply/draft";
-import {
-  giveEsignConsent,
-  linkHasBeenUsed,
-  useApplyInvitationQuery,
-} from "@/features/apply/useApplication";
+import { linkHasBeenUsed, useApplyInvitationQuery } from "@/features/apply/useApplication";
+import { useEsignConsentStep } from "@/features/apply/useEsignConsentStep";
 import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
 import { useApplicationSending } from "@/features/apply/useApplicationSending";
 import { useApplicationWizard, type SectionIssue } from "@/features/apply/useApplicationWizard";
@@ -190,7 +188,9 @@ watch(
 const autosave = useApplicationDraft(token, draft, {
   // Never before the consent: the server refuses those writes, and a "Not saved" banner on a screen
   // the driver has not been allowed to reach yet would be a lie about their signal.
-  enabled: computed(() => autosaveEnabled.value && !consentNeeded.value && !ceremonyNeeded.value),
+  enabled: computed(
+    () => autosaveEnabled.value && !consentNeeded.value && !ceremonyNeeded.value && !waitingForApplication.value,
+  ),
   section: computed(() => wizard.furthestSection.value),
 });
 const saveStatus = computed(() => draftStatusLabel(autosave.state.value));
@@ -202,34 +202,9 @@ const saveStatus = computed(() => draftStatusLabel(autosave.state.value));
 const begun = ref(false);
 const expectationsNeeded = computed(() => !begun.value && !linkHasBeenUsed(invitation.data.value));
 
-// ── The 7001(c) consent (A4) ──────────────────────────────────────────────────────────────────
-const consenting = ref(false);
-const consentFailed = ref(false);
-const consentGiven = ref(false);
-const esignConsent = computed(() => invitation.data.value?.esignConsent ?? null);
-/**
- * Asked for only when the server says it can be recorded — `required` is false while counsel's
- * wording is outstanding, and the page must not ask for a consent the API would refuse.
- */
-const consentNeeded = computed(
-  () =>
-    Boolean(esignConsent.value?.required)
-    && !invitation.data.value?.phases?.consentedAt
-    && !consentGiven.value,
-);
-
-async function agree(): Promise<void> {
-  consenting.value = true;
-  consentFailed.value = false;
-  try {
-    await giveEsignConsent(token.value);
-    consentGiven.value = true;
-  } catch {
-    consentFailed.value = true;
-  } finally {
-    consenting.value = false;
-  }
-}
+// ── The 7001(c) consent (A4) — its state and its act live in `useEsignConsentStep` ──────────────
+const { consenting, consentFailed, esignConsent, consentNeeded, agree } =
+  useEsignConsentStep(token, invitation.data);
 
 /**
  * Is the carrier's wording still draft? (2026-08-23.)
@@ -271,6 +246,12 @@ const identityDone = ref(false);
 const identityComplete = computed(() => Boolean(invitation.data.value?.identityComplete));
 const identityNeeded = computed(() => ceremonyNeeded.value && !identityComplete.value && !identityDone.value);
 const identityLockedBy = computed(() => (identityComplete.value ? invitation.data.value!.carrier : null));
+// AF4: the permissions are in and the office has not sent the form. Only an explicit null counts —
+// see `ApplyPhases.applicationSentAt` — and a ceremony just finished in this tab counts as "in".
+const waitingForApplication = computed(() => {
+  const phases = invitation.data.value?.phases;
+  return phases?.applicationSentAt === null && Boolean(phases.releasesCompletedAt || ceremonyDone.value);
+});
 function identityRecorded(): void {
   [identityDone.value, restored.value, autosaveEnabled.value] = [true, false, false];
   void invitation.refetch();
@@ -323,11 +304,8 @@ watch(
   <!-- F4/D-AX11: handed over, and not yet approved. The driver has done everything they can do for
        the moment, and the screen says so rather than leaving them on a form with a spent button. -->
   <BaseCard v-else-if="awaitingReview">
-    <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.handoff.waitingHeading }}</h1>
-    <p class="mt-2 text-sm text-ink-muted">
-      {{ APPLY_COPY.handoff.waitingBody(invitation.data.value?.carrier ?? "") }}
-    </p>
-    <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.handoff.waitingNote }}</p>
+    <ApplyWaitScreen :heading="APPLY_COPY.handoff.waitingHeading" :note="APPLY_COPY.handoff.waitingNote"
+      :body="APPLY_COPY.handoff.waitingBody(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
 
   <!-- B7. ⚠ Ahead of the consent gate below, and this does not disturb D-APP5: A4's ruling is that
@@ -369,6 +347,12 @@ watch(
       :carrier="invitation.data.value?.carrier ?? ''"
       @done="ceremonyDone = true"
     />
+  </BaseCard>
+
+  <!-- AF4 (plan §3.1 row 5): permissions in, form not sent. Before the unlock gate: nothing is shown. -->
+  <BaseCard v-else-if="waitingForApplication">
+    <ApplyWaitScreen :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
+      :body="APPLY_COPY.permissionsReceived.body(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
 
   <!-- A2/D-APP16: the draft holds a date of birth, so the bare link does not read it back. One

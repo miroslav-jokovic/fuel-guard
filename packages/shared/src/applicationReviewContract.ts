@@ -82,6 +82,12 @@ export const APPLICATION_REVIEW_STATE_LABELS: Record<ApplicationReviewState, str
 };
 
 export interface ApplicationPhases {
+  /**
+   * When the office sent the application form, after the permissions (AF4, D-AF5, 0365). Null until
+   * then — the link carries the permissions only. ⚠ Required rather than optional so every place that
+   * builds phases has to say, and a forgotten one cannot read as "sent".
+   */
+  applicationSentAt: string | null;
   reviewRequestedAt: string | null;
   approvedAt: string | null;
   submittedAt: string | null;
@@ -147,7 +153,10 @@ export function applicationProgress(
 ): ApplicationProgressState {
   const state = applicationReviewState(phases);
   if (state !== "filling") return state;
-  return hasDraft ? "filling" : "not_started";
+  // ⚠ AF4: a draft is "filling" only once the form has been SENT. AF3's identity step writes a draft
+  // on the permissions visit, before there is any form to fill — and an office told "filling it in"
+  // about somebody it has not yet sent the application to would wait for them instead of screening.
+  return hasDraft && phases.applicationSentAt ? "filling" : "not_started";
 }
 
 /**

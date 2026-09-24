@@ -22,6 +22,8 @@ const candidate = (over: Partial<NudgeCandidate> = {}): NudgeCandidate => ({
   nudged_at: null,
   review_requested_at: null,
   approved_at: null,
+  // Sent: the ordinary nudge candidate is somebody who was given the form and stopped filling it.
+  application_sent_at: hoursAgo(96),
   draft_updated_at: hoursAgo(72),
   furthest_section: "employment",
   ...over,
@@ -135,4 +137,19 @@ describe("what the office is told", () => {
     expect(planApplicationNudges([candidate({ furthest_section: "references" })], NOW)[0]?.furthestSection).toBeNull();
     expect(planApplicationNudges([candidate({ furthest_section: null })], NOW)[0]?.furthestSection).toBeNull();
   });
+
+/**
+ * ⚠ AF4: a driver whose permissions are in and whose application has not been SENT is waiting on the
+ * office's screening, not walking away — and AF3's identity step gives them a draft on the first
+ * visit, so a stale draft is exactly what they look like. Ten days, because screening waits on a lab.
+ */
+describe("waiting for the office to send the application", () => {
+  it("is never nudged, however old the draft", () => {
+    expect(planApplicationNudges([candidate({ application_sent_at: null, draft_updated_at: hoursAgo(240) })], NOW)).toEqual([]);
+  });
+
+  it("is nudged once it has been sent and then left", () => {
+    expect(planApplicationNudges([candidate({ application_sent_at: hoursAgo(200), draft_updated_at: hoursAgo(72) })], NOW)).toHaveLength(1);
+  });
+});
 });

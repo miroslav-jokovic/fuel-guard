@@ -33,6 +33,11 @@ export function applicationInviteBadge(state: string): DqBadge {
       return { label: "Not opened yet", tone: "neutral" };
     case "signing":
       return { label: "Signing", tone: "brand" };
+    // AF4: the permissions are in and the office owes the next move — screening, then sending it.
+    case "permissions_signed":
+      return { label: "Permissions signed", tone: "warning" };
+    case "application_sent":
+      return { label: "Application sent", tone: "brand" };
     // ⚠ The three F5 added. Before them every one of these read "Open", including an application
     // sitting in the office's own queue.
     case "filling":

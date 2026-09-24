@@ -65,6 +65,8 @@ export interface BoardApplicantInput {
 export interface BoardInvitation {
   id: string;
   created_at: string;
+  /** AF4 (0365): when the office sent the application form. */
+  application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
   submitted_at: string | null;
@@ -162,6 +164,7 @@ export async function boardChecklists(
       invitedAt: a.invitation?.created_at ?? null,
       phases: a.invitation
         ? {
+            applicationSentAt: a.invitation.application_sent_at,
             reviewRequestedAt: a.invitation.review_requested_at,
             approvedAt: a.invitation.approved_at,
             submittedAt: a.invitation.submitted_at,

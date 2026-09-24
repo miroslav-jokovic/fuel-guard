@@ -324,11 +324,32 @@ describe("the pipeline lists applicants, and derives their stage", () => {
       invitations: [{
         id: "inv-1", driver_id: DRIVER, review_requested_at: null, approved_at: null,
         submitted_at: null, revoked_at: null, created_at: "2026-09-09T09:00:00Z",
+        // AF4: filling in is something done to a SENT form.
+        application_sent_at: "2026-09-09T10:00:00Z",
       }],
       drafts: [{ invitation_id: "inv-1" }],
     });
     holder.client = rec.client;
     expect((await body()).applicants[0]!.stage).toBe("filling_in");
+  });
+
+  /**
+   * ⚠ AF4, and the route's half of it: the stamp must reach the fold, or every draft from AF3's
+   * identity step — written on the permissions visit — would read as a form being filled in.
+   */
+  it("does not call a draft from the permissions visit filling in", async () => {
+    rec = seed({
+      history: [],
+      auths: [],
+      invitations: [{
+        id: "inv-1", driver_id: DRIVER, review_requested_at: null, approved_at: null,
+        submitted_at: null, revoked_at: null, created_at: "2026-09-09T09:00:00Z",
+        application_sent_at: null,
+      }],
+      drafts: [{ invitation_id: "inv-1" }],
+    });
+    holder.client = rec.client;
+    expect((await body()).applicants[0]!.stage).not.toBe("filling_in");
   });
 
   it("keeps 'not started' for a link nobody has opened", async () => {
