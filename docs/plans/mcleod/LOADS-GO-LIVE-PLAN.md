@@ -675,3 +675,6 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   dropped: drivers `EJONES`, `MMCARTHY`, `JFERGUSO` and trailer `TESTTRL`. ⚠ `loads` now holds
   **303** McLeod rows against a board of 152 — the 2026-09-17 loads that left the board are still
   `pending_approval`. That is Q-GL6, and it grows with every pull.
+- 2026-09-24 — **Owner ruling: loads are a read-only mirror of McLeod.** Approval, release and
+  office-created loads are retired; the plan is `LOADS-MIRROR-PLAN.md` (D-LMR1–D-LMR4, steps
+  LR0–LR8). **Q-GL6 moves there as LR5**, option (a) unchanged. L5–L7 and L9 stay here.
