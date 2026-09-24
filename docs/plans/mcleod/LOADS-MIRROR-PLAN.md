@@ -326,9 +326,73 @@ LR5 — ~140 stale loads close. LR6 — approval buttons disappear. LR7 — the 
 
 ---
 
+## 6a. The owner's second ruling (2026-09-24): how a McLeod load reaches a driver
+
+> A dispatcher creates the load in McLeod; it appears on our table. From the table's action column
+> and the load's detail page there is a **Dispatch** button; a modal picks the driver (with the
+> components we already have) and **Send** dispatches it to the driver app — which is built later, so
+> for now it texts the load's details to the driver. Distribution is built later: prepare it, do not
+> insist it is functional now. What matters now is that the loads are pulled and kept current in the
+> collectors.
+
+**D-LMR5 — Q-LMR1 is ruled: a load reaches a driver when Silvicom's dispatcher SENDS it.** None of the
+three candidates in §7: not automatic on McLeod `P` (a), not the old approve/release chain (b), and
+not "never" (c). One office act, **Dispatch**, replaces submit → approve → release. It is the only
+write Silvicom keeps on a McLeod load, and it does not write the load: see D-LMR6.
+
+**D-LMR6 — a dispatch is its own record, never a column on the mirrored load.** Proposed, for the
+owner to confirm before LR-D1. `loads` is a projection of McLeod (D-LMR2) and is overwritten on every
+sync, so a driver chosen in the modal cannot live in `loads.driver_id`: the next sync would put
+McLeod's driver back and the dispatch would silently vanish. It goes in a new append-only
+`load_dispatches` row — load, driver, who sent it, when, the channel (`sms` now, `app` later) and
+the channel's outcome. The modal PRE-SELECTS McLeod's driver; choosing someone else is allowed and
+is then visibly different from McLeod on the page, not hidden. Re-dispatching is a new row, never an
+edit. This is also the thing the driver app will read later ("loads sent to me"), so distribution
+is prepared by construction rather than by a flag.
+
+**D-LMR7 — `loads.status` stays McLeod's; "sent to driver" is derived from `load_dispatches`.**
+Proposed with D-LMR6. The LR4 table below keeps its McLeod half; the dispatch state is a separate
+column on the page ("Not sent" / "Sent to J. Smith, 09/24 10:14"), because it is a different fact
+from a different author.
+
+**D-LMR8 — a McLeod weight of 0 means "not entered", and projects to null.** Researched on live `lme`
+2026-09-24 (every 2026 TMS order, 12,581 rows, all `weight_um = 'LB'`):
+
+| order status | weight null | weight 0 | weight > 0 |
+|---|---|---|---|
+| A (available) | 22 | **0** | 22 |
+| P (planned) | 74 | **0** | 44 |
+| V (void) | 431 | **0** | 156 |
+| D (delivered) | 31 | **8,526** | 3,275 |
+
+A zero exists **only on delivered orders**, and **every** delivered order older than about two weeks
+has either a real weight or 0 — the 31 nulls are all delivered in the last three weeks (23 this
+week, 7 last, 1 three weeks back). So McLeod writes 0 in place of "no weight" some time after
+delivery; it is not a load that weighed nothing. Corroborated: zero-weight orders carry pieces on 2 of
+8,526 (weighed orders: 1,154 of 3,497), and zeros cluster by customer (ARRIAUTX 1,221 of 1,336,
+LANDJAF2 1,019 of 1,121 — brokers whose tenders carry no weight). The single zero on the open board
+is order 0005905, status P, a years-old stale order. **Rule for LR4:** raw keeps McLeod's 0 verbatim
+(D-LMR3); the projection writes `loads.weight_lbs = null` for 0, and for any unit other than `LB`
+(none exist) until someone rules on a conversion.
+
+**The six fields beyond Alex's list** (`loaded`, `weight_um`, `pallets_how_many`, `consignee_refno`,
+stop `id`, stop `phone`): the owner confirms Alex will add them to his list — accepted, no change.
+
+### Steps, re-ordered by the ruling
+
+| step | what | functional now? |
+|---|---|---|
+| LR4 | projection raw → core, status from McLeod, weight per D-LMR8, times already zoned (LR3) | yes — the table shows McLeod's loads, current |
+| LR-D1 | migration: `load_dispatches` (append-only, RLS) | schema only |
+| LR-D2 | `POST /api/dispatch/loads/:id/dispatch` → a `load_dispatches` row + the SMS attempt through `lib/sms.ts`; the outcome recorded, never assumed | yes, but SMS is dark: `SMS_PROVIDER=none` until Telnyx has a number (§6 of the SMS plan), so every send records `not_sent: sms_not_configured` |
+| LR-D3 | the **Dispatch** button (table action column + detail page) and the modal, reusing the detail page's `ComboSelect` driver picker; McLeod's driver pre-selected; the SMS body previewed before Send | yes |
+| LR6 | retire submit/approve/release/reject/create/edit — only after LR4 and LR-D3, so there is never a day with no way to reach a driver | — |
+| LR7 | the read-only table redesign | — |
+| later | driver app reads `load_dispatches`; Q-LMR2 (whose stop arrival counts) is ruled then | no |
+
 ## 7. Open questions
 
-1. **Q-LMR1 — how does a McLeod load reach a driver's phone now that nobody releases it?**
+1. **Q-LMR1 — RULED 2026-09-24 as D-LMR5 (§6a): the office Dispatch action.** Original question: how does a McLeod load reach a driver's phone now that nobody releases it?
    (a) a `P` load with a resolved driver projects straight to **`accepted`** — McLeod dispatch *is*
    the assignment, and asking the driver to accept again duplicates a conversation that already
    happened; the app shows it read-only with stop capture;
@@ -418,3 +482,7 @@ Append a dated line per merge. Never edit a status column.
   state starts empty), and the one-time `--close` re-posts the ~181 that left the board.
   Ten mutants, each failing by name (append-Z fails 7). Nothing is posted to production from here:
   the first real run is on the VM, after Alex has the new SQL file.
+- 2026-09-24 — **Owner's second ruling recorded (§6a):** D-LMR5 (Q-LMR1: the office Dispatch
+  action, SMS for now, the driver app later); D-LMR6/D-LMR7 proposed (a dispatch is its own
+  `load_dispatches` row, `loads.status` stays McLeod's); D-LMR8 from research (McLeod weight 0 =
+  "not entered" → null in core); the six extra fields accepted. Steps re-ordered: LR4, LR-D1..3, LR6, LR7.
