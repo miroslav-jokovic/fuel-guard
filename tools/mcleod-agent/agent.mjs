@@ -20,7 +20,7 @@
  *                 confirmed against live data during the one-truck connectivity test, then filled in below.
  */
 
-import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSync, statSync, renameSync, appendFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState, runInspection } from "./roster.mjs";
@@ -700,9 +700,15 @@ async function runFinancial() {
 // ── --service (CA3) ─────────────────────────────────────────────────────────────────────────────────
 /**
  * One copy only. Two services on one VM would double every read the letter promised the carrier, so
- * a second copy refuses to start. The lock records the holder's pid; a lock whose process is gone
- * (the VM rebooted mid-run) is stale and is taken over rather than blocking the service for good.
+ * a second copy refuses to start.
+ *
+ * The lock records the holder's pid AND is rewritten every tick, and a lock counts as held only when
+ * both are true: its process exists and it was touched within LOCK_STALE_MS. The pid alone is not
+ * enough on Windows, which reuses process ids — after a reboot a leftover lock can name some
+ * unrelated live process, and a pid-only check would then refuse to start the service for good.
  */
+const LOCK_STALE_MS = 2 * 60_000;
+
 function takeLock(path) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -719,6 +725,7 @@ function takeLock(path) {
     } catch (e) {
       if (e.code !== "EEXIST") throw e;
       const pid = Number(readFileSync(path, "utf8").trim());
+      const fresh = Date.now() - statSync(path).mtimeMs < LOCK_STALE_MS;
       let alive = false;
       try {
         if (pid > 0) process.kill(pid, 0);
@@ -726,8 +733,8 @@ function takeLock(path) {
       } catch (err) {
         alive = err.code === "EPERM";
       }
-      if (alive) fail(`another connector is already running (pid ${pid}, lock ${path}). Refusing to start a second.`);
-      log(`service: removing stale lock from pid ${pid}`);
+      if (alive && fresh) fail(`another connector is already running (pid ${pid}, lock ${path}). Refusing to start a second.`);
+      log(`service: removing stale lock from pid ${pid} (${alive ? "not touched for over 2 minutes" : "process gone"})`);
       unlinkSync(path);
     }
   }
@@ -810,7 +817,38 @@ async function closeMovements(movementIds) {
   return res;
 }
 
+/**
+ * CONNECTOR_LOG: the service writes its own log file. On Windows the task runs node.exe DIRECTLY —
+ * wrapping it in `cmd /c … >> file` would let Stop-ScheduledTask end cmd.exe and leave node running
+ * — and Task Scheduler keeps no output of its own. Rolled to `<file>.1` past 20 MB, so it cannot
+ * fill the disk (~300 KB a day in practice).
+ */
+const LOG_ROLL_BYTES = 20 * 1024 * 1024;
+function teeToLogFile(path) {
+  const roll = () => {
+    try {
+      if (statSync(path).size > LOG_ROLL_BYTES) renameSync(path, `${path}.1`);
+    } catch {
+      /* no file yet */
+    }
+  };
+  roll();
+  for (const k of ["log", "error"]) {
+    const orig = console[k].bind(console);
+    console[k] = (...a) => {
+      try {
+        appendFileSync(path, a.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" ") + "\n");
+      } catch {
+        /* a full disk must not stop the feed */
+      }
+      orig(...a);
+    };
+  }
+  return roll;
+}
+
 async function runService() {
+  const rollLog = process.env.CONNECTOR_LOG ? teeToLogFile(process.env.CONNECTOR_LOG) : () => {};
   const release = takeLock(CFG.lockPath);
   holdConnection();
   let stopping = false;
@@ -855,6 +893,13 @@ async function runService() {
       }
       saveServiceState(state);
     }
+    // Heartbeat: a live service keeps its lock fresh (see takeLock).
+    try {
+      writeFileSync(CFG.lockPath, String(process.pid));
+    } catch {
+      /* the next tick tries again */
+    }
+    rollLog();
     await sleep(5_000);
   }
 }

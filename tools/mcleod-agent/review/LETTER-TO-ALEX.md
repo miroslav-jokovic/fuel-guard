@@ -33,9 +33,10 @@ Nothing will be scheduled until you've read this and the SQL file and told us it
 2. WHAT THE VM NEEDS
 
 - Windows Server or Linux, whichever is easier for you. 2 vCPU, 4 GB RAM and 20 GB disk is
-  plenty; the connector itself uses well under 100 MB of memory.
-- Node.js 22 LTS. The connector has one dependency, the Microsoft SQL driver for Node (mssql).
-  Nothing else gets installed.
+  plenty. The connector uses about 90 MB of memory for the load reads, and about 180 MB at its
+  peak during the nightly finance run.
+- Node.js 22 or newer (LTS). The connector has one dependency, the Microsoft SQL driver for Node
+  (mssql). Nothing else gets installed.
 - Network: it needs to reach 10.0.1.171 on port 1433, and HTTPS (port 443) out to
   fleetguardapi-production.up.railway.app.
 - It runs as one background task that starts with the VM (Task Scheduler on Windows, systemd on
@@ -86,12 +87,13 @@ Measured on APPNEW with SET STATISTICS TIME/IO, median of three runs, on Septemb
   Open loads (3 statements)       about 32 ms CPU, 5,200 + 3,800 pages, all from memory
   Closing loads (300 ids)         under 16 ms CPU, 1,556 pages
   Roster (3 statements)           under 16 ms CPU, about 500 pages
-  Finance, whole nightly run      about 3 seconds CPU (measured on the analytics copy, which
-                                  has the same tables and indexes)
+  Finance, whole nightly run      about 10 seconds CPU on one core, 19 to 21 statements
+                                  (measured on the analytics copy, which is a restore of LME
+                                  with the same tables and indexes)
 
-  Per day, all together:          about 55 CPU-seconds, out of 3.6 million core-seconds a day on
-                                  42 cores = 0.0015%
-  Statements per day:             about 4,800 (mostly the three open-load reads, once a
+  Per day, all together:          about 60 CPU-seconds, out of 3.6 million core-seconds a day on
+                                  42 cores = 0.002%
+  Statements per day:             about 4,900 (mostly the three open-load reads, once a
                                   minute), next to your roughly 138 requests per second = 0.04%
 
 To be straight with you: while measuring for this letter we found one of our finance statements
@@ -112,7 +114,7 @@ statement runs with:
   SET DEADLOCK_PRIORITY LOW          if SQL Server has to choose, it cancels us, not them
   OPTION (MAXDOP 1)                  we never use more than one core
   READ COMMITTED, never NOLOCK       we'd rather wait a moment than read a half-written row
-  15-second statement limit          our slowest statement takes 1.4 seconds
+  15-second statement limit          our slowest statement takes about 1.4 seconds
   one statement at a time            feeds run one after another, never in parallel
   automatic back-off                 three timeouts in a row and the connector pauses for 15
                                      minutes before trying again
@@ -162,7 +164,9 @@ deadlock priority LOW, isolation READ COMMITTED, program_name "Silvicom 360 conn
      a) you install a trusted certificate and give us the hostname it's issued for,
      b) we encrypt but accept the current self-signed certificate, or
      c) we stay unencrypted, since from the VM the traffic never leaves your network.
-     We'd lean to (a) or (b), but it's your call.
+     We tested (b) on APPNEW and it works (encrypt_option = TRUE), so unless you'd prefer
+     otherwise the VM will start with (b), and we can move to (a) whenever you have a
+     certificate.
 
   4. Dispatcher fleets: tractor.fleet_id matched the load's dispatcher on 95 of 97 dispatched
      loads we checked, so we'd like to use it. Is it kept up to date when a truck moves to another

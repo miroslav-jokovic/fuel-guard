@@ -282,3 +282,17 @@ Append a dated line per merge. Never edit a status column.
   ⚠ **Found on the way: the agent's unit tests had never run in CI** — `lint:agent-syntax` was in
   neither list, so `review.test.mjs` pinned nothing. Now chained onto `lint:cli-streams`.
   11 mutations run against the new code, each caught and each restored byte-for-byte.
+- 2026-09-24 — **Accuracy pass before the letter went out, and two figures in it were wrong.**
+  (1) The nightly finance run is **~10 s of CPU, not ~3.7 s**: the two ledger statements run once for
+  the window and again for each of 3–4 months, ~2.2 s a pass regardless of range — measured end to
+  end from `sys.dm_exec_sessions.cpu_time` (9.8–10.6 s, hardening pass the same). §4.1's total becomes
+  ~60 s/day, 0.002%. (2) Peak memory is **181 MB** (finance), not "well under 100 MB"; loads ~90 MB.
+  Also fixed in the install steps: the Windows task ran `cmd /c node … >> log`, so stopping the task
+  could orphan node — it now runs node.exe directly and the connector writes its own log
+  (`CONNECTOR_LOG`, rolled at 20 MB); and the lock is now pid **plus a heartbeat**, because Windows
+  reuses pids and a leftover lock naming a live process would have kept the service down for good
+  (both cases run by hand). Encryption option (b) — encrypt, trust the self-signed certificate — was
+  **tested and works** (`encrypt_option = TRUE`), so it is now the template default. The whole review
+  file ran as one batch: 24 result sets on `lme_analytics`; on `lme` under our login it stops at Part 4
+  as it says. A clean install from tracked files only (`npm ci --omit=dev`, 87/87 tests, a live dry
+  run of 159 loads) was run from a scratch folder.

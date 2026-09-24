@@ -4,7 +4,8 @@
 
    Alex - this is the file my letter refers to. It holds every statement our connector runs,
    word for word, in the order and with the settings it uses. It is plain T-SQL: open it in
-   SSMS and run it, and you will get back the rows we get.
+   SSMS and run it, and you will get back the rows we get. Run it as an administrator: under
+   our own login it stops at Part 4 with a permission error until the finance grants exist.
 
    This file is produced from our connector's code, so it cannot drift from what actually runs;
    if anything in it ever changes, we will send you the new file before the change goes live.
@@ -339,9 +340,11 @@ OPTION (MAXDOP 1);
 -- PART 4 - FINANCE (every night at 2:00 AM Central, plus a wider pass on the first days of each month)
 --
 -- A rolling 75-day window of settlements, deductions, AP vouchers, fuel, movements, billing and
--- the general ledger. About 3.7 seconds of CPU for the whole night. These need the finance grants
--- in section 6 of my letter; until then this part fails with a permission error under our login.
--- Statement 20 runs once for each calendar month the window touches (three or four times).
+-- the general ledger. Statements 20 and 21 run once for the window and once more for each
+-- calendar month it touches (three or four), so a night is 19 to 21 statements. Measured on the
+-- analytics copy: about 10 seconds of CPU for the whole night, on one core. These need the
+-- finance grants in section 6 of my letter; until then this part fails with a permission error
+-- under our login.
 -- ========================================================================================
 
 -- ----------------------------------------------------------------------------------------
