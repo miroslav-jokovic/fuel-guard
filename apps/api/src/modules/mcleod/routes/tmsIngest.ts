@@ -8,6 +8,7 @@ import {
   driverTimeOffPayloadSchema,
   tmsLoadsPayloadSchema,
   tmsDispatchersPayloadSchema,
+  tmsDispatchMovementsPayloadSchema,
   tmsDriversPayloadSchema,
   tmsVehiclesPayloadSchema,
   tmsTrailersPayloadSchema,
@@ -17,6 +18,7 @@ import {
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../tmsIngest.js";
 import { ingestLoads } from "../tmsLoadIngest.js";
 import { ingestDispatchers } from "../tmsDispatcherIngest.js";
+import { ingestDispatchMovements } from "../dispatchMovementIngest.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.js";
 import { reconcileAbsentFromTms, retireFromTms } from "../rosterRetire.js";
 import { isTmsRosterMaster } from "../rosterMastery.js";
@@ -287,6 +289,29 @@ export function tmsIngestRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const { orgId, provider } = req.tms!;
       const result = await ingestDispatchers(admin, orgId, provider, parsed.data.dispatchers);
+      await touchLastSynced(admin, orgId, provider);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * The raw dispatch mirror (LOADS-MIRROR-PLAN.md LR3): each movement on the board, and each one the
+   * close read asked about, exactly as McLeod states it, into `mcleod_dispatch_*`. Beside `/loads`, not
+   * instead of it — the load feed keeps the product running until LR4's projection reads from here,
+   * and LR8 compares the two for a week before the old blob is retired.
+   */
+  router.post(
+    "/dispatch-movements",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsDispatchMovementsPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const issue = parsed.error.issues[0];
+        res.status(400).json(apiError("invalid_payload", issue ? `${issue.path.join(".")}: ${issue.message}` : "invalid payload"));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { orgId, provider } = req.tms!;
+      const result = await ingestDispatchMovements(admin, orgId, parsed.data.company_id, parsed.data.movements);
       await touchLastSynced(admin, orgId, provider);
       res.json({ ok: true, ...result });
     }),

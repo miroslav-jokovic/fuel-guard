@@ -38,11 +38,9 @@ const WAIVERS = new Map([
   // tms_dispatchers left it on 2026-09-23 (LOADS-GO-LIVE-PLAN.md L4): tmsDispatcherIngest.ts writes
   // it behind POST /api/tms/dispatchers. It was pinned for one merge only, because
   // lint:migration-ordering made 0344 ship schema-only; that merge is this one.
-  // The dispatch mirror's raw tables (0364) ship schema-only as LOADS-MIRROR-PLAN.md LR1, one step
-  // ahead of their writer: LR3's `POST /api/tms/dispatch-movements` in the `mcleod` module. Both
-  // entries leave in that merge — the gate reports them stale the moment the writer lands.
-  ["mcleod_dispatch_movements", "LOADS-MIRROR-PLAN.md LR3 — the dispatch-movements ingest writes it"],
-  ["mcleod_dispatch_stops", "LOADS-MIRROR-PLAN.md LR3 — written with its movement, in the same ingest"],
+  // mcleod_dispatch_movements and mcleod_dispatch_stops left it on 2026-09-24 (LOADS-MIRROR-PLAN.md
+  // LR3): dispatchMovementIngest.ts writes both behind POST /api/tms/dispatch-movements. Pinned for one
+  // merge only, the schema-only LR1 — the same shape as tms_dispatchers above.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

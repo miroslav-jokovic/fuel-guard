@@ -325,3 +325,12 @@ Append a dated line per merge. Never edit a status column.
   dry run: with both the stub and that backstop removed the same command posted 22 batches, with only
   the backstop it stops at the first. The service ran live with `FINANCE_FEED=off`: its start line
   says so and loads (157) and the roster ran.
+- 2026-09-24 — **LR3 changes the reviewed SQL.** Statements 1–2 (open loads) and their close-read twins
+  now also read, from tables already granted: `movement.loaded`, `orders.customer_id / weight /
+  weight_um / pieces / pallets_how_many / consignee_refno`, and `stop.id / location_name /
+  actual_arrival / actual_departure / eta / contact_name / phone / ponum`. That is the eight fields
+  Alex's reply named (location name, actual arrival/departure, ETA, contact, PO, customer code,
+  weight, pieces) **plus six he did not**: `loaded`, `weight_um`, `pallets_how_many`,
+  `consignee_refno`, the stop's own `id` and its `phone` — the note to him must list those by name.
+  Still 24 statements, no new table, no new join; `SILVICOM-READ-ROUTINE.sql` regenerated.
+  Per his condition the owner sends him the new file before the connector runs it.

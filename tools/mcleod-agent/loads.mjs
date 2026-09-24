@@ -22,6 +22,7 @@ import {
   closeReadQueries,
 } from "./queries.mjs";
 import { withPool } from "./connection.mjs";
+import { centralToIso } from "./centralTime.mjs";
 
 /**
  * McLeod stop types, mapped onto the load vocabulary — and NOTHING else is mapped (D-LM15).
@@ -95,8 +96,10 @@ function mapStop(row) {
     postal_code: row.postal_code ?? null,
     lat: row.lat == null ? null : Number(row.lat),
     lon: toWesternLongitude(row.lon_west_positive),
-    appointment_start: row.appointment_start ?? null,
-    appointment_end: row.appointment_end ?? null,
+    // Central wall-clock → an instant. Sent bare until 2026-09-24 and stored five hours early (see
+    // centralTime.mjs): the fix is here, for the load feed, as much as for the raw mirror below.
+    appointment_start: centralToIso(row.appointment_start),
+    appointment_end: centralToIso(row.appointment_end),
   };
 }
 
@@ -167,6 +170,74 @@ export function mapLoad(row, stopRows) {
   };
 }
 
+/**
+ * One McLeod stop, as McLeod has it (LR3, D-LMR3). EVERY stop — `VA`, `SP` and whatever McLeod adds
+ * next travel with their type verbatim. Deciding what a stop means is the projection's job (LR4),
+ * which is why `STOP_KIND` above is not consulted here: Alex's answer on 2026-09-24 (SD/SP split
+ * trailer, VA/VP interline points) is exactly the kind of fact that has to find the rows still there.
+ * Names are McLeod's own, as the raw table's are (0364). Only two things are done to a value: the
+ * longitude is negated (McLeod stores it west-positive) and times get their zone, once, in
+ * centralToIso.
+ */
+export function mapDispatchStop(s) {
+  return {
+    stop_id: String(s.stop_id).trim(),
+    movement_sequence: s.seq ?? null,
+    stop_type: s.stop_type ? String(s.stop_type).trim() || null : null,
+    status: s.stop_status ?? null,
+    location_id: s.location_id ?? null,
+    location_name: s.location_name ?? null,
+    address: s.address_line ?? null,
+    city_name: s.city ?? null,
+    state: s.state ?? null,
+    zip_code: s.postal_code ?? null,
+    latitude: s.lat == null ? null : Number(s.lat),
+    longitude: toWesternLongitude(s.lon_west_positive),
+    sched_arrive_early: centralToIso(s.appointment_start),
+    sched_arrive_late: centralToIso(s.appointment_end),
+    actual_arrival: centralToIso(s.actual_arrival),
+    actual_departure: centralToIso(s.actual_departure),
+    eta: centralToIso(s.eta),
+    contact_name: s.contact_name ?? null,
+    phone: s.phone ?? null,
+    ponum: s.ponum ?? null,
+  };
+}
+
+const num = (v) => (v == null ? null : Number(v));
+
+/**
+ * One McLeod movement for the raw mirror (`POST /api/tms/dispatch-movements`). Unlike `mapLoad` it
+ * skips nothing for being unusual — a movement with no order is still a movement McLeod has — and it
+ * carries all of its stops. A zero weight stays 0: whether McLeod's 0 means "not entered" is LR4's
+ * ruling to make, and a raw copy that decided it could not be re-projected when it is made.
+ */
+export function mapDispatchMovement(row, stopRows) {
+  const weight = num(row.weight);
+  return {
+    movement_id: String(row.movement_id).trim(),
+    order_id: row.ref ?? null,
+    blnum: row.bol_number ?? null,
+    movement_status: row.external_status ?? null,
+    loaded: row.loaded ?? null,
+    dispatcher_user_id: row.dispatcher_external_id ?? null,
+    driver_codes: splitCodes(row.driver_codes),
+    tractor_id: row.vehicle_unit ?? null,
+    trailer_id: row.trailer_unit ?? null,
+    trailer_type: row.trailer_type ? String(row.trailer_type).trim() || null : null,
+    commodity: row.commodity ?? null,
+    customer_id: row.customer_id ?? null,
+    weight,
+    // A unit only means something beside a weight; McLeod fills weight_um on unweighed orders too.
+    weight_um: weight == null ? null : (row.weight_um ?? null),
+    pieces: num(row.pieces),
+    pallets_how_many: num(row.pallets_how_many),
+    consignee_refno: row.consignee_refno ?? null,
+    move_distance: num(row.total_miles),
+    stops: stopRows.map(mapDispatchStop),
+  };
+}
+
 /** `is_system` is configuration, never inferred from a display name (D-LM4). */
 export function mapDispatchers(rows, systemIds) {
   const system = new Set(systemIds.map((s) => s.trim().toLowerCase()).filter(Boolean));
@@ -199,10 +270,12 @@ export async function fetchDispatchLoads(cfg, { staleDays = 30, systemDispatcher
       .input("companyId", mssql.VarChar(32), cfg.companyId)
       .query(DISPATCH_DISPATCHERS);
 
-    const { loads, skipped, notes } = assemble(loadRes.recordset ?? [], stopRes.recordset ?? []);
+    const { loads, movements, skipped, notes } = assemble(loadRes.recordset ?? [], stopRes.recordset ?? []);
 
     return {
       loads,
+      movements,
+      companyId: cfg.companyId,
       dispatchers: mapDispatchers(dispatcherRes.recordset ?? [], systemDispatchers),
       skipped,
       notes,
@@ -210,8 +283,15 @@ export async function fetchDispatchLoads(cfg, { staleDays = 30, systemDispatcher
   });
 }
 
-/** Movement rows + flat stop rows → mapped loads, with every skip and note kept. */
-function assemble(loadRows, stopRows) {
+/**
+ * Movement rows + flat stop rows → mapped loads AND raw movements, with every skip and note kept.
+ *
+ * ⚠ A movement carrying two orders arrives as two rows (the `movement_order` join). None did on the
+ * board of 2026-09-24, and one load per movement rests on that; the raw row has ONE `order_id`, so such
+ * a movement is REFUSED for the mirror and said out loud, never stored with an arbitrary order of the
+ * two (0364's header). The load feed keeps its old behaviour until LR4 replaces it.
+ */
+export function assemble(loadRows, stopRows) {
   const stopsByMovement = new Map();
   for (const s of stopRows) {
     const key = String(s.movement_id).trim();
@@ -220,17 +300,32 @@ function assemble(loadRows, stopRows) {
   }
 
   const loads = [];
+  const movements = [];
   const skipped = [];
   const notes = [];
+  const rowsPerMovement = new Map();
+  for (const row of loadRows) {
+    const id = String(row.external_id).split(":").pop();
+    rowsPerMovement.set(id, (rowsPerMovement.get(id) ?? 0) + 1);
+  }
+  const refused = new Set();
   for (const row of loadRows) {
     const movementId = String(row.external_id).split(":").pop();
     const mapped = mapLoad(row, stopsByMovement.get(movementId) ?? []);
     if (mapped.load) loads.push(mapped.load);
     if (mapped.skipped) skipped.push(mapped.skipped);
     notes.push(...mapped.notes);
+    if (rowsPerMovement.get(movementId) > 1) {
+      if (!refused.has(movementId)) {
+        refused.add(movementId);
+        skipped.push({ movement_id: movementId, reason: `carries ${rowsPerMovement.get(movementId)} orders — not mirrored` });
+      }
+      continue;
+    }
+    movements.push(mapDispatchMovement(row, stopsByMovement.get(movementId) ?? []));
   }
 
-  return { loads, skipped, notes };
+  return { loads, movements, skipped, notes };
 }
 
 /**
@@ -244,9 +339,10 @@ function assemble(loadRows, stopRows) {
 export async function fetchClosedLoads(cfg, movementIds) {
   const ids = [...new Set(movementIds.map((id) => String(id).trim()).filter(Boolean))];
   const loads = [];
+  const movements = [];
   const skipped = [];
   const notes = [];
-  if (!ids.length) return { loads, skipped, notes };
+  if (!ids.length) return { loads, movements, skipped, notes };
   return withPool(cfg, async (pool, mssql) => {
     for (let i = 0; i < ids.length; i += CLOSE_READ_MAX_IDS) {
       const part = ids.slice(i, i + CLOSE_READ_MAX_IDS);
@@ -260,10 +356,11 @@ export async function fetchClosedLoads(cfg, movementIds) {
       const stopRes = await bind().query(q.stops);
       const out = assemble(loadRes.recordset ?? [], stopRes.recordset ?? []);
       loads.push(...out.loads);
+      movements.push(...out.movements);
       skipped.push(...out.skipped);
       notes.push(...out.notes);
     }
-    return { loads, skipped, notes };
+    return { loads, movements, skipped, notes };
   });
 }
 
