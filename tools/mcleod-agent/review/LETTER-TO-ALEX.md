@@ -1,189 +1,122 @@
-Subject: Silvicom 360 connector: how we will read LME, and what we need from you
+Subject: Silvicom 360 connector: what we built and how it reads LME
 
 Hi Alex,
 
-Thanks again for the read-only login and for fixing our grant script. We've been using it carefully
-for discovery, and before anything runs on a schedule I want to give you the complete picture,
-the way we promised. It covers how the connector is built, exactly what it reads and how often,
-what that costs your server (measured on APPNEW, not estimated), what we'll never do, and the few
-things we need from you.
-
-Two files come with this letter:
-- SILVICOM-READ-ROUTINE.sql: every statement the connector runs, word for word (24 of them).
-- INSTALL-ON-VM.md: the install steps for the Board VM.
-
-Nothing will be scheduled until you've read this and the SQL file and told us it's OK.
+Here's a short overview of what we've built on our side, how it reads LME, and what we do with the
+data. The two attachments have the details: SILVICOM-READ-ROUTINE.sql has every statement word for
+word, and INSTALL-ON-VM.md covers setting it up on the VM.
 
 
-1. HOW IT FITS TOGETHER
+WHAT IT IS
 
-    LME (APPNEW)  ->  Board VM (your network)  ->  HTTPS out  ->  Silvicom 360
+A small program we call the connector. It runs on the VM, reads LME with the read-only login,
+and sends what it reads to Silvicom 360 over HTTPS:
 
-- The connector runs only on the Board VM you're setting up for us. That VM will be the only
-  machine that ever connects to LME for Silvicom: one program, one login, one connection.
-- It sends data out to us over HTTPS. Nothing connects in from outside, so you don't need to open
-  a firewall port or keep an IP allow-list for us.
-- Once the VM is running we'll switch off everything else we have today. That means the roster
-  sync running on my laptop in your office, and our reads from the analytics database under the
-  NikiAnalytics login. After that, all Silvicom reads from LME come from the VM and nowhere else.
-- In SQL Server the connection shows up as program_name "Silvicom 360 connector" in
-  sys.dm_exec_sessions, so you can always see us, and stop us, from your side.
+    LME  ->  connector on the VM  ->  HTTPS  ->  Silvicom 360
+
+It's one program with one connection, and it only ever runs SELECTs. Nothing connects in to your
+network. In SQL Server it shows up as "Silvicom 360 connector".
 
 
-2. WHAT THE VM NEEDS
+WHAT WE DO WITH THE DATA
 
-- Windows Server or Linux, whichever is easier for you. 2 vCPU, 4 GB RAM and 20 GB disk is
-  plenty. The connector uses about 90 MB of memory for the load reads, and about 180 MB at its
-  peak during the nightly finance run.
-- Node.js 22 or newer (LTS). The connector has one dependency, the Microsoft SQL driver for Node
-  (mssql). Nothing else gets installed.
-- Network: it needs to reach 10.0.1.171 on port 1433, and HTTPS (port 443) out to
-  fleetguardapi-production.up.railway.app.
-- It runs as one background task that starts with the VM (Task Scheduler on Windows, systemd on
-  Linux). You or we can stop it at any time. Only one copy can run; a second one refuses to start.
-- The LME password and our upload token are stored in a config file on the VM, readable only by
-  the service account. Neither is in our source code.
+McLeod stays the system where loads are created, dispatched and changed. Silvicom 360 becomes a
+read-only mirror of it that we build on:
 
+- Loads board: every open load with its stops, driver, truck, trailer and dispatcher, shown
+  exactly as McLeod has it. We're taking out the load creation and approval we had on our side,
+  so a load's status always comes from McLeod.
+- Live map: which truck is on which load and which stops are next. Truck positions come from
+  Samsara, and the load and stops come from LME.
+- Drivers, trucks and trailers: our lists stay matched to yours, for compliance and inspections.
+- Finance: settlements, fuel, AP, billing and GL, for cost per mile and the fleet report.
 
-3. WHAT IT READS, AND HOW OFTEN
-
-Everything is a plain SELECT. SILVICOM-READ-ROUTINE.sql has every statement, word for word, in
-five parts that match a) to e) below, so you can open it in SSMS and run it yourself. You'll get
-back exactly the rows we get. The file is produced from the connector's code, so it can't drift
-from what actually runs.
-
-  a) Open loads - every minute (statements 1-3).
-     Movements with status P or A that have a stop in the last 30 days, with their stops, driver,
-     truck, trailer and dispatcher. About 160 loads and 335 stops today.
-     Soon we'd like to add a few columns from tables you've already granted: stop location name,
-     actual arrival/departure, ETA, stop contact, PO number, customer code, weight and pieces.
-     We measured it, and it reads the same pages, so it costs no more. They're not in the attached
-     file yet; you'll get the updated file before we add them.
-
-  b) Closing loads - every 10 minutes (statements 4-5).
-     For loads we still have open on our side that have left your open board, we ask LME for their
-     current state by movement id, so we see when one is delivered (D) or voided (V). It's a short
-     keyed read with at most 300 ids per statement, and usually only a handful.
-
-  c) Drivers, trucks and trailers - every 15 minutes (statements 6-8).
-     Today this runs every 2 minutes from my laptop. That's more often than needed, so we'll slow
-     it down when it moves to the VM.
-
-  d) Finance - once a night at 2:00 AM Central, plus a wider pass on the first days of each month
-     to catch late entries (statements 9-21).
-     Settlements, deductions, AP vouchers, fuel, billing history and GL totals for a rolling 75-day
-     window. Today this reads the analytics database, which hasn't been refreshed since
-     September 10, so our numbers are two weeks old. Moving it to LME fixes that, but it needs the
-     grants in section 6.
-
-  e) By hand only, never on a timer: three "who has left" reads (statements 22-24: drivers,
-     trucks and trailers marked inactive), which we run when we clean up our roster.
+We're setting up our storage in two layers. The first is a raw copy, exactly as LME says it. The
+second is our own model built from that copy. If we ever change how we interpret something (a
+stop type, for example), we rebuild from the raw copy instead of reading LME again.
 
 
-4. WHAT IT COSTS YOUR SERVER
+HOW IT READS (THE LOGIC)
 
-Measured on APPNEW with SET STATISTICS TIME/IO, median of three runs, on September 24:
+  Every minute - open loads (statements 1-3)
+    Movements with status P or A that have a stop in the last 30 days, plus their stops and
+    dispatchers. That's about 160 loads and 335 stops. The connector keeps a fingerprint (hash)
+    of every load it has sent, and only sends loads whose fingerprint changed. A quiet minute
+    reads the board and sends nothing.
 
-  Open loads (3 statements)       about 32 ms CPU, 5,200 + 3,800 pages, all from memory
-  Closing loads (300 ids)         under 16 ms CPU, 1,556 pages
-  Roster (3 statements)           under 16 ms CPU, about 500 pages
-  Finance, whole nightly run      about 10 seconds CPU on one core, 19 to 21 statements
-                                  (measured on the analytics copy, which is a restore of LME
-                                  with the same tables and indexes)
+  Every 10 minutes - closing loads (statements 4-5)
+    A load that drops off the open board isn't assumed finished. The connector looks it up by
+    movement id and sends what LME says: delivered (D) or void (V). It's a short keyed read of
+    at most 300 ids, and usually only a handful.
 
-  Per day, all together:          about 60 CPU-seconds, out of 3.6 million core-seconds a day on
-                                  42 cores = 0.002%
-  Statements per day:             about 4,900 (mostly the three open-load reads, once a
-                                  minute), next to your roughly 138 requests per second = 0.04%
+  Every 15 minutes - drivers, trucks, trailers (statements 6-8)
+    The same fingerprint approach: only changed records are sent.
 
-To be straight with you: while measuring for this letter we found one of our finance statements
-was far heavier than it needed to be, over 4 seconds of CPU and 3.3 million page reads. It was
-also slightly wrong: its lookups didn't check company_id, so on 128 movements it picked up order
-numbers from the TMS2/TMS3 movement with the same id. It has only ever run against the analytics
-copy. It's fixed now (statement 15): 0.22 seconds, and every statement we run is checked
-automatically for the same mistake.
+  Every night at 2:00 AM Central - finance (statements 9-21)
+    A rolling 75-day window of settlements, deductions, vouchers, fuel, movements, billing and GL,
+    plus month totals. For now this runs against the analytics copy, which was last restored
+    September 10. It moves to LME once the finance tables are granted.
 
+  By hand only - three "who has left" reads (statements 22-24).
 
-5. HOW WE STAY OUT OF YOUR DISPATCHERS' WAY
+The feeds run one after another, never at the same time, on one held connection. Every statement
+goes out with LOCK_TIMEOUT 5000, DEADLOCK_PRIORITY LOW, READ COMMITTED and OPTION (MAXDOP 1),
+and has a 15-second limit. After three timeouts in a row, the connector pauses for 15 minutes.
+The idea is simple: if anything is busy, we're the ones who wait. The attached SQL file is
+generated from the connector's code, so it always matches what actually runs.
 
-READ_COMMITTED_SNAPSHOT is off on LME, so a slow read could make your users wait. So every
-statement runs with:
-
-  SET LOCK_TIMEOUT 5000              if a row is busy, we give up after 5 seconds; your user
-                                     never waits on us
-  SET DEADLOCK_PRIORITY LOW          if SQL Server has to choose, it cancels us, not them
-  OPTION (MAXDOP 1)                  we never use more than one core
-  READ COMMITTED, never NOLOCK       we'd rather wait a moment than read a half-written row
-  15-second statement limit          our slowest statement takes about 1.4 seconds
-  one statement at a time            feeds run one after another, never in parallel
-  automatic back-off                 three timeouts in a row and the connector pauses for 15
-                                     minutes before trying again
-
-All of this is in the connector's code now, in one place that every statement goes through, with
-automatic checks that stop us from adding a statement that skips it. The laptop roster sync
-already runs this way. We checked it on APPNEW from our own session: lock timeout 5000,
-deadlock priority LOW, isolation READ COMMITTED, program_name "Silvicom 360 connector".
+We looked at Change Tracking (thanks for granting it). At this size, asking "what changed" cost
+more than simply reading the ~160 open loads (about 60 ms against 32 ms), so the connector
+doesn't use it. The fingerprints give us the same result on our side.
 
 
-6. WHAT WE NEED FROM YOU
+WHAT IT COSTS APPNEW (measured September 24)
 
-  a) The Board VM (section 2).
+  Open loads, 3 statements          about 32 ms CPU, from memory
+  Closing loads, 300 ids            under 16 ms CPU
+  Drivers/trucks/trailers           under 16 ms CPU
+  Finance, whole night              about 10 s CPU, one core (measured on the analytics copy)
 
-  b) A few more read grants for the same login (silvicom_dispatch_ro):
-     - reference_number: SELECT. That's where the pickup (PU) number lives; it's empty in orders
-       and stop.
-     - customer: SELECT on just the customer's id, name, city and state. We don't need credit,
-       billing or contact fields.
-     - For the nightly finance run: gl_ledger, gl_ledger_hist, gl_account, billing_history,
-       drs_settle_hist, drs_deduct_hist, voucher, voucher_hist, fuel_detail, fuel_detail_hist,
-       equipment_item: SELECT.
-     - Optional: SHOWPLAN, so we can check a statement's execution plan instead of guessing from
-       timings.
-     Once the finance run is on this login, the NikiAnalytics login can be disabled for us. It
-     can read much more than we need (including driver SSNs), and we'd rather not have it.
+  Per day, all together             about 60 CPU-seconds, or 0.002% of the server
+  Statements per day                about 4,900, or 0.04% of its normal request rate
 
-  c) VIEW CHANGE TRACKING: thanks for granting it. We measured it, and at your size asking
-     "what changed" costs your server more than simply reading the ~160 open loads (about 60 ms
-     against 32 ms), so the connector doesn't use it. You can take it back, or leave it in case the
-     board grows a lot.
+While measuring we found one of our finance queries was missing a company_id match. It picked up
+TMS2/TMS3 order numbers on 128 movements, and it was much heavier than it needed to be (over 4 s
+of CPU). It only ever ran against the analytics copy. It's fixed now (0.22 s), and every query is
+checked automatically for the same mistake.
 
 
-7. QUESTIONS WE COULDN'T ANSWER FROM THE DATA
+WHAT WE'D NEED FROM YOU
 
-  1. Stop types VA/VP and SD/SP. SD/SP look like a split: the trailer is dropped (SD) at a yard,
-     and a second movement picks it up (SP). VA/VP mostly sit at SAIA terminals on the Viking
-     Packing dealer runs, and the arrival time usually equals the previous stop's departure. Does
-     the truck physically stop there, or is it a routing point? And what's the difference between
-     VA and VP? Until we know, we leave these stops out rather than guess.
+- The VM: Windows or Linux, 2 vCPU / 4 GB is plenty, Node.js 22+. It needs to reach LME on 1433
+  and HTTPS out to fleetguardapi-production.up.railway.app.
+- A few more read grants for silvicom_dispatch_ro:
+  - reference_number, which is where the PU number lives;
+  - customer, just the id, name, city and state;
+  - for finance: gl_ledger, gl_ledger_hist, gl_account, billing_history, drs_settle_hist,
+    drs_deduct_hist, voucher, voucher_hist, fuel_detail, fuel_detail_hist, equipment_item;
+  - SHOWPLAN, optionally.
+  Once finance is on this login, the NikiAnalytics login isn't needed for us anymore.
+- When the VM is live, I'll switch off the roster sync that runs on my laptop today.
 
-  2. Movement status: are we right that A means available/not covered yet and P means dispatched,
-     with D delivered and V void?
+A few things we couldn't work out from the data:
+  1. Stop types VA/VP and SD/SP. SD/SP look like a trailer split across two movements. VA/VP
+     mostly sit at SAIA terminals on the Viking Packing runs. Is VA/VP a real stop or a routing
+     point, and what's the difference between them? For now we leave those stops out.
+  2. Is A "available / not covered yet" and P "dispatched", with D delivered and V void?
+  3. Encryption: we tested an encrypted connection with the server's current self-signed
+     certificate and it works, so we'd start with that. If you'd rather use a proper certificate
+     or stay unencrypted on the LAN, just tell us.
+  4. Dispatchers: tractor.fleet_id matched the load's dispatcher on 95 of 97 loads we checked. Is
+     that the right field to use? And are the "loadmaster" loads created automatically, by EDI for
+     example?
 
-  3. Encryption: SQL Server offers its own self-signed certificate, so today we connect without
-     encryption. Which do you prefer?
-     a) you install a trusted certificate and give us the hostname it's issued for,
-     b) we encrypt but accept the current self-signed certificate, or
-     c) we stay unencrypted, since from the VM the traffic never leaves your network.
-     We tested (b) on APPNEW and it works (encrypt_option = TRUE), so unless you'd prefer
-     otherwise the VM will start with (b), and we can move to (a) whenever you have a
-     certificate.
+Soon we'd like to read a few more columns from tables you've already granted: stop location name,
+actual arrival/departure, ETA, stop contact, PO number, customer code, weight and pieces. We'll
+send you the updated SQL file before that goes in.
 
-  4. Dispatcher fleets: tractor.fleet_id matched the load's dispatcher on 95 of 97 dispatched
-     loads we checked, so we'd like to use it. Is it kept up to date when a truck moves to another
-     dispatcher? And for the loads under "loadmaster" (17 when we checked): are those created
-     automatically, for example by EDI?
-
-
-8. WHAT HAPPENS NEXT
-
-  1. You look over this letter and the SQL file, and tell us what to change or remove.
-  2. You set up the VM and the grants in section 6.
-  3. We install on the VM together (INSTALL-ON-VM.md), run each part once by hand, and compare
-     the results with your board.
-  4. Only then do we turn the schedule on, and switch off the laptop sync and the analytics login.
-
-If you want any statement changed, limited differently or removed, just tell me and we'll change
-it before anything is scheduled.
+If you'd like anything changed or left out, let me know. Nothing runs on a schedule until you're
+OK with it.
 
 Thanks,
 Miki
