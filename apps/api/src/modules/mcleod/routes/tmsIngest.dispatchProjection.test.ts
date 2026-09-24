@@ -108,7 +108,7 @@ async function run() {
   const rec = seed(movements);
   holder.client = rec.client;
   const res = await post({ company_id: "TMS", movements });
-  return { rec, res, body: (await res.json()) as Record<string, any> };
+  return { rec, res, body: (await res.json()) as { projection: Record<string, unknown> & { unmatched: string[] } } };
 }
 
 describe("LR4 — the projection, raw → core", () => {
