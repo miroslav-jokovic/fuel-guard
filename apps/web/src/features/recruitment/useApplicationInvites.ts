@@ -13,6 +13,8 @@ export interface ApplicationInvitation {
   /** The three dated phases 0225 replaced the single-use fuse with (D-APP1). */
   consented_at: string | null;
   releases_completed_at: string | null;
+  /** AF4 (0365): when the office sent the application form. Optional: absent from an older API. */
+  application_sent_at?: string | null;
   /** The two the OFFICE owns (0336) — the application is with us, or back with the driver to sign. */
   review_requested_at: string | null;
   approved_at: string | null;
@@ -57,7 +59,7 @@ export function liveApplicationInvitation(
   );
 }
 
-const inviteKey = (driverId: string) => ["recruitment", "application-invites", driverId] as const;
+export const inviteKey = (driverId: string) => ["recruitment", "application-invites", driverId] as const;
 
 export function useApplicationInvitesQuery(driverId: Ref<string>) {
   return useQuery({
@@ -136,6 +138,8 @@ export function useRevokeApplicationInvite() {
 export type InviteState =
   | "open"
   | "signing"
+  | "permissions_signed"
+  | "application_sent"
   | "filling"
   | "awaiting_review"
   | "approved"
@@ -163,6 +167,7 @@ export function inviteState(invite: ApplicationInvitation, now: Date): InviteSta
 
   const progress = applicationProgress(
     {
+      applicationSentAt: invite.application_sent_at ?? null,
       reviewRequestedAt: invite.review_requested_at,
       approvedAt: invite.approved_at,
       submittedAt: invite.submitted_at,
@@ -172,6 +177,11 @@ export function inviteState(invite: ApplicationInvitation, now: Date): InviteSta
   if (progress === "awaiting_review") return "awaiting_review";
   if (progress === "approved") return "approved";
   if (progress === "filling") return "filling";
+  // AF4: the permissions are in and the office has not sent the form — the next move is the office's
+  // (screen them, then send it), and "signing" would say the applicant still owes something.
+  if (invite.releases_completed_at && !invite.application_sent_at) return "permissions_signed";
+  // Sent, and nothing typed into it yet: the applicant's move, on the second visit.
+  if (invite.application_sent_at) return "application_sent";
   // Nothing typed. `signing` means they agreed to sign electronically and are working through the
   // authorizations — a real state, and the only thing that distinguishes it from an untouched link.
   return invite.consented_at ? "signing" : "open";

@@ -100,6 +100,7 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
         id: INVITE,
         driver_id: DRIVER,
         created_at: "2026-09-01T00:00:00Z",
+        application_sent_at: "2026-09-01T12:00:00Z",
         review_requested_at: "2026-09-02T00:00:00Z",
         approved_at: "2026-09-03T00:00:00Z",
         submitted_at: null,
@@ -129,6 +130,7 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
 const asInputs = (over: Record<string, unknown> = {}) => ({
   invitedAt: "2026-09-01T00:00:00Z",
   phases: {
+    applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
     approvedAt: "2026-09-03T00:00:00Z",
     submittedAt: null,
@@ -248,11 +250,13 @@ describe("what it reads, and from where", () => {
       application_invitations: [
         {
           id: "old-invite", driver_id: DRIVER, created_at: "2025-01-01T00:00:00Z",
+          application_sent_at: "2026-09-01T12:00:00Z",
           review_requested_at: "2025-01-02T00:00:00Z", approved_at: "2025-01-03T00:00:00Z",
           submitted_at: "2025-01-04T00:00:00Z",
         },
         {
           id: INVITE, driver_id: DRIVER, created_at: "2026-09-01T00:00:00Z",
+          application_sent_at: "2026-09-01T12:00:00Z",
           review_requested_at: null, approved_at: null, submitted_at: null,
         },
       ],
@@ -277,11 +281,13 @@ describe("what it reads, and from where", () => {
       application_invitations: [
         {
           id: INVITE, driver_id: DRIVER, created_at: "2026-09-01T00:00:00Z",
+          application_sent_at: "2026-09-01T12:00:00Z",
           review_requested_at: "2026-09-02T00:00:00Z", approved_at: "2026-09-03T00:00:00Z",
           submitted_at: null, revoked_at: null,
         },
         {
           id: "revoked-invite", driver_id: DRIVER, created_at: "2026-09-20T00:00:00Z",
+          application_sent_at: "2026-09-01T12:00:00Z",
           review_requested_at: null, approved_at: null, submitted_at: null,
           revoked_at: "2026-09-21T00:00:00Z",
         },

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICATION_CAPTURES_BUCKET,
+  APPLICATION_ONLY_CAPTURE_SLOTS,
   APPLICATION_CAPTURE_DOCUMENT_KIND,
   APPLICATION_CAPTURE_PAGE,
   DOCUMENTS_BUCKET,
@@ -15,6 +16,7 @@ import {
 } from "@silvicom/shared";
 import {
   ALREADY_SUBMITTED,
+  APPLICATION_NOT_SENT,
   isIntakeError,
   requireEsignConsent,
   resolveInvitation,
@@ -68,6 +70,7 @@ async function openSession(
   admin: SupabaseClient,
   token: string,
   now: Date,
+  slot: ApplicationCaptureSlot,
 ): Promise<{ id: string; org_id: string; driver_id: string } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
@@ -76,6 +79,12 @@ async function openSession(
   const consent = requireEsignConsent(invitation, await loadCarrierWording(admin, invitation.org_id));
   if (consent) return consent;
   if (invitation.submitted_at) return ALREADY_SUBMITTED;
+  // AF4: the medical certificate and the Social Security card are the application's documents, so
+  // they wait for the office to send it. The licence photographs belong to the permissions visit
+  // (AF3), and the marks to the ceremonies that stage them, so those stay open from consent onward.
+  if (APPLICATION_ONLY_CAPTURE_SLOTS.includes(slot) && !invitation.application_sent_at) {
+    return APPLICATION_NOT_SENT;
+  }
   return invitation;
 }
 
@@ -97,7 +106,7 @@ export async function startCapture(
   body: ApplicationCaptureStart,
   now: Date,
 ): Promise<{ captureId: string; storagePath: string; uploadUrl: string; uploadToken: string } | IntakeError> {
-  const session = await openSession(admin, token, now);
+  const session = await openSession(admin, token, now, body.slot);
   if (isIntakeError(session)) return session;
 
   const captureId = randomUUID();
@@ -157,7 +166,7 @@ export async function confirmCapture(
   body: ApplicationCaptureConfirm,
   now: Date,
 ): Promise<{ slot: ApplicationCaptureSlot; capturedAt: string } | IntakeError> {
-  const session = await openSession(admin, token, now);
+  const session = await openSession(admin, token, now, body.slot);
   if (isIntakeError(session)) return session;
 
   /**

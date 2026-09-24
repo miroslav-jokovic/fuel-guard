@@ -8,6 +8,7 @@ import {
 } from "@silvicom/shared";
 import {
   ALREADY_SUBMITTED,
+  APPLICATION_NOT_SENT,
   isIntakeError,
   requireEsignConsent,
   resolveInvitation,
@@ -136,6 +137,9 @@ export async function saveDraft(
   // Nothing to draft once the application is filed: the certified payload is the record from then
   // on, and a draft written afterwards could only ever disagree with it.
   if (invitation.submitted_at) return ALREADY_SUBMITTED;
+  // AF4, D-AF5: the form is the office's to send. The identity the permissions visit collects is
+  // written by its own path (`record_applicant_identity`), never through this one.
+  if (!invitation.application_sent_at) return APPLICATION_NOT_SENT;
 
   // A cap, not a validation. 128 KB is orders of magnitude above a real application draft and well
   // inside the 1 MB body parser — it is here so an unauthenticated caller cannot use a driver's link

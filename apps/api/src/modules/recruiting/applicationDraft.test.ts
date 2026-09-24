@@ -27,7 +27,7 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   revoked_at: null,
   // ⚠ Consented since D-WORD1 — the §390.32(d) gate is armed on every link now.
   consented_at: "2026-09-14T08:00:00Z",
-  releases_completed_at: null,
+  releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z",
   submitted_at: null,
   ...over,
 });

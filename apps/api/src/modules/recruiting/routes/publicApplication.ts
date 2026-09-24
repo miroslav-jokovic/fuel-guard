@@ -207,6 +207,7 @@ export function publicApplicationRouter(): Router {
           result.code === "invalid_link"
             ? 404
             : result.code === "already_submitted" || result.code === "nothing_to_review"
+                || result.code === "application_not_sent"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));
@@ -266,6 +267,7 @@ export function publicApplicationRouter(): Router {
           result.code === "invalid_link"
             ? 404
             : result.code === "already_submitted" || result.code === "esign_consent_required"
+                || result.code === "application_not_sent"
               ? 409
               : result.code === "draft_too_large"
                 ? 413

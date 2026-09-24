@@ -47,6 +47,11 @@ export type HiringDrawerBody =
   | "invitation"
   /** `AuthorizationsPanel` — the five releases and the wording version each was signed against. */
   | "authorizations"
+  /**
+   * `SendApplicationPanel` — AF4's act: send the form, see what screening is still outstanding
+   * (D-AF5 warns, never refuses), and get the link back on screen (D-AF7).
+   */
+  | "send_application"
   /** The §391.21 answers, the history they declare and the §391.23 investigation of that history. */
   | "application"
   /** `PspRecordsSection` — order one, import one bought on the portal, read the filed report. */
@@ -98,6 +103,7 @@ export type HiringDrawerBody =
 const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   invitation_sent: "invitation",
   permissions_signed: "authorizations",
+  application_sent: "send_application",
   // ⚠ Both land on the application, and that is right rather than lazy: the office's act at step 4
   // IS reading the answers filed at step 3 and approving them, and `ApplicationReviewDrawer` is the
   // surface that does both. Two rows, one document, one place to work.

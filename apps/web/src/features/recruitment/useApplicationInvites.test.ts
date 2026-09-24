@@ -41,11 +41,18 @@ describe("an invitation's state", () => {
    * "the driver is part-way through signing" was a state the office could not see because nothing
    * called the signing endpoint.
    */
-  it("is signing once the driver has consented but not yet sent it", () => {
+  it("is signing once the driver has consented and not finished the permissions", () => {
     expect(inviteState(invite({ consented_at: "2026-08-19T09:00:00Z" }), NOW)).toBe("signing");
-    expect(
-      inviteState(invite({ consented_at: "2026-08-19T09:00:00Z", releases_completed_at: "2026-08-19T09:05:00Z" }), NOW),
-    ).toBe("signing");
+  });
+
+  /**
+   * ⚠ AF4: permissions finished and the form not sent is the OFFICE's move — screen, then send.
+   * "Signing" said the applicant still owed something, and a recruiter would wait on them.
+   */
+  it("says the permissions are signed, and the next move is ours, until the form is sent", () => {
+    const signed = { consented_at: "2026-08-19T09:00:00Z", releases_completed_at: "2026-08-19T09:05:00Z" };
+    expect(inviteState(invite({ ...signed, application_sent_at: null }), NOW)).toBe("permissions_signed");
+    expect(inviteState(invite({ ...signed, application_sent_at: "2026-08-20T09:00:00Z" }), NOW)).toBe("application_sent");
   });
 
   /** A spent link stays "submitted" even past its expiry — what happened outranks what lapsed. */
@@ -72,8 +79,16 @@ describe("an invitation's state", () => {
  * the office, and one already sent back to be signed all read the same as an untouched link.
  */
 describe("what the office can now tell apart", () => {
-  it("says the driver is filling it in, the moment anything is typed", () => {
-    expect(inviteState(invite({ has_draft: true }), NOW)).toBe("filling");
+  it("says the driver is filling it in, the moment anything is typed into a sent form", () => {
+    expect(inviteState(invite({ has_draft: true, application_sent_at: "2026-08-20T09:00:00Z" }), NOW)).toBe("filling");
+  });
+
+  /**
+   * ⚠ AF3's identity step writes a draft on the PERMISSIONS visit, before there is a form. A draft
+   * alone is therefore not "filling it in" — the discriminator is whether the form was sent.
+   */
+  it("does not call a draft from the permissions visit filling in the application", () => {
+    expect(inviteState(invite({ has_draft: true, application_sent_at: null }), NOW)).not.toBe("filling");
   });
 
   it("stays open for a link nobody has opened", () => {

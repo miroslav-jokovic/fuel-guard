@@ -49,6 +49,11 @@ export interface NudgeCandidate {
    */
   review_requested_at: string | null;
   approved_at: string | null;
+  /**
+   * When the office sent the application form (AF4, 0365). Null while the link carries only the
+   * permissions — see `planApplicationNudges` for why that is never abandonment.
+   */
+  application_sent_at: string | null;
   /** Null when the driver opened the link and typed nothing — there is no work to come back to. */
   draft_updated_at: string | null;
   furthest_section: string | null;
@@ -80,6 +85,14 @@ export interface PlannedNudge {
  *   · already nudged — once, ever
  *   · handed to the office, or approved by it — see below; they did not walk away, they are waiting
  *   · no draft, or a draft touched inside the window — nothing abandoned yet
+ *   · the application not sent yet — see below; that wait is the office's, too
+ *
+ * ── ⚠ AND SO IS WAITING FOR THE APPLICATION (AF4, 2026-09-24) ─────────────────────────────────
+ * Since D-AF1 the first visit ends with the permissions, and the driver then waits while the office
+ * screens them — PSP, the MVR, the Clearinghouse query, a drug test — before it sends the form. That
+ * wait routinely outlasts forty-eight hours, and AF3's identity step writes a draft on the first
+ * visit, so without this rule every applicant in screening looks abandoned: the office is told they
+ * stopped part-way, and the sweep rotates a link the office is about to send them again anyway.
  *
  * ── ⚠ WAITING ON US IS NOT ABANDONMENT (A1, 2026-09-18) ───────────────────────────────────────
  * The moment a driver taps "send to the office" their draft stops changing, and forty-eight hours
@@ -108,6 +121,7 @@ export function planApplicationNudges(
     .filter((c) => {
       if (c.submitted_at || c.revoked_at || c.nudged_at) return false;
       if (c.review_requested_at || c.approved_at) return false;
+      if (!c.application_sent_at) return false;
       if (Date.parse(c.expires_at) <= now) return false;
       if (!c.draft_updated_at) return false;
       return Date.parse(c.draft_updated_at) < staleBefore;

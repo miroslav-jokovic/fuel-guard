@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { carrierName } from "./applicationMail.js";
 import { renderApplicationApprovedEmail } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
@@ -67,17 +68,6 @@ export interface ApprovalNotice {
 export const approvedSmsBody = (carrier: string): string =>
   `${carrier}: your driver application has been reviewed and is ready to sign. Open the application `
   + `link we emailed you. Reply STOP to opt out.`;
-
-/**
- * The carrier's own name — what the applicant recognises, since they applied to a trucking company
- * rather than to this product. Falls back rather than failing, like `carrierName` next door: a notice
- * that says "the carrier" is worth sending, and one that never went because an org row had no name is
- * not.
- */
-async function carrierName(admin: SupabaseClient, orgId: string): Promise<string> {
-  const { data } = await admin.from("organizations").select("name").eq("id", orgId).maybeSingle();
-  return (data as { name?: string } | null)?.name ?? "the carrier";
-}
 
 /**
  * Mint the sign token and store its hash, returning the link to send — or null.

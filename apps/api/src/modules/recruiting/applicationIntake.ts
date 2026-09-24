@@ -76,6 +76,12 @@ interface InvitationRow {
   consented_at: string | null;
   /** All four APPLICATION_RELEASE_ORDER instruments signed (A5 sets it). */
   releases_completed_at: string | null;
+  /**
+   * The office sent the application form (AF4, D-AF5, 0365). Until it does, the link carries the
+   * permissions only: the draft save, the hand-over and the two application-only photographs refuse
+   * `application_not_sent`.
+   */
+  application_sent_at: string | null;
   /** The driver has finished and handed it to the office (F4) — `requestReview` stamps it. */
   review_requested_at: string | null;
   /** The office has read it, corrected what it corrected, and asked for a signature (F4). */
@@ -99,17 +105,21 @@ export interface InvitationPhases {
   reviewRequestedAt: string | null;
   approvedAt: string | null;
   submittedAt: string | null;
+  /** AF4: the office sent the form. The page shows "we have your permissions" until it has. */
+  applicationSentAt: string | null;
 }
 
 export const phasesOf = (row: {
   consented_at: string | null;
   releases_completed_at: string | null;
+  application_sent_at?: string | null;
   review_requested_at?: string | null;
   approved_at?: string | null;
   submitted_at: string | null;
 }): InvitationPhases => ({
   consentedAt: row.consented_at,
   releasesCompletedAt: row.releases_completed_at,
+  applicationSentAt: row.application_sent_at ?? null,
   reviewRequestedAt: row.review_requested_at ?? null,
   approvedAt: row.approved_at ?? null,
   submittedAt: row.submitted_at,
@@ -186,7 +196,7 @@ export async function resolveInvitation(
     .from("application_invitations")
     .select(
       "id, org_id, driver_id, token_hash, sign_token_hash, expires_at, revoked_at, consented_at, "
-      + "releases_completed_at, review_requested_at, approved_at, submitted_at",
+      + "releases_completed_at, application_sent_at, review_requested_at, approved_at, submitted_at",
     )
     .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash}`)
     .maybeSingle();
@@ -240,6 +250,16 @@ export function sealSsn(env: Env, orgId: string, ssn: string | null | undefined)
 export const ALREADY_SUBMITTED: IntakeError = {
   code: "already_submitted",
   message: "This application has already been sent. Reopen the link to see what the carrier received.",
+};
+
+/**
+ * The form, before the office has sent it (AF4, D-AF5). Only a holder of a live link reaches this,
+ * so it discloses nothing — and it says what is actually happening rather than "not valid", because
+ * a driver told their link is broken asks the carrier for a new one that would change nothing.
+ */
+export const APPLICATION_NOT_SENT: IntakeError = {
+  code: "application_not_sent",
+  message: "The carrier has your permissions and will send you the application next.",
 };
 
 /**

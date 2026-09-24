@@ -23,6 +23,7 @@ import { hiringChecklist, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 const base = {
   invitedAt: "2026-09-01T00:00:00Z",
   phases: {
+    applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
     approvedAt: "2026-09-03T00:00:00Z",
     submittedAt: null,

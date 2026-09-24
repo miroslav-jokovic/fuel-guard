@@ -42,7 +42,8 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
   // Consented: the shipped wording is final, so the §390.32(d) gate is armed on every link.
   consented_at: "2026-09-24T09:00:00Z",
-  releases_completed_at: null, review_requested_at: null, approved_at: null, submitted_at: null,
+  releases_completed_at: null, application_sent_at: null,
+  review_requested_at: null, approved_at: null, submitted_at: null,
   ...over,
 });
 
@@ -240,8 +241,11 @@ describe("the draft save keeps identity the server's", () => {
   const savedPayload = (rec: SupabaseRecorder) =>
     (rec.rpcs().find((r) => r.fn === "save_application_draft")!.args as { p_payload: Record<string, unknown> }).p_payload;
 
+  // AF4: the draft save is the FORM's, so these links have been sent the application.
+  const SENT = { application_sent_at: "2026-09-20T00:00:00Z" };
+
   it("lays the row's identity over what a stale tab sent, and keeps every other answer", async () => {
-    const rec = seed({ drivers: ROW_WITH_IDENTITY });
+    const rec = seed({ drivers: ROW_WITH_IDENTITY, invitation: SENT });
     holder.client = rec.client;
     const res = await save({ first_name: "Susan", cdl_number: "OLD-TAB", cdl_state: "IN" });
     expect(res.status).toBe(200);
@@ -249,7 +253,7 @@ describe("the draft save keeps identity the server's", () => {
   });
 
   it("leaves what the applicant typed alone while nothing is on the row", async () => {
-    const rec = seed({ drivers: ROW_WITHOUT_IDENTITY });
+    const rec = seed({ drivers: ROW_WITHOUT_IDENTITY, invitation: SENT });
     holder.client = rec.client;
     await save({ first_name: "Susan", cdl_number: "TYPED", date_of_birth: DOB });
     expect(savedPayload(rec)).toEqual({ first_name: "Susan", cdl_number: "TYPED", date_of_birth: DOB });

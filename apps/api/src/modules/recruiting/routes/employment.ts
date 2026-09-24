@@ -50,6 +50,7 @@ interface HistoryRow {
 interface InvitationRow {
   id: string;
   driver_id: string;
+  application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
   submitted_at: string | null;
@@ -150,7 +151,7 @@ export function recruitmentEmploymentRouter(): Router {
          */
         admin
           .from("application_invitations")
-          .select("id, driver_id, review_requested_at, approved_at, submitted_at, revoked_at, created_at")
+          .select("id, driver_id, application_sent_at, review_requested_at, approved_at, submitted_at, revoked_at, created_at")
           .eq("org_id", orgId)
           .in("driver_id", ids)
           .order("created_at", { ascending: false }),
@@ -242,6 +243,7 @@ export function recruitmentEmploymentRouter(): Router {
           authorizations: authsBy.get(a.id) ?? [],
           application: invite
             ? {
+                applicationSentAt: invite.application_sent_at,
                 reviewRequestedAt: invite.review_requested_at,
                 approvedAt: invite.approved_at,
                 submittedAt: invite.submitted_at,

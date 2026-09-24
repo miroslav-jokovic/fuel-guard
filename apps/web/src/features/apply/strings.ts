@@ -128,8 +128,13 @@ export const APPLY_COPY = {
      * happen — the permissions are skipped while the wording is still draft, and a screen promising
      * a step the page then skips is worse than saying nothing.
      */
+    /**
+     * ⚠ Since AF4 the application does NOT follow on the same visit: the permissions (and the licence
+     * details, AF3) come first, the carrier checks the driver's record, and only then sends the form.
+     * A driver told "the application follows" would sit on the waiting screen wondering what broke.
+     */
     signFirst: (carrier: string): string =>
-      `${carrier} asks for a few signed permissions first. They take a minute, and the application follows.`,
+      `${carrier} asks for your licence details and a few signed permissions first. After checking your record, they send you the application itself — we will email you the link.`,
     afterwards: (carrier: string): string =>
       `When you send it, ${carrier} reads it and then asks you to sign it. That last part is a second, short visit — we will send you the link.`,
     savesItself: "Your answers save as you go, so you can stop part-way and open your link again later.",

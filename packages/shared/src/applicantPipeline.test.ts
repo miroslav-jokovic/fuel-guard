@@ -102,6 +102,7 @@ describe("applicantProgress — derived, never stored", () => {
  */
 describe("the stages before an application is filed", () => {
   const phases = (over: Partial<ApplicationPhases> = {}): ApplicationPhases => ({
+    applicationSentAt: null,
     reviewRequestedAt: null,
     approvedAt: null,
     submittedAt: null,
@@ -109,8 +110,19 @@ describe("the stages before an application is filed", () => {
   });
 
   it("⚠ says they are filling it in, rather than that nothing has happened", () => {
-    const p = applicantProgress(input({ application: phases(), hasDraft: true }));
+    const p = applicantProgress(input({
+      application: phases({ applicationSentAt: "2026-09-09T09:00:00Z" }), hasDraft: true,
+    }));
     expect(p.stage).toBe("filling_in");
+  });
+
+  /**
+   * ⚠ AF4: AF3's identity step writes a draft on the PERMISSIONS visit, before any form was sent. That
+   * draft is not an application being filled in, and the board must not say it is.
+   */
+  it("does not call a draft from the permissions visit filling in", () => {
+    const p = applicantProgress(input({ application: phases(), hasDraft: true }));
+    expect(p.stage).not.toBe("filling_in");
   });
 
   it("keeps 'not started' for a link nobody has opened", () => {

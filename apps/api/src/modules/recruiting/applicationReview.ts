@@ -73,12 +73,14 @@ interface InvitationRow {
   driver_id: string;
   /** Where the approval notice goes (Q-AX4). Nullable: a recruiter may invite with a link alone. */
   email: string | null;
+  application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
   submitted_at: string | null;
 }
 
 const phasesOf = (row: InvitationRow): ApplicationPhases => ({
+  applicationSentAt: row.application_sent_at,
   reviewRequestedAt: row.review_requested_at,
   approvedAt: row.approved_at,
   submittedAt: row.submitted_at,
@@ -92,7 +94,7 @@ async function invitation(
   const { data } = await admin
     .from("application_invitations")
     // The service role bypasses RLS, so the org filter is the only thing between two carriers.
-    .select("id, org_id, driver_id, email, review_requested_at, approved_at, submitted_at")
+    .select("id, org_id, driver_id, email, application_sent_at, review_requested_at, approved_at, submitted_at")
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .maybeSingle();

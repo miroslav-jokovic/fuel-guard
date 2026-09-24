@@ -1,5 +1,4 @@
 import { Router } from "express";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   INVITE_TTL_DAYS_DEFAULT,
   applicationInviteCreateSchema,
@@ -12,10 +11,9 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { mintInvitationToken } from "../applicationIntake.js";
-import { sendEmail } from "../../../lib/mailer.js";
+import { carrierName, deliverApplicationMail } from "../applicationMail.js";
 import { ensureApplicationPdf } from "../applicationPdf/file.js";
 import { DOCUMENTS_BUCKET } from "@silvicom/shared";
-import type { Env } from "../../../env.js";
 
 /**
  * Inviting an applicant to fill in their own §391.21 application (H5).
@@ -49,51 +47,8 @@ import type { Env } from "../../../env.js";
  * Sending somebody a form is the recruitment act; flipping `drivers.status` is not (0213). So this
  * takes the section's own manage guard, unlike `/hire` next door.
  */
-/** What became of the email. `sent: false` is an outcome to report, never a reason to fail. */
-export interface ApplicationInviteDelivery {
-  sent: boolean;
-  /** Where it went, echoed so the UI can name the address without re-reading the row. */
-  email: string | null;
-  /** `no_address` | `mail_disabled` | `send_failed`. null when it went. */
-  reason: string | null;
-}
-
-/**
- * The carrier's own name, which is what the applicant recognises — they applied to a trucking
- * company, not to this product. Falls back rather than failing: an email that says "the carrier" is
- * worth sending; an invitation that did not go out because an org row was missing a name is not.
- */
-async function carrierName(admin: SupabaseClient, orgId: string): Promise<string> {
-  const { data } = await admin.from("organizations").select("name").eq("id", orgId).maybeSingle();
-  return (data as { name?: string } | null)?.name ?? "the carrier";
-}
-
-async function deliverApplicationInvite(
-  env: Env,
-  email: string | null,
-  carrier: string,
-  link: string,
-  expiresInDays: number,
-): Promise<ApplicationInviteDelivery> {
-  if (!email) return { sent: false, email: null, reason: "no_address" };
-  // Checked here rather than left to the mailer so the UI can distinguish "we are not configured to
-  // send" from "the provider refused". The first is an admin's problem and the second is the
-  // applicant's address; telling a recruiter the wrong one sends them to the wrong person.
-  if (env.MAIL_PROVIDER === "none") return { sent: false, email, reason: "mail_disabled" };
-
-  const mail = renderApplicationInviteEmail(carrier, link, expiresInDays);
-  const result = await sendEmail(env, {
-    to: [email],
-    subject: mail.subject,
-    html: mail.html,
-    text: mail.text,
-  });
-  if (!result.ok) {
-    // Loud: the recruiter sees "could not send" and can act, but nobody sees WHY without this.
-    console.error("[application-invite] could not send", { detail: result.detail });
-  }
-  return { sent: result.ok, email, reason: result.ok ? null : "send_failed" };
-}
+/** The delivery outcome's shape moved with the mailer (AF4); re-exported for existing importers. */
+export type { ApplicationInviteDelivery } from "../applicationMail.js";
 
 export function recruitmentApplicationInvitesRouter(): Router {
   const router = Router();
@@ -111,7 +66,7 @@ export function recruitmentApplicationInvitesRouter(): Router {
   // ⚠ ONE string literal, never a concatenation: PostgREST's types are inferred from the select text
   // statically, and a `+` turns every read of it into `GenericStringError`.
   const INVITE_COLS =
-    "id, driver_id, email, expires_at, consented_at, releases_completed_at, review_requested_at, approved_at, submitted_at, revoked_at, created_at";
+    "id, driver_id, email, expires_at, consented_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, submitted_at, revoked_at, created_at";
 
   router.get(
     "/drivers/:driverId/application-invites",
@@ -231,7 +186,9 @@ export function recruitmentApplicationInvitesRouter(): Router {
        * above it changes.
        */
       const carrier = await carrierName(admin, orgId);
-      const delivery = await deliverApplicationInvite(env, body.email ?? null, carrier, link, days);
+      const delivery = await deliverApplicationMail(
+        env, body.email ?? null, renderApplicationInviteEmail(carrier, link, days),
+      );
 
       res.status(201).json({ invitation: data, link, delivery });
     }),

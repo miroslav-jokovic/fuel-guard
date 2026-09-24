@@ -18,6 +18,7 @@ import {
 import { applicationPreviewPdf, isPreviewError } from "../applicationPdf/preview.js";
 import { applicationPermissionsPdf, isPermissionsError } from "../applicationPdf/permissions.js";
 import { correctApplicantIdentity, isIdentityCorrectionError } from "../applicantIdentity.js";
+import { isApplicationSendError, sendApplication } from "../applicationSend.js";
 
 /**
  * Reading, correcting and approving an applicant's answers (F4).
@@ -48,6 +49,7 @@ export function recruitmentApplicationReviewRouter(): Router {
         : code === "application_not_editable" || code === "application_not_reviewable"
           || code === "already_certified" || code === "already_filed" || code === "nothing_to_preview"
           || code === "nothing_signed_yet" || code === "invitation_revoked"
+          || code === "permissions_incomplete"
           ? 409
           : 500;
 
@@ -192,6 +194,34 @@ export function recruitmentApplicationReviewRouter(): Router {
         return;
       }
       res.json({ ok: true });
+    }),
+  );
+
+  /**
+   * Send the applicant the application form (AF4, D-AF5, D-AF7).
+   *
+   * Answers with the new link — the only copy — so the office can hand it over on screen, and with
+   * the screening steps still outstanding, which it WARNS about and does not refuse on. A second
+   * press rotates the link and re-sends; the first send's date is the one kept.
+   */
+  router.post(
+    "/applications/:invitationId/send-application",
+    requireOrg,
+    canManage,
+    asyncHandler(async (req, res) => {
+      const { env } = getAppLocals(req);
+      const result = await sendApplication(
+        getSupabaseAdmin(env),
+        env,
+        req.auth!.orgId!,
+        String(req.params.invitationId ?? ""),
+        req.auth!.userId,
+      );
+      if (isApplicationSendError(result)) {
+        res.status(status(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json({ ok: true, ...result });
     }),
   );
 

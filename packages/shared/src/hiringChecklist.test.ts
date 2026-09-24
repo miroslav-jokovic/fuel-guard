@@ -42,6 +42,7 @@ const complete = (over: Partial<HiringChecklistInputs> = {}): HiringChecklistInp
   input({
     invitedAt: "2026-09-01T00:00:00Z",
     phases: {
+      applicationSentAt: "2026-09-01T12:00:00Z",
       reviewRequestedAt: "2026-09-02T00:00:00Z",
       approvedAt: "2026-09-03T00:00:00Z",
       submittedAt: null,
@@ -82,16 +83,24 @@ describe("the catalogue", () => {
   /**
    * ⚠ The array's order IS the checklist's order (D-HM3). Nothing sorts it at read time.
    *
-   * ⚠ `13b` is Q-HM9's §391.23(a)(2) investigation, and it is at 13b rather than beside the MVR at 5
-   * on purpose — see its row in `hiringSteps.ts`. It sits immediately before `hired` because that is
-   * what it gates; the sub-ordinal is 8b's precedent, so no reference in the plan to a step by its
-   * number is ever broken by an insertion.
+   * ⚠ The owner's order since 2026-09-24 (`APPLICANT-FLOW-PLAN.md` §3.3, D-AF1..3), superseding
+   * D-HM9's: the permissions, then SCREENING, then the application is sent, filled and approved, and
+   * the packet is signed in the office. Asserted by KEY, because the order is the claim; the numbers
+   * are asserted separately below as what they are — a count from one.
    */
-  it("keeps D-HM9's order, with the medical certificate at 8b and the investigation at 13b", () => {
+  it("keeps the owner's order: permissions, screening, then the application, then the office day", () => {
     const c = hiringChecklist(complete());
-    expect(c.steps.map((s) => s.ordinal)).toEqual([
-      "1", "2", "3", "4", "5", "6", "7", "8", "8b", "10", "13", "13b", "14",
+    expect(c.steps.map((s) => s.key)).toEqual([
+      "invitation_sent", "permissions_signed",
+      "mvr", "psp", "clearinghouse", "drug_test",
+      "application_sent", "application_filled", "office_approved",
+      "medical_certificate", "employment_investigation",
+      "road_test", "application_signed", "hired",
     ]);
+  });
+
+  it("numbers the catalogue from one, in its own order, with no gaps", () => {
+    expect(HIRING_STEPS.map((s) => s.ordinal)).toEqual(HIRING_STEPS.map((_, i) => String(i + 1)));
   });
 
   /**
@@ -100,15 +109,24 @@ describe("the catalogue", () => {
    */
   it("marks exactly the six federal gates", () => {
     expect(HIRING_STEPS.filter((s) => s.federalGate).map((s) => s.key)).toEqual([
-      "application_filled", "mvr", "clearinghouse", "drug_test",
+      "mvr", "clearinghouse", "drug_test", "application_filled",
       "medical_certificate", "road_test",
     ]);
   });
 
-  /** The seam D-HM9 organises everything around: 1–9 before the plane ticket, 10–14 in the office. */
-  it("puts the travel seam after step 9", () => {
-    const before = HIRING_STEPS.filter((s) => s.beforeTravel).map((s) => s.ordinal);
-    expect(before).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "8b", "9"]);
+  /**
+   * The seam D-HM9 organises everything around: what must be done before the plane ticket.
+   *
+   * ⚠ The investigation is listed before the videos (plan §3.3) and is still NOT before travel — its
+   * clock is the previous employers', and gating the ticket on their silence is Q-HM9's refused case.
+   */
+  it("puts everything up to the videos before travel, except the investigation", () => {
+    const before = HIRING_STEPS.filter((s) => s.beforeTravel).map((s) => s.key);
+    expect(before).toEqual([
+      "invitation_sent", "permissions_signed", "mvr", "psp", "clearinghouse", "drug_test",
+      "application_sent", "application_filled", "office_approved", "medical_certificate",
+      "orientation_videos",
+    ]);
   });
 
   /**
@@ -236,7 +254,7 @@ describe("the §391.23 investigation", () => {
   it("refuses to be done on an empty queue when the application has not been filed", () => {
     const c = hiringChecklist(
       complete({
-        phases: { reviewRequestedAt: null, approvedAt: null, submittedAt: null },
+        phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: null, approvedAt: null, submittedAt: null },
         investigation: { outstanding: 0, awaiting: 0 },
       }),
     );
@@ -362,7 +380,7 @@ describe("what each step actually reads", () => {
     const c = hiringChecklist(input({
       invitedAt: "2026-09-01T00:00:00Z",
       authorizations: [...ALL_PERMISSIONS],
-      phases: { reviewRequestedAt: null, approvedAt: null, submittedAt: null },
+      phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: null, approvedAt: null, submittedAt: null },
       hasDraft: true,
     }));
     expect(stateOf(c, "application_filled")).toBe("waiting_on_them");
@@ -482,10 +500,41 @@ describe("the one next action", () => {
     const c = hiringChecklist(input({
       invitedAt: "2026-09-01T00:00:00Z",
       authorizations: [...ALL_PERMISSIONS],
-      phases: { reviewRequestedAt: "2026-09-02T00:00:00Z", approvedAt: null, submittedAt: null },
+      // Screening finished, which in the owner's order (plan §3.3) comes before the application.
+      qualificationKinds: ["mvr", "clearinghouse_full", "drug_test"],
+      psp: { requested: true, reportReceived: true },
+      phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: "2026-09-02T00:00:00Z", approvedAt: null, submittedAt: null },
     }));
     expect(stateOf(c, "office_approved")).toBe("waiting_on_us");
     expect(c.next).toBe("office_approved");
+  });
+
+  /**
+   * ⚠ AF4 (plan §3.3): screening comes BEFORE the application. An applicant who has signed their
+   * permissions is the office's to screen, and the lead action says so — not "send the application",
+   * which D-AF5 allows early with a warning but which is not the owner's order.
+   */
+  it("leads with screening once the permissions are signed, ahead of sending the application", () => {
+    const c = hiringChecklist(input({
+      invitedAt: "2026-09-01T00:00:00Z",
+      authorizations: [...ALL_PERMISSIONS],
+      phases: { applicationSentAt: null, reviewRequestedAt: null, approvedAt: null, submittedAt: null },
+    }));
+    expect(c.next).toBe("mvr");
+    expect(stateOf(c, "application_sent")).toBe("waiting_on_us");
+    // The form is not the applicant's to fill until it is sent: blocked, and it names why.
+    expect(stateOf(c, "application_filled")).toBe("blocked");
+    expect(c.steps.find((s) => s.key === "application_filled")!.blockedBy).toBe("application_sent");
+  });
+
+  /** And the stamp 0365 sets — or backfilled — is what makes it done. */
+  it("counts the application as sent from the stamp alone", () => {
+    const sent = hiringChecklist(input({
+      authorizations: [...ALL_PERMISSIONS],
+      phases: { applicationSentAt: "2026-09-05T00:00:00Z", reviewRequestedAt: null, approvedAt: null, submittedAt: null },
+    }));
+    expect(stateOf(sent, "application_sent")).toBe("done");
+    expect(stateOf(sent, "application_filled")).toBe("waiting_on_them");
   });
 
   /**

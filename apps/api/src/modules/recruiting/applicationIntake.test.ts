@@ -66,7 +66,7 @@ const invitation = (over: Record<string, unknown> = {}) => ({
    * front of whatever each one was actually about. The gate's own tests override it back to null.
    */
   consented_at: CONSENTED,
-  releases_completed_at: null,
+  releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z",
   submitted_at: null,
   /** No sign token until the office approves (A5b, 0345) — which is most invitations, most of the time. */
   sign_token_hash: null,
@@ -322,6 +322,7 @@ describe("the link is a session, not a fuse", () => {
     const inv = invitation({
       consented_at: "2026-08-19T00:00:00Z",
       releases_completed_at: "2026-08-19T00:05:00Z",
+      application_sent_at: "2026-08-19T00:10:00Z",
       review_requested_at: "2026-08-19T00:30:00Z",
       approved_at: null,
       submitted_at: null,
@@ -331,6 +332,7 @@ describe("the link is a session, not a fuse", () => {
     expect(phasesOf(result)).toEqual({
       consentedAt: "2026-08-19T00:00:00Z",
       releasesCompletedAt: "2026-08-19T00:05:00Z",
+      applicationSentAt: "2026-08-19T00:10:00Z",
       reviewRequestedAt: "2026-08-19T00:30:00Z",
       approvedAt: null,
       submittedAt: null,
