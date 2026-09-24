@@ -300,3 +300,28 @@ Append a dated line per merge. Never edit a status column.
   The documents for him describe rather than instruct (#1003, and this change). `INSTALL-ON-VM.md`
   becomes `CONNECTOR-ON-THE-VM.md`: requirements and runtime facts, Linux expected, the VM set up as
   Alex chooses, with a systemd unit given for reference only.
+- 2026-09-24 — **Alex's reply to the letter, and what it changed on our side.** Approach approved:
+  McLeod stays the system of record, Silvicom 360 a read-only mirror, one program, one connection,
+  SELECTs only. **VM:** a small Linux VM he owns, Node 22+, outbound to LME and to
+  `fleetguardapi-production` on 443, no inbound; the folder and the two secrets are sent separately;
+  installed together. **Grants:** `silvicom_dispatch_ro` stays read-only; SELECT coming on
+  `reference_number`, `customer (id, name, city, state)` and the eleven finance tables plus
+  `equipment_item` — **on the analytics copy first**, on LME only after one night there reads right;
+  SHOWPLAN only if still needed after that night. **Schedule:** no timer until the dry run, the
+  one-time close, a watched start and the laptop sync switched off are done together; after that the
+  letter's cadence and every politeness setting stand as written. **Encryption:** on, self-signed
+  certificate acceptable on the LAN for the first cut — option (b), already the template default.
+  **Conditions:** Part 5 stays manual (it is); the email convention is never written back (nothing
+  writes to McLeod); logs are counts, times and McLeod ids (the service log is; the roster dry run's
+  sample is masked); the reviewed SQL file is the version of record and **LR3's new fields need a
+  new file sent before they go live**; `company_id` on every join stays (`queries.test.mjs`).
+  Built for it (`claude/connector-vm-ready`): **`FINANCE_FEED=off`**, the template default, keeps
+  finance out of `--service` until the grants are on LME — otherwise the first days would fail at
+  02:00 and every 30 minutes after on permission errors. **`--financial --dry-run` now exists**: it
+  fell into the ROSTER dry run before, so the night Alex asked to watch would have reported the
+  roster's counts. Run on `lme_analytics` (restored 2026-09-10): settlements 5,011, deductions 2,444,
+  vouchers 402, movement facts 6,115, billing 2,997, GL accounts 226, office lines 266, ledger totals
+  1,152 / 23 / 0 for Jul–Sep; **zero POSTs** at a stub. `postToFuelGuard` now refuses any POST in a
+  dry run: with both the stub and that backstop removed the same command posted 22 batches, with only
+  the backstop it stops at the first. The service ran live with `FINANCE_FEED=off`: its start line
+  says so and loads (157) and the roster ran.

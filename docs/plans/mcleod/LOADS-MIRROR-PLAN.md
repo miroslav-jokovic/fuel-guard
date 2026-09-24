@@ -392,3 +392,9 @@ Append a dated line per merge. Never edit a status column.
   `weight_lbs`: 69 of 69 weighted orders on the open board are `weight_um = 'LB'` — but McLeod's
   minimum there is **0**, so whether a McLeod zero means "none entered" is a ruling LR4's projection
   owes, not a default. No reader and no writer in this merge.
+- 2026-09-24 — **LR2 merged** (#1008, after the applicant flow's 0365) and **applied in production**:
+  7 columns on `loads`, 9 on `load_stops`, from `information_schema`. **Alex's reply:** Q-LMR5's grants
+  are coming — `reference_number`, and `customer` column-scoped to id, name, city, state, exactly the
+  recommendation — on the analytics copy first. His stop-type answer (LOADS-GO-LIVE Q-GL1) is what
+  LR4 needs: SD/SP are split-trailer stops, VA/VP interline points. **LR3 carries a condition:** the
+  new fields go live only after Alex has the regenerated `SILVICOM-READ-ROUTINE.sql`.
