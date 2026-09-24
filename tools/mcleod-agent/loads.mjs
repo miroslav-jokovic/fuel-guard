@@ -13,8 +13,15 @@
  * `tmsDispatchersPayloadSchema` validate on arrival.
  */
 
-import { DISPATCH_LOADS, DISPATCH_LOAD_STOPS, DISPATCH_DISPATCHERS } from "./queries.mjs";
-import { withPool } from "./roster.mjs";
+import { createHash } from "node:crypto";
+import {
+  DISPATCH_LOADS,
+  DISPATCH_LOAD_STOPS,
+  DISPATCH_DISPATCHERS,
+  CLOSE_READ_MAX_IDS,
+  closeReadQueries,
+} from "./queries.mjs";
+import { withPool } from "./connection.mjs";
 
 /**
  * McLeod stop types, mapped onto the load vocabulary — and NOTHING else is mapped (D-LM15).
@@ -143,7 +150,10 @@ export function mapLoad(row, stopRows) {
       // A load, which no dispatcher has taken yet.
       dispatcher_external_id: row.dispatcher_external_id ?? null,
       dispatcher_name: row.dispatcher_name ?? null,
-      canceled: false,
+      // McLeod status V is a void. Only the close read can see one (the board reads P and A), and it is
+      // McLeod's own statement, so it is passed on as the contract's cancellation. D (delivered) is not
+      // a cancellation; it travels as external_status until LR4 projects status from it.
+      canceled: String(row.external_status || "").trim() === "V",
       stops: sent,
       raw: {
         movement_id: movementId,
@@ -189,23 +199,7 @@ export async function fetchDispatchLoads(cfg, { staleDays = 30, systemDispatcher
       .input("companyId", mssql.VarChar(32), cfg.companyId)
       .query(DISPATCH_DISPATCHERS);
 
-    const stopsByMovement = new Map();
-    for (const s of stopRes.recordset ?? []) {
-      const key = String(s.movement_id).trim();
-      if (!stopsByMovement.has(key)) stopsByMovement.set(key, []);
-      stopsByMovement.get(key).push(s);
-    }
-
-    const loads = [];
-    const skipped = [];
-    const notes = [];
-    for (const row of loadRes.recordset ?? []) {
-      const movementId = String(row.external_id).split(":").pop();
-      const mapped = mapLoad(row, stopsByMovement.get(movementId) ?? []);
-      if (mapped.load) loads.push(mapped.load);
-      if (mapped.skipped) skipped.push(mapped.skipped);
-      notes.push(...mapped.notes);
-    }
+    const { loads, skipped, notes } = assemble(loadRes.recordset ?? [], stopRes.recordset ?? []);
 
     return {
       loads,
@@ -214,4 +208,93 @@ export async function fetchDispatchLoads(cfg, { staleDays = 30, systemDispatcher
       notes,
     };
   });
+}
+
+/** Movement rows + flat stop rows → mapped loads, with every skip and note kept. */
+function assemble(loadRows, stopRows) {
+  const stopsByMovement = new Map();
+  for (const s of stopRows) {
+    const key = String(s.movement_id).trim();
+    if (!stopsByMovement.has(key)) stopsByMovement.set(key, []);
+    stopsByMovement.get(key).push(s);
+  }
+
+  const loads = [];
+  const skipped = [];
+  const notes = [];
+  for (const row of loadRows) {
+    const movementId = String(row.external_id).split(":").pop();
+    const mapped = mapLoad(row, stopsByMovement.get(movementId) ?? []);
+    if (mapped.load) loads.push(mapped.load);
+    if (mapped.skipped) skipped.push(mapped.skipped);
+    notes.push(...mapped.notes);
+  }
+
+  return { loads, skipped, notes };
+}
+
+/**
+ * The close read (LR5): current McLeod state of movements we hold open that are no longer on the board.
+ *
+ * `movementIds` are bare ids (no company prefix), at most CLOSE_READ_MAX_IDS per statement; a longer
+ * list is read in chunks, one statement after another on the one connection. Every returned load is
+ * posted as it is — a D or a V is McLeod saying so, and a P that fell off the board only by the
+ * staleness bound is still open and is simply refreshed.
+ */
+export async function fetchClosedLoads(cfg, movementIds) {
+  const ids = [...new Set(movementIds.map((id) => String(id).trim()).filter(Boolean))];
+  const loads = [];
+  const skipped = [];
+  const notes = [];
+  if (!ids.length) return { loads, skipped, notes };
+  return withPool(cfg, async (pool, mssql) => {
+    for (let i = 0; i < ids.length; i += CLOSE_READ_MAX_IDS) {
+      const part = ids.slice(i, i + CLOSE_READ_MAX_IDS);
+      const q = closeReadQueries(part.length);
+      const bind = () => {
+        const req = pool.request().input("companyId", mssql.VarChar(32), cfg.companyId);
+        part.forEach((id, k) => req.input(`id${k}`, mssql.VarChar(32), id));
+        return req;
+      };
+      const loadRes = await bind().query(q.loads);
+      const stopRes = await bind().query(q.stops);
+      const out = assemble(loadRes.recordset ?? [], stopRes.recordset ?? []);
+      loads.push(...out.loads);
+      skipped.push(...out.skipped);
+      notes.push(...out.notes);
+    }
+    return { loads, skipped, notes };
+  });
+}
+
+/**
+ * A stable hash of what we would POST for a load, so the service posts only loads that changed.
+ *
+ * Without it a 60-second cadence re-posts ~160 loads a minute and our ingest rewrites every one —
+ * ~230,000 no-op UPDATEs a day on a database already short of memory. Keys are sorted recursively so
+ * the hash depends on content, never on the order a property was assigned in.
+ */
+export function loadHash(load) {
+  const canon = (v) =>
+    Array.isArray(v)
+      ? v.map(canon)
+      : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])]))
+        : v;
+  return createHash("sha256").update(JSON.stringify(canon(load))).digest("hex").slice(0, 32);
+}
+
+/**
+ * Split a board against what was last posted: the loads to post (new or changed), and the movement
+ * ids we hold open that are no longer on the board — the input to the close read.
+ */
+export function planLoadPosts(boardLoads, posted) {
+  const changed = [];
+  const onBoard = new Set();
+  for (const load of boardLoads) {
+    onBoard.add(load.external_id);
+    if (posted[load.external_id] !== loadHash(load)) changed.push(load);
+  }
+  const leftBoard = Object.keys(posted).filter((id) => !onBoard.has(id));
+  return { changed, leftBoard };
 }

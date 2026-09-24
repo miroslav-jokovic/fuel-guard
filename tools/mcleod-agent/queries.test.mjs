@@ -97,3 +97,55 @@ test("the trailer census is not the tractor's with the letters changed", () => {
   const where = (s) => s.slice(s.indexOf("WHERE"));
   assert.equal(where(trailers("link")), where(trailers("identity")));
 });
+
+/**
+ * CA1 (COLLECTOR-AUDIT-2026-09-24.md §3 F2): every table alias a statement names must be scoped by
+ * company. `movement.id`, `orders.id` and `equipment_group_id` all repeat across TMS / TMS2 / TMS3, so
+ * a lookup on the id alone joins another company's rows — it did, on 128 of 6,115 finance movements —
+ * and because every index on these tables leads with `company_id`, it also turns a seek into a scan.
+ */
+import * as Q from "./queries.mjs";
+
+const EVERY_STATEMENT = {
+  ...Object.fromEntries(Object.entries(Q).filter(([, v]) => typeof v === "string" && /\bSELECT\b/.test(v))),
+  ...Object.fromEntries(Object.entries(rosterQueries("identity")).map(([k, v]) => [`roster.${k}`, v])),
+  ...Object.fromEntries(Object.entries(retirementQueries()).map(([k, v]) => [`retire.${k}`, v])),
+  ...Object.fromEntries(Object.entries(Q.closeReadQueries(3)).map(([k, v]) => [`close.${k}`, v])),
+};
+
+export function unscopedAliases(sql) {
+  const code = sql.replace(/--[^\n]*/g, "");
+  const out = [];
+  for (const [, table, alias] of code.matchAll(/dbo\.(\w+)\s+(?:AS\s+)?(\w+)/gi)) {
+    if (!new RegExp(`\\b${alias}\\.company_id\\b`).test(code)) out.push(`${table} AS ${alias}`);
+  }
+  return out;
+}
+
+for (const [name, sql] of Object.entries(EVERY_STATEMENT)) {
+  test(`${name} scopes every table it reads by company`, () => {
+    assert.deepEqual(unscopedAliases(sql), [], `${name} reads a table without company_id — another company's rows can join`);
+  });
+}
+
+test("the scoping check catches the exact lookup that shipped wrong", () => {
+  assert.deepEqual(
+    unscopedAliases("SELECT 1 FROM dbo.movement AS m WHERE m.company_id = @c AND EXISTS (SELECT 1 FROM dbo.movement_order AS mo WHERE mo.movement_id = m.id)"),
+    ["movement_order AS mo"],
+  );
+});
+
+test("the close read binds one typed placeholder per id and never splices a value", () => {
+  const q = Q.closeReadQueries(3);
+  assert.match(q.loads, /AND m\.id IN \(@id0, @id1, @id2\)/);
+  assert.match(q.stops, /AND m\.id IN \(@id0, @id1, @id2\)/);
+  // No status filter: a D or a V is exactly what it exists to see.
+  assert.ok(!/m\.status IN/.test(q.loads) && !/m\.status IN/.test(q.stops));
+  assert.throws(() => Q.closeReadQueries(0));
+  assert.throws(() => Q.closeReadQueries(Q.CLOSE_READ_MAX_IDS + 1));
+});
+
+test("the close read returns the board's columns, so a closed load posts through the same contract", () => {
+  const cols = (sql) => sql.slice(0, sql.indexOf("FROM dbo."));
+  assert.equal(cols(Q.closeReadQueries(1).loads), cols(Q.DISPATCH_LOADS));
+});

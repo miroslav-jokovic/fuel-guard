@@ -675,3 +675,10 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   dropped: drivers `EJONES`, `MMCARTHY`, `JFERGUSO` and trailer `TESTTRL`. ⚠ `loads` now holds
   **303** McLeod rows against a board of 152 — the 2026-09-17 loads that left the board are still
   `pending_approval`. That is Q-GL6, and it grows with every pull.
+- 2026-09-24 — **Owner ruling: loads are a read-only mirror of McLeod.** Approval, release and
+  office-created loads are retired; the plan is `LOADS-MIRROR-PLAN.md` (D-LMR1–D-LMR4, steps
+  LR0–LR8). **Q-GL6 moves there as LR5**, option (a) unchanged. L5–L7 and L9 stay here.
+- 2026-09-24 — **L5 is DONE as CA2, L9 is re-shaped as CA3/CA7, L6/L7 are WITHDRAWN** (owner
+  ruling Q-CA1: the change detector costs the carrier ~60 ms against a ~32 ms full sweep; an agent-side
+  hash does D-MCC16's job). L2's routine is now built from the code and holds all 24 statements,
+  finance included. See `COLLECTOR-AUDIT-2026-09-24.md` §7.

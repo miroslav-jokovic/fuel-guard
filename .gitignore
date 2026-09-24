@@ -164,6 +164,11 @@ docs/McLeod-Testing/
 # STATE_PATH by hand will reach for the old relative path.
 tools/mcleod-agent/state.json
 tools/mcleod-agent/roster-state.json
+# --service (CA3): its state keys are McLeod movement ids, and the lock holds a pid. Same reason.
+tools/mcleod-agent/service-state.json
+tools/mcleod-agent/service.lock
+# The VM's config holds the LME password and the ingest token (connector.example.env is the template).
+tools/mcleod-agent/connector.env
 roster-state.json
 state.json
 

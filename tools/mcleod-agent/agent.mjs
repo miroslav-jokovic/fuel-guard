@@ -6,7 +6,13 @@
  * from McLeod LoadMaster, and POSTs it OUTBOUND to FuelGuard's ingest endpoints. No inbound firewall change —
  * the only connections it makes are: McLeod (local) and https://<fuelguard>/api/tms (outbound HTTPS).
  *
- * Zero dependencies: Node 18+ built-in fetch only. Configure with environment variables (see config.example.env).
+ * One dependency (mssql), Node 22+. Configure with environment variables (see connector.example.env for
+ * the Board VM, config.example.env for the older one-shot modes).
+ *
+ * --service is how it runs in production (CA3, docs/plans/mcleod/COLLECTOR-AUDIT-2026-09-24.md): one
+ * process on the carrier's Board VM, one held connection through connection.mjs, and schedule.mjs
+ * running loads / close / roster / finance one after another. The --loads, --roster and --financial
+ * flags remain for running one feed by hand.
  *
  * SOURCE=mock   → posts a couple of sample rows so IT can verify the FuelGuard side (auth + ingest) works
  *                 end-to-end BEFORE the McLeod field mapping is confirmed. Start here.
@@ -14,7 +20,7 @@
  *                 confirmed against live data during the one-truck connectivity test, then filled in below.
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState, runInspection } from "./roster.mjs";
@@ -23,7 +29,9 @@ import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchMovementFacts } from "./movements.mjs";
-import { fetchDispatchLoads } from "./loads.mjs";
+import { fetchDispatchLoads, fetchClosedLoads, planLoadPosts, loadHash } from "./loads.mjs";
+import { holdConnection, releaseConnection, breakerState } from "./connection.mjs";
+import { dueJobs, JOBS } from "./schedule.mjs";
 import { fetchLedgerControl, fetchGlAccounts } from "./ledger.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
 
@@ -64,6 +72,19 @@ const CFG = {
   // CLOSED trips for cost. An ingested load lands in pending_approval and never on a driver's phone
   // until a human releases it (D48), so a wrong field mapping is caught by review, not by a driver.
   loads: process.argv.includes("--loads"),
+  // --service is how the connector runs on the carrier's Board VM (CA3): ONE long-running process, one
+  // held connection, and an internal schedule (schedule.mjs) that runs loads, the close read, the
+  // roster and the nightly finance sweep one after another — never two at once. It replaces running
+  // --loads / --roster / --financial as separate looping processes, which on one machine meant up to
+  // three connections and nothing to stop two sweeps overlapping.
+  service: process.argv.includes("--service"),
+  servicePath: process.env.SERVICE_STATE_PATH ?? beside("service-state.json"),
+  lockPath: process.env.SERVICE_LOCK_PATH ?? beside("service.lock"),
+  // --close reads the CURRENT McLeod state of named movements and posts it (LR5): the one-off way to
+  // close loads that left the board before the service was tracking them. Ids come from a file, one
+  // bare movement id per line, e.g. exported from production at cut-over.
+  close: process.argv.includes("--close"),
+  idsFile: (process.argv.find((a) => a.startsWith("--ids-file=")) ?? "").slice("--ids-file=".length),
   // 'P' includes movement 11787, scheduled March 2015 and still open - 4,182 days stale. Bounding by
   // scheduled date rather than status alone excludes exactly that row today, while the worst REAL
   // load is 7 days past its last scheduled arrival (D-LM14).
@@ -149,7 +170,7 @@ if (!CFG.inspect && !CFG.dryRun && (!CFG.ingestUrl || !CFG.ingestToken)) {
   fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
 }
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
-if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial || CFG.loads) {
+if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial || CFG.loads || CFG.service || CFG.close) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
     if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
   }
@@ -171,6 +192,16 @@ const chunk = (arr, n) => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * A refused or unreachable POST ends a one-shot run, as it always has. Under --service it only ends
+ * the CYCLE: the service logs it and tries again at the next interval, rather than exiting and being
+ * restarted into the same refusal once a minute.
+ */
+function postFail(msg) {
+  if (CFG.service) throw new Error(msg);
+  fail(msg);
+}
+
 /** POST JSON to FuelGuard with the ingest token, retrying transient failures with backoff. */
 async function postToFuelGuard(path, body) {
   const url = `${CFG.ingestUrl}${path}`;
@@ -181,13 +212,13 @@ async function postToFuelGuard(path, body) {
         headers: { "content-type": "application/json", authorization: `Bearer ${CFG.ingestToken}` },
         body: JSON.stringify(body),
       });
-      if (res.status === 401) fail("FuelGuard rejected the ingest token (401). Re-check FUELGUARD_INGEST_TOKEN.");
+      if (res.status === 401) postFail("FuelGuard rejected the ingest token (401). Re-check FUELGUARD_INGEST_TOKEN.");
       if (res.status >= 500 || res.status === 429) throw new Error(`HTTP ${res.status}`); // transient → retry
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) fail(`FuelGuard ${path} rejected the payload (HTTP ${res.status}): ${JSON.stringify(json)}`);
+      if (!res.ok) postFail(`FuelGuard ${path} rejected the payload (HTTP ${res.status}): ${JSON.stringify(json)}`);
       return json;
     } catch (e) {
-      if (attempt === 4) fail(`FuelGuard ${path} unreachable after retries: ${e.message}`);
+      if (attempt === 4) postFail(`FuelGuard ${path} unreachable after retries: ${e.message}`);
       const backoff = 1000 * 2 ** (attempt - 1);
       log(`POST ${path} failed (${e.message}); retrying in ${backoff}ms…`);
       await sleep(backoff);
@@ -665,7 +696,180 @@ async function runFinancial() {
   // authoritative for fuel (D-FS2) and the McLeod copy lands via P3.4's projection decision.
 }
 
+
+// ── --service (CA3) ─────────────────────────────────────────────────────────────────────────────────
+/**
+ * One copy only. Two services on one VM would double every read the letter promised the carrier, so
+ * a second copy refuses to start. The lock records the holder's pid; a lock whose process is gone
+ * (the VM rebooted mid-run) is stale and is taken over rather than blocking the service for good.
+ */
+function takeLock(path) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = openSync(path, "wx");
+      writeFileSync(fd, String(process.pid));
+      closeSync(fd);
+      return () => {
+        try {
+          unlinkSync(path);
+        } catch {
+          /* already gone */
+        }
+      };
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+      const pid = Number(readFileSync(path, "utf8").trim());
+      let alive = false;
+      try {
+        if (pid > 0) process.kill(pid, 0);
+        alive = pid > 0;
+      } catch (err) {
+        alive = err.code === "EPERM";
+      }
+      if (alive) fail(`another connector is already running (pid ${pid}, lock ${path}). Refusing to start a second.`);
+      log(`service: removing stale lock from pid ${pid}`);
+      unlinkSync(path);
+    }
+  }
+  fail(`could not take the service lock at ${path}`);
+}
+
+/**
+ * What the service remembers between cycles and restarts: when each feed last ran, and a hash of every
+ * load it has posted. The KEYS are McLeod movement ids — the carrier's identifiers — so the file lives
+ * beside the agent and is gitignored, exactly like roster-state.json.
+ */
+function loadServiceState() {
+  if (!existsSync(CFG.servicePath)) return { runs: {}, posted: {}, board: [], dispatchersHash: null };
+  const s = JSON.parse(readFileSync(CFG.servicePath, "utf8"));
+  return { runs: s.runs ?? {}, posted: s.posted ?? {}, board: s.board ?? [], dispatchersHash: s.dispatchersHash ?? null };
+}
+function saveServiceState(state) {
+  writeFileSync(CFG.servicePath, JSON.stringify(state, null, 2));
+}
+
+/** The board, posting only loads that changed since they were last posted (and dispatchers likewise). */
+async function serviceLoads(state) {
+  const res = await fetchDispatchLoads(CFG.sql, {
+    staleDays: CFG.loadsStaleDays,
+    systemDispatchers: CFG.systemDispatchers,
+  });
+  for (const s of res.skipped) log(`loads: SKIPPED movement ${s.movement_id} - ${s.reason}`);
+  state.board = res.loads.map((l) => l.external_id);
+
+  const dHash = loadHash(res.dispatchers);
+  if (dHash !== state.dispatchersHash) {
+    await postToFuelGuard("/api/tms/dispatchers", { dispatchers: res.dispatchers });
+    state.dispatchersHash = dHash;
+  }
+  const { changed } = planLoadPosts(res.loads, state.posted);
+  if (changed.length) {
+    const out = await postToFuelGuard("/api/tms/loads", { loads: changed });
+    // The ingest is one statement per table: a 200 means every load in the batch landed.
+    for (const l of changed) state.posted[l.external_id] = loadHash(l);
+    log(`loads: ${res.loads.length} on the board, ${changed.length} changed and posted ${JSON.stringify(out?.data ?? out)}`);
+  } else {
+    log(`loads: ${res.loads.length} on the board, none changed`);
+  }
+}
+
+/**
+ * Loads we posted that have left the board: ask McLeod what became of them, post its answer, and stop
+ * tracking the ones it says are delivered (D) or void (V). Never closed on absence alone.
+ */
+async function serviceClose(state) {
+  const onBoard = new Set(state.board);
+  const prefix = `${CFG.sql.companyId}:`;
+  const left = Object.keys(state.posted).filter((id) => !onBoard.has(id) && id.startsWith(prefix));
+  if (!left.length) return;
+  const res = await closeMovements(left.map((id) => id.slice(prefix.length)));
+  for (const l of res.loads) {
+    if (["D", "V"].includes(String(l.external_status ?? "").trim())) delete state.posted[l.external_id];
+    else state.posted[l.external_id] = loadHash(l);
+  }
+}
+
+/** The close read + post, shared by --service and the one-off --close. Returns what McLeod said. */
+async function closeMovements(movementIds) {
+  const res = await fetchClosedLoads(CFG.sql, movementIds);
+  for (const s of res.skipped) log(`close: SKIPPED movement ${s.movement_id} - ${s.reason}`);
+  const found = new Set(res.loads.map((l) => String(l.external_id).split(":").pop()));
+  const missing = movementIds.filter((id) => !found.has(String(id).trim()));
+  if (missing.length) log(`close: ${missing.length} movement(s) not found in McLeod, left as they are: ${missing.slice(0, 20).join(", ")}`);
+  const byStatus = {};
+  for (const l of res.loads) byStatus[l.external_status ?? "?"] = (byStatus[l.external_status ?? "?"] ?? 0) + 1;
+  log(`close: asked about ${movementIds.length}, McLeod says ${JSON.stringify(byStatus)}`);
+  if (CFG.dryRun) {
+    console.log(JSON.stringify({ loads: res.loads }, null, 2));
+    return res;
+  }
+  if (res.loads.length) {
+    const out = await postToFuelGuard("/api/tms/loads", { loads: res.loads });
+    log(`close: posted ${res.loads.length} ${JSON.stringify(out?.data ?? out)}`);
+  }
+  return res;
+}
+
+async function runService() {
+  const release = takeLock(CFG.lockPath);
+  holdConnection();
+  let stopping = false;
+  const stop = async (sig) => {
+    if (stopping) return;
+    stopping = true;
+    log(`service: ${sig} — closing the McLeod connection and exiting`);
+    await releaseConnection();
+    release();
+    process.exit(0);
+  };
+  process.on("SIGINT", () => stop("SIGINT"));
+  process.on("SIGTERM", () => stop("SIGTERM"));
+
+  const state = loadServiceState();
+  // A first start in the middle of the working day must not run the finance sweep at once; the letter
+  // promises it at 02:00 Central. With no record, count tonight's anchor as the first one owed.
+  if (!state.runs.financial) state.runs.financial = { succeededAt: Date.now(), attemptedAt: Date.now() };
+  const feeds = {
+    loads: () => serviceLoads(state),
+    close: () => serviceClose(state),
+    roster: () => runRoster(),
+    financial: () => runFinancial(),
+  };
+  log(`service: started (pid ${process.pid}); schedule ${JOBS.map((j) => j.name + (j.everyMs ? ` every ${j.everyMs / 60_000} min` : ` daily at ${j.dailyAtHour}:00 Central`)).join(", ")}`);
+
+  while (!stopping) {
+    for (const name of dueJobs(Date.now(), state.runs)) {
+      if (stopping) break;
+      const run = (state.runs[name] ??= {});
+      run.attemptedAt = Date.now();
+      const t0 = Date.now();
+      try {
+        await feeds[name]();
+        run.succeededAt = Date.now();
+        run.lastError = null;
+      } catch (e) {
+        run.lastError = e.message;
+        log(`${name}: cycle failed (${Date.now() - t0} ms), will retry on schedule: ${e.message}`);
+        const b = breakerState();
+        if (b.open) log(`service: circuit breaker OPEN until ${new Date(b.openUntil).toISOString()} — McLeod is busy, backing off`);
+      }
+      saveServiceState(state);
+    }
+    await sleep(5_000);
+  }
+}
+
 async function main() {
+  if (CFG.service) {
+    await runService();
+    return;
+  }
+  if (CFG.close) {
+    if (!CFG.idsFile) fail("--close needs --ids-file=<path>: one bare McLeod movement id per line.");
+    const ids = readFileSync(CFG.idsFile, "utf8").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    await closeMovements(ids);
+    return;
+  }
   if (CFG.loads) {
     await runLoads();
     if (CFG.intervalMinutes > 0) {

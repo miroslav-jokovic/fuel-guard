@@ -3,64 +3,51 @@
  * query in `queries.mjs` then changes and that file does not, we are running something they never
  * saw — which is the one failure this whole review step exists to prevent.
  *
- * So this pins the file to the code, character for character. When it fails, the fix is to
- * regenerate the file AND tell them what changed; it is never to relax the assertion.
+ * Since CA5 (2026-09-24) the file is BUILT from the code by `review/build-routine.mjs`, so this pins
+ * three things: the committed file is exactly that build; every statement the agent can run is in
+ * it; and the settings it shows are the ones `connection.mjs` sends. When it fails, the fix is to
+ * rebuild the file AND tell the carrier what changed; it is never to relax the assertion.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import {
-  DISPATCH_LOADS,
-  DISPATCH_LOAD_STOPS,
-  DISPATCH_DISPATCHERS,
-  rosterQueries,
-  retirementQueries,
-} from "./queries.mjs";
+import * as Q from "./queries.mjs";
+import { buildRoutine, routineStatements, ROUTINE_PATH } from "./review/build-routine.mjs";
+import { SESSION_SETTINGS, STATEMENT_HINT, APP_NAME } from "./connection.mjs";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const routine = readFileSync(join(here, "review", "SILVICOM-READ-ROUTINE.sql"), "utf8");
+const routine = readFileSync(ROUTINE_PATH, "utf8");
 
-// The roster statements are pinned in the mode the launchd sweep runs (ROSTER_MODE=identity, in
-// launchd/com.silvicom.mcleod-roster.plist.template) — the widest column list, so the carrier has
-// reviewed every column the roster can read. `link` mode selects a subset of the same text.
-const roster = rosterQueries("identity");
-const retirement = retirementQueries();
+test("the committed routine is exactly what the code builds", () => {
+  assert.ok(
+    routine === buildRoutine(),
+    "review/SILVICOM-READ-ROUTINE.sql is stale. Run `node review/build-routine.mjs`, and tell the carrier what changed.",
+  );
+});
 
-for (const [name, sql] of [
-  ["DISPATCH_LOADS", DISPATCH_LOADS],
-  ["DISPATCH_LOAD_STOPS", DISPATCH_LOAD_STOPS],
-  ["DISPATCH_DISPATCHERS", DISPATCH_DISPATCHERS],
-  ["rosterQueries(identity).drivers", roster.drivers],
-  ["rosterQueries(identity).vehicles", roster.vehicles],
-  ["rosterQueries(identity).trailers", roster.trailers],
-  ["retirementQueries().drivers", retirement.drivers],
-  ["retirementQueries().vehicles", retirement.vehicles],
-  ["retirementQueries().trailers", retirement.trailers],
-]) {
-  test(`the review routine still contains ${name} exactly as the agent runs it`, () => {
-    assert.ok(
-      routine.includes(sql.trim()),
-      `${name} has changed in queries.mjs but review/SILVICOM-READ-ROUTINE.sql was not updated. ` +
-        `The carrier approved the old text. Regenerate the file and tell them what changed.`,
-    );
-  });
-}
+test("every statement the agent can run is in the routine the carrier reviews", () => {
+  const inFile = new Set(routineStatements().map((s) => s.sql.trim()));
+  const exported = Object.entries(Q).filter(([, v]) => typeof v === "string" && /\bSELECT\b/.test(v));
+  const expected = [
+    ...exported,
+    ...Object.entries(Q.rosterQueries("identity")).map(([k, v]) => [`roster.${k}`, v]),
+    ...Object.entries(Q.retirementQueries()).map(([k, v]) => [`retire.${k}`, v]),
+  ];
+  for (const [name, sql] of expected) {
+    assert.ok(inFile.has(sql.trim()), `${name} can run against LME but is not in the review routine`);
+  }
+});
 
-test("the review routine promises no write and no dirty read", () => {
-  // These are commitments made in writing to the carrier; assert the file still makes them.
-  assert.match(routine, /SET LOCK_TIMEOUT 5000;/);
-  assert.match(routine, /SET DEADLOCK_PRIORITY LOW;/);
-  assert.match(routine, /SET TRANSACTION ISOLATION LEVEL READ COMMITTED;/);
-  // NOLOCK must appear only where we promise never to use it, never as a hint on a table.
+test("each statement is followed by the connector's own hint, as it goes on the wire", () => {
+  for (const { title, sql } of routineStatements()) {
+    assert.ok(routine.includes(`${sql.trim()}\n${STATEMENT_HINT};`), `${title} is not shown with ${STATEMENT_HINT}`);
+  }
+});
+
+test("the settings the routine shows are the ones the connector sends, and it promises no dirty read", () => {
+  for (const s of SESSION_SETTINGS) assert.ok(routine.includes(s), `the routine does not show ${s}`);
   assert.ok(!/WITH\s*\(\s*NOLOCK\s*\)/i.test(routine), "a NOLOCK hint reached the routine we send out");
 });
 
-test("the review routine tells the DBA the program_name our connection actually uses", () => {
-  // The letter tells them to find us in sys.dm_exec_sessions by this string; roster.mjs sets it.
-  const pool = readFileSync(join(here, "roster.mjs"), "utf8");
-  const appName = pool.match(/appName: "([^"]+)"/)?.[1];
-  assert.ok(appName, "roster.mjs no longer sets an appName");
-  assert.ok(routine.includes(`"${appName}"`), `the routine does not name the program_name "${appName}"`);
+test("the routine tells the DBA the program_name our connection actually uses", () => {
+  assert.ok(routine.includes(`"${APP_NAME}"`), `the routine does not name the program_name "${APP_NAME}"`);
 });

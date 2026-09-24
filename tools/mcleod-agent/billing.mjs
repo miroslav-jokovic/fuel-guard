@@ -18,7 +18,7 @@
 
 import process from "node:process";
 import { BILLING_HISTORY } from "./queries.mjs";
-import { withPool } from "./roster.mjs";
+import { withPool } from "./connection.mjs";
 
 const num = (v) => (v == null ? 0 : Number(v));
 
