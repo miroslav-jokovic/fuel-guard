@@ -130,7 +130,7 @@ numbers), never addresses, licence numbers or other personal details.
 
 ## 4. Go-live check, together
 
-1. Run the test from step 4 and compare the load count with your board.
+1. Run the test from step 4 and compare the load count with the McLeod board.
 2. We run the one-time cleanup: the loads we still show as open that have since been delivered or
    voided in LME. We'll send you the file of movement ids (about 180 today). It's one keyed read:
 

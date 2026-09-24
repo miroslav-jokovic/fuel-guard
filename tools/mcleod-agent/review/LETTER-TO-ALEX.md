@@ -14,8 +14,8 @@ and sends what it reads to Silvicom 360 over HTTPS:
 
     LME  ->  connector on the VM  ->  HTTPS  ->  Silvicom 360
 
-It's one program with one connection, and it only ever runs SELECTs. Nothing connects in to your
-network. In SQL Server it shows up as "Silvicom 360 connector".
+It's one program with one connection, and it only ever runs SELECTs. Nothing connects in to our
+network from outside. In SQL Server it shows up as "Silvicom 360 connector".
 
 
 WHAT WE DO WITH THE DATA
@@ -28,7 +28,8 @@ read-only mirror of it that we build on:
   so a load's status always comes from McLeod.
 - Live map: which truck is on which load and which stops are next. Truck positions come from
   Samsara, and the load and stops come from LME.
-- Drivers, trucks and trailers: our lists stay matched to yours, for compliance and inspections.
+- Drivers, trucks and trailers: Silvicom 360's lists stay matched to McLeod, for compliance and
+  inspections.
 - Finance: settlements, fuel, AP, billing and GL, for cost per mile and the fleet report.
 
 We're setting up our storage in two layers. The first is a raw copy, exactly as LME says it. The
