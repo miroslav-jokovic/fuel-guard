@@ -100,6 +100,11 @@ const numericDefaults = await one(
     where table_name in ('mcleod_dispatch_movements', 'mcleod_dispatch_stops')
       and data_type in ('numeric', 'integer') and column_default is not null`);
 ok("no numeric column in either table carries a default", numericDefaults.n === 0, JSON.stringify(numericDefaults));
+const um = await one(
+  `select data_type, is_nullable, column_default from information_schema.columns
+    where table_name = 'mcleod_dispatch_movements' and column_name = 'weight_um'`);
+ok("the weight's unit is kept beside it (0367) — a number without its unit cannot be projected to weight_lbs",
+  um?.data_type === "text" && um?.is_nullable === "YES" && um?.column_default === null, JSON.stringify(um ?? null));
 ok("the withdrawn L6 change-tracking column is absent — no feed would ever write it",
   (await one(`select count(*)::int n from information_schema.columns
                where table_name = 'mcleod_dispatch_movements' and column_name = 'source_version'`)).n === 0);
