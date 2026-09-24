@@ -1,5 +1,11 @@
 # The read routine, for the carrier's review
 
+> **2026-09-24: the letter to send is now [`LETTER-TO-ALEX.md`](LETTER-TO-ALEX.md)**, in the owner's
+> voice, covering the VM architecture, every feed including finance, the measured cost and the grant
+> request. It supersedes the letter in this SQL file's header. ⚠ **Do not send it until CA1–CA5 of
+> `docs/plans/mcleod/COLLECTOR-AUDIT-2026-09-24.md` have landed** — it promises the session settings,
+> the finance fix and a SQL file that holds every statement, and today's file does not yet.
+
 `SILVICOM-READ-ROUTINE.sql` is the complete set of statements this integration runs against `lme`
 with the `silvicom_dispatch_ro` login: the loads feed (1–4), the roster sync (5–7) and the by-hand
 retirement reads (8–10). It exists because the carrier's IT asked for exactly this, on 2026-09-17:

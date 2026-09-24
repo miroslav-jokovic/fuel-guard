@@ -137,7 +137,13 @@ holds only what the agent already mapped (dropped stops are not in it), and it f
 
 **Collector layer — `mcleod` module, layer `raw`, new tables (exempt from the deploy-window rule):**
 
-- **`mcleod_movements`** — one row per McLeod movement, key `(org_id, company_id, movement_id)`
+⚠ **Named `mcleod_dispatch_*` because `mcleod_movements` already exists** (0267): it is the
+finance sweep's table of CLOSED trips, keyed for cost, 25,169 rows. A movement appears in both —
+in the dispatch mirror while it is worked, in the finance table once it settles — and the two are
+written by different feeds with different payloads, so merging them would force the partial upsert
+`lint:upserts` forbids. (Corrected 2026-09-24 by `COLLECTOR-AUDIT-2026-09-24.md`.)
+
+- **`mcleod_dispatch_movements`** — one row per McLeod movement, key `(org_id, company_id, movement_id)`
   (the `movement.id` collision across companies is why `company_id` is in the key). Typed columns
   for **every field the agent reads**, named as McLeod names them: `order_id`, `blnum`,
   `movement_status`, `loaded`, `dispatcher_user_id`, `driver_codes text[]`, `tractor_id`,
@@ -145,7 +151,7 @@ holds only what the agent already mapped (dropped stops are not in it), and it f
   `consignee_refno`, `move_distance`, and later `pick_up_no`/customer name (Q-LMR5). Plus our own
   bookkeeping: `first_seen_at`, `last_seen_at`, `closed_at`, `source_version` (the CT version once
   L6 lands).
-- **`mcleod_stops`** — one row per McLeod stop, key `(org_id, company_id, stop_id)`, with
+- **`mcleod_dispatch_stops`** — one row per McLeod stop, key `(org_id, company_id, stop_id)`, with
   `movement_id`, `movement_sequence`, **`stop_type` verbatim (VA/SP kept)**, `status`,
   `location_id`, `location_name`, address, city, state, zip, lat, **lon already negated**,
   `sched_arrive_early/late`, `actual_arrival/departure`, `eta`, `contact_name`, `phone`, `ponum`.
@@ -166,12 +172,12 @@ the harness reads. New columns, **each added one merge before its first reader**
 **The rule between them (D-LMR4):** the collector writes raw; **a projection function owned by
 `loads`** turns raw into core; core is rebuildable from raw at any time. A mapping change (e.g.
 naming `VA`) then becomes "re-run the projection", not "re-pull McLeod and hope".
-`load_external_payloads` becomes redundant once `mcleod_movements` is populated. Retiring it is
+`load_external_payloads` becomes redundant once `mcleod_dispatch_movements` is populated. Retiring it is
 LR8, **after** a week of both, compared row by row.
 
 ⚠ **This is not a second source of truth.** Raw is *what McLeod said*; core is *what Silvicom
 shows*. Only one is ever written by the feed and only one is ever read by a page. The test in LR3
-is that no harness file reads `mcleod_movements` (`lint:table-access` already enforces it for a
+is that no harness file reads `mcleod_dispatch_movements` (`lint:table-access` already enforces it for a
 `raw` table).
 
 ---
@@ -193,7 +199,7 @@ by hand against McLeod's screen.**
 
 ### LR1 · Migration: the two raw tables — schema only
 
-`mcleod_movements`, `mcleod_stops` as in §4. `enable row level security`, no client policy.
+`mcleod_dispatch_movements`, `mcleod_dispatch_stops` as in §4. `enable row level security`, no client policy.
 `raw-access-waiver` in the migration, `scripts/table-modules.json` entries with a growth
 declaration (~180 movements/day, ~310 stops/day, measured), a PGlite matrix per table printing
 `RESULT`, regenerated `schema.generated.sql`. Producer waiver naming LR3.
@@ -214,7 +220,7 @@ The `loads` and `load_stops` columns of §4. Nullable, no defaults that lie (a m
   typed** (D-MCC11). The review routine SQL regenerates from them and `review.test.mjs` pins it.
 - `loads.mjs`: send **every** stop, with its verbatim `stop_type`. Stop dropping at the agent —
   deciding what core can draw is the projection's job, not the reader's.
-- New `POST /api/tms/movements` → `mcleod` module writes `mcleod_movements` / `mcleod_stops` with
+- New `POST /api/tms/dispatch-movements` (`/api/tms/movements` is taken by the reefer feed) → `mcleod` module writes `mcleod_dispatch_movements` / `mcleod_dispatch_stops` with
   **complete rows** (`lint:upserts`), stamps `first_seen_at` once and `last_seen_at` every sync.
 - Contract in `packages/shared/src/tms.ts` (the only home for it).
 
@@ -250,7 +256,8 @@ map `D` to `in_transit` and a test fails.
 ### LR5 · Close what leaves the board (Q-GL6, option (a))
 
 The agent also reads McLeod status for **every movement we hold open that is no longer on the
-board** — a keyed read, typed parameters, bounded by ids we already have — and sends `D`/`V`
+board** — a keyed read, **one `VarChar(32)` parameter per id** (the database is compatibility level
+110: `STRING_SPLIT` does not exist; measured 300 ids in 3 ms), bounded by ids we already have — and sends `D`/`V`
 explicitly. Never infer a close from absence (the reconcile that retired 33 vehicles and 120
 drivers did exactly that). The first run closes the backlog: today ~140 of the 303.
 
@@ -303,10 +310,11 @@ in the PR.
 After one week of LR3 and the old blob side by side, compared row by row. Remove the writer,
 then drop the table in a later merge.
 
-### Beyond this plan (unchanged, in LOADS-GO-LIVE-PLAN)
+### Beyond this plan (in LOADS-GO-LIVE-PLAN, re-ordered by COLLECTOR-AUDIT-2026-09-24)
 
-L5 one connection + politeness policy → L6/L7 change detector → **L9 the Board VM and the
-schedule.** Until L9 the mirror is only as fresh as the last manual run, and the page must say so:
+CA1–CA7 in `COLLECTOR-AUDIT-2026-09-24.md`: the finance collision fix, one connection with the
+politeness policy (L5), one process on the Board VM, and — if Q-CA1 is ruled — an agent-side hash
+**instead of** the L6/L7 change detector, which measured costs the carrier more than the sweep. Until L9 the mirror is only as fresh as the last manual run, and the page must say so:
 it shows **"McLeod as of <time>"** from `max(last_seen_at)`, never an implied "live".
 
 ---
@@ -346,7 +354,7 @@ LR5 — ~140 stale loads close. LR6 — approval buttons disappear. LR7 — the 
    load sheet to the assigned driver; spec it separately.
 7. **Q-LMR7 — manual loads.** Zero in production. **Recommendation:** remove the ability entirely
    (LR6); keep `source` as a column so history reads correctly.
-8. **Q-LMR8 — retention of `mcleod_movements` / `mcleod_stops`.** Growth ~180 + ~310 rows/day.
+8. **Q-LMR8 — retention of `mcleod_dispatch_movements` / `mcleod_dispatch_stops`.** Growth ~180 + ~310 rows/day.
    **Recommendation:** keep closed movements 400 days (IFTA/audit look-back), under DATA-LIFECYCLE L9.
 
 ---
@@ -358,3 +366,6 @@ Append a dated line per merge. Never edit a status column.
 - 2026-09-24 — plan written. Measured: live board 162 movements / 335 stops, fill rates in §2;
   production 303 loads, all `tms`, all `pending_approval`, none ever approved; the only path to a
   driver is the office Release (§3.1); the live map has drawn no load since L1 (§3.3).
+- 2026-09-24 — corrected by the collector audit: raw tables renamed `mcleod_dispatch_*` (the
+  name `mcleod_movements` is the finance sweep's, 0267); LR5 uses one typed parameter per id
+  (compatibility level 110, no `STRING_SPLIT`); the change detector is proposed dropped (Q-CA1).
