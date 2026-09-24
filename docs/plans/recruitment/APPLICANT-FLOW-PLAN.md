@@ -496,3 +496,30 @@ Append a dated line per step. Never edit §4.
     AF4's gate on `medical_card`/`ssn_card` is still owed.
   · ⚠ **Migration numbers keep moving:** the other chat has taken 0366 and 0367 today, so AF5's
     migration is **0368 or later**. Re-check at branch time.
+- **2026-09-24** — **AF4 DONE** (#1018, merge `4f6ba2f`). The permissions visit ends on "We have your
+  permissions". Draft save, hand-over and the `medical_card`/`ssn_card` photos refuse
+  `application_not_sent` (409) until the office presses **Send the application**
+  (`POST /applications/:invitationId/send-application`). That press rotates the link through 0365,
+  returns it on screen, emails it, audits it, and WARNS about outstanding screening without
+  refusing. The checklist gains `application_sent` and follows §3.3's order, renumbered 1–17.
+  17 of 17 mutants killed. Where the build refines §4's text:
+  · **`applicationProgress`: a draft is "filling" only once the form has been sent.** AF3's
+    identity draft would otherwise read as "filling it in" on the board and the invitation card.
+    The invitation card gains two states: "Permissions signed" (the office's move) and
+    "Application sent" (the applicant's).
+  · **The nudge sweep selects `application_sent_at`.** Its rows are cast, not typed, so without
+    the column every candidate reads unsent and the sweep would silently nudge nobody. A test pins
+    the select.
+  · **A second email template** (`applicationSentEmail.ts`), because sending rotates the link and
+    the applicant must be told the earlier one no longer works. The mailer moved to
+    `modules/recruiting/applicationMail.ts` as §4 said, and the approval notice's private
+    `carrierName` copy now uses it too.
+  · The page reads a MISSING `applicationSentAt` as "sent", so a bundle meeting an older API
+    strands nobody.
+  · `ApplyPage.vue` reached the 500-line budget. The consent step moved to
+    `useEsignConsentStep.ts` and both waiting screens share `ApplyWaitScreen.vue` (page at 479).
+  · ⚠ **AF5 now owes the approval copy too:** `APPLY_COPY.expectations.afterwards` and the
+    approval email still describe signing on "a second, short visit" to the link. AF5 changes
+    both, since signing moves to the office (D-AF3).
+  · ⚠ **Migration numbers:** the other chat has now also used 0368, so **AF5's migration is 0369
+    or later**. Re-check at branch time AND again right before merging.
