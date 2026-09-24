@@ -11,3 +11,16 @@ You can run any discovery queries on the live data but when you are ready to pub
  
 Thanks,
 Alex
+
+
+Good morning,
+ 
+User with the permissions requested is now ready:
+ 
+silvicom_dispatch_ro
+[password removed 2026-09-17 — it lives in tools/mcleod-agent/.env, which is gitignored]
+ 
+ 
+BTW the script that you have provided had issues but we corrected them and it is all good.
+ 
+Everything else looks good – there is a Board dedicated VM where you can run your connector please email me next week and I will set you up with access to this machine.
