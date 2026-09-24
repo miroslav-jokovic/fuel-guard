@@ -4,7 +4,7 @@ Hi Alex,
 
 Here's a short overview of what we've built on our side, how it reads LME, and what we do with the
 data. The two attachments have the details: SILVICOM-READ-ROUTINE.sql has every statement word for
-word, and INSTALL-ON-VM.md covers setting it up on the VM.
+word, and CONNECTOR-ON-THE-VM.md lists what the connector needs and how it runs.
 
 
 WHAT IT IS
@@ -89,8 +89,9 @@ checked automatically for the same mistake.
 
 WHAT WE'D NEED FROM YOU
 
-- The VM: Windows or Linux, 2 vCPU / 4 GB is plenty, Node.js 22+. It needs to reach LME on 1433
-  and HTTPS out to fleetguardapi-production.up.railway.app.
+- A VM for the connector, set up however suits you (Linux like our other servers is what we'd
+  expect). It's small: Node.js 22+, under 200 MB of memory, LME on 1433, and HTTPS out to
+  fleetguardapi-production.up.railway.app. The details are in CONNECTOR-ON-THE-VM.md.
 - A few more read grants for silvicom_dispatch_ro:
   - reference_number, which is where the PU number lives;
   - customer, just the id, name, city and state;
