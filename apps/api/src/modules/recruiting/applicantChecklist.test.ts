@@ -234,6 +234,8 @@ describe("what it reads, and from where", () => {
       "drivers", "application_invitations", "driver_authorizations", "qualification_records",
       "psp_requests", "application_packet_marks", "application_drafts",
       "driver_employment_history", "employer_inquiries",
+      // HANDBOOK-SIGNING-PLAN.md: whether the driver has finished the handbook's places.
+      "handbook_marks",
     ]));
   });
 

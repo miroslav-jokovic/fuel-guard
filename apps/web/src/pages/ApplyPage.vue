@@ -302,6 +302,7 @@ watch(
     :token="token"
     :carrier="invitation.data.value?.carrier ?? ''"
     :road-test-certificate="invitation.data.value?.roadTestCertificate ?? null"
+    :handbook="invitation.data.value?.handbook ?? null"
   />
 
   <!-- F4/D-AX11: handed over, and not yet approved. The driver has done everything they can do for

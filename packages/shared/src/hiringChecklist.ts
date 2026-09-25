@@ -5,7 +5,7 @@ import { mvrJurisdictionsOutstanding } from "./mvrJurisdictions.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
 import type { ApplyingAs } from "./questionnaireContract.js";
 import {
-  HIRING_STEPS, measurableHiringSteps,
+  HIRE_REFUSES_WITHOUT, HIRING_STEPS, measurableHiringSteps,
   type HiringEvidence, type HiringStepKey, type HiringStepSpec,
 } from "./hiringSteps.js";
 
@@ -89,6 +89,11 @@ export interface HiringChecklistInputs {
    * `dqCatalogue.ts`, which already owns them.
    */
   qualificationKinds?: readonly string[];
+  /**
+   * Where the handbook ceremony stands (HANDBOOK-SIGNING-PLAN.md): opened by the office, and whether
+   * every driver place is signed. Only drives `inFlight`; the step is DONE on the filed record.
+   */
+  handbook?: { openedAt: string | null; driverComplete: boolean } | null;
   /**
    * The jurisdiction each MVR on file was recorded for — `detail.jurisdiction`, null where none was
    * written (AF7). One entry per MVR row, not deduped: the fold only asks which are covered.
@@ -325,9 +330,17 @@ function evidenceFor(
       return { done: Boolean(input.hiredAt), inFlight: false };
     // The three with no evidence table. Reached only if a caller asks directly; the fold never emits
     // them, so they can never be `done` by accident.
+    case "handbook":
+      // Done on the filed record (HB3 writes it with the signed PDF), never on the marks: six signed
+      // places with no countersignature and no filed document is a handbook in progress. In flight
+      // while the office has opened it and the driver has places left — after that the next move is
+      // the office's countersignature, so it is ours again.
+      return {
+        done: hasKind(input, "handbook"),
+        inFlight: Boolean(input.handbook?.openedAt) && !input.handbook?.driverComplete,
+      };
     case "orientation_videos":
     case "live_orientation":
-    case "handbook":
       return { done: false, inFlight: false };
   }
 }
@@ -401,4 +414,15 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
     readyToHire: readiness(steps, (s) => s.key !== "hired"),
     next,
   };
+}
+
+/**
+ * The steps a hire is refused for, in the catalogue's order — empty when it may proceed.
+ *
+ * ⚠ Fail-closed: a refusing step the fold did not emit counts as missing, never as done — for
+ * `readiness()`'s reason, that an absence of evidence is not evidence of completeness.
+ */
+export function hireBlockers(checklist: Pick<HiringChecklist, "steps">): HiringStepKey[] {
+  const done = new Set(checklist.steps.filter((s) => s.state === "done").map((s) => s.key));
+  return HIRE_REFUSES_WITHOUT.filter((key) => !done.has(key));
 }

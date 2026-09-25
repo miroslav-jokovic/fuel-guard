@@ -82,9 +82,21 @@ function isPermissionDocument(req: Request): boolean {
   return req.method === "GET" && /^\/[^/]+\/permission\/[a-z_]+\.pdf$/.test(req.path);
 }
 
+/**
+ * Is this the handbook's ceremony (HANDBOOK-SIGNING-PLAN.md)?
+ *
+ * ⚠ The packet's reason exactly: five places signed at the desk in a minute, each followed by a fresh
+ * read of the document to show it, is ten requests that would crowd the intake's 20 — and several
+ * drivers signing from one office share one address. Only the two shapes, POST mark and GET pdf.
+ */
+function isHandbookCeremony(req: Request): boolean {
+  return (req.method === "POST" && /^\/[^/]+\/handbook\/mark\/?$/.test(req.path))
+    || (req.method === "GET" && /^\/[^/]+\/handbook\.pdf$/.test(req.path));
+}
+
 /** Everything the ceremony's per-link bucket takes, and the intake's therefore skips. */
 export function isCeremonyRequest(req: Request): boolean {
-  return isPacketMark(req) || isPermissionDocument(req);
+  return isPacketMark(req) || isPermissionDocument(req) || isHandbookCeremony(req);
 }
 
 /**

@@ -45,17 +45,9 @@ const WAIVERS = new Map([
   // it behind POST /api/dispatch/loads/:id/dispatch. Pinned for the schema-only LR-D1 (0370) only.
   // road_test_examiners left it on 2026-09-25 (ROAD-TEST-PLAN.md RT3): recruiting/roadTest.ts writes it
   // behind POST /api/recruitment/road-test-examiners. Pinned for the schema-only RT0 (0372) only.
-  [
-    "carrier_representatives",
-    "HANDBOOK-SIGNING-PLAN.md HB0 (0374) ships the table schema-only, because its first reader cannot " +
-      "share the merge that creates it. HB3's POST /api/recruitment/representatives writes it; the entry " +
-      "leaves in that merge, the same shape as road_test_examiners.",
-  ],
-  [
-    "handbook_marks",
-    "HANDBOOK-SIGNING-PLAN.md HB0 (0374), schema-only for the same reason. HB3's handbook mark and " +
-      "countersign routes write it; the entry leaves in that merge.",
-  ],
+  // carrier_representatives and handbook_marks left it on 2026-09-25 (HANDBOOK-SIGNING-PLAN.md HB3):
+  // recruiting/representatives.ts writes the first behind POST /api/recruitment/representatives, and
+  // handbookCeremony.ts + handbookSigning.ts write the second. Pinned for the schema-only HB0 (0374) only.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
-import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, type RecordedQuery, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
 /**
@@ -53,10 +53,17 @@ const call = (path: string, init: RequestInit & { token?: string } = {}) => {
   });
 };
 
-const seed = (): SupabaseRecorder =>
+/**
+ * ⚠ An applicant the hire gate lets through (Q-HM5, D-HB5): the checklist's own evidence read — the
+ * only one that selects the MVR's `jurisdiction` — sees the six federal gates and the handbook, and
+ * the application is filed. `hireApplicant.test.ts` says why the fixture is keyed on the select.
+ */
+const READY = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "handbook"];
+const seed = (evidence: string[] = READY): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
-      drivers: [{ id: DRIVER, full_name: "An Applicant", status: "applicant" }],
+      drivers: [{ id: DRIVER, full_name: "An Applicant", status: "applicant", hire_date: null }],
+      application_invitations: [{ id: "inv-1", created_at: "2026-08-01T00:00:00Z", submitted_at: "2026-08-10T00:00:00Z" }],
       driver_employment_history: [
         {
           id: "emp-1",
@@ -68,7 +75,10 @@ const seed = (): SupabaseRecorder =>
           inquiry_response_on: "2026-07-14",
         },
       ],
-      qualification_records: [],
+      qualification_records: (q: RecordedQuery) =>
+        String(q.ops.find((o) => o.method === "select")?.args[0] ?? "").includes("jurisdiction")
+          ? evidence.map((kind) => ({ kind }))
+          : [],
       audit_logs: [],
     },
     rpc: { hire_applicant: { status: "active", hire_date: "2026-09-01", filed: 2 } },
@@ -170,5 +180,21 @@ describe("what the hire records", () => {
     const res = await call("/hire", { method: "POST", token: "fleet", body: HIRE });
     expect(res.status).toBe(409);
     expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  /**
+   * Q-HM5 + D-HB5 through the mount: the refusal is a 409 with the steps named beside the envelope,
+   * so the screen can list them — and no audit row, because nothing was hired.
+   */
+  it("answers 409 naming the handbook when it is not signed, and hires nobody", async () => {
+    rec = seed(READY.filter((k) => k !== "handbook"));
+    holder.client = rec.client;
+    const res = await call("/hire", { method: "POST", token: "fleet", body: HIRE });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string }; missing: string[] };
+    expect(body.error.code).toBe("not_ready_to_hire");
+    expect(body.missing).toEqual(["handbook"]);
+    expect(rec.rpcs()).toHaveLength(0);
+    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
   });
 });

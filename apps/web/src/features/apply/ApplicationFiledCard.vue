@@ -2,7 +2,9 @@
 import { ref, type Ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";
+import type { HandbookStatus } from "@silvicom/shared";
 import { fetchApplicantCopy, fetchRoadTestCertificate, type ApplicantCopy } from "./useApplication";
+import HandbookSigning from "./HandbookSigning.vue";
 import { APPLY_COPY } from "./strings";
 
 /**
@@ -26,6 +28,8 @@ const props = defineProps<{
   token: string;
   carrier: string;
   roadTestCertificate: { testedOn: string } | null;
+  /** HANDBOOK-SIGNING-PLAN.md: the handbook is signed on this card, after the application (D-HB1). */
+  handbook?: HandbookStatus | null;
 }>();
 
 const working = ref(false);
@@ -89,5 +93,7 @@ const downloadCertificate = () => openFresh(fetchRoadTestCertificate, certificat
       </p>
       <p v-if="certificateFailed" class="text-sm text-ink-secondary">{{ APPLY_COPY.done.certificateFailed }}</p>
     </div>
+
+    <HandbookSigning v-if="handbook" :token="token" :carrier="carrier" :handbook="handbook" />
   </BaseCard>
 </template>

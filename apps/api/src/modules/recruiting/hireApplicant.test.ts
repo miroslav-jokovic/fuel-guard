@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 import { hireApplicant, isHireError, previewHire } from "./hireApplicant.js";
 
 /**
@@ -25,15 +25,30 @@ const EMPLOYER = {
   inquiry_response_on: "2026-07-14",
 };
 
-const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unknown[] } = {}) =>
+/**
+ * ⚠ The evidence the hire gate reads (Q-HM5, D-HB5): an applicant whose six federal gates and
+ * handbook are all on file, and whose application is filed. The recorder does not filter, so the
+ * `qualification_records` fixture answers by WHAT was selected: the checklist's evidence read
+ * (`kind` + jurisdiction) gets this, and `loadFile`'s gap read (`kind, detail`) gets the test's own
+ * rows — the two are different questions and the file's gaps are what several tests below are about.
+ */
+const READY_KINDS = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "handbook"];
+const selectOf = (q: RecordedQuery): string => String(q.ops.find((o) => o.method === "select")?.args[0] ?? "");
+
+const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unknown[]; evidence?: string[]; rpc?: unknown } = {}) =>
   createSupabaseRecorder({
     tables: {
-      drivers: over.drivers ?? [{ id: DRIVER, full_name: "An Applicant", status: "applicant" }],
+      drivers: over.drivers ?? [{ id: DRIVER, full_name: "An Applicant", status: "applicant", hire_date: null }],
       driver_employment_history: over.employment ?? [EMPLOYER],
-      qualification_records: over.records ?? [],
+      qualification_records: (q: RecordedQuery) =>
+        // ⚠ Keyed on the checklist's OWN read — the only one that selects the MVR's `jurisdiction`.
+        // Every other read (the file's gaps, §40.25(j)'s return-to-duty check) gets the test's rows:
+        // two earlier discriminators each handed one read the other's answer, found by probing.
+        selectOf(q).includes("jurisdiction") ? (over.evidence ?? READY_KINDS).map((kind) => ({ kind })) : (over.records ?? []),
+      application_invitations: [{ id: "inv-1", created_at: "2026-08-01T00:00:00Z", submitted_at: "2026-08-10T00:00:00Z" }],
       audit_logs: [],
     },
-    rpc: { hire_applicant: { status: "active", hire_date: "2026-09-01", filed: 2 } },
+    rpc: { hire_applicant: over.rpc ?? { status: "active", hire_date: "2026-09-01", filed: 2 } },
   });
 
 const body = { driver_id: DRIVER, hire_date: "2026-09-01" };
@@ -106,16 +121,41 @@ describe("what hiring refuses", () => {
 
   /** The lock inside the transaction is the truth; this is the message it produces. */
   it("turns the transaction's HA010 race into a plain answer", async () => {
-    const rec = createSupabaseRecorder({
-      tables: {
-        drivers: [{ id: DRIVER, status: "applicant" }],
-        driver_employment_history: [EMPLOYER],
-        qualification_records: [],
-      },
-      rpc: { hire_applicant: { error: { code: "HA010", message: "hire_applicant_not_applicant" } } },
-    });
+    // Through `seed()`: an applicant the gate lets through, so the call reaches the race it is about.
+    const rec = seed({ rpc: { error: { code: "HA010", message: "hire_applicant_not_applicant" } } });
     const result = await hireApplicant(rec.client, ORG, "u", body, TODAY);
     expect(isHireError(result) && result.code).toBe("not_an_applicant");
+  });
+});
+
+describe("what hiring refuses without (Q-HM5, D-HB5)", () => {
+  it("refuses without the signed handbook, names it, and never calls the transaction", async () => {
+    const rec = seed({ evidence: READY_KINDS.filter((k) => k !== "handbook") });
+    const result = await hireApplicant(rec.client, ORG, "u", body, TODAY);
+    expect(isHireError(result) && result.code).toBe("not_ready_to_hire");
+    expect(isHireError(result) && result.missing).toEqual(["handbook"]);
+    expect(isHireError(result) && result.message).toMatch(/Handbook signed/);
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("refuses without a federal gate — the drug test — and names it", async () => {
+    const rec = seed({ evidence: READY_KINDS.filter((k) => k !== "drug_test") });
+    const result = await hireApplicant(rec.client, ORG, "u", body, TODAY);
+    expect(isHireError(result) && result.missing).toEqual(["drug_test"]);
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("does not refuse for what only warns (the §391.23 investigation)", async () => {
+    // EMPLOYER's inquiry is answered; one still pending is the warn-only case.
+    const rec = seed({ employment: [{ ...EMPLOYER, inquiry_status: "pending", inquiry_sent_on: null, inquiry_response_on: null }] });
+    const result = await hireApplicant(rec.client, ORG, "u", body, TODAY);
+    expect(isHireError(result)).toBe(false);
+  });
+
+  it("the preview names what the press will be refused for, before it", async () => {
+    const rec = seed({ evidence: READY_KINDS.filter((k) => k !== "handbook") });
+    const result = await previewHire(rec.client, ORG, DRIVER);
+    expect(!isHireError(result) && result.hireBlockedBy).toEqual(["handbook"]);
   });
 });
 

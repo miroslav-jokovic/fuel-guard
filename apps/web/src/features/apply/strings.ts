@@ -1,5 +1,6 @@
 import { APPLY_FLOW_COPY } from "./strings.flow";
 import { APPLY_IDENTITY_COPY } from "./strings.identity";
+import { APPLY_HANDBOOK_COPY } from "./strings.handbook";
 import { APPLY_PERMISSIONS_COPY } from "./strings.permissions";
 import { APPLY_SMS_COPY } from "./strings.sms";
 import {
@@ -444,4 +445,5 @@ export const APPLY_COPY = {
   ...APPLY_IDENTITY_COPY,
   ...APPLY_PERMISSIONS_COPY,
   ...APPLY_SMS_COPY,
+  ...APPLY_HANDBOOK_COPY,
 } as const;

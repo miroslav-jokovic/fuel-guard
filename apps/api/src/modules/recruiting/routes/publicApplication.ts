@@ -30,6 +30,8 @@ import { recordRelease, releasesForApplicant, signedReleases } from "../applicat
 import { adoptedPacketMarks, packetStops, recordPacketMark } from "../applicationPacketMarks.js";
 import { identityOnFile, recordApplicantIdentity } from "../applicantIdentity.js";
 import { latestRoadTestCertificate } from "../applicationRoadTestCopy.js";
+import { linkHandbookStatus } from "../handbookCeremony.js";
+import { publicApplicationHandbookRouter } from "./publicApplicationHandbook.js";
 
 /**
  * The public application surface — H5, and the only unauthenticated write path in the product that
@@ -120,6 +122,8 @@ export function publicApplicationRouter(): Router {
       // RT4, §391.31(g): the test date of the certificate this link can hand over, so the page offers the
       // download only when pressing it can work. The date and nothing else — the ratings stay on the form.
       const certificate = await latestRoadTestCertificate(admin, invitation.org_id, invitation.driver_id);
+      // D-HB1: where the handbook stands, null until the application is filed. Places, never names.
+      const handbook = await linkHandbookStatus(admin, invitation);
 
       res.json({
         // The carrier's name and nothing else about them. An application link is not a directory.
@@ -147,6 +151,7 @@ export function publicApplicationRouter(): Router {
         packetAdopted,
         identityComplete,
         roadTestCertificate: certificate ? { testedOn: certificate.occurred_on } : null,
+        handbook,
       });
     }),
   );
@@ -422,6 +427,9 @@ export function publicApplicationRouter(): Router {
   // What this link hands back as a DOCUMENT, in its own module for the same reason. C1's reading
   // copy of the unsigned packet belongs beside the filed copy, not here.
   router.use(publicApplicationDocumentsRouter());
+
+  // The driver handbook, signed after the application (HANDBOOK-SIGNING-PLAN.md, D-HB1).
+  router.use(publicApplicationHandbookRouter());
 
   // The optional agreement to be texted (SMS-OPT-IN-PLAN D-SMS1) — offered on the waiting screens,
   // never in the path.

@@ -128,6 +128,27 @@ describe("the applicant's bucket", () => {
     expect((await fetch(`${baseUrl}${PATH}`)).status).not.toBe(429);
   });
 
+  /**
+   * HANDBOOK-SIGNING-PLAN.md: the handbook is signed at the same desk, five places each followed by a
+   * fresh read of the document, so its mark and its PDF ride the ceremony's per-link bucket too.
+   */
+  it("serves the handbook's marks and PDF from the ceremony's bucket and leaves the intake's untouched", async () => {
+    const baseUrl = await freshApp();
+    const handbook = (i: number) =>
+      i % 2 === 0
+        ? fetch(`${baseUrl}/api/public/application/${TOKEN}/handbook.pdf`)
+        : fetch(`${baseUrl}/api/public/application/${TOKEN}/handbook/mark`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ placement_id: "h1", esign_consent: true }),
+          });
+    const codes: number[] = [];
+    for (let i = 0; i < PACKET_CEREMONY_LIMIT; i += 1) codes.push((await handbook(i)).status);
+    expect(codes.some((c) => c === 429)).toBe(false);
+    expect((await handbook(0)).status).toBe(429);
+    expect((await fetch(`${baseUrl}${PATH}`)).status).not.toBe(429);
+  });
+
   it("counts a GET that only resembles a permission PDF against the intake", async () => {
     const baseUrl = await freshApp();
     const lookalike = `${baseUrl}/api/public/application/${TOKEN}/permission/psp`;

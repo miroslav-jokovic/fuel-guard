@@ -77,6 +77,9 @@ const DESTINATIONS: Record<HiringEvidenceTable, (driverId: string) => HiringArti
   "qualification_records.drug_test": qualificationFile,
   "qualification_records.medical_registry_verification": qualificationFile,
   "qualification_records.road_test": qualificationFile,
+  // HANDBOOK-SIGNING-PLAN.md: the signed handbook is a document in the driver's file, like the
+  // road-test certificate beside it.
+  "qualification_records.handbook": qualificationFile,
   "application_packet_marks": qualificationFile,
   // ⚠ Q-HM9's step. On this page since the same change: the investigation got its own checklist row
   // and `EmployerInquirySection` moved out of the application drawer and behind it, so the §391.23

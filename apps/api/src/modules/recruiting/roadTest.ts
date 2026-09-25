@@ -60,8 +60,11 @@ export async function listRoadTestExaminers(admin: SupabaseClient, orgId: string
   return (data ?? []) as RoadTestExaminer[];
 }
 
-/** The PNG signature, magic-checked: a data URL that says PNG is not proof the bytes are one. */
-function pngBytes(dataUrl: string): Buffer | null {
+/**
+ * The PNG signature, magic-checked: a data URL that says PNG is not proof the bytes are one.
+ * ⚠ Exported for `representatives.ts`, which takes the same picture for the same reason.
+ */
+export function pngBytes(dataUrl: string): Buffer | null {
   const bytes = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
   const magic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   return bytes.length > 8 && bytes.subarray(0, 8).equals(magic) ? bytes : null;

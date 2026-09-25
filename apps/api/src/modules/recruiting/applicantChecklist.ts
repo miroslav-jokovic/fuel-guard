@@ -4,6 +4,7 @@ import {
   countedPacketMarks,
   declaredLicenceJurisdictions,
   driverInquiryQueue,
+  handbookStatus,
   hiringChecklist,
   type ApplyingAs,
   type AuthorizationRow,
@@ -15,6 +16,7 @@ import {
 import { hasPspRequest } from "../psp/index.js";
 import { DRAFT_APPLYING_AS_SELECT } from "./applicantApplyingAs.js";
 import { DRAFT_LICENCES_SELECT, RECORD_JURISDICTION_SELECT } from "./applicantLicences.js";
+import { handbookPlacesSigned } from "./handbookSigning.js";
 
 /**
  * Gather the evidence one applicant's checklist folds over (B3, `HIRING-MODULE-PLAN.md` §9).
@@ -45,7 +47,8 @@ export const isChecklistError = (v: unknown): v is ChecklistError =>
 
 /** Just enough of the invitation to answer phases — the token hash is never selected. */
 const INVITE_COLS =
-  "id, created_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at";
+  // ⚠ One literal: supabase-js types a select by parsing it, and a `+` makes it a plain string.
+  "id, created_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, handbook_signing_opened_at";
 
 export async function applicantChecklist(
   admin: SupabaseClient,
@@ -98,7 +101,7 @@ export async function applicantChecklist(
     .limit(1);
   const invitation = ((invites ?? []) as InvitationRow[])[0] ?? null;
 
-  const [authorizations, records, pspRequested, markIds, draft, investigation] = await Promise.all([
+  const [authorizations, records, pspRequested, markIds, draft, investigation, handbookPlaces] = await Promise.all([
     readAuthorizations(admin, orgId, driverId),
     readQualificationRecords(admin, orgId, driverId),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
@@ -107,6 +110,7 @@ export async function applicantChecklist(
     readPacketMarkIds(admin, orgId, invitation?.id ?? null),
     readDraftFacts(admin, orgId, invitation?.id ?? null),
     readInvestigation(admin, orgId, driverId, (driver as { hire_date: string | null }).hire_date, today),
+    handbookPlacesSigned(admin, orgId, invitation?.id ?? null),
   ]);
   const kinds = [...new Set(records.map((r) => r.kind))];
 
@@ -140,6 +144,16 @@ export async function applicantChecklist(
     packetMarks: countedPacketMarks(markIds, draft.applyingAs),
     applyingAs: draft.applyingAs,
     investigation,
+    // HANDBOOK-SIGNING-PLAN.md: drives only `inFlight`; the step is done on the filed record.
+    handbook: {
+      openedAt: invitation?.handbook_signing_opened_at ?? null,
+      driverComplete: handbookStatus({
+        submittedAt: invitation?.submitted_at ?? null,
+        openedAt: invitation?.handbook_signing_opened_at ?? null,
+        filedAt: null,
+        signedPlacementIds: handbookPlaces,
+      }).driverComplete,
+    },
     hiredAt: (driver as { hire_date: string | null }).hire_date,
   };
 
@@ -157,6 +171,8 @@ interface InvitationRow {
   signing_opened_at: string | null;
   submitted_at: string | null;
   revoked_at: string | null;
+  /** 0374: when the office opened handbook signing. */
+  handbook_signing_opened_at: string | null;
 }
 
 /**

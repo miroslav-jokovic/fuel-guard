@@ -1190,6 +1190,51 @@ describe("the driver's road-test certificate, as a route", () => {
 });
 
 /**
+ * The driver handbook on the link (HANDBOOK-SIGNING-PLAN.md), through the mount. The services are
+ * pinned in `handbookCeremony.test.ts`; what only this can see is that both routes are reachable and
+ * that the page's payload carries the handbook's place in the order.
+ */
+describe("the driver handbook on the link", () => {
+  it("answers 409 on the reading copy of an application that is not filed yet", async () => {
+    holder.client = seed().client;
+    const res = await call(`/${TOKEN}/handbook.pdf`);
+    expect(res.status).toBe(409);
+    expect(await refusalCode(res)).toBe("handbook_application_not_filed");
+  });
+
+  it("refuses a mark at the carrier's own place as a bad request, before any read", async () => {
+    holder.client = seed().client;
+    const res = await call(`/${TOKEN}/handbook/mark`, {
+      method: "POST", body: JSON.stringify({ placement_id: "h4c", esign_consent: true }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("answers 409 on a mark before the application is filed", async () => {
+    holder.client = seed().client;
+    const res = await call(`/${TOKEN}/handbook/mark`, {
+      method: "POST", body: JSON.stringify({ placement_id: "h1", esign_consent: true }),
+    });
+    expect(res.status).toBe(409);
+    expect(await refusalCode(res)).toBe("handbook_application_not_filed");
+  });
+
+  it("tells the page nothing about a handbook until the application is filed", async () => {
+    holder.client = seed().client;
+    const body = (await (await call(`/${TOKEN}`)).json()) as { handbook: unknown };
+    expect(body.handbook).toBeNull();
+  });
+
+  it("tells the page where the handbook stands once it is filed and opened", async () => {
+    holder.client = seed({
+      submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: "2026-09-25T11:00:00Z", handbook_filed_at: null,
+    }, { handbook_marks: [{ placement_id: "h1" }, { placement_id: "h2" }] }).client;
+    const body = (await (await call(`/${TOKEN}`)).json()) as { handbook: { openedAt: string; driverSigned: string[]; driverComplete: boolean } };
+    expect(body.handbook).toMatchObject({ openedAt: "2026-09-25T11:00:00Z", driverSigned: ["h1", "h2"], driverComplete: false });
+  });
+});
+
+/**
  * The tenth route (C1): the packet the driver is about to sign, through the mount.
  *
  * ⚠ The rendering itself is pinned by `applicationReadingCopy.test.ts` — the band, the marks, the

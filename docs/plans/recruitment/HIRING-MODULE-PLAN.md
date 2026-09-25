@@ -4686,6 +4686,11 @@ every time.
   named training areas and an instructor signature. That answers Q-HM7's "sections". The policy text
   that p28 acknowledges has never been in the product (§382.601(a)–(b)). Five questions (Q-OR1–Q-OR5)
   are with the owner, each with a recommendation. §9's D3 row stands until they are answered.
+- **2026-09-25 — D3's HANDBOOK HALF BUILT: `HANDBOOK-SIGNING-PLAN.md`** (D-HB1..D-HB5; 0374 #1051 plus
+  its reader). The handbook is signed on screen as step 16, between Application signed and Hired, and
+  the office countersigns with a Representative. ⚠ **Q-HM5's hire refusal was ruled on 2026-09-17 and
+  never built.** It is built now: `HIRE_REFUSES_WITHOUT` is the six federal gates plus the handbook.
+  Orientation's page 24 stays open in `ORIENTATION-PLAN.md` (Q-OR8).
 
 ---
 

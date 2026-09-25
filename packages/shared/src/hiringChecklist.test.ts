@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hiringChecklist, type HiringChecklistInputs } from "./hiringChecklist.js";
+import { hireBlockers, hiringChecklist, type HiringChecklistInputs } from "./hiringChecklist.js";
 import {
+  HIRE_REFUSES_WITHOUT,
   HIRING_PHASE_LABELS,
   HIRING_STEPS,
   hiringStep,
@@ -32,7 +33,7 @@ const ALL_PERMISSIONS = APPLICATION_RELEASE_ORDER.map((p) => auth(p));
 
 /** Every kind the measurable screening steps read, so a fixture can turn them on one at a time. */
 const ALL_KINDS = [
-  "mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test",
+  "mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "handbook",
 ];
 
 const input = (over: Partial<HiringChecklistInputs> = {}): HiringChecklistInputs => ({ ...over });
@@ -75,10 +76,10 @@ describe("the catalogue", () => {
     const emitted = c.steps.map((s) => s.key);
     expect(emitted).not.toContain("orientation_videos");
     expect(emitted).not.toContain("live_orientation");
-    expect(emitted).not.toContain("handbook");
-    // And the catalogue still NAMES all of them, so the order is written down exactly once.
+    // And the catalogue still NAMES all of them, so the order is written down exactly once. Two now:
+    // the handbook gained its evidence table with HANDBOOK-SIGNING-PLAN.md.
     expect(HIRING_STEPS.map((s) => s.key)).toContain("orientation_videos");
-    expect(HIRING_STEPS.length).toBe(measurableHiringSteps().length + 3);
+    expect(HIRING_STEPS.length).toBe(measurableHiringSteps().length + 2);
   });
 
   /**
@@ -96,7 +97,8 @@ describe("the catalogue", () => {
       "mvr", "psp", "clearinghouse", "drug_test",
       "application_sent", "application_filled", "office_approved",
       "medical_certificate", "employment_investigation",
-      "road_test", "application_signed", "hired",
+      // D-HB1 (owner, 2026-09-25): the handbook is its own step between the packet and the hire.
+      "road_test", "application_signed", "handbook", "hired",
     ]);
   });
 
@@ -589,6 +591,42 @@ describe("the one next action", () => {
   });
 });
 
+describe("the handbook (D-HB1, D-HB5)", () => {
+  const handbookOf = (c: ReturnType<typeof hiringChecklist>) => c.steps.find((s) => s.key === "handbook")!;
+  const without = ALL_KINDS.filter((k) => k !== "handbook");
+
+  it("is done on the filed record", () => {
+    expect(handbookOf(hiringChecklist(complete())).state).toBe("done");
+  });
+
+  it("waits for the packet: blocked until the application is signed", () => {
+    const c = hiringChecklist(complete({ qualificationKinds: without, packetMarks: 0, hiredAt: null }));
+    expect(handbookOf(c).state).toBe("blocked");
+    expect(handbookOf(c).blockedBy).toBe("application_signed");
+  });
+
+  it("is the office's to open, then the driver's while places are left, then the office's to countersign", () => {
+    const at = (handbook: HiringChecklistInputs["handbook"]) =>
+      handbookOf(hiringChecklist(complete({ qualificationKinds: without, hiredAt: null, handbook }))).state;
+    expect(at(null)).toBe("waiting_on_us");
+    expect(at({ openedAt: "2026-09-25T10:00:00Z", driverComplete: false })).toBe("waiting_on_them");
+    expect(at({ openedAt: "2026-09-25T10:00:00Z", driverComplete: true })).toBe("waiting_on_us");
+  });
+
+  it("is never done on marks alone — six signed places and no filed record is still open", () => {
+    const c = hiringChecklist(complete({
+      qualificationKinds: without, hiredAt: null, handbook: { openedAt: "2026-09-25T10:00:00Z", driverComplete: true },
+    }));
+    expect(handbookOf(c).state).not.toBe("done");
+  });
+
+  it("is something hiring requires (D-HB5)", () => {
+    expect(HIRING_STEPS.find((s) => s.key === "hired")!.requires).toContain("handbook");
+    const c = hiringChecklist(complete({ qualificationKinds: without, hiredAt: null }));
+    expect(c.steps.find((s) => s.key === "hired")!.blockedBy).toBe("handbook");
+  });
+});
+
 describe("the count", () => {
   /**
    * ⚠ *"The count a driver is watching must not move while they are watching it"* —
@@ -654,5 +692,34 @@ describe("an MVR from every licensing jurisdiction (AF7, §391.23(a)(1))", () =>
   it("leaves every other step's list empty", () => {
     const c = hiringChecklist(complete({ licenceJurisdictions: ["IL", "WI"], mvrJurisdictions: [] }));
     for (const s of c.steps.filter((s) => s.key !== "mvr")) expect(s.outstandingJurisdictions).toEqual([]);
+  });
+});
+
+describe("what the hire refuses without (Q-HM5, D-HB5)", () => {
+  it("is the six federal gates and the handbook — not everything `hired` waits for", () => {
+    expect([...HIRE_REFUSES_WITHOUT].sort()).toEqual([
+      "application_filled", "clearinghouse", "drug_test", "handbook", "medical_certificate", "mvr", "road_test",
+    ]);
+    // Q-HM5: these two WARN. `hired` still lists them as what it waits for.
+    expect(HIRE_REFUSES_WITHOUT).not.toContain("employment_investigation");
+    expect(HIRE_REFUSES_WITHOUT).not.toContain("application_signed");
+  });
+
+  it("names nothing when every refusing step is done", () => {
+    expect(hireBlockers(hiringChecklist(complete()))).toEqual([]);
+  });
+
+  it("names the handbook when it is the only thing missing", () => {
+    const c = hiringChecklist(complete({ qualificationKinds: ALL_KINDS.filter((k) => k !== "handbook"), hiredAt: null }));
+    expect(hireBlockers(c)).toEqual(["handbook"]);
+  });
+
+  it("does not refuse for an open employment investigation (it warns)", () => {
+    const c = hiringChecklist(complete({ investigation: { outstanding: 2, awaiting: 1 }, hiredAt: null }));
+    expect(hireBlockers(c)).toEqual([]);
+  });
+
+  it("fails closed on a refusing step the fold did not emit", () => {
+    expect(hireBlockers({ steps: [] })).toEqual([...HIRE_REFUSES_WITHOUT]);
   });
 });
