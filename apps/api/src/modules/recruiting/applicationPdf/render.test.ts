@@ -1,8 +1,7 @@
-import { inflateSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
 import type { DriverApplication } from "@silvicom/shared";
 import { AUTHORIZATION_PURPOSES } from "@silvicom/shared";
-import { pdfDrawnLines, pdfDrawnRules, pdfPageTexts } from "../../../testing/pdfText.js";
+import { pdfDrawnLines, pdfDrawnRules, pdfPageTexts, pdfText } from "../../../testing/pdfText.js";
 import { purposeLabel } from "./certificate.js";
 import { renderApplicationPdf, sourceDigest, type ApplicationPdfInput } from "./render.js";
 
@@ -85,43 +84,10 @@ const pageCount = (pdf: Buffer): number => {
 };
 
 /**
- * The text a reader would see.
- *
- * PDFKit deflates its content streams, so grepping the raw bytes finds nothing — which is the trap
- * this helper exists to avoid falling into twice. Every FlateDecode stream is inflated and
- * concatenated; anything that will not inflate (the font subsets, the xref) is skipped rather than
- * failing the read. Assertions then run against what is actually on the page, not against whatever
- * happened to survive compression.
+ * The drawn text — through `testing/pdfText.ts`, the shared reader. This file carried its own copy
+ * until Q-AF2 (2026-09-25); it decoded every hex string one byte per character, and read the
+ * embedded face's glyph ids as mojibake. One reader, which honours `ToUnicode`.
  */
-function pdfText(pdf: Buffer): string {
-  const raw = pdf.toString("latin1");
-  let out = "";
-  const re = /stream\r?\n/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(raw)) !== null) {
-    const start = match.index + match[0].length;
-    const end = raw.indexOf("endstream", start);
-    if (end < 0) continue;
-    try {
-      out += inflateSync(Buffer.from(raw.slice(start, end), "latin1")).toString("latin1");
-    } catch {
-      // Not a deflate stream (or a font subset) — nothing to read here.
-    }
-  }
-  // ⚠ And the drawn text is neither one string per line nor plain ASCII. PDFKit emits kerned runs of
-  // HEX strings — "Driver employment application" arrives as
-  // `[<44726976657220656d706c6f> 20 <796d656e74…>] TJ` — so the words a reader sees only exist once
-  // the hex is decoded and the runs are joined. Literal `(…)` strings are decoded too, because
-  // pdfkit uses them for some fonts, and a helper that handled only one form would silently find
-  // nothing and make every assertion below vacuous.
-  return (out.match(/<[0-9a-fA-F\s]+>|\((?:\\.|[^\\)])*\)/g) ?? [])
-    .map((token) =>
-      token.startsWith("<")
-        ? Buffer.from(token.slice(1, -1).replace(/\s+/g, ""), "hex").toString("latin1")
-        : token.slice(1, -1).replace(/\\([()\\])/g, "$1"),
-    )
-    .join("");
-}
 
 describe("the rendered application", () => {
   it("produces a PDF", async () => {
@@ -172,13 +138,13 @@ describe("the rendered application", () => {
    * current wording beside an old signature would misrepresent what somebody agreed to.
    */
   it("prints the stored text of each instrument, not today's", async () => {
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     expect(pdf).toContain("The wording that was actually signed.");
     expect(pdf).toContain("FMCSA's mandated PSP disclosure text.");
   });
 
   it("follows the regulation's own numbering", async () => {
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     for (const cite of ["391.21(b)(1)", "391.21(b)(2)", "391.21(b)(5)", "391.21(b)(12)"]) {
       expect(pdf).toContain(cite);
     }
@@ -186,7 +152,7 @@ describe("the rendered application", () => {
 
   /** §391.21(b)(4) is the submission date, stamped server-side — never a field (D-APP9). */
   it("prints the server-stamped submission date", async () => {
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     expect(pdf).toContain("2026-08-21");
   });
 
@@ -195,25 +161,25 @@ describe("the rendered application", () => {
    * is nullable because the value is an owner input. A missing one costs a line, never the document.
    */
   it("prints the carrier's address when there is one, and renders without it when there is not", async () => {
-    const without = pdfText(await renderApplicationPdf(input()));
+    const without = (await pdfText(await renderApplicationPdf(input())));
     expect(without).toContain("Silvicom Inc");
     expect(without).not.toContain("Mill Road");
-    const with_ = pdfText(await renderApplicationPdf(
+    const with_ = (await pdfText(await renderApplicationPdf(
       input({ carrier: { name: "Silvicom Inc", address: "5 Mill Road, Joliet, IL 60432" } }),
-    ));
+    )));
     expect(with_).toContain("Mill Road");
   });
 
   /** D-HIRE6: the last place nine digits should appear is a document a recruiter emails. */
   it("prints no Social Security number, because it never receives one", async () => {
     const withSsn = { ...APPLICATION, ssn: "123456789" } as unknown as DriverApplication;
-    const pdf = pdfText(await renderApplicationPdf(input({ application: withSsn })));
+    const pdf = (await pdfText(await renderApplicationPdf(input({ application: withSsn }))));
     expect(pdf).not.toContain("123456789");
   });
 
   /** An empty list is an ANSWER. The document says which answer it is rather than leaving a blank. */
   it("says a declared 'none' is a declaration, not an omission", async () => {
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     expect(pdf).toContain("declared no accidents");
   });
 
@@ -266,9 +232,9 @@ describe("the rendered application", () => {
   it("names which half of (b)(6) is missing, and says nothing about the half that is not", async () => {
     const equipment = [{ equipment_class: "tractor_semi_trailer", equipment_type: "Van", from: "2020-01", to: null, approx_miles: "250000" }];
     const block = async (over: Record<string, unknown>): Promise<string> => {
-      const text = pdfText(await renderApplicationPdf(input({
+      const text = (await pdfText(await renderApplicationPdf(input({
         application: { ...APPLICATION, ...over } as unknown as DriverApplication,
-      })));
+      }))));
       return text.slice(text.indexOf("§391.21(b)(6)"), text.indexOf("§391.21(b)(7)"));
     };
 
@@ -303,9 +269,9 @@ describe("the rendered application", () => {
    * and can only be one, which is a fact about the regulation rather than about this renderer.
    */
   it("says an empty (b)(3) was not answered, rather than printing a bare heading", async () => {
-    const text = pdfText(await renderApplicationPdf(input({
+    const text = (await pdfText(await renderApplicationPdf(input({
       application: { ...APPLICATION, addresses: [] } as unknown as DriverApplication,
-    })));
+    }))));
     const block = text.slice(text.indexOf("§391.21(b)(3)"), text.indexOf("§391.21(b)(4)"));
     expect(block).toContain("Not answered.");
     expect(block).not.toContain("declared no");
@@ -352,7 +318,7 @@ describe("the draft preview", () => {
 
   it("says DRAFT on every page, in words", async () => {
     const pdf = await renderApplicationPdf(preview());
-    const text = pdfText(pdf);
+    const text = (await pdfText(pdf));
     expect(text).toContain("DRAFT - NOT A SIGNED APPLICATION");
     // Once per sheet: a preview gets printed and separated, and a loose page has to carry its status.
     const band = text.split("DRAFT - NOT A SIGNED APPLICATION").length - 1;
@@ -361,7 +327,7 @@ describe("the draft preview", () => {
 
   /** The band is the whole point, so a filing that carried it would be the worse of the two bugs. */
   it("puts no band on the filed document", async () => {
-    expect(pdfText(await renderApplicationPdf(input()))).not.toContain("DRAFT");
+    expect((await pdfText(await renderApplicationPdf(input())))).not.toContain("DRAFT");
   });
 
   /**
@@ -371,7 +337,7 @@ describe("the draft preview", () => {
    * the §391.21(b)(12) statement, where it would read as a signature nobody has given.
    */
   it("prints no signature under the certification, and no submission date", async () => {
-    const text = pdfText(await renderApplicationPdf(preview()));
+    const text = (await pdfText(await renderApplicationPdf(preview())));
     expect(text).toContain("Not submitted yet");
     const block = text.slice(text.indexOf("§391.21(b)(12)"), text.indexOf("NOT SIGNED."));
     expect(block).not.toContain("Susan Godfrey");
@@ -379,9 +345,9 @@ describe("the draft preview", () => {
   });
 
   it("says where it has got to, in the office's own words", async () => {
-    expect(pdfText(await renderApplicationPdf(preview()))).toContain("filling it in");
+    expect((await pdfText(await renderApplicationPdf(preview())))).toContain("filling it in");
     const waiting = await renderApplicationPdf(preview({ preview: { stage: "awaiting_review" } }));
-    expect(pdfText(waiting)).toContain("waiting for you");
+    expect((await pdfText(waiting))).toContain("waiting for you");
   });
 
   /**
@@ -389,7 +355,7 @@ describe("the draft preview", () => {
    * a draft — and which of them the carrier holds is half of what an office reads a draft for.
    */
   it("still shows the instruments that HAVE been signed", async () => {
-    const text = pdfText(await renderApplicationPdf(preview()));
+    const text = (await pdfText(await renderApplicationPdf(preview())));
     expect(text).toContain("The wording that was actually signed.");
     expect(text).toContain("Certificate of completion");
     expect(text).toContain("Not signed yet.");
@@ -400,7 +366,7 @@ describe("the draft preview", () => {
    * null-check this line used to carry printed nothing at all beside the label.
    */
   it("renders a draft's empty answers as blanks rather than as nothing", async () => {
-    const text = pdfText(await renderApplicationPdf(preview()));
+    const text = (await pdfText(await renderApplicationPdf(preview())));
     expect(text).toContain("Approximate miles");
     expect(text).toContain("Not answered.");
   });
@@ -421,7 +387,7 @@ describe("the source digest", () => {
   });
 
   it("appears on the page, so a printed sheet names what it came from", async () => {
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     expect(pdf).toContain(sourceDigest(APPLICATION, "11111111-2222-4333-8444-555555555555").slice(0, 16));
   });
 });
@@ -456,11 +422,11 @@ describe("the drawn signature mark", () => {
     const pdf = await renderApplicationPdf(input({ signatureMark: Buffer.from("not a png at all") }));
     expect(pdf.byteLength).toBeGreaterThan(1000);
     // And the document is whole: the certification is still on it.
-    expect(pdfText(pdf)).toContain("true and complete");
+    expect((await pdfText(pdf))).toContain("true and complete");
   });
 
   it("changes nothing about the document's text — it is an ornament, not content", async () => {
-    expect(pdfText(await renderApplicationPdf(input({ signatureMark: PNG })))).toContain("Susan Godfrey");
+    expect((await pdfText(await renderApplicationPdf(input({ signatureMark: PNG }))))).toContain("Susan Godfrey");
   });
 });
 
@@ -520,19 +486,19 @@ describe("the questionnaire section", () => {
    * Read against v2, the definition that asked it — `questionnaireByRef` is what finds the label.
    */
   it("prints what they are applying as in words, never the stored key", async () => {
-    const pdf = pdfText(await renderApplicationPdf(input({
+    const pdf = (await pdfText(await renderApplicationPdf(input({
       application: {
         ...APPLICATION,
         questionnaire_version: "silvicom_driver@v2",
         questionnaire_answers: { applying_as: "owner_operator" },
       } as unknown as DriverApplication,
-    })));
+    }))));
     expect(pdf).toContain("Owner-operator");
     expect(pdf).not.toContain("owner_operator");
   });
 
   it("prints the answers under a heading that says whose questions they are", async () => {
-    const pdf = pdfText(await renderApplicationPdf(answered()));
+    const pdf = (await pdfText(await renderApplicationPdf(answered())));
     expect(pdf).toContain("the carrier's own questions");
     expect(pdf).toContain("Company driver");
     expect(pdf).toContain("Ann Reyes");
@@ -601,7 +567,14 @@ describe("the questionnaire section", () => {
     const lines = await pdfDrawnLines(await renderApplicationPdf(answered({ heard_from: "   " })));
     const sheet = lines.find((l) => l.text.includes("the carrier's own questions"))!.page;
     expect(sheet, "the questionnaire page was found").toBeGreaterThan(0);
-    const dashes = lines.filter((l) => l.page === sheet && l.text.includes("—"));
+    // ⚠ The sheet's own HEADING is excluded by name: *"Silvicom Inc — the carrier's own questions"*
+    // uses the dash as punctuation, which is not the defect. Until Q-AF2 (2026-09-25) this sweep could
+    // not see an em dash AT ALL — the old reader decoded WinAnsi 0x97 as a control character — so it
+    // passed whatever the page drew. It reads the real character now, which is why the exclusion is
+    // needed and why the sweep finally discriminates.
+    const dashes = lines.filter(
+      (l) => l.page === sheet && l.text.includes("—") && !l.text.includes("the carrier's own questions"),
+    );
     expect(dashes.map((d) => d.text)).toEqual([]);
     // ⚠ And the whitespace answer that used to produce one is the row that says so instead.
     expect(valueBeside(lines, "How did you hear about this")).toBe("Not answered.");
@@ -609,7 +582,7 @@ describe("the questionnaire section", () => {
 
   /** ⚠ The assertion this section exists to be safe for. */
   it("never prints the reserved EEO answers, which the hiring decision must not see", async () => {
-    const pdf = pdfText(await renderApplicationPdf(answered({ eeo: { race: "UNIQUE-EEO-STRING" } })));
+    const pdf = (await pdfText(await renderApplicationPdf(answered({ eeo: { race: "UNIQUE-EEO-STRING" } }))));
     expect(pdf).not.toContain("UNIQUE-EEO-STRING");
     expect(pdf).not.toContain("eeo");
   });
@@ -632,12 +605,12 @@ describe("the questionnaire section", () => {
     const lines = await pdfDrawnLines(pdf);
     expect(valueBeside(lines, "Position you are applying for")).toBe("Not answered.");
     expect(valueBeside(lines, "Three personal references")).toBe("Not answered.");
-    expect(pdfText(pdf)).not.toContain("UNIQUE-EEO-STRING");
+    expect((await pdfText(pdf))).not.toContain("UNIQUE-EEO-STRING");
   });
 
   /** Nobody was asked: the version is null, so there is no question to print and no page for it. */
   it("renders nothing at all when the driver answered nothing", async () => {
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     expect(pdf).not.toContain("the carrier's own questions");
   });
 
@@ -680,7 +653,7 @@ describe("the questionnaire section", () => {
       }),
     );
     expect(pdf.byteLength).toBeGreaterThan(1000);
-    expect(pdfText(pdf)).not.toContain("the carrier's own questions");
+    expect((await pdfText(pdf))).not.toContain("the carrier's own questions");
   });
 });
 
@@ -706,7 +679,7 @@ describe("the equipment experience", () => {
     });
 
   it("prints the equipment under §391.21(b)(6), in the regulation's own words", async () => {
-    const pdf = pdfText(await renderApplicationPdf(withEquipment()));
+    const pdf = (await pdfText(await renderApplicationPdf(withEquipment())));
     expect(pdf).toContain("§391.21(b)(6)");
     // The label, not the stored token — a qualification file is read by people.
     expect(pdf).toContain("Tractor and semi-trailer");
@@ -715,7 +688,7 @@ describe("the equipment experience", () => {
   });
 
   it("says 'present' for equipment the driver still drives, and prints no invented miles", async () => {
-    const pdf = pdfText(await renderApplicationPdf(withEquipment()));
+    const pdf = (await pdfText(await renderApplicationPdf(withEquipment())));
     expect(pdf).toContain("present");
     expect(pdf).toContain("Bus");
   });
@@ -724,7 +697,7 @@ describe("the equipment experience", () => {
   it("renders a payload that predates the field", async () => {
     const pdf = await renderApplicationPdf(input());
     expect(pdf.byteLength).toBeGreaterThan(1000);
-    expect(pdfText(pdf)).toContain("§391.21(b)(6)");
+    expect((await pdfText(pdf))).toContain("§391.21(b)(6)");
   });
 });
 
@@ -737,15 +710,15 @@ describe("the equipment experience", () => {
  */
 describe("other names on the document", () => {
   it("prints them when the driver gave any", async () => {
-    const pdf = pdfText(await renderApplicationPdf(input({
+    const pdf = (await pdfText(await renderApplicationPdf(input({
       application: { ...APPLICATION, other_names: ["Susan Smith"] } as unknown as DriverApplication,
-    })));
+    }))));
     expect(pdf).toContain("Also known as");
     expect(pdf).toContain("Susan Smith");
   });
 
   it("prints nothing at all when they gave none, which is the normal case", async () => {
-    expect(pdfText(await renderApplicationPdf(input()))).not.toContain("Also known as");
+    expect((await pdfText(await renderApplicationPdf(input())))).not.toContain("Also known as");
   });
 });
 
@@ -759,7 +732,7 @@ describe("other names on the document", () => {
  */
 describe("the certificate of completion", () => {
   it("gathers the whole ceremony onto one page, in the order it happened", async () => {
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     expect(pdf).toContain("Certificate of completion");
     // Numbered from the consent: the list reads as a sequence of acts, not an unordered set.
     expect(pdf).toContain("1. Agreed to sign electronically");
@@ -769,7 +742,7 @@ describe("the certificate of completion", () => {
 
   it("prints the address and the browser each act came from", async () => {
     // Stored by `record_driver_release` since 0228 and printed by nothing until now.
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     expect(pdf).toContain("From address");
     expect(pdf).toContain("203.0.113.9");
     expect(pdf).toContain("Browser");
@@ -779,14 +752,14 @@ describe("the certificate of completion", () => {
   it("stamps each act to the second, in UTC, and says which", async () => {
     // A bare date cannot order two signatures a minute apart, and a local time cannot be compared
     // to anything. §390.32(c) evidence is a moment, not a day.
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     expect(pdf).toContain("2026-08-21 17:50:00 UTC");
     expect(pdf).toContain("2026-08-21 18:00:00 UTC");
   });
 
   it("names each instrument, and never its database token", async () => {
     // The same defect D-AX3 fixed on the driver's screen — here the reader is an auditor or a court.
-    const pdf = pdfText(await renderApplicationPdf(input()));
+    const pdf = (await pdfText(await renderApplicationPdf(input())));
     expect(pdf).toContain("FMCSA Pre-Employment Screening Program (PSP)");
     expect(pdf).not.toContain("fcra_disclosure");
     expect(pdf).not.toContain("psp\n");
@@ -795,7 +768,7 @@ describe("the certificate of completion", () => {
   it("renders for an application whose evidence rows are missing pieces", async () => {
     // Every row filed before X7 selected these columns has null in them, and a derivative that
     // throws on an old row is a qualification file that cannot be produced.
-    const pdf = pdfText(
+    const pdf = (await pdfText(
       await renderApplicationPdf(
         input({
           applicantIp: null,
@@ -811,7 +784,7 @@ describe("the certificate of completion", () => {
           ],
         }),
       ),
-    );
+    ));
     expect(pdf).toContain("Certificate of completion");
     // With no consent the numbering starts at the first instrument, not at a phantom step one.
     expect(pdf).toContain("1. Consumer report disclosure and authorization");

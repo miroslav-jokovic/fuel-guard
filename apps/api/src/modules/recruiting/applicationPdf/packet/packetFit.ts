@@ -1,5 +1,6 @@
-import { StandardFonts, rgb } from "pdf-lib";
+import { rgb } from "pdf-lib";
 import type { PDFDocument, PDFFont } from "pdf-lib";
+import { embedPdfFace, pdfUnicodeText } from "../../../../lib/pdfFonts.js";
 import { FIELD_BASELINE_LIFT } from "./packetFieldGeometry.js";
 import type { PacketFieldOverflow, PlacedFieldValue } from "./packetGrid.js";
 
@@ -343,16 +344,20 @@ export async function drawFieldValues(
    * filled field look like a signature, on a document whose whole point is that the signatures are
    * distinguishable from everything else on it.
    */
-  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const font = await embedPdfFace(doc, "regular");
   const cut: PlacedFieldValue[] = [];
+  // ⚠ Q-AF2: made drawable ONCE, before either pass, so the size a group is measured at and the
+  // string that is drawn are the same string. The cut ones travel on to the continuation sheet in
+  // this form too, drawn there with the same face.
+  const drawable = fields.map((f) => ({ ...f, text: pdfUnicodeText(f.text) }));
 
   // ⚠ **Two passes, and the first one is AUD-5's whole fix.** Sizes are decided for every group
   // before anything is drawn, because a cell's size is a fact about its SIBLINGS and the single pass
   // this replaced had already drawn half of them by the time it met the value that should have
   // governed them all. The draw order below is unchanged and still matters — see the note above.
-  const sizes = groupSizes(font, fields);
+  const sizes = groupSizes(font, drawable);
 
-  for (const field of fields) {
+  for (const field of drawable) {
     const text = field.text.trim();
     if (!text) continue;
     const page = doc.getPage(field.line.page - 1);

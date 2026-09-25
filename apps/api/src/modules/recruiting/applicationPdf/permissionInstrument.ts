@@ -4,7 +4,7 @@ import {
   formatDisplayDate,
 } from "@silvicom/shared";
 import {
-  CONTENT_WIDTH, INK, MARGIN, MUTED, NAVY, PAGE_HEIGHT, RULE, newDrawing, winAnsi,
+  CONTENT_WIDTH, INK, MARGIN, MUTED, NAVY, PAGE_HEIGHT, RULE, newDrawing, pdfkitText,
 } from "../../../lib/pdfDraw.js";
 
 /**
@@ -81,15 +81,15 @@ function paragraphs(input: PermissionInstrumentInput): { before: string[]; after
 
 function text(doc: PDFKit.PDFDocument, value: string, font: string, size: number, opts: PDFKit.Mixins.TextOptions = {}): void {
   doc.fillColor(INK).font(font).fontSize(size)
-    .text(winAnsi(value), MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 1.5, ...opts });
+    .text(pdfkitText(doc, value), MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 1.5, ...opts });
 }
 
 function letterhead(doc: PDFKit.PDFDocument, input: PermissionInstrumentInput): void {
   doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(11)
-    .text(winAnsi(input.carrier.name), MARGIN, doc.y, { width: CONTENT_WIDTH });
+    .text(pdfkitText(doc, input.carrier.name), MARGIN, doc.y, { width: CONTENT_WIDTH });
   if (input.carrier.address) {
     doc.fillColor(MUTED).font("Helvetica").fontSize(CAPTION_SIZE)
-      .text(winAnsi(input.carrier.address), MARGIN, doc.y, { width: CONTENT_WIDTH });
+      .text(pdfkitText(doc, input.carrier.address), MARGIN, doc.y, { width: CONTENT_WIDTH });
   }
   doc.moveDown(0.6);
   doc.strokeColor(RULE).lineWidth(0.75)
@@ -101,7 +101,7 @@ function letterhead(doc: PDFKit.PDFDocument, input: PermissionInstrumentInput): 
 function blank(doc: PDFKit.PDFDocument, x: number, y: number, width: number, caption: string): void {
   doc.strokeColor(INK).lineWidth(0.75).moveTo(x, y).lineTo(x + width, y).stroke();
   doc.fillColor(MUTED).font("Helvetica").fontSize(CAPTION_SIZE)
-    .text(winAnsi(caption), x, y + 3, { width, lineBreak: false });
+    .text(pdfkitText(doc, caption), x, y + 3, { width, lineBreak: false });
 }
 
 /**
@@ -113,7 +113,7 @@ function blank(doc: PDFKit.PDFDocument, x: number, y: number, width: number, cap
  * signature rule; a smaller one is still the name, a wrapped one overprints the paper.
  */
 function onRule(doc: PDFKit.PDFDocument, value: string, x: number, y: number, width: number, font = "Helvetica", size = 11): void {
-  const v = winAnsi(value);
+  const v = pdfkitText(doc, value);
   let fit = size;
   doc.font(font);
   while (fit > 7 && doc.fontSize(fit).widthOfString(v) > width - 4) fit -= 0.5;
@@ -188,10 +188,10 @@ export function drawPermissionInstrument(
   if (!psp) letterhead(doc, input);
 
   doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(psp ? 13 : 15)
-    .text(winAnsi(input.title), MARGIN, doc.y, { width: CONTENT_WIDTH, align: psp ? "center" : "left" });
+    .text(pdfkitText(doc, input.title), MARGIN, doc.y, { width: CONTENT_WIDTH, align: psp ? "center" : "left" });
   if (!psp) {
     doc.fillColor(MUTED).font("Helvetica").fontSize(CAPTION_SIZE)
-      .text(winAnsi(`Version ${input.version}`), MARGIN, doc.y + 2, { width: CONTENT_WIDTH });
+      .text(pdfkitText(doc, `Version ${input.version}`), MARGIN, doc.y + 2, { width: CONTENT_WIDTH });
   }
   doc.moveDown(1);
 
@@ -213,7 +213,7 @@ export function drawPermissionInstrument(
    * 1.04pt in the packet).
    */
   doc.font("Helvetica-Bold").fontSize(BODY_SIZE);
-  const intentHeight = doc.heightOfString(winAnsi(input.intent), { width: CONTENT_WIDTH, lineGap: 1.5 });
+  const intentHeight = doc.heightOfString(pdfkitText(doc, input.intent), { width: CONTENT_WIDTH, lineGap: 1.5 });
   const leadIn = doc.currentLineHeight(true) * 1.6;
   if (doc.y + intentHeight + leadIn + BLOCK_HEIGHT > PAGE_HEIGHT - doc.page.margins.bottom) doc.addPage();
   text(doc, input.intent, "Helvetica-Bold", BODY_SIZE);

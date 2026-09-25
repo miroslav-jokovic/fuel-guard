@@ -3,14 +3,15 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { deflateSync, inflateSync } from "node:zlib";
 import { join } from "node:path";
-import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream, StandardFonts } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream } from "pdf-lib";
+import { embedPdfFace } from "../../../../lib/pdfFonts.js";
 import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
 import type { DriverApplication } from "@silvicom/shared";
 import { packetFieldFill } from "./packetFieldValues.js";
 import type { PacketFieldOverflow } from "./packetGrid.js";
 import { renderPacketOverlay } from "./packetOverlay.js";
 import { PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
-import { pageText, readPacketTemplate } from "./packetTemplate.js";
+import { cmapFor, pageText, readPacketTemplate } from "./packetTemplate.js";
 import { fieldCell, fieldLineFor, PACKET_FIELD_TABLES } from "./packetFieldGeometry.js";
 
 /**
@@ -196,7 +197,7 @@ describe("drawing the driver's marks on the carrier's packet", () => {
     expect(drawnStream, "the drawn stream").toBeDefined();
 
     const size = Number(/\/[^\s]+\s+([\d.]+)\s+Tf/.exec(drawnStream!)![1]);
-    const face = await (await PDFDocument.create()).embedFont(StandardFonts.HelveticaOblique);
+    const face = await embedPdfFace(await PDFDocument.create(), "italic");
     expect(
       face.widthOfTextAtSize(long, size),
       `at ${size}pt on ${narrowest.id}'s ${narrowest.x2 - narrowest.x1}pt line`,
@@ -538,18 +539,31 @@ async function drawnRuns(pdf: Buffer, page: number): Promise<DrawnRun[]> {
   const close = bodies.map((b) => b.trim()).lastIndexOf("Q");
   if (close < 0) return [];
 
+  // ⚠ Q-AF2: our faces are EMBEDDED since 2026-09-25, so a `Tj` operand is two-byte glyph ids, not
+  // WinAnsi bytes. Decoded through the face's own `ToUnicode` — `cmapFor`, the template reader's
+  // decoder, not a second one — so what is measured is still what a viewer shows.
+  const fonts = doc.getPage(page - 1).node.Resources()?.lookup(PDFName.of("Font"), PDFDict);
+  const cmaps = new Map<string, Map<number, string>>();
+  for (const [key, ref] of fonts?.entries() ?? []) cmaps.set(key.toString(), cmapFor(doc, doc.context.lookup(ref, PDFDict)));
+  let cmap = new Map<number, string>();
+
   const runs: DrawnRun[] = [];
   let size = 0;
   let x = 0;
   let y = 0;
   for (const body of bodies.slice(close + 1)) {
     for (const line of body.split("\n")) {
-      const tf = /^\/\S+ ([\d.]+) Tf$/.exec(line.trim());
-      if (tf) { size = Number(tf[1]); continue; }
+      const tf = /^(\/\S+) ([\d.]+) Tf$/.exec(line.trim());
+      if (tf) { cmap = cmaps.get(tf[1]!) ?? new Map(); size = Number(tf[2]); continue; }
       const tm = /^1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm$/.exec(line.trim());
       if (tm) { x = Number(tm[1]); y = Number(tm[2]); continue; }
       const tj = /^<([0-9A-Fa-f]*)> Tj$/.exec(line.trim());
-      if (tj) runs.push({ x, y, size, text: decodeWinAnsi(tj[1]!) });
+      if (tj) {
+        const text = cmap.size > 0
+          ? (tj[1]!.match(/.{4}/g) ?? []).map((cid) => cmap.get(parseInt(cid, 16)) ?? "").join("")
+          : decodeWinAnsi(tj[1]!);
+        runs.push({ x, y, size, text });
+      }
     }
   }
   return runs;
@@ -623,7 +637,7 @@ describe("a value the carrier's column is too narrow for", () => {
   it("draws nothing past the span its geometry gives it", async () => {
     const { placed, overflow } = filled();
     const pdf = await renderPacketOverlay({ marks: [], fields: placed, overflow });
-    const font = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+    const font = await embedPdfFace(await PDFDocument.create(), "regular");
 
     // ⚠ Matched back to its own line by POSITION, which is the only link that survives rendering:
     // the renderer starts a value 2pt inside its rule and lifts the baseline off it, so a run at
@@ -727,7 +741,7 @@ describe("a value the carrier's column is too narrow for", () => {
     const line = fieldLineFor("p01.heard_from")!;
     const text = "A friend who drives here";
     const pdf = await renderPacketOverlay({ marks: [], fields: [{ line, text }] });
-    const font = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+    const font = await embedPdfFace(await PDFDocument.create(), "regular");
     const run = (await drawnRuns(pdf, line.page)).find(
       (r) => Math.abs(r.x - (line.x1 + 2)) < 0.01 && Math.abs(r.y - (line.y + 3)) < 0.01,
     );

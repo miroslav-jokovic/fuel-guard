@@ -3,7 +3,7 @@ import {
   MARGIN,
   MUTED,
   PAGE_HEIGHT,
-  winAnsi,
+  pdfkitText,
 } from "../../../lib/pdfDraw.js";
 
 /**
@@ -62,7 +62,7 @@ export function stampPages(doc: PDFKit.PDFDocument, stamp: PageStamp): void {
       .font("Helvetica")
       .fontSize(7.5)
       .text(
-        winAnsi(
+        pdfkitText(doc, 
           `${stamp.name} · ${stamp.reference} · source ${stamp.digest.slice(0, 16)}`
           + ` · page ${i - range.start + 1} of ${range.count}`,
         ),
@@ -139,7 +139,7 @@ const BAND_TRACKING = 1.6;
  * shape is decided by the paper, and only one of the two papers is ours.
  */
 function drawBand(doc: PDFKit.PDFDocument, band: string): void {
-  const text = winAnsi(band.toUpperCase());
+  const text = pdfkitText(doc, band.toUpperCase());
   doc.fillColor(MUTED).font("Helvetica-Bold").fontSize(BAND_SIZE);
   // Shrink to fit rather than trusting a constant: the band is a sentence, a longer one runs past the
   // margins, and with `lineBreak: false` what runs past them is silently cropped. ⚠ The width is

@@ -5,7 +5,7 @@ import {
   MUTED,
   PAGE_HEIGHT,
   PAGE_WIDTH,
-  winAnsi,
+  pdfkitText,
   table,
   type Cell,
   type Column,
@@ -163,7 +163,7 @@ export function fixedTable(
 
   doc.moveDown(0.5);
   doc.fillColor(MUTED).font("Helvetica-Bold").fontSize(8);
-  doc.text(winAnsi(`CONTINUATION — ${overflow.length} more`), MARGIN, doc.y, { width: CONTENT_WIDTH });
+  doc.text(pdfkitText(doc, `CONTINUATION — ${overflow.length} more`), MARGIN, doc.y, { width: CONTENT_WIDTH });
   doc.moveDown(0.3);
   table(doc, columns, overflow);
 }
@@ -172,16 +172,16 @@ export function fixedTable(
 export function line(doc: PDFKit.PDFDocument, label: string, value: string, width = CONTENT_WIDTH): void {
   const top = doc.y;
   doc.fillColor(MUTED).font("Helvetica").fontSize(8.5);
-  doc.text(winAnsi(`${label}:`), MARGIN, top, { width, lineBreak: false });
+  doc.text(pdfkitText(doc, `${label}:`), MARGIN, top, { width, lineBreak: false });
   doc.fillColor(INK).font("Helvetica").fontSize(10);
-  doc.text(winAnsi(value || "—"), MARGIN + 150, top, { width: width - 150 });
+  doc.text(pdfkitText(doc, value || "—"), MARGIN + 150, top, { width: width - 150 });
   doc.x = MARGIN;
   doc.moveDown(0.35);
 }
 
 export function sectionHeading(doc: PDFKit.PDFDocument, text: string): void {
   doc.moveDown(0.5);
-  doc.fillColor(INK).font("Helvetica-Bold").fontSize(10).text(winAnsi(text), MARGIN, doc.y, {
+  doc.fillColor(INK).font("Helvetica-Bold").fontSize(10).text(pdfkitText(doc, text), MARGIN, doc.y, {
     width: CONTENT_WIDTH,
   });
   doc.moveDown(0.3);
@@ -190,19 +190,19 @@ export function sectionHeading(doc: PDFKit.PDFDocument, text: string): void {
 /** The carrier's block, top of every page (D-PKT8). */
 export function letterhead(doc: PDFKit.PDFDocument, carrier: PacketCarrier): void {
   doc.fillColor(INK).font("Helvetica-Bold").fontSize(12);
-  doc.text(winAnsi(blank(carrier.name) || "—"), MARGIN, MARGIN, { width: CONTENT_WIDTH });
+  doc.text(pdfkitText(doc, blank(carrier.name) || "—"), MARGIN, MARGIN, { width: CONTENT_WIDTH });
   doc.fillColor(MUTED).font("Helvetica").fontSize(9);
   // ⚠ `legal_address` is nullable (0229). A blank line where a legal address belongs is invisible;
   // saying the field is unset is not. The document is still produced either way — a missing owner
   // input must cost one line, never the whole file (§390.32(d)).
   doc.text(
-    winAnsi(carrier.address ?? "(no legal address on file for this carrier)"),
+    pdfkitText(doc, carrier.address ?? "(no legal address on file for this carrier)"),
     MARGIN,
     doc.y,
     { width: CONTENT_WIDTH },
   );
   doc.fillColor(MUTED).font("Helvetica").fontSize(7.5);
-  doc.text(winAnsi(FOOTER.purpose), MARGIN, doc.y + 2, { width: CONTENT_WIDTH });
+  doc.text(pdfkitText(doc, FOOTER.purpose), MARGIN, doc.y + 2, { width: CONTENT_WIDTH });
   doc.moveDown(0.8);
   doc.x = MARGIN;
   doc.fillColor(INK);
@@ -218,12 +218,12 @@ export function packetFooter(doc: PDFKit.PDFDocument, packetPage: number): void 
   const bottom = doc.page.margins.bottom;
   doc.page.margins.bottom = 0;
   doc.fillColor(MUTED).font("Helvetica").fontSize(7.5);
-  doc.text(winAnsi(FOOTER.purpose), MARGIN, PAGE_HEIGHT - MARGIN - 16, {
+  doc.text(pdfkitText(doc, FOOTER.purpose), MARGIN, PAGE_HEIGHT - MARGIN - 16, {
     width: CONTENT_WIDTH,
     lineBreak: false,
   });
   doc.font("Helvetica-Bold").fontSize(7.5);
-  doc.text(winAnsi(FOOTER.notAnApplication), MARGIN, PAGE_HEIGHT - MARGIN - 7, {
+  doc.text(pdfkitText(doc, FOOTER.notAnApplication), MARGIN, PAGE_HEIGHT - MARGIN - 7, {
     width: CONTENT_WIDTH - 20,
     lineBreak: false,
   });

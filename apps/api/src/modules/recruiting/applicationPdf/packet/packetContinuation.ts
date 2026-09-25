@@ -1,4 +1,5 @@
-import { StandardFonts, rgb, type PDFDocument, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
+import { rgb, type PDFDocument, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
+import { embedPdfFace, pdfUnicodeText } from "../../../../lib/pdfFonts.js";
 import type { PacketFieldOverflow } from "./packetGrid.js";
 
 /**
@@ -303,13 +304,24 @@ const carrierFurniture = async (doc: PDFDocument): Promise<CarrierFurniture> => 
 
 export async function appendContinuationSheet(
   doc: PDFDocument,
-  input: ContinuationInput,
+  raw: ContinuationInput,
 ): Promise<number> {
+  // ⚠ Q-AF2: made drawable at the door, so every width `fitted`/`clipped`/`wrap` measures is the width
+  // of the string that is then drawn. An answer typed with `ć` is one this face can draw as typed.
+  const input: ContinuationInput = {
+    applicantName: pdfUnicodeText(raw.applicantName),
+    overflow: raw.overflow.map((o) => ({
+      ...o,
+      label: pdfUnicodeText(o.label),
+      columns: o.columns.map(pdfUnicodeText),
+      rows: o.rows.map((r) => r.map(pdfUnicodeText)),
+    })),
+  };
   const blocks = input.overflow.filter((o) => o.rows.length > 0);
   if (blocks.length === 0) return 0;
 
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const font = await embedPdfFace(doc, "regular");
+  const bold = await embedPdfFace(doc, "bold");
   let added = 0;
 
   const furniture = await carrierFurniture(doc);

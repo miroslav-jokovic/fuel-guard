@@ -1,5 +1,5 @@
 import type { DriverApplication, EquipmentClass } from "@silvicom/shared";
-import { CONTENT_WIDTH, INK, MARGIN, MUTED, table, winAnsi, type Cell } from "../../../../lib/pdfDraw.js";
+import { CONTENT_WIDTH, INK, MARGIN, MUTED, table, pdfkitText, type Cell } from "../../../../lib/pdfDraw.js";
 import { CONTINUED, P1, P2, P12, P16, P26 } from "./packetText.js";
 import {
   PACKET_ROW_OF,
@@ -23,7 +23,7 @@ import {
 
 export function page1(doc: PDFKit.PDFDocument, a: DriverApplication, certifiedAt: string): void {
   sectionHeading(doc, P1.heading);
-  doc.fillColor(MUTED).font("Helvetica").fontSize(8).text(winAnsi(P1.intro), MARGIN, doc.y, {
+  doc.fillColor(MUTED).font("Helvetica").fontSize(8).text(pdfkitText(doc, P1.intro), MARGIN, doc.y, {
     width: CONTENT_WIDTH,
   });
   doc.moveDown(0.6);
@@ -39,14 +39,14 @@ export function page1(doc: PDFKit.PDFDocument, a: DriverApplication, certifiedAt
   line(doc, P1.position, answer(a, "position"));
   line(doc, P1.name, [a.first_name, a.middle_name, a.last_name].filter(Boolean).join(" "));
   doc.fillColor(MUTED).font("Helvetica").fontSize(7.5);
-  doc.text(winAnsi(P1.nameParts), MARGIN + 150, doc.y, { width: CONTENT_WIDTH - 150 });
+  doc.text(pdfkitText(doc, P1.nameParts), MARGIN + 150, doc.y, { width: CONTENT_WIDTH - 150 });
   doc.moveDown(0.4);
   doc.x = MARGIN;
 
   const [current, ...previous] = a.addresses ?? [];
   line(doc, P1.address, current ? addressLine(current) : "");
   doc.fillColor(MUTED).font("Helvetica").fontSize(7.5);
-  doc.text(winAnsi(P1.addressParts), MARGIN + 150, doc.y, { width: CONTENT_WIDTH - 150 });
+  doc.text(pdfkitText(doc, P1.addressParts), MARGIN + 150, doc.y, { width: CONTENT_WIDTH - 150 });
   doc.moveDown(0.5);
   doc.x = MARGIN;
 
@@ -75,7 +75,7 @@ export function page1(doc: PDFKit.PDFDocument, a: DriverApplication, certifiedAt
 
 /** Page 2 — licences, experience, accidents, convictions, licence history. */
 export function page2(doc: PDFKit.PDFDocument, a: DriverApplication): void {
-  doc.fillColor(MUTED).font("Helvetica").fontSize(8).text(winAnsi(P2.oneLicence), MARGIN, doc.y, {
+  doc.fillColor(MUTED).font("Helvetica").fontSize(8).text(pdfkitText(doc, P2.oneLicence), MARGIN, doc.y, {
     width: CONTENT_WIDTH,
   });
   doc.moveDown(0.5);
@@ -128,7 +128,7 @@ export function page2(doc: PDFKit.PDFDocument, a: DriverApplication): void {
   if (extra > 0) {
     doc.moveDown(0.4);
     doc.fillColor(MUTED).font("Helvetica").fontSize(8);
-    doc.text(winAnsi(`${CONTINUED} (${extra} more)`), MARGIN, doc.y, { width: CONTENT_WIDTH });
+    doc.text(pdfkitText(doc, `${CONTINUED} (${extra} more)`), MARGIN, doc.y, { width: CONTENT_WIDTH });
     doc.moveDown(0.3);
     table(
       doc,
@@ -224,7 +224,7 @@ export function page12(doc: PDFKit.PDFDocument, a: DriverApplication): void {
 /** Page 16 — education, military, other training, references. */
 export function page16(doc: PDFKit.PDFDocument, a: DriverApplication): void {
   sectionHeading(doc, P16.heading);
-  doc.fillColor(MUTED).font("Helvetica").fontSize(8).text(winAnsi(P16.intro), MARGIN, doc.y, {
+  doc.fillColor(MUTED).font("Helvetica").fontSize(8).text(pdfkitText(doc, P16.intro), MARGIN, doc.y, {
     width: CONTENT_WIDTH,
   });
   doc.moveDown(0.5);
@@ -250,7 +250,7 @@ export function page16(doc: PDFKit.PDFDocument, a: DriverApplication): void {
 
   sectionHeading(doc, P16.training);
   doc.fillColor(INK).font("Helvetica").fontSize(9.5);
-  doc.text(winAnsi(answer(a, "other_training") || "—"), MARGIN, doc.y, { width: CONTENT_WIDTH });
+  doc.text(pdfkitText(doc, answer(a, "other_training") || "—"), MARGIN, doc.y, { width: CONTENT_WIDTH });
   doc.x = MARGIN;
 
   sectionHeading(doc, P16.referencesIntro);
@@ -283,17 +283,17 @@ export function page26(doc: PDFKit.PDFDocument, a: DriverApplication, signedName
   line(doc, P26.nameLabel, signedName);
   doc.moveDown(0.4);
   doc.fillColor(INK).font("Helvetica").fontSize(9.5);
-  doc.text(winAnsi(P26.question), MARGIN, doc.y, { width: CONTENT_WIDTH });
+  doc.text(pdfkitText(doc, P26.question), MARGIN, doc.y, { width: CONTENT_WIDTH });
   doc.moveDown(0.4);
   doc.fillColor(MUTED).font("Helvetica").fontSize(8.5);
-  doc.text(winAnsi(P26.check), MARGIN, doc.y, { width: CONTENT_WIDTH });
+  doc.text(pdfkitText(doc, P26.check), MARGIN, doc.y, { width: CONTENT_WIDTH });
   doc.moveDown(0.5);
   doc.x = MARGIN;
 
   const answered = a.prior_failed_pre_employment_test;
   doc.fillColor(INK).font("Helvetica-Bold").fontSize(11);
   doc.text(
-    winAnsi(
+    pdfkitText(doc, 
       `${answered === true ? "[X]" : "[ ]"}  ${P26.yes}      ${answered === false ? "[X]" : "[ ]"}  ${P26.no}`,
     ),
     MARGIN,
@@ -303,7 +303,7 @@ export function page26(doc: PDFKit.PDFDocument, a: DriverApplication, signedName
   if (answered === null || answered === undefined) {
     doc.moveDown(0.4);
     doc.fillColor(MUTED).font("Helvetica").fontSize(8);
-    doc.text(winAnsi(P26.notAsked), MARGIN, doc.y, { width: CONTENT_WIDTH });
+    doc.text(pdfkitText(doc, P26.notAsked), MARGIN, doc.y, { width: CONTENT_WIDTH });
   }
   doc.moveDown(1.2);
   doc.x = MARGIN;
