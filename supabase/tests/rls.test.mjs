@@ -2279,6 +2279,21 @@ async function main() {
         `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-examiner@example.com') returning id) ` +
         `insert into road_test_examiners (org_id, full_name, title, signature_path, created_by) ` +
         `select '${org}', 'RLS Examiner', 'Maintenance manager', '${org}/examiners/rls.png', u.id from u`,
+      // 0374: the signature must sit in the org's OWN `representatives/` folder, as 0372's examiners must.
+      carrier_representatives: (org) =>
+        `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-rep@example.com') returning id) ` +
+        `insert into carrier_representatives (org_id, full_name, title, signature_path, created_by) ` +
+        `select '${org}', 'RLS Representative', 'Safety manager', '${org}/representatives/rls.png', u.id from u`,
+      // 0374: a mark exists only on a FILED, live application whose handbook signing the office opened
+      // (HB021..HB023), which the synthesiser's bare invitation cannot be.
+      handbook_marks: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Handbook') returning id), ` +
+        `     u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-handbook@example.com') returning id), ` +
+        `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at, submitted_at, ` +
+        `             handbook_signing_opened_at, handbook_signing_opened_by) ` +
+        `           select '${org}', d.id, md5(random()::text), now() + interval '10 days', now(), now(), u.id from d, u returning id) ` +
+        `insert into handbook_marks (org_id, invitation_id, placement_id, party, handbook_version, signed_name, affirmed) ` +
+        `select '${org}', i.id, 'h1', 'driver', 'hb-rls-version', 'RLS Handbook', 'RLS' from i`,
       samsara_ifta_jurisdiction_miles: (org) =>
         `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ifta', 240) returning id) ` +
         `insert into samsara_ifta_jurisdiction_miles ` +
