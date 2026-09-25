@@ -657,3 +657,9 @@ Append a dated line per merge. Never edit a status column.
   left for Q-LMR2: a stop McLeod shows departed still wears the driver app's "Pending" badge. Ten mutants
   each failing by name; one survived first (stop order) because the fixture's array order agreed with
   McLeod's sequence, and the fixture was fixed until it failed.
+- 2026-09-24 — **LR7 merged (#1032, c9ff1ac) and live**: `api` and `web` both serve c9ff1ac, and the live
+  bundle carries the "as of" header, "+N more stops", the dispatcher line and McLeod's ETA. No migration.
+  **The page shows McLeod's projected words only after the VM's first sync**: production still holds the
+  old feed's 303 rows (every one `pending_approval`, no `location_name`), so until then the board reads
+  them as Planned / Uncovered with McLeod's generic stop names. Next in this plan: Q-LMR10 (BOL column) if
+  ruled, then LR8 (retire `load_external_payloads`) once the mirror has run.
