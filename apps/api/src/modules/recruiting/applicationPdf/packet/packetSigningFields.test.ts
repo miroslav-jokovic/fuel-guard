@@ -71,8 +71,9 @@ describe("the signing pages carry what we already hold", () => {
     const r = fill();
     const empty = PACKET_SIGNING_FIELD_LINES.map((l) => l.id).filter(
       (id) =>
-        // ⚠ Exactly one of the two page-26 ticks is drawn; the other being absent is the answer.
-        id !== "p26.prior_test.yes" && textAt(r, id) === undefined,
+        // ⚠ Exactly one of the two page-26 ticks is drawn; the other being absent is the answer. And
+        // page 4's name is blank on purpose (L-1) — asserted by its own test below.
+        id !== "p26.prior_test.yes" && id !== "p04.printed_name" && textAt(r, id) === undefined,
     );
     expect(empty).toEqual([]);
   });
@@ -96,7 +97,6 @@ describe("every printed-name line prints the same name", () => {
     const r = fill({}, { signedName: "M Varmeda" });
     const nameLines = [
       "p03.printed_name",
-      "p04.printed_name",
       "p10.printed_name",
       "p26.name",
       "p28.driver_owner_name",
@@ -112,6 +112,17 @@ describe("every printed-name line prints the same name", () => {
       "p15.name",
     ];
     for (const id of nameLines) expect(textAt(r, id), id).toBe("Marija Ana Varmeda");
+  });
+
+  /**
+   * ⚠ L-1: page 4 is withdrawn from signing, so its `Print name` stays blank. A name printed in the
+   * block beside a line nobody signed asserts the half of the act that did not happen — page 24's
+   * lesson (D-PKT10), met on the page counsel is being asked about.
+   */
+  it("prints no name in the block of a page withdrawn from signing", () => {
+    const r = fill({}, { signedName: "M Varmeda" });
+    expect(textAt(r, "p04.printed_name")).toBeUndefined();
+    expect(textAt(r, "p03.printed_name")).toBe("Marija Ana Varmeda");
   });
 
   /**

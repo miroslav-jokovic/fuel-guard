@@ -1,4 +1,5 @@
 import { addressCells, blank, date, fullName } from "./packetDraw.js";
+import { packetPageWithdrawn } from "@silvicom/shared";
 import { placeValue, type PacketFieldInput, type PlacedFieldValue } from "./packetGrid.js";
 import {
   SINGLE_LICENCE_BLOCK_FIELDS,
@@ -142,7 +143,13 @@ function priorTestAnswer(input: PacketFieldInput, into: PlacedFieldValue[]): voi
 
 export function packetSigningFill(input: PacketFieldInput, into: PlacedFieldValue[]): void {
   const name = fullName(input.application);
-  for (const [id, caption] of PRINTED_NAME_LINES) push(into, id, name, caption);
+  for (const [id, caption] of PRINTED_NAME_LINES) {
+    // ⚠ L-1: no name in the block of a page withdrawn from signing — a name printed beside a line
+    // nobody signed asserts the half of the act that did not happen (page 24's lesson, D-PKT10).
+    const line = signingLineFor(id);
+    if (line && packetPageWithdrawn(line.page)) continue;
+    push(into, id, name, caption);
+  }
 
   for (const [id, placementId] of STANDALONE_DATE_LINES) {
     const at = input.markedAt[placementId];

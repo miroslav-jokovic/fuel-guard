@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { driverPlacements } from "@silvicom/shared";
+import { paperDriverPlacements } from "@silvicom/shared";
 import { FIELD_BASELINE_LIFT, PACKET_FIELD_LINES } from "./packetFieldGeometry.js";
 import { PACKET_MARK_LINES } from "./packetMarkGeometry.js";
 import {
@@ -281,7 +281,7 @@ describe("no two measured spans on one band overlap", () => {
  */
 describe("the pages that are not the applicant's document", () => {
   it("measures nothing on a page the driver never signs", () => {
-    const signed = new Set(driverPlacements().map((p) => p.page));
+    const signed = new Set(paperDriverPlacements().map((p) => p.page));
     const strays = PACKET_SIGNING_FIELD_LINES.filter((l) => !signed.has(l.page)).map((l) => l.id);
     expect(strays).toEqual([]);
     // ⚠ Named as well as derived: the derivation is only as good as the inventory, and these four

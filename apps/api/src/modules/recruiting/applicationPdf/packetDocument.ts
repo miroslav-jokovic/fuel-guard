@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DriverApplication } from "@silvicom/shared";
+import { packetWithdrawal, type DriverApplication } from "@silvicom/shared";
 import { packetFieldFill } from "./packet/packetFieldValues.js";
 import { renderPacketOverlay } from "./packet/packetOverlay.js";
 
@@ -98,7 +98,10 @@ export interface PacketDocumentInput {
  * page 11 asks for, and puts a notice under each grid that continues.
  */
 export async function renderPacketDocument(input: PacketDocumentInput): Promise<Buffer> {
-  const markedAt = Object.fromEntries(input.marks.map((m) => [m.placement_id, m.signed_at]));
+  // ⚠ L-1: a mark on a withdrawn line is still a row, and is neither drawn nor dated. Filtered HERE,
+  // once, so the date beside it (`markedAt`) and the mark itself cannot disagree about page 4.
+  const marks = input.marks.filter((m) => packetWithdrawal(m.placement_id) === null);
+  const markedAt = Object.fromEntries(marks.map((m) => [m.placement_id, m.signed_at]));
   const { placed, overflow } = packetFieldFill({
     application: input.application,
     certifiedAt: input.certifiedAt,
@@ -107,7 +110,7 @@ export async function renderPacketDocument(input: PacketDocumentInput): Promise<
   });
   const a = input.application;
   return renderPacketOverlay({
-    marks: input.marks.map((m) => ({ placementId: m.placement_id, signedName: m.signed_name })),
+    marks: marks.map((m) => ({ placementId: m.placement_id, signedName: m.signed_name })),
     fields: placed,
     overflow,
     // ⚠ The name off the PAYLOAD, not the adopted signature. The sheet's job is to be re-attachable

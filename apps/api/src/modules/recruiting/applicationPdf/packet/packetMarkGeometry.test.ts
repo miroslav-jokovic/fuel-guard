@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
+import { paperDriverPlacements } from "@silvicom/shared";
 import { PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { readPacketTemplate, type TemplatePage } from "./packetTemplate.js";
 
@@ -26,11 +26,11 @@ const rulesOn = (page: number): Array<{ x1: number; x2: number; y: number }> =>
 
 describe("the mark table", () => {
   it("carries exactly the driver's twenty-two places, and nothing else", () => {
-    expect(PACKET_MARK_LINES.map((l) => l.id).sort()).toEqual([...driverPlacementIds()].sort());
+    expect(PACKET_MARK_LINES.map((l) => l.id).sort()).toEqual(paperDriverPlacements().map((p) => p.id).sort());
   });
 
   it("agrees with the inventory about which page each mark is on", () => {
-    for (const placement of driverPlacements()) {
+    for (const placement of paperDriverPlacements()) {
       const line = markLineFor(placement.id);
       expect(line, placement.id).not.toBeNull();
       expect(line!.page, placement.id).toBe(placement.page);

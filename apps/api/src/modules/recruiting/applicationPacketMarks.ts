@@ -1,8 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  countedPacketMarks,
+  driverPlacementIds,
   driverPlacements,
   packetDriverMarkCount,
   packetPlacementById,
+  packetWithdrawal,
   type ApplicationPacketMark,
   type PacketPlacement,
 } from "@silvicom/shared";
@@ -82,6 +85,20 @@ export const PACKET_MARK_ALREADY_MADE: IntakeError = {
 export const PACKET_MARK_NOT_THE_DRIVERS: IntakeError = {
   code: "packet_mark_not_the_drivers",
   message: "That is not one of the places you sign.",
+};
+
+/**
+ * A line the carrier has withdrawn from electronic signing (L-1: page 4, pending counsel's answer to
+ * memorandum Q1).
+ *
+ * ⚠ Its own code rather than `packet_mark_not_the_drivers`, because it IS the driver's line on the
+ * paper — a trace that said otherwise would send whoever reads it looking for a ceremony bug that put
+ * the applicant on somebody else's line. Reachable only from a page loaded before the withdrawal
+ * shipped: the served queue (`driverPlacements()`) no longer offers it.
+ */
+export const PACKET_MARK_WITHDRAWN: IntakeError = {
+  code: "packet_mark_withdrawn",
+  message: "That place is no longer signed here. Carry on with the next one.",
 };
 
 export const PACKET_MARK_NAME_CHANGED: IntakeError = {
@@ -221,6 +238,10 @@ export async function recordPacketMark(
 
   const placement = packetPlacementById(body.placement_id);
   if (!placement || placement.party !== "driver") return refused(PACKET_MARK_NOT_THE_DRIVERS);
+  // ⚠ Asked of `driverPlacementIds()`, not of `party` — the withdrawal is applied there, once.
+  if (packetWithdrawal(placement.id) || !driverPlacementIds().includes(placement.id)) {
+    return refused(PACKET_MARK_WITHDRAWN);
+  }
 
   // The cheap refusals, before the transaction. The RPC checks all three again under its lock —
   // these keep a ceremony opened on a stale page from reaching the database at all. ⚠ In 0369's
@@ -273,9 +294,26 @@ export async function recordPacketMark(
     return refused({ code: "packet_mark_failed", message: error.message });
   }
   const row = data as { mark_id?: string; signed_count?: number; complete?: boolean } | null;
+  /**
+   * ⚠ **The count is re-read from the placement ids, and the RPC's own is not trusted** (L-1).
+   * `record_packet_mark` counts ROWS against `p_expected_count`, which was the whole truth until a
+   * line was withdrawn: a link holding a mark at p04 from before the withdrawal reaches twenty-one
+   * rows one real stop early, and the ceremony, trusting `complete`, would tell the driver they had
+   * finished while the submit gate still refused. Changing the function to take the ids instead would
+   * be a migration and a second merge for one invitation in production; this read is one indexed
+   * select on the same link, after the lock has been released.
+   */
+  const { data: ids } = await admin
+    .from("application_packet_marks")
+    .select("placement_id")
+    .eq("org_id", invitation.org_id)
+    .eq("invitation_id", invitation.id);
+  const signedCount = countedPacketMarks(
+    ((ids ?? []) as Array<{ placement_id: string }>).map((r) => r.placement_id),
+  );
   return {
     id: String(row?.mark_id ?? ""),
-    signedCount: Number(row?.signed_count ?? 0),
-    complete: Boolean(row?.complete),
+    signedCount,
+    complete: signedCount >= packetDriverMarkCount(),
   };
 }

@@ -11,7 +11,7 @@ import {
   fieldTableRowCount,
   markSideLinesFor,
 } from "./packetFieldGeometry.js";
-import { driverPlacements } from "@silvicom/shared";
+import { paperDriverPlacements } from "@silvicom/shared";
 import { markLineFor } from "./packetMarkGeometry.js";
 import { readPacketTemplate, type TemplatePage } from "./packetTemplate.js";
 
@@ -249,7 +249,7 @@ describe("the lines beside the marks", () => {
    * assertion that would have caught this gap the day the mark table shipped.
    */
   it("gives a date to exactly the placements whose anchor asks for one", () => {
-    const wantsDate = driverPlacements().filter((p) => /\bdate\b/i.test(p.anchor)).map((p) => p.id);
+    const wantsDate = paperDriverPlacements().filter((p) => /\bdate\b/i.test(p.anchor)).map((p) => p.id);
     const hasDate = PACKET_MARK_SIDE_LINES.filter((l) => l.kind === "date").map((l) => l.placementId);
     // ⚠ p15's date is a cell of its own six-field grid and lives in PACKET_FIELD_LINES, so it is
     // expected here by name rather than silently tolerated.
@@ -257,7 +257,7 @@ describe("the lines beside the marks", () => {
   });
 
   it("gives a printed name to the one placement whose anchor asks for one", () => {
-    const wantsPrint = driverPlacements().filter((p) => /print/i.test(p.anchor)).map((p) => p.id);
+    const wantsPrint = paperDriverPlacements().filter((p) => /print/i.test(p.anchor)).map((p) => p.id);
     expect(wantsPrint).toEqual(["p22"]);
     expect(PACKET_MARK_SIDE_LINES.filter((l) => l.kind === "printed_name").map((l) => l.placementId))
       .toEqual(["p22"]);

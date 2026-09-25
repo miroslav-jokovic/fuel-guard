@@ -4,6 +4,7 @@ import {
   APPLICATION_CAPTURE_MARK_SLOT,
   driverPlacementIds,
   driverPlacements,
+  packetDriverMarkCount,
 } from "@silvicom/shared";
 import { usePacketCeremony } from "./usePacketCeremony";
 import type { ApplyPacketStop } from "@/features/apply/useApplication";
@@ -19,6 +20,9 @@ import type { ApplyPacketStop } from "@/features/apply/useApplication";
  */
 
 const TOKEN = "e".repeat(43);
+
+/** 21 since L-1 (page 4 withdrawn from signing) — read from the inventory, never restated. */
+const TOTAL = packetDriverMarkCount();
 
 const stopsFrom = (signed: Record<string, string> = {}): ApplyPacketStop[] =>
   driverPlacements().map((p) => ({ ...p, signedAt: signed[p.id] ?? null }));
@@ -45,7 +49,7 @@ vi.mock("@/features/apply/useApplication", () => ({
 
 beforeEach(() => {
   marked.length = 0;
-  answer = () => ({ signedCount: marked.length, complete: marked.length >= 22 });
+  answer = () => ({ signedCount: marked.length, complete: marked.length >= TOTAL });
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -313,14 +317,14 @@ describe("the walk", () => {
     const c = started();
     await c.adopt();
     expect(c.current.value!.id).toBe("p03");
-    expect(c.total.value).toBe(22);
+    expect(c.total.value).toBe(TOTAL);
     expect(c.position.value).toBe(1);
   });
 
-  it("walks all twenty-two in the packet's own page order", async () => {
+  it("walks every place in the packet's own page order", async () => {
     const c = started();
     await c.adopt();
-    for (let i = 0; i < 22; i++) await c.sign();
+    for (let i = 0; i < TOTAL; i++) await c.sign();
     expect(marked.map((m) => m.placementId)).toEqual(driverPlacements().map((p) => p.id));
     const pages = marked.map((m) => driverPlacements().find((p) => p.id === m.placementId)!.page);
     expect(pages).toEqual([...pages].sort((a, b) => a - b));
@@ -331,16 +335,17 @@ describe("the walk", () => {
    * D-PKT13: the marks are adopted once and applied at every place — and there are TWO of them
    * (D-PKT6, Q-PKT8), each going only where the carrier's paper asks for it.
    */
-  it("sends the signature to the nineteen places that take one, and the initials to the three", async () => {
+  it("sends the signature to the places that take one, and the initials to the three", async () => {
     const c = started();
     await c.adopt();
-    for (let i = 0; i < 22; i++) await c.sign();
+    for (let i = 0; i < TOTAL; i++) await c.sign();
 
     const byKind = (kind: string) =>
       marked.filter((m) => driverPlacements().find((p) => p.id === m.placementId)!.mark === kind);
     expect(byKind("initials").map((m) => m.placementId)).toEqual(["p05", "p06", "p09"]);
     expect(new Set(byKind("initials").map((m) => m.signedName))).toEqual(new Set(["MV"]));
-    expect(byKind("signature")).toHaveLength(19);
+    // ⚠ 18 since L-1: page 4's was a signature line, and is withdrawn.
+    expect(byKind("signature")).toHaveLength(18);
     expect(new Set(byKind("signature").map((m) => m.signedName))).toEqual(new Set(["Marija Varmeda"]));
   });
 
@@ -353,7 +358,7 @@ describe("the walk", () => {
     const c = started();
     c.adoptedInitials.value = "ZQ";
     await c.adopt();
-    for (let i = 0; i < 22; i++) await c.sign();
+    for (let i = 0; i < TOTAL; i++) await c.sign();
     const p05 = marked.find((m) => m.placementId === "p05")!;
     expect(p05.signedName).toBe("ZQ");
   });
@@ -366,7 +371,7 @@ describe("the walk", () => {
   it("visits both of page 19's places, as two distinct stops", async () => {
     const c = started();
     await c.adopt();
-    for (let i = 0; i < 22; i++) await c.sign();
+    for (let i = 0; i < TOTAL; i++) await c.sign();
     const p19 = marked.filter((m) => m.placementId.startsWith("p19"));
     expect(p19.map((m) => m.placementId)).toEqual(["p19a", "p19b"]);
   });
@@ -387,7 +392,7 @@ describe("the walk", () => {
     await c.adopt();
     answer = () => Object.assign(new Error("already"), { code: "packet_mark_already_made" });
     await c.sign();
-    expect(c.current.value!.id).toBe("p04");
+    expect(c.current.value!.id).toBe("p05");
     expect(c.error.value).toBeNull();
   });
 
@@ -430,7 +435,7 @@ describe("the walk", () => {
     answer = () => ({ signedCount: 1, complete: false });
     await c.sign();
     expect(c.rateLimited.value).toBe(false);
-    expect(c.current.value!.id).toBe("p04");
+    expect(c.current.value!.id).toBe("p05");
   });
 
   /**
@@ -441,7 +446,7 @@ describe("the walk", () => {
   it("finishes when the server says the packet is complete, not when the list runs out", async () => {
     const c = started();
     await c.adopt();
-    answer = () => ({ signedCount: 22, complete: true });
+    answer = () => ({ signedCount: TOTAL, complete: true });
     await c.sign();
     expect(c.complete.value).toBe(true);
     expect(marked).toHaveLength(1);
@@ -452,12 +457,12 @@ describe("coming back to a half-signed packet", () => {
   it("opens on the first place not yet collected", async () => {
     const c = usePacketCeremony(
       ref(TOKEN),
-      ref(stopsFrom({ p03: "2026-09-14T11:00:00Z", p04: "2026-09-14T11:01:00Z" })),
+      ref(stopsFrom({ p03: "2026-09-14T11:00:00Z", p05: "2026-09-14T11:01:00Z" })),
     );
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     await c.adopt();
-    expect(c.current.value!.id).toBe("p05");
+    expect(c.current.value!.id).toBe("p06");
   });
 
   /**
@@ -468,13 +473,13 @@ describe("coming back to a half-signed packet", () => {
   it("counts a resumed walk against the whole packet", async () => {
     const c = usePacketCeremony(
       ref(TOKEN),
-      ref(stopsFrom({ p03: "2026-09-14T11:00:00Z", p04: "2026-09-14T11:01:00Z" })),
+      ref(stopsFrom({ p03: "2026-09-14T11:00:00Z", p05: "2026-09-14T11:01:00Z" })),
     );
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     await c.adopt();
     expect(c.position.value).toBe(3);
-    expect(c.total.value).toBe(22);
+    expect(c.total.value).toBe(TOTAL);
     expect(c.collected.value).toHaveLength(2);
   });
 
@@ -512,7 +517,7 @@ describe("a resumed walk whose marks the server has already pinned", () => {
   it("applies the pinned marks at the stops, each to its own kind", async () => {
     const c = withAdopted({ signature: "Marija Varmeda", initials: "MV" });
     await c.adopt();
-    for (let i = 0; i < 22; i++) await c.sign();
+    for (let i = 0; i < TOTAL; i++) await c.sign();
     expect(marked.find((m) => m.placementId === "p03")!.signedName).toBe("Marija Varmeda");
     expect(marked.find((m) => m.placementId === "p05")!.signedName).toBe("MV");
   });
@@ -587,7 +592,7 @@ describe("what the stop promises in drawn mode", () => {
     c: Awaited<ReturnType<typeof drawnCeremony>>,
     kind: "signature" | "initials",
   ): Promise<void> {
-    for (let i = 0; i < 22 && c.current.value?.mark !== kind; i++) await c.sign();
+    for (let i = 0; i < TOTAL && c.current.value?.mark !== kind; i++) await c.sign();
     expect(c.current.value?.mark, `never reached a ${kind} stop`).toBe(kind);
   }
 
@@ -848,7 +853,7 @@ describe("the confirm step", () => {
 describe("which marks can still be corrected", () => {
   /** Walk forward until the driver is standing on a stop of the given kind. */
   async function walkTo(c: ReturnType<typeof usePacketCeremony>, kind: "signature" | "initials") {
-    for (let i = 0; i < 22 && c.current.value?.mark !== kind; i++) await c.sign();
+    for (let i = 0; i < TOTAL && c.current.value?.mark !== kind; i++) await c.sign();
     expect(c.current.value?.mark, `never reached a ${kind} stop`).toBe(kind);
   }
 
@@ -969,7 +974,7 @@ describe("a refetch in the middle of the walk", () => {
     c.confirm();
 
     const walked: string[] = [];
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < TOTAL; i++) {
       expect(c.current.value, `ran out of stops after ${walked.length}`).not.toBeNull();
       walked.push(c.current.value!.id);
       await c.sign();
@@ -977,7 +982,7 @@ describe("a refetch in the middle of the walk", () => {
       stops.value = stopsFrom(Object.fromEntries(walked.map((id) => [id, "2026-09-18T12:00:00Z"])));
     }
     expect(walked).toEqual(driverPlacementIds());
-    expect(new Set(walked).size).toBe(22);
+    expect(new Set(walked).size).toBe(TOTAL);
     expect(c.complete.value).toBe(true);
   });
 });
@@ -1188,7 +1193,7 @@ describe("resuming a link whose signature picture is already staged", () => {
     expect(c.currentShowsDrawing.value).toBe(true);
     expect(c.currentMarkCarriedOver.value).toBe(true);
 
-    for (let i = 0; i < 22 && c.current.value?.mark !== "initials"; i++) await c.sign();
+    for (let i = 0; i < TOTAL && c.current.value?.mark !== "initials"; i++) await c.sign();
     expect(c.current.value?.mark).toBe("initials");
     expect(c.currentShowsDrawing.value).toBe(false);
     expect(c.currentMarkCarriedOver.value).toBe(false);
@@ -1198,7 +1203,7 @@ describe("resuming a link whose signature picture is already staged", () => {
   it("answers per mark when only the initials were staged", async () => {
     const c = resumed(false, true);
     expect(c.currentShowsDrawing.value).toBe(false);
-    for (let i = 0; i < 22 && c.current.value?.mark !== "initials"; i++) await c.sign();
+    for (let i = 0; i < TOTAL && c.current.value?.mark !== "initials"; i++) await c.sign();
     expect(c.current.value?.mark).toBe("initials");
     expect(c.currentShowsDrawing.value).toBe(true);
     expect(c.currentMarkCarriedOver.value).toBe(true);

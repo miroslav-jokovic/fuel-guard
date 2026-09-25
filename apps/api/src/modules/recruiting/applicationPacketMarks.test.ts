@@ -95,18 +95,38 @@ describe("recording one mark", () => {
     const rec = seed();
     await recordPacketMark(rec.client, TOKEN, body("p03"), CTX, NOW);
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
-    expect(args.p_expected_count).toBe(22);
+    // ⚠ 21 since L-1 (2026-09-24): page 4 is withdrawn from signing.
+    expect(args.p_expected_count).toBe(21);
     expect(args.p_expected_count).toBe(driverPlacements().length);
   });
 
+  /**
+   * ⚠ The count is re-read from the link's placement ids, not taken from the transaction (L-1). The
+   * RPC counts ROWS, and a row at a withdrawn line would complete the packet one real stop early.
+   */
   it("carries the count and the completion back, so the ceremony can advance", async () => {
-    const rec = createSupabaseRecorder({
-      tables: { application_invitations: [invitation()], application_packet_marks: [] },
-      rpc: { record_packet_mark: { mark_id: "m-22", signed_count: 22, complete: true } },
-    });
+    const every = driverPlacements().map((p) => ({ placement_id: p.id, signed_at: "2026-09-24T12:00:00Z" }));
+    const rec = seed({ marks: every });
     const result = await recordPacketMark(rec.client, TOKEN, body("p31b"), CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
-    expect(result).toMatchObject({ id: "m-22", signedCount: 22, complete: true });
+    expect(result).toMatchObject({ id: "mark-1", signedCount: 21, complete: true });
+  });
+
+  /**
+   * ⚠ Production's shape: a walk from before L-1 holding a p04 mark. Twenty-one ROWS, twenty real
+   * stops — and the transaction, counting rows, says complete. The driver must not be told so.
+   */
+  it("does not count a mark on a withdrawn line towards the packet, whatever the transaction says", async () => {
+    const rows = [
+      { placement_id: "p04", signed_at: "2026-09-17T12:00:00Z" },
+      ...driverPlacements().filter((p) => p.id !== "p31b").map((p) => ({ placement_id: p.id, signed_at: "2026-09-17T12:00:00Z" })),
+    ];
+    const rec = createSupabaseRecorder({
+      tables: { application_invitations: [invitation()], application_packet_marks: rows },
+      rpc: { record_packet_mark: { mark_id: "m-21", signed_count: 21, complete: true } },
+    });
+    const result = await recordPacketMark(rec.client, TOKEN, body("p31a"), CTX, NOW);
+    expect(result).toMatchObject({ signedCount: 20, complete: false });
   });
 });
 
@@ -126,6 +146,18 @@ describe("a stop that is not the driver's", () => {
     const rec = seed();
     const result = await recordPacketMark(rec.client, TOKEN, body(placementId), CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("packet_mark_not_the_drivers");
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  /**
+   * ⚠ L-1: page 4 is the driver's line on the paper and is withdrawn from signing. A page loaded
+   * before the withdrawal shipped still holds it as a stop; the server is what refuses it, with its
+   * own code, so the trace does not send anybody looking for a ceremony that walked the wrong person.
+   */
+  it("refuses a line withdrawn from signing, and reaches no transaction", async () => {
+    const rec = seed();
+    const result = await recordPacketMark(rec.client, TOKEN, body("p04"), CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("packet_mark_withdrawn");
     expect(rec.rpcs()).toHaveLength(0);
   });
 
@@ -294,7 +326,7 @@ describe("the queue the ceremony walks", () => {
   it("serves the driver's stops in the packet's own page order", async () => {
     const rec = seed();
     const stops = await packetStops(rec.client, ORG, "inv-1");
-    expect(stops).toHaveLength(22);
+    expect(stops).toHaveLength(21);
     expect(stops.every((s) => s.party === "driver")).toBe(true);
     // ⚠ The paper's order, not a convenient one. A driver reviewing a document they are signing
     // follows the paper, and a queue in another order would disagree with the PDF about what came
@@ -316,13 +348,13 @@ describe("the queue the ceremony walks", () => {
       ],
     });
     const stops = await packetStops(rec.client, ORG, "inv-1");
-    expect(stops).toHaveLength(22);
+    expect(stops).toHaveLength(21);
     expect(stops.find((s) => s.id === "p03")!.signedAt).toBe("2026-09-14T11:00:00Z");
     expect(stops.find((s) => s.id === "p11b")!.signedAt).toBe("2026-09-14T11:01:00Z");
     // ⚠ p11a and p11b sit on the same page and differ only in what they say. A queue keyed on the
     // page would have marked both.
     expect(stops.find((s) => s.id === "p11a")!.signedAt).toBeNull();
-    expect(stops.filter((s) => s.signedAt === null)).toHaveLength(20);
+    expect(stops.filter((s) => s.signedAt === null)).toHaveLength(19);
   });
 
   it("scopes the read to the org the token resolved to", async () => {
