@@ -77,8 +77,9 @@ WantedBy=multi-user.target
 As agreed, nothing goes on a timer until we've done these together:
 
 1. **A dry run:** `node --env-file=connector.env agent.mjs --loads --dry-run`. It reads the open
-   loads once and prints what it would send. It sends nothing. The count should match the McLeod
-   board (about 160 loads).
+   loads once and prints counts of what it would send: how many movements and stops, and how many
+   of them carry each field. It prints no addresses, names or phone numbers, and it sends nothing.
+   The count should match the McLeod board (about 160 loads).
 2. **A one-time cleanup:** we close the loads that Silvicom 360 still shows as open but that have
    since been delivered or voided in McLeod. That's about 180 movement ids, one keyed read.
 3. **Start the service,** and watch the first few minutes of the log together.

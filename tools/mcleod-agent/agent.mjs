@@ -30,6 +30,7 @@ import { fetchSettlements } from "./settlements.mjs";
 import { fetchExpenses } from "./expenses.mjs";
 import { fetchMovementFacts } from "./movements.mjs";
 import { fetchDispatchLoads, fetchClosedLoads, loadHash } from "./loads.mjs";
+import { describeDryRun, describeMirrorDryRun } from "./dryRun.mjs";
 import { holdConnection, releaseConnection, breakerState } from "./connection.mjs";
 import { dueJobs, JOBS } from "./schedule.mjs";
 import { fetchLedgerControl, fetchGlAccounts } from "./ledger.mjs";
@@ -482,36 +483,6 @@ async function runOnce() {
  * short because the database was mid-restore. This side cannot tell those apart, and FuelGuard's
  * deactivation pass carries the guard that can (never retire more rows than the incoming roster size).
  */
-/**
- * Fields that must never be printed by a dry run. It reports COVERAGE — how many rows carry a value —
- * and one sample row, and a sample row of a driver is a person's date of birth and home address on
- * somebody's terminal. Counting proves the mapping works; printing the value proves nothing extra.
- */
-const DRY_MASK = new Set([
-  "first_name", "middle_name", "last_name", "full_name", "cdl_number", "cdl_state",
-  "date_of_birth", "address_line1", "city", "state", "postal_code", "email",
-]);
-
-/** What a sweep WOULD send, as per-field coverage plus one masked sample. */
-function reportDryRun(entity, rows) {
-  console.log(`\n### ${entity} — ${rows.length} row(s) would be sent`);
-  if (!rows.length) return;
-  const coverage = {};
-  for (const row of rows) {
-    for (const [k, v] of Object.entries(row)) {
-      coverage[k] = (coverage[k] ?? 0) + (v === null || v === undefined || v === "" ? 0 : 1);
-    }
-  }
-  for (const [field, n] of Object.entries(coverage).sort()) {
-    const flag = n === 0 ? "  ← EMPTY on every row" : n < rows.length ? `  (${rows.length - n} without)` : "";
-    console.log(`  ${String(n).padStart(4)}/${rows.length}  ${field}${flag}`);
-  }
-  const sample = Object.fromEntries(
-    Object.entries(rows[0]).map(([k, v]) => [k, DRY_MASK.has(k) && v != null ? "\u2039masked\u203a" : v]),
-  );
-  console.log(`  sample: ${JSON.stringify(sample)}`);
-}
-
 async function runRoster() {
   const state = loadState(CFG.rosterStatePath);
   log(`roster: reading ${CFG.sql.database} on ${CFG.sql.server} as company ${CFG.sql.companyId} (mode=${CFG.rosterMode}${CFG.rosterFull ? ", full" : ""})`);
@@ -534,7 +505,7 @@ async function runRoster() {
       continue;
     }
     if (CFG.dryRun) {
-      reportDryRun(entity, changed);
+      for (const line of describeDryRun(entity, changed, { sample: true })) console.log(line);
       continue;
     }
     const res = await sendBatched(path, key, changed);
@@ -624,7 +595,8 @@ async function runLoads() {
 
   log(`mirror: ${describeMirror(res.movements)}`);
   if (CFG.dryRun) {
-    console.log(JSON.stringify({ loads: res.loads, dispatchers: res.dispatchers, movements: res.movements }, null, 2));
+    // Coverage, never rows: this is the command run on the Board VM in front of Alex (dryRun.mjs).
+    for (const line of [...describeDryRun("dispatchers", res.dispatchers), ...describeMirrorDryRun(res.movements)]) console.log(line);
     return;
   }
   const d = await postToFuelGuard("/api/tms/dispatchers", { dispatchers: res.dispatchers });
@@ -869,7 +841,7 @@ async function closeMovements(movementIds) {
   for (const l of res.loads) byStatus[l.external_status ?? "?"] = (byStatus[l.external_status ?? "?"] ?? 0) + 1;
   log(`close: asked about ${movementIds.length}, McLeod says ${JSON.stringify(byStatus)}`);
   if (CFG.dryRun) {
-    console.log(JSON.stringify({ loads: res.loads }, null, 2));
+    for (const line of describeMirrorDryRun(res.movements)) console.log(line);
     return res;
   }
   // McLeod's D or V reaches the mirror, which stamps `closed_at` and — projected (LR4) — closes the load.
