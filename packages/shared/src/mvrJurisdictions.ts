@@ -27,10 +27,23 @@ import { jurisdictionName, jurisdictionOptions, toJurisdictionCode } from "./jur
  * offers every declared jurisdiction as written (`mvrJurisdictionOptions`), so such a value is
  * picked, not retyped.
  *
- * ⚠ **What this cannot see:** the application asks for every UNEXPIRED licence (§391.21(b)(5)), not
- * for every licence held in the preceding three years, so a licence surrendered on moving states is
- * declared nowhere. That gap is Q-AF4 in the plan's §7; nothing here pretends to close it.
+ * ⚠ **What this could not see until 2026-09-25, and what closed it (Q-AF4).** §391.21(b)(5) asks the
+ * application for every UNEXPIRED licence, which is narrower than "held or holds" in the preceding
+ * three years: a licence surrendered on moving states was declared nowhere. The owner ruled the
+ * application asks for both, so its licence copy now reads `MVR_LOOKBACK_YEARS` and invites past
+ * licences into `additional_licences`, which never refused an expiry in the past. A licence that
+ * expired long before the window is still owed an MVR if the applicant lists it: the expiry date is
+ * not the date it stopped being held, so it cannot be used to excuse one.
  */
+
+/**
+ * §391.23(a)(1)'s look-back: every state that licensed the driver "during the preceding 3 years".
+ *
+ * ⚠ Its own constant rather than `EMPLOYMENT_WINDOW_YEARS`, which is also 3 today but is a different
+ * paragraph's window (§391.21(b)(10)); the application's licence copy reads this one, so the words
+ * the applicant is asked and the rule their answer is checked against cannot drift apart.
+ */
+export const MVR_LOOKBACK_YEARS = 3;
 
 /**
  * The fold two jurisdictions get before they are compared. See the header.

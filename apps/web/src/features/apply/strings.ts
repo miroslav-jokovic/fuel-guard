@@ -5,6 +5,7 @@ import {
   APPLICATION_SECTION_LABELS,
   CMV_WINDOW_YEARS,
   EMPLOYMENT_WINDOW_YEARS,
+  MVR_LOOKBACK_YEARS,
 } from "@silvicom/shared";
 
 /**
@@ -118,7 +119,7 @@ export const APPLY_COPY = {
     needs: [
       `Every address you have lived at in the last ${EMPLOYMENT_WINDOW_YEARS} years.`,
       `Every job you have held in the last ${EMPLOYMENT_WINDOW_YEARS} years, and every driving job in the last ${CMV_WINDOW_YEARS} — with dates, addresses and phone numbers.`,
-      "Your licence, and any other licence or permit you hold.",
+      `Your licence, and every other licence or permit you hold or have held in the last ${MVR_LOOKBACK_YEARS} years.`,
     ],
     /** Introduces the photographs, which are named from the capture catalogue rather than retyped. */
     photographHeading: "And these, to photograph:",
@@ -206,15 +207,18 @@ export const APPLY_COPY = {
   },
 
   licence: {
-    intro: "Every unexpired licence and permit you hold. Start with the one you drive on.",
+    intro: `Every licence and permit you hold, and any you have held in the last ${MVR_LOOKBACK_YEARS} years, in any state. Start with the one you drive on.`,
     number: "Licence number",
     state: "Issuing state",
     stateHint: "Start typing to find it.",
     class: "Class",
     expires: "Expires",
-    othersHeading: "Any other licences or permits",
+    othersHeading: `Other licences and permits, now or in the last ${MVR_LOOKBACK_YEARS} years`,
     othersIntro:
-      "Most drivers have none — you may only hold one commercial licence at a time. Add permits and endorsements issued separately here.",
+      // Q-AF4 (owner, 2026-09-25): §391.23(a)(1) needs a driving record from every state that
+      // licensed the driver in the last three years, so a licence given up on moving is asked for
+      // here too. Each one listed becomes an MVR the office owes (`mvrJurisdictions.ts`).
+      `If you moved from another state in the last ${MVR_LOOKBACK_YEARS} years, add that state's licence, even if you gave it up. Also add permits and endorsements issued separately. You may only hold one commercial licence at a time.`,
     issuingAuthority: "Issuing authority",
     issuingAuthorityHint: "The state or agency that issued it.",
     otherNumber: "Number",

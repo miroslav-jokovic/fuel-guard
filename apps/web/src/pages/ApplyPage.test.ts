@@ -196,7 +196,10 @@ describe("the applicant's page", () => {
     await advance(w);
     expect(w.text()).toContain("Your licence");
     // §391.21(b)(5)'s "each": the list the schema carried no field for until A3.
-    expect(w.text()).toContain("Any other licences or permits");
+    expect(w.text()).toContain("Other licences and permits, now or in the last 3 years");
+    // Q-AF4: §391.23(a)(1) wants every state that licensed them in 3 years, so a licence given up on
+    // moving is asked for by name — the case the old "you hold" wording could never collect.
+    expect(w.text()).toContain("even if you gave it up");
     await advance(w);
     expect(w.text()).toContain("Where you have worked");
     // D-AX7's one departure from the paper: asked above the employer list rather than on page 1,
