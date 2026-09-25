@@ -157,6 +157,16 @@ export const hiringEvidenceFileSchema = z.object({
   performed_by: z.string().max(200).nullish(),
   /** A confirmation or report number, when the source gives one. */
   reference: z.string().max(200).nullish(),
+  /**
+   * The state or licensing authority an MVR came from, as the application names it (AF7,
+   * §391.23(a)(1)). Written into `detail.jurisdiction` for an MVR only; `mvrJurisdictions.ts` says
+   * why it is compared after trim and case and nothing more.
+   *
+   * ⚠ Optional at the door because a client that predates AF7 still files, and an MVR with no
+   * jurisdiction is still a record that was obtained. It just covers no declared licence, so the
+   * step stays open and names what is missing. The office's form asks for it.
+   */
+  jurisdiction: z.string().max(60).nullish(),
 });
 export type HiringEvidenceFiling = z.infer<typeof hiringEvidenceFileSchema>;
 
@@ -217,11 +227,16 @@ export const HIRING_EVIDENCE_SOURCE = "recorded_act";
 export function hiringEvidenceDetail(
   step: HiringRecordedActStep,
   recordedBy: string,
+  jurisdiction?: string | null,
 ): Record<string, unknown> {
+  // ⚠ An MVR's only. A drug test or a Clearinghouse query has no licensing jurisdiction, and a key
+  // on those rows would be a fact nobody was asked for, sitting where a later reader would trust it.
+  const where = step === "mvr" ? jurisdiction?.trim() : undefined;
   return {
     source: HIRING_EVIDENCE_SOURCE,
     structured: false,
     hiring_step: step,
     recorded_by: recordedBy,
+    ...(where ? { jurisdiction: where } : {}),
   };
 }

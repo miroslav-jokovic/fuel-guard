@@ -12,6 +12,7 @@ import {
   type QueueEmployment,
 } from "@silvicom/shared";
 import { driversWithPspRequest } from "../psp/index.js";
+import { RECORD_JURISDICTION_SELECT } from "./applicantLicences.js";
 
 /**
  * The board's half of the fold — every applicant's checklist in one pass (B4, `HIRING-MODULE-PLAN.md` §9).
@@ -53,6 +54,11 @@ export interface BoardApplicantInput {
    * this applicant's packet has.
    */
   applyingAs: ApplyingAs | null;
+  /**
+   * The licensing jurisdictions the same draft declares (AF7, `declaredLicenceJurisdictions`), read
+   * in that one draft read. Empty while none is known.
+   */
+  licenceJurisdictions: readonly string[];
   authorizations: readonly AuthorizationRow[];
   /**
    * Has the carrier already answered this application — declined, withdrawn, no response (0238)?
@@ -184,6 +190,8 @@ export async function boardChecklists(
       hasDraft: a.hasDraft,
       authorizations: a.authorizations,
       qualificationKinds: kinds,
+      mvrJurisdictions: own.filter((r) => r.kind === "mvr").map((r) => r.jurisdiction ?? null),
+      licenceJurisdictions: a.licenceJurisdictions,
       psp: {
         requested: pspRequested.has(a.driverId),
         // ⚠ The REPORT, not the order (B3): `/psp-imports` files one bought on FMCSA's portal and it
@@ -272,6 +280,8 @@ interface QualificationRow {
   driver_id: string;
   kind: string;
   created_at: string;
+  /** AF7: `detail.jurisdiction`, by path. Null on anything but a recorded MVR that named one. */
+  jurisdiction?: string | null;
 }
 
 interface MarkRow {
@@ -294,7 +304,7 @@ async function readQualificationRecords(
 ): Promise<Map<string, QualificationRow[]>> {
   const { data } = await admin
     .from("qualification_records")
-    .select("driver_id, kind, created_at")
+    .select(`driver_id, kind, created_at, ${RECORD_JURISDICTION_SELECT}`)
     .eq("org_id", orgId)
     .in("driver_id", driverIds);
   return groupBy((data ?? []) as QualificationRow[], (r) => r.driver_id);

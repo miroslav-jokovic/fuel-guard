@@ -2,7 +2,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@silvicom/shared";
-import { DISCLOSURES } from "@silvicom/shared";
+import { APPLICATION_RELEASE_ORDER, DISCLOSURES } from "@silvicom/shared";
 import { PSP_VERSION } from "../defaultWording.js";
 import { PSP_MANDATED_INTENT, pspDisclosure } from "../pspDisclosure.js";
 import { createApp } from "../../../app.js";
@@ -71,6 +71,8 @@ const seed = (
     invitations?: unknown[];
     /** Whether anything has been typed — the only evidence a driver has started. */
     drafts?: unknown[];
+    /** §391.51 records, for the checklist the board folds (AF7 reads an MVR's jurisdiction). */
+    records?: unknown[];
   } = {},
 ): SupabaseRecorder =>
   createSupabaseRecorder({
@@ -107,6 +109,7 @@ const seed = (
       organizations: [{ name: "Silvicom Inc" }],
       application_invitations: over.invitations ?? [],
       application_drafts: over.drafts ?? [],
+      qualification_records: over.records ?? [],
       audit_logs: [],
     },
   });
@@ -419,7 +422,37 @@ describe("the pipeline lists applicants, and derives their stage", () => {
     holder.client = rec.client;
     await call("/pipeline", { token: "admin" });
     const selected = String(rec.forTable("application_drafts")[0]!.ops.find((o) => o.method === "select")?.args[0]);
-    expect(selected).toBe("invitation_id, applying_as:payload->questionnaire->>applying_as");
+    expect(selected).toBe(
+      "invitation_id, applying_as:payload->questionnaire->>applying_as, " +
+        "cdl_state:payload->>cdl_state, additional_licences:payload->additional_licences",
+    );
+  });
+
+  /**
+   * ⚠ AF7: the route hands the board the licences the SAME draft read declares. The recorder returns
+   * rows whatever is selected, so the fixtures carry the aliased keys the path selects produce.
+   * Dropping the hand-over leaves one declared state and turns a two-state driver's MVR green.
+   */
+  it("keeps the MVR next while a state the draft declares has no record", async () => {
+    const next = async (additional: unknown[]) => {
+      rec = seed({
+        history: [],
+        auths: APPLICATION_RELEASE_ORDER.map((purpose, i) => ({
+          id: `auth-${i}`, driver_id: DRIVER, purpose, accepted_at: "2026-09-09T10:00:00Z", revokes: null,
+        })),
+        invitations: [{
+          id: "inv-1", driver_id: DRIVER, application_sent_at: null, review_requested_at: null,
+          approved_at: null, signing_opened_at: null, submitted_at: null, revoked_at: null,
+          created_at: "2026-09-09T09:00:00Z",
+        }],
+        drafts: [{ invitation_id: "inv-1", cdl_state: "IL", additional_licences: additional }],
+        records: [{ driver_id: DRIVER, kind: "mvr", created_at: "2026-09-10T00:00:00Z", jurisdiction: "IL" }],
+      });
+      holder.client = rec.client;
+      return ((await body()).applicants[0]!.checklist as { next: string | null }).next;
+    };
+    expect(await next([{ issuing_authority: "WI", number: "W-1" }])).toBe("mvr");
+    expect(await next([])).not.toBe("mvr");
   });
 
   it("goes looking for nothing when there are no applicants", async () => {

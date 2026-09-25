@@ -2,7 +2,12 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { hiringChecklist, type HiringChecklistInputs, type HiringStep } from "@silvicom/shared";
+import {
+  APPLICATION_RELEASE_ORDER,
+  hiringChecklist,
+  type HiringChecklistInputs,
+  type HiringStep,
+} from "@silvicom/shared";
 import HiringStepDrawer from "@/features/recruitment/HiringStepDrawer.vue";
 
 /**
@@ -34,7 +39,9 @@ const STUBS = {
   EmploymentHistorySection: stub("employment"),
   EmployerInquirySection: stub("inquiry"),
   PspRecordsSection: stub("psp"),
-  RecordedActPanel: stub("record"),
+  // ⚠ Declares the one prop AF7 hands it, so a test can read what the drawer passed rather than
+  // only that the panel rendered.
+  RecordedActPanel: { ...stub("record"), props: ["outstandingJurisdictions"] },
 };
 
 /** Everything the schema can see is done, so every step has a state worth opening. */
@@ -310,6 +317,31 @@ describe("what the drawer says about the step itself", () => {
     });
     await new Promise((r) => setTimeout(r, 0));
     expect(document.body.textContent).toContain("Needs: Permissions signed");
+  });
+
+  /** AF7: an MVR still owed from a declared state says which one, as the row does. */
+  it("names the state an MVR is still needed from, in the row's own words", async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes });
+    await router.push(`/recruitment/${DRIVER}`);
+    await router.isReady();
+    const owed = hiringChecklist({
+      ...COMPLETE,
+      authorizations: APPLICATION_RELEASE_ORDER.map((purpose) => ({
+        id: `${purpose}-1`, purpose, accepted_at: "2026-09-01T00:00:00Z", revokes: null,
+      })),
+      qualificationKinds: ["mvr"],
+      licenceJurisdictions: ["IL", "WI"],
+      mvrJurisdictions: ["IL"],
+    }).steps.find((s) => s.key === "mvr")!;
+    wrapper = mount(HiringStepDrawer, {
+      props: { open: true, step: owed, driverId: DRIVER, driverStatus: "applicant", invitationId: null },
+      global: { plugins: [router, VueQueryPlugin], stubs: STUBS },
+      attachTo: document.body,
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.body.textContent).toContain("Still needed from: WI");
+    // …and hands the form the same list, so its hint names what to pull.
+    expect(wrapper.findComponent({ name: "record" }).props("outstandingJurisdictions")).toEqual(["WI"]);
   });
 
   /**

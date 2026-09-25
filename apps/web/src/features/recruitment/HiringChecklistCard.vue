@@ -212,6 +212,11 @@ const artifactOf = (key: HiringStepKey) => {
             <span v-else-if="step.blockedBy" class="text-ink-muted">
               Needs: {{ stepLabel(step.blockedBy) }}
             </span>
+            <!-- AF7, §391.23(a)(1): the licensing states with no MVR on file yet, as the applicant
+                 wrote them, so the row says which record to pull rather than only that one is owed. -->
+            <span v-else-if="step.outstandingJurisdictions.length" class="text-ink-muted">
+              Still needed from: {{ step.outstandingJurisdictions.join(", ") }}
+            </span>
             <span v-else class="text-ink-muted">—</span>
           </span>
         </li>

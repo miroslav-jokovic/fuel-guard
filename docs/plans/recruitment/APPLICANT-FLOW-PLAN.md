@@ -476,6 +476,31 @@ routed around.
   which D-APP12's header names as the honest shape for a mandatory carrier question.
   *Recommendation:* **(a)**. The office is in the room when it opens signing and can ask.
 
+Added 2026-09-25 while building AF7. Neither blocks it; each is recorded rather than routed around.
+
+- **Q-AF4 · The application never asks for a licence the driver no longer holds.** §391.23(a)(1)
+  wants an MVR from every state where the driver *"held or holds"* a licence or permit in the
+  preceding three years. The application asks §391.21(b)(5)'s question instead: every
+  **unexpired** licence (`cdl_state` + `additional_licences[]`, `applicationContract.ts`). A driver
+  who moved from Indiana to Illinois in 2025 and surrendered the Indiana licence declares Illinois
+  alone, so AF7's step goes green on the Illinois MVR while Indiana is still owed. **Measured:** no
+  field in `driverApplicationObject` or the questionnaire asks for past licences (searched
+  2026-09-25). *Candidates:* (a) add *"Every other state or authority that licensed you in the last
+  three years"* to the application. The draft already feeds AF7, so the rule then covers it with no
+  further change. It is a wording and schema change, so it takes a questionnaire version bump.
+  (b) Leave it to the office: the MVR and PSP usually show a prior state, and a person reads them.
+  That keeps a federal gate on something nothing checks. *Recommendation:* **(a)**, before the
+  first applicant who has moved states is hired.
+- **Q-AF5 · One state written two ways needs two MVR rows.** AF7 compares after trim and case only,
+  as §4 ruled. A driver whose licence is `IL` and who lists an Illinois permit as `Illinois` owes
+  "IL" and "Illinois" separately, so the office must record the one pull twice. `qualification_records`
+  is append-only and a §391.51 review counts records, so that duplicate stays for good. Production
+  held no MVR rows and no `additional_licences` on 2026-09-25, so nobody is affected yet.
+  *Candidates:* (a) keep it as built. (b) Fold the 50 states + DC between name and USPS code
+  before comparing. That is a published table, not an inference, but §4 ruled against it.
+  (c) Let one MVR name several jurisdictions. *Recommendation:* **(b)**, limited to exactly that
+  table, if the owner agrees it is not inference. Otherwise (a).
+
 ---
 
 ## 8. Progress log
@@ -627,3 +652,23 @@ Append a dated line per step. Never edit §4.
   · ⚠ **Owed by the office:** walk the permissions in "FuelGuard EFS QA" alongside the AF5 walk.
   · **Next: AF7** (an MVR for every licensing state).
 
+- **2026-09-25** — **AF7 built** (this PR; no migration). An MVR is recorded with the state or
+  authority it came from (`detail.jurisdiction`, optional at the door), and the `mvr` step is done
+  only when every jurisdiction the live draft declares (`cdl_state` + `additional_licences[]`) has
+  one, compared after trim and case alone (`mvrJurisdictions.ts`). Until then the row, the drawer
+  and the form's hint say *"Still needed from: …"*. 27 of 27 mutants killed. Rendered at 390 and 1440
+  against a checklist folded by the real function. Where the build refines §4's text:
+  · **The DRAFT, not "the latest application".** The application files last, in the office, and
+    the MVR is a `beforeTravel` gate, so a rule that waited for the filing would learn about a second
+    state after the plane ticket. Since AF3 the draft holds `cdl_state` from the permissions step
+    onward. It is read by path (`DRAFT_LICENCES_SELECT`), and only the authorities leave the service.
+  · **The board folds the same rule**, from the draft read it already makes (D-HM2), so the two
+    surfaces cannot disagree about a two-state driver.
+  · **An MVR recorded without a jurisdiction covers no declared state.** Reading it as the licence's
+    state would be the inference §4 refuses. Production held **no** MVR rows on 2026-09-25, so no
+    step changed colour. The office's form requires the field for an MVR; the API admits it blank,
+    so a pre-AF7 bundle still files.
+  · §7 gains **Q-AF4** (the application never asks for a licence that has since been surrendered,
+    and §391.23(a)(1) says "held or holds") and **Q-AF5** (one state written two ways costs two
+    append-only rows). **Q-AF4 is the one that matters:** until it is answered, a driver who moved
+    states can go green on the current state's MVR alone.

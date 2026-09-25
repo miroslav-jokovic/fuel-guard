@@ -134,4 +134,15 @@ describe("hiringEvidenceDetail", () => {
     expect(hiringEvidenceDetail("drug_test", "user-1").hiring_step).toBe("drug_test");
     expect(hiringEvidenceDetail("clearinghouse", "user-1").hiring_step).toBe("clearinghouse");
   });
+
+  it("writes an MVR's jurisdiction, trimmed, and leaves the key off when none was given (AF7)", () => {
+    expect(hiringEvidenceDetail("mvr", "user-1", "  IL ").jurisdiction).toBe("IL");
+    expect("jurisdiction" in hiringEvidenceDetail("mvr", "user-1", "   ")).toBe(false);
+    expect("jurisdiction" in hiringEvidenceDetail("mvr", "user-1", null)).toBe(false);
+  });
+
+  it("never writes a jurisdiction onto a drug test or a Clearinghouse query", () => {
+    expect("jurisdiction" in hiringEvidenceDetail("drug_test", "user-1", "IL")).toBe(false);
+    expect("jurisdiction" in hiringEvidenceDetail("clearinghouse", "user-1", "IL")).toBe(false);
+  });
 });

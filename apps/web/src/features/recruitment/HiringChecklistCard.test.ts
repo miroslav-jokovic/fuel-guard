@@ -117,6 +117,21 @@ describe("a row answers D-HUI3's three questions", () => {
     const wrapper = await mountWith(JUST_INVITED);
     expect(wrapper.text()).toContain("Needs: Permissions signed");
   });
+
+  /**
+   * ⚠ AF7: a driver licensed in two states with one state's MVR on file. The row must say WHICH
+   * record to pull, and must not render the green step's artifact while it is still owed.
+   */
+  it("names the licensing state an MVR is still needed from", async () => {
+    const wrapper = await mountWith({
+      ...COMPLETE,
+      licenceJurisdictions: ["IL", "Indiana BMV"],
+      mvrJurisdictions: ["IL"],
+    });
+    const row = wrapper.findAll("li").find((li) => li.text().includes("Driving record"))!;
+    expect(row.text()).toContain("Still needed from: Indiana BMV");
+    expect(row.text()).not.toContain("MVR report");
+  });
 });
 
 describe("state is never colour alone (D-HUI4)", () => {

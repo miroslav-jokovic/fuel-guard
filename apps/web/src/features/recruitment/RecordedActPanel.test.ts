@@ -30,7 +30,7 @@ const RECORDS = [
     performed_by: "SambaSafety",
     reference: "MVR-771",
     document_id: "doc-1",
-    detail: { source: "recorded_act" },
+    detail: { source: "recorded_act", jurisdiction: "Indiana BMV" },
     created_at: "2026-09-10T00:00:00Z",
   },
   // A different kind on the same driver — the panel shows its own act and nothing else.
@@ -104,9 +104,9 @@ vi.mock("@/stores/session", () => ({
   }),
 }));
 
-const mountPanel = (step: HiringRecordedActStep, done = false) =>
+const mountPanel = (step: HiringRecordedActStep, done = false, outstandingJurisdictions: string[] = []) =>
   mount(RecordedActPanel, {
-    props: { driverId: "00000000-0000-4000-8000-0000000000d1", step, done },
+    props: { driverId: "00000000-0000-4000-8000-0000000000d1", step, done, outstandingJurisdictions },
     global: { plugins: [VueQueryPlugin] },
   });
 
@@ -171,6 +171,12 @@ describe("what is already on file", () => {
    * derived kind from the step key. A mutation that returned the step key survived this whole file
    * until this test existed.
    */
+  it("names the state each filed MVR came from (AF7)", async () => {
+    const w = mountPanel("mvr");
+    await settle(w);
+    expect(w.text()).toContain("Indiana BMV");
+  });
+
   it("reads the Clearinghouse history under the kind the catalogue names, not the step key", async () => {
     const w = mountPanel("clearinghouse");
     await settle(w);
@@ -197,6 +203,36 @@ describe("recording one", () => {
    * composed server-side from this segment. A test asserting only that "something was posted" would
    * go green against the door that cannot serve the role the board was built for.
    */
+  /**
+   * ⚠ AF7: an MVR with no state covers no declared licence, so saving one would file a row and leave
+   * the step as open as it was. The hint names what is still needed as written, because the fold
+   * compares after trim and case only.
+   */
+  it("asks an MVR which state it came from, and will not save one without it", async () => {
+    const w = mountPanel("mvr", false, ["IL", "Indiana BMV"]);
+    await settle(w);
+    expect(w.text()).toContain("Still needed: IL, Indiana BMV.");
+    setDate(w, "2026-09-12");
+    await settle(w);
+    expect(button(w, "Record it")?.attributes("disabled")).toBeDefined();
+
+    await w.find('input[maxlength="60"]').setValue("  IL ");
+    await button(w, "Record it")!.trigger("click");
+    await settle(w);
+    expect(calls.list.at(-1)!.body).toMatchObject({ occurred_on: "2026-09-12", jurisdiction: "IL" });
+  });
+
+  it("asks no state for the other two acts, and sends none", async () => {
+    const w = mountPanel("clearinghouse");
+    await settle(w);
+    expect(w.find('input[maxlength="60"]').exists()).toBe(false);
+    setDate(w, "2026-09-12");
+    await settle(w);
+    await button(w, "Record it")!.trigger("click");
+    await settle(w);
+    expect(calls.list.at(-1)!.body).toMatchObject({ jurisdiction: null });
+  });
+
   it("files through the recruitment door, naming the step in the path", async () => {
     const w = mountPanel("clearinghouse");
     await settle(w);
@@ -235,6 +271,7 @@ describe("recording one", () => {
     });
     await settle(w as ReturnType<typeof mountPanel>);
     setDate(w as ReturnType<typeof mountPanel>, "2026-09-12");
+    await w.find('input[maxlength="60"]').setValue("IL");
     await settle(w as ReturnType<typeof mountPanel>);
     await button(w as ReturnType<typeof mountPanel>, "Record it")!.trigger("click");
     await settle(w as ReturnType<typeof mountPanel>);
@@ -248,6 +285,7 @@ describe("recording one", () => {
     const w = mountPanel("mvr");
     await settle(w);
     setDate(w, "2026-09-12");
+    await w.find('input[maxlength="60"]').setValue("IL");
     await settle(w);
     await button(w, "Record it")!.trigger("click");
     await settle(w);

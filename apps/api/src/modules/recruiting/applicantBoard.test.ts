@@ -57,6 +57,7 @@ const applicant = (n: number, over: Partial<BoardApplicantInput> = {}): BoardApp
   },
   hasDraft: true,
   applyingAs: null,
+  licenceJurisdictions: [],
   authorizations: authRows(driverId(n)),
   decided: false,
   ...over,
@@ -222,6 +223,40 @@ describe("the board row is the fold's answer, projected", () => {
    * the answer its caller read beside the draft flag — without it, this row would lead with
    * "Application signed" for ever, one stop short of the paper's twenty-one.
    */
+  /**
+   * ⚠ AF7: the board folds the MVR's jurisdiction from the record's `detail` BY PATH and the declared
+   * licences the route hands over, so it cannot call a two-state driver finished on one record while
+   * the applicant's own page says otherwise (D-HM2).
+   */
+  it("keeps the MVR as the office's move while a declared state has no record", async () => {
+    const others = ["clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report"];
+    const board = async (mvrStates: string[]) => {
+      const rec = seed({
+        qualification_records: [
+          ...others.map((kind) => ({ driver_id: driverId(1), kind, created_at: "2026-09-06T00:00:00Z" })),
+          ...mvrStates.map((jurisdiction) => ({
+            driver_id: driverId(1), kind: "mvr", created_at: "2026-09-06T00:00:00Z",
+            detail: { source: "recorded_act", jurisdiction },
+          })),
+        ],
+        application_packet_marks: driverPlacementIds(null).map((placement_id, i) => ({
+          invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `m${i}`, placement_id,
+        })),
+        employer_inquiries: ["emp-answered", "emp-open"].map((employment_id) => ({
+          driver_id: driverId(1), employment_id, kind: "safety_performance",
+          contacted_on: "2026-09-05", outcome: "responded",
+        })),
+      });
+      const applicants = [applicant(1, { hiredAt: "2026-09-08", licenceJurisdictions: ["IL", "WI"] })];
+      return (await boardChecklists(rec.client, ORG, applicants, NOW)).get(driverId(1))!;
+    };
+
+    const short = await board(["IL"]);
+    expect(short.next).toBe("mvr");
+    expect(short.waiting_on).toBe("us");
+    expect((await board(["IL", "wi"])).next).toBeNull();
+  });
+
   it("counts a company driver's packet against their own walk", async () => {
     const kinds = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report"];
     const rec = seed({
