@@ -53,6 +53,20 @@ export type QuestionKind = (typeof QUESTION_KINDS)[number];
 /** A table's columns are scalar; a table inside a table is a form nobody fills in on a phone. */
 export type ColumnKind = Exclude<QuestionKind, "table" | "longtext">;
 
+/**
+ * One answer a `select` stores under a key rather than under the words the applicant read.
+ *
+ * ⚠ **Only where the answer DECIDES something** (Q-HM14). Every other `select` stores the option's
+ * own words, because it is displayed beside its question and never matched on — and options may be
+ * reworded between versions. An answer that chooses what the packet prints and which lines the
+ * applicant signs is matched on by code, so its stored value is a key that cannot be reworded, and
+ * the label is what a person sees.
+ */
+export interface QuestionChoice {
+  value: string;
+  label: string;
+}
+
 export interface QuestionColumn {
   id: string;
   label: string;
@@ -88,8 +102,10 @@ export interface QuestionnaireQuestion {
   screen?: ApplicationSection;
   /** Shown under the field. Where the packet explains itself, the explanation comes across. */
   hint?: string;
-  /** Required for `select`. */
+  /** Required for `select`, unless it has `choices`. */
   options?: readonly string[];
+  /** A `select` whose answer is a key (`QuestionChoice`). Narrowed by the schema, unlike `options`. */
+  choices?: readonly QuestionChoice[];
   /** Required for `table`. */
   columns?: readonly QuestionColumn[];
   /** `table` only — how many rows the driver is asked for. The packet asks for three references. */
@@ -257,6 +273,51 @@ export const SILVICOM_DRIVER_V1: QuestionnaireDefinition = {
 };
 
 /**
+ * What the applicant is applying as (Q-HM14, ruled (b) on 2026-09-24).
+ *
+ * ── WHY THIS ONE ANSWER IS STRUCTURED ─────────────────────────────────────────────────────────
+ * The carrier engages company drivers and owner-operators, and its packet asks which one twice
+ * without a question to answer it from: page 22's `This test is required for:` box and page 31's
+ * owner-operator block. The nearest thing held before this was the free-text `position` answer, and
+ * choosing a box on a federal form from words somebody typed would be inference printed onto it.
+ * Memorandum Q14 asks counsel whether the two groups need different packets, and **whatever counsel
+ * answers, the product needs the fact per applicant.**
+ *
+ * ⚠ **The one questionnaire answer that DECIDES something.** D-APP12 still holds for it: it is
+ * projected onto no table and creates no DQF item. What it decides is what the packet prints and
+ * which lines the applicant signs (`driverPlacements`), both of which are derivatives of the payload
+ * it is stored in.
+ */
+export const APPLYING_AS = ["company_driver", "owner_operator"] as const;
+export type ApplyingAs = (typeof APPLYING_AS)[number];
+export const APPLYING_AS_QUESTION_ID = "applying_as";
+
+/**
+ * Version 2 adds `applying_as` (Q-HM14) and changes nothing else. The set of questions changed, so
+ * the version did — a v1 answer set is still read beside v1's questions (`QUESTIONNAIRES`).
+ */
+export const SILVICOM_DRIVER_V2: QuestionnaireDefinition = {
+  ...SILVICOM_DRIVER_V1,
+  version: "v2",
+  questions: [
+    SILVICOM_DRIVER_V1.questions[0]!,
+    {
+      id: APPLYING_AS_QUESTION_ID,
+      // Beside `position`, where the carrier's page 1 asks what the applicant is applying for.
+      screen: "identity",
+      label: "Are you applying as a company driver or as an owner-operator?",
+      kind: "select",
+      choices: [
+        { value: "company_driver", label: "Company driver" },
+        { value: "owner_operator", label: "Owner-operator" },
+      ],
+      hint: "Choose owner-operator if you will drive a truck you own or lease, under contract with Silvicom.",
+    },
+    ...SILVICOM_DRIVER_V1.questions.slice(1),
+  ],
+};
+
+/**
  * The definition an applicant is served.
  *
  * ⚠ One carrier, one definition, and NO org column — deliberately. A9 says definitions are
@@ -265,7 +326,7 @@ export const SILVICOM_DRIVER_V1: QuestionnaireDefinition = {
  * as a feature and is really an unused join. The day a second carrier's form differs, the selection
  * becomes a column on `organizations` and this function grows an argument.
  */
-export const questionnaireForApplicant = (): QuestionnaireDefinition => SILVICOM_DRIVER_V1;
+export const questionnaireForApplicant = (): QuestionnaireDefinition => SILVICOM_DRIVER_V2;
 
 /**
  * The questions asked on one screen, in the definition's own order.
@@ -284,6 +345,7 @@ export const questionsForScreen = (
 /** Every definition that has ever been served, by `id@version` — a stored answer names one of these. */
 export const QUESTIONNAIRES: Record<string, QuestionnaireDefinition> = {
   [`${SILVICOM_DRIVER_V1.id}@${SILVICOM_DRIVER_V1.version}`]: SILVICOM_DRIVER_V1,
+  [`${SILVICOM_DRIVER_V2.id}@${SILVICOM_DRIVER_V2.version}`]: SILVICOM_DRIVER_V2,
 };
 
 export const questionnaireRef = (def: QuestionnaireDefinition): string => `${def.id}@${def.version}`;
@@ -319,6 +381,13 @@ function answerSchema(q: QuestionnaireQuestion): z.ZodTypeAny {
       return z.array(z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])))
         .max(q.maxRows ?? 20)
         .nullish();
+    case "select":
+      // ⚠ A keyed `select` IS narrowed: code matches on its value, so a value outside the keys would
+      // be read as no answer by `applyingAsOf` while sitting in a filed payload looking like one.
+      if (q.choices) {
+        return z.enum(q.choices.map((c) => c.value) as [string, ...string[]]).nullish();
+      }
+      return z.string().max(500).nullish();
     default:
       // text, select and date are all stored as strings. `select` is NOT narrowed to its options
       // here: the options may change between versions, and a stored answer from an older definition
@@ -336,6 +405,52 @@ export function questionnaireAnswersSchema(def: QuestionnaireDefinition): z.ZodT
   // since gained a question must still parse, and the extra key is displayed beside nothing and
   // therefore harms nothing.
   return z.object(shape).partial();
+}
+
+/**
+ * The answers inside a stored payload, DRAFT OR FILED.
+ *
+ * ⚠ **Two keys, one set of answers.** A draft holds them as `questionnaire`, the form's own shape; a
+ * filed application holds `questionnaire_answers`, written at submit beside the definition's ref
+ * (`applicationContract.ts`). The packet is rendered from both — the office's preview and the reading
+ * copy the applicant signs beside are drawn from the DRAFT — and a reader of one key only prints the
+ * page the applicant signs differently from the page that is filed.
+ */
+export function questionnaireAnswersOf(payload: unknown): Record<string, unknown> {
+  const p = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
+  for (const key of ["questionnaire_answers", "questionnaire"]) {
+    const v = p[key];
+    if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
+  }
+  return {};
+}
+
+/**
+ * What a stored payload says the applicant is applying as, or null.
+ *
+ * ⚠ **Null is a real answer and it means the PAPER** (Q-HM14). A payload filed before the question
+ * existed has none, `driver_applications` is append-only so it never will, and the questionnaire
+ * blocks nothing so a new applicant may leave it blank. Every consumer reads null as the packet as
+ * the carrier printed it — nothing withdrawn, no reason ticked — because choosing either value for
+ * somebody who never gave one would be inference printed onto a signed document.
+ */
+export function applyingAsOf(payload: unknown): ApplyingAs | null {
+  return asApplyingAs(questionnaireAnswersOf(payload)[APPLYING_AS_QUESTION_ID]);
+}
+
+/** One stored value narrowed to the two keys — for a reader that selected the key alone. */
+export const asApplyingAs = (v: unknown): ApplyingAs | null =>
+  (APPLYING_AS as readonly unknown[]).includes(v) ? (v as ApplyingAs) : null;
+
+/**
+ * A stored answer as a person reads it: a keyed choice's LABEL, and anything else unchanged.
+ *
+ * ⚠ Every screen and document that shows an answer goes through this, because a keyed answer shown
+ * raw is `owner_operator` printed on a qualification file. Unchanged for everything else, so the
+ * caller's own rules for booleans and blanks still apply after it.
+ */
+export function choiceLabel(q: QuestionnaireQuestion, raw: unknown): unknown {
+  return q.choices?.find((c) => c.value === raw)?.label ?? raw;
 }
 
 /** What a reader may see: everything except the reserved EEO key. */

@@ -1,4 +1,5 @@
 import {
+  choiceLabel,
   questionnaireByRef,
   readableAnswers,
   type QuestionnaireQuestion,
@@ -99,7 +100,7 @@ export function questionnaireSection(doc: PDFKit.PDFDocument, input: Application
       questionnaireTable(doc, question, value);
       continue;
     }
-    field(doc, question.label, unanswered(value) ? NOT_ANSWERED : scalarAnswer(value));
+    field(doc, question.label, unanswered(value) ? NOT_ANSWERED : scalarAnswer(choiceLabel(question, value)));
   }
 }
 

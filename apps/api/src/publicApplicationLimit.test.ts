@@ -91,7 +91,7 @@ describe("the applicant's bucket", () => {
     for (let i = 0; i < PACKET_CEREMONY_LIMIT; i += 1) {
       codes.push((await mark(baseUrl, TOKEN)).status);
     }
-    expect(PACKET_CEREMONY_LIMIT).toBeGreaterThan(2 * packetDriverMarkCount());
+    expect(PACKET_CEREMONY_LIMIT).toBeGreaterThan(2 * packetDriverMarkCount(null));
     expect(codes.some((c) => c === 429)).toBe(false);
     expect((await mark(baseUrl, TOKEN)).status).toBe(429);
   });

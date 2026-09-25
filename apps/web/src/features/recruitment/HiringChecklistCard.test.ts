@@ -14,7 +14,7 @@ import HiringChecklistCard from "@/features/recruitment/HiringChecklistCard.vue"
  * A hand-built `{ steps: [...] }` literal would let this file keep passing while the fold and the
  * component disagreed about what a row means — which is the whole failure D-HM2 exists to prevent,
  * asserted on the wrong side of the seam. It also means the fixtures are built from
- * `APPLICATION_RELEASE_ORDER` and `packetDriverMarkCount()` rather than from `4` and `22`, so they
+ * `APPLICATION_RELEASE_ORDER` and `packetDriverMarkCount(null)` rather than from `4` and `22`, so they
  * cannot pass through the change they exist to catch.
  */
 
@@ -58,7 +58,7 @@ const COMPLETE: HiringChecklistInputs = {
     "mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test",
   ],
   psp: { requested: true, reportReceived: true },
-  packetMarks: packetDriverMarkCount(),
+  packetMarks: packetDriverMarkCount(null),
   hiredAt: "2026-09-10",
 };
 

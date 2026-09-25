@@ -103,7 +103,7 @@ export function publicApplicationRouter(): Router {
       // What the office corrected while it had it (F4, D-AX12). The driver is about to certify that
       // every entry is true — they are owed the changes somebody else made to their statement.
       const edits = await applicantVisibleEdits(admin, invitation.org_id, invitation.id);
-      // The twenty-two places on the carrier's packet, in its own page order, each saying whether
+      // THIS applicant's places on the carrier's packet (Q-HM14: a company driver has no p31b), in its own page order, each saying whether
       // this link has collected it yet (P5). Served on every load rather than behind the approval,
       // so a driver who opens the link early sees what is still coming instead of an empty screen.
       const packet = await packetStops(admin, invitation.org_id, invitation.id);
@@ -394,6 +394,7 @@ export function publicApplicationRouter(): Router {
                 || result.code === "already_submitted"
                 || result.code === "packet_mark_already_made"
                 || result.code === "packet_mark_name_changed"
+                || result.code === "packet_mark_not_their_capacity"
                 || result.code === "esign_consent_required"
               ? 409
               // A stop that is not the driver's is a bad request rather than a conflict: nothing

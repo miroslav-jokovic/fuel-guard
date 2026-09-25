@@ -439,6 +439,43 @@ None blocking. The three rulings in §1.2 settled everything this plan needed fr
 counsel questions in `COUNSEL-REVIEW-PACKAGE.md` do not block any step here. They change wording,
 and wording changes are version bumps.
 
+Added 2026-09-24 while building Q-HM14. None of them blocks it; each is recorded rather than
+routed around.
+
+- **Q-AF1 · Page 22 already answers "Pre-Employment Qualification" for everybody.** The carrier's
+  paper prints `yes` on that rule itself (a text run at x207.6 in `application-11.pdf`, found while
+  measuring page 22; no plan recorded it before). So Q-HM14's derivation can only ADD the
+  owner-operator's reason. A company driver's page 22 reads the carrier's `yes` alone, which is the
+  ruling. An owner-operator's page reads `yes` on BOTH lines: the carrier's, and ours on
+  `Pre-Qualification for Contracting a Driver/ Owner Operator`.
+  *Candidates:* (a) keep it as built. Both reasons read as true for an owner-operator, because the
+  test is also the pre-employment test before they first drive for the carrier. (b) The owner
+  re-exports `APPLICATION.xlsx` without the printed `yes`; the renderer then derives both lines, and
+  `packetSigningGeometry.test.ts`'s *"carries the carrier's own printed yes"* fails by name to say
+  so. (c) Paint over the carrier's `yes` for owner-operators. **Rejected:** it edits the carrier's
+  paper, which D-PKT11 makes the text authority. *Recommendation:* **(a) now, (b) if the owner wants
+  one reason per page.** ⚠ Freeze-bound for owner-operators: every owner-operator packet filed
+  before a re-export keeps both.
+- **Q-AF2 · The filed packet cannot be drawn for a name outside Windows-1252.** Pre-existing and
+  not caused by Q-HM14. Found rendering a long-name fixture: `Szczepańska` throws
+  `WinAnsi cannot encode "ń"` in `packetFit.ts`'s `fitGroupSize`, because the pdf-lib overlay
+  draws with a standard font and never goes through `lib/winAnsi.ts`. `ń ł č ć ő ș` are all outside
+  the code page; `š ž` are inside it. **Measured:** the render throws. **Not measured:** what
+  `submitApplication` does when `ensureApplicationPdf` throws after the application has filed.
+  *Candidates:* (a) fold every overlay value through `winAnsi()`. It is lossy: the name on the
+  federal form would then differ from the name the applicant typed. (b) Embed a Unicode font in the
+  overlay (pdf-lib + fontkit). *Recommendation:* **(b)**, as its own step and before the first
+  applicant with such a name files. The carrier's drivers make that likely.
+- **Q-AF3 · Nothing warns the office when `applying_as` is unanswered.** The questionnaire blocks
+  nothing (D-APP12), and an unanswered question means the packet as printed. So an applicant who
+  skipped the question is walked to `p31b` and signs page 31 as the owner-operator. The office sees
+  the answer, or its absence, in the review drawer, but Open signing does not mention it:
+  `OPEN_SIGNING_WARNS_ON` is a list of checklist steps, and this is not one.
+  *Candidates:* (a) Open signing warns on a missing `applying_as`. That widens its warnings from
+  step keys to a small union. (b) Make the answer required through `APPLICATION_CROSS_FIELD_RULES`,
+  which D-APP12's header names as the honest shape for a mandatory carrier question.
+  *Recommendation:* **(a)**. The office is in the room when it opens signing and can ask.
+
 ---
 
 ## 8. Progress log

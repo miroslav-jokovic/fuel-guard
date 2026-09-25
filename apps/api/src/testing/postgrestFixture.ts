@@ -45,7 +45,14 @@ export function postgrestFixture(rows: readonly FixtureRow[]): (q: RecordedQuery
     const select = q.ops.find((o) => o.method === "select")?.args[0];
     if (typeof select === "string" && select !== "*") {
       const cols = select.split(",").map((c) => c.trim());
-      out = out.map((row) => Object.fromEntries(cols.filter((c) => c in row).map((c) => [c, row[c]])));
+      out = out.map((row) =>
+        Object.fromEntries(
+          cols.flatMap((c) => {
+            const picked = project(row, c);
+            return picked ? [picked] : [];
+          }),
+        ),
+      );
     }
 
     const order = q.ops.find((o) => o.method === "order");
@@ -59,6 +66,31 @@ export function postgrestFixture(rows: readonly FixtureRow[]): (q: RecordedQuery
     if (limit) out = out.slice(0, Number(limit.args[0]));
     return out;
   };
+}
+
+/**
+ * One select item — `col`, or PostgREST's JSON path `alias:col->key->>key` (Q-HM14 reads one key of
+ * a draft that way, so the payload itself never leaves the database).
+ *
+ * ⚠ A path is EVALUATED against the fixture row's real jsonb rather than looked up by its alias, so a
+ * fixture holds `payload: { questionnaire: { applying_as } }` exactly as the table does, and a service
+ * whose path names the wrong key gets null — which is what PostgREST would hand it. `->>` returns
+ * text; a missing key anywhere on the path is null, never a throw.
+ */
+function project(row: FixtureRow, item: string): [string, unknown] | null {
+  const [alias, expr] = item.includes(":") ? item.split(":", 2) as [string, string] : [null, item];
+  const parts = expr.split(/(->>|->)/);
+  const col = parts[0]!;
+  if (parts.length === 1) return col in row ? [alias ?? col, row[col]] : null;
+  if (!(col in row)) return null;
+  let value: unknown = row[col];
+  let key = col;
+  for (let i = 1; i < parts.length; i += 2) {
+    key = parts[i + 1]!;
+    value = value && typeof value === "object" ? (value as Record<string, unknown>)[key] ?? null : null;
+    if (parts[i] === "->>" && value !== null) value = typeof value === "string" ? value : JSON.stringify(value);
+  }
+  return [alias ?? key, value];
 }
 
 /**

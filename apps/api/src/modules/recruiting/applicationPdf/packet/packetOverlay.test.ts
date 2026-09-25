@@ -55,10 +55,10 @@ function crc32(buf: Buffer): number {
 
 /** The places that take a signature — the other three take initials. */
 const signatureIds = new Set(
-  driverPlacements().filter((p) => p.mark === "signature").map((p) => p.id),
+  driverPlacements(null).filter((p) => p.mark === "signature").map((p) => p.id),
 );
 const allMarks = (signedName = NAME) =>
-  driverPlacementIds().map((placementId) => ({ placementId, signedName }));
+  driverPlacementIds(null).map((placementId) => ({ placementId, signedName }));
 
 /**
  * Every IMAGE each page of the produced document carries, as `width×height` (Q-HUI14).
@@ -130,7 +130,7 @@ describe("drawing the driver's marks on the carrier's packet", () => {
 
   it("puts the adopted name on every one of the twenty-two pages a mark belongs to", async () => {
     const pages = await readBack(await renderPacketOverlay({ marks: allMarks() }));
-    for (const id of driverPlacementIds()) {
+    for (const id of driverPlacementIds(null)) {
       const line = markLineFor(id)!;
       expect(pageText(pages[line.page - 1]!), `${id} on p${line.page}`).toContain(NAME);
     }
@@ -150,7 +150,7 @@ describe("drawing the driver's marks on the carrier's packet", () => {
 
   it("marks no page the driver does not sign", async () => {
     const pages = await readBack(await renderPacketOverlay({ marks: allMarks() }));
-    const signed = new Set(driverPlacementIds().map((id) => markLineFor(id)!.page));
+    const signed = new Set(driverPlacementIds(null).map((id) => markLineFor(id)!.page));
     for (const p of pages) {
       if (signed.has(p.page)) continue;
       expect(pageText(p), `p${p.page} carries no mark`).not.toContain(NAME);
@@ -259,11 +259,11 @@ describe("drawing the driver's marks on the carrier's packet", () => {
 describe("a drawn mark goes on the signature lines and nowhere else", () => {
   const INITIALS = "QX";
   /** The three the carrier captioned `Initials` — `p05`, `p06`, `p09`, and they are pages 5, 6, 9. */
-  const initialsPlacements = driverPlacements().filter((p) => p.mark === "initials");
+  const initialsPlacements = driverPlacements(null).filter((p) => p.mark === "initials");
 
   /** What the ceremony sends: the initials on the three, the name on the other nineteen. */
   const mixedMarks = () =>
-    driverPlacements().map((p) => ({
+    driverPlacements(null).map((p) => ({
       placementId: p.id,
       signedName: p.mark === "initials" ? INITIALS : NAME,
     }));
@@ -382,7 +382,7 @@ describe("a drawn mark goes on the signature lines and nowhere else", () => {
         initialsMark: initialsPng(),
       }),
     );
-    for (const p of driverPlacements()) {
+    for (const p of driverPlacements(null)) {
       const onPage = images.get(p.page) ?? [];
       const wanted = p.mark === "initials" ? INITIALS_PNG_SIZE : SIGNATURE_PNG_SIZE;
       const forbidden = p.mark === "initials" ? SIGNATURE_PNG_SIZE : INITIALS_PNG_SIZE;
@@ -432,7 +432,7 @@ describe("a drawn mark goes on the signature lines and nowhere else", () => {
       expect(pageText(pages[p.page - 1]!), `page ${p.page} (${p.id})`).toContain(INITIALS);
     }
     const images = await imagesByPage(pdf);
-    const signaturePlacement = driverPlacements().find((p) => p.mark === "signature")!;
+    const signaturePlacement = driverPlacements(null).find((p) => p.mark === "signature")!;
     expect(images.get(signaturePlacement.page) ?? []).toContain(SIGNATURE_PNG_SIZE);
   });
 
@@ -447,7 +447,7 @@ describe("a drawn mark goes on the signature lines and nowhere else", () => {
     // p20's page, a signature line — the same page the fallback test reads.
     expect(pageText(pages[19]!)).not.toContain(NAME);
     // ⚠ And the whole document, so this cannot pass by one page happening to be blank.
-    const signaturePages = driverPlacements().filter((p) => p.mark === "signature");
+    const signaturePages = driverPlacements(null).filter((p) => p.mark === "signature");
     for (const p of signaturePages) {
       expect(pageText(pages[p.page - 1]!), `page ${p.page} (${p.id})`).not.toContain(NAME);
     }

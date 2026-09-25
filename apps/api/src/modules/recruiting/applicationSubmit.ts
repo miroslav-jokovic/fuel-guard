@@ -4,6 +4,8 @@ import {
   applicationWordingIsDraft,
   planApplicationIntake,
   type ApplicationSubmit,
+  type ApplyingAs,
+  applyingAsOf,
   driverPlacementIds,
   packetDriverMarkCount,
 } from "@silvicom/shared";
@@ -139,6 +141,7 @@ export async function packetIsSignedThrough(
   orgId: string,
   invitationId: string,
   signedName: string,
+  applyingAs: ApplyingAs | null,
 ): Promise<IntakeError | null> {
   const { data } = await admin
     .from("application_packet_marks")
@@ -151,9 +154,9 @@ export async function packetIsSignedThrough(
   // rows would still be the wrong question, because what has to be true is that every PLACE carries
   // a mark, and a count is only a proxy for that while nothing can be marked twice.
   const marked = new Set(rows.map((r) => r.placement_id));
-  const missing = driverPlacementIds().filter((id) => !marked.has(id));
+  const missing = driverPlacementIds(applyingAs).filter((id) => !marked.has(id));
   if (missing.length > 0) return PACKET_NOT_SIGNED;
-  if (marked.size < packetDriverMarkCount()) return PACKET_NOT_SIGNED;
+  if (marked.size < packetDriverMarkCount(applyingAs)) return PACKET_NOT_SIGNED;
 
   /**
    * The SIGNATURE the driver adopted, which `record_packet_mark` has pinned to one value per link
@@ -222,8 +225,10 @@ export async function submitApplication(
    * `application_packet_marks` recorded. Deriving beats restating: the name on the filed document and
    * the name on the pages are now the same fact, and the database is what says so.
    */
+  // ⚠ `applying_as` from the payload being FILED, never the draft (Q-HM14): the lines this demands
+  // and the lines the overlay prints are then decided by the one document that goes into the file.
   const packet = await packetIsSignedThrough(
-    admin, invitation.org_id, invitation.id, body.application.signed_name,
+    admin, invitation.org_id, invitation.id, body.application.signed_name, applyingAsOf(body.application),
   );
   if (packet) return packet;
 

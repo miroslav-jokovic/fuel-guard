@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  asApplyingAs,
   countedPacketMarks,
   driverInquiryQueue,
   hiringChecklist,
+  type ApplyingAs,
   type AuthorizationRow,
   type HiringChecklist,
   type HiringChecklistInputs,
@@ -10,6 +12,7 @@ import {
   type QueueEmployment,
 } from "@silvicom/shared";
 import { hasPspRequest } from "../psp/index.js";
+import { DRAFT_APPLYING_AS_SELECT } from "./applicantApplyingAs.js";
 
 /**
  * Gather the evidence one applicant's checklist folds over (B3, `HIRING-MODULE-PLAN.md` §9).
@@ -93,14 +96,14 @@ export async function applicantChecklist(
     .limit(1);
   const invitation = ((invites ?? []) as InvitationRow[])[0] ?? null;
 
-  const [authorizations, kinds, pspRequested, packetMarks, hasDraft, investigation] = await Promise.all([
+  const [authorizations, kinds, pspRequested, markIds, draft, investigation] = await Promise.all([
     readAuthorizations(admin, orgId, driverId),
     readQualificationKinds(admin, orgId, driverId),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
     // (D-SEP1) and `lint:table-access` refuses a raw read from here — correctly, and it caught this.
     hasPspRequest(admin, orgId, driverId),
-    readPacketMarks(admin, orgId, invitation?.id ?? null),
-    readHasDraft(admin, orgId, invitation?.id ?? null),
+    readPacketMarkIds(admin, orgId, invitation?.id ?? null),
+    readDraftFacts(admin, orgId, invitation?.id ?? null),
     readInvestigation(admin, orgId, driverId, (driver as { hire_date: string | null }).hire_date, today),
   ]);
 
@@ -115,7 +118,7 @@ export async function applicantChecklist(
           submittedAt: invitation.submitted_at,
         }
       : null,
-    hasDraft,
+    hasDraft: draft.exists,
     authorizations,
     qualificationKinds: kinds,
     psp: {
@@ -126,7 +129,11 @@ export async function applicantChecklist(
       // ordered one does. D-HM6's "recorded acts, not integrations", read from the evidence side.
       reportReceived: kinds.includes("psp_report"),
     },
-    packetMarks,
+    // ⚠ Marks at THIS applicant's stops (Q-HM14) — a company driver's walk is one shorter — and never
+    // the row count (L-1): a mark on a withdrawn line is still a row, and counting it would turn
+    // "Application signed" green one real stop short.
+    packetMarks: countedPacketMarks(markIds, draft.applyingAs),
+    applyingAs: draft.applyingAs,
     investigation,
     hiredAt: (driver as { hire_date: string | null }).hire_date,
   };
@@ -265,40 +272,40 @@ async function readQualificationKinds(
  * driver-keyed count would add last year's twenty-two to this year's none and report a packet signed
  * that nobody has opened.
  */
-async function readPacketMarks(
+async function readPacketMarkIds(
   admin: SupabaseClient,
   orgId: string,
   invitationId: string | null,
-): Promise<number> {
-  if (!invitationId) return 0;
+): Promise<string[]> {
+  if (!invitationId) return [];
   const { data } = await admin
     .from("application_packet_marks")
     .select("placement_id")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId);
-  // ⚠ Marks at the CURRENT stops, never the row count (L-1): a mark on a withdrawn line is still a
-  // row, and counting it would turn "Application signed" green one real stop short.
-  return countedPacketMarks(((data ?? []) as Array<{ placement_id: string }>).map((r) => r.placement_id));
+  return ((data ?? []) as Array<{ placement_id: string }>).map((r) => r.placement_id);
 }
 
 /**
- * Has the applicant typed anything (F5)?
+ * Has the applicant typed anything (F5), and what did they say they are applying as (Q-HM14)?
  *
- * ⚠ The row's existence, never its payload. The answer needed is one boolean; selecting the draft
- * would pull a date of birth and a licence number into a response about progress, and A11's rule is
- * that answers have their own surface.
+ * ⚠ The row's existence and ONE key, never its payload. Selecting the draft would pull a date of
+ * birth and a licence number into a response about progress, and A11's rule is that answers have
+ * their own surface. `applying_as` is read because it decides how many places the packet has — and
+ * by path (`DRAFT_APPLYING_AS_SELECT`), so nothing else in the payload leaves the database.
  */
-async function readHasDraft(
+async function readDraftFacts(
   admin: SupabaseClient,
   orgId: string,
   invitationId: string | null,
-): Promise<boolean> {
-  if (!invitationId) return false;
+): Promise<{ exists: boolean; applyingAs: ApplyingAs | null }> {
+  if (!invitationId) return { exists: false, applyingAs: null };
   const { data } = await admin
     .from("application_drafts")
-    .select("invitation_id")
+    .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}`)
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .limit(1);
-  return ((data ?? []) as unknown[]).length > 0;
+  const [row] = (data ?? []) as Array<{ applying_as?: unknown }>;
+  return { exists: Boolean(row), applyingAs: asApplyingAs(row?.applying_as) };
 }

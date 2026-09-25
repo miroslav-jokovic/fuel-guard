@@ -515,6 +515,22 @@ describe("the questionnaire section", () => {
     return lines.find((l) => l.page === row.page && Math.abs(l.y - row.y) < 2 && l.x > row.x)?.text ?? null;
   };
 
+  /**
+   * ⚠ Q-HM14's answer is stored as a KEY; the qualification file prints what the applicant chose.
+   * Read against v2, the definition that asked it — `questionnaireByRef` is what finds the label.
+   */
+  it("prints what they are applying as in words, never the stored key", async () => {
+    const pdf = pdfText(await renderApplicationPdf(input({
+      application: {
+        ...APPLICATION,
+        questionnaire_version: "silvicom_driver@v2",
+        questionnaire_answers: { applying_as: "owner_operator" },
+      } as unknown as DriverApplication,
+    })));
+    expect(pdf).toContain("Owner-operator");
+    expect(pdf).not.toContain("owner_operator");
+  });
+
   it("prints the answers under a heading that says whose questions they are", async () => {
     const pdf = pdfText(await renderApplicationPdf(answered()));
     expect(pdf).toContain("the carrier's own questions");

@@ -187,6 +187,36 @@ describe("the signing table, against the carrier's own pages", () => {
   });
 });
 
+/**
+ * Q-HM14's page 22. ⚠ **The derivation leans on something the carrier printed**, and so this pins it:
+ * the company driver's reason, `Pre-Employment Qualification:`, carries the carrier's own `yes` on its
+ * rule, which is WHY `packetSigningFields.ts` draws nothing for a company driver. A re-export that
+ * dropped that word would leave every company driver's page 22 with no reason at all while this
+ * renderer went on assuming the paper answers it — so the day the paper changes, this fails by name.
+ */
+describe("page 22's reason box", () => {
+  const runs = pages[21]!.runs;
+  const at = (text: string) => runs.find((r) => r.text.trim() === text);
+
+  it("carries the carrier's own printed yes beside Pre-Employment Qualification, on the row above ours", () => {
+    const caption = at("Pre-Employment Qualification:")!;
+    const printed = at("yes")!;
+    expect(printed, "the carrier's printed `yes`").toBeTruthy();
+    expect(Math.abs(printed.y - caption.y), "same row as its caption").toBeLessThan(0.5);
+    expect(printed.x).toBeGreaterThan(caption.x);
+    expect(ruleCovering(22, 522.24, 205.7, 257.4), "the rule under it").toBe(true);
+  });
+
+  it("puts the owner-operator's reason after its caption and before `Other`", () => {
+    const line = signingLineFor("p22.reason.contracting")!;
+    const caption = at("Pre-Qualification for Contracting a Driver/ Owner Operator")!;
+    const other = at("Other")!;
+    expect(Math.abs(line.y + FIELD_BASELINE_LIFT - caption.y), "on the caption's row").toBeLessThan(5);
+    expect(line.x2).toBeLessThan(other.x);
+    expect(ruleCovering(22, line.y, line.x1, line.x2)).toBe(true);
+  });
+});
+
 describe("the identity block pages 18 and 19 share", () => {
   it("generates all sixteen lines, eight to a page", () => {
     for (const page of SINGLE_LICENCE_BLOCK_PAGES) {

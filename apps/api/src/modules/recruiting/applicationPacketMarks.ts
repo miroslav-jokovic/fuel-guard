@@ -9,6 +9,7 @@ import {
   type ApplicationPacketMark,
   type PacketPlacement,
 } from "@silvicom/shared";
+import { draftApplyingAs } from "./applicantApplyingAs.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import {
   isIntakeError,
@@ -94,11 +95,25 @@ export const PACKET_MARK_NOT_THE_DRIVERS: IntakeError = {
  * ⚠ Its own code rather than `packet_mark_not_the_drivers`, because it IS the driver's line on the
  * paper — a trace that said otherwise would send whoever reads it looking for a ceremony bug that put
  * the applicant on somebody else's line. Reachable only from a page loaded before the withdrawal
- * shipped: the served queue (`driverPlacements()`) no longer offers it.
+ * shipped: the served queue (`driverPlacements(…)`) no longer offers it.
  */
 export const PACKET_MARK_WITHDRAWN: IntakeError = {
   code: "packet_mark_withdrawn",
   message: "That place is no longer signed here. Carry on with the next one.",
+};
+
+/**
+ * A line signed in a capacity this applicant said they are not applying in (Q-HM14): `p31b`, "as the
+ * owner-operator", for somebody applying as a company driver.
+ *
+ * ⚠ Its own code, and a CONFLICT rather than a bad request, because unlike `p18c` it is the state of
+ * the application that makes it unsignable: the same line is this applicant's to sign if their
+ * answer says owner-operator. Reachable only from a walk served before the answer changed — the
+ * served queue (`packetStops`) no longer offers it.
+ */
+export const PACKET_MARK_NOT_THEIR_CAPACITY: IntakeError = {
+  code: "packet_mark_not_their_capacity",
+  message: "You are applying as a company driver, so you do not sign this one. Carry on with the next.",
 };
 
 export const PACKET_MARK_NAME_CHANGED: IntakeError = {
@@ -136,7 +151,9 @@ export async function packetStops(
       r.signed_at,
     ]),
   );
-  return driverPlacements().map((p) => ({ ...p, signedAt: signed.get(p.id) ?? null }));
+  // ⚠ THIS applicant's walk (Q-HM14): a company driver is not asked to sign p31b.
+  const applyingAs = await draftApplyingAs(admin, orgId, invitationId);
+  return driverPlacements(applyingAs).map((p) => ({ ...p, signedAt: signed.get(p.id) ?? null }));
 }
 
 /**
@@ -238,10 +255,12 @@ export async function recordPacketMark(
 
   const placement = packetPlacementById(body.placement_id);
   if (!placement || placement.party !== "driver") return refused(PACKET_MARK_NOT_THE_DRIVERS);
-  // ⚠ Asked of `driverPlacementIds()`, not of `party` — the withdrawal is applied there, once.
-  if (packetWithdrawal(placement.id) || !driverPlacementIds().includes(placement.id)) {
-    return refused(PACKET_MARK_WITHDRAWN);
-  }
+  // ⚠ Asked of `driverPlacementIds()`, not of `party` — the withdrawal is applied there, once — and
+  // of THIS applicant's walk (Q-HM14), read once here so the refusal, the count the database stamps
+  // and the `complete` below all answer from the same value.
+  const applyingAs = await draftApplyingAs(admin, invitation.org_id, invitation.id);
+  if (packetWithdrawal(placement.id)) return refused(PACKET_MARK_WITHDRAWN);
+  if (!driverPlacementIds(applyingAs).includes(placement.id)) return refused(PACKET_MARK_NOT_THEIR_CAPACITY);
 
   // The cheap refusals, before the transaction. The RPC checks all three again under its lock —
   // these keep a ceremony opened on a stale page from reaching the database at all. ⚠ In 0369's
@@ -266,7 +285,7 @@ export async function recordPacketMark(
     // The count lives in TypeScript and the migration applies what it produced — 0228's division,
     // and the reason counsel ruling on page 19's duplicate moves one array rather than a constant
     // in a migration nobody remembers to open.
-    p_expected_count: packetDriverMarkCount(),
+    p_expected_count: packetDriverMarkCount(applyingAs),
   });
   if (error) {
     if (error.code === "DR034" || /packet_mark_already_made/.test(error.message)) {
@@ -310,10 +329,11 @@ export async function recordPacketMark(
     .eq("invitation_id", invitation.id);
   const signedCount = countedPacketMarks(
     ((ids ?? []) as Array<{ placement_id: string }>).map((r) => r.placement_id),
+    applyingAs,
   );
   return {
     id: String(row?.mark_id ?? ""),
     signedCount,
-    complete: signedCount >= packetDriverMarkCount(),
+    complete: signedCount >= packetDriverMarkCount(applyingAs),
   };
 }

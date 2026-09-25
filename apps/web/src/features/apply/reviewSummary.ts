@@ -3,6 +3,7 @@ import {
   APPLICATION_SECTION_LABELS,
   APPLICATION_CAPTURE_SLOT_LABELS,
   EQUIPMENT_CLASS_LABELS,
+  choiceLabel,
   jurisdictionName,
   readableAnswers,
   type ApplicationCaptureView,
@@ -120,7 +121,7 @@ function answerText(question: QuestionnaireQuestion, raw: unknown): string {
       .filter((s) => s !== "");
     return rows.length === 0 ? copy.empty : rows.join(" · ");
   }
-  return String(raw);
+  return String(choiceLabel(question, raw));
 }
 
 export interface ReviewInput {

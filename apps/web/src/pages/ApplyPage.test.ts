@@ -66,7 +66,7 @@ const COMPLETE_DRAFT = {
  * these assertions instead of breaking six of them for a reason that is not the reason under test.
  */
 /** The real inventory, so "the walk is the certification" is asserted against the shipped queue. */
-const PACKET = driverPlacements().map((p) => ({ ...p, signedAt: null }));
+const PACKET = driverPlacements(null).map((p) => ({ ...p, signedAt: null }));
 
 const TOTAL = APPLICATION_FILLING_SECTIONS.length;
 const step = (n: number): string => `Step ${n} of ${TOTAL}`;

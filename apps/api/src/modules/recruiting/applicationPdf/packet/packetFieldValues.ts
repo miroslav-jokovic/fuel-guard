@@ -1,4 +1,4 @@
-import type { DriverApplication, EquipmentClass } from "@silvicom/shared";
+import { questionnaireAnswersOf, type DriverApplication, type EquipmentClass } from "@silvicom/shared";
 import { PACKET_ROW_OF, addressCells, blank, date, foldedType, fullName, yesNo } from "./packetDraw.js";
 import { P1, P2, P12, P16 } from "./packetText.js";
 import {
@@ -54,8 +54,10 @@ import {
 
 // ── questionnaire helpers, read defensively (A9/D-APP12) ──────────────────────────────────────
 // A payload filed before A9 has no questionnaire at all and must still produce a document.
-const answersOf = (a: DriverApplication): Record<string, unknown> =>
-  (a.questionnaire_answers ?? {}) as Record<string, unknown>;
+// ⚠ Draft OR filed (`questionnaireAnswersOf`): the reading copy the applicant signs beside is drawn
+// from the DRAFT, whose answers sit under `questionnaire`, and until Q-HM14 page 1's position and
+// page 22's reason printed blank on it while the filed copy printed them.
+const answersOf = (a: DriverApplication): Record<string, unknown> => questionnaireAnswersOf(a);
 const str = (v: unknown): string => (v == null ? "" : String(v));
 const answer = (a: DriverApplication, id: string): string => str(answersOf(a)[id]);
 const bool = (a: DriverApplication, id: string): boolean | null => {

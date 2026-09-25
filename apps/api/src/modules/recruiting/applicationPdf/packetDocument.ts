@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { packetWithdrawal, type DriverApplication } from "@silvicom/shared";
+import { applyingAsOf, driverPlacementIds, type DriverApplication } from "@silvicom/shared";
 import { packetFieldFill } from "./packet/packetFieldValues.js";
 import { renderPacketOverlay } from "./packet/packetOverlay.js";
 
@@ -98,9 +98,13 @@ export interface PacketDocumentInput {
  * page 11 asks for, and puts a notice under each grid that continues.
  */
 export async function renderPacketDocument(input: PacketDocumentInput): Promise<Buffer> {
-  // ⚠ L-1: a mark on a withdrawn line is still a row, and is neither drawn nor dated. Filtered HERE,
-  // once, so the date beside it (`markedAt`) and the mark itself cannot disagree about page 4.
-  const marks = input.marks.filter((m) => packetWithdrawal(m.placement_id) === null);
+  // ⚠ Only marks at THIS applicant's stops are drawn or dated. A mark on a withdrawn line (L-1) is
+  // still a row, and so is a p31b made before somebody's answer became company driver (Q-HM14) —
+  // drawn, it would be a signature "as the owner-operator" under an owner-operator block the same
+  // render leaves blank. Filtered HERE, once, from the payload being drawn, so the date beside a
+  // line (`markedAt`) and the mark on it cannot disagree.
+  const walk = new Set(driverPlacementIds(applyingAsOf(input.application)));
+  const marks = input.marks.filter((m) => walk.has(m.placement_id));
   const markedAt = Object.fromEntries(marks.map((m) => [m.placement_id, m.signed_at]));
   const { placed, overflow } = packetFieldFill({
     application: input.application,

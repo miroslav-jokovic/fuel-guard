@@ -6,6 +6,7 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { DRAFT_APPLYING_AS_SELECT } from "../applicantApplyingAs.js";
 
 /**
  * Serving one applicant's checklist (B3) — who may read it, and what comes back.
@@ -142,6 +143,10 @@ describe("what comes back", () => {
    * ⚠ No §391.21 answers, no date of birth, no licence number — by construction rather than by
    * filtering, because the fold reads the existence of rows and a set of record kinds. This asserts
    * the construction held: the draft's payload is never selected, so it can never be serialised.
+   *
+   * ⚠ **One key is read, by path, since Q-HM14** — `applying_as`, which decides how many places the
+   * packet has. The assertion is therefore that the ONLY mention of `payload` is that one path: a
+   * select that widened to `payload` or `payload->questionnaire` fails here exactly as before.
    */
   it("never selects the application's answers", async () => {
     // ⚠ Needs a live invitation, because the draft is keyed on one — without it the read is skipped
@@ -157,6 +162,8 @@ describe("what comes back", () => {
     const draftReads = rec.forTable("application_drafts");
     expect(draftReads).toHaveLength(1);
     const selected = draftReads[0]!.ops.find((o) => o.method === "select")?.args[0];
-    expect(String(selected)).not.toContain("payload");
+    expect(String(selected)).toContain(DRAFT_APPLYING_AS_SELECT);
+    expect(String(selected).replace(DRAFT_APPLYING_AS_SELECT, "")).not.toContain("payload");
+    expect(DRAFT_APPLYING_AS_SELECT).toMatch(/payload->questionnaire->>applying_as$/);
   });
 });

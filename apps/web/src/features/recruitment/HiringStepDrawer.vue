@@ -3,7 +3,6 @@ import { computed } from "vue";
 import {
   hiringStep,
   isHiringRecordedActStep,
-  packetDriverMarkCount,
   type HiringStep,
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
@@ -212,8 +211,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       <div v-else-if="body === 'recorded_act' || body === 'packet'" class="space-y-3">
         <p class="text-xs text-ink-secondary">
           <template v-if="body === 'packet'">
-            The applicant signs this in the office — {{ packetDriverMarkCount() }} places in the packet.
-            There is no live invitation to open signing on.
+            The applicant signs this in the office. There is no live invitation to open signing on.
           </template>
           <template v-else>
             Recorded rather than fetched: a record pulled anywhere else still counts, and files the

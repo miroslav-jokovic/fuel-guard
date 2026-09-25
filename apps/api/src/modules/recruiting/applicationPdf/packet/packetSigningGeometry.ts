@@ -38,11 +38,14 @@ import type { PacketFieldLine } from "./packetFieldGeometry.js";
  * · **Every `Silvicom Inc Representative:` line** (page 18, page 19 twice) and page 22's
  *   `Company reprsentative's signature`: those are the carrier's countersignature — `p18c`,
  *   `p19ac`, `p19bc`, `p22c` in the placement inventory — and the applicant is not signing them.
- * · **Page 22's four `why is this test required` rules** — `Pre-Employment Qualification:`,
- *   `Suspicion of Controlled Substance`, `Pre-Qualification Contracting a Driver/ Owner Operator`,
- *   `Other`. That is the carrier's determination about its own test, and the nearest thing we hold
- *   is a free-text `position` answer. Choosing between the first and the third from words somebody
- *   typed into a box would be inference printed onto a federal form. Q-HM14 on the plan, open.
+ * · **Three of page 22's four `why is this test required` rules.** Q-HM14 (ruled (b), 2026-09-24)
+ *   derives the reason from the applicant's structured `applying_as`, and only ONE rule needs a
+ *   value from us — see `p22.reason.contracting` below. `Pre-Employment Qualification:` is not
+ *   blank at all: ⚠ **the carrier printed `yes` on its rule itself** (a run at x207.6, found
+ *   measuring this on 2026-09-24, and in no plan before), exactly as page 19's `Company name:`
+ *   carries `Silvicom Inc`. So a company driver's reason is already on the paper, and an
+ *   owner-operator's page reads BOTH — the carrier's `yes` and ours. `Suspicion of Controlled
+ *   Substance` and `Other` stay blank: nothing the applicant says can decide either.
  * · **Page 31's `Witness Name:`** — `p31w` is `party: "witness"`, a third person the packet
  *   deliberately refuses to assume is either of the other two.
  *
@@ -133,6 +136,15 @@ export const PACKET_SIGNING_FIELD_LINES: readonly PacketFieldLine[] = [
     note: "`Print name` boxed to the left with its rule to the right — p10's own signature layout one band down, except that this rule is NOT shared with a date." },
   { id: "p22.date", page: 22, x1: 102.5, x2: 205.8, y: 279.4, source: "seen",
     note: "`Date:` boxed left, short rule to its right, ABOVE the `Driver name Print | Driver signatrure` pair. ⚠ The other `Date` on this page belongs to p22c and is the carrier's." },
+  /**
+   * ⚠ **The owner-operator's reason on page 22** (Q-HM14), drawn as the carrier's own word `yes`
+   * because that is how the carrier answered the rule beside it — two answers in one box should not
+   * be in two registers. The rule is a short one AFTER the caption, not under it: the caption runs to
+   * x~330 and the rule starts at 360.5, just as `Pre-Employment Qualification:`'s rule starts well
+   * past its caption's box.
+   */
+  { id: "p22.reason.contracting", page: 22, x1: 360.5, x2: 412.2, y: 508.0, source: "seen",
+    note: "The rule right of `Pre-Qualification for Contracting a Driver/ Owner Operator`, left of `Other`. ⚠ The row above's `Pre-Employment Qualification:` rule already carries the carrier's printed `yes`." },
   { id: "p26.name", page: 26, x1: 50.9, x2: 553.2, y: 610.1, source: "seen",
     note: "Full-width rule under the centred heading `Driver's/ Owner's Name:` — the caption is 35pt above rather than beside or beneath, which no other page does." },
   { id: "p27.date", page: 27, x1: 50.9, x2: 257.4, y: 223.1, source: "seen",
