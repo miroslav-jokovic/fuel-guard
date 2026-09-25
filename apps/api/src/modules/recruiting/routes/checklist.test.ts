@@ -7,6 +7,7 @@ import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { DRAFT_APPLYING_AS_SELECT } from "../applicantApplyingAs.js";
+import { DRAFT_LICENCES_SELECT } from "../applicantLicences.js";
 
 /**
  * Serving one applicant's checklist (B3) — who may read it, and what comes back.
@@ -163,7 +164,14 @@ describe("what comes back", () => {
     expect(draftReads).toHaveLength(1);
     const selected = draftReads[0]!.ops.find((o) => o.method === "select")?.args[0];
     expect(String(selected)).toContain(DRAFT_APPLYING_AS_SELECT);
-    expect(String(selected).replace(DRAFT_APPLYING_AS_SELECT, "")).not.toContain("payload");
+    // AF7 adds the licence's state and the additional licences, by path, and nothing wider.
+    expect(String(selected)).toContain(DRAFT_LICENCES_SELECT);
+    expect(
+      String(selected).replace(DRAFT_APPLYING_AS_SELECT, "").replace(DRAFT_LICENCES_SELECT, ""),
+    ).not.toContain("payload");
     expect(DRAFT_APPLYING_AS_SELECT).toMatch(/payload->questionnaire->>applying_as$/);
+    expect(DRAFT_LICENCES_SELECT).toBe(
+      "cdl_state:payload->>cdl_state, additional_licences:payload->additional_licences",
+    );
   });
 });

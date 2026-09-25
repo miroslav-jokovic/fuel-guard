@@ -305,6 +305,16 @@ describe("what gets written", () => {
     expect(row?.covers_until).toBeNull();
   });
 
+  it("writes the jurisdiction an MVR came from onto its detail, where the checklist reads it (AF7)", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    await call(`/applicants/${DRIVER}/records/mvr`, { token: "admin", body: { ...FILING, jurisdiction: " IL " } });
+    expect(rec.writtenRows("qualification_records")[0]?.detail).toMatchObject({
+      hiring_step: "mvr",
+      jurisdiction: "IL",
+    });
+  });
+
   it("scopes every read and write to the caller's org", async () => {
     const rec = seed({ documents: [doc()] });
     holder.client = rec.client;

@@ -39,7 +39,13 @@ import { useRecordHiringAct } from "@/features/recruitment/useHiringEvidence";
  * says who does rather than rendering a form the API will refuse — the same rule
  * `QualificationSection`'s drop card follows, that an option must not offer a dead end.
  */
-const props = defineProps<{ driverId: string; step: HiringRecordedActStep; done: boolean }>();
+const props = defineProps<{
+  driverId: string;
+  step: HiringRecordedActStep;
+  done: boolean;
+  /** The declared licensing states with no MVR yet, from the fold (AF7). Empty for the other two. */
+  outstandingJurisdictions?: readonly string[];
+}>();
 
 const session = useSessionStore();
 const toast = useToastStore();
@@ -71,12 +77,12 @@ const filed = computed<QualificationRecordRow[]>(() =>
   (recordsQ.data.value ?? []).filter((r) => r.kind === kind.value),
 );
 
-const form = reactive({ occurredOn: "", result: "", performedBy: "", reference: "" });
+const form = reactive({ occurredOn: "", result: "", performedBy: "", reference: "", jurisdiction: "" });
 const scan = ref<File | null>(null);
 const adding = ref(false);
 
 function reset(): void {
-  Object.assign(form, { occurredOn: "", result: "", performedBy: "", reference: "" });
+  Object.assign(form, { occurredOn: "", result: "", performedBy: "", reference: "", jurisdiction: "" });
   scan.value = null;
   adding.value = false;
 }
@@ -84,7 +90,29 @@ watch(() => props.step, reset);
 
 /** Open unless the step is already green — D-HUI5. `adding` is the deliberate second click. */
 const showForm = computed(() => canRead.value && (!props.done || adding.value));
-const ready = computed(() => Boolean(form.occurredOn));
+
+/**
+ * An MVR asks which state it came from (AF7, §391.23(a)(1)), and cannot be saved without one.
+ *
+ * ⚠ Required here although the API admits it blank, because an MVR with no jurisdiction covers no
+ * declared licence: saving one would put a row in the file and leave the step exactly as open as it
+ * was, with nothing on screen saying why. The hint names what is still needed AS WRITTEN, because the
+ * fold compares after trim and case only (`mvrJurisdictions.ts`) — typing "Illinois" against a
+ * licence declared as "IL" would file a record and close nothing.
+ */
+const asksJurisdiction = computed(() => props.step === "mvr");
+const jurisdictionHint = computed(() =>
+  props.outstandingJurisdictions?.length
+    ? `As the application names it. Still needed: ${props.outstandingJurisdictions.join(", ")}.`
+    : "As the application names it.",
+);
+const ready = computed(
+  () => Boolean(form.occurredOn) && (!asksJurisdiction.value || form.jurisdiction.trim() !== ""),
+);
+
+/** The state a filed MVR was recorded for, off `detail` (`hiringEvidenceDetail`); null when none. */
+const jurisdictionOf = (row: QualificationRecordRow): string | null =>
+  typeof row.detail?.jurisdiction === "string" ? row.detail.jurisdiction : null;
 
 async function save(): Promise<void> {
   try {
@@ -95,6 +123,7 @@ async function save(): Promise<void> {
       result: form.result.trim() || null,
       performedBy: form.performedBy.trim() || null,
       reference: form.reference.trim() || null,
+      jurisdiction: asksJurisdiction.value ? form.jurisdiction.trim() || null : null,
       file: scan.value,
     });
     toast.success(`${label.value} recorded`, "It is in the driver's qualification file.");
@@ -132,6 +161,7 @@ const label = computed(() => (kind.value ? (DQ_KIND_LABELS[kind.value] ?? "recor
         <li v-for="row in filed" :key="row.id">
           <p class="text-xs">
             <span class="font-medium text-ink">{{ row.occurred_on }}</span>
+            <span v-if="jurisdictionOf(row)" class="text-ink"> · {{ jurisdictionOf(row) }}</span>
             <span v-if="row.result" class="text-ink-secondary"> · {{ row.result }}</span>
           </p>
           <p class="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-2xs text-ink-secondary">
@@ -170,6 +200,9 @@ const label = computed(() => (kind.value ? (DQ_KIND_LABELS[kind.value] ?? "recor
     </BaseButton>
 
     <div v-if="showForm" class="space-y-4">
+      <FormField v-if="asksJurisdiction" v-slot="{ id }" label="State or authority" :hint="jurisdictionHint">
+        <BaseInput :id="id" v-model="form.jurisdiction" maxlength="60" />
+      </FormField>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField v-slot="{ id }" label="Date" hint="The date on the record itself.">
           <AppDateField :id="id" v-model="form.occurredOn" />

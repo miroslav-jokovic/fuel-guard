@@ -1,6 +1,7 @@
 import { hasLiveAuthorization, type AuthorizationRow } from "./authorizationContract.js";
 import { APPLICATION_RELEASE_ORDER } from "./applicationIntake.js";
 import { applicationReviewState, type ApplicationPhases } from "./applicationReviewContract.js";
+import { mvrJurisdictionsOutstanding } from "./mvrJurisdictions.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
 import type { ApplyingAs } from "./questionnaireContract.js";
 import {
@@ -88,6 +89,21 @@ export interface HiringChecklistInputs {
    * `dqCatalogue.ts`, which already owns them.
    */
   qualificationKinds?: readonly string[];
+  /**
+   * The jurisdiction each MVR on file was recorded for — `detail.jurisdiction`, null where none was
+   * written (AF7). One entry per MVR row, not deduped: the fold only asks which are covered.
+   */
+  mvrJurisdictions?: readonly (string | null)[];
+  /**
+   * Every licensing jurisdiction the applicant has declared on the live invitation's draft
+   * (`declaredLicenceJurisdictions`). Empty while none is known, which is when one MVR is enough.
+   *
+   * ⚠ The DRAFT, not the filed application: an application files at the very end, in the office,
+   * and the MVR is a `beforeTravel` gate — a rule that waited for the filing would learn about the
+   * second state after the plane ticket. Since AF3 the draft holds `cdl_state` from the permissions
+   * step onward, so this is known before the MVR is ordered.
+   */
+  licenceJurisdictions?: readonly string[];
   /** PSP: whether a request has been made, and whether a report came back. */
   psp?: { requested: boolean; reportReceived: boolean } | null;
   /**
@@ -151,6 +167,11 @@ export interface HiringStep extends HiringStepSpec {
   artifact: HiringEvidence | null;
   /** When blocked, the first unmet requirement — so the row names its blocker in words, not a grey. */
   blockedBy: HiringStepKey | null;
+  /**
+   * The declared licensing jurisdictions with no MVR on file yet, as the applicant wrote them (AF7).
+   * Only the `mvr` step ever fills it, and only while it is not done — *"Still needed from: …"*.
+   */
+  outstandingJurisdictions: string[];
 }
 
 /**
@@ -195,7 +216,7 @@ const hasKind = (input: HiringChecklistInputs, kind: string): boolean =>
 function evidenceFor(
   key: HiringStepKey,
   input: HiringChecklistInputs,
-): { done: boolean; inFlight: boolean } {
+): { done: boolean; inFlight: boolean; outstandingJurisdictions?: string[] } {
   const review = input.phases ? applicationReviewState(input.phases) : null;
   switch (key) {
     case "invitation_sent":
@@ -222,8 +243,20 @@ function evidenceFor(
       };
     case "office_approved":
       return { done: review === "approved" || review === "certified", inFlight: false };
-    case "mvr":
-      return { done: hasKind(input, "mvr"), inFlight: false };
+    case "mvr": {
+      // ⚠ §391.23(a)(1): one record per state that licensed the driver, not one record (AF7). Before
+      // anything is declared the list is empty and the rule is what it always was — one MVR. An MVR
+      // recorded without a jurisdiction covers no declared state; `mvrJurisdictions.ts` says why.
+      const outstanding = mvrJurisdictionsOutstanding(
+        input.licenceJurisdictions ?? [],
+        input.mvrJurisdictions ?? [],
+      );
+      return {
+        done: hasKind(input, "mvr") && outstanding.length === 0,
+        inFlight: false,
+        outstandingJurisdictions: outstanding,
+      };
+    }
     case "psp":
       // ⚠ Done is the REPORT, not the request. A request that was billed and came back empty is a
       // request, and §5 calls PSP a tool rather than a requirement — so this is the one step where
@@ -344,6 +377,7 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
       state,
       artifact: evidence.done ? spec.evidence : null,
       blockedBy: state === "blocked" ? blockedBy : null,
+      outstandingJurisdictions: evidence.done ? [] : (evidence.outstandingJurisdictions ?? []),
     });
   }
 

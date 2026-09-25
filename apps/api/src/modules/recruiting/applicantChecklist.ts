@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   asApplyingAs,
   countedPacketMarks,
+  declaredLicenceJurisdictions,
   driverInquiryQueue,
   hiringChecklist,
   type ApplyingAs,
@@ -13,6 +14,7 @@ import {
 } from "@silvicom/shared";
 import { hasPspRequest } from "../psp/index.js";
 import { DRAFT_APPLYING_AS_SELECT } from "./applicantApplyingAs.js";
+import { DRAFT_LICENCES_SELECT, RECORD_JURISDICTION_SELECT } from "./applicantLicences.js";
 
 /**
  * Gather the evidence one applicant's checklist folds over (B3, `HIRING-MODULE-PLAN.md` §9).
@@ -96,9 +98,9 @@ export async function applicantChecklist(
     .limit(1);
   const invitation = ((invites ?? []) as InvitationRow[])[0] ?? null;
 
-  const [authorizations, kinds, pspRequested, markIds, draft, investigation] = await Promise.all([
+  const [authorizations, records, pspRequested, markIds, draft, investigation] = await Promise.all([
     readAuthorizations(admin, orgId, driverId),
-    readQualificationKinds(admin, orgId, driverId),
+    readQualificationRecords(admin, orgId, driverId),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
     // (D-SEP1) and `lint:table-access` refuses a raw read from here — correctly, and it caught this.
     hasPspRequest(admin, orgId, driverId),
@@ -106,6 +108,7 @@ export async function applicantChecklist(
     readDraftFacts(admin, orgId, invitation?.id ?? null),
     readInvestigation(admin, orgId, driverId, (driver as { hire_date: string | null }).hire_date, today),
   ]);
+  const kinds = [...new Set(records.map((r) => r.kind))];
 
   const input: HiringChecklistInputs = {
     invitedAt: invitation?.created_at ?? null,
@@ -121,6 +124,8 @@ export async function applicantChecklist(
     hasDraft: draft.exists,
     authorizations,
     qualificationKinds: kinds,
+    mvrJurisdictions: records.filter((r) => r.kind === "mvr").map((r) => r.jurisdiction ?? null),
+    licenceJurisdictions: draft.licenceJurisdictions,
     psp: {
       requested: pspRequested,
       // ⚠ The REPORT is a `qualification_records` row of kind `psp_report`, not a settled
@@ -245,23 +250,23 @@ async function readAuthorizations(
 }
 
 /**
- * Which §391.51 events this driver has on file, as kinds.
+ * Which §391.51 events this driver has on file, as kinds, plus the jurisdiction an MVR names (AF7).
  *
- * ⚠ Kinds and nothing else, because that is all the fold asks for. Recurrence and expiry belong to
- * `dqCatalogue.ts`, which already owns them; a service that started handing whole records over would
- * be inviting a second opinion about when an MVR goes stale.
+ * ⚠ Those two and nothing else, because that is all the fold asks for. Recurrence and expiry belong
+ * to `dqCatalogue.ts`, which already owns them; a service that started handing whole records over
+ * would be inviting a second opinion about when an MVR goes stale.
  */
-async function readQualificationKinds(
+async function readQualificationRecords(
   admin: SupabaseClient,
   orgId: string,
   driverId: string,
-): Promise<string[]> {
+): Promise<Array<{ kind: string; jurisdiction?: string | null }>> {
   const { data } = await admin
     .from("qualification_records")
-    .select("kind")
+    .select(`kind, ${RECORD_JURISDICTION_SELECT}`)
     .eq("org_id", orgId)
     .eq("driver_id", driverId);
-  return [...new Set(((data ?? []) as Array<{ kind: string }>).map((r) => r.kind))];
+  return (data ?? []) as Array<{ kind: string; jurisdiction?: string | null }>;
 }
 
 /**
@@ -287,9 +292,10 @@ async function readPacketMarkIds(
 }
 
 /**
- * Has the applicant typed anything (F5), and what did they say they are applying as (Q-HM14)?
+ * Has the applicant typed anything (F5), what did they say they are applying as (Q-HM14), and which
+ * jurisdictions licensed them (AF7)?
  *
- * ⚠ The row's existence and ONE key, never its payload. Selecting the draft would pull a date of
+ * ⚠ The row's existence and named keys, never its payload. Selecting the draft would pull a date of
  * birth and a licence number into a response about progress, and A11's rule is that answers have
  * their own surface. `applying_as` is read because it decides how many places the packet has — and
  * by path (`DRAFT_APPLYING_AS_SELECT`), so nothing else in the payload leaves the database.
@@ -298,14 +304,18 @@ async function readDraftFacts(
   admin: SupabaseClient,
   orgId: string,
   invitationId: string | null,
-): Promise<{ exists: boolean; applyingAs: ApplyingAs | null }> {
-  if (!invitationId) return { exists: false, applyingAs: null };
+): Promise<{ exists: boolean; applyingAs: ApplyingAs | null; licenceJurisdictions: string[] }> {
+  if (!invitationId) return { exists: false, applyingAs: null, licenceJurisdictions: [] };
   const { data } = await admin
     .from("application_drafts")
-    .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}`)
+    .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}, ${DRAFT_LICENCES_SELECT}`)
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .limit(1);
-  const [row] = (data ?? []) as Array<{ applying_as?: unknown }>;
-  return { exists: Boolean(row), applyingAs: asApplyingAs(row?.applying_as) };
+  const [row] = (data ?? []) as Array<{ applying_as?: unknown; cdl_state?: unknown; additional_licences?: unknown }>;
+  return {
+    exists: Boolean(row),
+    applyingAs: asApplyingAs(row?.applying_as),
+    licenceJurisdictions: declaredLicenceJurisdictions(row ?? null),
+  };
 }

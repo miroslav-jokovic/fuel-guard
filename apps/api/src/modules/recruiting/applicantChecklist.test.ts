@@ -355,6 +355,47 @@ describe("what it reads, and from where", () => {
     expect(await stateOf(null)).not.toBe("done");
   });
 
+  /**
+   * ⚠ AF7: the declared licences come off the DRAFT by path, and each MVR's jurisdiction off its
+   * `detail` by path — both in their real shapes, so the service's selects have to reach the keys.
+   * A second state with no record keeps the step open and names it; recording it closes the step.
+   */
+  it("holds the MVR open until every licensing jurisdiction the draft declares has a record", async () => {
+    const draft = {
+      invitation_id: INVITE,
+      payload: {
+        date_of_birth: "1980-04-01",
+        cdl_number: "D400-1234-5678",
+        cdl_state: "IL",
+        additional_licences: [{ issuing_authority: "Indiana BMV", number: "IN-99", expires_at: "2027-01-01" }],
+      },
+    };
+    const mvr = (jurisdiction: string) => ({
+      driver_id: DRIVER, kind: "mvr", detail: { source: "recorded_act", jurisdiction },
+    });
+    const mvrStep = async (records: Array<Record<string, unknown>>) => {
+      const r = await applicantChecklist(
+        seed({ application_drafts: [draft], qualification_records: records }).client,
+        ORG, DRIVER, TODAY,
+      );
+      if (isChecklistError(r)) throw new Error(r.code);
+      return r.steps.find((st) => st.key === "mvr")!;
+    };
+
+    const one = await mvrStep([mvr("IL")]);
+    expect(one.state).toBe("waiting_on_us");
+    expect(one.outstandingJurisdictions).toEqual(["Indiana BMV"]);
+    // Only the authority leaves the draft — never a licence number.
+    expect(JSON.stringify(one)).not.toContain("IN-99");
+
+    const both = await mvrStep([mvr("IL"), mvr("indiana bmv")]);
+    expect(both.state).toBe("done");
+
+    // An MVR recorded with no jurisdiction (every one before AF7) covers no declared state.
+    const unnamed = await mvrStep([{ driver_id: DRIVER, kind: "mvr", detail: { source: "recorded_act" } }]);
+    expect(unnamed.outstandingJurisdictions).toEqual(["IL", "Indiana BMV"]);
+  });
+
   it("does not count a mark on a line withdrawn from signing", async () => {
     const twenty = markRows(packetDriverMarkCount(null) - 1);
     const rec = seed({

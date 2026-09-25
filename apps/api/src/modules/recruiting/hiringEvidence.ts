@@ -246,7 +246,7 @@ export async function fileHiringEvidence(
     performedBy: body.performed_by?.trim() || null,
     reference: body.reference?.trim() || null,
     documentId,
-    detail: hiringEvidenceDetail(resolved.step, userId),
+    detail: hiringEvidenceDetail(resolved.step, userId, body.jurisdiction),
   });
   if (isServiceError(inserted)) return { code: inserted.code, message: inserted.error };
   return { recordId: inserted.id, documentId, kind: resolved.kind };

@@ -603,3 +603,56 @@ describe("the count", () => {
     expect(full.done).toBe(full.total);
   });
 });
+
+describe("an MVR from every licensing jurisdiction (AF7, §391.23(a)(1))", () => {
+  const mvrOf = (c: ReturnType<typeof hiringChecklist>) => c.steps.find((s) => s.key === "mvr")!;
+
+  it("is done on one MVR while no licence has been declared, as before AF7", () => {
+    const step = mvrOf(hiringChecklist(complete()));
+    expect(step.state).toBe("done");
+    expect(step.outstandingJurisdictions).toEqual([]);
+  });
+
+  it("stays the office's move, naming the state, while a second declared licence has no record", () => {
+    const step = mvrOf(
+      hiringChecklist(
+        complete({ licenceJurisdictions: ["IL", "Indiana BMV"], mvrJurisdictions: ["IL"] }),
+      ),
+    );
+    expect(step.state).toBe("waiting_on_us");
+    expect(step.outstandingJurisdictions).toEqual(["Indiana BMV"]);
+    expect(step.artifact).toBeNull();
+  });
+
+  it("is done once every declared jurisdiction has one, across rows and whatever the case", () => {
+    const step = mvrOf(
+      hiringChecklist(
+        complete({ licenceJurisdictions: ["IL", "Indiana BMV"], mvrJurisdictions: ["indiana bmv", "IL"] }),
+      ),
+    );
+    expect(step.state).toBe("done");
+    expect(step.outstandingJurisdictions).toEqual([]);
+  });
+
+  it("does not count an MVR recorded without a jurisdiction once a licence is declared", () => {
+    const step = mvrOf(hiringChecklist(complete({ licenceJurisdictions: ["IL"], mvrJurisdictions: [null] })));
+    expect(step.state).toBe("waiting_on_us");
+    expect(step.outstandingJurisdictions).toEqual(["IL"]);
+  });
+
+  it("names what to pull before any MVR exists, and holds the travel gate open until it is", () => {
+    const c = hiringChecklist(
+      complete({
+        qualificationKinds: ALL_KINDS.filter((k) => k !== "mvr"),
+        licenceJurisdictions: ["IL"],
+      }),
+    );
+    expect(mvrOf(c).outstandingJurisdictions).toEqual(["IL"]);
+    expect(c.readyToTravel.outstanding).toContain("mvr");
+  });
+
+  it("leaves every other step's list empty", () => {
+    const c = hiringChecklist(complete({ licenceJurisdictions: ["IL", "WI"], mvrJurisdictions: [] }));
+    for (const s of c.steps.filter((s) => s.key !== "mvr")) expect(s.outstandingJurisdictions).toEqual([]);
+  });
+});

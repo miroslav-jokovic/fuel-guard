@@ -28,6 +28,8 @@ export interface HiringEvidenceInput {
   result: string | null;
   performedBy: string | null;
   reference: string | null;
+  /** An MVR's state or licensing authority (AF7); null for the other two acts. */
+  jurisdiction?: string | null;
   /** Optional: an act is recordable before its printout is to hand. */
   file: File | null;
 }
@@ -93,6 +95,7 @@ export function useRecordHiringAct() {
           result: input.result,
           performed_by: input.performedBy,
           reference: input.reference,
+          jurisdiction: input.jurisdiction ?? null,
         },
       });
       if (!filed.ok || !filed.data) {

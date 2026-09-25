@@ -129,6 +129,9 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
           {{ badge.label }}
         </span>
         <span v-if="blockedBy" class="text-xs text-ink-secondary">Needs: {{ blockedBy }}</span>
+        <span v-else-if="step.outstandingJurisdictions.length" class="text-xs text-ink-secondary">
+          Still needed from: {{ step.outstandingJurisdictions.join(", ") }}
+        </span>
       </div>
 
       <ApplicationInviteCard
@@ -197,6 +200,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         :driver-id="driverId"
         :step="recordedActStep"
         :done="step.state === 'done'"
+        :outstanding-jurisdictions="step.outstandingJurisdictions"
       />
 
       <!-- ⚠ Q-HM9's step. The section is unchanged — it was already the whole §391.23(c)(2) record,

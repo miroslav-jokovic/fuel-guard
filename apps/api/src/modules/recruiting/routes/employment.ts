@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   applicantProgress,
   asApplyingAs,
+  declaredLicenceJurisdictions,
   currentDisposition,
   employmentCoverage,
   employmentHistoryCreateSchema,
@@ -18,6 +19,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { DRAFT_APPLYING_AS_SELECT } from "../applicantApplyingAs.js";
+import { DRAFT_LICENCES_SELECT } from "../applicantLicences.js";
 import { boardChecklists } from "../applicantBoard.js";
 
 /**
@@ -160,9 +162,9 @@ export function recruitmentEmploymentRouter(): Router {
           .order("created_at", { ascending: false }),
         admin
           .from("application_drafts")
-          // ⚠ One key by path and never the payload (`applicantApplyingAs.ts`): it decides how many
-          // places this applicant's packet has (Q-HM14), and nothing else in the draft may leave.
-          .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}`)
+          // ⚠ Named keys by path and never the payload (`applicantApplyingAs.ts`): how many places the
+          // packet has (Q-HM14) and which states owe an MVR (AF7), and nothing else in the draft.
+          .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}, ${DRAFT_LICENCES_SELECT}`)
           .eq("org_id", orgId),
       ]);
       if (history.error || auths.error || decisions.error || invitations.error || drafts.error) {
@@ -195,9 +197,9 @@ export function recruitmentEmploymentRouter(): Router {
       // ⚠ Keyed on the INVITATION, never on the driver: a rehire's draft from a previous application
       // is not evidence that they have started this one.
       const draftFor = new Map(
-        ((drafts.data ?? []) as Array<{ invitation_id: string; applying_as?: unknown }>).map((d) => [
+        ((drafts.data ?? []) as Array<{ invitation_id: string; applying_as?: unknown; cdl_state?: unknown }>).map((d) => [
           d.invitation_id,
-          asApplyingAs(d.applying_as),
+          { applyingAs: asApplyingAs(d.applying_as), licenceJurisdictions: declaredLicenceJurisdictions(d) },
         ]),
       );
 
@@ -220,25 +222,24 @@ export function recruitmentEmploymentRouter(): Router {
       const checklists = await boardChecklists(
         admin,
         orgId,
-        (applicants ?? []).map((a) => ({
-          driverId: a.id,
-          hiredAt: (a as { hire_date: string | null }).hire_date,
-          invitation: inviteBy.get(a.id) ?? null,
-          hasDraft: (() => {
-            const invite = inviteBy.get(a.id);
-            return invite ? draftFor.has(invite.id) : false;
-          })(),
-          applyingAs: (() => {
-            const invite = inviteBy.get(a.id);
-            return invite ? draftFor.get(invite.id) ?? null : null;
-          })(),
-          authorizations: authsBy.get(a.id) ?? [],
-          // ⚠ The NEWEST decision, through the same `currentDisposition` the row below uses — the
-          // table is append-only, so a carrier that declines and then changes its mind has two rows
-          // and only the later one is the answer. Reading `.length > 0` here would keep a
-          // reconsidered applicant off the board's own queue for ever.
-          decided: currentDisposition(decisionsBy.get(a.id) ?? []) !== null,
-        })),
+        (applicants ?? []).map((a) => {
+          const invite = inviteBy.get(a.id);
+          const draft = invite ? draftFor.get(invite.id) : undefined;
+          return {
+            driverId: a.id,
+            hiredAt: (a as { hire_date: string | null }).hire_date,
+            invitation: invite ?? null,
+            hasDraft: draft !== undefined,
+            applyingAs: draft?.applyingAs ?? null,
+            licenceJurisdictions: draft?.licenceJurisdictions ?? [],
+            authorizations: authsBy.get(a.id) ?? [],
+            // ⚠ The NEWEST decision, through the same `currentDisposition` the row below uses — the
+            // table is append-only, so a carrier that declines and then changes its mind has two rows
+            // and only the later one is the answer. Reading `.length > 0` here would keep a
+            // reconsidered applicant off the board's own queue for ever.
+            decided: currentDisposition(decisionsBy.get(a.id) ?? []) !== null,
+          };
+        }),
       );
 
       const rows = (applicants ?? []).map((a) => {
