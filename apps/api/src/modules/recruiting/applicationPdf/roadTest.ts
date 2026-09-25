@@ -57,6 +57,19 @@ export interface RoadTestDocumentInput {
   recordedBy: string;
 }
 
+/**
+ * What the form's drawing needs — a recorded test, or nothing but the carrier (MV2, D-MVR2).
+ *
+ * ⚠ The blank is the SAME drawing with the record, the examiner and the office user taken away, not a
+ * second layout: the paper an examiner fills in by hand has to be the form the office would otherwise
+ * have recorded, box for box, or the two could not be compared when the paper comes back.
+ */
+type FormInput = Omit<RoadTestDocumentInput, "record" | "examiner" | "recordedBy"> & {
+  record: RoadTestRecord | null;
+  examiner: RoadTestExaminerPrint | null;
+  recordedBy: string | null;
+};
+
 const TITLE_SIZE = 13;
 const BODY_SIZE = 10;
 const SMALL = 8;
@@ -106,7 +119,7 @@ function blank(doc: PDFKit.PDFDocument, caption: string, value: string, x = MARG
 }
 
 /** The examiner's signature on its rule: the picture the office added, or the typed name. */
-function signature(doc: PDFKit.PDFDocument, caption: string, examiner: RoadTestExaminerPrint, x: number, width: number): void {
+function signature(doc: PDFKit.PDFDocument, caption: string, examiner: RoadTestExaminerPrint | null, x: number, width: number): void {
   const y = doc.y;
   doc.fillColor(INK).font("Helvetica").fontSize(BODY_SIZE);
   const cap = pdfkitText(doc, `${caption} `);
@@ -115,7 +128,7 @@ function signature(doc: PDFKit.PDFDocument, caption: string, examiner: RoadTestE
   doc.text(cap, x, lineY - BODY_SIZE - 1, { lineBreak: false });
   doc.strokeColor(INK).lineWidth(0.5).moveTo(x + capWidth, lineY).lineTo(x + width, lineY).stroke();
   let drawn = false;
-  if (examiner.signature) {
+  if (examiner?.signature) {
     try {
       doc.image(examiner.signature, x + capWidth + 4, y, { fit: [width - capWidth - 8, 26], valign: "bottom" });
       drawn = true;
@@ -126,7 +139,7 @@ function signature(doc: PDFKit.PDFDocument, caption: string, examiner: RoadTestE
       });
     }
   }
-  if (!drawn) {
+  if (examiner && !drawn) {
     doc.font("Helvetica-Oblique").fontSize(12)
       .text(pdfkitText(doc, examiner.fullName), x + capWidth + 4, lineY - 14, { lineBreak: false });
   }
@@ -135,17 +148,19 @@ function signature(doc: PDFKit.PDFDocument, caption: string, examiner: RoadTestE
 }
 
 /** `Signature: ___ Date: ___` on one line — the carrier's form pairs them everywhere. */
-function signedAndDated(doc: PDFKit.PDFDocument, caption: string, input: RoadTestDocumentInput): void {
+function signedAndDated(doc: PDFKit.PDFDocument, caption: string, input: FormInput): void {
   const top = doc.y;
   signature(doc, caption, input.examiner, MARGIN, CONTENT_WIDTH * 0.62);
   const after = doc.y;
   doc.y = top + 17;
-  blank(doc, "Date:", formatDisplayDate(input.record.tested_on, ""), MARGIN + CONTENT_WIDTH * 0.66, CONTENT_WIDTH * 0.34);
+  blank(doc, "Date:", input.record ? formatDisplayDate(input.record.tested_on, "") : "", MARGIN + CONTENT_WIDTH * 0.66, CONTENT_WIDTH * 0.34);
   doc.y = Math.max(after, doc.y);
 }
 
 /** The line that makes an office-applied signature traceable (Q-RT2). Small, never hidden. */
-function recordedNote(doc: PDFKit.PDFDocument, input: RoadTestDocumentInput): void {
+function recordedNote(doc: PDFKit.PDFDocument, input: FormInput): void {
+  // A blank was recorded by nobody, and a hand signature needs no tracing back to a file.
+  if (!input.recordedBy) return;
   doc.moveDown(0.6);
   doc.fillColor(MUTED).font("Helvetica").fontSize(SMALL).text(
     pdfkitText(
@@ -158,7 +173,7 @@ function recordedNote(doc: PDFKit.PDFDocument, input: RoadTestDocumentInput): vo
 
 const mark = (rating: RoadTestRating | undefined, is: RoadTestRating): string => (rating === is ? "X" : "");
 
-function examination(doc: PDFKit.PDFDocument, input: RoadTestDocumentInput): void {
+function examination(doc: PDFKit.PDFDocument, input: FormInput): void {
   const { driver, record } = input;
   letterhead(doc, input.carrier);
   title(doc, "DRIVER’S ROAD TEST EXAMINATION");
@@ -186,7 +201,7 @@ function examination(doc: PDFKit.PDFDocument, input: RoadTestDocumentInput): voi
   itemTable(doc, record);
   doc.moveDown(0.6);
   blank(doc, "Type of equipment used in giving test:",
-    `${input.powerUnit} with ${ROAD_TEST_TRAILER_LABELS[record.trailer_type].toLowerCase()} trailer`);
+    record ? `${input.powerUnit} with ${ROAD_TEST_TRAILER_LABELS[record.trailer_type].toLowerCase()} trailer` : "");
   signedAndDated(doc, "Examiner’s Signature:", input);
 }
 
@@ -194,7 +209,7 @@ function examination(doc: PDFKit.PDFDocument, input: RoadTestDocumentInput): voi
  * The items, each with the three ratings (§391.31(d): the examiner RATES each). The carrier's paper
  * has one blank per item; the owner ruled Q-RT1 that each is rated in the Evaluation's own words.
  */
-function itemTable(doc: PDFKit.PDFDocument, record: RoadTestRecord): void {
+function itemTable(doc: PDFKit.PDFDocument, record: RoadTestRecord | null): void {
   const labelWidth = CONTENT_WIDTH - 3 * 62;
   const cols = ROAD_TEST_RATINGS.map((r, i) => ({ r, x: MARGIN + labelWidth + i * 62 }));
   doc.font("Helvetica-Bold").fontSize(SMALL).fillColor(INK);
@@ -210,7 +225,7 @@ function itemTable(doc: PDFKit.PDFDocument, record: RoadTestRecord): void {
     const bottom = doc.y;
     for (const c of cols) {
       doc.rect(c.x + 25, y + 1, 11, 11).lineWidth(0.5).strokeColor(INK).stroke();
-      const m = mark(record.items[item.key], c.r);
+      const m = mark(record?.items[item.key], c.r);
       if (m) doc.font("Helvetica-Bold").fontSize(10).text(m, c.x + 25, y + 1.5, { width: 11, align: "center" });
     }
     doc.y = Math.max(bottom, y + 14) + 3;
@@ -218,7 +233,7 @@ function itemTable(doc: PDFKit.PDFDocument, record: RoadTestRecord): void {
   doc.x = MARGIN;
 }
 
-function evaluation(doc: PDFKit.PDFDocument, input: RoadTestDocumentInput): void {
+function evaluation(doc: PDFKit.PDFDocument, input: FormInput): void {
   const { record } = input;
   doc.moveDown(1.2);
   title(doc, "EVALUATION OF ROAD TEST");
@@ -229,22 +244,60 @@ function evaluation(doc: PDFKit.PDFDocument, input: RoadTestDocumentInput): void
     doc.font("Helvetica").fontSize(BODY_SIZE).text(pdfkitText(doc, ROAD_TEST_RATING_LABELS[r]), x, y, { lineBreak: false });
     const w = doc.widthOfString(ROAD_TEST_RATING_LABELS[r]);
     doc.rect(x + w + 4, y - 1, 11, 11).lineWidth(0.5).strokeColor(INK).stroke();
-    if (record.general_performance === r) doc.font("Helvetica-Bold").text("X", x + w + 4, y, { width: 11, align: "center" });
+    if (record?.general_performance === r) doc.font("Helvetica-Bold").text("X", x + w + 4, y, { width: 11, align: "center" });
     x += w + 30;
   }
   doc.x = MARGIN;
   doc.y = y + 20;
   doc.font("Helvetica-Bold").fontSize(BODY_SIZE).text("REMARKS:", MARGIN, doc.y);
-  doc.font("Helvetica").fontSize(BODY_SIZE)
-    .text(pdfkitText(doc, record.remarks?.trim() || "None."), MARGIN, doc.y + 2, { width: CONTENT_WIDTH, lineGap: 1.5 });
+  if (record) {
+    doc.font("Helvetica").fontSize(BODY_SIZE)
+      .text(pdfkitText(doc, record.remarks?.trim() || "None."), MARGIN, doc.y + 2, { width: CONTENT_WIDTH, lineGap: 1.5 });
+  } else {
+    // Room to write by hand: three rules, where a recorded test prints its remarks.
+    for (let i = 0; i < 3; i++) {
+      const y = doc.y + 18;
+      doc.strokeColor(INK).lineWidth(0.5).moveTo(MARGIN, y).lineTo(MARGIN + CONTENT_WIDTH, y).stroke();
+      doc.y = y;
+    }
+    doc.y += 6;
+  }
   doc.moveDown(0.6);
-  blank(doc, "QUALIFIED FOR:", record.qualified_for?.trim() ?? "");
+  blank(doc, "QUALIFIED FOR:", record?.qualified_for?.trim() ?? "");
   signedAndDated(doc, "Signature of Examiner:", input);
 }
 
 /** Examination + evaluation: the "original signed road test form" §391.31(g) files, pass or fail. */
 export async function roadTestFormPdf(input: RoadTestDocumentInput): Promise<Buffer> {
-  const { doc, done } = newDrawing(`Road test examination — ${input.driver.fullName}`);
+  return drawForm(input, `Road test examination — ${input.driver.fullName}`);
+}
+
+/**
+ * The same form with nothing on it but the carrier, for an examiner to fill in by hand (MV2).
+ * Every box is empty, every rule is bare, and no signature is applied.
+ */
+export async function roadTestBlankFormPdf(carrier: RoadTestDocumentInput["carrier"]): Promise<Buffer> {
+  return drawForm(
+    {
+      carrier,
+      driver: {
+        fullName: "",
+        address: { line1: null, city: null, state: null, zip: null },
+        phone: null,
+        licenceNumber: null,
+        licenceState: null,
+      },
+      powerUnit: "",
+      record: null,
+      examiner: null,
+      recordedBy: null,
+    },
+    "Road test examination",
+  );
+}
+
+async function drawForm(input: FormInput, documentTitle: string): Promise<Buffer> {
+  const { doc, done } = newDrawing(documentTitle);
   examination(doc, input);
   doc.addPage();
   letterhead(doc, input.carrier);

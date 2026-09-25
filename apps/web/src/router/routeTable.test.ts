@@ -53,10 +53,10 @@ const PROBES = [
   "/fuel-planning", "/truck-stops", "/idling",
   "/drivers", "/drivers/dr_1",
   "/compliance", "/compliance/dr_1",
-  // R7 added `/recruitment/:id`, which makes these three another specificity pair: the two static
+  // R7 added `/recruitment/:id`, which makes these (four since MV2) another specificity pair: the two static
   // segments must keep beating the param, or the inquiry queue starts rendering an applicant record
   // for a driver whose id is the word "inquiries".
-  "/recruitment", "/recruitment/screening", "/recruitment/inquiries", "/recruitment/ap_1",
+  "/recruitment", "/recruitment/screening", "/recruitment/inquiries", "/recruitment/templates", "/recruitment/ap_1",
   // C7b renamed the ledger to /findings and left the old address as a redirect, so both are probed
   // for the same reason /cpm's predecessors are below: a link somebody sent last week must still open.
   "/driver-performance", "/fuel-log", "/fuel-spend", "/findings", "/fuel-spend/exceptions", "/ifta",

@@ -14,6 +14,7 @@ import { recruitmentHiringEvidenceRouter } from "./hiringEvidence.js";
 import { recruitmentRoadTestRouter } from "./roadTest.js";
 import { recruitmentHandbookRouter } from "./handbook.js";
 import { recruitmentSmsConsentRouter } from "./smsConsent.js";
+import { recruitmentTemplatesRouter } from "./templates.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -41,5 +42,6 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentRoadTestRouter()); // the §391.31 road test and its examiners (D2)
   router.use(recruitmentHandbookRouter()); // the driver handbook and its Representatives (D-HB1..5)
   router.use(recruitmentSmsConsentRouter()); // whether a text reaches an applicant, and recording a stop asked for off-text (SMS4)
+  router.use(recruitmentTemplatesRouter()); // blank documents to print when the electronic path fails (MV2)
   return router;
 }

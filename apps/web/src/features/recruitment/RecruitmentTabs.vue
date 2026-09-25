@@ -4,7 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { AppTabs } from "@silvicom/ui";
 
 /**
- * One recruitment page, three views (D-HUI8, B4).
+ * One recruitment page, four views (D-HUI8, B4; Templates since MV2).
  *
  * ── WHAT THIS REPLACES, AND WHY IT IS NOT A DELETION ──────────────────────────────────────────
  * `/recruitment`, `/recruitment/screening` and `/recruitment/inquiries` were three sidebar entries
@@ -49,6 +49,9 @@ const TABS = [
   { value: "recruitment", label: "Applicants" },
   { value: "screening-readiness", label: "Screening readiness" },
   { value: "inquiry-queue", label: "Safety-history inquiries" },
+  // MV2 (D-MVR2): the fourth view, and the same shape as the other two — a real route with its own
+  // `PageHeader`, a `parent` surface under Applicants, one entry in the sidebar.
+  { value: "recruitment-templates", label: "Templates" },
 ] as const;
 
 /**
