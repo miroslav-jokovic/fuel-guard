@@ -220,7 +220,7 @@ within five minutes of an opt-out, and it must not try to win the person back.
 | useCaseSummary | Transactional text messages to truck-driver job applicants about their own application with Silvicom Inc: a link to their application form, a reminder when a step is unfinished, and a notice when it is approved. Messages go only to applicants who opted in on their own application page; no marketing, no third-party content. Messages are held outside daytime hours in every US time zone. |
 | productionMessageContent | §6.3's first four rows, with a real link |
 | optInWorkflow | Subscribers opt in digitally. An applicant receives a private application link by email from Silvicom Inc (https://360.silvicominc.com/apply/…). After signing their background-check permissions they reach a waiting page, where an optional, unchecked box offers text messages about their application, with the full disclosure, links to our SMS terms (https://360.silvicominc.com/sms-terms) and privacy policy (https://360.silvicominc.com/privacy#text-messages), and a field for their mobile number. The link is private to each applicant, so a screenshot of the form is provided. |
-| optInWorkflowImageURLs | ⚠ screenshots of the card (unticked, then agreed), hosted publicly |
+| optInWorkflowImageURLs | `https://360.silvicominc.com/compliance/sms-opt-in/sms-opt-in-1-offer.png`, `…-2-ticked.png`, `…-3-agreed.png` — taken from the production bundle on 2026-09-25 with only the applicant data mocked (the card is behind a private link). They live in `apps/web/public/compliance/sms-opt-in/`; **retake them if the card or the consent wording changes**, because a screenshot that no longer matches the live form is a verification a carrier can revoke. |
 | Privacy policy URL | https://360.silvicominc.com/privacy#text-messages |
 | Terms URL | https://360.silvicominc.com/sms-terms |
 | additionalInformation | Silvicom 360 is Silvicom Inc's own driver compliance software, served at 360.silvicominc.com; the application pages and the SMS terms are on that domain. Opt-in is optional and is never a condition of applying. |
@@ -245,3 +245,10 @@ Append dated lines here; never edit a table row above to record progress.
   each carries sender-first, STOP, plain ASCII — pinned per message. HELP now names the terms page on
   the deployment's own host (`smsHelpReply(siteHostOf(WEB_APP_URL))`). Still owed by the owner for
   §6.4: the website, the EIN, a named contact, and the hosted screenshots.
+- 2026-09-25 — #1050 merged and live (terms page in the production bundle). Owner's HELP test: webhook
+  received and verified it, reply sent, Telnyx `delivery_failed` **40329 "Tollfree number is not
+  verified"** — the wiring is proven and verification is the only blocker. Account read the same day:
+  one number, profile enabled and US-only, no verification request, no 10DLC brand, $28.05. The EIN
+  is the company's (Silvicom Inc), never a related company's: the registration number must match the
+  legal name, and the verified business is the sender on record. Opt-in screenshots added to
+  `apps/web/public/compliance/sms-opt-in/`.
