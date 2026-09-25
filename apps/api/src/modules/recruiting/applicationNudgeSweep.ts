@@ -3,6 +3,7 @@ import {
   APPLICATION_SECTION_LABELS,
   INVITE_TTL_DAYS_DEFAULT,
   planApplicationNudges,
+  smsApplicationReminder,
   type NudgeCandidate,
   type PlannedNudge,
 } from "@silvicom/shared";
@@ -152,21 +153,21 @@ async function alertOffice(
 export interface NudgeSweepResult {
   stalled: number;
   emailed: number;
-  /** Texts that actually went out — always 0 until 10DLC registration completes (A11b, §6). */
+  /** Texts that actually went out — none for an applicant who has not agreed on their waiting screen (SMS-OPT-IN-PLAN D-SMS1). */
   messaged: number;
 }
 
 /**
- * The text, in the 160 characters a segment gets.
+ * The text.
  *
  * Carrier identification is not decoration: every US carrier's messaging rules require the sender to
  * be identifiable in the body, and `STOP` has to be discoverable from the message itself rather than
  * from a consent somebody signed weeks ago. What is left after those two is the link, so the copy says
- * the one thing the email says at length — this link is the live one — and nothing else.
+ * the one thing the email says at length — this link is the live one — and nothing else. The words
+ * live in `smsConsentContract.ts` beside every other message this programme sends, so the set a
+ * toll-free verification is submitted with is one file (SMS-OPT-IN-PLAN §6).
  */
-export const smsBody = (carrier: string, link: string): string =>
-  `${carrier}: your driver application is saved. Finish it here: ${link} `
-  + "(this replaces any earlier link). Reply STOP to opt out.";
+export const smsBody = smsApplicationReminder;
 
 /**
  * One org's sweep.

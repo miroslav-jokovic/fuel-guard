@@ -189,6 +189,10 @@ function verifyAdoption() {
     "legal/PrivacyPolicyPage.vue",
     "legal/SupportPage.vue",
     "legal/TermsPage.vue",
+    // SMS-OPT-IN-PLAN D-SMS4 — the fourth published document, for P3's reason above: `PublicLayout`,
+    // no session, and `LegalDocument.vue` as its chrome. A carrier-network reviewer opens it from the
+    // opt-in screenshot.
+    "legal/SmsTermsPage.vue",
   ]);
   const failures = [];
   const missingHeaders = pageAdoption

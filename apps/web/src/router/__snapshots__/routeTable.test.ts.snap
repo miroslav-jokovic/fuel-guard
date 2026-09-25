@@ -509,6 +509,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/support",
   },
   {
+    "name": "sms-terms",
+    "params": {},
+    "url": "/sms-terms",
+  },
+  {
     "name": "server-error",
     "params": {},
     "url": "/error",
@@ -1336,6 +1341,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "unit",
     "path": "/shop/units/:kind/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "layout": "public",
+      "public": true,
+      "title": "Text message terms",
+    },
+    "name": "sms-terms",
+    "path": "/sms-terms",
     "redirect": null,
   },
   {

@@ -1,6 +1,7 @@
 import { APPLY_FLOW_COPY } from "./strings.flow";
 import { APPLY_IDENTITY_COPY } from "./strings.identity";
 import { APPLY_PERMISSIONS_COPY } from "./strings.permissions";
+import { APPLY_SMS_COPY } from "./strings.sms";
 import {
   APPLICATION_SECTION_LABELS,
   CMV_WINDOW_YEARS,
@@ -442,4 +443,5 @@ export const APPLY_COPY = {
   ...APPLY_FLOW_COPY,
   ...APPLY_IDENTITY_COPY,
   ...APPLY_PERMISSIONS_COPY,
+  ...APPLY_SMS_COPY,
 } as const;

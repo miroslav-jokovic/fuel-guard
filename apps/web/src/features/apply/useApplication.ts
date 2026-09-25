@@ -201,7 +201,7 @@ export function linkHasBeenUsed(invitation: ApplyInvitation | undefined): boolea
   );
 }
 
-async function publicFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function publicFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api/public/application${path}`, {
     ...init,
     headers: { "content-type": "application/json", ...(init.headers ?? {}) },

@@ -72,7 +72,7 @@ assumed on 2026-09-06:
 `isHelpMessage` was written and unit-tested and had no caller, so a mandated keyword went
 unanswered. It now replies through the transport directly, bypassing consent, quiet hours and the
 draft gate, because a HELP answer is the required response to a message somebody sent *us* rather
-than a message we chose to send. `SMS_HELP_REPLY` carries the reasoning.
+than a message we chose to send. `smsHelpReply` carries the reasoning.
 
 ---
 
@@ -135,7 +135,7 @@ off the implementation rather than written from a template, so it is checkable:
 > - **Stopping.** Reply **STOP** at any time — also STOPALL, UNSUBSCRIBE, CANCEL, END or QUIT, and we
 >   honour a plain-English "please stop" too. This revokes every live consent on that number
 >   immediately. (`SMS_STOP_KEYWORDS`, `revoke_sms_consent`.)
-> - **Help.** Reply **HELP** for help. (`SMS_HELP_REPLY`.)
+> - **Help.** Reply **HELP** for help. (`smsHelpReply`.)
 > - **Rates.** Message and data rates may apply.
 > - **What we keep.** Your number, the exact wording you agreed to, its version, and the date, time,
 >   IP address and browser you agreed from — so we can show what was agreed and when.
@@ -151,6 +151,11 @@ reviewer opens by checking.
 ---
 
 ## 5. Order of work
+
+⚠ **Superseded for item 2 by `SMS-OPT-IN-PLAN.md` (2026-09-25).** The checkbox does NOT go on the
+application form: the application link is one of the things we want to text, and a consent collected
+behind it cannot authorise sending it. It goes on the applicant's waiting screens instead (D-SMS1),
+with its own terms and privacy pages (D-SMS4). The list below is kept as the record of the order.
 
 1. **Counsel publishes `SMS_CONSENT`** (version off `v0-draft`). Blocks 2 and 4. Not an engineering task.
 2. **Build the opt-in surface** — `POST /api/public/application/:token/sms-consent` reaching the

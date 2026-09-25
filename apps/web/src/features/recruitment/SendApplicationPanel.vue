@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
+import ApplicantTextsStatus from "@/features/recruitment/ApplicantTextsStatus.vue";
 import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
 import { useSendApplication, type ApplicationSent } from "@/features/recruitment/useSendApplication";
 import { useApplicationInvitesQuery } from "@/features/recruitment/useApplicationInvites";
@@ -20,9 +21,10 @@ import { useApplicationInvitesQuery } from "@/features/recruitment/useApplicatio
  * the press, which is what is shown once it has been sent.
  *
  * ── THE LINK COMES BACK ON SCREEN (D-AF7) ─────────────────────────────────────────────────────
- * SMS cannot carry it (memo Q12) and the sending address is a personal one until the owner's arrives,
- * so the screen is the delivery path that always works: `ApplicationLinkOnce` shows it once, with
- * copy, exactly as it does for the invitation.
+ * A text reaches only an applicant who agreed on their waiting screen (SMS-OPT-IN-PLAN D-SMS7), and
+ * the sending address is a personal one until the owner's arrives, so the screen is the delivery path
+ * that always works: `ApplicationLinkOnce` shows it once, with copy, exactly as it does for the
+ * invitation. `ApplicantTextsStatus` says, before the press, whether a text will go too.
  *
  * ⚠ A second press ROTATES the link: the one sent before stops working. That is the recovery for a
  * lost email, and the button says so rather than letting it be a surprise.
@@ -51,6 +53,21 @@ const outstanding = computed(() => {
     .map((s) => s.label);
 });
 const warnedAfter = computed(() => (result.value?.warnings ?? []).map((k) => hiringStep(k).label));
+
+/**
+ * What became of the text (D-SMS7), in one sentence — and nothing at all for an applicant who never
+ * agreed, because the status line below already says so and "not texted" there would read as a fault.
+ * A held text is NOT retried: the email and the link on screen already carry it, and the sentence
+ * says that rather than promising a text that will not come.
+ */
+const textLine = computed(() => {
+  const text = result.value?.text;
+  if (!text || text.reason === "no_consent") return null;
+  if (text.sent) return "Also texted to the applicant.";
+  if (text.reason === "quiet_hours") return "Not texted: it is outside daytime hours somewhere in the US. The email and the link above carry it.";
+  if (text.reason === "consent_revoked" || text.reason === "no_number") return null;
+  return "The text did not go through. The email and the link above carry it.";
+});
 
 // The drawer swaps applicants without unmounting; one applicant's link must never greet the next.
 watch(() => props.invitationId, () => { result.value = null; });
@@ -87,7 +104,10 @@ async function press(): Promise<void> {
         :delivery="result.delivery"
         if-lost="send the application again if it is lost; that makes a new link."
       />
+      <p v-if="textLine" class="text-xs text-ink-secondary">{{ textLine }}</p>
     </template>
+
+    <ApplicantTextsStatus :driver-id="driverId" :can-manage="canSend" />
 
     <BaseButton v-if="canSend" size="sm" :variant="result || sentAt ? 'secondary' : 'primary'"
       :disabled="send.isPending.value" @click="press">

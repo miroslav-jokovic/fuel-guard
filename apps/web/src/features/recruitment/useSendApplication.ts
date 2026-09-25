@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { HiringStepKey } from "@silvicom/shared";
+import type { HiringStepKey, SmsHoldReason } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { applicantChecklistKey } from "@/features/recruitment/useApplicantChecklist";
+import { applicantSmsConsentKey } from "@/features/recruitment/useApplicantSmsConsent";
 import { inviteKey, type ApplicationInviteDelivery } from "@/features/recruitment/useApplicationInvites";
 
 /** What the office's Send answers with (AF4). The link is the only copy there will ever be. */
@@ -11,6 +12,11 @@ export interface ApplicationSent {
   warnings: HiringStepKey[];
   applicationSentAt: string;
   delivery: ApplicationInviteDelivery;
+  /**
+   * D-SMS7: whether the link also went by text. `no_consent` is the ordinary answer and reads as "not
+   * agreed", never as a failure. Optional: an API from before SMS4 does not send it.
+   */
+  text?: { sent: boolean; reason: SmsHoldReason | "send_failed" | null };
 }
 
 /**
@@ -33,6 +39,9 @@ export function useSendApplication() {
     onSuccess: (_r, input) => {
       void qc.invalidateQueries({ queryKey: applicantChecklistKey(input.driverId) });
       void qc.invalidateQueries({ queryKey: inviteKey(input.driverId) });
+      // A send is also the moment a stale "texts on" would mislead: an opt-out may have arrived by
+      // STOP since the drawer opened.
+      void qc.invalidateQueries({ queryKey: applicantSmsConsentKey(input.driverId) });
     },
   });
 }

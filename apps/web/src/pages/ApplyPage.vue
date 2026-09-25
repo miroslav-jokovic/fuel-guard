@@ -307,7 +307,7 @@ watch(
   <!-- F4/D-AX11: handed over, and not yet approved. The driver has done everything they can do for
        the moment, and the screen says so rather than leaving them on a form with a spent button. -->
   <BaseCard v-else-if="awaitingReview">
-    <ApplyWaitScreen :heading="APPLY_COPY.handoff.waitingHeading" :note="APPLY_COPY.handoff.waitingNote"
+    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.handoff.waitingHeading" :note="APPLY_COPY.handoff.waitingNote"
       :body="APPLY_COPY.handoff.waitingBody(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
 
@@ -355,14 +355,14 @@ watch(
 
   <!-- AF4 (plan §3.1 row 5): permissions in, form not sent. Before the unlock gate: nothing is shown. -->
   <BaseCard v-else-if="waitingForApplication">
-    <ApplyWaitScreen :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
+    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
       :body="APPLY_COPY.permissionsReceived.body(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
 
   <!-- AF5 (plan §3.1 row 9): approved, and signing happens in the office. Before the unlock gate: it
        prints nothing of the application. -->
   <BaseCard v-else-if="awaitingOffice">
-    <ApplyWaitScreen :heading="APPLY_COPY.signInOffice.heading" :note="APPLY_COPY.signInOffice.note"
+    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.signInOffice.heading" :note="APPLY_COPY.signInOffice.note"
       :body="APPLY_COPY.signInOffice.body(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
 
