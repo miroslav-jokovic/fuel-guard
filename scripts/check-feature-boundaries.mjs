@@ -274,6 +274,9 @@ const API_ALLOW = new Set([
   // Dispatch refuses a driver blocked on return-to-duty (§40.25(j)). `loads -> messaging` went with
   // Release in LR6 (LOADS-MIRROR-PLAN.md): it was the notification a released load sent its driver.
   "loads -> recruiting",
+  // The Loads board names each load's McLeod dispatcher (LOADS-MIRROR-PLAN.md LR7). The roster of
+  // dispatchers is `mcleod`'s raw `tms_dispatchers`, read through `readDispatcherNames`, never directly.
+  "loads -> mcleod",
   // A dispatch text reads its appointments on the carrier's clock (LOADS-MIRROR-PLAN.md LR-D2), and
   // the one reader of `organizations.operating_hours->>'tz'` is idle's — the same borrow as fuel's.
   "loads -> idle",

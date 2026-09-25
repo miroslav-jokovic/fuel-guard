@@ -18,6 +18,9 @@
 export { tmsIngestRouter } from "./routes/tmsIngest.js";
 export { tmsRosterMasterRouter } from "./routes/tmsRosterMaster.js";
 export { isTmsRosterMaster } from "./rosterMastery.js";
+// The Loads board's Dispatcher column (LOADS-MIRROR-PLAN.md LR7): `tms_dispatchers` is raw, so the
+// `loads` module reads names through here, never the table.
+export { readDispatcherNames } from "./tmsDispatcherIngest.js";
 export {
   getTmsIntegrationStatus,
   enableTmsIntegration,

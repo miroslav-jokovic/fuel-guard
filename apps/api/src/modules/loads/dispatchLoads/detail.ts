@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
-import { listEvents } from "./queries.js";
+import { dispatcherNamesFor, listEvents } from "./queries.js";
 import { externalPayload, stopEquipment } from "./duty.js";
 import { dispatchesByLoad } from "../dispatchToDriver.js";
 
@@ -160,7 +160,7 @@ export async function getLoadDetail(
 
   // Stops, photos and the timeline are independent of one another — fetch them together rather than
   // in a waterfall. The load read above has to come first: it is what proves the org owns this id.
-  const [stopsResult, photosByStop, events, hazmatRecord, provenance, dispatches] = await Promise.all([
+  const [stopsResult, photosByStop, events, hazmatRecord, provenance, dispatches, dispatcherOf] = await Promise.all([
     admin
       .from("load_stops")
       .select(STOP_COLUMNS)
@@ -172,6 +172,7 @@ export async function getLoadDetail(
     linkedHazmat(admin, orgId, loadId),
     externalPayload(admin, orgId, loadId),
     dispatchesByLoad(admin, orgId, [loadId]),
+    dispatcherNamesFor(admin, orgId, [row as { provider?: string | null; dispatcher_external_id?: string | null }]),
   ]);
 
   const { drivers, vehicles, trailers, ...load } = row as unknown as Record<string, unknown> & {
@@ -215,5 +216,7 @@ export async function getLoadDetail(
     external: provenance,
     // D-LMR6/D-LMR7: every time the office sent this load, newest first. The first is the current one.
     dispatches: dispatches.get(loadId) ?? [],
+    // LR7: who dispatches it in McLeod, by name.
+    dispatcher_name: dispatcherOf(row as { provider?: string | null; dispatcher_external_id?: string | null }),
   };
 }

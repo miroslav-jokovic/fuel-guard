@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { LoadDispatchSummary } from "@silvicom/shared";
 import { dispatchHeadline, smsReasonText } from "./useLoadDispatch";
-import { QUEUE_TABS, tabFor, type DispatchLoad } from "./useDispatchLoads";
+import { QUEUE_TABS, inQueue, type DispatchLoad } from "./useDispatchLoads";
 
 /**
  * The words the board and the load page use for a dispatch (LR-D3, D-LMR7). The one that matters:
@@ -36,18 +36,25 @@ describe("dispatch wording", () => {
   });
 });
 
-describe("the board's queues after LR6", () => {
-  const load = (status: string) => ({ status, source: "tms", stops: [] }) as unknown as DispatchLoad;
+describe("the board's queues (LR7)", () => {
+  const load = (status: string, extra: Record<string, unknown> = {}) =>
+    ({ status, source: "tms", stops: [], ...extra }) as unknown as DispatchLoad;
 
-  it("puts McLeod's A (pending_approval) under Available, and every planned or moving load under Active", () => {
-    expect(tabFor(load("pending_approval"))).toBe("available");
-    for (const s of ["approved", "offered", "accepted", "in_transit"]) expect(tabFor(load(s))).toBe("active");
-    expect(tabFor(load("delivered"))).toBe("delivered");
-    expect(tabFor(load("canceled"))).toBe("delivered");
+  it("opens on Active and offers the owner's four queues plus Exceptions, with no approval queue", () => {
+    expect(QUEUE_TABS.map((t) => t.value)).toEqual(["active", "uncovered", "delivered", "all", "exceptions"]);
+    expect(QUEUE_TABS.map((t) => t.label).join(" ")).not.toMatch(/approv/i);
   });
 
-  it("offers no approval queue, and opens on Active", () => {
-    expect(QUEUE_TABS.map((t) => t.value)).toEqual(["active", "available", "delivered", "exceptions"]);
-    expect(QUEUE_TABS.map((t) => t.label).join(" ")).not.toMatch(/approv/i);
+  it("files a load where the shared rule words it: an A with driver and truck is Active, without is Uncovered", () => {
+    expect(inQueue(load("pending_approval", { driver_id: "d", vehicle_id: "v" }), "active")).toBe(true);
+    expect(inQueue(load("pending_approval", { driver_id: "d" }), "uncovered")).toBe(true);
+    expect(inQueue(load("in_transit"), "active")).toBe(true);
+    expect(inQueue(load("delivered"), "delivered")).toBe(true);
+  });
+
+  it("keeps a canceled load in All only", () => {
+    const voided = load("canceled");
+    expect(["active", "uncovered", "delivered"].some((q) => inQueue(voided, q as never))).toBe(false);
+    expect(inQueue(voided, "all")).toBe(true);
   });
 });

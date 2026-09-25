@@ -438,6 +438,13 @@ stop `id`, stop `phone`): the owner confirms Alex will add them to his list — 
    not marketing; counsel to confirm). Until it is ruled, Dispatch records `not_sent` /
    `sms_not_configured` today and `not_sent` / `no_dispatch_consent` once Telnyx is live — the text is
    composed and stored either way, and nothing is sent.
+10. **Q-LMR10 — the BOL on hover (LR7's Load # column) has no core column to read.** Found in LR7.
+   McLeod's `blnum` is in raw `mcleod_dispatch_movements` only; LR2 did not carry it into `loads`, and
+   the page may not read raw (D-SEP1, `lint:table-access`). Candidates: (a) a nullable `loads.bol_number`
+   in its own migration, then the projection writes it and the board reads it in a third merge (the
+   LR2 → LR3 → LR4 order, for one field); (b) show it on the load page only, from the same column —
+   still needs (a); (c) drop the hover. **Recommendation: (a)**, cheap and already the house pattern.
+   **PU #** is the same shape but blocked upstream on Q-LMR5's grant, not on us.
 
 ---
 
@@ -625,3 +632,28 @@ Append a dated line per merge. Never edit a status column.
   migration, so no schema check was owed. **LR7 next**; still owed from the walks: the four-tab strip
   keeps a 390 px phone 32 px too wide (422, was 683), and the "Planned" label for an `A` load with a
   driver and a truck.
+- 2026-09-24 — **LR7 built: the Loads page, read-only.** Tabs **Active** (default) · **Uncovered** ·
+  **Delivered** · **All**, plus **Exceptions** — kept, because a driver's decline and a timed-out shift
+  still raise one and it has no load row to filter; the plan's four tabs did not account for it. Which
+  queue a load sits in and the word it wears are one pure rule, `loadBoardState` (`@silvicom/shared`),
+  with McLeod's own code in the tooltip ("McLeod status P (planned)"): `in_transit` reads **In
+  transit**; an `A` with a driver AND a truck reads **Planned** and sits on Active (the 26-of-47 finding),
+  an `A` missing either is **Uncovered**; `V` is in All only. Columns, as walked: Load # (dispatcher
+  beneath) · Status · Driver (truck / trailer beneath) · Pickup · Delivery (+N more stops) · Type
+  (Regular / Reefer, plus the hazmat record's state) · Dispatch. **Not the list's order, on purpose:**
+  ten separate columns measured ~92 rem against ~69 at 1440 px and pushed Status off-screen; after the
+  first merge of cells the row menu still ended 42 px past the edge, so the dispatcher moved under the
+  load number (the Dispatcher filter stays). Measured at the end: the menu ends at 1384 of 1440, and a
+  390 px phone scrolls 0 px sideways (683 before LR6, 422 after) because the strip is now the shared
+  `AppTabs`, `scrollable` — accessible, too, which the hand-rolled strip never was. Times are on the
+  carrier's clock (`useOrgTimezone`), dates MM/DD/YYYY; the header says **"Loads from McLeod as of …"**
+  from the newest `external_synced_at`, never "live". Dispatcher names come through a new `mcleod`
+  export, `readDispatcherNames` (raw `tms_dispatchers` stays the collector's; edge `loads -> mcleod`),
+  keyed provider + id, falling back to the McLeod id. The board's stop read gained the `org_id` filter it
+  lacked. The load page reads the same words, names the dispatcher, and shows each stop's McLeod actual
+  arrival / departure, else McLeod's ETA, beside the driver app's own times, never merged (Q-LMR2).
+  **Not built:** PU # (Q-LMR5) and the BOL hover (Q-LMR10, new). The View is the existing load PAGE, not a
+  drawer: LD2 moved it off a drawer because a drawer over the list cannot deep-link. ⚠ Seen on the walk,
+  left for Q-LMR2: a stop McLeod shows departed still wears the driver app's "Pending" badge. Ten mutants
+  each failing by name; one survived first (stop order) because the fixture's array order agreed with
+  McLeod's sequence, and the fixture was fixed until it failed.
