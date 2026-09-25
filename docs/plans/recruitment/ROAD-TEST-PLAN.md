@@ -194,3 +194,27 @@ Append a dated line per step. Never edit §4.
   · **Next: RT4**, the driver's copy of the certificate on the applicant's link. ⚠ **Owed by the
     office:** add Arvidera Gakhal (Maintenance manager) and his signature PNG from the step-13
     drawer, then record one test on the QA applicant.
+- **2026-09-25** — **RT4 DONE (in PR). No migration.** The driver's copy of the certificate
+  (§391.31(g): *"a copy of the certificate shall be given to the person who was examined"*).
+  · API: `GET /api/public/application/:token/road-test-certificate`
+    (`applicationRoadTestCopy.ts`), shaped like `/document`: a 5-minute signed URL (never the
+    bytes), on the intake bucket, audited as `road_test_certificate_downloaded` against the
+    `qualification_records` row. `no_certificate` is 409 ("not yet"), a dead link 404
+    `invalid_link`, and a record citing a document the org does not hold 503.
+  · **Certificate, never the form.** Both PDFs RT3 files are `documents.kind = 'road_test'`, so the
+    route never reads `documents` by kind. It follows the latest `qualification_records` road_test
+    row (test date, then filing) whose `detail.source = 'road_test'`. Only RT3 writes that source, and
+    RT3 always puts the certificate in `document_id`. A road test recorded by hand on the DQF page cites
+    whatever was scanned, so it is NOT served. The office hands that driver their copy, as before RT4.
+  · The link's payload (`GET /:token`) carries `roadTestCertificate: { testedOn } | null`, from the
+    same query, and `ApplicationFiledCard` offers "Download your road test certificate" only when it
+    is set. **Only on the filed card, on purpose:** step 13 comes before the packet is signed and
+    filed, so the certificate already exists when that card becomes the page. ⚠ A driver who passes
+    and never files gets no button on the link. The office owes them the paper copy, the same as for
+    a hand-recorded test. The copy also dies with the link (`expires_at`), like the application copy.
+  · 23 of 23 mutants killed (service filters, ordering, audit, TTL, filename, route status and mount,
+    the payload, the card's gate, fetcher, flags and date, and the page's prop). All CI gates, web
+    `lint:tokens`, typecheck, and the shared (3159), API (4590) and web (2196) suites pass. No new PDF
+    was rendered: RT4 serves the certificate RT2 draws.
+  · **D2 is complete.** Next per HIRING-MODULE-PLAN §9: D3 (orientation + handbook, a 0215 `purpose`
+    CHECK widening, so two merges), then D4 (videos).

@@ -357,6 +357,22 @@ describe("the applicant's page", () => {
     expect(w.text()).not.toContain("Send it to");
     // The old copy promised a later signing step through a link this page had just closed.
     expect(w.text()).not.toContain("you will be asked to sign");
+    // No certificate in the payload, so no button that could only answer "not yet" (RT4).
+    expect(w.text()).not.toContain(APPLY_COPY.done.certificate);
+  });
+
+  // RT4, §391.31(g): the link's own payload is what puts the certificate on the filed card.
+  it("offers the road-test certificate on the filed card when the link has one", async () => {
+    fetchMock.mockResolvedValue(ok({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+      phases: { consentedAt: null, releasesCompletedAt: null, submittedAt: "2026-08-21T10:00:00Z" },
+      roadTestCertificate: { testedOn: "2026-09-25" },
+    }));
+    const w = mountPage();
+    await settle(w);
+
+    expect(w.text()).toContain(APPLY_COPY.done.certificate);
+    expect(w.text()).toContain("09/25/2026");
   });
 
   /**
