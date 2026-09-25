@@ -603,4 +603,27 @@ Append a dated line per step. Never edit §4.
   owner-operator's page 22 gets `yes` on the contracting reason. An answer left blank, or a payload
   filed before the question existed, prints the paper as it was. The full entry is in
   `HIRING-MODULE-PLAN.md` §10. §7 gains Q-AF1 to Q-AF3. **Next: AF6, then AF7.**
+- **2026-09-25** — **AF6 DONE, in two merges**: the API half (#1033, merge `1832845`) and the
+  applicant's screen (#1035, merge `eaf0a94`). No migration. The applicant adopts one signature in
+  the packet's own Type/Draw/Upload screens, confirms it, then signs each of the five permissions as
+  its own PDF, whole, with a **Sign here** tag on the box the document names. The office's
+  `permissions.pdf` prints each signed instrument through the same renderer. 20 of 20 and 16 of 16
+  mutants killed. Where the build refines §4's text:
+  · **The box is found inside the PDF, not by a second request.** The renderer writes it as a named
+    destination (`sign-here`); the screen resolves it with pdfjs. Only the applicant's standalone
+    copy names it, since five same-named destinations in the office's copy would be a malformed tree.
+  · **The PSP PDF is FMCSA's form alone**: no letterhead, no version line, the form's own captions,
+    and its two NOTICE paragraphs **below** the signature, where the paper has them.
+  · **A document that will not load, or names no box, falls back to its words and a plain button.**
+    The words are also one tap away under every document, because a canvas is an image to a screen
+    reader and small on a phone.
+  · **Only this session's signatures lock the adopted name.** The link serves which permissions are
+    signed but not the name, so a resumed applicant can still type it.
+  · **The permission PDFs moved to the ceremony's per-link bucket**, as §4 said; a lookalike path
+    still counts against the intake's 20.
+  · Found by rendering: a long typed signature wrapped through its caption (now shrunk to fit), and a
+    signature block landed alone on a sheet away from the sentence it signs (the intent and the block
+    now stay together). pdfkit flips a destination's y itself, so the first version flipped it twice.
+  · ⚠ **Owed by the office:** walk the permissions in "FuelGuard EFS QA" alongside the AF5 walk.
+  · **Next: AF7** (an MVR for every licensing state).
 
