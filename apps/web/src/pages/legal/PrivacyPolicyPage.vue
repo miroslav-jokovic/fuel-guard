@@ -10,6 +10,7 @@ import {
   PRODUCT_NAME,
   supportEmail,
 } from "@/features/legal/legalMeta";
+import { SMS_PRIVACY_ANCHOR, SMS_TERMS_PATH } from "@/lib/legalPaths";
 
 /**
  * The privacy policy (P3.2, D-PR9). Public, unauthenticated, indexable.
@@ -32,7 +33,7 @@ const email = computed(() => supportEmail());
 <template>
   <LegalDocument
     title="Privacy policy"
-    summary="What the Silvicom 360 driver app collects, why, who can see it, and how long it is kept."
+    summary="What the Silvicom 360 driver app collects, why, who can see it, and how long it is kept — and what happens to the number you give us if you agree to texts about a job application."
   >
     <LegalSection id="who-we-are" title="Who we are">
       <p>
@@ -189,6 +190,46 @@ const email = computed(() => supportEmail());
       <p>
         The app is for employed commercial drivers. It is not directed at anyone under 18 and we do
         not knowingly collect information from children.
+      </p>
+    </LegalSection>
+
+    <!-- SMS-OPT-IN-PLAN D-SMS4: the section a toll-free verification reviewer opens from the opt-in
+         screenshot. Every promise in it is something the code enforces — see the page's header. -->
+    <LegalSection :id="SMS_PRIVACY_ANCHOR" title="Text messages about a driver application">
+      <p>
+        If you apply to drive for a carrier that uses {{ PRODUCT_NAME }}, your application link may
+        offer to text you about your application. Agreeing is optional and is never a condition of
+        applying or of being considered. The full programme terms are on the
+        <RouterLink :to="SMS_TERMS_PATH" class="text-link hover:text-link-hover">text message terms</RouterLink>
+        page.
+      </p>
+      <p>If you agree, we keep:</p>
+      <ul class="list-disc space-y-1.5 pl-5">
+        <li>the mobile number you typed;</li>
+        <li>the exact wording you agreed to and its version;</li>
+        <li>the date and time you agreed, and the internet address and browser you agreed from;</li>
+        <li>if you stop the texts, when and how you did.</li>
+      </ul>
+      <p>
+        We keep this so we can show what you agreed to and when, and we use your number only to text
+        you about your own application.
+      </p>
+      <!-- The two sentences a toll-free verification reviewer looks for, in the form carriers expect
+           (Telnyx verification guide, 2026-09-25). The carve-out for the delivering carriers is not an
+           exception to them: delivering a message is not sharing it for marketing. -->
+      <p class="text-ink">
+        No mobile information will be shared with third parties or affiliates for marketing or
+        promotional purposes. Text messaging originator opt-in data and consent will not be shared
+        with any third parties.
+      </p>
+      <p>
+        The only companies that handle your number are the telephone carriers and the messaging
+        provider that deliver the texts, and only to deliver them.
+      </p>
+      <p>
+        Reply STOP to any message, turn texts off on your application page, or ask the carrier's
+        office, and we stop. The record of your agreement is kept, marked as stopped, because it is
+        the evidence of what you did and did not agree to.
       </p>
     </LegalSection>
 

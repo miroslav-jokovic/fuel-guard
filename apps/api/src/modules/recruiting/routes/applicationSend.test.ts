@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { AuthContext } from "@silvicom/shared";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { SMS_CONSENT, type AuthContext } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import {
@@ -27,6 +27,11 @@ const mail = vi.hoisted(() => ({
   fn: vi.fn(async (_env: unknown, _msg: { to: string[]; text: string }) => ({ ok: true })),
 }));
 vi.mock("../../../lib/mailer.js", () => ({ sendEmail: mail.fn }));
+const sms = vi.hoisted(() => ({ fn: vi.fn() }));
+vi.mock("../../../lib/sms.js", async (orig) => ({
+  ...(await orig<typeof import("../../../lib/sms.js")>()),
+  sendSms: sms.fn,
+}));
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
@@ -47,9 +52,12 @@ const seed = (over: {
   invitation?: Record<string, unknown> | null;
   kinds?: string[];
   rpc?: Record<string, unknown>;
+  /** D-SMS7: a live consent to be texted, as `sendApplicationSms` reads one. */
+  consents?: Record<string, unknown>[];
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
+      sms_consents: over.consents ?? [],
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
       organizations: [{ name: "Silvicom Inc" }],
       drivers: [{ id: DRIVER, org_id: ORG, hire_date: null, date_of_birth: "1980-04-01", cdl_number: "D1", cdl_state: "IL" }],
@@ -242,5 +250,60 @@ describe("the office sends the application", () => {
     expect((await send("auditor")).status).toBe(403);
     expect((await send(null)).status).toBe(401);
     expect(rec.rpcs()).toHaveLength(0);
+  });
+});
+
+/**
+ * D-SMS7: the link goes by text too, to an applicant who agreed on their waiting screen — and a text
+ * that is refused or held never costs them the email or the on-screen link.
+ */
+describe("and texts it, when the applicant agreed", () => {
+  type Sent = { link: string; text: { sent: boolean; reason: string | null } };
+  const publish = () => vi.spyOn(SMS_CONSENT, "version", "get").mockReturnValue("v1");
+  const LIVE = [{ id: "c-1", phone: "+17082365732", driver_id: DRIVER }];
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    sms.fn.mockReset();
+    mail.fn.mockClear();
+  });
+
+  it("texts the new link at a civil hour, and emails it as well", async () => {
+    publish();
+    // 16:00 Eastern, 10:00 Hawaii — civil everywhere.
+    vi.useFakeTimers({ now: new Date("2026-09-25T20:00:00Z"), toFake: ["Date"] });
+    sms.fn.mockResolvedValue({ ok: true, provider: "telnyx", messageId: "m-1" });
+    const rec = seed({ consents: LIVE });
+    holder.client = rec.client;
+    const body = (await (await send()).json()) as Sent;
+
+    expect(body.text).toEqual({ sent: true, reason: null });
+    expect(sms.fn.mock.calls[0]![1]).toMatchObject({ to: "+17082365732" });
+    expect(sms.fn.mock.calls[0]![1].body).toContain(body.link);
+    expect(mail.fn).toHaveBeenCalledTimes(1);
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  it("says a held text was held, and still emails and shows the link", async () => {
+    publish();
+    // 03:00 Eastern.
+    vi.useFakeTimers({ now: new Date("2026-09-25T07:00:00Z"), toFake: ["Date"] });
+    holder.client = seed({ consents: LIVE }).client;
+    const body = (await (await send()).json()) as Sent;
+
+    expect(body.text).toEqual({ sent: false, reason: "quiet_hours" });
+    expect(sms.fn).not.toHaveBeenCalled();
+    expect(mail.fn).toHaveBeenCalledTimes(1);
+    expect(body.link).toContain("/apply/");
+  });
+
+  it("reads an applicant who never agreed as not agreed, not as a failure", async () => {
+    publish();
+    holder.client = seed().client;
+    const body = (await (await send()).json()) as Sent;
+    expect(body.text).toEqual({ sent: false, reason: "no_consent" });
+    expect(sms.fn).not.toHaveBeenCalled();
+    expect(mail.fn).toHaveBeenCalledTimes(1);
   });
 });

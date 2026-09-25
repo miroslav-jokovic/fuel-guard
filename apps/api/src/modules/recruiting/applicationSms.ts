@@ -6,8 +6,10 @@ import {
   isDraftSmsConsent,
   isHelpMessage,
   isStopMessage,
-  SMS_HELP_REPLY,
+  siteHostOf,
+  smsHelpReply,
   normalisePhone,
+  type SmsConsentStatus,
   type SmsHoldReason,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
@@ -102,11 +104,79 @@ export async function sendApplicationSms(
 }
 
 /**
+ * Where one applicant stands on texts (SMS-OPT-IN-PLAN D-SMS1, D-SMS6).
+ *
+ * ⚠ Read the way `liveConsent` reads, and that is the whole design: `agreed` means "a send would go
+ * to this number" and nothing looser. A driver whose newer number was stopped while an older one is
+ * still live IS still texted — to the older one — so that is what this reports, rather than a
+ * "stopped" the sender would contradict.
+ */
+export async function smsConsentStatus(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+): Promise<SmsConsentStatus> {
+  const { data } = await admin
+    .from("sms_consents")
+    // The service role bypasses RLS; this query carries its own tenant scope.
+    .select("phone, granted_at, revoked_at")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .order("granted_at", { ascending: false })
+    .limit(20);
+  const rows = (data ?? []) as Array<{ phone: string; granted_at: string; revoked_at: string | null }>;
+  const live = rows.find((r) => r.revoked_at === null);
+  const shown = live ?? rows[0];
+  return {
+    offered: !isDraftSmsConsent(),
+    state: live ? "agreed" : shown ? "stopped" : "none",
+    // Four digits and never the number (D-SMS3) — this answer is also read on the bare link.
+    phoneLast4: shown ? shown.phone.slice(-4) : null,
+    grantedAt: shown?.granted_at ?? null,
+    revokedAt: live ? null : (shown?.revoked_at ?? null),
+  };
+}
+
+/**
+ * Stop texting one applicant, however they asked (D-SMS6).
+ *
+ * 47 CFR §64.1200(a)(10), as the FCC's 2024 order amended it: consent may be revoked by any
+ * reasonable means. STOP by text reaches `handleInboundSms`; this is every other means — the control
+ * on their own card, or a recruiter recording a phone call. It revokes every live consent this
+ * applicant holds, number by number, through the same `revoke_sms_consent` a STOP uses, so there is
+ * one way a consent ends and the reason says which road it took.
+ */
+export async function withdrawSmsConsent(
+  admin: SupabaseClient,
+  orgId: string,
+  driverId: string,
+  reason: string,
+): Promise<number> {
+  const { data } = await admin
+    .from("sms_consents")
+    .select("phone")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .is("revoked_at", null);
+  const phones = [...new Set(((data ?? []) as { phone: string }[]).map((r) => r.phone))];
+  let revoked = 0;
+  for (const phone of phones) {
+    const { data: count } = await admin.rpc("revoke_sms_consent", { p_org: orgId, p_phone: phone, p_reason: reason });
+    revoked += Number(count ?? 0);
+  }
+  return revoked;
+}
+
+/**
  * Record an applicant's consent.
  *
  * The text is composed SERVER-side from `SMS_CONSENT` and stored on the row, like every other
  * instrument in this product: what somebody agreed to is a fact we can prove, and a client-authored
  * copy of it is worth nothing in the proceeding it exists for.
+ *
+ * ⚠ A second press on the same number answers with the consent already live and writes nothing
+ * (`created: false`). The table is append-only evidence (0233); a double-tap on a phone must not
+ * become two agreements, and must not send a second confirmation text either.
  */
 export async function recordSmsConsent(
   admin: SupabaseClient,
@@ -115,7 +185,7 @@ export async function recordSmsConsent(
   rawPhone: string,
   carrier: string,
   ctx: { ip: string | null; userAgent: string | null },
-): Promise<{ id: string } | { code: string; message: string }> {
+): Promise<{ id: string; created: boolean } | { code: string; message: string }> {
   if (isDraftSmsConsent()) {
     return {
       code: "sms_consent_not_final",
@@ -126,6 +196,9 @@ export async function recordSmsConsent(
   }
   const phone = normalisePhone(rawPhone);
   if (!phone) return { code: "invalid_phone", message: "That does not look like a US mobile number." };
+
+  const current = await liveConsent(admin, orgId, driverId);
+  if (current && current.phone === phone) return { id: current.id, created: false };
 
   const doc = composeSmsConsent(SMS_CONSENT, carrier);
   const { data, error } = await admin
@@ -144,7 +217,7 @@ export async function recordSmsConsent(
     .select("id")
     .maybeSingle();
   if (error) return { code: "consent_failed", message: error.message };
-  return { id: String((data as { id?: string } | null)?.id ?? "") };
+  return { id: String((data as { id?: string } | null)?.id ?? ""), created: true };
 }
 
 /**
@@ -168,11 +241,11 @@ export async function handleInboundSms(
   const phone = normalisePhone(from);
   if (!phone) return { revoked: 0, helped: false };
 
-  // HELP is answered before anything else and independently of consent — see `SMS_HELP_REPLY` for
+  // HELP is answered before anything else and independently of consent — see `smsHelpReply` for
   // why it bypasses every gate `sendApplicationSms` enforces. Checked ahead of STOP only because the
   // two are mutually exclusive by construction; neither keyword matches the other's text.
   if (isHelpMessage(body)) {
-    const result = await sendSms(env, { to: phone, body: SMS_HELP_REPLY });
+    const result = await sendSms(env, { to: phone, body: smsHelpReply(siteHostOf(env.WEB_APP_URL)) });
     if (!result.ok) console.error("[application-sms] HELP reply failed", { to: redactNumber(phone), detail: result.detail });
     return { revoked: 0, helped: result.ok };
   }

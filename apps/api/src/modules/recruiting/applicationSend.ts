@@ -3,13 +3,16 @@ import {
   APPLICATION_SEND_WARNS_ON,
   INVITE_TTL_DAYS_DEFAULT,
   renderApplicationSentEmail,
+  smsApplicationReady,
   type HiringStepKey,
+  type SmsHoldReason,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
+import { sendApplicationSms, type SmsOutcome } from "./applicationSms.js";
 
 /**
  * The office sends the applicant the application form (AF4, D-AF5, D-AF7).
@@ -18,9 +21,10 @@ import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } f
  * Mints a fresh token and hands it to `send_application_invitation` (0365), which rotates the link
  * in place, stamps `application_sent_at` the first time only, and extends the expiry without ever
  * shortening it — reviving a link that lapsed while the office waited on a lab. Then the audit row,
- * then the email. The link goes back on screen as well as by email (D-AF7): SMS cannot carry it
- * (memo Q12), and `MAIL_FROM` is a personal address until the owner's sender arrives, so the screen
- * is the delivery path that always works.
+ * then the text, then the email. The link goes back on screen as well (D-AF7): `MAIL_FROM` is a
+ * personal address until the owner's sender arrives, and a text goes only to an applicant who agreed
+ * to one on their waiting screen (SMS-OPT-IN-PLAN D-SMS1, D-SMS7) — so the screen is the delivery
+ * path that always works.
  *
  * ── IT WARNS, IT NEVER REFUSES, ON SCREENING (D-AF5) ──────────────────────────────────────────
  * Nothing in law puts screening before the application; the owner's order does, and an office that
@@ -44,6 +48,18 @@ export interface ApplicationSent {
   warnings: HiringStepKey[];
   applicationSentAt: string;
   delivery: ApplicationInviteDelivery;
+  /** D-SMS7: whether the link also went by text, and if not, the gate that held it. */
+  text: ApplicationTextOutcome;
+}
+
+/**
+ * `no_consent` is the ordinary answer — most applicants will not have agreed — and the panel reads
+ * it as "not agreed to texts" rather than as a failure. `quiet_hours` means held, not dropped: the
+ * email and the screen already carry the link, so nothing retries it.
+ */
+export interface ApplicationTextOutcome {
+  sent: boolean;
+  reason: SmsHoldReason | "send_failed" | null;
 }
 
 const NOT_FOUND: ApplicationSendError = {
@@ -111,8 +127,18 @@ export async function sendApplication(
 
   const link = `${env.WEB_APP_URL}/apply/${token}`;
   const carrier = await carrierName(admin, orgId);
+  // D-SMS7: a text as well, when the applicant agreed to one on their waiting screen. Attempted
+  // FIRST and the email goes regardless, as the nudge and the approval notice already do — every
+  // gate that can refuse the text leaves the email and the on-screen link untouched.
+  const texted = await sendApplicationSms(
+    admin, env, orgId, invitation.driver_id, smsApplicationReady(carrier, link), new Date(),
+  );
   const delivery = await deliverApplicationMail(
     env, invitation.email, renderApplicationSentEmail(carrier, link, INVITE_TTL_DAYS_DEFAULT),
   );
-  return { link, warnings, applicationSentAt: String(sentAt), delivery };
+  return { link, warnings, applicationSentAt: String(sentAt), delivery, text: textOutcome(texted) };
 }
+
+/** The office's reading of the text, in the words its panel needs and nothing it does not. */
+const textOutcome = (o: SmsOutcome): ApplicationTextOutcome =>
+  o.sent ? { sent: true, reason: null } : { sent: false, reason: "held" in o ? o.held : "send_failed" };

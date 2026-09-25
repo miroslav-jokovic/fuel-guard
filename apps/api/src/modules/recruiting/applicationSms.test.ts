@@ -30,13 +30,16 @@ describe("sending", () => {
   /**
    * ⚠ Draft wording gates the SEND, not just the grant. A consent recorded under placeholder text is
    * not consent to anything — the same reasoning that makes `recordRelease` refuse a signature under
-   * `v0-draft`. Until A0 publishes, this is the FIRST refusal every send hits, which is why the rest
-   * of this suite has to stub the predicate to reach anything else.
+   * `v0-draft`. The wording was published on 2026-09-25 (D-SMS10), so the draft is stubbed here —
+   * this is the state a withdrawn or redlined version would return the programme to.
    */
   it("refuses while the consent wording is still draft", async () => {
+    const shared = await import("@silvicom/shared");
+    const spy = vi.spyOn(shared.SMS_CONSENT, "version", "get").mockReturnValue("v0-draft");
     sms.fn.mockReset();
     const rec = withConsent();
     const result = await sendApplicationSms(rec.client, env(), ORG, DRIVER, "hello", CIVIL);
+    spy.mockRestore();
     expect(result).toEqual({ sent: false, held: "no_consent" });
     expect(sms.fn).not.toHaveBeenCalled();
   });
@@ -143,11 +146,18 @@ describe("the opt-out", () => {
  */
 describe("the HELP keyword", () => {
   it("answers HELP even though the sender has no consent, no civil hour and draft wording", async () => {
-    // Every gate `sendApplicationSms` enforces is shut here: no consent row at all.
+    // Every gate `sendApplicationSms` enforces is shut here: no consent row at all, and the wording
+    // stubbed back to a draft (it was published 2026-09-25, D-SMS10).
+    const shared = await import("@silvicom/shared");
+    const spy = vi.spyOn(shared.SMS_CONSENT, "version", "get").mockReturnValue("v0-draft");
     const rec = createSupabaseRecorder({ tables: { sms_consents: [] } });
     sms.fn.mockReset().mockResolvedValue({ ok: true, provider: "telnyx", messageId: "m-1" });
 
-    const result = await handleInboundSms(rec.client, env(), "+17082365732", "HELP");
+    const result = await handleInboundSms(
+      rec.client, loadEnv({ NODE_ENV: "test", WEB_APP_URL: "https://360.silvicominc.com" } as unknown as NodeJS.ProcessEnv),
+      "+17082365732", "HELP",
+    );
+    spy.mockRestore();
 
     expect(result).toEqual({ revoked: 0, helped: true });
     expect(sms.fn).toHaveBeenCalledOnce();
@@ -159,6 +169,8 @@ describe("the HELP keyword", () => {
     expect(sent.body).toContain("Silvicom");
     expect(sent.body.toLowerCase()).toContain("rates may apply");
     expect(sent.body).toContain("STOP");
+    // CTIA's fourth: somewhere to get help — the terms page, on the deployment's own host.
+    expect(sent.body).toContain("360.silvicominc.com/sms-terms");
     // One message part, one charge.
     expect(sent.body.length).toBeLessThanOrEqual(160);
   });

@@ -6,7 +6,13 @@ import {
   isHelpMessage,
   isStopMessage,
   normalisePhone,
+  siteHostOf,
+  smsApplicationApproved,
+  smsApplicationReady,
+  smsApplicationReminder,
   smsConsentGrantSchema,
+  smsHelpReply,
+  smsOptInConfirmation,
 } from "./smsConsentContract.js";
 
 /**
@@ -71,19 +77,38 @@ describe("the number", () => {
 });
 
 describe("the instrument", () => {
-  /** Placeholder wording, exactly like `DISCLOSURES` — and the gate is the version string (A0/Q-H3). */
-  it("is draft, so nothing can be recorded against it yet", () => {
-    expect(isDraftSmsConsent()).toBe(true);
-    expect(SMS_CONSENT.version).toBe("v0-draft");
+  /**
+   * Published by the owner's ruling (D-SMS10), and the gate is still the version string: a `v0` or
+   * `-draft` version refuses exactly as it did, which is what counsel's redline would ship behind if
+   * it ever needed to be withdrawn.
+   */
+  it("is published, and a draft version would still be refused", () => {
+    expect(isDraftSmsConsent()).toBe(false);
+    expect(isDraftSmsConsent({ ...SMS_CONSENT, version: "v0-draft" })).toBe(true);
+    expect(isDraftSmsConsent({ ...SMS_CONSENT, version: "sms-2027-01-01-draft" })).toBe(true);
   });
 
-  /** §64.1200(f)(9)'s clause that a consent form most often gets wrong. */
-  it("says agreeing is not a condition of being considered", () => {
-    expect(SMS_CONSENT.body).toContain("NOT required to agree");
+  /**
+   * Every clause the carrier template and CTIA ask for, one assertion each — so a later edit that
+   * "tidies" the paragraph cannot drop the one sentence a verification reviewer reads for.
+   */
+  it.each([
+    ["the sender", "{{carrier}}"],
+    ["what the messages are about", "about your driver application"],
+    ["that they are not marketing", "not marketing"],
+    ["the frequency", "Message frequency varies"],
+    ["the charges", "Message and data rates may apply"],
+    ["help", "Reply HELP"],
+    ["how to stop", "Reply STOP"],
+    ["that it is optional — §64.1200(f)(9)(i)(B)", "not a condition of applying or of being considered"],
+    ["the number it attaches to", "the mobile number you entered"],
+  ])("says %s", (_what, needle) => {
+    expect(SMS_CONSENT.body).toContain(needle);
   });
 
-  it("tells the reader how to stop, in the consent itself", () => {
-    expect(SMS_CONSENT.body).toContain("STOP");
+  /** A URL inside stored evidence is a promise about a page that will change; the links sit beside it. */
+  it("carries no link", () => {
+    expect(SMS_CONSENT.body).not.toMatch(/https?:|\/sms-terms|\/privacy/);
   });
 
   /** Composed server-side: a client-authored record of what somebody agreed to is worth nothing. */
@@ -102,5 +127,50 @@ describe("the instrument", () => {
     // And the client cannot supply what it agreed to.
     const withText = smsConsentGrantSchema.safeParse({ phone: "7082365732", agreed: true, consent_text: "anything" });
     expect(withText.success && "consent_text" in withText.data).toBe(false);
+  });
+});
+
+describe("every message the programme sends (the verification's sample set)", () => {
+  const LINK = "https://360.silvicominc.com/apply/" + "b".repeat(43);
+  const messages = {
+    confirmation: smsOptInConfirmation("Silvicom Inc"),
+    ready: smsApplicationReady("Silvicom Inc", LINK),
+    reminder: smsApplicationReminder("Silvicom Inc", LINK),
+    approved: smsApplicationApproved("Silvicom Inc"),
+    help: smsHelpReply("360.silvicominc.com"),
+  };
+
+  /** Carriers reject a sample whose sender is not identifiable, or whose opt-out is not in the body. */
+  it.each(Object.entries(messages))("%s names the sender first and says STOP", (_name, text) => {
+    expect(text.startsWith("Silvicom")).toBe(true);
+    expect(text).toContain("STOP");
+    // Plain ASCII keeps every message in GSM-7 — one character outside it halves the part size.
+    expect(/^[\x20-\x7E]*$/.test(text)).toBe(true);
+  });
+
+  /** The two with no link fit one part; the linked ones carry the full link, never a shortener. */
+  it("keeps the unlinked messages to one part, and never shortens a link", () => {
+    expect(messages.approved.length).toBeLessThanOrEqual(160);
+    expect(messages.help.length).toBeLessThanOrEqual(160);
+    expect(messages.ready).toContain(LINK);
+    expect(messages.reminder).toContain(LINK);
+  });
+
+  it("points HELP at the terms page on the host it is given, whatever form the URL came in", () => {
+    expect(smsHelpReply(siteHostOf("https://360.silvicominc.com/"))).toContain("360.silvicominc.com/sms-terms");
+    expect(siteHostOf("http://localhost:5173")).toBe("localhost:5173");
+  });
+});
+
+describe("the opt-in confirmation (D-SMS5)", () => {
+  /**
+   * One part, one charge — and every element CTIA's principles ask of a confirmation is present, so a
+   * later edit that shortens it to fit cannot quietly drop the STOP a reviewer looks for.
+   */
+  it("fits one GSM-7 part and names the carrier, the rates, HELP and STOP", () => {
+    const text = smsOptInConfirmation("Silvicom Inc");
+    expect(text.length).toBeLessThanOrEqual(160);
+    expect(/^[\x20-\x7E]*$/.test(text)).toBe(true);
+    for (const needle of ["Silvicom Inc", "rates may apply", "HELP", "STOP"]) expect(text).toContain(needle);
   });
 });

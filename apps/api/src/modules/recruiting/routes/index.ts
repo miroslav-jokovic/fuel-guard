@@ -11,6 +11,7 @@ import { recruitmentApplicationReviewRouter } from "./applicationReview.js";
 import { recruitmentWordingRouter } from "./wording.js";
 import { recruitmentChecklistRouter } from "./checklist.js";
 import { recruitmentHiringEvidenceRouter } from "./hiringEvidence.js";
+import { recruitmentSmsConsentRouter } from "./smsConsent.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -35,5 +36,6 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentWordingRouter()); // the carrier publishes its own instrument wording (0338)
   router.use(recruitmentChecklistRouter()); // where one applicant has got to, folded from evidence (B3)
   router.use(recruitmentHiringEvidenceRouter()); // the MVR, the Clearinghouse query and the drug test, recorded (D1)
+  router.use(recruitmentSmsConsentRouter()); // whether a text reaches an applicant, and recording a stop asked for off-text (SMS4)
   return router;
 }

@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from "vue-router";
+import { SMS_TERMS_PATH } from "@/lib/legalPaths";
 
 /**
  * The three published legal documents (DIRECTION-B-PLAN §6 P3, D-PR9).
@@ -30,6 +31,17 @@ export const legalRoutes: RouteRecordRaw[] = [
     name: "terms-of-use",
     component: () => import("@/pages/legal/TermsPage.vue"),
     meta: { public: true, layout: "public", title: "Terms of use" },
+  },
+  /**
+   * SMS-OPT-IN-PLAN D-SMS4 — the text-message programme's terms, the URL the applicant's opt-in card
+   * links to and a toll-free verification names. Public and indexable for the policy's reason: the
+   * reviewer fetches it with no session.
+   */
+  {
+    path: SMS_TERMS_PATH,
+    name: "sms-terms",
+    component: () => import("@/pages/legal/SmsTermsPage.vue"),
+    meta: { public: true, layout: "public", title: "Text message terms" },
   },
   {
     path: "/support",

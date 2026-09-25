@@ -24,8 +24,8 @@
  * both say the stores need the URL rather than the sign-off, so these publish now and are marked as
  * what they are (`UNDER_REVIEW`) rather than held back until a lawyer has time.
  */
-export const LEGAL_VERSION = "1.0";
-export const LEGAL_EFFECTIVE = "8 September 2026";
+export const LEGAL_VERSION = "1.1";
+export const LEGAL_EFFECTIVE = "25 September 2026";
 
 /**
  * Whether the documents still carry the counsel-review notice. Flipped to `false` in the PR that
@@ -41,6 +41,13 @@ export const UNDER_REVIEW = true;
  */
 export const COMPANY_NAME = "Silvicom Inc.";
 export const PRODUCT_NAME = "Silvicom 360";
+
+/**
+ * The registered address, as the Samsara account's `carrierSettings` and FMCSA hold it for US DOT
+ * 1864495. Published on the SMS terms because a toll-free verification reviewer matches the business
+ * on the page to the business on the submission (`SMS-PROVISIONING.md` §3).
+ */
+export const COMPANY_ADDRESS = "1301 Armitage Ave, Melrose Park, IL 60160";
 
 /**
  * Support address (Q-PR4). Absent, every surface says "your fleet manager", which is TRUE today: a

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { carrierName } from "./applicationMail.js";
-import { renderApplicationApprovedEmail } from "@silvicom/shared";
+import { renderApplicationApprovedEmail, smsApplicationApproved } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { sendApplicationSms } from "./applicationSms.js";
@@ -50,21 +50,16 @@ export interface ApprovalNotice {
   email: string | null;
   /** `no_address` | `mail_disabled` | `send_failed` | `already_notified`. null when it went. */
   reason: string | null;
-  /** Whether a text also went out. Always false until 10DLC registration completes (A11b). */
+  /** Whether a text also went out — only to an applicant who agreed on their waiting screen (D-SMS1). */
   texted: boolean;
 }
 
 /**
- * The text, inside one 160-character segment.
- *
- * Carrier identification and a discoverable `STOP` are both required in the body by every US
- * messaging programme — see `smsBody` in the nudge sweep for the full reasoning. What is left says
- * the one thing this message exists to say. ⚠ No link, and since AF5 not even a pointer to one:
- * there is nothing to do on the application link until the office opens signing in person (D-AF3).
+ * The text, inside one 160-character segment. The words live in `smsConsentContract.ts` with every
+ * other message this programme sends (SMS-OPT-IN-PLAN §6); see `smsApplicationApproved` for why it
+ * carries no link.
  */
-export const approvedSmsBody = (carrier: string): string =>
-  `${carrier}: your driver application has been approved. We will contact you about coming to our `
-  + `office to sign it. Reply STOP to opt out.`;
+export const approvedSmsBody = smsApplicationApproved;
 
 /**
  * Tell one applicant their application has been approved, and that signing happens in the office.

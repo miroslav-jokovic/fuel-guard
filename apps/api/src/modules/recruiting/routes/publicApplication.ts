@@ -20,6 +20,7 @@ import { listCaptures } from "../applicationCapture.js";
 import { applicantVisibleEdits, requestReview } from "../applicationHandoff.js";
 import { publicApplicationCaptureRouter } from "./publicApplicationCapture.js";
 import { publicApplicationDocumentsRouter } from "./publicApplicationDocuments.js";
+import { publicApplicationSmsRouter } from "./publicApplicationSms.js";
 import { loadCarrierWording } from "../carrierWording.js";
 import { loadDraft, saveDraft, unlockDraft } from "../applicationDraft.js";
 import { esignConsentForApplicant, recordEsignConsent } from "../esignConsent.js";
@@ -416,6 +417,10 @@ export function publicApplicationRouter(): Router {
   // What this link hands back as a DOCUMENT, in its own module for the same reason. C1's reading
   // copy of the unsigned packet belongs beside the filed copy, not here.
   router.use(publicApplicationDocumentsRouter());
+
+  // The optional agreement to be texted (SMS-OPT-IN-PLAN D-SMS1) — offered on the waiting screens,
+  // never in the path.
+  router.use(publicApplicationSmsRouter());
 
   return router;
 }

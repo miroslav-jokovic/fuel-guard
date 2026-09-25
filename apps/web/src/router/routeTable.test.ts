@@ -94,7 +94,7 @@ const PROBES = [
   "/settings/efs-soap", "/settings/org", "/settings/notifications", "/settings/audit",
   // P3's three published documents. Probed like any other route, and public for a reason unrelated
   // to the auth pages': these are the URLs the two app stores fetch, with no session and no cookie.
-  "/privacy", "/terms", "/support",
+  "/privacy", "/terms", "/support", "/sms-terms",
   // G1's operator-visited dead ends. The catch-all is deliberately NOT probed here — an unmatched
   // URL is the one case this file cannot express as "declared path resolves to itself", and it has
   // its own suite in `notFound.test.ts`.
@@ -223,6 +223,9 @@ describe("the route table survives being split by area", () => {
       // signing in is not a published policy. Deliberately indexable for the same reason.
       "/privacy",
       "/reset-password", // 0363 — reads the emailed link on load, spends it only with a new password
+      // SMS-OPT-IN-PLAN D-SMS4 — the text-message programme's terms, fetched by a carrier-network
+      // reviewer with no session, and linked from the applicant's opt-in card.
+      "/sms-terms",
       "/support",
       "/terms",
     ]);
