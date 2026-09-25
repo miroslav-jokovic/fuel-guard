@@ -4677,6 +4677,15 @@ every time.
     answers and inspected. The applicant screen was checked at 390 and 1440.
   · **Freeze-bound items left: none in code.** Owed: the office's QA-org walk of AF5 in "FuelGuard
     EFS QA", which now also covers choosing company driver and confirming 20 stops.
+- **2026-09-25 — D2 COMPLETE** (`ROAD-TEST-PLAN.md`: 0372 #1044, RT1–RT3 #1045, RT4 #1046).
+- **2026-09-25 — D3 PLANNED, NOT BUILT: `ORIENTATION-PLAN.md`.** ⚠ D3's row in §9 would duplicate
+  a signature. The packet the driver signs in the office already carries the handbook receipt (`p25`)
+  and the drug-and-alcohol policy receipt (`p28`), each its own page and mark. A `handbook` 0215
+  purpose would have them acknowledge the handbook twice on the same morning. The carrier's page 24
+  (`DRIVER SAFETY TRAINING`, removed from the packet by D-PKT10) is the orientation record, with seven
+  named training areas and an instructor signature. That answers Q-HM7's "sections". The policy text
+  that p28 acknowledges has never been in the product (§382.601(a)–(b)). Five questions (Q-OR1–Q-OR5)
+  are with the owner, each with a recommendation. §9's D3 row stands until they are answered.
 
 ---
 
