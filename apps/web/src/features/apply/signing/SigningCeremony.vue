@@ -17,14 +17,14 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * that document and nothing else, and the next one opens.
  *
  * ⚠ **FCRA §604(b)(2)'s "solely" still governs the screen.** One document is on it at a time, and
- * nothing else: no application fields, no other permission, no summary of the five. The tag signs the
+ * nothing else: no application fields, no other permission, no summary of the six. The tag signs the
  * document it sits on.
  *
  * ⚠ **The words are never more than a tap away, and are the whole screen when the PDF will not load.**
  * On a 390px phone a Letter page is small, and a canvas is an image to a screen reader. So the served
  * text (the same words the PDF carries, from the same wording) sits under the document in a
  * disclosure, and replaces it with a plain Sign button when the document cannot be shown. A picture
- * that will not load must not stand between an applicant and five federally-required signatures.
+ * that will not load must not stand between an applicant and six signatures.
  */
 const props = defineProps<{
   token: string;

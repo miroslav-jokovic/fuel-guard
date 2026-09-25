@@ -168,6 +168,13 @@ export const WORDING_LEFT_ALONE: readonly { page: number; text: string; question
       + "word-count guard that makes every other repair on this page checkable.",
   },
   {
+    page: 19,
+    text: "which might be the result of providing this",
+    question:
+      "The sentence stops mid-clause — in the workbook AND in the carrier's PDF. `information` is "
+      + "almost certainly the missing word, and it is inside the release of liability (Q-MVR1).",
+  },
+  {
     page: 22,
     text: "regarding pre-employment. contracted drivers / owners",
     question: "A full stop where a comma belongs. Punctuation is left alone throughout — see `packetText.ts`.",
@@ -223,8 +230,8 @@ export interface PacketInstrumentSource {
 /**
  * The four instruments the packet actually contains, mapped to what the applicant signs.
  *
- * ⚠ **Three, not six.** `psp` and `clearinghouse` do not appear in this packet in any form — no
- * Pre-Employment Screening Program, no MCMIS, no §382.701, searched across all 697 of the
+ * ⚠ **Four, not seven** — four since D-MVR1 added page 19. `psp` and `clearinghouse` do not
+ * appear in this packet in any form — no Pre-Employment Screening Program, no MCMIS, no §382.701, searched across all 697 of the
  * workbook's strings. The 7001(c) electronic-records consent is not there either, and could not be:
  * it exists because the driver signs on a phone, which a paper packet never contemplated.
  *
@@ -234,12 +241,12 @@ export interface PacketInstrumentSource {
  * here precisely because it is not the carrier's text: this module is what Silvicom wrote, and that
  * one is what the regulator wrote.
  *
- * ⚠ **Page 19's `AUTHORIZATION FOR DRIVING RECORD CHECK` is transcribed nowhere below, and that is
- * not an oversight.** It is the MVR authorization, and this product has no MVR instrument to publish
- * it into — `AUTHORIZATION_PURPOSES` has no `mvr` member, no vendor was ever bought, and
- * `SCREENING_PREREQUISITES.mvr_order` rides on `fcra_disclosure` and is called by nothing. The
- * carrier's lawyers wrote an authorization we have nowhere to put; recorded here so the next reader
- * does not conclude it was missed.
+ * ⚠ **Page 19's `AUTHORIZATION FOR DRIVING RECORD CHECK` is transcribed since 2026-09-25 (D-MVR1).**
+ * Until then it sat outside this list on purpose — the MVR authorization with no instrument to be
+ * published into, because `AUTHORIZATION_PURPOSES` had no `mvr`. The owner ruled that it moves out
+ * of the application and is signed as a permission like the other five
+ * (`MVR-RELEASE-AND-TEMPLATES-PLAN.md`), and page 19's two driver lines are withdrawn from packet
+ * signing (`PACKET_WITHDRAWALS`) so nobody signs the same release twice.
  */
 export const PACKET_INSTRUMENTS: readonly PacketInstrumentSource[] = [
   {
@@ -346,6 +353,33 @@ export const PACKET_INSTRUMENTS: readonly PacketInstrumentSource[] = [
       "I have read and fully understand the conditions above regarding urinalysis notification. I also",
       "understand that my written authorization is required in order for the result of this testing to",
       "be provided to either party.",
+    ],
+  },
+  {
+    instrument: "mvr",
+    page: 19,
+    heading: "AUTHORIZATION FOR DRIVING RECORD CHECK",
+    /**
+     * ⚠ The page prints this heading twice and the text once, with two driver lines under it — read
+     * as two forms merged by accident (`packetPlacements.ts`). The text is transcribed ONCE: it is one
+     * release, and an instrument that said it twice would be a different document from either half.
+     *
+     * ⚠ The body/intent split falls INSIDE a workbook cell (`...Regulations. I hereby release...`),
+     * at the sentence boundary. Nothing is added or removed; the test compares lines as substrings of
+     * the workbook's rows for exactly this case. The first sentence is what is authorised; the second
+     * is what the signer affirms by signing, which is the order the paper reads in.
+     *
+     * ⚠ The page's identity block (driver name, address, CDL number, state, expiry) is not part of
+     * the release's text and is not transcribed. The permissions are signed before the application
+     * form, so none of it is known yet — Q-MVR2.
+     */
+    paragraphs: [[
+      "By signing below I  authorize you to release the information requested to SILVICOM, INC as directed",
+      " by the Federal Motor Carrier Safety Administration Regulations.",
+    ]],
+    intent: [
+      "I hereby release you from any",
+      "liability which might be the result of providing this",
     ],
   },
 ];

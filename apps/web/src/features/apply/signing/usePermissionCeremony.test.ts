@@ -153,16 +153,16 @@ describe("signing the documents", () => {
 describe("the counter and a resumed link", () => {
   /**
    * ⚠ The stranded-cursor lesson: the link refetches (window focus), and the documents this session
-   * signed arrive back as `alreadySigned`. A counter over what is LEFT would jump from "3 of 5" to
-   * "1 of 3" under the applicant; a counter over the fixed five does not move.
+   * signed arrive back as `alreadySigned`. A counter over what is LEFT would jump from "3 of 6" to
+   * "1 of 4" under the applicant; a counter over the fixed six does not move.
    */
-  it("counts the fixed five, and does not renumber when the link refetches", async () => {
+  it("counts the fixed six, and does not renumber when the link refetches", async () => {
     const { c, alreadySigned } = run();
     await start(c);
     await c.signCurrent();
     await c.signCurrent();
     expect(c.position.value).toBe(3);
-    expect(c.total.value).toBe(5);
+    expect(c.total.value).toBe(6);
     alreadySigned.value = [APPLICATION_RELEASE_ORDER[0]!, APPLICATION_RELEASE_ORDER[1]!];
     expect(c.position.value).toBe(3);
     expect(c.current.value?.purpose).toBe(APPLICATION_RELEASE_ORDER[2]);

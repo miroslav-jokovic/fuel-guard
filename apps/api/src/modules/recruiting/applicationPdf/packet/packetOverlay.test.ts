@@ -5,7 +5,7 @@ import { deflateSync, inflateSync } from "node:zlib";
 import { join } from "node:path";
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream } from "pdf-lib";
 import { embedPdfFace } from "../../../../lib/pdfFonts.js";
-import { driverPlacementIds, driverPlacements } from "@silvicom/shared";
+import { driverPlacementIds, driverPlacements, packetWithdrawal } from "@silvicom/shared";
 import type { DriverApplication } from "@silvicom/shared";
 import { packetFieldFill } from "./packetFieldValues.js";
 import type { PacketFieldOverflow } from "./packetGrid.js";
@@ -143,10 +143,21 @@ describe("drawing the driver's marks on the carrier's packet", () => {
    */
   it("draws both marks on each of the three doubled pages", async () => {
     const pages = await readBack(await renderPacketOverlay({ marks: allMarks() }));
-    for (const page of [11, 19, 31]) {
+    for (const page of [11, 31]) {
       const hits = pageText(pages[page - 1]!).split(NAME).length - 1;
       expect(hits, `p${page}`).toBe(2);
     }
+  });
+
+  /**
+   * ⚠ Page 19 was the third doubled page until D-MVR1 (2026-09-25) withdrew both of its lines: the
+   * driving-record release is a permission now. Both lines carry the notice, and neither the name.
+   */
+  it("draws the withdrawal notice on both of page 19's lines, and no name", async () => {
+    const pages = await readBack(await renderPacketOverlay({ marks: allMarks() }));
+    const text = pageText(pages[18]!);
+    expect(text).not.toContain(NAME);
+    expect(text.split(packetWithdrawal("p19a")!.notice).length - 1).toBe(2);
   });
 
   it("marks no page the driver does not sign", async () => {

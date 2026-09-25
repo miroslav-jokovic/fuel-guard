@@ -1,7 +1,7 @@
 import { APPLY_FLOW_COPY } from "./strings.flow";
 
 /**
- * The permissions step's words (AF6, D-AF2): five documents, each a PDF, each signed where it says.
+ * The permissions step's words (AF6, D-AF2): six documents, each a PDF, each signed where it says.
  *
  * ── WHY A FOURTH FILE ─────────────────────────────────────────────────────────────────────────
  * `strings.ts` and `strings.flow.ts` are both within a few lines of the 500-line budget, which is
@@ -12,7 +12,7 @@ import { APPLY_FLOW_COPY } from "./strings.flow";
  * The permission ceremony adopts its signature through the same screens as the packet's
  * (`PacketAdoption.vue`), so the tab names, the upload refusals and the draw hints are the packet's
  * own, spread in. What is overridden is everything that talks about PLACES ON A FORM, because this
- * screen is about five documents. The initials keys are inherited and never shown: no permission
+ * screen is about six documents. The initials keys are inherited and never shown: no permission
  * takes initials.
  */
 const packet = APPLY_FLOW_COPY.packet;

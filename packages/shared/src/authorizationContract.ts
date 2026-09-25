@@ -22,6 +22,9 @@ export const AUTHORIZATION_PURPOSES = [
   "previous_employer",
   "clearinghouse",
   "drug_alcohol",
+  // D-MVR1 (owner, 2026-09-25): the carrier's packet page 19, moved out of the application so the
+  // MVR step can see it. MVR-RELEASE-AND-TEMPLATES-PLAN.md.
+  "mvr",
 ] as const;
 export type AuthorizationPurpose = (typeof AUTHORIZATION_PURPOSES)[number];
 
@@ -31,6 +34,7 @@ export const AUTHORIZATION_PURPOSE_LABELS: Record<AuthorizationPurpose, string> 
   previous_employer: "Previous-employer safety performance release",
   clearinghouse: "Drug & Alcohol Clearinghouse query consent",
   drug_alcohol: "Controlled substances and alcohol testing consent",
+  mvr: "Driving record (MVR) check authorization",
 };
 
 export const AUTHORIZATION_METHODS = ["esign", "wet_signature", "verbal_documented"] as const;
@@ -142,6 +146,17 @@ export const DISCLOSURES: Record<AuthorizationPurpose, DisclosureDocument> = {
       + "random, post-accident, reasonable-suspicion, return-to-duty and follow-up testing for "
       + "controlled substances and alcohol, conducted under 49 CFR Part 40.",
     intent: "I consent to controlled substances and alcohol testing as required by 49 CFR Part 382.",
+  },
+  mvr: {
+    purpose: "mvr",
+    version: "v0-draft",
+    title: "Authorization for driving record check",
+    citation: "49 CFR §391.23(a)(1); 18 U.S.C. §2721(b)",
+    body:
+      "We are required to obtain your motor vehicle record from each state in which you held a "
+      + "driver's licence or permit during the preceding three years. This release authorizes those "
+      + "states to provide it to us.",
+    intent: "I authorize the release of my motor vehicle record to this company.",
   },
 };
 
@@ -400,10 +415,17 @@ export const hasLiveAuthorization = (
  * `clearinghouse` purpose is the LIMITED-query consent (§382.703(a)). An entry saying the one
  * requires the other would have been the first thing a future caller believed. D-AF4 put the limited
  * consent on the applicant's path instead (`APPLICATION_RELEASE_ORDER`).
+ *
+ * ⚠ **The MVR needs its own release AND the FCRA disclosure, since 2026-09-25 (D-MVR3).** Until then
+ * it rode on `fcra_disclosure` alone, because the carrier's MVR release (packet page 19) had nowhere
+ * to go. D-MVR1 made it a permission; D-MVR3 kept the FCRA one beside it rather than replacing it,
+ * for PSP's reason: an MVR bought through a consumer reporting agency IS a consumer report (§603(d)),
+ * one pulled from a state portal is not, and nothing records which route the office took. Both is
+ * correct either way, and the ceremony always collects both.
  */
 export const SCREENING_PREREQUISITES: Record<string, readonly AuthorizationPurpose[]> = {
   psp_record: ["psp", "fcra_disclosure"],
-  mvr_order: ["fcra_disclosure"],
+  mvr_order: ["mvr", "fcra_disclosure"],
   previous_employer_inquiry: ["previous_employer"],
 };
 

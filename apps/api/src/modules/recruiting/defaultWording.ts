@@ -33,6 +33,7 @@ import { pspDisclosure } from "./pspDisclosure.js";
  * | `fcra_disclosure`    | the carrier's packet, page 19 — their counsel              | none |
  * | `previous_employer`  | the carrier's packet, page 14 — their counsel              | none |
  * | `drug_alcohol`       | the carrier's packet, page 21 — their counsel              | none |
+ * | `mvr`                | the carrier's packet, page 19 — their counsel (D-MVR1)     | none |
  *
  * ⚠ **Nothing here was drafted by an engineer, and that is the point of the whole exercise.** Two
  * candidates were considered and rejected: writing model FCRA and §40.25 text ourselves (worse than
@@ -66,7 +67,7 @@ export const PACKET_VERSION = "packet-2026-08-21";
 export const ESIGN_VERSION = "15usc7001c-2026-08-21";
 
 /**
- * The six documents, with the carrier's name filled into the forms that leave a blank for it.
+ * The seven documents, with the carrier's name filled into the forms that leave a blank for it.
  *
  * ⚠ The name is a parameter and not a constant because two of these instruments authorise a NAMED
  * company to do something: FMCSA's PSP form and its Clearinghouse sample both read "I authorize
@@ -85,10 +86,11 @@ export function defaultWording(carrierName: string): CarrierWording {
 
   const disclosures = { ...DISCLOSURES } as Record<(typeof AUTHORIZATION_PURPOSES)[number], DisclosureDocument>;
 
-  // The three the carrier's own lawyers wrote. `packetWording` returns null for anything the packet
+  // The four the carrier's own lawyers wrote — `mvr` since 2026-09-25 (D-MVR1), page 19's
+  // `AUTHORIZATION FOR DRIVING RECORD CHECK`, moved out of the application. `packetWording` returns null for anything the packet
   // has no page for, and the fallback is the placeholder — which is `v0-draft`, which refuses.
   // ⚠ That is the one branch here that can still leave a gate shut, and it is the safe direction.
-  for (const purpose of ["fcra_disclosure", "previous_employer", "drug_alcohol"] as const) {
+  for (const purpose of ["fcra_disclosure", "previous_employer", "drug_alcohol", "mvr"] as const) {
     const packet = packetWording(purpose);
     if (packet) disclosures[purpose] = from(purpose, PACKET_VERSION, packet);
   }

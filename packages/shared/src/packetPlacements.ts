@@ -147,8 +147,9 @@ export const PACKET_PLACEMENTS: readonly PacketPlacement[] = [
   { id: "p18c", page: 18, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative:",
     what: "Countersigned by the carrier" },
   // ⚠ Page 19 carries its heading twice and two identical driver signature lines. It reads as two
-  // forms merged by accident, and until counsel says which one survives, both are placements: a
-  // renderer that dropped one would produce a page the carrier's paper does not have.
+  // forms merged by accident, and both stay placements: a renderer that dropped one would produce a
+  // page the carrier's paper does not have. Since D-MVR1 (2026-09-25) neither is SIGNED here — the
+  // release is a permission now — see `PACKET_WITHDRAWALS`.
   { id: "p19a", page: 19, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
     what: "Permission to check your driving record" },
   { id: "p19ac", page: 19, party: "carrier", mark: "signature", anchor: "Silvicom Inc Representative: | Date:",
@@ -238,6 +239,21 @@ export const PACKET_WITHDRAWALS: Readonly<Record<string, PacketWithdrawal>> = {
     ruling: "L-1",
     since: "2026-09-24",
     notice: "Not signed electronically. Withdrawn from signing on 09/24/2026, pending legal review.",
+  },
+  // ⚠ D-MVR1 (owner, 2026-09-25; MVR-RELEASE-AND-TEMPLATES-PLAN.md). Page 19 is the carrier's
+  // `AUTHORIZATION FOR DRIVING RECORD CHECK`, and it is now the sixth PERMISSION — signed on the link
+  // before the application, where the MVR step can see it. Both of the page's driver lines go, because
+  // the page is one release printed with two signature blocks, and signing either would be the same
+  // release twice. The notice says where the signature went, not that it is missing.
+  p19a: {
+    ruling: "D-MVR1",
+    since: "2026-09-25",
+    notice: "Not signed here. Signed electronically as its own permission.",
+  },
+  p19b: {
+    ruling: "D-MVR1",
+    since: "2026-09-25",
+    notice: "Not signed here. Signed electronically as its own permission.",
   },
 };
 

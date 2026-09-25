@@ -17,7 +17,7 @@ import {
 } from "@silvicom/shared";
 import { packetWording } from "../packetWording.js";
 import { PSP_DISCLOSURE_TITLE, PSP_MANDATED_INTENT, missingPspParagraphs, pspDisclosure } from "../pspDisclosure.js";
-import { CLEARINGHOUSE_VERSION, ESIGN_VERSION } from "../defaultWording.js";
+import { CLEARINGHOUSE_VERSION, ESIGN_VERSION, PACKET_VERSION } from "../defaultWording.js";
 
 /**
  * The public surface, end to end and unauthenticated.
@@ -241,11 +241,11 @@ describe("opening the link", () => {
     // ⚠ Since D-WORD1 none of them is draft on a fresh carrier: they are FMCSA's PSP form, the
     // carrier's own packet pages and FMCSA's Clearinghouse sample, and the applicant can sign on the
     // day the product deploys.
-    expect(body.releases.map((r) => r.draft)).toEqual([false, false, false, false, false]);
+    expect(body.releases.map((r) => r.draft)).toEqual([false, false, false, false, false, false]);
     // The wording is SERVED, so what somebody signed is a fact the server can prove — never shipped
     // in the client bundle where a build could change it.
     expect(body.releases.map((r) => r.purpose)).toEqual([
-      "fcra_disclosure", "psp", "previous_employer", "drug_alcohol", "clearinghouse",
+      "fcra_disclosure", "psp", "mvr", "previous_employer", "drug_alcohol", "clearinghouse",
     ]);
     expect(body.releases.every((r) => r.body.length > 0)).toBe(true);
     // ⚠ Q-H3 was "every instrument still ships as draft, and the applicant's page is told so".
@@ -1040,10 +1040,13 @@ describe("what the applicant is served once the carrier has published", () => {
     const { releases, esignConsent } = await open();
     // `draft: false` is what `ApplyPage` reads to stop skipping the signing ceremony, and
     // `applicationWordingIsDraft()` reads the same versions to stop refusing the submission.
-    expect(releases.map((r) => r.draft)).toEqual([false, false, false, false, false]);
-    // The carrier published four; the fifth (D-AF4) is served at the shipped version, which is the
-    // overlay working per instrument rather than all-or-nothing.
-    expect(releases.map((r) => r.version)).toEqual(["v1", "v1", "v1", "v1", CLEARINGHOUSE_VERSION]);
+    expect(releases.map((r) => r.draft)).toEqual([false, false, false, false, false, false]);
+    // The carrier published four; the Clearinghouse consent (D-AF4) and the MVR release (D-MVR1) are
+    // served at their shipped versions, which is the overlay working per instrument rather than
+    // all-or-nothing.
+    expect(releases.map((r) => r.version)).toEqual([
+      "v1", "v1", PACKET_VERSION, "v1", "v1", CLEARINGHOUSE_VERSION,
+    ]);
     expect(esignConsent.draft).toBe(false);
     expect(esignConsent.required).toBe(true);
   });

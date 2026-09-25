@@ -103,8 +103,9 @@ describe("recording one mark", () => {
     const rec = seed();
     await recordPacketMark(rec.client, TOKEN, body("p03"), CTX, NOW);
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
-    // ⚠ 21 since L-1 (2026-09-24): page 4 is withdrawn from signing.
-    expect(args.p_expected_count).toBe(21);
+    // ⚠ 21 since L-1 (2026-09-24): page 4 is withdrawn from signing. 19 since D-MVR1 (2026-09-25):
+    // page 19's two lines are, because the driving-record release is a permission now.
+    expect(args.p_expected_count).toBe(19);
     expect(args.p_expected_count).toBe(driverPlacements(null).length);
   });
 
@@ -117,16 +118,19 @@ describe("recording one mark", () => {
     const rec = seed({ marks: every });
     const result = await recordPacketMark(rec.client, TOKEN, body("p31b"), CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
-    expect(result).toMatchObject({ id: "mark-1", signedCount: 21, complete: true });
+    expect(result).toMatchObject({ id: "mark-1", signedCount: 19, complete: true });
   });
 
   /**
-   * ⚠ Production's shape: a walk from before L-1 holding a p04 mark. Twenty-one ROWS, twenty real
-   * stops — and the transaction, counting rows, says complete. The driver must not be told so.
+   * ⚠ Production's shape: a walk from before L-1 holding a p04 mark, and from before D-MVR1 holding
+   * page 19's two. Twenty-one ROWS, eighteen real stops — and the transaction, counting rows, says
+   * complete. The driver must not be told so.
    */
   it("does not count a mark on a withdrawn line towards the packet, whatever the transaction says", async () => {
     const rows = [
       { placement_id: "p04", signed_at: "2026-09-17T12:00:00Z" },
+      { placement_id: "p19a", signed_at: "2026-09-17T12:00:00Z" },
+      { placement_id: "p19b", signed_at: "2026-09-17T12:00:00Z" },
       ...driverPlacements(null).filter((p) => p.id !== "p31b").map((p) => ({ placement_id: p.id, signed_at: "2026-09-17T12:00:00Z" })),
     ];
     const rec = createSupabaseRecorder({
@@ -134,7 +138,7 @@ describe("recording one mark", () => {
       rpc: { record_packet_mark: { mark_id: "m-21", signed_count: 21, complete: true } },
     });
     const result = await recordPacketMark(rec.client, TOKEN, body("p31a"), CTX, NOW);
-    expect(result).toMatchObject({ signedCount: 20, complete: false });
+    expect(result).toMatchObject({ signedCount: 18, complete: false });
   });
 });
 
@@ -334,7 +338,7 @@ describe("the queue the ceremony walks", () => {
   it("serves the driver's stops in the packet's own page order", async () => {
     const rec = seed();
     const stops = await packetStops(rec.client, ORG, "inv-1");
-    expect(stops).toHaveLength(21);
+    expect(stops).toHaveLength(19);
     expect(stops.every((s) => s.party === "driver")).toBe(true);
     // ⚠ The paper's order, not a convenient one. A driver reviewing a document they are signing
     // follows the paper, and a queue in another order would disagree with the PDF about what came
@@ -356,13 +360,13 @@ describe("the queue the ceremony walks", () => {
       ],
     });
     const stops = await packetStops(rec.client, ORG, "inv-1");
-    expect(stops).toHaveLength(21);
+    expect(stops).toHaveLength(19);
     expect(stops.find((s) => s.id === "p03")!.signedAt).toBe("2026-09-14T11:00:00Z");
     expect(stops.find((s) => s.id === "p11b")!.signedAt).toBe("2026-09-14T11:01:00Z");
     // ⚠ p11a and p11b sit on the same page and differ only in what they say. A queue keyed on the
     // page would have marked both.
     expect(stops.find((s) => s.id === "p11a")!.signedAt).toBeNull();
-    expect(stops.filter((s) => s.signedAt === null)).toHaveLength(19);
+    expect(stops.filter((s) => s.signedAt === null)).toHaveLength(17);
   });
 
   it("scopes the read to the org the token resolved to", async () => {
@@ -432,11 +436,11 @@ describe("a company driver's walk", () => {
     const company = await packetStops(seed({ applyingAs: "company_driver" }).client, ORG, "inv-1");
     expect(company.map((s) => s.id)).not.toContain("p31b");
     expect(company.map((s) => s.id)).toContain("p31a");
-    expect(company).toHaveLength(20);
+    expect(company).toHaveLength(18);
     const op = await packetStops(seed({ applyingAs: "owner_operator" }).client, ORG, "inv-1");
     expect(op.at(-1)!.id).toBe("p31b");
     // ⚠ No draft, or no answer in it, is the paper as printed.
-    expect(await packetStops(seed({ applyingAs: null }).client, ORG, "inv-1")).toHaveLength(21);
+    expect(await packetStops(seed({ applyingAs: null }).client, ORG, "inv-1")).toHaveLength(19);
   });
 
   it("reads one key of the draft by path, scoped to the org, and never its payload", async () => {
@@ -457,12 +461,12 @@ describe("a company driver's walk", () => {
     expect(rec.rpcs()).toHaveLength(0);
   });
 
-  it("tells the transaction their count, and is complete at twenty", async () => {
+  it("tells the transaction their count, and is complete at eighteen", async () => {
     const twenty = driverPlacements("company_driver").map((p) => ({ placement_id: p.id, signed_at: "2026-09-24T12:00:00Z" }));
     const rec = seed({ applyingAs: "company_driver", marks: twenty });
     const result = await recordPacketMark(rec.client, TOKEN, body("p31a"), CTX, NOW);
-    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_expected_count).toBe(20);
-    expect(result).toMatchObject({ signedCount: 20, complete: true });
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_expected_count).toBe(18);
+    expect(result).toMatchObject({ signedCount: 18, complete: true });
   });
 
   it("does not count a p31b recorded before the answer changed", async () => {
@@ -470,7 +474,7 @@ describe("a company driver's walk", () => {
     const withoutP03 = every.filter((m) => m.placement_id !== "p03");
     const rec = seed({ applyingAs: "company_driver", marks: withoutP03 });
     const result = await recordPacketMark(rec.client, TOKEN, body("p03"), CTX, NOW);
-    // Twenty ROWS, one of them p31b: nineteen of a company driver's twenty stops.
-    expect(result).toMatchObject({ signedCount: 19, complete: false });
+    // Eighteen ROWS, one of them p31b: seventeen of a company driver's eighteen stops.
+    expect(result).toMatchObject({ signedCount: 17, complete: false });
   });
 });

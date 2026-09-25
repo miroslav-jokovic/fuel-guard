@@ -92,7 +92,7 @@ const seed = (over: {
       drivers: over.drivers ?? [{ id: DRIVER, org_id: ORG }],
       driver_authorizations: (q: RecordedQuery) => {
         const driverId = q.filters().find((f) => f.col === "driver_id")?.val;
-        return (over.authorizations ?? [auth("fcra_disclosure")]).filter((a) => a.driver_id === driverId);
+        return (over.authorizations ?? [auth("fcra_disclosure"), auth("mvr")]).filter((a) => a.driver_id === driverId);
       },
       documents: (q: RecordedQuery) => {
         const id = q.filters().find((f) => f.col === "id")?.val;
@@ -245,9 +245,27 @@ describe("what makes recording the act lawful", () => {
     expect(res.status).toBe(400);
   });
 
+  /**
+   * ⚠ D-MVR3 (2026-09-25): the MVR needs its OWN release as well as the FCRA one. Until then FCRA
+   * alone opened it, because the carrier's page 19 release had nowhere to go. Each half is refused on
+   * its own, so a gate that checked either one would fail one of these.
+   */
+  it("is not satisfied by the FCRA authorization alone — the MVR release is its own permission", async () => {
+    holder.client = seed({ authorizations: [auth("fcra_disclosure")] }).client;
+    const res = await call(`/applicants/${DRIVER}/records/mvr`, { token: "admin", body: FILING });
+    expect(res.status).toBe(400);
+  });
+
+  it("nor by the MVR release alone", async () => {
+    holder.client = seed({ authorizations: [auth("mvr")] }).client;
+    const res = await call(`/applicants/${DRIVER}/records/mvr`, { token: "admin", body: FILING });
+    expect(res.status).toBe(400);
+  });
+
   it("is not satisfied by an FCRA authorization that has been revoked", async () => {
     holder.client = seed({
       authorizations: [
+        auth("mvr"),
         auth("fcra_disclosure"),
         auth("fcra_disclosure", { id: "revocation-1", revokes: "fcra_disclosure-1" }),
       ],

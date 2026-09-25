@@ -1,6 +1,6 @@
 # MVR release as a permission, and printable templates
 
-Status: **MV0 built** (migration 0375). MV1–MV3 queued. Opened 2026-09-25 from the owner's review of
+Status: **MV0 + MV1 built.** MV2–MV3 queued. Opened 2026-09-25 from the owner's review of
 the permissions after the handbook shipped (#1051, #1053).
 
 ## 1. What the owner saw
@@ -85,3 +85,9 @@ cannot have an MVR recorded — which is correct, because nobody holds their con
 - 2026-09-25 — MV0 built: `0375_mvr_release_purpose.sql`; `release-ceremony.test.mjs` +3 (an `mvr`
   row is accepted, filed under its own purpose, an unknown purpose still refused). Proven by running
   the matrix without 0375: the two MVR assertions fail with 23514.
+- 2026-09-25 — MV1 built: `mvr` is the sixth permission (after `psp`), served from the carrier's page 19
+  under `packet-2026-08-21`; the MVR step needs `mvr` + `fcra_disclosure` (D-MVR3); `p19a`/`p19b`
+  withdrawn, so the packet walk is 19 stops (18 for a company driver). Page 19 rasterised: both lines
+  carry *"Not signed here. Signed electronically as its own permission."*, no name, no date. Five
+  mutants, five killed: FCRA-only gate, MVR-only gate, `mvr` dropped from the order, `mvr` dropped
+  from the default wording, `p19b` un-withdrawn.
