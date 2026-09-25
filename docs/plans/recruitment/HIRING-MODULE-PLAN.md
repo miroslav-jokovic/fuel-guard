@@ -4631,6 +4631,28 @@ every time.
   AF1–AF7 join this plan's queue; D2–D5 above are unchanged. ⚠ AF5 is freeze-bound alongside L-1
   and Q-HM14 — all three before the first real packet.
 
+- **2026-09-24 — L-1 DONE** (#1026, merge `1ef555a`). Page 4 is withdrawn from electronic signing
+  until counsel answers memorandum Q1. The ceremony walks **21** stops. No migration.
+  · **One table, `PACKET_WITHDRAWALS`** (`packetPlacements.ts`), keyed by placement id.
+    `PACKET_PLACEMENTS` keeps the p04 row because it measures the paper. `driverPlacements()`
+    applies the withdrawal once. Geometry compares against the new `paperDriverPlacements()`, so a
+    measurement never depends on a ruling. Counsel's answer reverses it by deleting one entry.
+  · The server refuses a p04 mark as `packet_mark_withdrawn` (400).
+  · ⚠ **Beyond the spec: a mark recorded at p04 before the withdrawal** stays a row (evidence). It
+    no longer counts: `countedPacketMarks` counts marks at the current stops, and the checklist,
+    the board and `recordPacketMark` all use it. `recordPacketMark` stopped trusting the RPC's
+    row-count `complete` for this reason. It no longer prints either: page 4 files unsigned,
+    undated, and with `Print name` blank. The SSN field was already sealed.
+  · ⚠ **"The certificate says why" had no certificate to say it.** The packet has no certificate
+    page (`render.ts`'s certificate belongs to the §391.21 summary, which a signed packet doesn't
+    file). So the reason is printed **on page 4's blank signature line**: *"Not signed
+    electronically. Withdrawn from signing on 09/24/2026, pending legal review."* I rasterised it
+    and looked: it sits on the line and collides with nothing. The owner may prefer a certificate
+    page for the packet; that would be its own step.
+  · 12 of 12 mutants resolved: 11 killed, and one showed a duplicate p04 skip in the overlay, which
+    I removed.
+  · **Freeze-bound items left: Q-HM14** (`applying_as`), then the office's QA-org walk of AF5.
+
 ---
 
 ## 11. Sources
