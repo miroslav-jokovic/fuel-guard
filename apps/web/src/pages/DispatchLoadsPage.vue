@@ -13,7 +13,7 @@ import { PlusIcon } from "@silvicom/ui/icons";
  */
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { type DispatchException, EXCEPTION_LABELS, HAZMAT_LOAD_STATUS_LABELS, type HazmatLoadStatus, LOAD_STATUS_LABELS, LOAD_STATUSES } from "@silvicom/shared";
+import { type DispatchException, EXCEPTION_LABELS, HAZMAT_LOAD_STATUS_LABELS, type HazmatLoadStatus, LOAD_STATUS_LABELS, LOAD_STATUSES, isDispatchable } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -41,6 +41,8 @@ import {
   type DispatchLoad,
   type QueueTab,
 } from "@/features/dispatch/useDispatchLoads";
+import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
+import { dispatchHeadline } from "@/features/dispatch/useLoadDispatch";
 import DispatchLoadFormPage, { type LoadFormPayload } from "./DispatchLoadFormPage.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
@@ -88,6 +90,7 @@ async function clearException(row: DispatchException) {
 }
 
 const createLoad = useCreateLoad();
+const dispatching = ref<DispatchLoad | null>(null); // LR-D3: the load whose Dispatch drawer is open
 const bulk = useBulkTransition();
 
 const search = ref("");
@@ -204,6 +207,8 @@ const columns: DataTableColumn[] = [
   { key: "hazmat", label: "Hazmat", width: "md" },
   { key: "readiness", label: "Approval readiness", width: "xl" },
   { key: "status", label: "Status", sortable: true, width: "lg" },
+  // D-LMR7: whether the office sent it is its own fact, beside McLeod's status — never folded into it.
+  { key: "dispatch", label: "Dispatch", width: "xl" },
 ];
 
 const driverList = computed(() => (drivers.value ?? []).map((driver) => ({ id: driver.id, full_name: driver.full_name })));
@@ -277,8 +282,6 @@ async function onFormSubmit(payload: LoadFormPayload) {
   }
 }
 
-
-
 async function bulkDo(action: "approve" | "release", ids: string[]) {
   if (!session.can("dispatch") || !ids.length) return;
   try {
@@ -300,7 +303,7 @@ onUnmounted(() => {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Create, review, approve and release loads. Nothing reaches a driver's phone until dispatch has completed the approval gate.">
+    <PageHeader description="A McLeod load reaches a driver only when you dispatch it. A manual load reaches one once it's approved and released.">
       <template #actions>
         <BaseButton v-if="session.can('dispatch')" variant="primary" @click="openNew">
           <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New load
@@ -456,8 +459,13 @@ onUnmounted(() => {
       <template #cell-status="{ row }">
         <span :class="[BADGE_BASE, toneClass(row.status === 'canceled' ? 'neutral' : 'brand')]">{{ statusLabel(row.status) }}</span>
       </template>
+      <template #cell-dispatch="{ row }">
+        <span v-if="row.source === 'tms'" :class="row.last_dispatch ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ dispatchHeadline(row.last_dispatch) }}</span>
+        <span v-else class="text-ink-tertiary">—</span>
+      </template>
       <template #actions="{ row }">
         <KebabMenu>
+          <BaseButton v-if="session.can('dispatch') && isDispatchable(row)" class="kebab-item" @click="dispatching = row">Dispatch…</BaseButton>
           <BaseButton class="kebab-item" @click.stop="openDetail(row)">Open details</BaseButton>
         </KebabMenu>
       </template>
@@ -466,6 +474,7 @@ onUnmounted(() => {
       </template>
     </DataTable>
 
+    <DispatchLoadDrawer :load="dispatching" @close="dispatching = null" />
     <SlideOver :open="formOpen" title="New load" @close="closeOverlay">
       <DispatchLoadFormPage
         v-if="formOpen"

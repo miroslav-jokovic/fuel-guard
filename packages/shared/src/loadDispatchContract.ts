@@ -15,6 +15,16 @@ export const dispatchLoadRequestSchema = z.object({
 });
 export type DispatchLoadRequest = z.infer<typeof dispatchLoadRequestSchema>;
 
+/**
+ * Whether the office may dispatch this load at all: a McLeod load that is still open. The API refuses
+ * the rest (409), and the board and the load page offer the button on exactly the same rule — one
+ * definition, so the button can never promise what the endpoint will refuse.
+ */
+export const DISPATCH_CLOSED_STATUSES = ["delivered", "canceled"] as const;
+export function isDispatchable(load: { source: string; status: string }): boolean {
+  return load.source === "tms" && !(DISPATCH_CLOSED_STATUSES as readonly string[]).includes(load.status);
+}
+
 export const LOAD_DISPATCH_CHANNELS = ["sms", "app"] as const;
 export type LoadDispatchChannel = (typeof LOAD_DISPATCH_CHANNELS)[number];
 
@@ -43,6 +53,21 @@ export interface LoadDispatch {
   outcome: LoadDispatchOutcome;
   outcomeReason: string | null;
   body: string;
+}
+
+/**
+ * A dispatch as the loads board and the load page read it (D-LMR7): "Sent to …" or "Not sent" is this,
+ * never `loads.status`, which stays McLeod's. The board carries the load's current one; the load page
+ * carries every one, newest first.
+ */
+export interface LoadDispatchSummary {
+  id: string;
+  driverId: string;
+  driverName: string | null;
+  sentAt: string;
+  channel: LoadDispatchChannel;
+  outcome: LoadDispatchOutcome;
+  outcomeReason: string | null;
 }
 
 /** What the modal shows before Send: the exact text, and whether it would actually be texted. */

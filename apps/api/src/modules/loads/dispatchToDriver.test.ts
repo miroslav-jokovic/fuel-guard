@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { testEnv } from "../../testing/testEnv.js";
-import { dispatchLoad, previewLoadDispatch } from "./dispatchToDriver.js";
+import { dispatchLoad, dispatchesByLoad, previewLoadDispatch } from "./dispatchToDriver.js";
 
 /**
  * Dispatch (LR-D2, D-LMR5/D-LMR6). What the API must hold on its own, since it writes with the service
@@ -98,5 +98,35 @@ describe("previewLoadDispatch", () => {
     await dispatchLoad(sent.client, dark, ORG, ACTOR, LOAD, DRIVER);
     expect(preview).toMatchObject({ ok: true, data: { driverName: "Dana Kelly", smsHeldBecause: "sms_not_configured" } });
     expect(preview.ok && preview.data.body).toBe(sent.writtenRows("load_dispatches")[0]!.body);
+  });
+});
+
+describe("dispatchesByLoad", () => {
+  const OTHER_LOAD = "11111111-2222-4333-8444-000000000009";
+  it("groups every dispatch by load, keeps the newest first, and names the driver — one org-scoped read", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        // Rows arrive in the order the query asks for: newest first.
+        load_dispatches: [
+          { id: "d-3", load_id: LOAD, driver_id: DRIVER, sent_at: "2026-09-24T12:00:00Z", channel: "sms", outcome: "not_sent", outcome_reason: "sms_not_configured", drivers: { full_name: "Dana Kelly" } },
+          { id: "d-2", load_id: OTHER_LOAD, driver_id: DRIVER, sent_at: "2026-09-24T11:00:00Z", channel: "sms", outcome: "not_sent", outcome_reason: "sms_not_configured", drivers: [{ full_name: "Dana Kelly" }] },
+          { id: "d-1", load_id: LOAD, driver_id: "x", sent_at: "2026-09-24T10:00:00Z", channel: "sms", outcome: "not_sent", outcome_reason: "sms_not_configured", drivers: null },
+        ],
+      },
+    });
+    const by = await dispatchesByLoad(rec.client, ORG, [LOAD, OTHER_LOAD]);
+    expectOrgScoped(rec, ORG);
+    expect(by.get(LOAD)?.map((d) => d.id)).toEqual(["d-3", "d-1"]);
+    expect(by.get(LOAD)?.[0]).toMatchObject({ driverName: "Dana Kelly", outcome: "not_sent", outcomeReason: "sms_not_configured" });
+    expect(by.get(LOAD)?.[1]?.driverName).toBeNull();
+    expect(by.get(OTHER_LOAD)?.[0]?.driverName).toBe("Dana Kelly");
+    const orders = rec.forTable("load_dispatches")[0]!.ops.filter((o) => o.method === "order").map((o) => o.args);
+    expect(orders).toEqual([["sent_at", { ascending: false }], ["id", { ascending: false }]]);
+  });
+
+  it("asks nothing when there are no McLeod loads on the page", async () => {
+    const rec = createSupabaseRecorder();
+    expect((await dispatchesByLoad(rec.client, ORG, [])).size).toBe(0);
+    expect(rec.queries).toHaveLength(0);
   });
 });
