@@ -4653,6 +4653,31 @@ every time.
     I removed.
   · **Freeze-bound items left: Q-HM14** (`applying_as`), then the office's QA-org walk of AF5.
 
+- **2026-09-24 — Q-HM14 DONE** (#1030, merge `81f3c8f`). `applying_as: company_driver |
+  owner_operator` is on the questionnaire (`silvicom_driver@v2`) and the wizard. No migration: the
+  answer lives in the payload jsonb.
+  · **The walk is per applicant.** `PacketPlacement.capacity` marks `p31b` as the owner-operator's
+    line. `driverPlacements(applyingAs)` and its three siblings take the answer as a REQUIRED
+    argument. `signsAsOwnerOperator()` is the one predicate for page 31's owner-operator half: the
+    line, `Owner Operator Name:` and `I ____ aka (OP)`. A company driver signs **20** stops. The
+    decision rests on memorandum Q15's own sentence, not a guess.
+  · The ceremony, the checklist and the board read the DRAFT's answer, one key by JSON path. The
+    submit gate reads the payload being FILED, so the lines demanded and the lines printed come from
+    one document. A company driver's `p31b` is refused as `packet_mark_not_their_capacity` (409).
+  · ⚠ **Beyond the spec: the carrier's page 22 already prints `yes` on `Pre-Employment
+    Qualification:`.** No plan recorded it before. So only the owner-operator's reason is drawn, and
+    an owner-operator's page reads `yes` twice (APPLICANT-FLOW-PLAN §7 Q-AF1). A test pins the
+    printed word.
+  · **No answer means the paper as printed.** That covers every historical payload and every blank.
+    Nothing is inferred from the free-text `position`.
+  · Also fixed: the applicant's reading copy is drawn from the draft, and it printed questionnaire
+    answers (page 1's position) blank. `questionnaireAnswersOf` reads either key.
+  · Found and NOT fixed (Q-AF2): the overlay throws on names outside Windows-1252 (`ń`).
+  · 29 of 29 mutants killed. Pages 22 and 31 were rasterised with a long-name fixture for both
+    answers and inspected. The applicant screen was checked at 390 and 1440.
+  · **Freeze-bound items left: none in code.** Owed: the office's QA-org walk of AF5 in "FuelGuard
+    EFS QA", which now also covers choosing company driver and confirming 20 stops.
+
 ---
 
 ## 11. Sources
