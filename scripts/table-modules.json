@@ -1157,6 +1157,28 @@
         "why": "no rows yet (RT0 is schema only). One examiner today (Arvidera Gakhal); a row is added only when an examiner, title or signature changes. Evidence a filed road test cites; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
       }
     },
+    "carrier_representatives": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1,
+        "why": "no rows yet (HB0 is schema only). A handful of office people who countersign for the carrier; a row is added when a Representative, title or signature changes. Evidence a signed handbook cites; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
+    "handbook_marks": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "no rows yet (HB0 is schema only). Six rows per hired driver (five driver places, one countersignature). Signature evidence, append-only like application_packet_marks; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
     "load_dispatches": {
       "module": "loads",
       "layer": "core",
