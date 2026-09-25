@@ -7,7 +7,7 @@ import type { PacketCeremonyState, usePacketCeremony } from "@/features/apply/si
  *
  * ── WHY THIS IS NOT `ReturnType<typeof usePacketCeremony>` ANY MORE ──────────────────────────
  * Two ceremonies adopt a signature now. The packet's walks places on the carrier's paper; AF6's walks
- * the five permissions, each its own PDF (D-AF2). Both adopt through `usePacketAdoption`, so the
+ * the six permissions, each its own PDF (D-AF2). Both adopt through `usePacketAdoption`, so the
  * applicant makes their mark once, in the same Type/Draw/Upload tabs with the same confirm step, and
  * the packet later offers that same picture as carried over. The component takes the ceremony WHOLE
  * for Q-PKT11's reason (the state machine stays in one instance). What changes is that "whole" is now
@@ -41,6 +41,6 @@ type Widen<T> = T extends string
 /**
  * The words the adoption screens say. The packet's by default; the permissions pass their own
  * (`APPLY_COPY.permissions.adoption`), because "your signature in 20 places on their form" is false
- * on a screen about five documents.
+ * on a screen about six documents.
  */
 export type AdoptionCopy = Widen<typeof APPLY_COPY.packet>;

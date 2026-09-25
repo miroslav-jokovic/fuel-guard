@@ -57,6 +57,7 @@ export const PUBLISHABLE_INSTRUMENT_LABELS: Record<PublishableInstrument, string
   previous_employer: "Previous-employer safety performance release",
   clearinghouse: "Drug & Alcohol Clearinghouse query consent",
   drug_alcohol: "Controlled substances and alcohol testing consent",
+  mvr: "Driving record (MVR) check authorization",
   esign_consent: "Agreeing to sign and receive these documents electronically",
 };
 

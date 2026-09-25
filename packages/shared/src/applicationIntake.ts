@@ -198,10 +198,18 @@ export { isDraftDisclosure } from "./authorizationContract.js";
  *
  * ⚠ The full query's consent is still given in FMCSA's portal and nothing here stands in for it:
  * the `clearinghouse` STEP in `hiringSteps.ts` records that query's result, not this signature.
+ *
+ * ⚠ **Six since 2026-09-25 (D-MVR1, `MVR-RELEASE-AND-TEMPLATES-PLAN.md`).** `mvr` is the carrier's
+ * packet page 19, moved here out of the application so the MVR step can see it; page 19's two driver
+ * lines are withdrawn from packet signing (`PACKET_WITHDRAWALS`) so it is never signed twice. It
+ * follows `psp`, the other driving-history release. A link whose five were complete before it joined
+ * is NOT reopened — `record_driver_release` refuses a closed ceremony (DR022) and later phases build
+ * on that stamp — so its MVR release is recorded on paper by the office.
  */
 export const APPLICATION_RELEASE_ORDER: readonly AuthorizationPurpose[] = [
   "fcra_disclosure",
   "psp",
+  "mvr",
   "previous_employer",
   "drug_alcohol",
   "clearinghouse",

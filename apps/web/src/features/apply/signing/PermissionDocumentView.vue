@@ -15,7 +15,7 @@ import { signatureBoxOnPage, type BoxOnPage } from "@/features/apply/signing/sig
  * the PDF (`signatureBox.ts`). The parent decides what goes there: the **Sign here** tag, or the
  * signed mark. The import, the worker and the single fetch are shared (`pdfDocument.ts`).
  *
- * ⚠ **The bytes are fetched once** and on the ceremony's per-link bucket (AF6a): five documents plus
+ * ⚠ **The bytes are fetched once** and on the ceremony's per-link bucket (AF6a): six documents plus
  * the page's own reads would crowd the intake's 20 a minute.
  *
  * ⚠ **A failure is reported and never swallowed into an empty frame.** The parent falls back to the

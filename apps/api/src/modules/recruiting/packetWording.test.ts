@@ -52,10 +52,10 @@ describe("the carrier's packet as a source of published wording", () => {
     expect(missing).toEqual([]);
   });
 
-  it("transcribes 52 lines across the three instruments — nothing was quietly dropped", () => {
+  it("transcribes 57 lines across the four instruments — nothing was quietly dropped", () => {
     // A transcription that lost a clause would still satisfy the assertion above, because what
     // remained would still be found in the source. Only a count can see a deletion.
-    expect(everyLine).toHaveLength(52);
+    expect(everyLine).toHaveLength(57);
   });
 });
 
@@ -213,8 +213,8 @@ describe("what gets published", () => {
  * mean somebody had put words in the carrier's mouth that FMCSA requires to be its own.
  */
 describe("what the packet does NOT contain", () => {
-  it("has no PSP authorization, and none of the applicant's four may be assumed", () => {
-    expect(PACKET_WORDING_INSTRUMENTS).toEqual(["fcra_disclosure", "previous_employer", "drug_alcohol"]);
+  it("has no PSP authorization, and none of the applicant's other permissions may be assumed", () => {
+    expect(PACKET_WORDING_INSTRUMENTS).toEqual(["fcra_disclosure", "previous_employer", "drug_alcohol", "mvr"]);
     expect(PACKET_WORDING_INSTRUMENTS).not.toContain("psp");
   });
 
@@ -232,15 +232,22 @@ describe("what the packet does NOT contain", () => {
   });
 
   /**
-   * ⚠ Page 18 IS an MVR authorization and is transcribed nowhere, because there is no instrument to
-   * put it in: `AUTHORIZATION_PURPOSES` has no `mvr`. The carrier's lawyers wrote a release this
-   * product cannot hold. Asserted so the absence stays deliberate.
+   * ⚠ Page 19 IS the MVR authorization, and until 2026-09-25 it was transcribed nowhere because
+   * `AUTHORIZATION_PURPOSES` had no `mvr` to hold it. D-MVR1 made it a permission. What is pinned now
+   * is that it is published from the carrier's own page and nothing else: the heading is theirs, both
+   * sentences are theirs, and the sentence that stops mid-clause still stops there (Q-MVR1).
    */
-  it("leaves the driving-record authorization out, because nothing can hold it", () => {
-    expect(haystack).toContain("AUTHORIZATION FOR DRIVING RECORD CHECK");
-    expect(AUTHORIZATION_PURPOSES).not.toContain("mvr" as never);
-    const composed = PACKET_WORDING_INSTRUMENTS.map((i) => packetWording(i)!.body).join("\n");
-    expect(composed).not.toContain("AUTHORIZATION FOR DRIVING RECORD CHECK");
+  it("publishes the driving-record authorization from page 19, as the carrier wrote it (D-MVR1)", () => {
+    const mvr = packetWording("mvr")!;
+    expect(mvr.page).toBe(19);
+    expect(mvr.title).toBe("AUTHORIZATION FOR DRIVING RECORD CHECK");
+    expect(mvr.body).toBe(
+      "By signing below I authorize you to release the information requested to SILVICOM, INC as "
+      + "directed by the Federal Motor Carrier Safety Administration Regulations.",
+    );
+    expect(mvr.intent).toBe(
+      "I hereby release you from any liability which might be the result of providing this",
+    );
   });
 });
 

@@ -852,7 +852,7 @@ describe("the certificate of completion, section by section", () => {
       await renderApplicationPdf(input({ authorizations: everyInstrument })),
     );
     const headings = everyInstrument.map((a, i) => `${2 + i}. ${purposeLabel(a.purpose)}`);
-    expect(headings).toHaveLength(5);
+    expect(headings).toHaveLength(6);
 
     for (const heading of headings) {
       const sheet = pages.find((t) => t.includes(heading));

@@ -344,8 +344,9 @@ describe("the walk", () => {
       marked.filter((m) => driverPlacements(null).find((p) => p.id === m.placementId)!.mark === kind);
     expect(byKind("initials").map((m) => m.placementId)).toEqual(["p05", "p06", "p09"]);
     expect(new Set(byKind("initials").map((m) => m.signedName))).toEqual(new Set(["MV"]));
-    // ⚠ 18 since L-1: page 4's was a signature line, and is withdrawn.
-    expect(byKind("signature")).toHaveLength(18);
+    // ⚠ 18 since L-1: page 4's was a signature line, and is withdrawn. 16 since D-MVR1: so are
+    // page 19's two, because the driving-record release is a permission now.
+    expect(byKind("signature")).toHaveLength(16);
     expect(new Set(byKind("signature").map((m) => m.signedName))).toEqual(new Set(["Marija Varmeda"]));
   });
 
@@ -364,16 +365,18 @@ describe("the walk", () => {
   });
 
   /**
-   * ⚠ Page 19 carries its signature line twice, and the two stops are identical in every field but
-   * the id. A ceremony keyed on anything else would sign one of them twice and leave the other blank
-   * — on a page the carrier's paper has two lines on.
+   * ⚠ Page 11 carries two driver lines, and the two stops differ in their id. A ceremony keyed on
+   * anything else would sign one of them twice and leave the other blank — on a page the carrier's
+   * paper has two lines on. Page 19 was the other such page until D-MVR1 (2026-09-25) withdrew both
+   * of its lines: the driving-record release is signed as a permission now, and never walked here.
    */
-  it("visits both of page 19's places, as two distinct stops", async () => {
+  it("visits both of page 11's places as two distinct stops, and neither of page 19's", async () => {
     const c = started();
     await c.adopt();
     for (let i = 0; i < TOTAL; i++) await c.sign();
-    const p19 = marked.filter((m) => m.placementId.startsWith("p19"));
-    expect(p19.map((m) => m.placementId)).toEqual(["p19a", "p19b"]);
+    const p11 = marked.filter((m) => m.placementId.startsWith("p11"));
+    expect(p11.map((m) => m.placementId)).toEqual(["p11a", "p11b"]);
+    expect(marked.filter((m) => m.placementId.startsWith("p19"))).toEqual([]);
   });
 
   it("cannot be walked past a place that did not land", async () => {

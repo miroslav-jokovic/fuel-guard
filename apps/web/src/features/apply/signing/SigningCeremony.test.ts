@@ -93,7 +93,7 @@ beforeEach(() => {
 describe("the permissions, as documents", () => {
   it("asks for a signature in the permissions' words, not the packet's", () => {
     const text = mountIt().text();
-    expect(text).toContain("needs you to sign 5 permissions");
+    expect(text).toContain("needs you to sign 6 permissions");
     expect(text).not.toMatch(/places on their own form/);
   });
 
@@ -101,7 +101,7 @@ describe("the permissions, as documents", () => {
     const w = mountIt();
     await adopt(w);
     expect(pdf.srcs.at(-1)).toBe(`/api/public/application/${TOKEN}/permission/${APPLICATION_RELEASE_ORDER[0]}.pdf`);
-    expect(w.text()).toContain(APPLY_COPY.permissions.counter(1, 5));
+    expect(w.text()).toContain(APPLY_COPY.permissions.counter(1, 6));
     // The box is on the second page (`getPageIndex` → 1), at 54pt in and 492pt down a 792pt sheet.
     const tag = w.findAll("button").find((b) => b.text() === APPLY_COPY.permissions.signHere)!;
     expect(tag.exists()).toBe(true);
@@ -121,15 +121,15 @@ describe("the permissions, as documents", () => {
     await click(w, APPLY_COPY.permissions.signHere);
     expect(signed.fn).toHaveBeenCalledTimes(1);
     expect(signed.fn).toHaveBeenCalledWith(TOKEN, APPLICATION_RELEASE_ORDER[0], "Susan Godfrey");
-    expect(w.text()).toContain(APPLY_COPY.permissions.counter(2, 5));
+    expect(w.text()).toContain(APPLY_COPY.permissions.counter(2, 6));
     expect(pdf.srcs.at(-1)).toContain(`/permission/${APPLICATION_RELEASE_ORDER[1]}.pdf`);
   });
 
-  it("finishes after the fifth, and says so to the page", async () => {
+  it("finishes after the sixth, and says so to the page", async () => {
     const w = mountIt();
     await adopt(w);
-    for (let i = 0; i < 5; i += 1) await click(w, APPLY_COPY.permissions.signHere);
-    expect(signed.fn).toHaveBeenCalledTimes(5);
+    for (let i = 0; i < 6; i += 1) await click(w, APPLY_COPY.permissions.signHere);
+    expect(signed.fn).toHaveBeenCalledTimes(6);
     expect(w.emitted("done")).toHaveLength(1);
   });
 });

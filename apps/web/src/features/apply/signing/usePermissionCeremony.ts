@@ -22,7 +22,7 @@ import type { PacketCeremonyState } from "@/features/apply/signing/usePacketCere
  * later offers it as carried over.
  *
  * ── THE WALK IS FIXED, AND WHAT "SIGNED" MEANS IN IT ──────────────────────────────────────────
- * All five, in `APPLICATION_RELEASE_ORDER`, always: "Document 3 of 5" counts the set, and never
+ * All six, in `APPLICATION_RELEASE_ORDER`, always: "Document 3 of 6" counts the set, and never
  * renumbers under an applicant whose link refetched (the stranded-cursor lesson from the packet). A
  * document is signed if the server says so (`alreadySigned`) or this session filed it (`filedHere`).
  *
