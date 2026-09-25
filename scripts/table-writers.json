@@ -509,5 +509,8 @@
   "weather_cache": [
     "apps/api/src/modules/idle/idleSessionWeather.ts",
     "apps/api/src/modules/idle/weatherBackfill.ts"
+  ],
+  "road_test_examiners": [
+    "apps/api/src/modules/recruiting/roadTest.ts"
   ]
 }

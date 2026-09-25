@@ -168,3 +168,29 @@ Append a dated line per step. Never edit §4.
   assertions, 8 of 8 migration mutants killed. `rls.test.mjs` seeds it (552 pass). There is a producer
   waiver for one merge. **Next: RT1–RT3 in one merge** (contract, renderer, the examiner and
   record-test API, and the screen), after 0372 shows in production's `information_schema`.
+- **2026-09-25** — **0372 merged** (#1044, `b944170`) and **checked in production** (`information_schema`
+  shows `road_test_examiners`, `pg_trigger` shows its guard) before its reader was committed.
+- **2026-09-25** — **RT1–RT3 DONE in one merge** (this PR). No migration.
+  · **RT1** `roadTestContract.ts`: nine items (the three §391.31(c) adds in the regulation's words,
+    then the carrier's six verbatim), a rating per item, trailer `dry_van | reefer`, and
+    `roadTestPassed` (all nine AND general performance Satisfactory). A missing item is refused at
+    the door.
+  · **RT2** `applicationPdf/roadTest.ts`: two PDFs, because §391.31(g) files two. The FORM (the
+    examination, then the evaluation on its own sheet) and the CERTIFICATE alone, which carries no
+    ratings: it is the driver's copy. The carrier's letterhead comes from
+    `organizations.legal_address`. The pre-printed `2021 FRHT`, `2021`, `15` and `SILVICOM` are now
+    fields. Every page says who applied the examiner's signature (Q-RT2). Rasterised and looked at
+    with a long Serbian-Polish name.
+  · **RT3** API: `GET/POST /api/recruitment/road-test-examiners` (the PNG signature is checked by its
+    bytes, not its label, and stored under `<org>/examiners/`), `POST …/:id/retire`, and
+    `POST /applicants/:driverId/road-test`. Recording always files the form. On a pass it also files
+    the certificate and a `qualification_records` row of kind `road_test` citing it; `detail` names
+    the examiner, the recording user and the form. Each act is audited. Web: the step-13 drawer
+    opens `RoadTestPanel`, which asks for the examiner and their signature when none is on file,
+    rates the nine items with the carrier's three words, and says BEFORE the press whether it will
+    produce a certificate.
+  · 18 of 18 mutants killed across the contract, the service, the renderer and the panel. All gates
+    and the shared (3159), API (4575) and web (2190) suites pass.
+  · **Next: RT4**, the driver's copy of the certificate on the applicant's link. ⚠ **Owed by the
+    office:** add Arvidera Gakhal (Maintenance manager) and his signature PNG from the step-13
+    drawer, then record one test on the QA applicant.
