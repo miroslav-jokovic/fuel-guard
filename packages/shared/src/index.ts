@@ -152,6 +152,7 @@ export * from "./efsAccountContract.js";
 export * from "./returnToDuty.js";
 export * from "./applicantDisposition.js";
 export * from "./packetPlacements.js";
+export * from "./permissionInstrument.js";
 export * from "./jurisdictions.js";
 export * from "./savedViewContract.js";
 export * from "./dqFleetFilter.js";

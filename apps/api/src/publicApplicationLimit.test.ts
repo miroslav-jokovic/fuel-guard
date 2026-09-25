@@ -111,6 +111,33 @@ describe("the applicant's bucket", () => {
   });
 
   /**
+   * AF6: the five permission PDFs are fetched while the applicant signs, beside the page's own reads.
+   * On the intake's 20 a minute an honest applicant would be refused mid-ceremony, which is the
+   * 2026-09-17 defect in a new place. So they ride the ceremony's per-link bucket, and ONLY that
+   * exact shape moves: a GET that merely resembles it still counts against the intake.
+   */
+  it("serves the permission PDFs from the ceremony's bucket and leaves the intake's untouched", async () => {
+    const baseUrl = await freshApp();
+    const pdf = (token: string, purpose = "psp") =>
+      fetch(`${baseUrl}/api/public/application/${token}/permission/${purpose}.pdf`);
+    const codes: number[] = [];
+    for (let i = 0; i < PACKET_CEREMONY_LIMIT; i += 1) codes.push((await pdf(TOKEN)).status);
+    expect(codes.some((c) => c === 429)).toBe(false);
+    expect((await pdf(TOKEN)).status).toBe(429);
+    // Sixty-one of them spent none of the intake's twenty.
+    expect((await fetch(`${baseUrl}${PATH}`)).status).not.toBe(429);
+  });
+
+  it("counts a GET that only resembles a permission PDF against the intake", async () => {
+    const baseUrl = await freshApp();
+    const lookalike = `${baseUrl}/api/public/application/${TOKEN}/permission/psp`;
+    const codes: number[] = [];
+    for (let i = 0; i < 21; i += 1) codes.push((await fetch(lookalike)).status);
+    expect(codes.slice(0, 20).every((c) => c !== 429)).toBe(true);
+    expect(codes[20]).toBe(429);
+  });
+
+  /**
    * ⚠ The 429 that told a driver their link was dead. express-rate-limit's default body is plain
    * text; `publicFetch` parses JSON, so `body?.error?.code` was undefined and it fell back to
    * `invalid_link` — "This application link is not valid. Ask for a new one." — about a link that

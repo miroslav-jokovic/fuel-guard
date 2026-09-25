@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { applicationProgress, liveAuthorization, type AuthorizationPurpose } from "@silvicom/shared";
+import {
+  applicationProgress,
+  liveAuthorization,
+  type AuthorizationPurpose,
+  type CarrierWording,
+} from "@silvicom/shared";
+import { loadCarrierWording } from "../carrierWording.js";
+import { purposeLabel } from "./certificate.js";
 import { isPreviewError, type PreviewError } from "./preview.js";
 import {
   renderPermissionsDocument,
@@ -68,7 +75,19 @@ interface AuthorizationRow {
  * and `hiringChecklist` both use, and the whole point of taking it from `packages/shared` is that the
  * screen, the checklist and this document cannot disagree about which release is in force.
  */
-function foldInstruments(rows: readonly AuthorizationRow[]): PermissionsInstrument[] {
+/**
+ * The title an instrument was shown under (AF6).
+ *
+ * ⚠ **Only when the versions match.** A row signed against `packet-2026-08-21` gets that wording's
+ * title; a row from any other version (an earlier publish, a carrier's own text since replaced) gets
+ * the purpose's plain label rather than a title that belonged to different words.
+ */
+function titleFor(row: AuthorizationRow, wording: CarrierWording): string {
+  const current = wording.disclosures[row.purpose as AuthorizationPurpose];
+  return current && current.version === row.disclosure_version ? current.title : purposeLabel(row.purpose);
+}
+
+function foldInstruments(rows: readonly AuthorizationRow[], wording: CarrierWording): PermissionsInstrument[] {
   const revocations = new Map<string, AuthorizationRow>();
   for (const row of rows) if (row.revokes) revocations.set(row.revokes, row);
 
@@ -83,6 +102,7 @@ function foldInstruments(rows: readonly AuthorizationRow[]): PermissionsInstrume
     const revocation = revocations.get(auth.id) ?? null;
     return {
       auth,
+      title: titleFor(auth, wording),
       live: liveIds.has(auth.id),
       revoked: revocation
         ? { at: revocation.accepted_at, reason: revocation.revoke_reason }
@@ -131,7 +151,7 @@ export async function applicationPermissionsPdf(
     .maybeSingle();
   const consent = (consentRow ?? null) as PermissionsConsent | null;
 
-  const instruments = foldInstruments(rows);
+  const instruments = foldInstruments(rows, await loadCarrierWording(admin, orgId));
   if (!consent && instruments.length === 0) {
     /**
      * ⚠ A sentence on the screen rather than a document with five "Not signed yet" rows on it. The
