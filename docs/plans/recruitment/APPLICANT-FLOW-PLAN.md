@@ -557,3 +557,6 @@ Append a dated line per step. Never edit §4.
     **Open signing on this screen** on the packet row, sign every mark and file. That end-to-end walk
     (§4 Verify) is not done yet; the tests and the 390/1440 renders cover the pieces.
   · **Next: L-1 and Q-HM14** (freeze-bound, `HIRING-MODULE-PLAN.md` §10 2026-09-24), then AF6, AF7.
+- **2026-09-24** — **L-1 DONE** (#1026, merge `1ef555a`; §5 row 5). Page 4 is out of the ceremony
+  (22 → 21), and it prints unsigned with the reason on its signature line. The full entry is in
+  `HIRING-MODULE-PLAN.md` §10. **Next: Q-HM14**, the last freeze-bound step, then AF6 and AF7.
