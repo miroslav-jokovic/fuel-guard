@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { LoadStatus, LoadStop } from "./loadsContract.js";
+import type { LoadStatus } from "./loadsContract.js";
 
 /**
  * Driver App — load lifecycle, the dispatch approval gate, and the event timeline
@@ -34,7 +34,9 @@ export function isDriverVisible(status: LoadStatus): boolean {
 /** Human labels for every state — dispatch reads these, drivers only ever see the visible subset. */
 export const LOAD_STATUS_LABELS: Record<LoadStatus, string> = {
   draft: "Draft",
-  pending_approval: "Needs approval",
+  // McLeod's `A` projects here (LR4b), and since LR6 nobody approves anything, so the old "Needs
+  // approval" named a step that does not exist. "Available" is McLeod's own word for `A`.
+  pending_approval: "Available",
   approved: "Approved",
   offered: "Sent to driver",
   accepted: "Accepted",
@@ -69,169 +71,11 @@ export function isTerminal(status: LoadStatus): boolean {
   return LOAD_TRANSITIONS[status].length === 0;
 }
 
-// ── the approval checklist ────────────────────────────────────────────────────
-/**
- * What makes approval a real control rather than a rubber stamp: dispatch sees NAMED requirements,
- * `Approve` stays disabled until every required one passes, and each failing item is click-to-fix.
- * Mirrors gate 1 of `loads_status_guard`.
- */
-export const APPROVAL_CHECKS = [
-  "driver_assigned",
-  "vehicle_assigned",
-  "trailer_assigned",
-  "has_pickup",
-  "has_dropoff",
-  "appointments_set",
-  "hazmat_consistent",
-  "photo_slots_set",
-] as const;
-export type ApprovalCheckId = (typeof APPROVAL_CHECKS)[number];
-
-export interface ApprovalCheck {
-  id: ApprovalCheckId;
-  label: string;
-  /** `false` blocks approval; a failing optional check is a warning dispatch may approve past. */
-  required: boolean;
-  passed: boolean;
-  /** Present when the check failed — what exactly is wrong, in dispatch's words. */
-  detail?: string;
-}
-
-export interface ApprovalChecklist {
-  checks: ApprovalCheck[];
-  /** True when every REQUIRED check passes — this is what enables the Approve button. */
-  canApprove: boolean;
-  blockers: ApprovalCheck[];
-  warnings: ApprovalCheck[];
-}
-
-/** The shape dispatch holds while editing — a load that may still be missing almost everything. */
-export interface ApprovableLoad {
-  driver_id?: string | null;
-  vehicle_id?: string | null;
-  trailer_id?: string | null;
-  equipment?: string | null;
-  commodity?: string | null;
-  hazmat?: boolean | null;
-  stops: readonly Pick<
-    LoadStop,
-    "kind" | "seq" | "name" | "appointment_start" | "appointment_end" | "required_photos"
-  >[];
-}
-
-/** Commodity words that should force the hazmat flag on — a cheap consistency net, not a DOT oracle. */
-const HAZMAT_HINTS = [
-  "hazmat",
-  "hazardous",
-  "flammable",
-  "corrosive",
-  "explosive",
-  "propane",
-  "gasoline",
-  "diesel fuel",
-  "chemical",
-  "acid",
-  "un1", // UN numbers — UN1203, UN1993, …
-  "un2",
-  "un3",
-];
-
-export function approvalChecklist(load: ApprovableLoad): ApprovalChecklist {
-  const stops = load.stops ?? [];
-  const pickups = stops.filter((s) => s.kind === "pickup").length;
-  const drops = stops.filter((s) => s.kind === "dropoff").length;
-  const noAppt = stops.filter((s) => !s.appointment_start || !s.appointment_end);
-  const noSlots = stops.filter((s) => (s.required_photos ?? []).length === 0);
-
-  const commodity = (load.commodity ?? "").toLowerCase();
-  const hintsHazmat = HAZMAT_HINTS.some((h) => commodity.includes(h));
-  const needsTrailer = equipmentRequiresTrailerForLoad(load.equipment);
-
-  const checks: ApprovalCheck[] = [
-    {
-      id: "driver_assigned",
-      label: "Driver assigned",
-      required: true,
-      passed: Boolean(load.driver_id),
-      ...(load.driver_id ? {} : { detail: "Pick the driver this load goes to" }),
-    },
-    {
-      id: "vehicle_assigned",
-      label: "Truck assigned",
-      required: true,
-      passed: Boolean(load.vehicle_id),
-      ...(load.vehicle_id ? {} : { detail: "Pick the planned truck" }),
-    },
-    {
-      id: "trailer_assigned",
-      label: "Trailer assigned",
-      // A warning, not a blocker: the trailer is often unknown until the driver reaches the shipper,
-      // and D44 makes the driver confirm it there anyway.
-      required: false,
-      passed: !needsTrailer || Boolean(load.trailer_id),
-      ...(needsTrailer && !load.trailer_id
-        ? { detail: `${load.equipment ?? "This equipment"} normally pulls a trailer — none planned` }
-        : {}),
-    },
-    {
-      id: "has_pickup",
-      label: "At least one pickup",
-      required: true,
-      passed: pickups >= 1,
-      ...(pickups >= 1 ? {} : { detail: "Add a pickup stop" }),
-    },
-    {
-      id: "has_dropoff",
-      label: "At least one dropoff",
-      required: true,
-      passed: drops >= 1,
-      ...(drops >= 1 ? {} : { detail: "Add a dropoff stop" }),
-    },
-    {
-      id: "appointments_set",
-      label: "Appointment window on every stop",
-      required: true,
-      passed: stops.length > 0 && noAppt.length === 0,
-      ...(stops.length === 0
-        ? { detail: "This load has no stops" }
-        : noAppt.length > 0
-          ? { detail: `${noAppt.length} stop(s) missing a window: ${noAppt.map((s) => s.name).join(", ")}` }
-          : {}),
-    },
-    {
-      id: "hazmat_consistent",
-      label: "Hazmat flag matches the commodity",
-      required: true,
-      passed: !hintsHazmat || Boolean(load.hazmat),
-      ...(hintsHazmat && !load.hazmat
-        ? { detail: `"${load.commodity}" reads as hazardous but the hazmat flag is off` }
-        : {}),
-    },
-    {
-      id: "photo_slots_set",
-      label: "Proof-of-work photos requested",
-      required: false,
-      passed: stops.length > 0 && noSlots.length === 0,
-      ...(noSlots.length > 0 && stops.length > 0
-        ? { detail: `${noSlots.length} stop(s) ask for no photos — the driver will capture nothing there` }
-        : {}),
-    },
-  ];
-
-  const blockers = checks.filter((c) => c.required && !c.passed);
-  const warnings = checks.filter((c) => !c.required && !c.passed);
-  return { checks, canApprove: blockers.length === 0, blockers, warnings };
-}
-
-/**
- * Local copy of the trailer rule so `loadsContract` does not import `dutyContract` — features never
- * reach into each other (D56). Both are one-liners over the same small vocabulary.
- */
-const NO_TRAILER_EQUIPMENT = new Set(["bobtail", "none", "n/a", "na", "-"]);
-function equipmentRequiresTrailerForLoad(equipment: string | null | undefined): boolean {
-  if (!equipment) return false;
-  return !NO_TRAILER_EQUIPMENT.has(equipment.trim().toLowerCase());
-}
+// ── the approval checklist — retired in LR6 ───────────────────────────────────
+// `approvalChecklist()` was the client half of gate 1 of `loads_status_guard`: named requirements a
+// dispatcher had to meet before Approve lit up. Nothing is approved any more (LOADS-MIRROR-PLAN.md
+// D-LMR5, LR6), and on every McLeod load it showed red blockers that meant nothing. The database gate
+// is still there for a manual load; no path in the product creates one.
 
 // ── acceptance semantics (D46) ────────────────────────────────────────────────
 export const DRIVER_TYPES = ["company", "owner_operator"] as const;

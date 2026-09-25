@@ -1,15 +1,9 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import {
-  approvalChecklist,
-  canTransition,
   LOAD_STATUS_LABELS,
-  type AssignLoadRequest,
-  type ApprovalChecklist,
-  type CreateLoadRequest,
   type LoadEventKind,
   type LoadStatus,
-  type UpdateLoadRequest,
   type DispatchException,
   type ResolveExceptionRequest,
   type LoadDispatchSummary,
@@ -17,14 +11,15 @@ import {
 import { apiFetch } from "@/lib/api";
 
 /**
- * Dispatch load workspace (Phase 3D / D49) — the web write surface for the load lifecycle.
+ * Dispatch load workspace (Phase 3D / D49) — the board's reads and the exceptions it clears.
  *
- * Reads and every transition go through the built `/api/dispatch/*` endpoints, NOT direct PostgREST:
- * the lifecycle is guarded by the `loads_status_guard` trigger and each transition is its own audited
- * endpoint (D45), so the client never PATCHes a status. The API resolves the org + actor from the JWT.
+ * Everything goes through the built `/api/dispatch/*` endpoints, NOT direct PostgREST. The create,
+ * edit, reassign, approve/release and bulk mutations that used to live here went with their routes in
+ * LOADS-MIRROR-PLAN.md LR6: every load is McLeod's (D-LMR2), and the office's one act on it is
+ * Dispatch (`useLoadDispatch.ts`, D-LMR5).
  */
 
-/** One stop as the dispatch list projection returns it (superset of what the editor sends back). */
+/** One stop as the dispatch list projection returns it. */
 export interface DispatchStop {
   id?: string;
   seq: number;
@@ -34,7 +29,6 @@ export interface DispatchStop {
   city?: string | null;
   state?: string | null;
   postal_code?: string | null;
-  // Always present in the list projection — kept required so a load satisfies `ApprovableLoad`.
   appointment_start: string | null;
   appointment_end: string | null;
   required_photos: string[];
@@ -70,8 +64,6 @@ export interface DispatchLoad {
   /** LR-D3 (D-LMR7): the McLeod load's current dispatch, null when never dispatched or not McLeod. */
   last_dispatch?: LoadDispatchSummary | null;
 }
-
-export type LoadAction = "submit" | "approve" | "release" | "reject" | "cancel";
 
 /** A photo the driver captured at a stop. `url` is signed for 5 minutes; null means signing failed. */
 export interface LoadPhoto {
@@ -148,123 +140,6 @@ export function useLoadsQuery() {
   });
 }
 
-export function useCreateLoad() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: CreateLoadRequest): Promise<{ id: string }> => {
-      const res = await apiFetch<{ id: string }>("/api/dispatch/loads", { method: "POST", body });
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not create the load.");
-      return res.data;
-    },
-    onSuccess: async () => {
-      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
-      // action taken from a detail surface used to leave that surface showing the old state.
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: loadsKey }),
-        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
-      ]);
-    },
-  });
-}
-
-export function useUpdateLoad() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { id: string; body: UpdateLoadRequest }): Promise<void> => {
-      const res = await apiFetch(`/api/dispatch/loads/${payload.id}`, {
-        method: "PATCH",
-        body: payload.body,
-      });
-      if (!res.ok) throw new Error(res.error?.message ?? "Could not save the load.");
-    },
-    onSuccess: async () => {
-      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
-      // action taken from a detail surface used to leave that surface showing the old state.
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: loadsKey }),
-        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
-      ]);
-    },
-  });
-}
-
-/** Reassignment is its own action so the timeline shows who moved the load. */
-export function useAssignLoad() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { id: string; body: AssignLoadRequest }): Promise<void> => {
-      const res = await apiFetch(`/api/dispatch/loads/${payload.id}/assign`, {
-        method: "POST",
-        body: payload.body,
-      });
-      if (!res.ok) throw new Error(res.error?.message ?? "Could not assign the load.");
-    },
-    onSuccess: async () => {
-      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
-      // action taken from a detail surface used to leave that surface showing the old state.
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: loadsKey }),
-        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
-      ]);
-    },
-  });
-}
-
-/** submit · approve · release carry no body; reject · cancel require a reason. */
-export function useTransitionLoad() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { id: string; action: LoadAction; reason?: string }): Promise<void> => {
-      const res = await apiFetch(`/api/dispatch/loads/${payload.id}/${payload.action}`, {
-        method: "POST",
-        body: payload.reason ? { reason: payload.reason } : undefined,
-      });
-      if (!res.ok) {
-        throw new Error(res.error?.message ?? "That step is not available for this load right now.");
-      }
-    },
-    onSuccess: async () => {
-      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
-      // action taken from a detail surface used to leave that surface showing the old state.
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: loadsKey }),
-        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
-      ]);
-    },
-  });
-}
-
-export interface BulkResult {
-  succeeded: number;
-  failed: number;
-}
-
-/**
- * Approve / release many loads at once via the dedicated bulk endpoint. Each load still passes the SAME
- * per-row gate server-side; partial success is reported, never swallowed (D49). One request, not N.
- */
-export function useBulkTransition() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { ids: string[]; action: "approve" | "release" }): Promise<BulkResult> => {
-      const res = await apiFetch<{ succeeded: number; failed: number }>("/api/dispatch/loads/bulk", {
-        method: "POST",
-        body: payload,
-      });
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Bulk action failed.");
-      return { succeeded: res.data.succeeded, failed: res.data.failed };
-    },
-    onSuccess: async () => {
-      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
-      // action taken from a detail surface used to leave that surface showing the old state.
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: loadsKey }),
-        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
-      ]);
-    },
-  });
-}
-
 /** One row of a load's append-only `load_events` timeline (newest first), with the actor resolved. */
 export interface LoadEventRow {
   id: string;
@@ -311,31 +186,31 @@ export function useLoadEvents(loadId: Ref<string | null>) {
   });
 }
 
-export type QueueTab = "needs_approval" | "approved" | "dispatched" | "active" | "delivered" | "exceptions";
+/**
+ * The board's queues. Until LR6 they were the approval chain — Needs approval (the default), Approved,
+ * Dispatched — and McLeod never walks that chain: `A` projects to `pending_approval`, `P` to
+ * `in_transit` (or `approved` while nothing is done), `D` to delivered, `V` to canceled (LR4b). So
+ * Active is the default and holds every open load McLeod has planned; Available is McLeod's own word
+ * for `A` (Alex, 2026-09-24). Whether an `A` with a driver and a truck should read "Planned" is LR7's
+ * question, not this one. `offered` is only reachable by the Release LR6 removed; it is kept in
+ * Active so a stray one is never hidden.
+ */
+export type QueueTab = "active" | "available" | "delivered" | "exceptions";
 
 export const QUEUE_TABS: { value: QueueTab; label: string }[] = [
-  { value: "needs_approval", label: "Needs approval" },
-  { value: "approved", label: "Approved" },
-  { value: "dispatched", label: "Dispatched" },
   { value: "active", label: "Active" },
+  { value: "available", label: "Available" },
   { value: "delivered", label: "Delivered" },
   { value: "exceptions", label: "Exceptions" },
 ];
-
-export function isException(load: DispatchLoad, nowMs: number): boolean {
-  if (load.declined_at) return true;
-  return load.status === "pending_approval" && nowMs - Date.parse(load.created_at) > 24 * 3_600_000;
-}
 
 export function tabFor(load: DispatchLoad): Exclude<QueueTab, "exceptions"> {
   switch (load.status) {
     case "draft":
     case "pending_approval":
-      return "needs_approval";
+      return "available";
     case "approved":
-      return "approved";
     case "offered":
-      return "dispatched";
     case "accepted":
     case "in_transit":
       return "active";
@@ -344,41 +219,8 @@ export function tabFor(load: DispatchLoad): Exclude<QueueTab, "exceptions"> {
   }
 }
 
-export function checklistFor(load: DispatchLoad): ApprovalChecklist {
-  return approvalChecklist({
-    driver_id: load.driver_id,
-    vehicle_id: load.vehicle_id,
-    trailer_id: load.trailer_id,
-    equipment: load.equipment,
-    commodity: load.commodity,
-    hazmat: load.hazmat,
-    stops: load.stops,
-  });
-}
-
 export function statusLabel(status: LoadStatus): string {
   return LOAD_STATUS_LABELS[status];
-}
-
-export function availableActions(load: DispatchLoad): {
-  submit: boolean;
-  approve: boolean;
-  reject: boolean;
-  release: boolean;
-  cancel: boolean;
-  approveBlockedBy: string[];
-} {
-  const checklist = checklistFor(load);
-  return {
-    submit: canTransition(load.status, "pending_approval"),
-    approve: canTransition(load.status, "approved") && checklist.canApprove,
-    reject: load.status === "pending_approval",
-    // Not for a McLeod load: since 0371 a Release no longer puts one on a driver's phone — Dispatch
-    // does — so offering it would promise something it cannot do. LR6 removes the route itself.
-    release: load.source !== "tms" && canTransition(load.status, "offered"),
-    cancel: canTransition(load.status, "canceled"),
-    approveBlockedBy: checklist.blockers.map((b) => b.detail ?? b.label),
-  };
 }
 
 // ── exceptions (L2 / D-L2) ────────────────────────────────────────────────────
@@ -387,9 +229,8 @@ const exceptionsKey = ["dispatch", "exceptions"] as const;
 /**
  * Everything on the board that needs a person, from the server.
  *
- * Replaces `isException()`, which derived from `loads` columns and could therefore only ever see two
- * of the five sources — equipment mismatches, TMS amendments and post-release changes exist only as
- * events, so the tab that exists to show what needs attention was blind to three fifths of it.
+ * Replaces `isException()`, which derived from `loads` columns and could therefore only ever see what
+ * a load row holds — equipment mismatches and TMS amendments exist only as events.
  */
 export function useExceptionsQuery() {
   return useQuery({

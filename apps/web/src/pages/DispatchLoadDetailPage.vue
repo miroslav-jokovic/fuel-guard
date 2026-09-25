@@ -1,40 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import {
-  approvalChecklist,
-  canTransition,
-  isDispatchable,
-  isTerminal,
-  LOAD_EVENT_LABELS,
-  type AssignLoadRequest,
-} from "@silvicom/shared";
+import { useRoute } from "vue-router";
+import { isDispatchable, LOAD_EVENT_LABELS } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppFormField as FormField } from "@silvicom/ui";
-import { AppCombobox as ComboSelect } from "@silvicom/ui";
-import SlideOver from "@/components/SlideOver.vue";
-import DispatchLoadFormPage from "@/pages/DispatchLoadFormPage.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
-import { useToastStore } from "@/stores/toast";
-import { useDriversQuery } from "@/composables/useDrivers";
-import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useTrailersQuery } from "@/composables/useTrailers";
 import HazmatPanel from "@/features/hazmat/HazmatPanel.vue";
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import { dispatchHeadline, smsReasonText } from "@/features/dispatch/useLoadDispatch";
-import {
-  statusLabel,
-  useAssignLoad,
-  useLoadDetailQuery,
-  useTransitionLoad,
-  useUpdateLoad,
-  type DispatchStopDetail,
-  type LoadAction,
-} from "@/features/dispatch/useDispatchLoads";
+import { statusLabel, useLoadDetailQuery, type DispatchStopDetail } from "@/features/dispatch/useDispatchLoads";
 import { formatDateTime } from "@/lib/format";
 
 /**
@@ -48,42 +24,22 @@ import { formatDateTime } from "@/lib/format";
  * captured and already stored: the PHOTOS a driver took at each stop, what actually HAPPENED at each
  * stop (arrival, completion, and the free-text explaining a missing bill of lading), and the
  * PROVENANCE strip — who submitted, approved, released, assigned, accepted and delivered, and when.
+ *
+ * ── READ-ONLY BUT FOR DISPATCH, SINCE LR6 (LOADS-MIRROR-PLAN.md) ─────────────────────────────────
+ * Edit, Cancel load, Send back, Submit for approval, Approve, Send to driver, Reassign and the
+ * approval checklist all went with their routes: the load is McLeod's and every sync overwrites it
+ * (D-LMR2), so an edit or a reassignment here was undone minutes later, and a load reaches its driver
+ * by Dispatch (D-LMR5). The provenance strip still shows the stamps a load carries from before.
  */
 
 const route = useRoute();
-const router = useRouter();
 const session = useSessionStore();
-const toast = useToastStore();
 
 const loadId = computed(() => (typeof route.params.id === "string" ? route.params.id : null));
 const { data: load, isLoading, isError, error } = useLoadDetailQuery(loadId);
 
-const { data: drivers } = useDriversQuery();
-const { data: vehicles } = useVehiclesQuery();
-const { data: trailers } = useTrailersQuery();
-
-const transitionLoad = useTransitionLoad();
-const assignLoad = useAssignLoad();
-const updateLoad = useUpdateLoad();
-const busy = computed(
-  () => transitionLoad.isPending.value || assignLoad.isPending.value || updateLoad.isPending.value,
-);
-
-// ── lifecycle gates — the same state machine the database trigger enforces ────
-const checklist = computed(() => (load.value ? approvalChecklist(load.value) : null));
-const canSubmit = computed(() => !!load.value && canTransition(load.value.status, "pending_approval"));
-const showApprove = computed(() => !!load.value && canTransition(load.value.status, "approved"));
-const canApprove = computed(() => showApprove.value && !!checklist.value?.canApprove);
-const canReject = computed(() => load.value?.status === "pending_approval");
-// A McLeod load reaches a driver by Dispatch (D-LMR5, 0371); Release would promise what it cannot do.
-const canRelease = computed(() => !!load.value && load.value.source !== "tms" && canTransition(load.value.status, "offered"));
 const canDispatch = computed(() => !!load.value && isDispatchable(load.value));
 const dispatchOpen = ref(false);
-const canCancel = computed(() => !!load.value && canTransition(load.value.status, "canceled"));
-const editable = computed(
-  () => load.value?.status === "draft" || load.value?.status === "pending_approval",
-);
-const canReassign = computed(() => !!load.value && !isTerminal(load.value.status));
 
 // ── formatting ───────────────────────────────────────────────────────────────
 function when(iso: string | null | undefined): string {
@@ -164,94 +120,12 @@ function markBroken(id: string) {
   brokenPhotoIds.value = new Set([...brokenPhotoIds.value, id]);
 }
 
-// ── actions ──────────────────────────────────────────────────────────────────
-const reasonFor = ref<"reject" | "cancel" | null>(null);
-const reasonText = ref("");
-function openReason(action: "reject" | "cancel") {
-  reasonFor.value = action;
-  reasonText.value = "";
-}
-
-async function runTransition(action: LoadAction, reason?: string) {
-  if (!load.value || !session.can("dispatch")) return;
-  try {
-    await transitionLoad.mutateAsync({ id: load.value.id, action, reason });
-    toast.success(`${load.value.ref} updated`);
-    reasonFor.value = null;
-  } catch (e) {
-    toast.error("That step is not available", e instanceof Error ? e.message : undefined);
-  }
-}
-function confirmReason() {
-  const action = reasonFor.value;
-  if (!action || !reasonText.value.trim()) return;
-  void runTransition(action, reasonText.value.trim());
-}
-
-const assignOpen = ref(false);
-const assignDriver = ref("");
-const assignVehicle = ref("");
-const assignTrailer = ref("");
-const driverOptions = computed(() =>
-  (drivers.value ?? []).map((d) => ({ value: d.id, label: d.full_name })),
-);
-const vehicleOptions = computed(() => [
-  { value: "", label: "— None —" },
-  ...(vehicles.value ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
-]);
-const trailerOptions = computed(() => [
-  { value: "", label: "— None —" },
-  ...(trailers.value ?? []).map((t) => ({ value: t.id, label: t.unit_number })),
-]);
-function openAssign() {
-  if (!load.value) return;
-  assignDriver.value = load.value.driver_id ?? "";
-  assignVehicle.value = load.value.vehicle_id ?? "";
-  assignTrailer.value = load.value.trailer_id ?? "";
-  assignOpen.value = true;
-}
-async function confirmAssign() {
-  if (!load.value || !assignDriver.value) return;
-  const body: AssignLoadRequest = {
-    driver_id: assignDriver.value,
-    vehicle_id: assignVehicle.value || null,
-    trailer_id: assignTrailer.value || null,
-  };
-  try {
-    await assignLoad.mutateAsync({ id: load.value.id, body });
-    toast.success(`${load.value.ref} reassigned`);
-    assignOpen.value = false;
-  } catch (e) {
-    toast.error("Could not reassign this load", e instanceof Error ? e.message : undefined);
-  }
-}
-
-// ── edit ─────────────────────────────────────────────────────────────────────
-const editOpen = computed(() => route.query.edit === "1");
-function openEdit() {
-  if (session.can("dispatch")) void router.replace({ query: { ...route.query, edit: "1" } });
-}
-function closeEdit() {
-  const { edit: _edit, ...rest } = route.query;
-  void router.replace({ query: rest });
-}
-async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["body"]) {
-  if (!load.value) return;
-  try {
-    await updateLoad.mutateAsync({ id: load.value.id, body });
-    toast.success(`${load.value.ref} saved`);
-    closeEdit();
-  } catch (e) {
-    toast.error("Could not save this load", e instanceof Error ? e.message : undefined);
-  }
-}
 </script>
 
 <template>
   <div class="space-y-6">
     <PageHeader description="One load — its plan, what the driver actually did, and every step that got it here.">
       <template #actions>
-        <BaseButton v-if="editable && session.can('dispatch')" variant="secondary" size="sm" @click="openEdit">Edit</BaseButton>
         <BaseButton variant="ghost" size="sm" to="/loads">← Loads</BaseButton>
       </template>
     </PageHeader>
@@ -282,30 +156,10 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
             </p>
           </div>
 
-          <div v-if="session.can('dispatch') && !reasonFor" class="flex flex-wrap items-center gap-2">
-            <BaseButton v-if="canCancel" variant="ghost" size="sm" :disabled="busy" @click="openReason('cancel')">Cancel load</BaseButton>
-            <BaseButton v-if="canReject" variant="soft" size="sm" :disabled="busy" @click="openReason('reject')">Send back</BaseButton>
-            <BaseButton v-if="canSubmit" variant="primary" size="sm" :disabled="busy" @click="runTransition('submit')">Submit for approval</BaseButton>
-            <BaseButton v-if="showApprove" variant="primary" size="sm" :disabled="busy || !canApprove" @click="runTransition('approve')">Approve</BaseButton>
-            <BaseButton v-if="canRelease" variant="primary" size="sm" :disabled="busy" @click="runTransition('release')">Send to driver</BaseButton>
-            <BaseButton v-if="canDispatch" variant="primary" size="sm" @click="dispatchOpen = true">{{ load.dispatches.length ? "Dispatch again" : "Dispatch" }}</BaseButton>
+          <div v-if="session.can('dispatch') && canDispatch" class="flex flex-wrap items-center gap-2">
+            <BaseButton variant="primary" size="sm" @click="dispatchOpen = true">{{ load.dispatches.length ? "Dispatch again" : "Dispatch" }}</BaseButton>
           </div>
         </div>
-
-        <div v-if="reasonFor" class="mt-3 space-y-2">
-          <FormField v-slot="{ id }" :label="reasonFor === 'reject' ? 'Reason for sending back' : 'Reason for cancelling'" required>
-            <BaseInput :id="id" v-model="reasonText" placeholder="Required — the driver and any auditor will see this" />
-          </FormField>
-          <div class="flex justify-end gap-2">
-            <BaseButton variant="ghost" size="sm" @click="reasonFor = null">Cancel</BaseButton>
-            <BaseButton variant="danger" size="sm" :disabled="busy || !reasonText.trim()" @click="confirmReason">
-              Confirm {{ reasonFor }}
-            </BaseButton>
-          </div>
-        </div>
-        <p v-if="showApprove && !canApprove && !reasonFor" class="mt-2 text-xs text-ink-muted">
-          Resolve the ✕ items in the checklist below to approve.
-        </p>
 
         <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
           <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ load.driver_name ?? "Unassigned" }}</dd></div>
@@ -314,27 +168,6 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
           <div v-if="load.external_id"><dt class="text-ink-tertiary">TMS reference</dt><dd class="font-mono text-ink">{{ load.external_id }}</dd></div>
           <div v-if="load.source === 'tms'" class="col-span-2" data-testid="dispatch-state"><dt class="text-ink-tertiary">Dispatch</dt><dd class="text-ink">{{ dispatchHeadline(load.dispatches[0]) }}</dd><dd v-if="load.dispatches[0]?.outcomeReason" class="text-xs text-ink-muted">{{ smsReasonText(load.dispatches[0].outcomeReason) }}</dd></div>
         </dl>
-
-        <div v-if="canReassign && session.can('dispatch')" class="mt-3">
-          <BaseButton v-if="!assignOpen" variant="ghost" size="sm" @click="openAssign">Reassign…</BaseButton>
-          <div v-else class="space-y-2">
-            <FormField v-slot="{ id }" label="Driver">
-              <ComboSelect :id="id" v-model="assignDriver" :options="driverOptions" placeholder="Search drivers…" />
-            </FormField>
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <FormField v-slot="{ id }" label="Truck">
-                <ComboSelect :id="id" v-model="assignVehicle" :options="vehicleOptions" />
-              </FormField>
-              <FormField v-slot="{ id }" label="Trailer">
-                <ComboSelect :id="id" v-model="assignTrailer" :options="trailerOptions" />
-              </FormField>
-            </div>
-            <div class="flex justify-end gap-2">
-              <BaseButton variant="ghost" size="sm" @click="assignOpen = false">Cancel</BaseButton>
-              <BaseButton variant="primary" size="sm" :disabled="busy || !assignDriver" @click="confirmAssign">Assign</BaseButton>
-            </div>
-          </div>
-        </div>
 
         <p v-if="load.decline_reason" class="mt-3 rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-inset ring-warning-200">
           Declined by the driver — &ldquo;{{ load.decline_reason }}&rdquo;
@@ -358,21 +191,6 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
 
       <!-- H-C1: hazmat is a property of THIS load — the record lives here, not on a parallel board. -->
       <HazmatPanel v-if="load.hazmat || load.hazmat_record" :load="load" :can-manage="session.can('dispatch')" />
-
-      <!-- Approval checklist -->
-      <BaseCard v-if="checklist && (showApprove || canSubmit)">
-        <h2 class="text-sm font-semibold text-ink">Approval checklist</h2>
-        <ul class="mt-3 space-y-1.5 text-sm">
-          <li v-for="c in checklist.checks" :key="c.id" class="flex items-start gap-2">
-            <span :class="c.passed ? 'text-success-600' : c.required ? 'text-danger-600' : 'text-warning-600'">
-              {{ c.passed ? "✓" : c.required ? "✕" : "!" }}
-            </span>
-            <span :class="c.passed ? 'text-ink-muted' : 'text-ink'">
-              {{ c.label }}<span v-if="!c.passed && c.detail" class="text-ink-muted"> — {{ c.detail }}</span>
-            </span>
-          </li>
-        </ul>
-      </BaseCard>
 
       <!-- Stops: the plan, and what actually happened at each one -->
       <BaseCard>
@@ -481,18 +299,6 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
       </BaseCard>
 
       <DispatchLoadDrawer :load="dispatchOpen ? { ...load, last_dispatch: load.dispatches[0] ?? null } : null" @close="dispatchOpen = false" />
-      <SlideOver :open="editOpen" :title="`Edit ${load.ref}`" @close="closeEdit">
-        <DispatchLoadFormPage
-          v-if="editOpen"
-          :load="load"
-          :drivers="(drivers ?? []).map((d) => ({ id: d.id, full_name: d.full_name }))"
-          :vehicles="(vehicles ?? []).map((v) => ({ id: v.id, unit_number: v.unit_number }))"
-          :trailers="(trailers ?? []).map((t) => ({ id: t.id, unit_number: t.unit_number }))"
-          :saving="busy"
-          @submit="onEditSubmit"
-          @cancel="closeEdit"
-        />
-      </SlideOver>
     </template>
   </div>
 </template>

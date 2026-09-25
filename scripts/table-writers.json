@@ -297,16 +297,12 @@
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"
   ],
   "load_stops": [
-    "apps/api/src/modules/loads/dispatchLoads/shared.ts",
     "apps/api/src/modules/loads/mirrorLoads.ts",
-    "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts",
-    "apps/api/src/modules/loads/seedDemoLoads.ts"
+    "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"
   ],
   "loads": [
-    "apps/api/src/modules/loads/dispatchLoads/mutations.ts",
     "apps/api/src/modules/loads/mirrorLoads.ts",
-    "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts",
-    "apps/api/src/modules/loads/seedDemoLoads.ts"
+    "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"
   ],
   "maintenance_inspectors": [
     "apps/api/src/modules/maintenance/inspections/inspectors.ts"

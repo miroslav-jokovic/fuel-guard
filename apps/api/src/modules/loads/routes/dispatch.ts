@@ -1,13 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { z } from "zod";
-import {
-  assignLoadRequestSchema,
-  createLoadRequestSchema,
-  dispatchLoadRequestSchema,
-  reasonRequestSchema,
-  resolveExceptionRequestSchema,
-  updateLoadRequestSchema,
-} from "@silvicom/shared";
+import { dispatchLoadRequestSchema, resolveExceptionRequestSchema } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
 import { assignmentHistoryQuerySchema } from "@silvicom/shared";
@@ -17,8 +9,6 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import {
-  assignLoad,
-  createLoad,
   endDutySession,
   getLoadDetail,
   listExceptions,
@@ -26,19 +16,24 @@ import {
   listAssignments,
   listEvents,
   listLoads,
-  bulkTransition,
-  transitionLoad,
-  updateLoad,
   type DispatchResult,
 } from "../dispatchLoads.js";
 import { dispatchLoad, previewLoadDispatch } from "../dispatchToDriver.js";
 
 /**
- * Dispatch endpoints (Phase 3D, D49) — the operator side of the approval gate.
+ * Dispatch endpoints (Phase 3D, D49; cut down to reads and Dispatch by LOADS-MIRROR-PLAN.md LR6).
  *
- * D45 made a load invisible to a driver until a human approves and releases it. That is only a
- * control if a human can actually do it, which before this router meant hand-editing
- * `supabase/_deploy/seed_driver_load.sql` in the SQL editor. These routes are what make the gate real.
+ * ── WHAT IS NO LONGER HERE, AND WHY ──────────────────────────────────────────────────────────────
+ * This router used to be the operator side of D45's approval gate: create and edit a load, reassign
+ * it, submit → approve → release it, send it back, cancel it, and approve or release in bulk. Every
+ * load is now McLeod's, projected onto `loads` on each sync (D-LMR2), so each of those writes either
+ * fought the next sync (edit, reassign, cancel — McLeod's `V` already projects to canceled) or
+ * approved something nobody needs to approve (D-LMR5: a load reaches a driver when the office
+ * DISPATCHES it). Manual loads went with them (Q-LMR7): production had none. Unknown paths answer 404
+ * like any other; `dispatchRoutes.test.ts` pins that each retired one does.
+ *
+ * What remains: the reads, the exceptions a driver's decline or a timed-out shift still raise, the
+ * assignments board, and Dispatch itself.
  *
  * Authorization reuses the existing section matrix (`packages/shared/src/auth.ts`): `dispatch:manage`
  * is already granted to admin / fleet_manager / dispatcher, and `auditor` gets `dispatch:view`. No
@@ -164,113 +159,6 @@ export function dispatchRouter(): Router {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       res.json({ assignments: await listAssignments(admin, req.auth!.orgId!) });
-    }),
-  );
-
-  // ── authoring ───────────────────────────────────────────────────────────────
-  router.post(
-    "/loads",
-    canManage,
-    validateBody(createLoadRequestSchema),
-    asyncHandler(async (req, res) => {
-      const body = res.locals.body as ReturnType<typeof createLoadRequestSchema.parse>;
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await createLoad(admin, req.auth!.orgId!, actorOf(req), body);
-      if (!result.ok) {
-        res.status(result.status).json(apiError(result.code, result.message));
-        return;
-      }
-      await writeAudit(admin, {
-        orgId: req.auth!.orgId!,
-        actorId: req.auth!.userId,
-        action: "dispatch.load_created",
-        entity: "loads",
-        entityId: result.data.id,
-      });
-      res.status(201).json(result.data);
-    }),
-  );
-
-  router.patch(
-    "/loads/:id",
-    canManage,
-    validateBody(updateLoadRequestSchema),
-    asyncHandler(async (req, res) => {
-      const body = res.locals.body as ReturnType<typeof updateLoadRequestSchema.parse>;
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const id = param(req, "id");
-      await run(req, res, "dispatch.load_updated", id, () =>
-        updateLoad(admin, req.auth!.orgId!, id, body),
-      );
-    }),
-  );
-
-  router.post(
-    "/loads/:id/assign",
-    canManage,
-    validateBody(assignLoadRequestSchema),
-    asyncHandler(async (req, res) => {
-      const body = res.locals.body as ReturnType<typeof assignLoadRequestSchema.parse>;
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const id = param(req, "id");
-      await run(req, res, "dispatch.load_assigned", id, () =>
-        assignLoad(admin, req.auth!.orgId!, id, actorOf(req), body),
-      );
-    }),
-  );
-
-  // ── the lifecycle, one endpoint per transition (never a PATCH status) ────────
-  for (const action of ["submit", "approve", "release"] as const) {
-    router.post(
-      `/loads/:id/${action}`,
-      canManage,
-      asyncHandler(async (req, res) => {
-        const admin = getSupabaseAdmin(getAppLocals(req).env);
-        const id = param(req, "id");
-        await run(req, res, `dispatch.load_${action}ed`, id, () =>
-          transitionLoad(admin, req.auth!.orgId!, id, actorOf(req), action),
-        );
-      }),
-    );
-  }
-
-  // Rejecting and cancelling both demand a reason — these are the two a driver or an auditor asks
-  // about later, and "no reason given" is not an answer anybody can work with.
-  for (const action of ["reject", "cancel"] as const) {
-    router.post(
-      `/loads/:id/${action}`,
-      canManage,
-      validateBody(reasonRequestSchema),
-      asyncHandler(async (req, res) => {
-        const body = res.locals.body as ReturnType<typeof reasonRequestSchema.parse>;
-        const admin = getSupabaseAdmin(getAppLocals(req).env);
-        const id = param(req, "id");
-        await run(req, res, `dispatch.load_${action}ed`, id, () =>
-          transitionLoad(admin, req.auth!.orgId!, id, actorOf(req), action, body.reason),
-        );
-      }),
-    );
-  }
-
-  /**
-   * Bulk approve / release. Same gate per row; partial success is REPORTED, never swallowed (D49).
-   */
-  router.post(
-    "/loads/bulk",
-    canManage,
-    validateBody(z.object({ ids: z.array(z.uuid()).min(1).max(200), action: z.enum(["approve", "release"]) })),
-    asyncHandler(async (req, res) => {
-      const body = res.locals.body as { ids: string[]; action: "approve" | "release" };
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const result = await bulkTransition(admin, req.auth!.orgId!, body.ids, actorOf(req), body.action);
-      await writeAudit(admin, {
-        orgId: req.auth!.orgId!,
-        actorId: req.auth!.userId,
-        action: `dispatch.bulk_${body.action}`,
-        entity: "loads",
-        meta: { requested: body.ids.length, succeeded: result.succeeded, failed: result.failed },
-      });
-      res.json(result);
     }),
   );
 

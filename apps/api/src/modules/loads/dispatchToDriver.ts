@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   composeLoadDispatchSms,
   isDispatchable,
+  RETURN_TO_DUTY_BLOCK,
   type DispatchSmsStop,
   type LoadDispatch,
   type LoadDispatchSummary,
@@ -11,6 +12,7 @@ import {
 import type { Env } from "../../env.js";
 import { smsConfigured } from "../../lib/sms.js";
 import { organizationTimezone } from "../idle/index.js";
+import { returnToDutyBlocked } from "../recruiting/index.js";
 import type { DispatchResult } from "./dispatchLoads/shared.js";
 
 /**
@@ -75,7 +77,8 @@ async function prepare(
     | { id: string; ref: string; status: string; source: string; vehicles: Unit; trailers: Unit }
     | null;
   if (!load) return { ok: false, status: 404, code: "not_found", message: "That load no longer exists" };
-  // Dispatch is the McLeod path (D-LMR5). A manual load still has Release until LR6 retires both.
+  // Dispatch is the McLeod path (D-LMR5). Manual loads can no longer be made (LR6, Q-LMR7), and one
+  // that already exists has no dispatch to give it.
   if (load.source !== "tms") {
     return { ok: false, status: 409, code: "not_a_mcleod_load", message: "Only a McLeod load is dispatched" };
   }
@@ -85,6 +88,15 @@ async function prepare(
   const driver = driverRes.data as { id: string; full_name: string; status: string } | null;
   if (!driver || driver.status !== "active") {
     return { ok: false, status: 422, code: "unknown_driver", message: "That driver is not an active driver here" };
+  }
+  // §40.25(j) (0237): a driver who owes §40.305 return-to-duty documentation may not be used for a
+  // safety-sensitive function, and since D-LMR5 Dispatch is the act that puts somebody on a load. The
+  // gate used to sit on create, edit and assign; LR6 retired all three, so it moved here rather than
+  // leave with them. In `prepare`, so the preview refuses before anyone reads a text they cannot send.
+  // The words name no regulation and no fact (D-UI9): a dispatcher is not entitled to the §382.401(a)
+  // record behind them.
+  if (await returnToDutyBlocked(admin, orgId, driver.id)) {
+    return { ok: false, status: 409, code: RETURN_TO_DUTY_BLOCK.code, message: RETURN_TO_DUTY_BLOCK.dispatch };
   }
 
   const org = orgRes.data as { name?: string; operating_hours?: object | null } | null;

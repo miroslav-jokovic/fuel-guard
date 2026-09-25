@@ -28,11 +28,12 @@ export const dispatchRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/DispatchLoadsPage.vue"),
     meta: { requiresAuth: true, title: "Loads" },
   },
+  // The create form went in LR6 (LOADS-MIRROR-PLAN.md, Q-LMR7): every load is McLeod's. The PATH stays
+  // as a redirect, the way `/hazmat/loads/new` did (D-H17): without it a bookmark would fall through to
+  // `/loads/:id` with the id "new" and read "That load no longer exists".
   {
     path: "/loads/new",
-    name: "load-new",
-    component: () => import("@/pages/DispatchLoadsPage.vue"),
-    meta: { requiresAuth: true, title: "New Load" },
+    redirect: { name: "loads" },
   },
   {
     path: "/loads/:id",
@@ -47,7 +48,7 @@ export const dispatchRoutes: RouteRecordRaw[] = [
   },
   {
     path: "/dispatch/loads/new",
-    redirect: { name: "load-new" },
+    redirect: { name: "loads" },
   },
   {
     path: "/dispatch/loads/:id",

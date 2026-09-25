@@ -87,6 +87,38 @@ describe("dispatchLoad", () => {
   });
 });
 
+/**
+ * §40.25(j) (0237). Create, edit and assign were the doors onto a load and each carried this gate; LR6
+ * retired all three, and since D-LMR5 Dispatch is the one act that puts a driver on a load. So the gate
+ * lives here now, and a test pins it where it lives: a regulation's refusal that moves without its test
+ * is the one that quietly stops refusing.
+ */
+describe("a driver who owes return-to-duty documentation", () => {
+  const owes = { id: DRIVER, full_name: "Dana Kelly", status: "active", return_to_duty_required: true };
+
+  it("cannot be dispatched a load — 409, nothing written", async () => {
+    const rec = createSupabaseRecorder({ tables: tables({ drivers: [owes], qualification_records: [] }) });
+    const result = await dispatchLoad(rec.client, dark, ORG, ACTOR, LOAD, DRIVER);
+    expect(result).toMatchObject({ ok: false, status: 409, code: "return_to_duty_required" });
+    expect(rec.writes()).toHaveLength(0);
+    expectOrgScoped(rec, ORG, EXEMPT);
+  });
+
+  it("is refused at the preview, before a text is shown, in words that do not say why", async () => {
+    const rec = createSupabaseRecorder({ tables: tables({ drivers: [owes], qualification_records: [] }) });
+    const preview = await previewLoadDispatch(rec.client, dark, ORG, LOAD, DRIVER);
+    expect(preview).toMatchObject({ ok: false, code: "return_to_duty_required" });
+    const message = preview.ok ? "" : preview.message.toLowerCase();
+    for (const leak of ["drug", "alcohol", "positive", "refus", "test"]) expect(message).not.toContain(leak);
+  });
+
+  it("is dispatched once the §40.305 documentation is on file", async () => {
+    const rec = createSupabaseRecorder({ tables: tables({ drivers: [owes], qualification_records: [{ id: "rtd-1" }] }) });
+    expect(await dispatchLoad(rec.client, dark, ORG, ACTOR, LOAD, DRIVER)).toMatchObject({ ok: true });
+    expect(rec.writtenRows("load_dispatches")).toHaveLength(1);
+  });
+});
+
 describe("previewLoadDispatch", () => {
   it("returns the exact text Send would store, and why it would not be texted, writing nothing", async () => {
     const rec = createSupabaseRecorder({ tables: tables() });

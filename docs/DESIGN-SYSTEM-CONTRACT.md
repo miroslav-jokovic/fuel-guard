@@ -273,7 +273,7 @@ Full width with small gutters — tables use the whole screen. There is no `max-
 - Narrow pages add `mx-auto max-w-2xl` (settings/forms) or `max-w-3xl` (content).
 - Two-column detail layouts: `grid grid-cols-1 gap-6 lg:grid-cols-[…]` (`HazmatEquipmentPage.vue:120`).
 - KPI grids: `grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4`. Divided-KPI strip inside one `BaseCard padding="none"`: `dl.grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6`, each cell `px-5 py-4` (`FuelLogPage.vue:252`).
-- Bulk-action bar (between FilterBar and DataTable, `v-if="selected.size > 0"`): `flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100`, count as `text-sm font-medium text-brand-800` (`TrailersPage.vue:190`, `DispatchLoadsPage.vue:352` — identical).
+- Bulk-action bar (between FilterBar and DataTable, `v-if="selected.size > 0"`): `flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100`, count as `text-sm font-medium text-brand-800` (`TrailersPage.vue:190`; `DispatchLoadsPage.vue` had an identical one until LR6 retired bulk approve/release, 2026-09-24).
 - Tab strip: `flex gap-1 rounded-surface bg-surface-muted p-1 text-sm` with items `rounded-control px-3 py-1.5 font-medium` (`DispatchLoadsPage.vue:314`).
 
 ### 3.4 The standard card
@@ -695,13 +695,13 @@ Note the `<form :id>` + `<BaseButton :form type="submit">` bridge, the busy-labe
 ### 7.2 Ten real strings that are GOOD
 
 1. `"No trailers yet. Add one, or sync from Samsara."` — `TrailersPage.vue:224`. Names the state, then gives *both* real next actions. Two clauses, one sentence.
-2. `"No loads yet — create one or wait for a TMS feed."` — `DispatchLoadsPage.vue:173`. An em-dash carries the instruction; "wait" is honoured as a legitimate action rather than pretending the user must act.
+2. `"No loads yet. They arrive from McLeod on its next sync."` — `DispatchLoadsPage.vue`. Waiting is honoured as the legitimate next step rather than pretending the user must act; since LR6 (2026-09-24) there is no "create one" to offer.
 3. `"Nothing needs attention right now."` — `DispatchLoadsPage.vue:344`. Empty exceptions queue framed as *good news*, not absence of data.
 4. `"No idle data yet — run a Samsara sync from Settings → Data & Sync to populate the idle foundation."` — `IdlingPage.vue`. Empty state that names the exact navigation path. This is the house standard for "you have nothing because a prerequisite is unmet".
 5. `"Copy these details now. The password disappears when you close this drawer and cannot be recovered."` — `DriverCredentialHandoff.vue:165-167`. Imperative first, consequence second. No hedging, no "please".
 6. `"Optional. Leave blank and FuelGuard will generate a strong password."` — `DriverAccessModal.vue:326`. Optionality stated in one word, then the default behaviour spelled out so the empty field isn't ambiguous.
-7. `"Resolve the ✕ items in the checklist below to approve."` — `DispatchLoadDetailPage.vue`. Explains a disabled button by pointing at the exact thing blocking it. Never `"You do not have permission"`-style dead ends.
-8. `"Required — the driver and any auditor will see this"` — `DispatchLoadDetailPage.vue` placeholder. A placeholder that changes behaviour: it tells you *who reads this*, which is why the field exists.
+7. `"Resolve the ✕ items in the checklist below to approve."` — `DispatchLoadDetailPage.vue` until LR6 retired approval (2026-09-24). Kept as the pattern: explain a disabled button by pointing at the exact thing blocking it. Never `"You do not have permission"`-style dead ends.
+8. `"Required — the driver and any auditor will see this"` — the reject/cancel reason on `DispatchLoadDetailPage.vue` until LR6 (2026-09-24). Kept as the pattern: a placeholder that changes behaviour tells you *who reads this*, which is why the field exists.
 9. `"Rescoring started"` / `"Checking each declined attempt against Samsara — refresh in a minute."` — `RejectionsPage.vue`. Title = what happened; body = what the system is doing and the realistic wait. Sets an expectation instead of a spinner.
 10. `"Unrecognized report"` / `"Expected a Pilot / Flying J 'All Transactions' export with Authorization_No, Card_No and Quantity columns."` — `usePriceUpload.ts`. The failure title is three words; the body names the exact expected artefact *and* the columns. This is the gold standard for import errors.
 

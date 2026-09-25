@@ -1,83 +1,12 @@
 import { z } from "zod";
-import { STOP_KINDS } from "./loadsContract.js";
 
 /**
- * Dispatch API contract (Phase 3D, D49). The web dashboard's write surface for the load lifecycle.
+ * Dispatch API contract (Phase 3D, D49): the assignments board, its history, and the exceptions feed.
  *
- * Every transition is its OWN endpoint rather than a `PATCH status` — the same rule the driver side
- * follows (D45). That keeps the audited action explicit ("who released this?") instead of inferring
- * intent from a diff, and it means the API can require a reason exactly where one matters.
+ * The request shapes for creating, editing, reassigning and transitioning a load lived here until
+ * LOADS-MIRROR-PLAN.md LR6 removed those routes: every load is McLeod's (D-LMR2) and reaches its driver
+ * by Dispatch (`loadDispatchContract.ts`, D-LMR5), so the office no longer writes one.
  */
-
-// ── stops ─────────────────────────────────────────────────────────────────────
-export const stopInputSchema = z.object({
-  id: z.uuid().optional(), // present when editing an existing stop
-  seq: z.number().int().min(1).max(50),
-  kind: z.enum(STOP_KINDS),
-  name: z.string().min(1).max(200),
-  address_line: z.string().max(300).nullish(),
-  city: z.string().max(120).nullish(),
-  state: z.string().max(60).nullish(),
-  postal_code: z.string().max(20).nullish(),
-  lat: z.number().min(-90).max(90).nullish(),
-  lon: z.number().min(-180).max(180).nullish(),
-  appointment_start: z.string().nullish(),
-  appointment_end: z.string().nullish(),
-  /** Named photo slots the driver must capture here — free-form so dispatch can add one. */
-  required_photos: z.array(z.string().min(1).max(40)).max(12).default([]),
-  notes: z.string().max(500).nullish(),
-});
-export type StopInput = z.infer<typeof stopInputSchema>;
-
-// ── loads ─────────────────────────────────────────────────────────────────────
-const loadFields = {
-  ref: z.string().min(1).max(60),
-  driver_id: z.uuid().nullish(),
-  vehicle_id: z.uuid().nullish(),
-  trailer_id: z.uuid().nullish(),
-  equipment: z.string().max(60).nullish(),
-  commodity: z.string().max(200).nullish(),
-  hazmat: z.boolean().default(false),
-  total_miles: z.number().nonnegative().max(99_999).nullish(),
-  notes: z.string().max(2000).nullish(),
-};
-
-/** `POST /api/dispatch/loads` — always lands as `draft`; the status is never client-supplied. */
-export const createLoadRequestSchema = z.object({
-  ...loadFields,
-  stops: z.array(stopInputSchema).max(50).default([]),
-});
-export type CreateLoadRequest = z.infer<typeof createLoadRequestSchema>;
-
-/** `PATCH /api/dispatch/loads/:id` — edit the load and, when given, replace its whole stop list. */
-export const updateLoadRequestSchema = z.object({
-  ref: loadFields.ref.optional(),
-  driver_id: loadFields.driver_id,
-  vehicle_id: loadFields.vehicle_id,
-  trailer_id: loadFields.trailer_id,
-  equipment: loadFields.equipment,
-  commodity: loadFields.commodity,
-  hazmat: z.boolean().optional(),
-  total_miles: loadFields.total_miles,
-  notes: loadFields.notes,
-  stops: z.array(stopInputSchema).max(50).optional(),
-});
-export type UpdateLoadRequest = z.infer<typeof updateLoadRequestSchema>;
-
-/** `POST …/assign` — reassignment is its own action so the timeline shows who moved the load. */
-export const assignLoadRequestSchema = z.object({
-  driver_id: z.uuid(),
-  vehicle_id: z.uuid().nullish(),
-  trailer_id: z.uuid().nullish(),
-});
-export type AssignLoadRequest = z.infer<typeof assignLoadRequestSchema>;
-
-/** A reason is mandatory on the two actions a driver or an auditor will ask about later. */
-export const reasonRequestSchema = z.object({ reason: z.string().min(1).max(500) });
-export type ReasonRequest = z.infer<typeof reasonRequestSchema>;
-
-/** `POST …/approve` and `…/release` carry no body — the actor comes from the verified JWT. */
-export const emptyRequestSchema = z.object({}).loose();
 
 // ── the assignments board (D49, rewired to telematics) ───────────────────────
 // The board is sourced from Samsara HOS (drivers.current_hos_* + hos_duty_segments), NOT the in-app
@@ -167,21 +96,16 @@ export function shiftDuration(startedAt: string | null, nowMs: number): string {
 
 // ── exceptions (D-L2) ─────────────────────────────────────────────────────────
 /**
- * The five things that go wrong on a load and need a human, per §14.9.
+ * The things that go wrong on a load and need a human, per §14.9 (five until LR6).
  *
  * The old client-side `isException()` derived from `loads` columns, which is why it could only ever
  * see two of these — the other three exist only as events. Deriving the feed from the event log is
  * also what makes it complete by construction: a new event kind shows up rather than being silently
  * excluded by a filter nobody remembered to widen.
  */
-export const EXCEPTION_KINDS = [
-  "declined",
-  "stale_approval",
-  "equipment_mismatch",
-  "amended",
-  "load_changed",
-  "auto_timeout",
-] as const;
+// `stale_approval` and `load_changed` left in LR6: nothing is approved any more (D-LMR5), and the
+// only edit of a released load that raised the second is gone (see `dispatchLoads/exceptions.ts`).
+export const EXCEPTION_KINDS = ["declined", "equipment_mismatch", "amended", "auto_timeout"] as const;
 export type ExceptionKind = (typeof EXCEPTION_KINDS)[number];
 
 /** The single action that resolves each kind — stated by the server so the UI cannot invent one. */
@@ -190,10 +114,8 @@ export type ExceptionAction = (typeof EXCEPTION_ACTIONS)[number];
 
 export const EXCEPTION_LABELS: Record<ExceptionKind, string> = {
   declined: "Driver declined",
-  stale_approval: "Waiting on approval",
   equipment_mismatch: "Equipment differs from plan",
   amended: "Amended by the TMS",
-  load_changed: "Changed after release",
   auto_timeout: "Shift auto-closed",
 };
 

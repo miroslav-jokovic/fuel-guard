@@ -7,7 +7,16 @@ import {
 } from "@silvicom/shared";
 
 /**
- * The exceptions feed (L2 / D-L2) — the five things that go wrong on a load and need a person.
+ * The exceptions feed (L2 / D-L2) — the things that go wrong on a load and need a person.
+ *
+ * ── TWO SOURCES LEFT IN LR6 (LOADS-MIRROR-PLAN.md) ───────────────────────────────────────────────
+ * `stale_approval` was derived from a load sitting in `pending_approval` for a day. Every McLeod `A`
+ * (uncovered) movement projects to that status and nobody approves anything any more (D-LMR5), so
+ * it would have flagged all 47 of them as "waiting for approval" forever. `load_changed` was an
+ * exception only because the office's edit of a released load wrote it; that edit is gone, and the
+ * projection (`mirrorLoads.ts`) writes the same kind as plain status history, which is not something
+ * anybody needs to acknowledge. `amended` stays while its writer does: the old TMS load ingest, whose
+ * route LR8 removes with `load_external_payloads`.
  *
  * WHY IT IS EVENT-DRIVEN. The client-side `isException()` it replaces derived from `loads` columns,
  * so it could only ever see two of the five: a decline and an aging approval. Equipment mismatches,
@@ -21,19 +30,15 @@ import {
  * `exception_resolved` event names it, rather than being closed by mutating history.
  */
 
-const EVENT_KINDS = ["declined", "equipment_mismatch", "amended", "load_changed"] as const;
+const EVENT_KINDS = ["declined", "equipment_mismatch", "amended"] as const;
 
-/** How long a load may sit in `pending_approval` before it is somebody's problem (§14.9). */
-const STALE_APPROVAL_MS = 24 * 60 * 60 * 1000;
 /** Bound the scan. An exception older than this is history, not a queue item. */
 const LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
 
 const ACTION_FOR: Record<ExceptionKind, ExceptionAction> = {
   declined: "reassign",
-  stale_approval: "acknowledge",
   equipment_mismatch: "adopt_equipment",
   amended: "review_diff",
-  load_changed: "acknowledge",
   auto_timeout: "acknowledge",
 };
 
@@ -54,10 +59,6 @@ function summarize(kind: ExceptionKind, ref: string | null, payload: Record<stri
       return `${load} was accepted in different equipment from the one dispatch planned.`;
     case "amended":
       return `${load} was amended by the TMS: ${(payload.changed as string[] | undefined)?.join(", ") ?? "fields changed"}.`;
-    case "load_changed":
-      return `${load} changed after it was released to the driver.`;
-    case "stale_approval":
-      return `${load} has been waiting for approval for more than 24 hours.`;
     case "auto_timeout":
       return "A shift was auto-closed after running past the organisation's limit.";
   }
@@ -67,7 +68,7 @@ function summarize(kind: ExceptionKind, ref: string | null, payload: Record<stri
  * Every open exception in the org, newest first.
  *
  * Four reads, none of them per-row: the candidate events, the `exception_resolved` events that close
- * them, the loads they belong to, and the two derived sources. A feed that N+1s is a feed nobody
+ * them, the loads they belong to, and the timed-out shifts. A feed that N+1s is a feed nobody
  * leaves open.
  */
 export async function listExceptions(
@@ -77,7 +78,7 @@ export async function listExceptions(
 ): Promise<DispatchException[]> {
   const since = new Date(now.getTime() - LOOKBACK_MS).toISOString();
 
-  const [eventsResult, resolvedResult, staleResult, timeoutResult] = await Promise.all([
+  const [eventsResult, resolvedResult, timeoutResult] = await Promise.all([
     admin
       .from("load_events")
       .select("id, load_id, kind, payload, occurred_at")
@@ -91,12 +92,6 @@ export async function listExceptions(
       .eq("org_id", orgId)
       .eq("kind", "exception_resolved")
       .gte("occurred_at", since),
-    admin
-      .from("loads")
-      .select("id, ref, created_at, drivers(full_name)")
-      .eq("org_id", orgId)
-      .eq("status", "pending_approval")
-      .lt("created_at", new Date(now.getTime() - STALE_APPROVAL_MS).toISOString()),
     admin
       .from("driver_duty_sessions")
       .select("id, ended_at, drivers(full_name)")
@@ -146,25 +141,8 @@ export async function listExceptions(
       };
     });
 
-  // Derived sources. These have no event to point at, so their ids are synthetic and stable — the
-  // same load aging past 24h must not produce a new row on every poll.
-  for (const row of (staleResult.data ?? []) as unknown as { id: string; ref: string | null; created_at: string; drivers: { full_name?: string } | { full_name?: string }[] | null }[]) {
-    const syntheticId = `stale_approval:${row.id}`;
-    if (resolvedIds.has(syntheticId)) continue;
-    const join = Array.isArray(row.drivers) ? row.drivers[0] : row.drivers;
-    out.push({
-      id: syntheticId,
-      kind: "stale_approval",
-      load_id: row.id,
-      load_ref: row.ref,
-      driver_name: join?.full_name ?? null,
-      summary: summarize("stale_approval", row.ref, {}),
-      detail: { waiting_since: row.created_at },
-      action: ACTION_FOR.stale_approval,
-      occurred_at: row.created_at,
-    });
-  }
-
+  // The derived source. It has no event to point at, so its id is synthetic and stable — the same
+  // timed-out shift must not produce a new row on every poll.
   for (const row of (timeoutResult.data ?? []) as unknown as { id: string; ended_at: string; drivers: { full_name?: string } | { full_name?: string }[] | null }[]) {
     const syntheticId = `auto_timeout:${row.id}`;
     if (resolvedIds.has(syntheticId)) continue;
