@@ -129,6 +129,10 @@ const button = (w: ReturnType<typeof mountPanel>, text: string) =>
 const setDate = (w: ReturnType<typeof mountPanel>, iso: string) =>
   w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", iso);
 
+/** The State picker is a combobox; emit its model update rather than driving its listbox. */
+const setState = (w: ReturnType<typeof mountPanel>, value: string) =>
+  w.findComponent({ name: "AppCombobox" }).vm.$emit("update:modelValue", value);
+
 describe("what is already on file", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -209,23 +213,28 @@ describe("recording one", () => {
    * compares after trim and case only.
    */
   it("asks an MVR which state it came from, and will not save one without it", async () => {
-    const w = mountPanel("mvr", false, ["IL", "Indiana BMV"]);
+    const w = mountPanel("mvr", false, ["IN", "Indiana BMV"]);
     await settle(w);
-    expect(w.text()).toContain("Still needed: IL, Indiana BMV.");
+    expect(w.text()).toContain("Still needed: IN, Indiana BMV.");
+    // Q-AF5: the picker leads with what is owed, so an authority the catalogue cannot place is
+    // still pickable, and a state is picked as the code the fold matches.
+    const options = w.findComponent({ name: "AppCombobox" }).props("options") as Array<{ value: string }>;
+    expect(options.slice(0, 2).map((o) => o.value)).toEqual(["IN", "Indiana BMV"]);
     setDate(w, "2026-09-12");
     await settle(w);
     expect(button(w, "Record it")?.attributes("disabled")).toBeDefined();
 
-    await w.find('input[maxlength="60"]').setValue("  IL ");
+    setState(w, "IN");
+    await settle(w);
     await button(w, "Record it")!.trigger("click");
     await settle(w);
-    expect(calls.list.at(-1)!.body).toMatchObject({ occurred_on: "2026-09-12", jurisdiction: "IL" });
+    expect(calls.list.at(-1)!.body).toMatchObject({ occurred_on: "2026-09-12", jurisdiction: "IN" });
   });
 
   it("asks no state for the other two acts, and sends none", async () => {
     const w = mountPanel("clearinghouse");
     await settle(w);
-    expect(w.find('input[maxlength="60"]').exists()).toBe(false);
+    expect(w.findComponent({ name: "AppCombobox" }).exists()).toBe(false);
     setDate(w, "2026-09-12");
     await settle(w);
     await button(w, "Record it")!.trigger("click");
@@ -271,7 +280,7 @@ describe("recording one", () => {
     });
     await settle(w as ReturnType<typeof mountPanel>);
     setDate(w as ReturnType<typeof mountPanel>, "2026-09-12");
-    await w.find('input[maxlength="60"]').setValue("IL");
+    setState(w, "IL");
     await settle(w as ReturnType<typeof mountPanel>);
     await button(w as ReturnType<typeof mountPanel>, "Record it")!.trigger("click");
     await settle(w as ReturnType<typeof mountPanel>);
@@ -285,7 +294,7 @@ describe("recording one", () => {
     const w = mountPanel("mvr");
     await settle(w);
     setDate(w, "2026-09-12");
-    await w.find('input[maxlength="60"]').setValue("IL");
+    setState(w, "IL");
     await settle(w);
     await button(w, "Record it")!.trigger("click");
     await settle(w);

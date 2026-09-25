@@ -672,3 +672,20 @@ Append a dated line per step. Never edit §4.
     and §391.23(a)(1) says "held or holds") and **Q-AF5** (one state written two ways costs two
     append-only rows). **Q-AF4 is the one that matters:** until it is answered, a driver who moved
     states can go green on the current state's MVR alone.
+- **2026-09-25** — **AF7 merged** (#1039, merge `5972c4d`, live). Then the owner ruled on §7:
+  · **Q-AF5 — RULED (b), "set this to be proper and that will work with everything else", and
+    BUILT (this PR).** Jurisdictions are compared through `toJurisdictionCode`, the one catalogue
+    (`jurisdictions.ts`, D-AX5) every state field in the application already stores through. So
+    `IL`, `il` and `Illinois` are one jurisdiction; the step owes and shows it once, by its code.
+    What the catalogue cannot place ("Indiana BMV", a Mexican federal licence) is still compared
+    after trim and case only, so an agency's name is never read as the state it sits in. The
+    office's State field is now the same picker the application uses (`AppCombobox`), led by the
+    jurisdictions still owed (`mvrJurisdictionOptions`), so a state is stored as its code and a
+    free-text authority is picked, not retyped. 8 of 8 mutants killed.
+  · **Q-AF4 — owner's answer: "we are asking drivers to provide all driver's licences they have
+    from all states."** Recorded as the office's practice. ⚠ **Not closed in the product, and the
+    owner has been told so:** the application's own words are *"Every unexpired licence or permit
+    you hold"* (`APPLY_COPY.licence.intro`), i.e. licences the driver has TODAY, while
+    §391.23(a)(1) wants every state that licensed them in the preceding three years ("held or
+    holds"). A licence surrendered on moving states is still asked for nowhere. Awaiting the owner's
+    word on whether to widen that wording (a questionnaire version bump, per §7's candidate (a)).

@@ -3,12 +3,13 @@ import { computed, reactive, ref, watch } from "vue";
 import {
   DQ_KIND_LABELS,
   hiringRecordedActKind,
+  mvrJurisdictionOptions,
   type HiringRecordedActStep,
   type QualificationRecordRow,
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppDateField, AppFormField as FormField } from "@silvicom/ui";
+import { AppCombobox as ComboSelect, AppDateField, AppFormField as FormField } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useSessionStore } from "@/stores/session";
@@ -96,15 +97,19 @@ const showForm = computed(() => canRead.value && (!props.done || adding.value));
  *
  * ⚠ Required here although the API admits it blank, because an MVR with no jurisdiction covers no
  * declared licence: saving one would put a row in the file and leave the step exactly as open as it
- * was, with nothing on screen saying why. The hint names what is still needed AS WRITTEN, because the
- * fold compares after trim and case only (`mvrJurisdictions.ts`) — typing "Illinois" against a
- * licence declared as "IL" would file a record and close nothing.
+ * was, with nothing on screen saying why.
+ *
+ * ⚠ A PICKER, not a text box (Q-AF5): the same catalogue the applicant's licence-state field writes
+ * through, so a state is stored as its code like every other state in the product. The jurisdictions
+ * still owed lead the list, and they are the only way to pick an authority the catalogue cannot
+ * place ("Indiana BMV") — `mvrJurisdictionOptions` says why.
  */
 const asksJurisdiction = computed(() => props.step === "mvr");
+const jurisdictionOptions = computed(() => mvrJurisdictionOptions(props.outstandingJurisdictions ?? []));
 const jurisdictionHint = computed(() =>
   props.outstandingJurisdictions?.length
-    ? `As the application names it. Still needed: ${props.outstandingJurisdictions.join(", ")}.`
-    : "As the application names it.",
+    ? `Where the record came from. Still needed: ${props.outstandingJurisdictions.join(", ")}.`
+    : "Where the record came from.",
 );
 const ready = computed(
   () => Boolean(form.occurredOn) && (!asksJurisdiction.value || form.jurisdiction.trim() !== ""),
@@ -201,7 +206,7 @@ const label = computed(() => (kind.value ? (DQ_KIND_LABELS[kind.value] ?? "recor
 
     <div v-if="showForm" class="space-y-4">
       <FormField v-if="asksJurisdiction" v-slot="{ id }" label="State or authority" :hint="jurisdictionHint">
-        <BaseInput :id="id" v-model="form.jurisdiction" maxlength="60" />
+        <ComboSelect :id="id" v-model="form.jurisdiction" :options="jurisdictionOptions" />
       </FormField>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField v-slot="{ id }" label="Date" hint="The date on the record itself.">
