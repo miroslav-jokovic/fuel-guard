@@ -139,8 +139,7 @@ async function save() {
             />
           </FormField>
           <!-- Production carries 195 tractors and 211 trailers, and a list that long is why this
-               control searches. `DispatchLoadFormPage` picks a truck, a trailer and a driver the
-               same way. -->
+               control searches. The Dispatch drawer picks a driver the same way. -->
           <FormField v-slot="{ id }" label="Unit">
             <ComboSelect :id="id" v-model="subjectId" :options="equipmentOptions" placeholder="Search units…" />
           </FormField>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { LoadDispatchSummary } from "@silvicom/shared";
 import { dispatchHeadline, smsReasonText } from "./useLoadDispatch";
-import { availableActions, type DispatchLoad } from "./useDispatchLoads";
+import { QUEUE_TABS, tabFor, type DispatchLoad } from "./useDispatchLoads";
 
 /**
  * The words the board and the load page use for a dispatch (LR-D3, D-LMR7). The one that matters:
@@ -36,11 +36,18 @@ describe("dispatch wording", () => {
   });
 });
 
-describe("availableActions", () => {
-  const approved = (source: string) =>
-    ({ status: "approved", source, stops: [], driver_id: "d", vehicle_id: "v" }) as unknown as DispatchLoad;
-  it("no longer offers Release on a McLeod load — Dispatch reaches the driver since 0371", () => {
-    expect(availableActions(approved("tms")).release).toBe(false);
-    expect(availableActions(approved("manual")).release).toBe(true);
+describe("the board's queues after LR6", () => {
+  const load = (status: string) => ({ status, source: "tms", stops: [] }) as unknown as DispatchLoad;
+
+  it("puts McLeod's A (pending_approval) under Available, and every planned or moving load under Active", () => {
+    expect(tabFor(load("pending_approval"))).toBe("available");
+    for (const s of ["approved", "offered", "accepted", "in_transit"]) expect(tabFor(load(s))).toBe("active");
+    expect(tabFor(load("delivered"))).toBe("delivered");
+    expect(tabFor(load("canceled"))).toBe("delivered");
+  });
+
+  it("offers no approval queue, and opens on Active", () => {
+    expect(QUEUE_TABS.map((t) => t.value)).toEqual(["active", "available", "delivered", "exceptions"]);
+    expect(QUEUE_TABS.map((t) => t.label).join(" ")).not.toMatch(/approv/i);
   });
 });

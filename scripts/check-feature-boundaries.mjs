@@ -271,8 +271,8 @@ const API_ALLOW = new Set([
   "fuel -> messaging",
   "recruiting -> messaging",
   "roster -> messaging",
-  // Releasing a load notifies its driver, and assignment refuses a driver blocked on return-to-duty.
-  "loads -> messaging",
+  // Dispatch refuses a driver blocked on return-to-duty (§40.25(j)). `loads -> messaging` went with
+  // Release in LR6 (LOADS-MIRROR-PLAN.md): it was the notification a released load sent its driver.
   "loads -> recruiting",
   // A dispatch text reads its appointments on the carrier's clock (LOADS-MIRROR-PLAN.md LR-D2), and
   // the one reader of `organizations.operating_hours->>'tz'` is idle's — the same borrow as fuel's.

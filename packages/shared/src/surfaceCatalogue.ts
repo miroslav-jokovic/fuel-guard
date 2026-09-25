@@ -302,7 +302,9 @@ export const SURFACES: readonly Surface[] = [
   { key: "maintenance.repair-spend.ledger", label: "Repair spend", path: "/shop/repair-spend", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
 
   // ── non-nav screens that already state a section, transcribed (no behaviour change) ───────────
-  { key: "dispatch.loads.new", label: "New Load", path: "/loads/new", group: "dispatch", gate: manage("dispatch"), module: "dispatch", parent: "dispatch.loads" },
+  // `dispatch.loads.new` (`/loads/new`) left in LR6 (LOADS-MIRROR-PLAN.md, Q-LMR7): loads come from
+  // McLeod only, so there is no create screen to grant. No stored access row named it (checked in
+  // production 2026-09-24), and an unknown stored key grants and denies nothing anyway (0296).
   { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), parent: "admin.settings" },
   /**
    * ⚠ `manage("settings")` and not `recruitment`: this screen decides the text an applicant legally

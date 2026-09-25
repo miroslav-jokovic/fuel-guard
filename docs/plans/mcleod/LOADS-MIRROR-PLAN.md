@@ -599,3 +599,24 @@ Append a dated line per merge. Never edit a status column.
   blockers on every McLeod load ("2 stop(s) missing a window"), which means nothing under
   D-LMR5; the queue tabs overflow a phone, so the page scrolls sideways at 390 px (683 px wide); and
   "Reassign…" on a McLeod load writes `loads.driver_id`, which the next sync overwrites (LR6).
+- 2026-09-24 — **LR6 built: the office write paths are gone.** The API no longer has create
+  (`POST /loads`), edit (`PATCH /loads/:id`), `/assign`, `/submit`, `/approve`, `/release`, `/reject`,
+  `/cancel` or `/loads/bulk`; `dispatchRoutes.test.ts` asks each of the nine as an entitled dispatcher and
+  gets 404 with nothing written, beside controls showing the board, `/exceptions/resolve` and Dispatch
+  still answer. The web lost New load, bulk Approve / Send to driver and row selection, the Approval
+  readiness column, and on the load page Edit, Cancel load, Send back, Submit, Approve, Send to driver,
+  Reassign and the checklist card; `DispatchLoadFormPage.vue`, `dispatch.loads.new` (no stored access row
+  named it) and `seedDemoLoads.ts` are deleted, and `/loads/new` redirects to `/loads` so a bookmark does
+  not open a load called "new". `approvalChecklist`, the create/update/assign/reason schemas and the
+  `stale_approval` and `load_changed` exceptions went with them — `stale_approval` would have flagged all
+  47 `A` loads forever. Decided in the PR: **cancel** removed (McLeod's `V` already projects to canceled,
+  so an office cancel fought the sync); **manual loads** removed entirely (Q-LMR7: 303 loads, all `tms`);
+  **no migration** — 0142's approval gate stays in `loads_status_guard`, since it can only touch a manual
+  load and none can be made, and removing it is a function change for no user benefit. ⚠ **The §40.25(j)
+  return-to-duty gate moved to Dispatch** rather than leave with create/edit/assign, the three doors that
+  carried it: it is in `prepare()`, so the preview refuses before a text is shown. Tabs are now Active
+  (default) · Available · Delivered · Exceptions, and `pending_approval` reads "Available", McLeod's word
+  for `A`; "Planned" for an `A` with driver and truck is LR7's. Kept: `/exceptions/resolve`, `amended`
+  (until LR8 removes its writer), the approval columns, the driver app's verbs, `POST /api/tms/loads`.
+  Seven mutants — the moved gate removed, scoped to the wrong org, or given the recruiter's wording;
+  Release and create restored; `A` back under Active; an approval tab restored — each failing by name.

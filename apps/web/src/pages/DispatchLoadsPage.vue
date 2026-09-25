@@ -1,26 +1,18 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
-import { PlusIcon } from "@silvicom/ui/icons";
 /**
- * Dispatch → Loads (Phase 3D, D49).
+ * Dispatch → Loads (Phase 3D, D49; read-only but for Dispatch since LOADS-MIRROR-PLAN.md LR6).
  *
- * The operator side of the approval gate. Before this page existed the only way to create or approve
- * a load was hand-editing a SQL seed script — which meant D45's "a load is not driver-visible until a
- * human approves and releases it" had no human in it.
- *
- * The default tab is **Needs approval**, and Approve stays disabled until every required checklist
- * item passes, with each failure named. That is the difference between a control and a rubber stamp.
+ * This was the operator side of D45's approval gate: New load, an Approval readiness column, bulk
+ * Approve and Send to driver, and a Needs approval default tab. Every load is McLeod's now (D-LMR2)
+ * and reaches its driver when the office dispatches it (D-LMR5), so all of that went; what is left is
+ * the board, its exceptions, and the Dispatch action in each row's menu.
  */
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { computed, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { type DispatchException, EXCEPTION_LABELS, HAZMAT_LOAD_STATUS_LABELS, type HazmatLoadStatus, LOAD_STATUS_LABELS, LOAD_STATUSES, isDispatchable } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
-import { useDriversQuery } from "@/composables/useDrivers";
-import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useTrailersQuery } from "@/composables/useTrailers";
 import KebabMenu from "@/components/KebabMenu.vue";
-import SlideOver from "@/components/SlideOver.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -29,21 +21,16 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import {
   QUEUE_TABS,
-  availableActions,
-  checklistFor,
   statusLabel,
   tabFor,
   useExceptionsQuery,
   useResolveException,
-  useBulkTransition,
-  useCreateLoad,
   useLoadsQuery,
   type DispatchLoad,
   type QueueTab,
 } from "@/features/dispatch/useDispatchLoads";
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import { dispatchHeadline } from "@/features/dispatch/useLoadDispatch";
-import DispatchLoadFormPage, { type LoadFormPayload } from "./DispatchLoadFormPage.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { formatDateTime } from "@/lib/format";
@@ -52,13 +39,9 @@ const PAGE_SIZE = 20;
 
 const session = useSessionStore();
 const toast = useToastStore();
-const route = useRoute();
 const router = useRouter();
 
 const { data: loads, isLoading, isError, error, refetch, isFetching } = useLoadsQuery();
-const { data: drivers } = useDriversQuery();
-const { data: vehicles } = useVehiclesQuery();
-const { data: trailers } = useTrailersQuery();
 const { data: exceptions, isLoading: exceptionsLoading, isError: exceptionsFailed, refetch: refetchExceptions, isFetching: exceptionsFetching } = useExceptionsQuery();
 const resolveException = useResolveException();
 
@@ -89,20 +72,15 @@ async function clearException(row: DispatchException) {
   }
 }
 
-const createLoad = useCreateLoad();
 const dispatching = ref<DispatchLoad | null>(null); // LR-D3: the load whose Dispatch drawer is open
-const bulk = useBulkTransition();
 
 const search = ref("");
-const tab = ref<QueueTab>("needs_approval");
+const tab = ref<QueueTab>(QUEUE_TABS[0]!.value);
 const statusFilter = ref("");
 const sourceFilter = ref("");
 const hazmatFilter = ref("");
 const page = ref(1);
 const sort = ref<SortState>({ key: null, dir: "asc" });
-const selected = ref<Set<string>>(new Set());
-const now = ref(Date.now());
-let clock: ReturnType<typeof setInterval> | undefined;
 
 const statusOptions = [
   { value: "", label: "All statuses" },
@@ -125,18 +103,16 @@ const hazmatNeedsAttention = (load: DispatchLoad): boolean =>
 
 const counts = computed(() => {
   const result: Record<QueueTab, number> = {
-    needs_approval: 0,
-    approved: 0,
-    dispatched: 0,
     active: 0,
+    available: 0,
     delivered: 0,
     exceptions: 0,
   };
   for (const load of loads.value ?? []) {
     result[tabFor(load)] += 1;
   }
-  // The exceptions count comes from the server feed, not from the loads list — three of its five
-  // sources exist only as events and are not visible in a load row at all (D-L2).
+  // The exceptions count comes from the server feed, not from the loads list — most of its sources
+  // exist only as events and are not visible in a load row at all (D-L2).
   result.exceptions = (exceptions.value ?? []).length;
   return result;
 });
@@ -172,7 +148,6 @@ function firstAppointment(load: DispatchLoad): string {
 function sortValue(load: DispatchLoad, key: string): unknown {
   if (key === "source") return load.provider ?? load.source;
   if (key === "first_stop") return firstAppointment(load);
-  if (key === "readiness") return checklistFor(load).canApprove ? "Ready" : checklistFor(load).blockers.length;
   if (key === "status") return statusLabel(load.status);
   return (load as unknown as Record<string, unknown>)[key];
 }
@@ -180,7 +155,7 @@ function sortValue(load: DispatchLoad, key: string): unknown {
 const sorted = computed(() => sortRows(filtered.value, sort.value, sortValue));
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const emptyText = computed(() =>
-  (loads.value ?? []).length === 0 ? "No loads yet — create one or wait for a TMS feed." : "No loads match these filters.",
+  (loads.value ?? []).length === 0 ? "No loads yet. They arrive from McLeod on its next sync." : "No loads match these filters.",
 );
 
 /** Chip copy + tone for the linked record's state. "Not started" is the loudest: the load is marked
@@ -205,24 +180,13 @@ const columns: DataTableColumn[] = [
   { key: "equipment", label: "Equipment", sortable: true, width: "md", cellClass: "text-ink-secondary" },
   { key: "first_stop", label: "First appointment", width: "lg", cellClass: "text-ink-secondary" },
   { key: "hazmat", label: "Hazmat", width: "md" },
-  { key: "readiness", label: "Approval readiness", width: "xl" },
   { key: "status", label: "Status", sortable: true, width: "lg" },
   // D-LMR7: whether the office sent it is its own fact, beside McLeod's status — never folded into it.
   { key: "dispatch", label: "Dispatch", width: "xl" },
 ];
 
-const driverList = computed(() => (drivers.value ?? []).map((driver) => ({ id: driver.id, full_name: driver.full_name })));
-const vehicleList = computed(() => (vehicles.value ?? []).map((vehicle) => ({ id: vehicle.id, unit_number: vehicle.unit_number })));
-const trailerList = computed(() => (trailers.value ?? []).map((trailer) => ({ id: trailer.id, unit_number: trailer.unit_number })));
-
-// The board only creates. Opening, editing and acting on ONE load is `DispatchLoadDetailPage` — a
-// real page, because a drawer over this list cache could not deep-link and went stale with it (LD2).
-const formOpen = computed(() => route.name === "load-new");
-const saving = computed(() => createLoad.isPending.value);
-
-const selectedLoads = computed(() => (loads.value ?? []).filter((load) => selected.value.has(load.id)));
-const approvableIds = computed(() => selectedLoads.value.filter((load) => availableActions(load).approve).map((load) => load.id));
-const releasableIds = computed(() => selectedLoads.value.filter((load) => availableActions(load).release).map((load) => load.id));
+// Opening ONE load is `DispatchLoadDetailPage` — a real page, because a drawer over this list cache
+// could not deep-link and went stale with it (LD2).
 
 const filterChips = computed<FilterChip[]>(() => {
   const chips: FilterChip[] = [];
@@ -240,7 +204,6 @@ const moreCount = computed(() => (hazmatFilter.value ? 1 : 0));
 
 watch([search, tab, statusFilter, sourceFilter, hazmatFilter], () => {
   page.value = 1;
-  selected.value = new Set();
 });
 watch(filtered, (rows) => {
   const maxPage = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
@@ -262,54 +225,14 @@ function removeFilter(key: string) {
   if (key === "hazmat") hazmatFilter.value = "";
 }
 
-function openNew() {
-  if (session.can("dispatch")) void router.push({ name: "load-new" });
-}
 function openDetail(load: DispatchLoad) {
   void router.push({ name: "load-detail", params: { id: load.id } });
 }
-function closeOverlay() {
-  void router.push({ name: "loads" });
-}
-
-async function onFormSubmit(payload: LoadFormPayload) {
-  try {
-    const created = await createLoad.mutateAsync(payload);
-    toast.success(`Load ${payload.ref} created as a draft`);
-    await router.push({ name: "load-detail", params: { id: created.id } });
-  } catch (e) {
-    toast.error("Could not save the load", e instanceof Error ? e.message : undefined);
-  }
-}
-
-async function bulkDo(action: "approve" | "release", ids: string[]) {
-  if (!session.can("dispatch") || !ids.length) return;
-  try {
-    const result = await bulk.mutateAsync({ ids, action });
-    toast.success(`${result.succeeded} ${action === "approve" ? "approved" : "released"}${result.failed ? `, ${result.failed} could not be updated` : ""}`);
-    selected.value = new Set();
-  } catch (e) {
-    toast.error("Bulk action failed", e instanceof Error ? e.message : undefined);
-  }
-}
-
-onMounted(() => {
-  clock = setInterval(() => (now.value = Date.now()), 60_000);
-});
-onUnmounted(() => {
-  if (clock) clearInterval(clock);
-});
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="A McLeod load reaches a driver only when you dispatch it. A manual load reaches one once it's approved and released.">
-      <template #actions>
-        <BaseButton v-if="session.can('dispatch')" variant="primary" @click="openNew">
-          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New load
-        </BaseButton>
-      </template>
-    </PageHeader>
+    <PageHeader description="Loads come from McLeod. A load reaches a driver only when you dispatch it." />
 
     <div class="flex flex-wrap items-center justify-between gap-3">
       <nav class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm" role="tablist" aria-label="Load queue">
@@ -348,22 +271,8 @@ onUnmounted(() => {
       </template>
     </FilterBar>
 
-    <div
-      v-if="session.can('dispatch') && selected.size > 0"
-      class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
-    >
-      <span class="text-sm font-medium text-brand-800">{{ selected.size }} selected</span>
-      <BaseButton size="sm" :disabled="bulk.isPending.value || approvableIds.length === 0" @click="bulkDo('approve', approvableIds)">
-        Approve<span v-if="approvableIds.length"> ({{ approvableIds.length }})</span>
-      </BaseButton>
-      <BaseButton size="sm" :disabled="bulk.isPending.value || releasableIds.length === 0" @click="bulkDo('release', releasableIds)">
-        Send to driver<span v-if="releasableIds.length"> ({{ releasableIds.length }})</span>
-      </BaseButton>
-      <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
-    </div>
-
-    <!-- Exceptions is its own feed, not a filter over the loads list: three of its five sources exist
-         only as events and have no row on the board at all (D-L2). -->
+    <!-- Exceptions is its own feed, not a filter over the loads list: most of its sources exist only
+         as events and have no row on the board at all (D-L2). -->
     <DataTable
       v-if="tab === 'exceptions'"
       :columns="EXCEPTION_COLUMNS"
@@ -410,8 +319,6 @@ onUnmounted(() => {
       :columns="columns"
       :rows="pageRows"
       row-key="id"
-      :selectable="session.can('dispatch')"
-      :selected="selected"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load the dispatch board') : null"
       :retrying="isFetching"
@@ -419,7 +326,6 @@ onUnmounted(() => {
       :empty-text="emptyText"
       @sort="onSort"
       @retry="refetch"
-      @update:selected="selected = $event"
       @row-click="openDetail"
     >
       <template #cell-ref="{ row }">
@@ -443,19 +349,6 @@ onUnmounted(() => {
         </span>
         <span v-else class="text-ink-tertiary">—</span>
       </template>
-      <!-- The checklist IS the product: a named list of what is missing, not a dead button. -->
-      <template #cell-readiness="{ row }">
-        <div v-if="checklistFor(row).canApprove" class="flex items-center gap-1.5">
-          <span :class="[BADGE_BASE, toneClass('success')]">Ready</span>
-          <span v-if="checklistFor(row).warnings.length" class="text-xs text-ink-muted">{{ checklistFor(row).warnings.length }} warning(s)</span>
-        </div>
-        <ul v-else class="space-y-0.5">
-          <li v-for="blocker in checklistFor(row).blockers.slice(0, 2)" :key="blocker.id" class="text-xs text-danger-600">
-            {{ blocker.detail ?? blocker.label }}
-          </li>
-          <li v-if="checklistFor(row).blockers.length > 2" class="text-xs text-ink-muted">+{{ checklistFor(row).blockers.length - 2 }} more</li>
-        </ul>
-      </template>
       <template #cell-status="{ row }">
         <span :class="[BADGE_BASE, toneClass(row.status === 'canceled' ? 'neutral' : 'brand')]">{{ statusLabel(row.status) }}</span>
       </template>
@@ -475,18 +368,6 @@ onUnmounted(() => {
     </DataTable>
 
     <DispatchLoadDrawer :load="dispatching" @close="dispatching = null" />
-    <SlideOver :open="formOpen" title="New load" @close="closeOverlay">
-      <DispatchLoadFormPage
-        v-if="formOpen"
-        :load="null"
-        :drivers="driverList"
-        :vehicles="vehicleList"
-        :trailers="trailerList"
-        :saving="saving"
-        @submit="onFormSubmit"
-        @cancel="closeOverlay"
-      />
-    </SlideOver>
 
   </div>
 </template>

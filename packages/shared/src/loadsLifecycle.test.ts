@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   acceptanceCopy,
-  approvalChecklist,
   canTransition,
   DRIVER_VISIBLE_STATUSES,
   declineLoadRequestSchema,
@@ -11,34 +10,8 @@ import {
   LOAD_TRANSITIONS,
   loadBucket,
   resolveDriverType,
-  type ApprovableLoad,
   type LoadStatus,
 } from "./index.js";
-
-function stop(over: Partial<ApprovableLoad["stops"][number]> = {}) {
-  return {
-    kind: "pickup" as const,
-    seq: 1,
-    name: "Shipper",
-    appointment_start: "2026-07-28T08:00:00.000Z",
-    appointment_end: "2026-07-28T10:00:00.000Z",
-    required_photos: ["trailer", "bol"],
-    ...over,
-  };
-}
-
-function load(over: Partial<ApprovableLoad> = {}): ApprovableLoad {
-  return {
-    driver_id: "00000000-0000-4000-8000-0000000000d1",
-    vehicle_id: "00000000-0000-4000-8000-000000000001",
-    trailer_id: "00000000-0000-4000-8000-000000000011",
-    equipment: "Dry van",
-    commodity: "General freight",
-    hazmat: false,
-    stops: [stop(), stop({ kind: "dropoff", seq: 2, name: "Consignee", required_photos: ["bol"] })],
-    ...over,
-  };
-}
 
 describe("driver visibility — the approval gate's client half", () => {
   it("exposes exactly the five statuses the RLS predicate allows", () => {
@@ -111,79 +84,6 @@ describe("LOAD_TRANSITIONS", () => {
       if (s === "delivered" || s === "canceled") continue;
       expect(canTransition(s, "canceled")).toBe(true);
     }
-  });
-});
-
-describe("approvalChecklist — what makes approval a control, not a rubber stamp", () => {
-  it("passes a complete load", () => {
-    const r = approvalChecklist(load());
-    expect(r.canApprove).toBe(true);
-    expect(r.blockers).toHaveLength(0);
-    expect(r.warnings).toHaveLength(0);
-  });
-
-  it("blocks and NAMES a missing driver", () => {
-    const r = approvalChecklist(load({ driver_id: null }));
-    expect(r.canApprove).toBe(false);
-    expect(r.blockers.map((b) => b.id)).toContain("driver_assigned");
-    expect(r.blockers.find((b) => b.id === "driver_assigned")?.detail).toBeTruthy();
-  });
-
-  it("blocks a missing truck", () => {
-    expect(approvalChecklist(load({ vehicle_id: null })).canApprove).toBe(false);
-  });
-
-  it("blocks a load with no dropoff", () => {
-    const r = approvalChecklist(load({ stops: [stop()] }));
-    expect(r.blockers.map((b) => b.id)).toContain("has_dropoff");
-  });
-
-  it("blocks a load with no stops at all and says so", () => {
-    const r = approvalChecklist(load({ stops: [] }));
-    expect(r.canApprove).toBe(false);
-    expect(r.blockers.find((b) => b.id === "appointments_set")?.detail).toContain("no stops");
-  });
-
-  it("names which stops are missing an appointment window", () => {
-    const r = approvalChecklist(
-      load({ stops: [stop({ name: "Acme Foods", appointment_end: null }), stop({ kind: "dropoff", seq: 2 })] }),
-    );
-    expect(r.canApprove).toBe(false);
-    expect(r.blockers.find((b) => b.id === "appointments_set")?.detail).toContain("Acme Foods");
-  });
-
-  it("catches a hazardous commodity with the hazmat flag off", () => {
-    const r = approvalChecklist(load({ commodity: "Propane cylinders", hazmat: false }));
-    expect(r.canApprove).toBe(false);
-    expect(r.blockers.map((b) => b.id)).toContain("hazmat_consistent");
-  });
-
-  it("is satisfied once hazmat is flagged", () => {
-    expect(approvalChecklist(load({ commodity: "Propane cylinders", hazmat: true })).canApprove).toBe(true);
-  });
-
-  it("warns about a missing trailer without blocking — the driver confirms it at the shipper", () => {
-    const r = approvalChecklist(load({ trailer_id: null }));
-    expect(r.canApprove).toBe(true);
-    expect(r.warnings.map((w) => w.id)).toContain("trailer_assigned");
-  });
-
-  it("does not even warn when the equipment implies no trailer", () => {
-    const r = approvalChecklist(load({ trailer_id: null, equipment: "Bobtail" }));
-    expect(r.warnings.map((w) => w.id)).not.toContain("trailer_assigned");
-  });
-
-  it("warns when a stop asks for no photos — the driver would capture nothing there", () => {
-    const r = approvalChecklist(
-      load({ stops: [stop({ required_photos: [] }), stop({ kind: "dropoff", seq: 2 })] }),
-    );
-    expect(r.canApprove).toBe(true);
-    expect(r.warnings.map((w) => w.id)).toContain("photo_slots_set");
-  });
-
-  it("reports every blocker at once rather than one at a time", () => {
-    const r = approvalChecklist({ driver_id: null, vehicle_id: null, stops: [] });
-    expect(r.blockers.length).toBeGreaterThanOrEqual(4);
   });
 });
 

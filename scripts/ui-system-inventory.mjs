@@ -152,7 +152,6 @@ const inventory = {
 
 function verifyAdoption() {
   const allowedHeaderExceptions = new Set([
-    "DispatchLoadFormPage.vue", // embedded drawer form, not a routed page
     "PlaceholderPage.vue", // unrouted scaffold
     "PublicPlacardCalculatorPage.vue", // public tool with its own public layout
     // H5b: the applicant's own §391.21 form. `PageHeader` carries the app's breadcrumb and
