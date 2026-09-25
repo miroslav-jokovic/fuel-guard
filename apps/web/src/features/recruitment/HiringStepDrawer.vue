@@ -20,6 +20,7 @@ import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySe
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 import RecordedActPanel from "@/features/recruitment/RecordedActPanel.vue";
+import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
 import { useAuthorizationsQuery } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -202,6 +203,8 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         :done="step.state === 'done'"
         :outstanding-jurisdictions="step.outstandingJurisdictions"
       />
+
+      <RoadTestPanel v-else-if="body === 'road_test'" :driver-id="driverId" :done="step.state === 'done'" />
 
       <!-- ⚠ Q-HM9's step. The section is unchanged — it was already the whole §391.23(c)(2) record,
            it simply had no row to open it. What the row adds is that the investigation is now

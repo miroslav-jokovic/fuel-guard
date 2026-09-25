@@ -70,9 +70,9 @@ export type HiringDrawerBody =
   /** `HireDrawer`'s act: the applicant stops being one. */
   | "hire"
   /**
-   * A recorded act with no in-product affordance yet (D-HM6): the medical-registry verification and
-   * the road test. The body says what proves it and links the driver's §391.51 file, which is where
-   * both are recorded today.
+   * A recorded act with no in-product affordance yet (D-HM6): the medical-registry verification. The
+   * body says what proves it and links the driver's §391.51 file, which is where it is recorded today.
+   * (The road test left this on 2026-09-25 — D2, `"road_test"` below.)
    *
    * ⚠ **D1 took three of the original five** — MVR, Clearinghouse and drug test — and they are
    * `"record"` below. The two that remain each have a named reason rather than a backlog entry: the
@@ -89,6 +89,12 @@ export type HiringDrawerBody =
    * manage and a recruiter does not hold it.
    */
   | "record"
+  /**
+   * `RoadTestPanel` (D2): the §391.31 road test — nine rated items, the examiner whose signature the
+   * office added (Q-RT2), and the carrier's form and certificate filed from it. Not `"record"`,
+   * because §391.31(c) is a form with an examiner, not an upload (D1's note).
+   */
+  | "road_test"
   /**
    * The packet's signing ceremony. Since AF5 (D-AF3) the office OPENS it here, at the desk, and the
    * applicant signs on the link that press hands back (`OpenSigningPanel`).
@@ -114,7 +120,7 @@ const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   clearinghouse: "record",
   drug_test: "record",
   medical_certificate: "recorded_act",
-  road_test: "recorded_act",
+  road_test: "road_test",
   application_signed: "packet",
   employment_investigation: "investigation",
   hired: "hire",
