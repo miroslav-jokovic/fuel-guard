@@ -1,5 +1,9 @@
 # The read routine, for the carrier's review
 
+> **2026-09-25 — the reply to Alex's approval:** [`REPLY-TO-ALEX-2026-09-25.md`](REPLY-TO-ALEX-2026-09-25.md),
+> sent with the regenerated `SILVICOM-READ-ROUTINE.sql` (LR3's fields, the version he asked to see
+> before it goes live). His 2026-09-24 reply is kept in `docs/plans/mcleod/mail.md`.
+>
 > **2026-09-24 — what to send Alex:** [`LETTER-TO-ALEX.md`](LETTER-TO-ALEX.md) (the letter, in the
 > owner's voice), `SILVICOM-READ-ROUTINE.sql` (24 statements, **built from the code** by
 > `build-routine.mjs` — never edit it by hand; `npm run routine` rebuilds it and `review.test.mjs`
