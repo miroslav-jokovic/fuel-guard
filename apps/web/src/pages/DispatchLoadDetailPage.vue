@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
-import { isDispatchable, LOAD_EVENT_LABELS } from "@silvicom/shared";
+import { isDispatchable, loadBoardState, LOAD_EVENT_LABELS } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -10,7 +10,8 @@ import { useSessionStore } from "@/stores/session";
 import HazmatPanel from "@/features/hazmat/HazmatPanel.vue";
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import { dispatchHeadline, smsReasonText } from "@/features/dispatch/useLoadDispatch";
-import { statusLabel, useLoadDetailQuery, type DispatchStopDetail } from "@/features/dispatch/useDispatchLoads";
+import { useLoadDetailQuery, type DispatchStopDetail } from "@/features/dispatch/useDispatchLoads";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDateTime } from "@/lib/format";
 
 /**
@@ -34,17 +35,22 @@ import { formatDateTime } from "@/lib/format";
 
 const route = useRoute();
 const session = useSessionStore();
+// Every time on this page is on the carrier's clock (LR7): it is read against McLeod's screen, which is
+// the office's, and a dispatcher and an auditor elsewhere must see the same appointment.
+const { zone } = useOrgTimezone();
 
 const loadId = computed(() => (typeof route.params.id === "string" ? route.params.id : null));
 const { data: load, isLoading, isError, error } = useLoadDetailQuery(loadId);
 
 const canDispatch = computed(() => !!load.value && isDispatchable(load.value));
 const dispatchOpen = ref(false);
+/** The same words the board uses (`loadBoardState`), so a load never reads two ways. */
+const boardState = computed(() => (load.value ? loadBoardState(load.value) : null));
 
 // ── formatting ───────────────────────────────────────────────────────────────
 function when(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return formatDateTime(iso, iso);
+  return formatDateTime(iso, iso, zone.value);
 }
 function apptLabel(start: string | null | undefined, end: string | null | undefined): string {
   if (!start) return "No appointment window";
@@ -142,8 +148,8 @@ function markBroken(id: string) {
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-lg font-semibold text-ink">{{ load.ref }}</span>
-              <span :class="[BADGE_BASE, toneClass(load.status === 'canceled' ? 'neutral' : 'brand')]">
-                {{ statusLabel(load.status) }}
+              <span v-if="boardState" :class="[BADGE_BASE, toneClass(boardState.tone)]" :title="boardState.mcleodWords ?? undefined">
+                {{ boardState.label }}
               </span>
               <span v-if="load.hazmat" :class="[BADGE_BASE, toneClass('warning')]">Hazmat</span>
               <span v-if="load.source === 'tms'" :class="[BADGE_BASE, toneClass('info')]">
@@ -162,6 +168,7 @@ function markBroken(id: string) {
         </div>
 
         <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+          <div v-if="load.source === 'tms'"><dt class="text-ink-tertiary">Dispatcher</dt><dd class="text-ink">{{ load.dispatcher_name ?? "—" }}</dd></div>
           <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ load.driver_name ?? "Unassigned" }}</dd></div>
           <div><dt class="text-ink-tertiary">Truck</dt><dd class="text-ink">{{ load.vehicle_unit ?? "—" }}</dd></div>
           <div><dt class="text-ink-tertiary">Trailer</dt><dd class="text-ink">{{ load.trailer_unit ?? "—" }}</dd></div>
@@ -199,7 +206,7 @@ function markBroken(id: string) {
           <li v-for="stop in load.stops" :key="stop.id" class="rounded-surface border border-edge p-3 text-sm">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <span class="font-medium text-ink">
-                {{ stop.seq }}. {{ stop.kind === "pickup" ? "Pickup" : "Drop-off" }} — {{ stop.name || "Unnamed" }}
+                {{ stop.seq }}. {{ stop.kind === "pickup" ? "Pickup" : "Drop-off" }} — {{ stop.location_name || stop.name || "Unnamed" }}
               </span>
               <div class="flex items-center gap-2">
                 <span class="text-xs text-ink-muted">{{ [stop.city, stop.state].filter(Boolean).join(", ") }}</span>
@@ -214,8 +221,14 @@ function markBroken(id: string) {
               </div>
             </div>
             <p class="mt-0.5 text-xs text-ink-muted">{{ apptLabel(stop.appointment_start, stop.appointment_end) }}</p>
+            <!-- LR7: what McLeod saw — its actual arrival and departure, else its ETA — beside the
+                 driver app's own times below, never merged into them (Q-LMR2 decides whose counts). -->
+            <p v-if="stop.actual_arrival_at || stop.actual_departure_at" class="mt-0.5 text-xs text-ink-secondary" data-testid="mcleod-actual">
+              McLeod: <span v-if="stop.actual_arrival_at">arrived {{ when(stop.actual_arrival_at) }}</span><span v-if="stop.actual_arrival_at && stop.actual_departure_at"> · </span><span v-if="stop.actual_departure_at">departed {{ when(stop.actual_departure_at) }}</span>
+            </p>
+            <p v-else-if="stop.eta_at" class="mt-0.5 text-xs text-ink-secondary" data-testid="mcleod-eta">McLeod ETA {{ when(stop.eta_at) }}</p>
             <p v-if="stop.arrived_at || stop.completed_at" class="mt-0.5 text-xs text-ink-muted">
-              <span v-if="stop.arrived_at">Arrived {{ when(stop.arrived_at) }}</span>
+              <span v-if="stop.arrived_at">Driver arrived {{ when(stop.arrived_at) }}</span>
               <span v-if="stop.arrived_at && stop.completed_at"> · </span>
               <span v-if="stop.completed_at">Finished {{ when(stop.completed_at) }}</span>
             </p>

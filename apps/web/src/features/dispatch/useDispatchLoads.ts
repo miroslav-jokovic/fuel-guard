@@ -1,7 +1,11 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import {
+  LOAD_BOARD_QUEUE_LABELS,
+  LOAD_BOARD_QUEUES,
   LOAD_STATUS_LABELS,
+  loadBoardState,
+  type LoadBoardQueue,
   type LoadEventKind,
   type LoadStatus,
   type DispatchException,
@@ -34,6 +38,12 @@ export interface DispatchStop {
   required_photos: string[];
   notes?: string | null;
   status?: string;
+  /** McLeod's own view of the stop (LR2 columns, LR4b projection) — null on a load McLeod never sent. */
+  location_name?: string | null;
+  external_status?: string | null;
+  actual_arrival_at?: string | null;
+  actual_departure_at?: string | null;
+  eta_at?: string | null;
 }
 
 /** A load row from `GET /api/dispatch/loads` — core columns plus the resolved driver/unit joins. */
@@ -63,6 +73,13 @@ export interface DispatchLoad {
   stops: DispatchStop[];
   /** LR-D3 (D-LMR7): the McLeod load's current dispatch, null when never dispatched or not McLeod. */
   last_dispatch?: LoadDispatchSummary | null;
+  /** McLeod's movement status code (A/P/D/V) — shown in the status tooltip, never as the label. */
+  external_status?: string | null;
+  /** When the feed last wrote this load — the board's "McLeod as of". */
+  external_synced_at?: string | null;
+  dispatcher_external_id?: string | null;
+  /** LR7: McLeod's dispatcher by name, or the McLeod id when the roster has not carried them yet. */
+  dispatcher_name?: string | null;
 }
 
 /** A photo the driver captured at a stop. `url` is signed for 5 minutes; null means signing failed. */
@@ -187,36 +204,22 @@ export function useLoadEvents(loadId: Ref<string | null>) {
 }
 
 /**
- * The board's queues. Until LR6 they were the approval chain — Needs approval (the default), Approved,
- * Dispatched — and McLeod never walks that chain: `A` projects to `pending_approval`, `P` to
- * `in_transit` (or `approved` while nothing is done), `D` to delivered, `V` to canceled (LR4b). So
- * Active is the default and holds every open load McLeod has planned; Available is McLeod's own word
- * for `A` (Alex, 2026-09-24). Whether an `A` with a driver and a truck should read "Planned" is LR7's
- * question, not this one. `offered` is only reachable by the Release LR6 removed; it is kept in
- * Active so a stray one is never hidden.
+ * The board's queues (LR7): Active (default) · Uncovered · Delivered · All, from the owner's
+ * 2026-09-23 list, plus Exceptions — the feed a driver's decline or a timed-out shift still raises,
+ * which has no load row of its own and so cannot be a filter over the others. Which queue a load sits
+ * in is `loadBoardState` in `@silvicom/shared`, the same rule that words its status, so the tab and
+ * the badge can never disagree.
  */
-export type QueueTab = "active" | "available" | "delivered" | "exceptions";
+export type QueueTab = LoadBoardQueue | "exceptions";
 
 export const QUEUE_TABS: { value: QueueTab; label: string }[] = [
-  { value: "active", label: "Active" },
-  { value: "available", label: "Available" },
-  { value: "delivered", label: "Delivered" },
+  ...LOAD_BOARD_QUEUES.map((q) => ({ value: q as QueueTab, label: LOAD_BOARD_QUEUE_LABELS[q] })),
   { value: "exceptions", label: "Exceptions" },
 ];
 
-export function tabFor(load: DispatchLoad): Exclude<QueueTab, "exceptions"> {
-  switch (load.status) {
-    case "draft":
-    case "pending_approval":
-      return "available";
-    case "approved":
-    case "offered":
-    case "accepted":
-    case "in_transit":
-      return "active";
-    default:
-      return "delivered";
-  }
+/** Is this load on this queue? All holds every load; a canceled one is in All only. */
+export function inQueue(load: DispatchLoad, queue: LoadBoardQueue): boolean {
+  return queue === "all" || loadBoardState(load).queue === queue;
 }
 
 export function statusLabel(status: LoadStatus): string {

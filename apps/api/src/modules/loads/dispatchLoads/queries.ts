@@ -3,6 +3,29 @@ import type { AssignmentRow } from "@silvicom/shared";
 import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 import { dispatchesByLoad } from "../dispatchToDriver.js";
+import { readDispatcherNames } from "../../mcleod/index.js";
+
+type DispatcherRef = { provider?: string | null; dispatcher_external_id?: string | null };
+
+/**
+ * The dispatcher McLeod names on each load, resolved to a name (LR7). One read for the whole board;
+ * an id the roster does not hold yet comes back as the id itself, so the column is never silently
+ * blank for a load that does have a dispatcher.
+ */
+export async function dispatcherNamesFor(
+  admin: SupabaseClient,
+  orgId: string,
+  rows: DispatcherRef[],
+): Promise<(row: DispatcherRef) => string | null> {
+  const refs = rows
+    .filter((r) => r.provider && r.dispatcher_external_id)
+    .map((r) => ({ provider: r.provider!, externalId: r.dispatcher_external_id! }));
+  const names = refs.length > 0 ? await readDispatcherNames(admin, orgId, refs) : new Map<string, string>();
+  return (r) =>
+    r.dispatcher_external_id
+      ? (names.get(`${r.provider}:${r.dispatcher_external_id}`) ?? r.dispatcher_external_id)
+      : null;
+}
 
 /**
  * Dispatch-side reads (P2 split). Wide by design — dispatch sees every status. The counterpart writes
@@ -24,6 +47,9 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
   const { data: stops } = await admin
     .from("load_stops")
     .select(STOP_COLUMNS)
+    // Scoped to the org as well as to ids an org-scoped read produced: the service role bypasses RLS,
+    // and a read that is only safe because of the query above it stops being safe when that changes.
+    .eq("org_id", orgId)
     .in("load_id", rows.map((r) => r.id))
     .order("seq", { ascending: true });
 
@@ -51,11 +77,14 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
   }
 
   // D-LMR7: whether a McLeod load has been sent, and to whom, is the dispatch record — never status.
-  const dispatches = await dispatchesByLoad(
-    admin,
-    orgId,
-    rows.filter((r) => (r as { source?: string }).source === "tms").map((r) => r.id),
-  );
+  const [dispatches, dispatcherOf] = await Promise.all([
+    dispatchesByLoad(
+      admin,
+      orgId,
+      rows.filter((r) => (r as { source?: string }).source === "tms").map((r) => r.id),
+    ),
+    dispatcherNamesFor(admin, orgId, rows as DispatcherRef[]),
+  ]);
 
   return rows.map((r) => {
     const { drivers, vehicles, trailers, ...rest } = r as unknown as Record<string, unknown> & {
@@ -72,6 +101,7 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
       // Null = hazmat-marked but no record started yet (or a non-hazmat load) — the chip says which.
       hazmat_status: hazmatStatusBy.get(r.id) ?? null,
       last_dispatch: dispatches.get(r.id)?.[0] ?? null,
+      dispatcher_name: dispatcherOf(r as DispatcherRef),
     };
   });
 }

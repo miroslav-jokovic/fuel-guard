@@ -274,7 +274,7 @@ Full width with small gutters — tables use the whole screen. There is no `max-
 - Two-column detail layouts: `grid grid-cols-1 gap-6 lg:grid-cols-[…]` (`HazmatEquipmentPage.vue:120`).
 - KPI grids: `grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4`. Divided-KPI strip inside one `BaseCard padding="none"`: `dl.grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6`, each cell `px-5 py-4` (`FuelLogPage.vue:252`).
 - Bulk-action bar (between FilterBar and DataTable, `v-if="selected.size > 0"`): `flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100`, count as `text-sm font-medium text-brand-800` (`TrailersPage.vue:190`; `DispatchLoadsPage.vue` had an identical one until LR6 retired bulk approve/release, 2026-09-24).
-- Tab strip: `flex gap-1 rounded-surface bg-surface-muted p-1 text-sm` with items `rounded-control px-3 py-1.5 font-medium` (`DispatchLoadsPage.vue:314`).
+- Tab strip: `AppTabs` from `@silvicom/ui` (U4, D-UI4), which owns the roles, the roving tabindex and the look; `scrollable` when the tabs may outrun a phone (`DispatchLoadsPage.vue` adopted it in LR7, 2026-09-24 — its hand-rolled strip made a 390 px page 683 px wide).
 
 ### 3.4 The standard card
 `<BaseCard>` (= `AppCard`) = `p-5`. `padding="sm"` = `p-4` (FilterBar). `padding="none"` =

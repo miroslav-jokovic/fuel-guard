@@ -85,3 +85,40 @@ export async function knownDispatcherIds(
     .eq("provider", provider);
   return new Set(((data ?? []) as { external_id: string }[]).map((r) => r.external_id));
 }
+
+/**
+ * Dispatcher display names for the loads that name them (LOADS-MIRROR-PLAN.md LR7, the board's
+ * Dispatcher column).
+ *
+ * `tms_dispatchers` is this collector's raw table, so `loads` asks here rather than reading it
+ * (D-SEP1, `lint:table-access`). Keyed `provider:external_id`, because the roster is keyed on both and
+ * two TMSs may reuse an id. An id the roster has not carried yet is simply absent — the board shows
+ * the McLeod id rather than nothing, the same "say it out loud" rule as `knownDispatcherIds`.
+ */
+export async function readDispatcherNames(
+  admin: SupabaseClient,
+  orgId: string,
+  refs: { provider: string; externalId: string }[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const byProvider = new Map<string, Set<string>>();
+  for (const r of refs) {
+    if (!r.provider || !r.externalId) continue;
+    const ids = byProvider.get(r.provider) ?? new Set<string>();
+    ids.add(r.externalId);
+    byProvider.set(r.provider, ids);
+  }
+  for (const [provider, ids] of byProvider) {
+    const { data, error } = await admin
+      .from("tms_dispatchers")
+      .select("external_id, display_name")
+      .eq("org_id", orgId)
+      .eq("provider", provider)
+      .in("external_id", [...ids]);
+    if (error) throw new Error(error.message);
+    for (const d of (data ?? []) as { external_id: string; display_name: string | null }[]) {
+      if (d.display_name) out.set(`${provider}:${d.external_id}`, d.display_name);
+    }
+  }
+  return out;
+}
