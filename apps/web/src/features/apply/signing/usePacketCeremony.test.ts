@@ -33,7 +33,7 @@ let answer: (placementId: string) => { signedCount: number; complete: boolean } 
 /**
  * ⚠ The three capture calls are mocked too, though nothing here uses them: `stageCapture`'s default
  * io binds them at module load, so a partial mock of this module is an IMPORT-TIME crash rather than
- * a call-time one — `useSigningCeremony.test.ts` next door hit the same wall and says so. Every test
+ * a call-time one — `usePermissionCeremony.test.ts` next door hits the same wall and says so. Every test
  * below injects its own `stage`.
  */
 vi.mock("@/features/apply/useApplication", () => ({
