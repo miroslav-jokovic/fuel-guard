@@ -43,6 +43,12 @@ const WAIVERS = new Map([
   // merge only, the schema-only LR1 — the same shape as tms_dispatchers above.
   // load_dispatches left it on 2026-09-24 (LOADS-MIRROR-PLAN.md LR-D2): loads/dispatchToDriver.ts writes
   // it behind POST /api/dispatch/loads/:id/dispatch. Pinned for the schema-only LR-D1 (0370) only.
+  [
+    "road_test_examiners",
+    "ROAD-TEST-PLAN.md RT0 (0372) ships the table schema-only, because its first reader cannot share " +
+      "the merge that creates it. RT3's POST /api/recruitment/road-test-examiners writes it; the entry " +
+      "leaves in that merge, the same shape as load_dispatches.",
+  ],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
