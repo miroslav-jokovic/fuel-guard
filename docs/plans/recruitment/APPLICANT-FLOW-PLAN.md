@@ -689,3 +689,12 @@ Append a dated line per step. Never edit §4.
     §391.23(a)(1) wants every state that licensed them in the preceding three years ("held or
     holds"). A licence surrendered on moving states is still asked for nowhere. Awaiting the owner's
     word on whether to widen that wording (a questionnaire version bump, per §7's candidate (a)).
+- **2026-09-25** — **Q-AF4 RULED (a) by the owner ("ok change wording") and BUILT (this PR).** No
+  schema change and no version bump: `additional_licences` never refused an expiry in the past, and
+  the form's copy is not a versioned instrument. The licence screen, its heading and the
+  expectations screen now ask for every licence held *"now or in the last 3 years"*, and the intro
+  names the case the old copy could not collect: *"If you moved from another state … add that
+  state's licence, even if you gave it up."* The years come from `MVR_LOOKBACK_YEARS`
+  (§391.23(a)(1)), which the MVR rule's module owns, so the question and the check cannot drift.
+  ⚠ Drafts started before this merge keep whatever they declared. Only an applicant who has not yet
+  filled in the licence screen sees the new question.
