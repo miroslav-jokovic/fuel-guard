@@ -195,7 +195,7 @@ describe("the board row is the fold's answer, projected", () => {
   });
 
   it("says nobody when there is nothing outstanding", async () => {
-    const kinds = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report"];
+    const kinds = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report", "handbook"];
     const rec = seed({
       qualification_records: kinds.map((kind) => ({
         driver_id: driverId(1), kind, created_at: "2026-09-06T00:00:00Z",
@@ -229,7 +229,7 @@ describe("the board row is the fold's answer, projected", () => {
    * the applicant's own page says otherwise (D-HM2).
    */
   it("keeps the MVR as the office's move while a declared state has no record", async () => {
-    const others = ["clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report"];
+    const others = ["clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report", "handbook"];
     const board = async (mvrStates: string[]) => {
       const rec = seed({
         qualification_records: [
@@ -258,7 +258,7 @@ describe("the board row is the fold's answer, projected", () => {
   });
 
   it("counts a company driver's packet against their own walk", async () => {
-    const kinds = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report"];
+    const kinds = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report", "handbook"];
     const rec = seed({
       qualification_records: kinds.map((kind) => ({
         driver_id: driverId(1), kind, created_at: "2026-09-06T00:00:00Z",
@@ -333,6 +333,8 @@ describe("what it reads, and how much", () => {
         "qualification_records", "psp_requests", "application_packet_marks",
         // Q-HM9's two: the declared employment history and the §391.23(c)(2) contact attempts.
         "driver_employment_history", "employer_inquiries",
+        // HANDBOOK-SIGNING-PLAN.md: one `.in()` for the whole board, like the packet's marks.
+        "handbook_marks",
       ]),
     );
   });
@@ -348,7 +350,7 @@ describe("what it reads, and how much", () => {
    * a set-based read and an N+1. Six applicants folding the §391.23 investigation per driver would
    * read thirteen.
    */
-  it("costs the same five queries for six applicants as for one", async () => {
+  it("costs the same six queries for six applicants as for one", async () => {
     const one = seed();
     await boardChecklists(one.client, ORG, [applicant(1)], NOW);
 
@@ -360,7 +362,8 @@ describe("what it reads, and how much", () => {
       NOW,
     );
     expect(many.queries.length).toBe(one.queries.length);
-    expect(many.queries.length).toBe(5);
+    // Six since the handbook's marks joined the board (one `.in()` for all of them), never per row.
+    expect(many.queries.length).toBe(6);
   });
 
   /**

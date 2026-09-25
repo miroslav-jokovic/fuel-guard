@@ -88,6 +88,9 @@ export const DQ_KIND_LABELS: Record<string, string> = {
   accident: "Accident record",
   psp_report: "PSP crash and inspection record",
   return_to_duty: "Return-to-duty documentation",
+  // Carrier records filed beside the §391.51 set (0373), never DQ requirements themselves.
+  orientation: "Driver safety training (orientation)",
+  handbook: "Signed driver handbook",
   other: "Other document",
 };
 

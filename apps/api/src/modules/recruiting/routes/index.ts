@@ -12,6 +12,7 @@ import { recruitmentWordingRouter } from "./wording.js";
 import { recruitmentChecklistRouter } from "./checklist.js";
 import { recruitmentHiringEvidenceRouter } from "./hiringEvidence.js";
 import { recruitmentRoadTestRouter } from "./roadTest.js";
+import { recruitmentHandbookRouter } from "./handbook.js";
 import { recruitmentSmsConsentRouter } from "./smsConsent.js";
 
 /**
@@ -38,6 +39,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentChecklistRouter()); // where one applicant has got to, folded from evidence (B3)
   router.use(recruitmentHiringEvidenceRouter()); // the MVR, the Clearinghouse query and the drug test, recorded (D1)
   router.use(recruitmentRoadTestRouter()); // the §391.31 road test and its examiners (D2)
+  router.use(recruitmentHandbookRouter()); // the driver handbook and its Representatives (D-HB1..5)
   router.use(recruitmentSmsConsentRouter()); // whether a text reaches an applicant, and recording a stop asked for off-text (SMS4)
   return router;
 }

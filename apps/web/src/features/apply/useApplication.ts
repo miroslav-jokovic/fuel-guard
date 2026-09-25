@@ -6,6 +6,7 @@ import type {
   ApplicationCaptureView,
   AuthorizationPurpose,
   DriverApplication,
+  HandbookStatus,
   PacketPlacement,
 } from "@silvicom/shared";
 
@@ -158,6 +159,11 @@ export interface ApplyInvitation {
    * ⚠ Optional, for `identityComplete`'s reason: a bundle cached from before RT4 reads `undefined`.
    */
   roadTestCertificate?: { testedOn: string } | null;
+  /**
+   * Where the driver handbook stands (HANDBOOK-SIGNING-PLAN.md, D-HB1): null until the application is
+   * filed. Places, never names. ⚠ Optional, for `identityComplete`'s reason.
+   */
+  handbook?: HandbookStatus | null;
 }
 
 /**

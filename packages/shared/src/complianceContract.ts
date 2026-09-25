@@ -48,6 +48,18 @@ export const QUALIFICATION_RECORD_KINDS = [
    * testing record: it names a drug or alcohol programme violation and the SAP's verdict on it.
    */
   "return_to_duty",
+  /**
+   * The carrier's page 24, `DRIVER SAFETY TRAINING`, filed after the office-day orientation (0373,
+   * ORIENTATION-PLAN.md). Not a §391.51 item — company orientation is not federally mandated — so it
+   * is in no DQ requirement list.
+   */
+  "orientation",
+  /**
+   * The carrier's DRIVER HANDBOOK, signed at its five places and countersigned (0373/0374,
+   * HANDBOOK-SIGNING-PLAN.md). Carrier policy, not a §391.51 item; what makes it a gate is the owner's
+   * D-HB5, enforced by the hire, not a DQ requirement.
+   */
+  "handbook",
 ] as const;
 export const qualificationRecordKindSchema = z.enum(QUALIFICATION_RECORD_KINDS);
 export type QualificationRecordKind = (typeof QUALIFICATION_RECORD_KINDS)[number];

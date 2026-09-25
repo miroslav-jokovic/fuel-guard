@@ -61,6 +61,7 @@ interface InvitationRow {
   submitted_at: string | null;
   revoked_at: string | null;
   created_at: string;
+  handbook_signing_opened_at: string | null;
 }
 
 /** The shape `employmentCoverage` judges — the DB row minus everything the arithmetic ignores. */
@@ -156,7 +157,7 @@ export function recruitmentEmploymentRouter(): Router {
          */
         admin
           .from("application_invitations")
-          .select("id, driver_id, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at")
+          .select("id, driver_id, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at, handbook_signing_opened_at")
           .eq("org_id", orgId)
           .in("driver_id", ids)
           .order("created_at", { ascending: false }),

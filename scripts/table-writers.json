@@ -18,6 +18,7 @@
   "application_invitations": [
     "apps/api/src/modules/recruiting/applicationHandoff.ts",
     "apps/api/src/modules/recruiting/applicationReview.ts",
+    "apps/api/src/modules/recruiting/handbookSigning.ts",
     "apps/api/src/modules/recruiting/routes/applicationInvites.ts"
   ],
   "asset_types": [
@@ -512,5 +513,12 @@
   ],
   "road_test_examiners": [
     "apps/api/src/modules/recruiting/roadTest.ts"
+  ],
+  "handbook_marks": [
+    "apps/api/src/modules/recruiting/handbookCeremony.ts",
+    "apps/api/src/modules/recruiting/handbookSigning.ts"
+  ],
+  "carrier_representatives": [
+    "apps/api/src/modules/recruiting/representatives.ts"
   ]
 }

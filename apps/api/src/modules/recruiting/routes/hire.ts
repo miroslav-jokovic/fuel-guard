@@ -67,10 +67,11 @@ export function recruitmentHireRouter(): Router {
       if (isHireError(result)) {
         const status =
           result.code === "not_found" ? 404
-          : result.code === "not_an_applicant" ? 409
+          : result.code === "not_an_applicant" || result.code === "not_ready_to_hire" ? 409
           : result.code === "hire_failed" ? 500
           : 400;
-        res.status(status).json(apiError(result.code, result.message));
+        // `missing` rides beside the envelope so the screen can name each step (Q-HM5, D-HB5).
+        res.status(status).json({ ...apiError(result.code, result.message), missing: result.missing ?? [] });
         return;
       }
 

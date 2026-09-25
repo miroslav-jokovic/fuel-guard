@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   countedPacketMarks,
   driverInquiryQueue,
+  handbookStatus,
   hiringChecklist,
   hiringStep,
   type ApplyingAs,
@@ -86,6 +87,8 @@ export interface BoardInvitation {
   /** AF5 (0369): when the office opened packet signing, in person. */
   signing_opened_at: string | null;
   submitted_at: string | null;
+  /** 0374: when the office opened handbook signing. Optional for a row selected before it. */
+  handbook_signing_opened_at?: string | null;
 }
 
 /**
@@ -141,7 +144,7 @@ export async function boardChecklists(
   const driverIds = applicants.map((a) => a.driverId);
   const invitationIds = applicants.map((a) => a.invitation?.id).filter((id): id is string => Boolean(id));
 
-  const [records, pspRequested, marks, employment, inquiries] = await Promise.all([
+  const [records, pspRequested, marks, employment, inquiries, handbookMarks] = await Promise.all([
     readQualificationRecords(admin, orgId, driverIds),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
     // (D-SEP1) and `lint:table-access` refuses a raw read from recruitment — which is exactly what
@@ -154,6 +157,8 @@ export async function boardChecklists(
     // have been the N+1 this module's header exists to refuse.
     readEmploymentHistory(admin, orgId, driverIds),
     readInquiries(admin, orgId, driverIds),
+    // HANDBOOK-SIGNING-PLAN.md: one `.in()` for the whole board, for the packet marks' reason.
+    readHandbookMarks(admin, orgId, invitationIds),
   ]);
 
   // ⚠ Derived from `now` rather than read separately, so the whole board is folded against ONE
@@ -206,6 +211,16 @@ export async function boardChecklists(
         outstanding: investigationQueue.outstanding.length,
         // ⚠ `awaiting` only — the employer's own move. See `applicantChecklist.ts`'s note.
         awaiting: investigationQueue.outstanding.filter((e) => e.state === "awaiting").length,
+      },
+      // ⚠ The drawer's input exactly (`applicantChecklist.ts`), so the two agree on whose move it is.
+      handbook: {
+        openedAt: a.invitation?.handbook_signing_opened_at ?? null,
+        driverComplete: handbookStatus({
+          submittedAt: a.invitation?.submitted_at ?? null,
+          openedAt: a.invitation?.handbook_signing_opened_at ?? null,
+          filedAt: null,
+          signedPlacementIds: a.invitation ? (handbookMarks.get(a.invitation.id) ?? []).map((r) => r.placement_id) : [],
+        }).driverComplete,
       },
       hiredAt: a.hiredAt,
     });
@@ -317,6 +332,20 @@ async function readQualificationRecords(
  * their own packet and the two must not merge. A driver-keyed count adds last year's twenty-two to
  * this year's none and reports a packet signed that nobody has opened.
  */
+async function readHandbookMarks(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationIds: readonly string[],
+): Promise<Map<string, Array<{ invitation_id: string; placement_id: string }>>> {
+  if (invitationIds.length === 0) return new Map();
+  const { data } = await admin
+    .from("handbook_marks")
+    .select("invitation_id, placement_id")
+    .eq("org_id", orgId)
+    .in("invitation_id", invitationIds);
+  return groupBy((data ?? []) as Array<{ invitation_id: string; placement_id: string }>, (r) => r.invitation_id);
+}
+
 async function readPacketMarks(
   admin: SupabaseClient,
   orgId: string,

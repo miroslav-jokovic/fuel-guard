@@ -103,6 +103,7 @@ export type HiringEvidenceTable =
   | "qualification_records.drug_test"
   | "qualification_records.medical_registry_verification"
   | "qualification_records.road_test"
+  | "qualification_records.handbook"
   | "application_packet_marks"
   | "employer_inquiries"
   | "drivers.hire_date";
@@ -374,17 +375,6 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
     federalGate: false, beforeTravel: false, owes: "us", requires: ["office_approved"],
     evidence: null,
   },
-  // ⚠ NO EVIDENCE TABLE, and the reason is one CHECK constraint: D-HM10 makes the handbook its own
-  // instrument, which needs 0215's `purpose` widened. ⚠ It must land in NEITHER
-  // `APPLICATION_RELEASE_ORDER` nor `SCREENING_PREREQUISITES`, or it arrives on a phone two weeks
-  // before the office day it belongs to. D3 in the queue.
-  {
-    key: "handbook", ordinal: "15", label: "Handbook signed",
-    action: "Sign the handbook",
-    where: "office", phase: "orientation",
-    federalGate: false, beforeTravel: false, owes: "them", requires: ["office_approved"],
-    evidence: null,
-  },
   // ⚠ The gate here is SQL, not an opinion: `record_packet_mark` raises DR032 until `approved_at` is
   // set (migration 0339), and since 0369 DR036 until `signing_opened_at` is. The checklist agreeing
   // with the database is the point.
@@ -394,11 +384,31 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // does the applicant owe the marks. The fold reads that opening as the step being in flight, which
   // is how a step that the office owes first hands over to "Waiting on them" (`hiringChecklist.ts`).
   {
-    key: "application_signed", ordinal: "16", label: "Application signed",
+    key: "application_signed", ordinal: "15", label: "Application signed",
     action: "Sign the application packet in the office",
     where: "office", phase: "office_day",
     federalGate: false, beforeTravel: false, owes: "us", requires: ["office_approved"],
     evidence: { table: "application_packet_marks", label: "Signed packet" },
+  },
+  // ⚠ AFTER the packet, and that is the owner's ruling rather than an accident of order (D-HB1,
+  // 2026-09-25): *"add it as separate step between Application Signed and Hired"*. It was step 15,
+  // before the packet (D-HM10). Two things follow from the new place: the driver's adopted signature
+  // already exists, so the handbook is signed with it; and the receipt's own sentence — *"I certify
+  // that I have passed a safety training"* — is true when it is signed. `handbook_marks` refuses a
+  // mark until the application is filed (0374, HB022), so the order is the database's too.
+  //
+  // ⚠ `owes: "us"` for `application_signed`'s reason: the office opens it at the desk, then the
+  // driver signs its five places, then the office countersigns for the carrier (D-HB3). The fold reads
+  // "opened, driver not finished" as theirs.
+  //
+  // ⚠ Never in `APPLICATION_RELEASE_ORDER` or `SCREENING_PREREQUISITES` (D-HM10): it is not a
+  // permission, and it authorises no vendor call.
+  {
+    key: "handbook", ordinal: "16", label: "Handbook signed",
+    action: "Sign the driver handbook in the office",
+    where: "office", phase: "office_day",
+    federalGate: false, beforeTravel: false, owes: "us", requires: ["application_signed"],
+    evidence: { table: "qualification_records.handbook", label: "Signed handbook" },
   },
   // ⚠ Requires every federal gate, because that is what the owner said hiring IS: "hiring is
   // concluded when applicant is in the office and everything is done and signed and then we do
@@ -419,6 +429,9 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
       // hire is the one that gets forgotten. This is the row that stops "Hired" being offered with
       // a §391.51(b)(3) requirement untouched, which is the whole of Q-HM9.
       "employment_investigation",
+      // ⚠ D-HB5 (owner, 2026-09-25): *"block, he needs to sign it before hiring."* Carrier policy,
+      // not a §391.51 item, and listed for the owner's reason, the same way Q-HM9 is above.
+      "handbook",
     ],
     evidence: { table: "drivers.hire_date", label: "Driver file" },
   },
@@ -445,6 +458,21 @@ export const APPLICATION_SEND_WARNS_ON: readonly HiringStepKey[] = ["mvr", "psp"
 export const OPEN_SIGNING_WARNS_ON: readonly HiringStepKey[] = [
   ...HIRING_STEPS.filter((s) => s.federalGate && s.beforeTravel).map((s) => s.key),
   "road_test",
+];
+
+/**
+ * What the hire REFUSES without (Q-HM5 + D-HB5; `hireApplicant.ts`).
+ *
+ * ⚠ Not `hired.requires`, and the difference is two rulings. Q-HM5 (2026-09-17): *"readyToHire
+ * refuses the hire outright on all six"* federal gates, and *"everything that is not one of the six
+ * warns and never blocks"* — so `employment_investigation` and `application_signed`, which `hired`
+ * lists as what it WAITS for, warn. D-HB5 (2026-09-25) then moved the handbook from "warns" to
+ * "blocks": *"block, he needs sign it before hiring."* So: derived from `federalGate`, plus the one
+ * step the owner named, the shape `OPEN_SIGNING_WARNS_ON` has.
+ */
+export const HIRE_REFUSES_WITHOUT: readonly HiringStepKey[] = [
+  ...HIRING_STEPS.filter((s) => s.federalGate).map((s) => s.key),
+  "handbook",
 ];
 
 /**

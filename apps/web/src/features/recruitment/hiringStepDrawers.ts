@@ -96,6 +96,11 @@ export type HiringDrawerBody =
    */
   | "road_test"
   /**
+   * `HandbookPanel` (HANDBOOK-SIGNING-PLAN.md): open handbook signing at the desk, watch the driver's
+   * five places, countersign for the carrier with a Representative (D-HB3), which files it.
+   */
+  | "handbook"
+  /**
    * The packet's signing ceremony. Since AF5 (D-AF3) the office OPENS it here, at the desk, and the
    * applicant signs on the link that press hands back (`OpenSigningPanel`).
    */
@@ -124,10 +129,10 @@ const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   application_signed: "packet",
   employment_investigation: "investigation",
   hired: "hire",
-  // The three with no evidence table. The fold filters them out, so these are unreachable today.
+  handbook: "handbook",
+  // The two with no evidence table. The fold filters them out, so these are unreachable today.
   orientation_videos: "unbuilt",
   live_orientation: "unbuilt",
-  handbook: "unbuilt",
 };
 
 export const hiringDrawerBody = (key: HiringStepKey): HiringDrawerBody => DRAWERS[key];

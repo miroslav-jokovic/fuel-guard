@@ -57,9 +57,17 @@ describe("hiringEvidenceKind", () => {
     expect(hiringEvidenceKind("invitation_sent")).toBeNull();
     expect(hiringEvidenceKind("permissions_signed")).toBeNull();
     expect(hiringEvidenceKind("application_signed")).toBeNull();
-    // And for the three D3/D4 still have to give an evidence table at all.
+    // And for the two D3/D4 still have to give an evidence table at all.
     expect(hiringEvidenceKind("orientation_videos")).toBeNull();
-    expect(hiringEvidenceKind("handbook")).toBeNull();
+    expect(hiringEvidenceKind("live_orientation")).toBeNull();
+  });
+
+  it("names the handbook's kind — and the recorded-act door still may not file it", () => {
+    // HANDBOOK-SIGNING-PLAN.md: the handbook is proved by a `handbook` record, but only the signing
+    // ceremony files one (with the signed PDF). An upload through D1's door would be a green step with
+    // no signatures behind it.
+    expect(hiringEvidenceKind("handbook")).toBe("handbook");
+    expect(hiringRecordedActKind("handbook")).toBeNull();
   });
 });
 

@@ -254,3 +254,7 @@ the fines list).
   `rls.test.mjs` 552 pass. **Reading the handbook changed Q-OR1 and Q-OR5**, so they are re-asked as
   Q-OR6 and Q-OR8 above. Q-OR7 (the drug-and-alcohol policy is still missing) and Q-OR9 (for counsel)
   are new. OR1–OR3 wait on Q-OR6 and Q-OR8.
+- **2026-09-25** — **Q-OR6 SUPERSEDED by the owner's ruling D-HB1** (`HANDBOOK-SIGNING-PLAN.md`): the
+  handbook is digitised and signed on screen as its own step between Application signed and Hired,
+  not on paper. D-HB2..D-HB5 are in that plan. This plan now covers orientation's page 24 only
+  (Q-OR8 still open) and Q-OR7 (the drug-and-alcohol policy is still missing).

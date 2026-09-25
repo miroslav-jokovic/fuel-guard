@@ -1,0 +1,1629 @@
+[
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "DRIVER HANDBOOK",
+    "b": true
+   }
+  ],
+  "align": "center",
+  "size": "title"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "SILVICOM INC",
+    "b": true
+   }
+  ],
+  "align": "center",
+  "size": "subtitle"
+ },
+ {
+  "k": "page"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Passenger Policy",
+    "b": true
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "The passenger policy for Silvicom Inc, is as follows:"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "-No passengers allowed in the trucks"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "-If a passenger "
+   },
+   {
+    "t": "must",
+    "u": true
+   },
+   {
+    "t": " ride in the truck, prior approval from the insurance company is "
+   },
+   {
+    "t": "REQUIRED",
+    "b": true,
+    "u": true
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "-For insurance company to consider this request, the following has to be met"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "- Specific  passenger must be identified, this includes the following\""
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "- Name, Date of birth, relationship to the driver"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "- Passenger must be over 18 years of age "
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "- Passenger accident policy must be purchased and put on file with Silvicom's Liability Insurance carrier"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "- Cost of passenger accident policy is charged to driver/owner operator "
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "- Passengers would only be allowed for certain trips only - no blanket policy for passengers"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "IF THE INSURANCE COMPNAY APPROVES A SPECIFIC  PASSENGER FOR A SPECIFIC TIME IN THE TRUCK, THE OWNER OPERATOR/DRIVER MUST HAVE WRITTEN PERMISSION WITH THEM AT ALL TIMES IN THE TRUCK FROM SILVICOM"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "THERE IS NO GUARANTEE THE INSURANCE COMPANY WILL AGREE TO ACCEPT PASSENGERS"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "DRIVERS/OWNER OPERATORS THA DO NOT FOLLOW THESE RULES ARE SUBJECT DO DISCIPLINARY ACTION SUBJECT TO TEMINATION"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "page"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Silvicom Inc"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "1301 Armitage Ave"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Melrose Park IL 60160"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "708-236-5732"
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "To: all drivers and owner operators"
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Occupational  Accident Insurance (OAI) cost per month is $135.00 for Owner operators and at no cost for company drivers."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "And here are all of the driver's responsibilities at any time they are employed by Silvicom Inc: "
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "-"
+   },
+   {
+    "t": "Truck needs to be kept clean at any time",
+    "b": true
+   },
+   {
+    "t": ". Failure to do so, fine is $ 50.00"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "- "
+   },
+   {
+    "t": "Truck maintenance",
+    "b": true
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "* Check on the tires PSI"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "*Check on the all fluids which maintain the truck-oil, antifreeze, windshield washer, etc."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "* Oil change needs to be done every 35 000 miles."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Failure to keep up with the maintenance on the truck will be fined-$100.00."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Any repairs due to driver's irresponsibility will be deducted from their pay check."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": " *"
+   },
+   {
+    "t": "Fuel requirements",
+    "b": true
+   },
+   {
+    "t": " "
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Read this section carefully. These rules protect the company from theft and keep your fuel card working. Breaking them costs you money and can cost you your job."
+   }
+  ]
+ },
+ {
+  "k": "rule",
+  "title": [
+   {
+    "t": "1. Where you can fuel.",
+    "b": true
+   }
+  ],
+  "body": [
+   {
+    "t": " Fuel only at "
+   },
+   {
+    "t": "Pilot",
+    "b": true
+   },
+   {
+    "t": " and "
+   },
+   {
+    "t": "Flying J",
+    "b": true
+   },
+   {
+    "t": ". Your fuel card (EFS) is locked to these two brands, so anywhere else the pump will simply decline the card. Don't waste time trying other stops."
+   }
+  ]
+ },
+ {
+  "k": "rule",
+  "title": [
+   {
+    "t": "2. Fueling once a day.",
+    "b": true
+   }
+  ],
+  "body": [
+   {
+    "t": " You do "
+   },
+   {
+    "t": "not",
+    "b": true
+   },
+   {
+    "t": " have to fuel every day. Fuel only when you actually need it. But when you do fuel, you can only do it "
+   },
+   {
+    "t": "once per day",
+    "b": true
+   },
+   {
+    "t": " — one fill-up per 24 hours. If you truly need a second fill in the same day, call the fuel manager first and get an OK. A second fill without approval gets charged back to you."
+   }
+  ]
+ },
+ {
+  "k": "rule",
+  "title": [
+   {
+    "t": "3. Fill it all the way up.",
+    "b": true
+   }
+  ],
+  "body": [
+   {
+    "t": " When you fuel, "
+   },
+   {
+    "t": "top the tank off completely",
+    "b": true
+   },
+   {
+    "t": ". No partial fills. The only time a partial fill is okay is when the tank is already full, or an approved emergency limits how much you can buy."
+   }
+  ]
+ },
+ {
+  "k": "rule",
+  "title": [
+   {
+    "t": "4. Reefer fuel is separate — always.",
+    "b": true
+   }
+  ],
+  "body": [
+   {
+    "t": " If you're pulling a reefer, fuel the reefer on its "
+   },
+   {
+    "t": "own separate transaction",
+    "b": true
+   },
+   {
+    "t": " and pick the "
+   },
+   {
+    "t": "reefer fuel",
+    "b": true
+   },
+   {
+    "t": " option at the pump or card prompt. "
+   },
+   {
+    "t": "Never",
+    "b": true
+   },
+   {
+    "t": " run diesel from the tractor pump into the reefer by moving the same gun over — that is not allowed. Tractor fuel and reefer fuel are two different products and must be rung up as two separate purchases with the right product selected each time."
+   }
+  ]
+ },
+ {
+  "k": "rule",
+  "title": [
+   {
+    "t": "5. Emergencies (ONE9, California, or anywhere off-network).",
+    "b": true
+   }
+  ],
+  "body": [
+   {
+    "t": " Because your card is locked to Pilot and Flying J, any other location — including ONE9 (Love's) — will be "
+   },
+   {
+    "t": "declined automatically",
+    "b": true
+   },
+   {
+    "t": ". If you hit a real emergency and have no other option, "
+   },
+   {
+    "t": "call the fuel manager first",
+    "b": true
+   },
+   {
+    "t": " at 872-302-7450 or 708-236-5732 ext. 117. If it's approved, you can buy "
+   },
+   {
+    "t": "up to 50 gallons only",
+    "b": true
+   },
+   {
+    "t": ". No approval, no fuel."
+   }
+  ]
+ },
+ {
+  "k": "rule",
+  "title": [
+   {
+    "t": "6. California.",
+    "b": true
+   }
+  ],
+  "body": [
+   {
+    "t": " Same rule: "
+   },
+   {
+    "t": "do not fuel in California.",
+    "b": true
+   },
+   {
+    "t": " Only in a real emergency, with approval, and "
+   },
+   {
+    "t": "50 gallons maximum.",
+    "b": true
+   }
+  ]
+ },
+ {
+  "k": "rule",
+  "title": [
+   {
+    "t": "7. You must be on a load to fuel.",
+    "b": true
+   }
+  ],
+  "body": [
+   {
+    "t": " You can only fuel when you're "
+   },
+   {
+    "t": "assigned to an active load",
+    "b": true
+   },
+   {
+    "t": ". If you're not on a dispatch, the card won't authorize and the pump will decline. Don't try to fuel between loads or when you're not working."
+   }
+  ]
+ },
+ {
+  "k": "rule",
+  "title": [
+   {
+    "t": "8. Don't fuel heading into Chicago if you're leaving the company.",
+    "b": true
+   }
+  ],
+  "body": [
+   {
+    "t": " If you're on your way out of Silvicom, do "
+   },
+   {
+    "t": "not",
+    "b": true
+   },
+   {
+    "t": " fuel while driving back into Chicago, IL. Fine: $100.00."
+   }
+  ]
+ },
+ {
+  "k": "rule",
+  "title": [
+   {
+    "t": "9. Receipts.",
+    "b": true
+   }
+  ],
+  "body": [
+   {
+    "t": " Turn in every fuel receipt, same as always. A lost fuel receipt is a $25.00 fine."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Any fuel problems or questions — call the fuel manager at 872-302-7450 or 708-236-5732 ext. 117."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "    "
+   },
+   {
+    "t": "*Receipts",
+    "b": true
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Receipts for all purchases ( fuel, fax, truck accessories, repairs, etc) need to be sent to the office. Failure to return any receipt  will not be reimbursed to the driver or it is going to be deducted from its paycheck."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Lost fuel receipt-$25.00 fine"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Lost fuel card-$50.00 fine"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "* Paperwork needs to be sent after every delivery via Trip Pack and transflo needs to be done after each load, Only bills of lading are to be sent via Transflo."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "All paperwork needs to be received in the office every Monday."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "You must include",
+    "b": true
+   },
+   {
+    "t": ":"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "*Bills of Lading"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "  -Lost BOL will delay your pay"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "*Receipts"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "*Trip Reports"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "* Log books"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Failure to do will result in delaying your paycheck until all of the above items are received."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "* Cash advance is allowed, maximum is $200.00 per week and there is 10% fee."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "sign",
+  "id": "h1",
+  "fields": [
+   {
+    "field": "name",
+    "label": "DRIVERS NAME"
+   },
+   {
+    "field": "signature",
+    "label": "DRIVERS SIGNATURE"
+   },
+   {
+    "field": "date",
+    "label": "DATE"
+   }
+  ]
+ },
+ {
+  "k": "page"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Supplemental",
+    "b": true
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Silvicom Inc Driver Policy and Driver Rules",
+    "b": true
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "In order to provide a consistent and professional driving force, Silvicom inc has promulgated the following rules for driver behavior and compensation. These rules can be changed from time to time By Silvicom Inc and copies shall be distributed to all drivers by email or fax or mail. The driver's signature on this policy statement indicated that driver is aware of these rules and agrees to these rules. these rules are in additional to rules and policies delineated in Silvicom Safety Standards and Policies attached hereto and made a part hereof. "
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "1)  All mileage  shall be determined by computations provided by mileage provided by the program PC Miler. Said mileage shall be shown on settlement statement forwarded to Independent contractor/Driver either through email or mail. "
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "The independent Contractor/Driver shall have 14 days after receipt of said mileage determination to file any objections in writing to carrier. Said objection shall explain any special circumstance that would render the computation of PC Miler inaccurate. The mileage as determined by PC Miler shall be presumed correct, but Carrier will consider any claim based upon emergency road conditions or detours."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "With in 14 days of receipt of Independent Contractor's/Driver’s objection Carrier shall deliver a written reply either indicating any adjustments that will be made. The finding of Carrier shall be final."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "2) Empty miles from last delivery to drivers home time city are not paid and deducted from his next empty/loaded miles when he returns to duty/dispatch/driving."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "3) Due to possible charges, fines and claims last settlement with driver to be paid no later than 45 days from independent contractor/driver leaving Silvicom service.  Possible charges and offsets to include but not be limited to , equipment damage, unpaid tolls, duty violations and wear and tear on trailers(if applicable)."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "4) From time to time at drivers/Independent Contractor's request, Silvicom may advance funds to Driver/ Independent Contractor. There shall be a minimum $ 5.00 transaction fee for each advance."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "5) If driver/independent contractor loses or misplaces bill of lading, driver/independent contractor next settlement shall not reflect those miles until Silvicom is paid by broker. Silvicom shall use its best efforts to seek payment form broker and Driver/Independent Contractor shall cooperate in providing documents required. "
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "6) it is important for Silvicom to have proper receipts for accounting purposes. Therefore, any missing or lost fuel or expense receipts shall be charged to Driver/Independent Contractor on settlement at he rate of $10.00 per missing receipt."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "7) Any lumper fee not reported to Silvicom within 24 hours of lumper service shall be responsibility of driver/ independent contractor."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "8) Drivers/ Independent Contractors using Silvicom credit to purchase fuel, shall purchase fuel only once within 24 hour period. The second transaction shall be charged to driver at settlement. Silvicom reserves the right to waive this charge and authorize a second fueling, but driver/independent contractor must obtain Silvicom's written or texted approval for each additional purchase during that 24 hour period."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "9) Without Silvicom approval truck and/or trailer wash done more than 50 miles from Silvicom corporate headquarters will be at Driver's/Independent Contractor's expense."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "10) Driver/Independent Contractor shall be responsible for daily truck preventative maintenance.  Maintenance to include but not be limited to daily tire check to 100psi, daily check of all fluids (including wiper fluids), monitor mileage and notify Silvicom's equipment for oil changes every 35 thousand miles. Failure to maintain and check vehicles shall result in minimum  $100 per each occurrence. However, upon proof that damage to equipment or cargo is directly related to Driver/Independent Contractor failure to perform said periodic check, Driver/Independent Contractor shall be responsible for all consequential damages."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "11) Silvicom shall be responsible for all tolls for it’s own vehicles, however, Driver/Independent Contractor to be responsible for all toll violations."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "12) If Driver/Independent Contractor is using Silvicom 's equipment, at the end of Driver's/Independent Contractor’s relationship with Silvicom, Driver/Independent Contractor shall be responsible for return of the equipment in proper working order and undamaged ( normal wear and tear excepted) to Silvicom’ s corporate headquarters in Melrose Park, IL. If the equipment is not returned to Silvicom’ s corporate headquarters within  3 days of termination of Driver/Independent Contractor/Silvicom relationship, Driver/Independent Contractor shall be responsible for all costs to return said equipment to the corporate headquarters including but not  limited to substitute driver/independent contractor, fuel and towing if necessary."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "13) Driver/Independent Contractor shall be responsible for all non-mechanical towing expenses."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "14) Arbitration. All claims and disputes arising  under or relating to any agreement between Silvicom and Driver/Independent Contractor are to be settled by binding arbitration in the state of Illinois or another location mutually agreeable to the parties. The arbitration shall be conducted on  a confidential  basis pursuant to the Commercial Arbitration Rules of the American Arbitration Association. Any decision or award as a result of any such arbitration proceeding shall be in writing and shall provide an explanation for all conclusions of law and fact and shall include the assessment of costs, expenses. and reasonable attorney's fees . Any such arbitration shall be conducted by an arbitrator experienced in Interstate Commerce, trucking and independent contractor law and shall include a written record of the arbitration hearing. The parties reserve the right to object to any individual who shall be employed by or affiliated with a competing organization or entity. An award of arbitration may be confirmed in a court of competent jurisdiction. "
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "15) All contracts between Silvicom and Independent Contractor/Driver shall be governed by the laws to  the State of Illinois. Also, any question specifically related to the status of Driver as Independent  Contractor shall be determined by the laws of the state of Illinois and not other jurisdiction. "
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "16) Silvicom will be responsible for recruiting expense for flight ticket and hotel, or rental vehicle previously agreed on, unless driver leaves the company in the first 3 months from hire date. In which case, those expenses will be responsibility of the driver ."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "17) Drivers and/or Independent contractors are not allowed to reach out to broker/shipper/receiver  by themselves. All communication will be conducted thru Silvicom’ s dispatchers. Driver and/or Independent contractor will answer broker’s calls and inform Silvicom’ s dispatcher about it, but they are not allowed to contact individual brokers/shippers/receivers  and/or their corporate office first. All questions and concerns about loads should be addressed to Silvicom’ s dispatch team"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "18. Silvicom is not liable or responsible for drivers/independent contractors personal items in assigned truck. Please clear your belongings when truck is left for service and/or home time period especially. "
+   }
+  ]
+ },
+ {
+  "k": "page"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Hours of Service Policy "
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Effective November 20th, 2013"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Hours of service Requirements are detailed in CFR 49 Part 395 of FMCSA. Those regulations were written to reduce accidents/injuries due to driver fatigue. The Rules are as follow:"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "11 HOUR RULE",
+    "b": true
+   },
+   {
+    "t": ": You can not drive again until you have completed a 10 hour break after driving 11 hours since you last 10 hour break"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "14 HOUR RULE:  ",
+    "b": true
+   },
+   {
+    "t": "You cannot drive again until you have completed a 10 hour break after being on duty for 14 hours since your last 10 hour break."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "60 HOUR RULE: ",
+    "b": true
+   },
+   {
+    "t": " You cannot drive again until you have hours available after having been on duty 60 hours in the past 7 days-to be able to be on duty again you have to be off duty for at least 34  consecutive hours."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "70 HOUR RULE: ",
+    "b": true
+   },
+   {
+    "t": "You cannot drive again until you have hours available after having been on duty 70 hours in the past 8 days-to be able to be on duty again you have to be off duty for at least 34  consecutive hours."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "FLASIFICATION :  ",
+    "b": true
+   },
+   {
+    "t": "You cannot falsify your log books or hide hours of service violation. All fuel receipts as well as any other documents with a date or time will be checked against logs for accuracy."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "DISCIPLINARY PROGRAM FOR LOG VIOLATIONS",
+    "b": true
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "1st violation-",
+    "b": true
+   },
+   {
+    "t": " Verbal warning "
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "2nd violation",
+    "b": true
+   },
+   {
+    "t": " - re-orientation "
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "3rd  violation",
+    "b": true
+   },
+   {
+    "t": "-  $200 penalty"
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "4th  violation-  ",
+    "b": true
+   },
+   {
+    "t": "$500 penalty and/or termination "
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Trying to falsify and turning device off while driving towards pick up or delivery or using PC time while not allowed  may result in termination."
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Personal conveyance would be acceptable when a driver is looking for a safe place to park after shift in case A) He/she is over hours and must leave shipper/receiver and/or B) Driver is running out of hours  and is stuck in the traffic C)  Truck stop is full and there is no parking space there. This includes traveling closer to the final load destination if that location is the closest, most reasonable safe location. But be advised that drivers can't use personal conveyance to  A) move a load closer to where it needs to be by bypassing available locations to park, B)bobtail or operate an empty trailer to retrieve another load or C)reposition a CMV or transport it to a maintenance facility. So the driver must enter note on ELD confirming that they did not bypass ANY available parking location and provide proof(receipts, driver written statement or text, shipper's/receiver's written statement, or police note/statement including police officer's info)"
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Safety policy and Fines:"
+   }
+  ],
+  "heading": true
+ },
+ {
+  "k": "table",
+  "head": [
+   "Fine List",
+   "Fine"
+  ],
+  "rows": [
+   {
+    "item": [
+     "Late Logs (more than 15 days)"
+    ],
+    "fine": [
+     "$ 5.00 per day"
+    ]
+   },
+   {
+    "item": [
+     "Failure to report an accident requiring drug test"
+    ],
+    "fine": [
+     "$ 500.00 & Termination"
+    ]
+   },
+   {
+    "item": [
+     "Failure to turn in a State Roadside Inspection or Ticket on time"
+    ],
+    "fine": [
+     "$ 50.00"
+    ]
+   },
+   {
+    "item": [
+     "Allowing an unqualified or unauthorized driver to drive"
+    ],
+    "fine": [
+     "$ 500.00 & Termination"
+    ]
+   },
+   {
+    "item": [
+     "Failure to report or notify company of suspended license"
+    ],
+    "fine": [
+     "$ 100.00 & Termination"
+    ]
+   },
+   {
+    "item": [
+     "Unauthorized riders"
+    ],
+    "fine": [
+     "$ 500.00 & Termination"
+    ]
+   },
+   {
+    "item": [
+     "Failure to follow delivery instructions"
+    ],
+    "fine": [
+     "$ 200.00 per load"
+    ]
+   },
+   {
+    "item": [
+     "Pulling unreported and unauthorized broker loads"
+    ],
+    "fine": [
+     "$ 500.00 & Termination"
+    ]
+   },
+   {
+    "item": [
+     "Missing check calls"
+    ],
+    "fine": [
+     "$ 25.00 per call"
+    ]
+   },
+   {
+    "item": [
+     "Failure to call back after page"
+    ],
+    "fine": [
+     "$ 25.00 per call"
+    ]
+   },
+   {
+    "item": [
+     "Failure to scan bills within 24 hours of delivery"
+    ],
+    "fine": [
+     "$ 50.00 each"
+    ]
+   },
+   {
+    "item": [
+     "Failure to report trailer damage"
+    ],
+    "fine": [
+     "Charged for repair"
+    ]
+   },
+   {
+    "item": [
+     "Tickets received for unreported trailer defects or damage"
+    ],
+    "fine": [
+     "Driver pays"
+    ]
+   },
+   {
+    "item": [
+     "Switching license plates or parts from other trailers"
+    ],
+    "fine": [
+     "$ 100.00"
+    ]
+   },
+   {
+    "item": [
+     "Using customers or company phones without permission"
+    ],
+    "fine": [
+     "$ 100.00 per report"
+    ]
+   },
+   {
+    "item": [
+     "Littering of customer or company property"
+    ],
+    "fine": [
+     "$ 100.00 per report"
+    ]
+   },
+   {
+    "item": [
+     "Failure to notify or give safety department “change notice” of driver",
+     "Or truck changes within 24 hours of changes, such as (vacation,",
+     "Disqualification, out of service, return to service, etc.)"
+    ],
+    "fine": [
+     "$ 25.00 per day"
+    ]
+   },
+   {
+    "item": [
+     "Failure to turn trailer inspections as required"
+    ],
+    "fine": [
+     "$ 50.00 per week"
+    ]
+   },
+   {
+    "item": [
+     "Late delivery charge"
+    ],
+    "fine": [
+     "$ 100.00 per day, if more days",
+     "$ 200.00"
+    ]
+   },
+   {
+    "item": [
+     "Failure to scale and call company for overweight loads"
+    ],
+    "fine": [
+     "Driver Pays Tickets"
+    ]
+   },
+   {
+    "item": [
+     "Any illegal Parking Tickets"
+    ],
+    "fine": [
+     "Driver Pays"
+    ]
+   },
+   {
+    "item": [
+     "Failure to report Out of Service violation within 24 hours"
+    ],
+    "fine": [
+     "$ 25.00 per day"
+    ]
+   },
+   {
+    "item": [
+     "1st DOT violation"
+    ],
+    "fine": [
+     "$ 200.00"
+    ]
+   },
+   {
+    "item": [
+     "2nd DOT violation"
+    ],
+    "fine": [
+     "$ 500.00"
+    ]
+   },
+   {
+    "item": [
+     "3rd DOT violation"
+    ],
+    "fine": [
+     "$ Termination"
+    ]
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "After 3 violations/tickets there will be a charge of a $ 1000.00"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "per violation and $ 500.00 per OOS violation."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "General Log Book Violation: Verbal Warning & Retraining, and $100 Penalty"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "General Traffic Violations: Written Warning and $150 Penalty"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "OOS Maintenance Violation: Written Warning and $ 500 Penalty"
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Bonus",
+    "u": true
+   }
+  ],
+  "heading": true
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "All inspections with “No violations discovered” will be paid: "
+   }
+  ]
+ },
+ {
+  "k": "table",
+  "head": null,
+  "rows": [
+   {
+    "item": [
+     "-for level  3"
+    ],
+    "fine": [
+     "$ 50.00"
+    ]
+   },
+   {
+    "item": [
+     "-for level 2"
+    ],
+    "fine": [
+     "$ 100.00"
+    ]
+   },
+   {
+    "item": [
+     "-for level  1"
+    ],
+    "fine": [
+     "$ 500.00"
+    ]
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "SILVICOM, INC. reserves the right to amend, change or revise any of the forgoing provisions. New provisions can be added at any time. Any, such amendment, changes, revision or addition in writing, shall and will constitute integral part of this handbook as of its effective date."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "If you have DOT inspection, you have to send it to the office at the same day."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "sign",
+  "id": "h2",
+  "fields": [
+   {
+    "field": "name",
+    "label": "Driver’s Name:"
+   },
+   {
+    "field": "signature",
+    "label": "Driver’s signature:"
+   },
+   {
+    "field": "date",
+    "label": "Date:"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Additional charges will be made in for damaging, not returning and misusing ELD/ tablet  provided by Silvicom Inc."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "All OWNER OPERATORS will be charged $40.00 per month for use of ELD."
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "For keeping device after termination, owner operators and company drivers will be charged  $ 500.00 per device."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "For misuse, intentionally causing device not to work or any way tampering with device, owner operators and company drivers will be charged "
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "$500.00 for first violation"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "$1,000.00 for second violation"
+   }
+  ]
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "TERMINATION for third violation."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "By signing this, I agree to safety penalty policy."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "sign",
+  "id": "h3",
+  "fields": [
+   {
+    "field": "signature",
+    "label": "Driver/Owner operator"
+   },
+   {
+    "field": "date",
+    "label": "Date"
+   }
+  ]
+ },
+ {
+  "k": "page"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "I, Driver, have read the following rules and policies of Silvicom Inc and understand them. I hereby agree that my status as an independent contractor and my contractual compensation from Silvicom shall be governed by these policies and all agreements executed between Driver and Silvicom . I further, acknowledge that Silvicom shall retain the right to amend said rules and regulations and they  shall become effective 5 calendar days after delivery of said amendments to me. "
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "Agreed:"
+   }
+  ]
+ },
+ {
+  "k": "sign",
+  "id": "h4",
+  "fields": [
+   {
+    "field": "signature",
+    "label": "Driver"
+   },
+   {
+    "field": "date",
+    "label": "Date:"
+   }
+  ]
+ },
+ {
+  "k": "sign",
+  "id": "h4c",
+  "fields": [
+   {
+    "field": "signature",
+    "label": "Silvicom Inc"
+   }
+  ]
+ },
+ {
+  "k": "page"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "SILVICOM INC",
+    "b": true
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "SAFETY STANDARDS AND POLICIES RECEIPT",
+    "b": true
+   }
+  ],
+  "align": "center"
+ },
+ {
+  "k": "p",
+  "runs": [
+   {
+    "t": "I certify that I have passed a safety training at Silvicom Inc and I have read and understood their safety standards and policies."
+   }
+  ]
+ },
+ {
+  "k": "gap"
+ },
+ {
+  "k": "sign",
+  "id": "h5",
+  "fields": [
+   {
+    "field": "name",
+    "label": "Driver name"
+   },
+   {
+    "field": "signature",
+    "label": "Driver signature"
+   },
+   {
+    "field": "date",
+    "label": "Date"
+   },
+   {
+    "field": "ssn",
+    "label": "SSN"
+   }
+  ]
+ }
+]

@@ -179,3 +179,56 @@ HB1–HB5 ship in ONE merge after 0374 is visible in production, as RT1–RT3 di
   Representative, and the matrix gained the two cases that kill it). `rls.test.mjs` seeds both tables
   (556 pass). Producer waivers for this one merge. **Next: HB1–HB5 in one merge**, after 0374 shows in
   production.
+- **2026-09-25** — **0374 merged** (#1051, `2c41541`) and **checked in production** before its reader
+  was committed: `information_schema` shows both tables and the three invitation columns, and
+  `pg_trigger` shows all three guards.
+- **2026-09-25** — **HB1–HB5 DONE in one merge** (in PR). No migration.
+  · **HB1, the text.** `applicationPdf/handbook/handbookText.json` (155 blocks), extracted run by run
+    from the committed `.docx`. `handbookText.test.ts` re-reads that file and proves two things: the
+    words are the same multiset (every word, typos included, the same number of times), and the
+    flowing text is in the carrier's order (signature captions excepted, since the layout regroups
+    them; a caption counts only near a rule). `HANDBOOK_VERSION` is a hash of the text itself. JSON
+    beside its renderer, not a shared literal: only the API draws it. The signing places are in shared
+    (`handbookContract.ts`: `h1`–`h5` for the driver, `h4c` for the carrier; `maskedSsn`;
+    `handbookStatus`).
+  · **HB2, the renderer.** `handbookPdf.ts` draws 11 sheets: a cover; the sections the carrier started
+    on a new page start on one; its bold and underline are kept; the fuel rules have a hanging head;
+    the fines schedule and the bonus are ruled two-column tables. The SSN prints `•••1234` (D-HB2).
+    Every page says `text <version> · page x of y`, and the countersignature says who applied it.
+    **Rasterised and looked at, with a long Serbian-Polish name. Three defects were found only that
+    way:** (1) pdfkit's `continued` chain overprinted centred lines of mixed weight (the log-violation
+    ladder), so they are now placed by hand; (2) the header's bold leaked into the first fines row
+    after a page break; (3) columns split at 2+ spaces moved `-for level  3` into the fine column, so
+    the split is now at 4+ spaces or tabs. Two more came out of the same pass: footers stamped below
+    the margin made pdfkit add a page each (11 pages became 22), and block 4's `Date:` printed twice.
+  · **HB3, the API.** `representatives.ts`: add with a PNG in `<org>/representatives/`; delete, where
+    23001 becomes 409 `has_signed`; the picture goes with the row. `handbookSigning.ts`: open (after
+    filing, idempotent) and countersign. Countersign refuses until all five driver places are signed,
+    records `h4c` with the Representative AND the office user, files the PDF and a `handbook`
+    record, and stamps `handbook_filed_at`. A retry after a failed filing keeps the Representative
+    already recorded. `handbookCeremony.ts`: the driver's mark, signed with the ADOPTED packet
+    signature and never a new one. On the link, `/:token/handbook.pdf` and `/:token/handbook/mark` are
+    on the ceremony's per-link bucket, and `GET /:token` carries `handbook`. Office routes:
+    `/representatives` and `/applicants/:id/handbook{,/open,/countersign}`, each act audited.
+  · **HB4, the screens.** `HandbookPanel.vue` (the step's drawer): one move at a time, plus the
+    Representatives list. `HandbookSigning.vue` on the filed card of the applicant's link: nothing
+    before filing; before opening, "Check again" and deliberately NO poll (several drivers share one
+    office address); while open, the handbook through the permissions' viewer and five Sign buttons;
+    once filed, their signed copy.
+  · **HB5, the step and the gate.** `handbook` is step 16, between `application_signed` and `hired`,
+    with evidence `qualification_records.handbook`, and the checklist and the board feed it the same
+    input. ⚠ **The gate is NOT `hired.requires`.** That would have contradicted Q-HM5, which makes
+    `employment_investigation` and `application_signed` warn-only. `HIRE_REFUSES_WITHOUT` is the six
+    `federalGate` steps plus `handbook`, and `hireApplicant` refuses `not_ready_to_hire` (409, with
+    `missing`) through the checklist's own fold. The preview names the blockers before the press.
+    Production had hired nobody through this door (zero `compliance.applicant_hired`, 8 applicants
+    waiting), so the refusal stalls no hire in flight.
+  · **49 of 49 mutants killed** across shared, API, renderer, text, limiter, board and both screens.
+    Two survived the first run, and both were test gaps: the resume test asked for the Representative
+    already recorded, so it could not tell "keep" from "replace"; and no reading-copy fixture held an
+    `h4c` mark. Both tests were strengthened and both mutants re-run killed. All CI gates, web
+    `lint:tokens`, `pnpm lint`, the three typechecks, and the shared (3199), API (4666+) and web
+    (2219) suites pass.
+  · **Owed by the office before the first real handbook:** add at least one Representative with a
+    signature PNG from the Handbook step's drawer. Then walk one applicant: open handbook signing,
+    sign the five places on the link, and countersign.

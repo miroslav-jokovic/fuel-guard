@@ -313,6 +313,9 @@ describe("restricted qualification records (Phase G)", () => {
   const NOT_RESTRICTED = [
     "employment_application", "mvr", "annual_mvr_review", "road_test", "cdl_equivalency",
     "eldt", "spe_certificate", "medical_registry_verification", "accident",
+    // 0373. Carrier policy and training records: neither is a §382.401(a) testing record nor §391.53
+    // investigation history, so both are readable wherever the qualification file is.
+    "orientation", "handbook",
   ] as const;
 
   it("classifies every qualification-record kind, exhaustively", () => {

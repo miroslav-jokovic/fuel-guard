@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { returnToDutyBlocked } from "./returnToDuty.js";
+import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import {
+  hireBlockers,
   hiringGapsAfterHire,
+  hiringStep,
   planHireHandoff,
   validateHireRequest,
   type HandoffEmployment,
@@ -20,19 +23,30 @@ import {
  * §391.51 does not accept: `driver_employment_history`'s inquiry columns, projected into dated
  * `previous_employer_inquiry` / `previous_employer_response` records.
  *
- * ── HIRE IS A FACT, NOT A PERMISSION ───────────────────────────────────────────────────────────
- * Nothing here refuses to record a hire because the file is incomplete. The carrier hired somebody;
- * a product that declines to write that down does not prevent the hire, it just stops representing
- * reality — and the driver would then have no §391.51 file at all, which is strictly worse than one
- * with a named gap. So the response REPORTS what is still outstanding and the DQF page shows it,
- * rather than the API pretending to be a gate it cannot be.
+ * ── WHAT IT REFUSES, AND WHAT IT ONLY REPORTS ─────────────────────────────────────────────────
+ * ⚠ This said *"HIRE IS A FACT, NOT A PERMISSION — nothing here refuses to record a hire because the
+ * file is incomplete"* until 2026-09-25, and the owner had already ruled the opposite. Q-HM5
+ * (2026-09-17): the hire REFUSES outright without the six federal gates, *"we will not even bring him
+ * if this not green"*; D-HB5 (2026-09-25) added the handbook: *"block, he needs sign it before
+ * hiring."* That ruling was never built, and production had hired nobody through this door when it
+ * was (zero `compliance.applicant_hired` rows), so the refusal stalls no hire in flight. The list is
+ * `HIRE_REFUSES_WITHOUT`, derived from the catalogue, and the fold is the checklist's own — the
+ * refusal and the drawer's green cannot disagree.
+ *
+ * Everything else still REPORTS rather than refuses: `outstanding` (the §391.51(b) items the file
+ * lacks) and §40.25(j)'s `returnToDutyBlocked`, which bars the driving, not the hiring.
  *
  * The rules are pure (`hireHandoff.ts`), the atomicity is SQL (`hire_applicant`, 0218), and this
  * service is the part that reads, plans, calls and audits. Every query org-filters itself: this runs
  * as the service role, which bypasses RLS. Pinned by "scopes every read to the caller's org".
  */
 
-export type HireError = { code: string; message: string };
+export type HireError = {
+  code: string;
+  message: string;
+  /** `not_ready_to_hire`: the refusing steps still open, in the catalogue's order (Q-HM5, D-HB5). */
+  missing?: string[];
+};
 
 export interface HireResult {
   driverId: string;
@@ -72,6 +86,23 @@ interface EmploymentDbRow {
   inquiry_response_on: string | null;
 }
 
+/**
+ * The steps this hire is refused for, or null when it may proceed (Q-HM5, D-HB5).
+ *
+ * ⚠ The checklist's own read and fold — never a second query that counts evidence its own way.
+ */
+async function hireRefusal(admin: SupabaseClient, orgId: string, driverId: string, today: string): Promise<HireError | null> {
+  const checklist = await applicantChecklist(admin, orgId, driverId, today);
+  if (isChecklistError(checklist)) return { code: checklist.code, message: checklist.message };
+  const missing = hireBlockers(checklist);
+  if (missing.length === 0) return null;
+  return {
+    code: "not_ready_to_hire",
+    message: `Hiring waits for: ${missing.map((k) => hiringStep(k).label).join(", ")}.`,
+    missing,
+  };
+}
+
 const toHandoff = (r: EmploymentDbRow): HandoffEmployment => ({
   id: r.id,
   employerName: r.employer_name,
@@ -93,7 +124,7 @@ export async function previewHire(
   admin: SupabaseClient,
   orgId: string,
   driverId: string,
-): Promise<Omit<HireResult, "hireDate" | "filed"> & { status: string; fullName: string } | HireError> {
+): Promise<Omit<HireResult, "hireDate" | "filed"> & { status: string; fullName: string; hireBlockedBy: string[] } | HireError> {
   const { data: driver } = await admin
     .from("drivers")
     .select("id, full_name, status")
@@ -115,6 +146,8 @@ export async function previewHire(
     // hiring is still permitted (the regulation bars the driving, not the hiring), and the person
     // who has to go and ask the applicant for the paperwork is standing right here.
     returnToDutyBlocked: await returnToDutyBlocked(admin, orgId, driverId),
+    // Q-HM5/D-HB5: the confirmation screen names what the press will be refused for, before it.
+    hireBlockedBy: (await hireRefusal(admin, orgId, driverId, new Date().toISOString().slice(0, 10)))?.missing ?? [],
   };
 }
 
@@ -162,6 +195,9 @@ export async function hireApplicant(
   if (row.status !== "applicant") {
     return { code: "not_an_applicant", message: `This driver is already ${row.status}.` };
   }
+
+  const refused = await hireRefusal(admin, orgId, body.driver_id, today);
+  if (refused) return refused;
 
   const { employment, existing } = await loadFile(admin, orgId, body.driver_id);
   const plan = planHireHandoff({ employment, existing });

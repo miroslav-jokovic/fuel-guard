@@ -22,8 +22,11 @@ import { inflateRawSync } from "node:zlib";
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PACKET_WORKBOOK = join(HERE, "../../../../docs/plans/recruitment/APPLICATION.xlsx");
 
-/** One entry out of a zip, by name. Returns null when the archive does not hold it. */
-function zipEntry(archive: Buffer, name: string): Buffer | null {
+/**
+ * One entry out of a zip, by name. Returns null when the archive does not hold it.
+ * ⚠ Exported for `handbookDocx.ts`: a .docx is a zip too, and one reader is the point of this file.
+ */
+export function zipEntry(archive: Buffer, name: string): Buffer | null {
   for (let i = 0; i < archive.length - 30; i++) {
     if (archive.readUInt32LE(i) !== 0x04034b50) continue;
     const nameLen = archive.readUInt16LE(i + 26);
