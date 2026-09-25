@@ -6,7 +6,12 @@ import {
   AppInput as BaseInput,
   AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
-import { questionnaireForApplicant, questionsForScreen, type ApplicationSection } from "@silvicom/shared";
+import {
+  questionnaireForApplicant,
+  questionsForScreen,
+  type ApplicationSection,
+  type QuestionnaireQuestion,
+} from "@silvicom/shared";
 import QuestionnaireTable from "@/features/apply/QuestionnaireTable.vue";
 import type { ApplicationDraft } from "@/features/apply/draft";
 
@@ -70,6 +75,15 @@ const rowsFor = (id: string): Record<string, unknown>[] => {
 };
 
 const questions = computed(() => questionsForScreen(definition, props.section));
+
+/**
+ * A `select`'s options. A keyed question (`choices`, Q-HM14's `applying_as`) stores the KEY and shows
+ * the label; every other `select` stores and shows its option's own words.
+ */
+const selectOptions = (question: QuestionnaireQuestion): Array<{ value: string; label: string }> =>
+  question.choices
+    ? question.choices.map((c) => ({ ...c }))
+    : (question.options ?? []).map((o) => ({ value: o, label: o }));
 </script>
 
 <template>
@@ -116,7 +130,7 @@ const questions = computed(() => questionsForScreen(definition, props.section));
           v-else-if="question.kind === 'select'"
           :id="id"
           :model-value="(answer(question.id) as string) ?? ''"
-          :options="(question.options ?? []).map((o) => ({ value: o, label: o }))"
+          :options="selectOptions(question)"
           @update:model-value="set(question.id, $event)"
         />
         <QuestionnaireTable

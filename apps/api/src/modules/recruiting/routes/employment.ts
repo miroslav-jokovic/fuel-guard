@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   applicantProgress,
+  asApplyingAs,
   currentDisposition,
   employmentCoverage,
   employmentHistoryCreateSchema,
@@ -16,6 +17,7 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { DRAFT_APPLYING_AS_SELECT } from "../applicantApplyingAs.js";
 import { boardChecklists } from "../applicantBoard.js";
 
 /**
@@ -158,7 +160,9 @@ export function recruitmentEmploymentRouter(): Router {
           .order("created_at", { ascending: false }),
         admin
           .from("application_drafts")
-          .select("invitation_id")
+          // ⚠ One key by path and never the payload (`applicantApplyingAs.ts`): it decides how many
+          // places this applicant's packet has (Q-HM14), and nothing else in the draft may leave.
+          .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}`)
           .eq("org_id", orgId),
       ]);
       if (history.error || auths.error || decisions.error || invitations.error || drafts.error) {
@@ -190,8 +194,11 @@ export function recruitmentEmploymentRouter(): Router {
       }
       // ⚠ Keyed on the INVITATION, never on the driver: a rehire's draft from a previous application
       // is not evidence that they have started this one.
-      const draftFor = new Set(
-        ((drafts.data ?? []) as Array<{ invitation_id: string }>).map((d) => d.invitation_id),
+      const draftFor = new Map(
+        ((drafts.data ?? []) as Array<{ invitation_id: string; applying_as?: unknown }>).map((d) => [
+          d.invitation_id,
+          asApplyingAs(d.applying_as),
+        ]),
       );
 
       const authsBy = new Map<string, AuthorizationRow[]>();
@@ -220,6 +227,10 @@ export function recruitmentEmploymentRouter(): Router {
           hasDraft: (() => {
             const invite = inviteBy.get(a.id);
             return invite ? draftFor.has(invite.id) : false;
+          })(),
+          applyingAs: (() => {
+            const invite = inviteBy.get(a.id);
+            return invite ? draftFor.get(invite.id) ?? null : null;
           })(),
           authorizations: authsBy.get(a.id) ?? [],
           // ⚠ The NEWEST decision, through the same `currentDisposition` the row below uses — the

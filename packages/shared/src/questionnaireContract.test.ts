@@ -9,6 +9,11 @@ import {
   questionnaireRef,
   questionsForScreen,
   readableAnswers,
+  APPLYING_AS_QUESTION_ID,
+  SILVICOM_DRIVER_V2,
+  applyingAsOf,
+  choiceLabel,
+  questionnaireAnswersOf,
 } from "./questionnaireContract.js";
 import { APPLICATION_SECTION_ORDER } from "./applicationSections.js";
 import { driverApplicationSchema } from "./applicationContract.js";
@@ -25,15 +30,15 @@ import { planApplicationIntake } from "./applicationIntake.js";
  */
 
 describe("the definition", () => {
-  it("is internally coherent — every question usable by a screen that renders it", () => {
+  it.each([SILVICOM_DRIVER_V1, SILVICOM_DRIVER_V2])("is internally coherent — every question usable by a screen that renders it ($version)", (def) => {
     const seen = new Set<string>();
-    for (const q of SILVICOM_DRIVER_V1.questions) {
+    for (const q of def.questions) {
       expect(QUESTION_KINDS as readonly string[]).toContain(q.kind);
       expect(q.label, q.id).toBeTruthy();
       // Ids are what the answers are keyed by; a duplicate would silently overwrite an answer.
       expect(seen.has(q.id), `duplicate question id ${q.id}`).toBe(false);
       seen.add(q.id);
-      if (q.kind === "select") expect(q.options?.length, q.id).toBeGreaterThan(0);
+      if (q.kind === "select") expect((q.options ?? q.choices)?.length, q.id).toBeGreaterThan(0);
       if (q.kind === "table") {
         expect(q.columns?.length, q.id).toBeGreaterThan(0);
         const cols = new Set<string>();
@@ -83,7 +88,17 @@ describe("the definition", () => {
     const ref = questionnaireRef(SILVICOM_DRIVER_V1);
     expect(ref).toBe("silvicom_driver@v1");
     expect(questionnaireByRef(ref)).toBe(SILVICOM_DRIVER_V1);
-    expect(questionnaireForApplicant()).toBe(SILVICOM_DRIVER_V1);
+    // ⚠ v1 stays addressable after v2 is served: answer sets filed against it still name it.
+    expect(questionnaireByRef("silvicom_driver@v2")).toBe(SILVICOM_DRIVER_V2);
+    expect(questionnaireForApplicant()).toBe(SILVICOM_DRIVER_V2);
+  });
+
+  it("changes nothing in v2 but the one question Q-HM14 added", () => {
+    const v2 = SILVICOM_DRIVER_V2.questions.filter((q) => q.id !== APPLYING_AS_QUESTION_ID);
+    expect(v2).toEqual(SILVICOM_DRIVER_V1.questions);
+    expect(questionsForScreen(SILVICOM_DRIVER_V2, "identity").map((q) => q.id)).toEqual([
+      "position", "applying_as", "heard_from", "legally_work", "proof_of_age",
+    ]);
   });
 
   /**
@@ -256,5 +271,50 @@ describe("which screen a carrier question is asked on", () => {
     );
     expect([...homes].sort()).toEqual([...SILVICOM_DRIVER_V1.questions.map((q) => q.id)].sort());
     expect(new Set(homes).size).toBe(homes.length);
+  });
+});
+
+/**
+ * Q-HM14 (ruled (b), 2026-09-24): the one questionnaire answer that DECIDES something — which lines
+ * of page 31 the applicant signs and which reason page 22 carries. So it is the one answer stored as
+ * a key and narrowed by the schema, and the one read the same way from a draft and a filed payload.
+ */
+describe("what the applicant is applying as", () => {
+  const question = SILVICOM_DRIVER_V2.questions.find((q) => q.id === APPLYING_AS_QUESTION_ID)!;
+  const schema = questionnaireAnswersSchema(SILVICOM_DRIVER_V2);
+
+  it("stores a key and refuses anything else, where a plain select stores whatever it was given", () => {
+    expect(schema.safeParse({ applying_as: "owner_operator" }).success).toBe(true);
+    expect(schema.safeParse({ applying_as: "company_driver" }).success).toBe(true);
+    expect(schema.safeParse({ applying_as: null }).success).toBe(true);
+    expect(schema.safeParse({}).success).toBe(true);
+    expect(schema.safeParse({ applying_as: "Owner-operator" }).success).toBe(false);
+    expect(schema.safeParse({ applying_as: "both" }).success).toBe(false);
+  });
+
+  it("reads the same answer from a draft's `questionnaire` and a filed `questionnaire_answers`", () => {
+    expect(applyingAsOf({ questionnaire: { applying_as: "company_driver" } })).toBe("company_driver");
+    expect(applyingAsOf({ questionnaire_answers: { applying_as: "owner_operator" } })).toBe("owner_operator");
+    // The filed key wins when both are present — it is what was certified.
+    expect(
+      applyingAsOf({ questionnaire_answers: { applying_as: "owner_operator" }, questionnaire: { applying_as: "company_driver" } }),
+    ).toBe("owner_operator");
+    expect(questionnaireAnswersOf({ questionnaire: { position: "Driver" } })).toEqual({ position: "Driver" });
+  });
+
+  it("reads no answer as null, never as a guess", () => {
+    expect(applyingAsOf({})).toBeNull();
+    expect(applyingAsOf(null)).toBeNull();
+    expect(applyingAsOf({ questionnaire_answers: null })).toBeNull();
+    expect(applyingAsOf({ questionnaire_answers: { position: "Owner operator" } })).toBeNull();
+    expect(applyingAsOf({ questionnaire_answers: { applying_as: "Owner-operator" } })).toBeNull();
+  });
+
+  it("shows a person the label, and every other answer unchanged", () => {
+    expect(choiceLabel(question, "owner_operator")).toBe("Owner-operator");
+    expect(choiceLabel(question, "company_driver")).toBe("Company driver");
+    const position = SILVICOM_DRIVER_V2.questions.find((q) => q.id === "position")!;
+    expect(choiceLabel(position, "Driver")).toBe("Driver");
+    expect(choiceLabel(position, true)).toBe(true);
   });
 });

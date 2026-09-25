@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
-import { OPEN_SIGNING_WARNS_ON, hiringStep, packetDriverMarkCount, rolesThatManage } from "@silvicom/shared";
+import { OPEN_SIGNING_WARNS_ON, hiringStep, rolesThatManage } from "@silvicom/shared";
 import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -75,16 +75,15 @@ async function press(): Promise<void> {
       Signed and filed {{ formatDate(invite.submitted_at) }}.
     </p>
     <p v-else-if="!invite?.approved_at" class="text-xs text-ink-secondary">
-      The applicant signs the packet — {{ packetDriverMarkCount() }} places — in the office. Approve the
-      application first; signing opens once they are here.
+      The applicant signs the packet in the office. Approve the application first; signing opens once
+      they are here.
     </p>
     <template v-else>
       <p v-if="openedAt && !result" class="text-xs text-ink-secondary">
         Opened {{ formatDate(openedAt) }}. Opening again makes a new sign link, and the one before stops working.
       </p>
       <p v-else-if="!result" class="text-xs text-ink-secondary">
-        Approved. When the applicant is here, open signing on this screen and hand it to them —
-        {{ packetDriverMarkCount() }} places in the packet.
+        Approved. When the applicant is here, open signing on this screen and hand it to them.
       </p>
 
       <AppCallout v-if="!result && outstanding.length > 0" tone="caution">

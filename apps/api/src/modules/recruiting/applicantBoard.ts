@@ -4,6 +4,7 @@ import {
   driverInquiryQueue,
   hiringChecklist,
   hiringStep,
+  type ApplyingAs,
   type AuthorizationRow,
   type HiringPhase,
   type HiringStepKey,
@@ -46,6 +47,12 @@ export interface BoardApplicantInput {
    */
   invitation: BoardInvitation | null;
   hasDraft: boolean;
+  /**
+   * What the draft says they are applying as (Q-HM14), read by the caller with the draft flag above
+   * and for the same reason — one read of the draft, two answers from it. Decides how many places
+   * this applicant's packet has.
+   */
+  applyingAs: ApplyingAs | null;
   authorizations: readonly AuthorizationRow[];
   /**
    * Has the carrier already answered this application — declined, withdrawn, no response (0238)?
@@ -183,8 +190,10 @@ export async function boardChecklists(
         // ticks this step exactly as an ordered one does. D-HM6 read from the evidence side.
         reportReceived: kinds.includes("psp_report"),
       },
-      // ⚠ Marks at the CURRENT stops only (L-1): a mark on a withdrawn line is still a row.
-      packetMarks: countedPacketMarks(markRows.map((r) => r.placement_id)),
+      // ⚠ Marks at THIS applicant's current stops only — a mark on a withdrawn line (L-1), or a p31b
+      // from somebody who is now a company driver (Q-HM14), is still a row.
+      packetMarks: countedPacketMarks(markRows.map((r) => r.placement_id), a.applyingAs),
+      applyingAs: a.applyingAs,
       investigation: {
         outstanding: investigationQueue.outstanding.length,
         // ⚠ `awaiting` only — the employer's own move. See `applicantChecklist.ts`'s note.

@@ -408,6 +408,20 @@ describe("the pipeline lists applicants, and derives their stage", () => {
     }
   });
 
+  /**
+   * ⚠ Q-HM14: the board needs one key of each draft — `applying_as`, which sets how many places the
+   * packet has — and reads it by path so nothing else in a draft (a date of birth, a licence number)
+   * leaves the database for a list of applicants. The recorder hands back whole rows whatever is
+   * selected, so the select is what has to be pinned.
+   */
+  it("reads one key of each draft, by path, and never the payload", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    await call("/pipeline", { token: "admin" });
+    const selected = String(rec.forTable("application_drafts")[0]!.ops.find((o) => o.method === "select")?.args[0]);
+    expect(selected).toBe("invitation_id, applying_as:payload->questionnaire->>applying_as");
+  });
+
   it("goes looking for nothing when there are no applicants", async () => {
     rec = seed({ drivers: [] });
     holder.client = rec.client;

@@ -127,7 +127,7 @@ const publishAll = (): void => {
  * tell D-PKT6's two adopted marks apart.
  */
 const signedPacket = (name = "Susan Godfrey", initials = "SG") =>
-  driverPlacementIds().map((placement_id) => {
+  driverPlacementIds(null).map((placement_id) => {
     const mark = packetPlacementById(placement_id)?.mark ?? "signature";
     return { placement_id, mark, signed_name: mark === "initials" ? initials : name };
   });

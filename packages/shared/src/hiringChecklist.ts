@@ -2,6 +2,7 @@ import { hasLiveAuthorization, type AuthorizationRow } from "./authorizationCont
 import { APPLICATION_RELEASE_ORDER } from "./applicationIntake.js";
 import { applicationReviewState, type ApplicationPhases } from "./applicationReviewContract.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
+import type { ApplyingAs } from "./questionnaireContract.js";
 import {
   HIRING_STEPS, measurableHiringSteps,
   type HiringEvidence, type HiringStepKey, type HiringStepSpec,
@@ -118,6 +119,15 @@ export interface HiringChecklistInputs {
   } | null;
   /** How many of the packet's places this link has collected. The total is derived, never passed. */
   packetMarks?: number;
+  /**
+   * What the applicant said they are applying as (`applyingAsOf`), which decides how many places
+   * their packet has (Q-HM14).
+   *
+   * ⚠ Absent reads as null — the paper's walk, one more stop than a company driver's — so a caller
+   * that forgets it leaves a company driver's signed packet OUTSTANDING, which is the failure that
+   * shows. The other way round it could not fail: no walk is longer than the paper's.
+   */
+  applyingAs?: ApplyingAs | null;
   /** The hire date, once there is one. */
   hiredAt?: string | null;
 }
@@ -245,7 +255,7 @@ function evidenceFor(
       // and that packet cannot take another mark until somebody in the office opens it, so reading
       // those marks as "waiting on them" would tell the office to wait for a signer who is refused.
       return {
-        done: (input.packetMarks ?? 0) >= packetDriverMarkCount(),
+        done: (input.packetMarks ?? 0) >= packetDriverMarkCount(input.applyingAs ?? null),
         inFlight: Boolean(input.phases?.signingOpenedAt),
       };
     case "employment_investigation": {

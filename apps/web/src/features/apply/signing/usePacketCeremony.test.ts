@@ -12,7 +12,7 @@ import type { ApplyPacketStop } from "@/features/apply/useApplication";
 /**
  * The walk through the carrier's packet (P5, D-PKT6, D-PKT13).
  *
- * ⚠ **The fixture is the REAL inventory, not a hand-written pair of stops.** `driverPlacements()` is
+ * ⚠ **The fixture is the REAL inventory, not a hand-written pair of stops.** `driverPlacements(null)` is
  * what the server serves and what the ceremony walks, and the properties worth pinning here — page
  * 19's two stops being distinguishable, the count being 22, three of them asking for initials — are
  * exactly the ones a convenient two-element fixture would make vacuous
@@ -22,10 +22,10 @@ import type { ApplyPacketStop } from "@/features/apply/useApplication";
 const TOKEN = "e".repeat(43);
 
 /** 21 since L-1 (page 4 withdrawn from signing) — read from the inventory, never restated. */
-const TOTAL = packetDriverMarkCount();
+const TOTAL = packetDriverMarkCount(null);
 
 const stopsFrom = (signed: Record<string, string> = {}): ApplyPacketStop[] =>
-  driverPlacements().map((p) => ({ ...p, signedAt: signed[p.id] ?? null }));
+  driverPlacements(null).map((p) => ({ ...p, signedAt: signed[p.id] ?? null }));
 
 const marked: Array<{ placementId: string; signedName: string }> = [];
 let answer: (placementId: string) => { signedCount: number; complete: boolean } | Error;
@@ -126,7 +126,7 @@ describe("adopting the mark", () => {
   it("asks for no initials picture once every initials place is collected", async () => {
     const stage = vi.fn().mockResolvedValue(undefined);
     const initialsSigned = Object.fromEntries(
-      driverPlacements()
+      driverPlacements(null)
         .filter((p) => p.mark === "initials")
         .map((p) => [p.id, "2026-09-19T10:00:00Z"]),
     );
@@ -286,7 +286,7 @@ describe("adopting the initials", () => {
    */
   it("does not ask for initials when every place that takes them is already collected", async () => {
     const done = Object.fromEntries(
-      driverPlacements().filter((p) => p.mark === "initials").map((p) => [p.id, "2026-09-14T11:00:00Z"]),
+      driverPlacements(null).filter((p) => p.mark === "initials").map((p) => [p.id, "2026-09-14T11:00:00Z"]),
     );
     expect(Object.keys(done)).toHaveLength(3);
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(done)));
@@ -296,7 +296,7 @@ describe("adopting the initials", () => {
   });
 
   it("asks for them while a single one is left", async () => {
-    const initials = driverPlacements().filter((p) => p.mark === "initials");
+    const initials = driverPlacements(null).filter((p) => p.mark === "initials");
     const done = Object.fromEntries(initials.slice(1).map((p) => [p.id, "2026-09-14T11:00:00Z"]));
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(done)));
     expect(c.needsInitials.value).toBe(true);
@@ -325,8 +325,8 @@ describe("the walk", () => {
     const c = started();
     await c.adopt();
     for (let i = 0; i < TOTAL; i++) await c.sign();
-    expect(marked.map((m) => m.placementId)).toEqual(driverPlacements().map((p) => p.id));
-    const pages = marked.map((m) => driverPlacements().find((p) => p.id === m.placementId)!.page);
+    expect(marked.map((m) => m.placementId)).toEqual(driverPlacements(null).map((p) => p.id));
+    const pages = marked.map((m) => driverPlacements(null).find((p) => p.id === m.placementId)!.page);
     expect(pages).toEqual([...pages].sort((a, b) => a - b));
     expect(c.complete.value).toBe(true);
   });
@@ -341,7 +341,7 @@ describe("the walk", () => {
     for (let i = 0; i < TOTAL; i++) await c.sign();
 
     const byKind = (kind: string) =>
-      marked.filter((m) => driverPlacements().find((p) => p.id === m.placementId)!.mark === kind);
+      marked.filter((m) => driverPlacements(null).find((p) => p.id === m.placementId)!.mark === kind);
     expect(byKind("initials").map((m) => m.placementId)).toEqual(["p05", "p06", "p09"]);
     expect(new Set(byKind("initials").map((m) => m.signedName))).toEqual(new Set(["MV"]));
     // ⚠ 18 since L-1: page 4's was a signature line, and is withdrawn.
@@ -484,7 +484,7 @@ describe("coming back to a half-signed packet", () => {
   });
 
   it("is already done when every place was collected before", () => {
-    const all = Object.fromEntries(driverPlacements().map((p) => [p.id, "2026-09-14T11:00:00Z"]));
+    const all = Object.fromEntries(driverPlacements(null).map((p) => [p.id, "2026-09-14T11:00:00Z"]));
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(all)));
     expect(c.complete.value).toBe(true);
     expect(c.state.value).toBe("done");
@@ -552,7 +552,7 @@ describe("a resumed walk whose marks the server has already pinned", () => {
    */
   it("is fully adopted with no initials when every initials stop is already collected", () => {
     const done = Object.fromEntries(
-      driverPlacements().filter((p) => p.mark === "initials").map((p) => [p.id, "2026-09-14T11:00:00Z"]),
+      driverPlacements(null).filter((p) => p.mark === "initials").map((p) => [p.id, "2026-09-14T11:00:00Z"]),
     );
     const c = withAdopted({ signature: "Marija Varmeda", initials: null }, done);
     expect(c.needsInitials.value).toBe(false);
@@ -904,7 +904,7 @@ describe("which marks can still be corrected", () => {
 
   /** ⚠ And a stop the server says is collected pins its kind, even if we never saw it filed. */
   it("reads a pin from a stop the server served as already signed", () => {
-    const firstInitials = driverPlacements().find((p) => p.mark === "initials")!;
+    const firstInitials = driverPlacements(null).find((p) => p.mark === "initials")!;
     const c = usePacketCeremony(
       ref(TOKEN),
       ref(stopsFrom({ [firstInitials.id]: "2026-09-14T11:00:00Z" })),
@@ -952,7 +952,7 @@ describe("a refetch in the middle of the walk", () => {
       walked.push(c.current.value!.id);
       await c.sign();
     }
-    expect(walked).toEqual(driverPlacementIds().slice(0, 5));
+    expect(walked).toEqual(driverPlacementIds(null).slice(0, 5));
     const next = c.current.value!.id;
 
     // The window regains focus: the server re-serves the packet, five stops now signed.
@@ -961,7 +961,7 @@ describe("a refetch in the middle of the walk", () => {
 
     // ⚠ The SAME place as before the refetch — the sixth, not the eleventh.
     expect(c.current.value?.id).toBe(next);
-    expect(c.current.value?.id).toBe(driverPlacementIds()[5]);
+    expect(c.current.value?.id).toBe(driverPlacementIds(null)[5]);
     expect(c.position.value).toBe(6);
   });
 
@@ -981,7 +981,7 @@ describe("a refetch in the middle of the walk", () => {
       // A refetch before every single mark, which is the worst case and costs nothing to assert.
       stops.value = stopsFrom(Object.fromEntries(walked.map((id) => [id, "2026-09-18T12:00:00Z"])));
     }
-    expect(walked).toEqual(driverPlacementIds());
+    expect(walked).toEqual(driverPlacementIds(null));
     expect(new Set(walked).size).toBe(TOTAL);
     expect(c.complete.value).toBe(true);
   });
@@ -1027,7 +1027,7 @@ describe("what a locked mark says about itself", () => {
 
   /** The server's own list still counts, for a resumed link that filed nothing here. */
   it("counts places the server served as signed", () => {
-    const initials = driverPlacements().filter((p) => p.mark === "initials");
+    const initials = driverPlacements(null).filter((p) => p.mark === "initials");
     const signed = Object.fromEntries(initials.map((p) => [p.id, "2026-09-14T11:00:00Z"]));
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(signed)));
     expect(c.placesWithMark("initials")).toBe(3);

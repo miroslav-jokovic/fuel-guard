@@ -289,7 +289,8 @@ describe("the questionnaire", () => {
     expect(blank.questionnaire_answers).toBeNull();
 
     const filled = toApplication(answered()) as Record<string, unknown>;
-    expect(filled.questionnaire_version).toBe("silvicom_driver@v1");
+    // v2 since Q-HM14 (`applying_as`): the definition an applicant is served today.
+    expect(filled.questionnaire_version).toBe("silvicom_driver@v2");
   });
 
   it("drops what nobody answered, and keeps false, which is an answer", () => {

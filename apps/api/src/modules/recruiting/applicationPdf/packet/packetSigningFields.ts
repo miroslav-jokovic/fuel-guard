@@ -1,5 +1,5 @@
 import { addressCells, blank, date, fullName } from "./packetDraw.js";
-import { packetPageWithdrawn } from "@silvicom/shared";
+import { applyingAsOf, packetPageWithdrawn, signsAsOwnerOperator, type ApplyingAs } from "@silvicom/shared";
 import { placeValue, type PacketFieldInput, type PlacedFieldValue } from "./packetGrid.js";
 import {
   SINGLE_LICENCE_BLOCK_FIELDS,
@@ -63,19 +63,35 @@ const PRINTED_NAME_LINES: ReadonlyArray<readonly [id: string, caption: string]> 
 ];
 
 /**
- * ⚠ **Page 31 now prints the applicant's name in THREE places, and that is one ruling, not three.**
+ * ⚠ **Page 31's owner-operator half, gated TOGETHER on one predicate (Q-HM14, ruled (b)).**
  *
- * `p31b` is `party: "driver"` in the placement inventory and its `what` reads *"the owner-operator
- * and leased-driver agreement, as the owner-operator"* — the applicant already signs page 31 in both
- * roles, so naming them in the owner-operator's sentence asserts nothing the ceremony does not
- * already make them assert. AUD-17 settled it for `Owner Operator Name:`; this is the same line of
- * the same argument and deliberately not a new decision.
+ * `Owner Operator Name:`, the `I ____ aka (OP)` blank, and the `p31b` line under them ("as the
+ * owner-operator") are one act in three places. AUD-17 and AUD-7 printed the applicant's name in the
+ * first two because the ceremony already made them sign the third; since Q-HM14 a company driver is
+ * not asked to sign it (memorandum Q15), so neither name may print for them either — a name above a
+ * line nobody signed asserts the half of the act that did not happen (page 24's lesson, D-PKT10).
+ * `signsAsOwnerOperator` is the one predicate: `driverPlacements` asks it for the line, this asks it
+ * for the two names. A null answer (filed before the question, or left blank) is the paper as
+ * printed, which is what every packet did before this.
  *
- * ⚠ **If Q-HM14 is answered (b) — a structured `applying_as: company_driver | owner_operator` —
- * then all THREE of page 31's owner-operator blanks become conditional on it together.** They are
- * named next to each other here so that the day somebody gates one, the other two are impossible to
- * miss. `Witness Name:` stays out of it in every case: `p31w` is a third person.
+ * `Driver name:` is NOT in it — page 31 is the owner-operator AND leased-driver agreement, and a
+ * company driver still signs `p31a` as the driver. `Witness Name:` stays out of it in every case:
+ * `p31w` is a third person.
  */
+const OWNER_OPERATOR_NAME_LINES: ReadonlySet<string> = new Set(["p31.owner_operator_name", "p31.aka_op"]);
+
+/**
+ * Page 22's `This test is required for:` answer, derived from `applying_as` (Q-HM14).
+ *
+ * ⚠ **Only the owner-operator's rule is ours to fill.** The company driver's reason,
+ * `Pre-Employment Qualification:`, is already answered `yes` on the carrier's own paper
+ * (`packetSigningGeometry.ts`'s header) — drawing a second `yes` over it would print the word twice.
+ * ⚠ And nothing for a null answer: choosing a reason for somebody who never said which they are is
+ * the inference Q-HM14 was ruled to remove.
+ */
+function testReason(applyingAs: ApplyingAs | null, into: PlacedFieldValue[]): void {
+  if (applyingAs === "owner_operator") push(into, "p22.reason.contracting", "yes");
+}
 
 /**
  * The dates that stand ALONE on a signing page rather than beside the mark.
@@ -143,13 +159,16 @@ function priorTestAnswer(input: PacketFieldInput, into: PlacedFieldValue[]): voi
 
 export function packetSigningFill(input: PacketFieldInput, into: PlacedFieldValue[]): void {
   const name = fullName(input.application);
+  const applyingAs = applyingAsOf(input.application);
   for (const [id, caption] of PRINTED_NAME_LINES) {
     // ⚠ L-1: no name in the block of a page withdrawn from signing — a name printed beside a line
     // nobody signed asserts the half of the act that did not happen (page 24's lesson, D-PKT10).
     const line = signingLineFor(id);
     if (line && packetPageWithdrawn(line.page)) continue;
+    if (OWNER_OPERATOR_NAME_LINES.has(id) && !signsAsOwnerOperator(applyingAs)) continue;
     push(into, id, name, caption);
   }
+  testReason(applyingAs, into);
 
   for (const [id, placementId] of STANDALONE_DATE_LINES) {
     const at = input.markedAt[placementId];

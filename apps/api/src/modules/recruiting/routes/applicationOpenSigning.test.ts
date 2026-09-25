@@ -47,6 +47,8 @@ const seed = (over: {
   invitation?: Record<string, unknown> | null;
   kinds?: string[];
   rpc?: Record<string, unknown>;
+  /** The draft's `applying_as`, as the path select hands it back (Q-HM14). */
+  applyingAs?: string;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
@@ -56,7 +58,7 @@ const seed = (over: {
       driver_authorizations: [],
       qualification_records: (q: RecordedQuery) =>
         q.filters().some((f) => f.col === "driver_id") ? (over.kinds ?? []).map((kind) => ({ kind })) : [],
-      application_drafts: [{ invitation_id: INV, payload: { first_name: "Susan" }, furthest_section: null, updated_at: "2026-09-20T10:00:00Z" }],
+      application_drafts: [{ invitation_id: INV, payload: { first_name: "Susan" }, furthest_section: null, updated_at: "2026-09-20T10:00:00Z", applying_as: over.applyingAs ?? null }],
       application_packet_marks: [],
       driver_employment_history: [],
       employer_inquiries: [],
@@ -148,6 +150,22 @@ describe("the applicant's link before the office opens signing", () => {
     holder.client = rec.client;
     await pub(`/${TOKEN}/mark`, { method: "POST", body: MARK });
     expect(selected(rec, "application_invitations").some((c) => c.includes("signing_opened_at"))).toBe(true);
+  });
+
+  /**
+   * ⚠ Q-HM14: a company driver's p31b is a CONFLICT, not a bad request — the same line is theirs to
+   * sign if their answer says owner-operator — and it never reaches the transaction.
+   */
+  it("refuses a company driver's owner-operator line as a conflict, naming why", async () => {
+    const rec = seed({ invitation: { signing_opened_at: "2026-09-24T12:00:00Z" }, applyingAs: "company_driver" });
+    holder.client = rec.client;
+    const res = await pub(`/${TOKEN}/mark`, {
+      method: "POST",
+      body: JSON.stringify({ placement_id: "p31b", signed_name: "Susan Driver", esign_consent: true }),
+    });
+    expect(res.status).toBe(409);
+    expect(await code(res)).toBe("packet_mark_not_their_capacity");
+    expect(rec.rpcs()).toHaveLength(0);
   });
 
   it("takes the mark once it has been opened", async () => {

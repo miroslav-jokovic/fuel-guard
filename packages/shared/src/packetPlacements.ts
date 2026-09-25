@@ -1,3 +1,5 @@
+import type { ApplyingAs } from "./questionnaireContract.js";
+
 /**
  * Every place the carrier's packet asks for a mark — and, for each, WHOSE mark it is (Q-PKT6).
  *
@@ -92,6 +94,16 @@ export interface PacketPlacement {
    * to know what each one is; a paragraph number tells them nothing they can act on.
    */
   what: string;
+  /**
+   * The capacity the paper asks this line to be signed in, where it names one other than "the
+   * applicant" (Q-HM14).
+   *
+   * ⚠ **A fact about the paper, not a decision** — which is why it is a field here and not a table
+   * beside it like `PACKET_WITHDRAWALS`. Page 31's second line sits under `Owner Operator Name:` and
+   * its `what` already says *"as the owner-operator"*. Whether a given applicant is asked to sign it
+   * is decided in `driverPlacements`, from what they said they are applying as.
+   */
+  capacity?: "owner_operator";
 }
 
 /**
@@ -167,11 +179,13 @@ export const PACKET_PLACEMENTS: readonly PacketPlacement[] = [
   // ⚠ Page 31 takes THREE marks and they are three different people: the driver, the owner-operator
   // and a witness. They are frequently the same person for the first two and the packet does not
   // assume it, so neither does this. The witness is neither the applicant nor the carrier, which is
-  // why `party` has three values rather than two.
+  // why `party` has three values rather than two. ⚠ Since Q-HM14 a company driver is not asked to
+  // sign p31b (memorandum Q15) — `capacity` names it, `driverPlacements` applies it.
   { id: "p31a", page: 31, party: "driver", mark: "signature", anchor: "Signature | Date",
     what: "The owner-operator and leased-driver agreement, as the driver" },
   { id: "p31b", page: 31, party: "driver", mark: "signature", anchor: "Signature | Date",
-    what: "The owner-operator and leased-driver agreement, as the owner-operator" },
+    what: "The owner-operator and leased-driver agreement, as the owner-operator",
+    capacity: "owner_operator" },
   { id: "p31w", page: 31, party: "witness", mark: "signature", anchor: "Signature | Date",
     what: "Witnessed" },
 ];
@@ -253,11 +267,36 @@ export const paperDriverPlacements = (): PacketPlacement[] =>
   PACKET_PLACEMENTS.filter((p) => p.party === "driver");
 
 /**
- * The queue P5 builds. Everything else on the paper belongs to somebody who is not the applicant,
- * or has been withdrawn from signing (`PACKET_WITHDRAWALS`).
+ * Is this applicant asked to sign, and named, as the owner-operator? (Q-HM14)
+ *
+ * ⚠ **One predicate for the whole of page 31's owner-operator half**, because the ruling gates it
+ * TOGETHER: the `p31b` line (`driverPlacements`), `Owner Operator Name:` and the `I ____ aka (OP)`
+ * blank (`packetSigningFields.ts`). Three places asking three questions would let a company driver's
+ * page carry a signature under a blank owner-operator name, or a name above a line nobody signed.
+ *
+ * ⚠ **Only an explicit `company_driver` says no.** Null — a payload filed before the question, or an
+ * applicant who left it blank — is the paper as printed (`applyingAsOf`).
  */
-export const driverPlacements = (): PacketPlacement[] =>
-  paperDriverPlacements().filter((p) => packetWithdrawal(p.id) === null);
+export const signsAsOwnerOperator = (applyingAs: ApplyingAs | null): boolean =>
+  applyingAs !== "company_driver";
+
+/**
+ * The queue P5 builds, for ONE applicant. Everything else on the paper belongs to somebody who is
+ * not the applicant, has been withdrawn from signing (`PACKET_WITHDRAWALS`), or asks for a capacity
+ * this applicant is not signing in (Q-HM14).
+ *
+ * ⚠ **`applyingAs` is required, and null is a value you pass, not a default you get.** Since Q-HM14
+ * the walk is per applicant, and every caller — the served queue, the server's refusal, the count
+ * the database stamps, the submit gate, the checklist, the board, the overlay — has to be asked the
+ * same question with the same answer. A defaulted parameter is how one of them would quietly keep
+ * asking the paper's question and disagree with the others about when a company driver is done.
+ */
+export const driverPlacements = (applyingAs: ApplyingAs | null): PacketPlacement[] =>
+  paperDriverPlacements().filter(
+    (p) =>
+      packetWithdrawal(p.id) === null
+      && (p.capacity !== "owner_operator" || signsAsOwnerOperator(applyingAs)),
+  );
 
 /**
  * The two adopted marks (D-PKT6): a signature typed once, and a set of initials typed once.
@@ -265,9 +304,12 @@ export const driverPlacements = (): PacketPlacement[] =>
  * ⚠ Initials are a SECOND adopted mark and not an abbreviation of the first. The packet treats them
  * as a distinct thing — three pages take initials and nothing else — and a ceremony that derived
  * them from the typed name would be inventing a mark the signer never made.
+ *
+ * ⚠ Asked of the PAPER's walk (`null`) on purpose: `p31b` is a signature, and a company driver's walk
+ * still holds a dozen others, so both walks adopt the same two kinds.
  */
 export const adoptedMarkKinds = (): PacketMarkKind[] => [
-  ...new Set(driverPlacements().map((p) => p.mark)),
+  ...new Set(driverPlacements(null).map((p) => p.mark)),
 ];
 
 /**
@@ -280,7 +322,8 @@ export const adoptedMarkKinds = (): PacketMarkKind[] => [
  * which is the shape `record_driver_release`'s `p_expected_count` already established: the
  * vocabulary lives in TypeScript and the migration applies what it produced.
  */
-export const packetDriverMarkCount = (): number => driverPlacements().length;
+export const packetDriverMarkCount = (applyingAs: ApplyingAs | null): number =>
+  driverPlacements(applyingAs).length;
 
 /** One stop, by the id a recorded mark names. Null for an id no longer in the inventory. */
 export const packetPlacementById = (id: string): PacketPlacement | null =>
@@ -294,7 +337,8 @@ export const packetPlacementById = (id: string): PacketPlacement | null =>
  * countersignature or a witness's line would put their name where somebody else's belongs, on a
  * page that is evidence — and the request that did it would look exactly like every other one.
  */
-export const driverPlacementIds = (): string[] => driverPlacements().map((p) => p.id);
+export const driverPlacementIds = (applyingAs: ApplyingAs | null): string[] =>
+  driverPlacements(applyingAs).map((p) => p.id);
 
 /**
  * How many of the ceremony's CURRENT stops a link has marked, from the placement ids on its rows.
@@ -304,8 +348,14 @@ export const driverPlacementIds = (): string[] => driverPlacements().map((p) => 
  * short — the checklist would go green and the ceremony would announce itself finished while the
  * submit gate, which asks for every id, still refused. Distinct, because the database's unique index
  * makes duplicates impossible and a count that relied on that would be a count that trusted it.
+ *
+ * ⚠ Per applicant since Q-HM14, for the same reason: a `p31b` made before somebody changed their
+ * answer to company driver is a row, and not one of their stops.
  */
-export const countedPacketMarks = (placementIds: readonly string[]): number => {
-  const current = new Set(driverPlacementIds());
+export const countedPacketMarks = (
+  placementIds: readonly string[],
+  applyingAs: ApplyingAs | null,
+): number => {
+  const current = new Set(driverPlacementIds(applyingAs));
   return new Set(placementIds.filter((id) => current.has(id))).size;
 };

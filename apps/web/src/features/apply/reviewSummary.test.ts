@@ -59,6 +59,7 @@ function filled(): ApplicationDraft {
   ];
   d.questionnaire = {
     position: "Company driver",
+    applying_as: "owner_operator",
     heard_from: "A friend at the terminal",
     legally_work: true,
     proof_of_age: true,
@@ -97,6 +98,8 @@ function answersIn(node: unknown, key = ""): string[] {
   if (key === "equipment_class" && typeof node === "string" && node !== "") {
     return [EQUIPMENT_CLASS_LABELS[node as EquipmentClass]];
   }
+  // ⚠ Q-HM14's keyed answer: the driver chose "Owner-operator" and must see that, never the key.
+  if (key === "applying_as" && node === "owner_operator") return ["Owner-operator"];
   if (typeof node === "string") return node.trim() === "" ? [] : [node.trim()];
   if (typeof node === "number") return [String(node)];
   if (Array.isArray(node)) return node.flatMap((v) => answersIn(v, key));
@@ -122,6 +125,12 @@ describe("everything the driver typed is on the page they certify", () => {
       return !forms.some((f) => f !== "" && text.includes(f));
     });
     expect(missing).toEqual([]);
+  });
+
+  it("shows what they are applying as in words, never the stored key", () => {
+    const text = asText(summary(filled()));
+    expect(text).toContain("Owner-operator");
+    expect(text).not.toContain("owner_operator");
   });
 
   it("never shows the Social Security number", () => {

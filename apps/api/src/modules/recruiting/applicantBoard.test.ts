@@ -56,6 +56,7 @@ const applicant = (n: number, over: Partial<BoardApplicantInput> = {}): BoardApp
     submitted_at: null,
   },
   hasDraft: true,
+  applyingAs: null,
   authorizations: authRows(driverId(n)),
   decided: false,
   ...over,
@@ -198,7 +199,7 @@ describe("the board row is the fold's answer, projected", () => {
       qualification_records: kinds.map((kind) => ({
         driver_id: driverId(1), kind, created_at: "2026-09-06T00:00:00Z",
       })),
-      application_packet_marks: driverPlacementIds().map((placement_id, i) => ({
+      application_packet_marks: driverPlacementIds(null).map((placement_id, i) => ({
         invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `m${i}`, placement_id,
       })),
       // ⚠ Q-HM9: BOTH employers answered, so the §391.23 investigation is closed too. Without this
@@ -214,6 +215,32 @@ describe("the board row is the fold's answer, projected", () => {
     expect(row.next).toBeNull();
     expect(row.waiting_on).toBeNull();
     expect(row.phase).toBeNull();
+  });
+
+  /**
+   * ⚠ Q-HM14: a company driver's packet is signed through at twenty (no p31b). The board folds with
+   * the answer its caller read beside the draft flag — without it, this row would lead with
+   * "Application signed" for ever, one stop short of the paper's twenty-one.
+   */
+  it("counts a company driver's packet against their own walk", async () => {
+    const kinds = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report"];
+    const rec = seed({
+      qualification_records: kinds.map((kind) => ({
+        driver_id: driverId(1), kind, created_at: "2026-09-06T00:00:00Z",
+      })),
+      application_packet_marks: driverPlacementIds("company_driver").map((placement_id, i) => ({
+        invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `m${i}`, placement_id,
+      })),
+      employer_inquiries: ["emp-answered", "emp-open"].map((employment_id) => ({
+        driver_id: driverId(1), employment_id, kind: "safety_performance",
+        contacted_on: "2026-09-05", outcome: "responded",
+      })),
+    });
+    const row = async (applyingAs: "company_driver" | "owner_operator") =>
+      (await boardChecklists(rec.client, ORG, [applicant(1, { hiredAt: "2026-09-08", applyingAs })], NOW))
+        .get(driverId(1))!;
+    expect((await row("company_driver")).next).toBeNull();
+    expect((await row("owner_operator")).next).toBe("application_signed");
   });
 });
 
@@ -322,7 +349,7 @@ describe("what it reads, and how much", () => {
       driver_employment_history: [],
       employer_inquiries: [],
       application_packet_marks: [
-        ...driverPlacementIds().map((placement_id, i) => ({
+        ...driverPlacementIds(null).map((placement_id, i) => ({
           invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `a${i}`, placement_id,
         })),
         { invitation_id: inviteId(2), created_at: "2026-09-07T00:00:00Z", id: "b0", placement_id: "p03" },
@@ -340,7 +367,7 @@ describe("what it reads, and how much", () => {
    * as applicant 1 — one of them at p04 — and is one real stop short, so the board must say so.
    */
   it("does not count a mark on a line withdrawn from signing", async () => {
-    const current = driverPlacementIds();
+    const current = driverPlacementIds(null);
     const rec = seed({
       qualification_records: [1, 2].map((n) => ({
         driver_id: driverId(n), kind: "mvr", created_at: "2026-09-04T00:00:00Z",

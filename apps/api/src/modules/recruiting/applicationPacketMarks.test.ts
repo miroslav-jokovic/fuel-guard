@@ -42,12 +42,20 @@ const invitation = (over: Record<string, unknown> = {}) => ({
 });
 
 const seed = (
-  opts: { inv?: Record<string, unknown> | null; marks?: Record<string, unknown>[] } = {},
+  opts: {
+    inv?: Record<string, unknown> | null;
+    marks?: Record<string, unknown>[];
+    /** The draft's `applying_as` as the path select returns it (Q-HM14). Absent: no draft row. */
+    applyingAs?: string | null;
+  } = {},
 ) =>
   createSupabaseRecorder({
     tables: {
       application_invitations: opts.inv === null ? [] : [opts.inv ?? invitation()],
       application_packet_marks: opts.marks ?? [],
+      application_drafts: opts.applyingAs === undefined
+        ? []
+        : [{ org_id: ORG, invitation_id: "inv-1", applying_as: opts.applyingAs }],
     },
     rpc: { record_packet_mark: { mark_id: "mark-1", signed_count: 1, complete: false } },
   });
@@ -97,7 +105,7 @@ describe("recording one mark", () => {
     const args = rec.rpcs()[0]!.args as Record<string, unknown>;
     // ⚠ 21 since L-1 (2026-09-24): page 4 is withdrawn from signing.
     expect(args.p_expected_count).toBe(21);
-    expect(args.p_expected_count).toBe(driverPlacements().length);
+    expect(args.p_expected_count).toBe(driverPlacements(null).length);
   });
 
   /**
@@ -105,7 +113,7 @@ describe("recording one mark", () => {
    * RPC counts ROWS, and a row at a withdrawn line would complete the packet one real stop early.
    */
   it("carries the count and the completion back, so the ceremony can advance", async () => {
-    const every = driverPlacements().map((p) => ({ placement_id: p.id, signed_at: "2026-09-24T12:00:00Z" }));
+    const every = driverPlacements(null).map((p) => ({ placement_id: p.id, signed_at: "2026-09-24T12:00:00Z" }));
     const rec = seed({ marks: every });
     const result = await recordPacketMark(rec.client, TOKEN, body("p31b"), CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
@@ -119,7 +127,7 @@ describe("recording one mark", () => {
   it("does not count a mark on a withdrawn line towards the packet, whatever the transaction says", async () => {
     const rows = [
       { placement_id: "p04", signed_at: "2026-09-17T12:00:00Z" },
-      ...driverPlacements().filter((p) => p.id !== "p31b").map((p) => ({ placement_id: p.id, signed_at: "2026-09-17T12:00:00Z" })),
+      ...driverPlacements(null).filter((p) => p.id !== "p31b").map((p) => ({ placement_id: p.id, signed_at: "2026-09-17T12:00:00Z" })),
     ];
     const rec = createSupabaseRecorder({
       tables: { application_invitations: [invitation()], application_packet_marks: rows },
@@ -411,5 +419,58 @@ describe("what this link has already adopted", () => {
     const q = rec.forTable("application_packet_marks")[0]!;
     expect(q.filters()).toContainEqual({ col: "org_id", val: ORG });
     expect(q.filters()).toContainEqual({ col: "invitation_id", val: "inv-1" });
+  });
+});
+
+/**
+ * Q-HM14 (ruled (b), 2026-09-24; memorandum Q15): a company driver is not asked to sign page 31 "as
+ * the owner-operator". Every answer the server gives about the walk — the queue served, the stop
+ * refused, the count the database stamps, `complete` — is asked of ONE read of the draft's answer.
+ */
+describe("a company driver's walk", () => {
+  it("is served without p31b, and an owner-operator's with it", async () => {
+    const company = await packetStops(seed({ applyingAs: "company_driver" }).client, ORG, "inv-1");
+    expect(company.map((s) => s.id)).not.toContain("p31b");
+    expect(company.map((s) => s.id)).toContain("p31a");
+    expect(company).toHaveLength(20);
+    const op = await packetStops(seed({ applyingAs: "owner_operator" }).client, ORG, "inv-1");
+    expect(op.at(-1)!.id).toBe("p31b");
+    // ⚠ No draft, or no answer in it, is the paper as printed.
+    expect(await packetStops(seed({ applyingAs: null }).client, ORG, "inv-1")).toHaveLength(21);
+  });
+
+  it("reads one key of the draft by path, scoped to the org, and never its payload", async () => {
+    const rec = seed({ applyingAs: "company_driver" });
+    await packetStops(rec.client, ORG, "inv-1");
+    expectOrgScoped(rec, ORG);
+    const q = rec.forTable("application_drafts")[0]!;
+    expect(q.filters()).toContainEqual({ col: "invitation_id", val: "inv-1" });
+    expect(q.ops.find((o) => o.method === "select")?.args[0]).toBe(
+      "applying_as:payload->questionnaire->>applying_as",
+    );
+  });
+
+  it("refuses p31b as a conflict, before the transaction, naming why", async () => {
+    const rec = seed({ applyingAs: "company_driver" });
+    const result = await recordPacketMark(rec.client, TOKEN, body("p31b"), CTX, NOW);
+    expect(result).toMatchObject({ code: "packet_mark_not_their_capacity" });
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+
+  it("tells the transaction their count, and is complete at twenty", async () => {
+    const twenty = driverPlacements("company_driver").map((p) => ({ placement_id: p.id, signed_at: "2026-09-24T12:00:00Z" }));
+    const rec = seed({ applyingAs: "company_driver", marks: twenty });
+    const result = await recordPacketMark(rec.client, TOKEN, body("p31a"), CTX, NOW);
+    expect((rec.rpcs()[0]!.args as Record<string, unknown>).p_expected_count).toBe(20);
+    expect(result).toMatchObject({ signedCount: 20, complete: true });
+  });
+
+  it("does not count a p31b recorded before the answer changed", async () => {
+    const every = driverPlacements(null).map((p) => ({ placement_id: p.id, signed_at: "2026-09-24T12:00:00Z" }));
+    const withoutP03 = every.filter((m) => m.placement_id !== "p03");
+    const rec = seed({ applyingAs: "company_driver", marks: withoutP03 });
+    const result = await recordPacketMark(rec.client, TOKEN, body("p03"), CTX, NOW);
+    // Twenty ROWS, one of them p31b: nineteen of a company driver's twenty stops.
+    expect(result).toMatchObject({ signedCount: 19, complete: false });
   });
 });

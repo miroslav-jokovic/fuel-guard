@@ -289,7 +289,9 @@ will draft for it (paired with Q13).
 The page also asks why the test is required ("Pre-Employment Qualification" / "Suspicion of
 Controlled Substance" / "Pre-Qualification Contracting a Driver/Owner Operator" / "Other"). Under
 decision **Q-HM14**, the platform will tick this from the applicant's structured answer
-(company driver or owner-operator), not infer it from free text.
+(company driver or owner-operator), not infer it from free text. The carrier's own page already
+prints "yes" beside "Pre-Employment Qualification" for every applicant. An owner-operator's page
+therefore reads "yes" on both that line and the contracting line.
 
 **What we need.** A corrected page 22, or approval to replace the two sentences above with wording
 you provide. Also confirm the Q-HM14 approach to the checkbox.

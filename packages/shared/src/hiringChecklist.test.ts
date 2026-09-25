@@ -16,7 +16,7 @@ import { packetDriverMarkCount } from "./packetPlacements.js";
  *
  * ⚠ **The fixtures are built from the REAL catalogues, not from hand-written pairs.**
  * `APPLICATION_RELEASE_ORDER` is what an applicant is actually asked to sign and
- * `packetDriverMarkCount()` is what the packet actually takes — both have changed in this repo and
+ * `packetDriverMarkCount(null)` is what the packet actually takes — both have changed in this repo and
  * both will again. A fixture that wrote "4" and "22" would keep passing through the change it exists
  * to catch, which is this repo's named failure mode: a fixture too uniform to discriminate.
  */
@@ -51,7 +51,7 @@ const complete = (over: Partial<HiringChecklistInputs> = {}): HiringChecklistInp
     authorizations: ALL_PERMISSIONS,
     qualificationKinds: ALL_KINDS,
     psp: { requested: true, reportReceived: true },
-    packetMarks: packetDriverMarkCount(),
+    packetMarks: packetDriverMarkCount(null),
     // ⚠ Q-HM9. Nothing outstanding, so nothing can be awaiting either — `awaiting` counts a SUBSET of
     // `outstanding`, and a fixture with `awaiting > outstanding` would be describing a state the
     // queue cannot produce.
@@ -393,9 +393,24 @@ describe("what each step actually reads", () => {
    * duplicate — and this is the same argument one layer up.
    */
   it("counts the packet against the inventory, not against a number", () => {
-    const short = hiringChecklist(complete({ packetMarks: packetDriverMarkCount() - 1 }));
+    const short = hiringChecklist(complete({ packetMarks: packetDriverMarkCount(null) - 1 }));
     expect(stateOf(short, "application_signed")).toBe("waiting_on_them");
     expect(stateOf(hiringChecklist(complete()), "application_signed")).toBe("done");
+  });
+
+  /**
+   * ⚠ Q-HM14: a company driver's walk is one stop shorter (no `p31b`). Twenty marks complete THEIR
+   * packet and not an owner-operator's — and a caller that forgets `applyingAs` reads the paper's
+   * longer walk, so the forgetting shows as outstanding rather than as a green step.
+   */
+  it("counts the packet against THIS applicant's walk", () => {
+    const twenty = packetDriverMarkCount("company_driver");
+    expect(twenty).toBe(packetDriverMarkCount(null) - 1);
+    expect(stateOf(hiringChecklist(complete({ packetMarks: twenty, applyingAs: "company_driver" })), "application_signed"))
+      .toBe("done");
+    expect(stateOf(hiringChecklist(complete({ packetMarks: twenty, applyingAs: "owner_operator" })), "application_signed"))
+      .toBe("waiting_on_them");
+    expect(stateOf(hiringChecklist(complete({ packetMarks: twenty })), "application_signed")).toBe("waiting_on_them");
   });
 
   /**
@@ -411,7 +426,7 @@ describe("what each step actually reads", () => {
       .toBe("waiting_on_us");
     expect(stateOf(hiringChecklist(complete({ packetMarks: 0 })), "application_signed")).toBe("waiting_on_them");
     expect(
-      stateOf(hiringChecklist(complete({ phases: unopened, packetMarks: packetDriverMarkCount() - 2 })), "application_signed"),
+      stateOf(hiringChecklist(complete({ phases: unopened, packetMarks: packetDriverMarkCount(null) - 2 })), "application_signed"),
     ).toBe("waiting_on_us");
   });
 

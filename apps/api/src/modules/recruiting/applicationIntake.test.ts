@@ -103,7 +103,7 @@ const submittableInvitation = (over: Record<string, unknown> = {}) =>
  * that IS signed through — the alternative is fifteen existing tests failing for a reason none of
  * them is about. `signedPacket(...)` varies it where a test is about the gate itself.
  *
- * Built from `driverPlacements()` rather than hand-listed: a fixture that named its own stops would
+ * Built from `driverPlacements(null)` rather than hand-listed: a fixture that named its own stops would
  * keep passing after the inventory changed, which is the one thing this gate must not do.
  *
  * ⚠ **Each row carries the KIND its placement asks for, and the initials are their own string**
@@ -113,7 +113,7 @@ const submittableInvitation = (over: Record<string, unknown> = {}) =>
  */
 const signedPacket = (
   name = "Susan Godfrey",
-  ids: string[] = driverPlacementIds(),
+  ids: string[] = driverPlacementIds(null),
   initials = "SG",
 ): Array<{ placement_id: string; mark: string; signed_name: string }> =>
   ids.map((placement_id) => {
@@ -507,7 +507,7 @@ describe("the carrier's form has to be signed through", () => {
    * counting rows rather than asking whether every PLACE carries a mark.
    */
   it("refuses a packet missing a single place, and names which kind of refusal it is", async () => {
-    const all = driverPlacementIds();
+    const all = driverPlacementIds(null);
     const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), signedPacket("Susan Godfrey", all.slice(0, -1)));
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("packet_not_signed");
@@ -519,7 +519,7 @@ describe("the carrier's form has to be signed through", () => {
    * cannot see.
    */
   it("refuses the right number of marks made on the wrong places", async () => {
-    const all = driverPlacementIds();
+    const all = driverPlacementIds(null);
     const doubled = [...all.slice(0, -1), all[0]!];
     const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), signedPacket("Susan Godfrey", doubled));
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
@@ -542,6 +542,31 @@ describe("the carrier's form has to be signed through", () => {
     const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }));
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
+  });
+
+  /**
+   * ⚠ Q-HM14: the places demanded are THIS applicant's, read from the payload being FILED — the one
+   * document whose page 31 the overlay then prints. A company driver's twenty file; the same twenty
+   * under an owner-operator's answer are one short, because p31b is theirs to sign.
+   */
+  it("demands the places of the answer being filed, and no others", async () => {
+    const as = (applying_as: string) => ({
+      ...APPLICATION,
+      application: {
+        ...(APPLICATION as { application: Record<string, unknown> }).application,
+        questionnaire_version: "silvicom_driver@v2",
+        questionnaire_answers: { applying_as },
+      },
+    }) as unknown as Parameters<typeof submitApplication>[3];
+    const twenty = signedPacket("Susan Godfrey", driverPlacementIds("company_driver"));
+    expect(twenty.map((m) => m.placement_id)).not.toContain("p31b");
+
+    const company = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), twenty);
+    expect(isIntakeError(await submitApplication(company.client, env(), TOKEN, as("company_driver"), CTX, NOW))).toBe(false);
+
+    const op = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), twenty);
+    const refused = await submitApplication(op.client, env(), TOKEN, as("owner_operator"), CTX, NOW);
+    expect(isIntakeError(refused) && refused.code).toBe("packet_not_signed");
   });
 
   /**
@@ -573,7 +598,7 @@ describe("the carrier's form has to be signed through", () => {
    * which is the arrangement that refuses a correctly signed packet.
    */
   it("files a packet whose initials differ from the signature, whichever row comes back first", async () => {
-    const ids = driverPlacementIds();
+    const ids = driverPlacementIds(null);
     const initialsFirst = [
       ...ids.filter((id) => packetPlacementById(id)?.mark === "initials"),
       ...ids.filter((id) => packetPlacementById(id)?.mark !== "initials"),
@@ -595,7 +620,7 @@ describe("the carrier's form has to be signed through", () => {
   it("still refuses a wrong signature even when the initials would have matched", async () => {
     const rec = seed(
       invitation({ approved_at: "2026-09-11T09:00:00Z" }),
-      signedPacket("S. Godfrey", driverPlacementIds(), "Susan Godfrey"),
+      signedPacket("S. Godfrey", driverPlacementIds(null), "Susan Godfrey"),
     );
     const result = await submitApplication(rec.client, env(), TOKEN, APPLICATION, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("packet_name_mismatch");

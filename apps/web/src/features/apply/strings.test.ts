@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SILVICOM_DRIVER_V1 } from "@silvicom/shared";
+import { SILVICOM_DRIVER_V2 } from "@silvicom/shared";
 import { APPLY_COPY } from "./strings";
 
 /**
@@ -77,7 +77,9 @@ function leaves(node: unknown, path: string): Array<{ path: string; text: string
  * the same rule.
  */
 describe("apply copy", () => {
-  const all = [...leaves(APPLY_COPY, "APPLY_COPY"), ...leaves(SILVICOM_DRIVER_V1, "SILVICOM_DRIVER_V1")];
+  // ⚠ The definition SERVED, which is v2 since Q-HM14 — walking v1 alone would leave `applying_as`'s
+  // label, hint and choices outside the gate, the blind spot this block was written to close.
+  const all = [...leaves(APPLY_COPY, "APPLY_COPY"), ...leaves(SILVICOM_DRIVER_V2, "SILVICOM_DRIVER_V2")];
 
   it("reaches the carrier's own questions, which are copy too", () => {
     // The guard that the walk actually descends into the definition rather than stopping at its id.

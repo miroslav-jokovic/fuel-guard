@@ -68,7 +68,9 @@ const textAt = (r: { placed: PlacedFieldValue[] }, id: string): string | undefin
 
 describe("the signing pages carry what we already hold", () => {
   it("leaves no measured signing line empty for a complete application", () => {
-    const r = fill();
+    // ⚠ An OWNER-OPERATOR is the only applicant for whom every line is theirs (Q-HM14): a company
+    // driver's page 31 owner-operator half and page 22's contracting reason are blank on purpose.
+    const r = fill({ questionnaire_answers: { applying_as: "owner_operator" } });
     const empty = PACKET_SIGNING_FIELD_LINES.map((l) => l.id).filter(
       (id) =>
         // ⚠ Exactly one of the two page-26 ticks is drawn; the other being absent is the answer. And
@@ -286,5 +288,54 @@ describe("nothing reaches a page that is not the applicant's document", () => {
     const r = fill();
     const strays = r.placed.filter((p) => [14, 21, 23, 24].includes(p.line.page));
     expect(strays.map((p) => p.line.id)).toEqual([]);
+  });
+});
+
+/**
+ * Q-HM14 (ruled (b), 2026-09-24): page 22's reason and page 31's owner-operator half, from the
+ * applicant's structured `applying_as`.
+ *
+ * ⚠ **What is pinned is the three states, not two.** The null case is every packet filed before the
+ * question existed and every applicant who left it blank, and it must print exactly what the paper
+ * printed before this — owner-operator names, no reason ticked — because either change would be the
+ * document answering a question on the applicant's behalf.
+ */
+describe("what page 22 and page 31 print from `applying_as`", () => {
+  const OP_NAMES = ["p31.owner_operator_name", "p31.aka_op"];
+
+  it("prints neither owner-operator name, and no reason, for a company driver", () => {
+    const r = fill({ questionnaire_answers: { applying_as: "company_driver" } });
+    for (const id of OP_NAMES) expect(textAt(r, id), id).toBeUndefined();
+    // ⚠ Page 31 is the owner-operator AND leased-driver agreement: the driver half stays.
+    expect(textAt(r, "p31.driver_name")).toBe("Marija Ana Varmeda");
+    // ⚠ The company driver's reason is the carrier's own printed `yes`; nothing is drawn over it.
+    expect(textAt(r, "p22.reason.contracting")).toBeUndefined();
+  });
+
+  it("names the owner-operator and ticks the contracting reason for an owner-operator", () => {
+    const r = fill({ questionnaire_answers: { applying_as: "owner_operator" } });
+    for (const id of OP_NAMES) expect(textAt(r, id), id).toBe("Marija Ana Varmeda");
+    expect(textAt(r, "p22.reason.contracting")).toBe("yes");
+  });
+
+  it("prints what the paper always printed when there is no answer", () => {
+    const r = fill({ questionnaire_answers: {} });
+    for (const id of OP_NAMES) expect(textAt(r, id), id).toBe("Marija Ana Varmeda");
+    expect(textAt(r, "p22.reason.contracting")).toBeUndefined();
+    // A value that is not one of the two keys is no answer, not a nearest match.
+    const typed = fill({ questionnaire_answers: { applying_as: "Owner operator", position: "Owner operator" } });
+    expect(textAt(typed, "p22.reason.contracting")).toBeUndefined();
+  });
+
+  /**
+   * ⚠ The reading copy the applicant signs beside is drawn from the DRAFT, whose answers are under
+   * `questionnaire`. A filler reading `questionnaire_answers` alone would show the applicant a page 31
+   * that disagrees with the one filed.
+   */
+  it("reads a draft's answers exactly as a filed payload's", () => {
+    const draft = fill({ questionnaire_answers: undefined, questionnaire: { applying_as: "company_driver" } });
+    for (const id of OP_NAMES) expect(textAt(draft, id), id).toBeUndefined();
+    const withOp = fill({ questionnaire_answers: undefined, questionnaire: { applying_as: "owner_operator" } });
+    expect(textAt(withOp, "p22.reason.contracting")).toBe("yes");
   });
 });

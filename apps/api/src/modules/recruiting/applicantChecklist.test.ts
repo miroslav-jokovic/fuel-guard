@@ -49,7 +49,7 @@ const authRows = () =>
  * CURRENT stops, so a row without one — or at a withdrawn line — is not a mark that counts.
  */
 const markRows = (n: number, invitation = INVITE) =>
-  driverPlacementIds().slice(0, n).map((placement_id, i) => ({
+  driverPlacementIds(null).slice(0, n).map((placement_id, i) => ({
     id: `mark-${invitation}-${i}`, invitation_id: invitation, placement_id,
   }));
 
@@ -201,13 +201,13 @@ describe("the endpoint answers exactly what the fold answers", () => {
     const rec = seed({
       drivers: [{ id: DRIVER, hire_date: "2026-09-10" }],
       qualification_records: kinds.map((kind) => ({ driver_id: DRIVER, kind })),
-      application_packet_marks: markRows(packetDriverMarkCount()),
+      application_packet_marks: markRows(packetDriverMarkCount(null)),
     });
     const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(result).toEqual(
       hiringChecklist(asInputs({
         qualificationKinds: kinds,
-        packetMarks: packetDriverMarkCount(),
+        packetMarks: packetDriverMarkCount(null),
         hiredAt: "2026-09-10",
       })),
     );
@@ -317,7 +317,7 @@ describe("what it reads, and from where", () => {
    */
   it("counts packet marks against the live invitation only", async () => {
     const rec = seed({
-      application_packet_marks: [...markRows(2), ...markRows(packetDriverMarkCount(), "old-invite")],
+      application_packet_marks: [...markRows(2), ...markRows(packetDriverMarkCount(null), "old-invite")],
     });
     const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(result).toEqual(hiringChecklist(asInputs({ packetMarks: 2 })));
@@ -327,13 +327,41 @@ describe("what it reads, and from where", () => {
    * ⚠ L-1: a mark at page 4 from before the withdrawal is still a row, and is not a mark that counts.
    * Twenty-one rows with p04 among them are twenty real stops — "Application signed" stays open.
    */
+  /**
+   * ⚠ Q-HM14: a company driver's walk has no p31b, so twenty marks sign their packet through — read
+   * from the draft's answer. Without that read the step would sit open for ever, one stop short of
+   * the paper's twenty-one.
+   */
+  it("counts the packet against the walk the draft's answer gives", async () => {
+    const theirs = driverPlacementIds("company_driver").map((placement_id, i) => ({
+      id: `mark-cd-${i}`, invitation_id: INVITE, placement_id,
+    }));
+    const signed = (applying_as: string | null) =>
+      applicantChecklist(
+        seed({
+          // ⚠ The draft's REAL shape: the service's path select has to reach the key itself.
+          application_drafts: [{ invitation_id: INVITE, payload: { date_of_birth: "1980-04-01", questionnaire: { applying_as } } }],
+          application_packet_marks: theirs,
+        }).client,
+        ORG, DRIVER, TODAY,
+      );
+    const stateOf = async (applying_as: string | null) => {
+      const r = await signed(applying_as);
+      if (isChecklistError(r)) throw new Error(r.code);
+      return r.steps.find((st) => st.key === "application_signed")!.state;
+    };
+    expect(await stateOf("company_driver")).toBe("done");
+    expect(await stateOf("owner_operator")).not.toBe("done");
+    expect(await stateOf(null)).not.toBe("done");
+  });
+
   it("does not count a mark on a line withdrawn from signing", async () => {
-    const twenty = markRows(packetDriverMarkCount() - 1);
+    const twenty = markRows(packetDriverMarkCount(null) - 1);
     const rec = seed({
       application_packet_marks: [...twenty, { id: "mark-p04", invitation_id: INVITE, placement_id: "p04" }],
     });
     const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
-    expect(result).toEqual(hiringChecklist(asInputs({ packetMarks: packetDriverMarkCount() - 1 })));
+    expect(result).toEqual(hiringChecklist(asInputs({ packetMarks: packetDriverMarkCount(null) - 1 })));
   });
 
   /**

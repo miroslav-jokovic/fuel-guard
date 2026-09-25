@@ -76,12 +76,12 @@ function packetTextOf(pdf: Buffer): string {
 /**
  * A packet signed through, as `application_packet_marks` holds one.
  *
- * ⚠ Built from `driverPlacements()` rather than hand-listed — a fixture naming its own stops would
+ * ⚠ Built from `driverPlacements(null)` rather than hand-listed — a fixture naming its own stops would
  * keep passing after the inventory changed, and the inventory is a measurement of somebody else's
  * paper that has been corrected twice.
  */
 const signedPacket = () =>
-  driverPlacements().map((pl) => ({
+  driverPlacements(null).map((pl) => ({
     placement_id: pl.id,
     signed_name: pl.mark === "initials" ? "SG" : SIGNED_NAME,
     signed_at: "2026-08-21T18:00:00Z",
