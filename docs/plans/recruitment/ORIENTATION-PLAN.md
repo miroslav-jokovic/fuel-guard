@@ -186,6 +186,57 @@ Q-OR1…Q-OR5 → OR0 → (0 in production) → OR1–OR3 in one merge, as RT1�
   let its title field carry "Maintenance manager". Driver signature (a), because the packet's
   adoption already exists and page 24 is signed at the same desk the same morning.
 
+### Raised 2026-09-25, after the owner uploaded the handbook
+
+The owner ruled "proceed as recommended" on Q-OR1–Q-OR5 and uploaded
+`docs/Kowlage-Base/DRIVER HANDBOOK.docx` (untracked; ~3,000 words). Reading it changed two of the
+five recommendations, so those two are re-asked below rather than built as written. **Q-OR2 and Q-OR4
+stand as ruled** (0373 is Q-OR2).
+
+What the handbook is, measured: a passenger policy; a memo (occupational accident insurance, truck
+upkeep and its fines, the nine EFS fuel rules, receipts, paperwork, cash advances); an 18-point
+"Supplemental … Driver Policy and Driver Rules" (PC*Miler mileage, settlement timing, deductions,
+**binding AAA arbitration in Illinois**, Illinois law); an hours-of-service and fines schedule; ELD
+charges; a policy agreement; and a "SAFETY STANDARDS AND POLICIES RECEIPT". **It carries five
+signature blocks of its own:** the memo's (name, signature, date), the fines schedule's (name,
+signature, date), the ELD page's (*"By signing this, I agree to safety penalty policy"*), the policy
+agreement (*"Agreed:"* driver AND **Silvicom Inc**, a countersignature), and the receipt (name,
+signature, date, **SSN**). **It contains no drug-and-alcohol policy** (one mention of a drug test, in
+the fines list).
+
+- **Q-OR6 · Q-OR1 (a) cannot make "Handbook signed" true.** p25 is a receipt. The handbook's own
+  five blocks are AGREEMENTS (fines, deductions, arbitration), and a receipt on another page cannot sign
+  them. Green on p25 alone would say the handbook was signed when its signature lines are blank.
+  *Candidates:* (a) **paper, filed**: the office prints the handbook, the driver signs its five blocks
+  and the carrier countersigns in ink, and the office uploads the scan through D1's existing
+  `/applicants/:driverId/records/:step/document` path as `documents.kind = 'handbook'` (0373), citing
+  one `qualification_records` row. The step is green on that row, and p25 stays as the receipt.
+  (b) on screen: the handbook becomes a versioned instrument drawn verbatim, with its five blocks as
+  marks in a second signing ceremony (the packet's machinery, a new placement set, and a full-name SSN
+  field that D-HIRE6 would never print). (c) one cover signature for the whole handbook, which
+  replaces the carrier's five agreements with one we wrote. *Recommendation:* **(a)**. It is true on
+  the day, reuses D1's path and 0373, and needs no drafting. (b) is a large build. (c) rewrites the
+  carrier's contract. ⚠ Under (a) the SSN blank on the receipt is the office's paper, never typed into
+  the product.
+- **Q-OR7 · The drug-and-alcohol policy is still missing (Q-OR3's other half).** p28 is the §382.601(d)
+  receipt for a policy that is not in the handbook and not in the product. *Ask:* the carrier's
+  written policy, or the name of the consortium/C-TPA that supplied it. *Recommendation:* the same
+  as the handbook (upload once, offered on the link). Until then p28 receipts a document the file
+  cannot show.
+- **Q-OR8 · Q-OR5's driver signature does not exist yet at step 14.** The adopted signature is an
+  `application_captures` `signature_mark`, taken during the packet ceremony (step 16). Orientation is
+  step 14, so there is nothing to apply. *Candidates:* (a) **paper, like Q-OR6 (a)**: the product
+  prints page 24 pre-filled (the areas ticked, the date, the names), the driver and the instructor sign
+  in ink, and the office uploads the scan as `orientation`; (b) move orientation after the packet
+  ceremony; (c) its own on-screen signature. *Recommendation:* **(a)**. The instructor also signs in
+  ink, so `road_test_examiners` is not needed here, and the order the owner set is kept.
+- **Q-OR9 · For counsel, not a build.** The handbook deducts fines and charges from pay (e.g. $500
+  per ELD device, $10 per missing receipt, $100 maintenance), and binds the driver to AAA arbitration
+  and Illinois law. Its independent-contractor language is addressed to company drivers too. None of
+  this is the product's to change (D-PKT11: the carrier's text is counsel's work product). It belongs
+  in the counsel memorandum (`COUNSEL-REVIEW-PACKAGE.md`) as a new item. *Recommendation:* add it
+  there before the memorandum is sent.
+
 ---
 
 ## 8. Progress log
@@ -193,3 +244,13 @@ Q-OR1…Q-OR5 → OR0 → (0 in production) → OR1–OR3 in one merge, as RT1�
 - **2026-09-25** — Plan written. Nothing built: Q-OR1 contradicts D3's row in HIRING-MODULE-PLAN §9
   (a `handbook` 0215 purpose would duplicate the packet's p25 receipt), and Q-OR3 finds the §382.601
   policy text has never been in the product. Five questions to the owner.
+- **2026-09-25** — The owner ruled "as recommended" and uploaded the handbook. **OR0 built (in PR):
+  migration `0373_orientation_and_handbook_kinds.sql`** adds `orientation` and `handbook` to both
+  `qualification_records.kind` and `documents.kind`, and nothing else. Schema only; its first reader
+  ships in the next merge. `handbook` is in because the handbook has its own signed pages (Q-OR6), so a
+  signed copy is a filed document whichever way Q-OR6 goes, and the carrier's master copy files under
+  `subject_type = 'organization'`. Matrix `orientation-kinds.test.mjs`: 11 assertions, including every
+  kind 0237 admitted re-read from 0237 and proved still valid. 8 of 8 migration mutants killed.
+  `rls.test.mjs` 552 pass. **Reading the handbook changed Q-OR1 and Q-OR5**, so they are re-asked as
+  Q-OR6 and Q-OR8 above. Q-OR7 (the drug-and-alcohol policy is still missing) and Q-OR9 (for counsel)
+  are new. OR1–OR3 wait on Q-OR6 and Q-OR8.
