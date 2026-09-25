@@ -398,7 +398,7 @@ export function publicApplicationRouter(): Router {
               ? 409
               // A stop that is not the driver's is a bad request rather than a conflict: nothing
               // about the state of the world would make `p18c` signable by an applicant.
-              : result.code === "packet_mark_not_the_drivers"
+              : result.code === "packet_mark_not_the_drivers" || result.code === "packet_mark_withdrawn"
                 ? 400
                 : 500;
         res.status(status).json(apiError(result.code, result.message));

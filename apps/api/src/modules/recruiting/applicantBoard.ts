@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  countedPacketMarks,
   driverInquiryQueue,
   hiringChecklist,
   hiringStep,
@@ -182,7 +183,8 @@ export async function boardChecklists(
         // ticks this step exactly as an ordered one does. D-HM6 read from the evidence side.
         reportReceived: kinds.includes("psp_report"),
       },
-      packetMarks: markRows.length,
+      // ⚠ Marks at the CURRENT stops only (L-1): a mark on a withdrawn line is still a row.
+      packetMarks: countedPacketMarks(markRows.map((r) => r.placement_id)),
       investigation: {
         outstanding: investigationQueue.outstanding.length,
         // ⚠ `awaiting` only — the employer's own move. See `applicantChecklist.ts`'s note.
@@ -265,6 +267,7 @@ interface QualificationRow {
 
 interface MarkRow {
   invitation_id: string;
+  placement_id: string;
   created_at: string;
 }
 
@@ -303,7 +306,7 @@ async function readPacketMarks(
   if (invitationIds.length === 0) return new Map();
   const { data } = await admin
     .from("application_packet_marks")
-    .select("invitation_id, created_at")
+    .select("invitation_id, placement_id, created_at")
     .eq("org_id", orgId)
     .in("invitation_id", invitationIds);
   return groupBy((data ?? []) as MarkRow[], (r) => r.invitation_id);

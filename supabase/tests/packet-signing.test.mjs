@@ -135,8 +135,11 @@ const approveAndOpen = async (invitation) => {
   await openSigning(invitation);
 };
 
-// ⚠ The driver's twenty-two stops, in the packet's own page order — the same list and the same ids
-// `driverPlacements()` produces, because the API passes this function what that array holds. Kept
+// ⚠ The driver's twenty-two lines on the PAPER, in the packet's own page order — the same list and
+// ids as `paperDriverPlacements()`. ⚠ Since L-1 (2026-09-24) the ceremony walks 21 of them: page 4
+// is withdrawn from signing, and that refusal is the API's (`recordPacketMark`,
+// `packet_mark_withdrawn`), like the refusal of the carrier's own lines — this function is told a
+// page, an anchor and an expected count, and has no inventory to withdraw anything from. Kept
 // here as data rather than imported: a matrix runs against the migrations alone, and an .mjs test
 // reaching into a built TypeScript package would make the database's behaviour depend on a build.
 const STOPS = [

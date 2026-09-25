@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  countedPacketMarks,
   driverInquiryQueue,
   hiringChecklist,
   type AuthorizationRow,
@@ -272,10 +273,12 @@ async function readPacketMarks(
   if (!invitationId) return 0;
   const { data } = await admin
     .from("application_packet_marks")
-    .select("id")
+    .select("placement_id")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId);
-  return ((data ?? []) as unknown[]).length;
+  // ⚠ Marks at the CURRENT stops, never the row count (L-1): a mark on a withdrawn line is still a
+  // row, and counting it would turn "Application signed" green one real stop short.
+  return countedPacketMarks(((data ?? []) as Array<{ placement_id: string }>).map((r) => r.placement_id));
 }
 
 /**

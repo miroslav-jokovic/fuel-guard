@@ -16,7 +16,8 @@
  *
  * ── WHAT THE MEASUREMENT SAYS ─────────────────────────────────────────────────────────────────
  * **22 marks are the driver's, across 19 pages. Six are not: four the carrier's and two a
- * witness's.** The plan's 21 was numerically right and structurally wrong — it was reached before
+ * witness's.** ⚠ Since L-1 (2026-09-24) the ceremony collects **21**: page 4's line is still the
+ * driver's on the paper and is withdrawn from signing (`PACKET_WITHDRAWALS`). The plan's 21 was numerically right and structurally wrong — it was reached before
  * page 26 was known to take a signature at all (§3.7), and it counted company lines to get there.
  * Two errors of the same size in opposite directions is the most expensive kind of correct number,
  * because nothing about it looks wrong.
@@ -175,9 +176,88 @@ export const PACKET_PLACEMENTS: readonly PacketPlacement[] = [
     what: "Witnessed" },
 ];
 
-/** The queue P5 builds. Everything else on the paper belongs to somebody who is not the applicant. */
-export const driverPlacements = (): PacketPlacement[] =>
+/**
+ * A driver's line the carrier has taken OUT of electronic signing, and why (L-1).
+ *
+ * ── WHY A SEPARATE TABLE AND NOT A DELETED ROW ────────────────────────────────────────────────
+ * `PACKET_PLACEMENTS` is a measurement of the carrier's paper, and the paper has not changed: page 4
+ * still carries `Applicant's Signature | Date`, and the template still prints it. Deleting the row
+ * would make the inventory disagree with the page it measures, and `packetPlacements.test.ts`'s
+ * re-read of the workbook exists to stop exactly that. What changed is a DECISION about the line,
+ * so the decision gets its own table, keyed by the same id, and is reversible by deleting one entry
+ * when counsel answers.
+ *
+ * ⚠ **Withdrawn is not "not the driver's".** `party` stays `"driver"` — it is the applicant's line on
+ * the paper — and every consumer that asks "which stops does the ceremony walk?" goes through
+ * `driverPlacements()`, which is where the withdrawal is applied, once. A consumer reading `party`
+ * directly would put p04 back in the walk; the server's refusal (`recordPacketMark`) asks
+ * `driverPlacementIds()` for that reason.
+ *
+ * ⚠ **A mark recorded before the withdrawal stays a row** (`application_packet_marks` is evidence and
+ * append-only). It is no longer COUNTED (`countedPacketMarks`) and no longer PRINTED (the overlay
+ * skips a withdrawn id and draws `notice` on the line instead) — so production's 2026-09-17 QA walk
+ * neither completes a stop early nor files page 4 signed.
+ */
+export interface PacketWithdrawal {
+  /** The decision, by its id in `COUNSEL-REVIEW-PACKAGE.md`. */
+  ruling: string;
+  /** YYYY-MM-DD, the day of the ruling. */
+  since: string;
+  /**
+   * What the filed page says on the blank line, to whoever reads the paper.
+   *
+   * ⚠ Printed ON the carrier's page, because the packet has no certificate page of its own to carry
+   * it and an unexplained blank signature line on a filed packet reads as a signature that failed to
+   * record. It names no case and no statute: the reader is an auditor or the applicant, and "pending
+   * legal review" is the fact.
+   */
+  notice: string;
+}
+
+export const PACKET_WITHDRAWALS: Readonly<Record<string, PacketWithdrawal>> = {
+  // ⚠ L-1 (owner, 2026-09-24; memorandum Q1). Page 4 puts a consumer-report disclosure, an
+  // all-capitals release of liability, consent to resale and an SSN field on one page. *Syed v.
+  // M-I, LLC*, 853 F.3d 492 (9th Cir. 2017) holds a liability waiver inside the disclosure document a
+  // WILLFUL §604(b)(2)(A)(i) violation. Page 20 already is the correctly-shaped disclosure, so a
+  // page-4 signature adds exposure and no protection. Removed when counsel answers Q1.
+  p04: {
+    ruling: "L-1",
+    since: "2026-09-24",
+    notice: "Not signed electronically. Withdrawn from signing on 09/24/2026, pending legal review.",
+  },
+};
+
+/** The withdrawal on this placement, or null while it is signed as normal. */
+export const packetWithdrawal = (id: string): PacketWithdrawal | null => PACKET_WITHDRAWALS[id] ?? null;
+
+/**
+ * Does a page carry a driver's line, and is every one of them withdrawn?
+ *
+ * ⚠ The question the printed-name blanks ask. A name printed in block capitals beside a signature
+ * line nobody signed asserts the half of the act that did not happen — page 24's lesson (D-PKT10):
+ * "a name printed on one asserts an act nobody performed".
+ */
+export const packetPageWithdrawn = (page: number): boolean => {
+  const lines = PACKET_PLACEMENTS.filter((p) => p.page === page && p.party === "driver");
+  return lines.length > 0 && lines.every((p) => packetWithdrawal(p.id) !== null);
+};
+
+/**
+ * Every line on the paper that is the driver's, INCLUDING the withdrawn ones.
+ *
+ * ⚠ The question geometry asks, and only geometry: the measured rules (`packetMarkGeometry.ts`,
+ * the dates and printed names beside them) describe the carrier's paper, which still carries page
+ * 4's line. Asking `driverPlacements()` there would make a measurement depend on a legal ruling.
+ */
+export const paperDriverPlacements = (): PacketPlacement[] =>
   PACKET_PLACEMENTS.filter((p) => p.party === "driver");
+
+/**
+ * The queue P5 builds. Everything else on the paper belongs to somebody who is not the applicant,
+ * or has been withdrawn from signing (`PACKET_WITHDRAWALS`).
+ */
+export const driverPlacements = (): PacketPlacement[] =>
+  paperDriverPlacements().filter((p) => packetWithdrawal(p.id) === null);
 
 /**
  * The two adopted marks (D-PKT6): a signature typed once, and a set of initials typed once.
@@ -215,3 +295,17 @@ export const packetPlacementById = (id: string): PacketPlacement | null =>
  * page that is evidence — and the request that did it would look exactly like every other one.
  */
 export const driverPlacementIds = (): string[] => driverPlacements().map((p) => p.id);
+
+/**
+ * How many of the ceremony's CURRENT stops a link has marked, from the placement ids on its rows.
+ *
+ * ⚠ **Not the number of rows.** A mark made at a line since withdrawn (L-1: production's 2026-09-17
+ * walk may hold a p04) is still a row, and counting it would let a link reach the total one real stop
+ * short — the checklist would go green and the ceremony would announce itself finished while the
+ * submit gate, which asks for every id, still refused. Distinct, because the database's unique index
+ * makes duplicates impossible and a count that relied on that would be a count that trusted it.
+ */
+export const countedPacketMarks = (placementIds: readonly string[]): number => {
+  const current = new Set(driverPlacementIds());
+  return new Set(placementIds.filter((id) => current.has(id))).size;
+};

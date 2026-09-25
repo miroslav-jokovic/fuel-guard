@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hiringChecklist, hiringStep, packetDriverMarkCount, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
+import { driverPlacementIds, hiringChecklist, hiringStep, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { boardChecklists, type BoardApplicantInput } from "./applicantBoard.js";
@@ -198,8 +198,8 @@ describe("the board row is the fold's answer, projected", () => {
       qualification_records: kinds.map((kind) => ({
         driver_id: driverId(1), kind, created_at: "2026-09-06T00:00:00Z",
       })),
-      application_packet_marks: Array.from({ length: packetDriverMarkCount() }, (_, i) => ({
-        invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `m${i}`,
+      application_packet_marks: driverPlacementIds().map((placement_id, i) => ({
+        invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `m${i}`, placement_id,
       })),
       // ⚠ Q-HM9: BOTH employers answered, so the §391.23 investigation is closed too. Without this
       // the default seed leaves `emp-open` unwritten-to and `next` is the investigation — which is
@@ -322,16 +322,42 @@ describe("what it reads, and how much", () => {
       driver_employment_history: [],
       employer_inquiries: [],
       application_packet_marks: [
-        ...Array.from({ length: packetDriverMarkCount() }, (_, i) => ({
-          invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `a${i}`,
+        ...driverPlacementIds().map((placement_id, i) => ({
+          invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `a${i}`, placement_id,
         })),
-        { invitation_id: inviteId(2), created_at: "2026-09-07T00:00:00Z", id: "b0" },
+        { invitation_id: inviteId(2), created_at: "2026-09-07T00:00:00Z", id: "b0", placement_id: "p03" },
       ],
     });
     const board = await boardChecklists(rec.client, ORG, [applicant(1), applicant(2)], NOW);
     // The two applicants are identical except for their marks, so the whole difference in what the
     // board says about them is that one packet is signed and the other is one mark in. A count that
     // fell back to the driver, or forgot to group, would make these equal.
+    expect(board.get(driverId(1))!.done).toBe(board.get(driverId(2))!.done + 1);
+  });
+
+  /**
+   * ⚠ L-1: a mark at page 4 from before the withdrawal is still a row. Applicant 2 holds as many ROWS
+   * as applicant 1 — one of them at p04 — and is one real stop short, so the board must say so.
+   */
+  it("does not count a mark on a line withdrawn from signing", async () => {
+    const current = driverPlacementIds();
+    const rec = seed({
+      qualification_records: [1, 2].map((n) => ({
+        driver_id: driverId(n), kind: "mvr", created_at: "2026-09-04T00:00:00Z",
+      })),
+      psp_requests: [],
+      driver_employment_history: [],
+      employer_inquiries: [],
+      application_packet_marks: [
+        ...current.map((placement_id, i) => ({
+          invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `a${i}`, placement_id,
+        })),
+        ...["p04", ...current.slice(0, -1)].map((placement_id, i) => ({
+          invitation_id: inviteId(2), created_at: "2026-09-07T00:00:00Z", id: `b${i}`, placement_id,
+        })),
+      ],
+    });
+    const board = await boardChecklists(rec.client, ORG, [applicant(1), applicant(2)], NOW);
     expect(board.get(driverId(1))!.done).toBe(board.get(driverId(2))!.done + 1);
   });
 

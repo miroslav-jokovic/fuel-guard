@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hiringChecklist, packetDriverMarkCount, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
+import { driverPlacementIds, hiringChecklist, packetDriverMarkCount, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
@@ -44,8 +44,14 @@ const authRows = () =>
     revokes: null,
   }));
 
+/**
+ * ⚠ Each row at a real stop, in the queue's order (L-1): the count reads `placement_id` against the
+ * CURRENT stops, so a row without one — or at a withdrawn line — is not a mark that counts.
+ */
 const markRows = (n: number, invitation = INVITE) =>
-  Array.from({ length: n }, (_, i) => ({ id: `mark-${invitation}-${i}`, invitation_id: invitation }));
+  driverPlacementIds().slice(0, n).map((placement_id, i) => ({
+    id: `mark-${invitation}-${i}`, invitation_id: invitation, placement_id,
+  }));
 
 /**
  * ⚠ A fixed date, passed in, and not `new Date()` (Q-HM9). The §391.23(a)(2) window is measured from
@@ -315,6 +321,19 @@ describe("what it reads, and from where", () => {
     });
     const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     expect(result).toEqual(hiringChecklist(asInputs({ packetMarks: 2 })));
+  });
+
+  /**
+   * ⚠ L-1: a mark at page 4 from before the withdrawal is still a row, and is not a mark that counts.
+   * Twenty-one rows with p04 among them are twenty real stops — "Application signed" stays open.
+   */
+  it("does not count a mark on a line withdrawn from signing", async () => {
+    const twenty = markRows(packetDriverMarkCount() - 1);
+    const rec = seed({
+      application_packet_marks: [...twenty, { id: "mark-p04", invitation_id: INVITE, placement_id: "p04" }],
+    });
+    const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
+    expect(result).toEqual(hiringChecklist(asInputs({ packetMarks: packetDriverMarkCount() - 1 })));
   });
 
   /**

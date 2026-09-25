@@ -6,6 +6,7 @@ import { fieldTableFor } from "./packetFieldGeometry.js";
 import { drawFieldValues, fitText, mergeOverflow } from "./packetFit.js";
 import type { PacketFieldOverflow, PlacedFieldValue } from "./packetGrid.js";
 import { appendContinuationSheet, continuationNoticeFor } from "./packetContinuation.js";
+import { drawWithdrawalNotices } from "./packetWithdrawals.js";
 import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
 
 /**
@@ -377,6 +378,8 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
       color: INK,
     });
   }
+  // L-1: a withdrawn line says why it is blank, on the line (`packetWithdrawals.ts`).
+  drawWithdrawalNotices(doc, fieldFont);
 
   /**
    * ⚠ **The notice goes on the carrier's page, under the grid it belongs to.** A conviction grid
