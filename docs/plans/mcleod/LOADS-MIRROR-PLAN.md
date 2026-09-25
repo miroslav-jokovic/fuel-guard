@@ -620,3 +620,8 @@ Append a dated line per merge. Never edit a status column.
   (until LR8 removes its writer), the approval columns, the driver app's verbs, `POST /api/tms/loads`.
   Seven mutants — the moved gate removed, scoped to the wrong org, or given the recruiter's wording;
   Release and create restored; `A` back under Active; an approval tab restored — each failing by name.
+- 2026-09-24 — **LR6 merged (#1028, 1222285) and live**: `api` and `web` both serve 1222285, and the
+  live bundle's Loads page carries the new header with no "Approval readiness" and no "New load". No
+  migration, so no schema check was owed. **LR7 next**; still owed from the walks: the four-tab strip
+  keeps a 390 px phone 32 px too wide (422, was 683), and the "Planned" label for an `A` load with a
+  driver and a truck.
