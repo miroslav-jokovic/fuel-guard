@@ -1132,6 +1132,64 @@ describe("the applicant's filed copy, as a route", () => {
 });
 
 /**
+ * The driver's road-test certificate (RT4, §391.31(g)), through the mount — and the one fact the
+ * link's own payload says about it. `applicationRoadTestCopy.test.ts` pins the service.
+ */
+describe("the driver's road-test certificate, as a route", () => {
+  const CERTIFICATE_ROW = { id: "qr-1", document_id: "doc-cert", occurred_on: "2026-09-25" };
+
+  it("answers no_certificate on a live link whose driver has none", async () => {
+    holder.client = seed().client;
+    const res = await call(`/${TOKEN}/road-test-certificate`);
+    // 409, not 404, for `/document`'s reason: an unmounted route would answer 404.
+    expect(res.status).toBe(409);
+    expect(await refusalCode(res)).toBe("no_certificate");
+  });
+
+  it("gives a dead link the same refusal every other route gives it", async () => {
+    holder.client = seed(null).client;
+    const res = await call(`/${TOKEN}/road-test-certificate`);
+    expect(res.status).toBe(404);
+    expect(await refusalCode(res)).toBe("invalid_link");
+  });
+
+  it("hands back a signed URL, not the bytes, when there is one", async () => {
+    holder.client = createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: "inv-1", org_id: ORG, driver_id: DRIVER, token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+        }],
+        qualification_records: [CERTIFICATE_ROW],
+        documents: [{ storage_path: `${ORG}/driver/${DRIVER}/certificate.pdf` }],
+        audit_logs: [],
+      },
+      storage: {
+        createSignedUrl: async (path: string) => ({ data: { signedUrl: `https://storage.test/${path}` }, error: null }),
+      },
+    }).client;
+    const res = await call(`/${TOKEN}/road-test-certificate`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/application\/json/);
+    const body = (await res.json()) as { url: string; filename: string };
+    expect(body.url).toBe(`https://storage.test/${ORG}/driver/${DRIVER}/certificate.pdf`);
+    expect(body.filename).toBe("road-test-certificate.pdf");
+  });
+
+  it("tells the page the certificate's test date, and nothing else about the test", async () => {
+    holder.client = seed({}, { qualification_records: [CERTIFICATE_ROW] }).client;
+    const body = (await (await call(`/${TOKEN}`)).json()) as { roadTestCertificate: unknown };
+    expect(body.roadTestCertificate).toEqual({ testedOn: "2026-09-25" });
+  });
+
+  it("tells the page there is none, so it offers no button that cannot work", async () => {
+    holder.client = seed().client;
+    const body = (await (await call(`/${TOKEN}`)).json()) as { roadTestCertificate: unknown };
+    expect(body.roadTestCertificate).toBeNull();
+  });
+});
+
+/**
  * The tenth route (C1): the packet the driver is about to sign, through the mount.
  *
  * ⚠ The rendering itself is pinned by `applicationReadingCopy.test.ts` — the band, the marks, the

@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { applicantCopy } from "../applicationCopy.js";
 import { applicantReadingCopy } from "../applicationReadingCopy.js";
 import { applicantPermissionInstrument } from "../applicationPermissionInstrument.js";
+import { applicantRoadTestCertificate } from "../applicationRoadTestCopy.js";
 import { isIntakeError } from "../applicationIntake.js";
 
 /**
@@ -43,6 +44,30 @@ export function publicApplicationDocumentsRouter(): Router {
       const result = await applicantCopy(admin, String(req.params.token ?? ""), new Date());
       if (isIntakeError(result)) {
         const status = result.code === "invalid_link" ? 404 : result.code === "not_submitted" ? 409 : 503;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * The driver's copy of their road-test certificate (§391.31(g), RT4).
+   *
+   * ⚠ `/document`'s idiom exactly — a URL, never the bytes, on the intake's bucket — because it is the
+   * same kind of read: one press, of a filed evidence document. `applicationRoadTestCopy.ts` says why
+   * it can only ever be the certificate and never the form beside it.
+   *
+   * `no_certificate` is a 409 for `not_submitted`'s reason: the link is good and the answer is "not
+   * yet" (or "not on this link" — a hand-recorded test is the office's to hand over).
+   */
+  router.get(
+    "/:token/road-test-certificate",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await applicantRoadTestCertificate(admin, String(req.params.token ?? ""), new Date());
+      if (isIntakeError(result)) {
+        const status = result.code === "invalid_link" ? 404 : result.code === "no_certificate" ? 409 : 503;
         res.status(status).json(apiError(result.code, result.message));
         return;
       }

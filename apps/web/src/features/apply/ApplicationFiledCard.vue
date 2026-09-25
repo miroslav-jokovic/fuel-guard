@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, type Ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
-import { fetchApplicantCopy } from "./useApplication";
+import { formatDate } from "@/lib/format";
+import { fetchApplicantCopy, fetchRoadTestCertificate, type ApplicantCopy } from "./useApplication";
 import { APPLY_COPY } from "./strings";
 
 /**
@@ -14,11 +15,23 @@ import { APPLY_COPY } from "./strings";
  * Split out of `ApplyPage.vue` on 2026-09-11 when that file reached the 500-line budget. It is a good
  * seam rather than a convenient one: the download owns its own two flags and its own failure
  * sentence, and none of it has anything to do with filling in a form.
+ *
+ * ── THE ROAD-TEST CERTIFICATE (RT4, §391.31(g)) ───────────────────────────────────────────────
+ * Offered here, and only here, because of where step 13 sits: the road test is given in the office
+ * before the packet is signed, so by the time this card is the page the certificate is already filed
+ * — and a test recorded later shows up on the next load. Shown only when the link says there is one,
+ * so a driver who has not passed is never handed a button that answers "not yet".
  */
-const props = defineProps<{ token: string; carrier: string }>();
+const props = defineProps<{
+  token: string;
+  carrier: string;
+  roadTestCertificate: { testedOn: string } | null;
+}>();
 
 const working = ref(false);
 const failed = ref(false);
+const certificateWorking = ref(false);
+const certificateFailed = ref(false);
 
 /**
  * Ask for a fresh link and open it.
@@ -28,19 +41,26 @@ const failed = ref(false);
  * disappoint somebody. A popup blocked by the browser is indistinguishable here from a failure, and
  * both get the same sentence — which names the other way to get the document.
  */
-async function download(): Promise<void> {
-  working.value = true;
-  failed.value = false;
+async function openFresh(
+  fetchCopy: (token: string) => Promise<ApplicantCopy>,
+  busy: Ref<boolean>,
+  refused: Ref<boolean>,
+): Promise<void> {
+  busy.value = true;
+  refused.value = false;
   try {
-    const copy = await fetchApplicantCopy(props.token);
+    const copy = await fetchCopy(props.token);
     const opened = globalThis.open(copy.url, "_blank", "noopener");
-    if (!opened) failed.value = true;
+    if (!opened) refused.value = true;
   } catch {
-    failed.value = true;
+    refused.value = true;
   } finally {
-    working.value = false;
+    busy.value = false;
   }
 }
+
+const download = () => openFresh(fetchApplicantCopy, working, failed);
+const downloadCertificate = () => openFresh(fetchRoadTestCertificate, certificateWorking, certificateFailed);
 </script>
 
 <template>
@@ -57,6 +77,17 @@ async function download(): Promise<void> {
       </BaseButton>
       <p class="text-xs text-ink-muted">{{ APPLY_COPY.done.downloadNote }}</p>
       <p v-if="failed" class="text-sm text-ink-secondary">{{ APPLY_COPY.done.downloadFailed }}</p>
+    </div>
+
+    <!-- RT4, §391.31(g): "a copy of the certificate shall be given to the person who was examined". -->
+    <div v-if="roadTestCertificate" class="mt-6 space-y-2">
+      <BaseButton variant="secondary" :disabled="certificateWorking" @click="downloadCertificate">
+        {{ certificateWorking ? APPLY_COPY.done.certificateDownloading : APPLY_COPY.done.certificate }}
+      </BaseButton>
+      <p class="text-xs text-ink-muted">
+        {{ APPLY_COPY.done.certificateNote(formatDate(roadTestCertificate.testedOn)) }}
+      </p>
+      <p v-if="certificateFailed" class="text-sm text-ink-secondary">{{ APPLY_COPY.done.certificateFailed }}</p>
     </div>
   </BaseCard>
 </template>
