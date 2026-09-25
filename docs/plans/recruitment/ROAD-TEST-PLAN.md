@@ -142,3 +142,29 @@ Append a dated line per step. Never edit §4.
 
 - **2026-09-25** — Plan written from the carrier's form and §391.31 (LII). Nothing built. Waiting on
   Q-RT1 and Q-RT2.
+- **2026-09-25** — **The owner ruled all four questions:**
+  · **Q-RT1 → (a):** *"add the three missing items to form"*. The form gets nine items: pretrip
+    inspection, placing the vehicle in operation and coupling/uncoupling (in §391.31(c)'s words),
+    then the carrier's six exactly as written (D-PKT11, *"breaking"* included). Each item is rated
+    Satisfactory / Needs Training / Unsatisfactory, the words the carrier's Evaluation section uses.
+  · **Q-RT2 → the office adds his signature from the dashboard:** *"he was signing in manually on
+    paper before."* So an examiner is kept once, with a signature image the office uploads, and
+    printed on each road test he gives. ⚠ The signature is applied by whoever records the test, not
+    by him in his own session, so every filed road test records BOTH the examiner and the office
+    user who recorded it (`created_by` on the examiner, `recorded_by` on the record, and the audit
+    row). That makes it provable afterwards who put his signature on which document.
+  · **Q-RT3 → "Maintenance manager".** A column on the examiner, not a constant, so a second
+    examiner or a new title is a new row.
+  · **Q-RT4 → Dry van and reefer only**, *"what we have in fleet"*. The trailer type is those two.
+    Tankers and doubles cannot be chosen, so the §391.33 tank/doubles question does not arise.
+  · **The pass rule:** a certificate is issued only when general performance and every one of the
+    nine items is Satisfactory. Anything else files the form, issues no certificate, and leaves the
+    step open. §391.31(e) certifies a driver who "successfully completes" the test, so a Needs
+    Training rating on a required item is not a pass.
+- **2026-09-25** — **RT0 DONE in this PR: migration `0372_road_test_examiners.sql`**, schema only (its
+  first reader cannot share the merge). Name, title, a signature file that can only sit in the
+  row's own org folder (`<org>/examiners/…`), `created_by`, and retirement. Append-only except
+  retirement once (RT010/RT011). RLS is on with no policy. Matrix `road-test-examiners.test.mjs`: 17
+  assertions, 8 of 8 migration mutants killed. `rls.test.mjs` seeds it (552 pass). There is a producer
+  waiver for one merge. **Next: RT1–RT3 in one merge** (contract, renderer, the examiner and
+  record-test API, and the screen), after 0372 shows in production's `information_schema`.

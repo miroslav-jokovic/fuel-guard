@@ -2272,6 +2272,13 @@ async function main() {
         `     u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-dispatch@example.com') returning id) ` +
         `insert into load_dispatches (org_id, load_id, driver_id, sent_by, channel, outcome, outcome_reason, body) ` +
         `select '${org}', l.id, d.id, u.id, 'sms', 'not_sent', 'sms_not_configured', 'RLS load' from l, d, u`,
+      // 0372: the signature must sit in the row's OWN org folder (`<org>/examiners/…`), which the
+      // synthesiser's invented text cannot satisfy — handed a real path rather than loosening the
+      // check that keeps one carrier from printing another's signature file.
+      road_test_examiners: (org) =>
+        `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-examiner@example.com') returning id) ` +
+        `insert into road_test_examiners (org_id, full_name, title, signature_path, created_by) ` +
+        `select '${org}', 'RLS Examiner', 'Maintenance manager', '${org}/examiners/rls.png', u.id from u`,
       samsara_ifta_jurisdiction_miles: (org) =>
         `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ifta', 240) returning id) ` +
         `insert into samsara_ifta_jurisdiction_miles ` +
