@@ -1,4 +1,4 @@
-import { CONTENT_WIDTH, INK, MARGIN, newDrawing, winAnsi } from "../../../../lib/pdfDraw.js";
+import { CONTENT_WIDTH, INK, MARGIN, newDrawing, pdfkitText } from "../../../../lib/pdfDraw.js";
 import { letterhead, packetFooter, sectionHeading, type PacketCarrier } from "./packetDraw.js";
 import { STATIC_PAGES } from "./packetStatic.js";
 
@@ -44,7 +44,7 @@ export interface StaticPackInput {
 /** A body line, wrapped to the content width. */
 function paragraph(doc: PDFKit.PDFDocument, text: string): void {
   doc.fillColor(INK).font("Helvetica").fontSize(9);
-  doc.text(winAnsi(text), MARGIN, doc.y, { width: CONTENT_WIDTH, align: "left" });
+  doc.text(pdfkitText(doc, text), MARGIN, doc.y, { width: CONTENT_WIDTH, align: "left" });
   doc.x = MARGIN;
   doc.moveDown(0.25);
 }

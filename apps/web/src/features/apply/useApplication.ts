@@ -151,6 +151,13 @@ export interface ApplyInvitation {
    * ⚠ Optional: a bundle cached from before AF3 must read `undefined`, not throw.
    */
   identityComplete?: boolean;
+  /**
+   * The test date of the road-test certificate this link can hand over (RT4, §391.31(g)), or null.
+   * The date and nothing else — the examiner's ratings stay on the carrier's form.
+   *
+   * ⚠ Optional, for `identityComplete`'s reason: a bundle cached from before RT4 reads `undefined`.
+   */
+  roadTestCertificate?: { testedOn: string } | null;
 }
 
 /**
@@ -239,6 +246,14 @@ export interface ApplicantCopy {
  */
 export const fetchApplicantCopy = (token: string): Promise<ApplicantCopy> =>
   publicFetch<ApplicantCopy>(`/${token}/document`);
+
+/**
+ * Fetch a short-lived link to the driver's road-test certificate (RT4, §391.31(g)).
+ *
+ * The same shape and the same "an act, not a query" reasoning as `fetchApplicantCopy` above.
+ */
+export const fetchRoadTestCertificate = (token: string): Promise<ApplicantCopy> =>
+  publicFetch<ApplicantCopy>(`/${token}/road-test-certificate`);
 
 /**
  * Hand the finished application to the office (F4, D-AX11).

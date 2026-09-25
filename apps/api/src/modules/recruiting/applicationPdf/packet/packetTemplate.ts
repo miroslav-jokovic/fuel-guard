@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFStream } from "pdf-lib";
+import { toUnicodeMap } from "../../../../lib/pdfToUnicode.js";
 
 /**
  * The carrier's own 31-page packet, as bytes this repository can read (§2.5, D-PKT1).
@@ -105,28 +106,7 @@ export interface TemplatePage {
  * `bfrange` would silently contribute nothing rather than throw, so `packetTemplate.test.ts` asserts
  * the decoded text of known lines instead of trusting the decoder.
  */
-function cmapFor(doc: PDFDocument, font: PDFDict): Map<number, string> {
-  const map = new Map<number, string>();
-  const toUnicode = font.get(PDFName.of("ToUnicode"));
-  if (!toUnicode) return map;
-  let raw = Buffer.from(doc.context.lookup(toUnicode, PDFStream).getContents());
-  try {
-    raw = inflateSync(raw);
-  } catch {
-    /* already flat */
-  }
-  const text = raw.toString("latin1");
-  for (const block of text.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
-    for (const entry of block[1]!.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g)) {
-      const units = entry[2]!.match(/.{4}/g) ?? [];
-      map.set(
-        parseInt(entry[1]!, 16),
-        units.map((u) => String.fromCharCode(parseInt(u, 16))).join(""),
-      );
-    }
-  }
-  return map;
-}
+export const cmapFor = (doc: PDFDocument, font: PDFDict): Map<number, string> => toUnicodeMap(doc, font);
 
 /** One stream, decompressed. */
 function inflateStream(stream: PDFStream): string {
@@ -197,7 +177,10 @@ function transformOf(stream: string): PageTransform | null {
 /** Every operator this reader understands, in one pass, in source order. */
 const OPERATORS = new RegExp(
   [
-    String.raw`\/(\w+)\s+[\d.]+\s+(Tf)`, // 1,2  select font
+    // ⚠ A PDF NAME, not `\w+`: pdf-lib keys an embedded face `LiberationSans-4821`, and with `\w+` the
+    // `-` stopped the match, the font was never selected and its `ToUnicode` never used — every
+    // glyph id then fell through to the one-byte fallback below as mojibake (Q-AF2, 2026-09-25).
+    String.raw`\/([^\s/\[\]()<>{}%]+)\s+[\d.]+\s+(Tf)`, // 1,2  select font
     String.raw`([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+(Tm)`, // 3-9 set matrix
     String.raw`([\d.-]+)\s+([\d.-]+)\s+(Td|TD)`, // 10,11,12 move
     String.raw`(T\*)`, // 13 next line
@@ -312,7 +295,19 @@ function readPage(doc: PDFDocument, index: number): TemplatePage {
 
 /** The whole packet, read once. */
 export async function readPacketTemplate(path = PACKET_TEMPLATE_PATH): Promise<TemplatePage[]> {
-  const doc = await PDFDocument.load(await readFile(path), { ignoreEncryption: true });
+  return readPdfPages(await readFile(path));
+}
+
+/**
+ * Any PDF this repository produced, read back by the same reader — the bytes, not a path.
+ *
+ * ⚠ Q-AF2 (2026-09-25): three test files had grown their own stream scrapers that decoded every
+ * hex string as one byte per character. They were right only while everything we drew was standard
+ * Helvetica; once the face is embedded a string is glyph ids and they read mojibake. One reader,
+ * which honours `ToUnicode`, is what a viewer does.
+ */
+export async function readPdfPages(bytes: Uint8Array): Promise<TemplatePage[]> {
+  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
   return Array.from({ length: doc.getPageCount() }, (_, i) => readPage(doc, i));
 }
 

@@ -1146,6 +1146,17 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "road_test_examiners": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1,
+        "why": "no rows yet (RT0 is schema only). One examiner today (Arvidera Gakhal); a row is added only when an examiner, title or signature changes. Evidence a filed road test cites; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
     "load_dispatches": {
       "module": "loads",
       "layer": "core",

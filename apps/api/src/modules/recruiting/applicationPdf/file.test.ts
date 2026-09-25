@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { inflateSync } from "node:zlib";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { pdfText } from "../../../testing/pdfText.js";
 import { ensureApplicationPdf } from "./file.js";
 import { APPLICATION_CAPTURE_MARK_SLOT, driverPlacements } from "@silvicom/shared";
 import { PDFDocument } from "pdf-lib";
@@ -41,37 +41,13 @@ const APPLICATION_ROW = {
 const SIGNED_NAME = "Susan Godfrey";
 
 /**
- * The drawn text, pulled back out of a packet.
+ * The drawn text, pulled back out of the packet — through `testing/pdfText.ts`, the shared reader.
  *
- * ⚠ Same technique as `preview.test.ts`'s helper and for the same reason: both documents compress
- * their content streams, so the words a reader sees exist only once the streams are inflated and the
- * kerned runs are decoded and joined. Every assertion using it guards the guard by first finding
- * something it knows is there — a helper that silently returned "" would make every `not.toContain`
- * below pass for free, which is exactly how the test A2 replaced came to prove nothing.
+ * ⚠ This file used to carry its own copy of that reader, which decoded every hex string as one byte
+ * per character. Since Q-AF2 (2026-09-25) the packet's faces are embedded and its strings are glyph
+ * ids, and the copy read `Susan Godfrey` as mojibake. One reader, which honours `ToUnicode`.
  */
-function packetTextOf(pdf: Buffer): string {
-  const raw = pdf.toString("latin1");
-  let out = "";
-  const re = /stream\r?\n/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(raw)) !== null) {
-    const start = match.index + match[0].length;
-    const end = raw.indexOf("endstream", start);
-    if (end < 0) continue;
-    try {
-      out += inflateSync(Buffer.from(raw.slice(start, end), "latin1")).toString("latin1");
-    } catch {
-      // Not a deflate stream (a font subset, the xref) — nothing to read here.
-    }
-  }
-  return (out.match(/<[0-9a-fA-F\s]+>|\((?:\\.|[^\\)])*\)/g) ?? [])
-    .map((token) =>
-      token.startsWith("<")
-        ? Buffer.from(token.slice(1, -1).replace(/\s+/g, ""), "hex").toString("latin1")
-        : token.slice(1, -1).replace(/\\([()\\])/g, "$1"),
-    )
-    .join("");
-}
+const packetTextOf = (pdf: Buffer): Promise<string> => pdfText(pdf);
 
 /**
  * A packet signed through, as `application_packet_marks` holds one.
@@ -457,8 +433,8 @@ describe("which document an application files", () => {
     const pages = await PDFDocument.load(pdf, { ignoreEncryption: true });
     expect(pages.getPageCount()).toBeGreaterThanOrEqual(31);
     // Guards the guard: the marks are on it, so a reader finding no band read a real document.
-    expect(packetTextOf(pdf)).toContain(SIGNED_NAME);
-    expect(packetTextOf(pdf)).not.toContain("DRAFT");
+    expect(await packetTextOf(pdf)).toContain(SIGNED_NAME);
+    expect(await packetTextOf(pdf)).not.toContain("DRAFT");
   });
 
   /** ⚠ Org-scoped like every other read here: the service role bypasses RLS. */

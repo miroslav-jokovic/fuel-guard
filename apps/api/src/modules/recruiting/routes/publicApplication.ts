@@ -29,6 +29,7 @@ import { submitApplication } from "../applicationSubmit.js";
 import { recordRelease, releasesForApplicant, signedReleases } from "../applicationReleases.js";
 import { adoptedPacketMarks, packetStops, recordPacketMark } from "../applicationPacketMarks.js";
 import { identityOnFile, recordApplicantIdentity } from "../applicantIdentity.js";
+import { latestRoadTestCertificate } from "../applicationRoadTestCopy.js";
 
 /**
  * The public application surface — H5, and the only unauthenticated write path in the product that
@@ -116,6 +117,9 @@ export function publicApplicationRouter(): Router {
       const identityComplete = await identityOnFile(
         admin, invitation.org_id, invitation.id, invitation.driver_id,
       );
+      // RT4, §391.31(g): the test date of the certificate this link can hand over, so the page offers the
+      // download only when pressing it can work. The date and nothing else — the ratings stay on the form.
+      const certificate = await latestRoadTestCertificate(admin, invitation.org_id, invitation.driver_id);
 
       res.json({
         // The carrier's name and nothing else about them. An application link is not a directory.
@@ -142,6 +146,7 @@ export function publicApplicationRouter(): Router {
         // signing — the ordinary case.
         packetAdopted,
         identityComplete,
+        roadTestCertificate: certificate ? { testedOn: certificate.occurred_on } : null,
       });
     }),
   );

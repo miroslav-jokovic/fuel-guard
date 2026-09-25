@@ -97,8 +97,11 @@ describe("the permission the applicant is about to sign", () => {
     holder.client = seed().client;
     const text = flat(await pdfText(await bytes(await get("psp"))));
     for (const p of PSP_MANDATED_PARAGRAPHS) {
-      // `winAnsi` folds curly quotes to straight ones, as it does on every PDF this API draws.
-      const words = flat(p.replace("{{EMPLOYER}}", "Silvicom Inc").replace(/[“”]/g, '"').replace(/[‘’]/g, "'"));
+      // VERBATIM, curly quotes and all. This compared against straightened quotes until Q-AF2
+      // (2026-09-25), and the read-back could not have told it otherwise: the old reader decoded the
+      // WinAnsi byte for “ as a control character. With the face embedded and the reader honouring
+      // `ToUnicode`, what is compared is what FMCSA wrote.
+      const words = flat(p.replace("{{EMPLOYER}}", "Silvicom Inc"));
       expect(text, words.slice(0, 50)).toContain(words);
     }
     expect(text).toContain(flat(PSP_MANDATED_INTENT));

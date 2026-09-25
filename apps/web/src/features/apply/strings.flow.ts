@@ -129,6 +129,16 @@ export const APPLY_FLOW_COPY = {
       "Everything you filled in, everything you signed, and a record of when and how you signed it.",
     downloadFailed:
       "That did not open just now. Try again in a moment, or ask the carrier to send you a copy.",
+    /**
+     * RT4, §391.31(g): the carrier must give the person examined a copy of the certificate. The note
+     * names the test date so a driver with two tests on file knows which one this is.
+     */
+    certificate: "Download your road test certificate",
+    certificateDownloading: "Preparing your certificate…",
+    certificateNote: (testedOn: string): string =>
+      `From your road test on ${testedOn}. Keep it: it is your copy of the carrier's certificate.`,
+    certificateFailed:
+      "That did not open just now. Try again in a moment, or ask the carrier for a paper copy.",
   },
 
   dead: {

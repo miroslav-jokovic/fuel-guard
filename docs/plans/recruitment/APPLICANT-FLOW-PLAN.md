@@ -698,3 +698,33 @@ Append a dated line per step. Never edit §4.
   (§391.23(a)(1)), which the MVR rule's module owns, so the question and the check cannot drift.
   ⚠ Drafts started before this merge keep whatever they declared. Only an applicant who has not yet
   filled in the licence screen sees the new question.
+- **2026-09-25** — **Q-AF2 BUILT, candidate (b)** (the owner approved "fix the name crash" first).
+  **Measured before:** `renderPacketDocument` THREW `WinAnsi cannot encode "ć"` for Marko Petrović,
+  Đorđe Jokić, Miloš Živković and Anna Szczepańska (José Muñoz passed), so the application filed
+  with no packet PDF and the applicant's copy never became available. The pdfkit documents printed
+  `Petrovic`. **Now:** `lib/pdfFonts.ts` embeds Liberation Sans (SIL OFL 1.1, the files `pdfjs-dist`
+  ships as its Helvetica substitute, licence beside them in `lib/fonts/`) in the packet (pdf-lib +
+  `@pdf-lib/fontkit`, subset) and in every document `newDrawing` makes (pdfkit, under the Helvetica
+  names). What the face cannot draw is still folded one character at a time through `winAnsi()`;
+  "can draw" is read from the font's own character map, not a list.
+  · **Layout is unchanged to the hundredth of a point.** The widths are Helvetica's by design; the
+    ASCENDER is not (0.905 em against 0.718), and measured, pdfkit then drew every line 1.68pt
+    lower. The embedded face now takes Helvetica's vertical metrics, READ from pdfkit's own
+    Helvetica, and a test requires identical baselines. It writes pdfkit's private `_font` on a
+    dependency pinned to 0.19.1. The test is what makes that safe to keep.
+  · **pdfkit had cached standard Helvetica at construction**, so overriding the name alone switched
+    bold and italic but left regular text in WinAnsi (found by a label and its value landing 2pt
+    apart). Documents are now created with the embedded face as their default.
+  · **Five test readers decoded one byte per character** (four private copies plus
+    `testing/pdfText.ts`), so they read the embedded face as mojibake. One decoder now, in
+    `lib/pdfToUnicode.ts` (both CMap forms). Two assertions had been partly BLIND: the "no em dash"
+    sweep could not see an em dash at all, and the PSP words test compared against straightened
+    quotes. Both now read the real characters, and the PSP PDF prints FMCSA's curly quotes as FMCSA
+    wrote them.
+  · The template reader's font-name pattern was `\w+`, so a name like `LiberationSans-4821` never
+    selected its `ToUnicode` map. It matches any PDF name now.
+  · 14 of 14 mutants killed. Three survived the first battery because the name reaches the packet
+    by three paths and "is the name on the page" passed on any one. They are now counted against
+    the same packet with a plain name.
+  · Every newly filed document changes font (metric-identical). Already filed documents are frozen
+    and keep Helvetica (`a-filed-document-is-frozen`).
