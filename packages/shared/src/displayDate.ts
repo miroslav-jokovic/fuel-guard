@@ -98,11 +98,33 @@ function calendarParts(value: string | Date): Parts | null {
  * flag: `formatDisplayDateTime` is showing a moment and must never ignore the time part, while
  * `formatDisplayDate` is showing a day and must never be moved by one.
  */
-function instantParts(value: string | Date): Parts | null {
-  if (value instanceof Date) return fromDate(value);
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  return fromDate(new Date(trimmed));
+function instantParts(value: string | Date, timeZone?: string): Parts | null {
+  const at = value instanceof Date ? value : value.trim() ? new Date(value.trim()) : null;
+  if (!at) return null;
+  if (!timeZone || Number.isNaN(at.getTime())) return fromDate(at);
+  return zonedParts(at, timeZone);
+}
+
+/**
+ * The same parts on a NAMED clock rather than the process's own — for text composed on the server,
+ * whose clock is UTC, and read by somebody who lives on the carrier's (LOADS-MIRROR-PLAN.md LR-D2: an
+ * appointment texted to a driver). `h23` rather than `hour12: false`, which renders midnight as `24`
+ * in some engines.
+ */
+function zonedParts(at: Date, timeZone: string): Parts | null {
+  const got: Record<string, number> = {};
+  for (const part of new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+  }).formatToParts(at)) {
+    if (part.type !== "literal") got[part.type] = Number(part.value);
+  }
+  return { y: got.year!, m: got.month!, d: got.day!, h: got.hour!, min: got.minute! };
 }
 
 /**
@@ -128,9 +150,14 @@ export function formatDisplayDate(value: string | Date | null | undefined, fallb
  * The clock is 12-hour and the hour is NOT zero-padded, because that is how the reader writes it; the
  * date half stays padded because it is the part that lines up in a column.
  */
-export function formatDisplayDateTime(value: string | Date | null | undefined, fallback = EM_DASH): string {
+export function formatDisplayDateTime(
+  value: string | Date | null | undefined,
+  fallback = EM_DASH,
+  /** An IANA zone to read the moment on. Omitted, it is the reader's own clock — a browser's. */
+  timeZone?: string,
+): string {
   if (value === null || value === undefined || value === "") return fallback;
-  const p = instantParts(value);
+  const p = instantParts(value, timeZone);
   if (!p) return typeof value === "string" ? value.trim() : fallback;
   const suffix = p.h < 12 ? "AM" : "PM";
   const hour12 = p.h % 12 === 0 ? 12 : p.h % 12;

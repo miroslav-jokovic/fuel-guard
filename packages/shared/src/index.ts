@@ -123,6 +123,7 @@ export * from "./carrierWording.js";
 export * from "./applicationNudge.js";
 export * from "./smsQuietHours.js";
 export * from "./smsConsentContract.js";
+export * from "./loadDispatchContract.js";
 export * from "./questionnaireContract.js";
 export * from "./hireHandoff.js";
 export * from "./hiringSteps.js";

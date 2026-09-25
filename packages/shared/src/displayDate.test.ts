@@ -94,6 +94,15 @@ describe("formatDisplayDateTime", () => {
   it("pads the minute but not the hour", () => {
     expect(formatDisplayDateTime(new Date(2026, 8, 20, 9, 7))).toBe("09/20/2026 9:07 AM");
   });
+
+  it("reads the moment on a named zone when one is given, whatever the process clock is", () => {
+    // 05:30 UTC is still the previous evening in Chicago — the day moves, not just the hour.
+    expect(formatDisplayDateTime("2026-09-21T05:30:00Z", "—", "America/Chicago")).toBe("09/21/2026 12:30 AM");
+    expect(formatDisplayDateTime("2026-09-21T04:30:00Z", "—", "America/Chicago")).toBe("09/20/2026 11:30 PM");
+    // Across the 2026-11-01 change: the same UTC hour is an hour earlier on the wall clock.
+    expect(formatDisplayDateTime("2026-11-02T14:00:00Z", "—", "America/Chicago")).toBe("11/02/2026 8:00 AM");
+    expect(formatDisplayDateTime("2026-10-30T14:00:00Z", "—", "America/Chicago")).toBe("10/30/2026 9:00 AM");
+  });
 });
 
 describe("formatDisplayDayShort", () => {

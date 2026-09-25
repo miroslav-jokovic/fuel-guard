@@ -274,6 +274,9 @@ const API_ALLOW = new Set([
   // Releasing a load notifies its driver, and assignment refuses a driver blocked on return-to-duty.
   "loads -> messaging",
   "loads -> recruiting",
+  // A dispatch text reads its appointments on the carrier's clock (LOADS-MIRROR-PLAN.md LR-D2), and
+  // the one reader of `organizations.operating_hours->>'tz'` is idle's — the same borrow as fuel's.
+  "loads -> idle",
   // A red hazmat verdict tells the office through the same fabric as everyone else.
   "hazmat -> messaging",
   // The Samsara scheduler paces the score sync and week snapshots — the cadence clock again.

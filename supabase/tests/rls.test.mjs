@@ -2166,6 +2166,8 @@ async function main() {
     "auth_driver_id",
     "auth_in_thread",
     "auth_module_enabled",
+    // 0371: the loads whose current dispatch names the calling driver — reads only the caller's claims.
+    "auth_dispatched_load_ids",
   ]);
 
   const definers = await db.query(`
