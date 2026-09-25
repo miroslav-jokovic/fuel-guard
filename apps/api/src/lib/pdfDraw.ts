@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import { winAnsi } from "./winAnsi.js";
+import { UNICODE_DEFAULT_FONT, pdfkitText, useUnicodeFonts } from "./pdfFonts.js";
 
 /**
  * The pdfkit primitives the binder draws with (DQ-BINDER-PLAN D-BD1).
@@ -57,6 +58,12 @@ export interface Drawing {
  * (AUD-21); every helper below still folds through it and no caller had to change.
  */
 export { winAnsi };
+/**
+ * ⚠ Q-AF2 (2026-09-25): every helper below draws through `pdfkitText`, which keeps a name as typed
+ * in a document that embeds the face and folds it through `winAnsi` in one that does not. Every
+ * document `newDrawing` makes embeds it; see `pdfFonts.ts`.
+ */
+export { pdfkitText };
 
 
 /**
@@ -69,6 +76,9 @@ export function newDrawing(title: string, opts: { bufferPages?: boolean } = {}):
     size: "LETTER",
     margins: { top: MARGIN, bottom: MARGIN + 18, left: MARGIN, right: MARGIN },
     info: { Title: title },
+    // Q-AF2: the embedded face from the start, or `useUnicodeFonts` below is answered from pdfkit's
+    // cache of standard Helvetica (`UNICODE_DEFAULT_FONT` says how that was found).
+    font: UNICODE_DEFAULT_FONT,
     autoFirstPage: true,
     // Opt-in, because the binder deliberately does NOT want it (see the note above): its footers are
     // stamped across the merged file. A document that stands alone — the rendered §391.21
@@ -76,6 +86,8 @@ export function newDrawing(title: string, opts: { bufferPages?: boolean } = {}):
     // count is known, which is what `bufferedPageRange` and `switchToPage` require.
     bufferPages: opts.bufferPages === true,
   });
+  // Q-AF2: Liberation Sans under the Helvetica names, so `Petrović` prints as typed (`pdfFonts.ts`).
+  useUnicodeFonts(doc);
   const chunks: Buffer[] = [];
   doc.on("data", (c: Buffer) => chunks.push(c));
   const done = new Promise<Buffer>((resolve) =>
@@ -85,7 +97,7 @@ export function newDrawing(title: string, opts: { bufferPages?: boolean } = {}):
 }
 
 export function title(doc: PDFKit.PDFDocument, text: string): void {
-  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(19).text(winAnsi(text));
+  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(19).text(pdfkitText(doc, text));
 }
 
 /**
@@ -105,7 +117,7 @@ export function heading(doc: PDFKit.PDFDocument, text: string): void {
     .fillColor(NAVY)
     .font("Helvetica-Bold")
     .fontSize(HEADING_SIZE)
-    .text(winAnsi(text))
+    .text(pdfkitText(doc, text))
     .moveDown(HEADING_LEAD_BELOW);
 }
 
@@ -114,7 +126,7 @@ export function body(doc: PDFKit.PDFDocument, text: string, color = INK): void {
     .fillColor(color)
     .font("Helvetica")
     .fontSize(9.5)
-    .text(winAnsi(text), { width: CONTENT_WIDTH });
+    .text(pdfkitText(doc, text), { width: CONTENT_WIDTH });
 }
 
 /**
@@ -127,7 +139,7 @@ export function muted(doc: PDFKit.PDFDocument, text: string): void {
     .fillColor(MUTED)
     .font("Helvetica")
     .fontSize(MUTED_SIZE)
-    .text(winAnsi(text), { width: CONTENT_WIDTH });
+    .text(pdfkitText(doc, text), { width: CONTENT_WIDTH });
 }
 
 /** ⚠ Named because `partHeight()` MEASURES a muted line before it is drawn: one size, not two. */
@@ -210,14 +222,14 @@ export function field(
     .fillColor(MUTED)
     .font("Helvetica")
     .fontSize(9)
-    .text(winAnsi(label), MARGIN, y, { width: 130 });
+    .text(pdfkitText(doc, label), MARGIN, y, { width: 130 });
   // Where the LABEL ended, before the value moves the cursor — a row is as tall as its taller half.
   const labelBottom = doc.y;
   doc
     .fillColor(valueColor)
     .font("Helvetica-Bold")
     .fontSize(9.5)
-    .text(winAnsi(value), MARGIN + 134, y, { width: CONTENT_WIDTH - 134 });
+    .text(pdfkitText(doc, value), MARGIN + 134, y, { width: CONTENT_WIDTH - 134 });
   doc.x = MARGIN;
   doc.y = doc.page === startPage ? Math.max(doc.y, labelBottom, y + FIELD_ROW) : doc.y;
 }
@@ -247,13 +259,13 @@ function partHeight(doc: PDFKit.PDFDocument, part: SectionPart): number {
     // which advances the cursor past the line it wrote. A measurement that stopped at the text
     // would under-report every section carrying a note by ~8pt — and under-reporting is the one
     // direction this function is not allowed to be wrong in (AUD-4, and see the note above).
-    return doc.heightOfString(winAnsi(part.note), { width: CONTENT_WIDTH })
+    return doc.heightOfString(pdfkitText(doc, part.note), { width: CONTENT_WIDTH })
       + doc.currentLineHeight(true) * CAPTION_LEAD_BELOW;
   }
   doc.font("Helvetica").fontSize(9);
-  const label = doc.heightOfString(winAnsi(part.label), { width: 130 });
+  const label = doc.heightOfString(pdfkitText(doc, part.label), { width: 130 });
   doc.font("Helvetica-Bold").fontSize(9.5);
-  const value = doc.heightOfString(winAnsi(part.value), { width: CONTENT_WIDTH - 134 });
+  const value = doc.heightOfString(pdfkitText(doc, part.value), { width: CONTENT_WIDTH - 134 });
   // The same three-way max `field()` applies — a row is as tall as its taller half, never shorter
   // than one step.
   return Math.max(label, value, FIELD_ROW);
@@ -320,7 +332,7 @@ export function section(
   const line = doc.currentLineHeight(true);
   const needed =
     line * (HEADING_LEAD_ABOVE + HEADING_LEAD_BELOW)
-    + doc.heightOfString(winAnsi(title), { width: CONTENT_WIDTH })
+    + doc.heightOfString(pdfkitText(doc, title), { width: CONTENT_WIDTH })
     + parts.reduce((total, part) => total + partHeight(doc, part), 0)
     + tail;
 
@@ -353,7 +365,7 @@ function colophonHeight(doc: PDFKit.PDFDocument, text: string): number {
   doc.font("Helvetica-Bold").fontSize(9.5);
   const ruleAir = doc.currentLineHeight(true) * 0.8;
   doc.font("Helvetica").fontSize(MUTED_SIZE);
-  return ruleAir + doc.heightOfString(winAnsi(text), { width: CONTENT_WIDTH });
+  return ruleAir + doc.heightOfString(pdfkitText(doc, text), { width: CONTENT_WIDTH });
 }
 
 /** ⚠ The colour is a parameter because a DANGER pair bounds the revocation notice (AUD-9); every
@@ -399,7 +411,7 @@ export function table(doc: PDFKit.PDFDocument, columns: Column[], rows: Cell[][]
     let x = MARGIN;
     doc.fillColor(MUTED).font("Helvetica-Bold").fontSize(8);
     for (const c of columns) {
-      doc.text(winAnsi(c.header.toUpperCase()), x, doc.y, {
+      doc.text(pdfkitText(doc, c.header.toUpperCase()), x, doc.y, {
         width: c.width,
         align: c.align ?? "left",
         continued: false,
@@ -428,10 +440,10 @@ export function table(doc: PDFKit.PDFDocument, columns: Column[], rows: Cell[][]
       const cell = row[i];
       if (!cell) return;
       doc.font(cell.bold ? "Helvetica-Bold" : "Helvetica").fontSize(9);
-      let h = doc.heightOfString(winAnsi(cell.text) || "—", { width: c.width - 6 });
+      let h = doc.heightOfString(pdfkitText(doc, cell.text) || "—", { width: c.width - 6 });
       if (cell.sub) {
         doc.font("Helvetica").fontSize(7.5);
-        h += doc.heightOfString(winAnsi(cell.sub), { width: c.width - 6 });
+        h += doc.heightOfString(pdfkitText(doc, cell.sub), { width: c.width - 6 });
       }
       height = Math.max(height, h);
     });
@@ -451,7 +463,7 @@ export function table(doc: PDFKit.PDFDocument, columns: Column[], rows: Cell[][]
           .fillColor(cell.color ?? INK)
           .font(cell.bold ? "Helvetica-Bold" : "Helvetica")
           .fontSize(9)
-          .text(winAnsi(cell.text) || "—", x, top, {
+          .text(pdfkitText(doc, cell.text) || "—", x, top, {
             width: c.width - 6,
             align: c.align ?? "left",
           });
@@ -460,7 +472,7 @@ export function table(doc: PDFKit.PDFDocument, columns: Column[], rows: Cell[][]
             .fillColor(MUTED)
             .font("Helvetica")
             .fontSize(7.5)
-            .text(winAnsi(cell.sub), x, doc.y, { width: c.width - 6, align: c.align ?? "left" });
+            .text(pdfkitText(doc, cell.sub), x, doc.y, { width: c.width - 6, align: c.align ?? "left" });
         }
       }
       x += c.width;

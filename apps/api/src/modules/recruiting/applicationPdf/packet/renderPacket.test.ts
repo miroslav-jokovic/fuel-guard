@@ -1,5 +1,5 @@
-import { inflateSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
+import { pdfText } from "../../../../testing/pdfText.js";
 import type { DriverApplication } from "@silvicom/shared";
 import { P1, P2, P12, P16 } from "./packetText.js";
 import {
@@ -81,43 +81,17 @@ const input = (over: Partial<PacketPdfInput> = {}): PacketPdfInput => ({
 });
 
 /**
- * The drawn text, pulled back out of the PDF.
- *
- * Lifted from `render.test.ts`'s helper and for its reasons: PDFKit compresses each content stream
- * and emits kerned runs of hex strings, so the words a reader sees exist only once the streams are
- * inflated and the runs are decoded and joined. A helper that handled one form and not the other
- * would silently find nothing and make every assertion below vacuously true.
+ * The drawn text — through `testing/pdfText.ts`, the shared reader. This file carried its own copy
+ * until Q-AF2 (2026-09-25); it decoded every hex string one byte per character, and read the
+ * embedded face's glyph ids as mojibake. One reader, which honours `ToUnicode`.
  */
-function pdfText(pdf: Buffer): string {
-  const raw = pdf.toString("latin1");
-  let out = "";
-  const re = /stream\r?\n/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(raw)) !== null) {
-    const start = match.index + match[0].length;
-    const end = raw.indexOf("endstream", start);
-    if (end < 0) continue;
-    try {
-      out += inflateSync(Buffer.from(raw.slice(start, end), "latin1")).toString("latin1");
-    } catch {
-      // Not a deflate stream (or a font subset) — nothing to read here.
-    }
-  }
-  return (out.match(/<[0-9a-fA-F\s]+>|\((?:\\.|[^\\)])*\)/g) ?? [])
-    .map((token) =>
-      token.startsWith("<")
-        ? Buffer.from(token.slice(1, -1).replace(/\s+/g, ""), "hex").toString("latin1")
-        : token.slice(1, -1).replace(/\\([()\\])/g, "$1"),
-    )
-    .join("");
-}
 
 describe("the rendered packet", () => {
   it("produces a PDF, and the helper can actually read it", async () => {
     const pdf = await renderApplicationPacketPdf(input());
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
     // Guards the guard: if `pdfText` returned "" every assertion below would pass for free.
-    expect(pdfText(pdf)).toContain(P1.heading);
+    expect((await pdfText(pdf))).toContain(P1.heading);
   });
 
   it("is deterministic — the same evidence renders the same document", async () => {
@@ -129,7 +103,7 @@ describe("the rendered packet", () => {
   it("renders the packet pages it claims to, and no more", async () => {
     const pdf = await renderApplicationPacketPdf(input());
     expect(RENDERED_PACKET_PAGES).toEqual([1, 2, 12, 16, 26]);
-    const text = pdfText(pdf);
+    const text = (await pdfText(pdf));
     for (const heading of [P1.heading, P2.experienceHeading, P12.heading, P16.heading]) {
       expect(text).toContain(heading);
     }
@@ -145,7 +119,7 @@ describe("the rendered packet", () => {
    */
   describe("the carrier's own wording", () => {
     it("reaches the page exactly as the carrier wrote it, typos and all", async () => {
-      const text = pdfText(await renderApplicationPacketPdf(input()));
+      const text = (await pdfText(await renderApplicationPacketPdf(input())));
       // Each of these is a spelling D-PKT9 used to repair, on a page this step actually draws.
       expect(text).toContain("Previous Three years reisdency");
       expect(text).toContain("maritial status");
@@ -168,7 +142,7 @@ describe("the rendered packet", () => {
      * page, the transcription was taken from the wrong export.
      */
     it("never prints a word broken by the Numbers export's dropped ligatures", async () => {
-      const text = pdfText(await renderApplicationPacketPdf(input()));
+      const text = (await pdfText(await renderApplicationPacketPdf(input())));
       for (const broken of ["quali ed", "certi ed", "noti ed", "disquali ed", "no ca on", "Un ll"]) {
         expect(text).not.toContain(broken);
       }
@@ -181,11 +155,11 @@ describe("the rendered packet", () => {
    */
   describe("the letterhead", () => {
     it("is the carrier's own, not a constant", async () => {
-      const text = pdfText(
+      const text = (await pdfText(
         await renderApplicationPacketPdf(
           input({ carrier: { name: "Northwind Freight LLC", address: "9 Kirby St, Gary IN 46402" } }),
         ),
-      );
+      ));
       expect(text).toContain("Northwind Freight LLC");
       expect(text).toContain("9 Kirby St, Gary IN 46402");
       expect(text).not.toContain("Silvicom");
@@ -197,14 +171,14 @@ describe("the rendered packet", () => {
      * noticeable gap gets filled in.
      */
     it("says the address is missing rather than leaving a silent blank", async () => {
-      const text = pdfText(
+      const text = (await pdfText(
         await renderApplicationPacketPdf(input({ carrier: { name: "Silvicom Inc", address: null } })),
-      );
+      ));
       expect(text).toContain("no legal address on file");
     });
 
     it("keeps the packet's two footer lines verbatim on every page", async () => {
-      const text = pdfText(await renderApplicationPacketPdf(input()));
+      const text = (await pdfText(await renderApplicationPacketPdf(input())));
       expect(text).toContain("THIS IS NOT AN EMPLOYMENT APPLICATION");
       expect(text).toContain("FOR DEPARTMENT OF TRANSPORTATION VERIFICATION PURPOSE ONLY");
     });
@@ -228,16 +202,16 @@ describe("the rendered packet", () => {
       }) as unknown as DriverApplication;
 
     it("prints every row, not the first three", async () => {
-      const text = pdfText(
+      const text = (await pdfText(
         await renderApplicationPacketPdf(input({ application: withFiveViolations() })),
-      );
+      ));
       for (let i = 1; i <= 5; i++) expect(text).toContain(`Offence number ${i}`);
     });
 
     it("says on the form that there is a continuation, rather than ending quietly", async () => {
-      const text = pdfText(
+      const text = (await pdfText(
         await renderApplicationPacketPdf(input({ application: withFiveViolations() })),
-      );
+      ));
       expect(text).toContain("ATTACH SHEET IF MORE SPACE IS NEEDED");
       expect(text).toContain("CONTINUATION");
     });
@@ -250,7 +224,7 @@ describe("the rendered packet", () => {
    */
   describe("the equipment grid", () => {
     it("prints the packet's four named rows whatever the driver entered", async () => {
-      const text = pdfText(await renderApplicationPacketPdf(input()));
+      const text = (await pdfText(await renderApplicationPacketPdf(input())));
       for (const row of P2.experienceRows) expect(text).toContain(row);
     });
 
@@ -261,7 +235,7 @@ describe("the rendered packet", () => {
           { equipment_class: "tractor_tanker", equipment_type: null, from: "2021-01", to: null, approx_miles: 90000 },
         ],
       } as unknown as DriverApplication;
-      const text = pdfText(await renderApplicationPacketPdf(input({ application: tanker })));
+      const text = (await pdfText(await renderApplicationPacketPdf(input({ application: tanker }))));
       expect(text).toContain("OTHER");
       // The class folded; the fact did not. This is the assertion behind "not information loss" —
       // and the word is short because the packet's own examples in that column are "VAN, TANK, FLAT".
@@ -279,17 +253,17 @@ describe("the rendered packet", () => {
       ({ ...APPLICATION, prior_failed_pre_employment_test: v }) as unknown as DriverApplication;
 
     it("marks YES when the applicant said yes", async () => {
-      const text = pdfText(await renderApplicationPacketPdf(input({ application: withAnswer(true) })));
+      const text = (await pdfText(await renderApplicationPacketPdf(input({ application: withAnswer(true) }))));
       expect(text).toContain("[X]  YES      [ ]  NO");
     });
 
     it("marks NO when they said no", async () => {
-      const text = pdfText(await renderApplicationPacketPdf(input({ application: withAnswer(false) })));
+      const text = (await pdfText(await renderApplicationPacketPdf(input({ application: withAnswer(false) }))));
       expect(text).toContain("[ ]  YES      [X]  NO");
     });
 
     it("marks NEITHER box on an application filed before the question existed, and says why", async () => {
-      const text = pdfText(await renderApplicationPacketPdf(input({ application: withAnswer(null) })));
+      const text = (await pdfText(await renderApplicationPacketPdf(input({ application: withAnswer(null) }))));
       expect(text).toContain("[ ]  YES      [ ]  NO");
       expect(text).toContain("submitted before this question was added");
     });
@@ -303,7 +277,7 @@ describe("the rendered packet", () => {
    */
   it("prints the Social Security label and never a number", async () => {
     const withSsn = { ...APPLICATION, ssn_last4: "6789" } as unknown as DriverApplication;
-    const text = pdfText(await renderApplicationPacketPdf(input({ application: withSsn })));
+    const text = (await pdfText(await renderApplicationPacketPdf(input({ application: withSsn }))));
     expect(text).toContain(P1.ssn);
     expect(text).not.toContain("6789");
   });
@@ -318,6 +292,6 @@ describe("the rendered packet", () => {
     const old = { ...APPLICATION, questionnaire_answers: null, questionnaire_version: null } as unknown as DriverApplication;
     const pdf = await renderApplicationPacketPdf(input({ application: old }));
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
-    expect(pdfText(pdf)).toContain(P16.heading);
+    expect((await pdfText(pdf))).toContain(P16.heading);
   });
 });

@@ -1,3 +1,5 @@
+import { decodeShownHex, pageFontMaps } from "../lib/pdfToUnicode.js";
+
 /**
  * Reading back a PDF this API drew, for the tests that assert what is on the page.
  *
@@ -17,22 +19,10 @@
 
 /** The text a reader would see, with no layout — everything the content streams draw, concatenated. */
 export async function pdfText(pdf: Buffer): Promise<string> {
-  const { inflateSync } = await import("node:zlib");
-  const raw = pdf.toString("latin1");
-  let out = "";
-  const re = /stream\r?\n/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(raw)) !== null) {
-    const start = match.index + match[0].length;
-    const end = raw.indexOf("endstream", start);
-    if (end < 0) continue;
-    try {
-      out += inflateSync(Buffer.from(raw.slice(start, end), "latin1")).toString("latin1");
-    } catch {
-      // Not a deflate stream (a font subset, the xref) — nothing to read here.
-    }
-  }
-  return decodeShownText(out);
+  // ⚠ Walks the PAGES since Q-AF2 (2026-09-25), not every stream in the file. A string drawn in an
+  // embedded face is glyph ids, and only the font its page selected can say which letters they are
+  // — a stream found by scanning the bytes has no page, so no fonts, so no answer.
+  return (await pdfPageTexts(pdf)).join("");
 }
 
 /**
@@ -55,11 +45,17 @@ export async function pdfText(pdf: Buffer): Promise<string> {
  * PLACE on its sheet — that needs a raster and a pair of eyes.
  */
 export async function pdfPageTexts(pdf: Buffer): Promise<string[]> {
-  return (await pageStreams(pdf)).map(decodeShownText);
+  return (await pageStreams(pdf)).map(({ stream, fonts }) => decodeShownText(stream, fonts));
 }
 
 /** Each page's decoded content stream, in sheet order. */
-async function pageStreams(pdf: Buffer): Promise<string[]> {
+/** One page's content, and the `ToUnicode` map of every font it can select. */
+interface PageStream {
+  stream: string;
+  fonts: Map<string, Map<number, string>>;
+}
+
+async function pageStreams(pdf: Buffer): Promise<PageStream[]> {
   const { inflateSync } = await import("node:zlib");
   const { PDFArray, PDFDocument, PDFStream } = await import("pdf-lib");
   const doc = await PDFDocument.load(pdf, { ignoreEncryption: true });
@@ -74,11 +70,13 @@ async function pageStreams(pdf: Buffer): Promise<string[]> {
   };
 
   return doc.getPages().map((page) => {
+    const fonts = pageFontMaps(doc, page);
     const contents = page.node.Contents();
-    if (!contents) return "";
-    return contents instanceof PDFArray
+    if (!contents) return { stream: "", fonts };
+    const stream = contents instanceof PDFArray
       ? contents.asArray().map((ref) => inflate(doc.context.lookup(ref, PDFStream))).join("\n")
       : inflate(contents as InstanceType<typeof PDFStream>);
+    return { stream, fonts };
   });
 }
 
@@ -144,11 +142,11 @@ export async function pdfDrawnLines(pdf: Buffer): Promise<DrawnLine[]> {
   // ⚠ One alternation, scanned in ORDER, because the fill colour is state set outside the run it
   // applies to — two passes would have to re-derive which `scn` was in force and could not.
   const token =
-    /(?<r>[\d.]+) (?<g>[\d.]+) (?<b>[\d.]+) scn|BT\s+1 0 0 1 (?<x>-?[\d.]+) (?<y>-?[\d.]+) Tm\s+(?<font>\/\w+) (?<size>[\d.]+) Tf\s+(?<body>.*?)\s*ET/gs;
+    /(?<r>[\d.]+) (?<g>[\d.]+) (?<b>[\d.]+) scn|BT\s+1 0 0 1 (?<x>-?[\d.]+) (?<y>-?[\d.]+) Tm\s+(?<font>\/[^\s/]+) (?<size>[\d.]+) Tf\s+(?<body>.*?)\s*ET/gs;
   const hex = (v: string): string =>
     Math.round(Number(v) * 255).toString(16).padStart(2, "0");
 
-  return (await pageStreams(pdf)).flatMap((stream, page) => {
+  return (await pageStreams(pdf)).flatMap(({ stream, fonts }, page) => {
     const height = heights[page] ?? 792;
     let fill = "#000000";
     const lines: DrawnLine[] = [];
@@ -165,7 +163,7 @@ export async function pdfDrawnLines(pdf: Buffer): Promise<DrawnLine[]> {
         size: Number(g.size),
         font: g.font!,
         color: fill,
-        text: decodeShownText(g.body ?? ""),
+        text: decodeShownText(`${g.font!} ${g.size} Tf ${g.body ?? ""}`, fonts),
       });
     }
     return lines;
@@ -182,14 +180,17 @@ export async function pdfDrawnLines(pdf: Buffer): Promise<DrawnLine[]> {
  * uses them for some fonts and a reader that handled only one form would silently find nothing and
  * make every assertion vacuous.
  */
-function decodeShownText(stream: string): string {
-  return (stream.match(/<[0-9a-fA-F\s]+>|\((?:\\.|[^\\)])*\)/g) ?? [])
-    .map((token) =>
-      token.startsWith("<")
-        ? Buffer.from(token.slice(1, -1).replace(/\s+/g, ""), "hex").toString("latin1")
-        : token.slice(1, -1).replace(/\\([()\\])/g, "$1"),
-    )
-    .join("");
+function decodeShownText(stream: string, fonts: ReadonlyMap<string, ReadonlyMap<number, string>>): string {
+  // ⚠ Scanned IN ORDER with the `Tf` that selects each font, because since Q-AF2 the face is
+  // embedded and its strings are glyph ids: the same hex means different letters in different fonts.
+  let map: ReadonlyMap<number, string> | undefined;
+  let out = "";
+  for (const m of stream.matchAll(/(\/[^\s/[\]()<>{}%]+)\s+[\d.]+\s+Tf|<([0-9a-fA-F\s]+)>|\(((?:\\.|[^\\)])*)\)/g)) {
+    if (m[1] !== undefined) map = fonts.get(m[1]);
+    else if (m[2] !== undefined) out += decodeShownHex(m[2], map);
+    else out += m[3]!.replace(/\\([()\\])/g, "$1");
+  }
+  return out;
 }
 
 /** How many sheets a reader would hold. */
@@ -213,7 +214,7 @@ export async function pdfPageCount(pdf: Buffer): Promise<number> {
  */
 export async function pdfDrawnRules(pdf: Buffer): Promise<Array<{ page: number; y: number }>> {
   const stroke = /(-?[\d.]+) (-?[\d.]+) m\s+(-?[\d.]+) (-?[\d.]+) l\s+S/g;
-  return (await pageStreams(pdf)).flatMap((stream, page) =>
+  return (await pageStreams(pdf)).flatMap(({ stream }, page) =>
     [...stream.matchAll(stroke)]
       .filter((m) => m[2] === m[4])
       .map((m) => ({ page, y: Number(m[2]) })),

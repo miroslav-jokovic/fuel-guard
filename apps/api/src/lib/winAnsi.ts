@@ -41,7 +41,15 @@
  * So the decomposition is applied PER CHARACTER, and only to characters the encoding cannot hold.
  * `ć` still becomes `c` and `š` still becomes `s`; `é` and `ñ` are left alone; and the catch-all at the
  * bottom still turns anything that survives and is genuinely unrepresentable into '?'.
+  *
+ * ── ⚠ SUPERSEDED FOR OUR OWN DOCUMENTS (Q-AF2, 2026-09-25) ────────────────────────────────────
+ * The "handful of glyphs" above was measured, for this carrier, as every Serbian and Polish surname:
+ * pdf-lib threw on `ć` and the packet never filed. `pdfFonts.ts` now embeds Liberation Sans in every
+ * document `newDrawing` makes and in the packet, and `pdfkitText` keeps the name as typed. This fold
+ * remains for any document made WITHOUT the face, and one character at a time for what the face
+ * itself cannot draw.
  */
+
 export function winAnsi(text: string): string {
   return text
     // ⚠ **U+000A is the ONE control character this function keeps, and the catch-all below used to

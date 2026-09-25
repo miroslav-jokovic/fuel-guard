@@ -1,5 +1,5 @@
 import {
-  CONTENT_WIDTH, DANGER, MARGIN, body, caption, field, heading, rule, winAnsi,
+  CONTENT_WIDTH, DANGER, MARGIN, body, caption, field, heading, rule, pdfkitText,
 } from "../../../lib/pdfDraw.js";
 import { purposeLabel } from "./certificate.js";
 
@@ -83,7 +83,7 @@ export function standingNotice(doc: PDFKit.PDFDocument, standing: Standing): voi
     .fillColor(DANGER)
     .font("Helvetica-Bold")
     .fontSize(9.5)
-    .text(winAnsi(standing.headline), MARGIN, doc.y, { width: CONTENT_WIDTH });
+    .text(pdfkitText(doc, standing.headline), MARGIN, doc.y, { width: CONTENT_WIDTH });
   doc.x = MARGIN;
   body(doc, standing.detail, DANGER);
   rule(doc, DANGER);

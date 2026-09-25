@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { embedPdfFace, pdfUnicodeText } from "../../../../lib/pdfFonts.js";
 import { packetPlacementById, type PacketMarkKind } from "@silvicom/shared";
 import { MARK_BASELINE_LIFT, PACKET_MARK_LINES, markLineFor } from "./packetMarkGeometry.js";
 import { fieldTableFor } from "./packetFieldGeometry.js";
@@ -33,10 +34,12 @@ import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
  * initials are a second adopted mark, so the second picture is made from the separately-typed
  * initials and never from the signature.
  *
- * ⚠ **`StandardFonts.HelveticaOblique`, not a script webfont.** A standard-14 face costs no embedded
- * bytes, cannot fail to load, and renders identically wherever the PDF is opened — and this document
- * is filed evidence that has to reproduce in ten years. A signature's job on this page is to be
- * legibly the signer's name in the place the form asks for it, which oblique does.
+ * ⚠ **An oblique sans, not a script webfont.** An upright-family italic reads as the signer's name
+ * in the place the form asks for it, and renders identically wherever the PDF is opened — this is
+ * filed evidence that has to reproduce in ten years. ⚠ Since Q-AF2 (2026-09-25) it is EMBEDDED
+ * Liberation Sans Italic (`lib/pdfFonts.ts`) rather than the standard-14 Helvetica Oblique, which
+ * cannot encode `ć` and threw on every Petrović. It is metric-identical to the face it replaced, so
+ * every name that printed before prints in the same place at the same size.
  *
  * ── ⚠ THIS IS THE FILING PATH ─────────────────────────────────────────────────────────────────
  * ⚠ **Wired in, and the note that used to sit here saying it was not is gone because it was false.**
@@ -281,7 +284,7 @@ async function embedMark(doc: PDFDocument, bytes: Buffer | null | undefined): Pr
  */
 export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Buffer> {
   const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
-  const font = await doc.embedFont(StandardFonts.HelveticaOblique);
+  const font = await embedPdfFace(doc, "italic");
   /**
    * One picture per KIND of mark, embedded once each (Q-HUI14).
    *
@@ -364,7 +367,7 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
       continue;
     }
 
-    const name = mark.signedName.trim();
+    const name = pdfUnicodeText(mark.signedName).trim();
     if (!name) continue;
     // ⚠ A typed name is cut rather than overrun too, and it can happen: `p05`'s initials box is 141pt
     // and a name reaches it through `signedName`. A signature drawn across the caption beside it is
@@ -393,7 +396,7 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
     const lastRow = table.rows[table.rows.length - 1];
     if (lastRow === undefined) continue;
     const page = doc.getPage(table.page - 1);
-    page.drawText(continuationNoticeFor(over), {
+    page.drawText(pdfUnicodeText(continuationNoticeFor(over)), {
       x: table.columns[0]! + 2,
       // ⚠ BELOW the grid's last rule, not in its last row — that row may hold an answer — EXCEPT
       // on the two grids that reach the foot of their sheet, where below is the carrier's footer.
@@ -441,8 +444,8 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
    * own status. A 31-page draft banded only on page 1 is thirty unmarked pages.
    */
   if (input.band) {
-    const bandFont = await doc.embedFont(StandardFonts.HelveticaBold);
-    for (const page of doc.getPages()) drawBand(page, bandFont, input.band);
+    const bandFont = await embedPdfFace(doc, "bold");
+    for (const page of doc.getPages()) drawBand(page, bandFont, pdfUnicodeText(input.band));
   }
 
   return Buffer.from(await doc.save());
