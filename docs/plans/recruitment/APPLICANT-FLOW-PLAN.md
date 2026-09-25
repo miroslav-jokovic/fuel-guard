@@ -597,3 +597,10 @@ Append a dated line per step. Never edit §4.
 - **2026-09-24** — **L-1 DONE** (#1026, merge `1ef555a`; §5 row 5). Page 4 is out of the ceremony
   (22 → 21), and it prints unsigned with the reason on its signature line. The full entry is in
   `HIRING-MODULE-PLAN.md` §10. **Next: Q-HM14**, the last freeze-bound step, then AF6 and AF7.
+- **2026-09-24** — **Q-HM14 DONE** (#1030, merge `81f3c8f`; §5 row 5, the last freeze-bound step). No
+  migration. Questionnaire v2 asks `applying_as` beside *Position*. A company driver's walk is **20**
+  stops (no `p31b`), and page 31's two owner-operator names are not printed for them. An
+  owner-operator's page 22 gets `yes` on the contracting reason. An answer left blank, or a payload
+  filed before the question existed, prints the paper as it was. The full entry is in
+  `HIRING-MODULE-PLAN.md` §10. §7 gains Q-AF1 to Q-AF3. **Next: AF6, then AF7.**
+
