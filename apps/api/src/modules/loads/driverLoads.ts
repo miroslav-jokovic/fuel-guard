@@ -77,6 +77,35 @@ const unit = (u: UnitJoin): string | null =>
   Array.isArray(u) ? (u[0]?.unit_number ?? null) : (u?.unit_number ?? null);
 
 /**
+ * The loads whose CURRENT dispatch names this driver — `auth_dispatched_load_ids()`, 0371's rule,
+ * restated for the service role. A load re-sent to somebody else is theirs from that moment, so a row
+ * naming this driver counts only while it is the load's latest (newest `sent_at`, then `id`, exactly
+ * the helper's order).
+ */
+async function loadsDispatchedTo(admin: SupabaseClient, orgId: string, driverId: string): Promise<string[]> {
+  const { data: mine } = await admin
+    .from("load_dispatches")
+    .select("load_id")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId);
+  const candidates = [...new Set(((mine ?? []) as { load_id: string }[]).map((r) => r.load_id))];
+  if (candidates.length === 0) return [];
+
+  const { data: all } = await admin
+    .from("load_dispatches")
+    .select("load_id, driver_id, sent_at, id")
+    .eq("org_id", orgId)
+    .in("load_id", candidates)
+    .order("sent_at", { ascending: false })
+    .order("id", { ascending: false });
+  const latest = new Map<string, string>();
+  for (const r of (all ?? []) as { load_id: string; driver_id: string }[]) {
+    if (!latest.has(r.load_id)) latest.set(r.load_id, r.driver_id);
+  }
+  return candidates.filter((id) => latest.get(id) === driverId);
+}
+
+/**
  * Every load the driver may see, stops and photos nested — one payload, no waterfall (D29).
  *
  * The status filter is the SAME predicate as `loads_driver_scope` in 0087. It is applied here too,
@@ -88,16 +117,18 @@ export async function getDriverLoads(
   orgId: string,
   driverId: string,
 ): Promise<Load[]> {
+  const sent = await loadsDispatchedTo(admin, orgId, driverId);
   const { data: loads } = await admin
     .from("loads")
     .select(LOAD_COLUMNS)
     .eq("org_id", orgId)
     .eq("driver_id", driverId)
     .in("status", [...DRIVER_VISIBLE_STATUSES])
-    // 0368, D-LMR5: a McLeod load reaches a driver only once Silvicom has sent it. Its status is
+    // D-LMR5: a McLeod load reaches a driver only once Silvicom has SENT it to them. Its status is
     // McLeod's and can be driver-visible (in_transit) with nobody having sent it, so the same predicate
-    // as `loads_driver_scope` applies here — this call is the service role and would otherwise leak.
-    .or("source.neq.tms,released_at.not.is.null")
+    // as `loads_driver_scope` (0371) applies here — this call is the service role and would otherwise
+    // leak. PostgREST refuses an empty `in.()`, hence the two spellings.
+    .or(sent.length > 0 ? `source.neq.tms,id.in.(${sent.join(",")})` : "source.neq.tms")
     .order("created_at", { ascending: false });
 
   const rows = (loads ?? []) as unknown as (Record<string, unknown> & {

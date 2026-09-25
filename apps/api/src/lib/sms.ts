@@ -39,6 +39,24 @@ export interface SmsResult {
   messageId?: string;
 }
 
+// A sender is a number OR a messaging profile — Telnyx accepts either, and a profile picks a number
+// from its pool. Requiring one of the two rather than the number specifically is what lets the account
+// move to a pool later without this file changing.
+const senderOf = (env: Env): { from: string } | { messaging_profile_id: string } | null =>
+  env.TELNYX_FROM
+    ? { from: env.TELNYX_FROM }
+    : env.TELNYX_MESSAGING_PROFILE_ID
+      ? { messaging_profile_id: env.TELNYX_MESSAGING_PROFILE_ID }
+      : null;
+
+/**
+ * Whether a message COULD leave at all — a provider, its key, and something to send from. The one
+ * definition `sendSms` itself sends on, exported so a caller that must record "not configured" before
+ * asking anything else (a load dispatch, LR-D2) reads the same answer rather than restating it.
+ */
+export const smsConfigured = (env: Env): boolean =>
+  env.SMS_PROVIDER === "telnyx" && Boolean(env.TELNYX_API_KEY) && senderOf(env) !== null;
+
 /**
  * Send one message.
  *
@@ -49,16 +67,8 @@ export interface SmsResult {
  */
 export async function sendSms(env: Env, message: OutgoingSms): Promise<SmsResult> {
   try {
-    // A sender is a number OR a messaging profile — Telnyx accepts either, and a profile picks a
-    // number from its pool. Requiring one of the two rather than the number specifically is what lets
-    // the account move to a pool later without this file changing.
-    const sender = env.TELNYX_FROM
-      ? { from: env.TELNYX_FROM }
-      : env.TELNYX_MESSAGING_PROFILE_ID
-        ? { messaging_profile_id: env.TELNYX_MESSAGING_PROFILE_ID }
-        : null;
-
-    if (env.SMS_PROVIDER === "telnyx" && env.TELNYX_API_KEY && sender) {
+    const sender = senderOf(env);
+    if (smsConfigured(env) && sender) {
       const r = await fetch("https://api.telnyx.com/v2/messages", {
         method: "POST",
         headers: {

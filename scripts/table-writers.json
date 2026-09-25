@@ -285,6 +285,9 @@
   "kit_expectations": [
     "apps/api/src/modules/maintenance/inventory/kitExpectations.ts"
   ],
+  "load_dispatches": [
+    "apps/api/src/modules/loads/dispatchToDriver.ts"
+  ],
   "load_events": [
     "apps/api/src/modules/loads/dispatchLoads/shared.ts",
     "apps/api/src/modules/loads/mirrorLoads.ts",

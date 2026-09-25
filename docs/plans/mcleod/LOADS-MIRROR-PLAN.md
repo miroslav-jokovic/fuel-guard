@@ -420,6 +420,24 @@ stop `id`, stop `phone`): the owner confirms Alex will add them to his list — 
    (LR6); keep `source` as a column so history reads correctly.
 8. **Q-LMR8 — retention of `mcleod_dispatch_movements` / `mcleod_dispatch_stops`.** Growth ~180 + ~310 rows/day.
    **Recommendation:** keep closed movements 400 days (IFTA/audit look-back), under DATA-LIFECYCLE L9.
+9. **Q-LMR9 — no consent covers a dispatch text. BLOCKS the SMS half of Dispatch (found in LR-D2).**
+   The only SMS consent instrument, `SMS_CONSENT` (`smsConsentContract.ts`), is limited in its own
+   words to "messages about your own application", and every consent row in `sms_consents` was granted
+   under it (source `application`). `lib/sms.ts` checks nothing by design — its caller owns consent
+   and quiet hours — so a dispatch path calling it would text drivers without consent the day Telnyx
+   gets a number. The 10DLC campaign being registered is also a recruiting use case, and a carrier's
+   campaign is registered per use case. Candidates:
+   (a) a second consent instrument, "dispatch and load messages", collected from employed drivers at
+   onboarding (office-recorded, `source = 'office'` already exists), plus a dispatch use case on the
+   Telnyx campaign; counsel reviews the wording with the Q1–Q17 memorandum;
+   (b) widen `SMS_CONSENT` to cover employment messages — cheaper, but it re-papers every existing
+   consent row and changes an instrument counsel has not yet read;
+   (c) no SMS: dispatch reaches the driver through the app channel only (`channel = 'app'`) when it
+   ships.
+   **Recommendation: (a)**, with quiet hours NOT applied to dispatch (a load assigned at 02:00 is work,
+   not marketing; counsel to confirm). Until it is ruled, Dispatch records `not_sent` /
+   `sms_not_configured` today and `not_sent` / `no_dispatch_consent` once Telnyx is live — the text is
+   composed and stored either way, and nothing is sent.
 
 ---
 
@@ -535,3 +553,26 @@ Append a dated line per merge. Never edit a status column.
   `load_dispatches` cannot share the merge that creates it (the deploy window). They move in LR-D2,
   after `information_schema` shows 0370 in production, together with a driver-own-row select policy
   (the scope's `exists` runs under the driver's RLS, where deny-all would read "never sent").
+- 2026-09-24 — **LR-D1 merged (#1021) and applied in production**, checked from `information_schema`
+  and `pg_class`: `load_dispatches`, 12 columns, RLS on, no policy, 4 CHECKs, the guard trigger.
+- 2026-09-24 — **LR-D2 built.** `POST /api/dispatch/loads/:id/dispatch` writes one `load_dispatches`
+  row (`loads/dispatchToDriver.ts`), audited as `dispatch.load_dispatched`, behind the section
+  matrix's `dispatch:manage` (the roles that could Release). It refuses a manual load, a delivered or
+  canceled one, and a driver not active in the org. `GET /loads/:id/dispatch-preview?driverId=` returns
+  the exact text Send would store: `composeLoadDispatchSms` (`@silvicom/shared`) is the one definition,
+  ASCII-only so a message stays GSM-7, with appointments on the carrier's clock via a new optional
+  zone on `formatDisplayDateTime`. ⚠ **Nothing is texted, on purpose: Q-LMR9.** The only SMS consent
+  covers application messages, so the send records `sms_not_configured` (today) or
+  `no_dispatch_consent` (Telnyx live) and never calls the transport. `smsConfigured` in `lib/sms.ts`
+  is the one "is SMS live" definition, which `sendSms` now also uses.
+  **The driver scopes moved (migration 0371):** a `tms` load reaches its driver while the load's
+  CURRENT dispatch names them, via `auth_dispatched_load_ids()`, a parameterless caller-scoped
+  security-definer helper in the family of `auth_driver_id` (a parameterised first draft was refused
+  by `rls.test.mjs`'s 0162 rule, and its `anon` revoke made an anonymous read of `loads` error instead
+  of filter). `released_at` no longer counts for a `tms` load. 0370's header expected a driver-own-row policy instead; that could not answer "latest", because
+  a driver cannot see the rows naming others, so `load_dispatches` stays deny-all. `driverLoads.ts`
+  restates the rule for the service role, in the same merge as the policy. `loads.driver_id = me` still
+  applies, so a load dispatched to someone other than McLeod's driver reaches nobody in the app yet;
+  that belongs with the app channel and Q-LMR2. Matrix `loads-mirror-status-guard` 30/30; 14 mutants
+  across the service, the reader, the composer, the date zone and 0371, each failing by name. One
+  survived at first (the reader's sort direction) and the test was tightened until it failed. Dropping the helper's org filter is a no-op mutant: `auth_driver_id()` is org-bound and 0370 keeps a dispatch in its load's org, so the filter serves the `(org_id, driver_id)` index, not correctness.

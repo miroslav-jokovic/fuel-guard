@@ -8,8 +8,10 @@
 //     canceled from any status, on insert or update, with no approver and no readiness checks —
 //     while a MANUAL load keeps 0142's chain exactly.
 //   · `source` cannot change, because the first promise trusts it.
-//   · A `tms` load is invisible to its driver until it has been SENT (released_at), whatever McLeod's
-//     status — the owner's ruling that a load reaches a driver when Silvicom's dispatcher sends it.
+//   · A `tms` load is invisible to its driver until it has been SENT, whatever McLeod's status — the
+//     owner's ruling that a load reaches a driver when Silvicom's dispatcher sends it. Since 0371 "sent"
+//     is the load's current `load_dispatches` row naming the driver; 0368's `released_at` no longer
+//     counts for a `tms` load.
 //
 // Run:  node supabase/tests/loads-mirror-status-guard.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -140,9 +142,50 @@ ok("an UNSENT tms load in transit is invisible to its own driver",
 ok("…and so are its stops", (await asDriver(`select id from load_stops where load_id = $1`, [T])).length === 0);
 ok("…and its events", (await asDriver(`select id from load_events where load_id = $1`, [T])).length === 0);
 await db.query(`update loads set released_at = now() where id = $1`, [T]);
-ok("once it has been sent, the driver sees the load", (await asDriver(`select id from loads where id = $1`, [T])).length === 1);
+ok("0371: a legacy Release alone no longer reveals a McLeod load — only a dispatch does",
+  (await asDriver(`select id from loads where id = $1`, [T])).length === 0);
+await db.query(`insert into memberships (org_id, user_id, role) values ($1, $2, 'dispatcher')`, [ORG, APPROVER]);
+const dispatchTo = (driver) => db.query(
+  `insert into load_dispatches (org_id, load_id, driver_id, sent_by, channel, outcome, outcome_reason, body)
+   values ($1, $2, $3, $4, 'sms', 'not_sent', 'sms_not_configured', 'Load')`, [ORG, T, driver, APPROVER]);
+await dispatchTo(DRIVER);
+ok("once it has been dispatched to them, the driver sees the load", (await asDriver(`select id from loads where id = $1`, [T])).length === 1);
 ok("…and its stops", (await asDriver(`select id from load_stops where load_id = $1`, [T])).length === 1);
 ok("…and its events", (await asDriver(`select id from load_events where load_id = $1`, [T])).length === 1);
+ok("…while the dispatch record itself stays unreadable to them (deny-all)",
+  (await asDriver(`select id from load_dispatches where load_id = $1`, [T])).length === 0);
+const OTHER_DRIVER = (await one(
+  `insert into drivers (org_id, full_name, status) values ($1, 'Sam Other', 'active') returning id`, [ORG])).id;
+await db.query(`select pg_sleep(0.01)`);
+await dispatchTo(OTHER_DRIVER);
+ok("re-dispatched to somebody else, the load leaves the first driver's app",
+  (await asDriver(`select id from loads where id = $1`, [T])).length === 0);
+await db.query(`select pg_sleep(0.01)`);
+await dispatchTo(DRIVER);
+ok("and sent back to them, it returns — the CURRENT dispatch decides, not any dispatch",
+  (await asDriver(`select id from loads where id = $1`, [T])).length === 1);
+const FOREIGN_ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'Elsewhere') returning id`)).id;
+const helperAs = async (claimsJson) => {
+  await db.exec("begin");
+  try {
+    await db.exec("set local role authenticated");
+    await db.query("select set_config('request.jwt.claims', $1, true)", [claimsJson]);
+    return (await db.query(`select auth_dispatched_load_ids() id`)).rows.map((r) => r.id);
+  } finally {
+    await db.exec("rollback");
+  }
+};
+ok("auth_dispatched_load_ids names the driver's own dispatched load, and only that",
+  JSON.stringify(await helperAs(claims)) === JSON.stringify([T]));
+ok("…and nothing to somebody in another carrier",
+  (await helperAs(JSON.stringify({ sub: APPROVER, org_id: FOREIGN_ORG, user_role: "dispatcher" }))).length === 0);
+await db.exec("begin");
+await db.exec("set local role anon");
+// PostgREST's anonymous claims, as rls.test.mjs's asAnon models them: a role and no org.
+await db.query(`select set_config('request.jwt.claims', '{"role":"anon"}', true)`);
+const anonLoads = await sqlstate(`select id from loads`);
+await db.exec("rollback");
+ok("an anonymous read of loads is filtered, not an error — the helper is callable by the policy", anonLoads === null, String(anonLoads));
 
 // A manual load needs no released_at beyond its status — 0087's rule, unchanged.
 await db.query(`insert into load_stops (org_id, load_id, seq, kind, name, appointment_start, appointment_end) values

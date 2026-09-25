@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   assignLoadRequestSchema,
   createLoadRequestSchema,
+  dispatchLoadRequestSchema,
   reasonRequestSchema,
   resolveExceptionRequestSchema,
   updateLoadRequestSchema,
@@ -30,6 +31,7 @@ import {
   updateLoad,
   type DispatchResult,
 } from "../dispatchLoads.js";
+import { dispatchLoad, previewLoadDispatch } from "../dispatchToDriver.js";
 
 /**
  * Dispatch endpoints (Phase 3D, D49) — the operator side of the approval gate.
@@ -269,6 +271,67 @@ export function dispatchRouter(): Router {
         meta: { requested: body.ids.length, succeeded: result.succeeded, failed: result.failed },
       });
       res.json(result);
+    }),
+  );
+
+  // ── Dispatch: the office sends a McLeod load to a driver (LR-D2; D-LMR5, D-LMR6) ────────────────
+  // `canManage` is the section matrix's `dispatch:manage` — the same roles that could Release, which is
+  // the act Dispatch replaces. The preview is `canManage` too: it exists only for the person about to
+  // press Send, and it reads a driver's name against a load the viewer may not act on otherwise.
+  router.get(
+    "/loads/:id/dispatch-preview",
+    canManage,
+    asyncHandler(async (req, res) => {
+      const parsed = dispatchLoadRequestSchema.safeParse({ driverId: req.query.driverId });
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_query", "driverId must be a driver id"));
+        return;
+      }
+      const { env } = getAppLocals(req);
+      const result = await previewLoadDispatch(
+        getSupabaseAdmin(env),
+        env,
+        req.auth!.orgId!,
+        param(req, "id"),
+        parsed.data.driverId,
+      );
+      if (!result.ok) {
+        res.status(result.status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ preview: result.data });
+    }),
+  );
+
+  router.post(
+    "/loads/:id/dispatch",
+    canManage,
+    validateBody(dispatchLoadRequestSchema),
+    asyncHandler(async (req, res) => {
+      const body = res.locals.body as ReturnType<typeof dispatchLoadRequestSchema.parse>;
+      const { env } = getAppLocals(req);
+      const admin = getSupabaseAdmin(env);
+      const loadId = param(req, "id");
+      const result = await dispatchLoad(admin, env, req.auth!.orgId!, req.auth!.userId, loadId, body.driverId);
+      if (!result.ok) {
+        res.status(result.status).json(apiError(result.code, result.message));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId: req.auth!.orgId!,
+        actorId: req.auth!.userId,
+        action: "dispatch.load_dispatched",
+        entity: "loads",
+        entityId: loadId,
+        meta: {
+          dispatchId: result.data.id,
+          driverId: result.data.driverId,
+          channel: result.data.channel,
+          outcome: result.data.outcome,
+          outcomeReason: result.data.outcomeReason,
+        },
+      });
+      res.status(201).json({ dispatch: result.data });
     }),
   );
 
