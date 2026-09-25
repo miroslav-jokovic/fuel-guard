@@ -663,3 +663,10 @@ Append a dated line per merge. Never edit a status column.
   old feed's 303 rows (every one `pending_approval`, no `location_name`), so until then the board reads
   them as Planned / Uncovered with McLeod's generic stop names. Next in this plan: Q-LMR10 (BOL column) if
   ruled, then LR8 (retire `load_external_payloads`) once the mirror has run.
+- 2026-09-25 — **The loads and close dry runs print counts, not rows** (`dryRun.mjs`,
+  `dryRun.test.mjs` 5/5, four mutants killed). Until now `--loads --dry-run` and `--close --dry-run`
+  printed every movement and stop as JSON — stop addresses, contact names, phone numbers — and the
+  first is the command run on the Board VM in front of Alex, whose condition is counts, times and
+  McLeod ids. Both now print per-field coverage for dispatchers, movements and stops (stops counted as
+  their own rows) with no sample row; the roster dry run keeps its masked sample. `CONNECTOR-ON-THE-VM.md`
+  step 1 says so. The SQL file is unchanged.
