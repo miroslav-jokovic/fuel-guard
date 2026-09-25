@@ -190,6 +190,19 @@ const RESCREEN = await invite("rescreen");
 const again = await raised(() => sign(RESCREEN, "psp"));
 ok("the same purpose can be signed again on a NEW link", again === null, String(again?.code));
 
+// ── the MVR release is a permission like the others (0375, D-MVR1) ─────────────────────────────
+// The carrier's packet page 19 moved out of the application and into the ceremony. The constraint is
+// the only schema half of that; the count is still whatever the API passes in.
+const MVR = await invite("mvr");
+const mvr = await raised(() => sign(MVR, "mvr", 6));
+ok("an MVR release can be signed on a link (0375)", mvr === null, String(mvr?.code));
+ok(
+  "and it is filed under its own purpose",
+  (await count(`select count(*)::int as n from driver_authorizations where invitation_id = $1 and purpose = 'mvr'`, [MVR])) === 1,
+);
+const madeUp = await raised(() => sign(MVR, "background_everything", 6));
+ok("a purpose outside the six is still refused by the constraint", madeUp?.code === "23514", String(madeUp?.code));
+
 ok(
   "the ceremony function is service_role only",
   (await count(
