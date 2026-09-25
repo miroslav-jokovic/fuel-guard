@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   composeLoadDispatchSms,
+  isDispatchable,
   type DispatchSmsStop,
   type LoadDispatch,
+  type LoadDispatchSummary,
   type LoadDispatchPreview,
   type LoadDispatchSmsReason,
 } from "@silvicom/shared";
@@ -32,8 +34,6 @@ import type { DispatchResult } from "./dispatchLoads/shared.js";
  * The row is still written in both cases: the dispatcher's decision is the fact D-LMR5 asks for, and it
  * is what the driver app will read ("loads sent to me"). How the text goes is a separate outcome.
  */
-
-const CLOSED = new Set(["delivered", "canceled"]);
 
 type Unit = { unit_number: string } | { unit_number: string }[] | null;
 const unit = (u: Unit): string | null => (Array.isArray(u) ? (u[0]?.unit_number ?? null) : (u?.unit_number ?? null));
@@ -79,7 +79,7 @@ async function prepare(
   if (load.source !== "tms") {
     return { ok: false, status: 409, code: "not_a_mcleod_load", message: "Only a McLeod load is dispatched" };
   }
-  if (CLOSED.has(load.status)) {
+  if (!isDispatchable(load)) {
     return { ok: false, status: 409, code: "load_closed", message: "This load is already delivered or canceled" };
   }
   const driver = driverRes.data as { id: string; full_name: string; status: string } | null;
@@ -184,4 +184,51 @@ export async function dispatchLoad(
       body: p.body,
     },
   };
+}
+
+type Named = { full_name: string } | { full_name: string }[] | null;
+
+/**
+ * Every dispatch of these loads, newest first per load (the order `auth_dispatched_load_ids` reads,
+ * 0371), for the board's "Sent to …" and the load page's history. One read for the whole page of loads.
+ */
+export async function dispatchesByLoad(
+  admin: SupabaseClient,
+  orgId: string,
+  loadIds: string[],
+): Promise<Map<string, LoadDispatchSummary[]>> {
+  const out = new Map<string, LoadDispatchSummary[]>();
+  if (loadIds.length === 0) return out;
+  const { data, error } = await admin
+    .from("load_dispatches")
+    .select("id, load_id, driver_id, sent_at, channel, outcome, outcome_reason, drivers(full_name)")
+    .eq("org_id", orgId)
+    .in("load_id", loadIds)
+    .order("sent_at", { ascending: false })
+    .order("id", { ascending: false });
+  if (error) throw new Error(error.message);
+  for (const r of (data ?? []) as {
+    id: string;
+    load_id: string;
+    driver_id: string;
+    sent_at: string;
+    channel: LoadDispatchSummary["channel"];
+    outcome: LoadDispatchSummary["outcome"];
+    outcome_reason: string | null;
+    drivers: Named;
+  }[]) {
+    const name = Array.isArray(r.drivers) ? (r.drivers[0]?.full_name ?? null) : (r.drivers?.full_name ?? null);
+    const list = out.get(r.load_id) ?? [];
+    list.push({
+      id: r.id,
+      driverId: r.driver_id,
+      driverName: name,
+      sentAt: r.sent_at,
+      channel: r.channel,
+      outcome: r.outcome,
+      outcomeReason: r.outcome_reason,
+    });
+    out.set(r.load_id, list);
+  }
+  return out;
 }

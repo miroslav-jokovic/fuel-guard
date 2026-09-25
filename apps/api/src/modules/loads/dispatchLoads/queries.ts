@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AssignmentRow } from "@silvicom/shared";
 import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
+import { dispatchesByLoad } from "../dispatchToDriver.js";
 
 /**
  * Dispatch-side reads (P2 split). Wide by design — dispatch sees every status. The counterpart writes
@@ -49,6 +50,13 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
     }
   }
 
+  // D-LMR7: whether a McLeod load has been sent, and to whom, is the dispatch record — never status.
+  const dispatches = await dispatchesByLoad(
+    admin,
+    orgId,
+    rows.filter((r) => (r as { source?: string }).source === "tms").map((r) => r.id),
+  );
+
   return rows.map((r) => {
     const { drivers, vehicles, trailers, ...rest } = r as unknown as Record<string, unknown> & {
       drivers: Join;
@@ -63,6 +71,7 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
       stops: byLoad.get(r.id) ?? [],
       // Null = hazmat-marked but no record started yet (or a non-hazmat load) — the chip says which.
       hazmat_status: hazmatStatusBy.get(r.id) ?? null,
+      last_dispatch: dispatches.get(r.id)?.[0] ?? null,
     };
   });
 }

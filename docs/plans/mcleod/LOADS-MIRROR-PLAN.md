@@ -576,3 +576,26 @@ Append a dated line per merge. Never edit a status column.
   that belongs with the app channel and Q-LMR2. Matrix `loads-mirror-status-guard` 30/30; 14 mutants
   across the service, the reader, the composer, the date zone and 0371, each failing by name. One
   survived at first (the reader's sort direction) and the test was tightened until it failed. Dropping the helper's org filter is a no-op mutant: `auth_driver_id()` is org-bound and 0370 keeps a dispatch in its load's org, so the filter serves the `(org_id, driver_id)` index, not correctness.
+- 2026-09-24 — **LR-D2 merged (#1024) and live**: `api` serves f621535, `schema_migrations` reads
+  0371, and all three driver scopes read `auth_dispatched_load_ids()` (none reads `released_at`).
+- 2026-09-24 — **LR-D3 built: the Dispatch button and drawer.** `features/dispatch/DispatchLoadDrawer.vue`
+  opens from the board's action column (a kebab item, "Dispatch…"; the contract's §5.6 puts a
+  row with more than one action in the kebab) and from the load page ("Dispatch" / "Dispatch again").
+  It is a `SlideOver` and not a centred modal, because the house rule reserves `BaseModal` for
+  content that needs width. It pre-selects McLeod's driver, labelled "(McLeod's driver)", and offers
+  only active drivers (the API refuses the rest). The message is the API's `dispatch-preview`,
+  verbatim, so the browser never composes it, and it says in words that no text went out and why.
+  Both reads now carry the dispatch record (D-LMR7): the board has a **Dispatch** column
+  ("Not dispatched" / "Dispatched to … · MM/DD/YYYY h:mm") beside McLeod's status, and the load page
+  has a Dispatch line fed by `dispatches`, the full history, newest first. The wording is
+  **"Dispatched to", never "Sent to"**, while no text has gone out. `isDispatchable` is in
+  `@silvicom/shared`, so the button and the endpoint share one rule. **Release ("Send to driver") is
+  hidden on McLeod loads**, singly and in bulk: since 0371 it no longer reaches a driver, and LR6
+  removes the route. The board's header copy was changed for the same reason.
+  **Walked** with a dev-bypass build at 1440 px and 390 px (board → kebab → drawer → Dispatch →
+  toast → load page). The walk found a real bug: a `.stop` on the kebab item kept the menu, and its
+  scrim, open over the drawer's Dispatch button, so the click never landed. Fixed.
+  ⚠ **For LR7, seen on the walk and not changed here:** the "Approval readiness" column shows red
+  blockers on every McLeod load ("2 stop(s) missing a window"), which means nothing under
+  D-LMR5; the queue tabs overflow a phone, so the page scrolls sideways at 390 px (683 px wide); and
+  "Reassign…" on a McLeod load writes `loads.driver_id`, which the next sync overwrites (LR6).

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import {
   approvalChecklist,
   canTransition,
+  isDispatchable,
   isTerminal,
   LOAD_EVENT_LABELS,
   type AssignLoadRequest,
@@ -23,6 +24,8 @@ import { useDriversQuery } from "@/composables/useDrivers";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
 import HazmatPanel from "@/features/hazmat/HazmatPanel.vue";
+import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
+import { dispatchHeadline, smsReasonText } from "@/features/dispatch/useLoadDispatch";
 import {
   statusLabel,
   useAssignLoad,
@@ -72,7 +75,10 @@ const canSubmit = computed(() => !!load.value && canTransition(load.value.status
 const showApprove = computed(() => !!load.value && canTransition(load.value.status, "approved"));
 const canApprove = computed(() => showApprove.value && !!checklist.value?.canApprove);
 const canReject = computed(() => load.value?.status === "pending_approval");
-const canRelease = computed(() => !!load.value && canTransition(load.value.status, "offered"));
+// A McLeod load reaches a driver by Dispatch (D-LMR5, 0371); Release would promise what it cannot do.
+const canRelease = computed(() => !!load.value && load.value.source !== "tms" && canTransition(load.value.status, "offered"));
+const canDispatch = computed(() => !!load.value && isDispatchable(load.value));
+const dispatchOpen = ref(false);
 const canCancel = computed(() => !!load.value && canTransition(load.value.status, "canceled"));
 const editable = computed(
   () => load.value?.status === "draft" || load.value?.status === "pending_approval",
@@ -282,6 +288,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
             <BaseButton v-if="canSubmit" variant="primary" size="sm" :disabled="busy" @click="runTransition('submit')">Submit for approval</BaseButton>
             <BaseButton v-if="showApprove" variant="primary" size="sm" :disabled="busy || !canApprove" @click="runTransition('approve')">Approve</BaseButton>
             <BaseButton v-if="canRelease" variant="primary" size="sm" :disabled="busy" @click="runTransition('release')">Send to driver</BaseButton>
+            <BaseButton v-if="canDispatch" variant="primary" size="sm" @click="dispatchOpen = true">{{ load.dispatches.length ? "Dispatch again" : "Dispatch" }}</BaseButton>
           </div>
         </div>
 
@@ -305,6 +312,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
           <div><dt class="text-ink-tertiary">Truck</dt><dd class="text-ink">{{ load.vehicle_unit ?? "—" }}</dd></div>
           <div><dt class="text-ink-tertiary">Trailer</dt><dd class="text-ink">{{ load.trailer_unit ?? "—" }}</dd></div>
           <div v-if="load.external_id"><dt class="text-ink-tertiary">TMS reference</dt><dd class="font-mono text-ink">{{ load.external_id }}</dd></div>
+          <div v-if="load.source === 'tms'" class="col-span-2" data-testid="dispatch-state"><dt class="text-ink-tertiary">Dispatch</dt><dd class="text-ink">{{ dispatchHeadline(load.dispatches[0]) }}</dd><dd v-if="load.dispatches[0]?.outcomeReason" class="text-xs text-ink-muted">{{ smsReasonText(load.dispatches[0].outcomeReason) }}</dd></div>
         </dl>
 
         <div v-if="canReassign && session.can('dispatch')" class="mt-3">
@@ -472,6 +480,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
         <p v-else class="mt-3 text-sm text-ink-muted">No history yet.</p>
       </BaseCard>
 
+      <DispatchLoadDrawer :load="dispatchOpen ? { ...load, last_dispatch: load.dispatches[0] ?? null } : null" @close="dispatchOpen = false" />
       <SlideOver :open="editOpen" :title="`Edit ${load.ref}`" @close="closeEdit">
         <DispatchLoadFormPage
           v-if="editOpen"

@@ -12,6 +12,7 @@ import {
   type UpdateLoadRequest,
   type DispatchException,
   type ResolveExceptionRequest,
+  type LoadDispatchSummary,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
@@ -66,6 +67,8 @@ export interface DispatchLoad {
   notes: string | null;
   created_at: string;
   stops: DispatchStop[];
+  /** LR-D3 (D-LMR7): the McLeod load's current dispatch, null when never dispatched or not McLeod. */
+  last_dispatch?: LoadDispatchSummary | null;
 }
 
 export type LoadAction = "submit" | "approve" | "release" | "reject" | "cancel";
@@ -122,12 +125,14 @@ export interface LoadDetail extends DispatchLoad {
   stops: DispatchStopDetail[];
   events: LoadEventRow[];
   hazmat_record: LinkedHazmatRecord | null;
+  /** Every dispatch of this load, newest first — the first is the current one (D-LMR6). */
+  dispatches: LoadDispatchSummary[];
 }
 
 
-const loadsKey = ["dispatch", "loads"] as const;
+export const loadsKey = ["dispatch", "loads"] as const;
 /** Prefix for the per-load detail reads, so one invalidate covers every open load. */
-const loadKeyPrefix = ["dispatch", "load"] as const;
+export const loadKeyPrefix = ["dispatch", "load"] as const;
 
 /** Every load in the org, all statuses, stops nested — the dispatch queue. */
 export function useLoadsQuery() {
@@ -368,7 +373,9 @@ export function availableActions(load: DispatchLoad): {
     submit: canTransition(load.status, "pending_approval"),
     approve: canTransition(load.status, "approved") && checklist.canApprove,
     reject: load.status === "pending_approval",
-    release: canTransition(load.status, "offered"),
+    // Not for a McLeod load: since 0371 a Release no longer puts one on a driver's phone — Dispatch
+    // does — so offering it would promise something it cannot do. LR6 removes the route itself.
+    release: load.source !== "tms" && canTransition(load.status, "offered"),
     cancel: canTransition(load.status, "canceled"),
     approveBlockedBy: checklist.blockers.map((b) => b.detail ?? b.label),
   };
