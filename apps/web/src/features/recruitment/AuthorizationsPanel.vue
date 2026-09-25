@@ -12,6 +12,7 @@ import { formatDateTime } from "@/lib/format";
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
+import PaperAuthorizationForm from "@/features/recruitment/PaperAuthorizationForm.vue";
 
 /**
  * The releases an applicant signed, with the wording version each one was signed against
@@ -54,6 +55,8 @@ const props = defineProps<{
    * their own application, and a document spanning two invitations could not be dated.
    */
   invitationId?: string | null;
+  /** Set to offer "Record a paper signature" (MV3). */
+  driverId?: string | null;
 }>();
 
 /**
@@ -82,6 +85,7 @@ const props = defineProps<{
 const canPrint = computed(() => Boolean(props.invitationId) && props.rows.length > 0);
 
 const viewing = ref(false);
+const recordingPaper = ref(false);
 
 /**
  * ⚠ Closed whenever the invitation changes. This panel is a drawer BODY — the step drawer swaps what
@@ -147,9 +151,21 @@ const releases = computed<ReleaseRow[]>(() =>
       </li>
     </ul>
 
-    <AppButton v-if="canPrint" size="sm" variant="secondary" @click="viewing = true">
-      Print what they have signed
-    </AppButton>
+    <div class="flex flex-wrap gap-3">
+      <AppButton v-if="canPrint" size="sm" variant="secondary" @click="viewing = true">
+        Print what they have signed
+      </AppButton>
+      <AppButton v-if="driverId && !recordingPaper" size="sm" variant="secondary" @click="recordingPaper = true">
+        Record a paper signature
+      </AppButton>
+    </div>
+
+    <PaperAuthorizationForm
+      v-if="driverId && recordingPaper"
+      :driver-id="driverId"
+      :signed="releases.filter((r) => r.live).map((r) => r.purpose)"
+      @done="recordingPaper = false"
+    />
 
     <!-- ⚠ Rendered INSIDE the drawer body this panel is, and that placement is load-bearing (B8,
          measured 2026-09-18). HeadlessUI decides which dialog owns Escape from the DOM TREE, so a

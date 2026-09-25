@@ -1,6 +1,6 @@
 # MVR release as a permission, and printable templates
 
-Status: **MV0 + MV1 built.** MV2–MV3 queued. Opened 2026-09-25 from the owner's review of
+Status: **MV0–MV3 built.** MV0 #1054 and MV1 #1055 merged 2026-09-25; MV2 + MV3 in one PR. Opened 2026-09-25 from the owner's review of
 the permissions after the handbook shipped (#1051, #1053).
 
 ## 1. What the owner saw
@@ -32,13 +32,20 @@ Two gaps, both confirmed against the code before anything was built:
   be previewed and printed BLANK, for a driver to sign by hand, and the office records the paper
   signature back with its scan.
 
-And one decision of ours, stated so it can be overruled:
+And two decisions of ours, stated so they can be overruled:
 
 - **D-MVR3 — the MVR step requires BOTH `fcra_disclosure` and `mvr`**, not `mvr` instead of FCRA.
-  The owner's review said "instead"; both is stricter and costs nothing, because the ceremony always
-  collects both. An MVR bought through a consumer reporting agency is a consumer report (FCRA
+  The recommendation the owner approved said "instead"; this builds "both", which is stricter and
+  costs nothing because the ceremony always collects both — raised with the owner so it can be
+  reversed. An MVR bought through a consumer reporting agency is a consumer report (FCRA
   §603(d)); one pulled from a state portal is not. We do not know, per pull, which route the office
   took, so the gate holds the release that covers both.
+- **D-MVR4 — the blank templates carry no "paper copy" band**, reversing this plan's first draft of
+  MV2. FMCSA's PSP form must be used *"in whole, exactly as provided … the language may NOT be
+  included with other consent forms or any other language"*, and FCRA §604(b)(2) requires a document
+  that *"consists solely of the disclosure"*: a band on those two is the addition the law forbids, and
+  a band on only the other seven is a rule nobody could state. What records that a signature was on
+  paper is the row — `method = 'wet_signature'` plus the scan it must cite (MV3).
 
 ## 3. Steps
 
@@ -46,7 +53,7 @@ And one decision of ours, stated so it can be overruled:
 | ---- | ---- | ----- |
 | **MV0** | `0375`: `driver_authorizations.purpose` admits `mvr`. Nothing else in the schema — `record_driver_release` counts against `p_expected_count` from the API (0228). Matrix: `release-ceremony.test.mjs`. | 1 |
 | **MV1** | `mvr` in `AUTHORIZATION_PURPOSES`, labels, catalogue; the carrier's page 19 text in `PACKET_INSTRUMENTS`; `defaultWording` serves it under `packet-2026-08-21`; `APPLICATION_RELEASE_ORDER` gains it after `psp`; `SCREENING_PREREQUISITES.mvr_order` becomes both (D-MVR3); `p19a`/`p19b` withdrawn with a notice on the line. | 2 |
-| **MV2** | Recruitment → **Templates**: every document blank, Preview and Print — the six permissions, the application packet, the handbook, the road-test form. Drawn by the SAME renderers as the signed copies (A2's lesson, `instrumentPages.ts`), each page banded as a paper copy. | 3 |
+| **MV2** | Recruitment → **Templates**: every document blank, Preview and Print — the six permissions, the application packet, the handbook, the road-test form. Drawn by the SAME renderers as the signed copies (A2's lesson, `instrumentPages.ts`), **not banded** — D-MVR4. | 3 |
 | **MV3** | **Record a paper signature** on the Permissions drawer: pick the permission, type the name as signed, the date, upload the scan → `POST /authorizations` `wet_signature` with the document. Closes Q-HUI6. | 3 |
 
 ### Deploy note for MV1
@@ -80,6 +87,11 @@ cannot have an MVR recorded — which is correct, because nobody holds their con
   step done with `method = paper`; (b) keep the electronic path mandatory and treat the printout as a
   reading copy. Recommendation: (a), built as its own step once the owner confirms.
 
+- **Q-MVR5 — the date on a paper signature.** `accepted_at` is when the office RECORDED it, not the
+  day the driver signed; the scan carries the real date. Candidates: (a) leave it, the scan is the
+  evidence; (b) add a `signed_on` the office types, which needs a column (a migration, and its own
+  merge). Recommendation: (a) unless an auditor asks.
+
 ## 5. Progress log
 
 - 2026-09-25 — MV0 built: `0375_mvr_release_purpose.sql`; `release-ceremony.test.mjs` +3 (an `mvr`
@@ -91,3 +103,10 @@ cannot have an MVR recorded — which is correct, because nobody holds their con
   carry *"Not signed here. Signed electronically as its own permission."*, no name, no date. Five
   mutants, five killed: FCRA-only gate, MVR-only gate, `mvr` dropped from the order, `mvr` dropped
   from the default wording, `p19b` un-withdrawn.
+- 2026-09-25 — MV2 + MV3 built. `GET /api/recruitment/templates/:key.pdf` (recruitment: view) draws
+  each of `RECRUITMENT_TEMPLATES` blank with the renderer the electronic copy uses; the road test got
+  a blank mode of the same drawing (`roadTestBlankFormPdf`). Rasterised: blank road test (both
+  pages), blank handbook, packet p19. Recruitment gains a fourth tab, **Templates**. The Permissions
+  drawer gains **Record a paper signature**: `POST /drivers/:id/authorizations/document` registers
+  the scan (kind `other`), and `POST /authorizations` now REFUSES `wet_signature` without a scan, or
+  with a scan filed against another driver — two mutants, both killed.

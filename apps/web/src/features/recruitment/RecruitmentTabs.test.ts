@@ -18,11 +18,12 @@ import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
  * pages**, including the two a notification links straight into.
  */
 
-/** The three real route records, named exactly as `router/routes/recruitment.ts` names them. */
+/** The four real route records, named exactly as `router/routes/recruitment.ts` names them. */
 const routes = [
   { path: "/recruitment", name: "recruitment", component: { template: "<div />" } },
   { path: "/recruitment/screening", name: "screening-readiness", component: { template: "<div />" } },
   { path: "/recruitment/inquiries", name: "inquiry-queue", component: { template: "<div />" } },
+  { path: "/recruitment/templates", name: "recruitment-templates", component: { template: "<div />" } },
   { path: "/recruitment/:id", name: "applicant-record", component: { template: "<div />" } },
 ];
 
@@ -46,13 +47,14 @@ describe("every recruitment view is reachable from every recruitment page", () =
    * ⚠ The P0b guarantee, at its new address. Asserted on all three pages rather than on the board,
    * because the board was never the page somebody got stranded on.
    */
-  for (const path of ["/recruitment", "/recruitment/screening", "/recruitment/inquiries"]) {
-    it(`offers all three views from ${path}`, async () => {
+  for (const path of ["/recruitment", "/recruitment/screening", "/recruitment/inquiries", "/recruitment/templates"]) {
+    it(`offers all four views from ${path}`, async () => {
       const { wrapper } = await mountAt(path);
       expect(tabLabels(wrapper)).toEqual([
         "Applicants",
         "Screening readiness",
         "Safety-history inquiries",
+        "Templates",
       ]);
     });
   }

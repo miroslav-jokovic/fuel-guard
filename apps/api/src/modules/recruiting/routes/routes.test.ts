@@ -9,6 +9,7 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 
 /**
  * Recruitment routes — §391.21(b)(10) employment history (0208).
@@ -31,6 +32,14 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER_ORG = "11111111-2222-4333-8444-555555555555";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
 const ROW = "22222222-3333-4444-8555-666666666666";
+/** The scan of a paper-signed permission (MV3): this org's, filed against DRIVER. */
+const SCAN = "33333333-4444-4555-8666-777777777777";
+const OTHERS_SCAN = "33333333-4444-4555-8666-000000000000";
+const SCANS = () =>
+  postgrestFixture([
+    { id: SCAN, org_id: ORG, subject_type: "driver", subject_id: DRIVER },
+    { id: OTHERS_SCAN, org_id: ORG, subject_type: "driver", subject_id: "99999999-8888-4777-8666-555555555555" },
+  ]);
 
 const ctx = (role: string, orgId: string | null = ORG): AuthContext =>
   ({ userId: `u-${role}`, email: `${role}@x.test`, orgId, role } as AuthContext);
@@ -107,6 +116,7 @@ const seed = (
       // The name FMCSA's "I authorize ___" blanks are filled from (D-WORD1). Without it the
       // instrument renders underscores — which is the safe failure, and not what this suite is about.
       organizations: [{ name: "Silvicom Inc" }],
+      documents: SCANS(),
       application_invitations: over.invitations ?? [],
       application_drafts: over.drafts ?? [],
       qualification_records: over.records ?? [],
@@ -470,6 +480,7 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
     purpose: "psp",
     method: "wet_signature",
     signed_name: "A Driver",
+    evidence_document_id: SCAN,
   };
 
   it("scopes the read to the org and the driver", async () => {
@@ -553,6 +564,45 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
     expect(JSON.stringify(meta)).not.toContain(pspDisclosure("Silvicom Inc").body.slice(0, 40));
   });
 
+  /**
+   * MV3: a paper signature is only as good as the paper. Each refusal is its own case, so a check that
+   * only asked "is there a document id" would pass the first and fail the second.
+   */
+  it("refuses a paper signature recorded without its scan", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const { evidence_document_id: _dropped, ...noScan } = grant;
+    const res = await call("/authorizations", { method: "POST", token: "admin", body: JSON.stringify(noScan) });
+    expect(res.status).toBe(400);
+    expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
+  });
+
+  it("refuses a paper signature citing another driver's scan", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const res = await call("/authorizations", {
+      method: "POST",
+      token: "admin",
+      body: JSON.stringify({ ...grant, evidence_document_id: OTHERS_SCAN }),
+    });
+    expect(res.status).toBe(400);
+    expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
+  });
+
+  it("files the MVR release on paper under its own purpose, citing the scan (D-MVR1)", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const res = await call("/authorizations", {
+      method: "POST",
+      token: "recruiter",
+      body: JSON.stringify({ ...grant, purpose: "mvr" }),
+    });
+    expect(res.status).toBe(201);
+    const written = rec.writtenRows("driver_authorizations")[0]!;
+    expect(written).toMatchObject({ purpose: "mvr", method: "wet_signature", evidence_document_id: SCAN });
+    expect(String(written.disclosure_text)).toContain("as directed by the Federal Motor Carrier Safety Administration");
+  });
+
   it("refuses to hang an authorization off another org's driver", async () => {
     rec = createSupabaseRecorder({ tables: { drivers: [], driver_authorizations: [], audit_logs: [] } });
     holder.client = rec.client;
@@ -586,6 +636,7 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
           published_at: "2026-09-13T10:00:00Z", published_by: null,
         }],
         audit_logs: [],
+        documents: SCANS(),
       },
     });
     holder.client = rec.client;

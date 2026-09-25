@@ -2,8 +2,10 @@ import { Router } from "express";
 import {
   authorizationGrantSchema,
   authorizationRevokeSchema,
+  hiringEvidenceUploadSchema,
   type AuthorizationGrant,
   type AuthorizationRevoke,
+  type HiringEvidenceUpload,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -11,6 +13,11 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { loadCarrierWording } from "../carrierWording.js";
+import {
+  isPaperAuthorizationError,
+  paperScanRefusal,
+  registerPaperAuthorizationScan,
+} from "../paperAuthorization.js";
 
 /**
  * Driver authorizations (0215, H1) — the legal basis for every screening pull.
@@ -57,6 +64,35 @@ export function recruitmentAuthorizationsRouter(): Router {
     }),
   );
 
+  /**
+   * Register the scan of a permission signed on paper (MV3), before the grant that cites it — the
+   * order every document path in this product uses. No audit, for `/records/:step/document`'s reason:
+   * a registration is an intent, and the grant below is the act.
+   */
+  router.post(
+    "/drivers/:driverId/authorizations/document",
+    requireOrg,
+    canManage,
+    validateBody(hiringEvidenceUploadSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await registerPaperAuthorizationScan(
+        admin,
+        req.auth!.orgId!,
+        req.auth!.userId,
+        String(req.params.driverId ?? ""),
+        res.locals.body as HiringEvidenceUpload,
+      );
+      if (isPaperAuthorizationError(result)) {
+        res
+          .status(result.code === "not_found" ? 404 : result.code === "invalid_request" ? 400 : 500)
+          .json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json(result);
+    }),
+  );
+
   router.post(
     "/authorizations",
     requireOrg,
@@ -75,6 +111,13 @@ export function recruitmentAuthorizationsRouter(): Router {
         .maybeSingle();
       if (!driver) {
         res.status(404).json(apiError("not_found", "Driver not found"));
+        return;
+      }
+
+      // MV3: a paper signature carries its scan, and the scan is this driver's (`paperAuthorization.ts`).
+      const scan = await paperScanRefusal(admin, orgId, body.driver_id, body.method, body.evidence_document_id);
+      if (scan) {
+        res.status(scan.code === "not_found" ? 404 : 400).json(apiError(scan.code, scan.message));
         return;
       }
 

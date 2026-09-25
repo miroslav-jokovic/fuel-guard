@@ -44,4 +44,11 @@ export const recruitmentRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/InquiryQueuePage.vue"),
     meta: { requiresAuth: true, title: "Inquiry Queue", parent: "/recruitment" },
   },
+  {
+    // MV2 (D-MVR2): blank documents to print when the electronic path fails.
+    path: "/recruitment/templates",
+    name: "recruitment-templates",
+    component: () => import("@/pages/RecruitmentTemplatesPage.vue"),
+    meta: { requiresAuth: true, title: "Templates", parent: "/recruitment" },
+  },
 ];
