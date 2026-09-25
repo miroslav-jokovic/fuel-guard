@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { loadPdfDocument as loadDocument } from "@/features/apply/signing/pdfDocument";
 
 /**
  * The carrier's own page, drawn on a canvas (C1).
@@ -66,29 +67,8 @@ let destroyed = false;
 let drawnWidth = 0;
 let drawnPage = 0;
 
-let workerConfigured = false;
-async function loadPdfjs() {
-  const pdfjs = await import("pdfjs-dist");
-  if (!workerConfigured) {
-    // Vite resolves `?url` to the emitted asset; the worker keeps rasterising off the main thread,
-    // so turning a page does not freeze the screen the driver is signing on.
-    const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-    workerConfigured = true;
-  }
-  return pdfjs;
-}
-
-async function loadDocument(src: string) {
-  const pdfjs = await loadPdfjs();
-  // ⚠ `credentials: "omit"` — this link carries no cookie and must not start doing so. The token in
-  // the path is the whole credential (`applicationReadingCopy.ts`).
-  const res = await fetch(src, { credentials: "omit" });
-  if (!res.ok) throw new Error(`packet ${res.status}`);
-  const bytes = await res.arrayBuffer();
-  const loading = pdfjs.getDocument({ data: new Uint8Array(bytes) });
-  return { task: loading, doc: await loading.promise };
-}
+// The import, the worker and the one fetch live in `pdfDocument.ts` since AF6, shared with the
+// permissions' viewer. ⚠ `credentials: "omit"` and fetched ONCE, for the reasons in the header.
 
 /**
  * ⚠ **One render at a time, and this is not defensiveness — it was a page error in the browser.**

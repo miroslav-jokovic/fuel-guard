@@ -174,24 +174,17 @@ export const APPLY_FLOW_COPY = {
     failed: "That did not go through. Check your signal and try again.",
   },
 
+  /**
+   * `SignaturePad`'s own three. ⚠ Since AF6 the permissions adopt their signature in the packet's
+   * adoption screens (`APPLY_COPY.permissions`), and the rest of what stood here, the old
+   * text-and-button ceremony's words, went with that screen.
+   */
   signing: {
-    adoptHeading: "Your signature",
-    adoptIntro: (carrier: string, count: number): string =>
-      `${carrier} needs you to sign ${count} authorizations before you fill in the application. Type your name once — each document is then one tap, and you will see exactly what you are signing.`,
-    adoptLabel: "Type your full name",
-    adoptHint: "This is your signature. Type it as it appears on your licence.",
-    adoptAction: "Use this as my signature",
     /** A8b/D-APP8. Optional, and said to be optional — a driver who cannot draw one has still
      *  signed, and the typed name above is what the carrier's file records. */
     drawLabel: "Draw it too, if you like",
     drawHint: "Optional. Your typed name above is your signature either way — this just puts your own mark on the document.",
     drawClear: "Clear",
-    counter: (n: number, total: number): string => `${n} of ${total}`,
-    sign: "I agree — sign this",
-    signing: "Signing…",
-    /** The carrier's outstanding act, said as the carrier's — the driver can do nothing about it. */
-    notFinal:
-      "This carrier has not published its final wording for this document yet, so it cannot be signed today. They have been told. You can still fill in your application.",
   },
 
   /**

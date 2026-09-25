@@ -1,6 +1,5 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { APPLICATION_CAPTURE_MARK_SLOT, type PacketMarkKind } from "@silvicom/shared";
-import type { ApplyPacketStop } from "@/features/apply/useApplication";
 import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapture";
 import { DEFAULT_MARK_STYLE_ID } from "@/features/apply/signing/markStyles";
 import {
@@ -71,13 +70,30 @@ export { markRequiredFor, type AdoptedMarkStyle };
  * again, one level down, and its reasoning is repeated in that file's header.
  */
 
+/**
+ * The three things adoption reads off a stop, and nothing else (AF6).
+ *
+ * ⚠ **Narrowed from `ApplyPacketStop`, which is a packet PLACEMENT** (`id, page, party, mark, anchor,
+ * what`, plus `signedAt`). AF6's permission ceremony adopts its signature through this same composable,
+ * the same Type/Draw/Upload tabs and the same confirm step, so that the mark an applicant makes for
+ * their permissions is the one the packet later offers as carried over. A permission is not a
+ * placement and must not be able to pose as one: its `id` is a purpose, and it has no page, no party
+ * and no anchor. What adoption actually needs (`pinnedKinds`, `placesWithMark`, `markFor`,
+ * `needsInitials`) is which stop, which kind of mark, and whether it is signed.
+ */
+export interface AdoptionStop {
+  id: string;
+  mark: PacketMarkKind;
+  signedAt: string | null;
+}
+
 export interface PacketAdoptionInput {
   token: Ref<string>;
   /** Every stop on the carrier's paper, and what this walk has filed — the two evidence sources. */
-  stops: Ref<ApplyPacketStop[]>;
+  stops: Ref<readonly AdoptionStop[]>;
   filedHere: Ref<Set<string>>;
   /** What is still to be collected. The WALK owns this; see the header on why it is not recomputed. */
-  outstanding: ComputedRef<ApplyPacketStop[]>;
+  outstanding: ComputedRef<readonly AdoptionStop[]>;
   /**
    * The walk's busy flag, shared rather than duplicated.
    *
@@ -440,7 +456,7 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
    * page. A ceremony that guessed — from the page number, from the anchor text — would be a second
    * opinion about a document the inventory already describes.
    */
-  function markFor(stop: ApplyPacketStop): string {
+  function markFor(stop: AdoptionStop): string {
     return stop.mark === "initials" ? adoptedInitials.value.trim() : adoptedName.value.trim();
   }
 

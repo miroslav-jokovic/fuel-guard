@@ -6,8 +6,8 @@ import {
   AppFormField as FormField,
   AppSegmentedControl,
 } from "@silvicom/ui";
-import type { ApplyPacketStop } from "@/features/apply/useApplication";
-import type { usePacketCeremony } from "@/features/apply/signing/usePacketCeremony";
+import type { PacketMarkKind } from "@silvicom/shared";
+import type { AdoptionCeremony, AdoptionCopy } from "@/features/apply/signing/adoptionCeremony";
 import SignaturePad from "@/features/apply/signing/SignaturePad.vue";
 import PacketMarkStyles from "@/features/apply/signing/PacketMarkStyles.vue";
 import PacketMarkUpload from "@/features/apply/signing/PacketMarkUpload.vue";
@@ -34,9 +34,13 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * would pin a second copy of a few hundred KB per redraw and leave the two to be revoked separately.
  */
 const props = defineProps<{
-  ceremony: ReturnType<typeof usePacketCeremony>;
+  /** Since AF6, the members this screen reads (`adoptionCeremony.ts`): the packet's or the permissions'. */
+  ceremony: AdoptionCeremony;
   carrier: string;
-  stops: ApplyPacketStop[];
+  /** Read for the pages the initials go on, and nothing else. The permissions take no initials. */
+  stops: ReadonlyArray<{ mark: PacketMarkKind; page?: number }>;
+  /** The words. The packet's unless a ceremony that is not the packet passes its own (AF6). */
+  copy?: AdoptionCopy;
   /** The signature picture's object URL, owned by the parent. Null before the first mark is made. */
   drawnUrl: string | null;
   /**
@@ -51,7 +55,7 @@ const props = defineProps<{
 /** Carries the adopted mark, because it is the §391.21(b)(12) signature now (D-PKT15). */
 const emit = defineEmits<{ done: [signedName: string] }>();
 
-const copy = APPLY_COPY.packet;
+const copy: AdoptionCopy = props.copy ?? APPLY_COPY.packet;
 const ceremony = computed(() => props.ceremony);
 
 /**
@@ -139,7 +143,7 @@ async function adoptAndStart(): Promise<void> {
  * mid-array before (p17, D-PKT12). De-duplicated and sorted, because a page could hold two.
  */
 const initialsPages = computed(() =>
-  [...new Set(props.stops.filter((s) => s.mark === "initials").map((s) => s.page))].sort(
+  [...new Set(props.stops.filter((s) => s.mark === "initials").map((s) => s.page ?? 0))].sort(
     (a, b) => a - b,
   ),
 );

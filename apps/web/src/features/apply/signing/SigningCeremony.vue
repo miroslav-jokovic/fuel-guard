@@ -1,110 +1,158 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
-import type { AuthorizationPurpose } from "@silvicom/shared";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { AppButton as BaseButton } from "@silvicom/ui";
+import { APPLICATION_CAPTURE_MARK_SLOT, type ApplicationCaptureView, type AuthorizationPurpose } from "@silvicom/shared";
 import type { ApplyRelease } from "@/features/apply/useApplication";
-import { useSigningCeremony } from "@/features/apply/signing/useSigningCeremony";
-import SignaturePad from "@/features/apply/signing/SignaturePad.vue";
+import { usePermissionCeremony } from "@/features/apply/signing/usePermissionCeremony";
+import PacketAdoption from "@/features/apply/signing/PacketAdoption.vue";
+import PermissionDocumentView from "@/features/apply/signing/PermissionDocumentView.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
- * One instrument, one screen, one control (A5, D-APP7).
+ * The permissions, one document at a time, each signed where it says (A5, AF6, D-AF2).
  *
- * FCRA §604(b)(2) requires the disclosure to be "in a document that consists solely of the
- * disclosure", and courts read `solely` literally — so there is deliberately nothing else on this
- * screen while an instrument is showing: no application fields, no other instrument, no summary of
- * the five. The driver adopts a signature once, and then each document is one tap.
+ * ── WHAT THE APPLICANT SEES ───────────────────────────────────────────────────────────────────
+ * Their signature, made once in the packet's own adoption screens and confirmed. Then each permission
+ * as the PDF it is, whole, with a **Sign here** tag on the box the document marks. Pressing it signs
+ * that document and nothing else, and the next one opens.
  *
- * The text is the SERVER's, rendered as served. Nothing here paraphrases an instrument, and there is
- * no control that could sign more than one.
+ * ⚠ **FCRA §604(b)(2)'s "solely" still governs the screen.** One document is on it at a time, and
+ * nothing else: no application fields, no other permission, no summary of the five. The tag signs the
+ * document it sits on.
+ *
+ * ⚠ **The words are never more than a tap away, and are the whole screen when the PDF will not load.**
+ * On a 390px phone a Letter page is small, and a canvas is an image to a screen reader. So the served
+ * text (the same words the PDF carries, from the same wording) sits under the document in a
+ * disclosure, and replaces it with a plain Sign button when the document cannot be shown. A picture
+ * that will not load must not stand between an applicant and five federally-required signatures.
  */
 const props = defineProps<{
   token: string;
   releases: ApplyRelease[];
   alreadySigned: AuthorizationPurpose[];
   carrier: string;
+  /** Which capture slots this link holds, to know whether a signature picture is already saved (C2). */
+  captures?: ApplicationCaptureView[];
 }>();
 const emit = defineEmits<{ done: [] }>();
 
-const copy = APPLY_COPY.signing;
-const ceremony = useSigningCeremony(
+const copy = APPLY_COPY.permissions;
+const ceremony = usePermissionCeremony(
   computed(() => props.token),
   computed(() => props.releases),
   computed(() => props.alreadySigned),
+  {
+    markStaged: computed(() =>
+      (props.captures ?? []).some((c) => c.slot === APPLICATION_CAPTURE_MARK_SLOT.signature),
+    ),
+  },
 );
 
-async function signCurrent(): Promise<void> {
-  await ceremony.sign();
-  if (ceremony.complete.value) emit("done");
-}
+/** The signature picture's object URL, for the confirm screen. One blob, one URL, one revoke. */
+const drawnUrl = ref<string | null>(null);
+watch(
+  () => ceremony.markBlob.value,
+  (blob) => {
+    if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
+    drawnUrl.value = blob ? URL.createObjectURL(blob) : null;
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => {
+  if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
+});
 
-async function adoptAndStart(): Promise<void> {
-  if ((await ceremony.adopt()) && ceremony.complete.value) emit("done");
+watch(() => ceremony.complete.value, (done) => done && emit("done"), { immediate: true });
+
+const current = computed(() => ceremony.current.value);
+const src = computed(() =>
+  current.value
+    ? `/api/public/application/${encodeURIComponent(props.token)}/permission/${current.value.purpose}.pdf`
+    : "",
+);
+
+/** Whether the document is on screen with its box found. Otherwise the words and a plain button. */
+const view = ref<"loading" | "tagged" | "words">("loading");
+watch(src, () => (view.value = "loading"));
+
+async function sign(): Promise<void> {
+  await ceremony.signCurrent();
+  if (!ceremony.complete.value) window.scrollTo?.({ top: 0 });
 }
 </script>
 
 <template>
-  <!-- Adoption: once, before any instrument is shown. -->
-  <section v-if="!ceremony.adopted.value" class="space-y-4">
-    <div>
-      <h1 class="text-lg font-semibold text-ink">{{ copy.adoptHeading }}</h1>
-      <p class="mt-2 text-sm text-ink-muted">{{ copy.adoptIntro(carrier, ceremony.total.value) }}</p>
-    </div>
-    <FormField v-slot="{ id }" :label="copy.adoptLabel" :hint="copy.adoptHint">
-      <BaseInput :id="id" v-model="ceremony.adoptedName.value" autocomplete="name" />
-    </FormField>
-    <!-- Rendered in a script face so it reads as a signature. It is a rendering of the typed name and
-         nothing more: the legally load-bearing artifact is the tuple the server stores (D-APP8). -->
-    <p v-if="ceremony.adoptedName.value.trim()" class="signature-preview text-2xl text-ink">
-      {{ ceremony.adoptedName.value }}
-    </p>
+  <PacketAdoption
+    v-if="ceremony.state.value === 'adopting' || ceremony.state.value === 'confirming'"
+    :ceremony="ceremony"
+    :carrier="carrier"
+    :stops="[]"
+    :copy="copy.adoption"
+    :drawn-url="drawnUrl"
+    :initials-url="null"
+  />
 
-    <!-- A8b/D-APP8: never required, and it says so. The typed name above is what the file records. -->
-    <SignaturePad @change="ceremony.markBlob.value = $event" />
-
-    <div class="flex justify-end">
-      <BaseButton
-        variant="primary"
-        :disabled="ceremony.working.value || ceremony.adoptedName.value.trim().length < 2"
-        @click="adoptAndStart"
-      >
-        {{ ceremony.working.value ? copy.signing : copy.adoptAction }}
-      </BaseButton>
-    </div>
-  </section>
-
-  <!-- One instrument. Nothing else on the screen. -->
-  <section v-else-if="ceremony.current.value" class="space-y-4">
+  <!-- One document. Nothing else on the screen. -->
+  <section v-else-if="current" class="space-y-4">
     <div class="flex items-baseline justify-between gap-4">
-      <h1 class="text-lg font-semibold text-ink">{{ ceremony.current.value.title }}</h1>
-      <span class="text-xs text-ink-muted">
+      <h1 class="text-lg font-semibold text-ink">{{ current.release.title }}</h1>
+      <span class="shrink-0 text-xs text-ink-muted">
         {{ copy.counter(ceremony.position.value, ceremony.total.value) }}
       </span>
     </div>
-    <p class="whitespace-pre-line rounded-surface bg-surface-muted p-4 text-sm text-ink-secondary">
-      {{ ceremony.current.value.body }}
-    </p>
 
-    <p class="text-sm text-ink">{{ ceremony.current.value.intent }}</p>
-    <p class="signature-preview text-2xl text-ink">{{ ceremony.adoptedName.value }}</p>
+    <PermissionDocumentView
+      v-if="view !== 'words'"
+      :key="src"
+      :src="src"
+      :label="current.release.title"
+      @loaded="(hasBox) => (view = hasBox ? 'tagged' : 'words')"
+      @failed="view = 'words'"
+    >
+      <template #loading>{{ copy.loading }}</template>
+      <template #box>
+        <BaseButton
+          variant="primary"
+          size="sm"
+          class="sign-here-tag"
+          :disabled="ceremony.working.value"
+          @click="sign"
+        >
+          {{ ceremony.working.value ? copy.working : copy.signHere }}
+        </BaseButton>
+      </template>
+    </PermissionDocumentView>
 
-    <!-- The carrier's problem, said as the carrier's problem. A driver who cannot sign because
-         nobody published the wording has done nothing wrong and can do nothing about it. -->
+    <!-- The document could not be shown, or names no box: its words, and a plain button. -->
+    <template v-if="view === 'words'">
+      <p class="text-sm text-ink-secondary">{{ copy.unavailable }}</p>
+      <p class="whitespace-pre-line rounded-surface bg-surface-muted p-4 text-sm text-ink-secondary">
+        {{ current.release.body }}
+      </p>
+      <p class="text-sm text-ink">{{ current.release.intent }}</p>
+    </template>
+    <details v-else class="text-sm text-ink-secondary">
+      <summary class="cursor-pointer text-ink">{{ copy.readAsText }}</summary>
+      <p class="mt-2 whitespace-pre-line">{{ current.release.body }}</p>
+      <p class="mt-2 text-ink">{{ current.release.intent }}</p>
+    </details>
+
+    <!-- The carrier's problem, said as the carrier's. The applicant can do nothing about it. -->
     <p v-if="ceremony.carrierProblem.value" class="text-sm text-ink-secondary">{{ copy.notFinal }}</p>
-    <p v-else-if="ceremony.error.value" class="text-sm text-ink-secondary">{{ ceremony.error.value }}</p>
+    <p v-else-if="ceremony.error.value" class="text-sm text-ink-secondary">{{ copy.failed }}</p>
 
-    <div class="flex justify-end">
-      <BaseButton variant="primary" :disabled="ceremony.working.value" @click="signCurrent">
-        {{ ceremony.working.value ? copy.signing : copy.sign }}
+    <div v-if="view === 'words'" class="flex justify-end">
+      <BaseButton variant="primary" :disabled="ceremony.working.value" @click="sign">
+        {{ ceremony.working.value ? copy.working : copy.signAction }}
       </BaseButton>
     </div>
   </section>
 </template>
 
 <style scoped>
-/* A script face for the adopted name. Cursive is a system-stack keyword, so this needs no webfont
-   and cannot fail to load on a truck-stop connection. */
-.signature-preview {
-  font-family: ui-rounded, "Segoe Script", "Brush Script MT", cursive;
+/* The tag sits over the box's ruled line, like DocuSign's: bottom-left of the box, never over the
+   text above it. */
+.sign-here-tag {
+  margin-bottom: 0.15rem;
 }
 </style>

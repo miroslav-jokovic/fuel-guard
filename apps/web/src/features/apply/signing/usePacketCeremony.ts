@@ -24,8 +24,9 @@ export type { AdoptedMarkStyle } from "@/features/apply/signing/usePacketAdoptio
  * retire the only pressure keeping this readable. The seam: this file is about PLACES on paper, that
  * one is about the MARKS, and `markFor` and `currentShowsDrawing` are where they meet.
  *
- * ── WHY THIS IS NOT `useSigningCeremony` WITH A DIFFERENT LIST ────────────────────────────────
- * That one walks five INSTRUMENTS, each its own document with its own served text and its own
+ * ── WHY THIS IS NOT `usePermissionCeremony` WITH A DIFFERENT LIST ─────────────────────────────
+ * (`useSigningCeremony` until AF6, which rebuilt it on this file's adoption.) That one walks five
+ * INSTRUMENTS, each its own document with its own served text and its own
  * §604(b)(2) obligation to be the only thing on the screen. This one walks PLACES on one document
  * the driver has already been shown in full on the screen before this. The shapes rhyme and the
  * obligations do not: there is no disclosure to serve per stop, no version to record, and the text

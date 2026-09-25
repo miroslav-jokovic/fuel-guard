@@ -347,6 +347,7 @@ watch(
       :releases="releases"
       :already-signed="invitation.data.value?.releasesSigned ?? []"
       :carrier="invitation.data.value?.carrier ?? ''"
+      :captures="invitation.data.value?.captures ?? []"
       @done="ceremonyDone = true"
     />
   </BaseCard>
