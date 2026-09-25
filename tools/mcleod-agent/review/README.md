@@ -1,5 +1,11 @@
 # The read routine, for the carrier's review
 
+> **2026-09-25 — the grant script:** [`SILVICOM-GRANTS.sql`](SILVICOM-GRANTS.sql), which Alex asked for
+> in the format of the 2026-09-15 one (`GRANT ... TO silvicom_dispatch_ro`). Written by hand, unlike
+> the routine: Part 1 (`reference_number`, `customer` by column) on LME, Part 2 (the finance tables) on
+> `lme_analytics` first. Checked 2026-09-25 against the routine: it reads exactly the eleven finance
+> tables plus `equipment_item`, and the same 18 `driver` columns already granted.
+>
 > **2026-09-25 — the reply to Alex's approval:** [`REPLY-TO-ALEX-2026-09-25.md`](REPLY-TO-ALEX-2026-09-25.md),
 > sent with the regenerated `SILVICOM-READ-ROUTINE.sql` (LR3's fields, the version he asked to see
 > before it goes live). His 2026-09-24 reply is kept in `docs/plans/mcleod/mail.md`.
