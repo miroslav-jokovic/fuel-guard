@@ -4,6 +4,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { applicantCopy } from "../applicationCopy.js";
 import { applicantReadingCopy } from "../applicationReadingCopy.js";
+import { applicantPermissionInstrument } from "../applicationPermissionInstrument.js";
 import { isIntakeError } from "../applicationIntake.js";
 
 /**
@@ -91,6 +92,36 @@ export function publicApplicationDocumentsRouter(): Router {
       // it than the paper actually has — and it is somebody's employment history in any case.
       res.setHeader("cache-control", "no-store, private");
       res.setHeader("x-packet-marks", String(result.markCount));
+      res.send(result.pdf);
+    }),
+  );
+
+  /**
+   * One permission, unsigned, as the applicant is about to sign it (AF6, D-AF2).
+   *
+   * ⚠ **Bytes, for `/:token/packet`'s reason**: rendered on demand from the carrier's wording and never
+   * stored. ⚠ And on the CEREMONY's bucket, not the intake's (`applicationLimits.ts`): five of these
+   * plus the page's own reads would crowd 20 a minute on the screen where somebody is signing.
+   *
+   * `/<purpose>.pdf` rather than `/<purpose>`, so the address says what it returns. A purpose that is
+   * not one of the five is 404, like a link that is not one.
+   */
+  router.get(
+    "/:token/permission/:file",
+    asyncHandler(async (req, res) => {
+      const file = /^([a-z_]+)\.pdf$/.exec(String(req.params.file ?? ""));
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await applicantPermissionInstrument(
+        admin, String(req.params.token ?? ""), file?.[1] ?? "", new Date(),
+      );
+      if (isIntakeError(result)) {
+        const status = result.code === "invalid_link" || result.code === "not_a_permission" ? 404 : 409;
+        res.status(status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      res.setHeader("cache-control", "no-store, private");
       res.send(result.pdf);
     }),
   );

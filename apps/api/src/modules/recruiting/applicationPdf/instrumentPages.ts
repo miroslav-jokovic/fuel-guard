@@ -6,8 +6,14 @@ import { purposeLabel } from "./certificate.js";
 /**
  * How ONE signed instrument prints — the page that shows the exact text somebody agreed to (B2).
  *
+ * ⚠ **Since AF6 (2026-09-25) B2 no longer draws its instruments here.** It draws them with
+ * `permissionInstrument.ts`, the same function that renders the PDF the applicant signs against, so
+ * the office prints each permission as the applicant saw it. `instrumentPage` now serves
+ * `render.ts`'s §391.21 summary only, which files applications from before the packet (D-PKT5), and
+ * B2 still uses this module's `consentPage` and `standingNotice`. What follows is the history.
+ *
  * ── WHY THIS IS A MODULE AND NOT TWO COPIES ───────────────────────────────────────────────────
- * Two documents draw these pages now: `render.ts`'s §391.21 summary, which files them with the
+ * Two documents drew these pages: `render.ts`'s §391.21 summary, which files them with the
  * application, and B2's permissions PDF, which is the office's answer to *"what has this applicant
  * signed so far"* before anything is filed. The pages are the same pages — a heading, the version,
  * the disclosure text as it was stored, the intent sentence, the typed name and the date.
@@ -71,7 +77,7 @@ export interface Standing {
  * two rules are structural — so a black-and-white photocopy, which is how a DOT auditor will most
  * likely see this, says everything the colour says.
  */
-function standingNotice(doc: PDFKit.PDFDocument, standing: Standing): void {
+export function standingNotice(doc: PDFKit.PDFDocument, standing: Standing): void {
   rule(doc, DANGER);
   doc
     .fillColor(DANGER)

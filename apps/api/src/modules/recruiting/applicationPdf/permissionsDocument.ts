@@ -10,7 +10,8 @@ import {
   DANGER, INK, caption, field, heading, newDrawing, rule, title,
 } from "../../../lib/pdfDraw.js";
 import { certificate } from "./certificate.js";
-import { consentPage, instrumentPage, type SignedConsent, type SignedInstrument } from "./instrumentPages.js";
+import { consentPage, standingNotice, type SignedConsent, type SignedInstrument } from "./instrumentPages.js";
+import { drawPermissionInstrument } from "./permissionInstrument.js";
 import type { ApplicationPdfInput } from "./render.js";
 import { stampPages } from "./stamp.js";
 
@@ -61,6 +62,14 @@ export interface PermissionsInstrument {
    */
   live: boolean;
   revoked: { at: string; reason: string | null } | null;
+  /**
+   * The instrument's own title, as the applicant saw it above the text (AF6).
+   *
+   * ⚠ `driver_authorizations` stores the text, the intent and the version, and NOT the title, so the
+   * service derives it: the carrier's current wording's title when that wording is the version this
+   * row was signed against, the purpose's label otherwise. Never a title from a different version.
+   */
+  title: string;
 }
 
 export interface PermissionsConsent extends SignedConsent {
@@ -256,20 +265,36 @@ export async function renderPermissionsDocument(input: PermissionsDocumentInput)
     );
   }
 
+  /**
+   * ⚠ Each instrument AS THE APPLICANT SIGNED IT (AF6, D-AF2): the same `drawPermissionInstrument`
+   * that renders the PDF on their screen, with their name, the date and their mark in the box. The
+   * plan's words are *"the office prints exactly what each one looked like when signed"*. The band and
+   * the footer are still stamped over these pages, in the margins the instrument never enters,
+   * because a loose copy of this document must still say it is not the application.
+   */
   for (const instrument of input.instruments) {
-    instrumentPage(
-      doc,
-      instrument.auth,
-      input.signatureMark,
-      instrument.revoked
-        ? {
-            headline: `REVOKED ${stamp(instrument.revoked.at)}`,
-            detail:
-              "The carrier may not rely on this release for any screening act after that moment. "
-              + `Reason given: ${blank(instrument.revoked.reason)}`,
-          }
-        : null,
-    );
+    doc.addPage();
+    if (instrument.revoked) {
+      standingNotice(doc, {
+        headline: `REVOKED ${stamp(instrument.revoked.at)}`,
+        detail:
+          "The carrier may not rely on this release for any screening act after that moment. "
+          + `Reason given: ${blank(instrument.revoked.reason)}`,
+      });
+    }
+    drawPermissionInstrument(doc, {
+      purpose: instrument.auth.purpose,
+      version: instrument.auth.disclosure_version,
+      title: instrument.title,
+      body: instrument.auth.disclosure_text,
+      intent: instrument.auth.intent_statement,
+      carrier: input.carrier,
+      signer: {
+        name: instrument.auth.signed_name,
+        signedAt: instrument.auth.accepted_at,
+        mark: input.signatureMark,
+      },
+    });
   }
 
   certificate(doc, certificateInput(input), { source: "signed permissions" });

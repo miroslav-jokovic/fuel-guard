@@ -3,7 +3,8 @@ import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supaba
 import { pdfDrawnLines, pdfDrawnRules, pdfPageTexts, pdfText } from "../../../testing/pdfText.js";
 import { MARGIN } from "../../../lib/pdfDraw.js";
 import { applicationPermissionsPdf, isPermissionsError } from "./permissions.js";
-import { renderApplicationPdf, type ApplicationPdfInput } from "./render.js";
+import { AUTHORIZATION_PURPOSE_LABELS, PERMISSION_SIGNATURE_DESTINATION } from "@silvicom/shared";
+import { permissionInstrumentPdf } from "./permissionInstrument.js";
 
 /**
  * The office's printable record of what an applicant has signed (B2).
@@ -191,42 +192,72 @@ describe("printing what an applicant has signed", () => {
   });
 
   /**
-   * ⚠ **The assertion A2 exists for, written before the divergence instead of after it.**
+   * ⚠ **The assertion A2 exists for, moved to the pairing that matters since AF6.**
    *
    * Between 2026-09-14 and A2 the office previewed one renderer while the driver signed another; both
-   * typechecked, both were tested, and each test asserted its own document. The instrument page is
-   * the page a dispute is actually about — FCRA §604(b)(2) asks which wording was shown — so this
-   * runs ONE authorization through both callers of `instrumentPages.ts` and compares the block
-   * character for character. A second implementation of that page cannot survive this test.
+   * typechecked, both were tested, and each test asserted its own document. This test paired B2 with
+   * the filed §391.21 summary. Since AF6 the pair that matters is the office's copy and the
+   * instrument the APPLICANT was shown, because FCRA §604(b)(2) asks which wording was shown. So ONE
+   * authorization runs through `permissionInstrumentPdf` (what the applicant signs against) and
+   * through B2, and the block is compared character for character. A second implementation of the
+   * instrument cannot survive this test.
    */
-  it("draws an instrument exactly as the filed application draws it", async () => {
-    const filedInput: ApplicationPdfInput = {
+  it("draws an instrument exactly as the applicant was shown it", async () => {
+    const shown = await pdfText(await permissionInstrumentPdf({
+      purpose: "fcra_disclosure",
+      version: "fcra-2026-08-19",
+      // What `permissions.ts` derives for a version the carrier no longer ships: the purpose's label.
+      title: AUTHORIZATION_PURPOSE_LABELS.fcra_disclosure,
+      body: FCRA_TEXT,
+      intent: "I authorise the carrier to obtain a consumer report.",
       carrier: { name: "Silvicom Inc", address: "1 Dock Rd, Joliet IL" },
-      application: { first_name: "Susan", last_name: "Godfrey" } as never,
-      applicationId: CERTIFIED_APPLICATION.id,
-      certifiedAt: CERTIFIED_APPLICATION.certified_at,
-      signedName: "Susan Godfrey",
-      applicantIp: null,
-      applicantUserAgent: null,
-      signatureMark: null,
-      authorizations: [grant()],
-      preview: null,
-      esignConsent: CONSENT,
-    };
-    const filedText = await pdfText(await renderApplicationPdf(filedInput));
-
-    // The block as the FILED document draws it: heading, version, the stored text, the intent
-    // sentence, the typed name and the date. Sliced out of the real document rather than written
-    // here, so this cannot pass by agreeing with a copy of the expectation.
-    const start = filedText.indexOf("Authorization - Consumer report disclosure");
-    const end = filedText.indexOf("2026-09-11", start);
-    expect(start).toBeGreaterThan(-1);
-    expect(end).toBeGreaterThan(start);
-    const block = filedText.slice(start, end + "2026-09-11".length);
-    // Guards the guard: a block that lost the disclosure text would be a substring of anything.
+      signer: { name: "Susan Godfrey", signedAt: "2026-09-11T14:07:33Z", mark: null },
+    }));
+    // The WHOLE instrument as the applicant's PDF prints it, read out of the real document rather than
+    // written here, so this cannot pass by agreeing with a copy of the expectation: letterhead, title,
+    // version, text, intent, and the signature block with the name, the date and the printed name.
+    const block = shown;
+    // Guards the guard: a block that lost the disclosure text, the title or the signed date would be
+    // a much weaker claim than the one this test makes.
     expect(block).toContain(FCRA_TEXT);
+    expect(block).toContain(AUTHORIZATION_PURPOSE_LABELS.fcra_disclosure);
+    expect(block).toContain("09/11/2026");
 
     expect(await printed(seed())).toContain(block);
+  });
+
+  /**
+   * The title an instrument was SHOWN under (AF6). `driver_authorizations` stores no title, so it is
+   * derived: the carrier's wording's title when the row was signed against that same version, and
+   * the purpose's plain label otherwise. ⚠ Both halves, in one document, because either rule alone
+   * passes half of this: "always the current title" puts the shipped PSP title over an older FCRA
+   * wording, and "always the label" loses the title the applicant actually read.
+   */
+  it("prints the title the applicant was shown, and only for the version they signed", async () => {
+    const shippedPsp = grant({
+      id: "auth-psp-shipped", purpose: "psp", disclosure_version: "fmcsa-2016-02-11",
+      disclosure_text: PSP_TEXT, accepted_at: "2026-09-11T14:09:01Z",
+    });
+    const text = await printed(seed({ authorizations: [grant(), shippedPsp] }));
+    expect(text).toContain("IMPORTANT DISCLOSURE REGARDING BACKGROUND REPORTS");
+    // `fcra-2026-08-19` is not the version the carrier ships, so its own shipped title must not print.
+    expect(text).not.toContain("FAIR CREDIT REPORTING ACT DISCLOSURE");
+    expect(text).toContain(AUTHORIZATION_PURPOSE_LABELS.fcra_disclosure);
+  });
+
+  /**
+   * ⚠ The applicant's copy names its signature box so the signing screen can put a tag on it; the
+   * office's copy holds five instruments and signs none, so it names nothing. Five destinations
+   * sharing one name would be a malformed name tree. The standalone PDF is the positive control: a
+   * check that could not see the name at all would pass the second half by being blind.
+   */
+  it("names no place to sign on the office's copy", async () => {
+    const standalone = await permissionInstrumentPdf({
+      purpose: "fcra_disclosure", version: "v", title: "T", body: FCRA_TEXT, intent: "I",
+      carrier: { name: "Silvicom Inc", address: null }, signer: null,
+    });
+    expect(standalone.toString("latin1")).toContain(`(${PERMISSION_SIGNATURE_DESTINATION})`);
+    expect((await rendered(seed())).toString("latin1")).not.toContain(PERMISSION_SIGNATURE_DESTINATION);
   });
 
   /**
@@ -272,14 +303,21 @@ describe("printing what an applicant has signed", () => {
     // ⚠ The VERSION strings, which differ per instrument in this fixture — searching for the word
     // "Version" from a page's heading forward finds the NEXT page's when its own is worded
     // differently, and the assertion then compares two pages and passes on both being wrong.
+    // ⚠ Since AF6 an instrument page opens with the instrument's own title (the purpose's label for
+    // a version the carrier no longer ships, as here), and the PSP page carries NO version line:
+    // FMCSA's form allows no words of ours (`permissionInstrument.ts`). That absence is asserted
+    // below, so only the consent and the FCRA page are walked here.
     const captions: Array<[string, string, string]> = [
       ["Consent to transact electronically", "version esign-2026-08-19", CONSENT_TEXT],
-      ["Authorization - Consumer report disclosure", "Version fcra-2026-08-19", FCRA_TEXT],
-      ["Authorization - FMCSA Pre-Employment", "Version psp-2026-08-19", PSP_TEXT],
+      [AUTHORIZATION_PURPOSE_LABELS.fcra_disclosure, "Version fcra-2026-08-19", FCRA_TEXT],
     ];
     const seen = new Set<number>();
+    // ⚠ Walked in page order from the first sheet on: the FCRA title is ALSO a row label in the
+    // summary on sheet one, so a search from the top would measure the summary instead of the page.
+    let from = at("Consent to transact electronically", at("What has been signed"));
     for (const [pageHeading, versionLine, disclosure] of captions) {
-      const h = at(pageHeading);
+      const h = at(pageHeading, from);
+      from = h + 1;
       const version = at(versionLine, h);
       const block = at(disclosure, version);
       expect(lines[version]!.page, pageHeading).toBe(lines[h]!.page);
@@ -290,7 +328,10 @@ describe("printing what an applicant has signed", () => {
       expect(lines[version]!.y - lines[h]!.y, pageHeading)
         .toBeLessThan(lines[block]!.y - lines[version]!.y);
     }
-    expect(seen.size).toBe(3);
+    expect(seen.size).toBe(2);
+    // The PSP page: its title and its text, and no version line anywhere on its sheet.
+    const psp = at(PSP_TEXT);
+    expect(lines.filter((l) => l.page === lines[psp]!.page).some((l) => l.text.startsWith("Version"))).toBe(false);
   });
 
   /**
@@ -383,10 +424,10 @@ describe("printing what an applicant has signed", () => {
     expect(headline!.color).toBe("#a11c1c");
 
     // ⚠ Bold is asserted against a run KNOWN to be bold on the same sheet rather than against a
-    // literal `/F2`, which would pin pdfkit's resource-allocation order and not a weight. Every
-    // `field()` value is Helvetica-Bold, and `Signed`'s value is on this page.
+    // literal `/F2`, which would pin pdfkit's resource-allocation order and not a weight. The intent
+    // sentence is Helvetica-Bold on every instrument page (`permissionInstrument.ts`).
     const onPage = lines.filter((l) => l.page === headline!.page);
-    const boldValue = onPage.find((l) => l.text === "Susan Godfrey");
+    const boldValue = onPage.find((l) => l.text.startsWith("I authorise the carrier"));
     expect(boldValue, "a known-bold run to measure against").toBeDefined();
     expect(headline!.font).toBe(boldValue!.font);
     // ...and the detail under it is NOT bold, so "bold" above is a real distinction on this page.
@@ -395,17 +436,23 @@ describe("printing what an applicant has signed", () => {
     expect(detail!.font).not.toBe(boldValue!.font);
     expect(detail!.color).toBe("#a11c1c");
 
-    // ⚠ BOUNDED: the instrument page draws no rule of its own, so the two here are the notice's,
-    // and they must sit either side of it. A page whose notice lost its box has none at all.
+    // ⚠ BOUNDED: one rule above the headline and one below the detail, and the one below closes the
+    // notice BEFORE the instrument's letterhead starts. Since AF6 the instrument draws rules of its
+    // own (the letterhead's and the signature block's), so "exactly two on the page" no longer means
+    // anything; what a notice that lost its box would fail is the order asserted here.
     const rules = (await pdfDrawnRules(pdf)).filter((r) => r.page === headline!.page);
-    expect(rules).toHaveLength(2);
-    expect(rules[0]!.y).toBeLessThan(headline!.y);
-    expect(rules[1]!.y).toBeGreaterThan(detail!.y);
+    const above = rules.filter((r) => r.y < headline!.y);
+    const below = rules.filter((r) => r.y > detail!.y).sort((a, b) => a.y - b.y)[0];
+    expect(above, "the notice's own top rule, and nothing else above it").toHaveLength(1);
+    expect(below, "the notice's bottom rule").toBeDefined();
+    const letterhead = onPage.find((l) => l.text === "Silvicom Inc" && l.y > detail!.y);
+    expect(letterhead, "the instrument's letterhead, under the notice").toBeDefined();
+    expect(below!.y).toBeLessThan(letterhead!.y);
 
     // And the wording begins below the box, not inside it.
     const wording = onPage.find((l) => l.text.includes(FCRA_TEXT));
     expect(wording, "the disclosure text").toBeDefined();
-    expect(wording!.y).toBeGreaterThan(rules[1]!.y);
+    expect(wording!.y).toBeGreaterThan(below!.y);
   });
 
   /**

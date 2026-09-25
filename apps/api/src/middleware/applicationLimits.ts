@@ -71,6 +71,23 @@ function isPacketMark(req: Request): boolean {
 }
 
 /**
+ * Is this one of the permission PDFs the applicant signs (AF6)?
+ *
+ * ⚠ On the ceremony's bucket for the reason the packet's marks are: five documents, fetched while
+ * somebody is signing, alongside the page's own reads, would put an honest applicant over the
+ * intake's 20 a minute on the one screen where a refusal costs them their place. GET only, and only
+ * the one shape, so nothing else on the link moves bucket with it.
+ */
+function isPermissionDocument(req: Request): boolean {
+  return req.method === "GET" && /^\/[^/]+\/permission\/[a-z_]+\.pdf$/.test(req.path);
+}
+
+/** Everything the ceremony's per-link bucket takes, and the intake's therefore skips. */
+export function isCeremonyRequest(req: Request): boolean {
+  return isPacketMark(req) || isPermissionDocument(req);
+}
+
+/**
  * Is this request for the applicant's own link, wherever it is asked from?
  *
  * ⚠ Exists for `calcLimiter`, which is mounted on ALL of `/api/public` at 60 a minute keyed by
@@ -133,7 +150,7 @@ export function applicationIntakeLimiter(): RequestHandler {
     limit: APPLICATION_INTAKE_LIMIT,
     standardHeaders: "draft-7",
     legacyHeaders: false,
-    skip: isPacketMark,
+    skip: isCeremonyRequest,
     handler: refuse("intake", "Too many requests from here just now. Wait a minute and try again."),
   });
 }
@@ -148,7 +165,7 @@ export function packetCeremonyLimiter(): RequestHandler {
     // reason: two limiters both writing draft-7 leave the client reading whichever ran last.
     standardHeaders: false,
     legacyHeaders: false,
-    skip: (req) => !isPacketMark(req),
+    skip: (req) => !isCeremonyRequest(req),
     handler: refuse(
       "ceremony",
       "That went through faster than we can record it. Wait about a minute, then press the button "
