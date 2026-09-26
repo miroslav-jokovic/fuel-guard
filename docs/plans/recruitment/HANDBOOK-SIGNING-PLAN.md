@@ -37,6 +37,9 @@ merges.
   *"Check on the all fluids"*, *"fuel, fax, truck accessories"* (`tax`?), *"deducted from its
   paycheck"*, *"indicating any adjustments that will be made"*, *"Failure to turn trailer
   inspections"* (missing `in`), *"at the same day"*, *"will be made in for damaging"*.
+- **Q-HB7 · The handbook prices a missing receipt twice** (found 2026-09-25 while aligning the packet
+  to it, D-PKT21): a lost FUEL receipt is $25.00 (fuel rule 9, and the receipts list) and supplemental
+  rule 6 charges $10.00 per missing fuel or expense receipt. Which governs? The packet took $25.00.
 
 ---
 

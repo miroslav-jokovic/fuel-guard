@@ -148,8 +148,12 @@ pinned word for word to their sources by tests (`packetWording.test.ts`, `handbo
 
 ### 6.3 Open — each needs a ruling, none is built
 
-- **Q-MVR6 — the packet and the handbook fine the same offence differently, and the driver signs
-  both.** Packet pages 7–10 (initialled p05/p06/p09, signed p10) against the handbook's fine list
+- ~~**Q-MVR6 — the packet and the handbook fine the same offence differently, and the driver signs
+  both.**~~ ✅ **RULED 2026-09-25 → D-PKT21: the handbook wins** (owner: *"the handbook should win on
+  the fines, fix the packet"*). Ten changes on pages 7, 9, 10 in `packetFines.ts`, printed inside the
+  carrier's own lines; what was left alone, and why, is that file's header. ⚠ The handbook disagrees
+  with ITSELF on one: a lost fuel receipt is $25.00 twice but $10.00 per missing receipt in
+  supplemental rule 6 — the packet took $25.00; the handbook's rule 6 needs the owner's word. Packet pages 7–10 (initialled p05/p06/p09, signed p10) against the handbook's fine list
   (signed h2, h3):
 
   | Offence | Packet | Handbook |
@@ -222,3 +226,10 @@ spelling.** For the owner, or counsel where it is an instrument:
 
 Punctuation (full stops mid-sentence on pages 20–22, `SILVICOM. INC`, `Operator&`) is left as printed.
 The handbook was retyped too (owner, same day): corrected under D-HB6, `HANDBOOK-SIGNING-PLAN.md`.
+- 2026-09-25 — D-PKT21 built: the packet's fines follow the handbook (Q-MVR6). `packetFines.ts`,
+  applied after the spelling by the same patcher; page 7's three identical `$..1,500.00` are told
+  apart by `nth` (rows 2 and 3 change, row 4 keeps $1,500 — the handbook does not price "report an
+  accident immediately"). Three mutants, three killed. ⚠ `packetStatic.ts` still transcribes pages
+  7–8 with the OLD figures; it has no production caller (P3's static pack, never cut over) and is not
+  printed, but it is a copy — delete it or derive it before it is ever wired up.
+

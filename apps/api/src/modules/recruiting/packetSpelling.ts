@@ -35,9 +35,20 @@ export interface PacketSpelling {
   /** Exactly as the carrier's PDF spells it, inside one printed line. */
   wrong: string;
   right: string;
-  kind: "spelling" | "split" | "join" | "character";
+  /**
+   * `ruling` is not spelling: a change the OWNER ruled, which may change words and figures
+   * (`packetFines.ts`, D-PKT21). It must say why, and it is never mistaken for a typo fix.
+   */
+  kind: "spelling" | "split" | "join" | "character" | "ruling";
   /** How often it occurs on the page (default 1). */
   times?: number;
+  /**
+   * Which of the page's printed runs holding `wrong` this entry changes, 1-based, in the order the
+   * carrier's PDF draws them — for text that repeats on a page and must change in only some places
+   * (page 7 prints `$..1,500.00` three times, for three different offences). Counted over the
+   * carrier's ORIGINAL text, so an earlier entry cannot shift the count.
+   */
+  nth?: readonly number[];
   /** Required for `character`, and for any correction to a CONTRACT page (29–31). */
   why?: string;
 }

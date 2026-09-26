@@ -7,7 +7,8 @@ import {
   decodePDFRawStream,
   type PDFDocument,
 } from "pdf-lib";
-import { PACKET_SPELLING, type PacketSpelling } from "../../packetSpelling.js";
+import type { PacketSpelling } from "../../packetSpelling.js";
+import { PACKET_TEXT_CHANGES } from "../../packetFines.js";
 
 /**
  * The carrier's packet with its typing errors corrected, on the carrier's own pages (D-PKT20).
@@ -22,7 +23,7 @@ import { PACKET_SPELLING, type PacketSpelling } from "../../packetSpelling.js";
  * underneath the correction, where an auditor's copy-and-paste finds it.
  *
  * The carrier's file stays byte-for-byte in the repository as the record of what they gave us, and
- * `PACKET_SPELLING` is the whole difference between it and what prints — one list a reviewer can
+ * `PACKET_TEXT_CHANGES` (the spelling, D-PKT20, then the fines, D-PKT21) is the whole difference between it and what prints — one list a reviewer can
  * read, where a second binary asset would be a diff nobody could.
  *
  * ⚠ **Every entry must land exactly as often as it says, or the render throws.** A correction that
@@ -253,7 +254,7 @@ export interface PacketSpellingFit {
  *  3. the space to the rectangle's right is empty on the page — the rectangle is widened to fit;
  *  4. only then condensed (Tz) to the width available — and the fit report says by how much.
  */
-export function applyPacketSpelling(doc: PDFDocument, register: readonly PacketSpelling[] = PACKET_SPELLING): PacketSpellingFit[] {
+export function applyPacketSpelling(doc: PDFDocument, register: readonly PacketSpelling[] = PACKET_TEXT_CHANGES): PacketSpellingFit[] {
   const hits = new Map<PacketSpelling, number>();
   const cache = new Map<string, FontMaps>();
   const fits: PacketSpellingFit[] = [];
@@ -273,10 +274,21 @@ export function applyPacketSpelling(doc: PDFDocument, register: readonly PacketS
     // Everything else on the page a widened rectangle must not reach into.
     const occupied = runs.map((r) => r.clip).filter((b): b is Box => b !== null);
     const edits = sources.map(() => [] as Array<{ at: [number, number]; text: string }>);
+    const seen = new Map<PacketSpelling, number>();
 
     for (const run of runs) {
       const maps = mapsFor(run.font);
-      const corrected = correctLine(run.glyphs, maps, entries, hits);
+      // `nth`: which of this page's runs holding an entry's text (in drawing order, original text)
+      // the entry may touch. Counted before anything on the page is corrected.
+      const original = run.glyphs.map((g) => maps.toText.get(g.gid) ?? "").join("");
+      const allowed = entries.filter((e) => {
+        if (!e.nth) return true;
+        if (!original.includes(e.wrong)) return false;
+        const k = (seen.get(e) ?? 0) + 1;
+        seen.set(e, k);
+        return e.nth.includes(k);
+      });
+      const corrected = correctLine(run.glyphs, maps, allowed, hits);
       if (corrected === run.glyphs) continue;
       const text = corrected.map((g) => maps.toText.get(g.gid) ?? "").join("");
       const oldW = (lineWidth(run.glyphs, maps) / 1000) * run.size;
