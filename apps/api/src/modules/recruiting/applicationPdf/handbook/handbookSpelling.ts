@@ -21,7 +21,8 @@
 export interface HandbookSpelling {
   wrong: string;
   right: string;
-  kind: "spelling" | "join" | "character";
+  /** `ruling`: an owner-ruled change that is not spelling (`handbookRulings.ts`), and must say why. */
+  kind: "spelling" | "join" | "character" | "ruling";
   /** How often it occurs across the whole handbook (default 1). */
   times?: number;
   why?: string;
@@ -40,7 +41,7 @@ export const HANDBOOK_SPELLING: readonly HandbookSpelling[] = [
   s("are in additional to rules", "are in addition to rules"),
   join("With in 14 days", "Within 14 days"),
   s("seek payment form broker", "seek payment from broker"),
-  s("at he rate of", "at the rate of"),
+  // `at he rate of` was here; it was in supplemental rule 6, which D-HB7 removed (`handbookRulings.ts`).
   { wrong: "for it’s own vehicles", right: "for its own vehicles", kind: "character", why: "The possessive `its`, written with an apostrophe as if it were `it is`." },
   { wrong: "Silvicom 's equipment", right: "Silvicom's equipment", kind: "join", why: "A stray space before the possessive." },
   { wrong: "Silvicom’ s", right: "Silvicom’s", kind: "join", times: 5, why: "A stray space inside the possessive, five times in rules 12 and 17." },

@@ -37,6 +37,16 @@ merges.
   *"Check on the all fluids"*, *"fuel, fax, truck accessories"* (`tax`?), *"deducted from its
   paycheck"*, *"indicating any adjustments that will be made"*, *"Failure to turn trailer
   inspections"* (missing `in`), *"at the same day"*, *"will be made in for damaging"*.
+- ~~**Q-HB7 · The handbook prices a missing receipt twice**~~ ✅ moot, 2026-09-25: both lines removed
+  by D-HB7.
+- **D-HB7 · Receipts are no longer sent in** (owner, 2026-09-25: *"receipts sending should be removed,
+  because we dont need them anymore"*). Removed (`handbookRulings.ts`): fuel rule 9 (turn in every fuel
+  receipt, $25 fine), the `*Receipts` section (receipts for all purchases sent to the office, deducted
+  from pay otherwise), `Lost fuel receipt-$25.00 fine`, `*Receipts` in the Monday paperwork list, and
+  supplemental rule 6 ($10 per missing receipt); rules 7–18 renumbered 6–17. Kept, because none asks
+  the driver to SEND a receipt: `FALSIFICATION` (fuel receipts checked against logs), personal
+  conveyance (a receipt as one kind of proof), the lost fuel CARD fine. The packet's page 7 row 2
+  (`MISSING FUEL RECEIPTS`) is removed too, rows closed up (D-PKT21's `PACKET_ROW_REMOVALS`).
 
 ---
 
