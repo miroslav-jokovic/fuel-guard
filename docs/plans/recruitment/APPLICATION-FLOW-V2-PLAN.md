@@ -767,3 +767,6 @@ Append dated lines at the END.
   packet prints no on-screen notices, the paper door and its advice need `session.can('recruitment')`; G-9 per
   Q-AW15's default — draft wording refused, `verbal_documented` needs its record; **the signing-date field
   needs a column** (`driver_authorizations.signed_on`, requested for M1), so its writer is owed by C2; G-12.
+- 2026-09-26 — **C0c merged** (#1066, `a7cfc14`). **M1 merged** (#1067, `e5f9854`) and **verified applied in
+  production** the same day (columns, tables, both overloads beside the old signatures, the four new functions, the
+  kind CHECK). C2 may start. Handoff: `HANDOFF-2026-09-26-APPLICATION-FLOW-V2.md`.
