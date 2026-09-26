@@ -61,6 +61,8 @@ const TOP: Record<string, string> = {
   prior_failed_pre_employment_test: safety.priorTestHeading,
   employers: "Where you have worked",
   declares_no_employment: employment.none,
+  // AW1 (APPLICATION-FLOW-V2): the applicant's word for each stretch of the three years with no job.
+  employment_gaps: "Time between jobs",
   // Neither of these is a control. They are the questionnaire's two contract fields, written by the
   // questions screen as a pair, and a driver can no more "fix" one than they can fix a timestamp.
   questionnaire_version: "The carrier's own questions",
@@ -102,6 +104,9 @@ const ROWS: Record<string, { noun: string; columns: Record<string, string> }> = 
   employers: {
     noun: "Employer",
     columns: {
+      // Not a control: the stable id the form mints for an employer (AW1), which the office's phone
+      // verification is filed under. A driver sees it only if it is missing, as "this employer".
+      key: "This employer's record",
       employer_name: employment.employer,
       usdot_number: employment.usdot,
       address_line1: employment.address,
@@ -118,6 +123,10 @@ const ROWS: Record<string, { noun: string; columns: Record<string, string> }> = 
       subject_to_fmcsr: employment.subjectToFmcsr,
       safety_sensitive: employment.safetySensitive,
     },
+  },
+  employment_gaps: {
+    noun: "Gap",
+    columns: { from: "From", to: "To", explanation: "What you were doing" },
   },
   equipment_experience: {
     noun: "Equipment",

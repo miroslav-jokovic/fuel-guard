@@ -180,7 +180,9 @@ export const APPLICATION_SECTION_KEYS: Record<
   addresses: ["addresses"],
   licence: ["cdl_number", "cdl_state", "cdl_class", "cdl_expires_at", "additional_licences"],
   // Both halves of (b)(6) live here: the narrative and the equipment grid the same sentence requires.
-  employment: ["experience", "equipment_experience", "employers", "declares_no_employment"],
+  employment: [
+    "experience", "equipment_experience", "employers", "declares_no_employment", "employment_gaps",
+  ],
   safety: [
     "accidents",
     "declares_no_accidents",

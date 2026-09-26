@@ -140,16 +140,21 @@ describe("the applicant's link before the application is sent", () => {
     expect(rec.writes()).toHaveLength(0);
   });
 
-  it("refuses the application's two documents, and admits the licence", async () => {
-    for (const slot of ["medical_card", "ssn_card"]) {
-      holder.client = seed().client;
-      const res = await pub(`/${TOKEN}/capture`, { method: "POST", body: JSON.stringify({ slot, content_type: "image/jpeg" }) });
-      expect(res.status, slot).toBe(409);
-      expect(await code(res), slot).toBe("application_not_sent");
-    }
+  /**
+   * ⚠ The medical card moved to Part 1 on 2026-09-26 (D-AW4, APPLICATION-FLOW-V2 C2): Part 1 cannot
+   * finish without it or "I don't have one yet", so it is admitted before the form is sent, like the
+   * licence. The Social Security card still waits for the application.
+   */
+  it("refuses the Social Security card, and admits the licence and the medical card", async () => {
     holder.client = seed().client;
-    const licence = await pub(`/${TOKEN}/capture`, { method: "POST", body: JSON.stringify({ slot: "cdl_front", content_type: "image/jpeg" }) });
-    expect(await code(licence)).not.toBe("application_not_sent");
+    const res = await pub(`/${TOKEN}/capture`, { method: "POST", body: JSON.stringify({ slot: "ssn_card", content_type: "image/jpeg" }) });
+    expect(res.status).toBe(409);
+    expect(await code(res)).toBe("application_not_sent");
+    for (const slot of ["cdl_front", "medical_card"]) {
+      holder.client = seed().client;
+      const admitted = await pub(`/${TOKEN}/capture`, { method: "POST", body: JSON.stringify({ slot, content_type: "image/jpeg" }) });
+      expect(await code(admitted), slot).not.toBe("application_not_sent");
+    }
   });
 
   it("tells the page when the form has been sent", async () => {

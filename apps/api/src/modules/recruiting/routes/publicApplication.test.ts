@@ -261,6 +261,8 @@ describe("opening the link", () => {
     const body = (await res.json()) as { phases: Record<string, string | null> };
     expect(body.phases).toEqual({
       consentedAt: "2026-08-20T09:00:00Z",
+      // D-AW1: Part 1 finished — null on a legacy link, and the page skips Part 1 for one.
+      intakeCompletedAt: null,
       releasesCompletedAt: null,
       // The two the office owns (F4) — set here because `seed()`'s default link is one that has been
       // read and approved, which is the only state a submission is made from.

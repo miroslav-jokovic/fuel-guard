@@ -271,6 +271,24 @@ export const RETENTION_FORBIDDEN = [
    */
   "application_packet_marks",
   "handbook_marks",
+  /**
+   * Part 1 of the applicant's link and what the office did with it (0376, APPLICATION-FLOW-V2-PLAN
+   * §8.2). The intake and its licences are what screening READ — the MVR was ordered per licence, the
+   * drug-test site found from the address — so a prune would leave a PSP pull and an MVR citing inputs
+   * nothing can show. The phone verifications are §391.23 evidence before filing and are copied into
+   * `employer_inquiries` at it. An adopted signature is what every mark made with it looks like
+   * (D-AW15); the marks themselves are pinned above.
+   */
+  "application_intakes",
+  "application_intake_licences",
+  "employer_verification_calls",
+  "signature_adoptions",
+  /**
+   * A-11: a STOP, a carrier block or an invalid number. Pruning one re-opens texting a person who
+   * asked not to be texted — the TCPA exposure `sms_consents` below is pinned against, from the other
+   * side.
+   */
+  "sms_suppressions",
   "platform_audit_log",
   "fuel_transactions", // business records
   "efs_transactions",
