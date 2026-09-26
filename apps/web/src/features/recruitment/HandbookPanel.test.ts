@@ -29,7 +29,8 @@ vi.mock("@/lib/api", () => ({
 }));
 
 const status = (over: Record<string, unknown> = {}) => ({
-  canOpen: true, openedAt: null, driverSigned: [], driverComplete: false, filedAt: null, ...over,
+  canOpen: true, openedAt: null, driverSigned: [], driverComplete: false, filedAt: null,
+  linkExpiresAt: "2099-01-01T00:00:00.000Z", ...over,
 });
 
 const settle = async (w: ReturnType<typeof mount>) => {
@@ -76,6 +77,33 @@ describe("while the driver signs", () => {
     await settle(w);
     expect(w.text()).toContain("The driver has signed 2 of 5");
     expect(button(w, "Countersign and file")).toBeUndefined();
+  });
+});
+
+describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", () => {
+  it("shows when the link lapses and extends it through the Open door, once signing is open", async () => {
+    state.handbook = status({ openedAt: "2026-09-25T20:08:00Z", driverSigned: ["h1"] });
+    const w = mountPanel();
+    await settle(w);
+    expect(w.text()).toContain("The driver's link is open until");
+    await button(w, "Extend the driver's link")!.trigger("click");
+    await settle(w);
+    expect(state.calls).toEqual([{ url: "/api/recruitment/applicants/d1/handbook/open", method: "POST", body: {} }]);
+  });
+
+  it("says a lapsed link has expired, and still offers the extension", async () => {
+    state.handbook = status({ openedAt: "2026-09-25T20:08:00Z", linkExpiresAt: "2026-09-20T00:00:00.000Z" });
+    const w = mountPanel();
+    await settle(w);
+    expect(w.text()).toContain("The driver's link expired on");
+    expect(button(w, "Extend the driver's link")).toBeDefined();
+  });
+
+  it("offers no extension once the handbook is filed", async () => {
+    state.handbook = status({ openedAt: "t", filedAt: "2026-09-26T10:00:00Z", driverComplete: true, driverSigned: ["h1", "h2", "h3", "h4", "h5"] });
+    const w = mountPanel();
+    await settle(w);
+    expect(button(w, "Extend the driver's link")).toBeUndefined();
   });
 });
 

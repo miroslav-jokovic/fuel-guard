@@ -143,6 +143,18 @@ export function recruitmentHandbookRouter(): Router {
         entityId: result.invitationId,
         meta: { driverId },
       });
+      // A-2: the press kept the driver's link alive. Its own row, carrying the invitation and the new
+      // expiry and nothing else — the link is a bearer credential, so nothing about the token is logged.
+      if (result.extended) {
+        await writeAudit(admin, {
+          orgId,
+          actorId: req.auth!.userId,
+          action: "recruiting.handbook_link_extended",
+          entity: "application_invitations",
+          entityId: result.invitationId,
+          meta: { expiresAt: result.expiresAt },
+        });
+      }
       res.json(result);
     }),
   );

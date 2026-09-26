@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
-import { countersignHandbook, driverHandbookStatus, isHandbookError, openHandbookSigning } from "./handbookSigning.js";
+import { countersignHandbook, driverHandbookStatus, handbookLinkExpiry, isHandbookError, openHandbookSigning } from "./handbookSigning.js";
 import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
 
 /**
@@ -14,7 +14,9 @@ const OTHER_REP = "22222222-3333-4444-8555-666666666666";
 const DRIVER_PLACES = ["h1", "h2", "h3", "h4", "h5"];
 
 const invitation = (over: Record<string, unknown> = {}) => ({
-  id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: "2026-09-25T11:00:00Z", handbook_filed_at: null, ...over,
+  id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: "2026-09-25T11:00:00Z", handbook_filed_at: null,
+  // Far enough out that no press in these tests needs to extend it, unless a test says otherwise.
+  expires_at: "2099-01-01T00:00:00.000Z", ...over,
 });
 
 const filterOf = (q: RecordedQuery, col: string) => q.filters().find((f) => f.col === col)?.val;
@@ -69,7 +71,7 @@ describe("opening handbook signing", () => {
     expectOrgScoped(rec, ORG);
   });
 
-  it("is idempotent: a second press changes nothing", async () => {
+  it("is idempotent: a second press on a long-lived link changes nothing", async () => {
     const rec = seed();
     const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER);
     expect(!isHandbookError(result) && result.openedAt).toBe("2026-09-25T11:00:00Z");
@@ -77,7 +79,64 @@ describe("opening handbook signing", () => {
   });
 });
 
+describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", () => {
+  const NOW = new Date("2026-09-26T17:00:00.000Z");
+  const FOURTEEN_DAYS_ON = "2026-10-10T17:00:00.000Z";
+
+  it("extends an already-opened, unfiled handbook's link, and never re-stamps who opened it", async () => {
+    // d61557dc's shape on 2026-09-26: filed, opened 09-25 20:08, link lapsing 09-28 18:00 UTC.
+    const rec = seed({ invitation: { handbook_signing_opened_at: "2026-09-25T20:08:00Z", expires_at: "2026-09-28T18:00:00.000Z" } });
+    const result = await openHandbookSigning(rec.client, ORG, "u-2", DRIVER, NOW);
+    expect(result).toEqual({ invitationId: "inv-1", openedAt: "2026-09-25T20:08:00Z", expiresAt: FOURTEEN_DAYS_ON, extended: true });
+    const writes = rec.writtenRows("application_invitations");
+    expect(writes).toEqual([{ expires_at: FOURTEEN_DAYS_ON }]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("revives a link that has already lapsed", async () => {
+    const rec = seed({ invitation: { expires_at: "2026-09-20T00:00:00.000Z" } });
+    const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER, NOW);
+    expect(!isHandbookError(result) && result.expiresAt).toBe(FOURTEEN_DAYS_ON);
+  });
+
+  it("extends and stamps on the first press", async () => {
+    const rec = seed({ invitation: { handbook_signing_opened_at: null, expires_at: "2026-09-28T18:00:00.000Z" } });
+    const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER, NOW);
+    expect(!isHandbookError(result) && result.extended).toBe(true);
+    const writes = rec.writtenRows("application_invitations");
+    expect(writes[0]).toEqual({ expires_at: FOURTEEN_DAYS_ON });
+    expect(writes[1]).toMatchObject({ handbook_signing_opened_by: "u-1", handbook_signing_opened_at: NOW.toISOString() });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("never shortens a link, and never extends a filed or unfiled-application one", async () => {
+    expect(handbookLinkExpiry("2026-10-30T00:00:00.000Z", NOW)).toBeNull();
+    expect(handbookLinkExpiry(FOURTEEN_DAYS_ON, NOW)).toBeNull();
+    expect(handbookLinkExpiry("2026-10-10T16:59:59.999Z", NOW)).toBe(FOURTEEN_DAYS_ON);
+
+    const filed = seed({ invitation: { handbook_filed_at: "2026-09-25T12:00:00Z", expires_at: "2026-09-27T00:00:00.000Z" } });
+    expect(isHandbookError(await openHandbookSigning(filed.client, ORG, "u", DRIVER, NOW))).toBe(true);
+    expect(filed.writtenRows("application_invitations")).toHaveLength(0);
+    const unfiled = seed({ invitation: { submitted_at: null, handbook_signing_opened_at: null, expires_at: "2026-09-27T00:00:00.000Z" } });
+    expect(isHandbookError(await openHandbookSigning(unfiled.client, ORG, "u", DRIVER, NOW))).toBe(true);
+    expect(unfiled.writtenRows("application_invitations")).toHaveLength(0);
+  });
+
+  it("shows the office when the link lapses", async () => {
+    const result = await driverHandbookStatus(seed({ invitation: { expires_at: "2026-09-28T18:00:00.000Z" } }).client, ORG, DRIVER);
+    expect(!isHandbookError(result) && result.linkExpiresAt).toBe("2026-09-28T18:00:00.000Z");
+  });
+});
+
 describe("countersigning and filing", () => {
+  it("answers link_expired, not insert_failed, when 0374 refuses the carrier's mark on a lapsed link (HB021)", async () => {
+    const rec = seed({ carrierMarkError: { code: "HB021", message: "handbook_invitation_unusable" } });
+    const result = await countersignHandbook(rec.client, ORG, "u-1", "admin", DRIVER, REP);
+    expect(isHandbookError(result) && result.code).toBe("link_expired");
+    expect(rec.writtenRows("documents")).toHaveLength(0);
+    expect(rec.writtenRows("qualification_records")).toHaveLength(0);
+  });
+
   it("refuses while a driver place is unsigned: the carrier does not agree with itself", async () => {
     const rec = seed({ places: ["h1", "h2", "h3", "h4"] });
     const result = await countersignHandbook(rec.client, ORG, "u-1", "admin", DRIVER, REP);

@@ -734,3 +734,12 @@ Append dated lines at the END.
   email is the channel); two filings in one envelope; AW1–AW14 defined (§8.4); C0 split into
   C0a/C0b/C0c; critical path stated. **Deadlines:** `d61557dc` 2026-09-28 18:00 UTC; `f2b142e4`
   2026-10-01 22:14 UTC.
+- 2026-09-26 — **C0a built** (`claude/handbook-link-extend`): every "Open handbook signing" press on a filed,
+  unfiled-handbook invitation sets `expires_at = max(expires_at, now + INVITE_TTL_DAYS_DEFAULT)` before the
+  already-opened return, audited `recruiting.handbook_link_extended` (invitation id + `expiresAt` only);
+  HB021 on the countersign → 409 `link_expired` with words. **Found at the call site, not in the plan:**
+  `HandbookPanel.vue` hid its only button once signing was open, so an extension on "every press" had no
+  press for an opened handbook such as `d61557dc` — the office's status now carries `linkExpiresAt`
+  (`OfficeHandbookStatus`) and the opened state shows the expiry with **Extend the driver's link** (the same
+  route). The driver's half is unchanged: `resolveInvitation` answers a lapsed link `invalid_link` on purpose
+  (no existence probe), so HB021 there is only a race.

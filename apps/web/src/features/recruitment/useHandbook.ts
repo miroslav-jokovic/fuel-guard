@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { CarrierRepresentative, CarrierRepresentativeCreate, HandbookStatus } from "@silvicom/shared";
+import type { CarrierRepresentative, CarrierRepresentativeCreate, OfficeHandbookStatus } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { applicantChecklistKey } from "@/features/recruitment/useApplicantChecklist";
 
@@ -55,8 +55,8 @@ export function useHandbookStatus(driverId: Ref<string>) {
     enabled: computed(() => Boolean(driverId.value)),
     // The driver signs on their own device while the office watches this drawer, so it keeps up.
     refetchInterval: 5_000,
-    queryFn: async (): Promise<HandbookStatus> => {
-      const res = await apiFetch<{ handbook: HandbookStatus }>(
+    queryFn: async (): Promise<OfficeHandbookStatus> => {
+      const res = await apiFetch<{ handbook: OfficeHandbookStatus }>(
         `/api/recruitment/applicants/${encodeURIComponent(driverId.value)}/handbook`,
       );
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the handbook.");
