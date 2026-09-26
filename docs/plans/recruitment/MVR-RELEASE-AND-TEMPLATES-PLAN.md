@@ -153,7 +153,8 @@ pinned word for word to their sources by tests (`packetWording.test.ts`, `handbo
   the fines, fix the packet"*). Ten changes on pages 7, 9, 10 in `packetFines.ts`, printed inside the
   carrier's own lines; what was left alone, and why, is that file's header. ⚠ The handbook disagrees
   with ITSELF on one: a lost fuel receipt is $25.00 twice but $10.00 per missing receipt in
-  supplemental rule 6 — the packet took $25.00; the handbook's rule 6 needs the owner's word. Packet pages 7–10 (initialled p05/p06/p09, signed p10) against the handbook's fine list
+  supplemental rule 6. **Moot, same day: D-HB7 removed receipt sending from both documents**
+  (`HANDBOOK-SIGNING-PLAN.md`), and page 7's missing-receipts row with it. Packet pages 7–10 (initialled p05/p06/p09, signed p10) against the handbook's fine list
   (signed h2, h3):
 
   | Offence | Packet | Handbook |

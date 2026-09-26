@@ -8,7 +8,7 @@ import {
   type PDFDocument,
 } from "pdf-lib";
 import type { PacketSpelling } from "../../packetSpelling.js";
-import { PACKET_TEXT_CHANGES } from "../../packetFines.js";
+import { PACKET_ROW_REMOVALS, PACKET_TEXT_CHANGES, type PacketRowRemoval } from "../../packetFines.js";
 
 /**
  * The carrier's packet with its typing errors corrected, on the carrier's own pages (D-PKT20).
@@ -185,8 +185,11 @@ interface Run {
   font: string;
   size: number;
   x: number;
-  /** Where in the stream source the `Tm`'s x, and the TJ array, sit — for editing in place. */
+  /** The baseline, in the page's content space (which runs top-down: a larger y is lower). */
+  y: number;
+  /** Where in the stream source the `Tm`'s x and y, and the TJ array, sit — for editing in place. */
   xAt: [number, number];
+  yAt: [number, number];
   tjAt: [number, number];
   clip: Box | null;
   clipAt: [number, number] | null;
@@ -204,6 +207,7 @@ function runsOf(sources: readonly string[]): Run[] {
       const size = Number(m[2]);
       const at = m.index!;
       const xStart = at + m[0].indexOf(" -1 ") + 4;
+      const yStart = xStart + m[3]!.length + 1;
       const tjStart = at + m[0].lastIndexOf("[");
       // The clip is the last rectangle drawn in this run's own `q` block, before its `BT`.
       const q = source.lastIndexOf("\nq\n", at);
@@ -218,8 +222,9 @@ function runsOf(sources: readonly string[]): Run[] {
         clipSource = c[0];
       }
       runs.push({
-        stream, font, size, x: Number(m[3]),
+        stream, font, size, x: Number(m[3]), y: Number(m[4]),
         xAt: [xStart, xStart + m[3]!.length],
+        yAt: [yStart, yStart + m[4]!.length],
         tjAt: [tjStart, at + m[0].length],
         clip, clipAt, clipSource,
         glyphs: decodeTJ(m[5]!),
@@ -254,7 +259,11 @@ export interface PacketSpellingFit {
  *  3. the space to the rectangle's right is empty on the page — the rectangle is widened to fit;
  *  4. only then condensed (Tz) to the width available — and the fit report says by how much.
  */
-export function applyPacketSpelling(doc: PDFDocument, register: readonly PacketSpelling[] = PACKET_TEXT_CHANGES): PacketSpellingFit[] {
+export function applyPacketSpelling(
+  doc: PDFDocument,
+  register: readonly PacketSpelling[] = PACKET_TEXT_CHANGES,
+  rowRemovals: readonly PacketRowRemoval[] = register === PACKET_TEXT_CHANGES ? PACKET_ROW_REMOVALS : [],
+): PacketSpellingFit[] {
   const hits = new Map<PacketSpelling, number>();
   const cache = new Map<string, FontMaps>();
   const fits: PacketSpellingFit[] = [];
@@ -333,6 +342,7 @@ export function applyPacketSpelling(doc: PDFDocument, register: readonly PacketS
       doc.context.assign(ref, doc.context.flateStream(Buffer.from(out, "latin1")));
     });
   }
+  for (const removal of rowRemovals) removeRow(doc, removal, cache);
   const wrong = register.filter((e) => (hits.get(e) ?? 0) !== (e.times ?? 1));
   if (wrong.length > 0) {
     throw new Error(
@@ -344,21 +354,86 @@ export function applyPacketSpelling(doc: PDFDocument, register: readonly PacketS
   return fits;
 }
 
+const shiftClip = (clipSource: string, dy: number): string => {
+  let k = 0;
+  // Every second number is a y (`x y m`, `x y l` ×3); the rectangle keeps its x and moves by dy.
+  return clipSource.replace(/-?[\d.]+/g, (n) => (k++ % 2 === 1 ? (Number(n) - dy).toFixed(6) : n));
+};
+
+/**
+ * Take one printed row off a page and close the gap (D-HB7: the packet's `MISSING FUEL RECEIPTS`).
+ *
+ * The row's runs — every run on its baseline — are emptied, and every run below it down to (not
+ * including) `closeUpBefore` moves up by exactly one row pitch, its clip rectangle with it; the pitch
+ * is measured, the distance from the removed row to the next baseline below it. What sits at and
+ * after `closeUpBefore` (the next section's heading) stays where the carrier put it, so the page
+ * gains one row of space above that heading instead of a hole in a numbered list.
+ *
+ * ⚠ Both anchors must match exactly one run, or this throws: a removal that found nothing would
+ * print the row again, and one that found two would take out a row nobody ruled on.
+ */
+function removeRow(doc: PDFDocument, removal: PacketRowRemoval, cache: Map<string, FontMaps>): void {
+  const p = removal.page - 1;
+  const fonts = doc.getPage(p).node.Resources()!.lookup(PDFName.of("Font"), PDFDict);
+  const streams = contentStreams(doc, p);
+  const sources = streams.map(({ stream }) => Buffer.from(decodePDFRawStream(stream).decode()).toString("latin1"));
+  const runs = runsOf(sources);
+  const textOf = (r: Run): string => {
+    const ref = fonts.get(PDFName.of(r.font))!;
+    if (!cache.has(ref.toString())) cache.set(ref.toString(), fontMaps(doc, doc.context.lookup(ref, PDFDict)));
+    return r.glyphs.map((g) => cache.get(ref.toString())!.toText.get(g.gid) ?? "").join("").trim();
+  };
+  const one = (anchor: string): Run => {
+    const found = runs.filter((r) => textOf(r).startsWith(anchor));
+    if (found.length !== 1) {
+      throw new Error(`packet p${removal.page}: row anchor "${anchor}" matched ${found.length} runs (expected 1)`);
+    }
+    return found[0]!;
+  };
+  const row = one(removal.row);
+  const stopY = one(removal.closeUpBefore).y;
+  const below = runs.filter((r) => r.y > row.y + 0.5 && r.y < stopY - 0.5);
+  const pitch = Math.min(...below.map((r) => r.y)) - row.y;
+  const edits = sources.map(() => [] as Array<{ at: [number, number]; text: string }>);
+  for (const r of runs.filter((x) => Math.abs(x.y - row.y) < 0.5)) edits[r.stream]!.push({ at: r.tjAt, text: "[] TJ" });
+  for (const r of below) {
+    edits[r.stream]!.push({ at: r.yAt, text: (r.y - pitch).toFixed(6) });
+    if (r.clipAt) edits[r.stream]!.push({ at: r.clipAt, text: shiftClip(r.clipSource, pitch) });
+  }
+  edits.forEach((list, i) => {
+    if (list.length === 0) return;
+    let out = sources[i]!;
+    for (const e of [...list].sort((a, b) => b.at[0] - a.at[0])) out = out.slice(0, e.at[0]) + e.text + out.slice(e.at[1]);
+    doc.context.assign(streams[i]!.ref!, doc.context.flateStream(Buffer.from(out, "latin1")));
+  });
+}
+
 /**
  * The page's layout facts a correction could break, read back from a document — for the test that
  * holds `applyPacketSpelling` to its promise. Per page: every run whose glyphs reach past the right
  * edge of its own clip rectangle, and every pair of clip rectangles that overlap.
  */
-export function packetClipReport(doc: PDFDocument, page: number): { overruns: string[]; overlaps: number } {
+export function packetClipReport(
+  doc: PDFDocument,
+  page: number,
+): { overruns: string[]; overlaps: number; hidden: string[]; baselines: Map<string, number> } {
   const fonts = doc.getPage(page - 1).node.Resources()!.lookup(PDFName.of("Font"), PDFDict);
   const sources = contentStreams(doc, page - 1).map(({ stream }) =>
     Buffer.from(decodePDFRawStream(stream).decode()).toString("latin1"),
   );
-  const runs = runsOf(sources);
+  // A row removed by `PACKET_ROW_REMOVALS` is an empty run left in place: nothing to measure.
+  const runs = runsOf(sources).filter((r) => r.glyphs.length > 0);
   const overruns: string[] = [];
+  // ⚠ A run whose baseline is outside its own clip's height prints NOTHING — found by mutation when
+  // `removeRow` moved a row's text without its clip (or the reverse) and every other check passed.
+  const hidden: string[] = [];
+  const baselines = new Map<string, number>();
   for (const run of runs) {
-    if (!run.clip) continue;
     const maps = fontMaps(doc, doc.context.lookup(fonts.get(PDFName.of(run.font))!, PDFDict));
+    const text = run.glyphs.map((g) => maps.toText.get(g.gid) ?? "").join("").trim();
+    baselines.set(text, run.y);
+    if (!run.clip) continue;
+    if (run.y < run.clip.minY || run.y > run.clip.maxY) hidden.push(text);
     const tz = Number(/(-?[\d.]+) Tz \[[^\]]*\] TJ\s*$/.exec(sources[run.stream]!.slice(0, run.tjAt[1]))?.[1] ?? 100);
     const right = run.x + ((lineWidth(run.glyphs, maps) / 1000) * run.size * tz) / 100;
     if (right > run.clip.maxX + 0.5) overruns.push(run.glyphs.map((g) => maps.toText.get(g.gid) ?? "").join(""));
@@ -366,5 +441,5 @@ export function packetClipReport(doc: PDFDocument, page: number): { overruns: st
   const clips = runs.map((r) => r.clip).filter((b): b is Box => b !== null);
   let pairs = 0;
   for (let i = 0; i < clips.length; i++) for (let j = i + 1; j < clips.length; j++) if (overlaps(clips[i]!, clips[j]!)) pairs++;
-  return { overruns, overlaps: pairs };
+  return { overruns, overlaps: pairs, hidden, baselines };
 }

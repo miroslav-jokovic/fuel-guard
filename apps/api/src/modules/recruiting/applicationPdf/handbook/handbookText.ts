@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import blocks from "./handbookText.json" with { type: "json" };
 import { HANDBOOK_SPELLING, type HandbookSpelling } from "./handbookSpelling.js";
+import { HANDBOOK_REMOVALS, HANDBOOK_RENUMBERING, type HandbookRemoval } from "./handbookRulings.js";
 
 /**
  * The carrier's DRIVER HANDBOOK, as data (HANDBOOK-SIGNING-PLAN.md HB1; D-HB4).
@@ -91,7 +92,29 @@ export function correctHandbook(
   return corrected;
 }
 
-export const HANDBOOK_BLOCKS: readonly HandbookBlock[] = correctHandbook(HANDBOOK_SOURCE_BLOCKS);
+/** A block's leading text — a paragraph's runs, or a fuel rule's title. */
+const leadingText = (b: HandbookBlock): string =>
+  b.k === "p" ? b.runs.map((r) => r.t).join("") : b.k === "rule" ? b.title.map((r) => r.t).join("") : "";
+
+/**
+ * The source with the owner's removals made (D-HB7). ⚠ Each removal must match exactly ONE block, or
+ * this throws at import — a removal that matched nothing would print the receipt rule again, and one
+ * matching two would take out text nobody ruled on. A gap left between two removed neighbours
+ * collapses to one.
+ */
+export function removeHandbookBlocks(source: readonly HandbookBlock[], removals: readonly HandbookRemoval[] = HANDBOOK_REMOVALS): HandbookBlock[] {
+  const bad = removals.filter((r) => source.filter((b) => leadingText(b).startsWith(r.startsWith)).length !== 1);
+  if (bad.length > 0) {
+    throw new Error(`handbook removal does not match exactly one block: ${bad.map((r) => `"${r.startsWith}"`).join("; ")}`);
+  }
+  const kept = source.filter((b) => !removals.some((r) => leadingText(b).startsWith(r.startsWith)));
+  return kept.filter((b, i) => !(b.k === "gap" && kept[i - 1]?.k === "gap"));
+}
+
+export const HANDBOOK_BLOCKS: readonly HandbookBlock[] = correctHandbook(
+  removeHandbookBlocks(HANDBOOK_SOURCE_BLOCKS),
+  [...HANDBOOK_SPELLING, ...HANDBOOK_RENUMBERING],
+);
 
 /**
  * Which text a signature was given against, derived from the text itself.

@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { describe, it, expect } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { PACKET_FINES } from "./packetFines.js";
+import { PACKET_FINES, PACKET_ROW_REMOVALS } from "./packetFines.js";
+import { packetClipReport } from "./applicationPdf/packet/packetSpellingPatch.js";
 import { applyPacketSpelling, packetLineTexts } from "./applicationPdf/packet/packetSpellingPatch.js";
 import { PACKET_TEMPLATE_PATH } from "./applicationPdf/packet/packetTemplate.js";
 
@@ -22,7 +23,6 @@ describe("the packet's fines, as printed", () => {
     const p7 = pages.get(7)!.split("\n").map((l) => l.trim());
     expect(pages.get(7)).toContain("( MISSING FOR OVER 15 DAYS)");
     expect(pages.get(7)).toContain("$...........5.00 PER DAY");
-    expect(pages.get(7)).toContain("$...........25.00 EACH");
     expect(p7).toContain("$.....50.00");
     expect(pages.get(9)).toContain("$500 fee and immediate termination");
     expect(pages.get(9)).toContain("$500 fined and termination");
@@ -54,3 +54,42 @@ describe("the packet's fines, as printed", () => {
     expect(PACKET_FINES.every((e) => e.kind === "ruling" && (e.why ?? "").length > 20)).toBe(true);
   });
 });
+
+/**
+ * D-HB7 (owner, 2026-09-25): receipts are no longer sent in, so page 7's `MISSING FUEL RECEIPTS`
+ * fine is taken off the page and the rows below close up, rather than leaving a hole in a numbered
+ * list.
+ */
+describe("the missing-receipts row (D-HB7)", () => {
+  it("is gone from page 7, and the logs penalties read 1 to 4 with nothing between", async () => {
+    const lines = (await printed()).get(7)!.split("\n").map((l) => l.trim()).filter(Boolean);
+    expect(lines.join("\n")).not.toMatch(/RECEIPT/i);
+    const numbered = lines.filter((l) => /^\d\. (LATE RECORDS|HOURS OF SERVICE)/.test(l)).map((l) => l.slice(0, 2));
+    expect(numbered).toEqual(["1.", "2.", "3.", "4."]);
+  });
+
+  it("moves the rows below up by one row and keeps them clear of every other line", async () => {
+    const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
+    const before = packetClipReport(doc, 7);
+    applyPacketSpelling(doc);
+    const after = packetClipReport(doc, 7);
+    expect(after.overlaps).toBe(before.overlaps);
+    expect(after.overruns.length).toBe(before.overruns.length);
+    expect(after.hidden).toEqual(before.hidden);
+    // Each moved row sits exactly where the one above it was: row 3 where row 2 (receipts) stood, and
+    // so on down to the TERMINATION beside the last.
+    const was = (t: string): number => before.baselines.get(t)!;
+    const now = (t: string): number => after.baselines.get(t)!;
+    expect(now("2. HOURS OF SERVICE 1ST OOS VIOLATION                                                                $............500.00".trim()))
+      .toBeCloseTo(was("2. MISSING FUEL RECEIPTS                                                                                                $...........20.00 EACH".trim()), 3);
+    expect(now("4. HOURS OF SERVICE 3RD OOS VIOLATION")).toBeCloseTo(was("4. HOURS OF SERVICE 2ND OOS VIOLATION                                                              $............700.00".trim()), 3);
+    expect(now("TICKET PENALTIES")).toBeCloseTo(was("TICKET PENALTIES"), 3);
+  });
+
+  it("refuses a removal whose row it cannot find exactly once", async () => {
+    const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
+    const ghost = { ...PACKET_ROW_REMOVALS[0]!, row: "9. NO SUCH ROW" };
+    expect(() => applyPacketSpelling(doc, [], [ghost])).toThrow(/NO SUCH ROW/);
+  });
+});
+

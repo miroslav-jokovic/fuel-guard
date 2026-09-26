@@ -20,10 +20,8 @@ import { PACKET_SPELLING, type PacketSpelling } from "./packetSpelling.js";
  * leaving, insurance deductibles. A packet rule that names no amount (p9 rules 9, 10, 13, 15, 16) does
  * not contradict the handbook's figure and is not given one — supplying a figure is drafting.
  *
- * ⚠ **One figure is the handbook against itself**: a lost FUEL receipt is $25.00 twice (fuel rule 9,
- * and `Lost fuel receipt-$25.00 fine`), while supplemental rule 6 charges $10.00 per missing fuel
- * or expense receipt. The packet's line is fuel receipts, so it takes $25.00; the handbook's own
- * conflict is `HANDBOOK-SIGNING-PLAN.md`'s to resolve.
+ * ⚠ **Missing fuel receipts (page 7, row 2) is not re-priced but REMOVED** — D-HB7: receipts are no
+ * longer sent in, so neither document fines their absence (`PACKET_ROW_REMOVALS`).
  *
  * Applied by the same patcher as the spelling, after it, inside the carrier's own lines
  * (`packetSpellingPatch.ts`). Each entry lands exactly `times` times or the render throws.
@@ -36,7 +34,11 @@ export const PACKET_FINES: readonly PacketSpelling[] = [
   // ── page 7 · Rules and regulations (part 1)
   r(7, "( MISSING FOR OVER 25 DAYS)", "( MISSING FOR OVER 15 DAYS)", "Handbook: `Late Logs (more than 15 days)`."),
   r(7, "$..........10.00 PER DAY", "$...........5.00 PER DAY", "Handbook: late logs `$ 5.00 per day`."),
-  r(7, "$...........20.00 EACH", "$...........25.00 EACH", "Handbook: `Lost fuel receipt-$25.00 fine`, and fuel rule 9. (Rule 6's $10.00 is the handbook's own conflict.)"),
+  // Row 2, MISSING FUEL RECEIPTS, is not re-priced but removed — D-HB7, `PACKET_ROW_REMOVALS` below —
+  // and rows 3–5 become 2–4.
+  r(7, "3. HOURS OF SERVICE 1ST", "2. HOURS OF SERVICE 1ST", "Renumbered: row 2 (missing fuel receipts) was removed, D-HB7."),
+  r(7, "4. HOURS OF SERVICE 2ND", "3. HOURS OF SERVICE 2ND", "Renumbered: row 2 (missing fuel receipts) was removed, D-HB7."),
+  r(7, "5. HOURS OF SERVICE 3RD", "4. HOURS OF SERVICE 3RD", "Renumbered: row 2 (missing fuel receipts) was removed, D-HB7."),
   r(7, "$....150.00", "$.....50.00", "Handbook: failure to turn in a State Roadside Inspection or Ticket on time, `$ 50.00`."),
   r(7, "$..1,500.00", "$..100.00 & TERMINATION", "Row 2, CDL suspension not reported. Handbook: `$ 100.00 & Termination`.", [1]),
   r(7, "$..1,500.00", "$..500.00 & TERMINATION", "Row 3, allowing an unqualified or unauthorized driver. Handbook: `$ 500.00 & Termination`.", [2]),
@@ -46,6 +48,31 @@ export const PACKET_FINES: readonly PacketSpelling[] = [
   // ── page 10 · Rules and regulations (part 4)
   r(10, "a $150 fine per day", "a $25 fine per day", "Rule 25, driver/truck change not notified within 24 hours. Handbook: `$ 25.00 per day`."),
   r(10, "fined $100 per week", "fined $50 per week", "Rule 27, trailer/truck inspection not turned in. Handbook: `$ 50.00 per week`."),
+];
+
+/**
+ * A printed row taken off a page, with the rows below it moved up to close the gap
+ * (`packetSpellingPatch.ts`'s `removeRow`). Both anchors are matched against the text AFTER the
+ * spelling and fines above are applied.
+ */
+export interface PacketRowRemoval {
+  page: number;
+  /** The row's text begins with this. */
+  row: string;
+  /** The first line that stays put — the next section's heading. */
+  closeUpBefore: string;
+  why: string;
+}
+
+export const PACKET_ROW_REMOVALS: readonly PacketRowRemoval[] = [
+  {
+    page: 7,
+    row: "2. MISSING FUEL RECEIPTS",
+    closeUpBefore: "TICKET PENALTIES",
+    why:
+      "D-HB7 (owner, 2026-09-25): \"receipts sending should be removed, because we dont need them anymore\". "
+      + "The packet's fine for missing fuel receipts goes with the handbook's.",
+  },
 ];
 
 /** Everything that changes on the carrier's packet: spelling first (D-PKT20), then the fines (D-PKT21). */
