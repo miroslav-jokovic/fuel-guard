@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { hireBlockers, hiringChecklist, roadTestCounts, type HiringChecklistInputs } from "./hiringChecklist.js";
 import {
   HIRE_REFUSES_WITHOUT,
+  TRAVEL_REFUSES_WITHOUT,
   HIRING_PHASE_LABELS,
   HIRING_STEPS,
   hiringStep,
@@ -38,10 +39,17 @@ const ALL_KINDS = [
 
 const input = (over: Partial<HiringChecklistInputs> = {}): HiringChecklistInputs => ({ ...over });
 
+/**
+ * A v2 link whose Part 1 is finished (§7). Spread into a fixture whose subject is a LATER step, so the
+ * permissions are not blocked by a Part 1 the test is not about.
+ */
+const PART1 = { intake: { v2: true, completedAt: "2026-09-01T06:00:00Z" } } satisfies Partial<HiringChecklistInputs>;
+
 /** An applicant who has done everything the schema can see. The baseline the state tests peel back. */
 const complete = (over: Partial<HiringChecklistInputs> = {}): HiringChecklistInputs =>
   input({
     invitedAt: "2026-09-01T00:00:00Z",
+    ...PART1,
     phases: {
       applicationSentAt: "2026-09-01T12:00:00Z",
       reviewRequestedAt: "2026-09-02T00:00:00Z",
@@ -57,6 +65,7 @@ const complete = (over: Partial<HiringChecklistInputs> = {}): HiringChecklistInp
     // `outstanding`, and a fixture with `awaiting > outstanding` would be describing a state the
     // queue cannot produce.
     investigation: { outstanding: 0, awaiting: 0 },
+    travelBooked: true,
     hiredAt: "2026-09-10",
     ...over,
   });
@@ -93,10 +102,11 @@ describe("the catalogue", () => {
   it("keeps the owner's order: permissions, screening, then the application, then the office day", () => {
     const c = hiringChecklist(complete());
     expect(c.steps.map((s) => s.key)).toEqual([
-      "invitation_sent", "permissions_signed",
+      // §7 (2026-09-26): Part 1 before the permissions, the ticket after the last screening step.
+      "invitation_sent", "intake_completed", "permissions_signed",
       "mvr", "psp", "clearinghouse", "drug_test",
       "application_sent", "application_filled", "office_approved",
-      "medical_certificate", "employment_investigation",
+      "medical_certificate", "travel_booked", "employment_investigation",
       // D-HB1 (owner, 2026-09-25): the handbook is its own step between the packet and the hire.
       "road_test", "application_signed", "handbook", "hired",
     ]);
@@ -123,13 +133,15 @@ describe("the catalogue", () => {
    * ⚠ The investigation is listed before the videos (plan §3.3) and is still NOT before travel — its
    * clock is the previous employers', and gating the ticket on their silence is Q-HM9's refused case.
    */
-  it("puts everything up to the videos before travel, except the investigation", () => {
+  it("puts Part 1 and screening before travel, and not the approval, the videos or the investigation", () => {
     const before = HIRING_STEPS.filter((s) => s.beforeTravel).map((s) => s.key);
+    // ⚠ §7 / D-AW7: the owner buys the ticket before the office reads the application, and the
+    // unbuilt videos left the range so the travel answer can be `ok` at all (Q-AW23's default).
     expect(before).toEqual([
-      "invitation_sent", "permissions_signed", "mvr", "psp", "clearinghouse", "drug_test",
-      "application_sent", "application_filled", "office_approved", "medical_certificate",
-      "orientation_videos",
+      "invitation_sent", "intake_completed", "permissions_signed", "mvr", "psp", "clearinghouse",
+      "drug_test", "application_sent", "application_filled", "medical_certificate",
     ]);
+    expect(TRAVEL_REFUSES_WITHOUT).toEqual(before);
   });
 
   /**
@@ -196,7 +208,7 @@ describe("the four states", () => {
   });
 
   it("is waiting_on_them once the link is out and the applicant has signed nothing", () => {
-    const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z" }));
+    const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z", ...PART1 }));
     expect(stateOf(c, "invitation_sent")).toBe("done");
     expect(stateOf(c, "permissions_signed")).toBe("waiting_on_them");
   });
@@ -321,22 +333,22 @@ describe("the §391.23 investigation", () => {
   });
 
   /**
-   * ⚠ **THE RULING.** Everything else in this block protects this one assertion: an outstanding
-   * investigation blocks the hire, so nobody reaches the end of the checklist with §391.23 untouched.
+   * ⚠ **G-11 (APPLICATION-FLOW-V2-PLAN §7, 2026-09-26) reversed what this asserted.** It pinned the
+   * `hired` row as BLOCKED by an open investigation, while `hireApplicant` — refusing only on
+   * `HIRE_REFUSES_WITHOUT`, per Q-HM5 — hired straight through it: the row and the act disagreed.
+   * §391.23(c)(1)'s 30 days run from the first day of employment, so the hire is lawful with this open;
+   * the row stays outstanding and the hire drawer lists it.
    */
-  it("blocks the hire while an employer is still outstanding", () => {
-    // ⚠ `hiredAt: null` is the scenario, not a convenience. The fold lets EVIDENCE beat `blocked` —
-    // a driver with a `hire_date` reads `done` whatever the requirements say, because the checklist
-    // reports what happened rather than what should have. So the row Q-HM9 exists to protect is the
-    // one before the hire, which is the only moment anybody can still act on it.
+  it("lets the hire through with an employer outstanding, exactly as the hire itself does", () => {
+    // ⚠ `hiredAt: null` is the scenario: the fold lets EVIDENCE beat `blocked`, so the only moment the
+    // hire row's state means anything is before the hire.
     const c = hiringChecklist(
       complete({ hiredAt: null, investigation: { outstanding: 1, awaiting: 1 } }),
     );
-    const hired = c.steps.find((s) => s.key === "hired")!;
-    expect(hired.state).toBe("blocked");
-    expect(hired.blockedBy).toBe("employment_investigation");
-    expect(c.readyToHire.ok).toBe(false);
-    expect(c.readyToHire.outstanding).toContain("employment_investigation");
+    expect(stateOf(c, "employment_investigation")).toBe("waiting_on_them");
+    expect(stateOf(c, "hired")).toBe("waiting_on_us");
+    expect(c.readyToHire.ok).toBe(true);
+    expect(hireBlockers(c)).toEqual([]);
   });
 
   /**
@@ -359,7 +371,7 @@ describe("what each step actually reads", () => {
    */
   it("needs every permission the applicant is asked for, and not the one they are not", () => {
     const partial = ALL_PERMISSIONS.slice(0, -1);
-    const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z", authorizations: partial }));
+    const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z", authorizations: partial, ...PART1 }));
     expect(stateOf(c, "permissions_signed")).toBe("waiting_on_them");
 
     const all = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z", authorizations: [...ALL_PERMISSIONS] }));
@@ -373,7 +385,7 @@ describe("what each step actually reads", () => {
    */
   it("holds the step open for an applicant who signed only the four from before D-AF4", () => {
     const four = ["fcra_disclosure", "psp", "previous_employer", "drug_alcohol"].map((p) => auth(p));
-    const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z", authorizations: four }));
+    const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z", authorizations: four, ...PART1 }));
     expect(stateOf(c, "permissions_signed")).toBe("waiting_on_them");
     expect(APPLICATION_RELEASE_ORDER).toContain("clearinghouse");
   });
@@ -490,24 +502,31 @@ describe("what each step actually reads", () => {
 
 describe("the two readiness answers", () => {
   /**
-   * ⚠ **The assertion that keeps this honest.** Step 9 is inside the travel range and has no
-   * evidence table, so `readyToTravel.ok` can never be true today — and it says WHY, by name. A bare
-   * boolean here would answer "yes, fly him out" about somebody who has watched no videos, which is
-   * the medical-certificate mistake (capture read as verification) repeated one level up.
+   * ⚠ **G-11 and D-AW7, 2026-09-26.** Until §7 the orientation videos sat inside the travel range with
+   * no evidence table, so `readyToTravel.ok` could never be true — and `readyToHire` read every step,
+   * so it could never be true either. A travel writer refusing on that answer would refuse for ever.
+   * Both answers can now be `ok`, and the unbuilt rows are NAMED rather than silently dropped.
    */
-  it("cannot say ready-to-travel while a step in range has no evidence table", () => {
-    const c = hiringChecklist(complete());
-    expect(c.readyToTravel.outstanding).toEqual([]);
-    expect(c.readyToTravel.unmeasured).toEqual(["orientation_videos"]);
-    expect(c.readyToTravel.ok).toBe(false);
+  it("can say ready to travel and ready to hire, and names the steps not built yet", () => {
+    const c = hiringChecklist(complete({ hiredAt: null }));
+    expect(c.readyToTravel).toEqual({ ok: true, unmeasured: [], outstanding: [] });
+    expect(c.readyToHire).toEqual({ ok: true, unmeasured: [], outstanding: [] });
+    expect(c.unbuilt).toEqual(["orientation_videos", "live_orientation"]);
   });
 
-  it("names what is outstanding, separately from what it cannot see", () => {
+  it("names what is outstanding", () => {
     const c = hiringChecklist(complete({ qualificationKinds: ["mvr"] }));
     expect(c.readyToTravel.outstanding).toEqual([
       "clearinghouse", "drug_test", "medical_certificate",
     ]);
-    expect(c.readyToTravel.unmeasured).toEqual(["orientation_videos"]);
+    expect(c.readyToTravel.ok).toBe(false);
+  });
+
+  /** G-11: `readyToHire` IS the hire's refusal — read from one list, so the two cannot drift. */
+  it("reads the hire answer from the list the hire refuses on", () => {
+    const c = hiringChecklist(input());
+    expect(c.readyToHire.outstanding).toEqual(HIRE_REFUSES_WITHOUT);
+    expect(c.readyToHire.outstanding).toEqual(hireBlockers(c));
   });
 
   /**
@@ -534,6 +553,7 @@ describe("the one next action", () => {
   it("names the office's move when the application is sitting with the office", () => {
     const c = hiringChecklist(input({
       invitedAt: "2026-09-01T00:00:00Z",
+      ...PART1,
       authorizations: [...ALL_PERMISSIONS],
       // Screening finished, which in the owner's order (plan §3.3) comes before the application.
       qualificationKinds: ["mvr", "clearinghouse_full", "drug_test"],
@@ -552,6 +572,7 @@ describe("the one next action", () => {
   it("leads with screening once the permissions are signed, ahead of sending the application", () => {
     const c = hiringChecklist(input({
       invitedAt: "2026-09-01T00:00:00Z",
+      ...PART1,
       authorizations: [...ALL_PERMISSIONS],
       phases: { applicationSentAt: null, reviewRequestedAt: null, approvedAt: null, signingOpenedAt: null, submittedAt: null },
     }));
@@ -581,7 +602,8 @@ describe("the one next action", () => {
   it("does not send the office off to buy a Clearinghouse query for a stranger", () => {
     const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z" }));
     expect(stateOf(c, "clearinghouse")).toBe("waiting_on_us");
-    expect(c.next).toBe("permissions_signed");
+    // §7: Part 1 is the applicant's first move now, and it is still theirs, not a paid query.
+    expect(c.next).toBe("intake_completed");
   });
 
   it("has no next action when every measurable step is done", () => {
@@ -736,7 +758,7 @@ describe("permissions the link will never ask for again (APPLICATION-FLOW-V2-PLA
   });
 
   it("still waits on them while the ceremony is open", () => {
-    const c = hiringChecklist(input({ invitedAt: "2026-09-10T00:00:00Z", authorizations: FOUR }));
+    const c = hiringChecklist(input({ invitedAt: "2026-09-10T00:00:00Z", authorizations: FOUR, ...PART1 }));
     const row = c.steps.find((s) => s.key === "permissions_signed")!;
     expect(row.state).toBe("waiting_on_them");
     expect(row.paperOnlyPurposes).toEqual([]);
@@ -767,5 +789,87 @@ describe("a road test counts only when it was passed (APPLICATION-FLOW-V2-PLAN.m
     expect(failed.steps.find((s) => s.key === "road_test")!.state).not.toBe("done");
     const equivalent = hiringChecklist(input({ qualificationKinds: ["road_test", "cdl_equivalency"], roadTestPassed: false }));
     expect(equivalent.steps.find((s) => s.key === "road_test")!.state).toBe("done");
+  });
+});
+
+describe("Part 1 finished (APPLICATION-FLOW-V2-PLAN §7)", () => {
+  const INVITED = { invitedAt: "2026-09-01T00:00:00Z" };
+
+  it("is done on a v2 link once Part 1 is stamped, and theirs until then", () => {
+    const open = hiringChecklist(input({ ...INVITED, intake: { v2: true, completedAt: null } }));
+    expect(stateOf(open, "intake_completed")).toBe("waiting_on_them");
+    expect(open.steps.find((s) => s.key === "permissions_signed")!.blockedBy).toBe("intake_completed");
+    expect(stateOf(hiringChecklist(input({ ...INVITED, ...PART1 })), "intake_completed")).toBe("done");
+  });
+
+  /**
+   * ⚠ The legacy rule, and the two production links it exists for: `d61557dc` and `f2b142e4` closed
+   * their permission ceremonies before Part 1 existed, and neither may read as owing a Part 1 they
+   * will never be shown.
+   */
+  it("reads a legacy link done once its ceremony closed or its identity is on file", () => {
+    const closed = hiringChecklist(input({ ...INVITED, releasesCompletedAt: "2026-09-14T08:30:00Z" }));
+    expect(stateOf(closed, "intake_completed")).toBe("done");
+    const identity = hiringChecklist(input({ ...INVITED, identityOnFile: true }));
+    expect(stateOf(identity, "intake_completed")).toBe("done");
+    expect(stateOf(identity, "permissions_signed")).toBe("waiting_on_them");
+    const neither = hiringChecklist(input({ ...INVITED, identityOnFile: false }));
+    expect(stateOf(neither, "intake_completed")).toBe("waiting_on_them");
+  });
+
+  /** ⚠ The identity is the driver's, not the link's: nobody invited has finished nobody's Part 1. */
+  it("does not finish Part 1 for somebody nobody has invited", () => {
+    const c = hiringChecklist(input({ identityOnFile: true }));
+    expect(stateOf(c, "intake_completed")).toBe("blocked");
+  });
+
+  /** ⚠ A v2 link is judged on its stamp alone — the legacy halves must not finish a Part 1 in progress. */
+  it("does not let the legacy halves finish a v2 link's Part 1", () => {
+    const c = hiringChecklist(input({
+      ...INVITED,
+      intake: { v2: true, completedAt: null },
+      identityOnFile: true,
+      releasesCompletedAt: "2026-09-14T08:30:00Z",
+    }));
+    expect(stateOf(c, "intake_completed")).toBe("waiting_on_them");
+  });
+
+  /** D-AW4: the medical card comes in with Part 1, so its verification waits on Part 1, not the form. */
+  it("lets the medical certificate be verified once Part 1 is finished, before any application", () => {
+    const c = hiringChecklist(input({ ...INVITED, ...PART1 }));
+    expect(stateOf(c, "medical_certificate")).toBe("waiting_on_us");
+    const before = hiringChecklist(input({ ...INVITED, intake: { v2: true, completedAt: null } }));
+    expect(before.steps.find((s) => s.key === "medical_certificate")!.blockedBy).toBe("intake_completed");
+  });
+});
+
+describe("travel booked (D-AW7)", () => {
+  const travelOf = (c: ReturnType<typeof hiringChecklist>) => c.steps.find((s) => s.key === "travel_booked")!;
+
+  /** The row is blocked exactly when the travel writer refuses, and names the first thing it waits for. */
+  it("is blocked by the first step before travel that is not done", () => {
+    const row = travelOf(hiringChecklist(complete({
+      travelBooked: false,
+      qualificationKinds: ALL_KINDS.filter((k) => k !== "drug_test"),
+    })));
+    expect(row.state).toBe("blocked");
+    expect(row.blockedBy).toBe("drug_test");
+  });
+
+  /** ⚠ Not on the approval: the owner buys the ticket before the office reads the application. */
+  it("is the office's to book once screening is done, approval or not", () => {
+    const c = hiringChecklist(complete({
+      travelBooked: false,
+      hiredAt: null,
+      phases: { applicationSentAt: "2026-09-01T12:00:00Z", reviewRequestedAt: "2026-09-02T00:00:00Z", approvedAt: null, signingOpenedAt: null, submittedAt: null },
+    }));
+    expect(stateOf(c, "office_approved")).toBe("waiting_on_us");
+    expect(travelOf(c).state).toBe("waiting_on_us");
+  });
+
+  it("is done on a live trip", () => {
+    const row = travelOf(hiringChecklist(complete()));
+    expect(row.state).toBe("done");
+    expect(row.artifact).toEqual({ table: "applicant_travel", label: "Itinerary" });
   });
 });

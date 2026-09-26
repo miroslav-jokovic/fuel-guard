@@ -796,3 +796,23 @@ Append dated lines at the END.
   board and not done in the drawer; the pipeline's draft read had no `.in()` and read every draft in the org. A-4
   is on the board as a consequence. Pinned by a parity test (both doors, one fixture) and a 1,001-row paging test,
   each proved by mutation.
+- 2026-09-26 — **C2b2 built** (`claude/applicant-flow-c2b2`), and **C2b split once more** for the reason C2 was: C2b2
+  is §7's state machine + AW11 (travel), C2b3 is AW8 (drug-test appointments, the portal-consent fact) + AW12 (employer
+  phone checks) + AW7's remainder. **§7:** `intake_completed` (2nd) and `travel_booked` (after the medical certificate);
+  ordinals derived from the index (`HiringStepDefinition` has none); `permissions_signed` and `medical_certificate`
+  require Part 1; `office_approved` and `orientation_videos` left the travel range; `TRAVEL_REFUSES_WITHOUT` derived
+  from `beforeTravel`; **G-11** — `hired.requires` and `readyToHire` both read `HIRE_REFUSES_WITHOUT`, so the hire row
+  no longer reads "Blocked by Previous employers checked" while the hire goes through (the investigation warns, per
+  Q-HM5); `unbuilt` names the orientation rows on the card ("Not built yet"); `APPLICATION_SEND_WARNS_ON` + the medical
+  certificate. **Legacy rule** in the fold only (no Part 1 row → done on `releases_completed_at` or identity on the
+  driver's row) — measured on production's 8: `d61557dc` and `f2b142e4` read done, the six untouched read theirs.
+  **Found by a test:** the identity half made an UNINVITED driver read "Part 1 finished"; the rule now needs an
+  invitation. **D-AW7 read:** `travel_booked.requires` IS `TRAVEL_REFUSES_WITHOUT`, stamped like `hired`'s — the row is
+  blocked exactly when the writer refuses; no step before travel gains an edge, which is what D-AW7 refused. **AW11:**
+  `applicantTravel.ts` + `GET/POST /recruitment/applicants/:driverId/travel`, `DELETE …/travel/:id` (cancel; a
+  rebooking inserts first, then cancels the older live trip); times typed as the carrier's wall clock and converted
+  with `wallClockToUtc` in `organizationTimezone`; audited without the booking reference; `TravelPanel.vue`; the
+  producer waiver left. The invitation card reads "Part 1 in progress / finished" (`has_intake`). **Owed, named:** the
+  MVR's jurisdictions from `application_intake_licences` and the 30-day freshness (AW7) go to C2b3 — no v2 link exists
+  until C3; **C3 must mint the `application_intakes` row when a v2 invitation is created** (or state the cutover date),
+  because "no row" is the whole legacy test and a new link that has not begun Part 1 would otherwise read legacy.

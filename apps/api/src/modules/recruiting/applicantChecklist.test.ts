@@ -100,7 +100,8 @@ const inquiryRows = () => [
 /** One applicant, mid-flow: approved, three screening records in, packet half-signed. */
 const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
   const rows: Record<string, Array<Record<string, unknown>>> = {
-    drivers: [{ id: DRIVER, hire_date: null }],
+    // §7's legacy rule: no Part 1 row, and the identity 0365's screen took is on the driver's row.
+    drivers: [{ id: DRIVER, hire_date: null, date_of_birth: "1985-04-12", cdl_number: "D1234567", cdl_state: "IL" }],
     application_invitations: [
       {
         id: INVITE,
@@ -136,6 +137,8 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
 /** The same state, expressed as what the fold takes. Kept beside `seed` so the two stay in step. */
 const asInputs = (over: Record<string, unknown> = {}) => ({
   invitedAt: "2026-09-01T00:00:00Z",
+  intake: { v2: false, completedAt: null },
+  identityOnFile: true,
   phases: {
     applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
@@ -182,6 +185,8 @@ describe("the endpoint answers exactly what the fold answers", () => {
     expect(result).toEqual(
       hiringChecklist({
         invitedAt: null,
+        // The identity on the driver's row is read, and must not finish a Part 1 nobody was sent.
+        identityOnFile: true,
         phases: null,
         hasDraft: false,
         authorizations: [],
@@ -199,7 +204,7 @@ describe("the endpoint answers exactly what the fold answers", () => {
       "road_test", "psp_report",
     ];
     const rec = seed({
-      drivers: [{ id: DRIVER, hire_date: "2026-09-10" }],
+      drivers: [{ id: DRIVER, hire_date: "2026-09-10", date_of_birth: "1985-04-12", cdl_number: "D1234567", cdl_state: "IL" }],
       // A road test as its ceremony files it: only on a pass, with its source (A-8).
       qualification_records: kinds.map((kind) => ({ driver_id: DRIVER, kind, ...(kind === "road_test" ? { detail: { source: "road_test" } } : {}) })),
       application_packet_marks: markRows(packetDriverMarkCount(null)),
@@ -237,6 +242,9 @@ describe("what it reads, and from where", () => {
       "driver_employment_history", "employer_inquiries",
       // HANDBOOK-SIGNING-PLAN.md: whether the driver has finished the handbook's places.
       "handbook_marks",
+      // §7 (C2b2): Part 1's row and a live trip, by the invitation. (`drivers` is read twice now — the
+      // membership check and the legacy rule's identity — and is already in this set.)
+      "application_intakes", "applicant_travel",
     ]));
   });
 

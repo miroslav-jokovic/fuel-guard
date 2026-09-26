@@ -66,7 +66,7 @@ export function recruitmentApplicationInvitesRouter(): Router {
   // ⚠ ONE string literal, never a concatenation: PostgREST's types are inferred from the select text
   // statically, and a `+` turns every read of it into `GenericStringError`.
   const INVITE_COLS =
-    "id, driver_id, email, expires_at, consented_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at";
+    "id, driver_id, email, expires_at, consented_at, intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at";
 
   router.get(
     "/drivers/:driverId/application-invites",
@@ -105,9 +105,19 @@ export function recruitmentApplicationInvitesRouter(): Router {
       const started = new Set(
         ((drafts ?? []) as Array<{ invitation_id: string }>).map((d) => d.invitation_id),
       );
+      // §7 (C2b2): which links are v2 — have a Part 1 row — by the row's existence alone, for the same
+      // reason as the drafts: the address and licences have their own surface.
+      const { data: intakes } = await admin
+        .from("application_intakes")
+        .select("invitation_id")
+        .eq("org_id", orgId)
+        .in("invitation_id", rows.map((r) => r.id));
+      const partOne = new Set(
+        ((intakes ?? []) as Array<{ invitation_id: string }>).map((d) => d.invitation_id),
+      );
 
       res.json({
-        invitations: rows.map((r) => ({ ...r, has_draft: started.has(r.id) })),
+        invitations: rows.map((r) => ({ ...r, has_draft: started.has(r.id), has_intake: partOne.has(r.id) })),
       });
     }),
   );

@@ -31,6 +31,11 @@ export function applicationInviteBadge(state: string): DqBadge {
   switch (state) {
     case "open":
       return { label: "Not opened yet", tone: "neutral" };
+    // §7: Part 1 is the applicant's move until it is finished, and then the permissions are.
+    case "part1":
+      return { label: "Part 1 in progress", tone: "info" };
+    case "part1_done":
+      return { label: "Part 1 finished", tone: "brand" };
     case "signing":
       return { label: "Signing", tone: "brand" };
     // AF4: the permissions are in and the office owes the next move — screening, then sending it.

@@ -12,7 +12,10 @@ import {
   readDraftFacts,
   readEmploymentHistory,
   readHandbookMarks,
+  readIdentityOnFile,
   readInquiries,
+  readIntakeInvitations,
+  readLiveTravel,
   readPacketMarks,
   readQualificationRecords,
   type MarkRow,
@@ -52,6 +55,8 @@ export interface ChecklistInvitation {
   created_at: string;
   /** A-4: when the link's permission ceremony closed. Optional for a row selected without it. */
   releases_completed_at?: string | null;
+  /** §7: `complete_applicant_intake`'s stamp. Optional for a row selected without it. */
+  intake_completed_at?: string | null;
   application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
@@ -91,7 +96,9 @@ export async function checklistInputs(
   const driverIds = subjects.map((s) => s.driverId);
   const invitationIds = subjects.map((s) => s.invitation?.id).filter((id): id is string => Boolean(id));
 
-  const [records, pspRequested, marks, drafts, employment, inquiries, handbookMarks] = await Promise.all([
+  const [
+    records, pspRequested, marks, drafts, employment, inquiries, handbookMarks, intakes, travel, identity,
+  ] = await Promise.all([
     readQualificationRecords(admin, orgId, driverIds),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
     // (D-SEP1) and `lint:table-access` refuses a raw read from recruitment.
@@ -101,6 +108,9 @@ export async function checklistInputs(
     readEmploymentHistory(admin, orgId, driverIds),
     readInquiries(admin, orgId, driverIds),
     readHandbookMarks(admin, orgId, invitationIds),
+    readIntakeInvitations(admin, orgId, invitationIds),
+    readLiveTravel(admin, orgId, invitationIds),
+    readIdentityOnFile(admin, orgId, driverIds),
   ]);
 
   for (const s of subjects) {
@@ -130,6 +140,10 @@ export async function checklistInputs(
             submittedAt: inv.submitted_at,
           }
         : null,
+      // §7: a v2 link is one with a Part 1 row; the fold applies the legacy rule to the rest.
+      intake: inv ? { v2: intakes.has(inv.id), completedAt: inv.intake_completed_at ?? null } : null,
+      identityOnFile: identity.has(s.driverId),
+      travelBooked: inv ? travel.has(inv.id) : false,
       hasDraft: draft !== undefined,
       authorizations: s.authorizations,
       releasesCompletedAt: inv?.releases_completed_at ?? null,

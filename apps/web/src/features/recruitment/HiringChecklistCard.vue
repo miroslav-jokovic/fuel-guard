@@ -83,11 +83,10 @@ const stepLabel = (key: HiringStepKey): string => hiringStep(key).label;
  * The travel answer, in the only form it may honestly take (D-HM9, and B1's own header).
  *
  * ⚠ `readyToTravel` is NOT a boolean and rendering it as a green tick would be reporting a gate
- * nobody has checked. Step 9 — the orientation videos — is inside its range and has no evidence
- * table in this schema, so `ok` is false for everybody until D4 ships, and it says so by name. This
- * is the medical-certificate lesson one level up: *capture* was read as *verification* for weeks,
- * and a summary that treats "we have no way to check" as "checked" is that mistake with a wider
- * blast radius. Q-HM5 makes travel a hard gate on the invitation to come in, so it is not cosmetic.
+ * nobody has checked: a step in its range with no evidence table is `unmeasured`, and this names it.
+ * None is in range since §7 (2026-09-26) moved the orientation videos out — Q-AW23's default — so
+ * `ok` can be true, and D-AW7's travel writer refuses on exactly this answer. The branch stays for the
+ * next unbuilt step placed before travel. Q-HM5 makes travel a hard gate, so it is not cosmetic.
  */
 const travel = computed(() => {
   const r = props.checklist?.readyToTravel;
@@ -104,6 +103,12 @@ const travel = computed(() => {
 });
 
 /** The row's artifact, once there is one: its words, and somewhere to go if there is anywhere. */
+/**
+ * The owner's steps nothing can prove yet (D3, D4), named rather than silently absent (§7, Q-AW23).
+ * The fold never emits them as rows — a row nobody can tick is a decoration — so they are one line.
+ */
+const unbuilt = computed(() => (props.checklist?.unbuilt ?? []).map(stepLabel).join(", "));
+
 const artifactOf = (key: HiringStepKey) => {
   const step = props.checklist?.steps.find((s) => s.key === key);
   if (!step?.artifact) return null;
@@ -221,6 +226,7 @@ const artifactOf = (key: HiringStepKey) => {
           </span>
         </li>
       </ul>
+      <p v-if="checklist && unbuilt" class="text-2xs text-ink-muted">Not built yet: {{ unbuilt }}.</p>
     </div>
   </BaseCard>
 </template>

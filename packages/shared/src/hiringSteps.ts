@@ -1,5 +1,5 @@
 /**
- * D-HM9's fourteen steps — the owner's hiring process, written down exactly once.
+ * The owner's hiring process — D-HM9's steps as amended since — written down exactly once.
  *
  * ⚠ **Split out of `hiringChecklist.ts` at the 450-line warning**, and along a real seam rather than
  * wherever the line count fell: this file is the RULED PROCESS — which steps exist, in what order,
@@ -17,36 +17,53 @@
  *
  * ── AND THE SEAM THE WHOLE THING TURNS ON IS TRAVEL (D-HM9, owner 2026-09-17) ─────────────────
  * *"these are done before applicant even come to office, road test is when he comes to office."*
- * Everything up to the orientation videos happens before the applicant gets on a plane; the road
- * test onwards happens while they stand in the
- * office. `beforeTravel` is that seam, and `readyToTravel` is that predicate over this array.
+ * Screening happens before the applicant gets on a plane; the road test onwards happens while they
+ * stand in the office. `beforeTravel` is that seam, `readyToTravel` is that predicate over this
+ * array, and since D-AW7 (2026-09-26) `TRAVEL_REFUSES_WITHOUT` is the same predicate as a refusal.
  */
 
-import type { HiringStepKey, HiringStepSpec } from "./hiringStepGraph.js";
+import type { HiringStepDefinition, HiringStepKey, HiringStepSpec } from "./hiringStepGraph.js";
 
 // The vocabulary — `HiringStepKey`, `HiringPhase`, `HiringEvidence`, `HiringStepSpec` and the phase
 // labels — lives next door since C1 (2026-09-26); re-exported so no import path changed.
 export * from "./hiringStepGraph.js";
 
 /**
- * The owner's order — `APPLICANT-FLOW-PLAN.md` §3.3 since 2026-09-24, superseding D-HM9's — with
- * §5's law inside it, written down once.
+ * The owner's order — `APPLICANT-FLOW-PLAN.md` §3.3 since 2026-09-24, superseding D-HM9's, and
+ * APPLICATION-FLOW-V2-PLAN §7 since 2026-09-26 — with §5's law inside it, written down once.
  *
- * ⚠ The order of this array IS the order of the checklist. Nothing sorts it at read time.
+ * ⚠ The order of this array IS the order of the checklist. Nothing sorts it at read time, and the
+ * number each row shows is its position here (`HIRING_STEPS` below stamps it).
  */
-export const HIRING_STEPS: readonly HiringStepSpec[] = [
+const DEFINED: readonly HiringStepDefinition[] = [
   {
-    key: "invitation_sent", ordinal: "1", label: "Invitation sent",
+    key: "invitation_sent", label: "Invitation sent",
     action: "Send the invitation",
     where: "remote", phase: "application",
     federalGate: false, beforeTravel: true, owes: "us", requires: [],
     evidence: { table: "application_invitations", label: "Invitation" },
   },
+  // ⚠ D-AW1/D-AW2 (APPLICATION-FLOW-V2-PLAN §7): Part 1 — identity, phone, address, every licence held
+  // in three years, the CDL and medical-card photos — is the applicant's first visit, and the
+  // permissions come after it because the office screens on what Part 1 collects: a permission signed
+  // before the licences exist authorises a search nobody can run yet. The SQL agrees — on a v2 link
+  // `recordRelease` refuses `intake_incomplete` (C2a). Not a federal gate: nothing in §391 names it.
+  //
+  // ⚠ The LEGACY rule is the fold's, not this row's (`hiringChecklist.ts`): an invitation with no Part 1
+  // row — all eight in production on 2026-09-26 — reads done once its permission ceremony closed or its
+  // identity is on the driver's row, because 0365's identity screen was their Part 1.
   {
-    key: "permissions_signed", ordinal: "2", label: "Permissions signed",
+    key: "intake_completed", label: "Part 1 finished",
+    action: "Finish Part 1 of the application",
+    where: "remote", phase: "screening",
+    federalGate: false, beforeTravel: true, owes: "them", requires: ["invitation_sent"],
+    evidence: { table: "application_invitations.intake_completed_at", label: "Part 1" },
+  },
+  {
+    key: "permissions_signed", label: "Permissions signed",
     action: "Sign the permissions",
     where: "remote", phase: "application",
-    federalGate: false, beforeTravel: true, owes: "them", requires: ["invitation_sent"],
+    federalGate: false, beforeTravel: true, owes: "them", requires: ["intake_completed"],
     evidence: { table: "driver_authorizations", label: "Authorizations" },
   },
   // ⚠ §391.23(a)(1) needs the record, and `SCREENING_PREREQUISITES.mvr_order` names what makes
@@ -54,7 +71,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // there will never be an MVR integration, so this is pulled outside and uploaded, and an office
   // that has the disclosure may pull it whenever it likes.
   {
-    key: "mvr", ordinal: "3", label: "Driving record",
+    key: "mvr", label: "Driving record",
     action: "Order the driving record",
     where: "office", phase: "screening",
     federalGate: true, beforeTravel: true, owes: "us", requires: ["permissions_signed"],
@@ -63,7 +80,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // ⚠ §5: "PSP is voluntary. It is a tool, not a requirement, which is why it can sit anywhere in
   // the order." Its prerequisites are the two signatures `SCREENING_PREREQUISITES.psp_record` names.
   {
-    key: "psp", ordinal: "4", label: "PSP report",
+    key: "psp", label: "PSP report",
     action: "Get the PSP report",
     where: "office", phase: "screening",
     federalGate: false, beforeTravel: true, owes: "us", requires: ["permissions_signed"],
@@ -80,7 +97,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // carrier's standing permission for the annual queries — and requiring it here would gate the full
   // query on a signature that does not authorise it.
   {
-    key: "clearinghouse", ordinal: "5", label: "Clearinghouse query",
+    key: "clearinghouse", label: "Clearinghouse query",
     action: "Run the Clearinghouse query",
     where: "office", phase: "screening",
     federalGate: true, beforeTravel: true, owes: "us", requires: [],
@@ -90,7 +107,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // allowing a driver to operate before the result arrives violates it even if the result is later
   // negative. So the evidence is the record, never the appointment.
   {
-    key: "drug_test", ordinal: "6", label: "Drug test result",
+    key: "drug_test", label: "Drug test result",
     action: "Get the drug test result",
     where: "external", phase: "screening",
     federalGate: true, beforeTravel: true, owes: "them", requires: ["permissions_signed"],
@@ -101,36 +118,59 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // (nothing in law puts screening before the application), so this requires the permissions and
   // nothing else. The stamp is 0365's, set the first time the office presses Send.
   {
-    key: "application_sent", ordinal: "7", label: "Application sent",
+    key: "application_sent", label: "Application sent",
     action: "Send the application",
     where: "office", phase: "application",
     federalGate: false, beforeTravel: true, owes: "us", requires: ["permissions_signed"],
     evidence: { table: "application_invitations.application_sent_at", label: "Sent" },
   },
   {
-    key: "application_filled", ordinal: "8", label: "Application filled in",
+    key: "application_filled", label: "Application filled in",
     action: "Fill in the application",
     where: "remote", phase: "application",
     federalGate: true, beforeTravel: true, owes: "them", requires: ["application_sent"],
     evidence: { table: "driver_applications", label: "Application" },
   },
   {
-    key: "office_approved", ordinal: "9", label: "Office approved it",
+    key: "office_approved", label: "Office approved it",
     action: "Read the application and approve it",
     where: "office", phase: "application",
-    federalGate: false, beforeTravel: true, owes: "us", requires: ["application_filled"],
+    // ⚠ Not before travel since §7 (D-AW7): the owner buys the ticket before the office reads the
+    // application — *"travel (8) before review (9)"* — so a plane ticket waiting on this row would be
+    // a wait the owner does not have.
+    federalGate: false, beforeTravel: false, owes: "us", requires: ["application_filled"],
     evidence: { table: "application_invitations.approved_at", label: "Approval" },
   },
-  // ⚠ The step that was missing until the owner recited the six gates back (D-HM9). The application
-  // CAPTURES the card — `medical_card` is an `APPLICATION_CAPTURE_SLOTS` entry — and capture had
-  // been silently mistaken for the gate. Checking the examiner against the National Registry is a
-  // separate act with its own kind, which is why this requires the application and not the capture.
+  // ⚠ The step that was missing until the owner recited the six gates back (D-HM9). Capture had been
+  // silently mistaken for the gate. Checking the examiner against the National Registry is a separate
+  // act with its own kind, which is why this requires the step that brings the card in, not the card.
+  //
+  // ⚠ That step is Part 1 since §7 (D-AW4), and it was the application: C2a moved the `medical_card`
+  // photo out of `APPLICATION_ONLY_CAPTURE_SLOTS` and `complete_applicant_intake` files it when Part 1
+  // finishes, weeks before the form. Requiring the application would hold a verification the office
+  // can do on day three behind a form it sends on day ten.
   {
-    key: "medical_certificate", ordinal: "10", label: "Medical certificate verified",
+    key: "medical_certificate", label: "Medical certificate verified",
     action: "Verify the medical certificate",
     where: "office", phase: "screening",
-    federalGate: true, beforeTravel: true, owes: "us", requires: ["application_filled"],
+    federalGate: true, beforeTravel: true, owes: "us", requires: ["intake_completed"],
     evidence: { table: "qualification_records.medical_registry_verification", label: "Registry check" },
+  },
+  // ⚠ D-AW7 (APPLICATION-FLOW-V2-PLAN §7): the trip is recorded (`applicant_travel`), and the writer
+  // REFUSES until everything before travel is done — Q-HM5, *"we will not even bring him if this not
+  // green"*. Here, after the last screening step and before the phone checks, because that is where
+  // the owner's fourteen put it (§6.5, "Travel (8)").
+  //
+  // ⚠ Its `requires` is `TRAVEL_REFUSES_WITHOUT`, stamped below rather than typed here, for the reason
+  // G-11 gives `hired` its refusal list: a row reading "Waiting on you" over a writer that refuses is
+  // the disagreement D-HM2 is written against. D-AW7's "not a `requires` edge" was about the steps
+  // BEFORE travel — none of them gains an edge onto the ticket — and that stands.
+  {
+    key: "travel_booked", label: "Travel booked",
+    action: "Book the applicant's travel",
+    where: "office", phase: "screening",
+    federalGate: false, beforeTravel: false, owes: "us", requires: [],
+    evidence: { table: "applicant_travel", label: "Itinerary" },
   },
   // ⚠ THE FIFTEENTH STEP, added by Q-HM9 on 2026-09-18, and it is the only one here that D-HM9 did
   // not rule. It is in the catalogue because the alternative was measured and is worse: this
@@ -159,7 +199,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // office day is a row nobody starts. The list is the order the office works; `beforeTravel` is
   // what the plane ticket waits for, and the two are separate facts.
   {
-    key: "employment_investigation", ordinal: "11", label: "Previous employers checked",
+    key: "employment_investigation", label: "Previous employers checked",
     action: "Contact the previous employers",
     where: "office", phase: "screening",
     federalGate: false, beforeTravel: false, owes: "us", requires: ["application_filled"],
@@ -174,12 +214,16 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // assigned to an APPLICANT before they travel, which is what buys the half-day orientation — so
   // this is the single most valuable unbuilt step in the list, and it is D4 in the queue.
   {
-    key: "orientation_videos", ordinal: "12", label: "Orientation videos",
+    key: "orientation_videos", label: "Orientation videos",
     action: "Finish the orientation videos",
     where: "remote", phase: "orientation",
     // AF4 (plan §3.3): the videos follow the drug test, not the approval — they are sent once the
     // result is in, and they are what fills the wait for travel.
-    federalGate: false, beforeTravel: true, owes: "them", requires: ["drug_test"],
+    //
+    // ⚠ Not before travel since §7 (Q-AW23's default, 2026-09-26). With no evidence table the travel
+    // answer could never be `ok` while this sat inside its range, and D-AW7's writer refuses on that
+    // answer — so no ticket could ever be recorded. D4 builds the videos and decides their place then.
+    federalGate: false, beforeTravel: false, owes: "them", requires: ["drug_test"],
     evidence: null,
   },
   // ⚠ Blocked by the drug test on the STRICTER of two readings, and §5.1 is worth reading before
@@ -190,7 +234,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // none of them FMCSA. Q-HM1/Q-REC5 is open; D-REC7's principle is to take the answer that can only
   // be stricter than necessary, and §4.2 says the strict reading is also the industry's practice.
   {
-    key: "road_test", ordinal: "13", label: "Road test",
+    key: "road_test", label: "Road test",
     action: "Run the road test",
     where: "office", phase: "office_day",
     federalGate: true, beforeTravel: false, owes: "us", requires: ["drug_test"],
@@ -199,7 +243,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // ⚠ NO EVIDENCE TABLE. Q-HM7 ruled this is named SECTIONS inside a day, with attendance — R8
   // specifies it and nothing is built. D3 in the queue.
   {
-    key: "live_orientation", ordinal: "14", label: "Live orientation",
+    key: "live_orientation", label: "Live orientation",
     action: "Hold the orientation day",
     where: "office", phase: "orientation",
     federalGate: false, beforeTravel: false, owes: "us", requires: ["office_approved"],
@@ -214,7 +258,7 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // does the applicant owe the marks. The fold reads that opening as the step being in flight, which
   // is how a step that the office owes first hands over to "Waiting on them" (`hiringChecklist.ts`).
   {
-    key: "application_signed", ordinal: "15", label: "Application signed",
+    key: "application_signed", label: "Application signed",
     action: "Sign the application packet in the office",
     where: "office", phase: "office_day",
     federalGate: false, beforeTravel: false, owes: "us", requires: ["office_approved"],
@@ -234,47 +278,84 @@ export const HIRING_STEPS: readonly HiringStepSpec[] = [
   // ⚠ Never in `APPLICATION_RELEASE_ORDER` or `SCREENING_PREREQUISITES` (D-HM10): it is not a
   // permission, and it authorises no vendor call.
   {
-    key: "handbook", ordinal: "16", label: "Handbook signed",
+    key: "handbook", label: "Handbook signed",
     action: "Sign the driver handbook in the office",
     where: "office", phase: "office_day",
     federalGate: false, beforeTravel: false, owes: "us", requires: ["application_signed"],
     evidence: { table: "qualification_records.handbook", label: "Signed handbook" },
   },
-  // ⚠ Requires every federal gate, because that is what the owner said hiring IS: "hiring is
-  // concluded when applicant is in the office and everything is done and signed and then we do
-  // hiring." Listed explicitly rather than computed from `federalGate`, so that reading this row
-  // tells you what it waits for.
+  // ⚠ Its `requires` is `HIRE_REFUSES_WITHOUT`, stamped below (G-11, APPLICATION-FLOW-V2-PLAN §7).
+  // Until 2026-09-26 this row listed its own nine — the six gates, the packet, the handbook and the
+  // Q-HM9 investigation — beside `HIRE_REFUSES_WITHOUT` and `readyToHire`: three definitions of "ready
+  // to hire" that disagreed. The row read "Blocked by Previous employers checked" while the hire, which
+  // Q-HM5 lets proceed with that open (§391.23(c)(1)'s 30 days run from the first day), went through.
+  // Now the row is blocked exactly when the hire refuses. The packet is still waited for — the
+  // handbook requires it, and 0374's HB022 refuses a handbook mark before the filing.
   {
-    key: "hired", ordinal: "17", label: "Hired",
+    key: "hired", label: "Hired",
     action: "Hire and open the driver file",
     where: "office", phase: "hire",
-    federalGate: false, beforeTravel: false, owes: "us",
-    requires: [
-      "application_filled", "mvr", "clearinghouse", "drug_test",
-      "medical_certificate", "road_test", "application_signed",
-      // ⚠ Q-HM9: not a `federalGate` (see its row), and listed here anyway. The 30 days of
-      // §391.23(c)(1) run from the date employment BEGINS, so the law permits hiring with this
-      // open — but the owner's own definition does not (*"hiring is concluded when applicant is in
-      // the office and everything is done and signed"*), and an investigation left for after the
-      // hire is the one that gets forgotten. This is the row that stops "Hired" being offered with
-      // a §391.51(b)(3) requirement untouched, which is the whole of Q-HM9.
-      "employment_investigation",
-      // ⚠ D-HB5 (owner, 2026-09-25): *"block, he needs to sign it before hiring."* Carrier policy,
-      // not a §391.51 item, and listed for the owner's reason, the same way Q-HM9 is above.
-      "handbook",
-    ],
+    federalGate: false, beforeTravel: false, owes: "us", requires: [],
     evidence: { table: "drivers.hire_date", label: "Driver file" },
   },
 ];
 
 /**
+ * What recording the trip REFUSES without (D-AW7, Q-HM5): every step before travel.
+ *
+ * ⚠ Derived from `beforeTravel`, the way `HIRE_REFUSES_WITHOUT` is from `federalGate`, so the plane
+ * ticket and the readiness answer (`readyToTravel`) read one predicate — measured by §7 on
+ * 2026-09-26 as Part 1, the permissions, the MVR, PSP, the Clearinghouse query, the drug test, the
+ * application sent and filled, and the medical certificate. Includes the invitation, trivially.
+ */
+export const TRAVEL_REFUSES_WITHOUT: readonly HiringStepKey[] =
+  DEFINED.filter((s) => s.beforeTravel).map((s) => s.key);
+
+/**
+ * What the hire REFUSES without (Q-HM5 + D-HB5; `hireApplicant.ts`) — and since G-11 the ONE
+ * definition of "ready to hire": the `hired` row's edges and `readyToHire` both read it.
+ *
+ * ⚠ Q-HM5 (2026-09-17): *"readyToHire refuses the hire outright on all six"* federal gates, and
+ * *"everything that is not one of the six warns and never blocks"* — so `employment_investigation`
+ * warns. D-HB5 (2026-09-25) then moved the handbook from "warns" to "blocks": *"block, he needs sign
+ * it before hiring."* So: derived from `federalGate`, plus the one step the owner named, the shape
+ * `OPEN_SIGNING_WARNS_ON` has. The orientation videos and day are in neither (Q-AW23's default): they
+ * have no evidence table until D3/D4, and a gate on a row nobody can tick is a gate nobody can pass.
+ */
+export const HIRE_REFUSES_WITHOUT: readonly HiringStepKey[] = [
+  ...DEFINED.filter((s) => s.federalGate).map((s) => s.key),
+  "handbook",
+];
+
+/**
+ * The two rows whose edges ARE a refusal list rather than a law, stamped here because the lists are
+ * derived from the catalogue and a literal above cannot read a value computed from itself.
+ */
+const REFUSAL_EDGES: Partial<Record<HiringStepKey, readonly HiringStepKey[]>> = {
+  travel_booked: TRAVEL_REFUSES_WITHOUT,
+  hired: HIRE_REFUSES_WITHOUT,
+};
+
+/** The catalogue as every caller reads it: numbered by position, the two refusal rows given their edges. */
+export const HIRING_STEPS: readonly HiringStepSpec[] = DEFINED.map((s, i) => ({
+  ...s,
+  ordinal: String(i + 1),
+  requires: REFUSAL_EDGES[s.key] ?? s.requires,
+}));
+
+/**
  * What "Send the application" warns about when it is not done yet (AF4, D-AF5; plan §3.2).
  *
  * ⚠ It WARNS and never refuses: nothing in law puts screening before the application, only the
- * owner's order does. These are exactly the four steps §3.3 puts between the permissions and the
- * form, and the API reads them from the checklist fold so the warning and the row cannot disagree.
+ * owner's order does. These are the four steps §3.3 puts between the permissions and the form, and
+ * the API reads them from the checklist fold so the warning and the row cannot disagree.
+ *
+ * ⚠ Plus the medical certificate since §7 (2026-09-26): Part 1 brings the card in, so its
+ * verification is screening now, done before the form like the other four.
  */
-export const APPLICATION_SEND_WARNS_ON: readonly HiringStepKey[] = ["mvr", "psp", "clearinghouse", "drug_test"];
+export const APPLICATION_SEND_WARNS_ON: readonly HiringStepKey[] = [
+  "mvr", "psp", "clearinghouse", "drug_test", "medical_certificate",
+];
 
 /**
  * What "Open signing" warns about when it is not done yet (AF5, D-AF6; plan §3.2).
@@ -288,21 +369,6 @@ export const APPLICATION_SEND_WARNS_ON: readonly HiringStepKey[] = ["mvr", "psp"
 export const OPEN_SIGNING_WARNS_ON: readonly HiringStepKey[] = [
   ...HIRING_STEPS.filter((s) => s.federalGate && s.beforeTravel).map((s) => s.key),
   "road_test",
-];
-
-/**
- * What the hire REFUSES without (Q-HM5 + D-HB5; `hireApplicant.ts`).
- *
- * ⚠ Not `hired.requires`, and the difference is two rulings. Q-HM5 (2026-09-17): *"readyToHire
- * refuses the hire outright on all six"* federal gates, and *"everything that is not one of the six
- * warns and never blocks"* — so `employment_investigation` and `application_signed`, which `hired`
- * lists as what it WAITS for, warn. D-HB5 (2026-09-25) then moved the handbook from "warns" to
- * "blocks": *"block, he needs sign it before hiring."* So: derived from `federalGate`, plus the one
- * step the owner named, the shape `OPEN_SIGNING_WARNS_ON` has.
- */
-export const HIRE_REFUSES_WITHOUT: readonly HiringStepKey[] = [
-  ...HIRING_STEPS.filter((s) => s.federalGate).map((s) => s.key),
-  "handbook",
 ];
 
 /**

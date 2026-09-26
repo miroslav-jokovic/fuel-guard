@@ -471,6 +471,8 @@ describe("the pipeline lists applicants, and derives their stage", () => {
           id: "inv-1", driver_id: DRIVER, application_sent_at: null, review_requested_at: null,
           approved_at: null, signing_opened_at: null, submitted_at: null, revoked_at: null,
           created_at: "2026-09-09T09:00:00Z",
+          // §7's legacy rule: every permission signed and the ceremony closed, so Part 1 reads done.
+          releases_completed_at: "2026-09-09T10:30:00Z",
         }],
         drafts: [{ invitation_id: "inv-1", cdl_state: "IL", additional_licences: additional }],
         records: [{ driver_id: DRIVER, kind: "mvr", created_at: "2026-09-10T00:00:00Z", jurisdiction: "IL" }],

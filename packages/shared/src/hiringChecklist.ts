@@ -1,13 +1,17 @@
-import { hasLiveAuthorization, type AuthorizationPurpose, type AuthorizationRow } from "./authorizationContract.js";
+import { hasLiveAuthorization, type AuthorizationPurpose } from "./authorizationContract.js";
 import { APPLICATION_RELEASE_ORDER } from "./applicationIntake.js";
-import { applicationReviewState, type ApplicationPhases } from "./applicationReviewContract.js";
+import { applicationReviewState } from "./applicationReviewContract.js";
+import type { HiringChecklistInputs } from "./hiringChecklistInputs.js";
 import { mvrJurisdictionsOutstanding } from "./mvrJurisdictions.js";
 import { packetDriverMarkCount } from "./packetPlacements.js";
-import type { ApplyingAs } from "./questionnaireContract.js";
 import {
-  HIRE_REFUSES_WITHOUT, HIRING_STEPS, measurableHiringSteps,
+  HIRE_REFUSES_WITHOUT, HIRING_STEPS, TRAVEL_REFUSES_WITHOUT, measurableHiringSteps,
   type HiringEvidence, type HiringStepKey, type HiringStepSpec,
 } from "./hiringSteps.js";
+
+// The input's shape lives next door since C2b2 (2026-09-26), split at the 450-line warning along the
+// line between what the fold is GIVEN and what it DECIDES; re-exported so no import path changed.
+export type { HiringChecklistInputs } from "./hiringChecklistInputs.js";
 
 /**
  * Where a hire has got to, across every step in `HIRING_STEPS` (B1, `HIRING-MODULE-PLAN.md`). The owner
@@ -29,9 +33,11 @@ import {
  * checklist is a lie with a checkbox.
  *
  * ── AND THE SUMMARY OBEYS THE SAME RULE, WHICH IS THE SUBTLE HALF ─────────────────────────────
- * ⚠ `readyToTravel` cannot be a bare boolean. Step 9 — the orientation videos — is inside its range
- * and has no evidence table, so a boolean would answer "yes, travel" about a person who has watched
- * nothing. That is precisely the failure D-HM9 records against itself: the medical certificate was
+ * ⚠ `readyToTravel` cannot be a bare boolean. Until §7 (2026-09-26) the orientation videos were
+ * inside its range with no evidence table, so a boolean would have answered "yes, travel" about a
+ * person who had watched nothing. They left the range (Q-AW23's default) and `unmeasured` is empty
+ * today — but the next unbuilt step placed before travel puts it straight back, which is why the
+ * field stays. That is precisely the failure D-HM9 records against itself: the medical certificate was
  * missing for weeks because *capture* had been mistaken for *verification*, and the lesson written
  * down was **"a document being uploaded is not the same fact as a document being verified, and a
  * checklist that conflates them reports a gate as green that nobody has checked."** So both
@@ -39,8 +45,8 @@ import {
  * is what makes `ok` mean what it says.
  *
  * ── TWO ANSWERS, NOT ONE (D-HM9, owner 2026-09-17) ────────────────────────────────────────────
- * The seam is TRAVEL. Steps 1–9 happen before the applicant gets on a plane; 10–14 happen while they
- * are standing in the office. So the fold answers two questions on two different days —
+ * The seam is TRAVEL. Screening happens before the applicant gets on a plane; the road test onwards
+ * happens while they are standing in the office. So the fold answers two questions on two different days —
  * *"can this person travel yet?"* (*"we will not even bring him if this not green"*) and *"can we
  * hire them today?"* — and that split is the whole reason this is a checklist rather than a wizard.
  *
@@ -66,105 +72,6 @@ export const HIRING_STEP_STATE_LABELS: Record<HiringStepState, string> = {
   waiting_on_us: "Waiting on you",
   done: "Done",
 };
-
-/**
- * What the fold reads. Rows a caller already has, never a query — this module reaches nothing.
- *
- * ⚠ Everything is optional-by-absence rather than required, because an applicant who has only just
- * been invited genuinely has none of it, and a shape that forced a caller to invent empty rows would
- * push that invention into three call sites.
- */
-export interface HiringChecklistInputs {
-  /** When the invitation was created. Null means nobody has been invited yet. */
-  invitedAt?: string | null;
-  /** The live invitation's phase stamps, from the permissions onward (`ApplicationPhases`). */
-  phases?: ApplicationPhases | null;
-  /** Has the applicant typed anything? The only evidence that exists before they send it (F5). */
-  hasDraft?: boolean;
-  authorizations?: readonly AuthorizationRow[];
-  /**
-   * The `kind` values present in this driver's `qualification_records`.
-   *
-   * ⚠ Kinds only, deduped — the fold asks "is there one" and nothing else, so handing it whole rows
-   * would be handing it facts it must not start deciding with. Expiry and recurrence belong to
-   * `dqCatalogue.ts`, which already owns them.
-   */
-  qualificationKinds?: readonly string[];
-  /**
-   * Where the handbook ceremony stands (HANDBOOK-SIGNING-PLAN.md): opened by the office, and whether
-   * every driver place is signed. Only drives `inFlight`; the step is DONE on the filed record.
-   */
-  handbook?: { openedAt: string | null; driverComplete: boolean } | null;
-  /**
-   * The jurisdiction each MVR on file was recorded for — `detail.jurisdiction`, null where none was
-   * written (AF7). One entry per MVR row, not deduped: the fold only asks which are covered.
-   */
-  mvrJurisdictions?: readonly (string | null)[];
-  /**
-   * Every licensing jurisdiction the applicant has declared on the live invitation's draft
-   * (`declaredLicenceJurisdictions`). Empty while none is known, which is when one MVR is enough.
-   *
-   * ⚠ The DRAFT, not the filed application: an application files at the very end, in the office,
-   * and the MVR is a `beforeTravel` gate — a rule that waited for the filing would learn about the
-   * second state after the plane ticket. Since AF3 the draft holds `cdl_state` from the permissions
-   * step onward, so this is known before the MVR is ordered.
-   */
-  licenceJurisdictions?: readonly string[];
-  /**
-   * When the link's permission ceremony closed (`application_invitations.releases_completed_at`). A
-   * closed ceremony asks for nothing more, so a purpose still missing after it is the office's to
-   * record on paper (A-4). Absent reads as "still open" — the state before this field existed.
-   */
-  releasesCompletedAt?: string | null;
-  /**
-   * Whether a road test on file was PASSED (A-8) — see `roadTestCounts`. Absent reads as "any
-   * `road_test` kind counts", the state before this field existed; the board's builder still relies
-   * on that until G-7 gives both builders one input.
-   */
-  roadTestPassed?: boolean;
-  /** PSP: whether a request has been made, and whether a report came back. */
-  psp?: { requested: boolean; reportReceived: boolean } | null;
-  /**
-   * The §391.23(a)(2) investigation, already folded by `driverInquiryQueue` (Q-HM9).
-   *
-   * ⚠ Counts rather than rows, and folded by the caller rather than here, because
-   * `driverInquiryQueue` needs `today` — the §391.23(a)(2) three-year window is measured from the
-   * hire date or, for an applicant, from today. This module has no clock and is not getting one, so
-   * the caller does the dated part and hands over the two numbers that survive it.
-   *
-   * ⚠ Absent means NOT DONE, never "nothing to do". A caller that forgets to read the inquiries
-   * leaves the step outstanding, which is the failure that shows; the other way round it would
-   * silently certify an investigation nobody performed.
-   */
-  investigation?: {
-    /** Employers still needing a reply or a documented non-response (`outstanding.length`). */
-    outstanding: number;
-    /**
-     * Of those, how many are `awaiting` — written to, with their §391.23(g)(1) 30 days still running.
-     *
-     * ⚠ Not "how many letters have been sent", which is what this was first and was wrong on screen.
-     * `inquiryQueue.ts` has four open states and only ONE of them is the employer's move: `not_sent`
-     * is a letter the office still owes, `overdue` is a chase or a documented non-response, and
-     * `undeliverable` needs a different address. Rendered at 1440 with two employers outstanding and
-     * one letter sent, a count-based rule put *"Waiting on them"* on a row where the office had not
-     * written to one of them at all — telling a recruiter to sit still when the next move was theirs.
-     */
-    awaiting: number;
-  } | null;
-  /** How many of the packet's places this link has collected. The total is derived, never passed. */
-  packetMarks?: number;
-  /**
-   * What the applicant said they are applying as (`applyingAsOf`), which decides how many places
-   * their packet has (Q-HM14).
-   *
-   * ⚠ Absent reads as null — the paper's walk, one more stop than a company driver's — so a caller
-   * that forgets it leaves a company driver's signed packet OUTSTANDING, which is the failure that
-   * shows. The other way round it could not fail: no walk is longer than the paper's.
-   */
-  applyingAs?: ApplyingAs | null;
-  /** The hire date, once there is one. */
-  hiredAt?: string | null;
-}
 
 /** One row of the checklist: D-HUI3's three questions, plus what to say when it is blocked. */
 export interface HiringStep extends HiringStepSpec {
@@ -220,10 +127,16 @@ export interface HiringChecklist {
   steps: HiringStep[];
   done: number;
   total: number;
-  /** Steps 1–9: the gate on the plane ticket. */
+  /** Every `beforeTravel` step: the gate on the plane ticket, the list `TRAVEL_REFUSES_WITHOUT` refuses on. */
   readyToTravel: HiringReadiness;
-  /** Every step: the gate on the hire itself. */
+  /** `HIRE_REFUSES_WITHOUT`: the gate on the hire itself, the list `hireApplicant` refuses on. */
   readyToHire: HiringReadiness;
+  /**
+   * Steps in the owner's process that nothing in the schema can prove yet — the orientation videos and
+   * day (D3, D4) — so the fold never emits them. Named so a surface can say "not built yet" rather
+   * than let them vanish (§7, Q-AW23's default); in neither readiness answer's range.
+   */
+  unbuilt: HiringStepKey[];
   /** The one action to lead with — the office's own first, because that is what it can do today. */
   next: HiringStepKey | null;
 }
@@ -260,6 +173,24 @@ function evidenceFor(
   switch (key) {
     case "invitation_sent":
       return { done: Boolean(input.invitedAt), inFlight: false };
+    case "intake_completed":
+      // ⚠ THE LEGACY RULE (APPLICATION-FLOW-V2-PLAN §7, stated there once and applied here once): a
+      // link with no Part 1 row predates Part 1, and its identity screen (0365) was its Part 1 — so it
+      // is done once the permission ceremony closed or the identity is on the driver's row. Measured
+      // 2026-09-26: of the eight production invitations, the two mid-flight (`d61557dc`, `f2b142e4`)
+      // read done on the first half and the six that never started read waiting on them.
+      //
+      // ⚠ Only for somebody INVITED. The identity half is a fact about the driver, not the link, so
+      // without this an applicant nobody has invited — or a roster driver being re-hired, whose row has
+      // held a licence for years — read "Part 1 finished" for a link that does not exist (found by
+      // `applicantChecklist.test.ts`'s uninvited case on 2026-09-26).
+      if (!input.intake?.v2) {
+        const legacyDone = Boolean(input.releasesCompletedAt) || input.identityOnFile === true;
+        return { done: Boolean(input.invitedAt) && legacyDone, inFlight: false };
+      }
+      // A v2 link: done on `complete_applicant_intake`'s stamp, and in flight from the first answer —
+      // the row exists only once the applicant has begun (C2a's `record_applicant_intake`).
+      return { done: Boolean(input.intake.completedAt), inFlight: true };
     case "permissions_signed":
       // ⚠ Every one the applicant is ASKED for, from `APPLICATION_RELEASE_ORDER` rather than from
       // `AUTHORIZATION_PURPOSES`. Since D-AF4 (2026-09-24) the two lists hold the same five, but the
@@ -367,6 +298,9 @@ function evidenceFor(
         inFlight: queue != null && queue.outstanding > 0 && queue.awaiting === queue.outstanding,
       };
     }
+    case "travel_booked":
+      // D-AW7: a live trip. Cancelling one leaves the row (operational, never deleted) and re-opens this.
+      return { done: input.travelBooked === true, inFlight: false };
     case "hired":
       return { done: Boolean(input.hiredAt), inFlight: false };
     // The three with no evidence table. Reached only if a caller asks directly; the fold never emits
@@ -386,7 +320,7 @@ function evidenceFor(
   }
 }
 
-/** Steps 1–9 green, measured over everything in that range — including what cannot be measured. */
+/** Every step in range green, measured over everything in that range — including what cannot be measured. */
 function readiness(
   steps: readonly HiringStep[],
   inRange: (spec: HiringStepSpec) => boolean,
@@ -454,7 +388,11 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
     done: steps.filter((s) => s.state === "done").length,
     total: steps.length,
     readyToTravel: readiness(steps, (s) => s.beforeTravel),
-    readyToHire: readiness(steps, (s) => s.key !== "hired"),
+    // ⚠ G-11: the ONE definition — what the hire refuses without. This read every step but `hired`
+    // until 2026-09-26, which put the unbuilt orientation rows in range, so `ok` could never be true
+    // for anybody; it had no caller, and the hire refused on a different list.
+    readyToHire: readiness(steps, (s) => HIRE_REFUSES_WITHOUT.includes(s.key)),
+    unbuilt: HIRING_STEPS.filter((s) => s.evidence === null).map((s) => s.key),
     next,
   };
 }
@@ -466,6 +404,15 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
  * `readiness()`'s reason, that an absence of evidence is not evidence of completeness.
  */
 export function hireBlockers(checklist: Pick<HiringChecklist, "steps">): HiringStepKey[] {
+  return notDone(checklist, HIRE_REFUSES_WITHOUT);
+}
+
+/** The steps recording the trip is refused for (D-AW7) — `hireBlockers`' rule, over the travel list. */
+export function travelBlockers(checklist: Pick<HiringChecklist, "steps">): HiringStepKey[] {
+  return notDone(checklist, TRAVEL_REFUSES_WITHOUT);
+}
+
+function notDone(checklist: Pick<HiringChecklist, "steps">, list: readonly HiringStepKey[]): HiringStepKey[] {
   const done = new Set(checklist.steps.filter((s) => s.state === "done").map((s) => s.key));
-  return HIRE_REFUSES_WITHOUT.filter((key) => !done.has(key));
+  return list.filter((key) => !done.has(key));
 }

@@ -55,6 +55,23 @@ describe("an invitation's state", () => {
     expect(inviteState(invite({ ...signed, application_sent_at: "2026-08-20T09:00:00Z" }), NOW)).toBe("application_sent");
   });
 
+  /**
+   * §7 (D-AW1): a v2 link's first visit is Part 1, and the permissions come after it — so a link with
+   * a Part 1 row reads "Part 1 in progress" until it is finished, then "Part 1 finished" until the
+   * applicant consents to sign. A legacy link (no row) never enters either: §7's legacy rule.
+   */
+  it("follows a v2 link through Part 1 into the permissions", () => {
+    const v2 = { has_intake: true };
+    expect(inviteState(invite(v2), NOW)).toBe("part1");
+    const finished = { ...v2, intake_completed_at: "2026-08-19T08:00:00Z" };
+    expect(inviteState(invite(finished), NOW)).toBe("part1_done");
+    expect(inviteState(invite({ ...finished, consented_at: "2026-08-19T09:00:00Z" }), NOW)).toBe("signing");
+    expect(inviteState(invite({ ...finished, consented_at: "2026-08-19T09:00:00Z", releases_completed_at: "2026-08-19T09:05:00Z" }), NOW))
+      .toBe("permissions_signed");
+    // Legacy: no Part 1 row, and an untouched link is simply open.
+    expect(inviteState(invite({ has_intake: false }), NOW)).toBe("open");
+  });
+
   /** A spent link stays "submitted" even past its expiry — what happened outranks what lapsed. */
   it("reports a used link as used even after it would have expired", () => {
     expect(inviteState(invite({ submitted_at: "2026-08-19T10:00:00Z", expires_at: "2026-08-01T00:00:00Z" }), NOW)).toBe("used");
