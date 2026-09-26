@@ -9,11 +9,17 @@ import {
   type AuthorizationRow,
   type HiringPhase,
   type HiringStepKey,
-  type QueueAttempt,
-  type QueueEmployment,
 } from "@silvicom/shared";
 import { driversWithPspRequest } from "../psp/index.js";
-import { RECORD_JURISDICTION_SELECT } from "./applicantLicences.js";
+import {
+  readEmploymentHistory,
+  readHandbookMarks,
+  readInquiries,
+  readPacketMarks,
+  readQualificationRecords,
+  type MarkRow,
+  type QualificationRow,
+} from "./applicantBoardReads.js";
 
 /**
  * The board's half of the fold — every applicant's checklist in one pass (B4, `HIRING-MODULE-PLAN.md` §9).
@@ -289,149 +295,4 @@ function wholeDaysBetween(from: string | null, now: Date): number {
   const started = Date.parse(from);
   if (Number.isNaN(started)) return 0;
   return Math.max(0, Math.floor((now.getTime() - started) / 86_400_000));
-}
-
-interface QualificationRow {
-  driver_id: string;
-  kind: string;
-  created_at: string;
-  /** AF7: `detail.jurisdiction`, by path. Null on anything but a recorded MVR that named one. */
-  jurisdiction?: string | null;
-}
-
-interface MarkRow {
-  invitation_id: string;
-  placement_id: string;
-  created_at: string;
-}
-
-/**
- * Every §391.51 event for every applicant, in one query.
- *
- * ⚠ `created_at` as well as `kind`, and only because `days_waiting` needs a date. Recurrence and
- * expiry still belong to `dqCatalogue.ts` — nothing here forms an opinion about when an MVR goes
- * stale, which is the second opinion B3's own comment refused to invite.
- */
-async function readQualificationRecords(
-  admin: SupabaseClient,
-  orgId: string,
-  driverIds: readonly string[],
-): Promise<Map<string, QualificationRow[]>> {
-  const { data } = await admin
-    .from("qualification_records")
-    .select(`driver_id, kind, created_at, ${RECORD_JURISDICTION_SELECT}`)
-    .eq("org_id", orgId)
-    .in("driver_id", driverIds);
-  return groupBy((data ?? []) as QualificationRow[], (r) => r.driver_id);
-}
-
-/**
- * The packet places collected, per invitation.
- *
- * ⚠ Keyed on the INVITATION, never the driver — 0339 scopes them that way because a rehire signs
- * their own packet and the two must not merge. A driver-keyed count adds last year's twenty-two to
- * this year's none and reports a packet signed that nobody has opened.
- */
-async function readHandbookMarks(
-  admin: SupabaseClient,
-  orgId: string,
-  invitationIds: readonly string[],
-): Promise<Map<string, Array<{ invitation_id: string; placement_id: string }>>> {
-  if (invitationIds.length === 0) return new Map();
-  const { data } = await admin
-    .from("handbook_marks")
-    .select("invitation_id, placement_id")
-    .eq("org_id", orgId)
-    .in("invitation_id", invitationIds);
-  return groupBy((data ?? []) as Array<{ invitation_id: string; placement_id: string }>, (r) => r.invitation_id);
-}
-
-async function readPacketMarks(
-  admin: SupabaseClient,
-  orgId: string,
-  invitationIds: readonly string[],
-): Promise<Map<string, MarkRow[]>> {
-  if (invitationIds.length === 0) return new Map();
-  const { data } = await admin
-    .from("application_packet_marks")
-    .select("invitation_id, placement_id, created_at")
-    .eq("org_id", orgId)
-    .in("invitation_id", invitationIds);
-  return groupBy((data ?? []) as MarkRow[], (r) => r.invitation_id);
-}
-
-/**
- * The declared §391.21(b)(10) employment history, per driver (Q-HM9).
- *
- * ⚠ Read whole rather than counted, because `driverInquiryQueue` decides which of these employers
- * are actually owed an inquiry — DOT-regulated, and inside the §391.23(a)(2) three-year window
- * measured from the hire date. A `count` here could not answer either question, and a `.eq` on
- * `dot_regulated` would be this module forming the opinion its own header says it must not.
- */
-async function readEmploymentHistory(
-  admin: SupabaseClient,
-  orgId: string,
-  driverIds: readonly string[],
-): Promise<Map<string, QueueEmployment[]>> {
-  const { data } = await admin
-    .from("driver_employment_history")
-    .select("id, driver_id, employer_name, started_on, ended_on, dot_regulated")
-    .eq("org_id", orgId)
-    .in("driver_id", driverIds);
-  const out = new Map<string, QueueEmployment[]>();
-  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
-    const driverId = String(row.driver_id);
-    const list = out.get(driverId) ?? [];
-    list.push({
-      id: String(row.id),
-      employerName: String(row.employer_name),
-      startedOn: String(row.started_on),
-      endedOn: (row.ended_on as string | null) ?? null,
-      dotRegulated: Boolean(row.dot_regulated),
-    });
-    out.set(driverId, list);
-  }
-  return out;
-}
-
-/**
- * The §391.23(c)(2) contact attempts, per driver (Q-HM9).
- *
- * ⚠ `safety_performance` only, matching `loadInquiryQueue` and `applicantChecklist`: `drug_alcohol`
- * is §40.25 and applies to non-FMCSA DOT safety-sensitive employment, which §391.23(e) routes to the
- * Clearinghouse instead. Counting it would hold this step open against an inquiry nobody owes.
- */
-async function readInquiries(
-  admin: SupabaseClient,
-  orgId: string,
-  driverIds: readonly string[],
-): Promise<Map<string, QueueAttempt[]>> {
-  const { data } = await admin
-    .from("employer_inquiries")
-    .select("driver_id, employment_id, contacted_on, outcome")
-    .eq("org_id", orgId)
-    .eq("kind", "safety_performance")
-    .in("driver_id", driverIds);
-  const out = new Map<string, QueueAttempt[]>();
-  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
-    const driverId = String(row.driver_id);
-    const list = out.get(driverId) ?? [];
-    list.push({
-      employmentId: String(row.employment_id),
-      contactedOn: String(row.contacted_on),
-      outcome: row.outcome as QueueAttempt["outcome"],
-    });
-    out.set(driverId, list);
-  }
-  return out;
-}
-
-function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[]> {
-  const out = new Map<string, T[]>();
-  for (const row of rows) {
-    const list = out.get(key(row));
-    if (list) list.push(row);
-    else out.set(key(row), [row]);
-  }
-  return out;
 }

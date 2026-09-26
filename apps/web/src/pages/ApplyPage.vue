@@ -14,17 +14,10 @@ import SafetyHistoryFields from "@/features/apply/SafetyHistoryFields.vue";
 import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
 import DocumentCaptureFields from "@/features/apply/DocumentCaptureFields.vue";
 import ReviewFields from "@/features/apply/ReviewFields.vue";
-import ApplicationFiledCard from "@/features/apply/ApplicationFiledCard.vue";
-import DraftUnlockGate from "@/features/apply/DraftUnlockGate.vue";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
-import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
-import IdentityFields from "@/features/apply/IdentityFields.vue";
-import ApplyWaitScreen from "@/features/apply/ApplyWaitScreen.vue";
-import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
-import SignOffScreen from "@/features/apply/SignOffScreen.vue";
-import ApplyExpectations from "@/features/apply/ApplyExpectations.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
+import ApplyPhaseRouter from "@/features/apply/ApplyPhaseRouter.vue";
 import { emptyDraft, fromDraftPayload, type ApplicationDraft } from "@/features/apply/draft";
 import { linkHasBeenUsed, useApplyInvitationQuery } from "@/features/apply/useApplication";
 import { useEsignConsentStep } from "@/features/apply/useEsignConsentStep";
@@ -49,26 +42,11 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * the whole thing back in front of them at `review` before they certify it — because (b)(12) has
  * them swear the entries are true and complete, and nobody can swear to what they cannot see.
  *
- * ── AND WHAT IT INVOLVES IS SAID BEFORE ANY OF IT IS ASKED (B7) ───────────────────────────────
- * An untouched link opens on how long this takes and what to have to hand, because the alternative is
- * that a driver finds out by walking it. It asks and writes nothing, which is why it can sit ahead of
- * the consent without disturbing the rule below — see `ApplyExpectations.vue`.
- *
- * ── NOTHING HAPPENS BEFORE THE 7001(c) CONSENT (A4) ───────────────────────────────────────────
- * §390.32(d) makes an electronic §391.21 application conditional on including proof that the driver
- * agreed to transact electronically, so that agreement is the first screen. While the wording is
- * still draft nothing is asked and the link behaves as it did before — the server says which, and
- * the page does not decide it for itself.
- *
- * ── THE AUTHORIZATIONS ARE SIGNED BEFORE THE FORM, NOT AFTER (A5, D-APP4) ─────────────────────
- * §391.21(b)'s certification is the LAST act of an application, and submitting is what makes the
- * application exist — so anything that has to happen with it has to happen before it. The order on
- * this page is therefore: consent → identity (AF3, D-AF1) → the permissions → the form → certify.
- *
- * While any instrument is still draft wording the ceremony is skipped entirely and the instruments
- * are shown read-only on the last screen, as they were before A5 — the server refuses those
- * signatures (Q-H3), and a ceremony nobody can complete would be a wall across the application.
- *
+ * ── WHICH SCREEN, IN WHAT ORDER (B7, A4, A5) ─────────────────────────────────────────────────
+ * The expectations screen, the 7001(c) consent, the identity step, the permissions and the waiting
+ * screens come before the form, in an order `ApplyPhaseRouter.vue` holds and explains since C1
+ * (2026-09-26). This page computes every condition that chain reads and performs every act it
+ * reports; the router only chooses.
  * ── THE PHOTOGRAPHS ARE STAGED, NOT SAVED (A8, D-APP10) ───────────────────────────────────────
  * The documents screen writes to `application_captures` against the invitation, not into the draft:
  * a photograph is not an answer, and a candidate who never sends this application must leave nothing
@@ -285,207 +263,129 @@ watch(
 </script>
 
 <template>
-  <div v-if="invitation.isLoading.value" class="text-sm text-ink-muted">{{ APPLY_COPY.page.opening }}</div>
-
-  <!-- Every dead link answers identically by design; the page repeats what it was told and offers
-       the only action that can help, which is to ask the carrier for a new link. -->
-  <BaseCard v-else-if="invitation.isError.value">
-    <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.dead.heading }}</h1>
-    <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.dead.body }}</p>
-  </BaseCard>
-
-  <!-- What happened, not what will (A1). The old copy promised signing that this page could not
-       deliver — submitting killed the link the promise was made on — and D-APP4 moves the signing
-       ahead of the certification, so there is no longer a later step to promise. -->
-  <ApplicationFiledCard
-    v-else-if="submitted"
+  <ApplyPhaseRouter
+    v-model:draft="draft"
     :token="token"
-    :carrier="invitation.data.value?.carrier ?? ''"
-    :road-test-certificate="invitation.data.value?.roadTestCertificate ?? null"
-    :handbook="invitation.data.value?.handbook ?? null"
-  />
-
-  <!-- F4/D-AX11: handed over, and not yet approved. The driver has done everything they can do for
-       the moment, and the screen says so rather than leaving them on a form with a spent button. -->
-  <BaseCard v-else-if="awaitingReview">
-    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.handoff.waitingHeading" :note="APPLY_COPY.handoff.waitingNote"
-      :body="APPLY_COPY.handoff.waitingBody(invitation.data.value?.carrier ?? '')" />
-  </BaseCard>
-
-  <!-- B7. ⚠ Ahead of the consent gate below, and this does not disturb D-APP5: A4's ruling is that
-       nothing is ASKED and nothing is WRITTEN before the 7001(c) consent, and this screen does
-       neither. `signFirst` covers both things signed before the form — the consent and the ceremony
-       flip together, because both are gated on the same wording being published. -->
-  <BaseCard v-else-if="expectationsNeeded">
-    <ApplyExpectations
-      :carrier="invitation.data.value?.carrier ?? ''"
-      :sign-first="ceremonyAvailable || Boolean(esignConsent?.required)"
-      @start="begun = true"
-    />
-  </BaseCard>
-
-  <!-- A4/D-APP5: §390.32(d) requires proof of 15 U.S.C. 7001(c) consent behind an electronic
-       §391.21 application, so this is the first thing on the link and nothing writes before it. -->
-  <BaseCard v-else-if="consentNeeded && esignConsent">
-    <EsignConsentGate
-      :consent="esignConsent"
-      :carrier="invitation.data.value?.carrier ?? ''"
-      :working="consenting"
-      :failed="consentFailed"
-      @agree="agree"
-    />
-  </BaseCard>
-
-  <BaseCard v-else-if="identityNeeded">
-    <IdentityFields :token="token" :carrier="invitation.data.value?.carrier ?? ''"
-      :captures="invitation.data.value?.captures ?? []" @done="identityRecorded" />
-  </BaseCard>
-
-  <!-- A5/D-APP7: one instrument per screen, one act each. FCRA §604(b)(2) requires each
-       disclosure to stand alone, so there is nothing else on screen while one is showing. -->
-  <BaseCard v-else-if="ceremonyNeeded">
-    <SigningCeremony
-      :token="token"
-      :releases="releases"
-      :already-signed="invitation.data.value?.releasesSigned ?? []"
-      :carrier="invitation.data.value?.carrier ?? ''"
-      :captures="invitation.data.value?.captures ?? []"
-      @done="ceremonyDone = true"
-    />
-  </BaseCard>
-
-  <!-- AF4 (plan §3.1 row 5): permissions in, form not sent. Before the unlock gate: nothing is shown. -->
-  <BaseCard v-else-if="waitingForApplication">
-    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
-      :body="APPLY_COPY.permissionsReceived.body(invitation.data.value?.carrier ?? '')" />
-  </BaseCard>
-
-  <!-- AF5 (plan §3.1 row 9): approved, and signing happens in the office. Before the unlock gate: it
-       prints nothing of the application. -->
-  <BaseCard v-else-if="awaitingOffice">
-    <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.signInOffice.heading" :note="APPLY_COPY.signInOffice.note"
-      :body="APPLY_COPY.signInOffice.body(invitation.data.value?.carrier ?? '')" />
-  </BaseCard>
-
-  <!-- A2/D-APP16: the draft holds a date of birth, so the bare link does not read it back. One
-       question, asked only when there is something to protect. -->
-  <DraftUnlockGate
-    v-else-if="locked"
-    :token="token"
-    :carrier="invitation.data.value?.carrier ?? ''"
+    :invitation="invitation"
+    :submitted="submitted"
+    :awaiting-review="awaitingReview"
+    :expectations-needed="expectationsNeeded"
+    :ceremony-available="ceremonyAvailable"
+    :esign-consent="esignConsent"
+    :consent-needed="consentNeeded"
+    :consenting="consenting"
+    :consent-failed="consentFailed"
+    :identity-needed="identityNeeded"
+    :ceremony-needed="ceremonyNeeded"
+    :releases="releases"
+    :waiting-for-application="waitingForApplication"
+    :awaiting-office="awaitingOffice"
+    :locked="locked"
+    :awaiting-signature="awaitingSignature"
+    :packet-stops="packetStops"
+    :packet-adopted="packetAdopted"
+    :sending="sending"
+    :send-error="sendError"
+    @begin="begun = true"
+    @agree="agree"
+    @identity-recorded="identityRecorded"
+    @ceremony-done="ceremonyDone = true"
     @unlocked="released = $event"
-  />
+    @send="send"
+  >
+    <div v-if="invitation.data.value" class="space-y-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-ink">{{ APPLY_COPY.page.title }}</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+          {{ APPLY_COPY.page.subtitle(invitation.data.value.carrier) }}
+        </p>
+        <!-- Said on the FIRST screen, not discovered at the Send button. The server refuses the
+             submission while the wording is draft, and a driver who learns that after filling seven
+             screens on a phone has been wasted. Their answers are saved either way — autosave is a
+             separate path and has never been gated. -->
+        <AppCallout v-if="wordingNotFinal" tone="caution" class="mt-3">
+          {{ APPLY_COPY.notOpen.banner(invitation.data.value.carrier) }}
+        </AppCallout>
+      </div>
 
-  <!-- F4/D-AX12: approved, and waiting for the signature. ⚠ After the date-of-birth gate above, not
-       before it: this screen prints the whole application, and D-APP16 exists because an application
-       link is forwarded in email and read on a shared phone. -->
-  <BaseCard v-else-if="awaitingSignature">
-    <SignOffScreen
-      v-model="draft"
-      :token="token"
-      :carrier="invitation.data.value?.carrier ?? ''"
-      :edits="invitation.data.value?.edits ?? []"
-      :captures="invitation.data.value?.captures ?? []"
-      :stops="packetStops"
-      :adopted-marks="packetAdopted"
-      :sending="sending"
-      :error="sendError"
-      @send="send"
-    />
-  </BaseCard>
-
-  <div v-else-if="invitation.data.value" class="space-y-6">
-    <div>
-      <h1 class="text-2xl font-semibold text-ink">{{ APPLY_COPY.page.title }}</h1>
-      <p class="mt-1 text-sm text-ink-muted">
-        {{ APPLY_COPY.page.subtitle(invitation.data.value.carrier) }}
-      </p>
-      <!-- Said on the FIRST screen, not discovered at the Send button. The server refuses the
-           submission while the wording is draft, and a driver who learns that after filling seven
-           screens on a phone has been wasted. Their answers are saved either way — autosave is a
-           separate path and has never been gated. -->
-      <AppCallout v-if="wordingNotFinal" tone="caution" class="mt-3">
-        {{ APPLY_COPY.notOpen.banner(invitation.data.value.carrier) }}
-      </AppCallout>
-    </div>
-
-    <ApplyProgress
-      :index="wizard.index.value"
-      :furthest="wizard.furthestIndex.value"
-      :save-status="saveStatus"
-      @go-to="wizard.goTo"
-    />
-
-    <ApplyIssueList
-      :issues="wizard.issues.value"
-      :send-error="sendError"
-      :final="wizard.isLast.value"
-      @show="showIssue"
-    />
-
-    <BaseCard>
-      <ApplicantDetailsFields v-if="wizard.section.value === 'identity'" v-model="draft" :locked-by="identityLockedBy" />
-      <AddressHistoryFields v-else-if="wizard.section.value === 'addresses'" v-model="draft" />
-      <LicenceFields v-else-if="wizard.section.value === 'licence'" v-model="draft" :locked-by="identityLockedBy" />
-      <ApplyEmploymentFields v-else-if="wizard.section.value === 'employment'" v-model="draft" />
-      <SafetyHistoryFields v-else-if="wizard.section.value === 'safety'" v-model="draft" />
-      <!-- A9: the carrier's own questions, which discharge no CFR paragraph and block nothing. -->
-      <QuestionnaireFields v-else-if="wizard.section.value === 'questions'" v-model="draft" />
-      <!-- A8: photographs, not answers. They are staged against the invitation rather than saved into
-           the draft, which is why this screen takes the token and not the form. -->
-      <DocumentCaptureFields
-        v-else-if="wizard.section.value === 'documents'"
-        :token="token"
-        :captures="invitation.data.value.captures ?? []"
-      />
-      <ReviewFields
-        v-else
-        :draft="draft"
-        :captures="invitation.data.value.captures ?? []"
+      <ApplyProgress
+        :index="wizard.index.value"
+        :furthest="wizard.furthestIndex.value"
+        :save-status="saveStatus"
         @go-to="wizard.goTo"
       />
-    </BaseCard>
 
-    <!-- Shown read-only on the last screen ONLY while the ceremony cannot run (Q-H3: the wording is
-         still draft and the server refuses those signatures). Nobody should be asked weeks later to
-         sign four documents they have never seen; once A0 publishes, they are signed up front
-         instead and this disappears. -->
-    <BaseCard v-if="wizard.isLast.value && !ceremonyAvailable">
-      <DisclosurePanel :releases="invitation.data.value.releases" />
-      <!-- The panel says the instruments are not final; this says what that costs the driver
-           standing in front of it, which the panel has no way to know. -->
-      <p v-if="wordingNotFinal" class="mt-4 text-sm text-ink-secondary">
-        {{ APPLY_COPY.notOpen.cannotSend }}
-      </p>
-    </BaseCard>
+      <ApplyIssueList
+        :issues="wizard.issues.value"
+        :send-error="sendError"
+        :final="wizard.isLast.value"
+        @show="showIssue"
+      />
 
-    <div class="flex items-center justify-between gap-4">
-      <BaseButton v-if="!wizard.isFirst.value" variant="ghost" @click="wizard.back">
-        {{ APPLY_COPY.nav.back }}
-      </BaseButton>
-      <span v-else />
-      <BaseButton
-        variant="primary"
-        :disabled="handingOver || (wizard.isLast.value && wordingNotFinal)"
-        @click="wizard.isLast.value ? sendForReview() : wizard.next()"
-      >
-        <template v-if="wizard.isLast.value">
-          <!-- Disabled rather than hidden: the driver has reached the end of their application and
-               the control they came for should still be where they expect it, saying why it will
-               not go. A missing button reads as a bug in the page.
+      <BaseCard>
+        <ApplicantDetailsFields v-if="wizard.section.value === 'identity'" v-model="draft" :locked-by="identityLockedBy" />
+        <AddressHistoryFields v-else-if="wizard.section.value === 'addresses'" v-model="draft" />
+        <LicenceFields v-else-if="wizard.section.value === 'licence'" v-model="draft" :locked-by="identityLockedBy" />
+        <ApplyEmploymentFields v-else-if="wizard.section.value === 'employment'" v-model="draft" />
+        <SafetyHistoryFields v-else-if="wizard.section.value === 'safety'" v-model="draft" />
+        <!-- A9: the carrier's own questions, which discharge no CFR paragraph and block nothing. -->
+        <QuestionnaireFields v-else-if="wizard.section.value === 'questions'" v-model="draft" />
+        <!-- A8: photographs, not answers. They are staged against the invitation rather than saved into
+             the draft, which is why this screen takes the token and not the form. -->
+        <DocumentCaptureFields
+          v-else-if="wizard.section.value === 'documents'"
+          :token="token"
+          :captures="invitation.data.value.captures ?? []"
+        />
+        <ReviewFields
+          v-else
+          :draft="draft"
+          :captures="invitation.data.value.captures ?? []"
+          @go-to="wizard.goTo"
+        />
+      </BaseCard>
 
-               ⚠ It SENDS rather than certifies since F4. The signature is asked for on the second
-               visit, on the document as the office leaves it — see `sendForReview`. -->
-          {{ wordingNotFinal
-            ? APPLY_COPY.notOpen.sendLabel
-            : handingOver
-              ? APPLY_COPY.handoff.sending
-              : APPLY_COPY.handoff.send(invitation.data.value.carrier) }}
-        </template>
-        <template v-else>
-          {{ wizard.section.value === 'documents' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}
-        </template>
-      </BaseButton>
+      <!-- Shown read-only on the last screen ONLY while the ceremony cannot run (Q-H3: the wording is
+           still draft and the server refuses those signatures). Nobody should be asked weeks later to
+           sign four documents they have never seen; once A0 publishes, they are signed up front
+           instead and this disappears. -->
+      <BaseCard v-if="wizard.isLast.value && !ceremonyAvailable">
+        <DisclosurePanel :releases="invitation.data.value.releases" />
+        <!-- The panel says the instruments are not final; this says what that costs the driver
+             standing in front of it, which the panel has no way to know. -->
+        <p v-if="wordingNotFinal" class="mt-4 text-sm text-ink-secondary">
+          {{ APPLY_COPY.notOpen.cannotSend }}
+        </p>
+      </BaseCard>
+
+      <div class="flex items-center justify-between gap-4">
+        <BaseButton v-if="!wizard.isFirst.value" variant="ghost" @click="wizard.back">
+          {{ APPLY_COPY.nav.back }}
+        </BaseButton>
+        <span v-else />
+        <BaseButton
+          variant="primary"
+          :disabled="handingOver || (wizard.isLast.value && wordingNotFinal)"
+          @click="wizard.isLast.value ? sendForReview() : wizard.next()"
+        >
+          <template v-if="wizard.isLast.value">
+            <!-- Disabled rather than hidden: the driver has reached the end of their application and
+                 the control they came for should still be where they expect it, saying why it will
+                 not go. A missing button reads as a bug in the page.
+
+                 ⚠ It SENDS rather than certifies since F4. The signature is asked for on the second
+                 visit, on the document as the office leaves it — see `sendForReview`. -->
+            {{ wordingNotFinal
+              ? APPLY_COPY.notOpen.sendLabel
+              : handingOver
+                ? APPLY_COPY.handoff.sending
+                : APPLY_COPY.handoff.send(invitation.data.value.carrier) }}
+          </template>
+          <template v-else>
+            {{ wizard.section.value === 'documents' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}
+          </template>
+        </BaseButton>
+      </div>
     </div>
-  </div>
+  </ApplyPhaseRouter>
 </template>

@@ -1,6 +1,23 @@
-import { rgb, type PDFDocument, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
+import { rgb, type PDFDocument, type PDFPage } from "pdf-lib";
 import { embedPdfFace, pdfUnicodeText } from "../../../../lib/pdfFonts.js";
 import type { PacketFieldOverflow } from "./packetGrid.js";
+import { clipped, fitted, wrap } from "./packetContinuationText.js";
+import {
+  FOOTER_BAND,
+  LETTERHEAD_BAND,
+  PAGE_HEIGHT,
+  PAGE_NUMBER_BASELINE,
+  PAGE_NUMBER_INK,
+  PAGE_NUMBER_SIZE,
+  PAGE_NUMBER_X,
+  PAGE_WIDTH,
+  carrierFurniture,
+} from "./packetContinuationFurniture.js";
+
+// ⚠ Re-exported, not redeclared: the measuring helpers and the carrier's furniture moved to their
+// own modules in C1 (2026-09-26), and `packetContinuation.test.ts` still reads these three from here.
+export { wrap };
+export { FURNITURE_SOURCE_PAGE, LETTERHEAD_BAND } from "./packetContinuationFurniture.js";
 
 /**
  * The continuation sheet — the answers the carrier's own grids had no room for (Q-PKT10).
@@ -49,9 +66,6 @@ import type { PacketFieldOverflow } from "./packetGrid.js";
  * is the document. ⚠ Counsel owns whether that reading holds; the question is on the plan.
  */
 
-/** Letter, matching the carrier's own pages so the sheet prints on the same paper. */
-const PAGE_WIDTH = 612;
-const PAGE_HEIGHT = 792;
 /** The carrier's own text margin, measured off their pages — x51.4 to x553.6. */
 const LEFT = 51.4;
 const RIGHT = 553.6;
@@ -129,89 +143,6 @@ export const continuationNoticeFor = (over: PacketFieldOverflow): string => {
   return parts.join(" ");
 };
 
-/**
- * The largest size at or below `start` whose text fits, floored at 5pt.
- *
- * ⚠ **The comment here used to say "Shrink to fit, never overrun" and neither half was true**
- * (AUD-2). It returns the floor whether or not the text fits at it, exactly as `packetOverlay.ts`'s
- * `fittedSize` did — the two were written together and were wrong together. Every surviving caller
- * now either passes the result straight to `clipped()` or is a single line of our own copy whose
- * length this module controls, so the floor can no longer reach the page uncut. Answers do not come
- * through here at all any more: they WRAP.
- */
-function fitted(font: PDFFont, text: string, width: number, start: number): number {
-  for (let size = start; size > 5; size -= 0.5) {
-    if (font.widthOfTextAtSize(text, size) <= width) return size;
-  }
-  return 5;
-}
-
-/**
- * Cut a string to what fits at its floor size, with an ellipsis.
- *
- * ⚠ **Shrinking alone is not enough and the sheet proved it.** `NATURE OF ACCIDENT (HEAD-ON,
- * REAR-END, ROLLOVER, ETC.)` does not fit an even fifth of the text width even at 5pt, so it ran
- * straight through `FATALITIES NUMBER` beside it — two headings on top of each other, on the sheet
- * that exists so nothing is lost.
- *
- * ⚠ **Applied to HEADINGS and to our own copy, never to an answer** — and the second half of that
- * rule changed on 2026-09-19. It used to end *"a value too long for its column shrinks to 5pt and is
- * allowed to be small"*, which was measured to be false: at 5pt the fourth accident's description
- * still did not fit and ran through the column beside it. An answer now WRAPS instead, which is the
- * option this page has and the carrier's 15.2pt rows do not. The first half stands: a truncated
- * column name is still readable beside the page it continues, and a truncated conviction is the
- * silent loss this whole sheet prevents.
- */
-function clipped(font: PDFFont, text: string, width: number, size: number): string {
-  if (font.widthOfTextAtSize(text, size) <= width) return text;
-  let cut = text;
-  while (cut.length > 1 && font.widthOfTextAtSize(`${cut}…`, size) > width) cut = cut.slice(0, -1);
-  return `${cut.trimEnd()}…`;
-}
-
-/**
- * Break text onto as many lines as it needs, by word.
- *
- * ⚠ **A word wider than the column is broken by character rather than left to overrun** — the one
- * case word-wrapping alone cannot answer, and not hypothetical: the sheet's columns are a fifth of
- * the page and `Featherstonehaugh-Villanueva` is wider than that at 8.5pt. Breaking a surname is
- * ugly; drawing it through the next column is the defect this file was opened to fix.
- *
- * ⚠ **Exported for its own test only.** It makes the claim this whole module now rests on — *no line
- * that comes back is wider than the width it was given* — and that claim cannot be read back off a
- * produced page, because a drawn page's coordinates stop being trustworthy once pdf-lib has
- * bracketed the carrier's content in `q … Q`. So it is pinned directly, by "breaks a word that is
- * itself wider than the column, rather than letting it run"; what the RENDERER does with the lines
- * is pinned by "is drawn as several lines, not one run that overruns", which counts runs rather
- * than reading words, because rejoining wrapped lines reproduces the original sentence.
- */
-export function wrap(font: PDFFont, text: string, size: number, width: number): string[] {
-  const out: string[] = [];
-  let line = "";
-  const flush = (): void => {
-    if (line) out.push(line);
-    line = "";
-  };
-  for (const word of text.split(/\s+/)) {
-    const candidate = line ? `${line} ${word}` : word;
-    if (font.widthOfTextAtSize(candidate, size) <= width) {
-      line = candidate;
-      continue;
-    }
-    flush();
-    let rest = word;
-    while (font.widthOfTextAtSize(rest, size) > width && rest.length > 1) {
-      let take = rest;
-      while (take.length > 1 && font.widthOfTextAtSize(take, size) > width) take = take.slice(0, -1);
-      out.push(take);
-      rest = rest.slice(take.length);
-    }
-    line = rest;
-  }
-  flush();
-  return out;
-}
-
 interface Cursor {
   page: PDFPage;
   y: number;
@@ -225,82 +156,6 @@ interface Cursor {
  * A packet that grew a blank "continuation sheet" page every time would be 32 pages of which one
  * says nothing.
  */
-/**
- * The carrier's own letterhead and footer, LIFTED OFF THEIR PAGE rather than redrawn (AUD-6).
- *
- * —— ⚠ WHY THIS COPIES BYTES INSTEAD OF DRAWING TEXT ——————————————————————————
- * Drawing it was tried first and cannot be made faithful. The letterhead is not set in one of the
- * standard fourteen fonts, and the proof is arithmetic rather than an impression: if it were
- * centred Helvetica, `SILVICOM INC` at x270.1 would be 10.67pt, `1301 ARMITAGE AVE` at x256.6 would
- * be 9.94pt and `MELROSE PARK IL 60160` at x247.0 would be 9.71pt. Three sizes for three lines of
- * one letterhead means the metrics are somebody else's. Redrawing it would have put a different
- * typeface at a guessed size on the sheet whose entire job is to look like it belongs to the other
- * thirty-one pages.
- *
- * `embedPage` takes a REGION of a page already in this document and hands back something drawable.
- * The bytes are the carrier's, so the type, the size, the weight and the centring are theirs by
- * construction — there is no second source of truth to drift, and nothing here to re-measure if
- * they ever re-issue the template with a new address.
- *
- * ⚠ **Page 31, and the choice is measured.** The letterhead is identical on all thirty-one pages
- * (one distinct layout, asserted next door), so what picks the source is the CLEAR SPACE under it:
- * page 1 carries a second `FOR DEPARTMENT OF…` line at y680.3 and a band wide enough to hold the
- * letterhead clips through it — rendered, that prints a sliced half-line of somebody else's text
- * under the address. Pages 29, 30 and 31 have 45.1pt of nothing below the letterhead, the most in
- * the packet, and all three carry the footer at its commonest position (85.9 / 70.7, eleven pages).
- * Page 31 of those three, because it is the page these sheets are appended directly after.
- *
- * ⚠ **The footer band stops at x440 so the carrier's OWN page number does not come with it.** Their
- * number is not a separate run — it is padded onto the end of `THIS IS NOT AN EMPLOYMENT
- * APPLICATION` with spaces — so it cannot be dropped by choosing runs, only by clipping. Measured
- * at 300 dpi: `THIS IS NOT AN EMPLOYMENT APPLICATION` ends at x≈395 and the number begins at
- * x≈489.4.
- *
- * ⚠ **The clip is set by the LONGER line, and the first attempt was set by the shorter one and
- * printed `…VERIFICATION PURPOSE O` on the sheet.** The two footer lines are centred independently
- * and are not the same width: `FOR DEPARTMENT OF TRANSPORTATION VERIFICATION PURPOSE ONLY` runs on
- * to x≈461.4, sixty-six points past the line beneath it. Measured on page 31 at 600 dpi, `ONLY`
- * ends at 461.4 and `31` begins at 489.4 — so the gap to miss is 28pt wide and 475 is its middle,
- * not the 97pt one the second line alone suggests.
- */
-interface CarrierFurniture {
-  letterhead: PDFEmbeddedPage;
-  footer: PDFEmbeddedPage;
-}
-
-/** 1-based, as the carrier's own footer numbers it — see `LETTERHEAD_BAND` for why this page. */
-export const FURNITURE_SOURCE_PAGE = 31;
-export const LETTERHEAD_BAND = { left: 0, bottom: 688, right: PAGE_WIDTH, top: 745 };
-const FOOTER_BAND = { left: 0, bottom: 58, right: 475, top: 94 };
-
-/**
- * Where OUR page number goes, matching the carrier's own.
- *
- * ⚠ The baseline is theirs — 70.7, the second footer line — so the number sits on the same line as
- * `THIS IS NOT AN EMPLOYMENT APPLICATION` exactly as it does on every page before it. `x` and the
- * size were read off a 300 dpi crop of page 12, whose `12` is two digits like every sheet this can
- * produce. ⚠ It is drawn in Helvetica-Bold and the carrier's is not: a numeral is a numeral, and
- * this is the one piece of furniture that CANNOT be copied, because the value has to change.
- */
-const PAGE_NUMBER_X = 489.4;
-const PAGE_NUMBER_BASELINE = 70.7;
-const PAGE_NUMBER_SIZE = 10;
-/**
- * ⚠ **Pure black, and it is the only thing on this sheet that is not `INK`.**
- *
- * Everything else we draw here is our own type on our own sheet and takes the packet's near-black.
- * This numeral is different: it is drawn INSIDE the carrier's copied footer band, on the same line
- * as `THIS IS NOT AN EMPLOYMENT APPLICATION`, a few points to its right. Measured on the produced
- * page at 600 dpi, the copied footer's darkest pixel is 0 and `INK` renders at 25 — so at `INK` the
- * number reads as something added to the carrier's footer rather than part of it, which on this
- * sheet is precisely the wrong impression.
- */
-const PAGE_NUMBER_INK = rgb(0, 0, 0);
-
-const carrierFurniture = async (doc: PDFDocument): Promise<CarrierFurniture> => ({
-  letterhead: await doc.embedPage(doc.getPage(FURNITURE_SOURCE_PAGE - 1), LETTERHEAD_BAND),
-  footer: await doc.embedPage(doc.getPage(FURNITURE_SOURCE_PAGE - 1), FOOTER_BAND),
-});
 
 export async function appendContinuationSheet(
   doc: PDFDocument,
