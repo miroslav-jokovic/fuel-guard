@@ -1,6 +1,6 @@
 # Application flow v2 — intake before screening, a scanner wizard, a phone-first form — plan and queue
 
-**Status: PROPOSED 2026-09-26, VERIFIED the same day. Nothing in §8 is built.**
+**Status: PROPOSED 2026-09-26, VERIFIED the same day, then AUDITED a second time (three adversarial passes: precision, consistency, regressions — §12). Nothing in §8 is built.**
 
 Written from the owner's 14-step flow of 2026-09-26 (§1), the 2026-09-25 audit of that day's
 recruiting work, and four research passes (the code's current flow, the form against federal and
@@ -15,8 +15,7 @@ Markers: **[V]** read at the source. **[I]** inferred or secondary — every [I]
 listed in §10 as something still to confirm, with who confirms it.
 
 **Relationship to other plans.** Supersedes the screen ORDER of `APPLICANT-FLOW-PLAN.md` §3.1/§3.3.
-Keeps D-AF1 (identity with the permissions), D-AF2 (each permission its own PDF), D-AF3 (the packet
-opens only in the office). `HIRING-MODULE-PLAN.md` §0's protocol applies, **except the one-step-one-PR
+Keeps D-AF1 (identity with the permissions) and D-AF2 (each permission its own PDF). **Amends** D-AF3/D-AF6/D-AF7 (D-AW14: the office's act of sending while the driver is present replaces signing on an office computer) and D-AF8 (D-AW3: the single identity writer becomes `record_applicant_intake`). **Out of scope, pending their own plans:** step 10 (training videos, D4) and step 12 (live orientation, OR1–OR3) — shown as "not built yet" and excluded from the hire gate per Q-AW23. `HIRING-MODULE-PLAN.md` §0's protocol applies, **except the one-step-one-PR
 rule, which §8.1 replaces with batches** (owner, 2026-09-26). Training videos stay in
 `docs/plans/DRIVER-TRAINING-PLAN.md`, live orientation in `ORIENTATION-PLAN.md`; this plan fixes only
 where they sit in the order and what the hire gate reads from them.
@@ -172,23 +171,23 @@ number, CDL state — plus optional licence photos **[V]** (`record_applicant_id
 
 | ID | Finding | Fix | Batch |
 |---|---|---|---|
-| **A-1** | **`d61557dc` can never be hired.** The handbook reuses the packet's adopted signature (`handbookCeremony.ts:91–92` → `handbook_no_adopted_signature`); `handbook_marks` has no other driver writer; a filed packet cannot be re-signed (DR033, 0339:157/0340:100); the handbook is a hire blocker. `canOpen` checks only `submittedAt` (`handbookContract.ts:139`; `openHandbookSigning`, `handbookSigning.ts:103–107`). | Q-AW1 (ruling), then `canOpen` also requires an adopted signature and the drawer says why. | **C0 — by 2026-09-28 18:00 UTC** |
-| **A-2** | **Opening the handbook does not extend the link** — `openHandbookSigning` is plain TypeScript updating two stamps (`handbookSigning.ts:109–114`); there is **no SQL function** for it. 0374's trigger (`:146`) refuses every mark when `expires_at <= now()` (HB021), the office's countersign included (`carrierMark`, `:165`), which surfaces as `insert_failed` → 500 "Could not record the carrier's signature" (`routes/handbook.ts:41`). All three existing extenders — send (0365:235), `open_packet_signing` (0369:197), nudge (0232:58) — skip a filed invitation. | Code only: `openHandbookSigning` also sets `expires_at = greatest(expires_at, now() + 14 days)`; map HB021 to a 409 with words. | **C0** |
-| **A-3** | **MVR state field accepts 60 chars, the application 80** (`packages/shared/src/hiringEvidence.ts:169` vs `applicationContract.ts:212`) → a long authority can never be covered → never hired. | One shared constant. (Part 1's state picker removes the free-text case going forward, D-AW3.) | **C0** |
-| **A-4** | **Both mid-flight applicants stuck at 4 of 6 permissions**: `permissions_signed` shows "waiting on them" (`hiringChecklist.ts:229–238`) though their ceremony is closed; MVR recording refuses without `mvr` (`authorizationContract.ts:428`). Only a paper grant unsticks them; a comment names it (`:233–234`), the UI does not. | Checklist row names the paper door when the ceremony is closed and purposes are missing; A-7 first. | **C0** |
+| **A-1** | **`d61557dc` can never be hired.** The handbook reuses the packet's adopted signature (`handbookCeremony.ts:91–92` → `handbook_no_adopted_signature`); `handbook_marks` has no other driver writer; a filed packet cannot be re-signed (DR033, 0339:157/0340:100); the handbook is a hire blocker. The capture path refuses after filing (`applicationCapture.ts:81`, TS only; the SQL stager 0230:131 has no phase check). `d61557dc` holds 0 `signature_mark` captures. | **C0b**: when an invitation is filed, its handbook open and unfiled, and it has no packet marks, the handbook screen asks for a signature (typed name + drawn/typed image). The image is staged in the `signature_mark` capture slot (a new branch of `openSession` allowed only in that state); the typed name is carried on the first `handbook_marks.signed_name` and read back from there. **Labelled in code as a workaround for the missing `signature_adoptions`, removed by C3s (D-AW15).** The office countersigns on the same visit, so the 90-day prune of the capture is harmless after filing. `canOpen` unchanged. | **C0b**
+| **A-2** | **Opening the handbook does not extend the link, and re-pressing it does nothing** — `openHandbookSigning` returns early when already opened (`handbookSigning.ts:107`) before any update; `d61557dc` was opened 2026-09-25 20:08. 0374's trigger refuses every mark when `expires_at <= now()` (HB021), the office's countersign included (`carrierMark`), surfacing as `insert_failed` → 500 (`routes/handbook.ts:41`). All three existing extenders (0365:235, 0369:197, 0232:58) skip a filed invitation. | **C0a**: every press — including one on an already-opened, unfiled handbook — sets `expires_at = max(expires_at, now() + 14 days)` (TS update in `handbookSigning.ts`, audited `recruiting.handbook_link_extended` with invitation id + new expiry only); the early return moves below it. HB021 → 409 `link_expired` with words. **Fallback if C0a cannot merge before 2026-09-28 18:00 UTC:** a one-off audited SQL `update application_invitations set expires_at = now() + interval '14 days' where id = '<d61557dc…>'`, run by the owner. | **C0a**
+| **A-3** | **MVR state field accepts 60 chars, the application 80** (`packages/shared/src/hiringEvidence.ts:169` vs `applicationContract.ts:212`) → a long authority can never be covered → never hired. | One shared constant. (Part 1's state picker removes the free-text case going forward, D-AW3.) | **C0c** |
+| **A-4** | **Both mid-flight applicants stuck at 4 of 6 permissions**: `permissions_signed` shows "waiting on them" (`hiringChecklist.ts:229–238`) though their ceremony is closed; MVR recording refuses without `mvr` (`authorizationContract.ts:428`). Only a paper grant unsticks them; a comment names it (`:233–234`), the UI does not. | Checklist row names the paper door when the ceremony is closed and purposes are missing; A-7 first. | **C0c** |
 
 ### 3.2 Bugs
 
 | ID | Finding | Fix | Batch |
 |---|---|---|---|
 | **A-5** | **#1059 changes fines above signatures already given.** `PACKET_VERSION = "packet-2026-09-25"` (`defaultWording.ts:71`) is identical on main and on the branch; `application_packet_marks` has no version column (production columns read); the packet renders only at filing (`renderFiledDocument`, `file.ts:165`). `f2b142e4`'s 20 marks would file under new fines. | `packet_version` on each mark (M1); filing compares; Q-AW2 decides what happens to older marks. **#1059 stays open until C2.** | M1 + C2 |
-| **A-6** | **Handbook version not compared.** `handbook_marks.handbook_version` exists (0374:99, NOT NULL) but is stamped with the server's current `HANDBOOK_VERSION` at insert; countersign files the current text without comparing (`handbookSigning.ts:165–245`). `HANDBOOK_VERSION` is a content hash, so #1059 changes it. 0 marks in production. | Code only: the client sends the version it rendered; a mismatch is refused; countersign refuses when the marks' version ≠ current. | **C0** |
-| **A-7** | **A paper permission has no `invitation_id`** (`routes/authorizations.ts:141–157`) → the link still asks for it on screen, it is missing from the filed permissions, the checklist (by driver, `applicantChecklist.ts:261`) counts it. It stores the office's `req.ip` as the signer's attribution (`:152`). | Resolve the driver's live invitation and write it. The existing unique index `uq_driver_authorizations_invitation_purpose` (0228) then refuses duplicates — ⚠ it covers `revokes is null`, so a re-grant after a revocation hits 23505: refuse with words. `accepted_ip`/`_user_agent` null for paper. | **C0** |
-| **A-8** | **A failed road test recorded on the DQF page counts as passed** — `hasKind("road_test")` (`hiringChecklist.ts:283`); that writer's `result` is `z.string().max(400)` (`complianceContract.ts:211`). RT3's ceremony writes a record **only** on a pass (`roadTest.ts:250–265`). | Count a `road_test` record when `detail.source = 'road_test'` (ceremony) OR `detail.passed = true`; the DQF writer gains a pass/fail field. Existing ceremony rows keep counting. | **C0** |
-| **A-9** | **Hire-gate bypass.** `POST /compliance/qualification-records` (`evidence/routes/compliance.ts:166`) accepts `handbook`/`road_test` (only `psp_report` refused, `complianceContract.ts:230`). `PATCH /roster/drivers/:id` (`drivers.ts:193`) sets `status` with no hire check. **There is no database guard on applicant→active**: `guard_driver_lifecycle` (0213) checks only JWT roles and the service role bypasses it; `hire_applicant` (0218) checks inside its own RPC. | Refuse ceremony-owned kinds on the generic door; refuse `applicant → active` on the PATCH (route guard). A DB trigger is Q-AW21. | **C0** (route) |
+| **A-6** | **Handbook version not compared.** `handbook_marks.handbook_version` exists (0374:99, NOT NULL) but is stamped with the server's current `HANDBOOK_VERSION` at insert; countersign files the current text without comparing (`handbookSigning.ts:165–245`). `HANDBOOK_VERSION` is a content hash, so #1059 changes it. 0 marks in production. | Code only: the client sends the version it rendered; a mismatch is refused; countersign refuses when the marks' version ≠ current. | **C0c** |
+| **A-7** | **A paper permission has no `invitation_id`** (`routes/authorizations.ts:141–157`) → the link still asks for it on screen, it is missing from the filed permissions, the checklist (by driver, `applicantChecklist.ts:261`) counts it. It stores the office's `req.ip` as the signer's attribution (`:152`). | Resolve the driver's live invitation and write it. The existing unique index `uq_driver_authorizations_invitation_purpose` (0228) then refuses duplicates — ⚠ it covers `revokes is null`, so a re-grant after a revocation hits 23505: refuse with words. `accepted_ip`/`_user_agent` null for paper. | **C0c** |
+| **A-8** | **A failed road test recorded on the DQF page counts as passed** — `hasKind("road_test")` (`hiringChecklist.ts:283`); that writer's `result` is `z.string().max(400)` (`complianceContract.ts:211`). RT3's ceremony writes a record **only** on a pass (`roadTest.ts:250–265`). | Count a `road_test` record when `detail.source = 'road_test'` (ceremony) OR `detail.passed = true`; the DQF writer gains a pass/fail field. Existing ceremony rows keep counting. | **C0c** |
+| **A-9** | **Hire-gate bypass.** `POST /compliance/qualification-records` (`evidence/routes/compliance.ts:166`) accepts `handbook`/`road_test` (only `psp_report` refused, `complianceContract.ts:230`). `PATCH /roster/drivers/:id` (`drivers.ts:193`) sets `status` with no hire check. **There is no database guard on applicant→active**: `guard_driver_lifecycle` (0213) checks only JWT roles and the service role bypasses it; `hire_applicant` (0218) checks inside its own RPC. | Refuse ceremony-owned kinds on the generic door; refuse `applicant → active` on the PATCH (route guard). A DB trigger is Q-AW21. | **C0c** (route) |
 | **A-10** | **Double filing.** Countersign has no claim: two presses both file PDF + record before `handbook_filed_at` (`handbookSigning.ts:258`). Road test files form → certificate → record with no cleanup (`roadTest.ts:245–281`). Append-only → permanent. | M1: `application_invitations.handbook_filing_claimed_at` + partial unique indexes on `qualification_records` (§8.2). C2: claim first, then file. | M1 + C2 |
 | **A-11** | **SMS.** Held texts are dropped (the nudge stamps and rotates before sending, `applicationNudgeSweep.ts:215–235`; `applicationSend.ts:57–58` says "nothing retries it"); the window is 19–24 UTC (§2.3.6); the public terms say "held until the next day" (`SmsTermsPage.vue:66`) — false; the webhook handles only `message.received` (`lib/sms.ts:139`), so accepted-then-failed reads "sent". | M1: `sms_outbox` + `sms_suppressions`. C2: zone derived from Part 1's state/ZIP (D-AW12); drain in the scheduler; delivery receipts; terms corrected; stale comment fixed. | M1 + C2 |
-| **A-12** | Road-test certificate prints the examiner's **typed name, silently**, when the signature file is missing (`roadTest.ts:171–173`). Blank licence number and UTC date: reported by the audit, **not re-verified** (§10). | Refuse without a signature file; refuse a pass without a licence number; carrier-zone date — after confirming the last two. | **C0** |
+| **A-12** | Road-test certificate prints the examiner's **typed name, silently**, when the signature file is missing (`roadTest.ts:171–173`). Blank licence number and UTC date: reported by the audit, **not re-verified** (§10). | Refuse without a signature file; refuse a pass without a licence number; carrier-zone date — after confirming the last two. | **C0c** |
 | **A-13** | Handbook place h1 still promises "receipts" (`handbookContract.ts:24`) after #1059 removes them. | Ships inside #1059's rebase. | C2 |
 
 ### 3.3 Gaps
@@ -201,16 +200,16 @@ number, CDL state — plus optional licence photos **[V]** (`record_applicant_id
 - **G-3** An MVR from an earlier application counts; §391.23(a) wants the inquiry within 30 days. → C2.
 - **G-4** "Indiana BMV" and "IN" are two states. → Part 1's state picker (C3).
 - **G-5** DQ binder footer uses `StandardFonts.Helvetica` (`dqBinder/merge.ts:112`); `pdfUnicodeText`
-  (`pdfFonts.ts:74`) never NFC-normalises. → C0.
+  (`pdfFonts.ts:74`) never NFC-normalises. → C0c.
 - **G-6** `handbook_marks`, `application_packet_marks` not in `RETENTION_FORBIDDEN`
-  (`dataRetentionPolicy.ts:250`). → C0.
+  (`dataRetentionPolicy.ts:250`). → C0c.
 - **G-7** The checklist input is built twice (board + checklist); the board's draft read hits
   PostgREST's 1,000-row cap at scale. → C2.
 - **G-8** Templates page shows the paper button to view-only users; the blank packet prints "Signed
   electronically" on withdrawn pages; template copy names pages 4 and 19 only
-  (`recruitmentTemplatesContract.ts:63`). → C0.
+  (`recruitmentTemplatesContract.ts:63`). → C0c.
 - **G-9** Paper grant: no signing-date field; the "scan" can be any document of the driver; no
-  re-hash; `verbal_documented` needs no evidence but opens `mvr_order`; draft wording allowed. → C0 +
+  re-hash; `verbal_documented` needs no evidence but opens `mvr_order`; draft wording allowed. → C0c +
   Q-AW15.
 - **G-10** Road test: no record the driver was handed the certificate; §391.33 equivalency counted but
   not recordable by a recruiter. → Q-AW19.
@@ -220,7 +219,7 @@ number, CDL state — plus optional licence photos **[V]** (`record_applicant_id
 - **G-12** Stale comments: "fourteen" steps (`hiringChecklist.ts:13/19/24/204`, there are 17); "handbook
   has no evidence table" (`packages/shared/src/hiringEvidence.ts:58`); `packetStatic.ts:68` still has
   the $20 receipts row; the `subject_to_fmcsr` JSDoc (`applicationContract.ts:155–159`) describes
-  §40.25(j). → C0.
+  §40.25(j). → C0c.
 - **G-13** **The signed permissions can print a different signature from the one signed.** "Print what
   they have signed" reads the applicant's CURRENT staged `signature_mark` at print time
   (`signatureMarkBytes`, `applicationPdf/permissions.ts:215`) **[V]**; that slot is replaceable ("a
@@ -254,7 +253,7 @@ federal Clearinghouse consent cannot be collected by us.**
 | (b)(4) Date | `certified_at` server-stamped | — |
 | (b)(5) Licences | Covered; all held in 3 years (Q-AF4) | Moves to Part 1 |
 | (b)(6)–(b)(9) | Covered | — |
-| (b)(10)(i) Employer **address** | `address_line1/city/state` `.nullish()` (`:136–138`) | Required for new filings (C2, §8.3 AW1) |
+| (b)(10)(i) Employer **address** | `address_line1/city/state` `.nullish()` (`:136–138`) | Required for new filings (C2, AW1 §8.4) |
 | (b)(10)(iii) **Reason for leaving** | `.nullish()` (`:154`) | Required |
 | (b)(10)(iv)(A) Subject to FMCSRs | `.nullish()` (`:160`); its JSDoc describes §40.25(j) | Required; fix the comment |
 | (b)(10)(iv)(B) DOT safety-sensitive | `.nullish()` (`:161`) | Required |
@@ -298,20 +297,20 @@ federal Clearinghouse consent cannot be collected by us.**
 |---|---|---|
 | **D-AW1** | **One link, three visits.** One invitation, one applicant token. New stamp `intake_completed_at`, distinct from `releases_completed_at`. | Two tokens would double rotation/revival/expiry and strand drafts (Q-AX5). |
 | **D-AW2** | **Part 1** collects identity + phone + current address + CDL + every licence held in 3 years + documents + selfie + two screening questions, then the FCRA summary, then the six permissions. **Entirely remote.** | Screening inputs arrive before screening. The FCRA remote-applicant route holds only if "as of the time at which the person procures the report… the only interaction… has been by mail, telephone, computer" — §604(b)(2)(C)(ii)/(b)(3)(C)(ii) **[V]**. |
-| **D-AW3** | **Part 1's facts live in their own tables** — `application_intakes` (1:1 with the invitation) and `application_intake_licences` — keyed on the INVITATION (like packet marks, so off `merge_driver`), never pruned, and written by a new `record_applicant_intake` RPC that also writes `drivers`. The MVR's jurisdictions are read from `application_intake_licences`. Part 2 shows them read-only. Legacy invitations (the two mid-flight) fall back to the draft, labelled as legacy. | §2.3.1–2; fixes G-3's fall-back, G-4, G-7's source. |
+| **D-AW3** | **Part 1's facts live in their own tables** — `application_intakes` and `application_intake_licences` (§8.2), keyed on the invitation, never pruned, written by `record_applicant_intake`, which **replaces `record_applicant_identity` as the single identity writer (amends D-AF8)**; `record_applicant_identity` is dropped in M2 once no caller remains. MVR jurisdictions are read from the licences table. **At certification the filed payload is composed from the draft plus the intake tables** (the §391.21 document must carry them), and the packet renders from the composed payload. Legacy invitations (no intake row) keep reading the draft, and C2 copies the two mid-flight drafts' licence lists into `application_intake_licences` with `source = 'legacy_draft'` before the 90-day prune (mid-December). | §2.3.1–2; G-3, G-4, G-7. |
 | **D-AW4** | **Required documents**: CDL front + back required to finish Part 1; medical card required or "I don't have one yet". **No SSN card in Part 1** (`ssn_card` stays in the CHECK; only `APPLICATION_CAPTURE_REQUESTED` changes). **Part 1's captures are promoted to `documents` when Part 1 completes**, not at filing. The selfie is **never** promoted to `documents` (append-only, conflicts with a retention promise); it keeps its own retention. | Owner asked for required documents; §4 1324b risk; §2.3.2 retention. |
 | **D-AW5** | Clearinghouse after the drug result is a **warning**, not a `requires` edge (clearinghouse keeps `requires: []`). The driver's portal consent is its own recorded fact (`clearinghouse_portal_consent` qualification kind). | Law orders neither (§382.701(a)(1), §382.301(a) **[V]**); a carrier preference warns. §382.703 consent is a DQF fact. |
 | **D-AW6** | Drug-test site/appointment is a manual record (`drug_test_appointments`) + a locator link; no lab integration now. Operational, not DQF evidence. | Tens of applicants a month; Q-AW7. |
-| **D-AW7** | Travel gets a record (`applicant_travel`, keyed on the invitation). **"Ready to travel"** = permissions, MVR (every jurisdiction), PSP, drug test, Clearinghouse, **medical certificate** (kept — Q-HM5), application filled (Q-AW9). `medical_certificate.requires` moves from `application_filled` to the intake stamp. `office_approved`, `orientation_videos`, `employment_investigation` stop being before-travel. | The owner's order; Q-HM5 preserved. |
-| **D-AW8** | **Phone verification before filing** is its own append-only record `employer_verification_calls` keyed on the invitation + the draft employer's stable key (dates, position, reason, CMV, DOT-tested — each confirmed/corrected/not confirmed; who called; who answered). At filing, `submit_driver_application` copies each call into `employer_inquiries` (method `phone`) against the new `driver_employment_history` row, so §391.23's record is one record after filing. | `employer_inquiries.employment_id` cannot exist before filing (§2.2). Needs a stable per-employer key in the draft (§8.3 AW1). |
+| **D-AW7** | Travel gets a record (`applicant_travel`). **The travel writer REFUSES unless `readyToTravel`** (Q-HM5: "a hard gate on the invitation to come in"), expressed as `TRAVEL_REFUSES_WITHOUT` derived from `beforeTravel`, like `HIRE_REFUSES_WITHOUT` — not as a `requires` edge (`hiringSteps.ts:188`: requires are law or a constraint, never a preference). Before-travel = permissions, MVR, PSP, drug test, Clearinghouse, **medical certificate** (Q-HM5, kept), application filled. `office_approved`, `orientation_videos`, `employment_investigation` stop being before-travel. **Amends D-HM9/Q-HM3's seam**: videos are before ARRIVAL, not before the ticket; when D4 ships, `OPEN_SIGNING_WARNS_ON` and the road-test drawer warn on them. | The owner's order; Q-HM5 preserved. |
+| **D-AW8** | **Phone verification before filing** is its own append-only record `employer_verification_calls` keyed on the invitation + the draft employer's stable key (dates, position, reason, CMV, DOT-tested — each confirmed/corrected/not confirmed; who called; who answered). At filing, `submit_driver_application` copies each call into `employer_inquiries` (method `phone`) against the new `driver_employment_history` row, so §391.23's record is one record after filing. | `employer_inquiries.employment_id` cannot exist before filing (§2.2). Needs a stable per-employer key in the draft (§8.4 AW12 AW1). |
 | **D-AW9** | **Scanner** = native camera via the file input (D-APP11 stands) + in-browser metrics (advisory until thresholds exist; D-SCAN10 stands) + server re-hash and metrics + PDF417 autofill. No OpenCV. | §6.6. |
 | **D-AW10** | **Selfie phase 1** = a photo compared by a person; phase 2 (vendor) only after counsel. | §6.7. |
 | **D-AW11** | Part 1 is a linear stepper; Part 2 a task-list hub; one thing per page; add-another loops; check your answers; memorable-date boxes. | §6.4, §6.8. |
 | **D-AW12** | SMS window uses the zone derived from Part 1's state (and ZIP where a state spans two zones: take the strictest); unknown stays strict; held messages go to `sms_outbox` and the scheduler drains them when the window opens. No `drivers.time_zone` column — derived, never stored. | A-11 at the root; deriving beats restating. |
-| **D-AW13** | The four employer fields, §40.25(j), and a gap explanation become required **for new filings** through the certification/send refinement (`applicationBeforeCertificationSchema`, `applicationContract.ts:408`), **not** by changing `.nullish()` — the base schema must still parse append-only history, and there is no contract version constant. | §4; append-only filings. |
-| **D-AW14** | **Signing happens on the driver's own phone.** "Send for signing" (the office's act, which keeps D-AF3) mints the sign link and **sends it by SMS (if consented) and email** — never opened on an office computer. **Amends D-AF6/D-AF7.** The signing screen stays behind the date-of-birth unlock (D-APP16, `ApplyPage.vue:370–385` **[V]**). A text needs A-11's fix (outbox + zone) to arrive during office hours; email always goes. | Owner, 2026-09-26: "we will send link to his phone and he will sign there". |
-| **D-AW15** | **Adopt once, click everywhere.** The first signing (Part 1's permissions) asks for the signature AND initials once; each is kept as an append-only **adoption record** with its image frozen. Every later place — permissions, packet, handbook — is one click that applies it, and every mark references the adoption it used. The office signing session opens with "This is your signature — use it" (or adopt a new one, which makes a new record). | Owner's DocuSign model. Fixes A-1/Q-AW1 at the root (the handbook no longer depends on packet marks) and G-13 (a print shows the image that was adopted, not the latest capture). |
-| **D-AW16** | **One envelope at step 13: application packet + handbook, one session, one link, place by place.** The handbook's places join the packet's stop list ("Place N of M" across both), the viewer switches document, nothing can be skipped, and both file together on the last place. The handbook's "only after the packet is filed" rule (HB022, 0374:149) becomes "only after signing is opened". Packet p25 (handbook receipt) is withdrawn, because h5 is the receipt (Q-AW18 resolved). | Owner: "move from section to section easy and smoothly". |
+| **D-AW13** | The four employer fields and a gap explanation become required **for new filings** through the certification refinement (`applicationBeforeCertificationSchema`, `applicationContract.ts:408`), not by changing `.nullish()` — the base schema must parse append-only history. **§40.25(j) is enforced by `record_applicant_intake` in Part 1**, not by the draft refinement. | §4; append-only filings. |
+| **D-AW14** | **Signing happens on the driver's own phone, sent by the office while the driver is present.** "Send for signing" mints a fresh sign link (rotating any earlier one — `open_packet_signing` sets a new hash per call, 0369:210) and sends it by **email** always, and SMS where the driver consented (production has 0 consents today). **Supersedes D-AF6/D-AF7 and restates D-AF3**: "in person" is the office's act of sending while the driver is in the office, not the device. The link lives **72 hours** from sending. The signing screen stays behind the date-of-birth unlock (D-APP16), which gains a **per-link attempt counter: 5 wrong answers revoke the link** and the office re-sends (M1 column `unlock_failures`). A 6-digit code texted/emailed to the driver is **on by default** for the sign link (Q-AW25). | Owner, 2026-09-26: "we will send link to his phone and he will sign there". The DOB is printed on the CDL photographed in Part 1, so it cannot be the only secret once a link travels. |
+| **D-AW15** | **Adopt once, click everywhere.** Part 1 has an **Adopt your signature and initials** screen (§6.2 screen 13, C3s) before the permissions; each is kept as an append-only `signature_adoptions` row with its image frozen in the evidence bucket (the row IS the registration; the orphan reconcile is extended to its `storage_path`). Every later place — permissions, packet, handbook — is one click that applies it, and every mark stores `adoption_id`. The office signing session opens with "This is your signature — use it" (a new adoption supersedes the old one via `superseded_by`). Legacy marks (`adoption_id` null) print from the staged capture as today; C3s back-fills one adoption row per legacy invitation from its capture before the capture's prune date. | Owner's DocuSign model. Fixes A-1 at the root and G-13; **also resolves ORIENTATION-PLAN Q-OR8** (a driver signature exists before orientation). |
+| **D-AW16** | **One envelope at step 13, one link, place by place, two filings**: packet places → certification (files the packet) → handbook places → the office countersigns (files the handbook, under A-10's claim). "Place N of M" spans both; **handbook places are NOT in `record_packet_mark`'s `p_expected_count`**. HB022 becomes "refuse unless `signing_opened_at is not null OR submitted_at is not null`" (the OR keeps legacy filed invitations such as `d61557dc`, which predate 0369's stamp), shipped in **M2 after `d61557dc` is filed**, together with 0374's `application_invitations_handbook_order_check` (which must change the same way). Packet p25 is withdrawn — h5 is the receipt (closes Q-AW18, G-1 and MVR plan Q-MVR7); `f2b142e4` has already marked p25, and its filed PDF prints the withdrawal notice there, as D-PKT19 did for p15/p20/p22. | Owner: "move from section to section easy and smoothly". |
 | **D-AW17** | **Everything is prefilled, and the office previews it before sending.** Permissions: printed name and date drawn on the unsigned copy (identity exists from Part 1). Packet: add p01 date and p22 printed name to the preview. Handbook: a preview with name and masked SSN. "Preview" sits on the row where "Send for signing" is, for packet and handbook. Carrier lines per Q-HB1. SSN stays off the packet (D-HIRE6). | Owner: "all places … prefilled properly. We can review these documents prefilled." |
 
 ---
@@ -323,7 +322,7 @@ federal Clearinghouse consent cannot be collected by us.**
 `Welcome → Part 1 (linear) → wait for screening → Part 2 (task list) → wait for review/travel →
 (in the office) packet → handbook → filed card`.
 
-### 6.2 Part 1 — "Get started" (~8 minutes)
+### 6.2 Part 1 — "Get started" (~9 minutes)
 
 | # | Screen | Collects | Notes |
 |---|---|---|---|
@@ -331,14 +330,15 @@ federal Clearinghouse consent cannot be collected by us.**
 | 2 | E-sign consent | consent | existing |
 | 3 | About you | legal name (confirm/edit), mobile, DOB (3 boxes) | prefill from the invitation (WCAG 3.3.7) |
 | 4 | Where you live now | current address, ZIP first → city/state | drug-test site; SMS zone |
-| 5 | Your CDL | state (picker), number, class (A/B/C, `drivers.cdl_class` CHECK 0098), expiry (3 boxes), endorsements (H/N/X/T/P/S) | prefilled from the barcode on screen 8 when read; the driver confirms |
+| 5 | Your CDL | state (picker), number, class (A/B/C, `drivers.cdl_class`, 0098), expiry (3 boxes), endorsements (H/N/X/T/P/S) | prefilled from the barcode on screen 9 when read; the driver confirms |
 | 6 | Other licences, last 3 years | yes/no gate, then one licence per screen: **state picker** + optional agency text + number | `application_intake_licences` |
-| 7 | Two screening questions | §40.25(j) (past two years); §382.301(b) facts: in a DOT testing program in the previous 30 days AND either tested in the past 6 months OR in a random program for the previous 12 months | **Leads only** — the exception is the employer's to verify (§382.301(b)(3), (c)) **[V]** |
+| 7 | Two screening questions | §40.25(j) (past two years); §382.301(b): in a DOT testing program in the previous 30 days AND either tested in the past 6 months OR in a random program for the previous 12 months | **leads only** — the exception is the employer's to verify (§382.301(b)(3), (c)) |
 | 8–10 | Photos, one per screen | CDL front → CDL back (barcode read) → medical card ("I don't have one yet") | §6.6 |
-| 11 | Selfie | a photo | §6.7 |
-| 12 | Your rights | the FCRA summary (Q-AW13 text) | read, Continue |
-| 13–18 | Six permissions | one instrument per screen, DocuSign-style (AF6) | existing |
-| 19 | Done | what happens next; **Clearinghouse registration** (link + steps, why); SMS opt-in card | `intake_completed_at`; captures promoted |
+| 11 | Selfie | a photo | §6.7; built only once Q-AW5 is answered (AW6) |
+| 12 | Your rights | the FCRA summary (Q-AW13 text) | **`complete_applicant_intake` runs on Continue**: stamps `intake_completed_at`, promotes the photos to `documents` |
+| 13 | Adopt your signature and initials | typed name + image; initials | D-AW15 (C3s); until C3s ships the permissions adopt as today |
+| 14–19 | Six permissions | one instrument per screen, prefilled (D-AW17) | `record_driver_release` refuses without `intake_completed_at` (legacy: identity, as today) |
+| 20 | Done | what happens next; **Clearinghouse registration** (link + steps, why); SMS opt-in card | reads `releases_completed_at` |
 
 ### 6.3 The office's screening (target steps 5–7)
 
@@ -374,8 +374,8 @@ task; the hub opens on every return. Tasks:
 - **Training videos (10)** — D4 in its own plan. This plan leaves `orientation_videos` with
   `evidence: null` and not before-travel, so it does not block anything until D4 ships (§9 says what
   "done" means for it).
-- **Road test (11) → orientation (12) → packet + handbook (13) → hire (14)** — existing gates; handbook
-  after the packet (HB022). One "ready to hire" definition (G-11).
+- **Road test (11) → orientation (12) → packet + handbook in one envelope (13, D-AW16) → hire (14).** One
+  "ready to hire" definition (G-11).
 
 ### 6.6 The scanner wizard
 
@@ -462,89 +462,181 @@ Part 1; the office's review applies to the packet and handbook (Q-AW24).
 
 ## 7. What changes in the hiring state machine
 
+**Legacy rule (stated once, used everywhere):** an invitation is *legacy* when it has no
+`application_intakes` row and `created_at` is before C3's merge. For a legacy invitation,
+`intake_completed` reads **done when `releases_completed_at` is set or identity is on file**
+(0365's screen took the identity), and the MVR's jurisdictions come from `application_intake_licences`
+rows with `source = 'legacy_draft'`, else the draft. Production today: 8 invitations, all legacy.
+
 | Step | Change |
 |---|---|
 | `invitation_sent` | unchanged |
-| **`intake_completed`** (new, "them") | done when `intake_completed_at` is set |
+| **`intake_completed`** (new, "them", `phase: "screening"`, `federalGate: false`, `beforeTravel: true`) | done when `intake_completed_at` is set (legacy rule above) |
 | `permissions_signed` | requires `intake_completed` |
-| `mvr` | done when every `application_intake_licences` jurisdiction (legacy: draft) has an MVR within 30 days |
+| `mvr` | done when every jurisdiction has an MVR dated within 30 days of `intake_completed_at` (legacy: of the application) |
 | `psp`, `drug_test` | unchanged |
-| `clearinghouse` | done on the full-query record; the portal-consent fact shows as in-flight; warns if before `drug_test` |
+| `clearinghouse` | done on the full-query record; the portal-consent fact shows as in-flight; `requires: []` kept; the drawer warns if recorded before `drug_test` (D-AW5) |
 | `medical_certificate` | requires `intake_completed` (was `application_filled`); still federal and before-travel |
-| `application_sent`, `application_filled`, `office_approved` | `office_approved` no longer before-travel |
-| **`travel_booked`** (new, "us") | done on an `applicant_travel` row; requires every before-travel step |
-| `employment_investigation` | reads `employer_verification_calls` before filing, `employer_inquiries` after |
-| `orientation_videos`, `live_orientation` | unchanged (`evidence: null`) until D4/orientation ship |
+| `application_sent`, `application_filled` | unchanged |
+| `office_approved` | no longer before-travel |
+| **`travel_booked`** (new, "us", `phase: "screening"`, not before-travel) | done on a live `applicant_travel` row; its writer refuses on `TRAVEL_REFUSES_WITHOUT` (D-AW7) |
+| `employment_investigation` | reads `employer_verification_calls` before filing, `employer_inquiries` after; not before-travel |
+| `orientation_videos`, `live_orientation` | `evidence: null`, shown "not built yet", **excluded from `HIRE_REFUSES_WITHOUT` and `readyToHire`** (Q-AW23) |
 | `road_test` | the A-8 pass rule |
-| `application_signed`, `handbook`, `hired` | one "ready to hire" definition = `HIRE_REFUSES_WITHOUT`; `blockedBy` no longer shows an open step as blocked |
+| `application_signed`, `handbook`, `hired` | one "ready to hire" definition = `HIRE_REFUSES_WITHOUT`; `readyToHire` derives from it; `blockedBy` no longer marks an open step as blocked |
 
-`hiringSteps.ts` is 494 lines: split before editing (C1).
+**Derived lists after the change:** `APPLICATION_SEND_WARNS_ON = [mvr, psp, clearinghouse, drug_test,
+medical_certificate]`; `OPEN_SIGNING_WARNS_ON` unchanged in meaning (derived from `federalGate` +
+`beforeTravel`, now including `intake_completed` only if it is marked federal — it is not);
+`TRAVEL_REFUSES_WITHOUT` new. **Ordinals are derived from the array index**, not the hand-written
+"1"…"17" strings (`hiringSteps.ts:209–420`), so inserting two steps renumbers nothing by hand.
 
----
+**Also changes with it (C2, same PR):** `DRAWERS: Record<HiringStepKey,…>` gets entries for the two
+new steps (`hiringStepDrawers.ts:114`); `inviteState()` learns "intake in progress / intake done"
+(`useApplicationInvites.ts:141–188`); the "fourteen" comments (G-12); every test listed in §8.5.
+`hiringSteps.ts` (494 lines) is split first (C1).
 
 ## 8. Execution — large batches (owner, 2026-09-26)
 
 ### 8.1 How we ship
 
-- **One migration PR per wave (M), then large code PRs (C).** A migration and its first reader never
-  share a merge (a merge is served ~3 min in, the migration applies ~5 min in —
-  `docs/MIGRATION-DISCIPLINE.md`). An applied migration cannot be edited, so **M1 is designed
-  completely in §8.2 before it is written.**
-- Each PR: branch off `origin/main` into its own worktree, run every CI gate locally once
-  (`$?`-checked), open the PR, wait for CI on the current head, **merge when green without asking**,
-  verify the merge landed, append one line to §11.
-- Tests are written with the code in the same batch; mutation-proving is done for new gates and
-  refusals, not for every line.
-- **C-batches start only after M1 is verified applied in production** (`GET /api/version` schema +
-  `pg_proc`/`information_schema` check by hand — `lint:migration-ordering` cannot see functions or
-  CHECK widenings).
+- **One migration PR per wave, then large code PRs.** A migration and its first reader never share a
+  merge (served ~3 min in, applied ~5 min in — `docs/MIGRATION-DISCIPLINE.md`). An applied migration
+  cannot be edited, so M1 is specified completely in §8.2 before it is written.
+- **Function overloads never take a DEFAULT on the new parameter** — PostgREST picks a function by the
+  named keys in the call, and a defaulted parameter makes the old call ambiguous (PGRST203; this repo
+  recorded it in 0258:30–35, 0312:38–44). Every new function signature carries its own
+  `revoke all … from public, anon, authenticated; grant execute … to service_role` (0339:195–196) and
+  a PGlite case asserting `anon` cannot execute it and that old-key and new-key calls each resolve to
+  exactly one function. The old signature is dropped in a later migration once no caller remains.
+- **Every new RPC is service-role only** (`lint:rpc-org-default` does not apply); every 1:1 write is
+  UPDATE-first then INSERT … ON CONFLICT DO NOTHING (`lint:upserts`).
+- Each PR: own worktree off `origin/main`; every CI gate locally once, `$?`-checked; PR; CI on the
+  current head; **merge when green without asking**; verify it landed; one line in §12.
+- A C-batch that reads M1 starts only after M1 is **verified applied in production** by hand
+  (`pg_proc`, `information_schema.columns`, `pg_constraint`) — `lint:migration-ordering` cannot see
+  functions, triggers or CHECK widenings.
 
 ### 8.2 M1 — migration 0376 (schema only, no reader)
 
-All with RLS enabled (no client policies = deny-all), registered in `table-modules.json` (with a
-lifecycle/retention block), `table-writers.json`, table-producer waivers pinned to this plan (the
-producer ships in C2/C3), `schema.generated.sql` regenerated, seeded in `rls.test.mjs`, and a PGlite
-matrix per new function that prints a `RESULT` line. Any `driver_id` foreign key is listed in
-`mergeDriver.ts` DRIVER_REASSIGNMENTS (or `check-driver-references` fails). `qualification_records` is
-the evidence module's table → a `cross-module-waiver` line.
+**Before writing it:** re-check the next free number (0376 on 2026-09-26) and re-run the duplicate
+check that the partial unique indexes need (0 duplicate `handbook`/`road_test` records org-wide,
+measured 2026-09-26).
 
-| Object | Change |
+**Common to every new table:** `id uuid pk default gen_random_uuid()`, `org_id uuid not null
+references organizations on delete cascade`, `created_at timestamptz not null default now()`, RLS
+enabled with no policies, an `(org_id, invitation_id)` index, 0230's service-only guard-trigger
+pattern with its own errcode, registered in `table-modules.json` (lifecycle/retention block),
+`table-writers.json`, table-producer waivers pinned to this plan, seeded in `rls.test.mjs`,
+`schema.generated.sql` regenerated. `invitation_id` FKs are `on delete cascade` (like 0230:46,
+0339:44, 0374:94; invitations are never deleted — revoking sets `revoked_at`). Tables with `driver_id`
+(`sms_outbox`, `sms_suppressions`) are added to `DRIVER_REASSIGNMENTS` (`mergeDriver.ts:23–75`) **and**
+the `merge_driver` SQL cascade list; the others carry no `driver_id` and stay off it.
+`qualification_records` belongs to the evidence module → a `cross-module-waiver` line.
+
+**Free errcodes (grepped 2026-09-26):** AI007+, DR037+, HB025+, DA041+, SC012+; prefixes EV, SA, SO
+unused.
+
+| Object | Specification |
 |---|---|
-| `application_invitations` | `intake_completed_at timestamptz`, `handbook_filing_claimed_at timestamptz` |
-| `application_intakes` (new) | 1:1 invitation; phone, address, screening answers (§40.25(j), §382.301(b) leads), `fcra_summary_shown_at`, `medical_card_pending bool`, `selfie_verdict` CHECK (matches/does_not_match/unclear) + `_by` + `_at`; never pruned |
-| `application_intake_licences` (new) | invitation, state code (CHECK against the jurisdiction codes), agency text, number, expiry; never pruned |
-| `record_applicant_intake` (new function) | the single writer of intake + `drivers` (phone, address, `cdl_class`, `cdl_expires_at`) + `driver_endorsements`; fill-only for the applicant, overwrite for the office (0365's rule); refuses an expired link for the applicant. `record_applicant_identity` stays until its caller moves |
-| `application_captures` | slot CHECK widened with `selfie`; `server_sha256`, `metrics jsonb`, `verified_at`; a confirm RPC that writes them |
-| `application_packet_marks` | `packet_version text` (nullable — 20 production marks have none); `record_packet_mark` **12-argument overload** beside the 11-argument one, so the old caller keeps working through the deploy window |
-| `qualification_records` | partial unique indexes: one handbook record per invitation (`kind='handbook' and detail->>'source'='handbook_signing'`), one road-test record per idempotency key |
-| `qualification_records` + `documents` kind CHECKs | add `clearinghouse_portal_consent` to both (kept in lockstep since 0373) + `QualificationKind`/`DocumentKind` in shared |
-| `drug_test_appointments` (new) | invitation, site name/address/phone, window, donor id, arranged_by, sent_at |
-| `applicant_travel` (new) | invitation, mode, depart/arrive, confirmation ref, booked_by |
-| `employer_verification_calls` (new, append-only) | invitation, employer key, field outcomes, called_by, answered_by, called_at |
-| `sms_outbox` (new) | org, driver, body, reason, not_before, status, provider_message_id, sent_at, delivered_at |
-| `sms_suppressions` (new) | org, phone E.164, reason, created_at |
-| `application_screen_events` (new, prunable) | invitation, screen, entered_at, left_at |
-| `application_drafts` | `revision int`; `save_application_draft` overload with an expected revision |
-| `signature_adoptions` (new, append-only) | invitation, kind (signature/initials), typed name/initials, frozen image path (in the carrier's evidence folder, not the prunable capture), adopted_at, ip, user agent; never pruned |
-| `driver_authorizations`, `application_packet_marks`, `handbook_marks` | nullable `adoption_id` → `signature_adoptions` (nullable: existing rows predate it) |
-| `handbook_marks` insert guard (0374) | HB022 "application not filed" → "packet signing not opened" (D-AW16); a trigger function change |
-| `RETENTION_FORBIDDEN` | `handbook_marks`, `application_packet_marks`, `application_intakes`, `application_intake_licences`, `employer_verification_calls`, `signature_adoptions` |
+| `application_invitations` | + `intake_completed_at timestamptz`, + `handbook_filing_claimed_at timestamptz`, + `unlock_failures smallint not null default 0`, + `sign_link_expires_at timestamptz` (D-AW14's 72 h) |
+| `application_intakes` (new) | `invitation_id uuid not null unique`; `phone text` CHECK `~ '^\+1[2-9][0-9]{9}$'`; `address_line1`, `address_line2`, `city text`; `state text` CHECK `~ '^[A-Z]{2}$'`; `postal_code text` CHECK `~ '^[0-9]{5}$'`; `prior_positive_2y`, `dot_program_30d`, `dot_tested_6m`, `dot_random_12m boolean`; `fcra_summary_version text`; `fcra_summary_shown_at timestamptz`; `medical_card_pending boolean not null default false`; `selfie_verdict text` CHECK in (`matches`,`does_not_match`,`unclear`), `selfie_verdict_by uuid references auth.users on delete set null`, `selfie_verdict_at timestamptz`, CHECK `(selfie_verdict is null) = (selfie_verdict_at is null)`; `updated_at`. A working record: UPDATE allowed. Never pruned |
+| `application_intake_licences` (new) | `invitation_id`; `position smallint not null` (0 = current CDL); `state_code text not null` CHECK `~ '^[A-Z]{2}$'` (validated against `JURISDICTION_CODES`, `jurisdictions.ts:120`, in TS — 0339's reasoning for not enumerating in SQL); `agency text` (≤ the A-3 constant); `licence_number text not null` (1–40); `expires_on date`; `source text not null default 'intake'` CHECK in (`intake`,`legacy_draft`); unique `(invitation_id, position)`, unique `(invitation_id, state_code, licence_number)`. Never pruned |
+| `record_applicant_intake(p_org uuid, p_invitation uuid, p_driver uuid, p_intake jsonb, p_licences jsonb, p_endorsements text[], p_overwrite boolean) returns jsonb` (new) | security definer, `search_path = ''`. Writes the intake row (UPDATE-first); replaces licence rows only while `intake_completed_at is null`, else AI008 `intake_frozen` for the applicant (the office, `p_overwrite`, may correct); writes `drivers.phone`, `address_line1/2`, `city`, `state`, `postal_code`, `cdl_class`, `cdl_expires_at` (0098:44–63) fill-only or overwrite per 0365's rule; `driver_endorsements` `on conflict (driver_id, code) do nothing` (0098:88–98); DOB/CDL no./state through `record_applicant_identity`'s body, called internally so the draft patch keeps one writer; refuses AI001–AI004 as 0365; AI009 `prior_positive_required` when the §40.25(j) answer is null (D-AW13) |
+| `complete_applicant_intake(p_org uuid, p_invitation uuid, p_driver uuid, p_captures jsonb) returns timestamptz` (new) | under `for update` on the invitation: AI001/AI002/AI003; AI007 `intake_incomplete` unless the intake row has `fcra_summary_shown_at`, a `cdl_front` and `cdl_back` capture exist, and a `medical_card` capture exists or `medical_card_pending`; inserts `documents` rows for `p_captures` (0231's join shape) **excluding the `selfie` slot** and sets `promoted_document_id`; stamps `intake_completed_at = coalesce(intake_completed_at, now())`; **idempotent** (a second call inserts nothing) |
+| `application_captures` | slot CHECK (0230:53, 0346) + `selfie`; + `promoted_document_id uuid references documents(id) on delete restrict`; + `server_sha256 text`, + `metrics jsonb`, + `verified_at timestamptz`; `confirm_application_capture(p_org, p_invitation, p_capture uuid, p_server_sha256 text, p_bytes bigint, p_metrics jsonb) returns void` (new) |
+| `submit_driver_application` | **new overload** (no defaults on new params): skips captures whose `promoted_document_id` is set (0231:139–147 would otherwise hit a primary-key collision); takes the composed payload (D-AW3); copies `employer_verification_calls` → `employer_inquiries` (method `phone`, `wording_version = 'phone-call-v1'`, `body_sent` = a rendered summary — both NOT NULL, 0223:49–50) against the new `driver_employment_history` rows matched by the draft's stable employer `key`; sets `copied_inquiry_id` |
+| `record_driver_release` | **new overload** + `p_adoption_id uuid` (DR038 rule below) |
+| `record_packet_mark` | **one 13-argument overload** (11 existing + `p_packet_version text`, `p_adoption_id uuid`, no defaults): DR037 `packet_version_changed` when an earlier mark on the invitation has a non-null `packet_version <> p_packet_version`; DR038 `adoption_not_found` unless `p_adoption_id` is null or names a live `signature_adoptions` row of the same invitation whose `kind` matches the mark |
+| `application_packet_marks`, `driver_authorizations`, `handbook_marks` | + `packet_version text` (marks only; nullable — 20 production marks predate it; **NULL means the pre-versioning text**, see A-5) and + `adoption_id uuid references signature_adoptions on delete restrict` (all three; nullable) |
+| `signature_adoptions` (new, append-only) | `invitation_id`; `kind text not null` CHECK in (`signature`,`initials`); `typed_text text not null` (1–200); `storage_path text not null` = `documentStoragePath(org,'driver',driverId,id,'image/png')` (`complianceContract.ts:329`) in `DOCUMENTS_BUCKET`, no `documents` row; `sha256 text not null` (server-computed); `adopted_at`, `adopted_ip inet`, `adopted_user_agent text`; `superseded_by uuid references signature_adoptions on delete restrict`; guard SA010 (append-only, one allowed update: `superseded_by` null → value); partial unique `(invitation_id, kind) where superseded_by is null`; writer `record_signature_adoption(...)` |
+| `qualification_records` | partial unique `(org_id, (detail->>'invitation_id')) where kind = 'handbook' and detail->>'source' = 'handbook_signing'` (written today, `handbookSigning.ts:247–255`); partial unique `(org_id, driver_id, (detail->>'invitation_id')) where kind = 'road_test' and detail->>'source' = 'road_test' and detail ? 'invitation_id'` (C2 starts writing `invitation_id` on road tests) |
+| kinds | `clearinghouse_portal_consent` added to `qualification_records_kind_check` **and** `documents_kind_check` (lockstep since 0373), **and to both restrictive policies that enumerate testing kinds (0237:120–137)** — otherwise it is readable by everyone — and to `TESTING_RECORD_KINDS` (`auth.ts:295`), `QualificationKind`, `DocumentKind` in shared |
+| `drug_test_appointments` (new) | `invitation_id`; `site_name`, `site_address text not null`; `site_phone text`; `window_start timestamptz not null`, `window_end timestamptz` CHECK `window_end is null or window_end > window_start`; `donor_reference text`; `arranged_by uuid not null`; `sent_to_driver_at`, `cancelled_at timestamptz`. The live one = latest uncancelled |
+| `applicant_travel` (new) | `invitation_id`; `mode text not null` CHECK in (`air`,`bus`,`train`,`drive`,`other`); `depart_at`, `arrive_at timestamptz not null` CHECK `arrive_at >= depart_at`; `confirmation_ref text`; `booked_by uuid not null`; `cancelled_at` |
+| `employer_verification_calls` (new, append-only) | `invitation_id`; `employer_key uuid not null`; `employer_name text not null`; `outcomes jsonb not null` (keys `dates`,`position`,`reason`,`cmv`,`dot_tested`, each `confirmed`/`corrected`/`not_confirmed`; CHECK `jsonb_typeof(outcomes) = 'object'`); `corrections jsonb`; `called_by uuid not null`; `answered_by text not null`; `called_at timestamptz not null`; `copied_inquiry_id uuid references employer_inquiries on delete restrict`; guard EV010 (one allowed update: `copied_inquiry_id` null → value) |
+| `sms_outbox` (new) | `driver_id` → drivers cascade; `invitation_id` nullable; `phone text not null`; **`template text not null` + `params jsonb not null` — never a rendered body with a link in it** (the link is minted/rotated at drain time; a plaintext bearer token in the database is what 0232/Q-AX5 refused); `reason text not null` CHECK in (`nudge`,`application_sent`,`signing_link`,`drug_test_site`,`consent_confirm`,`other`); `not_before timestamptz not null`; `expires_at timestamptz not null` (a held text older than this is `cancelled`, never sent late); `status text not null default 'queued'` CHECK in (`queued`,`sending`,`sent`,`delivered`,`failed`,`suppressed`,`cancelled`); `attempts smallint not null default 0`; `last_error text`; `provider_message_id text unique`; `sent_at`, `delivered_at`, `failed_at`; drain index `(not_before) where status = 'queued'`. Retention 400 days |
+| `sms_suppressions` (new) | `driver_id` nullable; `phone text not null`; `reason text not null` CHECK in (`stop`,`carrier_block`,`invalid`,`manual`); `lifted_at timestamptz`; partial unique `(org_id, phone) where lifted_at is null`. **In `RETENTION_FORBIDDEN`** (pruning a STOP re-opens texting) |
+| `application_screen_events` (new) | `invitation_id`; `screen text not null` CHECK `~ '^[a-z0-9_.-]{1,60}$'`; `entered_at timestamptz not null`, `left_at timestamptz`; index `(org_id, entered_at)`. Retention 180 days |
+| `application_drafts` | + `revision int not null default 0`; **new overload** `save_application_draft(p_org, p_invitation, p_driver, p_payload, p_section, p_expected_revision int)` (no default): DA041 `draft_revision_conflict` when stored ≠ expected; increments; returns `revision` |
+| `RETENTION_FORBIDDEN` (TS, lands with the writers) | `application_intakes`, `application_intake_licences`, `employer_verification_calls`, `signature_adoptions`, `sms_suppressions` (the two marks tables go in C0, G-6) |
 
-**Held out of M1 → M2**, because an owner or counsel answer changes the shape: packet-template
-versioning for Q-AW2 (b); a `drivers` status trigger (Q-AW21); anything Q-AW5 phase 2 needs.
+**Tests in the M1 PR:** `application-intake.test.mjs` (AI001–AI004, AI007–AI009, fill-only vs
+overwrite, promotion idempotence, selfie never promoted); `signature-adoption.test.mjs` (append-only,
+one live per kind, DR037/DR038 on the 13-argument mark function, both overloads resolve, anon cannot
+execute); `submit-application-v2.test.mjs` (promoted captures skipped, verification calls copied);
+`sms-outbox.test.mjs`; every new table in `rls.test.mjs`.
 
-### 8.3 Code batches
+### 8.3 M2 — migration 0377 (after `d61557dc` is filed, after M1's readers exist)
 
-| Batch | Contents | Needs | Est. |
+- `handbook_marks_guard()` HB022 → `refuse unless (signing_opened_at is not null or submitted_at is not
+  null)`, keeping its append-only branch (`trg_handbook_marks_append_only` calls the same function) —
+  with a matrix case "filed, never opened, legacy" and "opened, not filed, v2".
+- `application_invitations_handbook_order_check` (0374:82–88) re-added as
+  `(handbook_signing_opened_at is null or signing_opened_at is not null or submitted_at is not null)
+  and ((handbook_signing_opened_at is null) = (handbook_signing_opened_by is null)) and
+  (handbook_filed_at is null or handbook_signing_opened_at is not null)`.
+- Drop the old 11-argument `record_packet_mark`, 5-argument `save_application_draft`, the old
+  `submit_driver_application` and `record_driver_release` signatures, and `record_applicant_identity`,
+  **each only after `pg_stat_user_functions`/a grep shows no caller**.
+- Held until answered: versioned packet templates (Q-AW2 (b)); a `drivers` status trigger (Q-AW21).
+
+### 8.4 The AW work items
+
+| ID | Scope | Batch |
+|---|---|---|
+| AW1 | Contract: required employer address/reason/FMCSR/DOT-tested via the certification refinement; `employment_gaps[]`; every draft `employment[]` item gains `key: uuid` (client-minted, optional in the base schema, required for new filings); fix the §40.25(j) JSDoc; add `employment_gaps` to `APPLICATION_SECTION_KEYS` | C2 |
+| AW2 | Intake writer + `complete_applicant_intake` caller + composed payload at certification | C2 |
+| AW3 | Part 1 shell (linear stepper), screens 1–7, 12, 20; FCRA summary; Part-1 nudge; memorable-date primitive in `@silvicom/ui` | C3 |
+| AW4 | Scanner wizard (§6.6 items 1–3, 6, 7) + server confirm (CPU per photo measured first) | C3 |
+| AW5 | PDF417 reader + AAMVA parser (shared, fixture-tested) + prefill | C3 |
+| AW6 | Selfie phase 1 + review drawer side by side + verdict | C3 **only after Q-AW5** |
+| AW7 | MVR from intake; 30-day freshness; one checklist-input builder for board + checklist; legacy draft copy | C2 |
+| AW8 | Drug-test appointments, portal-consent fact, send warnings | C2 |
+| AW9 | Part 2 task-list hub, loops, coverage meters, notice screen, check your answers, (b)(1) header, (b)(12) wording | C3 |
+| AW10 | Local draft replay (IndexedDB) with revision; resumable uploads (Supabase TUS on `application-captures`) | C3 |
+| AW11 | §7 state machine + travel | C2 |
+| AW12 | Phone verification per employer | C2 |
+| AW13 | Spanish on `/apply` + `APPLY_COPY` key-parity test | C4 |
+| AW14 | Screen events, Lighthouse CI in `typecheck-build` (listed in CLAUDE.md), 44 px sweep, offline test | C3 |
+
+**Routes (C2/C3), all under `requireSection("recruitment")` (GET = view, writes = manage), contracts in
+`packages/shared/src/applicantScreeningContract.ts`:** `POST/DELETE
+/recruiting/applicants/:driverId/drug-test-appointments`, `POST /…/travel`, `POST /…/employer-calls`,
+`POST /…/intake/selfie-verdict`, `POST /…/send-for-signing`, `POST /…/resend-link`. Public (per-link
+bucket, `applicationLimits.ts`): `POST /apply/:token/intake`, `POST /apply/:token/intake/licences`,
+`POST /apply/:token/intake/complete`, `POST /apply/:token/adoption`.
+
+### 8.5 Batches, dependencies and the critical path
+
+| Batch | Contents (precise) | Needs | Est. |
 |---|---|---|---|
-| **C0** (now, no migration; by 2026-09-28 18:00 UTC) | A-1 (after Q-AW1), A-2, A-3, A-4, A-6, A-7, A-8, A-9 (route guard + generic-door refusal), A-12 (verified parts), G-5, G-6, G-8, G-9 (date field, scan must be an `other` document registered via `/authorizations/document`, re-hash), G-12 | Q-AW1, Q-AW15 | 1½ days |
-| **M1** | §8.2 | this plan approved | 1 day |
-| **C1** (splits only, behaviour-neutral) | files the batches below would push past 500: `ApplyPage.vue` 491, `hiringSteps.ts` 494, `packetContinuation.ts` 489, `usePacketAdoption.ts` 490, `packetFieldValues.ts` 488, `draft.ts` 480, `applicationContract.ts` 473, `strings.flow.ts` 467, `employment.ts` 464, `packetOverlay.ts` 456, `strings.ts` 449, `publicApplication.ts` 439, `applicantBoard.ts` 437 | — | 1 day |
-| **C2** (after M1 applied) | A-5 (versions on marks; filing compares) → rebase and merge #1059 with A-13; A-10; A-11 + G-2 (outbox, suppressions, zone, receipts, terms, US-only numbers, per-link number cap, exact-keyword STOP, START, STOP revokes every live consent of that link); G-3; G-7 (one checklist-input builder); G-11; AW1 (required-for-new-filings refinement, `employment_gaps[]`, a stable employer key in the draft); AW2 writer; AW7 (MVR from intake); AW8 (drug-test appointments, portal consent, warnings); AW11 (travel, state machine §7); AW12 (phone verification + copy at filing) | M1, Q-AW7, Q-AW9 | 5 days |
-| **C3** (after M1 applied) | AW3 Part 1 shell + screens + FCRA summary + Part-1 nudge + memorable-date primitive in `@silvicom/ui`; AW4 scanner wizard + server confirm; AW5 barcode; AW6 selfie phase 1; AW9 Part 2 hub, loops, coverage meters, notice screen, check your answers, (b)(1) header, (b)(12) wording; AW10 local draft replay + resumable uploads (Supabase TUS on `application-captures`); AW14 screen events, Lighthouse CI, 44 px sweep, offline test | M1, C1, Q-AW3–6, Q-AW10, Q-AW12, Q-AW20 | 8–9 days |
-| **C3s** (after M1 applied; before any real step-13 signing) | D-AW14 send-for-signing by SMS + email (needs C2's SMS outbox); D-AW15 adoption records, the one-click apply, frozen images (G-13); D-AW16 one envelope, handbook in the stop walk, p25 withdrawn; D-AW17 prefilled permissions, packet and handbook previews on the signing row; retire `OpenSigningPanel`'s new-tab path | M1, C2 (SMS), Q-HB1, Q-AW24 | 4 days |
-| **C4** | AW13 Spanish on `/apply` + key-parity test; M2's readers | Q-AW11, M2 | 2 days + translation |
-| **QA** | §9's walk, fixes from it | all | 1–2 days |
+| **C0a — today, before 2026-09-28 18:00 UTC** | A-2 as fixed in §3.1; HB021 → 409. **Owner, same day:** add a carrier Representative (production has 0 — the countersign needs one) and confirm `d61557dc` still holds their link | — | 2 h |
+| **C0b — inside the extended window** | A-1's self-adoption (workaround, labelled) | C0a | ½ day |
+| **C0c** (parallel with M1) | A-3; A-4; A-6 (`handbookMarkRequestSchema` + `handbook_version`, mismatch → 409 `handbook_changed`, countersign compares the marks' distinct versions); A-7 (write `invitation_id`; 23505 on `uq_driver_authorizations_invitation_purpose` → 409 `already_granted_on_link`; `accepted_ip`/`_user_agent` null for paper); A-8 (`passed: z.boolean()` required for `road_test` on the DQF writer, stored in `detail.passed`; the fold counts `detail.source = 'road_test'` OR `detail.passed = true`); A-9 (`CEREMONY_OWNED_KINDS = ["handbook","road_test","employment_application","psp_report"]` exported from `complianceContract.ts`, refused by `compliance.ts:166`; PATCH `drivers.ts:193` `applicant → active` → 409 `use_hire`); A-12 (after re-reading the two unverified parts); G-5; G-6 (`handbook_marks`, `application_packet_marks` → `RETENTION_FORBIDDEN`); G-8; G-12; G-9 **only after Q-AW15** (else the default in §11) | — | 1 day |
+| **C1** (now, parallel) | Behaviour-neutral splits, one file each named in the PR: `ApplyPage.vue` (491) → page + `ApplyPhaseRouter.vue`; `hiringSteps.ts` (494) → + `hiringStepGraph.ts`; `packetContinuation.ts` (489), `usePacketAdoption.ts` (490), `packetFieldValues.ts` (488), `draft.ts` (480), `applicationContract.ts` (473) → + `applicationEmployerContract.ts`; `strings.flow.ts` (467), `employment.ts` (464), `packetOverlay.ts` (456), `strings.ts` (449), `publicApplication.ts` (439), `applicantBoard.ts` (437) | — | 1 day |
+| **M1** | §8.2 | this plan | 1½ days |
+| **C2** (after M1 applied) | A-5 (filing refuses marks whose `packet_version` differs from current; NULL = pre-versioning, filed only per Q-AW2); A-10 (claim `handbook_filing_claimed_at` first, then file; road test writes `invitation_id` and claims before filing); A-11 + G-2 (enqueue-then-drain; `runSmsOutboxOnce` its own scheduler in `schedulers.ts`, **every 5 minutes, api service only**, claims `for update skip locked limit 50`; zone from `smsZoneFor(state, zip)` in `smsQuietHours.ts`, strictest zone for split states; Telnyx delivery receipts in the webhook; terms page corrected; US-only numbers; ≤ 3 numbers per link; exact-keyword STOP/START; STOP revokes every live consent of that link and writes a suppression); G-3; G-7; G-11; **Q-AX5 re-send link** (rotates the hash, audited: id + expiry only); **Q-AX6 duplicate applicant** ("invite them again" on the existing record); AW1, AW2, AW7, AW8, AW11, AW12. **#1059 merges here only after Q-AW2 and Q-AW17 are ruled** | M1 | 5–6 days |
+| **C3** (after M1 applied; screens after C2's AW2) | AW3, AW4, AW5, AW9, AW10, AW14; AW6 only after Q-AW5 | M1, C1, C2 AW2 | 8–9 days |
+| **C3s** (before any real step-13 signing) | D-AW14 (send-for-signing by email; SMS when C2 lands; 72 h; unlock counter; code); D-AW15 (adoption screen, one-click apply, legacy back-fill); D-AW16 (one envelope, p25 withdrawn — update the pinned counts listed below); D-AW17 (prefilled permissions; packet + handbook previews on the signing row); retire `OpenSigningPanel`'s new-tab path | M1, C1, C2 for SMS only | 4 days |
+| **M2** | §8.3 | `d61557dc` filed; C3s merged | ½ day |
+| **C4** | AW13; M2's readers | Q-AW11, M2 | 2 days + translation |
+| **QA** | §9's walk | all; Q-AW23 | 1–2 days |
+
+**Critical path ≈ 12–15 working days:** C0a → M1 → (applied) → C2 AW2 → C3 → C3s → QA. C0c and C1
+run in parallel with M1; C2 in parallel with C3's non-screen work.
+
+**Tests and gates that change in the same PR as the code (measured 2026-09-26):**
+- p25 withdrawal (C3s): `applicationPacketMarks.test.ts` `p_expected_count` and "N unsigned" pins
+  (lines 110, 349, 371, 377, 447, 451, 476) each −1; `packetOverlay`, `packetSigningFields`,
+  `packetWithdrawals` tests listing withdrawn ids; web ceremony tests showing "Place N of 15/16".
+- State machine (C2): `hiringChecklist.test.ts`, `hiringEvidence.test.ts`, `applicationIntake.test.ts`
+  (shared); `applicantChecklist.test.ts`, `applicantBoard.test.ts`, `routes/routes.test.ts`,
+  `routes/publicApplication.test.ts` (api); `HiringChecklistCard.test.ts`, `HiringStepDrawer.test.ts`,
+  `ApplicantRecordPage.test.ts` (web); `supabase/tests/release-ceremony.test.mjs` (if
+  `record_driver_release` gains the intake precondition).
+- `lint:comment-claims` for any comment quoting a renamed test title; route-table and
+  `ui-system-inventory` snapshots for new routes/components.
 
 ---
 
@@ -560,9 +652,9 @@ The module is done when **every** line below is true and recorded in §11 with i
 4. A real applicant (QA org) has walked Part 1 → screening → Part 2 → travel → road test → packet →
    handbook → hire on an older Android and an iPhone, and every screen met §6.8's bars.
 5. Both production mid-flight applicants have a recorded outcome (Q-AW1, Q-AW2, A-4).
-6. The office has added the examiner and at least one carrier representative, and recorded one QA
+6. The office has added the examiner and at least one carrier representative (production had 0 of each on 2026-09-26), and recorded one QA road test and one QA handbook countersign.
    road test and one QA handbook countersign.
-7. Every counsel question this plan raised (Q-AW5, Q-AW13, Q-AW14, Q-AW16, Q-AW17) is in the counsel
+7. Every counsel question this plan raised (Q-AW5, Q-AW13, Q-AW14, Q-AW16, Q-AW17, Q-AW19) is in the counsel
    package with a recommendation.
 8. No `[I]` in this file remains without a named owner in §10.
 
@@ -572,7 +664,7 @@ The module is done when **every** line below is true and recorded in §11 with i
 
 | Item | Why unverified | Who |
 |---|---|---|
-| A-12: blank licence number, UTC date on the road test | not re-read in the verification pass | first task of C0 |
+| A-12: blank licence number, UTC date on the road test | not re-read in the verification pass | first task of C0c |
 | Cook County HRO §42-35 timing | text not obtainable (Municode renders by JavaScript) | counsel (Q-AW16) |
 | Face-geometry scans taken from photographs held covered by BIPA | case law not fetched | counsel (Q-AW5) |
 | Retroactivity of P.A. 103-769 (secondary: 7th Cir. 2026) | not read at source | counsel (Q-AW5) |
@@ -586,11 +678,11 @@ The module is done when **every** line below is true and recorded in §11 with i
 
 | ID | Question | Candidates | Recommendation |
 |---|---|---|---|
-| **Q-AW1** ⚠ 09-28 18:00 UTC | `d61557dc` has no packet signature, so the handbook can't be signed. | (a) re-issue; (b) paper handbook; (c) handbook adopts its own signature | **Answered by the owner's model (D-AW15)**: the handbook uses an adoption record, never packet marks. For `d61557dc` before C3s lands: C0 lets the handbook screen adopt a signature itself when none exists, and extends the link (A-2). |
+| **Q-AW1** | `d61557dc` has no packet signature, so the handbook can't be signed. | — | **Answered** by the owner's model (D-AW15). Until C3s: C0a extends the link, C0b lets the handbook screen take a signature (labelled workaround). |
 | **Q-AW2** | `f2b142e4` signed 20 marks on 09-17; fines and spelling change under them. | (a) re-open the changed pages; (b) file under the old text (versioned templates, M2); (c) re-issue | (b). |
 | **Q-AW3** | Required documents in Part 1? | — | CDL both sides; medical card or "I don't have one yet". |
 | **Q-AW4** | SSN card photo? | Part 1 / Part 2 optional / after hire | After hire; SSN typed at signing. |
-| **Q-AW5** | Selfie: photo + human, or automated match? | (a) / (b) Stripe / (c) none | (a) now; (b) after counsel. |
+| **Q-AW5** | Selfie: photo + human, or automated match? | (a) / (b) Stripe / (c) none | (a) now; (b) after counsel. **Blocks only AW6**, nothing else in C3. |
 | **Q-AW6** | No medical card yet? | block / allow and track | Allow; `medical_certificate` stays open and before-travel. |
 | **Q-AW7** | Which TPA/lab? Integrate? | manual + locator / Quest / eScreen / FormFox | Manual + locator; owner names the TPA. |
 | **Q-AW8** | Clearinghouse strictly after the drug result? | gate / warning | Warning (D-AW5). |
@@ -606,11 +698,15 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW18** | Handbook receipt signed twice (p25 + h5) | — | **Resolved by D-AW16**: withdraw p25. |
 | **Q-AW19** | Road test: examiner attestation; certificate handed over; §391.33 door | — | Record "handed over"; add the equivalency door; counsel note. |
 | **Q-AW20** | 44 px targets: `/apply` only or product-wide? | — | `/apply` first. |
-| **Q-AW21** | Applicant→active: route guard only, or also a DB trigger? | — | Route guard in C0; trigger in M2 if the owner wants defence in depth. |
+| **Q-AW21** | Applicant→active: route guard only, or also a DB trigger? | — | Route guard in C0c; trigger in M2 if the owner wants defence in depth. |
 | **Q-AW22** | Gap explanation threshold: 30 days (our coverage rule) or 59 (carrier's p5)? | — | 30 — stricter, and the office can ignore short ones. |
 | **Q-AW23** | Orientation videos/live orientation before D4 ships: excluded from the hire gate (§9.3)? | — | Excluded, shown as "not built yet". |
 | **Q-AW24** | The owner said "permissions, application and handbook" are prefilled and reviewed before sending. The permissions must be signed in Part 1, before screening. | (a) permissions prefilled from Part 1, no office review before; (b) office reviews permissions too, delaying screening | (a). |
-| **Q-AW25** | Signer check on the phone: date of birth (today) enough, or add a code texted to the number? | DOB / DOB + SMS code | DOB now; add the code if counsel asks (the driver is in the office at step 13). |
+| **Q-AW25** | Signer check on the phone for the sign link. | DOB only / DOB + one-time code | **DOB + a 6-digit code by default** (D-AW14): once the link travels by SMS/email, the DOB — printed on the CDL photographed in Part 1 — cannot be the only secret. |
+| **Q-AW26** | May a queued text hold a link? | rendered body / template + params, link minted at drain | Template + params (§8.2 `sms_outbox`); a plaintext bearer token never sits in the database. |
+| **Q-AW27** | Legacy invitations (all 8 in production) under the new rules | — | The legacy rule in §7 and §8.3's (M2) `OR submitted_at`; stated, not left to each batch. |
+| **Q-AX5** | Staff re-send of a lost link | (a) rotate on the same invitation / (b) new invitation | (a), audited, in C2 (one token now spans weeks and three visits). |
+| **Q-AX6** | Re-inviting from the board duplicates the applicant | (a) "invite them again" on the existing record / (b) merge later | (a), in C2. |
 
 ---
 
@@ -625,3 +721,16 @@ Append dated lines at the END.
   driver's phone with a new link, one adoption at the start, one click per place, section to section
   (D-AW14–D-AW17, §6.9, C3s). Resolves Q-AW1 and Q-AW18; adds G-13. Verified at the call sites:
   SMS consent is live (`sms-2026-09-25`), the signing screen sits behind the date-of-birth unlock.
+- 2026-09-26 — Second audit (three adversarial passes: precision, consistency, regressions), every
+  critical finding re-checked at the call site or in production. Corrections folded in: M1 fully
+  specified (§8.2) incl. `complete_applicant_intake` (Part-1 promotion would otherwise collide with
+  filing's `documents` insert, 0231:139–147), the `submit_driver_application` and
+  `record_driver_release` overloads, no-default overloads with their own grants (PGRST203, 0258),
+  `sms_outbox` holding no links, the 0237 restrictive policies for the new kind; the HB022 change moved
+  to M2 with `OR submitted_at` (`d61557dc` has `signing_opened_at` NULL — measured); A-2's fix moved
+  below the early return (`handbookSigning.ts:107`), with a SQL fallback; the intake stamp moved before
+  the permissions; a stated legacy rule for all 8 invitations; D-AW14 now supersedes D-AF6/D-AF7,
+  with a 72 h link, an unlock attempt counter and a one-time code (0 SMS consents in production —
+  email is the channel); two filings in one envelope; AW1–AW14 defined (§8.4); C0 split into
+  C0a/C0b/C0c; critical path stated. **Deadlines:** `d61557dc` 2026-09-28 18:00 UTC; `f2b142e4`
+  2026-10-01 22:14 UTC.
