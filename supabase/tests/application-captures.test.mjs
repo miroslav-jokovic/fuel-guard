@@ -371,11 +371,23 @@ ok(
 // ⚠ One function, not two. `create or replace` with an extra parameter would have left the old
 // eleven-argument overload standing, and an eleven-argument call would then match both and fail as
 // ambiguous. 0230 drops it explicitly; this is the assertion that it did.
+// ⚠ Since 0376 there are TWO on purpose: the 12-argument one this matrix is about, and a 13-argument
+// overload whose new parameter has no default (APPLICATION-FLOW-V2-PLAN §8.1), so no call shape the
+// 12-argument one accepts can match it. What must stay true is what this assertion was for — the
+// 11-argument signature is gone and nothing else sits at 12 arguments or fewer to shadow it.
 ok(
   "there is exactly ONE submit_driver_application — the old signature was dropped, not shadowed",
   (await count(
     `select count(*)::int as n from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'public' and p.proname = 'submit_driver_application'`,
+      where n.nspname = 'public' and p.proname = 'submit_driver_application' and p.pronargs <= 12`,
+  )) === 1,
+);
+ok(
+  "…and the 0376 overload beside it has no defaulted parameter, so it cannot make a 12-argument call ambiguous",
+  (await count(
+    `select count(*)::int as n from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = 'submit_driver_application' and p.pronargs > 12
+        and p.pronargdefaults = 0`,
   )) === 1,
 );
 const bucket = await one(`select public, file_size_limit from storage.buckets where id = 'application-captures'`);

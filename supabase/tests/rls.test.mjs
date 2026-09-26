@@ -2294,6 +2294,45 @@ async function main() {
         `           select '${org}', d.id, md5(random()::text), now() + interval '10 days', now(), now(), u.id from d, u returning id) ` +
         `insert into handbook_marks (org_id, invitation_id, placement_id, party, handbook_version, signed_name, affirmed) ` +
         `select '${org}', i.id, 'h1', 'driver', 'hb-rls-version', 'RLS Handbook', 'RLS' from i`,
+      // ── 0376, the applicant flow v2 (APPLICATION-FLOW-V2-PLAN §8.2) ─────────────────────────────
+      // Five of its nine tables carry a shape CHECK the synthesiser's placeholder text cannot meet —
+      // a two-letter state, a screen slug, all five verification outcomes, a storage key that names
+      // the row's own id, a template slug. Each exists to keep a malformed or dangerous value out
+      // (the template slug is half of "never a rendered body with a link in it"), so each is handed
+      // a real row rather than loosened. The other four seed themselves.
+      application_intake_licences: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Licence') returning id), ` +
+        `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `           select '${org}', d.id, md5(random()::text), now() + interval '10 days' from d returning id) ` +
+        `insert into application_intake_licences (org_id, invitation_id, position, state_code, licence_number) ` +
+        `select '${org}', i.id, 0, 'IL', 'D1234567' from i`,
+      application_screen_events: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Screen') returning id), ` +
+        `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `           select '${org}', d.id, md5(random()::text), now() + interval '10 days' from d returning id) ` +
+        `insert into application_screen_events (org_id, invitation_id, screen, entered_at) ` +
+        `select '${org}', i.id, 'part1.welcome', now() from i`,
+      employer_verification_calls: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Verified') returning id), ` +
+        `     u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-evc@example.com') returning id), ` +
+        `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `           select '${org}', d.id, md5(random()::text), now() + interval '10 days' from d returning id) ` +
+        `insert into employer_verification_calls (org_id, invitation_id, employer_key, employer_name, outcomes, called_by, answered_by, called_at) ` +
+        `select '${org}', i.id, gen_random_uuid(), 'RLS Freight', ` +
+        `'{"dates":"confirmed","position":"confirmed","reason":"confirmed","cmv":"confirmed","dot_tested":"not_confirmed"}'::jsonb, ` +
+        `u.id, 'Safety desk', now() from i, u`,
+      signature_adoptions: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Adopted') returning id), ` +
+        `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at) ` +
+        `           select '${org}', d.id, md5(random()::text), now() + interval '10 days' from d returning id, driver_id), ` +
+        `     a as (select gen_random_uuid() id) ` +
+        `insert into signature_adoptions (id, org_id, invitation_id, kind, typed_text, storage_path, sha256) ` +
+        `select a.id, '${org}', i.id, 'signature', 'RLS Adopted', '${org}/driver/' || i.driver_id || '/' || a.id || '.png', ` +
+        `repeat('a', 64) from i, a`,
+      sms_outbox: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Texted') returning id) ` +
+        `insert into sms_outbox (org_id, driver_id, phone, template, params, reason, not_before, expires_at) ` +
+        `select '${org}', d.id, '+13125550100', 'application.nudge', '{}'::jsonb, 'nudge', now(), now() + interval '1 day' from d`,
       samsara_ifta_jurisdiction_miles: (org) =>
         `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ifta', 240) returning id) ` +
         `insert into samsara_ifta_jurisdiction_miles ` +

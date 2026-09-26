@@ -48,6 +48,35 @@ const WAIVERS = new Map([
   // carrier_representatives and handbook_marks left it on 2026-09-25 (HANDBOOK-SIGNING-PLAN.md HB3):
   // recruiting/representatives.ts writes the first behind POST /api/recruitment/representatives, and
   // handbookCeremony.ts + handbookSigning.ts write the second. Pinned for the schema-only HB0 (0374) only.
+  //
+  // The five below are APPLICATION-FLOW-V2-PLAN.md §8.2's schema-only M1 (0376): a migration and its first
+  // reader never share a merge. The other four tables 0376 creates are written by its own functions and
+  // need no entry. Each leaves in the merge that ships its writer, named per entry.
+  [
+    "drug_test_appointments",
+    "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C2's AW8 writes it behind " +
+      "POST /recruiting/applicants/:driverId/drug-test-appointments; the entry leaves in that merge.",
+  ],
+  [
+    "applicant_travel",
+    "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C2's AW11 writes it behind " +
+      "POST /recruiting/applicants/:driverId/travel; the entry leaves in that merge.",
+  ],
+  [
+    "sms_outbox",
+    "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C2's A-11/G-2 enqueue and runSmsOutboxOnce " +
+      "drain write it; the entry leaves in that merge.",
+  ],
+  [
+    "sms_suppressions",
+    "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C2's STOP handling in the Telnyx webhook writes " +
+      "it; the entry leaves in that merge.",
+  ],
+  [
+    "application_screen_events",
+    "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C3's AW14 writes it from the /apply link; the " +
+      "entry leaves in that merge.",
+  ],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
