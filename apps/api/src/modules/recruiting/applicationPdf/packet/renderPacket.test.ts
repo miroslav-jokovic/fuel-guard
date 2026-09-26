@@ -110,27 +110,26 @@ describe("the rendered packet", () => {
   });
 
   /**
-   * ⚠ The assertion this file exists for, and it now says the OPPOSITE of what it used to.
+   * ⚠ The assertion this file exists for, and it has now flipped twice.
    *
-   * It read "the packet's typos never print, and their corrections do" — the guarantee D-PKT9 asked
-   * for. D-PKT11 (owner, 2026-09-14) reverses it: the packet is counsel's work product and prints as
-   * written, so the carrier's own spelling has to survive all the way to the page. A renderer that
-   * quietly tidied "reisdency" would now be the defect, and this is what catches it.
+   * D-PKT9 (2026-08-23) printed the corrections; D-PKT11 (2026-09-14) printed the typos, on the
+   * reading that the packet was counsel's wording; D-PKT20 (2026-09-25) corrects them again, because
+   * the owner has said the packet was RETYPED by their secretary — its typing errors are the typist's.
+   * A renderer still printing "reisdency" would now be the defect.
    */
   describe("the carrier's own wording", () => {
-    it("reaches the page exactly as the carrier wrote it, typos and all", async () => {
+    it("reaches the page with its typing errors corrected (D-PKT20)", async () => {
       const text = (await pdfText(await renderApplicationPacketPdf(input())));
-      // Each of these is a spelling D-PKT9 used to repair, on a page this step actually draws.
-      expect(text).toContain("Previous Three years reisdency");
-      expect(text).toContain("maritial status");
-      expect(text).toContain("FORFEITTURES");
-      expect(text).toContain("BACKFROUNG");
-      expect(text).toContain("benfit");
-      expect(text).toContain("This references should not be people");
-      // And the repaired forms must NOT appear — a half-applied reversal is the likely regression.
-      expect(text).not.toContain("Previous three years residency");
-      expect(text).not.toContain("marital status");
-      expect(text).not.toContain("BACKGROUND VERIFICATION LOG");
+      expect(text).toContain("Previous Three years residency");
+      expect(text).toContain("marital status");
+      expect(text).toContain("FORFEITURES");
+      expect(text).toContain("BACKGROUND VERIFICATION LOG");
+      expect(text).toContain("benefit");
+      expect(text).toContain("These references should not be people");
+      // And the typed forms must NOT appear — a half-applied correction is the likely regression.
+      for (const typo of ["reisdency", "maritial", "FORFEITTURES", "BACKFROUNG", "benfit", "This references"]) {
+        expect(text).not.toContain(typo);
+      }
     });
 
     /**

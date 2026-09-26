@@ -78,7 +78,7 @@ describe("the sheet itself", () => {
    * own 31 are still where they were.
    */
   it("appends after the carrier's last page and leaves all 31 of theirs in place", async () => {
-    const original = await readPacketTemplate();
+    const original = await readPacketTemplate(PACKET_TEMPLATE_PATH);
     const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
     await appendContinuationSheet(doc, { overflow: [block()], applicantName: "Marija Varmeda" });
     const pages = await readBack(Buffer.from(await doc.save()));

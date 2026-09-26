@@ -61,8 +61,14 @@ import { pspDisclosure } from "./pspDisclosure.js";
 export const PSP_VERSION = "fmcsa-2016-02-11";
 /** FMCSA's sample carries no revision date, so this is the day it was downloaded and pinned. */
 export const CLEARINGHOUSE_VERSION = "fmcsa-sample-2026-09-13";
-/** The workbook this repo holds, by its mtime — `APPLICATION.xlsx`, the carrier's own packet. */
-export const PACKET_VERSION = "packet-2026-08-21";
+/**
+ * The carrier's packet text as served: `APPLICATION.xlsx` (mtime 2026-08-21) with `PACKET_SPELLING`
+ * applied. ⚠ Bumped from `packet-2026-08-21` on 2026-09-25 (D-PKT20) because the corrections changed
+ * served words (`with` → `wish`, `they` → `the` on page 15): a version names ONE text, and rows signed
+ * under the old id keep their own stored `disclosure_text`. Change it again whenever that register
+ * changes an instrument page (15, 19, 20, 22).
+ */
+export const PACKET_VERSION = "packet-2026-09-25";
 /** Read off the statute (Cornell LII) on the date in `authorizationContract.ts`'s header. */
 export const ESIGN_VERSION = "15usc7001c-2026-08-21";
 

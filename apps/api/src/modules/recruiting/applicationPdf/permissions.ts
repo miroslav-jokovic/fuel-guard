@@ -78,7 +78,7 @@ interface AuthorizationRow {
 /**
  * The title an instrument was shown under (AF6).
  *
- * ⚠ **Only when the versions match.** A row signed against `packet-2026-08-21` gets that wording's
+ * ⚠ **Only when the versions match.** A row signed against the current `PACKET_VERSION` gets that wording's
  * title; a row from any other version (an earlier publish, a carrier's own text since replaced) gets
  * the purpose's plain label rather than a title that belonged to different words.
  */

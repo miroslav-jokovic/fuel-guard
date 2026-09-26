@@ -5,11 +5,10 @@ import {
   PACKET_INSTRUMENTS,
   PACKET_WORDING_INSTRUMENTS,
   WORDING_LEFT_ALONE,
-  WORDING_SPELLING_REPAIRS,
-  WORDING_TYPOGRAPHY_REPAIRS,
   packetWording,
   repair,
 } from "./packetWording.js";
+import { PACKET_SPELLING } from "./packetSpelling.js";
 
 /**
  * The carrier's own instruments, checked against the workbook they were transcribed from.
@@ -60,31 +59,25 @@ describe("the carrier's packet as a source of published wording", () => {
 });
 
 /**
- * ⚠ The register's own rule, enforced rather than asserted in prose.
- *
- * `packetText.ts` set it for the printed packet: a spelling repair's two halves differ only in the
- * spelling of a word, so the WORD COUNT may not change. It is the one cheap check that catches a
- * dropped clause or an inserted qualifier wearing a typo fix as a disguise.
+ * The repairs, since D-PKT20 (2026-09-25) the SAME register the printed page uses — `PACKET_SPELLING`.
+ * Its rules (word count, split, join, a reason for every character fix) are enforced once, in
+ * `packetSpelling.test.ts`. What is pinned here is the half only this module can see: that each entry
+ * for a page this module transcribes really occurs in the carrier's WORKBOOK, the source of the text.
  */
-describe("the repair registers", () => {
-  const words = (s: string): number => s.trim().split(/\s+/).length;
+describe("the repair register, as the permissions apply it", () => {
+  const instrumentPages = new Set(PACKET_INSTRUMENTS.map((i) => i.page));
+  const mine = PACKET_SPELLING.filter((e) => instrumentPages.has(e.page));
 
-  it("makes only spelling repairs in the spelling register — no entry changes the word count", () => {
-    const changed = WORDING_SPELLING_REPAIRS.filter((r) => words(r.packet) !== words(r.corrected));
-    expect(changed).toEqual([]);
+  it("reaches every page a permission is transcribed from", () => {
+    // Guards the guard: a filter that matched nothing would make the next test vacuous.
+    expect(new Set(mine.map((e) => e.page))).toEqual(new Set([15, 20, 22]));
   });
 
-  it("every repair, in both registers, actually occurs in the workbook", () => {
-    const absent = [...WORDING_SPELLING_REPAIRS, ...WORDING_TYPOGRAPHY_REPAIRS]
-      .filter((r) => !haystack.includes(normaliseWorkbookLine(r.packet)))
-      .map((r) => r.packet);
-    // A register entry matching nothing is either a repair already made silently upstream or a
-    // guess about a defect that is not there. Both are worth failing for.
+  it("every correction on a transcribed page actually occurs in the workbook", () => {
+    const absent = mine.filter((e) => !haystack.includes(normaliseWorkbookLine(e.wrong))).map((e) => e.wrong);
+    // An entry matching nothing is a repair already made upstream or a guess about a defect that is
+    // not there — and on the printed page the patcher would already have thrown.
     expect(absent).toEqual([]);
-  });
-
-  it("makes every typography repair argue for itself", () => {
-    for (const r of WORDING_TYPOGRAPHY_REPAIRS) expect(r.why.length).toBeGreaterThan(40);
   });
 
   /**
@@ -113,7 +106,7 @@ describe("what gets published", () => {
     const composed = PACKET_WORDING_INSTRUMENTS
       .map((i) => { const w = packetWording(i)!; return `${w.title}\n${w.body}\n${w.intent}`; })
       .join("\n");
-    for (const bad of ["emplyer", "emplyment", "infromation", "ahuthorize", "certy", "paragrafs", "€", "T he ", "applicanthas", "howerver", "requlated", "preivious"]) {
+    for (const bad of ["emplyer", "emplyment", "infromation", "ahuthorize", "certy", "paragrafs", "€", "T he ", "applicanthas", "howerver", "requlated", "preivious", "with to review", "INC they above"]) {
       expect(composed).not.toContain(bad);
     }
   });
@@ -185,15 +178,10 @@ describe("what gets published", () => {
    * pinned instead is the weaker true thing: a repair belongs to a page one of the three published
    * instruments is on, because those are the only pages this module transcribes.
    */
-  it("keeps every recorded repair on a page this module actually transcribes", () => {
+  it("keeps every recorded uncertainty on a page this module actually transcribes", () => {
     const transcribed = new Set(PACKET_INSTRUMENTS.map((i) => i.page));
-    for (const entry of [
-      ...WORDING_SPELLING_REPAIRS,
-      ...WORDING_TYPOGRAPHY_REPAIRS,
-      ...WORDING_LEFT_ALONE,
-    ]) {
-      const shown = "packet" in entry ? entry.packet : entry.text;
-      expect(transcribed, `page ${entry.page}: ${shown}`).toContain(entry.page);
+    for (const entry of WORDING_LEFT_ALONE) {
+      expect(transcribed, `page ${entry.page}: ${entry.text}`).toContain(entry.page);
     }
   });
 });
@@ -253,6 +241,12 @@ describe("what the packet does NOT contain", () => {
 
 describe("repair()", () => {
   it("is a no-op on text carrying none of the packet's defects", () => {
-    expect(repair("Plain text with nothing wrong in it.")).toBe("Plain text with nothing wrong in it.");
+    expect(repair("Plain text with nothing wrong in it.", 15)).toBe("Plain text with nothing wrong in it.");
+  });
+
+  it("applies only the named page's corrections", () => {
+    // `wil` is corrected on pages 9 and 10 only; page 15 has no such entry.
+    expect(repair("calls wil be", 9)).toBe("calls will be");
+    expect(repair("calls wil be", 15)).toBe("calls wil be");
   });
 });

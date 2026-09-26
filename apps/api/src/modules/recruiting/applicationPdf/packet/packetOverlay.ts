@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { PDFDocument, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import { embedPdfFace, pdfUnicodeText } from "../../../../lib/pdfFonts.js";
 import { packetPlacementById, type PacketMarkKind } from "@silvicom/shared";
@@ -8,7 +7,7 @@ import { drawFieldValues, fitText, mergeOverflow } from "./packetFit.js";
 import type { PacketFieldOverflow, PlacedFieldValue } from "./packetGrid.js";
 import { appendContinuationSheet, continuationNoticeFor } from "./packetContinuation.js";
 import { drawWithdrawalNotices } from "./packetWithdrawals.js";
-import { PACKET_TEMPLATE_PATH } from "./packetTemplate.js";
+import { correctedPacketTemplate } from "./packetTemplate.js";
 
 /**
  * The driver's marks, drawn onto the carrier's own packet (P5, D-PKT1).
@@ -283,7 +282,8 @@ async function embedMark(doc: PDFDocument, bytes: Buffer | null | undefined): Pr
  * row is a qualification file that cannot be produced.
  */
 export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Buffer> {
-  const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
+  // D-PKT20: the carrier's paper with its typing errors corrected inside their own lines.
+  const doc = await PDFDocument.load(await correctedPacketTemplate(), { ignoreEncryption: true });
   const font = await embedPdfFace(doc, "italic");
   /**
    * One picture per KIND of mark, embedded once each (Q-HUI14).

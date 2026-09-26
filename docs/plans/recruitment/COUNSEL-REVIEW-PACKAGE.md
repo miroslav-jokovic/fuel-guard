@@ -245,6 +245,13 @@ neither was written for electronic signature. (Before D-PKT19 the applicant sign
 give us a clean redraft of the three pages. We would then print that text in place of the originals.
 Either way, the result gets one new version identifier.
 
+*Updated 2026-09-25 (D-PKT20).* The carrier has told us the packet was retyped by its office, so its
+misspellings are typing errors. We now correct them throughout — the printed packet and the screen
+text alike, from one list, spelling only (a missing word or a garbled sentence is left for you). Two
+corrections moved from Appendix B's "not corrected" list: page 15 *"with to review"* → *"wish to
+review"* and *"they above requested information"* → *"the above requested information"*. The screen
+text is now version `packet-2026-09-25`. (b) therefore reduces to approving that one corrected text.
+
 ---
 
 ### Q4. Page 15 and the ban on blanket releases (§40.321(b)) · **Priority 1**
@@ -516,6 +523,15 @@ and, where applicable, as owner-operator. It contains defects that change meanin
 - an unmatched bracket in the service-of-process clause;
 - a severability clause missing its middle: *"If any one or more of the provisions contained in the
   Agreement but the Agreement will be enforceable to the extend applicable."*
+
+*Updated 2026-09-25 (D-PKT20).* Told that the packet was retyped, we corrected the agreement's
+typing errors where the intended word is fixed by the text itself, each with its reason in
+`packetSpelling.ts`: *natural* → *neutral* arbitrator (the clause later says *neutral*), *bending* →
+*binding*, *shall not he appeasable* → *shall not be appealable*, *one arbitration* → *one
+arbitrator*, *force or correction* → *force or coercion*, *red* → *read*, *extend* → *extent*,
+*statue* → *statute*, *trail* → *trial*. **The severability clause is not repaired** — its middle is
+missing and no spelling correction supplies it — nor is *"either of either of the parties"*. Please
+confirm the corrections as well as answering the question below.
 
 **Question.** Is this agreement intended to be the lease required by 49 CFR §376.12 (truth-in-leasing)
 for owner-operators who lease equipment to the carrier? If so, it may need terms it does not have.

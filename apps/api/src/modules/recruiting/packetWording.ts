@@ -1,4 +1,5 @@
 import type { PublishableInstrument } from "@silvicom/shared";
+import { PACKET_SPELLING } from "./packetSpelling.js";
 
 /**
  * The carrier's OWN instrument wording, transcribed from its packet (2026-09-13).
@@ -31,120 +32,18 @@ import type { PublishableInstrument } from "@silvicom/shared";
  */
 
 /**
- * A repair whose two halves differ only in the spelling of a word.
+ * ⚠ **Corruption left exactly as the carrier has it, because fixing it is not spelling.**
  *
- * The rule `packetText.ts` set for the printed packet, applied here for the same reason and with
- * the same guard: **the word count may not change.** That is the one cheap check that catches a
- * dropped clause or an inserted qualifier hiding inside what claims to be a typo fix.
- */
-export interface WordingRepair {
-  /** Exactly as the workbook has it. Never published. */
-  packet: string;
-  /** What is published instead. */
-  corrected: string;
-  page: number;
-}
-
-/**
- * ⚠ Spelling only. Not one clause, obligation or citation is reworded.
+ * Recorded rather than silently skipped: a missing word, a stray space or a full stop where a comma
+ * belongs cannot be corrected without supplying wording, and a wording change to a signed instrument
+ * is counsel's act. Each of these is a question for the review, not a fix.
  *
- * The packet is an OCR-grade document — `emplyer` appears eight times, `infromation` twice — and
- * D-PKT11 (owner, 2026-09-14) rules that the carrier's own text prints exactly as written, reversing
- * D-PKT9 (2026-08-23), which had us print correct English and record every repair so
- * the answer to "what did you change on our form" is a constant somebody can read.
- *
- * ⚠ **Order matters, and the phrases come first.** Each entry is matched against the workbook's own
- * text, so an entry spanning several words has to run before the single-word entries that would
- * otherwise consume part of it — `infromation form previous emplyer(s)` stops matching the moment
- * `infromation` has already been repaired on its own. The test asserts every key against the RAW
- * workbook, which is what makes an ordering mistake a failure rather than a silent miss.
- */
-export const WORDING_SPELLING_REPAIRS: readonly WordingRepair[] = [
-  // ── phrases, before the words they contain ──
-  { page: 15, packet: "infromation form previous emplyer(s)", corrected: "information from previous employer(s)" },
-  { page: 15, packet: "has not yer received", corrected: "has not yet received" },
-  { page: 15, packet: "withing 30 days", corrected: "within 30 days" },
-  // ── single words ──
-  { page: 15, packet: "ahuthorize", corrected: "authorize" },
-  { page: 15, packet: "emplyer/school", corrected: "employer/school" },
-  { page: 15, packet: "emplyment", corrected: "employment" },
-  { page: 15, packet: "adultered", corrected: "adulterated" },
-  { page: 15, packet: "preivious", corrected: "previous" },
-  { page: 15, packet: "certy", corrected: "certify" },
-  { page: 15, packet: "prvious", corrected: "previous" },
-  { page: 15, packet: "emloyers", corrected: "employers" },
-  { page: 15, packet: "paragrafs", corrected: "paragraphs" },
-  { page: 15, packet: "emplyers", corrected: "employers" },
-  { page: 15, packet: "emplyer(s)", corrected: "employer(s)" },
-  { page: 15, packet: "requlated", corrected: "regulated" },
-  { page: 15, packet: "emplyed", corrected: "employed" },
-  { page: 15, packet: "infromation", corrected: "information" },
-  { page: 15, packet: "howerver", corrected: "however" },
-  // A defined term the same sentence capitalises correctly nowhere else on the page.
-  { page: 22, packet: "The medical Review Officer", corrected: "The Medical Review Officer" },
-];
-
-/**
- * Repairs that change the characters rather than the spelling — so each one is argued on its own.
- *
- * ⚠ These are the ones a reviewer must actually look at. A split word rejoined is harmless; a
- * statutory citation repaired is not, because the citation is part of the instrument. Every entry
- * carries the reason it is safe, and `WORDING-REVIEW-2026-09-13.md` lists them for counsel in the
- * same order.
- */
-export interface TypographyRepair extends WordingRepair {
-  /** Why this is a transcription defect and not a change of meaning. */
-  why: string;
-}
-
-export const WORDING_TYPOGRAPHY_REPAIRS: readonly TypographyRepair[] = [
-  {
-    page: 20,
-    packet: "applicants. T he purpose",
-    corrected: "applicants. The purpose",
-    why: "One word split by a stray space. No character added or removed but the space itself.",
-  },
-  {
-    page: 20,
-    packet: "(15 U.S.C. 1681-168lu)",
-    corrected: "(15 U.S.C. 1681-1681u)",
-    why:
-      "A lower-case L standing where a 1 belongs, in the citation of the FCRA's own section range. "
-      + "15 U.S.C. §§1681–1681u is the Act; 168lu is not a citation of anything. ⚠ This one alters a "
-      + "legal citation and is listed first for counsel.",
-  },
-  {
-    page: 15,
-    packet: "paragrafs (d) and € of Section 391.23",
-    corrected: "paragraphs (d) and (e) of Section 391.23",
-    why:
-      "A euro sign standing where `(e)` belongs — the same substitution appears on page 11 as "
-      + "`391.23(d) and €`. §391.23 has paragraphs (d) and (e), and (e) is the one that carries the "
-      + "due-process rights the next sentence goes on to enumerate.",
-  },
-  {
-    page: 15,
-    packet: "The applicanthas certain",
-    corrected: "The applicant has certain",
-    why:
-      "Two words run together by a missing space. Nothing is added or removed but the space, and "
-      + "`applicanthas` is not a word in any reading of the sentence.",
-  },
-];
-
-/**
- * ⚠ **Corruption left exactly as the carrier has it, because the right word is a guess.**
- *
- * Recorded rather than silently skipped — the rule `packetText.ts` states and the reason it
- * outlives its own entries: a repair that guesses is a wording change, and a wording change to a
- * signed instrument is counsel's act. Each of these is a question for the review, not a fix.
+ * ⚠ Since D-PKT20 (2026-09-25) the spelling itself IS corrected — the owner said the packet was
+ * retyped by their secretary — from the one register the printed page uses, `PACKET_SPELLING`. That
+ * took two entries off this list: `with to review` (→ `wish`) and `they above` (→ `the`), both a
+ * wrong word whose intended one the sentence settles.
  */
 export const WORDING_LEFT_ALONE: readonly { page: number; text: string; question: string }[] = [
-  {
-    page: 15,
-    text: "and with to review previous employer provided investigative information",
-    question: "`with` almost certainly wants to be `wish`, but almost certainly is not certainly.",
-  },
   {
     page: 15,
     text: "which may be done at any including when applying",
@@ -154,11 +53,6 @@ export const WORDING_LEFT_ALONE: readonly { page: number; text: string; question
     page: 15,
     text: "within 30 days SILVICOM INC making them available",
     question: "Reads as though `of` is missing after `days`.",
-  },
-  {
-    page: 15,
-    text: "to furnish SILVICOM INC they above requested information",
-    question: "`they` where `the` is meant, most likely — but it is inside the §40.25 authorization.",
   },
   {
     page: 20,
@@ -194,7 +88,8 @@ export interface PacketInstrumentSource {
    *
    * ⚠ **Every number in this file was one too low until 2026-09-14, and the test said otherwise.**
    * The three instruments were recorded at 14 / 19 / 21; they are on 15 / 20 / 22. So were the four
-   * `WORDING_TYPOGRAPHY_REPAIRS`, the nineteen `WORDING_SPELLING_REPAIRS` and the seven
+   * `WORDING_TYPOGRAPHY_REPAIRS`, the nineteen `WORDING_SPELLING_REPAIRS` (both since folded into
+   * `PACKET_SPELLING`, D-PKT20) and the seven
    * `WORDING_LEFT_ALONE` entries, and three page references in the prose. Thirty-three numbers, all
    * off by exactly one, sending a reviewer holding the paper to the page before the one they want —
    * and `page 19` is a real page carrying a real instrument (`AUTHORIZATION FOR DRIVING RECORD
@@ -385,15 +280,13 @@ export const PACKET_INSTRUMENTS: readonly PacketInstrumentSource[] = [
 ];
 
 /**
- * Apply both registers to one string.
- *
- * Order matters only in that the typography repairs carry more context than the spelling ones, so
- * they run first and cannot be half-consumed by a shorter match.
+ * One page's corrections applied to one string — the same `PACKET_SPELLING` entries, in the same
+ * order, that `packetSpellingPatch.ts` applies to the printed page (D-PKT20). Phrases are listed
+ * before the words they contain, so an entry is never half-consumed by a shorter one.
  */
-export function repair(source: string): string {
+export function repair(source: string, page: number): string {
   let out = source;
-  for (const r of WORDING_TYPOGRAPHY_REPAIRS) out = out.split(r.packet).join(r.corrected);
-  for (const r of WORDING_SPELLING_REPAIRS) out = out.split(r.packet).join(r.corrected);
+  for (const e of PACKET_SPELLING) if (e.page === page) out = out.split(e.wrong).join(e.right);
   return out;
 }
 
@@ -421,9 +314,9 @@ export function packetWording(instrument: PublishableInstrument): PacketWording 
   const src = PACKET_INSTRUMENTS.find((i) => i.instrument === instrument);
   if (!src) return null;
   return {
-    title: repair(joinLines([src.heading])),
-    body: src.paragraphs.map((p) => repair(joinLines(p))).join("\n\n"),
-    intent: repair(joinLines(src.intent)),
+    title: repair(joinLines([src.heading]), src.page),
+    body: src.paragraphs.map((p) => repair(joinLines(p), src.page)).join("\n\n"),
+    intent: repair(joinLines(src.intent), src.page),
     page: src.page,
   };
 }

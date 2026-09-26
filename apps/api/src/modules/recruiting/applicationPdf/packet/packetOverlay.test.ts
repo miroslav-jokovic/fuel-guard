@@ -117,15 +117,19 @@ describe("drawing the driver's marks on the carrier's packet", () => {
   });
 
   /**
-   * ⚠ The assertion that says the pages were not redrawn. `FAIR CREDIT REPORTING ACT DISCLOSURE`,
-   * the misprinted citation and the carrier's own spelling of `signatrure` all survive, because
-   * nothing rewrote the page they are on.
+   * ⚠ The assertion that says the pages were not redrawn — and, since D-PKT20 (2026-09-25), that
+   * the carrier's typing errors were corrected INSIDE their own lines rather than redrawn over them.
+   * `FAIR CREDIT REPORTING ACT DISCLOSURE` and `INTERVIEW NOTES` survive untouched; the citation and
+   * `signature` read corrected, and the misspellings are gone from the text layer too, where an
+   * overlay painted on top would have left them for anybody who copies the page.
    */
-  it("leaves the carrier's own text exactly where it was", async () => {
+  it("leaves the carrier's own text where it was, with its typing errors corrected in place", async () => {
     const pages = await readBack(await renderPacketOverlay({ marks: allMarks() }));
     expect(pageText(pages[19]!)).toContain("FAIR CREDIT REPORTING ACT DISCLOSURE");
-    expect(pageText(pages[19]!)).toContain("168lu");
-    expect(pageText(pages[21]!)).toContain("signatrure");
+    expect(pageText(pages[19]!)).toContain("1681-1681u");
+    expect(pageText(pages[19]!)).not.toContain("168lu");
+    expect(pageText(pages[21]!)).toContain("Driver signature");
+    expect(pageText(pages[21]!)).not.toContain("signatrure");
     expect(pageText(pages[16]!)).toContain("INTERVIEW NOTES");
   });
 
@@ -949,7 +953,7 @@ describe("drawing the field values", () => {
     const pages = await readBack(
       await renderPacketOverlay({ marks: [], fields: [{ line, text: "1980-04-01" }] }),
     );
-    for (const phrase of ["Commercial driver information", "Previous Three years reisdency", "Cdl #"]) {
+    for (const phrase of ["Commercial driver information", "Previous Three years", "Cdl #"]) {
       expect(before, `fixture: ${phrase}`).toContain(phrase);
       expect(pageText(pages[0]!), phrase).toContain(phrase);
     }
