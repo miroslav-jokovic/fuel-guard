@@ -122,6 +122,17 @@ export interface HandbookStatus {
 }
 
 /**
+ * The office's view: the fold, plus when the driver's link lapses (APPLICATION-FLOW-V2-PLAN.md A-2).
+ *
+ * ⚠ The office needs it and the driver's page does not. 0374 refuses every handbook mark on a lapsed
+ * link (HB021), the countersignature included, and a lapsed link cannot even load for the driver — so
+ * the office must see the date coming and extend it from the drawer, before anybody is refused.
+ */
+export interface OfficeHandbookStatus extends HandbookStatus {
+  linkExpiresAt: string;
+}
+
+/**
  * Where a status stands, from the marks and the stamps — the one fold both screens read.
  *
  * ⚠ `driverComplete` counts the PLACES, not rows: `handbook_marks` is unique per (invitation, place),

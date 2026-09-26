@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
-import { HANDBOOK_PLACEMENTS, formatDisplayDate } from "@silvicom/shared";
+import { HANDBOOK_PLACEMENTS, INVITE_TTL_DAYS_DEFAULT, formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   AppCombobox as ComboSelect,
@@ -48,6 +48,7 @@ const reps = computed(() => repsQ.data.value ?? []);
 const repOptions = computed(() => reps.value.map((r) => ({ value: r.id, label: `${r.full_name} — ${r.title}` })));
 const driverPlaces = HANDBOOK_PLACEMENTS.filter((p) => p.party === "driver");
 const signedCount = computed(() => status.value?.driverSigned.length ?? 0);
+const linkExpired = computed(() => Boolean(status.value && Date.parse(status.value.linkExpiresAt) <= Date.now()));
 
 const representativeId = ref("");
 
@@ -97,6 +98,20 @@ async function openSigning(): Promise<void> {
   }
 }
 
+/**
+ * The same door as Open (APPLICATION-FLOW-V2-PLAN.md A-2): every press keeps the driver's link alive for
+ * another `INVITE_TTL_DAYS_DEFAULT` days, and a second press never re-stamps who opened it. Nothing
+ * else extends a filed invitation's link, and 0374 refuses every handbook mark on a lapsed one.
+ */
+async function extendLink(): Promise<void> {
+  try {
+    await open.mutateAsync(undefined);
+    toast.success("Link extended", `The driver's link stays open for another ${INVITE_TTL_DAYS_DEFAULT} days.`);
+  } catch (e) {
+    toast.error("Could not extend the driver's link", e instanceof Error ? e.message : undefined);
+  }
+}
+
 async function countersignAndFile(): Promise<void> {
   try {
     await countersign.mutateAsync({ representative_id: representativeId.value });
@@ -142,6 +157,16 @@ async function countersignAndFile(): Promise<void> {
             </span>
           </li>
         </ul>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="text-xs" :class="linkExpired ? 'text-danger-700' : 'text-ink-secondary'">
+            {{ linkExpired
+              ? `The driver's link expired on ${formatDisplayDateTime(status.linkExpiresAt)}. Extend it before they sign or you countersign.`
+              : `The driver's link is open until ${formatDisplayDateTime(status.linkExpiresAt)}.` }}
+          </p>
+          <BaseButton variant="secondary" size="sm" :disabled="open.isPending.value" @click="extendLink">
+            {{ open.isPending.value ? "Extending…" : "Extend the driver's link" }}
+          </BaseButton>
+        </div>
       </div>
     </template>
 
