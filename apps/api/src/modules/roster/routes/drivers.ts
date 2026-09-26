@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   EMPLOYED_DRIVER_STATUSES,
+  isApplicantStatus,
   canWriteDriverLifecycle,
   driverCreateSchema,
   driverUpdateSchema,
@@ -219,12 +220,20 @@ export function rosterDriversRouter(): Router {
       // it, whether a termination date already exists, what the untouched name parts are.
       const { data: current } = await admin
         .from("drivers")
-        .select("id, identity_source, termination_date, first_name, middle_name, last_name")
+        .select("id, status, identity_source, termination_date, first_name, middle_name, last_name")
         .eq("id", id)
         .eq("org_id", orgId)
         .maybeSingle();
       if (!current) {
         res.status(404).json(apiError("not_found", "Driver not found"));
+        return;
+      }
+      // A-9 (APPLICATION-FLOW-V2-PLAN.md): an applicant becomes an active driver only through the hire,
+      // which checks the federal gates and the handbook (`hireApplicant.ts`, `HIRE_REFUSES_WITHOUT`).
+      // This edit set `status` with no check at all, and no database guard stands behind it — 0213's
+      // trigger checks JWT roles and the service role bypasses it (a DB guard is Q-AW21).
+      if (isApplicantStatus((current as { status: string }).status) && body.status === "active") {
+        res.status(409).json(apiError("use_hire", "An applicant becomes an active driver through Hire, which checks what the hire needs."));
         return;
       }
 

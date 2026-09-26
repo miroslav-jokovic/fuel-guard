@@ -20,6 +20,14 @@ export interface PacketMark {
 export interface PacketOverlayInput {
   marks: readonly PacketMark[];
   /**
+   * The office's BLANK paper copy, printed for a driver who signs by hand (MV2, templates page).
+   *
+   * ⚠ Draws no withdrawal notices (G-8, APPLICATION-FLOW-V2-PLAN.md). They describe an ELECTRONIC
+   * packet — "Not signed electronically", "Signed electronically as its own permission" — and on paper
+   * a driver is about to sign by hand, each one is a false statement printed on the carrier's form.
+   */
+  blankTemplate?: boolean;
+  /**
    * The applicant's answers, already matched to measured positions by `packetFieldValues.ts`.
    *
    * ⚠ Optional, and empty is a legitimate call: a caller that wants only the marks — the office

@@ -82,7 +82,8 @@ async function sign(id: HandbookPlacementId): Promise<void> {
     const signedName = selfAdopting.value ? { signed_name: adoption.adoptedName.value.trim() } : {};
     await publicFetch(`/${props.token}/handbook/mark`, {
       method: "POST",
-      body: JSON.stringify({ placement_id: id, esign_consent: true, ...signedName }),
+      // A-6: the text this page shows; the server refuses a place read under another one.
+      body: JSON.stringify({ placement_id: id, esign_consent: true, handbook_version: props.handbook.version, ...signedName }),
     });
     await refresh();
   } catch (e) {

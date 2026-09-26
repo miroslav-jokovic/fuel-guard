@@ -200,7 +200,8 @@ describe("the endpoint answers exactly what the fold answers", () => {
     ];
     const rec = seed({
       drivers: [{ id: DRIVER, hire_date: "2026-09-10" }],
-      qualification_records: kinds.map((kind) => ({ driver_id: DRIVER, kind })),
+      // A road test as its ceremony files it: only on a pass, with its source (A-8).
+      qualification_records: kinds.map((kind) => ({ driver_id: DRIVER, kind, ...(kind === "road_test" ? { detail: { source: "road_test" } } : {}) })),
       application_packet_marks: markRows(packetDriverMarkCount(null)),
     });
     const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);

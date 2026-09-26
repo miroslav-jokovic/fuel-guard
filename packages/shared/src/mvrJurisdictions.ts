@@ -46,6 +46,16 @@ import { jurisdictionName, jurisdictionOptions, toJurisdictionCode } from "./jur
 export const MVR_LOOKBACK_YEARS = 3;
 
 /**
+ * The longest a licensing authority may be written, on BOTH doors that name one: the application's
+ * licence (`applicationLicenceSchema.issuing_authority`) and the office's MVR (`hiringEvidenceFileSchema
+ * .jurisdiction`). One number because the MVR must COVER each declared authority by the same words
+ * (`mvrJurisdictionsOutstanding`): until 2026-09-26 the application took 80 characters and the MVR 60, so an authority
+ * written out at length could never be covered and that driver could never be hired
+ * (APPLICATION-FLOW-V2-PLAN.md A-3).
+ */
+export const LICENSING_AUTHORITY_MAX_LENGTH = 80;
+
+/**
  * The fold two jurisdictions get before they are compared. See the header.
  *
  * ⚠ A catalogue code comes back upper-case and anything else lower-case, so the two cannot collide:

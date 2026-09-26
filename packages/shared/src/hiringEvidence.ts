@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { hiringStep, type HiringStepKey } from "./hiringSteps.js";
 import type { QualificationRecordKind } from "./complianceContract.js";
+import { LICENSING_AUTHORITY_MAX_LENGTH } from "./mvrJurisdictions.js";
 
 /**
  * Recording the acts nobody can perform from inside this product — D1, D-HM6.
@@ -55,7 +56,8 @@ import type { QualificationRecordKind } from "./complianceContract.js";
  *   `appliesWhen: "no_cdl"`, because §391.51(b)(8)(ii)'s CDL-holder variant sunset on 2025-06-22.
  *   Those two cannot both be right, and the answer is a reading of the regulation rather than a
  *   line of code. Recording it here would pick one silently.
- * - `orientation_videos`, `live_orientation`, `handbook` — no evidence table at all (D3, D4).
+ * - `orientation_videos`, `live_orientation` — no evidence table at all (D3, D4). (`handbook` left this
+ *   list with 0374: its evidence is the `handbook` qualification record its own ceremony files — G-12.)
  */
 export const HIRING_RECORDED_ACT_STEPS = ["mvr", "clearinghouse", "drug_test"] as const;
 export type HiringRecordedActStep = (typeof HIRING_RECORDED_ACT_STEPS)[number];
@@ -166,7 +168,7 @@ export const hiringEvidenceFileSchema = z.object({
    * jurisdiction is still a record that was obtained. It just covers no declared licence, so the
    * step stays open and names what is missing. The office's form asks for it.
    */
-  jurisdiction: z.string().max(60).nullish(),
+  jurisdiction: z.string().max(LICENSING_AUTHORITY_MAX_LENGTH).nullish(),
 });
 export type HiringEvidenceFiling = z.infer<typeof hiringEvidenceFileSchema>;
 

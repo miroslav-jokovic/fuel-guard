@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useSessionStore } from "@/stores/session";
 import { computed, ref, watch } from "vue";
 import {
   APPLICATION_RELEASE_ORDER,
@@ -58,6 +59,14 @@ const props = defineProps<{
   /** Set to offer "Record a paper signature" (MV3). */
   driverId?: string | null;
 }>();
+
+/**
+ * G-8 (APPLICATION-FLOW-V2-PLAN.md): the paper door is a WRITE, so it is offered only to a role that
+ * manages recruitment — `session.can` asks the org's own matrix, the rule the API's `requireSection`
+ * applies to `POST /authorizations`. A view-only user was shown the button and refused at the save.
+ */
+const session = useSessionStore();
+const canRecordPaper = computed(() => Boolean(props.driverId) && session.can("recruitment"));
 
 /**
  * Reading what the applicant has signed (B2).
@@ -155,13 +164,13 @@ const releases = computed<ReleaseRow[]>(() =>
       <AppButton v-if="canPrint" size="sm" variant="secondary" @click="viewing = true">
         Print what they have signed
       </AppButton>
-      <AppButton v-if="driverId && !recordingPaper" size="sm" variant="secondary" @click="recordingPaper = true">
+      <AppButton v-if="canRecordPaper && !recordingPaper" size="sm" variant="secondary" @click="recordingPaper = true">
         Record a paper signature
       </AppButton>
     </div>
 
     <PaperAuthorizationForm
-      v-if="driverId && recordingPaper"
+      v-if="driverId && canRecordPaper && recordingPaper"
       :driver-id="driverId"
       :signed="releases.filter((r) => r.live).map((r) => r.purpose)"
       @done="recordingPaper = false"

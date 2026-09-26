@@ -74,7 +74,11 @@ export const canDraw = (ch: string): boolean => DRAWABLE.has(ch.codePointAt(0)!)
 export function pdfUnicodeText(text: string): string {
   // CRLF first, as `winAnsi` does: folded one character at a time, a lone `\r` would become a SECOND
   // newline. A tab needs no rule of its own — the face has no tab glyph and `winAnsi` makes it a space.
+  // G-5: composed first. "ć" typed as "c" + U+0301 arrives as two code points; folded one at a time,
+  // `winAnsi` turns the lone combining acute into "" (measured 2026-09-26), so "Petrović" printed as
+  // "Petrovic" although the face draws "ć". NFC makes it the one character the face has.
   return text
+    .normalize("NFC")
     .replace(/\r\n?/g, "\n")
     .replace(/[^\n]/gu, (ch) => (canDraw(ch) ? ch : winAnsi(ch)));
 }

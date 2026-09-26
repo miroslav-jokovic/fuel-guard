@@ -106,13 +106,18 @@ describe("the blank templates", () => {
     }
   });
 
-  it("prints the carrier's packet whole, with the withdrawn lines' notices and no answers", async () => {
+  /**
+   * ⚠ G-8 (APPLICATION-FLOW-V2-PLAN.md): the blank packet is for a driver who signs BY HAND, so none of
+   * the withdrawn lines' notices — each of which describes signing on screen — may be printed on it.
+   * Until 2026-09-26 this test asserted the opposite, and the paper copy told a driver holding a pen
+   * that page 4 was "Not signed electronically".
+   */
+  it("prints the carrier's packet whole, with no answers and none of the on-screen withdrawal notices", async () => {
     holder.client = seed().client;
     const pdf = await bytes(await get("application-packet"));
     expect(await pdfPageCount(pdf)).toBe(31);
-    const pages = await pdfPageTexts(pdf);
-    expect(flat(pages[18]!).split(PACKET_WITHDRAWALS.p19a!.notice).length - 1).toBe(2);
-    expect(flat(pages[3]!)).toContain(PACKET_WITHDRAWALS.p04!.notice);
+    const text = flat((await pdfPageTexts(pdf)).join(" "));
+    for (const [id, w] of Object.entries(PACKET_WITHDRAWALS)) expect(text, id).not.toContain(w.notice);
   });
 
   it("prints a road test with nothing recorded on it", async () => {

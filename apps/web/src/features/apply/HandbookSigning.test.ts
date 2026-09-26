@@ -23,7 +23,8 @@ vi.mock("@/features/apply/signing/PacketAdoption.vue", () => ({
 }));
 
 const status = (over: Partial<LinkHandbookStatus> = {}): LinkHandbookStatus => ({
-  canOpen: true, openedAt: null, driverSigned: [], driverComplete: false, filedAt: null, adoption: null, ...over,
+  canOpen: true, openedAt: null, driverSigned: [], driverComplete: false, filedAt: null, adoption: null,
+  version: "handbook-test-v1", ...over,
 });
 const mountIt = (handbook: LinkHandbookStatus) =>
   mount(HandbookSigning, { props: { token: TOKEN, carrier: "Silvicom Inc", handbook }, global: { plugins: [VueQueryPlugin] } });
@@ -59,7 +60,7 @@ describe("while it is open", () => {
     await flushPromises();
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe(`/api/public/application/${TOKEN}/handbook/mark`);
-    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ placement_id: "h3", esign_consent: true });
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ placement_id: "h3", esign_consent: true, handbook_version: "handbook-test-v1" });
   });
 
   it("says so when a signature does not go through", async () => {
@@ -105,7 +106,9 @@ describe("a handbook adopting its own signature (A-1, C0b — a workaround C3s r
     await w.findAll("button").find((b) => b.text() === APPLY_COPY.handbook.sign)!.trigger("click");
     await flushPromises();
     const markCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/handbook/mark"))!;
-    expect(JSON.parse(String((markCall[1] as RequestInit).body))).toEqual({ placement_id: "h1", esign_consent: true, signed_name: "Dana Driver" });
+    expect(JSON.parse(String((markCall[1] as RequestInit).body))).toEqual({
+      placement_id: "h1", esign_consent: true, handbook_version: "handbook-test-v1", signed_name: "Dana Driver",
+    });
     expect(w.text()).toContain(APPLY_COPY.handbook.introOwnSignature);
   });
 

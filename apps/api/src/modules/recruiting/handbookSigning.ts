@@ -37,6 +37,7 @@ export interface HandbookError {
     | "driver_not_finished"
     | "representative_not_found"
     | "link_expired"
+    | "handbook_changed"
     | "storage_failed"
     | "insert_failed";
   message: string;
@@ -204,6 +205,24 @@ export async function handbookPrintFacts(
   };
 }
 
+export const HANDBOOK_SIGNED_UNDER_OTHER_TEXT: HandbookError = {
+  code: "handbook_changed",
+  message:
+    "The driver signed an earlier version of the handbook, and this one's text is different, so it cannot be "
+    + "filed under their signature. Nothing was filed.",
+};
+
+/** Every driver mark on this invitation carries the text version that would be printed now (A-6). */
+async function driverMarksMatchCurrentText(admin: SupabaseClient, orgId: string, invitationId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("handbook_marks")
+    .select("handbook_version")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId)
+    .eq("party", "driver");
+  return ((data ?? []) as Array<{ handbook_version: string }>).every((m) => m.handbook_version === HANDBOOK_VERSION);
+}
+
 /** The carrier mark, made now or found from an earlier attempt that did not finish filing. */
 async function carrierMark(
   admin: SupabaseClient,
@@ -259,6 +278,10 @@ export async function countersignHandbook(
   if (!handbookStatus({ submittedAt: inv.submitted_at, openedAt: inv.handbook_signing_opened_at, filedAt: null, signedPlacementIds: signed }).driverComplete) {
     return { code: "driver_not_finished", message: "The driver has not signed every place yet." };
   }
+  // A-6: file only a handbook every place of which was signed under the text that will be printed.
+  // `HANDBOOK_VERSION` is a content hash of that text, so a change in between would file words the
+  // driver never agreed to above their signature — the thing A-5 found in the packet.
+  if (!(await driverMarksMatchCurrentText(admin, orgId, inv.id))) return HANDBOOK_SIGNED_UNDER_OTHER_TEXT;
 
   const chosen = await representativeForPrint(admin, orgId, representativeId);
   if (!chosen) return { code: "representative_not_found", message: "That representative is not on file." };

@@ -26,6 +26,10 @@ describe("what the face can draw", () => {
     expect(canDraw("ǆ")).toBe(false);
   });
 
+  it("keeps a name typed with a combining accent, composing it first (G-5)", () => {
+    for (const name of NAMES) expect(pdfUnicodeText(name.normalize("NFD"))).toBe(name);
+  });
+
   it("keeps winAnsi's whitespace rules, so changing the font changes no line break", () => {
     expect(pdfUnicodeText("a\r\nb\tc")).toBe("a\nb c");
   });

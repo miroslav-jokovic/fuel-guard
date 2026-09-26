@@ -5,6 +5,8 @@ import {
   roadTestRecordSchema,
   type RoadTestExaminerCreate,
   type RoadTestRecord,
+  organizationTimezone,
+  todayInZone,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -105,9 +107,12 @@ export function recruitmentRoadTestRouter(): Router {
       const orgId = req.auth!.orgId!;
       const driverId = String(req.params.driverId ?? "");
       const body = res.locals.body as RoadTestRecord;
+      // A-12: "today" is the CARRIER's calendar day (`calendarDay.ts`), never UTC's — at 19:00 in
+      // Chicago UTC is already tomorrow, and the future-date check let tomorrow's date through.
+      const { data: org } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
+      const today = todayInZone(new Date(), organizationTimezone((org as { operating_hours?: object | null } | null)?.operating_hours));
       const result = await recordRoadTest(
-        admin, orgId, req.auth!.userId, req.auth!.role ?? null, driverId, body,
-        new Date().toISOString().slice(0, 10),
+        admin, orgId, req.auth!.userId, req.auth!.role ?? null, driverId, body, today,
       );
       if (isRoadTestError(result)) {
         res.status(statusOf(result)).json(apiError(result.code, result.message));

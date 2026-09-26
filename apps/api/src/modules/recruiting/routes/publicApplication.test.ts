@@ -1208,7 +1208,7 @@ describe("the driver handbook on the link", () => {
   it("refuses a mark at the carrier's own place as a bad request, before any read", async () => {
     holder.client = seed().client;
     const res = await call(`/${TOKEN}/handbook/mark`, {
-      method: "POST", body: JSON.stringify({ placement_id: "h4c", esign_consent: true }),
+      method: "POST", body: JSON.stringify({ placement_id: "h4c", esign_consent: true, handbook_version: "v1" }),
     });
     expect(res.status).toBe(400);
   });
@@ -1216,7 +1216,7 @@ describe("the driver handbook on the link", () => {
   it("answers 409 on a mark before the application is filed", async () => {
     holder.client = seed().client;
     const res = await call(`/${TOKEN}/handbook/mark`, {
-      method: "POST", body: JSON.stringify({ placement_id: "h1", esign_consent: true }),
+      method: "POST", body: JSON.stringify({ placement_id: "h1", esign_consent: true, handbook_version: "v1" }),
     });
     expect(res.status).toBe(409);
     expect(await refusalCode(res)).toBe("handbook_application_not_filed");

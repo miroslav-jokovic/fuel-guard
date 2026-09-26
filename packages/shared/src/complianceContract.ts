@@ -201,6 +201,19 @@ export type CertificationListQuery = z.infer<typeof certificationListQuerySchema
 
 // ── qualification records (§3.2 — dated events, append-only) ──────────────────────────────────────
 
+/**
+ * Kinds only their own ceremony may write — refused on the generic DQ door (APPLICATION-FLOW-V2-PLAN.md
+ * A-9). Each is a HIRE GATE or carries provenance the generic form cannot state: a `handbook` or
+ * `road_test` typed in here turned the step green with no ceremony behind it, and the hire gate read it.
+ * The value is where the office records it instead, said to them in words.
+ */
+export const CEREMONY_OWNED_KINDS = {
+  psp_report: "File a PSP record from the driver's Employment tab — import the PDF you bought, or order one",
+  handbook: "The handbook is signed on the applicant's link and countersigned from their Handbook step",
+  road_test: "Record a road test from the applicant's Road test step, where the examiner signs the certificate",
+  employment_application: "The application is filed by the applicant's own signing, never typed in here",
+} as const satisfies Partial<Record<QualificationRecordKind, string>>;
+
 export const qualificationRecordCreateSchema = z.object({
   id: z.uuid(),
   driverId: z.uuid(),
@@ -227,14 +240,9 @@ export const qualificationRecordCreateSchema = z.object({
      * The two paths that legitimately write one both state their source and neither comes through
      * here: `/api/recruitment/psp-orders` (ordered) and `/api/recruitment/psp-imports` (portal PDF).
      */
-    if (v.kind === "psp_report") {
-      ctx.addIssue({
-        code: "custom",
-        path: ["kind"],
-        message:
-          "File a PSP record from the driver's Employment tab — import the PDF you bought, or order one",
-      });
-    }
+    // A-9: every other ceremony-owned kind is refused for the same reason — see `CEREMONY_OWNED_KINDS`.
+    const owner = (CEREMONY_OWNED_KINDS as Partial<Record<string, string>>)[v.kind];
+    if (owner) ctx.addIssue({ code: "custom", path: ["kind"], message: owner });
   });
 export type QualificationRecordCreateRequest = z.infer<typeof qualificationRecordCreateSchema>;
 

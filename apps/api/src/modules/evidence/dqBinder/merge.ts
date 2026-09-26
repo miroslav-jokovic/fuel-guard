@@ -1,7 +1,8 @@
-import { degrees, PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { degrees, PDFDocument, rgb } from "pdf-lib";
 import sharp from "sharp";
 import { footerPosition, visibleSize } from "./footer.js";
 import { MARGIN, PAGE_HEIGHT, PAGE_WIDTH, winAnsi } from "../../../lib/pdfDraw.js";
+import { embedPdfFace, pdfUnicodeText } from "../../../lib/pdfFonts.js";
 
 /**
  * Assembly (DQ-BINDER-PLAN D-BD1). pdfkit draws; pdf-lib COPIES.
@@ -109,7 +110,10 @@ export async function stampFooters(
   labels: string[],
   ctx: FooterContext,
 ): Promise<void> {
-  const font = await out.embedFont(StandardFonts.Helvetica);
+  // G-5 (APPLICATION-FLOW-V2-PLAN.md): the embedded Unicode face, not Helvetica. A footer label carries
+  // the driver's name, and WinAnsi Helvetica folded "Petrović" to "Petrovic" on every page of a
+  // qualification file whose own documents spell it right.
+  const font = await embedPdfFace(out, "regular");
   const size = 7;
   const grey = rgb(0.42, 0.42, 0.42);
   const pages = out.getPages();
@@ -122,8 +126,8 @@ export async function stampFooters(
     const { width, height } = page.getSize();
     const angle = ((page.getRotation().angle % 360) + 360) % 360;
 
-    const left = winAnsi(`${labels[i] ?? ""} · export ${ctx.exportId} · generated ${when}`);
-    const right = winAnsi(`Page ${i + 1} of ${total}`);
+    const left = pdfUnicodeText(`${labels[i] ?? ""} · export ${ctx.exportId} · generated ${when}`);
+    const right = pdfUnicodeText(`Page ${i + 1} of ${total}`);
     const rightWidth = font.widthOfTextAtSize(right, size);
 
     const visW = visibleSize(angle, width, height).width;

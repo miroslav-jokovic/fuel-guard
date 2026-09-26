@@ -14,7 +14,8 @@ import { roadTestBlankFormPdf } from "./applicationPdf/roadTest.js";
  * A permission is `permissionInstrumentPdf` with no signer — byte-for-byte the document the applicant
  * reads on their link — over the carrier's LIVE wording, so a carrier that has published its own text
  * prints its own text. The application is the carrier's packet with no marks and no answers, which
- * `renderPacketOverlay` already draws with page 4's and page 19's withdrawal notices. The handbook is
+ * `renderPacketOverlay` draws with `blankTemplate` — no withdrawal notices, which describe signing ON
+ * SCREEN and are false on paper (G-8). The handbook is
  * `handbookPdf` with no name, no marks and no countersignature, which its header says is "the
  * carrier's blank paper". Only the road test needed a blank mode, and it is the same drawing.
  *
@@ -46,7 +47,7 @@ export async function recruitmentTemplatePdf(
 
   switch (template.key) {
     case "application-packet":
-      return { pdf: await renderPacketOverlay({ marks: [] }), filename };
+      return { pdf: await renderPacketOverlay({ marks: [], blankTemplate: true }), filename };
     case "handbook": {
       const carrier = await carrierOf(admin, orgId);
       const pdf = await handbookPdf({

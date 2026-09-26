@@ -1,4 +1,4 @@
-import { hasLiveAuthorization, type AuthorizationRow } from "./authorizationContract.js";
+import { hasLiveAuthorization, type AuthorizationPurpose, type AuthorizationRow } from "./authorizationContract.js";
 import { APPLICATION_RELEASE_ORDER } from "./applicationIntake.js";
 import { applicationReviewState, type ApplicationPhases } from "./applicationReviewContract.js";
 import { mvrJurisdictionsOutstanding } from "./mvrJurisdictions.js";
@@ -10,19 +10,20 @@ import {
 } from "./hiringSteps.js";
 
 /**
- * Where a hire has got to, across all fourteen of the owner's steps (B1, `HIRING-MODULE-PLAN.md`).
+ * Where a hire has got to, across every step in `HIRING_STEPS` (B1, `HIRING-MODULE-PLAN.md`). The owner
+ * named fourteen and the catalogue has grown since — count it there, never restate it here (G-12).
  *
  * ── DERIVED, NEVER STORED (D-HM1) ─────────────────────────────────────────────────────────────
  * This is `applicantPipeline.ts`'s rule at four times the size, and its header says why in words
  * worth repeating: *"A stored stage is a second copy of facts the rows already carry, and it goes
  * stale the moment somebody records an authorization without remembering to advance it."* A
- * checklist of booleans is that failure fourteen times over — and a hiring file whose checklist
+ * checklist of booleans is that failure once per step — and a hiring file whose checklist
  * disagrees with its own evidence is worse than no checklist, because it is a document that gets
  * produced in an audit and contradicted by the file beside it.
  *
  * ⚠ **The corollary is the hard part: a step with no artifact cannot be a step.** The catalogue
- * below names all fourteen so that D-HM3's fixed federal order is written down exactly once — but
- * `hiringChecklist()` EMITS only the steps whose evidence exists in the schema today. Three do not
+ * names every step so that D-HM3's fixed federal order is written down exactly once — but
+ * `hiringChecklist()` EMITS only the steps whose evidence exists in the schema today. Some do not
  * (see `evidence: null`), and they are absent from the fold rather than shown as permanently
  * outstanding. A row nobody can ever tick is a decoration, and a decoration on a compliance
  * checklist is a lie with a checkbox.
@@ -109,6 +110,18 @@ export interface HiringChecklistInputs {
    * step onward, so this is known before the MVR is ordered.
    */
   licenceJurisdictions?: readonly string[];
+  /**
+   * When the link's permission ceremony closed (`application_invitations.releases_completed_at`). A
+   * closed ceremony asks for nothing more, so a purpose still missing after it is the office's to
+   * record on paper (A-4). Absent reads as "still open" — the state before this field existed.
+   */
+  releasesCompletedAt?: string | null;
+  /**
+   * Whether a road test on file was PASSED (A-8) — see `roadTestCounts`. Absent reads as "any
+   * `road_test` kind counts", the state before this field existed; the board's builder still relies
+   * on that until G-7 gives both builders one input.
+   */
+  roadTestPassed?: boolean;
   /** PSP: whether a request has been made, and whether a report came back. */
   psp?: { requested: boolean; reportReceived: boolean } | null;
   /**
@@ -177,6 +190,14 @@ export interface HiringStep extends HiringStepSpec {
    * Only the `mvr` step ever fills it, and only while it is not done — *"Still needed from: …"*.
    */
   outstandingJurisdictions: string[];
+  /**
+   * Permissions the link will never ask for again, so only the office's paper door can record them
+   * (APPLICATION-FLOW-V2-PLAN.md A-4). Only `permissions_signed` fills it, and only when the applicant's
+   * permission ceremony is CLOSED (`releasesCompletedAt`) with purposes still missing — both production
+   * applicants mid-flight on 2026-09-26 closed theirs at four, before D-AF4 added `mvr` and
+   * `clearinghouse`, and the row read "waiting on them" about a screen they will never see again.
+   */
+  paperOnlyPurposes: AuthorizationPurpose[];
 }
 
 /**
@@ -201,10 +222,23 @@ export interface HiringChecklist {
   total: number;
   /** Steps 1–9: the gate on the plane ticket. */
   readyToTravel: HiringReadiness;
-  /** All fourteen: the gate on the hire itself. */
+  /** Every step: the gate on the hire itself. */
   readyToHire: HiringReadiness;
   /** The one action to lead with — the office's own first, because that is what it can do today. */
   next: HiringStepKey | null;
+}
+
+/**
+ * Does a `road_test` record prove a PASS (APPLICATION-FLOW-V2-PLAN.md A-8)?
+ *
+ * The ceremony (RT3, `roadTest.ts`) writes a record ONLY on a pass and stamps `detail.source =
+ * 'road_test'`, so its rows count. Any other row counts only if it says `passed: true` — until
+ * 2026-09-26 the DQ page's generic writer took a free-text `result`, so a FAILED test recorded there
+ * turned the step green. That door now refuses `road_test` (A-9, `CEREMONY_OWNED_KINDS`); this rule
+ * keeps any row it wrote before from counting. Production held 0 such rows on 2026-09-26.
+ */
+export function roadTestCounts(detail: { source?: string | null; passed?: string | boolean | null }): boolean {
+  return detail.source === "road_test" || detail.passed === true || detail.passed === "true";
 }
 
 /** Is there a `qualification_records` row of this kind? */
@@ -221,7 +255,7 @@ const hasKind = (input: HiringChecklistInputs, kind: string): boolean =>
 function evidenceFor(
   key: HiringStepKey,
   input: HiringChecklistInputs,
-): { done: boolean; inFlight: boolean; outstandingJurisdictions?: string[] } {
+): { done: boolean; inFlight: boolean; outstandingJurisdictions?: string[]; paperOnlyPurposes?: AuthorizationPurpose[] } {
   const review = input.phases ? applicationReviewState(input.phases) : null;
   switch (key) {
     case "invitation_sent":
@@ -232,10 +266,17 @@ function evidenceFor(
       // catalogue may grow a purpose no applicant signs, and reading it would hold this step open
       // for ever. ⚠ An applicant who signed the four before D-AF4 reads NOT done until the office
       // records the Clearinghouse limited-query consent (`POST /authorizations`, wet signature).
-      return {
-        done: APPLICATION_RELEASE_ORDER.every((p) => hasLiveAuthorization(input.authorizations ?? [], p)),
-        inFlight: (input.authorizations ?? []).length > 0,
-      };
+      // ⚠ A-4: once the link's ceremony is closed, a missing purpose is not "sent, not returned" — the
+      // applicant will never be shown it again — so it is the office's, on the paper door.
+      {
+        const missing = APPLICATION_RELEASE_ORDER.filter((p) => !hasLiveAuthorization(input.authorizations ?? [], p));
+        const paperOnly = missing.length > 0 && Boolean(input.releasesCompletedAt);
+        return {
+          done: missing.length === 0,
+          inFlight: !paperOnly && (input.authorizations ?? []).length > 0,
+          paperOnlyPurposes: paperOnly ? missing : [],
+        };
+      }
     case "application_sent":
       // 0365's stamp, set the first time the office presses Send (AF4). Backfilled for everybody who
       // was already past their permissions on 2026-09-24, because the old order opened the form then.
@@ -280,7 +321,7 @@ function evidenceFor(
       // ⚠ `cdl_equivalency` counts, and `dqCatalogue.ts` already says so: §391.51(b)(4) accepts a
       // road test OR the §391.33 licence equivalency. One requirement, two lawful evidences.
       return {
-        done: hasKind(input, "road_test") || hasKind(input, "cdl_equivalency"),
+        done: (input.roadTestPassed ?? hasKind(input, "road_test")) || hasKind(input, "cdl_equivalency"),
         inFlight: false,
       };
     case "application_signed":
@@ -382,6 +423,7 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
     let state: HiringStepState;
     if (evidence.done) state = "done";
     else if (blockedBy) state = "blocked";
+    else if (evidence.paperOnlyPurposes?.length) state = "waiting_on_us";
     else if (evidence.inFlight) state = "waiting_on_them";
     else state = spec.owes === "us" ? "waiting_on_us" : "waiting_on_them";
 
@@ -391,6 +433,7 @@ export function hiringChecklist(input: HiringChecklistInputs): HiringChecklist {
       artifact: evidence.done ? spec.evidence : null,
       blockedBy: state === "blocked" ? blockedBy : null,
       outstandingJurisdictions: evidence.done ? [] : (evidence.outstandingJurisdictions ?? []),
+      paperOnlyPurposes: evidence.done ? [] : (evidence.paperOnlyPurposes ?? []),
     });
   }
 
