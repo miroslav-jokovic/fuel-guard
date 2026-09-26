@@ -221,6 +221,11 @@ number, CDL state — plus optional licence photos **[V]** (`record_applicant_id
   has no evidence table" (`packages/shared/src/hiringEvidence.ts:58`); `packetStatic.ts:68` still has
   the $20 receipts row; the `subject_to_fmcsr` JSDoc (`applicationContract.ts:155–159`) describes
   §40.25(j). → C0.
+- **G-13** **The signed permissions can print a different signature from the one signed.** "Print what
+  they have signed" reads the applicant's CURRENT staged `signature_mark` at print time
+  (`signatureMarkBytes`, `applicationPdf/permissions.ts:215`) **[V]**; that slot is replaceable ("a
+  re-shoot replaces", 0230:87) and prunable at 90 days (`dataRetentionPolicy.ts:193`) **[V]**, and the
+  office adoption re-stages it (`usePacketAdoption.ts:386–409`). → the adoption record, D-AW15.
 
 ### 3.4 Assumptions not yet ruled
 
@@ -304,6 +309,10 @@ federal Clearinghouse consent cannot be collected by us.**
 | **D-AW11** | Part 1 is a linear stepper; Part 2 a task-list hub; one thing per page; add-another loops; check your answers; memorable-date boxes. | §6.4, §6.8. |
 | **D-AW12** | SMS window uses the zone derived from Part 1's state (and ZIP where a state spans two zones: take the strictest); unknown stays strict; held messages go to `sms_outbox` and the scheduler drains them when the window opens. No `drivers.time_zone` column — derived, never stored. | A-11 at the root; deriving beats restating. |
 | **D-AW13** | The four employer fields, §40.25(j), and a gap explanation become required **for new filings** through the certification/send refinement (`applicationBeforeCertificationSchema`, `applicationContract.ts:408`), **not** by changing `.nullish()` — the base schema must still parse append-only history, and there is no contract version constant. | §4; append-only filings. |
+| **D-AW14** | **Signing happens on the driver's own phone.** "Send for signing" (the office's act, which keeps D-AF3) mints the sign link and **sends it by SMS (if consented) and email** — never opened on an office computer. **Amends D-AF6/D-AF7.** The signing screen stays behind the date-of-birth unlock (D-APP16, `ApplyPage.vue:370–385` **[V]**). A text needs A-11's fix (outbox + zone) to arrive during office hours; email always goes. | Owner, 2026-09-26: "we will send link to his phone and he will sign there". |
+| **D-AW15** | **Adopt once, click everywhere.** The first signing (Part 1's permissions) asks for the signature AND initials once; each is kept as an append-only **adoption record** with its image frozen. Every later place — permissions, packet, handbook — is one click that applies it, and every mark references the adoption it used. The office signing session opens with "This is your signature — use it" (or adopt a new one, which makes a new record). | Owner's DocuSign model. Fixes A-1/Q-AW1 at the root (the handbook no longer depends on packet marks) and G-13 (a print shows the image that was adopted, not the latest capture). |
+| **D-AW16** | **One envelope at step 13: application packet + handbook, one session, one link, place by place.** The handbook's places join the packet's stop list ("Place N of M" across both), the viewer switches document, nothing can be skipped, and both file together on the last place. The handbook's "only after the packet is filed" rule (HB022, 0374:149) becomes "only after signing is opened". Packet p25 (handbook receipt) is withdrawn, because h5 is the receipt (Q-AW18 resolved). | Owner: "move from section to section easy and smoothly". |
+| **D-AW17** | **Everything is prefilled, and the office previews it before sending.** Permissions: printed name and date drawn on the unsigned copy (identity exists from Part 1). Packet: add p01 date and p22 printed name to the preview. Handbook: a preview with name and masked SSN. "Preview" sits on the row where "Send for signing" is, for packet and handbook. Carrier lines per Q-HB1. SSN stays off the packet (D-HIRE6). | Owner: "all places … prefilled properly. We can review these documents prefilled." |
 
 ---
 
@@ -436,6 +445,19 @@ Behind the existing `CaptureProvider` seam, nothing replaced:
 | Errors | inline, name the field and the fix; validate on leaving a field, clear on the fixing keystroke; summary kept | component tests |
 | Real walk | an older Android + an iPhone, one real driver, end to end | §11 log |
 
+### 6.9 Signing — the owner's model (2026-09-26), against today **[V]**
+
+| Owner's step | Today | Change |
+|---|---|---|
+| Every place prefilled | Packet mostly (`packetFieldValues.ts`, `packetSigningFields.ts`); handbook name + masked SSN (`handbookPdf.ts:247–253`); **permissions blank** until signed (`applicationPermissionInstrument.ts:17–19`) | D-AW17 |
+| Office reviews the prefilled documents | Packet preview exists but only from the review drawer, and refuses once filed (`preview.ts`, `routes/applicationReview.ts:88–106`); **no handbook preview** (`HandbookPanel.vue`); permissions only as blank templates | D-AW17 |
+| Sent with a new link to the phone | "Open signing" mints a new sign link (0369) and opens it **on the office computer**, never sent (`OpenSigningPanel.vue:16–20`, `applicationOpenSigning.ts:18–23`); the handbook mints no link | D-AW14 |
+| Adopt signature + initials once | Once per ceremony, but **two adoptions**: permissions (signature only) and packet (signature + initials, again); the handbook adopts nothing and borrows the packet's name (A-1) | D-AW15 |
+| Place by place, nothing missed, section to section | Permissions: yes ("Document N of 6"). Packet: yes (current stop, "Place N of 15/16", send blocked until done). **Handbook: a flat list of five buttons in any order**, a separate session after filing | D-AW16 |
+
+The permissions stay in Part 1 (they must be signed before the MVR/PSP are pulled), prefilled from
+Part 1; the office's review applies to the packet and handbook (Q-AW24).
+
 ---
 
 ## 7. What changes in the hiring state machine
@@ -503,7 +525,10 @@ the evidence module's table → a `cross-module-waiver` line.
 | `sms_suppressions` (new) | org, phone E.164, reason, created_at |
 | `application_screen_events` (new, prunable) | invitation, screen, entered_at, left_at |
 | `application_drafts` | `revision int`; `save_application_draft` overload with an expected revision |
-| `RETENTION_FORBIDDEN` | `handbook_marks`, `application_packet_marks`, `application_intakes`, `application_intake_licences`, `employer_verification_calls` |
+| `signature_adoptions` (new, append-only) | invitation, kind (signature/initials), typed name/initials, frozen image path (in the carrier's evidence folder, not the prunable capture), adopted_at, ip, user agent; never pruned |
+| `driver_authorizations`, `application_packet_marks`, `handbook_marks` | nullable `adoption_id` → `signature_adoptions` (nullable: existing rows predate it) |
+| `handbook_marks` insert guard (0374) | HB022 "application not filed" → "packet signing not opened" (D-AW16); a trigger function change |
+| `RETENTION_FORBIDDEN` | `handbook_marks`, `application_packet_marks`, `application_intakes`, `application_intake_licences`, `employer_verification_calls`, `signature_adoptions` |
 
 **Held out of M1 → M2**, because an owner or counsel answer changes the shape: packet-template
 versioning for Q-AW2 (b); a `drivers` status trigger (Q-AW21); anything Q-AW5 phase 2 needs.
@@ -517,6 +542,7 @@ versioning for Q-AW2 (b); a `drivers` status trigger (Q-AW21); anything Q-AW5 ph
 | **C1** (splits only, behaviour-neutral) | files the batches below would push past 500: `ApplyPage.vue` 491, `hiringSteps.ts` 494, `packetContinuation.ts` 489, `usePacketAdoption.ts` 490, `packetFieldValues.ts` 488, `draft.ts` 480, `applicationContract.ts` 473, `strings.flow.ts` 467, `employment.ts` 464, `packetOverlay.ts` 456, `strings.ts` 449, `publicApplication.ts` 439, `applicantBoard.ts` 437 | — | 1 day |
 | **C2** (after M1 applied) | A-5 (versions on marks; filing compares) → rebase and merge #1059 with A-13; A-10; A-11 + G-2 (outbox, suppressions, zone, receipts, terms, US-only numbers, per-link number cap, exact-keyword STOP, START, STOP revokes every live consent of that link); G-3; G-7 (one checklist-input builder); G-11; AW1 (required-for-new-filings refinement, `employment_gaps[]`, a stable employer key in the draft); AW2 writer; AW7 (MVR from intake); AW8 (drug-test appointments, portal consent, warnings); AW11 (travel, state machine §7); AW12 (phone verification + copy at filing) | M1, Q-AW7, Q-AW9 | 5 days |
 | **C3** (after M1 applied) | AW3 Part 1 shell + screens + FCRA summary + Part-1 nudge + memorable-date primitive in `@silvicom/ui`; AW4 scanner wizard + server confirm; AW5 barcode; AW6 selfie phase 1; AW9 Part 2 hub, loops, coverage meters, notice screen, check your answers, (b)(1) header, (b)(12) wording; AW10 local draft replay + resumable uploads (Supabase TUS on `application-captures`); AW14 screen events, Lighthouse CI, 44 px sweep, offline test | M1, C1, Q-AW3–6, Q-AW10, Q-AW12, Q-AW20 | 8–9 days |
+| **C3s** (after M1 applied; before any real step-13 signing) | D-AW14 send-for-signing by SMS + email (needs C2's SMS outbox); D-AW15 adoption records, the one-click apply, frozen images (G-13); D-AW16 one envelope, handbook in the stop walk, p25 withdrawn; D-AW17 prefilled permissions, packet and handbook previews on the signing row; retire `OpenSigningPanel`'s new-tab path | M1, C2 (SMS), Q-HB1, Q-AW24 | 4 days |
 | **C4** | AW13 Spanish on `/apply` + key-parity test; M2's readers | Q-AW11, M2 | 2 days + translation |
 | **QA** | §9's walk, fixes from it | all | 1–2 days |
 
@@ -560,7 +586,7 @@ The module is done when **every** line below is true and recorded in §11 with i
 
 | ID | Question | Candidates | Recommendation |
 |---|---|---|---|
-| **Q-AW1** ⚠ 09-28 18:00 UTC | `d61557dc` has no packet signature, so the handbook can't be signed. | (a) re-issue a new application; (b) paper handbook (needs a paper-handbook door, Q-MVR4); (c) the handbook screen adopts a signature itself when there is none | (c) — a driver can reach the handbook without a packet signature again; (a) for this driver if (c) can't land by the deadline. |
+| **Q-AW1** ⚠ 09-28 18:00 UTC | `d61557dc` has no packet signature, so the handbook can't be signed. | (a) re-issue; (b) paper handbook; (c) handbook adopts its own signature | **Answered by the owner's model (D-AW15)**: the handbook uses an adoption record, never packet marks. For `d61557dc` before C3s lands: C0 lets the handbook screen adopt a signature itself when none exists, and extends the link (A-2). |
 | **Q-AW2** | `f2b142e4` signed 20 marks on 09-17; fines and spelling change under them. | (a) re-open the changed pages; (b) file under the old text (versioned templates, M2); (c) re-issue | (b). |
 | **Q-AW3** | Required documents in Part 1? | — | CDL both sides; medical card or "I don't have one yet". |
 | **Q-AW4** | SSN card photo? | Part 1 / Part 2 optional / after hire | After hire; SSN typed at signing. |
@@ -577,12 +603,14 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW15** | Paper grants: signing date; scan for every method; placeholder wording | — | Date required; scan for `wet_signature` and `verbal_documented`; refuse on `v0-draft`. |
 | **Q-AW16** | Packet p6 criteria under JOQAA / IHRA 2-103.1 / Cook County | keep / rewrite as case-by-case | Counsel; recommend rewrite. |
 | **Q-AW17** | Fines: three contradictions; deductions under 820 ILCS 115/9(4) | — | Owner fixes the contradictions; counsel on deductions. |
-| **Q-AW18** | Handbook receipt signed twice (p25 + h5) | withdraw p25 / keep | Withdraw p25 (D-PKT19 mechanism). |
+| **Q-AW18** | Handbook receipt signed twice (p25 + h5) | — | **Resolved by D-AW16**: withdraw p25. |
 | **Q-AW19** | Road test: examiner attestation; certificate handed over; §391.33 door | — | Record "handed over"; add the equivalency door; counsel note. |
 | **Q-AW20** | 44 px targets: `/apply` only or product-wide? | — | `/apply` first. |
 | **Q-AW21** | Applicant→active: route guard only, or also a DB trigger? | — | Route guard in C0; trigger in M2 if the owner wants defence in depth. |
 | **Q-AW22** | Gap explanation threshold: 30 days (our coverage rule) or 59 (carrier's p5)? | — | 30 — stricter, and the office can ignore short ones. |
 | **Q-AW23** | Orientation videos/live orientation before D4 ships: excluded from the hire gate (§9.3)? | — | Excluded, shown as "not built yet". |
+| **Q-AW24** | The owner said "permissions, application and handbook" are prefilled and reviewed before sending. The permissions must be signed in Part 1, before screening. | (a) permissions prefilled from Part 1, no office review before; (b) office reviews permissions too, delaying screening | (a). |
+| **Q-AW25** | Signer check on the phone: date of birth (today) enough, or add a code texted to the number? | DOB / DOB + SMS code | DOB now; add the code if counsel asks (the driver is in the office at step 13). |
 
 ---
 
@@ -593,3 +621,7 @@ Append dated lines at the END.
 - 2026-09-26 — Plan written, then verified by three independent passes (code, law/vendors,
   feasibility); every correction folded in. Nothing built. C0 has a deadline of 2026-09-28 18:00 UTC
   (`d61557dc`'s link). PR #1059 stays open until C2.
+- 2026-09-26 — Owner ruled the signing model: prefilled documents, reviewed by the office, sent to the
+  driver's phone with a new link, one adoption at the start, one click per place, section to section
+  (D-AW14–D-AW17, §6.9, C3s). Resolves Q-AW1 and Q-AW18; adds G-13. Verified at the call sites:
+  SMS consent is live (`sms-2026-09-25`), the signing screen sits behind the date-of-birth unlock.
