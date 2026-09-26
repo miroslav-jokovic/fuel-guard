@@ -1992,6 +1992,105 @@
         "budget_rows_per_day": 10000,
         "why": "a cache; re-fetched on demand. Measured 8,634/day. L5 proposes 400d\u219290d. D-LIFE7: NEVER partitioned \u2014 its PK is the natural key (lat_grid, lng_grid, hour_utc) and adding a time column would change dedup semantics."
       }
+    },
+    "application_intakes": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "no rows yet (M1 is schema only). One row per invitation that reaches Part 1 (D-AW3). Never pruned: it is what screening read. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
+    "application_intake_licences": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "no rows yet (M1 is schema only). One row per licence held in three years, one to three per invitation (D-AW3). Never pruned; the MVR reads its jurisdictions from here. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
+    "signature_adoptions": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "no rows yet (M1 is schema only). Two per invitation (signature and initials), more only when the driver re-adopts (D-AW15). Append-only signature evidence; RETENTION_FORBIDDEN lands with its writer (C3s)."
+      }
+    },
+    "drug_test_appointments": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "no rows yet (M1 is schema only). About one per screened applicant, a few more when a site changes (D-AW6). Operational; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
+    "applicant_travel": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "no rows yet (M1 is schema only). About one per applicant who travels to the office (D-AW7). Operational; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
+    "employer_verification_calls": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 30,
+        "why": "no rows yet (M1 is schema only). One per previous employer the office phones, a handful per applicant (D-AW8). Append-only; copied into employer_inquiries at filing. RETENTION_FORBIDDEN lands with its writer (C2)."
+      }
+    },
+    "sms_outbox": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "no rows yet (M1 is schema only). Every text the product sends passes through it once C2 lands (A-11): nudges, links, drug-test sites. The 400-day rule is declared here in the merge that adds it to RETENTION_RULES with the writer (C2)."
+      }
+    },
+    "sms_suppressions": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "no rows yet (M1 is schema only). One per STOP, carrier block or invalid number (A-11). Never pruned: pruning a STOP re-opens texting. RETENTION_FORBIDDEN lands with its writer (C2)."
+      }
+    },
+    "application_screen_events": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "no rows yet (M1 is schema only). One row per screen an applicant enters, ~40 per completed application (AW14). The 180-day rule is declared here in the merge that adds it to RETENTION_RULES with the writer (C3)."
+      }
     }
   }
 }

@@ -72,6 +72,15 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
    * `on delete restrict` makes a missing entry here abort the merge rather than lose the row.
    */
   { table: "load_dispatches", column: "driver_id", orgScoped: true },
+  /*
+   * The SMS queue and the do-not-text list (0376, APPLICATION-FLOW-V2-PLAN §8.2, A-11). Mechanical:
+   * neither is a signature. A queued text was addressed to the person, and a STOP was said by the
+   * person, so both follow the surviving record. ⚠ `sms_suppressions.driver_id` is `on delete set
+   * null` on purpose — a STOP is keyed on the phone and must outlive a driver row — so a missing
+   * entry here would not abort a merge; it would silently detach the suppression from the driver.
+   */
+  { table: "sms_outbox", column: "driver_id", orgScoped: true },
+  { table: "sms_suppressions", column: "driver_id", orgScoped: true },
 ];
 
 /** Atomically fold a duplicate driver into the canonical one. One rpc = one transaction — the
