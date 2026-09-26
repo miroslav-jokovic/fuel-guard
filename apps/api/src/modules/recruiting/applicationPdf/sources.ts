@@ -123,10 +123,16 @@ export async function signatureMarkBytes(
   orgId: string,
   invitationId: string | null,
   kind: PacketMarkKind = "signature",
+  /**
+   * Draw nothing for a picture staged AFTER this instant. Since C0b a filed invitation can stage a
+   * `signature_mark` for its handbook (`handbookSelfAdoption.ts`, A-1); a document whose signatures were
+   * all given before filing — the permissions — must not come out wearing a picture made later (G-13).
+   */
+  stagedBefore: string | null = null,
 ): Promise<Buffer | null> {
   const slot = APPLICATION_CAPTURE_MARK_SLOT[kind];
   try {
-    return await readSignatureMark(admin, orgId, invitationId, slot);
+    return await readSignatureMark(admin, orgId, invitationId, slot, stagedBefore);
   } catch (e) {
     // The whole of D-APP8, as a catch block. Whatever went wrong reading an ornament, the
     // §391.51(b)(1) document still has to be producible — and on the recruiter's download path there
@@ -145,17 +151,19 @@ async function readSignatureMark(
   orgId: string,
   invitationId: string | null,
   slot: ApplicationCaptureSlot,
+  stagedBefore: string | null,
 ): Promise<Buffer | null> {
   if (!invitationId) return null;
   const { data: staged } = await admin
     .from("application_captures")
-    .select("id, storage_path")
+    .select("id, storage_path, captured_at")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .eq("slot", slot)
     .maybeSingle();
-  const capture = staged as { id: string; storage_path: string } | null;
+  const capture = staged as { id: string; storage_path: string; captured_at?: string } | null;
   if (!capture) return null;
+  if (stagedBefore && capture.captured_at && Date.parse(capture.captured_at) > Date.parse(stagedBefore)) return null;
 
   const { data: filed } = await admin
     .from("documents")

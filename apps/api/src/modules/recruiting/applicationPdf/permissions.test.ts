@@ -140,6 +140,7 @@ const seed = (
     consent?: unknown;
     application?: unknown;
     draft?: unknown[];
+    captures?: unknown[];
   } = {},
 ) =>
   createSupabaseRecorder({
@@ -158,9 +159,10 @@ const seed = (
       driver_applications: keyedOnInvitation(over.application ? [over.application] : []),
       application_drafts: keyedOnInvitation(over.draft ?? []),
       organizations: [{ name: "Silvicom Inc", legal_address: "1 Dock Rd, Joliet IL" }],
-      application_captures: [],
+      application_captures: over.captures ?? [],
       documents: [],
     },
+    storage: { download: async () => ({ data: null, error: { message: "none" } }) },
   });
 
 const rendered = async (rec: ReturnType<typeof seed>, org = ORG): Promise<Buffer> => {
@@ -639,6 +641,23 @@ describe("printing what an applicant has signed", () => {
    * ⚠ And before it is filed the certificate says so in a sentence. Four rows of em dashes would read
    * as evidence that failed to record rather than as an act still owed — `certificate.ts`'s own note.
    */
+  /**
+   * ⚠ G-13, narrowed for C0b (APPLICATION-FLOW-V2-PLAN.md A-1). A filed application whose packet was
+   * never signed on screen may now stage a signature picture FOR ITS HANDBOOK, after filing. Every
+   * permission here was signed before filing, without that picture on screen — so this document must
+   * not come out wearing it. A picture staged before filing (the permissions ceremony's) still prints.
+   */
+  it("never draws a signature picture staged after the application was filed", async () => {
+    const filed = { invitation: invitation({ submitted_at: "2026-09-14T16:20:00Z" }), application: CERTIFIED_APPLICATION };
+    const after = seed({ ...filed, captures: [{ id: "cap-late", storage_path: "late.png", captured_at: "2026-09-26T11:00:00Z" }] });
+    await rendered(after);
+    expect(after.storageCalls().filter((c) => c.fn === "download")).toEqual([]);
+
+    const before = seed({ ...filed, captures: [{ id: "cap-early", storage_path: "early.png", captured_at: "2026-09-13T09:00:00Z" }] });
+    await rendered(before);
+    expect(before.storageCalls().filter((c) => c.fn === "download").length).toBeGreaterThan(0);
+  });
+
   it("says the application has not been certified while it has not", async () => {
     const text = await printed(seed());
     expect(text).toContain("Not signed yet. The applicant certifies");
