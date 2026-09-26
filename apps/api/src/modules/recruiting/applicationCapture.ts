@@ -279,12 +279,19 @@ export async function promoteCaptures(
   orgId: string,
   invitationId: string,
   driverId: string,
+  /**
+   * Only these slots — Part 1 promotes its own photographs and nothing staged beside them
+   * (`completeIntake`, D-AW4). Omitted, every staged capture, as filing has always done.
+   */
+  slots?: readonly ApplicationCaptureSlot[],
 ): Promise<PromotedCapture[] | IntakeError> {
-  const { data, error } = await admin
+  let query = admin
     .from("application_captures")
     .select(CAPTURE_COLUMNS)
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId);
+  if (slots) query = query.in("slot", [...slots]);
+  const { data, error } = await query;
   if (error) return CAPTURE_PROMOTION_FAILED;
 
   const rows = (data ?? []) as CaptureRow[];

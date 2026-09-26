@@ -1,10 +1,9 @@
 import { z } from "zod";
 import { isoDateSchema, requiredDateOfBirthSchema } from "./rosterContract.js";
-import { usdotNumberSchema } from "./recruitmentContract.js";
 // ⚠ The rules that span fields live in their own module since 2026-09-11 (the 500-line budget), and
 // they import this file's TYPE only — `import type` is erased, so there is no runtime cycle.
 import { APPLICATION_CROSS_FIELD_RULES } from "./applicationRules.js";
-import { EMPLOYMENT_WINDOW_YEARS, CMV_WINDOW_YEARS, yearsBefore } from "./employmentCoverage.js";
+import { applicationEmployerSchema, applicationEmploymentGapSchema } from "./applicationEmployerContract.js";
 import { LICENSING_AUTHORITY_MAX_LENGTH } from "./mvrJurisdictions.js";
 
 /**
@@ -123,54 +122,11 @@ export const applicationAddressSchema = z.object({
 }).strict();
 export type ApplicationAddress = z.infer<typeof applicationAddressSchema>;
 
-// ── (b)(10)/(b)(11) employment history ────────────────────────────────────────
-
-/**
- * One declared employer. `operated_cmv` is what sorts an entry into (b)(11), and it is asked of every
- * entry rather than only the old ones — the applicant knows the answer and the boundary is ours to
- * compute, not theirs to remember.
- */
-export const applicationEmployerSchema = z
-  .object({
-    employer_name: z.string().min(1).max(200),
-    usdot_number: usdotNumberSchema,
-    address_line1: z.string().max(200).nullish(),
-    city: z.string().max(120).nullish(),
-    state: z.string().max(40).nullish(),
-    phone: z.string().max(40).nullish(),
-    /**
-     * Where a §391.23(a)(2) inquiry is sent. Optional, because an applicant may genuinely not know
-     * it and a required field they cannot answer is a form they abandon — the office can add one
-     * later, and a posted letter is an equally good contact under §391.23(c)(2).
-     */
-    email: z.email().max(200).nullish().or(z.literal("").transform(() => null)),
-    position_held: z.string().max(120).nullish(),
-    started_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD"),
-    ended_on: isoDateSchema,
-    /** §391.21(b)(11) — did the applicant operate a commercial motor vehicle in this job? */
-    operated_cmv: z.boolean(),
-    /** §391.23(a)(2): only a DOT-regulated employer owes a safety-performance inquiry. */
-    dot_regulated: z.boolean(),
-    /** §391.21(b)(10) asks for it in as many words. */
-    reason_for_leaving: z.string().max(500).nullish(),
-    /**
-     * §391.21(b)(10)(iv)(A): whether the applicant was subject to the FMCSRs while employed by this
-     * employer. (This comment described §40.25(j)'s prior-positive question until 2026-09-26 — a
-     * different question, asked once per application and not per employer; G-12.)
-     */
-    subject_to_fmcsr: z.boolean().nullish(),
-    /**
-     * §391.21(b)(10)(iv)(B): whether the job was a safety-sensitive function in a DOT-regulated mode,
-     * subject to 49 CFR part 40 alcohol and controlled-substances testing.
-     */
-    safety_sensitive: z.boolean().nullish(),
-  })
-  .strict()
-  .refine((v) => typeof v.ended_on !== "string" || v.ended_on >= v.started_on, {
-    message: "The end date cannot be before the start date",
-    path: ["ended_on"],
-  });
-export type ApplicationEmployer = z.infer<typeof applicationEmployerSchema>;
+// ── (b)(10)/(b)(11) employment history — `applicationEmployerContract.ts` ─────────────────────
+// The employer row and the two windows it is sorted into live next door since C1 (2026-09-26), and
+// are re-exported from here so no import path changed. (C0c's merge put a second copy back inline;
+// C2 removed it again — the copy next door was the one nothing imported.)
+export * from "./applicationEmployerContract.js";
 
 // ── (b)(7)/(b)(8)/(b)(9) self-declared history ────────────────────────────────
 
@@ -330,6 +286,12 @@ export const driverApplicationObject = z
     employers: z.array(applicationEmployerSchema),
     declares_no_employment: z.boolean(),
     /**
+     * The applicant's explanation of each stretch of the (b)(10) years with no employer (AW1).
+     * Defaulted, like `additional_licences`, because every application filed before AW1 has none; a
+     * v2 filing must explain every gap over 30 days (`applicationV2FilingIssues`).
+     */
+    employment_gaps: z.array(applicationEmploymentGapSchema).default([]),
+    /**
      * The carrier's own questions (A9, D-APP12) — the ONE contract change this plan makes for them,
      * after which a carrier's form changes without touching anything §391.21 numbers.
      *
@@ -428,51 +390,3 @@ export const applicationBeforeCertificationSchema = driverApplicationObject
     signed_name: z.string().max(200).optional(),
   })
   .superRefine(crossFieldRules);
-
-// ── which list an entry belongs to ────────────────────────────────────────────
-
-export type EmploymentSegment = "b10" | "b11" | "outside";
-
-/**
- * Sort one declared employer into §391.21(b)(10), (b)(11), or neither.
- *
- * The boundary is ours to compute and the rules differ (HIRING-PLAN.md D-HIRE1):
- *   (b)(10) — overlaps the 3 years before `asOf`. ALL employment, whatever it was.
- *   (b)(11) — overlaps the 7 years before that, and ONLY if the applicant operated a CMV.
- *
- * An entry may span the boundary and belong to both, which is why this returns a set rather than one
- * label: a job from 2018 to 2025 is a (b)(10) employer AND a (b)(11) one, and dropping either half
- * would under-report a list the applicant is required to give in full.
- */
-export function employmentSegments(
-  employer: Pick<ApplicationEmployer, "started_on" | "ended_on" | "operated_cmv">,
-  asOf: string,
-): EmploymentSegment[] {
-  const aStart = yearsBefore(asOf, EMPLOYMENT_WINDOW_YEARS);
-  const bStart = yearsBefore(asOf, CMV_WINDOW_YEARS);
-  const from = employer.started_on;
-  const to = employer.ended_on ?? asOf;
-
-  const out: EmploymentSegment[] = [];
-  // Half-open [aStart, asOf] for (b)(10); [bStart, aStart) for (b)(11). A job that merely touches a
-  // boundary instant belongs to the later window and to it alone.
-  if (to >= aStart && from <= asOf) out.push("b10");
-  if (employer.operated_cmv && to >= bStart && from < aStart) out.push("b11");
-  if (out.length === 0) out.push("outside");
-  return out;
-}
-
-/** Employers the applicant was REQUIRED to list, in the regulation's own terms. */
-export function requiredEmployers(
-  employers: readonly ApplicationEmployer[],
-  asOf: string,
-): { b10: ApplicationEmployer[]; b11: ApplicationEmployer[] } {
-  const b10: ApplicationEmployer[] = [];
-  const b11: ApplicationEmployer[] = [];
-  for (const e of employers) {
-    const segments = employmentSegments(e, asOf);
-    if (segments.includes("b10")) b10.push(e);
-    if (segments.includes("b11")) b11.push(e);
-  }
-  return { b10, b11 };
-}

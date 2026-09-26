@@ -28,6 +28,7 @@ import { recordRelease } from "../applicationReleases.js";
 import { recordPacketMark } from "../applicationPacketMarks.js";
 import { recordApplicantIdentity } from "../applicantIdentity.js";
 import { publicApplicationHandbookRouter } from "./publicApplicationHandbook.js";
+import { publicApplicationIntakeRouter } from "./publicApplicationIntake.js";
 import { applicationBundleHandler } from "./publicApplicationBundle.js";
 
 /**
@@ -278,6 +279,8 @@ export function publicApplicationRouter(): Router {
                 || result.code === "esign_consent_required"
                 // AF3: identity first. A 409 like its neighbours — the link is good, a screen was skipped.
                 || result.code === "identity_missing"
+                // D-AW2: on a v2 link Part 1 comes first, for the same reason.
+                || result.code === "intake_incomplete"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));
@@ -333,6 +336,9 @@ export function publicApplicationRouter(): Router {
       res.status(201).json({ ok: true, signedCount: result.signedCount, complete: result.complete });
     }),
   );
+
+  // Part 1 — "get started" (APPLICATION-FLOW-V2-PLAN §6.2, AW2), in its own module (500-line budget).
+  router.use(publicApplicationIntakeRouter());
 
   // The photograph slots, in their own module (500-line budget). Mounted at this router's root, so
   // the paths are unchanged.

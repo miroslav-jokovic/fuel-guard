@@ -92,6 +92,11 @@ interface InvitationRow {
    * DR036 until it is set, and `recordPacketMark` refuses `packet_not_opened` before reaching it.
    */
   signing_opened_at: string | null;
+  /**
+   * Part 1 finished (D-AW1, 0376) — stamped once by `complete_applicant_intake`. ⚠ Optional for the
+   * reason the handbook stamps below are: a select written before 0376 reads `undefined`.
+   */
+  intake_completed_at?: string | null;
   /** The certified §391.21 application filed — stamped inside `submit_driver_application`. */
   submitted_at: string | null;
   /**
@@ -105,6 +110,11 @@ interface InvitationRow {
 /** What `GET /:token` hands the page so it can open where the driver stopped. */
 export interface InvitationPhases {
   consentedAt: string | null;
+  /**
+   * D-AW1: Part 1 is finished. The page moves from Part 1's screens to the permissions on it; null on
+   * every legacy invitation, which went straight from identity to the permissions.
+   */
+  intakeCompletedAt: string | null;
   releasesCompletedAt: string | null;
   /**
    * The two phases the office owns (F4, 0336).
@@ -125,6 +135,7 @@ export interface InvitationPhases {
 
 export const phasesOf = (row: {
   consented_at: string | null;
+  intake_completed_at?: string | null;
   releases_completed_at: string | null;
   application_sent_at?: string | null;
   review_requested_at?: string | null;
@@ -133,6 +144,7 @@ export const phasesOf = (row: {
   submitted_at: string | null;
 }): InvitationPhases => ({
   consentedAt: row.consented_at,
+  intakeCompletedAt: row.intake_completed_at ?? null,
   releasesCompletedAt: row.releases_completed_at,
   applicationSentAt: row.application_sent_at ?? null,
   reviewRequestedAt: row.review_requested_at ?? null,
@@ -211,7 +223,7 @@ export async function resolveInvitation(
     .from("application_invitations")
     .select(
       "id, org_id, driver_id, token_hash, sign_token_hash, expires_at, revoked_at, consented_at, "
-      + "releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, "
+      + "intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, "
       + "submitted_at, handbook_signing_opened_at, handbook_filed_at",
     )
     .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash}`)

@@ -331,6 +331,8 @@ describe("the link is a session, not a fuse", () => {
     if (isIntakeError(result)) throw new Error("expected a live invitation");
     expect(phasesOf(result)).toEqual({
       consentedAt: "2026-08-19T00:00:00Z",
+      // D-AW1: Part 1's stamp — null on this link, as on every legacy one.
+      intakeCompletedAt: null,
       releasesCompletedAt: "2026-08-19T00:05:00Z",
       applicationSentAt: "2026-08-19T00:10:00Z",
       reviewRequestedAt: "2026-08-19T00:30:00Z",

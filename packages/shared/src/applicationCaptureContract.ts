@@ -103,8 +103,14 @@ export const APPLICATION_CAPTURE_SLOT_LABELS: Record<ApplicationCaptureSlot, str
  * office has sent it. The medical certificate and the Social Security card are the application's
  * documents, asked on its documents screen, so they are refused until the application is sent rather
  * than left open on a visit that never asks for them.
+ *
+ * ⚠ **The medical certificate left this list on 2026-09-26 (D-AW4, C2).** Part 1 asks for it — "or
+ * I don't have one yet" — before the permissions, because `complete_applicant_intake` (0376) will not
+ * finish Part 1 without one or that answer, and `medical_certificate` is a before-travel step the
+ * office screens on (Q-HM5). Only the Social Security card still waits for the application, and Q-AW4
+ * moves it after the hire.
  */
-export const APPLICATION_ONLY_CAPTURE_SLOTS: readonly ApplicationCaptureSlot[] = ["medical_card", "ssn_card"];
+export const APPLICATION_ONLY_CAPTURE_SLOTS: readonly ApplicationCaptureSlot[] = ["ssn_card"];
 
 export const APPLICATION_CAPTURE_REQUESTED: readonly ApplicationCaptureSlot[] = [
   "cdl_front",

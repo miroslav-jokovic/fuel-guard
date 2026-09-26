@@ -15,6 +15,7 @@ import {
   type SubmitContext,
 } from "./applicationIntake.js";
 import { IDENTITY_MISSING, identityOnFile } from "./applicantIdentity.js";
+import { INTAKE_INCOMPLETE, intakeState } from "./applicantIntake.js";
 
 /**
  * The five authorizations an applicant signs before the form (A5, D-APP4).
@@ -105,6 +106,14 @@ export async function recordRelease(
   // query all run on it before the application exists — and PSP is ordered on the strength of
   // exactly these signatures. A full set of permissions for somebody the office still cannot
   // screen would be a finished step that finishes nothing.
+  // D-AW2 (plan §6.2): on a v2 link the permissions come AFTER Part 1 — the office screens on Part 1's
+  // licences and address, and a permission signed before they exist authorises a search nobody can
+  // run yet. A legacy link (no Part 1 row) goes on to the identity rule below, unchanged.
+  // ⚠ Before the identity rule, not after it: Part 1 is where a v2 applicant gives their identity, so
+  // "finish Part 1" is the answer that tells them where to go.
+  if (!invitation.intake_completed_at && (await intakeState(admin, invitation.org_id, invitation.id)).v2) {
+    return INTAKE_INCOMPLETE;
+  }
   if (!(await identityOnFile(admin, invitation.org_id, invitation.id, invitation.driver_id))) {
     return IDENTITY_MISSING;
   }

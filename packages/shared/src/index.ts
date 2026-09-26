@@ -116,6 +116,9 @@ export * from "./applicationRules.js";
 export * from "./applicantPipeline.js";
 export * from "./applicationIntake.js";
 export * from "./applicantIdentity.js";
+// Part 1 of the link and the office's screening (APPLICATION-FLOW-V2-PLAN §8.4); the v2 filing rules.
+export * from "./applicantScreeningContract.js";
+export * from "./applicationFilingRules.js";
 export * from "./sevenDayStatement.js";
 export * from "./applicationCaptureContract.js";
 export * from "./applicationSections.js";

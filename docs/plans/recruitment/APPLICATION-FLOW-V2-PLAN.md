@@ -770,3 +770,20 @@ Append dated lines at the END.
 - 2026-09-26 — **C0c merged** (#1066, `a7cfc14`). **M1 merged** (#1067, `e5f9854`) and **verified applied in
   production** the same day (columns, tables, both overloads beside the old signatures, the four new functions, the
   kind CHECK). C2 may start. Handoff: `HANDOFF-2026-09-26-APPLICATION-FLOW-V2.md`.
+- 2026-09-26 — **C2 split into four PRs** (C2a intake, C2b office screening + state machine, C2c filing, C2d SMS),
+  in that order, because C2's 5–6 days in one diff would hide every change inside it. **C2a built**
+  (`claude/applicant-flow-c2`): AW2 — `applicantIntake.ts` + `POST /apply/:token/intake`, `/intake/licences`
+  (the list's order IS the positions, 0 = current CDL), `/intake/complete` (promotes `cdl_front`/`cdl_back`/
+  `medical_card` only, idempotent, audited with a count); `applicantScreeningContract.ts` (US-only E.164 phone via
+  `normalisePhone`, US-state address, `JURISDICTION_CODES` licences, 0376's 40-char number, the roster's
+  `CDL_CLASSES`/`ENDORSEMENT_CODES` — **endorsements stay a declaration on the intake row**, the M1 reading
+  decided: no certification without an `effective_from`); on a v2 link (an intake row) `recordRelease` refuses
+  `intake_incomplete` BEFORE the identity rule; `intakeCompletedAt` on the link's phases; `medical_card` left
+  `APPLICATION_ONLY_CAPTURE_SLOTS` (D-AW4). AW1 — employer `key` (uuid, optional in the base schema),
+  `employment_gaps[]` (+ `APPLICATION_SECTION_KEYS`), and `applicationV2FilingIssues()` (address, reason,
+  (iv)(A)/(B) on (b)(10) employers only, every gap > 30 days explained); it is enforced at filing for v2 invitations
+  in C2c with the composed payload. `RETENTION_FORBIDDEN` + the five tables; the `sms_outbox` and screen-events
+  RULES wait for their writers, as `table-modules.json` says. **Found:** C0c's merge had put
+  `applicationContract.ts`'s employer code back inline, leaving C1's `applicationEmployerContract.ts` imported by
+  nothing — restored. **Not here:** the FCRA summary acknowledgement (its text and version are AW3's, C3 — no
+  version string for text the repo does not hold), so `/intake/complete` answers AI007 until C3 ships it.
