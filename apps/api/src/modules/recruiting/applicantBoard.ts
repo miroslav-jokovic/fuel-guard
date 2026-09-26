@@ -1,36 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  countedPacketMarks,
-  driverInquiryQueue,
-  handbookStatus,
-  hiringChecklist,
-  hiringStep,
-  type ApplyingAs,
-  type AuthorizationRow,
-  type HiringPhase,
-  type HiringStepKey,
-} from "@silvicom/shared";
-import { driversWithPspRequest } from "../psp/index.js";
-import {
-  readEmploymentHistory,
-  readHandbookMarks,
-  readInquiries,
-  readPacketMarks,
-  readQualificationRecords,
-  type MarkRow,
-  type QualificationRow,
-} from "./applicantBoardReads.js";
+import { hiringChecklist, hiringStep, type HiringPhase, type HiringStepKey } from "@silvicom/shared";
+import { checklistInputs, type ChecklistInvitation, type ChecklistSubject } from "./applicantChecklistInputs.js";
+import type { MarkRow, QualificationRow } from "./applicantBoardReads.js";
 
 /**
  * The board's half of the fold — every applicant's checklist in one pass (B4, `HIRING-MODULE-PLAN.md` §9).
  *
  * ── WHY THIS IS NOT A LOOP OVER `applicantChecklist` ──────────────────────────────────────────
- * B3 answers for ONE applicant and does seven round trips to do it. Calling it per row would make
- * the board cost seven queries per applicant, and the board is the screen a recruiter leaves open —
- * `docs/plans/livemap/LIVE-MAP-CONCURRENCY-PLAN.md` §7 is what that costs when it is wrong, and the
- * repair (#856–#858) was three PRs. So this reads set-based: three `.in()` queries for the whole
- * org, grouped in memory, then the same pure fold per row. Three queries at 2 applicants and three
- * at 2,000.
+ * Calling the one-applicant checklist per row would make the board cost a round trip per table per
+ * applicant, and the board is the screen a recruiter leaves open — `docs/plans/livemap/
+ * LIVE-MAP-CONCURRENCY-PLAN.md` §7 is what that costs when it is wrong, and the repair (#856–#858)
+ * was three PRs. So the evidence is read set-based, one `.in()` per table for the whole board, and
+ * since G-7 (2026-09-26) by the SAME builder the drawer uses — `applicantChecklistInputs.ts`, which
+ * says what the two separate builders had drifted into.
  *
  * ── AND IT DECIDES NOTHING, FOR B3'S REASON ───────────────────────────────────────────────────
  * ⚠ Every rule about what a step means is `hiringChecklist.ts`'s. What is added here is a PROJECTION
@@ -44,29 +26,7 @@ import {
  */
 
 /** What the caller already read, per driver. Passed in rather than re-queried — see `boardChecklists`. */
-export interface BoardApplicantInput {
-  driverId: string;
-  hiredAt: string | null;
-  /**
-   * The LIVE invitation — newest, not revoked.
-   *
-   * ⚠ Chosen by the caller rather than here, so that the board and the pipeline stage beside it
-   * cannot pick different invitations for the same person and then disagree in adjacent columns.
-   */
-  invitation: BoardInvitation | null;
-  hasDraft: boolean;
-  /**
-   * What the draft says they are applying as (Q-HM14), read by the caller with the draft flag above
-   * and for the same reason — one read of the draft, two answers from it. Decides how many places
-   * this applicant's packet has.
-   */
-  applyingAs: ApplyingAs | null;
-  /**
-   * The licensing jurisdictions the same draft declares (AF7, `declaredLicenceJurisdictions`), read
-   * in that one draft read. Empty while none is known.
-   */
-  licenceJurisdictions: readonly string[];
-  authorizations: readonly AuthorizationRow[];
+export interface BoardApplicantInput extends ChecklistSubject {
   /**
    * Has the carrier already answered this application — declined, withdrawn, no response (0238)?
    *
@@ -83,19 +43,8 @@ export interface BoardApplicantInput {
   decided: boolean;
 }
 
-export interface BoardInvitation {
-  id: string;
-  created_at: string;
-  /** AF4 (0365): when the office sent the application form. */
-  application_sent_at: string | null;
-  review_requested_at: string | null;
-  approved_at: string | null;
-  /** AF5 (0369): when the office opened packet signing, in person. */
-  signing_opened_at: string | null;
-  submitted_at: string | null;
-  /** 0374: when the office opened handbook signing. Optional for a row selected before it. */
-  handbook_signing_opened_at?: string | null;
-}
+/** The live invitation, as the board's caller chose it (newest, not revoked). */
+export type BoardInvitation = ChecklistInvitation;
 
 /**
  * One row's worth of checklist — §4.1's columns and nothing else.
@@ -143,101 +92,34 @@ export async function boardChecklists(
   orgId: string,
   applicants: readonly BoardApplicantInput[],
   now: Date = new Date(),
-): Promise<Map<string, BoardChecklist>> {
-  const out = new Map<string, BoardChecklist>();
-  if (applicants.length === 0) return out;
-
-  const driverIds = applicants.map((a) => a.driverId);
-  const invitationIds = applicants.map((a) => a.invitation?.id).filter((id): id is string => Boolean(id));
-
-  const [records, pspRequested, marks, employment, inquiries, handbookMarks] = await Promise.all([
-    readQualificationRecords(admin, orgId, driverIds),
-    // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
-    // (D-SEP1) and `lint:table-access` refuses a raw read from recruitment — which is exactly what
-    // it did to B3, correctly.
-    driversWithPspRequest(admin, orgId, driverIds),
-    readPacketMarks(admin, orgId, invitationIds),
-    // ⚠ Q-HM9's two, and they keep this function's shape rather than breaking it: five `.in()`
-    // queries for the whole org, grouped in memory, still three-plus-two regardless of whether the
-    // board holds two applicants or two thousand. Folding the investigation per driver here would
-    // have been the N+1 this module's header exists to refuse.
-    readEmploymentHistory(admin, orgId, driverIds),
-    readInquiries(admin, orgId, driverIds),
-    // HANDBOOK-SIGNING-PLAN.md: one `.in()` for the whole board, for the packet marks' reason.
-    readHandbookMarks(admin, orgId, invitationIds),
-  ]);
+): Promise<{ checklists: Map<string, BoardChecklist>; drafted: Set<string> }> {
+  const checklists = new Map<string, BoardChecklist>();
+  /**
+   * The drivers whose live invitation has a draft — handed back because the pipeline's own stage
+   * column asks the same question, and answering it from THIS read is what keeps the board's two
+   * columns from reading the drafts twice and disagreeing (F5).
+   */
+  const drafted = new Set<string>();
+  if (applicants.length === 0) return { checklists, drafted };
 
   // ⚠ Derived from `now` rather than read separately, so the whole board is folded against ONE
   // instant. Two clock reads in one pass is how a row at a midnight boundary comes out measured
   // against a different day from the row above it.
   const today = now.toISOString().slice(0, 10);
+  const evidence = await checklistInputs(admin, orgId, applicants, today);
 
   for (const a of applicants) {
-    const own = records.get(a.driverId) ?? [];
-    const kinds = [...new Set(own.map((r) => r.kind))];
-    const markRows = a.invitation ? (marks.get(a.invitation.id) ?? []) : [];
-    const attempts = inquiries.get(a.driverId) ?? [];
-    // ⚠ The same pure fold the single-applicant checklist uses (`applicantChecklist.ts`), for D-HM2's
-    // reason: the board and the applicant's own record must never disagree about whether the §391.23
-    // investigation is outstanding.
-    const investigationQueue = driverInquiryQueue({
-      employment: employment.get(a.driverId) ?? [],
-      attempts,
-      hireDate: a.hiredAt,
-      today,
-    });
-
-    const checklist = hiringChecklist({
-      invitedAt: a.invitation?.created_at ?? null,
-      phases: a.invitation
-        ? {
-            applicationSentAt: a.invitation.application_sent_at,
-            reviewRequestedAt: a.invitation.review_requested_at,
-            approvedAt: a.invitation.approved_at,
-            signingOpenedAt: a.invitation.signing_opened_at,
-            submittedAt: a.invitation.submitted_at,
-          }
-        : null,
-      hasDraft: a.hasDraft,
-      authorizations: a.authorizations,
-      qualificationKinds: kinds,
-      mvrJurisdictions: own.filter((r) => r.kind === "mvr").map((r) => r.jurisdiction ?? null),
-      licenceJurisdictions: a.licenceJurisdictions,
-      psp: {
-        requested: pspRequested.has(a.driverId),
-        // ⚠ The REPORT, not the order (B3): `/psp-imports` files one bought on FMCSA's portal and it
-        // ticks this step exactly as an ordered one does. D-HM6 read from the evidence side.
-        reportReceived: kinds.includes("psp_report"),
-      },
-      // ⚠ Marks at THIS applicant's current stops only — a mark on a withdrawn line (L-1), or a p31b
-      // from somebody who is now a company driver (Q-HM14), is still a row.
-      packetMarks: countedPacketMarks(markRows.map((r) => r.placement_id), a.applyingAs),
-      applyingAs: a.applyingAs,
-      investigation: {
-        outstanding: investigationQueue.outstanding.length,
-        // ⚠ `awaiting` only — the employer's own move. See `applicantChecklist.ts`'s note.
-        awaiting: investigationQueue.outstanding.filter((e) => e.state === "awaiting").length,
-      },
-      // ⚠ The drawer's input exactly (`applicantChecklist.ts`), so the two agree on whose move it is.
-      handbook: {
-        openedAt: a.invitation?.handbook_signing_opened_at ?? null,
-        driverComplete: handbookStatus({
-          submittedAt: a.invitation?.submitted_at ?? null,
-          openedAt: a.invitation?.handbook_signing_opened_at ?? null,
-          filedAt: null,
-          signedPlacementIds: a.invitation ? (handbookMarks.get(a.invitation.id) ?? []).map((r) => r.placement_id) : [],
-        }).driverComplete,
-      },
-      hiredAt: a.hiredAt,
-    });
+    const { inputs, records, marks } = evidence.get(a.driverId)!;
+    if (inputs.hasDraft) drafted.add(a.driverId);
+    const checklist = hiringChecklist(inputs);
 
     // The fold emits only measurable steps and nominates `next` from among them, so this always
     // finds one when `next` is set.
     const next = checklist.next;
     const nextStep = checklist.steps.find((s) => s.key === next) ?? null;
-    const lastProgressAt = newestEvidence(a, own, markRows);
+    const lastProgressAt = newestEvidence(a, records, marks);
 
-    out.set(a.driverId, {
+    checklists.set(a.driverId, {
       next,
       // ⚠ `action`, not `label`: this column is an instruction. See `HiringStepSpec.action`.
       next_label: next ? hiringStep(next).action : null,
@@ -256,7 +138,7 @@ export async function boardChecklists(
     });
   }
 
-  return out;
+  return { checklists, drafted };
 }
 
 /**

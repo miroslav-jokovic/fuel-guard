@@ -77,7 +77,7 @@ const seed = (evidence: string[] = READY): SupabaseRecorder =>
       ],
       qualification_records: (q: RecordedQuery) =>
         String(q.ops.find((o) => o.method === "select")?.args[0] ?? "").includes("jurisdiction")
-          ? evidence.map((kind) => ({ kind, ...(kind === "road_test" ? { source: "road_test" } : {}) })) // A-8: a ceremony road test
+          ? evidence.map((kind) => ({ driver_id: DRIVER, kind, ...(kind === "road_test" ? { source: "road_test" } : {}) })) // A-8: a ceremony road test
           : [],
       audit_logs: [],
     },

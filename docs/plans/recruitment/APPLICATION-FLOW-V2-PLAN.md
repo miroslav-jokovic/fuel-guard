@@ -787,3 +787,12 @@ Append dated lines at the END.
   `applicationContract.ts`'s employer code back inline, leaving C1's `applicationEmployerContract.ts` imported by
   nothing — restored. **Not here:** the FCRA summary acknowledgement (its text and version are AW3's, C3 — no
   version string for text the repo does not hold), so `/intake/complete` answers AI007 until C3 ships it.
+- 2026-09-26 — **C2a merged** (#1069, main `feca844`). **C2b split again**, for the reason C2 was: C2b1 is G-7
+  alone, so the §7 state machine (C2b2) lands on ONE builder instead of being added to two. **C2b1 built**
+  (`claude/applicant-checklist-inputs`): `applicantChecklistInputs.ts` is the one builder of `hiringChecklist`'s
+  input — the board calls it for every row, the drawer for one — over `applicantBoardReads.ts`'s set-based reads,
+  now PAGED (`fetchAllPaged`, ordered by `id`) past PostgREST's 1,000 rows. **Measured drift it closes:** the
+  board folded no `roadTestPassed` (A-8) and no `releasesCompletedAt` (A-4), so a failed road test read done on the
+  board and not done in the drawer; the pipeline's draft read had no `.in()` and read every draft in the org. A-4
+  is on the board as a consequence. Pinned by a parity test (both doors, one fixture) and a 1,001-row paging test,
+  each proved by mutation.

@@ -1,23 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  asApplyingAs,
-  countedPacketMarks,
-  declaredLicenceJurisdictions,
-  driverInquiryQueue,
-  handbookStatus,
-  hiringChecklist,
-  roadTestCounts,
-  type ApplyingAs,
-  type AuthorizationRow,
-  type HiringChecklist,
-  type HiringChecklistInputs,
-  type QueueAttempt,
-  type QueueEmployment,
-} from "@silvicom/shared";
-import { hasPspRequest } from "../psp/index.js";
-import { DRAFT_APPLYING_AS_SELECT } from "./applicantApplyingAs.js";
-import { DRAFT_LICENCES_SELECT, RECORD_JURISDICTION_SELECT } from "./applicantLicences.js";
-import { handbookPlacesSigned } from "./handbookSigning.js";
+import { hiringChecklist, type AuthorizationRow, type HiringChecklist } from "@silvicom/shared";
+import { checklistInputs, type ChecklistInvitation } from "./applicantChecklistInputs.js";
 
 /**
  * Gather the evidence one applicant's checklist folds over (B3, `HIRING-MODULE-PLAN.md` §9).
@@ -33,8 +16,13 @@ import { handbookPlacesSigned } from "./handbookSigning.js";
  * ── THE SERVICE ROLE BYPASSES RLS ──────────────────────────────────────────────────────────────
  * ⚠ So every read below org-filters itself, without exception, and `applicantChecklist.test.ts`
  * asserts it through `supabaseRecorder`'s `expectOrgScoped` rather than trusting the review that
- * noticed. Nine reads is nine chances to leave one off — Q-HM9 added the two that fold the §391.23
- * investigation, and they are org-filtered for the same reason as the other seven.
+ * noticed.
+ *
+ * ── THE BOARD WITH ONE ROW (G-7, 2026-09-26) ──────────────────────────────────────────────────
+ * ⚠ This read its evidence itself until G-7, in nine queries of its own, while the board read the
+ * same tables in its own six — and the two had drifted (`applicantChecklistInputs.ts` has the
+ * measurement). Now it reads the three things only it chooses — the driver, the live invitation,
+ * the authorizations — and hands them to the builder the board uses.
  */
 
 /** The driver is not this org's, or is not there at all. Told apart from an empty checklist. */
@@ -100,153 +88,16 @@ export async function applicantChecklist(
     .is("revoked_at", null)
     .order("created_at", { ascending: false })
     .limit(1);
-  const invitation = ((invites ?? []) as InvitationRow[])[0] ?? null;
+  const invitation = ((invites ?? []) as ChecklistInvitation[])[0] ?? null;
 
-  const [authorizations, records, pspRequested, markIds, draft, investigation, handbookPlaces] = await Promise.all([
-    readAuthorizations(admin, orgId, driverId),
-    readQualificationRecords(admin, orgId, driverId),
-    // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
-    // (D-SEP1) and `lint:table-access` refuses a raw read from here — correctly, and it caught this.
-    hasPspRequest(admin, orgId, driverId),
-    readPacketMarkIds(admin, orgId, invitation?.id ?? null),
-    readDraftFacts(admin, orgId, invitation?.id ?? null),
-    readInvestigation(admin, orgId, driverId, (driver as { hire_date: string | null }).hire_date, today),
-    handbookPlacesSigned(admin, orgId, invitation?.id ?? null),
-  ]);
-  const kinds = [...new Set(records.map((r) => r.kind))];
-
-  const input: HiringChecklistInputs = {
-    invitedAt: invitation?.created_at ?? null,
-    phases: invitation
-      ? {
-          applicationSentAt: invitation.application_sent_at,
-          reviewRequestedAt: invitation.review_requested_at,
-          approvedAt: invitation.approved_at,
-          signingOpenedAt: invitation.signing_opened_at,
-          submittedAt: invitation.submitted_at,
-        }
-      : null,
-    hasDraft: draft.exists,
-    authorizations,
-    releasesCompletedAt: invitation?.releases_completed_at ?? null,
-    qualificationKinds: kinds,
-    mvrJurisdictions: records.filter((r) => r.kind === "mvr").map((r) => r.jurisdiction ?? null),
-    roadTestPassed: records.some((r) => r.kind === "road_test" && roadTestCounts(r)),
-    licenceJurisdictions: draft.licenceJurisdictions,
-    psp: {
-      requested: pspRequested,
-      // ⚠ The REPORT is a `qualification_records` row of kind `psp_report`, not a settled
-      // `psp_requests` row — and that is what makes D-HUI5 liveable rather than a nag: a PSP bought
-      // on FMCSA's portal and filed by hand through `/psp-imports` ticks this step exactly as an
-      // ordered one does. D-HM6's "recorded acts, not integrations", read from the evidence side.
-      reportReceived: kinds.includes("psp_report"),
-    },
-    // ⚠ Marks at THIS applicant's stops (Q-HM14) — a company driver's walk is one shorter — and never
-    // the row count (L-1): a mark on a withdrawn line is still a row, and counting it would turn
-    // "Application signed" green one real stop short.
-    packetMarks: countedPacketMarks(markIds, draft.applyingAs),
-    applyingAs: draft.applyingAs,
-    investigation,
-    // HANDBOOK-SIGNING-PLAN.md: drives only `inFlight`; the step is done on the filed record.
-    handbook: {
-      openedAt: invitation?.handbook_signing_opened_at ?? null,
-      driverComplete: handbookStatus({
-        submittedAt: invitation?.submitted_at ?? null,
-        openedAt: invitation?.handbook_signing_opened_at ?? null,
-        filedAt: null,
-        signedPlacementIds: handbookPlaces,
-      }).driverComplete,
-    },
-    hiredAt: (driver as { hire_date: string | null }).hire_date,
-  };
-
-  return hiringChecklist(input);
-}
-
-interface InvitationRow {
-  id: string;
-  created_at: string;
-  /** When the link's permission ceremony closed — after it, a missing purpose is paper-only (A-4). */
-  releases_completed_at: string | null;
-  /** AF4 (0365): when the office sent the application form. */
-  application_sent_at: string | null;
-  review_requested_at: string | null;
-  approved_at: string | null;
-  /** AF5 (0369): when the office opened packet signing, in person. */
-  signing_opened_at: string | null;
-  submitted_at: string | null;
-  revoked_at: string | null;
-  /** 0374: when the office opened handbook signing. */
-  handbook_signing_opened_at: string | null;
-}
-
-/**
- * The §391.23(a)(2) investigation, folded by the function that already owns the rules (Q-HM9).
- *
- * ⚠ `driverInquiryQueue` decides which employers are owed an inquiry and which of them are still
- * open, and this module deliberately does not second-guess any of it — the window, the DOT-regulated
- * filter, and the ruling that a DOCUMENTED non-response is DONE (§391.23(c)(1) accepts "documentation
- * of good faith efforts" in place of a reply) are all its. The alternative was a `.select` with a
- * `.neq("outcome", …)` here, which is this repo's *deriving beats restating* failure exactly: a
- * second, simpler and wrong copy of a rule that already exists, and the one that would quietly report
- * a lawful file as incomplete for ever.
- *
- * ⚠ Both reads org-filter themselves. The inquiries are additionally filtered to
- * `kind = 'safety_performance'`, matching `loadInquiryQueue`: `drug_alcohol` is §40.25 and applies to
- * non-FMCSA DOT employment only, so counting it would hold the step open for an inquiry §391.23(e)
- * says to route to the Clearinghouse instead.
- */
-async function readInvestigation(
-  admin: SupabaseClient,
-  orgId: string,
-  driverId: string,
-  hireDate: string | null,
-  today: string,
-): Promise<{ outstanding: number; awaiting: number }> {
-  const [{ data: employment }, { data: inquiries }] = await Promise.all([
-    admin
-      .from("driver_employment_history")
-      .select("id, employer_name, started_on, ended_on, dot_regulated")
-      .eq("org_id", orgId)
-      .eq("driver_id", driverId),
-    admin
-      .from("employer_inquiries")
-      .select("employment_id, contacted_on, outcome")
-      .eq("org_id", orgId)
-      .eq("driver_id", driverId)
-      .eq("kind", "safety_performance"),
-  ]);
-
-  const attempts = ((inquiries ?? []) as Array<Record<string, unknown>>).map(
-    (row): QueueAttempt => ({
-      employmentId: String(row.employment_id),
-      contactedOn: String(row.contacted_on),
-      outcome: row.outcome as QueueAttempt["outcome"],
-    }),
-  );
-
-  const queue = driverInquiryQueue({
-    employment: ((employment ?? []) as Array<Record<string, unknown>>).map(
-      (row): QueueEmployment => ({
-        id: String(row.id),
-        employerName: String(row.employer_name),
-        startedOn: String(row.started_on),
-        endedOn: (row.ended_on as string | null) ?? null,
-        dotRegulated: Boolean(row.dot_regulated),
-      }),
-    ),
-    attempts,
-    hireDate,
+  const authorizations = await readAuthorizations(admin, orgId, driverId);
+  const evidence = await checklistInputs(
+    admin,
+    orgId,
+    [{ driverId, hiredAt: (driver as { hire_date: string | null }).hire_date, invitation, authorizations }],
     today,
-  });
-
-  // ⚠ `awaiting` is the one open state that is the EMPLOYER's move. `not_sent`, `overdue` and
-  // `undeliverable` are all the office's, so they must not read as "waiting on them" — see the
-  // field's note in `hiringChecklist.ts` for the row that shipped saying otherwise.
-  return {
-    outstanding: queue.outstanding.length,
-    awaiting: queue.outstanding.filter((e) => e.state === "awaiting").length,
-  };
+  );
+  return hiringChecklist(evidence.get(driverId)!.inputs);
 }
 
 /**
@@ -268,76 +119,4 @@ async function readAuthorizations(
     .eq("org_id", orgId)
     .eq("driver_id", driverId);
   return (data ?? []) as AuthorizationRow[];
-}
-
-/**
- * Which §391.51 events this driver has on file, as kinds, plus the jurisdiction an MVR names (AF7).
- *
- * ⚠ Those two and nothing else, because that is all the fold asks for. Recurrence and expiry belong
- * to `dqCatalogue.ts`, which already owns them; a service that started handing whole records over
- * would be inviting a second opinion about when an MVR goes stale.
- */
-async function readQualificationRecords(
-  admin: SupabaseClient,
-  orgId: string,
-  driverId: string,
-): Promise<Array<{ kind: string; jurisdiction?: string | null; source?: string | null; passed?: string | null }>> {
-  const { data } = await admin
-    .from("qualification_records")
-    // A-8: a road test's source and pass flag, so the fold can tell a PASSED test from a recorded one.
-    .select(`kind, ${RECORD_JURISDICTION_SELECT}, source:detail->>source, passed:detail->>passed`)
-    .eq("org_id", orgId)
-    .eq("driver_id", driverId);
-  return (data ?? []) as Array<{ kind: string; jurisdiction?: string | null; source?: string | null; passed?: string | null }>;
-}
-
-/**
- * How many of the packet's places this link has collected.
- *
- * ⚠ Keyed on the INVITATION, never the driver — `application_packet_marks` is invitation-scoped for
- * 0339's stated reason, that a rehire signs their own packet and the two must not merge. A
- * driver-keyed count would add last year's twenty-two to this year's none and report a packet signed
- * that nobody has opened.
- */
-async function readPacketMarkIds(
-  admin: SupabaseClient,
-  orgId: string,
-  invitationId: string | null,
-): Promise<string[]> {
-  if (!invitationId) return [];
-  const { data } = await admin
-    .from("application_packet_marks")
-    .select("placement_id")
-    .eq("org_id", orgId)
-    .eq("invitation_id", invitationId);
-  return ((data ?? []) as Array<{ placement_id: string }>).map((r) => r.placement_id);
-}
-
-/**
- * Has the applicant typed anything (F5), what did they say they are applying as (Q-HM14), and which
- * jurisdictions licensed them (AF7)?
- *
- * ⚠ The row's existence and named keys, never its payload. Selecting the draft would pull a date of
- * birth and a licence number into a response about progress, and A11's rule is that answers have
- * their own surface. `applying_as` is read because it decides how many places the packet has — and
- * by path (`DRAFT_APPLYING_AS_SELECT`), so nothing else in the payload leaves the database.
- */
-async function readDraftFacts(
-  admin: SupabaseClient,
-  orgId: string,
-  invitationId: string | null,
-): Promise<{ exists: boolean; applyingAs: ApplyingAs | null; licenceJurisdictions: string[] }> {
-  if (!invitationId) return { exists: false, applyingAs: null, licenceJurisdictions: [] };
-  const { data } = await admin
-    .from("application_drafts")
-    .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}, ${DRAFT_LICENCES_SELECT}`)
-    .eq("org_id", orgId)
-    .eq("invitation_id", invitationId)
-    .limit(1);
-  const [row] = (data ?? []) as Array<{ applying_as?: unknown; cdl_state?: unknown; additional_licences?: unknown }>;
-  return {
-    exists: Boolean(row),
-    applyingAs: asApplyingAs(row?.applying_as),
-    licenceJurisdictions: declaredLicenceJurisdictions(row ?? null),
-  };
 }
