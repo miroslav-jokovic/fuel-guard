@@ -1,7 +1,5 @@
 import {
   applicantProgress,
-  asApplyingAs,
-  declaredLicenceJurisdictions,
   currentDisposition,
   employmentCoverage,
   type ApplicantDispositionRow,
@@ -11,8 +9,6 @@ import {
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { DRAFT_APPLYING_AS_SELECT } from "../applicantApplyingAs.js";
-import { DRAFT_LICENCES_SELECT } from "../applicantLicences.js";
 import { boardChecklists } from "../applicantBoard.js";
 
 /**
@@ -45,6 +41,8 @@ interface HistoryRow {
 interface InvitationRow {
   id: string;
   driver_id: string;
+  /** A-4 (G-7): when the link's permission ceremony closed. */
+  releases_completed_at: string | null;
   application_sent_at: string | null;
   review_requested_at: string | null;
   approved_at: string | null;
@@ -107,7 +105,7 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
     return;
   }
 
-  const [history, auths, decisions, invitations, drafts] = await Promise.all([
+  const [history, auths, decisions, invitations] = await Promise.all([
     admin
       .from("driver_employment_history")
       .select(HISTORY_COLS)
@@ -137,18 +135,13 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
      */
     admin
       .from("application_invitations")
-      .select("id, driver_id, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at, handbook_signing_opened_at")
+      // `releases_completed_at` for A-4: a closed ceremony's missing permission is the office's (G-7).
+      .select("id, driver_id, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at, handbook_signing_opened_at")
       .eq("org_id", orgId)
       .in("driver_id", ids)
       .order("created_at", { ascending: false }),
-    admin
-      .from("application_drafts")
-      // ⚠ Named keys by path and never the payload (`applicantApplyingAs.ts`): how many places the
-      // packet has (Q-HM14) and which states owe an MVR (AF7), and nothing else in the draft.
-      .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}, ${DRAFT_LICENCES_SELECT}`)
-      .eq("org_id", orgId),
   ]);
-  if (history.error || auths.error || decisions.error || invitations.error || drafts.error) {
+  if (history.error || auths.error || decisions.error || invitations.error) {
     res.status(500).json(apiError("db_error", "Could not load the pipeline"));
     return;
   }
@@ -175,15 +168,6 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
     if (row.revoked_at) continue;
     if (!inviteBy.has(row.driver_id)) inviteBy.set(row.driver_id, row);
   }
-  // ⚠ Keyed on the INVITATION, never on the driver: a rehire's draft from a previous application
-  // is not evidence that they have started this one.
-  const draftFor = new Map(
-    ((drafts.data ?? []) as Array<{ invitation_id: string; applying_as?: unknown; cdl_state?: unknown }>).map((d) => [
-      d.invitation_id,
-      { applyingAs: asApplyingAs(d.applying_as), licenceJurisdictions: declaredLicenceJurisdictions(d) },
-    ]),
-  );
-
   const authsBy = new Map<string, AuthorizationRow[]>();
   for (const row of (auths.data ?? []) as Array<AuthorizationRow & { driver_id: string }>) {
     const list = authsBy.get(row.driver_id);
@@ -194,25 +178,21 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
   /**
    * The hiring checklist for every row, folded set-based (B4).
    *
-   * ⚠ It reuses the invitation, the draft flag and the authorizations already read above rather
+   * ⚠ It reuses the invitation and the authorizations already read above rather
    * than reading them again, and that is a correctness argument before it is a performance one:
    * `boardChecklists` and `applicantProgress` are two answers about one person on one row, and
    * two independent reads of `application_invitations` could pick different invitations and then
    * disagree in adjacent columns — which is D-HM2's failure exactly.
    */
-  const checklists = await boardChecklists(
+  const { checklists, drafted } = await boardChecklists(
     admin,
     orgId,
     (applicants ?? []).map((a) => {
       const invite = inviteBy.get(a.id);
-      const draft = invite ? draftFor.get(invite.id) : undefined;
       return {
         driverId: a.id,
         hiredAt: (a as { hire_date: string | null }).hire_date,
         invitation: invite ?? null,
-        hasDraft: draft !== undefined,
-        applyingAs: draft?.applyingAs ?? null,
-        licenceJurisdictions: draft?.licenceJurisdictions ?? [],
         authorizations: authsBy.get(a.id) ?? [],
         // ⚠ The NEWEST decision, through the same `currentDisposition` the row below uses — the
         // table is append-only, so a carrier that declines and then changes its mind has two rows
@@ -244,7 +224,8 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
             submittedAt: invite.submitted_at,
           }
         : null,
-      hasDraft: invite ? draftFor.has(invite.id) : false,
+      // The board's own read of the drafts (G-7) — one read, two columns that cannot disagree.
+      hasDraft: drafted.has(a.id),
     });
     return {
       driver_id: a.id,

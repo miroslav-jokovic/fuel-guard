@@ -414,7 +414,15 @@ describe("the pipeline lists applicants, and derives their stage", () => {
 
   it("reads only this carrier's invitations and drafts", async () => {
     // The service role bypasses RLS, so the filter is the only thing between two carriers.
-    rec = seed();
+    // ⚠ A live invitation, since G-7: the drafts are read by the live invitations' ids, so a board
+    // with no invitation asks for no draft at all (it read every draft in the org before).
+    rec = seed({
+      invitations: [{
+        id: "inv-1", driver_id: DRIVER, application_sent_at: null, review_requested_at: null,
+        approved_at: null, signing_opened_at: null, submitted_at: null, revoked_at: null,
+        created_at: "2026-09-09T09:00:00Z",
+      }],
+    });
     holder.client = rec.client;
     await call("/pipeline", { token: "admin" });
     for (const table of ["application_invitations", "application_drafts"]) {
@@ -431,7 +439,13 @@ describe("the pipeline lists applicants, and derives their stage", () => {
    * selected, so the select is what has to be pinned.
    */
   it("reads one key of each draft, by path, and never the payload", async () => {
-    rec = seed();
+    rec = seed({
+      invitations: [{
+        id: "inv-1", driver_id: DRIVER, application_sent_at: null, review_requested_at: null,
+        approved_at: null, signing_opened_at: null, submitted_at: null, revoked_at: null,
+        created_at: "2026-09-09T09:00:00Z",
+      }],
+    });
     holder.client = rec.client;
     await call("/pipeline", { token: "admin" });
     const selected = String(rec.forTable("application_drafts")[0]!.ops.find((o) => o.method === "select")?.args[0]);

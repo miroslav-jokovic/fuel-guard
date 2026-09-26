@@ -28,6 +28,15 @@ const inviteId = (n: number) => `10000000-0000-4000-8000-00000000000${n}`;
 
 const own = (row: Record<string, unknown>) => ({ org_id: ORG, ...row });
 
+/**
+ * One filed record of `kind`. A road test is the ceremony's (`detail.source = "road_test"`), because
+ * since A-8 a bare `road_test` row proves nothing — and since G-7 the board folds that rule too.
+ */
+const record = (driver: string, kind: string, created_at: string) => ({
+  driver_id: driver, kind, created_at,
+  ...(kind === "road_test" ? { detail: { source: "road_test" } } : {}),
+});
+
 const authRows = (driver: string) =>
   APPLICATION_RELEASE_ORDER.map((purpose, i) => ({
     id: `auth-${driver}-${i}`,
@@ -55,9 +64,6 @@ const applicant = (n: number, over: Partial<BoardApplicantInput> = {}): BoardApp
     signing_opened_at: "2026-09-08T00:00:00Z",
     submitted_at: null,
   },
-  hasDraft: true,
-  applyingAs: null,
-  licenceJurisdictions: [],
   authorizations: authRows(driverId(n)),
   decided: false,
   ...over,
@@ -71,6 +77,9 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
     ],
     psp_requests: [{ id: "psp-1", driver_id: driverId(1) }],
     application_packet_marks: [],
+    // G-7: the draft is read by the board's builder now (it was the pipeline's, org-wide). Every
+    // applicant here has typed something; a test that needs the draft to SAY something overrides it.
+    application_drafts: [1, 2, 3, 4, 5, 6].map((n) => ({ id: `dr${n}`, invitation_id: inviteId(n), payload: {} })),
     // ⚠ Q-HM9, and seeded for driver 1 ONLY on purpose. The six-applicant test folds these same
     // rows, so a service that forgot to group by driver — or that handed every applicant the whole
     // org's employment history — gives drivers 2–6 an investigation they do not owe. A fixture that
@@ -130,7 +139,7 @@ describe("the board row is the fold's answer, projected", () => {
     const rec = seed();
     const board = await boardChecklists(rec.client, ORG, [applicant(1)], NOW);
     const fold = hiringChecklist(asInputs());
-    const row = board.get(driverId(1))!;
+    const row = board.checklists.get(driverId(1))!;
 
     expect(row.next).toBe(fold.next);
     // ⚠ The ACTION, not the label. "Office approved it" is a completed fact and this column is an
@@ -157,7 +166,7 @@ describe("the board row is the fold's answer, projected", () => {
       ],
       psp_requests: [{ id: "psp-1", driver_id: driverId(1) }],
     });
-    const row = (await boardChecklists(rec.client, ORG, [applicant(1)], NOW)).get(driverId(1))!;
+    const row = (await boardChecklists(rec.client, ORG, [applicant(1)], NOW)).checklists.get(driverId(1))!;
     expect(row.next).toBe("psp");
     // The catalogue says `owes: "us"` for a PSP report. The fold says the office has ordered one and
     // is now chasing a vendor, and the fold is the one the column reads.
@@ -172,7 +181,7 @@ describe("the board row is the fold's answer, projected", () => {
       ],
       psp_requests: [],
     });
-    const row = (await boardChecklists(rec.client, ORG, [applicant(1)], NOW)).get(driverId(1))!;
+    const row = (await boardChecklists(rec.client, ORG, [applicant(1)], NOW)).checklists.get(driverId(1))!;
     expect(row.next).toBe("psp");
     expect(row.waiting_on).toBe("us");
   });
@@ -186,7 +195,7 @@ describe("the board row is the fold's answer, projected", () => {
   it("says nobody for an application the carrier has already answered", async () => {
     const rec = seed();
     const board = await boardChecklists(rec.client, ORG, [applicant(1, { decided: true })], NOW);
-    const row = board.get(driverId(1))!;
+    const row = board.checklists.get(driverId(1))!;
     expect(row.waiting_on).toBeNull();
     // ⚠ The steps are NOT rewritten — a declined applicant's checklist is still true about what is
     // outstanding, and their record page still shows it. Only the board's queue changes.
@@ -197,9 +206,7 @@ describe("the board row is the fold's answer, projected", () => {
   it("says nobody when there is nothing outstanding", async () => {
     const kinds = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report", "handbook"];
     const rec = seed({
-      qualification_records: kinds.map((kind) => ({
-        driver_id: driverId(1), kind, created_at: "2026-09-06T00:00:00Z",
-      })),
+      qualification_records: kinds.map((kind) => record(driverId(1), kind, "2026-09-06T00:00:00Z")),
       application_packet_marks: driverPlacementIds(null).map((placement_id, i) => ({
         invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `m${i}`, placement_id,
       })),
@@ -212,7 +219,7 @@ describe("the board row is the fold's answer, projected", () => {
       })),
     });
     const board = await boardChecklists(rec.client, ORG, [applicant(1, { hiredAt: "2026-09-08" })], NOW);
-    const row = board.get(driverId(1))!;
+    const row = board.checklists.get(driverId(1))!;
     expect(row.next).toBeNull();
     expect(row.waiting_on).toBeNull();
     expect(row.phase).toBeNull();
@@ -233,7 +240,7 @@ describe("the board row is the fold's answer, projected", () => {
     const board = async (mvrStates: string[]) => {
       const rec = seed({
         qualification_records: [
-          ...others.map((kind) => ({ driver_id: driverId(1), kind, created_at: "2026-09-06T00:00:00Z" })),
+          ...others.map((kind) => record(driverId(1), kind, "2026-09-06T00:00:00Z")),
           ...mvrStates.map((jurisdiction) => ({
             driver_id: driverId(1), kind: "mvr", created_at: "2026-09-06T00:00:00Z",
             detail: { source: "recorded_act", jurisdiction },
@@ -246,9 +253,14 @@ describe("the board row is the fold's answer, projected", () => {
           driver_id: driverId(1), employment_id, kind: "safety_performance",
           contacted_on: "2026-09-05", outcome: "responded",
         })),
+        // Licensed in Illinois and Wisconsin, as the draft says it.
+        application_drafts: [{
+          id: "dr1", invitation_id: inviteId(1),
+          payload: { cdl_state: "IL", additional_licences: [{ issuing_authority: "WI" }] },
+        }],
       });
-      const applicants = [applicant(1, { hiredAt: "2026-09-08", licenceJurisdictions: ["IL", "WI"] })];
-      return (await boardChecklists(rec.client, ORG, applicants, NOW)).get(driverId(1))!;
+      const applicants = [applicant(1, { hiredAt: "2026-09-08" })];
+      return (await boardChecklists(rec.client, ORG, applicants, NOW)).checklists.get(driverId(1))!;
     };
 
     const short = await board(["IL"]);
@@ -259,10 +271,8 @@ describe("the board row is the fold's answer, projected", () => {
 
   it("counts a company driver's packet against their own walk", async () => {
     const kinds = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "psp_report", "handbook"];
-    const rec = seed({
-      qualification_records: kinds.map((kind) => ({
-        driver_id: driverId(1), kind, created_at: "2026-09-06T00:00:00Z",
-      })),
+    const rec = (applyingAs: string) => seed({
+      qualification_records: kinds.map((kind) => record(driverId(1), kind, "2026-09-06T00:00:00Z")),
       application_packet_marks: driverPlacementIds("company_driver").map((placement_id, i) => ({
         invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `m${i}`, placement_id,
       })),
@@ -270,10 +280,11 @@ describe("the board row is the fold's answer, projected", () => {
         driver_id: driverId(1), employment_id, kind: "safety_performance",
         contacted_on: "2026-09-05", outcome: "responded",
       })),
+      application_drafts: [{ id: "dr1", invitation_id: inviteId(1), payload: { questionnaire: { applying_as: applyingAs } } }],
     });
     const row = async (applyingAs: "company_driver" | "owner_operator") =>
-      (await boardChecklists(rec.client, ORG, [applicant(1, { hiredAt: "2026-09-08", applyingAs })], NOW))
-        .get(driverId(1))!;
+      (await boardChecklists(rec(applyingAs).client, ORG, [applicant(1, { hiredAt: "2026-09-08" })], NOW))
+        .checklists.get(driverId(1))!;
     expect((await row("company_driver")).next).toBeNull();
     expect((await row("owner_operator")).next).toBe("application_signed");
   });
@@ -293,8 +304,8 @@ describe("how long it has sat still", () => {
     });
     const board = await boardChecklists(rec.client, ORG, [applicant(1)], NOW);
     // Invited on the 1st, MVR filed on the 16th, "now" is the 18th at noon.
-    expect(board.get(driverId(1))!.last_progress_at).toBe("2026-09-16T00:00:00Z");
-    expect(board.get(driverId(1))!.days_waiting).toBe(2);
+    expect(board.checklists.get(driverId(1))!.last_progress_at).toBe("2026-09-16T00:00:00Z");
+    expect(board.checklists.get(driverId(1))!.days_waiting).toBe(2);
   });
 
   it("falls back to the invitation when no other evidence has landed", async () => {
@@ -309,7 +320,7 @@ describe("how long it has sat still", () => {
       } })],
       NOW,
     );
-    expect(board.get(driverId(1))!.days_waiting).toBe(8);
+    expect(board.checklists.get(driverId(1))!.days_waiting).toBe(8);
   });
 
   it("reads a move made this morning as zero days, never as one", async () => {
@@ -319,7 +330,7 @@ describe("how long it has sat still", () => {
       ],
     });
     const board = await boardChecklists(rec.client, ORG, [applicant(1)], NOW);
-    expect(board.get(driverId(1))!.days_waiting).toBe(0);
+    expect(board.checklists.get(driverId(1))!.days_waiting).toBe(0);
   });
 });
 
@@ -335,6 +346,8 @@ describe("what it reads, and how much", () => {
         "driver_employment_history", "employer_inquiries",
         // HANDBOOK-SIGNING-PLAN.md: one `.in()` for the whole board, like the packet's marks.
         "handbook_marks",
+        // G-7: the draft, by the live invitations' ids — it was the pipeline's, with no `.in()` at all.
+        "application_drafts",
       ]),
     );
   });
@@ -350,7 +363,7 @@ describe("what it reads, and how much", () => {
    * a set-based read and an N+1. Six applicants folding the §391.23 investigation per driver would
    * read thirteen.
    */
-  it("costs the same six queries for six applicants as for one", async () => {
+  it("costs the same seven queries for six applicants as for one", async () => {
     const one = seed();
     await boardChecklists(one.client, ORG, [applicant(1)], NOW);
 
@@ -362,8 +375,8 @@ describe("what it reads, and how much", () => {
       NOW,
     );
     expect(many.queries.length).toBe(one.queries.length);
-    // Six since the handbook's marks joined the board (one `.in()` for all of them), never per row.
-    expect(many.queries.length).toBe(6);
+    // Seven since G-7 moved the draft read into the one builder (one `.in()` for all of them).
+    expect(many.queries.length).toBe(7);
   });
 
   /**
@@ -397,7 +410,7 @@ describe("what it reads, and how much", () => {
     // The two applicants are identical except for their marks, so the whole difference in what the
     // board says about them is that one packet is signed and the other is one mark in. A count that
     // fell back to the driver, or forgot to group, would make these equal.
-    expect(board.get(driverId(1))!.done).toBe(board.get(driverId(2))!.done + 1);
+    expect(board.checklists.get(driverId(1))!.done).toBe(board.checklists.get(driverId(2))!.done + 1);
   });
 
   /**
@@ -423,7 +436,7 @@ describe("what it reads, and how much", () => {
       ],
     });
     const board = await boardChecklists(rec.client, ORG, [applicant(1), applicant(2)], NOW);
-    expect(board.get(driverId(1))!.done).toBe(board.get(driverId(2))!.done + 1);
+    expect(board.checklists.get(driverId(1))!.done).toBe(board.checklists.get(driverId(2))!.done + 1);
   });
 
   it("does not read another org's evidence onto this org's board", async () => {
@@ -440,13 +453,13 @@ describe("what it reads, and how much", () => {
     // The MVR belongs to another org, so this applicant's MVR step is still outstanding — and since
     // the Clearinghouse query has no prerequisite it is nominated first, MVR second.
     const fold = hiringChecklist(asInputs({ qualificationKinds: [], psp: { requested: false, reportReceived: false } }));
-    expect(board.get(driverId(1))!.next).toBe(fold.next);
+    expect(board.checklists.get(driverId(1))!.next).toBe(fold.next);
   });
 
   it("returns nothing, and asks nothing, for an empty board", async () => {
     const rec = seed();
     const board = await boardChecklists(rec.client, ORG, [], NOW);
-    expect(board.size).toBe(0);
+    expect(board.checklists.size).toBe(0);
     expect(rec.queries.length).toBe(0);
   });
 });

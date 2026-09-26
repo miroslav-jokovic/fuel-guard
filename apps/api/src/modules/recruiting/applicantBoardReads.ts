@@ -1,6 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { QueueAttempt, QueueEmployment } from "@silvicom/shared";
-import { RECORD_JURISDICTION_SELECT } from "./applicantLicences.js";
+import {
+  asApplyingAs,
+  declaredLicenceJurisdictions,
+  type ApplyingAs,
+  type QueueAttempt,
+  type QueueEmployment,
+} from "@silvicom/shared";
+import { fetchAllPaged } from "../../lib/paging.js";
+import { DRAFT_APPLYING_AS_SELECT } from "./applicantApplyingAs.js";
+import { DRAFT_LICENCES_SELECT, RECORD_JURISDICTION_SELECT } from "./applicantLicences.js";
 
 /**
  * The board's reads — one `.in()` per evidence table for the whole org, grouped in memory.
@@ -11,6 +19,16 @@ import { RECORD_JURISDICTION_SELECT } from "./applicantLicences.js";
  * and a grouping. They moved unchanged with their comments. That file's header governs them: the
  * set-based shape is the whole point, and the service role bypasses RLS, so every read below carries
  * its own `.eq("org_id", …)` — `applicantBoard.test.ts` asserts it through `expectOrgScoped`.
+ *
+ * ── SINCE G-7, THE ONLY READS, AND PAGED ──────────────────────────────────────────────────────
+ * ⚠ **These are now the drawer's reads too** (`applicantChecklistInputs.ts`, APPLICATION-FLOW-V2
+ * G-7, 2026-09-26). The drawer had its own seven, and they had drifted: the board folded no road-test
+ * pass flag (A-8) and no ceremony-closed stamp (A-4), so a failed road test read green on the board
+ * and red in the drawer. And every read here PAGES (`fetchAllPaged`, ordered by `id`): PostgREST
+ * answers at most 1,000 rows, and a `.in()` over a whole board's drivers crosses that on
+ * `qualification_records` alone at a few hundred applicants — silently, with the rows past 1,000
+ * reading as evidence that does not exist. The board's draft read was worse: it had no `.in()` at
+ * all, so it read every draft in the org.
  */
 
 export interface QualificationRow {
@@ -19,6 +37,15 @@ export interface QualificationRow {
   created_at: string;
   /** AF7: `detail.jurisdiction`, by path. Null on anything but a recorded MVR that named one. */
   jurisdiction?: string | null;
+  /** A-8: `detail.source` and `detail.passed`, by path — whether a road test was PASSED (`roadTestCounts`). */
+  source?: string | null;
+  passed?: string | null;
+}
+
+/** What the draft says, by path — never the payload (`applicantApplyingAs.ts`, `applicantLicences.ts`). */
+export interface DraftFacts {
+  applyingAs: ApplyingAs | null;
+  licenceJurisdictions: string[];
 }
 
 export interface MarkRow {
@@ -39,12 +66,17 @@ export async function readQualificationRecords(
   orgId: string,
   driverIds: readonly string[],
 ): Promise<Map<string, QualificationRow[]>> {
-  const { data } = await admin
-    .from("qualification_records")
-    .select(`driver_id, kind, created_at, ${RECORD_JURISDICTION_SELECT}`)
-    .eq("org_id", orgId)
-    .in("driver_id", driverIds);
-  return groupBy((data ?? []) as QualificationRow[], (r) => r.driver_id);
+  if (driverIds.length === 0) return new Map();
+  const rows = await paged<QualificationRow>((from, to) =>
+    admin
+      .from("qualification_records")
+      .select(`driver_id, kind, created_at, ${RECORD_JURISDICTION_SELECT}, source:detail->>source, passed:detail->>passed`)
+      .eq("org_id", orgId)
+      .in("driver_id", driverIds)
+      .order("id")
+      .range(from, to),
+  );
+  return groupBy(rows, (r) => r.driver_id);
 }
 
 /**
@@ -60,12 +92,16 @@ export async function readHandbookMarks(
   invitationIds: readonly string[],
 ): Promise<Map<string, Array<{ invitation_id: string; placement_id: string }>>> {
   if (invitationIds.length === 0) return new Map();
-  const { data } = await admin
-    .from("handbook_marks")
-    .select("invitation_id, placement_id")
-    .eq("org_id", orgId)
-    .in("invitation_id", invitationIds);
-  return groupBy((data ?? []) as Array<{ invitation_id: string; placement_id: string }>, (r) => r.invitation_id);
+  const rows = await paged<{ invitation_id: string; placement_id: string }>((from, to) =>
+    admin
+      .from("handbook_marks")
+      .select("invitation_id, placement_id")
+      .eq("org_id", orgId)
+      .in("invitation_id", invitationIds)
+      .order("id")
+      .range(from, to),
+  );
+  return groupBy(rows, (r) => r.invitation_id);
 }
 
 export async function readPacketMarks(
@@ -74,12 +110,16 @@ export async function readPacketMarks(
   invitationIds: readonly string[],
 ): Promise<Map<string, MarkRow[]>> {
   if (invitationIds.length === 0) return new Map();
-  const { data } = await admin
-    .from("application_packet_marks")
-    .select("invitation_id, placement_id, created_at")
-    .eq("org_id", orgId)
-    .in("invitation_id", invitationIds);
-  return groupBy((data ?? []) as MarkRow[], (r) => r.invitation_id);
+  const rows = await paged<MarkRow>((from, to) =>
+    admin
+      .from("application_packet_marks")
+      .select("invitation_id, placement_id, created_at")
+      .eq("org_id", orgId)
+      .in("invitation_id", invitationIds)
+      .order("id")
+      .range(from, to),
+  );
+  return groupBy(rows, (r) => r.invitation_id);
 }
 
 /**
@@ -95,13 +135,18 @@ export async function readEmploymentHistory(
   orgId: string,
   driverIds: readonly string[],
 ): Promise<Map<string, QueueEmployment[]>> {
-  const { data } = await admin
-    .from("driver_employment_history")
-    .select("id, driver_id, employer_name, started_on, ended_on, dot_regulated")
-    .eq("org_id", orgId)
-    .in("driver_id", driverIds);
+  if (driverIds.length === 0) return new Map();
+  const rows = await paged<Record<string, unknown>>((from, to) =>
+    admin
+      .from("driver_employment_history")
+      .select("id, driver_id, employer_name, started_on, ended_on, dot_regulated")
+      .eq("org_id", orgId)
+      .in("driver_id", driverIds)
+      .order("id")
+      .range(from, to),
+  );
   const out = new Map<string, QueueEmployment[]>();
-  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+  for (const row of rows) {
     const driverId = String(row.driver_id);
     const list = out.get(driverId) ?? [];
     list.push({
@@ -128,14 +173,19 @@ export async function readInquiries(
   orgId: string,
   driverIds: readonly string[],
 ): Promise<Map<string, QueueAttempt[]>> {
-  const { data } = await admin
-    .from("employer_inquiries")
-    .select("driver_id, employment_id, contacted_on, outcome")
-    .eq("org_id", orgId)
-    .eq("kind", "safety_performance")
-    .in("driver_id", driverIds);
+  if (driverIds.length === 0) return new Map();
+  const rows = await paged<Record<string, unknown>>((from, to) =>
+    admin
+      .from("employer_inquiries")
+      .select("driver_id, employment_id, contacted_on, outcome")
+      .eq("org_id", orgId)
+      .eq("kind", "safety_performance")
+      .in("driver_id", driverIds)
+      .order("id")
+      .range(from, to),
+  );
   const out = new Map<string, QueueAttempt[]>();
-  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+  for (const row of rows) {
     const driverId = String(row.driver_id);
     const list = out.get(driverId) ?? [];
     list.push({
@@ -146,6 +196,44 @@ export async function readInquiries(
     out.set(driverId, list);
   }
   return out;
+}
+
+/**
+ * What each live invitation's draft says, by path (F5, Q-HM14, AF7) — keyed on the INVITATION: a
+ * rehire's draft from an earlier application is not evidence that they have started this one.
+ * An invitation with no entry has no draft.
+ */
+export async function readDraftFacts(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationIds: readonly string[],
+): Promise<Map<string, DraftFacts>> {
+  if (invitationIds.length === 0) return new Map();
+  const rows = await paged<{ invitation_id: string; applying_as?: unknown; cdl_state?: unknown; additional_licences?: unknown }>(
+    (from, to) =>
+      admin
+        .from("application_drafts")
+        .select(`invitation_id, ${DRAFT_APPLYING_AS_SELECT}, ${DRAFT_LICENCES_SELECT}`)
+        .eq("org_id", orgId)
+        .in("invitation_id", invitationIds)
+        .order("id")
+        .range(from, to),
+  );
+  return new Map(rows.map((d) => [
+    d.invitation_id,
+    { applyingAs: asApplyingAs(d.applying_as), licenceJurisdictions: declaredLicenceJurisdictions(d) },
+  ]));
+}
+
+/**
+ * `fetchAllPaged` over a PostgREST builder. The cast is supabase-js's typing, not ours: a select
+ * parsed from a template literal types its rows as `GenericStringError`, and every row type here is
+ * the select's own column list, written once above it.
+ */
+function paged<T>(makeQuery: (from: number, to: number) => unknown): Promise<T[]> {
+  return fetchAllPaged<T>(
+    makeQuery as (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  );
 }
 
 function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[]> {
