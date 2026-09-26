@@ -221,5 +221,4 @@ spelling.** For the owner, or counsel where it is an instrument:
 | 30 | *"either of either of the parties"*; the severability clause *"If any one or more of the provisions contained in the Agreement but the Agreement will be enforceable…"* is missing its middle | Counsel memorandum Q15. |
 
 Punctuation (full stops mid-sentence on pages 20–22, `SILVICOM. INC`, `Operator&`) is left as printed.
-The handbook (`DRIVER HANDBOOK.docx`, D-HB4) was NOT part of this ruling and still prints its own
-typos (`COMPNAY`, `THA`, `TEMINATION`, `FLASIFICATION`) — ask whether it was retyped too.
+The handbook was retyped too (owner, same day): corrected under D-HB6, `HANDBOOK-SIGNING-PLAN.md`.
