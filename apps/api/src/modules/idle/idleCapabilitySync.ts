@@ -6,8 +6,7 @@ import {
   dayInTz,
   summarizeIdleEvidence,
   learnIdleCapability,
-  parseEngineStates,
-} from "@silvicom/shared";
+  parseEngineStates, organizationTimezone } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { loadSamsaraToken } from "../samsara/lib/samsaraToken.js";
 import { makeSamsaraEngineStatesFetcher, type EngineStatesFetcher } from "../samsara/lib/samsara.js";
@@ -28,7 +27,6 @@ export interface IdleCapabilityResult {
 
 /** Trucks per engineStates call (comma-separated vehicleIds), keeps each request bounded. */
 const BATCH = 20;
-const DEFAULT_ORG_TIMEZONE = "America/Chicago";
 
 interface VehicleRow {
   id: string;
@@ -50,14 +48,12 @@ interface CapabilityReconciliationResult {
   staleParkSessionsDeleted: number;
 }
 
-/** The org's operating clock — the day boundary engine-days, and therefore the rollup, are cut on. */
-export function organizationTimezone(value: object | null | undefined): string {
-  if (value === null || value === undefined || Array.isArray(value) || !("tz" in value)) {
-    return DEFAULT_ORG_TIMEZONE;
-  }
-  const tz = value.tz;
-  return typeof tz === "string" && tz.length > 0 ? tz : DEFAULT_ORG_TIMEZONE;
-}
+/**
+ * The org's operating clock — the day boundary engine-days, and therefore the rollup, are cut on.
+ * Defined in `@silvicom/shared` (`calendarDay.ts`) since 2026-09-26; re-exported so this module's
+ * callers are unchanged.
+ */
+export { organizationTimezone };
 
 function requireDatabaseSuccess(error: { message: string } | null, operation: string): void {
   if (error) throw new Error(`Idle capability ${operation} failed: ${error.message}`);

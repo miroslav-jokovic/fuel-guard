@@ -54,7 +54,7 @@ const seed = (over: { inv?: Record<string, unknown>; adopted?: string | null; wr
     storage: { download: async () => ({ data: null, error: { message: "none" } }) },
   });
 
-const MARK = { placement_id: "h3" as const, esign_consent: true as const };
+const MARK = { placement_id: "h3" as const, esign_consent: true as const, handbook_version: HANDBOOK_VERSION };
 
 describe("signing a place", () => {
   it("signs with the adopted name, the place's own sentence, the text version and the address", async () => {
@@ -112,6 +112,18 @@ describe("signing a place", () => {
     expect(isIntakeError(twice) && twice.code).toBe("handbook_place_already_signed");
     const raced = await recordHandbookMark(seed({ writeError: { code: "HB024", message: "handbook_already_filed" } }).client, TOKEN, MARK, CTX, NOW);
     expect(isIntakeError(raced) && raced.code).toBe("handbook_already_filed");
+  });
+
+  it("refuses a place read under a different handbook text, and writes nothing (A-6)", async () => {
+    const rec = seed();
+    const result = await recordHandbookMark(rec.client, TOKEN, { ...MARK, handbook_version: "handbook-older" }, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("handbook_changed");
+    expect(rec.writtenRows("handbook_marks")).toHaveLength(0);
+  });
+
+  it("tells the page which text it is showing (A-6)", async () => {
+    const view = await linkHandbookStatus(seed().client, invitation({ org_id: ORG }));
+    expect(view?.version).toBe(HANDBOOK_VERSION);
   });
 
   it("gives a dead link the answer every other route gives it", async () => {

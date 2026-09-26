@@ -312,7 +312,7 @@ export async function renderPacketOverlay(input: PacketOverlayInput): Promise<Bu
     });
   }
   // L-1: a withdrawn line says why it is blank, on the line (`packetWithdrawals.ts`).
-  drawWithdrawalNotices(doc, fieldFont);
+  if (!input.blankTemplate) drawWithdrawalNotices(doc, fieldFont);
 
   /**
    * ⚠ **The notice goes on the carrier's page, under the grid it belongs to.** A conviction grid

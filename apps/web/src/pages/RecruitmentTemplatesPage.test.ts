@@ -1,8 +1,19 @@
-import { describe, it, expect } from "vitest";
+import { vi, describe, it, expect, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
+import { sectionAccess } from "@silvicom/shared";
+import { createPinia, setActivePinia } from "pinia";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { APPLICATION_RELEASE_ORDER, AUTHORIZATION_PURPOSE_LABELS, RECRUITMENT_TEMPLATES } from "@silvicom/shared";
 import RecruitmentTemplatesPage from "@/pages/RecruitmentTemplatesPage.vue";
+
+// The session, mocked and put in one role's shoes from the shared matrix (`FuelLogTabs.test.ts`'s idiom).
+const session = vi.hoisted(() => ({ role: "recruiter" as string | null, can: (_s: string): boolean => true }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
+const asRole = (role: string): void => {
+  session.role = role;
+  session.can = (s: string) => sectionAccess(role as never, s as never) === "manage";
+};
+
 
 /**
  * The Templates tab (MV2). Pinned: every permission the link collects is on it — read from
@@ -30,7 +41,18 @@ const render = async () => {
   });
 };
 
+beforeEach(() => {
+  setActivePinia(createPinia());
+  asRole("recruiter");
+});
+
 describe("the templates tab", () => {
+  it("tells only a role that can record a paper signature how to (G-8)", async () => {
+    expect((await render()).text()).toContain("Record a paper signature");
+    asRole("auditor");
+    expect((await render()).text()).not.toContain("Record a paper signature");
+  });
+
   it("lists every permission the applicant signs, the MVR release among them", async () => {
     const text = (await render()).text();
     for (const purpose of APPLICATION_RELEASE_ORDER) {

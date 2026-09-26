@@ -75,7 +75,9 @@ const seed = (
   over: {
     drivers?: unknown[];
     history?: unknown[];
-    auths?: unknown[];
+    auths?: unknown;
+    /** A carrier's own published wording (0338) — how a draft instrument is reached since D-WORD1. */
+    disclosures?: unknown[];
     /** The live invitation, for the stages that exist before an application is filed (F5). */
     invitations?: unknown[];
     /** Whether anything has been typed — the only evidence a driver has started. */
@@ -118,6 +120,7 @@ const seed = (
       organizations: [{ name: "Silvicom Inc" }],
       documents: SCANS(),
       application_invitations: over.invitations ?? [],
+      org_disclosures: over.disclosures ?? [],
       application_drafts: over.drafts ?? [],
       qualification_records: over.records ?? [],
       audit_logs: [],
@@ -539,6 +542,46 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
     const written = rec.writtenRows("driver_authorizations")[0]!;
     expect(written.esign_consent_at).toBeTruthy();
     expect(written.accepted_user_agent).toBeDefined();
+  });
+
+  it("files a paper grant against the applicant's live link, with no office address as the signer's (A-7)", async () => {
+    const INV = "44444444-5555-4666-8777-888888888888";
+    rec = seed({ invitations: [{ id: INV }] });
+    holder.client = rec.client;
+    const res = await call("/authorizations", { method: "POST", token: "admin", body: JSON.stringify(grant) });
+    expect(res.status).toBe(201);
+    const written = rec.writtenRows("driver_authorizations")[0]!;
+    expect(written).toMatchObject({ invitation_id: INV, accepted_ip: null, accepted_user_agent: null });
+    const link = rec.forTable("application_invitations")[0]!;
+    expect(link.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "driver_id", val: DRIVER }]));
+  });
+
+  it("answers 409 with words when the link already holds that permission (A-7)", async () => {
+    rec = seed({ invitations: [{ id: "44444444-5555-4666-8777-888888888888" }], auths: { writeError: { code: "23505", message: "dup" } } });
+    holder.client = rec.client;
+    const res = await call("/authorizations", { method: "POST", token: "admin", body: JSON.stringify(grant) });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("already_granted_on_link");
+  });
+
+  it("refuses a paper signature on draft wording, and a verbal consent with no record of it (G-9)", async () => {
+    rec = seed({
+      disclosures: [{
+        instrument: "psp", version: "v0-draft", title: "Draft PSP", body: "Draft body.", clauses: null, intent: "Draft intent.",
+        published_at: "2026-09-14T09:00:00Z", published_by: null,
+      }],
+    });
+    holder.client = rec.client;
+    const draft = await call("/authorizations", { method: "POST", token: "admin", body: JSON.stringify(grant) });
+    expect(draft.status).toBe(409);
+    expect(((await draft.json()) as { error: { code: string } }).error.code).toBe("disclosure_not_final");
+
+    rec = seed();
+    holder.client = rec.client;
+    const { evidence_document_id: _scan, ...verbal } = { ...grant, method: "verbal_documented" };
+    const res = await call("/authorizations", { method: "POST", token: "admin", body: JSON.stringify(verbal) });
+    expect(res.status).toBe(400);
+    expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
   });
 
   it("refuses an e-signature without consent to transact electronically", async () => {

@@ -51,6 +51,10 @@ export const HANDBOOK_PLACE_ALREADY_SIGNED: IntakeError = {
   code: "handbook_place_already_signed",
   message: "You have already signed there.",
 };
+export const HANDBOOK_CHANGED: IntakeError = {
+  code: "handbook_changed",
+  message: "The handbook changed since this page opened. Reload the page to read the current handbook, then sign.",
+};
 export const HANDBOOK_ADOPT_FIRST: IntakeError = {
   code: "handbook_adopt_signature_first",
   message: "Adopt your signature first: type your name and make your mark, then sign the handbook.",
@@ -78,6 +82,7 @@ export async function linkHandbookStatus(
       signedPlacementIds,
     }),
     adoption: self.required ? { required: true, adoptedName: self.adoptedName, pictureStaged: self.pictureStaged } : null,
+    version: HANDBOOK_VERSION,
   };
 }
 
@@ -126,6 +131,9 @@ export async function recordHandbookMark(
   if (!invitation.submitted_at) return refused(HANDBOOK_NOT_FILED_YET);
   if (invitation.handbook_filed_at) return refused(HANDBOOK_ALREADY_FILED);
   if (!invitation.handbook_signing_opened_at) return refused(HANDBOOK_NOT_OPENED);
+
+  // A-6: the place is recorded under the text the driver READ, and that must be the current text.
+  if (body.handbook_version !== HANDBOOK_VERSION) return refused(HANDBOOK_CHANGED);
 
   const placement = handbookPlacementById(body.placement_id)!;
   const adopted = await handbookSignedName(admin, invitation, body);

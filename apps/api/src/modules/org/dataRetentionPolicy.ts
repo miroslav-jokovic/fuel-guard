@@ -263,6 +263,14 @@ export const RETENTION_FORBIDDEN = [
   "vehicle_inspections",
   "vehicle_inspection_items",
   "audit_logs", // append-only compliance ledger
+  /**
+   * The driver's signatures, place by place, on the application packet (0339) and the handbook (0374)
+   * — G-6, APPLICATION-FLOW-V2-PLAN.md. Both are append-only by trigger, and each row is the fact a
+   * filed PDF's signature line stands on: who signed which place, under which text, from where. A
+   * prune would leave filed documents whose signatures nothing in the database can account for.
+   */
+  "application_packet_marks",
+  "handbook_marks",
   "platform_audit_log",
   "fuel_transactions", // business records
   "efs_transactions",

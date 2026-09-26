@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { PDFDocument } from "pdf-lib";
 import { footerPosition, visibleSize } from "./footer.js";
+import { stampFooters } from "./merge.js";
+import { pdfText } from "../../../testing/pdfText.js";
 
 /**
  * The test does not restate the four cases — it re-derives them.
@@ -86,5 +89,15 @@ describe("visibleSize", () => {
     expect(visibleSize(180, W, H)).toEqual({ width: W, height: H });
     expect(visibleSize(90, W, H)).toEqual({ width: H, height: W });
     expect(visibleSize(270, W, H)).toEqual({ width: H, height: W });
+  });
+});
+
+describe("the stamped footer spells the driver's name as their documents do (G-5)", () => {
+  it("draws a name with č and ć intact, where Helvetica folded it to ASCII", async () => {
+    const out = await PDFDocument.create();
+    out.addPage([612, 792]);
+    await stampFooters(out, ["Miloš Živković — MVR"], { exportId: "exp-1", generatedAt: "2026-09-26T12:00:00Z" });
+    const text = await pdfText(Buffer.from(await out.save()));
+    expect(text).toContain("Živković");
   });
 });

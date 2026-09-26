@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
+import { sectionAccess } from "@silvicom/shared";
 import { createPinia, setActivePinia } from "pinia";
 import { APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue";
@@ -23,6 +24,15 @@ const BaseModalStub = {
   props: ["open", "title", "size", "printable"],
 };
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
+
+// The session, mocked and put in one role's shoes from the shared matrix (`FuelLogTabs.test.ts`'s idiom).
+const session = vi.hoisted(() => ({ role: "recruiter" as string | null, can: (_s: string): boolean => true }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
+const asRole = (role: string): void => {
+  session.role = role;
+  session.can = (s: string) => sectionAccess(role as never, s as never) === "manage";
+};
+
 
 /**
  * The signed releases (B6, and the answer to Q-HUI6).
@@ -66,6 +76,23 @@ beforeEach(() => {
   setActivePinia(createPinia());
   openPdf.mockReset();
   fetchObjectUrl.mockClear();
+});
+
+describe("the paper door is a write (G-8)", () => {
+  const DRIVER = "11111111-2222-4333-8444-555555555555";
+  const paperButton = (w: ReturnType<typeof mount>) => w.findAll("button").find((b) => b.text().includes("Record a paper signature"));
+  const withDriver = () =>
+    mount(AuthorizationsPanel, {
+      props: { rows: ALL, loading: false, error: null, invitationId: INVITATION, driverId: DRIVER },
+      global: { stubs: { BaseModal: BaseModalStub, PaperAuthorizationForm: true } },
+    });
+
+  it("is offered to a role that manages recruitment, and not to one that only views it", () => {
+    asRole("recruiter");
+    expect(paperButton(withDriver())).toBeDefined();
+    asRole("auditor");
+    expect(paperButton(withDriver())).toBeUndefined();
+  });
 });
 
 describe("what the office can finally see", () => {

@@ -147,6 +147,23 @@ const dayOf = (wc: WallClock): CalendarDay => `${wc.year}-${pad(wc.month)}-${pad
  * **tomorrow** and started a day late — which is why the window reproducing the owner's 8.61 MPG was
  * 08/22 – 09/21 rather than 08/21 – 09/20. It was live in three places.
  */
+/** The zone an organization with none recorded runs on — `organizations.operating_hours`' column default. */
+export const DEFAULT_ORG_TIMEZONE = "America/Chicago";
+
+/**
+ * The org's operating clock, from `organizations.operating_hours->>'tz'` — the day boundary every
+ * carrier-day in the product is cut on. Moved here from the idle module on 2026-09-26 (it is pure, and
+ * a road test's "today" needed it too: `lint:boundaries` refuses recruiting → idle, and four modules
+ * borrowing one pure function through waiver edges is the copy-with-a-delay-fuse CLAUDE.md warns of).
+ */
+export function organizationTimezone(value: object | null | undefined): string {
+  if (value === null || value === undefined || Array.isArray(value) || !("tz" in value)) {
+    return DEFAULT_ORG_TIMEZONE;
+  }
+  const tz = (value as { tz?: unknown }).tz;
+  return typeof tz === "string" && tz.length > 0 ? tz : DEFAULT_ORG_TIMEZONE;
+}
+
 export const todayInZone = (now: Date, zone: string): CalendarDay =>
   dayOf(wallClockInZone(now, zone));
 

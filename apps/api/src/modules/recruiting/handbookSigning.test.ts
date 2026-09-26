@@ -21,7 +21,7 @@ const invitation = (over: Record<string, unknown> = {}) => ({
 
 const filterOf = (q: RecordedQuery, col: string) => q.filters().find((f) => f.col === col)?.val;
 
-const seed = (over: { invitation?: Record<string, unknown> | null; places?: string[]; carrierMarkError?: unknown; rep?: boolean } = {}) =>
+const seed = (over: { invitation?: Record<string, unknown> | null; places?: string[]; carrierMarkError?: unknown; rep?: boolean; markVersion?: string } = {}) =>
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
@@ -29,6 +29,7 @@ const seed = (over: { invitation?: Record<string, unknown> | null; places?: stri
         if (q.write) return over.carrierMarkError ? { writeError: over.carrierMarkError } : [];
         return (over.places ?? DRIVER_PLACES).map((placement_id) => ({
           placement_id, signed_name: "Jovana Petrović", signed_at: "2026-09-25T11:05:00Z", representative_id: placement_id === "h4c" ? REP : null,
+          handbook_version: over.markVersion ?? HANDBOOK_VERSION,
         }));
       },
       carrier_representatives: (q: RecordedQuery) => {
@@ -149,6 +150,14 @@ describe("countersigning and filing", () => {
     expect(isHandbookError(closed) && closed.code).toBe("not_opened");
     const filed = await countersignHandbook(seed({ invitation: { handbook_filed_at: "2026-09-25T12:00:00Z" } }).client, ORG, "u", null, DRIVER, REP);
     expect(isHandbookError(filed) && filed.code).toBe("already_filed");
+  });
+
+  it("refuses to file a handbook whose places were signed under another text, and files nothing (A-6)", async () => {
+    const rec = seed({ markVersion: "handbook-older" });
+    const result = await countersignHandbook(rec.client, ORG, "u-1", "admin", DRIVER, REP);
+    expect(isHandbookError(result) && result.code).toBe("handbook_changed");
+    expect(rec.writtenRows("handbook_marks")).toHaveLength(0);
+    expect(rec.writtenRows("documents")).toHaveLength(0);
   });
 
   it("refuses a representative this carrier does not have", async () => {

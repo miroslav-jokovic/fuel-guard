@@ -752,3 +752,18 @@ Append dated lines at the END.
   not name, both G-13:** a picture the permissions ceremony staged before filing is never replaced (the
   capture branch refuses it), and `permissions.ts` no longer draws a picture staged after filing, since
   every permission was signed before it (`signatureMarkBytes(…, stagedBefore)`).
+- 2026-09-26 — **C1 merged** (#1065, main `70bef16`): 13 files split, pure moves (every removed line re-added,
+  only `export` keywords and import lists differ). **C0c built** (`claude/applicant-audit-fixes`): A-3 one
+  `LICENSING_AUTHORITY_MAX_LENGTH` (80) on both doors; A-4 `paperOnlyPurposes` + "waiting on us" once
+  `releases_completed_at` is set, named in the drawer (the checklist builder only — the board's twin is G-7's,
+  C2); A-6 `handbook_version` on each mark (409 `handbook_changed`) and the countersign refuses marks under
+  another text; A-7 paper grants carry the live `invitation_id`, no office IP/UA, 23505 → 409
+  `already_granted_on_link`; A-8 `roadTestCounts` (`source = road_test` or `passed`); A-9
+  `CEREMONY_OWNED_KINDS` refused on the generic DQ door (the drawer reads the same sentences) and PATCH
+  `applicant → active` → 409 `use_hire`; A-12 re-read and confirmed: refuse a missing examiner signature and a
+  pass with no licence number before anything is filed, and "today" is the carrier's day (`todayInZone`);
+  G-5 binder footer on the embedded face, `pdfUnicodeText` composes NFC first (measured: a decomposed "ć"
+  printed as "c"); G-6; G-8 withdrawn pages derived from `PACKET_WITHDRAWALS` (4, 15, 19, 20, 22), the blank
+  packet prints no on-screen notices, the paper door and its advice need `session.can('recruitment')`; G-9 per
+  Q-AW15's default — draft wording refused, `verbal_documented` needs its record; **the signing-date field
+  needs a column** (`driver_authorizations.signed_on`, requested for M1), so its writer is owed by C2; G-12.

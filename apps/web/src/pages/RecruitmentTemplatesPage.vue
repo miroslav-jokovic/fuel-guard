@@ -12,6 +12,9 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
+import { useSessionStore } from "@/stores/session";
+
+const session = useSessionStore();
 
 /**
  * Blank documents to print when the electronic path fails (MV2, D-MVR2).
@@ -57,9 +60,13 @@ const rendered = computed<RenderedDocument | null>(() =>
 
     <BaseCard>
       <p class="text-sm text-ink-muted">
-        Each one is the same document the driver signs on their link, blank. After a driver signs a
-        permission on paper, open their record, go to the <span class="font-medium text-ink-secondary">Permissions</span>
-        step and choose <span class="font-medium text-ink-secondary">Record a paper signature</span>, with the scan.
+        Each one is the same document the driver signs on their link, blank.
+        <!-- G-8: the next step is a write, so only a role that can take it is told to. -->
+        <template v-if="session.can('recruitment')">
+          After a driver signs a permission on paper, open their record, go to the
+          <span class="font-medium text-ink-secondary">Permissions</span> step and choose
+          <span class="font-medium text-ink-secondary">Record a paper signature</span>, with the scan.
+        </template>
       </p>
     </BaseCard>
 

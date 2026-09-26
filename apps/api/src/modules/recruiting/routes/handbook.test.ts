@@ -6,6 +6,7 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { HANDBOOK_VERSION } from "../applicationPdf/handbook/handbookText.js";
 
 /**
  * The handbook's office doors (HANDBOOK-SIGNING-PLAN.md HB3), through the mount. The services are
@@ -136,7 +137,7 @@ describe("the handbook's two office acts", () => {
       handbook_marks: (q: { write: boolean }) =>
         q.write
           ? { writeError: { code: "HB021", message: "handbook_invitation_unusable" } }
-          : ["h1", "h2", "h3", "h4", "h5"].map((placement_id) => ({ placement_id })),
+          : ["h1", "h2", "h3", "h4", "h5"].map((placement_id) => ({ placement_id, handbook_version: HANDBOOK_VERSION })),
     }).client;
     const res = await send("POST", `/applicants/${DRIVER}/handbook/countersign`, "admin", { representative_id: REP });
     expect(res.status).toBe(409);

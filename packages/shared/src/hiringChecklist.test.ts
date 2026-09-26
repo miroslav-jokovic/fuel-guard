@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hireBlockers, hiringChecklist, type HiringChecklistInputs } from "./hiringChecklist.js";
+import { hireBlockers, hiringChecklist, roadTestCounts, type HiringChecklistInputs } from "./hiringChecklist.js";
 import {
   HIRE_REFUSES_WITHOUT,
   HIRING_PHASE_LABELS,
@@ -721,5 +721,51 @@ describe("what the hire refuses without (Q-HM5, D-HB5)", () => {
 
   it("fails closed on a refusing step the fold did not emit", () => {
     expect(hireBlockers({ steps: [] })).toEqual([...HIRE_REFUSES_WITHOUT]);
+  });
+});
+
+describe("permissions the link will never ask for again (APPLICATION-FLOW-V2-PLAN.md A-4)", () => {
+  // Both production applicants mid-flight on 2026-09-26: four signed, the ceremony closed before D-AF4.
+  const FOUR = ["fcra_disclosure", "psp", "previous_employer", "drug_alcohol"].map(auth);
+
+  it("is the office's, naming the paper-only purposes, once the ceremony has closed", () => {
+    const c = hiringChecklist(input({ invitedAt: "2026-09-10T00:00:00Z", authorizations: FOUR, releasesCompletedAt: "2026-09-14T08:30:00Z" }));
+    const row = c.steps.find((s) => s.key === "permissions_signed")!;
+    expect(row.state).toBe("waiting_on_us");
+    expect(row.paperOnlyPurposes).toEqual(APPLICATION_RELEASE_ORDER.filter((p) => p === "mvr" || p === "clearinghouse"));
+  });
+
+  it("still waits on them while the ceremony is open", () => {
+    const c = hiringChecklist(input({ invitedAt: "2026-09-10T00:00:00Z", authorizations: FOUR }));
+    const row = c.steps.find((s) => s.key === "permissions_signed")!;
+    expect(row.state).toBe("waiting_on_them");
+    expect(row.paperOnlyPurposes).toEqual([]);
+  });
+
+  it("names nothing once every purpose is live", () => {
+    const c = hiringChecklist(input({ invitedAt: "2026-09-10T00:00:00Z", authorizations: ALL_PERMISSIONS, releasesCompletedAt: "2026-09-14T08:30:00Z" }));
+    const row = c.steps.find((s) => s.key === "permissions_signed")!;
+    expect(row.state).toBe("done");
+    expect(row.paperOnlyPurposes).toEqual([]);
+  });
+});
+
+describe("a road test counts only when it was passed (APPLICATION-FLOW-V2-PLAN.md A-8)", () => {
+  it("counts the ceremony's row, and any row that says passed", () => {
+    expect(roadTestCounts({ source: "road_test" })).toBe(true);
+    expect(roadTestCounts({ source: "dq_page", passed: "true" })).toBe(true);
+    expect(roadTestCounts({ passed: true })).toBe(true);
+  });
+
+  it("does not count a row that only says a road test happened", () => {
+    expect(roadTestCounts({})).toBe(false);
+    expect(roadTestCounts({ source: null, passed: "false" })).toBe(false);
+  });
+
+  it("keeps the step open on a recorded-but-failed test, and still accepts the §391.33 equivalency", () => {
+    const failed = hiringChecklist(input({ qualificationKinds: ["road_test"], roadTestPassed: false }));
+    expect(failed.steps.find((s) => s.key === "road_test")!.state).not.toBe("done");
+    const equivalent = hiringChecklist(input({ qualificationKinds: ["road_test", "cdl_equivalency"], roadTestPassed: false }));
+    expect(equivalent.steps.find((s) => s.key === "road_test")!.state).toBe("done");
   });
 });

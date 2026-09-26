@@ -1,5 +1,16 @@
 import { AUTHORIZATION_PURPOSE_LABELS, type AuthorizationPurpose } from "./authorizationContract.js";
 import { APPLICATION_RELEASE_ORDER } from "./applicationIntake.js";
+import { PACKET_WITHDRAWALS, packetPlacementById } from "./packetPlacements.js";
+
+/**
+ * The packet pages whose driver lines are withdrawn from signing, in page order — READ from
+ * `PACKET_WITHDRAWALS`, never listed here (G-8, APPLICATION-FLOW-V2-PLAN.md). The template's copy said
+ * "Pages 4 and 19" by hand, and D-PKT19 withdrew three more pages the next day without it noticing.
+ */
+const withdrawnPages = [...new Set(Object.keys(PACKET_WITHDRAWALS).map((id) => packetPlacementById(id)?.page).filter((p): p is number => p !== undefined))]
+  .sort((a, b) => a - b);
+const pageList = (pages: number[]): string =>
+  pages.length <= 1 ? pages.join("") : `${pages.slice(0, -1).join(", ")} and ${pages[pages.length - 1]}`;
 
 /**
  * The documents the office can print BLANK (MVR-RELEASE-AND-TEMPLATES-PLAN.md MV2, D-MVR2).
@@ -60,7 +71,7 @@ export const RECRUITMENT_TEMPLATES: readonly RecruitmentTemplate[] = [
     key: "application-packet",
     group: "application",
     label: "Driver application (the carrier's packet)",
-    when: "Signed after the permissions. Pages 4 and 19 print their notices: they are not signed here.",
+    when: `Signed after the permissions. Pages ${pageList(withdrawnPages)} print their notices: they are not signed here.`,
   },
   {
     key: "handbook",

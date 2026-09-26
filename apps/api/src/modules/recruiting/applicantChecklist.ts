@@ -6,6 +6,7 @@ import {
   driverInquiryQueue,
   handbookStatus,
   hiringChecklist,
+  roadTestCounts,
   type ApplyingAs,
   type AuthorizationRow,
   type HiringChecklist,
@@ -48,7 +49,7 @@ export const isChecklistError = (v: unknown): v is ChecklistError =>
 /** Just enough of the invitation to answer phases — the token hash is never selected. */
 const INVITE_COLS =
   // ⚠ One literal: supabase-js types a select by parsing it, and a `+` makes it a plain string.
-  "id, created_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, handbook_signing_opened_at";
+  "id, created_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, handbook_signing_opened_at";
 
 export async function applicantChecklist(
   admin: SupabaseClient,
@@ -127,8 +128,10 @@ export async function applicantChecklist(
       : null,
     hasDraft: draft.exists,
     authorizations,
+    releasesCompletedAt: invitation?.releases_completed_at ?? null,
     qualificationKinds: kinds,
     mvrJurisdictions: records.filter((r) => r.kind === "mvr").map((r) => r.jurisdiction ?? null),
+    roadTestPassed: records.some((r) => r.kind === "road_test" && roadTestCounts(r)),
     licenceJurisdictions: draft.licenceJurisdictions,
     psp: {
       requested: pspRequested,
@@ -163,6 +166,8 @@ export async function applicantChecklist(
 interface InvitationRow {
   id: string;
   created_at: string;
+  /** When the link's permission ceremony closed — after it, a missing purpose is paper-only (A-4). */
+  releases_completed_at: string | null;
   /** AF4 (0365): when the office sent the application form. */
   application_sent_at: string | null;
   review_requested_at: string | null;
@@ -276,13 +281,14 @@ async function readQualificationRecords(
   admin: SupabaseClient,
   orgId: string,
   driverId: string,
-): Promise<Array<{ kind: string; jurisdiction?: string | null }>> {
+): Promise<Array<{ kind: string; jurisdiction?: string | null; source?: string | null; passed?: string | null }>> {
   const { data } = await admin
     .from("qualification_records")
-    .select(`kind, ${RECORD_JURISDICTION_SELECT}`)
+    // A-8: a road test's source and pass flag, so the fold can tell a PASSED test from a recorded one.
+    .select(`kind, ${RECORD_JURISDICTION_SELECT}, source:detail->>source, passed:detail->>passed`)
     .eq("org_id", orgId)
     .eq("driver_id", driverId);
-  return (data ?? []) as Array<{ kind: string; jurisdiction?: string | null }>;
+  return (data ?? []) as Array<{ kind: string; jurisdiction?: string | null; source?: string | null; passed?: string | null }>;
 }
 
 /**

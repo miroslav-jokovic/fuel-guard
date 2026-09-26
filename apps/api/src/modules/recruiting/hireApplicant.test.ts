@@ -33,6 +33,8 @@ const EMPLOYER = {
  * rows — the two are different questions and the file's gaps are what several tests below are about.
  */
 const READY_KINDS = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "road_test", "handbook"];
+/** A road test as its ceremony files it — only on a pass, with its source (A-8 counts nothing less). */
+const ceremonyProvenance = (kind: string) => (kind === "road_test" ? { source: "road_test" } : {});
 const selectOf = (q: RecordedQuery): string => String(q.ops.find((o) => o.method === "select")?.args[0] ?? "");
 
 const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unknown[]; evidence?: string[]; rpc?: unknown } = {}) =>
@@ -44,7 +46,7 @@ const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unk
         // ⚠ Keyed on the checklist's OWN read — the only one that selects the MVR's `jurisdiction`.
         // Every other read (the file's gaps, §40.25(j)'s return-to-duty check) gets the test's rows:
         // two earlier discriminators each handed one read the other's answer, found by probing.
-        selectOf(q).includes("jurisdiction") ? (over.evidence ?? READY_KINDS).map((kind) => ({ kind })) : (over.records ?? []),
+        selectOf(q).includes("jurisdiction") ? (over.evidence ?? READY_KINDS).map((kind) => ({ kind, ...ceremonyProvenance(kind) })) : (over.records ?? []),
       application_invitations: [{ id: "inv-1", created_at: "2026-08-01T00:00:00Z", submitted_at: "2026-08-10T00:00:00Z" }],
       audit_logs: [],
     },

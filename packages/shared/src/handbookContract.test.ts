@@ -37,21 +37,25 @@ describe("the handbook's places", () => {
 
 describe("a driver's mark", () => {
   it("is accepted at a driver place with the e-sign consent", () => {
-    expect(handbookMarkSchema.safeParse({ placement_id: "h3", esign_consent: true }).success).toBe(true);
+    expect(handbookMarkSchema.safeParse({ placement_id: "h3", esign_consent: true, handbook_version: "v1" }).success).toBe(true);
   });
 
   it("is refused at the carrier's place, however it is asked for", () => {
-    expect(handbookMarkSchema.safeParse({ placement_id: "h4c", esign_consent: true }).success).toBe(false);
+    expect(handbookMarkSchema.safeParse({ placement_id: "h4c", esign_consent: true, handbook_version: "v1" }).success).toBe(false);
   });
 
   it("is refused without the e-sign consent", () => {
-    expect(handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: false }).success).toBe(false);
+    expect(handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: false, handbook_version: "v1" }).success).toBe(false);
+  });
+
+  it("is refused without the handbook text version the driver was shown (A-6)", () => {
+    expect(handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true }).success).toBe(false);
   });
 
   it("carries a self-adopted name trimmed, and refuses one too short to be a name (A-1, C0b)", () => {
-    const parsed = handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true, signed_name: "  Dana Driver " });
+    const parsed = handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true, handbook_version: "v1", signed_name: "  Dana Driver " });
     expect(parsed.success && parsed.data.signed_name).toBe("Dana Driver");
-    expect(handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true, signed_name: " D " }).success).toBe(false);
+    expect(handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true, handbook_version: "v1", signed_name: " D " }).success).toBe(false);
   });
 });
 

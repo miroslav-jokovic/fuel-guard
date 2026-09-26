@@ -78,9 +78,11 @@ export async function paperScanRefusal(
   documentId: string | null | undefined,
 ): Promise<PaperAuthorizationError | null> {
   if (!documentId) {
-    return method === "wet_signature"
-      ? { code: "invalid_request", message: "A paper signature needs the scan of the signed page." }
-      : null;
+    // G-9 (Q-AW15's default): a documented VERBAL consent needs its documentation too — the note or
+    // recording that is the only proof it happened. Only `esign` carries its own evidence.
+    if (method === "wet_signature") return { code: "invalid_request", message: "A paper signature needs the scan of the signed page." };
+    if (method === "verbal_documented") return { code: "invalid_request", message: "A verbal consent needs the scan of its written record." };
+    return null;
   }
   const { data } = await admin
     .from("documents")

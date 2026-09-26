@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { qualificationRecordCreateSchema } from "./complianceContract.js";
+import { CEREMONY_OWNED_KINDS, qualificationRecordCreateSchema } from "./complianceContract.js";
 
 /**
  * The §3.2 record contract's kind rules — the ones that exist because a table constraint would
@@ -26,6 +26,19 @@ describe("filing a PSP record through the generic endpoint (0219)", () => {
   it("leaves every other kind alone", () => {
     for (const kind of ["mvr", "drug_test", "previous_employer_response"]) {
       expect(qualificationRecordCreateSchema.safeParse({ ...base, kind, detail: {} }).success).toBe(true);
+    }
+  });
+});
+
+describe("ceremony-owned kinds on the generic endpoint (APPLICATION-FLOW-V2-PLAN.md A-9)", () => {
+  const base = { id: "11111111-2222-4333-8444-555555555555", driverId: "66666666-7777-4888-8999-aaaaaaaaaaaa", occurredOn: "2026-08-01" };
+
+  it("refuses every one of them, each with the sentence naming where it is recorded", () => {
+    expect(Object.keys(CEREMONY_OWNED_KINDS).sort()).toEqual(["employment_application", "handbook", "psp_report", "road_test"]);
+    for (const [kind, where] of Object.entries(CEREMONY_OWNED_KINDS)) {
+      const parsed = qualificationRecordCreateSchema.safeParse({ ...base, kind, detail: { passed: true } });
+      expect(parsed.success, kind).toBe(false);
+      expect(parsed.error?.issues[0]?.message).toBe(where);
     }
   });
 });

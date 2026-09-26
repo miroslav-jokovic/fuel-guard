@@ -46,11 +46,15 @@ export const applicationEmployerSchema = z
     /** §391.21(b)(10) asks for it in as many words. */
     reason_for_leaving: z.string().max(500).nullish(),
     /**
-     * §40.25(j): the applicant must be asked whether they have EVER tested positive or refused a
-     * test and then failed to complete return-to-duty. Asked here because the answer is the
-     * applicant's, not a former employer's — and a "yes" changes what §40.25 obliges us to chase.
+     * §391.21(b)(10)(iv)(A): whether the applicant was subject to the FMCSRs while employed by this
+     * employer. (This comment described §40.25(j)'s prior-positive question until 2026-09-26 — a
+     * different question, asked once per application and not per employer; G-12.)
      */
     subject_to_fmcsr: z.boolean().nullish(),
+    /**
+     * §391.21(b)(10)(iv)(B): whether the job was a safety-sensitive function in a DOT-regulated mode,
+     * subject to 49 CFR part 40 alcohol and controlled-substances testing.
+     */
     safety_sensitive: z.boolean().nullish(),
   })
   .strict()

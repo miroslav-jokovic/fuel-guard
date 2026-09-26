@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   authorizationGrantSchema,
+  isDraftDisclosure,
   authorizationRevokeSchema,
   hiringEvidenceUploadSchema,
   type AuthorizationGrant,
@@ -133,10 +134,33 @@ export function recruitmentAuthorizationsRouter(): Router {
       // file, two texts, and no way to tell afterwards which the driver actually read.
       //
       // Unpublished instruments still fall back to the placeholder, so nothing changes for a
-      // carrier that has published nothing. ⚠ Note this path still has NO draft refusal, unlike the
-      // applicant's: whether the office may record a wet signature on placeholder text is a policy
-      // question, and adding the refusal here would withdraw a capability rather than correct one.
+      // carrier that has published nothing.
+      //
+      // ⚠ G-9 (Q-AW15's default, APPLICATION-FLOW-V2-PLAN.md §11): placeholder wording is now refused
+      // here as it is on the applicant's link. A paper signature recorded against `v0-draft` text files
+      // a permission for words nobody reviewed — the policy question this comment used to leave open.
       const doc = (await loadCarrierWording(admin, orgId)).disclosures[body.purpose];
+      if (isDraftDisclosure(doc.version)) {
+        res.status(409).json(apiError(
+          "disclosure_not_final",
+          "This permission is still draft wording, so a signature on it cannot be recorded. Publish the reviewed text first.",
+        ));
+        return;
+      }
+
+      // A-7: the grant belongs to the applicant's LIVE application link, as the link's own signatures
+      // do. Without it the link kept asking for a permission the office had recorded, the filed
+      // permissions left it out, and only the driver-keyed checklist counted it. No link (a roster
+      // driver) → null, as before.
+      const { data: live } = await admin
+        .from("application_invitations")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("driver_id", body.driver_id)
+        .is("revoked_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const invitationId = ((live ?? []) as Array<{ id: string }>)[0]?.id ?? null;
 
       const { data, error } = await admin
         .from("driver_authorizations")
@@ -149,15 +173,30 @@ export function recruitmentAuthorizationsRouter(): Router {
           intent_statement: doc.intent,
           method: body.method,
           signed_name: body.signed_name,
+          invitation_id: invitationId,
           esign_consent_at: body.method === "esign" ? new Date().toISOString() : null,
           // ESIGN attribution evidence. `trust proxy` is set in app.ts, so req.ip is the client's.
-          accepted_ip: req.ip ?? null,
-          accepted_user_agent: req.get("user-agent") ?? null,
+          // ⚠ A-7: only for an electronic signature. On paper the request comes from the OFFICE's
+          // browser, and recording its address as the signer's attribution put the recruiter's
+          // network on the driver's signature.
+          accepted_ip: body.method === "esign" ? (req.ip ?? null) : null,
+          accepted_user_agent: body.method === "esign" ? (req.get("user-agent") ?? null) : null,
           evidence_document_id: body.evidence_document_id ?? null,
           recorded_by: req.auth!.userId,
         })
         .select(AUTH_COLS)
         .single();
+      // A-7: `uq_driver_authorizations_invitation_purpose` (0228) — one live grant per purpose per link.
+      // ⚠ It covers `revokes is null` rows, so a re-grant after a revocation on the same link lands
+      // here too; the words say what to do rather than a 500 saying nothing.
+      if (error?.code === "23505") {
+        res.status(409).json(apiError(
+          "already_granted_on_link",
+          "This permission is already on file for the applicant's current application link. "
+          + "If it was revoked, send them a new application link to sign it again.",
+        ));
+        return;
+      }
       if (error || !data) {
         res.status(500).json(apiError("db_error", "Could not record the authorization"));
         return;

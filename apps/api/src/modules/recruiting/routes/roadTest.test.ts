@@ -49,12 +49,12 @@ const TEST = {
   items: allItems(), general_performance: "satisfactory", remarks: null, qualified_for: "Tractor-trailer",
 };
 
-const seed = (): SupabaseRecorder =>
+const seed = (over: { signatureFile?: boolean; cdlNumber?: string | null } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       drivers: postgrestFixture([
         { id: DRIVER, org_id: ORG, full_name: "Marko Petrović", phone: null, city: "Chicago", state: "IL",
-          postal_code: "60639", cdl_number: "P123", cdl_state: "IL" },
+          postal_code: "60639", cdl_number: "cdlNumber" in over ? over.cdlNumber : "P123", cdl_state: "IL" },
       ]),
       vehicles: postgrestFixture([
         { id: TRUCK, org_id: ORG, unit_number: "1432", make: "FRHT", year: 2024 },
@@ -74,8 +74,14 @@ const seed = (): SupabaseRecorder =>
       qualification_records: [],
       audit_logs: [],
     },
-    // A signature download that finds nothing: the renderer prints the typed name instead.
-    storage: { download: () => ({ data: null, error: { message: "not found" } }) },
+    // The examiner's signature file, as Storage hands it back; `signatureFile: false` models it missing,
+    // which A-12 now refuses rather than printing the typed name in its place.
+    storage: {
+      download: () =>
+        over.signatureFile === false
+          ? { data: null, error: { message: "not found" } }
+          : { data: new Blob([Buffer.from(PNG.split(",")[1]!, "base64")], { type: "image/png" }), error: null },
+    },
   });
 
 beforeAll(async () => {
@@ -142,6 +148,24 @@ describe("recording a road test", () => {
     // `organizations` is keyed by the org's OWN id (the letterhead), and `user_profiles` by the user —
     // a display name belongs to the person, not the tenant (D-MEM1). Neither has an org to filter on.
     expectOrgScoped(rec, ORG, { exempt: ["organizations", "user_profiles"] });
+  });
+
+  it("refuses, filing nothing, when the examiner's signature file cannot be read (A-12)", async () => {
+    const rec = seed({ signatureFile: false });
+    holder.client = rec.client;
+    const res = await post(`/applicants/${DRIVER}/road-test`, "recruiter", TEST);
+    expect(res.status).toBe(400);
+    expect(rec.writtenRows("documents")).toHaveLength(0);
+    expect(rec.writtenRows("qualification_records")).toHaveLength(0);
+  });
+
+  it("refuses a pass, filing nothing, when the applicant has no licence number for the certificate (A-12)", async () => {
+    const rec = seed({ cdlNumber: null });
+    holder.client = rec.client;
+    const res = await post(`/applicants/${DRIVER}/road-test`, "recruiter", TEST);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toContain("licence number");
+    expect(rec.writtenRows("documents")).toHaveLength(0);
   });
 
   it("files only the form, and nothing the checklist counts, when any item is not Satisfactory", async () => {

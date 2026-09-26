@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { applicationLicenceSchema } from "./applicationContract.js";
+import { hiringEvidenceFileSchema } from "./hiringEvidence.js";
 import {
+  LICENSING_AUTHORITY_MAX_LENGTH,
   declaredLicenceJurisdictions,
   mvrJurisdictionOptions,
   mvrJurisdictionsOutstanding,
@@ -96,5 +99,14 @@ describe("mvrJurisdictionOptions", () => {
 
   it("is the catalogue alone when nothing is owed", () => {
     expect(mvrJurisdictionOptions([])).toHaveLength(JURISDICTIONS.length);
+  });
+});
+
+describe("one length for a licensing authority, on both doors (APPLICATION-FLOW-V2-PLAN.md A-3)", () => {
+  it("lets the office's MVR name any authority the application could declare", () => {
+    const longest = "A".repeat(LICENSING_AUTHORITY_MAX_LENGTH);
+    expect(applicationLicenceSchema.shape.issuing_authority.safeParse(longest).success).toBe(true);
+    expect(hiringEvidenceFileSchema.shape.jurisdiction.safeParse(longest).success).toBe(true);
+    expect(hiringEvidenceFileSchema.shape.jurisdiction.safeParse(`${longest}A`).success).toBe(false);
   });
 });

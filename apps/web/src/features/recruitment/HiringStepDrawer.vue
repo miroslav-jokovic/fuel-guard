@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
+  AUTHORIZATION_PURPOSE_LABELS,
   hiringStep,
   isHiringRecordedActStep,
   type HiringStep,
@@ -133,6 +134,11 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         <span v-if="blockedBy" class="text-xs text-ink-secondary">Needs: {{ blockedBy }}</span>
         <span v-else-if="step.outstandingJurisdictions.length" class="text-xs text-ink-secondary">
           Still needed from: {{ step.outstandingJurisdictions.join(", ") }}
+        </span>
+        <!-- A-4: the link will never ask for these again, so the paper door below is the only way. -->
+        <span v-else-if="step.paperOnlyPurposes.length" class="text-xs text-ink-secondary">
+          Their link no longer asks for {{ step.paperOnlyPurposes.map((p) => AUTHORIZATION_PURPOSE_LABELS[p]).join(", ") }}.
+          Record {{ step.paperOnlyPurposes.length === 1 ? "it" : "them" }} on paper below.
         </span>
       </div>
 

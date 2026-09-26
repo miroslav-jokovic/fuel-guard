@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from "vue";
 import { AppIcon } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import {
+  CEREMONY_OWNED_KINDS,
   DQ_ITEMS,
   HAZMAT_TRAINING_TYPES,
   type CertificationCreateRequest,
@@ -55,8 +56,18 @@ const spec = computed(() => DQ_ITEMS.find((i) => i.key === props.itemKey) ?? nul
  * the row carries structured data or is a PDF nobody has read. So the drawer points rather than
  * offering a form that cannot succeed.
  */
-const isPspReport = computed(() => spec.value?.key === "psp_report");
 const isCertification = computed(() => spec.value?.source === "certification");
+/**
+ * Where a ceremony-owned record is made instead, when this requirement's evidence is one
+ * (`CEREMONY_OWNED_KINDS`, APPLICATION-FLOW-V2-PLAN.md A-9). The server refuses those kinds on this
+ * form's door, so the drawer says where to go rather than offering a form that cannot save. It was
+ * PSP alone until 2026-09-26, with its own sentence written here; the road test, the handbook and the
+ * application joined it, and all four sentences now come from the one list the server refuses by.
+ */
+const ceremonyOwner = computed<string | null>(() => {
+  const kind = isCertification.value ? null : spec.value?.evidenceKinds[0];
+  return kind ? ((CEREMONY_OWNED_KINDS as Partial<Record<string, string>>)[kind] ?? null) : null;
+});
 const isEndorsement = computed(() => spec.value?.evidenceKinds[0] === "endorsement");
 const isTraining = computed(() => spec.value?.evidenceKinds[0] === "hazmat_training");
 
@@ -189,11 +200,7 @@ async function save(): Promise<void> {
 
 <template>
   <SlideOver :open="open" size="lg" :title="spec?.label ?? 'Requirement'" @close="emit('close')">
-    <p v-if="isPspReport" class="text-sm text-ink-muted">
-      PSP records are filed from the driver's Employment tab — import the PDF you bought on the FMCSA
-      portal, or order a fresh record there. Both record where the report came from, which this form
-      cannot.
-    </p>
+    <p v-if="ceremonyOwner" class="text-sm text-ink-muted">{{ ceremonyOwner }}.</p>
 
     <div v-else-if="spec" class="space-y-6">
       <div class="space-y-4">
@@ -329,9 +336,9 @@ async function save(): Promise<void> {
     <template #footer>
       <div class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">
-          {{ isPspReport ? "Close" : "Cancel" }}
+          {{ ceremonyOwner ? "Close" : "Cancel" }}
         </BaseButton>
-        <BaseButton v-if="!isPspReport" variant="primary" :disabled="saving || !ready" @click="save">
+        <BaseButton v-if="!ceremonyOwner" variant="primary" :disabled="saving || !ready" @click="save">
           <AppIcon :icon="ClipboardDocumentCheckIcon" class="size-4" aria-hidden="true" />
           {{ saving ? "Saving…" : "Record it" }}
         </BaseButton>

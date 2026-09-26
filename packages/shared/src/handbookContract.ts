@@ -77,6 +77,13 @@ export const handbookMarkSchema = z.object({
   /** ESIGN intent, affirmed at the place — the packet's rule. */
   esign_consent: z.literal(true),
   /**
+   * The handbook text the driver was SHOWN — `LinkHandbookStatus.version`, served with the page that
+   * rendered it (APPLICATION-FLOW-V2-PLAN.md A-6). Refused when it is not the server's current text:
+   * `handbook_marks.handbook_version` is stamped from the server, so without this a place read under
+   * one text would be recorded under the next one the moment the text changed.
+   */
+  handbook_version: z.string().min(1).max(100),
+  /**
    * The name a driver adopts ON THE HANDBOOK SCREEN — sent only while `LinkHandbookStatus.adoption` is
    * required and nothing is pinned yet, and read by the server on the FIRST place only; every later
    * place carries the first one's `signed_name` (APPLICATION-FLOW-V2-PLAN.md A-1, C0b).
@@ -161,6 +168,8 @@ export interface HandbookSelfAdoptionView {
 /** The link's view: the fold, plus the self-adoption state (null when it cannot apply). */
 export interface LinkHandbookStatus extends HandbookStatus {
   adoption: HandbookSelfAdoptionView | null;
+  /** The handbook text this page is showing; each mark sends it back (A-6). */
+  version: string;
 }
 
 /**

@@ -168,7 +168,8 @@ async function examinerForPrint(
     .maybeSingle();
   const row = data as { full_name: string; title: string; signature_path: string } | null;
   if (!row) return null;
-  // A missing file costs the picture, never the test: the renderer prints the typed name instead.
+  // A missing file is reported as a null picture; `recordRoadTest` refuses on it (A-12) rather than let
+  // the renderer print the typed name where the examiner's signature belongs, silently.
   const file = await admin.storage.from(DOCUMENTS_BUCKET).download(row.signature_path);
   const signature = file.data ? Buffer.from(await file.data.arrayBuffer()) : null;
   return { fullName: row.full_name, title: row.title, signature };
@@ -239,6 +240,25 @@ export async function recordRoadTest(
 
   const input = await gather(admin, orgId, userId, role, driverId, body);
   if (isRoadTestError(input)) return input;
+
+  // A-12 (APPLICATION-FLOW-V2-PLAN.md), both BEFORE anything is filed — the form and certificate are
+  // append-only evidence, and a refusal after the form is filed would leave half a test on file.
+  // ⚠ The examiner's signature: its file missing used to print the typed name on the signature line
+  // with nothing said, on a document §391.31(e) says the examiner signs.
+  if (!input.examiner.signature) {
+    return {
+      code: "invalid_request",
+      message: "The examiner's signature could not be read, so the road test cannot be signed. Add their signature again under Examiners, then record it.",
+    };
+  }
+  // ⚠ A pass files the §391.31(e) certificate, which states the driver's licence number; a blank one
+  // is a certificate that does not say whom it certifies.
+  if (roadTestPassed(body) && !input.driver.licenceNumber?.trim()) {
+    return {
+      code: "invalid_request",
+      message: "The applicant has no licence number on file, and the road-test certificate prints it. Add it to their record, then record the test.",
+    };
+  }
 
   const file = async (pdf: Buffer) =>
     fileGeneratedDocument(admin, orgId, {
