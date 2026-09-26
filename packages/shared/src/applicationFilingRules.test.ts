@@ -9,10 +9,10 @@ import type { ApplicationEmployer } from "./applicationEmployerContract.js";
  * `asOf` 2026-09-26 puts the (b)(10) window at 2023-09-26 → 2026-09-26.
  */
 const AS_OF = "2026-09-26";
-const KEY = "5b0c6a4e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
+const EMPLOYER_ID = "5b0c6a4e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
 
 const employer = (over: Partial<ApplicationEmployer> = {}): ApplicationEmployer => ({
-  key: KEY,
+  key: EMPLOYER_ID,
   employer_name: "Midwest Freight",
   address_line1: "1 Main St",
   city: "Joliet",
