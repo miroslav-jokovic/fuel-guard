@@ -47,6 +47,12 @@ describe("a driver's mark", () => {
   it("is refused without the e-sign consent", () => {
     expect(handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: false }).success).toBe(false);
   });
+
+  it("carries a self-adopted name trimmed, and refuses one too short to be a name (A-1, C0b)", () => {
+    const parsed = handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true, signed_name: "  Dana Driver " });
+    expect(parsed.success && parsed.data.signed_name).toBe("Dana Driver");
+    expect(handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true, signed_name: " D " }).success).toBe(false);
+  });
 });
 
 describe("the SSN on the receipt (D-HB2)", () => {

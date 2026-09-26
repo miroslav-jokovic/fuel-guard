@@ -2,7 +2,7 @@
 import { ref, type Ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";
-import type { HandbookStatus } from "@silvicom/shared";
+import type { LinkHandbookStatus } from "@silvicom/shared";
 import { fetchApplicantCopy, fetchRoadTestCertificate, type ApplicantCopy } from "./useApplication";
 import HandbookSigning from "./HandbookSigning.vue";
 import { APPLY_COPY } from "./strings";
@@ -29,7 +29,7 @@ const props = defineProps<{
   carrier: string;
   roadTestCertificate: { testedOn: string } | null;
   /** HANDBOOK-SIGNING-PLAN.md: the handbook is signed on this card, after the application (D-HB1). */
-  handbook?: HandbookStatus | null;
+  handbook?: LinkHandbookStatus | null;
 }>();
 
 const working = ref(false);

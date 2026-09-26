@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import type { HandbookStatus } from "@silvicom/shared";
+import type { LinkHandbookStatus } from "@silvicom/shared";
 import HandbookSigning from "./HandbookSigning.vue";
 import { APPLY_COPY } from "./strings";
 
@@ -18,10 +18,14 @@ const fetchMock = vi.hoisted(() => vi.fn());
 vi.stubGlobal("fetch", fetchMock);
 const TOKEN = "t".repeat(43);
 
-const status = (over: Partial<HandbookStatus> = {}): HandbookStatus => ({
-  canOpen: true, openedAt: null, driverSigned: [], driverComplete: false, filedAt: null, ...over,
+vi.mock("@/features/apply/signing/PacketAdoption.vue", () => ({
+  default: { name: "PacketAdoption", props: ["ceremony", "carrier", "stops", "copy", "drawnUrl", "initialsUrl"], template: "<div data-adoption />" },
+}));
+
+const status = (over: Partial<LinkHandbookStatus> = {}): LinkHandbookStatus => ({
+  canOpen: true, openedAt: null, driverSigned: [], driverComplete: false, filedAt: null, adoption: null, ...over,
 });
-const mountIt = (handbook: HandbookStatus) =>
+const mountIt = (handbook: LinkHandbookStatus) =>
   mount(HandbookSigning, { props: { token: TOKEN, carrier: "Silvicom Inc", handbook }, global: { plugins: [VueQueryPlugin] } });
 
 beforeEach(() => {
@@ -72,6 +76,52 @@ describe("while it is open", () => {
     await flushPromises();
     expect(w.text()).toContain("Silvicom Inc countersigns it now");
     expect(w.findAll("button").some((b) => b.text() === APPLY_COPY.handbook.sign)).toBe(false);
+  });
+});
+
+describe("a handbook adopting its own signature (A-1, C0b — a workaround C3s removes)", () => {
+  const SELF = { required: true, adoptedName: null, pictureStaged: false };
+  type Ceremony = { adoptedName: { value: string }; markBlob: { value: Blob | null }; adopt: () => Promise<boolean>; confirm: () => void };
+  const ceremonyOf = (w: ReturnType<typeof mountIt>) => w.findComponent({ name: "PacketAdoption" }).props("ceremony") as Ceremony;
+
+  it("puts the adoption screens before the places, with the handbook's own words", async () => {
+    const w = mountIt(status({ openedAt: "t", adoption: SELF }));
+    await flushPromises();
+    expect(w.find("[data-adoption]").exists()).toBe(true);
+    expect(w.findComponent({ name: "PacketAdoption" }).props("copy")).toBe(APPLY_COPY.handbook.adoption);
+    expect(w.findAll("button").some((b) => b.text() === APPLY_COPY.handbook.sign)).toBe(false);
+  });
+
+  it("once adopted and confirmed, signs each place carrying the typed name", async () => {
+    const w = mountIt(status({ openedAt: "t", adoption: SELF }));
+    await flushPromises();
+    const c = ceremonyOf(w);
+    c.adoptedName.value = "Dana Driver";
+    c.markBlob.value = new Blob(["png"], { type: "image/png" });
+    expect(await c.adopt()).toBe(true);
+    c.confirm();
+    await flushPromises();
+    fetchMock.mockClear();
+    await w.findAll("button").find((b) => b.text() === APPLY_COPY.handbook.sign)!.trigger("click");
+    await flushPromises();
+    const markCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/handbook/mark"))!;
+    expect(JSON.parse(String((markCall[1] as RequestInit).body))).toEqual({ placement_id: "h1", esign_consent: true, signed_name: "Dana Driver" });
+    expect(w.text()).toContain(APPLY_COPY.handbook.introOwnSignature);
+  });
+
+  it("shows the server's own sentence when it asks for the adoption first", async () => {
+    const w = mountIt(status({ openedAt: "t", adoption: SELF }));
+    await flushPromises();
+    const c = ceremonyOf(w);
+    c.adoptedName.value = "Dana Driver";
+    c.markBlob.value = new Blob(["png"], { type: "image/png" });
+    await c.adopt();
+    c.confirm();
+    await flushPromises();
+    fetchMock.mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: { code: "handbook_adopt_signature_first", message: "Adopt your signature first." } }) });
+    await w.findAll("button").find((b) => b.text() === APPLY_COPY.handbook.sign)!.trigger("click");
+    await flushPromises();
+    expect(w.text()).toContain("Adopt your signature first.");
   });
 });
 

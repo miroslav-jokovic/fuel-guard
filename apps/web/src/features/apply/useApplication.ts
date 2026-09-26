@@ -6,7 +6,7 @@ import type {
   ApplicationCaptureView,
   AuthorizationPurpose,
   DriverApplication,
-  HandbookStatus,
+  LinkHandbookStatus,
   PacketPlacement,
 } from "@silvicom/shared";
 
@@ -163,7 +163,7 @@ export interface ApplyInvitation {
    * Where the driver handbook stands (HANDBOOK-SIGNING-PLAN.md, D-HB1): null until the application is
    * filed. Places, never names. ⚠ Optional, for `identityComplete`'s reason.
    */
-  handbook?: HandbookStatus | null;
+  handbook?: LinkHandbookStatus | null;
 }
 
 /**

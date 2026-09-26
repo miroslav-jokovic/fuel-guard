@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DOCUMENTS_BUCKET, handbookPlacementById, handbookStatus, type HandbookMark, type HandbookStatus } from "@silvicom/shared";
+import { DOCUMENTS_BUCKET, handbookPlacementById, handbookStatus, type HandbookMark, type LinkHandbookStatus } from "@silvicom/shared";
 import { adoptedPacketMarks } from "./applicationPacketMarks.js";
 import { carrierOf, signatureMarkBytes } from "./applicationPdf/sources.js";
 import { handbookPdf } from "./applicationPdf/handbook/handbookPdf.js";
@@ -13,6 +13,7 @@ import {
 } from "./applicationIntake.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { handbookMarksForPrint, handbookPlacesSigned, handbookPrintFacts } from "./handbookSigning.js";
+import { handbookSelfAdoption } from "./handbookSelfAdoption.js";
 
 /**
  * The driver handbook, signed on screen — the driver's half, on their own link (HANDBOOK-SIGNING-PLAN.md
@@ -28,6 +29,10 @@ import { handbookMarksForPrint, handbookPlacesSigned, handbookPrintFacts } from 
  * The handbook comes after the packet (D-HB1), so the driver's adopted signature exists. Each place is
  * signed with that name — never a new one typed here — and printed with that picture, so the handbook
  * and the application cannot carry two different signatures for one person on one morning.
+ *
+ * ⚠ EXCEPT an application filed before the packet was signed on screen, which has no adopted name to
+ * borrow (A-1). Its handbook adopts its own — see `handbookSelfAdoption.ts`, a labelled workaround
+ * that C3s removes.
  */
 
 export const HANDBOOK_NOT_FILED_YET: IntakeError = {
@@ -46,6 +51,10 @@ export const HANDBOOK_PLACE_ALREADY_SIGNED: IntakeError = {
   code: "handbook_place_already_signed",
   message: "You have already signed there.",
 };
+export const HANDBOOK_ADOPT_FIRST: IntakeError = {
+  code: "handbook_adopt_signature_first",
+  message: "Adopt your signature first: type your name and make your mark, then sign the handbook.",
+};
 export const HANDBOOK_NO_SIGNATURE: IntakeError = {
   code: "handbook_no_adopted_signature",
   message: "We could not find the signature you adopted for your application. Ask the carrier for help.",
@@ -55,14 +64,45 @@ export const HANDBOOK_NO_SIGNATURE: IntakeError = {
 export async function linkHandbookStatus(
   admin: SupabaseClient,
   invitation: { id: string; org_id: string; submitted_at: string | null; handbook_signing_opened_at?: string | null; handbook_filed_at?: string | null },
-): Promise<HandbookStatus | null> {
+): Promise<LinkHandbookStatus | null> {
   if (!invitation.submitted_at) return null;
-  return handbookStatus({
-    submittedAt: invitation.submitted_at,
-    openedAt: invitation.handbook_signing_opened_at ?? null,
-    filedAt: invitation.handbook_filed_at ?? null,
-    signedPlacementIds: await handbookPlacesSigned(admin, invitation.org_id, invitation.id),
-  });
+  const [signedPlacementIds, self] = await Promise.all([
+    handbookPlacesSigned(admin, invitation.org_id, invitation.id),
+    handbookSelfAdoption(admin, invitation),
+  ]);
+  return {
+    ...handbookStatus({
+      submittedAt: invitation.submitted_at,
+      openedAt: invitation.handbook_signing_opened_at ?? null,
+      filedAt: invitation.handbook_filed_at ?? null,
+      signedPlacementIds,
+    }),
+    adoption: self.required ? { required: true, adoptedName: self.adoptedName, pictureStaged: self.pictureStaged } : null,
+  };
+}
+
+/**
+ * The name this place is signed with, or the refusal that says why there is none.
+ *
+ * The packet's adopted name, as it always was. Failing that — and only in the self-adoption state
+ * (A-1; ⚠ WORKAROUND, removed by C3s) — the name pinned by the first handbook place, or, for the
+ * first place itself, the name typed on the handbook screen, once its picture is staged. A name typed
+ * after the first place is ignored rather than refused: the pinned one is the signature of record, and
+ * the screen shows it.
+ */
+async function handbookSignedName(
+  admin: SupabaseClient,
+  invitation: Parameters<typeof handbookSelfAdoption>[1],
+  body: HandbookMark,
+): Promise<string | IntakeError> {
+  const packet = (await adoptedPacketMarks(admin, invitation.org_id, invitation.id)).signature;
+  if (packet) return packet;
+  const self = await handbookSelfAdoption(admin, invitation);
+  if (!self.required) return HANDBOOK_NO_SIGNATURE;
+  if (self.adoptedName) return self.adoptedName;
+  const typed = body.signed_name?.trim() ?? "";
+  if (typed.length < 2 || !self.pictureStaged) return HANDBOOK_ADOPT_FIRST;
+  return typed;
 }
 
 export async function recordHandbookMark(
@@ -71,7 +111,7 @@ export async function recordHandbookMark(
   body: HandbookMark,
   ctx: SubmitContext,
   now: Date,
-): Promise<HandbookStatus | IntakeError> {
+): Promise<LinkHandbookStatus | IntakeError> {
   // A refused mark says so in the log, with nothing identifying (the packet's A0 lesson).
   const refused = (error: IntakeError): IntakeError => {
     console.warn("[handbook-mark] refused", { code: error.code, placement: body.placement_id });
@@ -88,8 +128,8 @@ export async function recordHandbookMark(
   if (!invitation.handbook_signing_opened_at) return refused(HANDBOOK_NOT_OPENED);
 
   const placement = handbookPlacementById(body.placement_id)!;
-  const adopted = (await adoptedPacketMarks(admin, invitation.org_id, invitation.id)).signature;
-  if (!adopted) return refused(HANDBOOK_NO_SIGNATURE);
+  const adopted = await handbookSignedName(admin, invitation, body);
+  if (typeof adopted !== "string") return refused(adopted);
 
   const { error } = await admin.from("handbook_marks").insert({
     org_id: invitation.org_id,

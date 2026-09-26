@@ -212,7 +212,9 @@ export async function applicationPermissionsPdf(
     // The applicant's own drawn mark, if they gave one — the same decoration the filed document puts
     // beside the same typed names (D-APP8). Every failure to read it costs the squiggle, never the
     // document; `signatureMarkBytes` is where that is enforced.
-    signatureMark: await signatureMarkBytes(admin, orgId, invitationId),
+    // ⚠ Only a picture staged before filing: every permission was signed before it, and C0b lets a
+    // filed invitation stage one later, for its handbook (A-1, G-13).
+    signatureMark: await signatureMarkBytes(admin, orgId, invitationId, "signature", invitation.submitted_at),
     certification: application
       ? {
           applicationId: application.id,

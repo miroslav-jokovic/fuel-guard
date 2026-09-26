@@ -107,6 +107,65 @@ describe("asking for somewhere to put a photograph", () => {
   });
 });
 
+describe("a filed application's handbook adopting its own signature (A-1, C0b — a workaround C3s removes)", () => {
+  // `d61557dc`'s shape: filed, handbook opened, nothing signed on the packet, no picture staged.
+  const FILED = { submitted_at: "2026-09-14T10:00:00Z", handbook_signing_opened_at: "2026-09-25T20:08:00Z", handbook_filed_at: null };
+  const SIGNATURE = { slot: "signature_mark" as const, content_type: "image/png" as const };
+
+  const selfAdoptSeed = (over: { inv?: Record<string, unknown>; packetMarks?: number; handbookNames?: string[]; pictureAt?: string | null } = {}) => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: INVITATION, org_id: ORG, driver_id: DRIVER, token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null, consented_at: "2026-09-14T08:00:00Z",
+          releases_completed_at: "2026-09-14T08:30:00Z", ...FILED, ...over.inv,
+        }],
+        application_packet_marks: Array.from({ length: over.packetMarks ?? 0 }, (_, i) => ({ id: `m-${i}` })),
+        handbook_marks: (over.handbookNames ?? []).map((signed_name) => ({ signed_name })),
+        application_captures: over.pictureAt ? [{ captured_at: over.pictureAt }] : [],
+      },
+      storage: { createSignedUploadUrl: () => ({ data: { signedUrl: "u", token: "t" }, error: null }) },
+    });
+    return rec;
+  };
+
+  it("lets the signature picture through after filing, in exactly that state", async () => {
+    const rec = selfAdoptSeed();
+    const result = await startCapture(rec.client, TOKEN, SIGNATURE, NOW);
+    expect("captureId" in result).toBe(true);
+    expectOrgScoped(rec, ORG, { exempt: ["application_invitations", "organizations"] });
+  });
+
+  it("still refuses every other slot after filing", async () => {
+    const result = await startCapture(selfAdoptSeed().client, TOKEN, { slot: "cdl_front", content_type: "image/webp" }, NOW);
+    expect(result).toMatchObject({ code: "already_submitted" });
+  });
+
+  it("refuses once the packet holds a mark — that handbook borrows the packet's signature", async () => {
+    const result = await startCapture(selfAdoptSeed({ packetMarks: 1 }).client, TOKEN, SIGNATURE, NOW);
+    expect(result).toMatchObject({ code: "already_submitted" });
+  });
+
+  it("refuses before the office opens the handbook, and after it is filed", async () => {
+    const closed = await startCapture(selfAdoptSeed({ inv: { handbook_signing_opened_at: null } }).client, TOKEN, SIGNATURE, NOW);
+    expect(closed).toMatchObject({ code: "already_submitted" });
+    const filed = await startCapture(selfAdoptSeed({ inv: { handbook_filed_at: "2026-09-26T10:00:00Z" } }).client, TOKEN, SIGNATURE, NOW);
+    expect(filed).toMatchObject({ code: "already_submitted" });
+  });
+
+  it("freezes the picture once the first handbook place is signed with it", async () => {
+    const result = await startCapture(selfAdoptSeed({ handbookNames: ["Dana Driver"], pictureAt: "2026-09-26T11:00:00Z" }).client, TOKEN, SIGNATURE, NOW);
+    expect(result).toMatchObject({ code: "already_submitted" });
+  });
+
+  it("never replaces a picture the permissions ceremony staged before filing (G-13), but lets this screen redo its own", async () => {
+    const before = await startCapture(selfAdoptSeed({ pictureAt: "2026-09-13T09:00:00Z" }).client, TOKEN, SIGNATURE, NOW);
+    expect(before).toMatchObject({ code: "already_submitted" });
+    const own = await startCapture(selfAdoptSeed({ pictureAt: "2026-09-26T11:00:00Z" }).client, TOKEN, SIGNATURE, NOW);
+    expect("captureId" in own).toBe(true);
+  });
+});
+
 describe("confirming that the bytes landed", () => {
   const CAPTURE = "99999999-8888-4777-8666-555555555555";
 

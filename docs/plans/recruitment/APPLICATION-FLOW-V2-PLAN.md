@@ -743,3 +743,12 @@ Append dated lines at the END.
   (`OfficeHandbookStatus`) and the opened state shows the expiry with **Extend the driver's link** (the same
   route). The driver's half is unchanged: `resolveInvitation` answers a lapsed link `invalid_link` on purpose
   (no existence probe), so HB021 there is only a race.
+- 2026-09-26 — **C0a merged** (#1063, main `7c566bf`). **C0b built** (`claude/handbook-self-adopt`), labelled
+  as the workaround D-AW15 removes: `handbookSelfAdoption.ts` names the one state (filed, handbook open and
+  unfiled, 0 packet marks); in it `openSession` lets a `signature_mark` through after filing, the handbook
+  screen runs the packet's own adoption screens (`useHandbookAdoption.ts`), and the first place carries the
+  typed name, which every later place reads back from the first `handbook_marks.signed_name`. The first
+  place is refused (`handbook_adopt_signature_first`) until a picture is staged. **Two guards the plan did
+  not name, both G-13:** a picture the permissions ceremony staged before filing is never replaced (the
+  capture branch refuses it), and `permissions.ts` no longer draws a picture staged after filing, since
+  every permission was signed before it (`signatureMarkBytes(…, stagedBefore)`).
