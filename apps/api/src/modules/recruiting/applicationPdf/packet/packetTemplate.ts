@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { applyPacketSpelling } from "./packetSpellingPatch.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
@@ -293,9 +294,29 @@ function readPage(doc: PDFDocument, index: number): TemplatePage {
   return { page: index + 1, width: page.getWidth(), height: page.getHeight(), runs, rules };
 }
 
-/** The whole packet, read once. */
-export async function readPacketTemplate(path = PACKET_TEMPLATE_PATH): Promise<TemplatePage[]> {
-  return readPdfPages(await readFile(path));
+let corrected: Promise<Uint8Array> | null = null;
+
+/**
+ * The carrier's packet as it prints: their file with `PACKET_SPELLING` applied (D-PKT20), built once
+ * per process. The ONE source for both the renderer and this reader, so a measurement, a quoted
+ * heading and the printed page all read the same words. Nothing moves between the two — corrections
+ * are made inside the carrier's own lines — so every coordinate measured on the original holds.
+ */
+export function correctedPacketTemplate(): Promise<Uint8Array> {
+  corrected ??= (async () => {
+    const doc = await PDFDocument.load(await readFile(PACKET_TEMPLATE_PATH), { ignoreEncryption: true });
+    applyPacketSpelling(doc);
+    return doc.save();
+  })();
+  return corrected;
+}
+
+/**
+ * The whole packet, read once — as it PRINTS (corrected) unless a path is given. ⚠ Passing
+ * `PACKET_TEMPLATE_PATH` explicitly reads the carrier's file as they gave it, typos and all.
+ */
+export async function readPacketTemplate(path?: string): Promise<TemplatePage[]> {
+  return readPdfPages(path ? await readFile(path) : await correctedPacketTemplate());
 }
 
 /**

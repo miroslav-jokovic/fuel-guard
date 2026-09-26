@@ -6,19 +6,17 @@
  * carrier's wording, it will be reviewed by somebody who is not an engineer, and a reviewer should be
  * able to read it without reading PDFKit calls.
  *
- * The second is D-PKT11. The packet's own text carries spellings no proofreader would pass —
- * "Previous Three years reisdency", "BACKFROUNG VERIFICATION LOG", "maritial status", "IMPOREPER",
- * "TEAR EXEPTED" — and **they are printed exactly as the carrier wrote them.**
+ * The second is the packet's spelling. The carrier's text carries typing errors — "Previous Three
+ * years reisdency", "BACKFROUNG VERIFICATION LOG", "maritial status" — and since **D-PKT20 (owner,
+ * 2026-09-25)** they are corrected: *"my secretary retyped this application so lets fix spelling
+ * mistakes"*. The strings here are the CORRECTED text, because they are what the continuation sheet
+ * quotes as the carrier's heading and it must read what the page above it prints. The one list of
+ * corrections is `packetSpelling.ts`; `packetSpelling.test.ts` fails if any string here still holds
+ * one of its misspellings.
  *
- * ⚠ **This REVERSES D-PKT9** (owner, 2026-08-23), which had us print corrected English and keep a
- * register of every repair. The owner's ruling on 2026-09-14, holding the carrier's own PDFs:
- * *"use texts that we have on applications I have provided as is — these are created by lawyers and
- * we will keep texts from this."* The document is counsel's work product; a spelling that looks
- * wrong to an engineer may be the word that was negotiated, and the form the driver signs should be
- * the form the carrier's lawyers wrote. The `CORRECTIONS` register and its `correct()` applier are
- * therefore gone rather than emptied — a register applied to nothing is a thing the next reader has
- * to work out is inert. The fourteen strings it held are listed in `APPLICATION-PACKET-PLAN.md`
- * under D-PKT11, which is where a question about what we used to change belongs.
+ * ⚠ This reverses D-PKT11 (2026-09-14, *"use texts … as is — these are created by lawyers"*), which
+ * had itself reversed D-PKT9. What changed is the provenance: a typing error in a retyped document
+ * is the typist's, not counsel's. The history is in `APPLICATION-PACKET-PLAN.md` §3.9.
  *
  * ⚠ **One class of defect is still NOT reproduced, and it is not spelling.** The carrier's Numbers
  * export drops `fi`/`ti`/`ffi` ligatures — it writes "quali ed applicants", "certi ed copy",
@@ -52,7 +50,7 @@ export const P1 = {
   intro:
     "This transportation company is in compliance with all federal and state laws. Consideration of "
     + "qualified applicants is made without regard to applicant's sex, race, color, national origin, "
-    + "maritial status, age, religion or non-job related disability.",
+    + "marital status, age, religion or non-job related disability.",
   date: "Date",
   dob: "DOB",
   position: "Position",
@@ -61,7 +59,7 @@ export const P1 = {
   nameParts: "Last                First                Middle",
   address: "Address",
   addressParts: "Street                City                State                Zip",
-  residency: "Previous Three years reisdency",
+  residency: "Previous Three years residency",
   cdl: "Cdl #",
   phone: "Phone #",
   legallyWork: "Can you legally work in USA?",
@@ -97,7 +95,7 @@ export const P2 = {
     "INJURIES NUMBER",
     "CHEMICAL SPILLS YES OR NO",
   ],
-  violationsHeading: "TRAFFIC CONVICTIONS AND FORFEITTURES FOR THE PAST 3 YEARS ( OTHER THAN PARKING VIOLATION)",
+  violationsHeading: "TRAFFIC CONVICTIONS AND FORFEITURES FOR THE PAST 3 YEARS ( OTHER THAN PARKING VIOLATION)",
   violationColumns: ["DATE CONVICTED", "VIOLATION", "STATE OF VIOLATION", "PENALTY"],
   deniedQuestion: "A. Have you ever been denied a license, permit or privilege to operate a motor vehicle?",
   revokedQuestion: "B. Has any license, permit or privilege ever been suspended or revoked?",
@@ -106,7 +104,7 @@ export const P2 = {
 
 /** Page 12 — the ten-year background verification log. */
 export const P12 = {
-  heading: "10 YEAR EMPLOYMENT HISTORY BACKFROUNG VERIFICATION LOG",
+  heading: "10 YEAR EMPLOYMENT HISTORY BACKGROUND VERIFICATION LOG",
   identityColumns: ["Last name", "First name", "Aliases", "DOB", "SS #"],
   logColumns: ["Date from / to", "Company name", "Address", "Position held", "Phone #"],
 } as const;
@@ -119,10 +117,10 @@ export const P16 = {
   military: "Have you ever served in the military?",
   militaryWhen: "If so, when?",
   training:
-    "Please list any training you have received that will benfit you for the position for which you "
+    "Please list any training you have received that will benefit you for the position for which you "
     + "are applying",
   referencesIntro:
-    "Please provide 3 personal references. This references should not be people related to you nor "
+    "Please provide 3 personal references. These references should not be people related to you nor "
     + "former supervisors:",
   referenceColumns: ["Full name", "Years known", "Phone number"],
 } as const;

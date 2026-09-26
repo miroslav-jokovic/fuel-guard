@@ -28,6 +28,15 @@ merges.
   committed `.docx` and a test re-reads it, never retyped. Layout (headings, lists, the fines schedule
   as a real two-column table) follows the document's own structure.
 - **D-HB5 · It BLOCKS the hire.** *"block, he needs sign it before hiring."*
+- **D-HB6 · The handbook's typing errors are corrected** (owner, 2026-09-25: *"yes handbook was
+  retyped too, fix it"*). Supersedes D-HB4's "typos print as written" half; the layout half stands.
+  `handbookText.json` stays the faithful extraction the test checks against the Word file;
+  `handbookSpelling.ts` (16 entries, spelling only) is applied on top in `handbookText.ts`, and the
+  version hash moves with it (`hb-9b1b62dabbbab0b5` → `hb-f3a7b90d3622c2a3`; production held 0
+  handbook marks, so nothing filed changes). Not corrected, because each needs wording supplied:
+  *"Check on the all fluids"*, *"fuel, fax, truck accessories"* (`tax`?), *"deducted from its
+  paycheck"*, *"indicating any adjustments that will be made"*, *"Failure to turn trailer
+  inspections"* (missing `in`), *"at the same day"*, *"will be made in for damaging"*.
 
 ---
 

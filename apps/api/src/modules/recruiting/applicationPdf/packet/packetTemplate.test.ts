@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PACKET_PLACEMENTS } from "@silvicom/shared";
 import { PACKET_INSTRUMENTS } from "../../packetWording.js";
-import { pageText, readPacketTemplate, type TemplatePage } from "./packetTemplate.js";
+import { PACKET_TEMPLATE_PATH, pageText, readPacketTemplate, type TemplatePage } from "./packetTemplate.js";
 
 /**
  * The carrier's own packet, asserted against the BYTES (§2.5).
@@ -32,7 +32,10 @@ import { pageText, readPacketTemplate, type TemplatePage } from "./packetTemplat
  * identity is still asserted by headings, which needs no coordinate system at all.
  */
 
-const pages: TemplatePage[] = await readPacketTemplate();
+// ⚠ The carrier's file AS GIVEN, not as it prints (D-PKT20): this file checks the inventory's
+// anchors and the wording register's `packet` strings, both of which are keys into the carrier's
+// own text, typos included. What prints is `packetSpelling.test.ts`'s business.
+const pages: TemplatePage[] = await readPacketTemplate(PACKET_TEMPLATE_PATH);
 const textOf = (page: number): string => pageText(pages[page - 1]!);
 /** Whitespace in a PDF content stream is the producer's, not the carrier's. */
 const flat = (s: string): string => s.replace(/\s+/g, " ").trim();

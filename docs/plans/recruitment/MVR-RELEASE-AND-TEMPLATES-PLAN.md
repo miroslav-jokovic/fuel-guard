@@ -192,3 +192,33 @@ pinned word for word to their sources by tests (`packetWording.test.ts`, `handbo
   would keep most rows on the carrier's page. **Recommendation:** build as its own step; it changes
   how every packet filed after it prints.
 
+
+## 7. Spelling corrected (D-PKT20), and what was deliberately not (2026-09-25)
+
+The owner: *"my secretary retyped this application so lets fix spelling mistakes"*. Every page was
+read and dictionary-checked; the corrections are one register, `packetSpelling.ts`, applied to the
+printed packet and to the four permissions transcribed from it (`APPLICATION-PACKET-PLAN.md` D-PKT20).
+Served permission wording moved to version `packet-2026-09-25`.
+
+**Not corrected, because each needs a word supplied or a sentence rewritten — drafting, not
+spelling.** For the owner, or counsel where it is an instrument:
+
+| Page | As printed | Question |
+| --- | --- | --- |
+| 4 | *"name and dates or previous employers"*, *"may be others from such agencies"*, *"upon proper information"*, *"preceding by request"* | Page 4 is withdrawn (L-1) and with counsel (Q1); garbled, not misspelled. |
+| 5 | *"completed the staring classes"* | `starting`? `training`? Two readings. |
+| 9 | *"what so ever for none reported tardy"*, *"notify company of for a suspended license"*, *"a $150 fined"*, rule 9 ends *"a fine and possible"* | Rule 9 is missing its last word (`termination`). |
+| 10 | *"amend, change or review"*, *"or added at any writing shall"* | `revise`, `addition in writing`? |
+| 15 | *"at any including when applying"*, *"within 30 days SILVICOM INC making"* | Missing `time`, `of` (were already on the list). |
+| 17 | *"make such in to my employment history"*, *"Shell \| be given a fuel card"*, *"F.M.C.A."* | `such inquiry into`? `I shall be given`? `F.M.C.S.A.`? |
+| 18 | *"a driver int a given time"* | `at`? `in`? |
+| 19 | *"…the result of providing this"* | Sentence unfinished (Q-MVR1). |
+| 21 | *"Regulations decide that"*, *"total time on duty / on duty"* | `require`? A repeated phrase across a line break. |
+| 23 | *"of which she Individuals were convicted"* | Garbled. |
+| 24 | *"available throught to company"*, *"FMCR Handbook"* | `throughout the company`? `FMCSR`? |
+| 27 | The first paragraph repeats a half-sentence: *"…will result immediate medical attention. I understand that the transportation of unauthorized passengers will result in the termination…"* | A duplicated fragment to delete. |
+| 29 | *"hours following and such accident"* | `any such`? |
+| 30 | *"either of either of the parties"*; the severability clause *"If any one or more of the provisions contained in the Agreement but the Agreement will be enforceable…"* is missing its middle | Counsel memorandum Q15. |
+
+Punctuation (full stops mid-sentence on pages 20–22, `SILVICOM. INC`, `Operator&`) is left as printed.
+The handbook was retyped too (owner, same day): corrected under D-HB6, `HANDBOOK-SIGNING-PLAN.md`.
