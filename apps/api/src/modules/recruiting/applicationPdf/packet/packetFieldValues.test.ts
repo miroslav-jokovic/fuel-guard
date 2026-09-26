@@ -226,16 +226,17 @@ describe("the date beside each signature", () => {
    * had always read the payload. `signedName` is deliberately passed as something DIFFERENT below,
    * so a revert to it fails rather than coincidentally agreeing.
    */
-  it("puts the applicant's own name on page 22's printed-name line", () => {
-    const r = fill({}, { signedName: "M Varmeda" });
-    expect(textAt(r, "p22.printed_name")).toBe("Marija Ana Varmeda");
+  /**
+   * ⚠ D-PKT19 (2026-09-25): pages 15 and 22 are permissions signed on the link, and print unsigned.
+   * What belongs to the signing act goes — page 22's `Driver name Print` and both dates — even when a
+   * mark from before the ruling is in the payload. Page 15's name and date of birth are its identity
+   * block and stay, as page 19's do.
+   */
+  it("prints no signing name or date on pages 15 and 22, and keeps page 15's identity block", () => {
+    const r = fill({}, { signedName: "M Varmeda", markedAt: { p15: "2026-09-16T12:00:00Z", p22: "2026-09-16T12:00:00Z" } });
+    for (const id of ["p22.printed_name", "p22.date", "p15.date"]) expect(textAt(r, id), id).toBeUndefined();
     expect(textAt(r, "p15.name")).toBe("Marija Ana Varmeda");
-  });
-
-  /** ⚠ Page 15's date is when the RELEASE was given, which is that page's own mark. */
-  it("dates page 15 from its own stop rather than from the certification", () => {
-    const r = fill({}, { markedAt: { p15: "2026-09-16T12:00:00Z" } });
-    expect(textAt(r, "p15.date")).toBe("09/16/2026");
+    expect(textAt(r, "p15.dob")).toBeDefined();
   });
 
   /** ⚠ `Sent to` stays blank until Q-PKT11 is answered, and the absence is asserted so it stays so. */

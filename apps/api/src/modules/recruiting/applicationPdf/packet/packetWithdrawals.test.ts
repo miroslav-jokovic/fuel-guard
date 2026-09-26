@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PACKET_WITHDRAWALS, formatDisplayDate, type DriverApplication } from "@silvicom/shared";
+import { PACKET_WITHDRAWALS, formatDisplayDate, packetPlacementById, type DriverApplication } from "@silvicom/shared";
 import { renderPacketDocument } from "../packetDocument.js";
 import { pageText, readPacketTemplate } from "./packetTemplate.js";
 
@@ -46,5 +46,21 @@ describe("a line withdrawn from signing", () => {
     // The notice may be set smaller to fit, never cut: every word of it is on page 4.
     expect(pageText(read[3]!).replace(/\s+/g, " ")).toContain(PACKET_WITHDRAWALS.p04!.notice);
     expect(pageText(read[2]!)).not.toContain("Withdrawn from signing");
+  });
+
+  /**
+   * ⚠ D-PKT19 (2026-09-25): page 15's line is the first cell of a six-field grid, 103pt wide, and
+   * fitted on one line the notice printed `Not signed here. Signed electronically…` — cut at the
+   * half that says where the signature went. It found no test because the one above reads page 4
+   * only, whose line is 254pt. Every withdrawn line, and no ellipsis anywhere on its page.
+   */
+  it("prints every withdrawn line's notice whole, however narrow the line", async () => {
+    const read = await pages([]);
+    for (const [id, withdrawal] of Object.entries(PACKET_WITHDRAWALS)) {
+      const page = packetPlacementById(id)!.page;
+      const text = pageText(read[page - 1]!).replace(/\s+/g, " ");
+      expect(text, id).toContain(withdrawal.notice);
+      expect(text, id).not.toContain(`${withdrawal.notice.split(" ")[0]}\u2026`);
+    }
   });
 });

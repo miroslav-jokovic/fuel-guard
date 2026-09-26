@@ -200,6 +200,36 @@ function signatureLine(doc: PDFKit.PDFDocument, x: number, y: number, width: num
   doc.fillColor(MUTED).font("Helvetica").fontSize(8).text(pdfkitText(doc, label), x, y + 27, { width, lineBreak: false });
 }
 
+/** What `signBlock` takes vertically, including its lead-in — `ensureRoom`'s question, asked early. */
+function signBlockHeight(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "sign" }>): number {
+  const carrier = b.id === HANDBOOK_CARRIER_PLACEMENT_ID;
+  return Math.ceil(b.fields.length / 2) * 44 + (carrier ? 24 : 8) + doc.currentLineHeight(true) * 0.6;
+}
+
+/**
+ * ⚠ **A signature never opens a page alone** (2026-09-25, found by rasterising the blank template).
+ *
+ * `signBlock`'s `ensureRoom` keeps a block's rows together, and nothing kept the block with what it
+ * signs: page 8 ended on the fines list, the amendment clause and *"If you have DOT inspection…"*
+ * with 80pt to spare, block 2 needs 96, so it opened page 9 as three bare rules above the ELD
+ * charges — a signature a reader could not tie to anything. The paragraph immediately before a
+ * signature (its affirmation, or the last clause of what is signed) now moves WITH the block when
+ * the two will not share the page.
+ */
+function keepWithSignature(doc: PDFKit.PDFDocument, at: number): void {
+  const b = HANDBOOK_BLOCKS[at]!;
+  if (b.k !== "p" || b.size || b.heading) return;
+  let next = at + 1;
+  let gaps = 0;
+  while (HANDBOOK_BLOCKS[next]?.k === "gap") { next++; gaps++; }
+  const sign = HANDBOOK_BLOCKS[next];
+  if (sign?.k !== "sign") return;
+  doc.font("Helvetica").fontSize(BODY);
+  const text = pdfkitText(doc, b.runs.map((r) => r.t).join(""));
+  const height = doc.heightOfString(text, { width: CONTENT_WIDTH, lineGap: LINE_GAP }) + doc.currentLineHeight(true) * (0.2 + 0.5 * gaps);
+  ensureRoom(doc, height + signBlockHeight(doc, sign));
+}
+
 /** A signature place: its fields two to a row, each row kept whole. */
 function signBlock(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "sign" }>, input: HandbookDocumentInput): void {
   const carrier = b.id === HANDBOOK_CARRIER_PLACEMENT_ID;
@@ -257,8 +287,11 @@ function footers(doc: PDFKit.PDFDocument, carrier: string): void {
 
 export async function handbookPdf(input: HandbookDocumentInput): Promise<Buffer> {
   const { doc, done } = newDrawing(`Driver handbook — ${input.driverName}`, { bufferPages: true });
-  for (const b of HANDBOOK_BLOCKS) {
-    if (b.k === "p") paragraph(doc, b);
+  for (const [i, b] of HANDBOOK_BLOCKS.entries()) {
+    if (b.k === "p") {
+      keepWithSignature(doc, i);
+      paragraph(doc, b);
+    }
     else if (b.k === "rule") rule(doc, b);
     else if (b.k === "table") table(doc, b);
     else if (b.k === "sign") signBlock(doc, b, input);

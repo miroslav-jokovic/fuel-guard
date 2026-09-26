@@ -217,13 +217,16 @@ fills in pages 12, 16 and 26. If it must follow them, we will reorder the signin
 ### Q3. Electronic use of packet pages 15, 20 and 22 · **Priority 1**
 
 **Facts.** Your firm's pages 15 (previous-employer release), 20 (FCRA disclosure) and 22
-(urinalysis notification) are signed twice by each applicant:
+(urinalysis notification) are signed **once**, at step 2, on screen, as standalone authorizations.
+For that version we corrected obvious spelling errors (19 corrections, none changing the word count)
+and four typographical errors (table below). Seven apparent errors we did **not** correct, because
+the right word was not certain. They are listed in Appendix B.
 
-1. **At step 2, on screen**, as standalone authorizations. For that version we corrected obvious
-   spelling errors (19 corrections, none changing the word count) and four typographical errors
-   (table below). Seven apparent errors we did **not** correct, because the right word was not
-   certain. They are listed in Appendix B.
-2. **At step 13, on the printed packet**, exactly as written (D-PKT11), errors included.
+*Updated 2026-09-25 (D-PKT19).* Until that date each applicant also signed the three pages a second
+time, on the printed packet, exactly as written (D-PKT11), errors included. The owner ruled that one
+release takes one signature: the packet still prints the three pages, and each signature line now
+reads *"Not signed here. Signed electronically as its own permission."* Page 19 was treated the same
+way (Q6).
 
 The four typographical corrections:
 
@@ -234,8 +237,8 @@ The four typographical corrections:
 | 15 | `paragrafs (d) and € of Section 391.23` | `paragraphs (d) and (e) of Section 391.23` | Euro sign in place of "(e)" |
 | 15 | `The applicanthas certain` | `The applicant has certain` | Missing space |
 
-**The issue.** The same applicant signs two slightly different texts of the same instrument. Neither
-text was written for electronic signature.
+**The issue.** The text the applicant signs is our corrected transcription, not your firm's page, and
+neither was written for electronic signature. (Before D-PKT19 the applicant signed both texts.)
 
 **What we need.** (a) Confirm the three pages may be signed electronically under the electronic-records consent (Q11).
 (b) Choose one text: approve our corrected text for **both** the screen and the printed packet, or
@@ -302,13 +305,20 @@ you provide. Also confirm the Q-HM14 approach to the checkbox.
 
 **Facts.** Page 19 carries its heading twice, two identical driver signature lines, two carrier
 countersignature lines, a liability release, and an unfinished sentence (*"…any liability which
-might be the result of providing this"*). The carrier obtains MVRs from **SambaSafety**, a consumer
-reporting agency.
+might be the result of providing this"*).
 
-**What we need.** (a) Is page 19 one authorization or two? The platform currently collects both
-signatures. (b) A completed final sentence. (c) Since the MVR comes through a consumer reporting
-agency, confirm that page 19's liability release does not affect the page 20 disclosure, which is a
-separate page signed separately.
+*Updated 2026-09-25 (D-MVR1).* Page 19 is no longer signed in the packet. Its text, word for word
+and unfinished sentence included, is signed **once** on screen as its own authorization, before the
+application form; both packet lines read *"Not signed here. Signed electronically as its own
+permission."* The office pulls driving records from state portals and uploads them; SambaSafety was
+dropped on cost on 2026-08-26, and no consumer reporting agency is used today. The MVR step still
+requires the page 20 FCRA authorization as well, in case a record is ever bought through one
+(D-MVR3).
+
+**What we need.** (a) Is page 19 one authorization or two? The platform now collects it once.
+(b) A completed final sentence. (c) If a record is ever bought through a consumer reporting agency,
+confirm that page 19's liability release does not affect the page 20 disclosure, which is a separate
+document signed separately.
 
 ---
 

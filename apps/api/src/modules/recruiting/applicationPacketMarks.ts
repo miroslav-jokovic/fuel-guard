@@ -30,10 +30,12 @@ import {
  *
  *   *"the driver needs to be navigated precisely from place to place and sign all places."*
  *
- * The two never share a stop. Six of the twenty-two sit on pages whose instrument was already signed
- * on the phone — page 15's past-employment release, page 20's FCRA disclosure, page 22's urinalysis
- * notification — and the driver signs those pages anyway, because the carrier's paper has a line
- * there and a packet with a blank line on page 20 is not the carrier's packet.
+ * The two never share a stop. Until 2026-09-25 they shared PAGES: page 15's past-employment release,
+ * page 20's FCRA disclosure, page 22's urinalysis notification and page 19's driving-record release
+ * are the carrier's text of permissions signed on the phone, and the driver signed each a second time
+ * here, on the reasoning that a blank line on page 20 is not the carrier's packet. D-MVR1 and then
+ * D-PKT19 (owner: *"we dont need duplicate pages"*) reversed that — each release is signed once, as a
+ * permission, and its packet line prints why it is blank (`PACKET_WITHDRAWALS`).
  *
  * ── THE ORDER IS THE PAPER'S, NOT OURS ────────────────────────────────────────────────────────
  * `driverPlacements()` is already in the packet's own page order and the queue is served in it. A

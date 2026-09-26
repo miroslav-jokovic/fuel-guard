@@ -1597,3 +1597,16 @@ second place on a document somebody signs. Two sources of truth for one declarat
 tamper argument; **(c)** extend only where the applicant made no declaration to restate.
 **Recommendation: (a) until counsel rules**, because (b) changes what a regulated page asserts and
 the mechanism is now one argument away whichever way it goes.
+
+---
+
+**2026-09-25 — D-PKT19: one release, one signature (owner: *"we dont need duplicate pages"*).**
+Pages 15 (`previous_employer`), 20 (`fcra_disclosure`) and 22 (`drug_alcohol`) are the carrier's
+text of permissions the driver signs on the link before the form, and every applicant signed each a
+second time here. D-MVR1's mechanism, applied to the three: `p15`, `p20`, `p22` join
+`PACKET_WITHDRAWALS`, the lines print *"Not signed here. Signed electronically as its own
+permission."*, page 22's witness and carrier lines are untouched. The walk is **16 stops (15 for a
+company driver)**. Page 15's name and date of birth stay (its identity block, as page 19's does);
+the signing date and page 22's `Driver name Print` go. A notice too long for its line now breaks
+onto two lines instead of an ellipsis — page 15's 103pt cell cut it at *"Signed electronically…"*.
+Full audit and what it left open: `MVR-RELEASE-AND-TEMPLATES-PLAN.md` §6.

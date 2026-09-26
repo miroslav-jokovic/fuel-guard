@@ -234,7 +234,8 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
     <AppSegmentedControl v-model="style" :options="STYLES" :label="copy.styleLabel" />
 
     <!-- ⚠ Asked for even when the driver draws. `signed_name` is the record on every row (D-APP8),
-         and the packet itself asks for a printed name beside the mark on page 22.
+         and the carrier's paper asks for a printed name beside a mark (page 22's, on the paper though
+         withdrawn from the walk since D-PKT19).
          ⚠ A4: DISABLED once the server has pinned this kind, with the count as the reason. A driver
          who came back to fix their initials at place 3 must not be able to edit a signature that is
          already on two pages — the server would answer DR035 and they could do nothing about it. -->

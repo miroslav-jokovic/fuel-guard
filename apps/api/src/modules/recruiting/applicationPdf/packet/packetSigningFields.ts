@@ -1,5 +1,5 @@
 import { addressCells, blank, date, fullName } from "./packetDraw.js";
-import { applyingAsOf, packetPageWithdrawn, signsAsOwnerOperator, type ApplyingAs } from "@silvicom/shared";
+import { applyingAsOf, packetPageWithdrawn, packetWithdrawal, signsAsOwnerOperator, type ApplyingAs } from "@silvicom/shared";
 import { placeValue, type PacketFieldInput, type PlacedFieldValue } from "./packetGrid.js";
 import {
   SINGLE_LICENCE_BLOCK_FIELDS,
@@ -171,7 +171,9 @@ export function packetSigningFill(input: PacketFieldInput, into: PlacedFieldValu
   testReason(applyingAs, into);
 
   for (const [id, placementId] of STANDALONE_DATE_LINES) {
-    const at = input.markedAt[placementId];
+    // ⚠ A withdrawn stop is undated even if a mark from before the ruling reached here (D-PKT19
+    // withdrew page 22's). `renderPacketDocument` already drops such marks; this does not rely on it.
+    const at = packetWithdrawal(placementId) ? undefined : input.markedAt[placementId];
     if (at) push(into, id, date(at));
   }
 

@@ -1,4 +1,4 @@
-import { questionnaireAnswersOf, type DriverApplication, type EquipmentClass } from "@silvicom/shared";
+import { packetPageWithdrawn, packetWithdrawal, questionnaireAnswersOf, type DriverApplication, type EquipmentClass } from "@silvicom/shared";
 import { PACKET_ROW_OF, addressCells, blank, date, foldedType, fullName, yesNo } from "./packetDraw.js";
 import { P1, P2, P12, P16 } from "./packetText.js";
 import {
@@ -319,7 +319,11 @@ function page15(input: PacketFieldInput, into: PlacedFieldValue[]): void {
   const a = input.application;
   // ⚠ The DATE here is the date the driver signed THIS page — p15's own mark — not `certifiedAt`.
   // The page is a release and its date is when the release was given.
-  push(into, "p15.date", date(input.markedAt["p15"] ?? input.certifiedAt));
+  // ⚠ D-PKT19 (2026-09-25): the release is signed as its own permission and this page prints
+  // unsigned, so it is undated — `certifiedAt` is not a day anybody signed page 15. The name and date
+  // of birth below stay: they are the page's identity block, not part of the signing act, and page
+  // 19's block (same ruling, D-MVR1) is filled the same way.
+  if (!packetPageWithdrawn(15)) push(into, "p15.date", date(input.markedAt["p15"] ?? input.certifiedAt));
   // ⚠ Labelled with the carrier's own caption. This cell is 103pt and holds a full name, so it is
   // one of the few standalone rules that reaches the floor size on an ordinary applicant.
   push(into, "p15.name", fullName(a), "Name of applicant");
@@ -451,8 +455,11 @@ function markSides(input: PacketFieldInput, into: PlacedFieldValue[]): void {
        *
        * ⚠ D-APP8 is not touched by this. It says the typed `signed_name` is the signature of
        * RECORD, which is about the mark; `packetOverlay.ts` still draws that mark from it.
+       *
+       * ⚠ And nothing at all on a withdrawn line (D-PKT19 withdrew page 22's): a printed name beside a
+       * signature nobody made is L-1's half-an-act.
        */
-      placeValue(into, line, fullName(input.application));
+      if (!packetWithdrawal(line.placementId)) placeValue(into, line, fullName(input.application));
       continue;
     }
     const at = input.markedAt[line.placementId];

@@ -1,6 +1,6 @@
 # MVR release as a permission, and printable templates
 
-Status: **MV0–MV3 built.** MV0 #1054 and MV1 #1055 merged 2026-09-25; MV2 + MV3 in one PR. Opened 2026-09-25 from the owner's review of
+Status: **MV0–MV3 LIVE** (#1054, #1055, #1056, all merged 2026-09-25; both services on `ef4f023`). **D-PKT19 + the document audit (§6) in the next PR.** Opened 2026-09-25 from the owner's review of
 the permissions after the handbook shipped (#1051, #1053).
 
 ## 1. What the owner saw
@@ -110,3 +110,85 @@ cannot have an MVR recorded — which is correct, because nobody holds their con
   drawer gains **Record a paper signature**: `POST /drivers/:id/authorizations/document` registers
   the scan (kind `other`), and `POST /authorizations` now REFUSES `wet_signature` without a scan, or
   with a scan filed against another driver — two mutants, both killed.
+- 2026-09-25 — D-PKT19 built (owner: *"we dont need duplicate pages"*): packet pages 15, 20 and 22
+  withdrawn from signing, as page 19 was — each is a permission signed on the link. Walk 19 → 16
+  stops (company driver 18 → 15). Three defects found by rasterising every template and a filled
+  packet, none visible to a text assertion, all fixed: page 15's notice printed cut
+  (*"Signed electronically…"*) and now breaks onto two lines; page 15 would have printed the
+  certification date as its signing date; the handbook's second signature block opened page 9 alone.
+  Seven mutants, seven killed (each of the three withdrawals, the page-15 date, page 22's name and
+  date, the notice wrap, the handbook keep-with).
+
+## 6. Document audit (2026-09-25)
+
+The owner asked for no duplicate pages, and every page precise in text and layout. Rendered: the
+six blank permissions, the blank packet, a filled packet (long names, pre-ruling marks on every
+withdrawn line), the handbook and the road test; every page looked at.
+
+### 6.1 What is signed where, after D-PKT19
+
+| Act | Signed | Packet page |
+| --- | --- | --- |
+| FCRA disclosure | permission 1 | p20 — withdrawn (D-PKT19) |
+| PSP | permission 2 | not in the packet |
+| MVR release | permission 3 | p19 — withdrawn (D-MVR1) |
+| Previous-employer release | permission 4 | p15 — withdrawn (D-PKT19) |
+| Drug and alcohol testing consent | permission 5 | p22 — withdrawn (D-PKT19) |
+| Clearinghouse limited-query consent | permission 6 | not in the packet |
+| Page 4 consumer-report release | nowhere | p04 — withdrawn (L-1, counsel Q1) |
+
+### 6.2 Text
+
+The packet prints the carrier's words exactly, typos included — **D-PKT11 is the owner's ruling**
+(*"these are created by lawyers, keep texts like this"*), and nothing here reverses it. Correcting
+them is counsel's redraft (memorandum Q3(b), Q15). The permissions, handbook and road test are
+pinned word for word to their sources by tests (`packetWording.test.ts`, `handbookText.test.ts`,
+`roadTest.test.ts`). The road test's three extra items and its `breaking` are deliberate
+(`ROAD-TEST-PLAN.md` §2).
+
+### 6.3 Open — each needs a ruling, none is built
+
+- **Q-MVR6 — the packet and the handbook fine the same offence differently, and the driver signs
+  both.** Packet pages 7–10 (initialled p05/p06/p09, signed p10) against the handbook's fine list
+  (signed h2, h3):
+
+  | Offence | Packet | Handbook |
+  | --- | --- | --- |
+  | Late logs | $10/day after 25 days | $5/day after 15 days |
+  | Roadside inspection not turned in | $150 | $50 |
+  | CDL suspension not reported | $1,500 | $100 + termination |
+  | Unqualified / unauthorised driver | $1,500 | $500 + termination |
+  | Accident needing a drug test not reported | $1,000 + termination (p9 r7) | $500 + termination |
+  | Unauthorised riders | $150 + possible termination | $500 + termination |
+  | Missing fuel receipt | $20 | $25 |
+  | Driver/truck change not notified in 24h | $150/day | $25/day |
+  | Trailer inspection not turned in | $100/week | $50/week |
+
+  A signed contract with two prices for one offence is a dispute waiting for a settlement statement.
+  Not ours to resolve: the owner says which governs, and the other is corrected by counsel or
+  withdrawn. **Recommendation:** the handbook governs (it is the document the hire gate
+  requires, D-HB5; neither is dated as a whole), and packet pages 7–10 go to counsel with this table.
+- **Q-MVR7 — page 25 is a handbook receipt signed before the handbook is shown.** The packet walk
+  (p25) comes before the handbook step (D-HB1), and the handbook carries its own receipt (h5).
+  p25 also names the FMCSR *Interstate Truck Driver's Handbook*, which nothing hands over (Q-OR3).
+  **Recommendation:** withdraw p25 like the permissions, once the owner confirms the FMCSR book is
+  handed over on paper at orientation.
+- **Q-MVR8 — the packet certifies itself three times** (p11b, p13, p17: "the application is true")
+  and authorises investigation three times (p11a, p13, p17). None duplicates a permission; the
+  carrier's paper repeats itself. Removing any is memorandum Q2's question. **Recommendation:** leave
+  until counsel answers Q2.
+- **Q-MVR9 — the road test form has lost the driver's signature.** The carrier's form has
+  `Driver's Signature:` under `Phone:`; ours prints neither blank nor filled, and the office-recorded
+  road test has no way for a driver to sign. The blank template also omits the third section, the
+  §391.31(e) *Certificate of Road Test*. **Recommendation:** print the line (blank on paper; the
+  electronic path needs the driver to sign at the desk, as the packet does), and add the certificate
+  to the template.
+- **Q-MVR10 — pages 29–30 leave the contract's party names blank** (`(Owner Operator - Independent
+  Contractor)`, `a.k.a Driver`); only page 31's are filled. Waits on memorandum Q15 (whether pages
+  29–31 stay in the packet at all).
+- **Q-MVR11 — page 12 cuts an ordinary company name.** One-line cells in ~34pt rows:
+  `Long Haul Transportation Logistics LLC` prints `Long Haul Transportation…` and the row moves to
+  a continuation sheet. AUD-5 measured 11 of 15 rows continued on its fixture. Two lines per cell
+  would keep most rows on the carrier's page. **Recommendation:** build as its own step; it changes
+  how every packet filed after it prints.
+

@@ -345,7 +345,8 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
    *
    * ⚠ The typed name is required even when the driver draws, and that is D-APP8 rather than an
    * oversight: `application_packet_marks.signed_name` is the signature of RECORD on every row, and
-   * the packet itself asks for a printed name beside the mark on page 22 (`Driver name Print`). What
+   * the packet itself asks for a printed name beside a mark (page 22's `Driver name Print`, a line
+   * withdrawn from the walk by D-PKT19 on 2026-09-25 but still on the paper). What
    * D-PKT13 adds is which of the two appears on the paper.
    *
    * ⚠ The mark is awaited and its failure does not stop the walk — A8b's rule, and the reason is the
