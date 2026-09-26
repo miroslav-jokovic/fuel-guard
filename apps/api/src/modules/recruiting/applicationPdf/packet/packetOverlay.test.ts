@@ -250,7 +250,8 @@ describe("drawing the driver's marks on the carrier's packet", () => {
         drawnMark: Buffer.from("this is not a png"),
       }),
     );
-    expect(pageText(pages[19]!)).toContain(NAME);
+    // Page 18, not page 20 as before D-PKT19 (2026-09-25): page 20 is a permission now, unsigned here.
+    expect(pageText(pages[17]!)).toContain(NAME);
   });
 });
 

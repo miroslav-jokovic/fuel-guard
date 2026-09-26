@@ -210,7 +210,8 @@ describe("previewing an application before it is signed", () => {
       signedName: ADOPTED,
     });
     const signed = await renderPacketDocument({
-      marks: [{ placement_id: "p22", signed_name: ADOPTED, signed_at: "2026-09-12T10:00:00Z" }],
+      // p26, not p22 as before D-PKT19 (2026-09-25): page 22's line is a permission now, never drawn.
+      marks: [{ placement_id: "p26", signed_name: ADOPTED, signed_at: "2026-09-12T10:00:00Z" }],
       application: PAYLOAD as never,
       certifiedAt: "",
       signedName: ADOPTED,

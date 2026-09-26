@@ -33,11 +33,10 @@ export type { AdoptedMarkStyle } from "@/features/apply/signing/usePacketAdoptio
  * that matters is the packet's own page — which is why a stop shows a sentence and a page number
  * rather than a block of instrument text.
  *
- * ⚠ **Six of these stops sit on pages whose instrument was already signed on the phone** — page 15's
- * past-employment release, page 20's FCRA disclosure, page 22's urinalysis notification. The driver
- * signs those pages anyway, because the carrier's paper has a line there and a packet with a blank
- * line on page 20 is not the carrier's packet. Nothing here treats them differently; that they are
- * already authorized is a fact about `driver_authorizations`, not about the paper.
+ * ⚠ **No stop sits on a page whose instrument was already signed on the phone** — since D-MVR1 and
+ * D-PKT19 (2026-09-25). Pages 15, 19, 20 and 22 are the carrier's text of permissions, and the driver
+ * used to sign each a second time here; the server's queue (`driverPlacements`) leaves them out now,
+ * and the paper says on each line where the signature went. Nothing here needs to know.
  *
  * ── WHAT IT REFUSES TO DO ─────────────────────────────────────────────────────────────────────
  * Skip, and finish early. A stop only stops being outstanding once it is FILED, so one that did not

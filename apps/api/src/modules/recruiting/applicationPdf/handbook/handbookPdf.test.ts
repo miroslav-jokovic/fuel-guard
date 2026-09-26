@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { pdfPageCount, pdfPageTexts, pdfText } from "../../../../testing/pdfText.js";
 import { handbookPdf, type HandbookDocumentInput } from "./handbookPdf.js";
-import { HANDBOOK_VERSION } from "./handbookText.js";
+import { HANDBOOK_BLOCKS, HANDBOOK_VERSION } from "./handbookText.js";
 
 /**
  * The handbook as drawn (HB2). ⚠ These pin what a text assertion CAN see — values in the right
@@ -52,6 +52,30 @@ describe("the signed handbook", () => {
   it("lays the handbook out on the carrier's eleven sheets — no page added for a footer", async () => {
     // Measured: stamping a footer under the bottom margin used to make pdfkit add a sheet per page.
     expect(await pdfPageCount(await handbookPdf(input()))).toBe(11);
+  });
+});
+
+describe("the pages", () => {
+  /**
+   * ⚠ Found by rasterising the blank template, 2026-09-25: block 2 needed 96pt, page 8 had 80, and
+   * the block opened page 9 as three bare rules — a signature nobody could tie to what it signs. The
+   * paragraph before a signature now travels with it (`keepWithSignature`). Read as text: no page may
+   * BEGIN with a signature block's label.
+   */
+  it("never opens a page with a signature block", async () => {
+    // ⚠ A block's first ROW, both labels run together as the text layer reads them — `Silvicom Inc`
+    // alone is the countersignature's label AND a line of body text on page 3, so single labels
+    // would convict the letterhead. So the carrier's one-field countersignature (`h4c`) is not an
+    // opener here; it is drawn straight after the driver's row it countersigns.
+    const openers = HANDBOOK_BLOCKS.flatMap((b) =>
+      b.k === "sign" && b.fields.length > 1 ? [b.fields.slice(0, 2).map((f) => f.label).join("")] : [],
+    );
+    const pages = await pdfPageTexts(await handbookPdf(input({ marks: new Map(), countersign: null, driverName: "", ssnLast4: null })));
+    expect(pages.some((t) => openers.some((o) => t.includes(o))), "the openers are what the page reads").toBe(true);
+    pages.forEach((text, i) => {
+      const opener = openers.find((o) => text.trimStart().startsWith(o));
+      expect(opener, `page ${i + 1} opens with a signature block`).toBeUndefined();
+    });
   });
 });
 

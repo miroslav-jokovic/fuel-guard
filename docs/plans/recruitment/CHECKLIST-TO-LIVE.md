@@ -205,13 +205,12 @@ Read the exact words in `docs/plans/recruitment/psp-disclosure/…​.txt`, para
 **Done when:** counsel has ruled on what the promise obliges, and either the sequence is built or
 the ruling is written into `ADVERSE-ACTION` with a date.
 
-### B2 · MVR — procurement, not a build
-§391.23 requires a driving record at hire. There is no vendor, no `mvr` member in
-`AUTHORIZATION_PURPOSES`, and `SCREENING_PREREQUISITES.mvr_order` is called by nothing.
-⚠ Your lawyers already wrote the authorization — **packet page 18** — and the product has nowhere
-to put it. SambaSafety was deprecated on cost 2026-08-26; that decision is revisitable.
-
-**Done when:** a vendor is chosen. Then: the instrument, the purpose, the pull, in that order.
+### B2 · MVR — ✅ DONE 2026-09-25 (#1054, #1055)
+The carrier's driving-record release (packet page 19, not 18) is the sixth permission, `mvr` in
+`AUTHORIZATION_PURPOSES`, and the MVR step requires it with the FCRA authorization. No vendor was
+needed: the office pulls records from state portals and uploads them, per jurisdiction (AF7).
+State-specific forms (PA, WA, NH, PR) and California's Employer Pull Notice remain open —
+`MVR-RELEASE-AND-TEMPLATES-PLAN.md` Q-MVR3.
 
 ### B3 · Counsel sign-off on electronic use
 The wording is now FMCSA's forms, the statute, and your own counsel's packet pages — far stronger

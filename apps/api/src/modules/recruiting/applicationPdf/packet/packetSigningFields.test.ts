@@ -74,8 +74,9 @@ describe("the signing pages carry what we already hold", () => {
     const empty = PACKET_SIGNING_FIELD_LINES.map((l) => l.id).filter(
       (id) =>
         // ⚠ Exactly one of the two page-26 ticks is drawn; the other being absent is the answer. And
-        // page 4's name is blank on purpose (L-1) — asserted by its own test below.
-        id !== "p26.prior_test.yes" && id !== "p04.printed_name" && textAt(r, id) === undefined,
+        // page 4's name is blank on purpose (L-1) — asserted by its own test below — as is page 22's
+        // date (D-PKT19), which a withdrawn page never gains.
+        id !== "p26.prior_test.yes" && id !== "p04.printed_name" && id !== "p22.date" && textAt(r, id) === undefined,
     );
     expect(empty).toEqual([]);
   });
@@ -108,10 +109,10 @@ describe("every printed-name line prints the same name", () => {
       // than in a test of its own, because the failure it guards against is the one this whole
       // block exists for: a name line added on the wrong side of the `signed_name` / payload split.
       "p31.aka_op",
-      // ⚠ Page 22's sits beside its mark and is filled by `markSides`, which is the whole point of
-      // asserting it in the same breath as the other eight.
-      "p22.printed_name",
+      // ⚠ Page 15's `Name of applicant` is its identity block and stays filled under D-PKT19.
       "p15.name",
+      // ⚠ Page 22's `Driver name Print` was in this list until D-PKT19 (2026-09-25) withdrew the
+      // page from signing; it prints blank now — see below.
     ];
     for (const id of nameLines) expect(textAt(r, id), id).toBe("Marija Ana Varmeda");
   });
@@ -123,7 +124,8 @@ describe("every printed-name line prints the same name", () => {
    */
   it("prints no name in the block of a page withdrawn from signing", () => {
     const r = fill({}, { signedName: "M Varmeda" });
-    expect(textAt(r, "p04.printed_name")).toBeUndefined();
+    // ⚠ D-PKT19: page 22 is a permission signed on the link, and blank for the same reason.
+    for (const id of ["p04.printed_name", "p22.printed_name"]) expect(textAt(r, id), id).toBeUndefined();
     expect(textAt(r, "p03.printed_name")).toBe("Marija Ana Varmeda");
   });
 
@@ -174,8 +176,10 @@ describe("the dates that stand alone on a signing page", () => {
     const r = fill({}, {
       markedAt: { p22: "2026-09-14T10:00:00Z", p27: "2026-09-15T10:00:00Z", p28: "2026-09-16T10:00:00Z" },
     });
+    // ⚠ Page 22's date stays blank even with a mark in hand: D-PKT19 (2026-09-25) withdrew the page,
+    // and a date beside a signature that is not drawn is half an act.
     expect([textAt(r, "p22.date"), textAt(r, "p27.date"), textAt(r, "p28.date")]).toEqual([
-      "09/14/2026",
+      undefined,
       "09/15/2026",
       "09/16/2026",
     ]);

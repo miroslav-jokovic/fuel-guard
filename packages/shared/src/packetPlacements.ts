@@ -160,6 +160,8 @@ export const PACKET_PLACEMENTS: readonly PacketPlacement[] = [
     what: "Countersigned by the carrier" },
   // ⚠ FCRA §604(b)(2). This one can never share a screen with anything else, whatever the queue
   // does around it — `SigningCeremony`'s one-instrument-per-screen rule is what implements that.
+  // Since D-PKT19 (2026-09-25) it is not walked at all: the disclosure is signed as its own
+  // permission, and so are pages 15 and 22 — see `PACKET_WITHDRAWALS`.
   { id: "p20", page: 20, party: "driver", mark: "signature", anchor: "Driver signature: | Date:",
     what: "Consumer reports for employment purposes" },
   // ⚠ `signatrure`. Reproduced exactly, because the anchor's job is to be findable in the workbook.
@@ -252,6 +254,30 @@ export const PACKET_WITHDRAWALS: Readonly<Record<string, PacketWithdrawal>> = {
   },
   p19b: {
     ruling: "D-MVR1",
+    since: "2026-09-25",
+    notice: "Not signed here. Signed electronically as its own permission.",
+  },
+  // ⚠ D-PKT19 (owner, 2026-09-25: *"we dont need duplicate pages"*). D-MVR1's reasoning, applied to
+  // the three pages it already described: each is the carrier's text of a permission the driver has
+  // signed on the link before the form (`PACKET_INSTRUMENTS`, `packetWording.ts`) — page 15 is
+  // `previous_employer`, page 20 `fcra_disclosure`, page 22 `drug_alcohol`. Until this ruling every
+  // applicant signed each release twice, in two slightly different texts (memorandum Q3), and page
+  // 20's second signature was the weaker of the two: §604(b)(2) wants a document that consists solely
+  // of the disclosure, which the permission is and a page inside a 31-page packet is not.
+  // ⚠ Page 22's witness and carrier lines (`p22w`, `p22c`) were never walked and are not withdrawn —
+  // they print blank as the carrier's own lines always have.
+  p15: {
+    ruling: "D-PKT19",
+    since: "2026-09-25",
+    notice: "Not signed here. Signed electronically as its own permission.",
+  },
+  p20: {
+    ruling: "D-PKT19",
+    since: "2026-09-25",
+    notice: "Not signed here. Signed electronically as its own permission.",
+  },
+  p22: {
+    ruling: "D-PKT19",
     since: "2026-09-25",
     notice: "Not signed here. Signed electronically as its own permission.",
   },

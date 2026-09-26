@@ -345,8 +345,9 @@ describe("the walk", () => {
     expect(byKind("initials").map((m) => m.placementId)).toEqual(["p05", "p06", "p09"]);
     expect(new Set(byKind("initials").map((m) => m.signedName))).toEqual(new Set(["MV"]));
     // ⚠ 18 since L-1: page 4's was a signature line, and is withdrawn. 16 since D-MVR1: so are
-    // page 19's two, because the driving-record release is a permission now.
-    expect(byKind("signature")).toHaveLength(16);
+    // page 19's two, because the driving-record release is a permission now. 13 since D-PKT19: so are
+    // pages 15, 20 and 22, each a permission signed on the link before the form.
+    expect(byKind("signature")).toHaveLength(13);
     expect(new Set(byKind("signature").map((m) => m.signedName))).toEqual(new Set(["Marija Varmeda"]));
   });
 
