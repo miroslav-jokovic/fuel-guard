@@ -88,6 +88,34 @@ describe("the offer", () => {
     await input.trigger("blur");
     expect(w.text()).toContain(APPLY_COPY.sms.phoneInvalid);
   });
+
+  /** G-2 (C2d2): the card applies the server's US-only rule, so an international number never leaves. */
+  it("flags an international number the same way", async () => {
+    const w = await mountCard({ document: DOC, status: status() });
+    const input = w.find('input[type="tel"]');
+    await input.setValue("+447700900123");
+    await input.trigger("blur");
+    await w.find('input[type="checkbox"]').setValue(true);
+    expect(w.text()).toContain(APPLY_COPY.sms.phoneInvalid);
+    expect(action(w, APPLY_COPY.sms.action).attributes("disabled")).toBeDefined();
+  });
+
+  /** The two refusals worth naming say what to do next; anything else is the generic line. */
+  it("names the server's refusal of a number that texted STOP, or of a fourth number", async () => {
+    for (const [code, line] of [
+      ["number_stopped", APPLY_COPY.sms.numberStopped],
+      ["too_many_numbers", APPLY_COPY.sms.tooManyNumbers(3)],
+      ["consent_failed", APPLY_COPY.sms.failed],
+    ] as const) {
+      const w = await mountCard({ document: DOC, status: status() });
+      fetchMock.mockResolvedValueOnce({ ok: false, json: async () => ({ error: { code, message: "server words" } }) });
+      await w.find('input[type="tel"]').setValue("708 236 5732");
+      await w.find('input[type="checkbox"]').setValue(true);
+      await action(w, APPLY_COPY.sms.action).trigger("click");
+      await flushPromises();
+      expect(w.find('[role="alert"]').text(), code).toBe(line);
+    }
+  });
 });
 
 describe("the way out", () => {

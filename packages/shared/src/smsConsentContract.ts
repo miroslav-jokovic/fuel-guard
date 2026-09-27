@@ -95,22 +95,55 @@ export const composeSmsConsent = (doc: SmsConsentDocument, carrier: string): Sms
 });
 
 /**
- * The words that stop messages, per CTIA's messaging principles and every US carrier's implementation.
+ * The words that stop messages: CTIA's list, plus "revoke" and "opt out", which the FCC's 2024
+ * revocation order names beside them for 47 CFR §64.1200(a)(10).
  *
- * Matched case-insensitively on the whole trimmed body: a message reading "stop texting me" is not an
- * opt-out keyword by the letter of the spec, and is unmistakably an opt-out by any human reading —
- * so `STOP` alone is honoured as the keyword, and anything CONTAINING a keyword is honoured too. The
- * asymmetry is deliberate: honouring a non-keyword costs a message nobody wanted to send, and missing
- * a real one costs $500 to $1,500 and a complaint.
+ * ── TWO KINDS OF KEYWORD, AND WHY (G-2, C2d2) ─────────────────────────────────────────────────
+ * Until 2026-09-26 every keyword was honoured anywhere in a message, and the plan's audit (G-2) named
+ * the cost: "I'll quit my job Friday", "cancel Tuesday, I can come Wednesday" and "at the end of the
+ * week" each revoked an applicant's consent in the middle of a conversation about their application.
+ * Those three words are everyday English, so they now count only as the WHOLE message.
+ *
+ * The rest are not everyday English in a text to a recruiter, and they keep matching anywhere, because
+ * the other side of the asymmetry has not moved: a missed opt-out costs $500 to $1,500 a message, the
+ * FCC's standard is revocation "by any reasonable means", and "please stop texting me" is one by any
+ * reading — the public terms page promises it works. A false positive is now recoverable where it was
+ * not before: START lifts the suppression a STOP writes (`isStartMessage`).
+ *
+ * "The whole message" is read with case, punctuation and surrounding whitespace set aside — "Stop."
+ * and "QUIT!" are the keyword; "quit smoking" is not.
  */
-export const SMS_STOP_KEYWORDS = ["stop", "stopall", "unsubscribe", "cancel", "end", "quit"] as const;
+export const SMS_STOP_KEYWORDS = ["stop", "stopall", "unsubscribe", "revoke", "opt out", "optout", "cancel", "end", "quit"] as const;
+
+/** Keywords honoured only as the whole message, because each is common in an ordinary reply (G-2). */
+const WHOLE_MESSAGE_ONLY: readonly string[] = ["cancel", "end", "quit"];
+
+/** Lower case, punctuation to spaces, whitespace collapsed — "  Opt-out! " reads as "opt out". */
+const keywordText = (body: string | null | undefined): string =>
+  (body ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 export function isStopMessage(body: string | null | undefined): boolean {
-  const text = (body ?? "").trim().toLowerCase();
+  const text = keywordText(body);
   if (text === "") return false;
   if ((SMS_STOP_KEYWORDS as readonly string[]).includes(text)) return true;
   // A word-boundary match, so "stopped by the yard" does not opt somebody out but "please stop" does.
-  return SMS_STOP_KEYWORDS.some((k) => new RegExp(`\\b${k}\\b`).test(text));
+  return SMS_STOP_KEYWORDS
+    .filter((k) => !WHOLE_MESSAGE_ONLY.includes(k))
+    .some((k) => new RegExp(`\\b${k}\\b`).test(text));
+}
+
+/**
+ * The words that undo a STOP — CTIA's resubscribe keywords. The whole message only: "can I start
+ * Monday" is a question about the job, not a request to be texted again.
+ *
+ * START lifts the suppression a STOP wrote and nothing more. The consents the STOP revoked stay revoked
+ * (0233 makes a revocation final), so texts resume only once the applicant agrees again on their
+ * application page — a START says "you may text this number", not what somebody agreed to.
+ */
+export const SMS_START_KEYWORDS = ["start", "unstop"] as const;
+
+export function isStartMessage(body: string | null | undefined): boolean {
+  return (SMS_START_KEYWORDS as readonly string[]).includes(keywordText(body));
 }
 
 /**
@@ -170,6 +203,29 @@ export function normalisePhone(raw: string | null | undefined): string | null {
   // number, and a text to a wrong number is the expensive kind of mistake.
   return /^\+[1-9]\d{7,14}$/.test((raw ?? "").trim()) ? (raw ?? "").trim() : null;
 }
+
+/**
+ * A number an applicant may agree to be texted on: a dialable US one (G-2, C2d2).
+ *
+ * `normalisePhone` stays permissive because it MATCHES — an inbound STOP must find its row whatever
+ * shape it arrives in. Agreeing is the other direction and a narrower one: the programme is verified
+ * for US toll-free sending, the quiet-hours window is computed for US zones, and a text to an
+ * international number is the expensive kind of wrong number. NANP's own rule is applied too — an area
+ * code or an exchange cannot start with 0 or 1 — so "(123) 456-7890" is refused as a typing mistake
+ * rather than stored as consent to text nobody.
+ */
+export function normaliseUsPhone(raw: string | null | undefined): string | null {
+  const e164 = normalisePhone(raw);
+  return e164 && /^\+1[2-9]\d{2}[2-9]\d{6}$/.test(e164) ? e164 : null;
+}
+
+/**
+ * How many different numbers one application link may agree to be texted on (G-2, C2d2). Each new
+ * number is sent a confirmation text, so an uncapped link is a way to send a carrier's texts to any
+ * number anybody types. Three covers a changed phone and a typo; a revoked number still counts, or
+ * withdrawing and agreeing again would reset the count.
+ */
+export const SMS_MAX_NUMBERS_PER_LINK = 3;
 
 /** `POST /api/public/application/:token/sms-consent` — the applicant agreeing, one act, no text. */
 export const smsConsentGrantSchema = z.object({

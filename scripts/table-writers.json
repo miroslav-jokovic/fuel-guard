@@ -532,5 +532,8 @@
   ],
   "sms_outbox": [
     "apps/api/src/modules/recruiting/smsOutbox.ts"
+  ],
+  "sms_suppressions": [
+    "apps/api/src/modules/recruiting/smsSuppressions.ts"
   ]
 }

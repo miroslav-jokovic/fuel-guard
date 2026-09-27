@@ -1,19 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   SMS_CONSENT,
+  SMS_MAX_NUMBERS_PER_LINK,
   canSendSmsAt,
   composeSmsConsent,
   isDraftSmsConsent,
   isHelpMessage,
+  isStartMessage,
   isStopMessage,
   siteHostOf,
   smsHelpReply,
   normalisePhone,
+  normaliseUsPhone,
   type SmsConsentStatus,
   type SmsHoldReason,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { redactNumber, sendSms } from "../../lib/sms.js";
+import { isSuppressed, liftStopSuppressions, suppressNumber } from "./smsSuppressions.js";
 
 /**
  * Whether a text may be sent, and to whom (A11b, D-APP13).
@@ -93,6 +97,7 @@ export async function sendApplicationSms(
   if (!consent) return { sent: false, held: "no_consent" };
   const phone = normalisePhone(consent.phone);
   if (!phone) return { sent: false, held: "no_number" };
+  if (await isSuppressed(admin, orgId, phone)) return { sent: false, held: "suppressed" };
   if (!canSendSmsAt(now, timeZone)) return { sent: false, held: "quiet_hours" };
 
   const result = await sendSms(env, { to: phone, body });
@@ -168,6 +173,33 @@ export async function withdrawSmsConsent(
 }
 
 /**
+ * Every number agreed to on this link, revoked or not — counted from the link's own creation, so a
+ * driver invited again (Q-AX6) starts a fresh count while one link cannot be cycled through numbers.
+ * A link whose creation cannot be read counts every number the driver ever agreed to: the stricter
+ * answer, rather than no cap at all.
+ */
+async function numbersAgreedOnLink(
+  admin: SupabaseClient,
+  invitation: { org_id: string; driver_id: string; id: string },
+): Promise<Set<string>> {
+  const { data: link } = await admin
+    .from("application_invitations")
+    .select("created_at")
+    .eq("org_id", invitation.org_id)
+    .eq("id", invitation.id)
+    .maybeSingle();
+  const since = (link as { created_at?: string } | null)?.created_at;
+  let query = admin
+    .from("sms_consents")
+    .select("phone")
+    .eq("org_id", invitation.org_id)
+    .eq("driver_id", invitation.driver_id);
+  if (since) query = query.gte("granted_at", since);
+  const { data } = await query;
+  return new Set(((data ?? []) as { phone: string }[]).map((r) => r.phone));
+}
+
+/**
  * Record an applicant's consent.
  *
  * The text is composed SERVER-side from `SMS_CONSENT` and stored on the row, like every other
@@ -177,15 +209,20 @@ export async function withdrawSmsConsent(
  * ⚠ A second press on the same number answers with the consent already live and writes nothing
  * (`created: false`). The table is append-only evidence (0233); a double-tap on a phone must not
  * become two agreements, and must not send a second confirmation text either.
+ *
+ * G-2 (C2d2) adds three refusals, each because a new consent sends a confirmation text: a number that
+ * is not a dialable US one (`normaliseUsPhone`); a number that texted STOP and has not texted START
+ * (`number_stopped` — the page cannot undo what was said by text, see `smsSuppressions.ts`); and a
+ * fourth different number on one link (`too_many_numbers`, `SMS_MAX_NUMBERS_PER_LINK`).
  */
 export async function recordSmsConsent(
   admin: SupabaseClient,
-  orgId: string,
-  driverId: string,
+  invitation: { org_id: string; driver_id: string; id: string },
   rawPhone: string,
   carrier: string,
   ctx: { ip: string | null; userAgent: string | null },
 ): Promise<{ id: string; created: boolean } | { code: string; message: string }> {
+  const { org_id: orgId, driver_id: driverId } = invitation;
   if (isDraftSmsConsent()) {
     return {
       code: "sms_consent_not_final",
@@ -194,11 +231,26 @@ export async function recordSmsConsent(
         + "today. You will still get your application by email.",
     };
   }
-  const phone = normalisePhone(rawPhone);
+  const phone = normaliseUsPhone(rawPhone);
   if (!phone) return { code: "invalid_phone", message: "That does not look like a US mobile number." };
 
   const current = await liveConsent(admin, orgId, driverId);
   if (current && current.phone === phone) return { id: current.id, created: false };
+
+  if (await isSuppressed(admin, orgId, phone)) {
+    return {
+      code: "number_stopped",
+      message: "This number texted STOP to us. Reply START to any text we sent it, then turn texts on here again.",
+    };
+  }
+  const used = await numbersAgreedOnLink(admin, invitation);
+  if (!used.has(phone) && used.size >= SMS_MAX_NUMBERS_PER_LINK) {
+    return {
+      code: "too_many_numbers",
+      message: `Texts can be turned on for ${SMS_MAX_NUMBERS_PER_LINK} different numbers on one application. `
+        + "Tell the office if your number has changed.",
+    };
+  }
 
   const doc = composeSmsConsent(SMS_CONSENT, carrier);
   const { data, error } = await admin
@@ -220,13 +272,14 @@ export async function recordSmsConsent(
   return { id: String((data as { id?: string } | null)?.id ?? ""), created: true };
 }
 
+/** What an inbound message did: consents revoked, a HELP answered, STOP suppressions lifted by START. */
+export interface InboundOutcome { revoked: number; helped: boolean; resumed: number }
+
 /**
- * An inbound message — the opt-out path (A11b).
+ * An inbound message — the opt-out path (A11b), and since C2d2 the way back (START).
  *
- * ⚠ This runs BEFORE anything else looks at the message, and it revokes on a keyword match rather
- * than on an exact equality, because the asymmetry is not close: honouring "please stop" costs a
- * message nobody wanted to send, and missing it costs $500 to $1,500 and a complaint to a carrier
- * that can shut the number off.
+ * ⚠ This runs BEFORE anything else looks at the message. What counts as a STOP is `isStopMessage`'s
+ * call, and its comment has the two kinds of keyword and why (G-2).
  *
  * The org is resolved FROM the number rather than accepted from the request, which is the same rule
  * every unauthenticated surface in this product follows — an inbound webhook must not be able to name
@@ -237,9 +290,11 @@ export async function handleInboundSms(
   env: Env,
   from: string,
   body: string,
-): Promise<{ revoked: number; helped: boolean }> {
+  now: Date = new Date(),
+): Promise<InboundOutcome> {
+  const none: InboundOutcome = { revoked: 0, helped: false, resumed: 0 };
   const phone = normalisePhone(from);
-  if (!phone) return { revoked: 0, helped: false };
+  if (!phone) return none;
 
   // HELP is answered before anything else and independently of consent — see `smsHelpReply` for
   // why it bypasses every gate `sendApplicationSms` enforces. Checked ahead of STOP only because the
@@ -247,27 +302,51 @@ export async function handleInboundSms(
   if (isHelpMessage(body)) {
     const result = await sendSms(env, { to: phone, body: smsHelpReply(siteHostOf(env.WEB_APP_URL)) });
     if (!result.ok) console.error("[application-sms] HELP reply failed", { to: redactNumber(phone), detail: result.detail });
-    return { revoked: 0, helped: result.ok };
+    return { ...none, helped: result.ok };
   }
 
-  if (!isStopMessage(body)) return { revoked: 0, helped: false };
+  if (isStartMessage(body)) {
+    const resumed = await liftStopSuppressions(admin, phone, now);
+    if (resumed > 0) console.log("[application-sms] START honoured", { to: redactNumber(phone), resumed });
+    return { ...none, resumed };
+  }
 
+  if (!isStopMessage(body)) return none;
+  return { ...none, revoked: await honourStop(admin, phone, body) };
+}
+
+/**
+ * A STOP, in every org that ever held a consent on the number (G-2, C2d2).
+ *
+ * ── EVERY LIVE CONSENT OF THE APPLICANT, NOT ONLY THIS NUMBER'S ────────────────────────────────
+ * Until C2d2 a STOP revoked the consents on the number that sent it and nothing else, so an applicant
+ * who had agreed on an old number and then on a new one, and texted STOP from the new one, was texted
+ * on the old one next: the older consent had become the newest live one. A STOP is "do not text me",
+ * so it now revokes every live consent each applicant on that number holds — through
+ * `withdrawSmsConsent`, the same road the page's own control takes.
+ *
+ * ── AND THE NUMBER IS SUPPRESSED, EVEN WHERE NOTHING WAS LIVE ─────────────────────────────────
+ * A number whose consent was already withdrawn on the page still said STOP, and agreeing again on the
+ * page must not be able to overrule that (`recordSmsConsent`'s `number_stopped`). So every org that
+ * ever held a consent on the number records the suppression, whether or not it revoked anything. Only
+ * orgs that hold a consent on the number: a number no org knows has no tenant to be suppressed in.
+ */
+async function honourStop(admin: SupabaseClient, phone: string, body: string): Promise<number> {
   const { data } = await admin
     .from("sms_consents")
-    .select("org_id")
+    .select("org_id, driver_id, granted_at")
     .eq("phone", phone)
-    .is("revoked_at", null);
-  const orgs = [...new Set(((data ?? []) as { org_id: string }[]).map((r) => r.org_id))];
+    .order("granted_at", { ascending: false });
+  const rows = (data ?? []) as { org_id: string; driver_id: string }[];
+  const reason = `inbound: ${body.trim().slice(0, 60)}`;
 
   let revoked = 0;
-  for (const orgId of orgs) {
-    const { data: count } = await admin.rpc("revoke_sms_consent", {
-      p_org: orgId,
-      p_phone: phone,
-      p_reason: `inbound: ${body.trim().slice(0, 60)}`,
-    });
-    revoked += Number(count ?? 0);
+  for (const orgId of [...new Set(rows.map((r) => r.org_id))]) {
+    const drivers = [...new Set(rows.filter((r) => r.org_id === orgId).map((r) => r.driver_id))];
+    for (const driverId of drivers) revoked += await withdrawSmsConsent(admin, orgId, driverId, reason);
+    // The newest consent's applicant is the one the suppression names; the number is what it keys on.
+    await suppressNumber(admin, orgId, drivers[0] ?? null, phone, "stop");
   }
-  if (revoked > 0) console.log("[application-sms] opt-out honoured", { to: redactNumber(phone), revoked });
-  return { revoked, helped: false };
+  if (rows.length > 0) console.log("[application-sms] opt-out honoured", { to: redactNumber(phone), revoked });
+  return revoked;
 }

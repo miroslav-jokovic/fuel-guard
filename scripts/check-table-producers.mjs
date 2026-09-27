@@ -55,12 +55,8 @@ const WAIVERS = new Map([
   // on 2026-09-26 (C2b2): recruiting/applicantTravel.ts writes it behind POST /recruitment/applicants/:driverId/travel.
   // drug_test_appointments left on 2026-09-26 (C2b3): recruiting/applicantDrugTest.ts writes it behind
   // POST /recruitment/applicants/:driverId/drug-test-appointments. sms_outbox left on 2026-09-26 (C2d):
-  // recruiting/smsOutbox.ts writes it, drained by startSmsOutboxScheduler.
-  [
-    "sms_suppressions",
-    "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C2's STOP handling in the Telnyx webhook writes " +
-      "it; the entry leaves in that merge.",
-  ],
+  // recruiting/smsOutbox.ts writes it, drained by startSmsOutboxScheduler. sms_suppressions left on
+  // 2026-09-27 (C2d2): recruiting/smsSuppressions.ts writes it from the Telnyx webhook's STOP and START.
   [
     "application_screen_events",
     "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C3's AW14 writes it from the /apply link; the " +

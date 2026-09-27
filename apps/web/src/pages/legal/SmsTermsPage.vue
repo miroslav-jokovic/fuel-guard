@@ -22,6 +22,9 @@ import { SMS_PRIVACY_PATH } from "@/lib/legalPaths";
  * answers with. Printing them from the shared contract means this page cannot promise a word the
  * webhook ignores or misquote the reply a person will actually receive.
  *
+ * "On their own" is `isStopMessage`'s rule since C2d2 (G-2): CANCEL, END and QUIT count only as the
+ * whole message, the rest anywhere — which is why "please stop texting me" is still promised.
+ *
  * ⚠ It does NOT promise a confirmation text after STOP. `handleInboundSms` sends none, and whether
  * the toll-free network sends its own is unmeasured (SMS-OPT-IN-PLAN §7, 2026-09-25).
  */
@@ -80,13 +83,16 @@ const helpReply = computed(() => smsHelpReply(typeof window === "undefined" ? ""
     <LegalSection id="stop" title="How to stop">
       <p>
         Reply <span class="font-semibold text-ink">STOP</span> to any message at any time. These words
-        also work: {{ stopWords.join(", ") }}. So does a plain request such as "please stop texting me".
+        also work when sent on their own: {{ stopWords.join(", ") }}. So does a plain request such as
+        "please stop texting me".
         You can also turn texts off on your application page, or ask the office of the trucking company
         you applied to.
       </p>
       <p>
-        Stopping takes effect straight away, for every application on that number. To start again, turn
-        texts back on from your application page.
+        Stopping takes effect straight away, for every application on that number and every other number
+        you gave for the same application. To start again after replying STOP, reply
+        <span class="font-semibold text-ink">START</span>, then turn texts back on from your application
+        page. If you turned texts off on your application page, turn them back on there.
       </p>
     </LegalSection>
 

@@ -6,6 +6,7 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { hashInvitationToken } from "../applicationIntake.js";
 
 /**
@@ -61,9 +62,12 @@ const read = async (res: Response): Promise<Answer> => (await res.json()) as Ans
  * later READS see the new row — which is what the confirmation's own consent check reads. A flat
  * array would answer the read before and after the insert identically, and the send would be held
  * on `no_consent` for a reason no production request could produce.
+ *
+ * Reads go through `postgrestFixture` since C2d2: the cap on numbers counts a link's consents by date,
+ * and a flat answer would count every row whatever the query asked.
  */
-const seed = (consents: Row[] = [], invitation: Row = {}) => {
-  let rows = consents;
+const seed = (consents: Row[] = [], invitation: Row = {}, suppressions: Row[] = []) => {
+  let rows: Row[] = consents.map((r) => ({ org_id: ORG, driver_id: DRIVER, revoked_at: null, ...r }));
   return createSupabaseRecorder({
     tables: {
       application_invitations: [{
@@ -73,7 +77,7 @@ const seed = (consents: Row[] = [], invitation: Row = {}) => {
       }],
       organizations: [{ name: "Silvicom Inc" }],
       sms_consents: (q: RecordedQuery) => {
-        if (q.write?.method !== "insert") return rows;
+        if (q.write?.method !== "insert") return postgrestFixture(rows)(q);
         const inserted = { id: "c-new", granted_at: "2026-09-25T20:00:00Z", revoked_at: null, ...(q.write.payload as Row) };
         rows = [inserted, ...rows];
         return [inserted];
@@ -81,6 +85,7 @@ const seed = (consents: Row[] = [], invitation: Row = {}) => {
       // C2d: the confirmation goes through the outbox, which records every text it sends or queues.
       sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
       application_intakes: [],
+      sms_suppressions: postgrestFixture(suppressions),
     },
     rpc: { revoke_sms_consent: 1 },
   });
@@ -217,6 +222,69 @@ describe("agreeing", () => {
     const res = await agree("12345678");
     expect(res.status).toBe(400);
     expect((await read(res)).error?.code).toBe("invalid_phone");
+  });
+
+  /** G-2 (C2d2): agreeing takes a dialable US number; matching an inbound STOP stays permissive. */
+  it("refuses an international number", async () => {
+    publish();
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await agree("+447700900123");
+    expect(res.status).toBe(400);
+    expect((await read(res)).error?.code).toBe("invalid_phone");
+    expect(rec.writtenRows("sms_consents")).toEqual([]);
+  });
+
+  /** The page cannot undo what was said by text: START first (C2d2). */
+  it("refuses a number that texted STOP until it texts START, and sends it nothing", async () => {
+    publish();
+    const stopped = { id: "s-1", org_id: ORG, phone: "+17082365732", reason: "stop" };
+    const rec = seed([], {}, [{ ...stopped, lifted_at: null }]);
+    holder.client = rec.client;
+    const res = await agree();
+    expect(res.status).toBe(409);
+    expect((await read(res)).error?.code).toBe("number_stopped");
+    expect(rec.writtenRows("sms_consents")).toEqual([]);
+    expect(sms.fn).not.toHaveBeenCalled();
+    expectOrgScoped(rec, ORG, TOKEN_LOOKUP);
+
+    const started = seed([], {}, [{ ...stopped, lifted_at: "2026-09-26T10:00:00Z" }]);
+    holder.client = started.client;
+    expect((await agree()).status).toBe(201);
+  });
+
+  /**
+   * G-2: each new number is sent a confirmation, so one link takes at most three — revoked ones
+   * included, or withdrawing would reset the count. A number already agreed on the link is not a new
+   * one, and a consent from before this link was created is another link's.
+   */
+  describe("at most three numbers per link", () => {
+    const LINK_CREATED = "2026-09-20T00:00:00Z";
+    const used = ["+13125550101", "+13125550102", "+13125550103"].map((phone, i) => ({
+      id: `c-${i}`, driver_id: DRIVER, phone, granted_at: `2026-09-2${i + 1}T10:00:00Z`, revoked_at: "2026-09-24T10:00:00Z",
+    }));
+
+    it("refuses a fourth different number", async () => {
+      publish();
+      const rec = seed(used, { created_at: LINK_CREATED });
+      holder.client = rec.client;
+      const res = await agree();
+      expect(res.status).toBe(409);
+      expect((await read(res)).error?.code).toBe("too_many_numbers");
+      expect(rec.writtenRows("sms_consents")).toEqual([]);
+    });
+
+    it("takes a number already agreed on the link again", async () => {
+      publish();
+      holder.client = seed(used, { created_at: LINK_CREATED }).client;
+      expect((await agree("(312) 555-0102")).status).toBe(201);
+    });
+
+    it("does not count a consent from before the link was created", async () => {
+      publish();
+      holder.client = seed(used, { created_at: "2026-09-22T00:00:00Z" }).client;
+      expect((await agree()).status).toBe(201);
+    });
   });
 
   it("refuses an unticked box — the act is the whole request", async () => {
