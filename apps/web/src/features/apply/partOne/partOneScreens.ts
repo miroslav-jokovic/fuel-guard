@@ -159,12 +159,17 @@ export function validateLicence(a: PartOneAnswers): ScreenErrors {
   return errors;
 }
 
-/** One other licence, before it joins the list — state and number required, as 0376 requires them. */
+/**
+ * One other licence, before it joins the list — state and number required, as 0376 requires them, and
+ * the expiry date as the contract requires it (Q-AW35 (a)): filing refuses a licence without one, and
+ * this is the only screen that can ever ask.
+ */
 export function validateOtherLicence(entry: OtherLicence, a: PartOneAnswers): ScreenErrors {
   const errors: ScreenErrors = {};
   const o = copy.otherLicences;
   if (entry.state_code.trim() === "") errors.state_code = o.missingState;
   if (entry.licence_number.trim() === "") errors.licence_number = o.missingNumber;
+  if (entry.expires_on.trim() === "") errors.expires_on = o.missingExpiry;
   if (Object.keys(errors).length > 0) return errors;
   const parsed = applicantIntakeLicenceSchema.safeParse(otherPayload(entry));
   if (!parsed.success) {
@@ -232,14 +237,14 @@ export const screeningPayload = (a: PartOneAnswers): ApplicantIntake => ({
 const currentLicence = (a: PartOneAnswers): ApplicantIntakeLicence => ({
   state_code: a.cdl.state_code,
   licence_number: a.cdl.licence_number.trim(),
-  expires_on: a.cdl.expires_on || null,
+  expires_on: a.cdl.expires_on,
 });
 
 const otherPayload = (o: OtherLicence): ApplicantIntakeLicence => ({
   state_code: o.state_code,
   agency: o.agency.trim() === "" ? null : o.agency.trim(),
   licence_number: o.licence_number.trim(),
-  expires_on: o.expires_on || null,
+  expires_on: o.expires_on,
 });
 
 /** The whole list, current CDL first — the positions ARE the order (0376). */

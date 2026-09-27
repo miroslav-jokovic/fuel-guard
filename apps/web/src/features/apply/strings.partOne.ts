@@ -97,7 +97,11 @@ export const APPLY_PART_ONE_COPY = {
       state: "State or province",
       agency: "Issuing authority (only if it is not a US state)",
       number: "Licence number",
-      expiresOn: "Expiry date (if you know it)",
+      expiresOn: "Expiry date",
+      // Q-AW35 (a): required, because the application cannot be filed without it and nothing after
+      // Part 1 can supply it. A licence given up on moving still has the date it was printed with.
+      expiresOnHint: "The date printed on it — even if you gave it up.",
+      missingExpiry: "Enter the expiry date printed on the licence.",
       needOne: "Add the licence, or answer No.",
       duplicate: "This licence is already on the list.",
       missingState: "Choose the state or province that issued it.",

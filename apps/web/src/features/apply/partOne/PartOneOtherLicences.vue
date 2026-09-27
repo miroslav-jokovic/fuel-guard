@@ -17,9 +17,9 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * loop, one licence at a time. The MVR is ordered per jurisdiction from this list (D-AW3, AW7), so a
  * "Yes" with nothing added is refused rather than read as "No".
  *
- * The entry being typed lives here until "Add this licence" checks it (state and number required, a
- * duplicate refused in words before 0376's unique index could answer 23505); only then does it join the
- * answers `usePartOne` posts.
+ * The entry being typed lives here until "Add this licence" checks it (state, number and expiry date
+ * required — Q-AW35 (a) — a duplicate refused in words before 0376's unique index could answer 23505);
+ * only then does it join the answers `usePartOne` posts.
  */
 defineProps<{ errors: ScreenErrors }>();
 const answers = defineModel<PartOneAnswers>("answers", { required: true });
@@ -79,7 +79,7 @@ function cancel(): void {
         <FormField id="p1-other-number" :label="copy.number" :error="entryErrors.licence_number">
           <template #default="f"><BaseInput v-bind="f" v-model="entry.licence_number" autocomplete="off" /></template>
         </FormField>
-        <FormField id="p1-other-expires" :label="copy.expiresOn" :error="entryErrors.expires_on">
+        <FormField id="p1-other-expires" :label="copy.expiresOn" :hint="copy.expiresOnHint" :error="entryErrors.expires_on">
           <template #default="f"><AppMemorableDate v-bind="f" v-model="entry.expires_on" /></template>
         </FormField>
         <div class="flex gap-2">
