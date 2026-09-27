@@ -8,7 +8,10 @@ import { useToastStore } from "@/stores/toast";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
 import { useCreateApplicant } from "@/features/recruitment/useCreateApplicant";
 import {
+  findApplicantMatches,
   useCreateApplicationInvite,
+  useSendApplicationLinkAgain,
+  type ApplicantMatch,
   type ApplicationInviteDelivery,
 } from "@/features/recruitment/useApplicationInvites";
 
@@ -45,6 +48,13 @@ import {
  * copyable whatever happened to the email, because `delivery.sent === false` is an outcome the
  * recruiter acts on rather than an error — see `ApplicationLinkOnce`'s header for the three
  * different people the three failure reasons belong to.
+ *
+ * ── IT ASKS WHETHER THEY ARE ALREADY HERE FIRST (C2e, Q-AX6) ──────────────────────────────────
+ * Production held four `Marija Varmeda` rows, one per press of this drawer, each with its own empty
+ * application. So before creating anybody it asks the board for an applicant with the same name or
+ * email — archived ones too, which is where those four were — and offers "Send them the link again" on
+ * that record: their own application, their own link, nothing duplicated. "This is someone else" still
+ * adds them; two drivers can share a name.
  */
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: []; created: [] }>();
@@ -53,6 +63,7 @@ const session = useSessionStore();
 const toast = useToastStore();
 const createApplicant = useCreateApplicant();
 const createInvite = useCreateApplicationInvite();
+const sendAgain = useSendApplicationLinkAgain();
 
 /** Same gate the driver-page card uses — the section matrix, never a role literal. */
 const canInvite = computed(() => {
@@ -67,6 +78,9 @@ const link = ref<string | null>(null);
 const delivery = ref<ApplicationInviteDelivery | null>(null);
 /** Set only in the halfway state: the applicant exists and the invitation did not happen. */
 const orphaned = ref<{ name: string; driverId: string } | null>(null);
+/** Applicants already on the board who may be this person; null until asked (Q-AX6). */
+const matches = ref<ApplicantMatch[] | null>(null);
+const checking = ref(false);
 
 watch(
   () => props.open,
@@ -78,14 +92,46 @@ watch(
     link.value = null;
     delivery.value = null;
     orphaned.value = null;
+    matches.value = null;
   },
 );
+// A changed name or email is a different question; the old answer must not stand for it.
+watch([firstName, lastName, email], () => (matches.value = null));
 
 const ready = computed(() => firstName.value.trim() !== "" && lastName.value.trim() !== "");
-const working = computed(() => createApplicant.isPending.value || createInvite.isPending.value);
+const working = computed(
+  () => checking.value || createApplicant.isPending.value || createInvite.isPending.value || sendAgain.isPending.value,
+);
 
+/** The press: ask the board first, and add only when nobody matches (or the office says it is not them). */
 async function submit(): Promise<void> {
   if (!ready.value) return;
+  const fullName = `${firstName.value.trim()} ${lastName.value.trim()}`;
+  checking.value = true;
+  try {
+    matches.value = await findApplicantMatches(fullName, email.value.trim() || null);
+  } catch (e) {
+    toast.error("Could not check the applicant board", e instanceof Error ? e.message : undefined);
+    return;
+  } finally {
+    checking.value = false;
+  }
+  if (matches.value.length === 0) await addNew();
+}
+
+/** The existing record's own link, sent again (or a new application on it, if theirs is finished). */
+async function inviteAgain(match: ApplicantMatch): Promise<void> {
+  try {
+    const result = await sendAgain.mutateAsync({ driverId: match.id });
+    link.value = result.link;
+    delivery.value = result.delivery;
+    emit("created");
+  } catch (e) {
+    toast.error("Could not send the link again", e instanceof Error ? e.message : undefined);
+  }
+}
+
+async function addNew(): Promise<void> {
   const fullName = `${firstName.value.trim()} ${lastName.value.trim()}`;
 
   let driverId: string;
@@ -145,6 +191,31 @@ async function submit(): Promise<void> {
         </FormField>
       </template>
 
+      <!-- Q-AX6: the person may already be here. Their record, not a second one. -->
+      <div v-if="!link && !orphaned && matches?.length" class="space-y-3 rounded-surface bg-surface-muted p-3" role="status">
+        <p class="text-xs font-medium text-ink-secondary">Already on the applicant board?</p>
+        <ul class="space-y-2">
+          <li v-for="m in matches" :key="m.id" class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-sm text-ink">
+              {{ m.full_name }}<span v-if="m.email" class="text-ink-muted"> · {{ m.email }}</span>
+              <span v-if="m.archived" class="text-ink-muted"> · archived</span>
+            </span>
+            <span class="flex gap-2">
+              <BaseButton size="sm" variant="secondary" :to="`/recruitment/${m.id}`">Open their page</BaseButton>
+              <BaseButton size="sm" variant="primary" :disabled="working" @click="inviteAgain(m)">
+                Send them the link again
+              </BaseButton>
+            </span>
+          </li>
+        </ul>
+        <p class="text-xs text-ink-muted">
+          Sending it again keeps what they have already done. If this is a different person, add them anyway.
+        </p>
+        <BaseButton size="sm" variant="ghost" :disabled="working" @click="addNew">
+          This is someone else — add them
+        </BaseButton>
+      </div>
+
       <ApplicationLinkOnce v-if="link" :link="link" :delivery="delivery" />
 
       <!-- The halfway state, named rather than hidden. The applicant is on the board and their own
@@ -173,7 +244,7 @@ async function submit(): Promise<void> {
           {{ link || orphaned ? "Done" : "Cancel" }}
         </BaseButton>
         <BaseButton
-          v-if="!link && !orphaned"
+          v-if="!link && !orphaned && !matches?.length"
           variant="primary"
           :disabled="!ready || working || !canInvite"
           @click="submit"

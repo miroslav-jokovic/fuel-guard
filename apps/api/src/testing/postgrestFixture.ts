@@ -125,7 +125,23 @@ const COMPARE: Record<string, (cell: unknown, want: unknown) => boolean> = {
   gte: (c, w) => c != null && String(c) >= String(w),
   lt: (c, w) => c != null && String(c) < String(w),
   lte: (c, w) => c != null && String(c) <= String(w),
+  // ⚠ C2e: an operator missing from this table matches EVERY row, so `ilike` read as "all applicants
+  // are this person". Case-insensitive, `%`/`_` as wildcards, `\` escaping either, as Postgres does.
+  ilike: (c, w) => c != null && ilikeRegex(String(w)).test(String(c)),
 };
+
+/** An `ilike` pattern as an anchored, case-insensitive regex. */
+function ilikeRegex(pattern: string): RegExp {
+  let out = "";
+  for (let i = 0; i < pattern.length; i += 1) {
+    const ch = pattern[i]!;
+    if (ch === "\\" && i + 1 < pattern.length) out += pattern[++i]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    else if (ch === "%") out += ".*";
+    else if (ch === "_") out += ".";
+    else out += ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`^${out}$`, "is");
+}
 
 /**
  * One filter, against one cell.

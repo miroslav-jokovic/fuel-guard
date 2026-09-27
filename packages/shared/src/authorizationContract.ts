@@ -331,6 +331,8 @@ export const driverAuthorizationSchema = z.object({
   esign_consent_at: z.string().nullable(),
   accepted_at: z.string(),
   evidence_document_id: z.uuid().nullable(),
+  /** G-9: the day a paper signature was written; null for `esign`. */
+  signed_on: z.string().nullable(),
   revokes: z.uuid().nullable(),
   revoke_reason: z.string().nullable(),
   created_at: z.string(),
@@ -351,11 +353,22 @@ export const authorizationGrantSchema = z
     /** Present when the signer agreed to transact electronically; required for `method: 'esign'`. */
     esign_consent: z.boolean().optional(),
     evidence_document_id: z.uuid().nullish(),
+    /**
+     * G-9 (Q-AW15's default): the day written beside a PAPER signature, `YYYY-MM-DD`. Required for
+     * `wet_signature` and `verbal_documented`, refused for `esign` (0376's CHECK) — an electronic
+     * signature's day is its `accepted_at`, while a paper one is recorded days after it was signed,
+     * and until C2e the file could only say when the office typed it in.
+     */
+    signed_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD").optional(),
   })
   .strict()
   .refine((v) => v.method !== "esign" || v.esign_consent === true, {
     message: "An electronic signature requires the signer's consent to transact electronically",
     path: ["esign_consent"],
+  })
+  .refine((v) => (v.method === "esign") === (v.signed_on === undefined), {
+    message: "A paper signature needs the day it was signed; an electronic one takes none",
+    path: ["signed_on"],
   });
 export type AuthorizationGrant = z.infer<typeof authorizationGrantSchema>;
 

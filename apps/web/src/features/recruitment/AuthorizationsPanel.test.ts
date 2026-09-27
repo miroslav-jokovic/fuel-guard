@@ -53,6 +53,7 @@ const row = (over: Partial<AuthorizationDetail> & { purpose: string }): Authoriz
   esign_consent_at: "2026-09-01T10:00:00Z",
   accepted_at: "2026-09-01T10:00:00Z",
   evidence_document_id: null,
+  signed_on: null,
   revokes: null,
   revoke_reason: null,
   created_at: "2026-09-01T10:00:00Z",
@@ -108,6 +109,15 @@ describe("what the office can finally see", () => {
    */
   it("shows the wording version each release was signed against", () => {
     expect(render(ALL).text()).toContain("wording 2026-08-19.1");
+  });
+
+  /** G-9: a paper signature reads the day on the page, not the instant the office recorded it. */
+  it("shows a paper signature's own day rather than when it was recorded", () => {
+    const [first, ...rest] = ALL;
+    const paper = { ...first!, method: "wet_signature" as const, signed_on: "2026-08-28", accepted_at: "2026-09-03T15:00:00Z" };
+    const text = render([paper, ...rest]).text();
+    expect(text).toContain("Signed on paper 08/28/2026");
+    expect(text).not.toContain("09/03/2026");
   });
 
   /**

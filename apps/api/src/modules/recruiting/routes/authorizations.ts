@@ -4,6 +4,7 @@ import {
   isDraftDisclosure,
   authorizationRevokeSchema,
   hiringEvidenceUploadSchema,
+  todayInZone,
   type AuthorizationGrant,
   type AuthorizationRevoke,
   type HiringEvidenceUpload,
@@ -14,6 +15,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { loadCarrierWording } from "../carrierWording.js";
+import { carrierZone } from "../carrierClock.js";
 import {
   isPaperAuthorizationError,
   paperScanRefusal,
@@ -43,7 +45,7 @@ export function recruitmentAuthorizationsRouter(): Router {
   // because FCRA §604(b)(2) requires the disclosure to consist SOLELY of the disclosure.
 
   const AUTH_COLS =
-    "id, driver_id, purpose, disclosure_version, disclosure_text, method, signed_name, intent_statement, esign_consent_at, accepted_at, evidence_document_id, revokes, revoke_reason, created_at";
+    "id, driver_id, purpose, disclosure_version, disclosure_text, method, signed_name, intent_statement, esign_consent_at, accepted_at, evidence_document_id, signed_on, revokes, revoke_reason, created_at";
 
   router.get(
     "/drivers/:driverId/authorizations",
@@ -122,6 +124,13 @@ export function recruitmentAuthorizationsRouter(): Router {
         return;
       }
 
+      // G-9: the day on the paper cannot be after today on the carrier's calendar — a future date is a
+      // typing mistake, and the file would claim a permission existed before it did.
+      if (body.signed_on !== undefined && body.signed_on > todayInZone(new Date(), await carrierZone(admin, orgId))) {
+        res.status(400).json(apiError("invalid_request", "The day it was signed cannot be in the future."));
+        return;
+      }
+
       // THE SERVER COMPOSES THE INSTRUMENT. The request carries who signed and how, never what they
       // signed — a client-authored disclosure is worth nothing in an audit, and the contract has no
       // field to send one in. Same rule as `hazmat_reviews.attestation` (0092, D8).
@@ -182,6 +191,7 @@ export function recruitmentAuthorizationsRouter(): Router {
           accepted_ip: body.method === "esign" ? (req.ip ?? null) : null,
           accepted_user_agent: body.method === "esign" ? (req.get("user-agent") ?? null) : null,
           evidence_document_id: body.evidence_document_id ?? null,
+          signed_on: body.signed_on ?? null,
           recorded_by: req.auth!.userId,
         })
         .select(AUTH_COLS)
@@ -215,6 +225,7 @@ export function recruitmentAuthorizationsRouter(): Router {
           purpose: body.purpose,
           disclosureVersion: doc.version,
           method: body.method,
+          signedOn: body.signed_on ?? null,
         },
       });
 

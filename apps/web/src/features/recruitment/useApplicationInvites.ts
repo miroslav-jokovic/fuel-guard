@@ -28,6 +28,8 @@ export interface ApplicationInvitation {
   /** AF5 (0369): when the office opened packet signing, in person. Optional: absent from an older API. */
   signing_opened_at?: string | null;
   submitted_at: string | null;
+  /** The handbook's filing — a link's last use (D-AW1, C2e). Optional: absent from an older API. */
+  handbook_filed_at?: string | null;
   revoked_at: string | null;
   created_at: string;
   /**
@@ -119,6 +121,47 @@ export function useCreateApplicationInvite() {
     },
     onSuccess: (_r, input) => void qc.invalidateQueries({ queryKey: inviteKey(input.driverId) }),
   });
+}
+
+/**
+ * "Send the link again" on an applicant's record (C2e: Q-AX5, Q-AX6). The server decides: the current
+ * invitation's link replaced (`resent` — everything the applicant did is kept, the old link dies), or a
+ * new, empty application when the current one is revoked or finished (`created`).
+ */
+export function useSendApplicationLinkAgain() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { driverId: string }): Promise<{
+      link: string;
+      delivery: ApplicationInviteDelivery;
+      mode: "resent" | "created";
+    }> => {
+      const res = await apiFetch<{ link: string; delivery: ApplicationInviteDelivery; mode: "resent" | "created" }>(
+        `/api/recruitment/drivers/${encodeURIComponent(input.driverId)}/application-invites/again`,
+        { method: "POST" },
+      );
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not send the link again.");
+      return res.data;
+    },
+    onSuccess: (_r, input) => void qc.invalidateQueries({ queryKey: inviteKey(input.driverId) }),
+  });
+}
+
+/** An applicant already on the board who may be the person the office is adding (Q-AX6). */
+export interface ApplicantMatch {
+  id: string;
+  full_name: string;
+  email: string | null;
+  archived: boolean;
+}
+
+/** Asked once, when the board's drawer is pressed — a read, not a query to keep warm. */
+export async function findApplicantMatches(fullName: string, email: string | null): Promise<ApplicantMatch[]> {
+  const params = new URLSearchParams({ full_name: fullName });
+  if (email) params.set("email", email);
+  const res = await apiFetch<{ matches: ApplicantMatch[] }>(`/api/recruitment/applicant-matches?${params.toString()}`);
+  if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not check the applicant board.");
+  return res.data.matches;
 }
 
 export function useRevokeApplicationInvite() {

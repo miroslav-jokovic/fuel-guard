@@ -259,6 +259,41 @@ export function renderApplicationInviteEmail(
 }
 
 /**
+ * The same application link, sent again by the office (Q-AX5, C2e).
+ *
+ * A third sibling for the reason the header above gives two: this one says *here is your link again,
+ * nothing is lost, and the old one is dead*. The last clause is the one that matters — the office's
+ * re-send replaces the token (only a hash is kept, so the old link cannot be sent twice), and a driver
+ * who later finds the first email must know why it no longer opens.
+ */
+export function renderApplicationLinkResentEmail(
+  carrier: string,
+  applyUrl: string,
+  expiresInDays: number,
+): RenderedEmail {
+  const subject = `Your ${carrier} driver application link`;
+  const days = `${expiresInDays} ${expiresInDays === 1 ? "day" : "days"}`;
+  const html =
+    `<div style="font-family:system-ui,sans-serif;color:#111">`
+    + `<h2 style="margin:0 0 8px">${esc(carrier)} has sent your application link again</h2>`
+    + `<p style="color:#555">Everything you have already done is saved. Open this link to carry on `
+    + `where you left off.</p>`
+    + `<p style="margin:20px 0"><a href="${esc(applyUrl)}" style="background:#4f46e5;color:#fff;`
+    + `padding:10px 16px;border-radius:6px;text-decoration:none">Open my application →</a></p>`
+    + `<p style="color:#888;font-size:12px">If the button doesn't work, paste this link into your `
+    + `browser:<br>${esc(applyUrl)}</p>`
+    + `<p style="color:#aaa;font-size:12px">Any earlier link we sent you no longer works. This one is `
+    + `yours alone and stops working in ${days}.</p>`
+    + `</div>`;
+  const text =
+    `${carrier} has sent your application link again.\n\n`
+    + `Everything you have already done is saved. Open this link to carry on where you left off:\n`
+    + `${applyUrl}\n\n`
+    + `Any earlier link we sent you no longer works. This one is yours alone and stops working in ${days}.`;
+  return { subject, html, text };
+}
+
+/**
  * The applicant has been approved; the office will be in touch about coming in to sign (Q-AX4,
  * D-AX14, and since AF5 D-AF3).
  *

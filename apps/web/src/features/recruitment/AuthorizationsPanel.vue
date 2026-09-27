@@ -9,7 +9,7 @@ import {
 } from "@silvicom/shared";
 import { AppButton, AppIcon } from "@silvicom/ui";
 import { CheckCircleIcon, ClockIcon } from "@silvicom/ui/icons";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
@@ -151,7 +151,9 @@ const releases = computed<ReleaseRow[]>(() =>
           <!-- ⚠ The version, always, and never only the date. A dispute under FCRA §604(b)(2) is
                about the wording somebody was shown, and this is the only field that answers it. -->
           <p v-if="release.live" class="mt-0.5 text-2xs text-ink-secondary">
-            Signed {{ formatDateTime(release.live.accepted_at) }} ·
+            <!-- G-9: a paper signature's day is the one on the page; the recording instant is not it. -->
+            <template v-if="release.live.signed_on">Signed on paper {{ formatDate(release.live.signed_on) }} ·</template>
+            <template v-else>Signed {{ formatDateTime(release.live.accepted_at) }} ·</template>
             wording {{ release.live.disclosure_version }}
             <span v-if="release.live.signed_name"> · typed “{{ release.live.signed_name }}”</span>
           </p>

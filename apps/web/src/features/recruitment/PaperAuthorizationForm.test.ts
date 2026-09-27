@@ -41,14 +41,27 @@ describe("recording a paper signature", () => {
   it("will not send without the scan", async () => {
     const w = render([]);
     await w.find("input").setValue("Marko Petrović");
+    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "2026-09-20");
+    await flushPromises();
     expect(button(w).attributes("disabled")).toBeDefined();
     await button(w).trigger("click");
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
-  it("sends the purpose, the name as written and the scan", async () => {
+  /** G-9: the day on the page is required, and never defaulted to the day it is recorded. */
+  it("will not send without the day on the signed page, and does not prefill one", async () => {
+    const w = render([]);
+    await w.find("input").setValue("Marko Petrović");
+    w.findComponent({ name: "FileDropzone" }).vm.$emit("files", [new File(["%PDF-"], "signed.pdf", { type: "application/pdf" })]);
+    await flushPromises();
+    expect(w.findComponent({ name: "AppDateField" }).props("modelValue")).toBe("");
+    expect(button(w).attributes("disabled")).toBeDefined();
+  });
+
+  it("sends the purpose, the name as written, the day on the page and the scan", async () => {
     const w = render(["fcra_disclosure"]);
     await w.find("input").setValue("Marko Petrović");
+    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "2026-09-20");
     const file = new File(["%PDF-"], "signed.pdf", { type: "application/pdf" });
     w.findComponent({ name: "FileDropzone" }).vm.$emit("files", [file]);
     await flushPromises();
@@ -58,6 +71,7 @@ describe("recording a paper signature", () => {
       driverId: "driver-1",
       purpose: "psp",
       signedName: "Marko Petrović",
+      signedOn: "2026-09-20",
       file,
     });
   });

@@ -70,7 +70,18 @@ describe("what a caller may send", () => {
       authorizationGrantSchema.safeParse({ ...base, method: "esign", esign_consent: true }).success,
     ).toBe(true);
     // A wet signature needs no such consent — there is nothing electronic to agree to.
-    expect(authorizationGrantSchema.safeParse({ ...base, method: "wet_signature" }).success).toBe(true);
+    expect(authorizationGrantSchema.safeParse({ ...base, method: "wet_signature", signed_on: "2026-09-20" }).success).toBe(true);
+  });
+
+  /** G-9 (Q-AW15's default): paper carries the day written on it; an e-signature's day is `accepted_at`. */
+  it("requires the signing day on paper, and refuses one on an e-signature", () => {
+    const base = { driver_id: "11111111-1111-4111-8111-111111111111", purpose: "psp" as const, signed_name: "A Driver" };
+    for (const method of ["wet_signature", "verbal_documented"] as const) {
+      expect(authorizationGrantSchema.safeParse({ ...base, method }).success, method).toBe(false);
+      expect(authorizationGrantSchema.safeParse({ ...base, method, signed_on: "2026-09-20" }).success, method).toBe(true);
+      expect(authorizationGrantSchema.safeParse({ ...base, method, signed_on: "09/20/2026" }).success, method).toBe(false);
+    }
+    expect(authorizationGrantSchema.safeParse({ ...base, method: "esign", esign_consent: true, signed_on: "2026-09-20" }).success).toBe(false);
   });
 });
 
