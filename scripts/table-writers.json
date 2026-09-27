@@ -529,5 +529,8 @@
   ],
   "employer_verification_calls": [
     "apps/api/src/modules/recruiting/applicantEmployerCalls.ts"
+  ],
+  "sms_outbox": [
+    "apps/api/src/modules/recruiting/smsOutbox.ts"
   ]
 }

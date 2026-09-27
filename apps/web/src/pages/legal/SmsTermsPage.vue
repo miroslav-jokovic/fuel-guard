@@ -62,8 +62,11 @@ const helpReply = computed(() => smsHelpReply(typeof window === "undefined" ? ""
     <LegalSection id="frequency" title="How often">
       <p>
         Message frequency varies. You receive a text only when something about your application changes
-        or needs you, which for most applicants is a few messages in total. We do not text at night: a
-        message due outside daytime hours in any US time zone is held until the next day.
+        or needs you, which for most applicants is a few messages in total. We text only between 9 a.m.
+        and 8 p.m. where you live, judged from the state you gave us, or during hours that are daytime in
+        every US time zone when we do not know it. A message due at night waits for that window. A
+        message carrying your application link is not sent late: that link is already in your email and
+        on your application page.
       </p>
     </LegalSection>
 

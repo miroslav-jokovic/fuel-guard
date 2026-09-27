@@ -20,4 +20,6 @@ export { runApplicationNudgesOnce } from "./applicationNudgeSweep.js";
 export { loadScreeningReadiness } from "./screeningReadiness.js";
 export { dobCsvTemplate, importDriverDob } from "./dobImport.js";
 export { handleInboundSms } from "./applicationSms.js";
+export { recordDeliveryReceipt, runSmsOutboxOnce } from "./smsOutbox.js";
+export { startSmsOutboxScheduler } from "./smsOutboxScheduler.js";
 export { returnToDutyBlocked } from "./returnToDuty.js";

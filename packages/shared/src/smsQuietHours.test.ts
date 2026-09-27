@@ -3,6 +3,9 @@ import {
   SEND_WINDOW_END_HOUR,
   SEND_WINDOW_START_HOUR,
   canSendSmsAt,
+  canSendSmsInZones,
+  nextSmsWindow,
+  smsZonesFor,
 } from "./smsQuietHours.js";
 
 /**
@@ -85,5 +88,37 @@ describe("the window itself", () => {
   it("is tighter than the CFR at both ends", () => {
     expect(SEND_WINDOW_START_HOUR).toBeGreaterThan(8);
     expect(SEND_WINDOW_END_HOUR).toBeLessThan(21);
+  });
+});
+
+describe("smsZonesFor / canSendSmsInZones / nextSmsWindow (D-AW12, C2d)", () => {
+  it("answers a one-zone state with the EFS table's zone, a split state with both, and anything else with none", () => {
+    expect(smsZonesFor("IL")).toEqual(["America/Chicago"]);
+    expect(smsZonesFor("tx")).toEqual(["America/Chicago", "America/Denver"]);
+    expect(smsZonesFor("ON")).toEqual([]);
+    expect(smsZonesFor(null)).toEqual([]);
+    expect(smsZonesFor("ZZ")).toEqual([]);
+  });
+
+  it("opens a split state only when every zone it spans is in the window", () => {
+    // 14:00 UTC in January = 08:00 Chicago, 07:00 Denver; 15:00 UTC = 09:00 / 08:00; 16:00 UTC = 10:00 / 09:00.
+    expect(canSendSmsInZones(new Date("2027-01-12T15:00:00Z"), ["America/Chicago"])).toBe(true);
+    expect(canSendSmsInZones(new Date("2027-01-12T15:00:00Z"), smsZonesFor("TX"))).toBe(false);
+    expect(canSendSmsInZones(new Date("2027-01-12T16:00:00Z"), smsZonesFor("TX"))).toBe(true);
+  });
+
+  it("falls back to the all-US window when the zone is unknown", () => {
+    const at = new Date("2027-01-12T15:00:00Z");
+    expect(canSendSmsInZones(at, [])).toBe(canSendSmsAt(at, null));
+    expect(canSendSmsInZones(at, [])).toBe(false);
+  });
+
+  it("finds the next opening on a quarter hour, and returns the instant itself when already open", () => {
+    const open = new Date("2027-01-12T16:07:00Z");
+    expect(nextSmsWindow(open, ["America/Chicago"])).toBe(open);
+    // 03:00 Chicago → 09:00 Chicago (15:00 UTC).
+    expect(nextSmsWindow(new Date("2027-01-12T09:00:00Z"), ["America/Chicago"]).toISOString()).toBe("2027-01-12T15:00:00.000Z");
+    // Texas waits for Denver's 09:00.
+    expect(nextSmsWindow(new Date("2027-01-12T09:00:00Z"), smsZonesFor("TX")).toISOString()).toBe("2027-01-12T16:00:00.000Z");
   });
 });

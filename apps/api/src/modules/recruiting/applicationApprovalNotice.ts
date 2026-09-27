@@ -3,7 +3,7 @@ import { carrierName } from "./applicationMail.js";
 import { renderApplicationApprovedEmail, smsApplicationApproved } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
-import { sendApplicationSms } from "./applicationSms.js";
+import { sendOrQueueSms } from "./smsOutbox.js";
 
 /**
  * Telling the applicant they have been approved (Q-AX4, D-AX14; since AF5, D-AF3).
@@ -73,6 +73,7 @@ export async function notifyApplicationApproved(
   env: Env,
   orgId: string,
   driverId: string,
+  invitationId: string,
   email: string | null,
   now: Date,
 ): Promise<ApprovalNotice> {
@@ -83,7 +84,11 @@ export async function notifyApplicationApproved(
   if (env.MAIL_PROVIDER === "none") return { sent: false, email, reason: "mail_disabled", texted: false };
 
   const carrier = await carrierName(admin, orgId);
-  const texted = await sendApplicationSms(admin, env, orgId, driverId, approvedSmsBody(carrier), now);
+  // Through the outbox (C2d): no link in it, so an approval pressed after hours waits for the
+  // applicant's morning instead of being held and never sent (A-11). `texted` is "it went now".
+  const texted = await sendOrQueueSms(admin, env, {
+    orgId, driverId, invitationId, template: "application_approved", params: {},
+  }, now);
 
   const mail = renderApplicationApprovedEmail(carrier);
   const result = await sendEmail(env, {

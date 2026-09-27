@@ -78,6 +78,9 @@ const seed = (consents: Row[] = [], invitation: Row = {}) => {
         rows = [inserted, ...rows];
         return [inserted];
       },
+      // C2d: the confirmation goes through the outbox, which records every text it sends or queues.
+      sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
+      application_intakes: [],
     },
     rpc: { revoke_sms_consent: 1 },
   });
@@ -187,11 +190,14 @@ describe("agreeing", () => {
     publish();
     // 03:00 Eastern.
     vi.useFakeTimers({ now: new Date("2026-09-25T07:00:00Z"), toFake: ["Date"] });
-    holder.client = seed().client;
+    const rec = seed();
+    holder.client = rec.client;
     const res = await agree();
     vi.useRealTimers();
     expect((await read(res)).confirmation).toBe("held");
     expect(sms.fn).not.toHaveBeenCalled();
+    // A-11 (C2d): held means QUEUED for the morning now, never dropped.
+    expect(rec.writtenRows("sms_outbox")[0]).toMatchObject({ template: "consent_confirm", status: "queued" });
   });
 
   it("treats a second press on the same number as the same agreement", async () => {

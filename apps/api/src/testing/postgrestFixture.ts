@@ -22,7 +22,7 @@ import type { RecordedQuery } from "./supabaseRecorder.js";
  * tables, and two hand-rolled fakes would eventually disagree about which one PostgREST is.
  *
  * ── WHAT IT DELIBERATELY DOES NOT DO ──────────────────────────────────────────────────────────
- * No joins, no `or`, no `not`, no range. A fixture that grew into a query engine would be a second
+ * No joins, no `or`, no `not`. A fixture that grew into a query engine would be a second
  * database to maintain and to be wrong in its own way; when a service needs more than this, the
  * honest answer is a PGlite matrix in `supabase/tests/`, which runs the real planner.
  */
@@ -38,7 +38,15 @@ export type FixtureRow = Record<string, unknown>;
  */
 export function postgrestFixture(rows: readonly FixtureRow[]): (q: RecordedQuery) => FixtureRow[] {
   return (q: RecordedQuery) => {
-    let out = rows.filter((row) => q.filters().every((f) => matches(cellOf(row, f.col), f.val)));
+    let out = rows.filter((row) =>
+      q.ops.every((op) => {
+        if (op.method === "match" && op.args[0] && typeof op.args[0] === "object") {
+          return Object.entries(op.args[0] as Record<string, unknown>).every(([col, want]) => matches(cellOf(row, col), want));
+        }
+        if (!(op.method in COMPARE) || typeof op.args[0] !== "string") return true;
+        return COMPARE[op.method]!(cellOf(row, op.args[0]), op.args[1]);
+      }),
+    );
 
     // ⚠ The projection is the half that caught B3's missing `revokes`: a service that never selects
     // a column must not be handed it, or the test cannot tell reading from not reading.
@@ -101,6 +109,23 @@ function project(row: FixtureRow, item: string): [string, unknown] | null {
  */
 const cellOf = (row: FixtureRow, col: string): unknown =>
   col.includes("->") ? (project(row, col)?.[1] ?? null) : row[col];
+
+/**
+ * Each filter by its OPERATOR. ⚠ Until C2d every recorded filter was compared for equality, so a
+ * `.lte("not_before", now)` matched no row at all — a test of the SMS drain passed by draining nothing,
+ * the silent-empty shape `matches` below exists to prevent. Ranges compare as strings, which is how
+ * PostgREST's ISO timestamps and dates order.
+ */
+const COMPARE: Record<string, (cell: unknown, want: unknown) => boolean> = {
+  eq: (c, w) => matches(c, w),
+  in: (c, w) => matches(c, w),
+  is: (c, w) => matches(c, w),
+  neq: (c, w) => c !== w,
+  gt: (c, w) => c != null && String(c) > String(w),
+  gte: (c, w) => c != null && String(c) >= String(w),
+  lt: (c, w) => c != null && String(c) < String(w),
+  lte: (c, w) => c != null && String(c) <= String(w),
+};
 
 /**
  * One filter, against one cell.

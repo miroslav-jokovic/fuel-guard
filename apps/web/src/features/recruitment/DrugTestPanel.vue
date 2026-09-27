@@ -8,6 +8,7 @@ import {
   useArrangeDrugTest,
   useCancelDrugTest,
   useDrugTestAppointmentsQuery,
+  useSendDrugTest,
 } from "@/features/recruitment/useApplicantScreening";
 
 /**
@@ -18,9 +19,9 @@ import {
  * ticks the row: the result, recorded above, is the §382.301 fact. So this sits under the result's
  * form, and disappears once the result is in — nothing is left to arrange.
  *
- * ⚠ Not sent to the driver from here yet. That text goes through the SMS outbox (C2d); until then the
- * office tells the driver, and the panel says so rather than offering a send that would drop the text
- * in quiet hours (A-11).
+ * "Text it to the driver" goes through the SMS outbox (C2d): at once in the applicant's civil hours,
+ * otherwise queued for their morning, and the toast says which. An applicant who has not agreed to
+ * texts is refused with words, and the office tells them by phone as before.
  *
  * Times are the CARRIER's clock (`carrierWallTimeSchema`), as `TravelPanel` reads them.
  */
@@ -32,6 +33,7 @@ const driverId = computed(() => props.driverId);
 const listQ = useDrugTestAppointmentsQuery(driverId);
 const arrange = useArrangeDrugTest();
 const cancel = useCancelDrugTest();
+const sendIt = useSendDrugTest();
 
 const canArrange = computed(() => session.can("recruitment"));
 const zone = computed(() => listQ.data.value?.timeZone ?? null);
@@ -76,6 +78,17 @@ async function save(): Promise<void> {
   }
 }
 
+async function textLive(): Promise<void> {
+  if (!live.value) return;
+  try {
+    const r = await sendIt.mutateAsync({ driverId: props.driverId, appointmentId: live.value.id });
+    if (r.sent) toast.success("Texted to the driver");
+    else toast.success("Text queued", r.queuedUntil ? `It goes at ${at(r.queuedUntil)}, inside the driver's daytime hours.` : undefined);
+  } catch (e) {
+    toast.error("Could not text the appointment", e instanceof Error ? e.message : undefined);
+  }
+}
+
 async function cancelLive(): Promise<void> {
   if (!live.value) return;
   try {
@@ -104,8 +117,11 @@ async function cancelLive(): Promise<void> {
           From {{ at(live.windowStart) }}<template v-if="live.windowEnd"> to {{ at(live.windowEnd) }}</template>
           <template v-if="live.donorReference"> · reference <span class="font-mono">{{ live.donorReference }}</span></template>
         </p>
-        <p class="text-2xs text-ink-muted">Tell the driver where and when; sending it from here comes with text messages.</p>
+        <p v-if="live.sentToDriverAt" class="text-2xs text-ink-muted">Texted to the driver {{ at(live.sentToDriverAt) }}.</p>
         <div v-if="canArrange && !changing && !done" class="flex gap-2 pt-2">
+          <BaseButton size="sm" :disabled="sendIt.isPending.value" @click="textLive">
+            {{ live.sentToDriverAt ? "Text it again" : "Text it to the driver" }}
+          </BaseButton>
           <BaseButton size="sm" @click="changing = true">Change it</BaseButton>
           <BaseButton size="sm" variant="ghost" :disabled="cancel.isPending.value" @click="cancelLive">Cancel it</BaseButton>
         </div>

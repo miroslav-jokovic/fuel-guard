@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatDisplayDateTime } from "./displayDate.js";
 
 /**
  * Consent to be texted (A11b, D-APP13).
@@ -247,3 +248,33 @@ export const smsApplicationReminder = (carrier: string, link: string): string =>
 export const smsApplicationApproved = (carrier: string): string =>
   `${carrier}: Your driver application has been approved. We will contact you to arrange a visit `
   + "to our office to sign it. Reply STOP to opt out.";
+
+/** What the office wrote down about the drug-test appointment (D-AW6), as the text reads it. */
+export interface DrugTestSiteParams {
+  site_name: string;
+  site_address: string;
+  site_phone: string | null;
+  window_start: string;
+  window_end: string | null;
+  donor_reference: string | null;
+}
+
+/**
+ * The drug-test appointment, by text (D-AW6, C2d) — where to go, when, and what to quote.
+ *
+ * ⚠ No link, on purpose: a text carrying a link cannot wait in `sms_outbox` (0376 refuses a URL in
+ * its params, and plan Q-AW29 holds the link-bearing sends), and this one often has to wait — the
+ * office books collections during the day, for tomorrow. The times are the carrier's clock, which is
+ * what the office typed them on (`carrierWallTimeSchema`), and they say so.
+ */
+export function smsDrugTestSite(carrier: string, p: DrugTestSiteParams, zone: string, zoneLabel: string): string {
+  const from = formatDisplayDateTime(p.window_start, "", zone);
+  const until = p.window_end ? ` to ${formatDisplayDateTime(p.window_end, "", zone).split(" ").slice(1).join(" ")}` : "";
+  return [
+    `${carrier}: Your drug test is at ${p.site_name}, ${p.site_address}, ${from}${until} ${zoneLabel}.`,
+    p.site_phone ? `Site phone ${p.site_phone}.` : "",
+    p.donor_reference ? `Give them reference ${p.donor_reference}.` : "",
+    // §40.61(c): the collector must see the donor's photo ID before the test starts.
+    "Bring your photo ID. Reply STOP to opt out.",
+  ].filter(Boolean).join(" ");
+}

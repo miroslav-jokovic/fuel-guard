@@ -244,6 +244,18 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "0363: a reset link lives 60 minutes; the durable record of every request and completion is audit_logs (auth.password_reset_*), which this rule cannot touch",
   },
+  {
+    // 0376 / C2d. One row per text the product sent or queued: a template name, its params and a
+    // phone number — never the words or a link. The consent each rests on is `sms_consents`, kept
+    // for ever; this is the delivery log, and a phone number held beyond a year's audit margin is
+    // retention for its own sake.
+    table: "sms_outbox",
+    timeColumn: "created_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "A-11/D-AW12 (APPLICATION-FLOW-V2-PLAN §8.2): the delivery log of texts sent or queued — template, params, number, status; the consent behind each is sms_consents, which this rule cannot touch",
+  },
 ];
 
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */

@@ -708,6 +708,7 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AX5** | Staff re-send of a lost link | (a) rotate on the same invitation / (b) new invitation | (a), audited, in C2 (one token now spans weeks and three visits). |
 | **Q-AX6** | Re-inviting from the board duplicates the applicant | (a) "invite them again" on the existing record / (b) merge later | (a), in C2. |
 | **Q-AW2 — C2c's blocker** (2026-09-26) | Filing now refuses a packet with any unversioned mark (`packet_signed_before_versioning`) — production's only such packet is `f2b142e4`'s 20 marks of 2026-09-17, which predate even D-PKT20's spelling. Filing it under today's text would be (c) chosen by nobody. (b) does **not** need M2's migration: the marks already say which text they were made under (NULL = the carrier's file with no register for every NULL mark in production on 2026-09-26, all of which predate #1058 — ⚠ a NULL mark made between #1058 and C2c's deploy was made under the corrected text, so re-measure `signed_at` before building), so the renderer can pick the text from the marks at render time. What it needs is a register per text version kept in code and `correctedPacketTemplate(version)`. | (b) in code: a `PACKET_TEXT_REGISTERS` map keyed by `packetTextVersion`, NULL → the empty register; ~½ day, a C2c follow-up once the owner rules | **(b)**, built the day the owner rules. Until then `f2b142e4` cannot file — its link lapses 2026-10-01 22:14 UTC and needs extending. |
+| **Q-AW29** (C2d, 2026-09-26) | A text that carries the applicant's link (nudge, "application ready", the sign link) cannot wait in `sms_outbox`: 0376 refuses a URL in its params, and minting the link at drain time means rotating `token_hash`, which kills the link the office's Send and the nudge put on screen and in the email moments earlier (D-AF7). Today such a text goes at once or not at all, with the email carrying the link. | (a) a text-only token: `application_invitations.sms_token_hash`, accepted by `resolveInvitation` beside `token_hash` and `sign_token_hash` (A5b's pattern), rotated at drain without touching the email's link — a migration + one resolver change; (b) rotate at drain and accept that the email's link dies; (c) link-bearing texts stay send-now-or-never | **(a)**. (b) breaks D-AF7's "the screen is the delivery path that always works"; (c) is today's behaviour and A-11's defect for these three. ~1 day incl. M-migration; needs the owner's yes because it adds a third bearer token. |
 | **Q-AW28** | A-10's road test: two presses in the same second can each file a form and a certificate; 0376's index lets only one record cite them. A claim before the form is filed needs a column, as the handbook has. | (a) `application_invitations.road_test_filing_claimed_at` (M2); (b) accept the orphan documents | (a) in M2; the read-before-filing C2c added closes every case but the same-second race. |
 
 ---
@@ -860,3 +861,20 @@ Append dated lines at the END.
   (`readLiveInvitation`), refuses a second pass on it before filing anything, and answers 0376's indexes (23505, now
   `duplicate` from `insertQualificationRecord`) in words — the same-second race is Q-AW28. `postgrestFixture` now
   evaluates JSON-path filters (it read `detail->>source` as a column no row had). 22 mutants, all killed.
+- 2026-09-26 — **C2c merged** (#1074, main `048bead`). **Found in CI, not in code:** a local full web run had flaked, a
+  vitest retry wrote a stray `… may not see money 2` snapshot, and `git add -A` committed it; CI refuses obsolete
+  snapshots (`CI=true` reproduces it). Removed before merge. **C2d split, for the reason C2 was:** C2d1 the outbox, C2d2
+  STOP/START + suppressions + G-2, **C2e** office link management (G-9's `signed_on` writer, Q-AX5, Q-AX6). **C2d1 built**
+  (`claude/applicant-flow-c2d`): `sendOrQueueSms` writes every link-free text to `sms_outbox` — sent at once inside the
+  recipient's window (the row is where a receipt lands), else queued at `nextSmsWindow`; `runSmsOutboxOnce` drains each
+  org's due rows every 5 minutes (`startSmsOutboxScheduler`, api service, listed in WORKER-DEPLOYMENT), cancelling a row
+  that expired, whose consent was withdrawn or moved, or whose drug-test appointment was cancelled while it waited, and
+  deferring one whose window shut again; the claim is a conditional `queued → sending` UPDATE (one process fleet-wide,
+  so no `for update skip locked` function — no migration). **D-AW12:** `smsZonesFor(state)` from Part 1's state, the
+  dominant zone READ from the EFS table (`stateTimeZone`) plus the second zone of each split state, all of which must be
+  open; no ZIP refinement; unknown = the all-US window. **Three texts moved:** the opt-in confirmation, the approval
+  notice, and the drug-test site (`POST …/drug-test-appointments/:id/send`, "Text it to the driver", `sent_to_driver_at`
+  stamped by the table's owner when the text actually leaves). **Receipts:** `message.finalized` → delivered/failed on
+  the row. Terms page corrected (the window, and that a link is never sent late). **Not moved, on purpose:** the three
+  link-bearing texts — Q-AW29. **Found:** `postgrestFixture` compared every filter for equality, so a range (`lte`)
+  matched nothing — fixed by operator and pinned. 26 mutants, all killed.

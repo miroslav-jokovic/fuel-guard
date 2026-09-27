@@ -138,3 +138,22 @@ export function parseTelnyxInboundSms(body: unknown): ParsedInboundSms {
   // treating our OWN outbound message as an inbound STOP would revoke the consent we just used.
   return { isInbound: data?.event_type === "message.received" && from !== "", from, text };
 }
+
+/**
+ * A delivery receipt (A-11, C2d): Telnyx's `message.finalized`, the one event that says what became of
+ * a message after the API accepted it. Before this the webhook answered every non-inbound event with
+ * "ignored", so a text a carrier refused read as sent for ever.
+ *
+ * ⚠ The shape is Telnyx's published v2 webhook (`data.payload.id`, and a status PER recipient in
+ * `data.payload.to[]`), pinned by a fixture, not yet seen from the live account. We send to one
+ * recipient, so the first status is the message's. Anything else — `message.sent`, an inbound
+ * message, a malformed body — is not a receipt and returns null.
+ */
+export function parseTelnyxDeliveryReceipt(body: unknown): { messageId: string; status: string } | null {
+  const data = (body as { data?: Record<string, unknown> } | null)?.data;
+  if (data?.event_type !== "message.finalized") return null;
+  const payload = data.payload as { id?: unknown; to?: Array<{ status?: unknown }> } | undefined;
+  const messageId = typeof payload?.id === "string" ? payload.id : "";
+  const status = typeof payload?.to?.[0]?.status === "string" ? payload.to[0].status : "";
+  return messageId && status ? { messageId, status } : null;
+}

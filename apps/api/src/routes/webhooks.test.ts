@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { generateKeyPairSync, sign as edSign } from "node:crypto";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -6,6 +6,13 @@ import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
 import { closeTestServer } from "../testing/httpServer.js";
 import { SAMSARA_WEBHOOK_PATH } from "../modules/samsara/index.js";
+
+// C2d: the receipt's write is `smsOutbox.test.ts`'s to prove; here only that a signed receipt reaches it.
+const receipts = vi.hoisted(() => ({ fn: vi.fn(async () => true) }));
+vi.mock("../modules/recruiting/index.js", async (orig) => ({
+  ...(await orig<object>()),
+  recordDeliveryReceipt: receipts.fn,
+}));
 
 /**
  * The path we PUBLISH is the path we LISTEN on.
@@ -116,6 +123,22 @@ describe("the inbound SMS receiver", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, ignored: true });
+  });
+
+  // A-11 (C2d): a delivery receipt is no longer "ignored" — it reaches the outbox, with the provider's
+  // message id and the first recipient's final status, and nothing about it is read from elsewhere.
+  it("hands a signed delivery receipt to the outbox", async () => {
+    const body = JSON.stringify({
+      data: { event_type: "message.finalized", payload: { id: "tx-1", to: [{ phone_number: "+17082365732", status: "delivery_failed" }] } },
+    });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const res = await fetch(`${baseUrl}/api/webhooks/sms`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "telnyx-timestamp": timestamp, "telnyx-signature-ed25519": signTelnyx(body, timestamp) },
+      body,
+    });
+    expect(res.status).toBe(200);
+    expect(receipts.fn).toHaveBeenCalledWith(expect.anything(), { messageId: "tx-1", status: "delivery_failed" }, expect.any(Date));
   });
 
   // Telnyx posts JSON. The `express.urlencoded` mount this route used to sit behind was for Twilio,

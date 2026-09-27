@@ -2064,10 +2064,10 @@
       "layer": "core",
       "lifecycle": {
         "growth": "time",
-        "retention_days": null,
+        "retention_days": 400,
         "partition": null,
         "budget_rows_per_day": 200,
-        "why": "no rows yet (M1 is schema only). Every text the product sends passes through it once C2 lands (A-11): nudges, links, drug-test sites. The 400-day rule is declared here in the merge that adds it to RETENTION_RULES with the writer (C2)."
+        "why": "Written by recruiting/smsOutbox.ts since C2d (A-11): one row per link-free text sent or queued — opt-in confirmations, approval notices, drug-test sites. Pruned at 400 days by RETENTION_RULES; the consent behind each row is sms_consents."
       }
     },
     "sms_suppressions": {
