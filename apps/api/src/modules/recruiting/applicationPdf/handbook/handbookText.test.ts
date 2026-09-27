@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import { HANDBOOK_PLACEMENTS } from "@silvicom/shared";
 import { handbookParagraphs, handbookWords } from "../../../../testing/handbookDocx.js";
-import { HANDBOOK_BLOCKS, HANDBOOK_SOURCE_BLOCKS, HANDBOOK_VERSION, correctHandbook, type HandbookBlock } from "./handbookText.js";
+import { HANDBOOK_BLOCKS, HANDBOOK_SOURCE_BLOCKS, HANDBOOK_VERSION, correctHandbook, removeHandbookBlocks, type HandbookBlock } from "./handbookText.js";
+import { HANDBOOK_REMOVALS } from "./handbookRulings.js";
 import { HANDBOOK_SPELLING, type HandbookSpelling } from "./handbookSpelling.js";
 
 /**
@@ -129,7 +130,7 @@ describe("the correction register (D-HB6)", () => {
     const printed = JSON.stringify(HANDBOOK_BLOCKS);
     const AUDITED = [
       "COMPNAY", "THA DO", "SUBJECT DO", "TEMINATION", "in additional to", "With in 14", "payment form",
-      "at he rate", "it’s own", "Silvicom 's", "Silvicom’ s", "laws to  the", "as follow:", "since you last",
+      "it’s own", "Silvicom 's", "Silvicom’ s", "laws to  the", "as follow:", "since you last",
       "FLASIFICATION", "forgoing",
     ];
     expect(AUDITED.filter((t) => printed.includes(t))).toEqual([]);
@@ -138,3 +139,36 @@ describe("the correction register (D-HB6)", () => {
     expect(AUDITED.filter((t) => !given.includes(t))).toEqual([]);
   });
 });
+
+/**
+ * D-HB7 (owner, 2026-09-25): *"receipts sending should be removed, because we dont need them
+ * anymore"*. Every requirement to send or return a receipt, and every fine for a missing one, goes.
+ */
+describe("receipts are no longer sent in (D-HB7)", () => {
+  const printed = HANDBOOK_BLOCKS.flatMap(blockWords).join(" ");
+
+  it("asks the driver for no receipt and fines no missing one", () => {
+    for (const gone of ["Turn in every fuel receipt", "Receipts for all purchases", "Lost fuel receipt", "missing receipt", "proper receipts"]) {
+      expect(printed, gone).not.toContain(handbookWords(gone).join(" "));
+    }
+    // The paperwork list keeps its other items, and the lost fuel CARD fine stays.
+    expect(printed).toContain("Bills of Lading");
+    expect(printed).toContain("Trip Reports");
+    expect(printed).toContain(handbookWords("Lost fuel card-$50.00 fine").join(" "));
+  });
+
+  it("renumbers the supplemental rules 1 to 17 with no gap", () => {
+    const numbers = HANDBOOK_BLOCKS.flatMap((b) => {
+      const m = b.k === "p" ? /^(\d+)[).] /.exec(b.runs.map((r) => r.t).join("")) : null;
+      return m ? [Number(m[1])] : [];
+    });
+    expect(numbers).toEqual(Array.from({ length: 17 }, (_, i) => i + 1));
+  });
+
+  it("refuses a removal that matches no block, or more than one", () => {
+    expect(() => removeHandbookBlocks(HANDBOOK_SOURCE_BLOCKS, [{ startsWith: "zzqx", why: "x" }])).toThrow(/zzqx/);
+    expect(() => removeHandbookBlocks(HANDBOOK_SOURCE_BLOCKS, [{ startsWith: "*", why: "x" }])).toThrow();
+    expect(HANDBOOK_REMOVALS.every((r) => r.why.length > 10)).toBe(true);
+  });
+});
+

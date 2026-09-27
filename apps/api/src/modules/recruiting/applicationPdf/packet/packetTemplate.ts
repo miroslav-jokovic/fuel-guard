@@ -297,7 +297,8 @@ function readPage(doc: PDFDocument, index: number): TemplatePage {
 let corrected: Promise<Uint8Array> | null = null;
 
 /**
- * The carrier's packet as it prints: their file with `PACKET_SPELLING` applied (D-PKT20), built once
+ * The carrier's packet as it prints: their file with `PACKET_TEXT_CHANGES` applied (D-PKT20 spelling,
+ * D-PKT21 fines), built once
  * per process. The ONE source for both the renderer and this reader, so a measurement, a quoted
  * heading and the printed page all read the same words. Nothing moves between the two — corrections
  * are made inside the carrier's own lines — so every coordinate measured on the original holds.

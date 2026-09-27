@@ -150,6 +150,7 @@ describe("the corrected paper", () => {
       const now = packetClipReport(after, page);
       expect(now.overruns.length, `page ${page} overruns`).toBe(was.overruns.length);
       expect(now.overlaps, `page ${page} overlapping cells`).toBe(was.overlaps);
+      expect(now.hidden, `page ${page} text outside its own clip`).toEqual(was.hidden);
     }
   });
 
