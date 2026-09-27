@@ -751,6 +751,39 @@ describe("the applicant's page", () => {
     }
   });
 
+  /**
+   * C3c2a (§6.4, D-AW11): a v2 link's Part 2 opens on its task list, on every return — never mid-form —
+   * and a task opened from it closes back to the list. The legacy page tests above walk the wizard, which
+   * is the discriminator: the same page without `partOne` must not show the list.
+   */
+  it("opens a v2 link's Part 2 on its task list, and a task closes back to it", async () => {
+    const part2 = { phases: {
+      consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z",
+      submittedAt: null, applicationSentAt: "2026-08-22T09:00:00Z",
+    }, releasesSigned: [...APPLICATION_RELEASE_ORDER], draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: "safety", updatedAt: null } };
+    fetchMock.mockResolvedValue(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }, part2));
+    const w = mountPage();
+    await settle(w);
+    const press = async (label: string) => {
+      await w.findAll("button").find((b) => b.text().includes(label))!.trigger("click");
+      await flushPromises();
+    };
+    expect(w.text()).toContain(APPLY_COPY.hub.heading);
+    expect(w.text()).toContain(APPLY_COPY.hub.beforeYouSend);
+
+    await press("About you");
+    expect(w.text()).not.toContain(APPLY_COPY.hub.intro);
+    expect(w.text()).toContain(APPLY_COPY.hub.saveAndContinue);
+    await press(APPLY_COPY.hub.backToList);
+    expect(w.text()).toContain(APPLY_COPY.hub.intro);
+
+    // "Save and continue" on a task that passes closes it back to the LIST — not on to the next screen,
+    // which is what the linear wizard's Next would do.
+    await press("About you");
+    await press(APPLY_COPY.hub.saveAndContinue);
+    expect(w.text()).toContain(APPLY_COPY.hub.intro);
+  });
+
   it("goes to the permissions once Part 1 is finished, and never back to the identity screen", async () => {
     fetchMock.mockResolvedValue(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }));
     const w = mountPage();

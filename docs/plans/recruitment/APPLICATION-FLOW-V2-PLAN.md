@@ -1069,3 +1069,23 @@ Append dated lines at the END.
   (b)(10)(iv) answers are derived or defaulted, never asked — for C3c2's employer loop. 30 mutants, all killed — two
   survived the first pass (nothing pinned that filing's rules wait for the contract, or the review's (iv) rows) and each
   gained its test.
+- 2026-09-27 — **C3c1 merged** (#1083, main `0c14ecd`); CI green on the merged head. **C3c2 split in three**, for the
+  reason C3 was: **C3c2a** the task-list hub + the notice before sending; **C3c2b** one employer per screen with the two
+  (b)(10)(iv) questions asked Yes/No with no default (Q-AW33's recommendation); **C3c2c** the other loops (one address per
+  screen, the driving record's yes/no gates) and Part 1's facts read-only on "About you" and "Your licences". **C3c2a built**
+  (`claude/applicant-flow-c3c2`). **The hub (§6.4, D-AW11):** a v2 link's Part 2 opens on its task list on every return
+  (`useTaskHub`, a layer over the wizard — same screens, validation and high-water mark); a legacy link keeps the linear
+  wizard. Statuses are DERIVED (`taskHub.ts`): Not started = nothing on it would be filed (`toApplication`, so an accidental
+  blank row does not count); Completed = its screen's own check passes, v2 filing rules included (`validateSection`, C3c1),
+  so a gap left unexplained keeps employment In progress; "Before you send" reads Cannot start yet until every REQUIRED task
+  passes — the carrier's questions and the photographs are marked optional and never hold it. "Save and continue" closes a
+  task only when it passes; "Back to your application" is never gated. Rows are 44 px. **The notice (§4's (d) row):**
+  `EmployerCheckNotice` opens the review screen for every link — §391.21(d) and §391.23(i), both fetched from the eCFR and
+  committed (`cfr-391-21/391.23.txt` is new); the three rights are (i)(1)(i)–(iii) in the second person and the test turns
+  each back into the third and finds it in the source word for word; (i)(2)'s four limits kept. It was delivered only inside
+  Part 1's previous-employer release, weeks before the application exists. `ApplySection.vue` holds the section switch,
+  moved out of `ApplyPage.vue` (421 → 424 lines with the hub added). 19 of 19 real mutants killed; six survived the first
+  pass — five were test gaps (the notice's rights matched as substrings, so a shortened right passed; no test mounted the
+  review screen or pressed "Save and continue"), each closed; the sixth, exempting the optional tasks from the gate, is a
+  no-op (neither optional screen can fail today), so the exemption was removed as a rule that would one day open the row
+  onto a refusal.

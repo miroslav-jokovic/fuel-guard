@@ -1,20 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { DEFAULT_ORG_TIMEZONE, todayInZone } from "@silvicom/shared";
+import { DEFAULT_ORG_TIMEZONE, todayInZone, type ApplicationSection } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   AppCallout,
   AppCard as BaseCard,
 } from "@silvicom/ui";
-import ApplicantDetailsFields from "@/features/apply/ApplicantDetailsFields.vue";
-import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
-import LicenceFields from "@/features/apply/LicenceFields.vue";
-import ApplyEmploymentFields from "@/features/apply/ApplyEmploymentFields.vue";
-import SafetyHistoryFields from "@/features/apply/SafetyHistoryFields.vue";
-import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
-import DocumentCaptureFields from "@/features/apply/DocumentCaptureFields.vue";
-import ReviewFields from "@/features/apply/ReviewFields.vue";
+import ApplySection from "@/features/apply/ApplySection.vue";
+import ApplyTaskHub from "@/features/apply/ApplyTaskHub.vue";
+import { useTaskHub } from "@/features/apply/useTaskHub";
 import DisclosurePanel from "@/features/apply/DisclosurePanel.vue";
 import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
@@ -151,12 +146,15 @@ provideApplyIssues(wizard.issues);
  * the way. `nextTick` because the control does not exist in the DOM until the new screen renders.
  */
 async function showIssue(issue: SectionIssue): Promise<void> {
-  if (issue.section && issue.section !== wizard.section.value) {
-    wizard.goTo(issue.section, true);
+  if (issue.section && (issue.section !== wizard.section.value || hub.showList.value)) {
+    if (hub.inTask.value || hub.showList.value) hub.open(issue.section, true);
+    else wizard.goTo(issue.section, true);
     await nextTick();
   }
   wizard.focusIssue(issue);
 }
+/** A "Fix" on the review screen: a task in Part 2's list, a screen in the legacy wizard. */
+const goToSection = (section: ApplicationSection): void => (hub.inTask.value ? hub.open(section) : wizard.goTo(section));
 
 watch(
   [() => invitation.data.value, released],
@@ -243,6 +241,8 @@ const identityComplete = computed(() => Boolean(invitation.data.value?.identityC
 // legacy identity screen never shows: Part 1 is what writes the identity now (D-AW3).
 const { isPartOneLink, partOneNeeded, partOneInputs, refreshPartOne, partOneFinished } =
   usePartOneStep(invitation, consentNeeded);
+// C3c2a (§6.4, D-AW11): a v2 link's Part 2 is a task list over the same screens; a legacy link keeps the wizard.
+const hub = useTaskHub(wizard, isPartOneLink);
 const identityNeeded = computed(
   () => ceremonyNeeded.value && !isPartOneLink.value && !identityComplete.value && !identityDone.value,
 );
@@ -338,84 +338,87 @@ watch(
       <p v-if="invitation.data.value.carrierAddress" class="text-sm text-ink-muted">
         {{ APPLY_COPY.page.employingCarrier(invitation.data.value.carrier, invitation.data.value.carrierAddress) }}
       </p>
-      <ApplyProgress
-        :index="wizard.index.value"
-        :furthest="wizard.furthestIndex.value"
+      <!-- C3c2a: a v2 link's Part 2 opens on its task list (§6.4), on every return. -->
+      <ApplyTaskHub
+        v-if="hub.showList.value"
+        :draft="draft"
+        :v2-as-of="v2AsOf()"
+        :captures="invitation.data.value.captures ?? []"
         :save-status="saveStatus"
-        @go-to="wizard.goTo"
+        @open="hub.open"
       />
-
-      <ApplyIssueList
-        :issues="wizard.issues.value"
-        :send-error="sendError"
-        :final="wizard.isLast.value"
-        @show="showIssue"
-      />
-
-      <BaseCard>
-        <ApplicantDetailsFields v-if="wizard.section.value === 'identity'" v-model="draft" :locked-by="identityLockedBy" />
-        <AddressHistoryFields v-else-if="wizard.section.value === 'addresses'" v-model="draft" :as-of="carrierToday" />
-        <LicenceFields v-else-if="wizard.section.value === 'licence'" v-model="draft" :locked-by="identityLockedBy" />
-        <ApplyEmploymentFields v-else-if="wizard.section.value === 'employment'" v-model="draft" :as-of="carrierToday" />
-        <SafetyHistoryFields v-else-if="wizard.section.value === 'safety'" v-model="draft" />
-        <!-- A9: the carrier's own questions, which discharge no CFR paragraph and block nothing. -->
-        <QuestionnaireFields v-else-if="wizard.section.value === 'questions'" v-model="draft" />
-        <!-- A8: photographs, not answers. They are staged against the invitation rather than saved into
-             the draft, which is why this screen takes the token and not the form. -->
-        <DocumentCaptureFields
-          v-else-if="wizard.section.value === 'documents'"
-          :token="token"
-          :captures="invitation.data.value.captures ?? []"
-        />
-        <ReviewFields
-          v-else
-          :draft="draft"
-          :captures="invitation.data.value.captures ?? []"
+      <template v-else>
+        <ApplyProgress
+          v-if="!hub.inTask.value"
+          :index="wizard.index.value"
+          :furthest="wizard.furthestIndex.value"
+          :save-status="saveStatus"
           @go-to="wizard.goTo"
         />
-      </BaseCard>
 
-      <!-- Shown read-only on the last screen ONLY while the ceremony cannot run (Q-H3: the wording is
-           still draft and the server refuses those signatures). Nobody should be asked weeks later to
-           sign four documents they have never seen; once A0 publishes, they are signed up front
-           instead and this disappears. -->
-      <BaseCard v-if="wizard.isLast.value && !ceremonyAvailable">
-        <DisclosurePanel :releases="invitation.data.value.releases" />
-        <!-- The panel says the instruments are not final; this says what that costs the driver
-             standing in front of it, which the panel has no way to know. -->
-        <p v-if="wordingNotFinal" class="mt-4 text-sm text-ink-secondary">
-          {{ APPLY_COPY.notOpen.cannotSend }}
-        </p>
-      </BaseCard>
+        <ApplyIssueList
+          :issues="wizard.issues.value"
+          :send-error="sendError"
+          :final="wizard.isLast.value"
+          @show="showIssue"
+        />
 
-      <div class="flex items-center justify-between gap-4">
-        <BaseButton v-if="!wizard.isFirst.value" variant="ghost" @click="wizard.back">
-          {{ APPLY_COPY.nav.back }}
-        </BaseButton>
-        <span v-else />
-        <BaseButton
-          variant="primary"
-          :disabled="handingOver || (wizard.isLast.value && wordingNotFinal)"
-          @click="wizard.isLast.value ? sendForReview() : wizard.next()"
-        >
-          <template v-if="wizard.isLast.value">
-            <!-- Disabled rather than hidden: the driver has reached the end of their application and
-                 the control they came for should still be where they expect it, saying why it will
-                 not go. A missing button reads as a bug in the page.
+        <BaseCard>
+          <ApplySection
+            v-model="draft"
+            :section="wizard.section.value"
+            :token="token"
+            :captures="invitation.data.value.captures ?? []"
+            :as-of="carrierToday"
+            :identity-locked-by="identityLockedBy"
+            @go-to="goToSection"
+          />
+        </BaseCard>
 
-                 ⚠ It SENDS rather than certifies since F4. The signature is asked for on the second
-                 visit, on the document as the office leaves it — see `sendForReview`. -->
-            {{ wordingNotFinal
-              ? APPLY_COPY.notOpen.sendLabel
-              : handingOver
-                ? APPLY_COPY.handoff.sending
-                : APPLY_COPY.handoff.send(invitation.data.value.carrier) }}
-          </template>
-          <template v-else>
-            {{ wizard.section.value === 'documents' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}
-          </template>
-        </BaseButton>
-      </div>
+        <!-- Shown read-only on the last screen ONLY while the ceremony cannot run (Q-H3: the wording is
+             still draft and the server refuses those signatures). Nobody should be asked weeks later to
+             sign four documents they have never seen; once A0 publishes, they are signed up front
+             instead and this disappears. -->
+        <BaseCard v-if="wizard.isLast.value && !ceremonyAvailable">
+          <DisclosurePanel :releases="invitation.data.value.releases" />
+          <!-- The panel says the instruments are not final; this says what that costs the driver
+               standing in front of it, which the panel has no way to know. -->
+          <p v-if="wordingNotFinal" class="mt-4 text-sm text-ink-secondary">
+            {{ APPLY_COPY.notOpen.cannotSend }}
+          </p>
+        </BaseCard>
+
+        <div class="flex items-center justify-between gap-4">
+          <BaseButton v-if="hub.inTask.value" variant="ghost" @click="hub.leave">{{ APPLY_COPY.hub.backToList }}</BaseButton>
+          <BaseButton v-else-if="!wizard.isFirst.value" variant="ghost" @click="wizard.back">
+            {{ APPLY_COPY.nav.back }}
+          </BaseButton>
+          <span v-else />
+          <BaseButton
+            variant="primary"
+            :disabled="handingOver || (wizard.isLast.value && wordingNotFinal)"
+            @click="wizard.isLast.value ? sendForReview() : hub.inTask.value ? hub.finish() : wizard.next()"
+          >
+            <template v-if="wizard.isLast.value">
+              <!-- Disabled rather than hidden: the driver has reached the end of their application and
+                   the control they came for should still be where they expect it, saying why it will
+                   not go. A missing button reads as a bug in the page.
+
+                   ⚠ It SENDS rather than certifies since F4. The signature is asked for on the second
+                   visit, on the document as the office leaves it — see `sendForReview`. -->
+              {{ wordingNotFinal
+                ? APPLY_COPY.notOpen.sendLabel
+                : handingOver
+                  ? APPLY_COPY.handoff.sending
+                  : APPLY_COPY.handoff.send(invitation.data.value.carrier) }}
+            </template>
+            <template v-else-if="hub.inTask.value">{{ APPLY_COPY.hub.saveAndContinue }}</template>
+            <template v-else>
+              {{ wizard.section.value === 'documents' ? APPLY_COPY.nav.review : APPLY_COPY.nav.next }}
+            </template>
+          </BaseButton>
+        </div>
+      </template>
     </div>
   </ApplyPhaseRouter>
 </template>

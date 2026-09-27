@@ -2,6 +2,7 @@ import { APPLY_FLOW_COPY } from "./strings.flow";
 import { APPLY_HISTORY_COPY } from "./strings.history";
 import { APPLY_IDENTITY_COPY } from "./strings.identity";
 import { APPLY_PART_ONE_COPY } from "./strings.partOne";
+import { APPLY_HUB_COPY } from "./strings.hub";
 import { APPLY_HANDBOOK_COPY } from "./strings.handbook";
 import { APPLY_PERMISSIONS_COPY } from "./strings.permissions";
 import { APPLY_SMS_COPY } from "./strings.sms";
@@ -335,6 +336,7 @@ export const APPLY_COPY = {
   ...APPLY_FLOW_COPY,
   ...APPLY_IDENTITY_COPY,
   ...APPLY_PART_ONE_COPY,
+  ...APPLY_HUB_COPY,
   ...APPLY_PERMISSIONS_COPY,
   ...APPLY_SMS_COPY,
   ...APPLY_HANDBOOK_COPY,
