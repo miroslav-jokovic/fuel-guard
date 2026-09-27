@@ -1,0 +1,669 @@
+D.12 Data encoding structures
+
+D.12.1 Structure Options
+
+A compliant 2D symbol shall employ either the encoding structure set out in D.12.2 to D12.5 or the encoding
+structure set out in Annex I.
+
+D.12.2 Overview
+
+All compliant 2D symbols shall employ a file header that allows interested parties to interpret the encoded data.
+Subfiles shall be employed to carry the specific information. The combination of a header and one or more subfile
+designators shall make up a compliant 2D symbol.
+
+Each 2-dimensional bar code shall begin with a file header that will identify the bar code as complying with this
+standard. The header shall be followed by a subfile designator “DL” to identify the DL/ID data type stored in the file.
+Each data element contained in a subfile shall be prefaced by a data element identifier (Element ID) as defined in
+Tables D.3 and D.4. The use of a field separator character shall serve to both terminate a field and indicate the
+presence of a following field identifier.
+
+
+
+
+  © AAMVA 2020 – All rights reserved                                                                              49
+D.12.3 Header
+
+Compliant 2D symbols must begin with a Fixed Header in the following format (Note: The number of bytes for each
+field is fixed and must be present. The numbers must be zero filled.):
+
+                                      Table D.1 — 2D symbols header format
+           Field       Bytes                                      Contents
+                      (Fixed)
+
+             1          1         Compliance Indicator: A 2D symbol encoded according to the rules
+                                  of this standard shall include a Compliance Indicator. The Compliance
+                                  Indicator as defined by this standard is the Commercial At Sign (“@”)
+                                  (ASCII/ISO 646 Decimal “64”) (ASCII/ISO 646 Hex “40”). The
+                                  Compliance Indicator is the first character of the symbol.
+
+             2           1        Data Element Separator: The Data Element Separator is used in this
+                                  standard to indicate that a new data element is to follow, and that the
+                                  current field is terminated. Whenever a Data Element Separator is
+                                  encountered (within a Subfile type which uses Data Element
+                                  Separators), the next character(s) shall either be a Segment Terminator
+                                  or shall define the contents of the next field according to the template of
+                                  the specific Subfile. The Data Element Separator as defined by this
+                                  standard is the Line Feed character (“LF” ASCII/ISO 646 Decimal “10”)
+                                  (ASCII/ISO 646 Hex “0A”). The Data Element Separator is the second
+                                  character of the symbol.
+
+             3           1        Record Separator: The Record Separator as defined by this standard
+                                  is the Record Separator character (“RS” ASCII/ISO 646 Decimal “30”)
+                                  (ASCII/ISO 646 Hex “1E”). As this report is presented for ratification,
+                                  there is no special case defined for when this field will be used. It is
+                                  embodied within the recommendation for future growth. The Record
+                                  Separator is the third character of the symbol and shall always be
+                                  reflected within the header in a compliant symbol.
+
+             4           1        Segment Terminator:        As used in this standard the Segment
+                                  Terminator is used to end Subfiles where Field Identifiers are employed.
+                                  The Segment Terminator as defined by this standard is the Carriage
+                                  Return character (“CR” ASCII/ISO 646 Decimal “13”) (ASCII/ISO 646 Hex
+                                  “0D”). The Segment Terminator is the fourth character of the symbol.
+
+             5           5        File Type: This is the designator that identifies the file as an AAMVA
+                                  compliant format. The designator is defined as the 5 byte upper
+                                  character string “ANSI “, with a blank space after the fourth character.
+
+
+
+
+ © AAMVA 2020 – All rights reserved                                                                             50
+           Field       Bytes                                      Contents
+                      (Fixed)
+
+             6           6        Issuer Identification Number (IIN) 10: This number uniquely identifies
+                                                                        7F
+
+
+
+
+                                  the issuing jurisdiction and can be obtained by contacting the ISO
+                                  Issuing Authority (AAMVA). The full 6-digit IIN should be encoded.
+
+             7           2        AAMVA Version Number: This is a decimal value between 00 and 99
+                                  that specifies the version level of the PDF417 bar code format. Version
+                                  “0” and "00" is reserved for bar codes printed to the specification of the
+                                  American Association of Motor Vehicle Administrators (AAMVA) prior to
+                                  the adoption of the AAMVA DL/ID-2000 standard. All bar codes
+                                  compliant with the AAMVA DL/ID-2000 standard are designated Version
+                                  “01”. All bar codes compliant with AAMVA Card Design Specification
+                                  version 1.0, dated 09-2003 shall be designated Version “02”. All bar
+                                  codes compliant with AAMVA Card Design Specification version 2.0,
+                                  dated 03-2005 shall be designated Version “03”. All bar codes
+                                  compliant with AAMVA Card Design Standard version 1.0, dated 07-
+                                  2009 shall be designated Version “04”. All bar codes compliant with
+                                  AAMVA Card Design Standard version 1.0, dated 07-2010 shall be
+                                  designated Version “05”. All bar codes compliant with AAMVA Card
+                                  Design Standard version 1.0, dated 07-2011 shall be designated
+                                  Version “06”. All bar codes compliant with AAMVA Card Design
+                                  Standard version 1.0, dated 06-2012 shall be designated Version “07”.
+                                  All bar codes compliant with AAMVA Card Design Standard version 1.0,
+                                  dated 08-2013 shall be designated Version “08”. All bar codes compliant
+                                  with AAMVA Card Design Standard version 1.0, dated 09-2016 shall be
+                                  designated Version “09”. All bar codes compliant with this current
+                                  AAMVA standard shall be designated “10”. Should a need arise
+                                  requiring major revision to the format, this field provides the means to
+                                  accommodate additional revision.
+
+             8           2        Jurisdiction Version Number: This is a decimal value between 00 and
+                                  99 that specifies the jurisdiction version level of the PDF417 bar code
+                                  format. Notwithstanding iterations of this standard, jurisdictions
+                                  implement incremental changes to their bar codes, including new
+                                  jurisdiction-specific data, compression algorithms for digitized images,
+                                  digital signatures, or new truncation conventions used for names and
+                                  addresses. Each change to the bar code format within each AAMVA
+                                  version (above) must be noted, beginning with Jurisdiction Version 00.
+
+             9           2        Number of Entries: This is a decimal value between “01 and 99” that
+                                  specifies the number of different Subfile types that are contained in the
+                                  bar code. This value defines the number of individual subfile designators
+                                  that follow. All subfile designators (as defined below) follow one behind
+                                  the other. The data related to the first subfile designator follows the last
+                                  Subfile Designator.
+
+
+
+
+10 http://www.aamva.org/KnowledgeCenter/Standards/Current/INNnumbers.htm
+
+
+
+
+ © AAMVA 2020 – All rights reserved                                                                              51
+D.12.4 Subfile Designator
+
+All compliant 2D bar code symbols must contain the “DL”, “EN”, or “ID” subfile structure as defined below
+immediately after the Header as defined in D.12.1. The subfile designator is a fixed element, as well as the number
+of bytes, and the numbers must be zero-filled. All sub file headers must follow one another.
+
+                                       Table D.2 – Subfile designator format
+             Field        Bytes                                      Contents
+
+               1            2         Subfile Type: This is the designator that identifies what type of data
+                                      is contained in this portion of the file. The 2-character uppercase
+                                      character field “DL” is the designator for DL subfile type, “EN” is the
+                                      designator for EDL subfile type, and “ID” is the subfile type for non-
+                                      DLs containing mandatory and optional data elements as defined in
+                                      tables D.3 and D.4. Jurisdictions may define a subfile to contain
+                                      jurisdiction-specific information. These subfiles are designated with
+                                      the first character of “Z” and the second character is the first letter of
+                                      the jurisdiction's name. For example, "ZC" would be the designator
+                                      for a California or Colorado jurisdiction-defined subfile; "ZQ" would
+                                      be the designator for a Quebec jurisdiction-defined subfile. In the
+                                      case of a jurisdiction-defined subfile that has a first letter that could
+                                      be more than one jurisdiction (e.g. California, Colorado, Connecticut)
+                                      then other data, like the IIN or address, must be examined to
+                                      determine the jurisdiction.
+
+               2            4         Offset: These bytes contain a 4 digit numeric value that specifies
+                                      the number of bytes from the head or beginning of the file to where
+                                      the data related to the particular sub-file is located. The first byte in
+                                      the file is located at offset 0.
+
+               3            4         Length: These bytes contain a 4 digit numeric value that specifies
+                                      the length of the Subfile in bytes. The segment terminator must be
+                                      included in calculating the length of the subfile. A segment terminator
+                                      = 1. Each subfile must begin with the two-character Subfile Type and
+                                      these two characters must also be included in the length.
+
+
+
+
+D.12.5 Data elements
+
+Tables D.3 and D.4 define mandatory and optional data elements that are accommodated in the “DL” and “ID”
+subfile types. Jurisdiction-specific data elements may also be encoded, provided the bar code ID is a 3-character
+uppercase character field beginning with “ZX” where "X" is the first letter of the jurisdictions name. Each data
+element field within the jurisdiction-defined subfile should follow consecutively in alphabetic order. For example,
+data elements in a Virginia subfile would be ZVA, ZVB, etc.; a Delaware subfile would be ZDA, ZDB, etc.).
+
+Mandatory data elements for which no data exists for a given cardholder are to be encoded with the word "NONE".
+In the event data is not available for a mandatory data element, "unavl" is to be encoded.
+
+
+
+
+ © AAMVA 2020 – All rights reserved                                                                                52
+D.12.5.1 Minimum mandatory data elements
+
+Column 1: (Data Ref.): serves as a reference indicator for citation elsewhere in this standard and in other
+documents.
+
+Column 2: (Element ID): three letter bar code element identifier corresponding to the data element. The three letter
+identifier must precede the encoded data element.
+
+Column 3: (Data element): common name or phrase that designates what information is to be encoded in the 2D
+bar code.
+
+Column 4: (Definition): description of the data element, including any exceptions.
+
+Column 5: (Card type): identifies the applicability of the data element. DL = driver license (including enhanced)
+only; ID = non-driver identification card only; Both = both the driver license and the non-driver identification card.
+
+Column 6: (Length/type): valid field length (i.e., the number of characters) for each data element. The following
+refer to the valid characters or image used (A=alpha A-Z, N=numeric 0-9, S=special, F=fixed length, V=variable
+length). Use of padding for variable length fields is optional.
+
+                                       Table D.3 – 2D Mandatory data elements
+
+  Data     Element        Data Element        Definition                                          Card   Length /
+  Ref.     ID                                                                                     type   type
+
+  a.       DCA            Jurisdiction-       Jurisdiction-specific vehicle class / group code,    DL       V6ANS
+                          specific vehicle    designating the type of vehicle the cardholder
+                          class               has privilege to drive.
+
+  b.       DCB            Jurisdiction-       Jurisdiction-specific codes that represent           DL     V12ANS
+                          specific            restrictions to driving privileges (such as
+                          restriction codes   airbrakes, automatic transmission, daylight only,
+                                              etc.).
+
+  c.       DCD            Jurisdiction-       Jurisdiction-specific codes that represent           DL       V5ANS
+                          specific            additional privileges granted to the cardholder
+                          endorsement         beyond the vehicle class (such as transportation
+                          codes               of passengers, hazardous materials, operation
+                                              of motorcycles, etc.).
+
+  d.       DBA            Document            Date on which the driving and identification        Both         F8N
+                          Expiration Date     privileges granted by the document are no
+                                              longer valid. (MMDDCCYY for U.S.,
+                                              CCYYMMDD for Canada)
+
+  e.       DCS            Customer            Family name of the cardholder. (Family name is      Both    V40ANS
+                          Family Name         sometimes also called “last name” or
+                                              “surname.”) Collect full name for record, print
+                                              as many characters as possible on portrait side
+                                              of DL/ID.
+
+
+
+
+  © AAMVA 2020 – All rights reserved                                                                             53
+Data     Element        Data Element       Definition                                            Card   Length /
+Ref.     ID                                                                                      type   type
+
+f.       DAC            Customer First     First name of the cardholder.                         Both   V40ANS
+                        Name
+
+g.       DAD            Customer           Middle name(s) of the cardholder. In the case         Both   V40ANS
+                        Middle Name(s)     of multiple middle names they shall be
+                                           separated by a comma “,”.
+
+h.       DBD            Document Issue     Date on which the document was issued.                Both       F8N
+                        Date               (MMDDCCYY for U.S., CCYYMMDD for
+                                           Canada)
+
+i.       DBB            Date of Birth      Date on which the cardholder was born.                Both       F8N
+                                           (MMDDCCYY for U.S., CCYYMMDD for
+                                           Canada)
+
+j.       DBC            Physical           Gender of the cardholder. 1 = male, 2 = female,       Both       F1N
+                        Description –      9 = not specified.
+                        Sex
+
+k.       DAY            Physical           Color of cardholder's eyes. (ANSI D-20 codes)         Both       F3A
+                        Description –
+                        Eye Color
+
+l.       DAU            Physical           Height of cardholder.                                 Both     F6ANS
+                        Description –
+                        Height             Inches (in): number of inches followed by " in"
+                                            ex. 6'1'' = "073 in"
+                                           Centimeters (cm): number of centimeters
+                                           followed by " cm"
+                                            ex. 181 centimeters="181 cm"
+
+m.       DAG            Address – Street   Street portion of the cardholder address.             Both   V35ANS
+                        1
+
+n.       DAI            Address – City     City portion of the cardholder address.               Both   V20ANS
+
+o.       DAJ            Address –          State portion of the cardholder address.              Both       F2A
+                        Jurisdiction
+                        Code
+
+
+
+p.       DAK            Address –          Postal code portion of the cardholder address in      Both    F11ANS
+                        Postal Code        the U.S. and Canada. If the trailing portion of
+                                           the postal code in the U.S. is not known, zeros
+                                           will be used to fill the trailing set of numbers up
+                                           to nine (9) digits.
+
+
+
+
+© AAMVA 2020 – All rights reserved                                                                           54
+  Data     Element        Data Element      Definition                                           Card    Length /
+  Ref.     ID                                                                                    type    type
+
+  q.       DAQ            Customer ID        The number assigned or calculated by the            Both     V25ANS
+                          Number             issuing authority.
+
+  r.       DCF            Document           Number must uniquely identify a particular          Both     V25ANS
+                          Discriminator      document issued to that customer from others
+                                             that may have been issued in the past. This
+                                             number may serve multiple purposes of
+                                             document discrimination, audit information
+                                             number, and/or inventory control.
+
+  s.       DCG            Country           Country in which DL/ID is issued. U.S. = USA,        Both          F3A
+                          Identification    Canada = CAN.
+
+  t.       DDE            Family name       A code that indicates whether a field has been       Both          F1A
+                          truncation        truncated (T), has not been truncated (N), or –
+                                            unknown whether truncated (U).
+
+  u.       DDF            First name        A code that indicates whether a field has been       Both          F1A
+                          truncation        truncated (T), has not been truncated (N), or –
+                                            unknown whether truncated (U).
+
+  v.       DDG            Middle name       A code that indicates whether a field has been       Both          F1A
+                          truncation        truncated (T), has not been truncated (N), or –
+                                            unknown whether truncated (U).
+
+
+
+
+D.12.5.2 Optional data elements
+
+Column 1: (Data Ref.): serves as a reference indicator for citation elsewhere in this standard and in other
+documents.
+
+Column 2: (Element ID): three letter bar code element identifier corresponding to the data element. The three letter
+identifier must precede the encoded data element.
+
+Column 3: (Data element): common name or phrase that designates what information is to be encoded in the 2D
+bar code.
+
+Column 4: (Definition): description of the data element, including any exceptions.
+
+Column 5: (Card type): identifies the applicability of the data element. DL = driver license (including enhanced)
+only; ID = non-driver identification card only; Both = both the driver license and the non-driver identification card.
+
+Column 6: (Length/type): valid field length (i.e., the number of characters) for each data element. The following
+refer to the valid characters or image used (A=alpha A-Z, N=numeric 0-9, S=special, F=fixed length, V=variable
+length) in the related application. Use of padding for variable length fields is optional.
+
+
+
+
+  © AAMVA 2020 – All rights reserved                                                                             55
+                                      Table D.4 – 2D Optional data elements
+
+Data       Element       Data Element      Definition                                            Card   Length /
+Ref.       ID                                                                                    type   type
+
+a.         DAH           Address –          Second line of street portion of the cardholder      Both   V35ANS
+                         Street 2           address.
+
+
+
+b.         DAZ           Hair color         Bald, black, blonde, brown, gray, red/auburn,        Both    V12A
+                                            sandy, white, unknown. If the issuing
+                                            jurisdiction wishes to abbreviate colors, the
+                                            three-character codes provided in AAMVA D20
+                                            must be used.
+
+c.         DCI           Place of birth     Country and municipality and/or state/province.      Both    V33A
+
+
+
+d.         DCJ           Audit              A string of letters and/or numbers that identifies   Both   V25ANS
+                         information        when, where, and by whom a driver license/ID
+                                            card was made. If audit information is not used
+                                            on the card or the MRT, it must be included in
+                                            the driver record.
+
+e.         DCK           Inventory          A string of letters and/or numbers that is affixed   Both   V25ANS
+                         control number     to the raw materials (card stock, laminate, etc.)
+                                            used in producing driver licenses and ID cards.
+                                            (DHS recommended field)
+
+f.         DBN           Alias / AKA        Other family name by which cardholder is             Both   V10ANS
+                         Family Name        known.
+
+g.         DBG           Alias / AKA        Other given name by which cardholder is              Both   V15ANS
+                         Given Name         known.
+
+h.         DBS           Alias / AKA        Other suffix by which cardholder is known.           Both    V5ANS
+                         Suffix Name
+
+i.         DCU           Name Suffix        Name Suffix (If jurisdiction participates in         Both    V5ANS
+                                            systems requiring name suffix (PDPS, CDLIS,
+                                            etc.), the suffix must be collected and displayed
+                                            on the DL/ID and in the MRT). Collect full
+                                            name for record, print as many characters as
+                                            possible on portrait side of DL/ID.
+
+                                               •   JR (Junior)
+
+                                               •   SR (Senior)
+
+                                               •   1ST or I (First)
+
+
+
+
+© AAMVA 2020 – All rights reserved                                                                           56
+Data       Element       Data Element     Definition                                          Card   Length /
+Ref.       ID                                                                                 type   type
+
+                                              •   2ND or II (Second)
+
+                                              •   3RD or III (Third)
+
+                                              •   4TH or IV (Fourth)
+
+                                              •   5TH or V (Fifth)
+
+                                              •   6TH or VI (Sixth)
+
+                                              •   7TH or VII (Seventh)
+
+                                              •   8TH or VIII (Eighth)
+
+                                              •   9TH or IX (Ninth)
+j.         DCE           Physical         Indicates the approximate weight range of the       Both     F1N
+                         Description –    cardholder:
+                         Weight Range
+                                          0 = up to 31 kg (up to 70 lbs)
+                                          1 = 32 – 45 kg (71 – 100 lbs)
+                                          2 = 46 - 59 kg (101 – 130 lbs)
+                                          3 = 60 - 70 kg (131 – 160 lbs)
+                                          4 = 71 - 86 kg (161 – 190 lbs)
+                                          5 = 87 - 100 kg (191 – 220 lbs)
+                                          6 = 101 - 113 kg (221 – 250 lbs)
+                                          7 = 114 - 127 kg (251 – 280 lbs)
+                                          8 = 128 – 145 kg (281 – 320 lbs)
+                                          9 = 146+ kg (321+ lbs)
+k.         DCL           Race /           Codes for race or ethnicity of the cardholder, as   Both     V3A
+                         ethnicity        defined in AAMVA D20.
+
+
+
+l.         DCM           Standard         Standard vehicle classification code(s) for          DL     F4AN
+                         vehicle          cardholder. This data element is a placeholder
+                         classification   for future efforts to standardize vehicle
+                                          classifications.
+
+m.         DCN           Standard         Standard endorsement code(s) for cardholder.         DL     F5AN
+                         endorsement      See codes in D20. This data element is a
+                         code             placeholder for future efforts to standardize
+                                          endorsement codes.
+
+n.         DCO           Standard         Standard restriction code(s) for cardholder. See     DL     F12AN
+                         restriction      codes in D20. This data element is a
+                         code             placeholder for future efforts to standardize
+                                          restriction codes.
+
+
+
+
+© AAMVA 2020 – All rights reserved                                                                        57
+Data       Element       Data Element       Definition                                             Card   Length /
+Ref.       ID                                                                                      type   type
+
+o.         DCP           Jurisdiction-      Text that explains the jurisdiction-specific            DL    V50ANS
+                         specific vehicle   code(s) for classifications of vehicles
+                         classification     cardholder is authorized to drive.
+                         description
+
+p.         DCQ           Jurisdiction-      Text that explains the jurisdiction-specific            DL    V50ANS
+                         specific           code(s) that indicates additional driving
+                         endorsement        privileges granted to the cardholder beyond the
+                         code               vehicle class.
+                         description
+
+q.         DCR           Jurisdiction-      Text describing the jurisdiction-specific               DL    V50ANS
+                         specific           restriction code(s) that curtail driving privileges.
+                         restriction
+                         code
+                         description
+
+r.         DDA           Compliance         DHS required field that indicates compliance:          Both     F1A
+                         Type               “F” = compliant; and, “N” = non-compliant.
+
+s.         DDB           Card Revision      DHS required field that indicates date of the          Both     F8N
+                         Date               most recent version change or modification to
+                                            the visible format of the DL/ID. (MMDDCCYY
+                                            for U.S., CCYYMMDD for Canada)
+
+
+
+
+t.         DDC           HAZMAT             Date on which the hazardous material                    DL      F8N
+                         Endorsement        endorsement granted by the document is no
+                         Expiration         longer valid. (MMDDCCYY for U.S.,
+                         Date               CCYYMMDD for Canada)
+
+u.         DDD           Limited            DHS required field that indicates that the             Both     F1N
+                         Duration           cardholder has temporary lawful status = “1”.
+                         Document
+                         Indicator
+
+v.         DAW           Weight             Cardholder weight in pounds                            Both     F3N
+                         (pounds)           Ex. 185 lb = “185”
+
+w.         DAX           Weight             Cardholder weight in kilograms                         Both     F3N
+                         (kilograms)        Ex. 84 kg = “084”
+
+x.         DDH           Under 18 Until     Date on which the cardholder turns 18 years            Both     F8N
+                                            old. (MMDDCCYY for U.S., CCYYMMDD for
+                                            Canada)
+
+
+
+
+© AAMVA 2020 – All rights reserved                                                                             58
+  Data      Element       Data Element     Definition                                         Card    Length /
+  Ref.      ID                                                                                type    type
+
+  y.        DDI           Under 19 Until   Date on which the cardholder turns 19 years        Both       F8N
+                                           old. (MMDDCCYY for U.S., CCYYMMDD for
+                                           Canada)
+  z.        DDJ           Under 21 Until   Date on which the cardholder turns 21 years        Both       F8N
+                                           old. (MMDDCCYY for U.S., CCYYMMDD for
+                                           Canada)
+  a.a.      DDK           Organ Donor      Field that indicates that the cardholder is an     Both       F1N
+                          Indicator        organ donor = “1”
+
+  a.b.      DDL           Veteran          Field that indicates that the cardholder is a      Both       F1N
+                          Indicator        veteran = “1”
+
+
+
+
+D.12.5.3 Additional data elements
+
+Jurisdictions wishing to encode data elements in their PDF-417 bar codes other than those described in the above
+lists of mandatory and optional data elements should coordinate with AAMVA on the format and Data Element ID
+to use for that data. This will prevent the introduction of conflicts and variances across the jurisdictions.
+
+D.13 Example of raw PDF417 data
+The following represents the data stream of a compliant PDF417 bar code. For this example Virginia was chosen
+and the IIN found in the header; the jurisdiction specific classification, restriction, endorsement codes; address
+jurisdiction; and jurisdiction specific field use data as though it was a Virginia document.
+
+@LFRSCR
+
+ANSI 636000100002DL00410278ZV03190008DLDAQT64235789LF
+
+DCSSAMPLELF
+
+DDENLF
+
+DACMICHAELLF
+
+DDFNLF
+
+DADJOHNLF
+
+DDGNLF
+
+DCUJRLF
+
+DCADLF
+
+DCBKLF
+
+DCDPHLF
+
+
+
+ © AAMVA 2020 – All rights reserved                                                                          59
+DBD06062019LF
+
+DBB06061986LF
+
+DBA12102024LF
+
+DBC1LF
+
+DAU068 inLF
+
+DAYBROLF
+
+DAG2300 WEST BROAD STREETLF
+
+DAIRICHMONDLF
+
+DAJVALF
+
+DAK232690000 LF
+
+DCF2424244747474786102204LF
+
+DCGUSALF
+
+DCK123456789LF
+
+DDAFLF
+
+DDB06062018LF
+
+DDC06062020LF
+
+DDD1CR
+
+ZVZVA01CR
+
+Header Fields:
+    • Compliance Indicator: @
+    • Data Element Separator: Line Feed character (LF)
+    • Record Separator: Record Separator character (RS)
+    • Segment Terminator: Carriage Return character (CR)
+    • File Type: ‘ANSI ’ (Note: ANSI followed by a SPACE).
+    • Issuer Identification Number (IIN): 6-digit IIN: ‘636000’
+    • AAMVA Version Number: ‘10’
+    • Jurisdiction Version Number: ‘00’
+    • Number of Entries: ‘02’ (numeric value for # of sub-files in the bar code)
+Sub-file Designator:
+    • Sub-file Type: DL – DL data
+    • Offset: 0041
+    • Length: 0278
+    • Sub-file Type: ZV – Jurisdiction Specific data
+    • Offset: 0319
+
+
+
+  © AAMVA 2020 – All rights reserved                                               60
+    • Length: 0008
+Mandatory Fields:
+    • Customer Number - DAQ
+    • Family Name - DCS
+    • Family Name Truncation - DDE
+    • First Names – DAC
+    • First Names Truncation - DDF
+    • Middle Names - DAD
+    • Middle Names Truncation - DDG
+    • Virginia Specific Class - DCA
+    • Virginia Specific Restrictions - DCB
+    • Virginia Specific Endorsements - DCD
+    • Issue Date - DBD
+    • Date of Birth - DBB
+    • Expiration Date - DBA
+    • Sex - DBC
+    • Height - DAU
+    • Eyes - DAY
+    • Address - DAG
+    • City - DAI
+    • State - DAJ
+    • Zip – DAK
+    • Document Discriminator - DCF
+    • Country/territory of issuance - DCG
+Optional Fields:
+    • Suffix - DCU
+    • Inventory Control Number – DCK (Recommended for DHS compliant licenses)
+    • Compliance Type (ex. “F” = compliant) – DDA (Required for DHS compliant licenses)
+    • Card Revision Date – DDB (Required for DHS compliant licenses)
+    • HazMat Endorsement Expiry Date – DDC
+    • Limited Duration Document Indicator – DDD (Required for DHS compliant licenses)
+
+Jurisdiction Specific Fields:
+     • Court Restriction Code(s) – ZVA
+
+
+
+

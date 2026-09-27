@@ -16,7 +16,8 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * After the welcome (screen 1, `ApplyExpectations`) and the 7001(c) consent (screen 2), which exist and
  * are unchanged; before the six permissions (screens 14–19, the existing ceremony), which the server
  * refuses on a v2 link until Part 1 is finished (`intake_incomplete`). So this walks screens 3–10 and
- * 12, and its last Continue is `complete_applicant_intake`: the stamp, and the photographs filed.
+ * 12 — the CDL's two photographs first, so its barcode can fill screens 3–5 (Q-AW31, `PART_ONE_SCREENS`)
+ * — and its last Continue is `complete_applicant_intake`: the stamp, and the photographs filed.
  * Screen 11 (the selfie) waits for Q-AW5 (AW6); screen 13 (adopt a signature) is C3s's (D-AW15).
  *
  * ── LINEAR, ONE THING PER SCREEN ──────────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ const action = computed(() => (flow.screen.value === "rights" ? copy.rights.ackn
     <AppCallout v-if="flow.locked.value" tone="info">{{ APPLY_COPY.identityStep.lockedHint(carrier) }}</AppCallout>
     <template v-else>
       <AppCallout v-if="flow.onFile.value" tone="info">{{ copy.onFile }}</AppCallout>
+      <AppCallout v-if="flow.prefilledHere.value" tone="info">{{ copy.fromLicence }}</AppCallout>
       <PartOneOtherLicences
         v-if="flow.screen.value === 'otherLicences'"
         v-model:answers="answers"
@@ -89,6 +91,9 @@ const action = computed(() => (flow.screen.value === "rights" ? copy.rights.ackn
         :photo="flow.screen.value"
         :captures="[...inputs.captures]"
         :errors="flow.errors.value"
+        :reads-barcode="flow.readsBarcode.value"
+        :barcode="flow.screen.value === 'cdl_back' ? flow.barcode.value : 'idle'"
+        @staged="flow.licencePhotoStaged"
       />
       <PartOneRights v-else-if="flow.screen.value === 'rights' && inputs.summary" :summary="inputs.summary" />
       <PartOneAnswerFields v-else v-model:answers="answers" :screen="flow.screen.value" :errors="flow.errors.value" />

@@ -330,7 +330,7 @@ federal Clearinghouse consent cannot be collected by us.**
 | 2 | E-sign consent | consent | existing |
 | 3 | About you | legal name (confirm/edit), mobile, DOB (3 boxes) | prefill from the invitation (WCAG 3.3.7) |
 | 4 | Where you live now | current address, ZIP first → city/state | drug-test site; SMS zone |
-| 5 | Your CDL | state (picker), number, class (A/B/C, `drivers.cdl_class`, 0098), expiry (3 boxes), endorsements (H/N/X/T/P/S) | prefilled from the barcode on screen 9 when read; the driver confirms |
+| 5 | Your CDL | state (picker), number, class (A/B/C, `drivers.cdl_class`, 0098), expiry (3 boxes), endorsements (H/N/X/T/P/S) | prefilled from the barcode on screen 9 when read; the driver confirms — **which needs screens 8–9 walked BEFORE 3–5 (Q-AW31; built that way in C3b1)** |
 | 6 | Other licences, last 3 years | yes/no gate, then one licence per screen: **state picker** + optional agency text + number | `application_intake_licences` |
 | 7 | Two screening questions | §40.25(j) (past two years); §382.301(b): in a DOT testing program in the previous 30 days AND either tested in the past 6 months OR in a random program for the previous 12 months | **leads only** — the exception is the employer's to verify (§382.301(b)(3), (c)) |
 | 8–10 | Photos, one per screen | CDL front → CDL back (barcode read) → medical card ("I don't have one yet") | §6.6 |
@@ -669,7 +669,7 @@ The module is done when **every** line below is true and recorded in §11 with i
 | Face-geometry scans taken from photographs held covered by BIPA | case law not fetched | counsel (Q-AW5) |
 | Retroactivity of P.A. 103-769 (secondary: 7th Cir. 2026) | not read at source | counsel (Q-AW5) |
 | OpenCV.js ~8 MB | general knowledge | irrelevant unless §6.6.5 is revisited |
-| CPU per photo for the server confirm (`sharp` decode + metrics) | not measured | AW4, first task |
+| CPU per photo for the server confirm (`sharp` decode + metrics) | **measured 2026-09-27** on a dev machine (§12); a Railway vCPU's speed is not | AW4 (C3b2) re-reads it from the service's own logs once live |
 | Stripe Identity phone handoff | secondary sources only | phase 2 only |
 
 ---
@@ -710,6 +710,7 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW2 — C2c's blocker** (2026-09-26) | Filing now refuses a packet with any unversioned mark (`packet_signed_before_versioning`) — production's only such packet is `f2b142e4`'s 20 marks of 2026-09-17, which predate even D-PKT20's spelling. Filing it under today's text would be (c) chosen by nobody. (b) does **not** need M2's migration: the marks already say which text they were made under (NULL = the carrier's file with no register for every NULL mark in production on 2026-09-26, all of which predate #1058 — ⚠ a NULL mark made between #1058 and C2c's deploy was made under the corrected text, so re-measure `signed_at` before building), so the renderer can pick the text from the marks at render time. What it needs is a register per text version kept in code and `correctedPacketTemplate(version)`. | (b) in code: a `PACKET_TEXT_REGISTERS` map keyed by `packetTextVersion`, NULL → the empty register; ~½ day, a C2c follow-up once the owner rules | **(b)**, built the day the owner rules. Until then `f2b142e4` cannot file — its link lapses 2026-10-01 22:14 UTC and needs extending. |
 | **Q-AW29** (C2d, 2026-09-26) | A text that carries the applicant's link (nudge, "application ready", the sign link) cannot wait in `sms_outbox`: 0376 refuses a URL in its params, and minting the link at drain time means rotating `token_hash`, which kills the link the office's Send and the nudge put on screen and in the email moments earlier (D-AF7). Today such a text goes at once or not at all, with the email carrying the link. | (a) a text-only token: `application_invitations.sms_token_hash`, accepted by `resolveInvitation` beside `token_hash` and `sign_token_hash` (A5b's pattern), rotated at drain without touching the email's link — a migration + one resolver change; (b) rotate at drain and accept that the email's link dies; (c) link-bearing texts stay send-now-or-never | **(a)**. (b) breaks D-AF7's "the screen is the delivery path that always works"; (c) is today's behaviour and A-11's defect for these three. ~1 day incl. M-migration; needs the owner's yes because it adds a third bearer token. |
 | **Q-AW28** | A-10's road test: two presses in the same second can each file a form and a certificate; 0376's index lets only one record cite them. A claim before the form is filed needs a column, as the handbook has. | (a) `application_invitations.road_test_filing_claimed_at` (M2); (b) accept the orphan documents | (a) in M2; the read-before-filing C2c added closes every case but the same-second race. |
+| **Q-AW31** (C3b1, 2026-09-27) | §6.2 puts the CDL photos at 8–9, after the typed screens 3–5, and says screen 5 is "prefilled from the barcode on screen 9". Both cannot hold: a prefill that never overwrites typed input (§6.6.4) finds 3–5 already typed, and a date of birth once written is fill-only for the applicant (0376 → `record_applicant_identity`), so a later correction from the barcode is dropped. | (a) the CDL's two photos first (screens 8–9 walked before 3), the medical card where it was; (b) the owner's order kept and the barcode only COMPARED with what was typed, the address and licence re-posted on "use the licence's", the date of birth shown as a mismatch for the office; (c) no prefill | **(a)**, built as the default in C3b1: the only order in which the prefill does anything, captures are open from consent onward (AF3), and "scan your ID, then check the details" is the order drivers meet elsewhere. (b) is a second write path per field and still cannot fix a date of birth. A one-array change (`PART_ONE_SCREENS`) reverts it. |
 | **Q-AW30** (C2d2, 2026-09-27) | G-2 and §8.5 say "exact-keyword STOP". Built instead: CANCEL, END and QUIT count only as the whole message (G-2's false positives — "I'll quit my job", "end of the week"); STOP, STOPALL, UNSUBSCRIBE, REVOKE and OPT OUT still count anywhere. Reason: the public terms page promises "please stop texting me" works, the existing test pinned "help me stop these texts" as an opt-out, the FCC's §64.1200(a)(10) standard is "any reasonable means", and a false positive is now undone by START. | (a) as built; (b) every keyword whole-message only, terms page loses the "plain request" sentence; (c) counsel rules | **(a)**; (b) is a one-line change in `isStopMessage` plus the terms page, if the owner prefers it. |
 
 ---
@@ -945,3 +946,35 @@ Append dated lines at the END.
   (C3d) — the order is the owner's and §40.25(j) must come first, so it is recorded rather than reordered; the Part-1
   nudge (C3c); 44 px targets beyond the new date boxes (AW14, C3d); the scanner, "Upload a photo instead" and the desktop
   QR handoff (AW4, C3b).
+- 2026-09-27 — **C3a merged** (#1078, main `5373f36`).
+- 2026-09-27 — **CPU per photo measured** (§10, AW4's first task; before any server gate is built). The confirm's work —
+  SHA-256 of the object, `sharp(buf, { failOn: "none" }).raw()`, `computeMetrics(…, 1024, channels)` exactly as
+  `hazmatExtraction/image.ts` calls it — on an Apple M4 Pro, `sharp.concurrency(1)`, 15 runs after a warm-up, over a
+  synthetic card-like photograph: **the web upload (1568 × 1045 WebP q80, 339 KiB) costs a median 34.7 ms of CPU
+  (max 61.3), 26.6 ms of it sharp's decode**; portrait the same (34.7 ms); an unprocessed 12 MP phone JPEG (4032 × 3024,
+  q90, 4.4 MiB — the bucket's 8 MiB cap bounds the worst case) 78.9 ms. So Part 1's three photographs cost ≈ 0.1 s of CPU
+  per applicant: the confirm runs inline in its request, no queue. Not measured: a Railway vCPU (slower per core than
+  this machine — C3b2 logs the figure from the service itself).
+- 2026-09-27 — **C3b split in two**, for the reason C3 was: **C3b1** AW5 (the barcode), **C3b2** AW4 (the wizard, browser
+  metrics, "Upload a photo instead", the desktop QR + "Text me the link", the `captureMode` label, the server confirm).
+  **C3b1 built** (`claude/applicant-flow-c3b`). **Sources, committed, not remembered:** `docs/plans/recruitment/aamva/` —
+  Annex D §D.12–§D.13 of the AAMVA 2020 standard (pdftotext, PDF pinned by sha256) and AAMVA's IIN table. Only the 2020
+  edition (version 10) is published, so the parser reads §D.12's STRUCTURE for any version and only Table D.3/D.4's
+  elements; a pre-2009 barcode yields fewer fields, never wrong ones. **Found in the sources:** (1) §D.13's example is
+  one byte short of its own header's offsets as extracted — `DAK` is F11 and the text layer prints its two padding
+  spaces as one; padded to its fixed width both numbers (0278, 0319) land to the byte, which the test pins; (2) AAMVA's
+  IIN table lists Colorado as `GM` — the issuing state is derived by NAME through `jurisdictions.ts`, so the typo is
+  never read. **Dates** take whichever of Table D.3's two orders is a real date (at most one can be), not `DCG`.
+  `parseAamvaBarcode` (shared, pure) + `readLicenceBarcode` (web): `zxing-wasm/reader` 3.1.4 behind a dynamic `import()`,
+  its 931 KiB binary served from OUR origin (the package defaults to jsDelivr, which the CSP refuses anyway), PDF417
+  only, text mode `Plain` (the default `HRI` loses the separators — measured by mutation); the CSP gains
+  `'wasm-unsafe-eval'` (WebAssembly compile only; no `eval`, no origin — pinned). The original photograph, not the
+  1568-px upload, is decoded. Proved end to end: zxing's writer draws §D.13's example, the page's reader decodes it
+  byte for byte. **Prefill:** blanks only; the address and the current licence fill as whole blocks or not at all;
+  only while Part 1 is unbegun (after §40.25(j) the boxes are blank because they are on file, and the date of birth
+  would be dropped as fill-only) — so a begun link does not download the decoder. Each prefilled screen says so; the
+  CDL-back screen says once if the barcode could not be read. The first write's order (answers → licences → date of
+  birth) is untouched: the barcode only changes what the boxes hold before it. **Q-AW31** (new): the CDL photos now
+  come first, the only order in which the plan's own prefill can fill anything — default built, one array reverts it.
+  **Not built, named:** the name (Part 1 has no name box — screen 3's confirm is still unbuilt); class and
+  endorsements (`DCA`/`DCD` are jurisdiction-specific codes, not the plan's list). 25 mutants, all killed.

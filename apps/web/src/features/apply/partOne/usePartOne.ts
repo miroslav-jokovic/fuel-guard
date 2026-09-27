@@ -1,10 +1,12 @@
 import { computed, reactive, ref, type Ref } from "vue";
-import type { ApplicationCaptureView, FcraSummary, PartOneStatus } from "@silvicom/shared";
+import type { AamvaLicence, ApplicationCaptureView, FcraSummary, PartOneStatus } from "@silvicom/shared";
+import { readLicenceBarcode } from "@/features/apply/capture/readLicenceBarcode";
 import { APPLY_COPY } from "@/features/apply/strings";
 import { completePartOne, postIntake, postIntakeLicences } from "./partOneApi";
 import {
   HELD_UNTIL_SCREENING,
   PART_ONE_SCREENS,
+  PREFILL_FIELDS,
   aboutPayload,
   addressPayload,
   cdlPayload,
@@ -13,6 +15,7 @@ import {
   isPhotoScreen,
   licenceList,
   photoDone,
+  prefillFromLicence,
   resumeScreen,
   screeningPayload,
   validateAbout,
@@ -21,6 +24,7 @@ import {
   validateOtherLicences,
   validateScreening,
   type PartOneScreen,
+  type PrefilledField,
   type ScreenErrors,
 } from "./partOneScreens";
 
@@ -46,6 +50,9 @@ export interface PartOneInputs {
   summary: FcraSummary | null;
 }
 
+/** Where the licence's barcode stands on the CDL-back screen (AW5). `idle` says nothing. */
+export type BarcodeState = "idle" | "reading" | "filled" | "unread";
+
 /** Refusals written for the applicant by the server — shown as they came. Anything else is "try again". */
 const SPOKEN_CODES = new Set([
   "intake_frozen",
@@ -60,6 +67,7 @@ export function usePartOne(
   inputs: Ref<PartOneInputs>,
   refresh: () => Promise<PartOneInputs | null>,
   onDone: () => void,
+  readBarcode: (photo: Blob) => Promise<AamvaLicence | null> = readLicenceBarcode,
 ) {
   const answers = reactive(emptyPartOneAnswers());
   const initial = inputs.value;
@@ -93,6 +101,34 @@ export function usePartOne(
         return false;
     }
   });
+  const barcode = ref<BarcodeState>("idle");
+  const fromLicence = ref<PrefilledField[]>([]);
+  /**
+   * Read the barcode only while it can fill something: before §40.25(j) is on file, nothing of screens
+   * 3–6 has been written, so a box is blank because the driver has not reached it. After it, the answers
+   * are on the server and the boxes are blank because the bare link never reads them back (D-APP16) —
+   * filling them then would post the licence's values over, or beside, what the driver already gave, and
+   * the date of birth would be dropped as fill-only. So a begun link does not even download the decoder.
+   */
+  const readsBarcode = computed(() => screen.value === "cdl_back" && !begun.value);
+
+  /** The CDL's back is in the bucket (`onStaged`): read it, and fill what is still blank. */
+  async function licencePhotoStaged(original: Blob): Promise<void> {
+    if (!readsBarcode.value) return;
+    barcode.value = "reading";
+    const licence = await readBarcode(original);
+    // Checked again: Part 1 may have been begun while the decoder ran (screen 7 is two screens away).
+    const filled = licence && !begun.value ? prefillFromLicence(answers, licence) : [];
+    fromLicence.value = [...new Set([...fromLicence.value, ...filled])];
+    barcode.value = licence === null ? "unread" : filled.length > 0 ? "filled" : "idle";
+  }
+
+  /** Does the screen on show hold a box the barcode filled? Then it says so, and the driver checks it. */
+  const prefilledHere = computed(() => {
+    const fields = (PREFILL_FIELDS as Partial<Record<PartOneScreen, readonly PrefilledField[]>>)[screen.value] ?? [];
+    return fields.some((f) => fromLicence.value.includes(f));
+  });
+
   const locked = computed(
     () => (screen.value === "licence" || screen.value === "otherLicences") && onFile.value && !held.has("licence"),
   );
@@ -244,6 +280,10 @@ export function usePartOne(
     kept,
     onFile,
     locked,
+    barcode,
+    readsBarcode,
+    prefilledHere,
+    licencePhotoStaged,
     back,
     next,
     acknowledgeKept,

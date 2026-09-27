@@ -12,6 +12,7 @@ import {
 } from "@silvicom/shared";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
 import { createWebFileProvider } from "./webFileProvider";
+import { pickPhotoFromCamera } from "./webImageIo";
 
 /**
  * One photograph per slot, from the driver's own phone (A8, D-APP10).
@@ -65,9 +66,20 @@ export function useApplicationCaptures(
      * licence's two sides beside the licence number; the documents screen keeps the whole list.
      */
     only?: readonly ApplicationCaptureSlot[];
+    /**
+     * Told once a photograph is in the bucket, with the ORIGINAL the driver took (AW5: the CDL's back is
+     * read for its barcode). The original, not the staged copy: the upload is downscaled to the model
+     * profile's long edge and re-encoded, and a PDF417's modules are exactly the detail that costs.
+     * With an injected provider there is no original to hand over, so the staged bytes are.
+     */
+    onStaged?: (slot: ApplicationCaptureSlot, original: Blob) => void;
   } = {},
 ) {
-  const provider = options.provider ?? createWebFileProvider(BUNDLED_DEFAULT_CONFIG);
+  /** The file the default provider's picker last returned — the original of what it then processed. */
+  let picked: File | null = null;
+  const provider =
+    options.provider ??
+    createWebFileProvider(BUNDLED_DEFAULT_CONFIG, { pick: async () => (picked = await pickPhotoFromCamera()) });
   const io: CaptureIo = { ...DEFAULT_CAPTURE_IO, ...(options.io ?? {}) };
 
   /** What has happened on this screen. What happened on a previous visit comes from `already`. */
@@ -166,6 +178,9 @@ export function useApplicationCaptures(
           digest: async () => page.integrityHash,
         });
         mark(slot, "done", null, confirmed.capturedAt);
+        options.onStaged?.(slot, picked ?? blob);
+        // A phone photograph is megabytes; the caller holds it as long as it needs it, this does not.
+        picked = null;
         // Kept, not revoked: this is the one the driver is now looking at (X6). The previous
         // picture for this slot goes at the same moment, so the count never grows.
         forget(slot);
