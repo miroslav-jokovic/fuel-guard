@@ -25,6 +25,8 @@ const complete = (): ApplicationDraft => ({
     reason_for_leaving: "Still there", subject_to_fmcsr: true, safety_sensitive: true,
   }],
   declares_no_accidents: true, declares_no_violations: true,
+  // (b)(9) answered — `emptyDraft` leaves it unanswered since C3c2c1, so a complete draft says No itself.
+  licence_ever_denied: false,
 });
 const NONE: ApplicationCaptureView[] = [];
 const status = (tasks: ReturnType<typeof hubTasks>, section: string) => tasks.find((t) => t.section === section)!.status;

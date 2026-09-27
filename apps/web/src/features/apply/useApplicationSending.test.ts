@@ -32,6 +32,8 @@ const complete = (): ApplicationDraft => ({
     reason_for_leaving: "Better route", subject_to_fmcsr: true, safety_sensitive: true,
   }],
   declares_no_accidents: true, declares_no_violations: true,
+  // (b)(9) answered — `emptyDraft` leaves it unanswered since C3c2c1, so a complete draft says No itself.
+  licence_ever_denied: false,
   certified: true, signed_name: "Susan Godfrey",
 });
 

@@ -259,7 +259,10 @@ export function buildReviewSummary({ draft, questionnaire, captures }: ReviewInp
       entries: [
         {
           label: c.safety.everDenied,
-          value: draft.licence_ever_denied ? text(draft.licence_denial_detail) : "No",
+          // Unanswered since C3c2c1 is `null`, and says so — never the "No" a default used to give.
+          value: draft.licence_ever_denied === null
+            ? copy.empty
+            : draft.licence_ever_denied ? text(draft.licence_denial_detail) : "No",
           muted: !draft.licence_ever_denied,
         },
         // §40.25(j) (P8). It was on no summary at all, and it is the single most consequential

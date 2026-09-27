@@ -4,6 +4,7 @@ import { APPLICATION_SECTION_ORDER, driverApplicationSchema } from "@silvicom/sh
 import { emptyDraft, type ApplicationDraft } from "./draft";
 import { issuesFromParse, useApplicationWizard, validateSection } from "./useApplicationWizard";
 import { toApplication } from "./draft";
+import { APPLY_COPY } from "./strings";
 
 /**
  * Per-screen validation (A3).
@@ -30,6 +31,8 @@ const complete = (): ApplicationDraft => ({
     subject_to_fmcsr: true, safety_sensitive: true,
   }],
   declares_no_accidents: true, declares_no_violations: true,
+  // (b)(9) answered — `emptyDraft` leaves it unanswered since C3c2c1, so a complete draft says No itself.
+  licence_ever_denied: false,
   certified: true, signed_name: "Susan Godfrey",
 });
 
@@ -67,6 +70,12 @@ describe("one screen at a time", () => {
     expect(validateSection("safety", complete())).toEqual([]);
     const denied = { ...complete(), licence_ever_denied: true, licence_denial_detail: "" };
     expect(validateSection("safety", denied).map((i) => i.key)).toContain("licence_denial_detail");
+  });
+
+  it("stops the driving-record screen on an unanswered (b)(9) question, on its own control (C3c2c1)", () => {
+    const issues = validateSection("safety", { ...complete(), licence_ever_denied: null });
+    expect(issues.map((i) => [i.fieldId, i.say])).toEqual([["apply-licence_ever_denied", "This is needed."]]);
+    expect(issues[0]!.label).toBe(APPLY_COPY.safety.deniedQuestion);
   });
 
   it("has nothing to check on the review screen, which owns no fields", () => {

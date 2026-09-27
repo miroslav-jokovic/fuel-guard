@@ -56,7 +56,8 @@ const TOP: Record<string, string> = {
   declares_no_accidents: safety.noAccidents,
   violations: safety.violationsHeading,
   declares_no_violations: safety.noViolations,
-  licence_ever_denied: safety.everDenied,
+  // The question since C3c2c1 — it is what the driver answers, and what a refusal names.
+  licence_ever_denied: safety.deniedQuestion,
   licence_denial_detail: safety.denialDetail,
   prior_failed_pre_employment_test: safety.priorTestHeading,
   employers: "Where you have worked",

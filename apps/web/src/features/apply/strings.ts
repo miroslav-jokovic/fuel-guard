@@ -216,6 +216,19 @@ export const APPLY_COPY = {
     coverageComplete: "Every month of the last three years has an address.",
     gap: (from: string, to: string): string =>
       from === to ? `No address for ${from}. Add where you lived then.` : `No address from ${from} to ${to}. Add where you lived then.`,
+    // ── C3c2c1: one address per screen on a v2 link (§6.4 item 2), the job loop's words ────────────
+    listHeading: "Your addresses",
+    addFirst: "Add where you live now",
+    change: "Change",
+    /** An address still lived at. The list has to say something; a blank reads as a missing answer. */
+    toNow: "now",
+    noDates: "No dates yet",
+    /** An address on the list the page has refused: its boxes are in the panel, so the row says so. */
+    needsAnswers: "Something here is missing. Choose Change to finish it.",
+    drawerNew: "Add an address",
+    drawerIntro: "One address at a time. You can change it later.",
+    drawerSave: "Save this address",
+    drawerCancel: "Cancel",
   },
 
   licence: {

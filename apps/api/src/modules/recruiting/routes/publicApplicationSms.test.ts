@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SMS_CONSENT } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
@@ -103,6 +103,17 @@ beforeAll(async () => {
   });
 });
 afterAll(async () => closeTestServer(server));
+/**
+ * ⚠ A default send that succeeds, for every test (found 2026-09-27, C3c2c). Agreeing sends a
+ * confirmation — or queues it outside the all-US civil window — and most tests here run on the REAL
+ * clock. `afterEach` resets the mock to return nothing, so from 18:00 UTC (08:00 in Hawaii, the window
+ * opening) until 01:00 UTC the confirmation was SENT through a mock returning `undefined`, `transmit`
+ * threw, and three tests about consent counting failed with a 500; before 18:00 they passed, which is
+ * when CI had happened to run. A test that needs a failed or checked send still sets its own.
+ */
+beforeEach(() => {
+  sms.fn.mockResolvedValue({ ok: true, provider: "telnyx", messageId: "m-default" });
+});
 afterEach(() => {
   vi.restoreAllMocks();
   sms.fn.mockReset();

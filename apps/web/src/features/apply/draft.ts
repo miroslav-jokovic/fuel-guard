@@ -99,6 +99,18 @@ export function toEmployerPayload(e: DraftEmployer): Record<string, unknown> {
   };
 }
 
+/**
+ * One address, as the contract wants it — lifted out of `toApplication` for `toEmployerPayload`'s reason
+ * (C3c2c1): the address panel checks one row on Save, and a second mapper would be a second opinion.
+ */
+export function toAddressPayload(a: DraftAddress): Record<string, unknown> {
+  return {
+    line1: a.line1.trim(), line2: text(a.line2), city: a.city.trim(),
+    state: a.state.trim(), postal_code: a.postal_code.trim(),
+    from: a.from, to: text(a.to),
+  };
+}
+
 export function toApplication(draft: ApplicationDraft): unknown {
   return {
     first_name: draft.first_name.trim(),
@@ -109,13 +121,7 @@ export function toApplication(draft: ApplicationDraft): unknown {
     date_of_birth: draft.date_of_birth,
     email: draft.email.trim(),
     phone: draft.phone.trim(),
-    addresses: draft.addresses
-      .filter((a) => a.line1.trim() || a.city.trim())
-      .map((a) => ({
-        line1: a.line1.trim(), line2: text(a.line2), city: a.city.trim(),
-        state: a.state.trim(), postal_code: a.postal_code.trim(),
-        from: a.from, to: text(a.to),
-      })),
+    addresses: draft.addresses.filter((a) => a.line1.trim() || a.city.trim()).map(toAddressPayload),
     cdl_number: draft.cdl_number.trim(),
     cdl_state: draft.cdl_state.trim().toUpperCase(),
     cdl_class: text(draft.cdl_class),
@@ -227,7 +233,10 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     declares_no_accidents: draft.declares_no_accidents,
     violations: draft.violations,
     declares_no_violations: draft.declares_no_violations,
-    licence_ever_denied: draft.licence_ever_denied,
+    // ⚠ Left OUT while unanswered, never saved as null (C3c2c1): the office's correction path parses the
+    // saved draft with `applicationDraftPayloadSchema`, which is `.partial()` — absent is allowed, null
+    // is not — so one saved null would refuse every correction, `employment_gaps`' lesson (C3c1).
+    ...(draft.licence_ever_denied === null ? {} : { licence_ever_denied: draft.licence_ever_denied }),
     licence_denial_detail: draft.licence_denial_detail,
     // ⚠ Absent from this list until 2026-09-11, and it is §40.25(j)'s two-year question — by this
     // file's own reckoning "the single most consequential answer on the form for what the carrier has
@@ -313,7 +322,8 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     declares_no_accidents: bool("declares_no_accidents"),
     violations: rows<DraftViolation>("violations", base.violations),
     declares_no_violations: bool("declares_no_violations"),
-    licence_ever_denied: bool("licence_ever_denied"),
+    // A saved answer, or unanswered (C3c2c1) — never floored at a "No" the applicant did not give.
+    licence_ever_denied: typeof payload.licence_ever_denied === "boolean" ? payload.licence_ever_denied : null,
     licence_denial_detail: str("licence_denial_detail"),
     prior_failed_pre_employment_test: bool("prior_failed_pre_employment_test"),
     // AW1: an entry saved before keys existed gets one now, and keeps it from the next save on.

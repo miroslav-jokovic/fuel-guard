@@ -30,6 +30,8 @@ const complete = (): ApplicationDraft => ({
     subject_to_fmcsr: true, safety_sensitive: true,
   }],
   declares_no_accidents: true, declares_no_violations: true,
+  // (b)(9) answered — `emptyDraft` leaves it unanswered since C3c2c1, so a complete draft says No itself.
+  licence_ever_denied: false,
   certified: true, signed_name: "Susan Godfrey",
 });
 
@@ -292,6 +294,32 @@ describe("what autosave sends", () => {
     expect([legacy!.subject_to_fmcsr, legacy!.safety_sensitive]).toEqual([false, false]);
     expect([junk!.subject_to_fmcsr, junk!.safety_sensitive]).toEqual([null, null]);
     expect([absent!.subject_to_fmcsr, absent!.safety_sensitive]).toEqual([null, null]);
+  });
+
+  /**
+   * C3c2c1: §391.21(b)(9)'s statement is unanswered until given. It started `false`, which made the
+   * "no such denial has occurred" statement for the driver. Null never reaches autosave — the office's
+   * correction path parses the saved draft with a `.partial()` schema, where absent is allowed and null
+   * is not — and it reaches the contract as null, which refuses it.
+   */
+  it("leaves (b)(9) unanswered, saves nothing for it until answered, and files a blank the contract refuses", () => {
+    expect(emptyDraft().licence_ever_denied).toBeNull();
+    const draft = everything();
+    draft.licence_ever_denied = null;
+    const payload = toDraftPayload(draft);
+    expect("licence_ever_denied" in payload).toBe(false);
+    expect(applicationDraftPayloadSchema.safeParse(payload).success).toBe(true);
+    expect(fromDraftPayload(payload).licence_ever_denied).toBeNull();
+    const parsed = driverApplicationSchema.safeParse(toApplication(draft));
+    expect(parsed.success).toBe(false);
+    expect(parsed.error!.issues.some((i) => i.path[0] === "licence_ever_denied")).toBe(true);
+  });
+
+  it("keeps a saved (b)(9) yes or no, and reads anything else as unanswered", () => {
+    expect(fromDraftPayload({ licence_ever_denied: true }).licence_ever_denied).toBe(true);
+    expect(fromDraftPayload({ licence_ever_denied: false }).licence_ever_denied).toBe(false);
+    expect(fromDraftPayload({ licence_ever_denied: "no" }).licence_ever_denied).toBeNull();
+    expect(toDraftPayload({ ...everything(), licence_ever_denied: false }).licence_ever_denied).toBe(false);
   });
 
   it("drops a saved gap row it cannot read rather than rendering it", () => {
